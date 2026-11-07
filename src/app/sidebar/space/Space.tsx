@@ -332,7 +332,8 @@ export function Space() {
   const title = revealDirectionControls(useRoomName(space));
   // On a phone, opening the list keeps the remembered room for the next visit.
   useNavToActivePathMapper(space.roomId, true);
-  // Mark as Read covers the rooms of the sub-spaces too; the list shows only the space's own.
+  // Mark as Read covers the rooms of the sub-spaces too; the list shows the space's own rooms,
+  // with their sub-rooms.
   const spaceRooms = useVisibleRooms(useSpaceNavigationRooms(space.roomId));
   const ownRooms = useVisibleRooms(useSpaceOwnRooms(space.roomId));
   const joinedSubspaces = useJoinedSubspaces(space.roomId);
@@ -372,19 +373,16 @@ export function Space() {
   const spaceRoomPath = (roomId: string) =>
     getSpaceRoomPath(spaceIdOrAlias, getCanonicalAliasOrRoomId(client, roomId));
   useRoomListShortcuts(roomsClosed ? sortedRooms : shownRoomIds, selectedRoomId, spaceRoomPath);
-  const renderSubRoom = (room: Room) => (
-    <RoomNavItem
-      room={room}
-      selected={room.roomId === selectedRoomId}
-      linkPath={spaceRoomPath(room.roomId)}
-      notificationMode={getRoomNotificationMode(notificationPreferences, room.roomId)}
-      spaceId={space.roomId}
-    />
-  );
-  const previewPath = (roomId: string, viaServers: string[]) =>
-    withSearchParam(getSpaceRoomPath(spaceIdOrAlias, roomId), {
-      viaServers: viaServers.join(','),
-    });
+  // A room's row, the same at top level and under the room it sits under.
+  const rowProps = (room: Room) => ({
+    room,
+    selected: room.roomId === selectedRoomId,
+    linkPath: spaceRoomPath(room.roomId),
+    notificationMode: getRoomNotificationMode(notificationPreferences, room.roomId),
+    spaceId: space.roomId,
+  });
+  const renderSubRoom = (room: Room) => <RoomNavItem {...rowProps(room)} />;
+  const previewPath = (roomId: string) => getSpaceRoomPath(spaceIdOrAlias, roomId);
 
   return (
     <PageNav label={title}>
@@ -427,13 +425,7 @@ export function Space() {
                 const room = client.getRoom(roomId);
                 return room ? (
                   <Fragment key={roomId}>
-                    <SortableRoomRow
-                      room={room}
-                      selected={roomId === selectedRoomId}
-                      linkPath={spaceRoomPath(roomId)}
-                      notificationMode={getRoomNotificationMode(notificationPreferences, roomId)}
-                      spaceId={space.roomId}
-                    />
+                    <SortableRoomRow {...rowProps(room)} />
                     {!roomsClosed && (
                       <SubRoomRows
                         parent={room}

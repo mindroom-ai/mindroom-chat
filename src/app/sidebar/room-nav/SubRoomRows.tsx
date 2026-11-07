@@ -11,6 +11,7 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useStateEvents } from '../../matrix/hooks/useStateEvents';
 import { isRoomId } from '../../matrix/matrix';
 import { StateEvent, type RoomToParents } from '../../matrix/types/room';
+import { withSearchParam } from '../../routes/pathUtils';
 
 /** A section's rooms: the ones it shows on their own, and the sub-rooms under each room. */
 export type SubRoomTree = { top: string[]; children: ReadonlyMap<string, string[]> };
@@ -29,7 +30,7 @@ export const nestSubRooms = (
   roomToParents: RoomToParents,
   chatRooms: ReadonlySet<string>
 ): SubRoomTree => {
-  const inSection = new Set([...topRoomIds, ...roomIds]);
+  const inSection = new Set(roomIds);
   const parentsInSection = (roomId: string) =>
     [...(roomToParents.get(roomId) ?? [])].filter((id) => id !== roomId && inSection.has(id));
   const ownTop = new Set(topRoomIds);
@@ -54,14 +55,14 @@ export const nestSubRooms = (
     if (under.length > 0) children.set(roomId, under);
     under.forEach(place);
   };
-  const top = candidates.filter((roomId) => parentsInSection(roomId).length === 0);
+  const top = new Set(candidates.filter((roomId) => parentsInSection(roomId).length === 0));
   top.forEach(place);
   candidates.forEach((roomId) => {
     if (placed.has(roomId)) return;
-    top.push(roomId);
+    top.add(roomId);
     place(roomId);
   });
-  return { top, children };
+  return { top: candidates.filter((roomId) => top.has(roomId)), children };
 };
 
 /** `roomIds` with the sub-rooms of each after it, in the order the section shows them. */
@@ -123,8 +124,8 @@ type SubRoomRowsProps = {
   tree: SubRoomTree;
   /** Draws a joined sub-room's row, as the section draws its rooms. */
   renderRoom: (room: Room) => ReactNode;
-  /** Where a listed room the user has not joined opens: its preview, through these servers. */
-  previewPath: (roomId: string, viaServers: string[]) => string;
+  /** Where a listed room the user has not joined opens: its preview. */
+  previewPath: (roomId: string) => string;
 };
 
 /**
@@ -166,7 +167,7 @@ export function SubRoomRows({ parent, tree, renderRoom, previewPath }: SubRoomRo
           key={roomId}
           roomId={roomId}
           viaServers={viaServers}
-          to={previewPath(roomId, viaServers)}
+          to={withSearchParam(previewPath(roomId), { viaServers: viaServers.join(',') })}
         />
       ))}
     </div>

@@ -184,16 +184,14 @@ export function Home() {
   const homeRoomPath = (roomId: string) =>
     getHomeRoomPath(getCanonicalAliasOrRoomId(client, roomId));
   useRoomListShortcuts(roomsClosed ? listedRoomIds : shownRoomIds, selectedRoomId, homeRoomPath);
-  const renderSubRoom = (room: Room) => (
-    <RoomNavItem
-      room={room}
-      linkPath={homeRoomPath(room.roomId)}
-      selected={room.roomId === selectedRoomId}
-      notificationMode={getRoomNotificationMode(notificationPreferences, room.roomId)}
-    />
-  );
-  const previewPath = (roomId: string, viaServers: string[]) =>
-    withSearchParam(getHomeRoomPath(roomId), { viaServers: viaServers.join(',') });
+  // A room's row, the same at top level and under the room it sits under.
+  const rowProps = (room: Room) => ({
+    room,
+    linkPath: homeRoomPath(room.roomId),
+    selected: room.roomId === selectedRoomId,
+    notificationMode: getRoomNotificationMode(notificationPreferences, room.roomId),
+  });
+  const renderSubRoom = (room: Room) => <RoomNavItem {...rowProps(room)} />;
 
   // The list reopens where it was left: after a space, or a room or thread that took a phone's
   // whole screen.
@@ -298,21 +296,13 @@ export function Home() {
                         virtualItem={item}
                         ref={virtualizer.measureElement}
                       >
-                        <SortableRoomRow
-                          room={room}
-                          linkPath={homeRoomPath(room.roomId)}
-                          selected={roomId === selectedRoomId}
-                          notificationMode={getRoomNotificationMode(
-                            notificationPreferences,
-                            room.roomId
-                          )}
-                        />
+                        <SortableRoomRow {...rowProps(room)} />
                         {!roomsClosed && (
                           <SubRoomRows
                             parent={room}
                             tree={tree}
                             renderRoom={renderSubRoom}
-                            previewPath={previewPath}
+                            previewPath={getHomeRoomPath}
                           />
                         )}
                       </VirtualTile>

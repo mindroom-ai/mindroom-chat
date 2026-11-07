@@ -53,6 +53,8 @@ const setup = () => {
     }),
   ]);
   mx.store.storeRoom(parent);
+  // Sync already has the new room, so the dialog opens it at once.
+  mx.store.storeRoom(new Room(NEW_ROOM, mx, ME));
   const createRoom = vi.spyOn(mx, 'createRoom').mockResolvedValue({ room_id: NEW_ROOM });
   const sendStateEvent = vi.spyOn(mx, 'sendStateEvent').mockResolvedValue({ event_id: '$child' });
   return { mx, parent, createRoom, sendStateEvent };
@@ -115,5 +117,6 @@ describe('CreateSubRoomDialog', () => {
       NEW_ROOM
     );
     expect(requestClose).toHaveBeenCalled();
+    await vi.waitFor(() => expect(navigation.navigateRoom).toHaveBeenCalledWith(NEW_ROOM));
   });
 });

@@ -23,7 +23,7 @@ type RoomToParentsAction =
   /** `chatRooms`: the parents that are chat rooms, not Spaces. */
   | { type: 'INITIALIZE'; roomToParents: RoomToParents; chatRooms?: Iterable<string> }
   /** Sets the children of one Space or chat room. */
-  | { type: 'PUT'; parent: string; children: string[]; chatRoom?: boolean }
+  | { type: 'PUT'; parent: string; children: string[]; chatRoom: boolean }
   /** Forgets a Space or chat room, for example after leaving it. */
   | { type: 'DELETE'; parent: string };
 
@@ -33,7 +33,7 @@ const parentsAtom = atom<RoomToParents>(new Map());
 const chatRoomsAtom = atom<ReadonlySet<string>>(new Set<string>());
 
 /** `roomToParents` with `parent` listing exactly `children`; unchanged input is returned as is. */
-const setSpaceChildren = (
+const setChildren = (
   roomToParents: RoomToParents,
   parent: string,
   children: Set<string>
@@ -78,11 +78,11 @@ export const roomToParentsAtom: RoomToParentsAtom = atom<
     }
     const current = get(parentsAtom);
     const children = action.type === 'PUT' ? new Set(action.children) : new Set<string>();
-    const next = setSpaceChildren(current, action.parent, children);
+    const next = setChildren(current, action.parent, children);
     if (next !== current) set(parentsAtom, next);
 
     const chatRooms = get(chatRoomsAtom);
-    const listsSubRooms = action.type === 'PUT' && !!action.chatRoom && children.size > 0;
+    const listsSubRooms = action.type === 'PUT' && action.chatRoom && children.size > 0;
     if (listsSubRooms !== chatRooms.has(action.parent)) {
       const nextChatRooms = new Set(chatRooms);
       if (listsSubRooms) nextChatRooms.add(action.parent);
@@ -94,7 +94,8 @@ export const roomToParentsAtom: RoomToParentsAtom = atom<
 
 /**
  * The parents in `roomToParentsAtom` that are chat rooms listing sub-rooms, not Spaces: what tells
- * the rooms above a room apart from the Spaces above it, for counts that only Spaces sum up.
+ * the rooms above a room apart from the Spaces above it, for counts that only Spaces sum up and
+ * for the sidebar, which shows a sub-room on its own while these rooms are hidden.
  */
 export const chatRoomParentsAtom = atom((get) => get(chatRoomsAtom));
 
@@ -103,7 +104,7 @@ const hasVia = (content: Record<string, unknown>): boolean => {
   return Array.isArray(via) && via.length > 0 && via.every((server) => typeof server === 'string');
 };
 
-/** The rooms a Space lists as children. */
+/** The rooms a Space or chat room lists as children. */
 export const getSpaceChildIds = (space: Room): string[] =>
   space.currentState
     .getStateEvents(StateEvent.SpaceChild)
@@ -137,11 +138,15 @@ const isTrackedParent = (room: Room): boolean => {
   );
 };
 
-/** The rooms `room` names as parents (`m.space.parent`), whose sub-rooms it may be one of. */
-const getNamedParents = (mx: MatrixClient, room: Room): Room[] =>
+/**
+ * The chat rooms `room` names as parents (`m.space.parent`), whose sub-rooms it may be one of. A
+ * Space's children never depend on their own state.
+ */
+const getNamedChatRooms = (mx: MatrixClient, room: Room): Room[] =>
   room.currentState
     .getStateEvents(StateEvent.SpaceParent)
-    .flatMap((event) => mx.getRoom(event.getStateKey() ?? '') ?? []);
+    .flatMap((event) => mx.getRoom(event.getStateKey() ?? '') ?? [])
+    .filter((parent) => !parent.isSpaceRoom());
 
 /** Builds the parents of every room and follows their changes for the current account. */
 export const useBindRoomToParentsAtom = (
@@ -178,12 +183,12 @@ export const useBindRoomToParentsAtom = (
     // leave or come into the client's store as a sub-room of.
     const putRoom = (room: Room) => {
       putParent(room);
-      getNamedParents(mx, room).forEach(putParent);
+      getNamedChatRooms(mx, room).forEach(putParent);
     };
     const handleMembership = (room: Room, membership: string) => {
       if (matchesEnum(membership, KnownMembership.Join)) putParent(room);
       else setParents({ type: 'DELETE', parent: room.roomId });
-      getNamedParents(mx, room).forEach(putParent);
+      getNamedChatRooms(mx, room).forEach(putParent);
     };
     const handleStateEvent = (event: MatrixEvent) => {
       const room = mx.getRoom(event.getRoomId() ?? '');
@@ -191,7 +196,7 @@ export const useBindRoomToParentsAtom = (
       if (matchesEnum(event.getType(), StateEvent.SpaceChild)) putParent(room);
       if (matchesEnum(event.getType(), StateEvent.SpaceParent)) {
         const parent = mx.getRoom(event.getStateKey() ?? '');
-        if (parent) putParent(parent);
+        if (parent && !parent.isSpaceRoom()) putParent(parent);
       }
     };
     const handleDeleteRoom = (roomId: string) => setParents({ type: 'DELETE', parent: roomId });

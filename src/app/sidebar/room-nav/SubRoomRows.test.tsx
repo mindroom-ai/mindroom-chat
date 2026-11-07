@@ -61,7 +61,7 @@ describe('nestSubRooms', () => {
     ).toEqual({ top: ['!own'], children: { '!own': ['!own-sub'] } });
   });
 
-  it("shows a space's sub-room at top level while the room it sits under is hidden", () => {
+  it("shows a space's sub-room at top level while the room it sits under is hidden, also when another space lists it", () => {
     const own = ['!own'];
     const anyDepth = ['!archived-own-sub', '!own', '!subspace-room'];
 
@@ -71,7 +71,7 @@ describe('nestSubRooms', () => {
         anyDepth,
         {
           '!own': ['!space'],
-          '!archived-own-sub': ['!archived-own'],
+          '!archived-own-sub': ['!archived-own', '!other-space'],
           '!archived-own': ['!space'],
           '!subspace-room': ['!subspace'],
         },
@@ -80,22 +80,16 @@ describe('nestSubRooms', () => {
     ).toEqual({ top: ['!archived-own-sub', '!own'], children: {} });
   });
 
-  it('shows a sub-room of a hidden room of the space at top level, also when another space lists it', () => {
-    const own = ['!own'];
-    const anyDepth = ['!archived-own-sub', '!own'];
+  it('keeps a room of the space in its place when it is also a sub-room of a subspace room', () => {
+    const own = ['!a', '!b', '!c'];
+    const anyDepth = ['!a', '!b', '!c', '!subspace-room'];
 
     expect(
-      nest(
-        own,
-        anyDepth,
-        {
-          '!own': ['!space'],
-          '!archived-own-sub': ['!archived-own', '!other-space'],
-          '!archived-own': ['!space'],
-        },
-        ['!archived-own']
-      )
-    ).toEqual({ top: ['!archived-own-sub', '!own'], children: {} });
+      nest(own, anyDepth, {
+        '!b': ['!space', '!subspace-room'],
+        '!subspace-room': ['!subspace'],
+      })
+    ).toEqual({ top: ['!a', '!b', '!c'], children: {} });
   });
 
   it('shows a room listed by two rooms of the section once, under the first', () => {
@@ -193,7 +187,7 @@ describe('SubRoomRows', () => {
                 parent={parent}
                 tree={tree}
                 renderRoom={(shown) => <div data-room-row={shown.roomId} />}
-                previewPath={(roomId, via) => `/preview/${roomId}?via=${via.join(',')}`}
+                previewPath={(roomId) => `/preview/${roomId}`}
               />
             </MemoryRouter>
           </MatrixClientProvider>
@@ -209,8 +203,8 @@ describe('SubRoomRows', () => {
     expect(marked('data-room-row')).toEqual(['!joined:example.org']);
     expect(marked('data-sub-room-to-join')).toEqual(['!left:example.org', '!unknown:remote.org']);
     expect(root.findAll((node) => node.type === 'a').map((node) => node.props.href)).toEqual([
-      '/preview/!left:example.org?via=example.org',
-      '/preview/!unknown:remote.org?via=remote.org',
+      '/preview/!left:example.org?viaServers=example.org',
+      '/preview/!unknown:remote.org?viaServers=remote.org',
     ]);
     await vi.waitFor(() =>
       expect(JSON.stringify(renderer!.toJSON())).toContain('Name of !unknown:remote.org')

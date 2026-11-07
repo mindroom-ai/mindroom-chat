@@ -34,6 +34,19 @@ const spaceChildEvent = (spaceId: string, childId: string, linked: boolean) =>
     content: linked ? { via: ['example.org'] } : {},
   });
 
+/** Binds the parent map of `mx` into a store of its own, as the app does for an account. */
+const bindParents = (mx: MatrixClient) => {
+  const store = createStore();
+  const Binder = () => {
+    useBindRoomToParentsAtom(mx, roomToParentsAtom);
+    return null;
+  };
+  act(() => {
+    renderer = create(React.createElement(Provider, { store }, React.createElement(Binder)));
+  });
+  return store;
+};
+
 const setup = (spaces: Record<string, string[]>) => {
   const mx = new MatrixClient({
     baseUrl: 'https://example.org',
@@ -59,14 +72,7 @@ const setup = (spaces: Record<string, string[]>) => {
     mx.store.storeRoom(space);
     rooms.set(spaceId, space);
   });
-  const store = createStore();
-  const Binder = () => {
-    useBindRoomToParentsAtom(mx, roomToParentsAtom);
-    return null;
-  };
-  act(() => {
-    renderer = create(React.createElement(Provider, { store }, React.createElement(Binder)));
-  });
+  const store = bindParents(mx);
   const unlinkChild = (spaceId: string, childId: string) =>
     act(() => {
       rooms.get(spaceId)!.currentState.setStateEvents([spaceChildEvent(spaceId, childId, false)]);
@@ -140,6 +146,7 @@ type ChatRoomsOptions = {
   parentMembership?: string;
   childMembership?: string;
   childIsSpace?: boolean;
+  parentIsSpace?: boolean;
   listed?: boolean;
   backLink?: object;
 };
@@ -149,6 +156,7 @@ const setupChatRooms = ({
   parentMembership = KnownMembership.Join,
   childMembership = KnownMembership.Join,
   childIsSpace = false,
+  parentIsSpace = false,
   listed = true,
   backLink = canonicalBackLink,
 }: ChatRoomsOptions = {}) => {
@@ -165,25 +173,17 @@ const setupChatRooms = ({
     mx.store.storeRoom(room);
     return room;
   };
-  const parent = makeRoom(
-    PARENT,
-    parentMembership,
-    listed ? [stateEvent(PARENT, 'm.space.child', CHILD, { via: ['example.org'] })] : []
-  );
+  const parent = makeRoom(PARENT, parentMembership, [
+    ...(parentIsSpace ? [stateEvent(PARENT, 'm.room.create', '', { type: 'm.space' })] : []),
+    ...(listed ? [stateEvent(PARENT, 'm.space.child', CHILD, { via: ['example.org'] })] : []),
+  ]);
   const child = makeRoom(CHILD, childMembership, [
     ...(childIsSpace ? [stateEvent(CHILD, 'm.room.create', '', { type: 'm.space' })] : []),
     ...(Object.keys(backLink).length > 0
       ? [stateEvent(CHILD, 'm.space.parent', PARENT, backLink)]
       : []),
   ]);
-  const store = createStore();
-  const Binder = () => {
-    useBindRoomToParentsAtom(mx, roomToParentsAtom);
-    return null;
-  };
-  act(() => {
-    renderer = create(React.createElement(Provider, { store }, React.createElement(Binder)));
-  });
+  const store = bindParents(mx);
   const setState = (room: Room, type: string, stateKey: string, content: object) =>
     act(() => {
       room.currentState.setStateEvents([stateEvent(room.roomId, type, stateKey, content)]);
@@ -251,5 +251,16 @@ describe('useBindRoomToParentsAtom with a chat room as parent', () => {
 
     expect(childParents()).toBeUndefined();
     expect(chatRoomParents()).toEqual(new Set());
+  });
+
+  it('keeps a Space the account left out of the parents when a room in it changes', () => {
+    const { parent, child, setState, childParents } = setupChatRooms({ parentIsSpace: true });
+    act(() => parent.updateMyMembership(KnownMembership.Leave));
+    expect(childParents()).toBeUndefined();
+
+    setState(child, 'm.space.parent', PARENT, { via: ['example.org'] });
+    act(() => child.updateMyMembership(KnownMembership.Leave));
+
+    expect(childParents()).toBeUndefined();
   });
 });

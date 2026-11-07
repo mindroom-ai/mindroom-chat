@@ -16,11 +16,11 @@ export const getAncestorSpaceIds = (parentsByRoom: ParentsByRoom, roomId: string
       ancestors.push(parent);
     });
   visit(roomId);
-  // The list grows while it is read: each Space's parents go to its end, and get visited too.
+  // The list grows while it is read: each parent's parents go to its end, and get visited too.
   for (const id of ancestors) visit(id);
   return ancestors;
 };
 
-/** Whether `roomId` sits in `spaceId`, directly or through nested Spaces. */
+/** Whether `roomId` sits in `spaceId`, directly or through nested Spaces and chat rooms. */
 export const isInSpace = (parentsByRoom: ParentsByRoom, roomId: string, spaceId: string): boolean =>
   getAncestorSpaceIds(parentsByRoom, roomId).includes(spaceId);
