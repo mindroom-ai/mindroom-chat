@@ -152,7 +152,7 @@ const check = async (
       await page.evaluate(() => matchMedia('(hover: hover)').matches),
       `${engine} ${device}: the pointer can hover`
     ).toBe(!touch);
-    const row = (name: string) => page.locator('div[aria-selected]').filter({ hasText: name });
+    const row = (name: string) => page.locator('div[data-highlight]').filter({ hasText: name });
     await expect(row('Project room 03')).toBeVisible({ timeout: 60_000 });
     const rows = await fillsUnderPointer(page, row('Project room 03'), row('Project room 04'));
     console.log(`${engine} ${device} row: ${JSON.stringify(rows)}`);
