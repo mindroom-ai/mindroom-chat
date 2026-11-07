@@ -404,6 +404,7 @@
         "title": "음성 통화",
         "transcript": "대화 기록",
         "turns_other": "발언 {{count}}개",
+        "moreTurns_other": "표시되지 않은 발언 {{count}}개 더 있음",
         "callTitle": "통화"
       },
       "transcription": {

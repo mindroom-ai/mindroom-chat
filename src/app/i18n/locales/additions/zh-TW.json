@@ -404,6 +404,7 @@
         "title": "語音通話",
         "transcript": "逐字稿",
         "turns_other": "{{count}} 則發言",
+        "moreTurns_other": "另有 {{count}} 則發言未顯示",
         "callTitle": "通話"
       },
       "transcription": {

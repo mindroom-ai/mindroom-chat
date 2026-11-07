@@ -404,6 +404,7 @@
         "title": "语音通话",
         "transcript": "文字记录",
         "turns_other": "{{count}} 条发言",
+        "moreTurns_other": "另有 {{count}} 条发言未显示",
         "callTitle": "通话"
       },
       "transcription": {

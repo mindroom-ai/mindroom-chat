@@ -170,6 +170,32 @@ describe('readCallTranscript', () => {
     ).toBeUndefined();
   });
 
+  it("shows a call between people's first turns up to the limits, and how many more there are", () => {
+    const notes = { 'io.mindroom.call_notes': { call_id: 'call-1' } };
+    const colleague = '@kai:example.org';
+    const many = Array.from({ length: CALL_TRANSCRIPT_MAX_TURNS + 5 }, (_, index) =>
+      turn(index % 2 ? colleague : PERSON, `Line ${index}`)
+    );
+    const long = readCallTranscript({
+      ...withTranscript({ duration_seconds: 7200, turns: many }),
+      ...notes,
+    });
+    expect(long?.turns).toHaveLength(CALL_TRANSCRIPT_MAX_TURNS);
+    expect(long?.turns.at(-1)?.text).toBe(`Line ${CALL_TRANSCRIPT_MAX_TURNS - 1}`);
+    expect(long?.moreTurns).toBe(5);
+
+    const half = 'a'.repeat(CALL_TRANSCRIPT_MAX_TOTAL_LENGTH / 2);
+    const large = readCallTranscript({
+      ...withTranscript({
+        duration_seconds: 7200,
+        turns: [turn(PERSON, half), turn(colleague, half), turn(PERSON, 'One more.')],
+      }),
+      ...notes,
+    });
+    expect(large?.turns.map((each) => each.sender)).toEqual([PERSON, colleague]);
+    expect(large?.moreTurns).toBe(1);
+  });
+
   it('keeps a long turn whole: one speaker can talk for many minutes', () => {
     const dictation = 'word '.repeat(4000).trim();
     expect(

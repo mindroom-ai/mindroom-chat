@@ -420,6 +420,9 @@
         "turns_one": "{{count}} intervención",
         "turns_many": "{{count}} de intervenciones",
         "turns_other": "{{count}} intervenciones",
+        "moreTurns_one": "{{count}} intervención más sin mostrar",
+        "moreTurns_many": "{{count}} de intervenciones más sin mostrar",
+        "moreTurns_other": "{{count}} intervenciones más sin mostrar",
         "callTitle": "Llamada"
       },
       "transcription": {

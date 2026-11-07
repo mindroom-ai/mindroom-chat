@@ -412,6 +412,8 @@
         "transcript": "Transcript",
         "turns_one": "{{count}} turn",
         "turns_other": "{{count}} turns",
+        "moreTurns_one": "{{count}} more turn not shown",
+        "moreTurns_other": "{{count}} more turns not shown",
         "callTitle": "Call"
       },
       "transcription": {

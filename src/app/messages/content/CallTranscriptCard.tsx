@@ -228,7 +228,8 @@ function TranscriptGroup({ group, room, highlightRegex, linkifyOpts }: GroupProp
  * and how long it lasted, then at the row's end the transcript's button, which says how many
  * turns it holds. Open, the transcript reads like a chat below the row: each run of turns by one
  * speaker under their avatar and name. A call between people says "Call", with its notes (the
- * message's body) between the row and the transcript.
+ * message's body) between the row and the transcript, and past the card's limits a line under its
+ * first turns says how many more there are.
  */
 export function CallTranscriptCard({
   transcript,
@@ -245,7 +246,7 @@ export function CallTranscriptCard({
   const turnsId = useId();
   const toggleLabelId = useId();
   const toggleCountId = useId();
-  const { durationSeconds, turns, callId, summaryOnly } = transcript;
+  const { durationSeconds, turns, callId, summaryOnly, moreTurns } = transcript;
   // A call between people: the message's body is its notes, not the transcript again; without a
   // notes model it is only the summary the row already gives.
   const peopleCall = callId !== undefined;
@@ -316,7 +317,7 @@ export function CallTranscriptCard({
             {t('featureUi.calls.transcript.transcript')}
           </span>
           <Text as="span" size="T300" id={toggleCountId} className={css.Label}>
-            {t('featureUi.calls.transcript.turns', { count: turns.length })}
+            {t('featureUi.calls.transcript.turns', { count: turns.length + (moreTurns ?? 0) })}
           </Text>
           <span className={css.IconSlot}>
             <Icon size="50" src={open ? Icons.ChevronTop : Icons.ChevronBottom} aria-hidden />
@@ -340,6 +341,11 @@ export function CallTranscriptCard({
             />
           ))}
         </ol>
+      )}
+      {open && moreTurns !== undefined && (
+        <Text as="p" size="T200" priority="300" data-call-transcript-more-turns="">
+          {t('featureUi.calls.transcript.moreTurns', { count: moreTurns })}
+        </Text>
       )}
     </div>
   );

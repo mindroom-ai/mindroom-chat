@@ -425,6 +425,27 @@ describe('a voice call transcript message', () => {
       expect(groups()).toHaveLength(2);
     });
 
+    it('shows the first turns of a transcript past the limits, then how many more there are', () => {
+      const half = 'word '.repeat(50_000);
+      render(
+        notesContent({
+          duration_seconds: 7200,
+          turns: [
+            { sender: CALLER, text: half },
+            { sender: COLLEAGUE, text: half },
+            { sender: CALLER, text: 'One more thing.' },
+          ],
+        }),
+        ROUTER
+      );
+
+      expect(toggle()?.textContent).toContain('3 turns');
+      act(() => toggle()?.click());
+      expect(groups()).toHaveLength(2);
+      expect(card()?.textContent).not.toContain('One more thing.');
+      expect(card()?.textContent).toContain('1 more turn not shown');
+    });
+
     it('keeps the transcript of speakers who were in the room and have left since', () => {
       render(
         notesContent({

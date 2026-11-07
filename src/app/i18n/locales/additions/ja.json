@@ -404,6 +404,7 @@
         "title": "音声通話",
         "transcript": "文字起こし",
         "turns_other": "{{count}} 件の発言",
+        "moreTurns_other": "ほかに {{count}} 件の発言は表示されていません",
         "callTitle": "通話"
       },
       "transcription": {

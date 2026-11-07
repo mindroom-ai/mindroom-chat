@@ -412,6 +412,8 @@
         "transcript": "Transcript",
         "turns_one": "{{count}} beurt",
         "turns_other": "{{count}} beurten",
+        "moreTurns_one": "Nog {{count}} beurt niet getoond",
+        "moreTurns_other": "Nog {{count}} beurten niet getoond",
         "callTitle": "Oproep"
       },
       "transcription": {

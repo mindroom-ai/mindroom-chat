@@ -420,6 +420,9 @@
         "turns_one": "{{count}} intervento",
         "turns_many": "{{count}} di interventi",
         "turns_other": "{{count}} interventi",
+        "moreTurns_one": "{{count}} altro intervento non mostrato",
+        "moreTurns_many": "{{count}} di altri interventi non mostrati",
+        "moreTurns_other": "{{count}} altri interventi non mostrati",
         "callTitle": "Chiamata"
       },
       "transcription": {

@@ -13,11 +13,14 @@ import { MAX_CALL_SECONDS, readCallNotes } from './callRow';
  */
 export const CALL_TRANSCRIPT_KEY = 'io.mindroom.call_transcript';
 
-/** Most turns the card shows; a longer transcript renders as the message's HTML. */
+/**
+ * Most turns the card shows; a longer transcript renders as the message's HTML, or for a call
+ * between people as its first turns.
+ */
 export const CALL_TRANSCRIPT_MAX_TURNS = 2000;
 /**
- * Most text the card shows, all turns together, in UTF-16 code units; a longer transcript renders
- * as the message's HTML. One turn may be long: a speaker's words merge into one turn.
+ * Most text the card shows, all turns together, in UTF-16 code units; past it as past the most
+ * turns. One turn may be long: a speaker's words merge into one turn.
  */
 export const CALL_TRANSCRIPT_MAX_TOTAL_LENGTH = 500_000;
 /** How much of a long turn shows until the reader asks for the rest. */
@@ -41,6 +44,8 @@ export type CallTranscript = {
   callId?: string;
   /** A call between people whose body is only the one-line summary ("Call · 12 min"): no notes. */
   summaryOnly?: boolean;
+  /** The turns of a call between people past the card's limits, which it leaves out. */
+  moreTurns?: number;
 };
 
 /** The body the router writes for a call between people when no model writes notes. */
@@ -85,9 +90,10 @@ const readOffset = (value: unknown, duration: number): number | undefined =>
 /**
  * The transcript in `content`, or undefined when it is missing or malformed in any part (then the
  * message renders as its HTML, which carries the same turns): a duration that is not a number of
- * seconds up to a week, no turns or more than the card shows, a turn without a user ID and text
- * of its own, or more text than the card shows. A turn's time is optional: one that is missing or
- * outside the call is left out, and the turn still shows.
+ * seconds up to a week, no turns, or a turn without a user ID and text of its own. Past the turns
+ * or the text the card shows, a call between people (whose body holds only its notes) keeps its
+ * first turns within them and counts the rest; any other message renders as its HTML. A turn's
+ * time is optional: one that is missing or outside the call is left out, and the turn still shows.
  */
 export const readCallTranscript = (
   content: Record<string, unknown>
@@ -103,17 +109,19 @@ export const readCallTranscript = (
   ) {
     return undefined;
   }
-  if (!Array.isArray(turns) || turns.length === 0 || turns.length > CALL_TRANSCRIPT_MAX_TURNS) {
-    return undefined;
-  }
-  if (!turns.every(isTurn)) return undefined;
-  const length = turns.reduce((sum, { text }) => sum + text.length, 0);
-  if (length > CALL_TRANSCRIPT_MAX_TOTAL_LENGTH) return undefined;
+  if (!Array.isArray(turns) || turns.length === 0 || !turns.every(isTurn)) return undefined;
+  let length = 0;
+  const past = turns.findIndex(({ text }, index) => {
+    length += text.length;
+    return index === CALL_TRANSCRIPT_MAX_TURNS || length > CALL_TRANSCRIPT_MAX_TOTAL_LENGTH;
+  });
+  const shown = past === -1 ? turns : turns.slice(0, past);
   const callId = readCallNotes(content);
+  if (shown.length === 0 || (shown.length < turns.length && callId === undefined)) return undefined;
   const { body } = content;
   return {
     durationSeconds: Math.round(duration),
-    turns: turns.map(({ sender, text, offset_seconds: offset }) => ({
+    turns: shown.map(({ sender, text, offset_seconds: offset }) => ({
       sender,
       text,
       offsetSeconds: readOffset(offset, duration),
@@ -123,6 +131,7 @@ export const readCallTranscript = (
       : {
           callId,
           summaryOnly: typeof body === 'string' && SUMMARY_ONLY_BODY.test(body.trim()),
+          ...(shown.length < turns.length ? { moreTurns: turns.length - shown.length } : {}),
         }),
   };
 };

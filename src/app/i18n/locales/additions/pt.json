@@ -420,6 +420,9 @@
         "turns_one": "{{count}} fala",
         "turns_many": "{{count}} de falas",
         "turns_other": "{{count}} falas",
+        "moreTurns_one": "Mais {{count}} fala não mostrada",
+        "moreTurns_many": "Mais {{count}} de falas não mostradas",
+        "moreTurns_other": "Mais {{count}} falas não mostradas",
         "callTitle": "Chamada"
       },
       "transcription": {

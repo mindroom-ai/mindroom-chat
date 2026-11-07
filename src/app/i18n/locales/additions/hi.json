@@ -412,6 +412,8 @@
         "transcript": "ट्रांसक्रिप्ट",
         "turns_one": "{{count}} कथन",
         "turns_other": "{{count}} कथन",
+        "moreTurns_one": "{{count}} और कथन नहीं दिखाया गया",
+        "moreTurns_other": "{{count}} और कथन नहीं दिखाए गए",
         "callTitle": "कॉल"
       },
       "transcription": {

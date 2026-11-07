@@ -412,6 +412,8 @@
         "transcript": "Konuşma metni",
         "turns_one": "{{count}} konuşma",
         "turns_other": "{{count}} konuşma",
+        "moreTurns_one": "{{count}} konuşma daha gösterilmiyor",
+        "moreTurns_other": "{{count}} konuşma daha gösterilmiyor",
         "callTitle": "Arama"
       },
       "transcription": {

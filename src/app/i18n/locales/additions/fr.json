@@ -420,6 +420,9 @@
         "turns_one": "{{count}} prise de parole",
         "turns_many": "{{count}} de prises de parole",
         "turns_other": "{{count}} prises de parole",
+        "moreTurns_one": "{{count}} autre prise de parole non affichée",
+        "moreTurns_many": "{{count}} de prises de parole supplémentaires non affichées",
+        "moreTurns_other": "{{count}} autres prises de parole non affichées",
         "callTitle": "Appel"
       },
       "transcription": {

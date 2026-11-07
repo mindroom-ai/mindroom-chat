@@ -404,6 +404,7 @@
         "title": "Panggilan suara",
         "transcript": "Transkrip",
         "turns_other": "{{count}} giliran bicara",
+        "moreTurns_other": "{{count}} giliran bicara lagi tidak ditampilkan",
         "callTitle": "Panggilan"
       },
       "transcription": {

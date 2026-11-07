@@ -412,6 +412,8 @@
         "transcript": "Transkript",
         "turns_one": "{{count}} Beitrag",
         "turns_other": "{{count}} Beiträge",
+        "moreTurns_one": "{{count}} weiterer Beitrag nicht angezeigt",
+        "moreTurns_other": "{{count}} weitere Beiträge nicht angezeigt",
         "callTitle": "Anruf"
       },
       "transcription": {

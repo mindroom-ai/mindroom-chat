@@ -444,6 +444,12 @@
         "turns_few": "⁨{{count}}⁩ مداخلات",
         "turns_many": "⁨{{count}}⁩ مداخلةً",
         "turns_other": "⁨{{count}}⁩ مداخلة",
+        "moreTurns_zero": "⁨{{count}}⁩ مداخلة أخرى غير معروضة",
+        "moreTurns_one": "⁨{{count}}⁩ مداخلة أخرى غير معروضة",
+        "moreTurns_two": "مداخلتان أخريان غير معروضتين (⁨{{count}}⁩)",
+        "moreTurns_few": "⁨{{count}}⁩ مداخلات أخرى غير معروضة",
+        "moreTurns_many": "⁨{{count}}⁩ مداخلةً أخرى غير معروضة",
+        "moreTurns_other": "⁨{{count}}⁩ مداخلة أخرى غير معروضة",
         "callTitle": "مكالمة"
       },
       "transcription": {
