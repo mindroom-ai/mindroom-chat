@@ -14,7 +14,7 @@ import {
   serializeThreadCacheEvents,
 } from '../../event-store/cache/eventRepository';
 import { restoreCachedRoomThreads } from '../../event-store/sdk/roomTimelineSdk';
-import { readOnlyEventMapper } from '../../event-store/sdk/readOnlyEventMapper';
+import { keepHeldThreadSummaries, readOnlyEventMapper } from '../../event-store/sdk/readOnlyEventMapper';
 import { getSummaryLatestEvent } from '../../event-store/cache/cachedThreadSummary';
 import { isVisibleThreadReplyEvent } from '../../event-store/threads/threadUtils';
 
@@ -84,7 +84,10 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
       .then((roots) => {
         if (cancelled) return;
         restoredRooms.add(room);
-        const mapper = createPreferLiveEventMapper(room, mx.getEventMapper());
+        const mapper = keepHeldThreadSummaries(
+          room,
+          createPreferLiveEventMapper(room, mx.getEventMapper())
+        );
         restoreCachedRoomThreads(
           room,
           roots.map(({ rootEvent, latestReply }) => ({
