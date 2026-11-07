@@ -14,6 +14,20 @@ export type RoomLedgerAnchor = {
 /** How many rows after a moved anchor are tried before the rows count as replaced. */
 const ANCHOR_CANDIDATES = 8;
 
+/** What a render's room rows do to the offset ledger. */
+export type RoomLedgerFold = {
+  /** How far the rows push the reader's rows down: the height the ledger folds. */
+  foldPx: number;
+  /**
+   * The part of `foldPx` that rows new to the list, less rows gone from it, bring with their own
+   * height: the list grows by as much as it folds, so it is no room the list will give up
+   * (`listShrinkNotRendered`). A thread that moves above the reader from below brings none.
+   */
+  addedPx: number;
+};
+
+const NO_FOLD: RoomLedgerFold = { foldPx: 0, addedPx: 0 };
+
 /**
  * How far a render's room rows push the reader's rows down: rows that land above the reader's
  * first visible row, less the rows that left the space above it, so the offset ledger can fold
@@ -29,13 +43,13 @@ export const planRoomLedgerRender = (
   anchor: RoomLedgerAnchor | undefined,
   keys: readonly RoomLedgerKey[],
   priceRow: (key: RoomLedgerKey, index: number) => number
-): number => {
-  if (!anchor) return 0;
+): RoomLedgerFold => {
+  if (!anchor) return NO_FOLD;
   if (
     anchor.keys.length === keys.length &&
     anchor.keys.every((key, index) => key === keys[index])
   ) {
-    return 0;
+    return NO_FOLD;
   }
   const newIndex = new Map<RoomLedgerKey, number>();
   keys.forEach((key, index) => newIndex.set(key, index));
@@ -58,18 +72,25 @@ export const planRoomLedgerRender = (
         if (now !== undefined && now > boundary) kept = false;
       }
       if (kept) {
+        const listed = new Set(anchor.keys);
         let foldPx = 0;
+        let addedPx = 0;
         for (let index = 0; index < boundary; index += 1) {
           const rowKey = keys[index];
-          if (rowKey !== undefined && !above.delete(rowKey)) foldPx += priceRow(rowKey, index);
+          if (rowKey === undefined || above.delete(rowKey)) continue;
+          const px = priceRow(rowKey, index);
+          foldPx += px;
+          if (!listed.has(rowKey)) addedPx += px;
         }
         // Rows that left the space above the reader take their committed height with them.
         above.forEach((rowKey) => {
-          foldPx -= anchor.priceRow(rowKey, anchor.keys.indexOf(rowKey));
+          const px = anchor.priceRow(rowKey, anchor.keys.indexOf(rowKey));
+          foldPx -= px;
+          if (!newIndex.has(rowKey)) addedPx -= px;
         });
-        return foldPx;
+        return { foldPx, addedPx };
       }
     }
   }
-  return 0;
+  return NO_FOLD;
 };
