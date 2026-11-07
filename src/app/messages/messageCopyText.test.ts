@@ -288,6 +288,22 @@ const copy = (body: string, toolTraceEvents?: ToolTraceEvent[]) =>
   copyTexts({ body, toolTraceEvents });
 const copyText = (body: string) => copy(body).text;
 
+describe('getMessageCopyTexts direction controls', () => {
+  it('copies a tool call with its direction controls as code points', () => {
+    const copied = copy('A\n\n🔧 `run_shell_command` [1]\n\nB', [
+      {
+        type: 'tool_call_completed',
+        tool_name: 'run_shell_command',
+        args_preview: 'args=echo hi \u202e; echo pwned #\u202c done',
+        result_preview: 'hi \u202ex',
+      },
+    ]).textWithToolCalls;
+    expect(copied).toContain('run_shell_command(args=echo hi <U+202E>; echo pwned #<U+202C> done)');
+    expect(copied).toContain('hi <U+202E>x');
+    expect(copied).not.toMatch(/[\u202A-\u202E\u2066-\u2069]/);
+  });
+});
+
 describe('getMessageCopyTexts plain copy', () => {
   it('returns bodies without markers unchanged', () => {
     const body = 'Line one\r\n\r\n\r\nLine two  \n';

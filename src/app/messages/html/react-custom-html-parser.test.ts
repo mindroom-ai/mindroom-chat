@@ -256,6 +256,18 @@ describe('CodeBlock clipboard feedback', () => {
     renderer.unmount();
   });
 
+  it('copies code with its direction controls as code points, as it shows', async () => {
+    clipboardMocks.copyToClipboard.mockResolvedValue(true);
+    const renderer = renderCustomHtmlTree('<pre><code>echo hi \u202e; ls #\u202c</code></pre>');
+
+    await act(async () => {
+      await getCopyControl(renderer).props.onClick();
+    });
+
+    expect(clipboardMocks.copyToClipboard).toHaveBeenCalledWith('echo hi <U+202E>; ls #<U+202C>');
+    renderer.unmount();
+  });
+
   it('keeps Copy visible when every clipboard path fails', async () => {
     clipboardMocks.copyToClipboard.mockResolvedValue(false);
     const renderer = renderCodeBlock();
@@ -1382,5 +1394,43 @@ describe('copy stripping matches the app renderer', () => {
   ])('crafted formatted_body: %s', async (name, body, formattedBody) => {
     expect(scanToolMarkerLines(body, formattedBody, false)).toBeUndefined();
     await expectCopyMatchesRender(name, body, formattedBody, formattedBody);
+  });
+});
+
+describe('direction controls in tool calls and code', () => {
+  const CONTROL = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/;
+
+  it('lists a tool call with the controls of its arguments and output as code points', () => {
+    const renderer = renderTreeWithToolTrace('<p>🔧 <code>run_shell_command</code> [1]</p>', {
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [
+          {
+            type: 'tool_call_completed',
+            tool_name: 'run_shell_command',
+            args_preview: 'args=echo hi \u202e; echo pwned #\u202c done',
+            result_preview: 'hi \u202ex',
+          },
+        ],
+      },
+    });
+    act(() => {
+      renderer.root.findByType('button').props.onClick();
+    });
+
+    const text = collectTextContent(renderer.toJSON());
+    expect(text).toContain('echo hi <U+202E>; echo pwned #<U+202C> done');
+    expect(text).toContain('hi <U+202E>x');
+    expect(text).not.toMatch(CONTROL);
+    renderer.unmount();
+  });
+
+  it('shows inline code and code blocks with their controls as code points', () => {
+    const markup = renderCustomHtmlMarkup(
+      '<p><code>rm \u202ex</code></p><pre><code>echo \u202e; ls #\u202c</code></pre>'
+    );
+    expect(markup).toContain('rm &lt;U+202E&gt;x');
+    expect(markup).toContain('&lt;U+202C&gt;');
+    expect(markup).not.toMatch(CONTROL);
   });
 });
