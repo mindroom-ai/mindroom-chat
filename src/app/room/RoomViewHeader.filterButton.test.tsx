@@ -45,7 +45,7 @@ vi.mock('../ui/page/Page', () => ({
 }));
 vi.mock('../avatars/RoomAvatar', () => ({ RoomAvatar: () => null, RoomIcon: () => null }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org' }),
+  useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org', getRoom: () => null }),
 }));
 vi.mock('../matrix/hooks/useRoom', () => ({
   useRoom: () => ({ roomId: '!room:example.org', getJoinRule: () => undefined }),
