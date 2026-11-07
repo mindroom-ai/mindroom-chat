@@ -17,14 +17,14 @@ afterEach(cleanup);
 
 /** The account a plugin's components see signed in; `usePluginStorage` keeps values for it. */
 const USER_ID = '@plugin-tester:example.org';
-const client = { getSafeUserId: () => USER_ID } as unknown as MatrixClient;
+const client = { getSafeUserId: () => USER_ID } as MatrixClient;
 
 /**
  * Renders `ui`, made of the components of the plugin `id`, into the document with the setup the
  * SDK's hooks need: `config` is the plugin's section of config.json (`plugins.<id>`, what
  * `usePluginConfig` reads), `usePluginTranslation` translates into `language` (default English)
  * with the strings of `plugin`, its entry's default export, and `usePluginStorage` keeps values in
- * the document's localStorage for an account signed in there. A component that needs more of the
+ * the document's localStorage, for the rest of the test file, for an account signed in there. A component that needs more of the
  * app, such as its query client, gets it from `ui`. The test file needs
  * `// @vitest-environment jsdom`.
  */

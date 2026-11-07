@@ -18,7 +18,7 @@ import { normalizePath, searchForWorkspaceRoot } from 'vite';
  */
 const CLIENT_PLUGIN_API_VERSION = 5;
 
-/** The SDK's subpaths, which plugins import, and the modules they are. */
+/** The SDK's subpaths a build resolves, which plugins import, and the modules they are. */
 export const CLIENT_SDK_ALIAS = {
   '@mindroom/client-sdk/core': fileURLToPath(new URL('../src/client-sdk/core.ts', import.meta.url)),
 };

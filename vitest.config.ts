@@ -19,7 +19,7 @@ const SRC = realpathSync(fileURLToPath(new URL('src', import.meta.url)));
 const pluginDirs = readClientPlugins(process.env.MINDROOM_CLIENT_PLUGINS)
   .map(({ dir }) => normalizePath(realpathSync(dir)))
   .filter((dir) => path.relative(SRC, dir).startsWith('..'));
-// Without such plugins, the app's own tests resolve and compile as they always did.
+// The settings below that serve such plugins stay unset without them.
 const withPlugins = pluginDirs.length > 0;
 
 export default defineConfig({
