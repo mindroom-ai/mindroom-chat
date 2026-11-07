@@ -28,8 +28,6 @@ const { mx, room, state } = vi.hoisted(() => {
       view: undefined as RoomViewProps | undefined,
       computer: undefined as { expanded?: boolean; onToggleExpanded?: () => void } | undefined,
       canvas: undefined as { expanded?: boolean; onToggleExpanded?: () => void } | undefined,
-      /** Whether the room is too narrow for the members beside it (useMembersOverlay). */
-      membersOverlay: false,
       roomId: '!room:example.org',
     },
     mx: {
@@ -62,14 +60,6 @@ vi.mock('./RoomView', () => ({
   },
 }));
 vi.mock('../members/MembersDrawer', () => ({ MembersDrawer: () => <aside /> }));
-// jsdom lays nothing out, so a focus trap finds nothing to focus in the members over the room.
-vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
-}));
-vi.mock('../members/PanelRow', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../members/PanelRow')>()),
-  useMembersOverlay: () => state.membersOverlay,
-}));
 vi.mock('../members/useMembersDrawer', async () => {
   const { atom, useAtom } = await vi.importActual<typeof import('jotai')>('jotai');
   const membersOpenAtom = atom(false);
@@ -256,7 +246,6 @@ describe('the side panels of a room', () => {
     state.view = undefined;
     state.computer = undefined;
     state.canvas = undefined;
-    state.membersOverlay = false;
     state.roomId = room.roomId;
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -370,8 +359,15 @@ describe('the side panels of a room', () => {
   const conversation = () => screen.queryByTestId('room-view');
   const frameButton = (name: string) => screen.queryByRole('button', { name });
 
+  /** Opens or closes a panel with a frame as its users do: the call from the call store. */
+  const toggleFramed = (id: string) =>
+    act(async () => {
+      if (id !== 'call') state.view?.onPanelToggle?.(id);
+      else store.set(callPanelRoomAtom, isOpen('call') ? undefined : room.roomId);
+    });
+
   it.each([
-    ['members', 'members', 'Members'],
+    ['the call', 'call', 'Call'],
     ["a plugin's panel", 'notes/panel', 'Notes'],
   ])(
     '%s fills the room and folds to a tab, per room, and the conversation follows',
@@ -380,7 +376,7 @@ describe('the side panels of a room', () => {
       const fold = `Fold ${label} to the edge`;
       const unfold = `Unfold ${label}`;
       const showRoom = await renderRoom();
-      await act(async () => state.view?.onPanelToggle?.(id));
+      await toggleFramed(id);
       expect(frameButton(fill)?.getAttribute('aria-pressed')).toBe('false');
 
       // Filling the room, the panel takes the conversation's place until Fill is pressed again.
@@ -408,8 +404,8 @@ describe('the side panels of a room', () => {
 
       // Opened again, a panel shows beside the conversation.
       await act(async () => frameButton(fold)?.click());
-      await act(async () => state.view?.onPanelToggle?.(id));
-      await act(async () => state.view?.onPanelToggle?.(id));
+      await toggleFramed(id);
+      await toggleFramed(id);
       expect(frameButton(fill)).not.toBeNull();
     }
   );
@@ -444,20 +440,12 @@ describe('the side panels of a room', () => {
     expect(conversation()).not.toBeNull();
   });
 
-  it('gives the members no frame while they lie over a room too narrow for them beside it', async () => {
-    const showRoom = await renderRoom();
+  it('gives the members no frame: their header button shows and hides them', async () => {
+    await renderRoom();
     await act(async () => state.view?.onPanelToggle?.('members'));
-    await act(async () => frameButton('Fill the room with Members')?.click());
-    expect(conversation()).toBeNull();
-    // The room narrows: the members lie over the conversation, which shows again.
-    state.membersOverlay = true;
-    await showRoom(room.roomId);
-    expect(screen.getByRole('dialog', { name: 'Members' })).toBeTruthy();
-    expect(frameButton('Fill the room with Members')).toBeNull();
-    expect(conversation()).not.toBeNull();
-    // Another panel beside the narrow room keeps its frame.
-    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
-    expect(frameButton('Fill the room with Notes')).not.toBeNull();
+    expect(shown()).toEqual(['members']);
+    expect(screen.queryByRole('button', { name: /^Fill the room with/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Fold .* to the edge$/ })).toBeNull();
   });
 
   it('gives a panel no frame on phones, where it covers the conversation as before', async () => {

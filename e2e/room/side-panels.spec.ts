@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test';
 import { disposableHomeserverIsUp } from '../helpers/disposableAccounts';
-import { roomHeader } from '../helpers/roomMenu';
 import {
   CORE_PANELS,
   checkPanelFrame,
@@ -57,17 +56,6 @@ test('a core side panel fills the room and folds to a tab at its edge, per room'
   test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
   test.setTimeout(5 * 60_000);
   const room = await openPanelRoom(context, page);
-  // The members show beside a room unless the viewer hid them.
-  const header = roomHeader(page);
-  const show = header.getByRole('button', { name: 'Show Members', exact: true });
-  await expect(
-    show.or(header.getByRole('button', { name: 'Hide Members', exact: true }))
-  ).toBeVisible();
-  if (await show.isVisible()) await show.click();
-  await expect(panelLocator(page, 'members')).toBeVisible();
-  await checkPanelFrame(page, testInfo, room, {
-    panel: panelLocator(page, 'members'),
-    label: 'Members',
-    inOtherRoom: true,
-  });
+  await openPanel(page, room, 'call');
+  await checkPanelFrame(page, testInfo, room, { panel: panelLocator(page, 'call'), label: 'Call' });
 });

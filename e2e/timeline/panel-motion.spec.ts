@@ -25,8 +25,6 @@ test.use({ viewport: { width: 1280, height: 900 } });
 
 const NAV = '[data-testid="resizable-page-nav"]';
 const MEMBERS = '[data-testid="resizable-members-panel"]';
-/** The members panel's frame (src/app/ui/panels/PanelFrame.tsx) takes this much of its content's width. */
-const FRAME_STRIP = 40;
 
 test.beforeEach(async ({ page }) => {
   // The local Matrix fixture has no provisioning service.
@@ -372,10 +370,9 @@ test('the page navigation and the members panel open and close in one motion', a
     );
     // Closing, the content keeps its own width while the panel narrows around it.
     if (to === 0) {
-      const content = selector === MEMBERS ? from - FRAME_STRIP : from;
       moved.contentWidths
         .filter((width) => width > 0)
-        .forEach((width) => expect(Math.round(width)).toBe(content));
+        .forEach((width) => expect(Math.round(width)).toBe(from));
       await expect(page.locator(selector)).toHaveCount(0);
     }
   }
@@ -426,14 +423,14 @@ test('a drag below the smallest width follows the pointer and closes or springs 
     await expect.poll(() => widthOf(members)).toBe(266 - offset);
     dragged.push(266 - offset);
     const content = members.locator(':scope > :first-child > *');
-    expect(await widthOf(content)).toBe(Math.max(200, 266 - offset) - FRAME_STRIP);
+    expect(await widthOf(content)).toBe(Math.max(200, 266 - offset));
   }
   await expect(members).toHaveAttribute('data-collapse-preview', 'true');
   // Released below the threshold, it moves the rest of the way out.
   const release = await stepMotion(page, MEMBERS, () => page.mouse.up());
   await expectStepped(page, MEMBERS, release, 66, 0);
   // The content kept its smallest width all the way out.
-  release.contentWidths.forEach((width) => expect(Math.round(width)).toBe(200 - FRAME_STRIP));
+  release.contentWidths.forEach((width) => expect(Math.round(width)).toBe(200));
   await expect(page.getByRole('button', { name: 'Show Members', exact: true })).toBeVisible();
 
   // Opened again it has its old width; a drag released above the threshold springs back to the

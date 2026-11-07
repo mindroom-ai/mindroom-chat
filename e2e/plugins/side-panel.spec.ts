@@ -121,7 +121,6 @@ test("the example plugin's side panel fills the room and folds to a tab, per roo
     await checkPanelFrame(page, testInfo, room, {
       panel: panelLocator(page, 'plugin'),
       label: 'Example panel',
-      inOtherRoom: false,
     });
     await expect(page.getByText(`Example panel of ${room.roomId}`)).toBeVisible();
   } finally {

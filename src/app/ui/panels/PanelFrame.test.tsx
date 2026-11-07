@@ -101,7 +101,9 @@ describe('the frame of a side panel', () => {
     const setLayout = renderFramed('folded');
     expect(panel().style.width).toBe('');
     expect(separator()).toBeNull();
-    expect(content().style.display).toBe('none');
+    // Its styles hide the content beside the tab (PanelFrame.css.ts).
+    expect(panel().dataset.folded).toBe('true');
+    expect(content().firstElementChild?.textContent).toBe('Notes');
     const tab = screen.getByRole('button', { name: 'Unfold Notes' });
     expect(tab.textContent).toBe('Notes');
     expect(screen.getAllByRole('button')).toEqual([tab]);

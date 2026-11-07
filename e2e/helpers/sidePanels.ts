@@ -167,16 +167,15 @@ const showRoom = async (page: Page, name: string) => {
 /**
  * Takes the shown side panel (`panel`, titled `label`) through its frame's layouts in the room
  * `room` opened: it fills the room in the conversation's place, comes back beside it, folds to a
- * tab at the room's edge beside the whole conversation, stays folded while another room shows, and
- * comes back from its tab. `inOtherRoom` says whether the panel shows in the other room too (the
- * members, which are open in every room); there it shows beside the conversation. Saves a
- * screenshot of each layout under `testInfo`'s output, named after `label`.
+ * tab at the room's edge beside the whole conversation, stays folded while another room, where it
+ * is not open, shows, and comes back from its tab. Saves a screenshot of each layout under
+ * `testInfo`'s output, named after `label`.
  */
 export const checkPanelFrame = async (
   page: Page,
   testInfo: TestInfo,
   room: PanelRoom,
-  { panel, label, inOtherRoom }: { panel: Locator; label: string; inOtherRoom: boolean }
+  { panel, label }: { panel: Locator; label: string }
 ) => {
   const shot = (layout: string) =>
     page.screenshot({ path: testInfo.outputPath(`${label}-${layout}.png`.replaceAll(' ', '-')) });
@@ -219,11 +218,9 @@ export const checkPanelFrame = async (
   expect(await widthOf(conversation)).toBeGreaterThan(conversationWidth + besideWidth - 60);
   await shot('folded');
 
-  // Another room has its own layout: the members show there beside its conversation.
+  // Another room shows without it; back in its room it is still folded.
   await showRoom(page, otherRoom);
-  await expect(tab).toHaveCount(0);
-  if (inOtherRoom) await expect(fill).toHaveAttribute('aria-pressed', 'false');
-  else await expect(panel).toHaveCount(0);
+  await expect(panel).toHaveCount(0);
   await showRoom(page, 'Side panels');
   await expect(tab).toBeVisible();
   expect(await widthOf(panel)).toBe(tabWidth);

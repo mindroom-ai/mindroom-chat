@@ -26,7 +26,7 @@ import { MembersDrawer } from '../members/MembersDrawer';
 import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import { useMembersDrawer } from '../members/useMembersDrawer';
 import { ResizableMembersPanel } from '../members/ResizableMembersPanel';
-import { PanelRow, useMembersOverlay } from '../members/PanelRow';
+import { PanelRow } from '../members/PanelRow';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
 import { usePanelSlot } from '../ui/panels/panelPresence';
 import { PanelFrameProvider } from '../ui/panels/PanelFrame';
@@ -138,11 +138,11 @@ const CALL_MAX_WIDTH = 1200;
 type ShownCanvas = { event: MatrixEvent; conversation: string };
 
 /**
- * A side panel of the room: its name on its frame, whether it takes the conversation's place, and
- * what it shows.
+ * A side panel of the room: its name on its frame (a panel without one has no frame), whether it
+ * takes the conversation's place, and what it shows.
  */
 type PanelEntry = RoomPanel & {
-  label: string;
+  label?: string;
   covers: boolean;
   render: () => ReactNode;
   /** Opens it in its own state, for the header's toggle; panels opened otherwise have none. */
@@ -290,7 +290,6 @@ function RoomContent() {
 
   const closeCall = () => setCallOpen(false);
   const closeMembers = () => setMembersOpen(false);
-  const membersOverlay = useMembersOverlay();
 
   // One side panel at a time (useRoomPanels), the first open one of these. Opening one closes the
   // others, except that the members stay open behind the call and show again when it closes. The
@@ -410,7 +409,6 @@ function RoomContent() {
       close: closeMembers,
       show: () => setMembersOpen(true),
       yieldsTo: ['call'],
-      label: t('mindroomUi.threads.mindroomRoomViewHeader.members'),
       covers: false,
       render: () => (
         <ResizableMembersPanel onClose={closeMembers}>
@@ -421,10 +419,10 @@ function RoomContent() {
   ];
   const { shown, layout: shownLayout, setLayout, request } = useRoomPanels(roomId, panels);
   // Beside the conversation the shown panel has a frame, which fills the room with it or folds it
-  // to a tab at the room's edge. Phones, and the members over a room too narrow for them beside it,
-  // show the panel over the conversation as before, with no frame.
-  const framed = !mobile && !(shown?.id === 'members' && membersOverlay);
-  const layout = framed ? shownLayout : 'beside';
+  // to a tab at the room's edge. Phones show the panel over the conversation as before, with no
+  // frame; the members, a list their header button already shows and hides, have none either.
+  const frameLabel = mobile ? undefined : shown?.label;
+  const layout = frameLabel === undefined ? 'beside' : shownLayout;
   function toggleFilled(id: string) {
     setLayout(id, layout === 'filled' ? 'beside' : 'filled');
   }
@@ -583,9 +581,9 @@ function RoomContent() {
       <PanelFrameProvider
         key={shown.id}
         value={
-          framed
-            ? { label: shown.label, layout, setLayout: (next) => setLayout(shown.id, next) }
-            : undefined
+          frameLabel === undefined
+            ? undefined
+            : { label: frameLabel, layout, setLayout: (next) => setLayout(shown.id, next) }
         }
       >
         {shown.render()}

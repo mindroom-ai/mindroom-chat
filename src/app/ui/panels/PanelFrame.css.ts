@@ -1,23 +1,26 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
+import { Panel } from './ResizablePanel.css';
 
 /** The width of the frame's strip at a panel's start edge, which the panel's content gives up. */
 export const STRIP_WIDTH = 40;
 
-// A column at the panel's start edge, before its content: the frame's controls beside the
+// A column at the start of the panel's box, before its content: the frame's controls beside the
 // conversation or across the room, or, folded, the tab that is all of the panel that shows.
 export const Strip = style({
-  order: -1,
-  flexDirection: 'column',
-  flex: `0 0 ${STRIP_WIDTH}px`,
-  alignItems: 'center',
   display: 'flex',
+  flexFlow: 'column',
+  alignItems: 'center',
   gap: config.space.S100,
   paddingBlock: config.space.S200,
   overflow: 'hidden',
   backgroundColor: color.Background.Container,
   color: color.Background.OnContainer,
 });
+// The panel's box gives its content its own width; the strip keeps its own.
+globalStyle(`${Panel} > :first-child > ${Strip}`, { flex: `0 0 ${STRIP_WIDTH}px` });
+// Folded, the box holds only the tab; the content stays mounted, out of sight.
+globalStyle(`${Panel}[data-folded] > :first-child > :not(${Strip})`, { display: 'none' });
 
 export const Tab = style([
   Strip,

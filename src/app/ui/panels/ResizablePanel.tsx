@@ -265,9 +265,7 @@ export function ResizablePanel({
 
   let contentStyle: CSSProperties | undefined;
   if (passthrough) contentStyle = { display: 'contents' };
-  // Folded, the content stays mounted out of sight (a call or a computer keeps its connection).
-  else if (folded) contentStyle = { display: 'none' };
-  else if (!full) {
+  else if (!full && !folded) {
     const strip = frame ? STRIP_WIDTH : 0;
     contentStyle = { ['--mr-panel-content-width' as string]: `${contentWidth - strip}px` };
   }
@@ -283,10 +281,15 @@ export function ResizablePanel({
       style={panelStyle}
       data-testid={testId}
       data-side={side}
+      data-folded={folded || undefined}
       data-collapse-preview={collapseOnRelease || undefined}
     >
-      <div style={contentStyle}>{children}</div>
-      {frame && <PanelFrameStrip frame={frame} />}
+      {/* The frame's strip opens the panel's box; folded, the content stays mounted out of sight
+          beside it (a call or a computer keeps its connection). */}
+      <div style={contentStyle}>
+        {frame && <PanelFrameStrip frame={frame} />}
+        {children}
+      </div>
       {/* A focusable separator implements the adjustable splitter pattern. */}
       {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
       {!full && !folded && !passthrough && (
