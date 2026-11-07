@@ -13,6 +13,9 @@ import type { MDirectContent } from './types/accountData';
 import { getViaServers } from './via-servers';
 import { addRoomIdToMDirect, creatorsSupported } from './matrix';
 import { CreateRoomAccess } from './createRoomTypes';
+import { MINDROOM_AUTO_APPROVE_EVENT } from './protocol/autoApproveContract';
+import { MINDROOM_BACKGROUND_JOBS_EVENT } from './protocol/backgroundJobsContract';
+import { ROOM_THREAD_MODE_EVENT } from './protocol/roomThreadMode';
 
 const MEGOLM_ALGORITHM = 'm.megolm.v1.aes-sha2';
 const GROUP_CALL_STATE_EVENT = 'org.matrix.msc3401.call';
@@ -34,11 +37,12 @@ export const createRoomCallState = (): ICreateRoomStateEvent => ({
 const PINNED_STATE_LEVEL = 100;
 
 /**
- * Lets every member publish call membership, so anyone in the room can start or join its call;
- * the presets alone keep call membership at the state default (50), for moderators. The override
- * replaces the whole `events` map (Client-Server API, `m.room.power_levels`), so it repeats the
- * levels servers pin by default. Where creators are privileged (room version 12, MSC4289),
- * servers raise the upgrade (`m.room.tombstone`) level above every assignable level, to 150.
+ * Lets every member publish call membership, so anyone in the room can start or join its call,
+ * and the state MindRoom's agents publish; the presets alone keep both at the state default (50),
+ * for moderators. The override replaces the whole `events` map (Client-Server API,
+ * `m.room.power_levels`), so it repeats the levels servers pin by default. Where creators are
+ * privileged (room version 12, MSC4289), servers raise the upgrade (`m.room.tombstone`) level
+ * above every assignable level, to 150.
  */
 export const createVoiceRoomPowerLevelsOverride = (version?: string) => {
   const events: Record<string, number> = {
@@ -49,6 +53,15 @@ export const createVoiceRoomPowerLevelsOverride = (version?: string) => {
     [StateEvent.RoomTombstone]: creatorsSupported(version) ? 150 : PINNED_STATE_LEVEL,
     // MSC3401 call membership: any member may join the call.
     [StateEvent.GroupCallMemberPrefix]: 0,
+    // State MindRoom's agents and router publish; they join with no power. Server, jobs and
+    // auto-approve state is keyed by its sender's own user ID, which Matrix accepts only from that
+    // user. The rooms MindRoom creates open the same types, except the thread mode, which their
+    // router writes as an admin.
+    'io.mindroom.server': 0,
+    [MINDROOM_BACKGROUND_JOBS_EVENT]: 0,
+    [MINDROOM_AUTO_APPROVE_EVENT]: 0,
+    'com.mindroom.thread.tags': 0,
+    [ROOM_THREAD_MODE_EVENT]: 0,
   };
   return { events };
 };
