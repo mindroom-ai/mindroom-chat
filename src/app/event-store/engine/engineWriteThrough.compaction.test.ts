@@ -8,7 +8,9 @@
  *
  * Behaviors covered (each corresponds to a test in the old suite):
  *   1. Standalone m.replace does not persist; target upserts after
- *      the coalesce window (thread path).
+ *      the coalesce window (thread path), with the newest edit beside
+ *      it for the serializer to bundle (the SDK applies no edit in a
+ *      thread it has not fetched).
  *   2. N rapid edits coalesce to one target upsert.
  *   3. flush() drains pending upserts (moved from the DOM-driven
  *      visibilitychange test — the engine flushes via the same
@@ -159,7 +161,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     await waitForDebounce();
 
     expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([target]);
+    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([target, edit]);
     expect(persistThreadEventCacheSnapshot.mock.calls[0][0].threadId).toBe(threadId);
     expect(getCacheProbeSnapshot().editCompactions).toBe(1);
     expect(getCacheProbeSnapshot().editCompactionTargetMisses).toBe(0);
@@ -213,7 +215,10 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     await waitForDebounce();
 
     expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([target]);
+    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([
+      target,
+      expect.objectContaining({ __id: '$edit-25' }),
+    ]);
     expect(getCacheProbeSnapshot().editCompactions).toBe(1);
   });
 
@@ -232,7 +237,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
 
     writer.flush();
     expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([target]);
+    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([target, edit]);
   });
 
   it('persists non-replace thread events immediately, bypassing the debounce', () => {
@@ -397,7 +402,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     await waitForDebounce();
 
     expect(persistRoomEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistRoomEventCacheSnapshot.mock.calls[0][0].events).toEqual([target]);
+    expect(persistRoomEventCacheSnapshot.mock.calls[0][0].events).toEqual([target, edit]);
     expect(getCacheProbeSnapshot().editCompactions).toBe(1);
   });
 
@@ -432,9 +437,9 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     await waitForDebounce();
 
     expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([roomTarget]);
+    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([roomTarget, threadEdit]);
     expect(persistRoomEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistRoomEventCacheSnapshot.mock.calls[0][0].events).toEqual([roomTarget]);
+    expect(persistRoomEventCacheSnapshot.mock.calls[0][0].events).toEqual([roomTarget, roomEdit]);
   });
 
   it('flush() on engine teardown drains pending upserts (equivalent of the old unmount flush)', () => {
