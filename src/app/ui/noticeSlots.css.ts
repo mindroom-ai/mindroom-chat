@@ -43,9 +43,9 @@ export const PageSlot = recipe({
       // drawer and a room's members sheet, at z-index 1 later in the page, slide in over it.
       true: {
         position: 'relative',
+        blockSize: 0,
         zIndex: 1,
         flexShrink: 0,
-        blockSize: 0,
       },
     },
   },
