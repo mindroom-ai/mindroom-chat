@@ -1308,7 +1308,7 @@
       "matchingUsers_zero": "⁨{{count}}⁩ من المستخدمين المطابقين"
     },
     "mindRoomSplashScreen": {
-      "loading": "جارٍ تحميل {{appName}}"
+      "loading": "جارٍ تحميل ⁨{{appName}}⁩"
     },
     "commands": {
       "CommandMe": "إرسال رسالة إجراء",
