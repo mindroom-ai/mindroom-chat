@@ -551,10 +551,13 @@ const getAnchor = (evt: MouseEvent<HTMLElement>): RectCords => {
   return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
 };
 
+const hasSelectedText = (): boolean => (document.getSelection()?.toString() ?? '') !== '';
+
 // Links, fields and selected text keep the browser's own menu, to open a link or copy a selection.
-const wantsBrowserMenu = (target: EventTarget): boolean =>
-  !!(target as Element).closest('a, input, textarea, [contenteditable="true"]') ||
-  (document.getSelection()?.toString() ?? '') !== '';
+// `readerSelected` says whether the reader selected text before the click (by default: whether
+// any text is selected now).
+const wantsBrowserMenu = (target: EventTarget, readerSelected = hasSelectedText()): boolean =>
+  !!(target as Element).closest('a, input, textarea, [contenteditable="true"]') || readerSelected;
 
 /**
  * The side of `anchor` a pop-out opens on: above it in the lower half of the window, where the
@@ -632,8 +635,14 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     });
     // The kind of pointer that pressed in the row, until the focus that press gives arrives.
     const pressedPointer = useRef<string>();
+    // Whether text was selected when a press that opens a context menu (a right click, or a
+    // Control click on macOS) went down, until its contextmenu event. Safari selects the word
+    // under the pointer between the two; that word is the click's, not the reader's selection.
+    const selectedAtMenuPress = useRef<boolean>();
     const noteRowPointer = (evt: PointerEvent<HTMLDivElement>) => {
       pressedPointer.current = evt.pointerType;
+      const opensMenu = evt.button === 2 || (evt.button === 0 && evt.ctrlKey);
+      selectedAtMenuPress.current = opensMenu ? hasSelectedText() : undefined;
     };
     const toolbarRef = useRef<HTMLDivElement>(null);
     // Focus from the keyboard, or from a tap on the message itself, shows the toolbar. A tap on one
@@ -680,10 +689,15 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     const canEdit = !!onEditId && confirmed && canEditEvent(client, mEvent);
     const startEdit = () => onEditId?.(eventId);
     const dismissMenu = () => setMenuAnchor(undefined);
-    // A right click opens the message's menu where the pointer is.
+    // A right click opens the message's menu where the pointer is. A menu key has no press before
+    // it, so text selected then is the reader's.
     const openMenuAtPointer = (evt: MouseEvent<HTMLDivElement>) => {
-      if (edit || wantsBrowserMenu(evt.target)) return;
+      const selectedBefore = selectedAtMenuPress.current ?? true;
+      selectedAtMenuPress.current = undefined;
+      if (edit || wantsBrowserMenu(evt.target, selectedBefore && hasSelectedText())) return;
       evt.preventDefault();
+      // The word the click selected would stay highlighted under the menu.
+      if (hasSelectedText()) document.getSelection()?.removeAllRanges();
       setMenuAnchor(pointRect(evt.clientX, evt.clientY));
     };
     // A long press opens it where the finger rests, on touch screens whose browser fires no
