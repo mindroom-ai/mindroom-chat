@@ -4,6 +4,8 @@ import { getDefaultStore, type PrimitiveAtom } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
 import { callPanelRoomAtom } from '../calls/callStore';
+import type { AgentServer } from '../computer/agentServer';
+import { computerServicePreferenceAtom } from '../computer/computerServiceSettings';
 import * as membersDrawer from '../members/useMembersDrawer';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import type { RoomViewProps } from './RoomView';
@@ -31,6 +33,9 @@ const { mx, room, state } = vi.hoisted(() => {
       listeners,
       members,
       config: {} as ClientConfig,
+      // The servers the room's agents publish, which count when the homeserver binds tokens.
+      servers: [] as AgentServer[],
+      bindsOpenIdTokens: false,
       view: undefined as RoomViewProps | undefined,
       roomId: '!room:example.org',
     },
@@ -91,8 +96,8 @@ vi.mock('../matrix/hooks/usePowerLevels', () => ({
 }));
 vi.mock('../config/useClientConfig', () => ({ useClientConfig: () => state.config }));
 vi.mock('../computer/useAgentServers', () => ({
-  useRoomAgentServers: () => [],
-  useBindsOpenIdTokens: () => false,
+  useRoomAgentServers: () => state.servers,
+  useBindsOpenIdTokens: () => state.bindsOpenIdTokens,
 }));
 vi.mock('../navigation/useRoomViewMode', () => ({
   useRoomViewMode: () => ({ viewMode: 'threaded', setViewMode: () => undefined }),
@@ -239,6 +244,9 @@ describe('the side panels of a room', () => {
     cleanup();
     store.set(callPanelRoomAtom, undefined);
     store.set(membersOpenAtom, false);
+    store.set(computerServicePreferenceAtom, null);
+    state.servers = [];
+    state.bindsOpenIdTokens = false;
     state.view = undefined;
     state.roomId = room.roomId;
     vi.unstubAllGlobals();
@@ -278,6 +286,35 @@ describe('the side panels of a room', () => {
       expect(isOpen('computer')).toBe(true);
       expect(shown()).toEqual(['computer']);
       expect(isOpen(first)).toBe(false);
+    }
+  );
+
+  it.each(['canvas', 'call', 'members'] as const)(
+    "an agent's request for its published computer leaves %s open while computers are off here",
+    async (first) => {
+      // The agent publishes its server with a computer; no deployment server is configured.
+      state.config = { mindroom: { ...state.config.mindroom, computers: {} } };
+      state.bindsOpenIdTokens = true;
+      state.servers = [
+        {
+          agentUserId: '@mindroom_helper:example.org',
+          apiUrl: 'https://helper.example.org',
+          computer: true,
+          ts: 1,
+        },
+      ];
+      await renderRoom();
+      await open(first);
+      await agentRequest('show_computer');
+      expect(shown()).toEqual(['computer']);
+      await open(first);
+
+      // Turned off in this device's settings.
+      await act(async () => store.set(computerServicePreferenceAtom, ''));
+      await agentRequest('show_computer');
+      expect(isOpen(first)).toBe(true);
+      expect(isOpen('computer')).toBe(false);
+      expect(shown()).toEqual([first]);
     }
   );
 
