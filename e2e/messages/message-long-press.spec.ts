@@ -22,9 +22,9 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // WebKit, in WebKit.
 // P2-macos-safari-F001: iOS also selected a word under the resting finger and showed its Copy and
 // Look Up bar over the menu, or selected the menu's first entry once it opened there. While a
-// press rests no text on the page is selectable, a selection made before it is gone once the
-// menu opens, the menu's text is never selectable, and the page is selectable again after the
-// lift. Checked on a phone and on a tablet.
+// press rests no text on the page is selectable, a selection the platform makes meanwhile is gone
+// once the menu opens, the menu's text is never selectable, and the page is selectable again after
+// the lift. Checked on a phone and on a tablet.
 // Set LONG_PRESS_SHOTS=<directory> to save the open menu.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'message-long-press-spec-password';
@@ -113,7 +113,7 @@ type Step =
   | { type: 'move'; dx: number; dy: number }
   | { type: 'wait'; ms: number }
   | { type: 'scroll'; by: number }
-  // Selects the touched text, as a selection made before the press would have.
+  // Selects the touched text, as iOS selects the word under a resting finger.
   | { type: 'select' }
   // Notes whether the page's text is selectable now and what is selected.
   | { type: 'probe' };
@@ -271,15 +271,15 @@ const checkPhone = async (page: Page, world: World, engine: string, device: stri
   await page.evaluate(() => new Promise(requestAnimationFrame));
   await expect(row).toBeVisible();
 
-  // A long press opens the menu where the finger rests; small jitter is allowed. Some text was
-  // selected before it.
+  // A long press opens the menu where the finger rests; small jitter is allowed. The platform
+  // selects the text under the finger while it rests, if it can.
   const box = await text.boundingBox();
   const press = await touch(text, [
-    { type: 'select' },
     { type: 'probe' },
     { type: 'start' },
     { type: 'wait', ms: 200 },
     { type: 'move', dx: 3, dy: -2 },
+    { type: 'select' },
     { type: 'probe' },
     { type: 'wait', ms: 450 },
     { type: 'probe' },
@@ -292,7 +292,6 @@ const checkPhone = async (page: Page, world: World, engine: string, device: stri
   await expect(more).toHaveAttribute('aria-pressed', 'true');
   expect(press.liftAllowed, `${engine}: the lift after the menu opens does not click`).toBe(false);
   const [before, resting, opened, lifted] = press.probes;
-  expect(before.selected, `${engine}: the text was selected before the press`).toContain('Final');
   expect(before.pageSelect, `${engine}: the page is selectable before the press`).not.toBe('none');
   // The platform's own long-press selection finds nothing to select while the finger rests.
   expect(resting.pageSelect, `${engine}: no text is selectable during the press`).toBe('none');
