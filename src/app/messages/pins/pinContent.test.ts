@@ -30,18 +30,17 @@ const encryptedEdit = () =>
     },
   });
 
+const editContent = (body: string) => ({
+  msgtype: 'm.text',
+  body: `* ${body}`,
+  'm.new_content': { msgtype: 'm.text', body },
+  'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+});
+
 const decryptAs = (body: string) =>
   ({
     decryptEvent: vi.fn().mockResolvedValue({
-      clearEvent: {
-        type: 'm.room.message',
-        content: {
-          msgtype: 'm.text',
-          body: `* ${body}`,
-          'm.new_content': { msgtype: 'm.text', body },
-          'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
-        },
-      },
+      clearEvent: { type: 'm.room.message', content: editContent(body) },
     }),
   } as unknown as Parameters<MatrixEvent['attemptDecryption']>[0]);
 
@@ -87,15 +86,7 @@ describe('getPinContent', () => {
               sender: '@visitor:example.org',
               origin_server_ts: 2,
               type: 'm.room.message',
-              content: {
-                msgtype: 'm.text',
-                body: '* Straddle carrier 12 is cleared to drive.',
-                'm.new_content': {
-                  msgtype: 'm.text',
-                  body: 'Straddle carrier 12 is cleared to drive.',
-                },
-                'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
-              },
+              content: editContent('Straddle carrier 12 is cleared to drive.'),
             },
           },
         },

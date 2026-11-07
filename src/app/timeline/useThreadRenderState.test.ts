@@ -1191,7 +1191,6 @@ describe('useThreadRenderState', () => {
     // replacement, so the replacement is stubbed in. This isolates the
     // picker's fall-through behavior from the applier's sender rules.
     vi.spyOn(hydratedTarget, 'replacingEvent').mockReturnValue(foreignSenderEdit);
-    expect(hydratedTarget.replacingEvent()).toBe(foreignSenderEdit);
 
     act(() => {
       // Feed the hydrated target into the sink without the edit event
@@ -1200,7 +1199,6 @@ describe('useThreadRenderState', () => {
       // is what carries into the fallback registry.
       getSnapshot().setSupplementalThreadEvents('$root', [hydratedTarget]);
     });
-    expect(hydratedTarget.replacingEvent()).toBe(foreignSenderEdit);
 
     const syncArrivalTarget = makeMessageEvent('$edit-target', 3, targetSender, 'edit-target v1');
     expect(syncArrivalTarget.replacingEvent()).toBeNull();

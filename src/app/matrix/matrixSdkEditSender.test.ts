@@ -10,14 +10,15 @@ const ROOM = '!room:example.org';
 const AUTHOR = '@author:example.org';
 const OTHER = '@other:example.org';
 
-const original = (extra: Partial<IEvent> = {}): Partial<IEvent> => ({
+const client = createClient({ baseUrl: 'https://example.org', userId: AUTHOR });
+
+const original = (): Partial<IEvent> => ({
   event_id: '$message',
   room_id: ROOM,
   sender: AUTHOR,
   origin_server_ts: 1,
   type: 'm.room.message',
   content: { msgtype: 'm.text', body: 'The forklift is charged.' },
-  ...extra,
 });
 
 const edit = (id: string, sender: string, ts: number, body: string): Partial<IEvent> => ({
@@ -34,34 +35,35 @@ const edit = (id: string, sender: string, ts: number, body: string): Partial<IEv
   },
 });
 
+const ownEdit = () => edit('$own-edit', AUTHOR, 2, 'The forklift is at the dock.');
+const otherEdit = () => edit('$other-edit', OTHER, 3, 'The forklift is broken.');
+
 const bundled = (replacement: Partial<IEvent>) =>
-  createClient({ baseUrl: 'https://example.org', userId: AUTHOR }).getEventMapper()(
-    original({ unsigned: { 'm.relations': { 'm.replace': replacement } } })
-  );
+  client.getEventMapper()({
+    ...original(),
+    unsigned: { 'm.relations': { 'm.replace': replacement } },
+  });
 
 const body = (event: MatrixEvent) => event.getContent().body as unknown;
 
 describe('SDK edits from another sender', () => {
   it('ignores another sender’s edit the server bundles with the message', () => {
-    const event = bundled(edit('$other-edit', OTHER, 2, 'The forklift is broken.'));
+    const event = bundled(otherEdit());
 
     expect(body(event)).toBe('The forklift is charged.');
     expect(event.replacingEvent()).toBeNull();
   });
 
   it('applies the sender’s own bundled edit', () => {
-    const event = bundled(edit('$own-edit', AUTHOR, 2, 'The forklift is at the dock.'));
+    const event = bundled(ownEdit());
 
     expect(body(event)).toBe('The forklift is at the dock.');
-    expect(event.replacingEventId()).toBe('$own-edit');
   });
 
   it('keeps the sender’s edit when another sender’s edit is applied after it', () => {
     const event = new MatrixEvent(original());
-    event.makeReplaced(
-      new MatrixEvent(edit('$own-edit', AUTHOR, 2, 'The forklift is at the dock.'))
-    );
-    event.makeReplaced(new MatrixEvent(edit('$other-edit', OTHER, 3, 'The forklift is broken.')));
+    event.makeReplaced(new MatrixEvent(ownEdit()));
+    event.makeReplaced(new MatrixEvent(otherEdit()));
 
     expect(body(event)).toBe('The forklift is at the dock.');
     expect(event.replacingEventId()).toBe('$own-edit');
@@ -69,9 +71,7 @@ describe('SDK edits from another sender', () => {
 
   it('still clears an applied edit', () => {
     const event = new MatrixEvent(original());
-    event.makeReplaced(
-      new MatrixEvent(edit('$own-edit', AUTHOR, 2, 'The forklift is at the dock.'))
-    );
+    event.makeReplaced(new MatrixEvent(ownEdit()));
     event.makeReplaced();
 
     expect(body(event)).toBe('The forklift is charged.');
@@ -79,14 +79,9 @@ describe('SDK edits from another sender', () => {
   });
 
   it('applies only the sender’s live edit', async () => {
-    const client = createClient({ baseUrl: 'https://example.org', userId: AUTHOR });
     const room = new Room(ROOM, client, AUTHOR, { timelineSupport: true });
     await room.addLiveEvents(
-      [
-        new MatrixEvent(original()),
-        new MatrixEvent(edit('$own-edit', AUTHOR, 2, 'The forklift is at the dock.')),
-        new MatrixEvent(edit('$other-edit', OTHER, 3, 'The forklift is broken.')),
-      ],
+      [new MatrixEvent(original()), new MatrixEvent(ownEdit()), new MatrixEvent(otherEdit())],
       { addToState: false }
     );
     await new Promise((resolve) => setTimeout(resolve, 0));

@@ -398,7 +398,7 @@ describe('RoomCanvasPanel', () => {
     });
     expect(panels.props?.canvas.html).toBe('<p>Step 3</p>');
     const foreign = request();
-    // The patched SDK applies no edit from another sender; the panel checks the sender again.
+    // The patched SDK applies no edit from another sender; the canvas protocol checks it again.
     vi.spyOn(foreign, 'replacingEvent').mockReturnValue(
       edit('<p>Forged</p>', { id: '$forged', ts: 400, sender: '@mindroom_other:example.org' })
     );
