@@ -8,7 +8,8 @@
 // refuses to write when the tags that the members of any joined homeserver see would change.
 //
 // Usage: MATRIX_HOMESERVER=... MATRIX_ACCESS_TOKEN=... node scripts/migrate-thread-tags.mjs <room id> [--apply]
-// Use the access token of a MindRoom agent on the room's homeserver, so the tags keep their names.
+// Use the access token of a MindRoom agent on the homeserver of the room's members, so the tags
+// keep their names.
 import { pathToFileURL } from 'node:url';
 
 export const THREAD_TAGS_EVENT = 'com.mindroom.thread.tags';
@@ -310,13 +311,10 @@ export const changedThreads = (collected, migration) => {
  * @param {boolean} apply
  */
 const migrateRoom = async (homeserver, accessToken, roomId, apply) => {
-  const base = `${homeserver.replace(/\/+$/, '')}/_matrix/client/v3/rooms/${encodeURIComponent(
-    roomId
-  )}`;
+  const api = `${homeserver.replace(/\/+$/, '')}/_matrix/client/v3`;
+  const base = `${api}/rooms/${encodeURIComponent(roomId)}`;
   const headers = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
-  const whoami = await fetch(`${homeserver.replace(/\/+$/, '')}/_matrix/client/v3/account/whoami`, {
-    headers,
-  });
+  const whoami = await fetch(`${api}/account/whoami`, { headers });
   if (!whoami.ok) throw new Error(`Reading the account failed: HTTP ${whoami.status}`);
   const { user_id: viewer } = /** @type {{ user_id: string }} */ (await whoami.json());
   const response = await fetch(`${base}/state`, { headers });
