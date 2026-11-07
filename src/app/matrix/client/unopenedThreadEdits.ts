@@ -1,4 +1,5 @@
 import {
+  Thread as ThreadClass,
   MatrixEventEvent,
   RelationType,
   ThreadEvent,
@@ -200,6 +201,40 @@ const createEditWatcher = (): EditWatcher => {
  * before the client starts. Returns a function that stops it.
  */
 export const keepUnopenedThreadEditsShown = (mx: MatrixClient): (() => void) => {
+  // CPT-DIAG: where thread replies enter a thread's timelines.
+  try {
+    const w = window as unknown as { __CPT_ADDS__?: unknown[]; __CPT_PATCHED__?: boolean };
+    if (!w.__CPT_PATCHED__) {
+      w.__CPT_PATCHED__ = true;
+      w.__CPT_ADDS__ = [];
+      const proto = ThreadClass.prototype as unknown as Record<string, (...args: unknown[]) => unknown>;
+      const original = proto.addEvent;
+      proto.addEvent = function patched(this: Thread, ...args: unknown[]) {
+        const event = args[0] as MatrixEvent;
+        try {
+          const body = String((event.getContent() as { body?: unknown }).body ?? '');
+          if (!event.isRelation(RelationType.Replace) && !event.isRelation(RelationType.Annotation) && event.getId() !== this.id)
+            w.__CPT_ADDS__?.push({
+              t: Math.round(performance.now()),
+              id: event.getId()?.slice(0, 8),
+              root: this.id.slice(0, 8),
+              body: body.slice(0, 24),
+              repl: event.replacingEvent()?.getId()?.slice(0, 8),
+              toStart: args[1],
+              init: this.initialEventsFetched,
+              known: !!this.findEventById(event.getId() ?? ''),
+              hist: (this as unknown as { addingHistory?: string }).addingHistory,
+              stack: new Error().stack?.split('\n').slice(2, 9).join(' | '),
+            });
+        } catch {
+          // diag only
+        }
+        return original.apply(this, args);
+      };
+    }
+  } catch {
+    // diag only
+  }
   const watcher = createEditWatcher();
   // The SDK updates a thread after each batch it adds, also one that only brings edits. The
   // listeners that rebuild the thread cards come later in the same update, so they see the edit.

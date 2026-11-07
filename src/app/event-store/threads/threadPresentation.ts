@@ -205,6 +205,82 @@ export const resolveThreadPresentationSnapshot = ({
     latestReplyPreviewText
   );
 
+  // CPT-DIAG
+  try {
+    const w = window as unknown as { __CPT_DIAG__?: Map<string, unknown[]> };
+    w.__CPT_DIAG__ ??= new Map();
+    const desc = (e: MatrixEvent | null | undefined) =>
+      e
+        ? {
+            id: e.getId()?.slice(0, 8),
+            body: String((e.getContent() as { body?: unknown }).body ?? '').slice(0, 24),
+            repl: e.replacingEvent()?.getId()?.slice(0, 8),
+            ts: e.getTs(),
+            rts: getThreadPreviewRevisionTs(e),
+            sum: isThreadSummaryEvent(e),
+          }
+        : undefined;
+    const real = thread as unknown as {
+      initialEventsFetched?: boolean;
+      replayEvents?: MatrixEvent[] | null;
+      findEventById?: (id: string) => MatrixEvent | undefined;
+      lastEvent?: MatrixEvent;
+    } | null | undefined;
+    const isReal = typeof real?.findEventById === 'function';
+    const entry = {
+      t: Math.round(performance.now()),
+      src: isReal ? 'sdk' : 'cache',
+      text: latestReplyPreviewText?.slice(0, 24),
+      loaded: replyEvents.map(desc),
+      replyTo: desc(thread?.replyToEvent),
+      sumReply: desc(summaryReply),
+      replyToInLoaded: !!thread?.replyToEvent && replyEvents.includes(thread.replyToEvent),
+      fb: fallbackLatestReplyPreviewText?.slice(0, 24),
+      fbTs: fallbackLatestReplyTs,
+      fbAct: fallbackLastActivityTs,
+      bTitle: desc(bundle.title),
+      bReply: desc(bundle.reply),
+      bLatest: bundle.latest,
+      outgrown,
+      chosen: latestPreviewEvent === loadedPreviewEvent ? 'loaded' : latestPreviewEvent ? 'bundled/replyTo' : preferCachedReply ? 'cachedPref' : 'fallback',
+      init: real?.initialEventsFetched,
+      replay: real?.replayEvents?.map((edit) => ({
+        target: edit.getAssociatedId()?.slice(0, 8),
+        body: String(((edit.getContent() as { 'm.new_content'?: { body?: unknown } })['m.new_content'] ?? {}).body ?? '').slice(0, 24),
+        ts: edit.getTs(),
+      })),
+      lastEv: desc(real?.lastEvent),
+      found: (() => {
+        const ids = new Set<string>();
+        if (bundle.latest?.id) ids.add(bundle.latest.id);
+        real?.replayEvents?.forEach((edit) => {
+          const id = edit.getAssociatedId();
+          if (id) ids.add(id);
+        });
+        return [...ids].map((id) => {
+          const ev = isReal ? real?.findEventById?.(id) : undefined;
+          return {
+            id: id.slice(0, 8),
+            ev: desc(ev),
+            inLive: !!ev && !!thread?.events?.includes(ev),
+          };
+        });
+      })(),
+      segs: isReal
+        ? (thread as unknown as { getUnfilteredTimelineSet: () => { getTimelines: () => unknown[] } })
+            .getUnfilteredTimelineSet()
+            .getTimelines().length
+        : undefined,
+    };
+    const list = w.__CPT_DIAG__.get(threadRootId) ?? [];
+    const key = (value: unknown) => JSON.stringify({ ...(value as object), t: 0 });
+    const previous = list[list.length - 1];
+    if (!previous || key(previous) !== key(entry)) list.push(entry);
+    if (list.length > 40) list.shift();
+    w.__CPT_DIAG__.set(threadRootId, list);
+  } catch {
+    // diag only
+  }
   return {
     summaryInfo,
     summaryText: summaryInfo?.summaryText,
