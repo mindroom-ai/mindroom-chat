@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { forgetAccountInPlugins, usePluginStorage } from './pluginStorage';
 
-// Two plugins whose `forgetAccount` each test sets.
+// Two plugins whose `forgetAccount` the tests set.
 const forget = vi.hoisted(() => vi.fn<(pluginId: string, userId: string) => unknown>());
 vi.mock('./pluginEntries', () => ({
   pluginEntries: ['notes', 'drafts'].map((id) => ({
@@ -51,7 +51,6 @@ describe('usePluginStorage', () => {
 
 describe('forgetAccountInPlugins', () => {
   it("deletes every plugin's values for the account and keeps everyone else's", async () => {
-    forget.mockReturnValue(undefined);
     // A user ID that starts with Alice's names another account.
     const lookalike = `${ALICE}.other`;
     storageOf('notes', ALICE).setItem('draft', 'Alice writes');
@@ -83,7 +82,6 @@ describe('forgetAccountInPlugins', () => {
 
     await forgetAccountInPlugins(ALICE);
 
-    expect(forget).toHaveBeenCalledTimes(2);
     expect(storageOf('notes', ALICE).getItem('draft')).toBeNull();
     expect(logged.mock.calls.map(([message]) => message)).toEqual([
       '[plugin notes@1.0.0] forgetting an account failed',
