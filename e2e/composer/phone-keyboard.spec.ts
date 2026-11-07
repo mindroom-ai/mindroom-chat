@@ -478,15 +478,56 @@ const checkBandChangeAfterTurn = async (page: Page, world: World, engine: string
   await page.waitForTimeout(1_000);
 
   await page.evaluate(() => ((window as unknown as { __diag: string[] }).__diag.length = 0));
-  await page.setViewportSize(LANDSCAPE_SIZE);
-  await page.evaluate(
-    async ([band, settled, width]) => {
-      window.__setKeyboardViewport?.(band ?? 0, 0, 'resize', width);
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-      window.__setKeyboardViewport?.(settled ?? 0, 0, 'resize', width);
+  const mode = process.env.BAND_MODE ?? 'ro';
+  // Safari widens the band while the rows measure again at the new width.
+  await newestRow(page).evaluate(
+    (row, [settled, width, how]) => {
+      const log = (window as unknown as { __diag: string[] }).__diag;
+      const widen = (why: string) => {
+        log.push(`widen from ${why}`);
+        window.__setKeyboardViewport?.(settled ?? 0, 0, 'resize', width as number);
+      };
+      if (how === 'ro') {
+        let first: number | undefined;
+        const observer = new ResizeObserver(([entry]) => {
+          const height = entry?.contentRect.height ?? 0;
+          if (first === undefined) {
+            first = height;
+            return;
+          }
+          if (height === first) return;
+          observer.disconnect();
+          widen('row ro');
+        });
+        observer.observe(row);
+      } else if (how === 'scroll') {
+        let seen = 0;
+        const area = row.closest('[data-testid="room-virtual-inner"]')?.parentElement;
+        let scroller: HTMLElement | null | undefined = area;
+        while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY))
+          scroller = scroller.parentElement;
+        const onScroll = () => {
+          seen += 1;
+          if (seen < 3) return;
+          scroller?.removeEventListener('scroll', onScroll, true);
+          widen('scroll');
+        };
+        scroller?.addEventListener('scroll', onScroll, true);
+      }
     },
-    [LANDSCAPE_KEYBOARD_VISIBLE, LANDSCAPE_KEYBOARD_SETTLED, LANDSCAPE_SIZE.width] as const
+    [LANDSCAPE_KEYBOARD_SETTLED, LANDSCAPE_SIZE.width, mode] as const
   );
+  await page.setViewportSize(LANDSCAPE_SIZE);
+  await setVisualViewport(page, LANDSCAPE_KEYBOARD_VISIBLE, 0, LANDSCAPE_SIZE.width);
+  if (mode === 'raf') {
+    await page.evaluate(
+      async ([settled, width]) => {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        window.__setKeyboardViewport?.(settled ?? 0, 0, 'resize', width);
+      },
+      [LANDSCAPE_KEYBOARD_SETTLED, LANDSCAPE_SIZE.width] as const
+    );
+  }
   await expect.poll(() => appHeight(page)).toBe(`${LANDSCAPE_KEYBOARD_SETTLED}px`);
   await page.waitForTimeout(1_500);
   await printDiagnostics(page, `${engine} band change`);
