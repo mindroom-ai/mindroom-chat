@@ -15,6 +15,7 @@ export const useThreadBackPaginationController = () => {
     let canceledOpenBottomPinCount: number | undefined;
     return {
       reset: () => {
+        ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'suppress', why: 'reset' }), stack: new Error().stack }));
         owner = undefined;
         suppressed = false;
         pendingOpenBottomPinCount = undefined;
@@ -24,6 +25,7 @@ export const useThreadBackPaginationController = () => {
       begin: (request: ThreadPaginationRequest) => {
         if (owner) return false;
         owner = request;
+        ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'suppress', why: 'begin' }), stack: new Error().stack }));
         suppressed = true;
         return true;
       },
@@ -33,6 +35,7 @@ export const useThreadBackPaginationController = () => {
       },
       isOpenBottomPinSuppressed: () => suppressed,
       suppressOpenBottomPin: () => {
+        ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'suppress', why: 'suppressOpenBottomPin' }), stack: new Error().stack }));
         suppressed = true;
       },
       requestOpenBottomPin: (scrollToBottomRef: MutableRefObject<ScrollToBottomState>) => {
@@ -49,6 +52,7 @@ export const useThreadBackPaginationController = () => {
         return true;
       },
       cancelOpenBottomPin: (currentCount: number) => {
+        ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'suppress', why: 'cancelOpenBottomPin' }), stack: new Error().stack }));
         suppressed = true;
         if (pendingOpenBottomPinCount === currentCount) {
           canceledOpenBottomPinCount = currentCount;
