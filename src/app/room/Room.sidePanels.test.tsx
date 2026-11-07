@@ -491,17 +491,32 @@ describe('the side panels of a room', () => {
     expect(board()).not.toBeNull();
   });
 
+  /** A plugin's code that opens its panel as soon as it shows. */
+  function OpensAtOnce() {
+    const panel = useRoomSidePanel('notes', 'panel');
+    useLayoutEffect(() => panel?.open('at once'), [panel]);
+    return null;
+  }
+
   it("opens a plugin's panel from the plugin's layout effect, as the room first shows and after a switch", async () => {
-    function OpensAtOnce() {
-      const panel = useRoomSidePanel('notes', 'panel');
-      useLayoutEffect(() => panel?.open('at once'), [panel]);
-      return null;
-    }
     state.inView = <OpensAtOnce />;
     const showRoom = await renderRoom();
     expect(screen.getByText('Notes request "at once"')).toBeTruthy();
     await showRoom('!other:example.org');
     expect(screen.getByText('Notes request "at once"')).toBeTruthy();
+  });
+
+  it("keeps what a room remembers when a plugin's layout effect opens a panel in the next room", async () => {
+    signIn();
+    withCards();
+    const showRoom = await renderRoom();
+    await act(async () => controls.board?.open('kept'));
+    state.inView = <OpensAtOnce />;
+    await showRoom('!other:example.org');
+    expect(screen.getByText('Notes request "at once"')).toBeTruthy();
+    withCards();
+    await showRoom(room.roomId);
+    expect(screen.getByText('Board request "kept"')).toBeTruthy();
   });
 
   it("does nothing for a plugin's late call after the room's page has gone", async () => {
