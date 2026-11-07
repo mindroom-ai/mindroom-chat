@@ -21,7 +21,7 @@ const ROOM_COUNT = 26;
 /** The settings dialog's inset: folds `S300`. */
 const INSET = 12;
 /** The tallest the desktop dialog grows, and its margin to the window's edges. */
-const DIALOG_HEIGHT = 730;
+const DIALOG_HEIGHT = 740;
 const DIALOG_MARGIN = 16;
 /** Both title bars on wider screens: the 32 px search field and the inset above and below it. */
 const BAR = 56;
