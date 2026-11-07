@@ -4,7 +4,6 @@ import {
   getStreamStatusFromContent,
   TERMINAL_STREAM_STATUSES,
 } from '../../matrix/protocol/aiRun';
-import { holdCachedEditInUnopenedThread } from '../../matrix/client/unopenedThreadEdits';
 import { createSessionId } from '../../matrix/session/sessions';
 import {
   createPreferLiveEventMapper,
@@ -21,11 +20,9 @@ import {
 //
 // So the replies the saved sync holds as still streaming are read from the event cache while the
 // client's stores open, and each restored reply takes the cache's newer revision as soon as the
-// saved sync is replayed, before the app shows any room. In a thread nobody opened, the edit the
-// reply then shows also counts among the edits the thread holds back (`unopenedThreadEdits.ts`),
-// which every update of the thread puts back on the reply newest first: the SDK maps older copies
-// of a reply onto it again (a root's bundled latest reply, read from a thread list mid-stream), and
-// its event mapper applies such a copy's older edit.
+// saved sync is replayed, before the app shows any room. When the SDK later maps an older copy of
+// the reply (a root's bundled latest reply), `matrix/client/mappedCopyEdits.ts` keeps the newer
+// edit on it.
 
 type SavedEvent = Partial<IEvent> & { unsigned?: { 'm.relations'?: Record<string, unknown> } };
 
@@ -35,7 +32,7 @@ type SavedSync = { joinRooms?: Record<string, { _timeline?: { event: SavedEvent 
 /** A reply of the saved sync; `threadId` names the thread whose cache scope holds it. */
 type SavedReply = { roomId: string; eventId: string; threadId?: string };
 
-type SavedCopy = { roomId: string; threadId?: string; raw: Partial<IEvent> };
+type SavedCopy = { roomId: string; raw: Partial<IEvent> };
 
 const savedSyncOf = (mx: MatrixClient): SavedSync | undefined =>
   (mx.store as unknown as { backend?: { syncAccumulator?: SavedSync } }).backend?.syncAccumulator;
@@ -107,7 +104,7 @@ export const restoreStreamingRepliesFromCache = async (mx: MatrixClient): Promis
       ];
       return scopes.map((read) =>
         read.then(
-          (raw): SavedCopy | undefined => (raw ? { roomId, threadId, raw } : undefined),
+          (raw): SavedCopy | undefined => (raw ? { roomId, raw } : undefined),
           () => undefined
         )
       );
@@ -118,16 +115,12 @@ export const restoreStreamingRepliesFromCache = async (mx: MatrixClient): Promis
     if (copies.length === 0) return;
     // The SDK replays the saved sync before its first sync state; the rooms show after that.
     mx.once(ClientEvent.Sync, () => {
-      copies.forEach(({ roomId, threadId, raw }) => {
+      copies.forEach(({ roomId, raw }) => {
         const room = mx.getRoom(roomId);
         if (!room || !raw.event_id || !room.findEventById(raw.event_id)) return;
         try {
-          const mapEvent = createPreferLiveEventMapper(room, mx.getEventMapper());
           // The same merge a thread's cache read makes: the newer revision wins, never an older.
-          const reply = mapEvent({ ...raw, room_id: roomId });
-          const thread = threadId ? room.getThread(threadId) : null;
-          const edit = reply.replacingEvent();
-          if (thread && edit) holdCachedEditInUnopenedThread(thread, edit);
+          createPreferLiveEventMapper(room, mx.getEventMapper())({ ...raw, room_id: roomId });
         } catch {
           // A copy that cannot be merged leaves the reply as the saved sync had it.
         }

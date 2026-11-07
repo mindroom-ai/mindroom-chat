@@ -40,16 +40,9 @@ const findReply = (thread: Thread, eventId: string): MatrixEvent | undefined => 
   );
 };
 
-// Edits of replies of unopened threads that came from the page's event cache, not from the SDK
-// (`event-store/sdk/restoredStreamingReplies.ts`). They count as waiting edits, so an update of the
-// thread puts the newest back on its reply, also after the SDK mapped an older copy of the reply
-// (with that copy's edit) onto it. The SDK does not replay them; the thread's first page brings
-// edits at least as new.
-const cachedEdits = new WeakMap<Thread, MatrixEvent[]>();
-
 /** The edits waiting in an unopened thread for the given reply. */
 const waitingEditsFor = (thread: Thread, targetId: string): MatrixEvent[] =>
-  [...(thread.replayEvents ?? []), ...(cachedEdits.get(thread) ?? [])].filter(
+  (thread.replayEvents ?? []).filter(
     (event) => event.isRelation(RelationType.Replace) && event.getAssociatedId() === targetId
   );
 
@@ -137,7 +130,7 @@ const createEditWatcher = (): EditWatcher => {
     if (thread.initialEventsFetched) return false;
     let changed = false;
     const targets = new Set<MatrixEvent>();
-    [...(thread.replayEvents ?? []), ...(cachedEdits.get(thread) ?? [])].forEach((edit) => {
+    (thread.replayEvents ?? []).forEach((edit) => {
       if (!edit.isRelation(RelationType.Replace)) return;
       const targetId = edit.getAssociatedId();
       const target = targetId ? findReply(thread, targetId) : undefined;
@@ -162,16 +155,6 @@ const createEditWatcher = (): EditWatcher => {
   };
 
   return { showThreadEdits, stop };
-};
-
-/**
- * Has an unopened thread count an edit the event cache saved for one of its replies among its
- * waiting edits, and announces the thread so its replies show their newest edit.
- */
-export const holdCachedEditInUnopenedThread = (thread: Thread, edit: MatrixEvent): void => {
-  const held = cachedEdits.get(thread) ?? [];
-  if (!held.includes(edit)) cachedEdits.set(thread, [...held, edit]);
-  thread.emit(ThreadEvent.Update, thread);
 };
 
 /**
