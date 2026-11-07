@@ -170,10 +170,7 @@ describe('clientPlugins', () => {
           write: false,
           rollupOptions: {
             // The plugin's entries and the app's own linkifyjs.
-            input: [
-              path.join(ROOT, 'src/app/plugins/pluginEntries.ts'),
-              path.join(appCopy, entry),
-            ],
+            input: [path.join(ROOT, 'src/app/plugins/pluginEntries.ts'), path.join(appCopy, entry)],
             preserveEntrySignatures: 'strict',
           },
         },
