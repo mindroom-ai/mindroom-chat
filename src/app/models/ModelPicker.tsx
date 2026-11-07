@@ -412,7 +412,8 @@ export function ModelPicker({ state }: { state: ModelPickerState }) {
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const triggerDescriptionId = useId();
+  const triggerId = useId();
+  const triggerLabelId = useId();
   const commandStartedRef = useRef(false);
   const sawPendingRef = useRef(false);
   const selectedModel = state.models.find((model) => model.key === state.override);
@@ -447,9 +448,11 @@ export function ModelPicker({ state }: { state: ModelPickerState }) {
     <button
       ref={triggerRef}
       type="button"
+      id={triggerId}
       className={css.Trigger}
+      // Named "Choose model" and then the model it shows, so the name holds the visible text.
       aria-label={t('mindroomUi.models.modelPicker.chooseModel')}
-      aria-describedby={triggerDescriptionId}
+      aria-labelledby={`${triggerId} ${triggerLabelId}`}
       aria-haspopup="dialog"
       aria-expanded={open}
       onClick={openPicker}
@@ -461,7 +464,7 @@ export function ModelPicker({ state }: { state: ModelPickerState }) {
         size={15}
         className={css.TriggerIcon}
       />
-      <span id={triggerDescriptionId} className={css.TriggerLabel}>
+      <span id={triggerLabelId} className={css.TriggerLabel}>
         {label}
       </span>
       <IconChevronDown size={14} aria-hidden="true" />
