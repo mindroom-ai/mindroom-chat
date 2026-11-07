@@ -184,6 +184,16 @@ const check = async (
       expect(card.hovered, `${engine} ${device}: a touched card keeps its fill`).toBe(card.rest);
     } else {
       expect(card.hovered, `${engine} ${device}: a hovered card is tinted`).not.toBe(card.rest);
+      // The keyboard's focus tints a card too, wherever the pointer is.
+      await page.mouse.move(0, 0);
+      await cards.nth(1).focus();
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Tab');
+      await expect(cards.nth(1)).toBeFocused();
+      await page.waitForTimeout(400);
+      expect(await fill(cards.nth(1)), `${engine} ${device}: a focused card is tinted`).not.toBe(
+        await fill(cards.nth(2))
+      );
     }
 
     if (touch) {
