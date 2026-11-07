@@ -6,13 +6,12 @@ export const STRIP_WIDTH = 40;
 
 // A column at the panel's start edge, before its content: the frame's controls beside the
 // conversation or across the room, or, folded, the tab that is all of the panel that shows.
-const column = style({
+export const Strip = style({
   order: -1,
   flexDirection: 'column',
-  flex: `0 1 ${STRIP_WIDTH}px`,
+  flex: `0 0 ${STRIP_WIDTH}px`,
   alignItems: 'center',
   display: 'flex',
-  minWidth: 0,
   gap: config.space.S100,
   paddingBlock: config.space.S200,
   overflow: 'hidden',
@@ -20,10 +19,8 @@ const column = style({
   color: color.Background.OnContainer,
 });
 
-export const Strip = column;
-
 export const Tab = style([
-  column,
+  Strip,
   {
     height: '100%',
     border: 'none',
