@@ -360,6 +360,11 @@ const checkDestinations = async (
         await act();
         await expect(dialog, `${engine}: ${how} asks before opening`).toBeVisible();
         await expect(dialog.getByText('https://evil.example/login', { exact: true })).toBeVisible();
+        if (SHOTS) {
+          mkdirSync(SHOTS, { recursive: true });
+          const name = how.replace(/^a /, '').replace(/\W+/g, '-');
+          await page.screenshot({ path: `${SHOTS}/link-confirm-${name}-${engine}.png` });
+        }
         await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
         await expect(dialog).toHaveCount(0);
         await page.waitForTimeout(500);
