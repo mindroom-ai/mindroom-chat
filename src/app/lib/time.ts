@@ -1,3 +1,5 @@
+import { secondsToMinutesAndSeconds } from './common';
+
 export const secondsToMs = (seconds: number): number => seconds * 1000;
 export const minutesToMs = (minutes: number): number => secondsToMs(minutes * 60);
 export const hoursToMs = (hours: number): number => minutesToMs(hours * 60);
@@ -67,6 +69,17 @@ export const formatCallDuration = (seconds: number, language = 'en'): string => 
     { type: 'unit', style: 'narrow' },
     () => new Intl.ListFormat(language, { type: 'unit', style: 'narrow' })
   ).format(parts);
+};
+
+/**
+ * A moment of a call, from its start, as a clock: `m:ss`, from an hour on `h:mm:ss`; fractions
+ * round down.
+ */
+export const formatCallOffset = (seconds: number): string => {
+  const total = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(total / 3600);
+  const clock = secondsToMinutesAndSeconds(total % 3600);
+  return hours > 0 ? `${hours}:${clock.padStart(5, '0')}` : clock;
 };
 
 /** Whether both timestamps fall on the same local calendar day. */
