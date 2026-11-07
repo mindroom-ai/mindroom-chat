@@ -25,6 +25,7 @@ src/
                          serviceWorkerNavigation
   sw/                    the service worker (sw.ts) and its helpers: session, authenticated media, runtime assets,
                          language files, framing
+  client-sdk/            the client SDK, what client plugins import (see "Client plugins" below)
   types/                 ambient .d.ts files only
   test/                  Vitest setup, architecture.ts (import graph helpers for architecture tests), layering.test.ts,
                          mockPaths.test.ts (every relative vi.mock, vi.doMock and vi.importActual path names a file),
@@ -128,7 +129,7 @@ Where a file goes, first match wins:
 8. **Route pages:** in the domain that owns the screen (`threads/page/`, `canvas/page/`, `rooms/explore/`, `notifications/inbox/`, `account/auth/`, `room/RoomRoute.tsx`). `shell/Router.tsx` maps `routes/paths.ts` to the lazy modules of `shell/clientPages.tsx`; there is no `pages/` folder.
 9. **e2e:** `e2e/<domain>/<name>.spec.ts`, and `<name>.live.spec.ts` for long specs against the live homeserver.
 
-No barrel files: import a name from the module that declares it. The two `index.ts` files that stay, `event-store/engine/index.ts` and `event-store/cache/db/index.ts`, are the public surfaces of the sync engine and the cache database, which their architecture tests check.
+No barrel files: import a name from the module that declares it. The two `index.ts` files that stay, `event-store/engine/index.ts` and `event-store/cache/db/index.ts`, are the public surfaces of the sync engine and the cache database, which their architecture tests check. The client SDK (`src/client-sdk/`) is the other exception: its modules re-export the app for client plugins, and the app never imports them.
 
 Naming:
 
@@ -158,7 +159,7 @@ A domain imports only domains in a strictly lower layer. Runtime, type-only and 
 | 12 | `settings` |
 | 13 | `sidebar` |
 | 14 | `shell` |
-| 15 | `src/index.tsx` |
+| 15 | `src/index.tsx`, `src/client-sdk` |
 
 `just lint` enforces it: `.eslintrc.cjs` builds `import/no-restricted-paths` zones from the `LAYERS` list, and every violation names its domain and layer and points here. The resolver setting beside it lets the rule see extensionless TypeScript imports; without it the rule would skip them silently. `src/test/layering.test.ts` lints probe imports under made-up paths and fails when the zones go silent, when a folder of `src/app` has no layer, or when a zone names a folder that does not exist. A new domain needs a place in `LAYERS`.
 
@@ -175,16 +176,17 @@ A build can add code from outside this repository: `MINDROOM_CLIENT_PLUGINS` nam
 {
   "name": "my-plugin",
   "version": "1.0.0",
-  "mindroomClientPlugin": { "id": "my-plugin", "apiVersion": 1, "entry": "./src/index.tsx" }
+  "mindroomClientPlugin": { "id": "my-plugin", "apiVersion": 2, "entry": "./src/index.tsx" }
 }
 ```
 
 - `scripts/client-plugins.mjs` checks each declaration, failing the build on one it cannot use, and replaces `src/app/plugins/pluginEntries.ts`, which lists no plugins, with a module that imports each entry. Without plugins none of their code ships. A plugin's imports resolve in its own directory, React and React DOM excepted (the app's copies), so a package the plugin installed comes from its `node_modules`, even one the app bundles too; the build's check for two copies of one package version (`scripts/package-copies.mjs`) leaves those out.
+- A plugin imports the app only through the client SDK, `@mindroom/client-sdk/<subpath>`, which the build resolves to `src/client-sdk/<subpath>.ts` (`tsconfig.json` maps it for this repository's type checks). Each subpath is a module of its own, so a plugin's entry, which loads with the app, binds only the subpaths it imports. `core` has the plugin types (`ClientPlugin`, `MessageRenderer`, `PluginEvent`) and `usePluginConfig`. `apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 2; version 1 had no SDK), naming the plugin. SDK exports are only added, never changed or removed, and each addition raises that version, so a plugin built for an older SDK still builds.
 - An entry's default export is a `ClientPlugin` (`src/app/plugins/registry.ts`): a list per kind of contribution. `registeredPlugins` freezes them, in the listed order, when its module loads, and `src/index.tsx` loads it before the app routes. A plugin's module runs then, before `config.json` has loaded, so a plugin reads its settings (`plugins.<id>`) only while it renders, with `usePluginConfig(id)` (`src/app/plugins/pluginConfig.ts`).
 - Message renderers (`src/app/plugins/messageRenderers.ts`) are the first kind: `{ match, Component, trust? }`. `RenderMessageContent` asks them before its own renderers, wherever it renders a message body: timelines, pins, the inbox, and search results short enough to show whole. `match(event)` is pure and synchronous, and sees the content the app renders the message from, latest edit included; `Component` renders it. Only a MindRoom agent on the viewer's homeserver may send the messages a renderer takes, or with `trust: 'server'` anyone on that homeserver. A `match` that throws counts as no match. A `Component` that throws shows the app's own rendering instead, until the message's content changes (as a reply streams in) or another renderer takes it, and the failure is logged and reported with `[plugin <id>@<version>]`.
 - `plugins.<id>.enabled: false` in `config.json` hides a plugin's contributions, and `?plugins=off` in the address hides every plugin's for one page load.
 
-`src/app/plugins/__fixtures__/example-plugin/` is a small plugin for the tests.
+`src/app/plugins/__fixtures__/example-plugin/` is a small plugin for the tests, which imports only from the SDK.
 
 ## Two lanes of code
 
