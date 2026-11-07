@@ -196,7 +196,7 @@ const describeMemberEvent = (event: MatrixEvent, room?: Room): MemberEventFacts 
     kind: getMemberEventKind(current, previous, selfChange),
     userName,
     prevUserName: nameOf(targetId, previous.displayname),
-    senderName: selfChange ? userName : nameOf(senderId, getRoomMemberName(event.sender)),
+    senderName: selfChange ? userName : nameOf(senderId, getRoomMemberName(event.sender, room)),
     reason: current.reason ? `(${current.reason})` : '',
   };
 };

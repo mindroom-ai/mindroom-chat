@@ -13,7 +13,8 @@ import {
 } from 'matrix-js-sdk';
 import type { Relations } from 'matrix-js-sdk/lib/models/relations';
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
-import { MessageEvent, MsgType, RoomType, StateEvent } from './types/room';
+import { Membership, MessageEvent, MsgType, RoomType, StateEvent } from './types/room';
+import { getMxIdLocalPart } from './matrix';
 import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from './editEvent';
 import { copyResolvedEditMetadata } from './protocol/editMetadata';
 import { getAppliedEdit, isUsableEdit } from './protocol/untrustedContent';
@@ -63,21 +64,56 @@ export const isRoom = (room: Room | null | undefined): boolean => {
 const NAME_DISGUISES =
   /[\u00AD\u061C\u115F\u1160\u180E\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\u3164\uFEFF\uFFA0]/g;
 
+/** A name that could be a user ID's localpart (`sam` of `@sam:example.org`). */
+const LOCALPART_SHAPE = /^[a-z0-9._=\-/+]+$/;
+
+/** A member's display name without the characters above; undefined when it shows nothing. */
+const shownName = (member: RoomMember): string | undefined => {
+  // The SDK's raw name lacks direction overrides, and is the user ID when it would show nothing.
+  const raw = member.rawDisplayName;
+  if (!raw || raw === member.userId) return undefined;
+  const name = raw.replace(NAME_DISGUISES, '');
+  return name.trim() ? name : undefined;
+};
+
+/**
+ * Whether `name` is how another member of `room` shows: one who is in or invited to the room and,
+ * having no name of their own, shows as their user ID's localpart. The SDK's clash index holds
+ * display names only.
+ */
+const takesNamelessLocalpart = (room: Room, member: RoomMember, name: string): boolean =>
+  LOCALPART_SHAPE.test(name) &&
+  room
+    .getMembers()
+    .some(
+      (other) =>
+        other.userId !== member.userId &&
+        (matchesEnum(other.membership, Membership.Join) ||
+          matchesEnum(other.membership, Membership.Invite)) &&
+        getMxIdLocalPart(other.userId) === name &&
+        shownName(other) === undefined
+    );
+
 /**
  * The name the room shows for a member as the sender of something, or undefined when they have
  * none of their own; a timeline event's `sender` names them as they were then. As matrix-js-sdk's
  * `RoomMember.name` does, the user ID follows the name when another member's name looks the same
  * or the name looks like a user ID, so nobody can pass for someone else, an agent included; it
- * also follows any name that holds one of the characters above, which are left out of it. The ID
+ * also follows any name that holds one of the characters above, which are left out of it, and,
+ * given the `room`, a name that is the localpart another member without a name shows as. The ID
  * is isolated so it reads left to right in any text.
  */
-export const getRoomMemberName = (member: RoomMember | null | undefined): string | undefined => {
-  // The SDK's raw name lacks direction overrides, and is the user ID when it would show nothing.
-  const raw = member?.rawDisplayName;
-  if (!member || !raw || raw === member.userId) return undefined;
-  const name = raw.replace(NAME_DISGUISES, '');
-  if (!name.trim()) return undefined;
-  return member.disambiguate || name !== raw ? `${name} (\u2066${member.userId}\u2069)` : name;
+export const getRoomMemberName = (
+  member: RoomMember | null | undefined,
+  room?: Room
+): string | undefined => {
+  const name = member ? shownName(member) : undefined;
+  if (!member || name === undefined) return undefined;
+  const clashes =
+    member.disambiguate ||
+    name !== member.rawDisplayName ||
+    (!!room && takesNamelessLocalpart(room, member, name));
+  return clashes ? `${name} (\u2066${member.userId}\u2069)` : name;
 };
 
 /**
@@ -91,7 +127,7 @@ export const getMemberRawDisplayName = (room: Room, userId: string): string | un
 
 /** `getRoomMemberName` of the room's current member `userId`. */
 export const getMemberDisplayName = (room: Room, userId: string): string | undefined =>
-  getRoomMemberName(room.getMember(userId));
+  getRoomMemberName(room.getMember(userId), room);
 
 export const getMemberAvatarMxc = (room: Room, userId: string): string | undefined =>
   room.getMember(userId)?.getMxcAvatarUrl() ?? undefined;
