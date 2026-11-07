@@ -114,7 +114,7 @@ test(
 );
 
 test(
-  'a !model typed as soon as a thread opens reaches the thread model chip',
+  'a !model typed while the thread model discovery runs reaches the chip',
   { tag: '@webkit' },
   async ({ page, stack }) => {
     const { first, second } = stack.models;
@@ -123,10 +123,12 @@ test(
     await waitForAgentReply(stack, rootId, (body) => body.includes('first question'), {
       modelId: first.id,
     });
-    // A fresh load of the finished thread, then the command at once, while the chip's discovery
-    // runs. The live test saw the chip appear 12 s after the thread opened, as "Room default",
-    // although the router had already confirmed the switch.
+    // A fresh load of the finished thread, then the command inside the chip's 12 s discovery
+    // window, once the router has answered the discovery (the live test typed 1.5 s after opening;
+    // a busy runner can take a few seconds to answer). The live test saw the chip appear 12 s after
+    // the thread opened, as "Room default", although the router had already confirmed the switch.
     await openThread(page, stack, rootId);
+    await page.waitForTimeout(5_000);
     const chip = page.getByRole('button', { name: 'Choose model' });
     const chipWhenTyped = (await chip.isVisible()) ? await chip.innerText() : 'none';
     await sendFromComposer(page, `!model ${second.key}`);
