@@ -1,13 +1,15 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { joinRoom, matrixFetch } from '../helpers/matrix';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // The Invites page: a centered title, a Filter label over the list chips, a heading with Accept
 // All for the list shown, and one card per invite with its picture or a colored letter, small
 // chips over the name of a direct chat, Decline and Accept side by side at the card's end, and
 // the inviter on a quiet line under it. The Inbox navigation lists Invites first, with the number
-// of pending invites, then Notifications. Set INVITES_SHOTS=<directory> to also save the page in
-// dark and light themes and at a phone's width.
+// of pending invites, then Notifications. The cards are checked in Chromium and, when
+// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set INVITES_SHOTS=<directory>
+// to also save the page in dark and light themes and at a phone's width.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'invites-page-spec-password';
 const SHOTS = process.env.INVITES_SHOTS;
@@ -32,7 +34,8 @@ const homeserverIsUp = async (): Promise<boolean> => {
 };
 
 const register = async (prefix: string, displayname: string): Promise<Account> => {
-  const username = `${prefix}_${Date.now().toString(36)}`;
+  // A random part too, so tests that run at once in other workers never pick the same name.
+  const username = `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const body = await matrixFetch<{ user_id: string; access_token: string }>(
     HOMESERVER,
     '/register',
@@ -151,11 +154,7 @@ test.beforeAll(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
-test('every invite card keeps Decline and Accept in one row at its end', async ({ page }) => {
-  test.slow();
-  const viewer = await seedInvites();
-  await openInvites(page, viewer);
-
+const checkInviteCards = async (page: Page) => {
   // The navigation lists Invites first, with the number of pending invites, then Notifications.
   const nav = page.getByRole('navigation', { name: 'Inbox' });
   const notificationsLink = nav.getByRole('link', { name: /^Notifications/ });
@@ -213,8 +212,12 @@ test('every invite card keeps Decline and Accept in one row at its end', async (
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/rtl-check.png` });
   await page.evaluate(() => document.documentElement.setAttribute('dir', 'ltr'));
 
-  // A phone's width moves the buttons under the name and nothing overflows the card.
+  // A phone's width moves the buttons under the name and nothing overflows the card. The app
+  // swaps in its phone layout a render after the resize; until then the desktop layout is drawn
+  // at the phone's width, so the cards are measured once the phone's Back button leads the page.
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeVisible();
+  await expect(nav).toBeHidden();
   for (let index = 0; index < 3; index += 1) {
     const card = cards.nth(index);
     const name = await box(card.getByRole('heading', { level: 3 }));
@@ -224,6 +227,27 @@ test('every invite card keeps Decline and Accept in one row at its end', async (
     expect(accept.x + accept.width).toBeLessThanOrEqual(cardBox.x + cardBox.width);
     expect(await card.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   }
+};
+
+test('every invite card keeps Decline and Accept in one row at its end (Chromium)', async ({
+  page,
+}) => {
+  test.slow();
+  const viewer = await seedInvites();
+  await openInvites(page, viewer);
+  await checkInviteCards(page);
+});
+
+test('every invite card keeps Decline and Accept in one row at its end (WebKit)', async ({
+  baseURL,
+}) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.slow();
+  const viewer = await seedInvites();
+  await onWebKitPage({ viewport: { width: 1280, height: 800 }, baseURL }, async (page) => {
+    await openInvites(page, viewer);
+    await checkInviteCards(page);
+  });
 });
 
 test('saves the Invites page in dark and light themes and at a phone width', async ({ page }) => {
