@@ -69,9 +69,9 @@ export const Panel = style([
     // Vertical drags scroll the list and pinches zoom; sideways ones push the drawer back.
     touchAction: 'pan-y pinch-zoom',
     transform: 'translateX(-100%)',
-    // A layer of its own, out too: when the page restyled under a finger (a long press holds the
-    // page's text unselectable), the iOS web view drew the drawer's lists and badges 34 px too high
-    // until the finger lifted.
+    // A layer of its own, also while out (with no transform): when the page restyled under a
+    // finger (a long press holds the page's text unselectable), the iOS web view drew the drawer's
+    // lists and badges 34 px too high until the finger lifted.
     willChange: 'transform',
     visibility: 'hidden',
     selectors: {

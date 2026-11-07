@@ -6,10 +6,10 @@ export const LONG_PRESS_MS = 500;
 export const LONG_PRESS_SLOP = 10;
 /**
  * How long a finger rests before the page's text turns unselectable: well before iOS selects the
- * word under it, about when the press fires, and longer than a finger that scrolls stays put. A
- * scroll thus leaves the page's style alone: restyling the whole page under a moving finger costs a
- * style pass, and the iOS web view drew the navigation drawer's badges and lists 34 px too high
- * until the finger had moved on.
+ * word under it (about when the 500 ms press fires), and longer than a finger that scrolls stays
+ * put. A scroll thus leaves the page's style alone: restyling the whole page under a moving finger
+ * costs a style pass, and the iOS web view drew the navigation drawer's badges and lists 34 px too
+ * high until the finger had moved on.
  */
 export const SELECTION_HOLD_MS = 150;
 
