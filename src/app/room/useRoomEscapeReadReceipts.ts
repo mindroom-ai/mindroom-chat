@@ -7,21 +7,19 @@ import { markMainTimelineAsRead, markThreadAsRead } from '../notifications/readR
 import { conversationOutOfSightAtom } from '../navigation/conversationCover';
 
 type UseRoomEscapeReadReceiptsOptions = {
-  /** A panel covers the conversation, so its messages are not in view. */
-  conversationHidden?: boolean;
   hideActivity: boolean;
   roomId: string;
   threadId?: string;
 };
 
 export const useRoomEscapeReadReceipts = ({
-  conversationHidden = false,
   hideActivity,
   roomId,
   threadId,
 }: UseRoomEscapeReadReceiptsOptions): void => {
   const mx = useMatrixClient();
-  // A phone's navigation drawer over the page, or a plugin's cover, hides the conversation too.
+  // A phone's navigation drawer over the page, a plugin's cover or a side panel in the
+  // conversation's place hides it.
   const store = useStore();
 
   // Escape marks the conversation as read, wherever the focus is on the page: an open thread, or
@@ -29,7 +27,7 @@ export const useRoomEscapeReadReceipts = ({
   useKeyDown(window,
     useCallback(
       (evt: KeyboardEvent) => {
-        if (conversationHidden || store.get(conversationOutOfSightAtom)) return;
+        if (store.get(conversationOutOfSightAtom)) return;
         if (!isKeyHotkey('escape', evt)) return;
         if (threadId) {
           markThreadAsRead(mx, roomId, threadId, hideActivity);
@@ -37,7 +35,7 @@ export const useRoomEscapeReadReceipts = ({
         }
         markMainTimelineAsRead(mx, roomId, hideActivity);
       },
-      [conversationHidden, hideActivity, mx, roomId, store, threadId]
+      [hideActivity, mx, roomId, store, threadId]
     )
   );
 };

@@ -40,7 +40,7 @@ import { RoomTimeline, type RoomTimelineProps } from '../timeline/RoomTimeline';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 import { RoomHeaderSlot } from './RoomHeaderSlot';
 import { ConversationCover } from './ConversationCover';
-import { conversationCoveredAtom } from '../navigation/conversationCover';
+import { conversationHiddenAtom } from '../navigation/conversationCover';
 import * as overlay from '../ui/styles/RoomOverlay.css';
 import * as css from './RoomView.css';
 import { ThreadContextBanner } from '../threads/ThreadContextBanner';
@@ -237,9 +237,9 @@ export function RoomView({
     localRoot.pending && localRoot.event && isFailedLocalEchoEvent(localRoot.event)
       ? localRoot.event
       : undefined;
-  // Under a plugin's cover the composer takes no keys.
-  const covered = useAtomValue(conversationCoveredAtom);
-  useTypeToCompose(editor, composerShown && !covered);
+  // Under a plugin's cover or behind a side panel the composer takes no keys.
+  const hidden = useAtomValue(conversationHiddenAtom);
+  useTypeToCompose(editor, composerShown && !hidden);
   useRoomOverlayInsets(areaRef, headerRef, footerRef, dockRef, effectiveThreadId);
 
   // The open room (and thread) keeps its history downloads; leaving the room ends them.
