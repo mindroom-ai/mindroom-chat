@@ -61,6 +61,8 @@ describe('domain layering lint', () => {
     ['rooms', 'threads', '.ts'],
     ['ui', 'ui-actions', '.tsx'],
     ['src/sw', 'matrix', '.ts'],
+    // The client SDK is for plugins: the app imports the modules it re-exports.
+    ['shell', 'src/client-sdk', '.ts'],
   ])('reports an import from %s into %s (a %s module)', async (domain, other, extension) => {
     const probe = probeIn(domain);
     const source = `import '${moduleOf(other, extension, probe)}';`;
