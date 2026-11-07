@@ -9,7 +9,8 @@ import { defined } from '../../src/test/utils/defined';
 // room whose admin lets members call, with a shared screen; leftover memberships withdrawn at
 // start; a second tab of the same session, which answers busy (on Join, on two Joins at the same
 // moment, and on a ring's Answer); and a call to a MindRoom agent, which runs in the agent call
-// room with the conversation as its origin. Needs the slot's LiveKit server and authorization service
+// room with the conversation as its origin; and a call whose panel could not load, ended from that
+// panel's failure view. Needs the slot's LiveKit server and authorization service
 // (scripts/e2e-rtc.sh), which --rtc starts before the slot's homeserver and stops afterwards:
 //   scripts/e2e-slot.sh <slot> --rtc npx playwright test e2e/calls/calls.spec.ts
 // scripts/e2e-suite.sh gives --rtc to every spec that names scripts/e2e-rtc.sh, as this one does.
@@ -154,6 +155,39 @@ type RingAlerts = {
 };
 const ringAlerts = (page: Page) =>
   page.evaluate(() => (window as unknown as { ringAlerts: RingAlerts }).ringAlerts);
+
+/** Records every media track the page gets from the microphone or camera, and their copies. */
+const recordMediaTracks = () => {
+  const tracks: MediaStreamTrack[] = [];
+  (window as unknown as { mediaTracks: MediaStreamTrack[] }).mediaTracks = tracks;
+  const { getUserMedia } = MediaDevices.prototype;
+  MediaDevices.prototype.getUserMedia = async function recordedGetUserMedia(
+    this: MediaDevices,
+    constraints?: MediaStreamConstraints
+  ) {
+    const stream = await getUserMedia.call(this, constraints);
+    tracks.push(...stream.getTracks());
+    return stream;
+  };
+  const { clone } = MediaStreamTrack.prototype;
+  MediaStreamTrack.prototype.clone = function recordedClone(this: MediaStreamTrack) {
+    const copy = clone.call(this);
+    tracks.push(copy);
+    return copy;
+  };
+};
+
+/** How many of the recorded media tracks still hold the microphone or camera. */
+const liveMediaTracks = (page: Page) =>
+  page.evaluate(
+    () =>
+      (window as unknown as { mediaTracks: MediaStreamTrack[] }).mediaTracks.filter(
+        (track) => track.readyState === 'live'
+      ).length
+  );
+
+/** The call panel's code: its chunk in the production build, its module on the dev server. */
+const CALL_PANEL_CODE = /\/(assets\/CallPanel-[^/]*\.js|src\/app\/calls\/CallPanel\.tsx)(\?|$)/;
 
 const signIn = async (browser: Browser, username: string, init?: () => void): Promise<Page> => {
   const context = await browser.newContext({ permissions: ['microphone', 'camera'] });
@@ -327,6 +361,44 @@ test.describe('calls', () => {
       });
     });
   }
+
+  test('a call whose panel could not load ends from the panel that says so', async ({
+    browser,
+  }) => {
+    const alice = await register(`alicef${RUN}`, 'Alice Panel');
+    const bob = await register(`bobf${RUN}`, 'Bob Panel');
+    const roomId = await createDirectChat(alice, bob, false);
+    const alicePage = await signIn(browser, `alicef${RUN}`);
+    const bobPage = await signIn(browser, `bobf${RUN}`, recordMediaTracks);
+    // Bob's network drops the call panel's code, the moment it is first needed: on his answer.
+    await bobPage.context().route(CALL_PANEL_CODE, (route) => route.abort('internetdisconnected'));
+    await openRoom(alicePage, roomId);
+    await bobPage.goto('/home/');
+
+    await alicePage.locator('[data-room-call-button]').click();
+    await callPanel(alicePage).getByRole('button', { name: 'Join', exact: true }).click();
+    const ring = bobPage.getByRole('alertdialog', { name: 'Incoming Call' });
+    await expect(ring).toBeVisible({ timeout: 60_000 });
+    await ring.getByRole('button', { name: 'Answer' }).click();
+
+    // Bob is in the call with his microphone on, and his call panel only says it could not load.
+    const unavailable = bobPage
+      .getByTestId('resizable-call-panel')
+      .locator('[data-part-unavailable]');
+    await expect(unavailable).toContainText("This couldn't load", { timeout: 60_000 });
+    await expect(tileOf(alicePage, bob.userId)).toHaveAttribute('data-connected', 'true', {
+      timeout: 60_000,
+    });
+    await expect.poll(() => liveMediaTracks(bobPage)).toBeGreaterThan(0);
+
+    // End there ends his call: Alice sees him leave, and his microphone is released.
+    await unavailable.getByRole('button', { name: 'End' }).click();
+    await expect(tileOf(alicePage, bob.userId)).toHaveCount(0, { timeout: 30_000 });
+    await expect.poll(() => liveMediaTracks(bobPage)).toBe(0);
+    await expect(bobPage.locator('[data-call-tab]')).toHaveCount(0);
+    await expect(unavailable.getByRole('button', { name: 'End' })).toHaveCount(0);
+    await callPanel(alicePage).getByRole('button', { name: 'End' }).click();
+  });
 
   test('members join a group room call once its admin lets them, and see a shared screen', async ({
     browser,
