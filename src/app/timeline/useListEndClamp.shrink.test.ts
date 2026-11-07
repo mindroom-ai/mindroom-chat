@@ -59,4 +59,12 @@ describe('listShrinkNotRendered', () => {
     const inner = list(622, [{ index: 2, top: 376, height: 246 }]);
     expect(listShrinkNotRendered(inner, rows([68, 3626, 246, 0]))).toBe(0);
   });
+
+  it('finds nothing pending for older rows the ledger folded above the reader', () => {
+    // A page of 100 older replies landed above a reader at the newest one: the ledger's margin
+    // (-9660 px) lifts the list by their height, and the list ends at its newest row.
+    const inner = list(622, [{ index: 102, top: 376, height: 246 }]);
+    inner.style.marginTop = '-9660px';
+    expect(listShrinkNotRendered(inner, rows([...Array<number>(102).fill(96), 246]))).toBe(0);
+  });
 });
