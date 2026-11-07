@@ -433,7 +433,7 @@ function RoomContent() {
     (event: MatrixEvent, filled = false) =>
       request('canvas', () => {
         setShownCanvas({ event, conversation });
-        if (filled) setLayout('canvas', 'filled');
+        setLayout('canvas', filled ? 'filled' : 'beside');
       }),
     [conversation, request, setLayout]
   );

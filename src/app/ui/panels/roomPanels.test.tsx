@@ -102,13 +102,40 @@ describe('useRoomPanels', () => {
     expect(result.current.layout).toBe('folded');
   });
 
+  it('keeps an open panel filling the room when it is asked for again, and brings a folded one back', () => {
+    const { result } = renderHook(useRoomPanelsIn, {
+      initialProps: { panels: panelsOf({ a: true }) },
+    });
+    act(() => result.current.setLayout('a', 'filled'));
+    act(() => result.current.request('a', () => undefined));
+    expect(result.current.layout).toBe('filled');
+    act(() => result.current.setLayout('a', 'folded'));
+    act(() => result.current.request('a', () => undefined));
+    expect(result.current.layout).toBe('beside');
+  });
+
+  it('forgets the layout a panel had in other rooms when it opens', () => {
+    const { result, rerender } = renderHook(useRoomPanelsIn, {
+      initialProps: { panels: panelsOf({ a: true }) },
+    });
+    act(() => result.current.setLayout('a', 'filled'));
+    // Open in every room (as the members are): closed and opened again in another room.
+    rerender({ room: '!b', panels: panelsOf({}) });
+    act(() => result.current.request('a', () => undefined));
+    rerender({ room: '!b', panels: panelsOf({ a: true }) });
+    rerender({ panels: panelsOf({ a: true }) });
+    expect(result.current.layout).toBe('beside');
+  });
+
   it('opens a panel beside the conversation again, by a request or from elsewhere', () => {
     const options = { b: { opensElsewhere: true } };
     const { result, rerender } = renderHook(useRoomPanelsIn, {
       initialProps: { panels: panelsOf({ a: true }, options) },
     });
     act(() => result.current.setLayout('a', 'filled'));
+    rerender({ panels: panelsOf({}, options) });
     act(() => result.current.request('a', () => undefined));
+    rerender({ panels: panelsOf({ a: true }, options) });
     expect(result.current.layout).toBe('beside');
 
     act(() => result.current.setLayout('b', 'folded'));

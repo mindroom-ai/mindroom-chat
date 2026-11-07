@@ -23,6 +23,15 @@ export type RoomPanel = {
   opensElsewhere?: boolean;
 };
 
+/** The layout of each panel, by room. */
+type Layouts = Readonly<Record<string, Readonly<Record<string, PanelLayout>>>>;
+
+/** `id` opened beside the conversation in `room`: what it was in the other rooms no longer holds. */
+const openedBeside = (layouts: Layouts, id: string, room: string): Layouts => ({
+  ...layouts,
+  [id]: { [room]: 'beside' },
+});
+
 /** Closes every panel but `id` that does not yield to it. */
 const makeRoomFor = (panels: readonly RoomPanel[], id: string) =>
   panels.forEach((panel) => {
@@ -34,29 +43,30 @@ const makeRoomFor = (panels: readonly RoomPanel[], id: string) =>
  * `panels`. `request(id, show)` opens one: it closes every other panel that does not yield to it,
  * then calls `show`, which opens it in its own state.
  *
- * Each panel of each room (`room`) also has a layout, `layout` for the one shown: it opens beside
- * the conversation, by a request or from elsewhere, and keeps what `setLayout` gives it while it
- * stays open, also while another panel or another conversation hides it.
+ * Each panel of each room (`room`) also has a layout, `layout` for the one shown. A panel opens
+ * beside the conversation, by a request or from elsewhere, which forgets its layout in the other
+ * rooms; a request for a panel already open that fills the room leaves it so. The layout
+ * `setLayout` gives a panel stays while it stays open, also while another panel or another
+ * conversation hides it.
  */
 export function useRoomPanels<Panel extends RoomPanel>(room: string, panels: readonly Panel[]) {
   const latest = useRef({ room, panels });
   useLayoutEffect(() => {
     latest.current = { room, panels };
   });
-  const [layouts, setLayouts] = useState<Readonly<Record<string, PanelLayout>>>({});
+  const [layouts, setLayouts] = useState<Layouts>({});
   const setLayout = useCallback(
     (id: string, layout: PanelLayout) =>
-      setLayouts((all) => ({ ...all, [`${latest.current.room}\n${id}`]: layout })),
+      setLayouts((all) => ({ ...all, [id]: { ...all[id], [latest.current.room]: layout } })),
     []
   );
-  const request = useCallback(
-    (id: string, show: () => void) => {
-      makeRoomFor(latest.current.panels, id);
-      setLayout(id, 'beside');
-      show();
-    },
-    [setLayout]
-  );
+  const request = useCallback((id: string, show: () => void) => {
+    const { room: here, panels: current } = latest.current;
+    makeRoomFor(current, id);
+    const open = current.some((panel) => panel.id === id && panel.open);
+    setLayouts((all) => (open && all[id]?.[here] === 'filled' ? all : openedBeside(all, id, here)));
+    show();
+  }, []);
 
   // The panels open when each room last showed: a panel already open when its room shows again
   // did not open elsewhere.
@@ -68,12 +78,12 @@ export function useRoomPanels<Panel extends RoomPanel>(room: string, panels: rea
     panels.forEach((panel) => {
       if (panel.opensElsewhere && panel.open && !before.has(panel.id)) {
         makeRoomFor(panels, panel.id);
-        setLayout(panel.id, 'beside');
+        setLayouts((all) => openedBeside(all, panel.id, room));
       }
     });
   });
 
   const shown = panels.find((panel) => panel.open);
-  const layout = (shown && layouts[`${room}\n${shown.id}`]) ?? 'beside';
+  const layout = (shown && layouts[shown.id]?.[room]) ?? 'beside';
   return { shown, layout, setLayout, request };
 }

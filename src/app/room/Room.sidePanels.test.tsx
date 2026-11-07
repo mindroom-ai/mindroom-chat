@@ -27,6 +27,7 @@ const { mx, room, state } = vi.hoisted(() => {
       config: {} as ClientConfig,
       view: undefined as RoomViewProps | undefined,
       computer: undefined as { expanded?: boolean; onToggleExpanded?: () => void } | undefined,
+      canvas: undefined as { expanded?: boolean; onToggleExpanded?: () => void } | undefined,
       /** Whether the room is too narrow for the members beside it (useMembersOverlay). */
       membersOverlay: false,
       roomId: '!room:example.org',
@@ -81,7 +82,10 @@ vi.mock('../computer/ComputerPanel', () => ({
   },
 }));
 vi.mock('../canvas/RoomCanvasPanel', () => ({
-  RoomCanvasPanel: () => <div data-testid="room-canvas-panel" />,
+  RoomCanvasPanel: (props: typeof state.canvas) => {
+    state.canvas = props;
+    return <div data-testid="room-canvas-panel" />;
+  },
 }));
 vi.mock('../calls/CallPanel', () => ({ CallPanel: () => null }));
 vi.mock('../canvas/canvasIndex', async (importOriginal) => ({
@@ -251,6 +255,7 @@ describe('the side panels of a room', () => {
     store.set(membersOpenAtom, false);
     state.view = undefined;
     state.computer = undefined;
+    state.canvas = undefined;
     state.membersOverlay = false;
     state.roomId = room.roomId;
     vi.unstubAllGlobals();
@@ -421,6 +426,22 @@ describe('the side panels of a room', () => {
     await act(async () => state.computer?.onToggleExpanded?.());
     expect(conversation()).not.toBeNull();
     expect(frameButton('Fill the room with Computer')?.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it("keeps the computer filling the room when an agent shows it again, but shows an agent's new canvas beside", async () => {
+    await renderRoom();
+    await open('computer');
+    await act(async () => state.computer?.onToggleExpanded?.());
+    await agentRequest('show_computer');
+    expect(state.computer?.expanded).toBe(true);
+    expect(conversation()).toBeNull();
+
+    await open('canvas');
+    await act(async () => state.canvas?.onToggleExpanded?.());
+    expect(conversation()).toBeNull();
+    await open('canvas');
+    expect(state.canvas?.expanded).toBe(false);
+    expect(conversation()).not.toBeNull();
   });
 
   it('gives the members no frame while they lie over a room too narrow for them beside it', async () => {
