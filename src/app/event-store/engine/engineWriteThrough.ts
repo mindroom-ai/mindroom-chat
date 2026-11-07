@@ -14,7 +14,8 @@
  *   - scheduleReplaceCompaction: arm-time cross-sender direct persist,
  *     D12-latest pending map (isEventOrderedAfter), fire-time
  *     target-miss standalone fallback with editCompactionTargetMisses
- *     probe, fire-time cross-sender [target, replace] pair emit,
+ *     probe, fire-time [target, replace] pair emit (the serializer
+ *     compacts a same-sender pair into the target's record),
  *     thread attribution captured at schedule time.
  *   - Redaction lifecycle: planRedactionCacheCleanup +
  *     removeAggregatedReactionByEventId over both timelineSets, with
@@ -212,11 +213,11 @@ export const createEngineWriteThrough = (
         persistEvents([pendingReplace]);
         return;
       }
-      if (targetEvent.getSender() !== pendingReplace.getSender()) {
-        persistEvents([targetEvent, pendingReplace]);
-        return;
-      }
-      persistEvents([targetEvent]);
+      // The serializer bundles a same-sender edit onto its target's record and keeps another
+      // sender's beside it. The target alone carries only an edit the SDK applied, and the SDK
+      // applies none in a thread it has not fetched (it buffers them), so a reply that streamed
+      // there was saved as its placeholder.
+      persistEvents([targetEvent, pendingReplace]);
     });
     return true;
   };
