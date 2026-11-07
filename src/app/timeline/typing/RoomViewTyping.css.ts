@@ -35,9 +35,9 @@ export const TypingStrip = style([
   },
 ]);
 
-// The ✕ that drops the strip: 24 px, 44 px wide to a finger and as tall as the room between the
-// bar above it and the composer below allows.
-export const DropButton = style(touchTarget('22px', '', { blockReach: '5px' }));
+// The ✕ that drops the strip: 24 px, 44 by 44 px to a finger. Its area reaches 8 px past the strip
+// on each side, as far as the gaps to the bar above it and to the composer below it go.
+export const DropButton = style(touchTarget('22px'));
 
 export const TypingText = style({
   flexGrow: 1,
