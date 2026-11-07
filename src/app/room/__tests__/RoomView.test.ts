@@ -1506,12 +1506,13 @@ describe('RoomView', { timeout: 30_000 }, () => {
     await act(async () => {
       renderer = create(React.createElement(RoomView, { room: room as never }));
     });
-    expect(headerClass()).toBe('room-header');
+    const { HeaderInShortArea } = await import('../RoomView.css');
+    expect(headerClass()).toBe(`room-header ${HeaderInShortArea}`);
 
     await act(async () => {
       renderer?.update(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
     });
-    expect(headerClass()).toBe('room-header room-header-in-thread');
+    expect(headerClass()).toBe(`room-header ${HeaderInShortArea} room-header-in-thread`);
   });
 
   it('forwards the computer and canvas state to the room header', async () => {
