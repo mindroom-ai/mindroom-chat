@@ -128,6 +128,9 @@ vi.mock('./useRoomInputAttachments', () => ({
     onEditorChange: vi.fn(),
     onPaste: vi.fn(),
     pickFiles: vi.fn(),
+    lostPastes: false,
+    dismissLostPastes: vi.fn(),
+    settlePastes: () => true,
   }),
 }));
 vi.mock('./useRoomInputDraft', () => ({ useRoomInputDraft: () => vi.fn() }));

@@ -26,6 +26,7 @@ const { client, navigate, openResult, pending } = vi.hoisted(() => {
         name: `Room ${roomId.slice(1, roomId.indexOf(':'))}`,
         getMember: () => null,
         hasEncryptionStateEvent: () => false,
+        membersLoaded: () => true,
       }),
       search: vi.fn(
         (
