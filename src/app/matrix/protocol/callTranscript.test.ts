@@ -52,7 +52,7 @@ describe('readCallTranscript', () => {
       duration_seconds: 125,
       turns: [
         { sender: PERSON, text: 'Can you hear me?', offset_seconds: 0 },
-        { sender: AGENT, text: 'Yes.', offset_seconds: 4.7 },
+        { sender: AGENT, text: 'Yes.', offset_seconds: 4 },
         { sender: PERSON, text: 'Bye.', offset_seconds: 125 },
       ],
     });
@@ -73,6 +73,7 @@ describe('readCallTranscript', () => {
     ['a string', '12'],
     ['null', null],
     ['a negative number', -1],
+    ['a fraction', 4.5],
     ['NaN', Number.NaN],
     ['an infinite number', Infinity],
     ['a time after the call ended', 61],
