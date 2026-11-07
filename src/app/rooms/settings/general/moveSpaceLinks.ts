@@ -16,7 +16,9 @@ const hasVia = (content: Record<string, unknown> | undefined): boolean =>
  * the tombstone then leads on from. The replacement also lists the old room's children, and each
  * child that names the old room as its parent names the replacement too, so a sub-room stays
  * under its room. Resolves to the children that did not come along: one the replacement could not
- * list, one that refused the new parent, or one this account has not joined and cannot change.
+ * list, one that refused the new parent, or a chat room's child this account has not joined and so
+ * cannot point at the replacement (a Space lists its rooms on its own; a chat room's sub-room
+ * needs its own link too).
  */
 export const moveSpaceLinks = async (
   client: MatrixClient,
@@ -61,7 +63,7 @@ export const moveSpaceLinks = async (
     } catch {
       return childId;
     }
-    return joined ? undefined : childId;
+    return joined || oldRoom?.isSpaceRoom() ? undefined : childId;
   });
 
   const [unmoved] = await Promise.all([Promise.all(moved), Promise.all(writes)]);
