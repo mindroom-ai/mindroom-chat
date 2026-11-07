@@ -76,9 +76,13 @@ export const Badge = style({
   },
 });
 
-/** At most two lines, broken between words where it can be, as quiet as the message times. */
+/**
+ * At most two lines, broken between words where it can be, as quiet as the message times. It keeps
+ * its own width cap, so the touch target, wider at a small page zoom, does not widen the text.
+ */
 export const Label = style({
   display: '-webkit-box',
+  maxInlineSize: widestName,
   WebkitLineClamp: nameLines,
   WebkitBoxOrient: 'vertical',
   opacity: config.opacity.P300,

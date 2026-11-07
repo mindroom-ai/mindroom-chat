@@ -228,7 +228,7 @@ const checkAvatars = async (page: Page, seeded: Seeded) => {
           Math.round(mark.right - face.right),
           Math.round(mark.bottom - face.bottom),
         ],
-        nameClear: name.left >= mark.right && name.left >= badge.right - 12,
+        nameClear: name.left >= mark.right && name.left >= badge.right,
       };
     });
   await expect.poll(layout).not.toBe('missing');
