@@ -18,6 +18,7 @@ import { CallMemberAvatar } from '../CallTile';
 import { nameInCall } from './transcriptionState';
 import { openTranscriptPanel } from './transcriptPanel';
 import { useLiveTranscript } from './useLiveTranscript';
+import { useTranscriptionServer } from './useTranscriptionServer';
 import * as css from './CallRow.css';
 
 type RowProps = { room: Room; rowEvent: MatrixEvent; row: CallRowContent };
@@ -65,7 +66,8 @@ function EndedCallRow({ room, rowEvent, row }: RowProps) {
  * The row of a call that is on: who is in it, as MindRoom has it, Join and Transcript. The router
  * never edits the row of a call MindRoom no longer has (transcripts turned off, MindRoom down for
  * more than a day, the router gone): a read that says the room is not transcribed, or names no
- * live call or another one, shows the row as ended, without how long it lasted.
+ * live call or another one, shows the row as ended, without how long it lasted. A device that knows
+ * no MindRoom server for the room reads nothing, and the row stays as posted.
  */
 function LiveCallRow({ room, row }: RowProps) {
   const { t } = useTranslation();
@@ -87,7 +89,9 @@ function LiveCallRow({ room, row }: RowProps) {
   const { state, live } = useLiveTranscript(room, READ_MS, inView);
   const shownCall = isActiveCallShownIn(useActiveCall(), room.roomId);
   const people = live?.call?.id === row.callId ? live.call.members : [];
-  const ended = state === 'not-transcribed' || (!!live && live.call?.id !== row.callId);
+  const serverKnown = !!useTranscriptionServer(useMatrixClient(), room).apiUrl;
+  const ended =
+    (state === 'not-transcribed' && serverKnown) || (!!live && live.call?.id !== row.callId);
 
   const showRoom = () => {
     if (selectedRoomId !== room.roomId) navigation.navigateRoom(room.roomId);

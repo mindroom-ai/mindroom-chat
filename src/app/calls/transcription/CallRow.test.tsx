@@ -17,6 +17,8 @@ const ROUTER = '@mindroom_router:example.org';
 const BOB = '@bob:example.org';
 
 const state = vi.hoisted(() => ({
+  /** The room's MindRoom server, as the device knows it; none it can find. */
+  apiUrl: 'https://mindroom.example.org' as string | undefined,
   selectedRoom: '!room:example.org' as string | undefined,
   navigateRoom: vi.fn(),
   navigateRoomThread: vi.fn(),
@@ -34,7 +36,7 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('./useTranscriptionServer', () => ({
-  useTranscriptionServer: () => ({ apiUrl: 'https://mindroom.example.org', discovered: true }),
+  useTranscriptionServer: () => ({ apiUrl: state.apiUrl, discovered: true }),
 }));
 vi.mock('./liveCallPoll', () => ({
   pollLiveCall: (
@@ -159,6 +161,7 @@ beforeEach(() => {
   root = createRoot(container);
   vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
   state.polls = [];
+  state.apiUrl = 'https://mindroom.example.org';
   state.selectedRoom = ROOM_ID;
   state.navigateRoom.mockReset();
   state.navigateRoomThread.mockReset();
@@ -334,6 +337,17 @@ describe('CallRow', () => {
     expect(faces()).toEqual([]);
     expect(button('Join')).toBeUndefined();
     expect(button('Transcript')).toBeUndefined();
+  });
+
+  it('stays live, as posted, on a device that knows no MindRoom server for the room', () => {
+    state.apiUrl = undefined;
+    render(LIVE);
+    inView(true);
+
+    expect(state.polls).toHaveLength(0);
+    expect(container.textContent).toContain('Call in progress');
+    expect(button('Join')).toBeDefined();
+    expect(button('Transcript')).toBeDefined();
   });
 
   it('links to the transcript message in its thread once the router names it', () => {
