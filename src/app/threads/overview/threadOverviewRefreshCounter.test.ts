@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
 
 const makeRoom = () => {
@@ -39,18 +39,6 @@ const CounterHarness = ({
 };
 
 describe('useThreadOverviewRefreshCounter', () => {
-  // The count goes up at the next animation frame; here that frame comes at once.
-  beforeEach(() => {
-    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
-      callback(0);
-      return 0;
-    });
-    vi.stubGlobal('cancelAnimationFrame', vi.fn());
-  });
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   it('bumps for room overview receipt and thread events', async () => {
     const room = makeRoom();
     const counters: number[] = [];
