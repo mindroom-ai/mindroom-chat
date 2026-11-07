@@ -358,6 +358,29 @@ export const useThreadIndex = ({
   const roomSurfaceEventEntries = useMemo(() => {
     // Mutable SDK/event metadata can change without changing the timeline array identity.
     void overviewRefreshCounter;
+    {
+      const diag = globalThis as unknown as {
+        __surfaceCauses?: Record<string, number>;
+        __surfacePrev?: unknown[];
+      };
+      const current = [
+        renderableEventEntries,
+        linkedTimelines,
+        room,
+        ignoredUsersSet,
+        threadReplyCountMap,
+        threadResolutionMap,
+        overviewRefreshCounter,
+      ];
+      const names = 'renderable linked room ignored replyCount resolution counter'.split(' ');
+      const previous = diag.__surfacePrev;
+      const key = previous
+        ? names.filter((_, index) => !Object.is(current[index], previous[index])).join('+')
+        : 'first';
+      diag.__surfacePrev = current;
+      diag.__surfaceCauses = diag.__surfaceCauses ?? {};
+      diag.__surfaceCauses[key] = (diag.__surfaceCauses[key] ?? 0) + 1;
+    }
     if (threadId) return renderableEventEntries;
     return buildRoomSurfaceEventEntries({
       renderableEventEntries,
@@ -519,6 +542,40 @@ export const useThreadIndex = ({
     void overviewRefreshCounter;
     const probe = globalThis as unknown as { __threadRecordBuilds?: number };
     probe.__threadRecordBuilds = (probe.__threadRecordBuilds ?? 0) + 1;
+    const diag = globalThis as unknown as {
+      __threadRecordCauses?: Record<string, number>;
+      __threadRecordPrev?: unknown[];
+    };
+    const current = [
+      threadId,
+      compactViewRequested,
+      room,
+      visibleThreadRootData,
+      compactThreadRootData,
+      visibleThreadRootEventMap,
+      compactThreadRootEventMap,
+      compactThreadRootBodyMap,
+      summaryMap,
+      threadSummaryInfoMap,
+      threadReplyCountMap,
+      cachedMetadata,
+      threadParticipantMap,
+      threadResolutionMap,
+      currentUserId,
+      scheduledStatusMap,
+      overviewRefreshCounter,
+    ];
+    const names =
+      'threadId compact room visibleRoot compactRoot visibleEventMap compactEventMap bodyMap summaryMap summaryInfoMap replyCountMap cachedMetadata participantMap resolutionMap userId scheduledMap counter'.split(
+        ' '
+      );
+    const previous = diag.__threadRecordPrev;
+    const key = previous
+      ? names.filter((_, index) => !Object.is(current[index], previous[index])).join('+')
+      : 'first';
+    diag.__threadRecordPrev = current;
+    diag.__threadRecordCauses = diag.__threadRecordCauses ?? {};
+    diag.__threadRecordCauses[key] = (diag.__threadRecordCauses[key] ?? 0) + 1;
     return buildThreadIndexRecordMaps({
       threadId,
       compactViewRequested,
