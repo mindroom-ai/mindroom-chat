@@ -21,6 +21,7 @@ import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { mDirectAtom } from '../matrix/state/mDirectList';
+import { useListRoomsRefusal } from '../rooms/create/useListRoomsRefusal';
 import { useOpenRoomSettings } from '../navigation/useRoomSettingsState';
 import { getCanonicalAliasOrRoomId, isRoomAlias } from '../matrix/matrix';
 import { getMatrixToRoom } from '../matrix/matrix-to';
@@ -46,15 +47,6 @@ const CreateSubRoomDialog = lazy(() =>
     default: module.CreateSubRoomDialog,
   }))
 );
-
-/** Why the signed-in user may not change which rooms `room` lists (`m.space.child`), if so. */
-const useListRoomsRefusal = (room: Room): string | undefined => {
-  const { t } = useTranslation();
-  const client = useMatrixClient();
-  const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevels(room));
-  if (permissions.stateEvent(StateEvent.SpaceChild, client.getSafeUserId())) return undefined;
-  return t('featureUi.subRooms.noPermission', { name: revealDirectionControls(room.name) });
-};
 
 /** A dialog an entry opens; it outlives the menu, and `close` ends it. */
 export type RoomActionDialog = (close: () => void) => ReactNode;

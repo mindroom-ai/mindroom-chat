@@ -16,6 +16,7 @@ import { waitForJoinedRoom } from '../../matrix/waitForJoinedRoom';
 import { useClientConfig } from '../../config/useClientConfig';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { describeError } from '../../lib/describeError';
+import { useListRoomsRefusal } from './useListRoomsRefusal';
 import { getSpaceRoomPath } from '../../routes/pathUtils';
 
 type CreateSubRoomDialogProps = {
@@ -39,6 +40,8 @@ export function CreateSubRoomDialog({ parent, spaceId, requestClose }: CreateSub
   const { createRoom: policy } = useClientConfig();
   const version = useCapabilities()['m.room_versions']?.default;
   const parentName = revealDirectionControls(useRoomName(parent));
+  // Who may no longer list rooms in the parent, since the menu offered this, gets the reason.
+  const refusal = useListRoomsRefusal(parent);
   const [name, setName] = useState('');
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<{ reason: unknown }>();
@@ -58,7 +61,7 @@ export function CreateSubRoomDialog({ parent, spaceId, requestClose }: CreateSub
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = name.trim();
-    if (!trimmed) return;
+    if (!trimmed || refusal) return;
     setError(undefined);
     setCreating(true);
     try {
@@ -109,6 +112,11 @@ export function CreateSubRoomDialog({ parent, spaceId, requestClose }: CreateSub
             onChange={(event) => setName(event.currentTarget.value)}
           />
         </Box>
+        {refusal && (
+          <Text size="T300" style={{ color: color.Critical.Main }}>
+            {refusal}
+          </Text>
+        )}
         {error !== undefined && (
           <Text role="alert" size="T300" style={{ color: color.Critical.Main }}>
             {describeError(t, error.reason)}
@@ -120,7 +128,7 @@ export function CreateSubRoomDialog({ parent, spaceId, requestClose }: CreateSub
           variant="Primary"
           size="500"
           radii="400"
-          disabled={creating}
+          disabled={creating || !!refusal}
           before={creating ? <Spinner variant="Primary" fill="Solid" size="200" /> : undefined}
         >
           <Text size="B500">{t('featureUi.createRoom.create')}</Text>
