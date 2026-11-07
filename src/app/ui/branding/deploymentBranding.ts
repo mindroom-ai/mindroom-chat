@@ -13,6 +13,9 @@ import {
 // origin, links open only http, https or mailto addresses. A value that fails keeps its default and
 // logs one warning, so a typo never leaves the sign-in page blank or broken.
 
+/** A piece of the footer's line: plain text, or a link inside it. */
+export type FooterTextPart = string | PoweredByLink;
+
 /** What the signed-out pages show, after the configured values are checked. */
 export type DeploymentBranding = {
   /** The name in the sign-in card's header, on the pairing page and on the loading screens. */
@@ -27,7 +30,8 @@ export type DeploymentBranding = {
     /** A configured logo rather than MindRoom Chat's own. */
     custom: boolean;
   };
-  footerText: string | undefined;
+  /** The line before the credits, read in order; undefined shows none. */
+  footerText: readonly FooterTextPart[] | undefined;
   footerLinks: PoweredByLink[];
   /** The "Powered by" credits; an empty list hides the line. */
   poweredBy: readonly PoweredByLink[];
@@ -96,6 +100,37 @@ const linkList = (value: unknown, key: string, warn: Warn): PoweredByLink[] | un
   });
 };
 
+/**
+ * The footer's line: a text, or a list of texts and `{label, url}` links read as one line. A link
+ * that cannot open safely keeps its label as text, so the line still reads.
+ */
+const footerTextParts = (value: unknown, warn: Warn): FooterTextPart[] | undefined => {
+  if (value === undefined) return undefined;
+  if (typeof value === 'string') {
+    const text = textOf(value);
+    return text === undefined ? undefined : [text];
+  }
+  if (!Array.isArray(value)) {
+    warn('branding.footer.text must be text or a list of texts and links; ignoring it.');
+    return undefined;
+  }
+  const parts = value.flatMap((entry: unknown, index): FooterTextPart[] => {
+    if (typeof entry === 'string') return entry === '' ? [] : [entry];
+    const label = isRecord(entry) ? textOf(entry.label) : undefined;
+    const url = isRecord(entry) ? linkAddress(entry.url) : undefined;
+    if (label !== undefined && url !== undefined) return [{ label, url }];
+    if (label !== undefined) {
+      warn(
+        `branding.footer.text[${index}] needs an http, https or mailto url; showing its label as text.`
+      );
+      return [label];
+    }
+    warn(`branding.footer.text[${index}] must be text or a {"label", "url"} link; leaving it out.`);
+    return [];
+  });
+  return parts.some((part) => typeof part !== 'string' || part.trim() !== '') ? parts : undefined;
+};
+
 /** A support or policy page; an empty value means none, as it always did. */
 const pageAddress = (value: unknown, key: string, warn: Warn): string | undefined => {
   if (value === undefined || value === '') return undefined;
@@ -145,14 +180,11 @@ export const resolveDeploymentBranding = (
     warn('branding.title must be a non-empty text; keeping the default title.');
   }
 
-  let footerText: string | undefined;
+  let footerText: FooterTextPart[] | undefined;
   let footerLinks: PoweredByLink[] = [];
   const { footer } = branding;
   if (isRecord(footer)) {
-    if (footer.text !== undefined && typeof footer.text !== 'string') {
-      warn('branding.footer.text must be text; ignoring it.');
-    }
-    footerText = textOf(footer.text);
+    footerText = footerTextParts(footer.text, warn);
     if (footer.links !== undefined) {
       footerLinks = linkList(footer.links, 'branding.footer.links', warn) ?? [];
     }

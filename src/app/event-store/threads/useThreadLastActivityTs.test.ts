@@ -33,11 +33,13 @@ const makeThreadRootWithBundledLatestEvent = ({
   ts,
   latestEventTs,
   latestEditTs,
+  latestEditSender = '@alice:example.org',
 }: {
   eventId?: string;
   ts: number;
   latestEventTs?: number;
   latestEditTs?: number;
+  latestEditSender?: string;
 }) =>
   new MatrixEvent({
     content: {
@@ -70,6 +72,7 @@ const makeThreadRootWithBundledLatestEvent = ({
                           'm.relations': {
                             'm.replace': {
                               origin_server_ts: latestEditTs,
+                              sender: latestEditSender,
                             },
                           },
                         }
@@ -464,6 +467,23 @@ describe('useThreadLastActivityTs', () => {
     const { getSnapshot, renderer } = renderHookHarness(room);
 
     expect(getSnapshot()).toBe(310);
+
+    renderer.unmount();
+  });
+
+  it('ignores a bundled latest_event replacement another sender made', () => {
+    const rootEvent = makeThreadRootWithBundledLatestEvent({
+      eventId: '$root',
+      ts: 100,
+      latestEventTs: 220,
+      latestEditTs: 310,
+      latestEditSender: '@bob:example.org',
+    });
+    const room = makeRoom(rootEvent, undefined);
+
+    const { getSnapshot, renderer } = renderHookHarness(room);
+
+    expect(getSnapshot()).toBe(220);
 
     renderer.unmount();
   });
