@@ -59,7 +59,7 @@ const savedUnthreadedReceipt = (
   userId: string
 ): Promise<string | null> =>
   page.evaluate(
-    async ([room, user]) => {
+    async ([room, user]: [string, string]) => {
       type Receipts = Record<string, Record<string, Record<string, { thread_id?: string }>>>;
       type Saved = {
         roomsData?: {
@@ -100,7 +100,7 @@ const savedUnthreadedReceipt = (
       });
       return read?.[0] ?? null;
     },
-    [roomId, userId]
+    [roomId, userId] as [string, string]
   );
 
 type RoomCounts = { total: number; threads: number };
