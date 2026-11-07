@@ -131,7 +131,9 @@ describe('RoomHeaderSlot', () => {
   it('keeps the others and reports under the tag a component that throws a value without text', () => {
     expect(render('!bare:example.org')).toContain('second:!bare:example.org');
     expect(mocks.reportBoundaryError).toHaveBeenCalledWith(
-      expect.objectContaining({ message: expect.stringMatching(/^\[plugin broken@0\.1\.0\] /) }),
+      expect.objectContaining({
+        message: '[plugin broken@0.1.0] a value that cannot be shown as text',
+      }),
       expect.any(String)
     );
   });
