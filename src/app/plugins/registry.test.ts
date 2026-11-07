@@ -3,10 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const entries = vi.hoisted(() => {
   const renderer = { match: () => true, Component: (): null => null };
-  const forgetAccount = () => undefined;
+  const forgotten: string[] = [];
   return {
     renderer,
-    forgetAccount,
+    forgotten,
     list: [
       {
         id: 'alpha',
@@ -18,7 +18,11 @@ const entries = vi.hoisted(() => {
         version: '2.1.0',
         plugin: {
           messageRenderers: [renderer, null, { Component: (): null => null }],
-          forgetAccount,
+          forgotten,
+          // A method of the plugin object, which it calls with the plugin as `this`.
+          forgetAccount(this: { forgotten: string[] }, userId: string) {
+            this.forgotten.push(userId);
+          },
         },
       },
     ],
@@ -46,7 +50,8 @@ describe('registeredPlugins', () => {
     expect(plugins[1]?.messageRenderers).toEqual([entries.renderer]);
     // So does a `forgetAccount` that is not a function.
     expect(plugins[0]?.forgetAccount).toBeUndefined();
-    expect(plugins[1]?.forgetAccount).toBe(entries.forgetAccount);
+    await plugins[1]?.forgetAccount?.('@alice:example.org');
+    expect(entries.forgotten).toEqual(['@alice:example.org']);
   });
 
   it('is frozen when its module loads', async () => {
