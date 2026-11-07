@@ -64,7 +64,12 @@ const signIn = async (page: Page, room?: string) => {
       body: JSON.stringify({ username, password: PASSWORD, auth: { type: 'm.login.dummy' } }),
     }
   );
-  const roomId = room ? await createPrivateRoom(HOMESERVER, accessToken, { name: room }) : '';
+  const roomId = room
+    ? await createPrivateRoom(HOMESERVER, accessToken, {
+        name: room,
+        topic: `${room} for the team`,
+      })
+    : '';
   await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
   return roomId;
 };
