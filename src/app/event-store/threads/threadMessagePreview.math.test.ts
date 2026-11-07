@@ -30,6 +30,7 @@ describe('thread previews of math', () => {
       'speed = (distance)/(time)'
     );
     expect(preview('So $P(A \\mid B) \\approx 0.3$.')).toBe('So P(A | B) ≈ 0.3.');
+    expect(preview('$\\|x\\|_2 \\leq |y|$')).toBe('‖x‖_2 ≤ |y|');
   });
 
   it('keep a fraction or root whole where a script, letter or command joins it', () => {

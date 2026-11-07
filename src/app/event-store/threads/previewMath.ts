@@ -15,7 +15,7 @@ const SYMBOLS = new Map(
     'Leftrightarrow ⇔ implies ⇒ iff ⇔ mapsto ↦ in ∈ notin ∉ subset ⊂ subseteq ⊆ cup ∪ cap ∩',
     'emptyset ∅ forall ∀ exists ∃ neg ¬ land ∧ lor ∨ infty ∞ partial ∂ nabla ∇ sum ∑ prod ∏',
     'int ∫ ldots … cdots ⋯ dots … langle ⟨ rangle ⟩ lfloor ⌊ rfloor ⌋ lceil ⌈ rceil ⌉ mid |',
-    'vert | lvert | rvert | prime ′',
+    'vert | lvert | rvert | Vert ‖ lVert ‖ rVert ‖ | ‖ prime ′',
   ]
     .join(' ')
     .split(' ')
