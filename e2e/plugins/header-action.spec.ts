@@ -42,13 +42,19 @@ test.afterAll(() => {
   if (build) rmSync(build, { recursive: true, force: true });
 });
 
-/** Chooses `control` and expects the action's alert to say where it ran. */
+/**
+ * Chooses `control` and expects the action's alert to say where it ran. The alert is dismissed as
+ * it shows: the click returns only once it is.
+ */
 const wave = async (page: Page, control: Locator, where: string) => {
-  const alert = page.waitForEvent('dialog');
+  const message = new Promise<string>((resolve) => {
+    page.once('dialog', (alert) => {
+      resolve(alert.message());
+      void alert.dismiss();
+    });
+  });
   await control.click();
-  const shown = await alert;
-  expect(shown.message()).toBe(`Example wave in ${where}`);
-  await shown.dismiss();
+  expect(await message).toBe(`Example wave in ${where}`);
 };
 
 const headerButton = (page: Page, name: string) =>
