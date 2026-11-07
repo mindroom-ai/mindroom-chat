@@ -124,7 +124,17 @@ function PinnedContent({
     return <>{renderPinnedToolApprovalEvent(event, { ...options, displayName })}</>;
   }
 
-  const { content, edited } = getPinContent(event);
+  // The newest edit the timeline can read, as the message's row shows it (P2-e2ee-F008): the SDK
+  // applies the newest edit, also one it could not decrypt, and then reads the message as sent.
+  const timelineSet =
+    (event.threadRootId ? room.getThread(event.threadRootId)?.timelineSet : undefined) ??
+    room.getUnfilteredTimelineSet();
+  const editedContent: unknown = getEditedEvent(eventId, event, timelineSet)?.getContent()[
+    'm.new_content'
+  ];
+  const { content, edited } = isRecord(editedContent)
+    ? { content: editedContent, edited: true }
+    : getPinContent(event);
   return (
     <RenderMessageContent
       displayName={displayName}
