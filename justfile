@@ -48,10 +48,10 @@ dev *args:
 build:
     npx vite build
 
-# Cut a release by hand: tag GitHub main (or the commit of main you name) with the next calendar version vYYYY.M.N and publish its GitHub release, with notes from the commits since the last release. Shows the plan and asks before it creates anything; --dry-run only shows it, --yes does not ask. Needs `gh` signed in with write access. docs/ios-release.md describes the scheme; .github/workflows/release.yml does the same after CI once release.config.json says "autoRelease": true.
+# Cut a release by hand: tag GitHub main (or the commit of main you name) with the next calendar version vYYYY.M.N and publish its GitHub release, with notes from the commits since the last release; the release event then publishes its container image (.github/workflows/image.yml). Shows the plan and asks before it creates anything; --dry-run only shows it, --yes does not ask. Needs `gh` signed in with write access. docs/ios-release.md describes the scheme; .github/workflows/release.yml does the same after CI while release.config.json says "autoRelease": true.
 release *args:
-    git fetch --quiet --tags https://github.com/mindroom-ai/mindroom-client.git
-    git fetch --quiet https://github.com/mindroom-ai/mindroom-client.git main
+    git fetch --quiet --tags https://github.com/mindroom-ai/mindroom-chat.git
+    git fetch --quiet https://github.com/mindroom-ai/mindroom-chat.git main
     node scripts/calver.mjs release --main FETCH_HEAD {{args}}
 
 # What a first visit downloads before the app runs, the largest chunks, and the size budget (scripts/perf/bundle-budget.json) of a build (default dist/). `--sources` attributes the initial bytes to packages; build with `npx vite build --sourcemap` for it.

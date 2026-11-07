@@ -199,9 +199,12 @@ describe('calver.mjs in a repository', () => {
     const repository = path.join(root, 'repository');
     const bin = path.join(root, 'bin');
     const calls = path.join(root, 'gh-calls.jsonl');
+    // As in GitHub Actions; set here so a run under Actions never writes the job's own outputs.
+    const outputs = path.join(root, 'github-output');
     mkdirSync(repository);
     mkdirSync(bin);
     writeFileSync(calls, '');
+    writeFileSync(outputs, '');
     writeFileSync(
       path.join(bin, 'gh'),
       [
@@ -249,6 +252,7 @@ describe('calver.mjs in a repository', () => {
           ...process.env,
           PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}`,
           GH_CALLS: calls,
+          GITHUB_OUTPUT: outputs,
           GITHUB_REPOSITORY: 'example/app',
         },
       });
@@ -258,7 +262,9 @@ describe('calver.mjs in a repository', () => {
         .filter(Boolean)
         .map((line) => JSON.parse(line) as { args: string[]; notes: string });
 
-    return { git, commit, run, ghCalls };
+    const githubOutput = () => readFileSync(outputs, 'utf8');
+
+    return { git, commit, run, ghCalls, githubOutput };
   };
 
   it('prints the next tag from the tags of the checkout', () => {
@@ -271,7 +277,7 @@ describe('calver.mjs in a repository', () => {
   });
 
   it('does nothing but say so while automatic releases are off', () => {
-    const { commit, run, ghCalls } = setup(false);
+    const { commit, run, ghCalls, githubOutput } = setup(false);
     const sha = commit('feat: a change');
 
     const result = run('auto', sha, '--main', 'main', '--date', '2026-11-05');
@@ -280,10 +286,11 @@ describe('calver.mjs in a repository', () => {
     );
     expect(result.status).toBe(0);
     expect(ghCalls()).toEqual([]);
+    expect(githubOutput()).toBe('');
   });
 
   it('tags the commit and publishes its notes once automatic releases are on', () => {
-    const { git, commit, run, ghCalls } = setup(true);
+    const { git, commit, run, ghCalls, githubOutput } = setup(true);
     git('tag', 'v2026.10.4');
     commit('test(e2e): a project for the @webkit tests');
     const sha = commit('fix(threads): the filter keeps its place');
@@ -317,6 +324,8 @@ describe('calver.mjs in a repository', () => {
     const notes = ghCalls()[0]?.notes ?? '';
     expect(notes).toContain('- test(e2e): a project for the `@webkit` tests (');
     expect(notes).toContain('compare/v2026.10.4...v2026.11.0');
+    // The Release workflow's image job publishes the image of this tag.
+    expect(githubOutput()).toBe('tag=v2026.11.0\n');
   });
 
   it('skips a commit that is already released', () => {

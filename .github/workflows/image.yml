@@ -1,0 +1,127 @@
+# The container image: the web client behind nginx (Dockerfile, docs/deployment.md "Container
+# image"). Every release publishes it to ghcr.io/mindroom-ai/mindroom-chat for linux/amd64 and
+# linux/arm64, tagged YYYY.M.N, vYYYY.M.N and sha-<commit>, built as that release:
+# - release.yml calls this workflow after it cuts an automatic release;
+# - the release event covers a release cut by hand (`just release`). A release that a workflow's
+#   GITHUB_TOKEN creates sends no release event, so the two never both run for one release.
+# Before it pushes, the job builds each platform's image, starts it and checks what it serves
+# (scripts/image-smoke-test.sh). Pull requests that change the image, and a manual run, do only
+# that, as the release the next one would be, and push nothing. `latest` is never moved.
+name: Image
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The release tag (vYYYY.M.N) to build and publish.
+        type: string
+        required: true
+  release:
+    types: [published]
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - docker/**
+      - docker-entrypoint.d/**
+      - scripts/image-smoke-test.sh
+      - .github/workflows/image.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: Build, check and publish the image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/mindroom-ai/mindroom-chat
+      # Empty for a pull request or a manual run: a dry run.
+      RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          # Every tag: a dry run builds as the next release (scripts/calver.mjs next).
+          fetch-depth: 0
+      - name: Name the release and the image tags
+        id: names
+        run: |
+          if [ -n "$RELEASE_TAG" ]; then
+            tag=$RELEASE_TAG run='Publish'
+          else
+            tag=$(node scripts/calver.mjs next) run='Dry run, nothing is pushed'
+          fi
+          if ! [[ $tag =~ ^v[0-9]{4}\.([1-9]|1[0-2])\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::'$tag' is not a release tag vYYYY.M.N"
+            exit 1
+          fi
+          sha=$(git rev-parse HEAD)
+          {
+            echo "tag=$tag"
+            echo "sha=$sha"
+            echo "tags=$IMAGE:${tag#v},$IMAGE:$tag,$IMAGE:sha-${sha:0:7}"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### $run: $tag at ${sha:0:7}"
+            echo
+            echo "$IMAGE:${tag#v}, $IMAGE:$tag, $IMAGE:sha-${sha:0:7}"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@v4
+      # Each platform's image, loaded into Docker to be started; the push below reuses their layers.
+      - name: Build the amd64 image
+        uses: docker/build-push-action@v7
+        with:
+          platforms: linux/amd64
+          tags: mindroom-chat:check-amd64
+          # The checkout, not the Git context of the event: a release builds its tag.
+          context: .
+          build-args: |
+            MINDROOM_BUILD_VERSION=${{ steps.names.outputs.tag }}
+            MINDROOM_RELEASE_VERSION=${{ steps.names.outputs.tag }}
+          load: true
+      - name: Check the amd64 image
+        run: bash scripts/image-smoke-test.sh mindroom-chat:check-amd64 "${{ steps.names.outputs.tag }}"
+      - name: Build the arm64 image
+        uses: docker/build-push-action@v7
+        with:
+          platforms: linux/arm64
+          tags: mindroom-chat:check-arm64
+          context: .
+          build-args: |
+            MINDROOM_BUILD_VERSION=${{ steps.names.outputs.tag }}
+            MINDROOM_RELEASE_VERSION=${{ steps.names.outputs.tag }}
+          load: true
+      - name: Check the arm64 image
+        run: >-
+          bash scripts/image-smoke-test.sh mindroom-chat:check-arm64 "${{ steps.names.outputs.tag }}"
+          --platform linux/arm64
+      - name: Log in to the GitHub Container Registry
+        if: env.RELEASE_TAG
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Push both platforms
+        if: env.RELEASE_TAG
+        uses: docker/build-push-action@v7
+        with:
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.names.outputs.tags }}
+          context: .
+          build-args: |
+            MINDROOM_BUILD_VERSION=${{ steps.names.outputs.tag }}
+            MINDROOM_RELEASE_VERSION=${{ steps.names.outputs.tag }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.names.outputs.tag }}
+            org.opencontainers.image.revision=${{ steps.names.outputs.sha }}
+          push: true
