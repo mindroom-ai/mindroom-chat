@@ -92,9 +92,9 @@ export const Card = recipe({
 });
 
 // The update mark: the 18 px download icon 5 px inside an accent tile, so the tile is 28 px
-// square, and no row squeezes it, its content being its smallest size.
+// square. It does not shrink in a full row, where the icon would give way first.
 export const Mark = style([
-  { display: 'grid', padding: toRem(5), borderRadius: config.radii.R400 },
+  { display: 'grid', flexShrink: 0, padding: toRem(5), borderRadius: config.radii.R400 },
   { color: color.Primary.Main, backgroundColor: color.Primary.Container },
 ]);
 
