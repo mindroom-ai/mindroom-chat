@@ -206,6 +206,13 @@ const startServiceWorker = (): void => {
   recoverServiceWorkerControl().catch(() => undefined);
 };
 
+// A server answers a path it has no file for with this page, so a frame of this origin whose page
+// is gone (the PDF viewer's frame page, say) would start a second copy of the app, on the same
+// account and storage as the page around it. Nothing starts there.
+if (window.frameElement !== null) {
+  throw new Error('MindRoom does not start inside a frame of its own origin');
+}
+
 // Before anything else runs: failures from here on wait for the configuration, which decides
 // whether they become error reports.
 runSafely('error capture', installErrorCapture);
