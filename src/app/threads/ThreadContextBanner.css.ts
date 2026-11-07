@@ -85,13 +85,14 @@ export const TitleColumn = style({
   ...whenCompact({ flexDirection: 'row', alignItems: 'center', columnGap: config.space.S200 }),
 });
 
-// The tags take the room the status chips leave, clipped where they do not fit.
+// The tags take the room the status chips leave, and wrap onto another line where they do not
+// fit (a tablet with the members panel), so "+ tag" and the count stay beside the actions.
 export const TagsRow = style({
   display: 'flex',
   alignItems: 'center',
   minWidth: 0,
   gap: '0.3rem',
-  flexWrap: 'nowrap',
+  flexWrap: 'wrap',
   overflow: 'hidden',
 });
 
