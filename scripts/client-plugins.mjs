@@ -111,19 +111,18 @@ export const clientPlugins = (env = process.env) => {
   return {
     name: 'mindroom-client-plugins',
     enforce: 'pre',
-    // The dev server serves files outside the workspace only from directories it allows, and a list
-    // of them replaces its default, the workspace root.
     config: () => ({
       resolve: { alias: CLIENT_SDK_ALIAS },
-      ...(plugins.length > 0
-        ? {
-            server: {
+      // The dev server serves files outside the workspace only from directories it allows, and a
+      // list of them replaces its default, the workspace root.
+      server:
+        plugins.length > 0
+          ? {
               fs: {
                 allow: [searchForWorkspaceRoot(process.cwd()), ...plugins.map(({ dir }) => dir)],
               },
-            },
-          }
-        : {}),
+            }
+          : undefined,
     }),
     load: (id) =>
       plugins.length > 0 && normalizePath(id.split('?')[0] ?? id) === ENTRIES_MODULE
