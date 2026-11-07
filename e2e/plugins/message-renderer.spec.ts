@@ -10,12 +10,8 @@ import {
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
 import { buildLoginPath } from '../env';
-import {
-  createPrivateRoom,
-  joinRoom,
-  registerAgentAccount,
-  sendRoomMessage,
-} from '../helpers/matrix';
+import { createRoom } from '../helpers/createRoom';
+import { joinRoom, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
 import { serveBuild } from '../helpers/staticBuildServer';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
@@ -23,7 +19,8 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // carries the plugin's content key renders through the plugin, with the label from the plugin's
 // config.json section; a person's message with the same key renders as the app renders it.
 // `?plugins=off`, on the page itself or on the sign-in page the session started from, and
-// `plugins.example.enabled: false` show the app's own rendering of the reply instead.
+// `plugins.example.enabled: false` show the app's own rendering of the reply instead. Set
+// PLUGIN_SHOTS=<directory> to save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'client-plugin-password';
 const RUN = Date.now().toString(36);
@@ -61,7 +58,7 @@ test.beforeAll(async () => {
 
   const person = await registerDisposableUser(`plugin_person_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, 'greeter');
-  const roomId = await createPrivateRoom(HOMESERVER, person.accessToken, {
+  const roomId = await createRoom(HOMESERVER, person.accessToken, {
     name: 'Plugin room',
     invite: [agent.userId],
   });
@@ -108,6 +105,11 @@ const newPage = async (browser: Browser, origin: string) => {
 const threadPath = ({ roomId, rootId }: Seed) =>
   `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`;
 
+const shot = async (page: Page, name: string) => {
+  const directory = process.env.PLUGIN_SHOTS;
+  if (directory) await page.screenshot({ path: `${directory}/${name}.png` });
+};
+
 const row = (page: Page, eventId: string) => page.locator(`[data-message-id="${eventId}"]`);
 
 /** Waits for the thread's replies, then returns the agent's reply row. */
@@ -116,10 +118,11 @@ const agentReply = async (page: Page, data: Seed) => {
   return row(page, data.agentId);
 };
 
-const expectCoreRendering = async (page: Page, data: Seed) => {
+const expectCoreRendering = async (page: Page, data: Seed, name: string) => {
   const reply = await agentReply(page, data);
   await expect(reply).toContainText(AGENT_BODY);
   await expect(reply.locator('[data-example-plugin]')).toHaveCount(0);
+  await shot(page, name);
 };
 
 test("an agent's reply renders through the plugin, a person's message as the app renders it", async ({
@@ -138,6 +141,7 @@ test("an agent's reply renders through the plugin, a person's message as the app
     const reply = await agentReply(page, data);
     await expect(reply.locator('[data-example-plugin]')).toHaveText(`From config: ${GREETING}`);
     await expect(reply).not.toContainText(AGENT_BODY);
+    await shot(page, 'plugin');
     await expect(row(page, data.personId).locator('[data-example-plugin]')).toHaveCount(0);
   } finally {
     await context.close();
@@ -156,7 +160,7 @@ test('?plugins=off shows the reply as the app renders it', async ({ browser }) =
       password: PASSWORD,
     });
     await page.goto(`${threadPath(data)}&plugins=off`);
-    await expectCoreRendering(page, data);
+    await expectCoreRendering(page, data, 'plugins-off');
   } finally {
     await context.close();
     await server.close();
@@ -183,7 +187,7 @@ test('?plugins=off on the sign-in page holds for the rest of that page load', as
       window.history.pushState(null, '', path);
       window.dispatchEvent(new PopStateEvent('popstate'));
     }, threadPath(data));
-    await expectCoreRendering(page, data);
+    await expectCoreRendering(page, data, 'plugins-off-from-sign-in');
     expect(await page.evaluate(() => (window as { pluginSpecLoad?: boolean }).pluginSpecLoad)).toBe(
       true
     );
@@ -207,7 +211,7 @@ test('plugins.example.enabled: false shows the reply as the app renders it', asy
       password: PASSWORD,
     });
     await page.goto(threadPath(data));
-    await expectCoreRendering(page, data);
+    await expectCoreRendering(page, data, 'plugin-disabled');
   } finally {
     await context.close();
     await server.close();
