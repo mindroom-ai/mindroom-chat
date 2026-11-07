@@ -28,51 +28,77 @@ const getLiveSync = (mx: MatrixClient): LiveSync => {
   return liveSync;
 };
 
-// Thread lists render every card, so one shared observer per list reports which are on screen.
-const visibilityListeners = new Map<Element, (visible: boolean) => void>();
-let viewportObserver: IntersectionObserver | undefined;
-const listObservers = new WeakMap<Element, IntersectionObserver>();
+// Thread lists render every card, so one shared observer reports which are on screen, and one per
+// list which are near its view.
+type Observed = {
+  observer: IntersectionObserver;
+  listeners: Map<Element, (visible: boolean) => void>;
+};
 
-const reportVisibility = (entries: IntersectionObserverEntry[]) =>
-  entries.forEach((entry) => visibilityListeners.get(entry.target)?.(entry.isIntersecting));
+const createObserved = (options?: IntersectionObserverInit): Observed => {
+  const listeners = new Map<Element, (visible: boolean) => void>();
+  const observer = new IntersectionObserver(
+    (entries) => entries.forEach((entry) => listeners.get(entry.target)?.(entry.isIntersecting)),
+    options
+  );
+  return { observer, listeners };
+};
 
-/**
- * In a list view (`scrollRoot`), a card a list's height above or below the view counts as shown:
- * its thread loads before the card scrolls in, so its title and preview do not change, and its
- * height with them, while the reader looks at it.
- */
-const observerFor = (scrollRoot: Element | null | undefined): IntersectionObserver => {
-  if (!scrollRoot) {
-    viewportObserver ??= new IntersectionObserver(reportVisibility);
-    return viewportObserver;
+let viewportObserved: Observed | undefined;
+const listObserved = new WeakMap<Element, Observed>();
+
+/** A card a list's height above or below the list's view counts as near it. */
+const observedFor = (list: Element | undefined): Observed => {
+  if (!list) {
+    viewportObserved ??= createObserved();
+    return viewportObserved;
   }
-  let observer = listObservers.get(scrollRoot);
-  if (!observer) {
-    observer = new IntersectionObserver(reportVisibility, {
-      root: scrollRoot,
-      rootMargin: '100% 0px',
-    });
-    listObservers.set(scrollRoot, observer);
+  let observed = listObserved.get(list);
+  if (!observed) {
+    observed = createObserved({ root: list, rootMargin: '100% 0px' });
+    listObserved.set(list, observed);
   }
-  return observer;
+  return observed;
 };
 
 const observeVisibility = (
   element: Element,
   onChange: (visible: boolean) => void,
-  scrollRoot: Element | null | undefined
+  list?: Element
 ) => {
   if (typeof IntersectionObserver === 'undefined') {
     onChange(true);
     return () => undefined;
   }
-  const observer = observerFor(scrollRoot);
-  visibilityListeners.set(element, onChange);
+  const { observer, listeners } = observedFor(list);
+  listeners.set(element, onChange);
   observer.observe(element);
   return () => {
-    visibilityListeners.delete(element);
+    listeners.delete(element);
     observer.unobserve(element);
   };
+};
+
+type ListScroll = { scrolled: boolean; listeners: Set<() => void> };
+const listScrolls = new WeakMap<Element, ListScroll>();
+
+/** Whether the list has scrolled since it was first shown, and who to tell when it does. */
+const getListScroll = (list: Element): ListScroll => {
+  let state = listScrolls.get(list);
+  if (!state) {
+    const created: ListScroll = { scrolled: false, listeners: new Set() };
+    list.addEventListener(
+      'scroll',
+      () => {
+        created.scrolled = true;
+        created.listeners.forEach((listener) => listener());
+      },
+      { once: true, passive: true }
+    );
+    listScrolls.set(list, created);
+    state = created;
+  }
+  return state;
 };
 
 /**
@@ -80,7 +106,10 @@ const observeVisibility = (
  * A card on screen needs the thread's latest page, edits and counts, so load it once the client is live,
  * which keeps `/sync` ahead of it, and again after a reconnect if that attempt failed.
  * Returns the ref for an element of the card. A card in a list view passes the view as
- * `scrollRoot`.
+ * `scrollRoot`: once the reader scrolls the list, a card within a list's height above or below
+ * the view counts as shown too, so its thread loads before the card scrolls in and its title and
+ * preview, and its height with them, do not change while the reader looks at it. A list that has
+ * not scrolled loads only the cards on screen, as a reader who opens it and reads the top needs.
  */
 export const useInitializeShownThread = (
   roomId: string,
@@ -100,10 +129,28 @@ export const useInitializeShownThread = (
   );
   const [element, setElement] = useState<Element | null>(null);
   const [visible, setVisible] = useState(false);
-  useEffect(
-    () => (element ? observeVisibility(element, setVisible, scrollRoot?.current) : undefined),
-    [element, scrollRoot]
-  );
+  useEffect(() => (element ? observeVisibility(element, setVisible) : undefined), [element]);
+  const [listScrolled, setListScrolled] = useState(false);
+  useEffect(() => {
+    const list = scrollRoot?.current;
+    if (!list) return undefined;
+    const state = getListScroll(list);
+    if (state.scrolled) {
+      setListScrolled(true);
+      return undefined;
+    }
+    const onScrolled = () => setListScrolled(true);
+    state.listeners.add(onScrolled);
+    return () => {
+      state.listeners.delete(onScrolled);
+    };
+  }, [scrollRoot]);
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    const list = scrollRoot?.current;
+    return element && list && listScrolled ? observeVisibility(element, setNear, list) : undefined;
+  }, [element, listScrolled, scrollRoot]);
+  const shown = visible || near;
   const room = mx.getRoom(roomId);
   const thread = threadRootId ? room?.getThread(threadRootId) : undefined;
   const [, rerender] = useReducer((count: number) => count + 1, 0);
@@ -121,12 +168,12 @@ export const useInitializeShownThread = (
   }, [room, thread, threadRootId]);
 
   useEffect(() => {
-    if (!thread || !visible || liveSyncCount === 0) return undefined;
+    if (!thread || !shown || liveSyncCount === 0) return undefined;
     const timer = setTimeout(() => {
       void thread.initialize();
     }, SHOWN_THREAD_DWELL_MS);
     return () => clearTimeout(timer);
-  }, [thread, visible, liveSyncCount]);
+  }, [thread, shown, liveSyncCount]);
 
   return setElement;
 };
