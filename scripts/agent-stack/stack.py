@@ -1240,8 +1240,9 @@ def main() -> int:
     os.umask(0o077)
     signal.signal(signal.SIGTERM, exit_on_sigterm)
     try:
-        slot_dir = stack_root() / f"slot-{args.slot}"
-        with locked(stack_root() / f"slot-{args.slot}.lock"):
+        root = stack_root()
+        slot_dir = root / f"slot-{args.slot}"
+        with locked(root / f"slot-{args.slot}.lock"):
             # Also a slot that an earlier version of this script left readable to others.
             if slot_dir.is_dir():
                 slot_dir.chmod(0o700)
