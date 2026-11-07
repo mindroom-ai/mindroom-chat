@@ -68,7 +68,8 @@ const homeserverIsUp = async (): Promise<boolean> => {
 };
 
 const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `tvu_${name}_${RUN}`;
+  // A repeated test (--repeat-each) runs in the same worker, with the same RUN.
+  const username = `tvu_${name}_${RUN}${test.info().repeatEachIndex}`;
   const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -157,6 +158,48 @@ const scrollBy = (page: Page, by: number) =>
     scroller.scrollTop += delta;
   }, by);
 
+/**
+ * Where the "New Messages" line is once the view rests (its scroll position held for 30 frames):
+ * 'in view' when all of it is inside the timeline's visible band, the scroll area less the bars
+ * over its edges (its scroll padding); otherwise what was seen instead.
+ */
+const restingLinePlace = (page: Page) =>
+  page.evaluate(async () => {
+    let scroller = document.querySelector<HTMLElement>(
+      '[data-testid="room-virtual-inner"]'
+    )?.parentElement;
+    while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) {
+      scroller = scroller.parentElement;
+    }
+    if (!scroller) return 'no scroll area';
+    const area = scroller;
+    let still = 0;
+    let frames = 0;
+    let last = area.scrollTop;
+    while (still < 30) {
+      if (frames > 600) return `still scrolling at ${Math.round(area.scrollTop)}`;
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise(requestAnimationFrame);
+      frames += 1;
+      still = Math.abs(area.scrollTop - last) < 1 ? still + 1 : 0;
+      last = area.scrollTop;
+    }
+    const at = `scrollTop ${Math.round(area.scrollTop)} of ${area.scrollHeight - area.clientHeight}`;
+    const line = [...area.querySelectorAll('[role="separator"]')].find((element) =>
+      element.textContent?.includes('New Messages')
+    );
+    if (!line) return `no line mounted, ${at}`;
+    const style = getComputedStyle(area);
+    const view = area.getBoundingClientRect();
+    const top = view.top + (Number.parseFloat(style.scrollPaddingTop) || 0);
+    const bottom = view.bottom - (Number.parseFloat(style.scrollPaddingBottom) || 0);
+    const box = line.getBoundingClientRect();
+    if (box.top >= top && box.bottom <= bottom) return 'in view';
+    return `line at ${Math.round(box.top)} to ${Math.round(box.bottom)}, visible band ${Math.round(
+      top
+    )} to ${Math.round(bottom)}, ${at}`;
+  });
+
 const check = async (browser: Browser, label: string, options: BrowserContextOptions) => {
   const { reader, agentRoom, peopleRoom } = await seed(label);
   // The service worker would take requests out of the page's routes (WebKit).
@@ -209,12 +252,8 @@ const check = async (browser: Browser, label: string, options: BrowserContextOpt
     await expect(jump).toBeVisible({ timeout: 60_000 });
     if (options.hasTouch) await jump.tap();
     else await jump.click();
-    // WebKit sometimes stops a row short of the line (followups-sweep report); a little further
-    // down shows it. Where the line sits is what this part checks.
-    await expect(async () => {
-      if (!(await line.isVisible())) await scrollBy(page, 150);
-      await expect(line).toBeVisible({ timeout: 2_000 });
-    }).toPass({ timeout: 30_000 });
+    // The jump alone brings the line into view and leaves it there: the test does not scroll.
+    await expect.poll(() => restingLinePlace(page), { timeout: 15_000 }).toBe('in view');
     const [lineBox, firstUnread, lastRead] = await Promise.all([
       line.boundingBox(),
       page
