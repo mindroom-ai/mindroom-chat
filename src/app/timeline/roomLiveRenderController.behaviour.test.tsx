@@ -15,6 +15,7 @@ import { createDefaultThreadFilterState } from '../event-store/threads/roomThrea
 import type { RoomUnreadInfo, Timeline } from '../event-store/timeline/timelinePagination';
 import { markMainTimelineAsRead, markThreadAsRead } from '../notifications/readReceipts';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import { conversationCoveredAtom } from '../navigation/conversationCover';
 import {
   finishesStreamedThreadReply,
   useRoomLiveRenderController,
@@ -292,6 +293,19 @@ describe('useRoomLiveRenderController, room view', () => {
       expect(view.setUnreadInfo).toHaveBeenCalledTimes(1);
     } finally {
       act(() => getDefaultStore().set(phoneNavDrawerOpenAtom, false));
+    }
+  });
+
+  it("leaves a live message unread while a plugin's cover hides the room", () => {
+    vi.stubGlobal('document', { hasFocus: () => true });
+    act(() => getDefaultStore().set(conversationCoveredAtom, true));
+    try {
+      const view = renderController();
+      view.arrive(makeEvent('$news'), true);
+      expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+      expect(view.setUnreadInfo).toHaveBeenCalledTimes(1);
+    } finally {
+      act(() => getDefaultStore().set(conversationCoveredAtom, false));
     }
   });
 

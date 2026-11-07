@@ -11,6 +11,7 @@ import {
 } from '../notifications/readReceipts';
 import { useTimelineReadReceiptController } from './timelineReadReceiptController';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import { conversationCoveredAtom } from '../navigation/conversationCover';
 
 vi.mock('../notifications/readReceipts', () => ({
   markMainTimelineAsRead: vi.fn(),
@@ -488,6 +489,30 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
         expect(markThreadAsRead).toHaveBeenCalledTimes(1);
       } finally {
         act(() => store.set(phoneNavDrawerOpenAtom, false));
+      }
+    });
+
+    it("leaves a reply unread while a plugin's cover hides it, then reads it", () => {
+      const store = getDefaultStore();
+      const rows = [
+        { getId: () => '$thread' },
+        { getId: () => '$reply-1' },
+      ] as unknown as MatrixEvent[];
+      const options = optionsWith({ ...openThread, threadEvents: rows });
+      act(() => store.set(conversationCoveredAtom, true));
+      try {
+        mount(options);
+        runFrames();
+        const moreRows = [...rows, { getId: () => '$reply-2' } as unknown as MatrixEvent];
+        rerender({ ...options, threadEventsLength: 3, threadEvents: moreRows });
+        runFrames();
+        expect(markThreadAsRead).not.toHaveBeenCalled();
+
+        act(() => store.set(conversationCoveredAtom, false));
+        runFrames();
+        expect(markThreadAsRead).toHaveBeenCalledTimes(1);
+      } finally {
+        act(() => store.set(conversationCoveredAtom, false));
       }
     });
 

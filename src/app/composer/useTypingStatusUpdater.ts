@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { useAtomValue } from 'jotai';
 import { Method, type MatrixClient } from 'matrix-js-sdk';
 import { TYPING_TIMEOUT_MS } from '../matrix/state/typingMembers';
+import { conversationCoveredAtom } from '../navigation/conversationCover';
 
 /**
  * A function the composer calls with `true` while the user types and `false` when they stop.
  * Sends a typing notice when typing starts, a stop notice when it ends, and a stop notice when
  * the started one would expire, so other clients never show a stale indicator. With `hidden`
  * (the Hide Typing & Read Receipts setting) no typing notice goes out; one sent before the
- * setting was turned on still gets its stop.
+ * setting was turned on still gets its stop. While a plugin's cover hides the conversation none
+ * goes out either, and one already out stops as the cover shows.
  */
 export const useTypingStatusUpdater = (
   mx: MatrixClient,
@@ -29,6 +32,18 @@ export const useTypingStatusUpdater = (
     clearTimeout(expiryRef.current);
     expiryRef.current = undefined;
   }, []);
+
+  const stop = useCallback(() => {
+    if (!typingRef.current) return;
+    typingRef.current = false;
+    clearExpiry();
+    send(false);
+  }, [clearExpiry, send]);
+
+  const covered = useAtomValue(conversationCoveredAtom);
+  useEffect(() => {
+    if (covered) stop();
+  }, [covered, stop]);
 
   // Leaving the room, or the account, while typing ends the notice there at once; otherwise
   // the others would see this person typing until it expires.
@@ -72,7 +87,7 @@ export const useTypingStatusUpdater = (
 
   return useCallback(
     (typing: boolean) => {
-      if (typing && !hidden) {
+      if (typing && !hidden && !covered) {
         if (typingRef.current) return;
         typingRef.current = true;
         send(true);
@@ -85,11 +100,8 @@ export const useTypingStatusUpdater = (
         }, TYPING_TIMEOUT_MS);
         return;
       }
-      if (!typingRef.current) return;
-      typingRef.current = false;
-      clearExpiry();
-      send(false);
+      stop();
     },
-    [hidden, send, clearExpiry]
+    [clearExpiry, covered, hidden, send, stop]
   );
 };
