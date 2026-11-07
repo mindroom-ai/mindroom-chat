@@ -10,16 +10,18 @@ import {
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
 
-const { view, screen, navigate } = vi.hoisted(() => ({
+const { view, screen, navigate, loadComputerScreen } = vi.hoisted(() => ({
   view: {
     mode: 'compact' as RoomViewMode,
     setViewMode: (() => undefined) as (mode: string) => void,
   },
   screen: { size: 'Desktop' },
   navigate: vi.fn(),
+  loadComputerScreen: vi.fn(() => new Promise<never>(() => undefined)),
 }));
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }));
+vi.mock('../computer/loadComputerScreen', () => ({ loadComputerScreen }));
 // The room menu renders in place of folds' portal while it has an anchor, without a focus trap.
 vi.mock('folds', async (importOriginal) => ({
   ...(await importOriginal<typeof import('folds')>()),
@@ -97,6 +99,7 @@ afterEach(() => {
   renderer = undefined;
   screen.size = 'Desktop';
   navigate.mockReset();
+  loadComputerScreen.mockClear();
 });
 
 const renderHeader = ({
@@ -105,12 +108,15 @@ const renderHeader = ({
   hasMindroomAgents = true,
   threadId,
   threadFilterState = createDefaultThreadFilterState(),
+  computerShown = false,
 }: {
   mode?: RoomViewMode;
   hidden?: boolean;
   hasMindroomAgents?: boolean;
   threadId?: string;
   threadFilterState?: ThreadFilterState;
+  /** The computer is available, and was shown in this conversation before. */
+  computerShown?: boolean;
 } = {}) => {
   act(() => renderer?.unmount());
   view.mode = mode;
@@ -123,6 +129,11 @@ const renderHeader = ({
           hasMindroomAgents={hasMindroomAgents}
           threadId={threadId}
           threadFilterState={threadFilterState}
+          {...(computerShown && {
+            computerAvailable: true,
+            computerShown: true,
+            onComputerToggle: () => undefined,
+          })}
         />
       </Provider>
     );
@@ -137,6 +148,15 @@ const filterButton = (): ReactTestInstance => {
   const [node] = filterButtons();
   if (!node) throw new Error('no filter button');
   return node;
+};
+/** The button named `label`, as screen readers hear it. */
+const buttonNamed = (label: string): ReactTestInstance => {
+  const [button] =
+    renderer?.root.findAll(
+      (node) => node.type === 'button' && node.props['aria-label'] === label
+    ) ?? [];
+  if (!button) throw new Error(`no ${label} button`);
+  return button;
 };
 
 describe('the room header filter button', () => {
@@ -207,13 +227,26 @@ describe('the room header view switch', () => {
   });
 });
 
+describe("the room header's Computer button", () => {
+  it('starts loading the computer screen when the pointer or the focus reaches it', () => {
+    renderHeader({ computerShown: true });
+    const computer = buttonNamed('Show Computer');
+    expect(loadComputerScreen).not.toHaveBeenCalled();
+
+    act(() => {
+      computer.props.onPointerEnter();
+    });
+    expect(loadComputerScreen).toHaveBeenCalledTimes(1);
+    act(() => {
+      computer.props.onFocus();
+    });
+    expect(loadComputerScreen).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("a phone's room header", () => {
   const openMenu = () => {
-    const [more] =
-      renderer?.root.findAll(
-        (node) => node.type === 'button' && node.props['aria-label'] === 'More Options'
-      ) ?? [];
-    if (!more) throw new Error('no More Options button');
+    const more = buttonNamed('More Options');
     act(() => {
       more.props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } });
     });
@@ -282,11 +315,7 @@ describe("a phone's room header", () => {
   it('leaves the room on a swipe from the left edge, as its back chevron does', () => {
     screen.size = 'Mobile';
     renderHeader();
-    const [back] =
-      renderer?.root.findAll(
-        (node) => node.type === 'button' && node.props['aria-label'] === 'Back'
-      ) ?? [];
-    if (!back) throw new Error('no Back button');
+    const back = buttonNamed('Back');
     act(() => {
       back.props.onClick();
     });

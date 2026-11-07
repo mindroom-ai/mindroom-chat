@@ -38,6 +38,7 @@ import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
 import { getCanonicalAliasOrRoomId, mxcUrlToHttp } from '../matrix/matrix';
 import { nameInitials } from '../lib/common';
+import { preloadOnIntent } from '../lib/preloadOnIntent';
 import { getDirectPartnerId } from '../matrix/room';
 import { getDirectPath, getHomePath, getSpacePath } from '../routes/pathUtils';
 import { previousHistoryOrigin, showsRoom } from '../routes/historyStack';
@@ -50,6 +51,7 @@ import {
 import { CanvasHeaderButton, CanvasMenu } from '../canvas/CanvasHeaderButton';
 import { MenuEntry } from '../ui/MenuEntry';
 import { useCallPanel } from '../calls/callStore';
+import { loadComputerScreen } from '../computer/loadComputerScreen';
 import type { CanvasListEntry } from '../canvas/canvasIndexStore';
 import { useMembersDrawer } from '../members/useMembersDrawer';
 import { ShortcutLabel, shortcutAttributes } from '../shortcuts/ShortcutKeys';
@@ -108,6 +110,8 @@ type HeaderActionProps = {
   buttonProps?: Record<`data-${string}` | `aria-${string}`, string | boolean | undefined>;
   /** The keyboard shortcut for the same action, shown in the tooltip. */
   shortcut?: ShortcutId;
+  /** Loads the code the click opens; starts when the pointer or the focus reaches the button. */
+  preload?: () => Promise<unknown>;
 };
 
 /** An icon-only header button that names itself in a tooltip, as screen readers hear it. */
@@ -120,6 +124,7 @@ function HeaderAction({
   badge,
   buttonProps,
   shortcut,
+  preload,
 }: HeaderActionProps) {
   return (
     <TooltipProvider
@@ -144,6 +149,7 @@ function HeaderAction({
           className={HeaderActionButton}
           style={badge ? { position: 'relative' } : undefined}
           {...shortcutAttributes(shortcut)}
+          {...(preload && preloadOnIntent(preload))}
           {...buttonProps}
         >
           <Icon size="400" src={icon} />
@@ -538,6 +544,7 @@ export function RoomViewHeader({
             icon={Icons.Monitor}
             active={!!computerOpen}
             onClick={() => onComputerToggle?.()}
+            preload={loadComputerScreen}
           />
         )}
         {calls?.({ at: 'header', phone: mobile })}
