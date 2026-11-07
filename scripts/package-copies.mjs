@@ -6,6 +6,7 @@
 // copies; the fix belongs in the dependencies, so that npm installs one copy.
 import { readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
+import { SHARED_PACKAGES } from './client-plugins.mjs';
 
 // The installed package that holds a module: its path up to the last `node_modules/<name>`.
 const PACKAGE_DIR = /^(.*\/node_modules\/(?:@[^/]+\/)?[^/]+)\//;
@@ -15,8 +16,9 @@ const PACKAGE_DIR = /^(.*\/node_modules\/(?:@[^/]+\/)?[^/]+)\//;
  * directories of one package name and version. It checks at the end of the build phase: the
  * service worker build that runs once the app's bundle closes would hide a later error behind its
  * own. The packages a client plugin installed in its own directory (`pluginDirs`, from
- * MINDROOM_CLIENT_PLUGINS) are left out: they are the plugin's, and the packages the app shares with
- * plugins never come from there (scripts/client-plugins.mjs).
+ * MINDROOM_CLIENT_PLUGINS) are left out, as the plugin's, except a copy of a package the app shares
+ * with plugins (scripts/client-plugins.mjs), such as one an npm alias installed under another name:
+ * that fails the build too, naming the plugin.
  * @param {string[]} [pluginDirs]
  * @returns {import('vite').Plugin}
  */
@@ -26,22 +28,36 @@ export const onePackageCopyPerVersion = (pluginDirs = []) => ({
   buildEnd(error) {
     if (error) return;
     // Module ids are real paths.
-    const pluginRoots = pluginDirs.map((dir) => `${realpathSync(dir)}/`);
+    const plugins = pluginDirs.map((dir) => ({ dir, root: `${realpathSync(dir)}/` }));
     /** @type {Set<string>} */
     const dirs = new Set();
     for (const id of this.getModuleIds()) {
       // Virtual modules (`\0` ids) are not files of a package.
       if (id.startsWith('\0') || !this.getModuleInfo(id)?.isIncluded) continue;
       const dir = PACKAGE_DIR.exec(id)?.[1];
-      if (dir && !pluginRoots.some((root) => dir.startsWith(root))) dirs.add(dir);
+      if (dir) dirs.add(dir);
     }
     /** @type {Map<string, string[]>} name@version and the directories it is bundled from */
     const copies = new Map();
+    /** @type {string[]} the plugins' own copies of packages the app shares */
+    const shared = [];
     for (const dir of dirs) {
       const { name, version } = JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8'));
-      const key = `${name}@${version}`;
-      copies.set(key, [...(copies.get(key) ?? []), path.relative(process.cwd(), dir)]);
+      const where = path.relative(process.cwd(), dir);
+      const plugin = plugins.find(({ root }) => dir.startsWith(root))?.dir;
+      if (!plugin) {
+        const key = `${name}@${version}`;
+        copies.set(key, [...(copies.get(key) ?? []), where]);
+      } else if (SHARED_PACKAGES.includes(name))
+        shared.push(`  ${name}: ${where} (client plugin ${plugin})`);
     }
+    if (shared.length > 0)
+      this.error(
+        [
+          "A client plugin bundles its own copy of a package the app shares with every plugin (scripts/client-plugins.mjs): import it by its own name, not through an alias or a path, so that the plugin gets the app's copy.",
+          ...shared,
+        ].join('\n')
+      );
     const duplicates = [...copies].filter(([, list]) => list.length > 1);
     if (duplicates.length > 0)
       this.error(
