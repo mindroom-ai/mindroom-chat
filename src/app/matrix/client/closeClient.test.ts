@@ -1,4 +1,4 @@
-import { createClient } from 'matrix-js-sdk';
+import { createClient, MemoryStore } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { closeClient } from './closeClient';
 
@@ -77,6 +77,59 @@ describe('closeClient', () => {
       expect(rejections).toEqual([]);
     } finally {
       answerFilter();
+      process.off('unhandledRejection', onRejection);
+    }
+  });
+
+  it('leaves no uncaught error when the key backup answers after the close', async () => {
+    // The Rust crypto backend checks the server's key backup in the background as it starts. An
+    // account switch can close the client before the server answers; the check then went on with
+    // the closed crypto machine: an uncaught "null pointer passed to rust".
+    let answerBackup!: () => void;
+    const backupHeld = new Promise<void>((resolve) => {
+      answerBackup = resolve;
+    });
+    let backupAsked = false;
+    const json = (body: object, status = 200) =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    const fetchFn = async (input: RequestInfo | URL): Promise<Response> => {
+      const { pathname } = new URL(String(input));
+      if (pathname.endsWith('/room_keys/version')) {
+        backupAsked = true;
+        await backupHeld;
+        return json({ errcode: 'M_NOT_FOUND', error: 'No current backup version' }, 404);
+      }
+      if (pathname.endsWith('/keys/upload')) return json({ one_time_key_counts: {} });
+      if (pathname.endsWith('/keys/query')) return json({ device_keys: {} });
+      return json({});
+    };
+    const rejections: unknown[] = [];
+    const onRejection = (reason: unknown) => rejections.push(reason);
+    process.on('unhandledRejection', onRejection);
+    const client = createClient({
+      baseUrl: 'https://matrix.example',
+      userId: '@reader:example',
+      deviceId: 'DEVICE',
+      accessToken: 'token',
+      store: new MemoryStore(),
+      fetchFn,
+    });
+    try {
+      await client.initRustCrypto({ useIndexedDB: false });
+      await vi.waitFor(() => expect(backupAsked).toBe(true));
+
+      closeClient(client);
+      answerBackup();
+      await new Promise((resolve) => {
+        setTimeout(resolve, 100);
+      });
+
+      expect(rejections).toEqual([]);
+    } finally {
+      answerBackup();
       process.off('unhandledRejection', onRejection);
     }
   });
