@@ -18,7 +18,7 @@ import { normalizePath, searchForWorkspaceRoot } from 'vite';
 const CLIENT_PLUGIN_API_VERSION = 2;
 
 /** The SDK's subpaths, which plugins import, and the modules they are. */
-const SDK_ALIAS = {
+export const CLIENT_SDK_ALIAS = {
   '@mindroom/client-sdk/core': fileURLToPath(new URL('../src/client-sdk/core.ts', import.meta.url)),
 };
 
@@ -114,7 +114,7 @@ export const clientPlugins = (env = process.env) => {
     // The dev server serves files outside the workspace only from directories it allows, and a list
     // of them replaces its default, the workspace root.
     config: () => ({
-      resolve: { alias: SDK_ALIAS },
+      resolve: { alias: CLIENT_SDK_ALIAS },
       ...(plugins.length > 0
         ? {
             server: {

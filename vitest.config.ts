@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config';
+import { CLIENT_SDK_ALIAS } from './scripts/client-plugins.mjs';
 
 // Unit tests run without the vanilla-extract plugin: tests mock `*.css.ts` modules
 // (see src/test/vitest.setup.ts) or load them under one file scope (src/test/vitest.styles.setup.ts), so
@@ -6,6 +7,8 @@ import { defineConfig } from 'vitest/config';
 // The default environment is node: the DOM tests opt in with `// @vitest-environment jsdom`,
 // and tests that read files through `new URL(..., import.meta.url)` break under jsdom's URL.
 export default defineConfig({
+  // The example client plugin imports the app through the client SDK, as plugins do.
+  resolve: { alias: CLIENT_SDK_ALIAS },
   test: {
     environment: 'node',
     include: ['src/**/*.test.{ts,tsx}'],
