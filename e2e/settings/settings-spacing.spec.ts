@@ -35,6 +35,8 @@ const SIZES: Record<string, Viewport> = {
 };
 
 test.use({
+  // The routed configuration (Local MindRoom) reaches the page only without the service worker.
+  serviceWorkers: 'block',
   launchOptions: {
     executablePath: process.env.CHROMIUM_PATH || undefined,
     args: ['--disable-features=IsolateSandboxedIframes'],
@@ -523,7 +525,8 @@ const walkSettings = async (
       const row = menuRows(dialog).nth(index);
       const name = (await row.innerText()).trim();
       await row.click();
-      await expect(pageName(dialog)).toHaveText(name);
+      // The page's own title may say more ("Connect Local MindRoom").
+      await expect(pageName(dialog)).toContainText(name);
       await settle(page);
       out.push({ state: `${tag} ${name}`, measures: await measure(dialog) });
       if (index === 3 || index === 0) await shot(`page-${index}`);
@@ -587,11 +590,14 @@ const walkRoomSettings = async (page: Page, size: string, roomId: string, out: R
     const rows = dialog.locator('nav button');
     const rowCount = await rows.count();
     expect(rowCount).toBeGreaterThan(3);
+    const pageTitle = dialog.locator('header:not(nav header)').first();
     for (let index = 0; index < rowCount; index += 1) {
       const row = rows.nth(index);
       const name = (await row.innerText()).trim();
+      const before = await pageTitle.innerText();
       await row.click();
-      await expect(dialog.locator('header:not(nav header)').first()).toContainText(name);
+      // The first page is open already; the others change the title ("Members" reads "1 Member").
+      if (index > 0) await expect(pageTitle).not.toHaveText(before);
       await settle(page);
       out.push({ state: `room ${size} ${theme} ${name}`, measures: await measure(dialog) });
       if (OUT && index === 0) {
@@ -649,7 +655,11 @@ test('the Settings dialog keeps one inset in WebKit: desktop-1440, en', async ({
   const browser = await launchWebKit();
   const out: Record_[] = [];
   try {
-    const context = await browser.newContext({ viewport: SIZES['desktop-1440'], baseURL });
+    const context = await browser.newContext({
+      viewport: SIZES['desktop-1440'],
+      baseURL,
+      serviceWorkers: 'block',
+    });
     const page = await context.newPage();
     await signIn(page, 'settings_spacing_webkit');
     await walkSettings(page, 'desktop-1440', 'en', out, 'webkit');
