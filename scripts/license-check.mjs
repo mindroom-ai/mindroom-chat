@@ -166,10 +166,8 @@ function main() {
       checked += 1;
       if (Object.hasOwn(EXCEPTIONS, name)) {
         excepted.add(id);
-      } else if (license === undefined) {
-        offenders.add(`${id} (no license)${suffix}`);
-      } else if (!isAllowedExpression(license)) {
-        offenders.add(`${id} ${license}${suffix}`);
+      } else if (license === undefined || !isAllowedExpression(license)) {
+        offenders.add(`${id} ${license ?? '(no license)'}${suffix}`);
       }
     }
   };

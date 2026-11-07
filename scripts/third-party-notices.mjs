@@ -97,10 +97,10 @@ export const thirdPartyNotices = (
       // A plugin's lockfile also lists what its install left out, such as optional and peer
       // dependencies (npm ci --omit=optional --omit=peer), and its copies of the packages the app
       // shares, which the bundle takes from the app.
-      if (plugin && (SHARED_PACKAGES.includes(name) || !existsSync(join(base, path)))) continue;
+      const dir = join(base, path);
+      if (plugin && (SHARED_PACKAGES.includes(name) || !existsSync(dir))) continue;
       const key = `${name}@${entry.version}`;
-      if (!packages.has(key))
-        packages.set(key, { name, version: entry.version, dir: join(base, path) });
+      if (!packages.has(key)) packages.set(key, { name, version: entry.version, dir });
     }
   };
   addLocked(root);

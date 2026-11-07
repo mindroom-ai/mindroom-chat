@@ -143,7 +143,7 @@ test("with MINDROOM_CLIENT_PLUGINS, each plugin's minified and gzip size from th
 
   // The lazy chunk: the app's code around the plugin's, then a package the plugin installed.
   const assets = path.join(dist, 'assets');
-  const lines = ['const app=1;const plug=2;const tail=4;', 'const own=3;'];
+  const lines = ['const app=1;const plug=2;const tail=4;', 'const own="\u00e9";'];
   writeFileSync(path.join(assets, 'lazy-CCCCCCCC.js'), lines.join('\n'));
   const map = new SourceMapGenerator({ file: 'lazy-CCCCCCCC.js' });
   const from = (file) => path.relative(assets, file);
@@ -159,8 +159,9 @@ test("with MINDROOM_CLIENT_PLUGINS, each plugin's minified and gzip size from th
 
   const result = report();
   assert.equal(result.status, 0, result.stderr);
-  const own = 'const plug=2;const own=3;';
-  const expected = { raw: own.length, gzip: gzipSync(own, { level: 9 }).length };
+  // Bytes, not UTF-16 code units: the é takes two.
+  const own = 'const plug=2;const own="\u00e9";';
+  const expected = { raw: Buffer.byteLength(own), gzip: gzipSync(own, { level: 9 }).length };
   const { summary } = JSON.parse(readFileSync(path.join(dist, 'report.json'), 'utf8'));
   assert.deepEqual(summary.clientPlugins, { example: expected });
   assert.match(result.stdout, /\nexample\s+0\.0 KiB\s+0\.0 KiB\n/);

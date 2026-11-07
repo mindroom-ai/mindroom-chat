@@ -88,8 +88,7 @@ const readPlugin = (dir, earlier) => {
   if (!entryPath || !existsSync(entryPath)) fail(`entry ${JSON.stringify(entry)} does not exist`);
   const other = earlier.find((plugin) => plugin.id === id);
   if (other) fail(`id "${id}" is also the id of ${other.dir}`);
-  const dependencies = Object.keys(manifest.dependencies ?? {});
-  const shared = SHARED_PACKAGES.find((name) => dependencies.includes(name));
+  const shared = SHARED_PACKAGES.find((name) => Object.hasOwn(manifest.dependencies ?? {}, name));
   if (shared) {
     fail(
       `plugin "${id}" lists ${shared} under dependencies, but every plugin gets the app's ${shared}: list it under peerDependencies instead`
@@ -150,11 +149,11 @@ export const clientPlugins = (env = process.env) => {
         : undefined,
     // A plugin's imports of the packages the app shares resolve as the app's own imports do.
     async resolveId(source, importer, options) {
+      if (!importer) return null;
       const name = source.split('/', source.startsWith('@') ? 2 : 1).join('/');
-      const owner = SHARED_PACKAGES.includes(name)
-        ? roots.find(({ root }) => importer?.startsWith(root))
-        : undefined;
-      if (!importer || !owner) return null;
+      if (!SHARED_PACKAGES.includes(name)) return null;
+      const owner = roots.find(({ root }) => importer.startsWith(root));
+      if (!owner) return null;
       const resolved = await this.resolve(source, ENTRIES_MODULE, { ...options, skipSelf: true });
       if (!resolved) {
         const file = path.relative(owner.root, importer);

@@ -88,6 +88,7 @@ rows.sort((a, b) => b.raw - a.raw);
 const sum = (list, key) => list.reduce((total, row) => total + row[key], 0);
 const initialRows = rows.filter((row) => row.initial);
 const initialJs = initialRows.filter((row) => row.file.endsWith('.js'));
+const jsRows = rows.filter((row) => row.file.endsWith('.js'));
 const entryRow = rows.find((row) => `/${row.file}` === entries[0]);
 const kb = (bytes) => `${(bytes / 1024).toFixed(1)} KiB`;
 const table = (list) =>
@@ -109,7 +110,7 @@ const summary = {
     gzip: sum(initialRows.filter((row) => row.file.endsWith('.css')), 'gzip'),
   },
   entryJs: entryRow ? { raw: entryRow.raw, gzip: entryRow.gzip, brotli: entryRow.brotli } : null,
-  allJs: { raw: sum(rows.filter((row) => row.file.endsWith('.js')), 'raw'), files: rows.filter((row) => row.file.endsWith('.js')).length },
+  allJs: { raw: sum(jsRows, 'raw'), files: jsRows.length },
 };
 
 console.log(`Initial load (before the entry runs): ${initialRows.length} files`);
@@ -175,19 +176,19 @@ const attribute = async (file) => {
   const lines = readFileSync(file, 'utf8').split('\n');
   const owners = new Map();
   let previous = null;
-  const add = (source, line, from, to) =>
-    owners.set(source, (owners.get(source) ?? '') + lines[line - 1].slice(from, to));
+  // A mapping's code runs to the next mapping on its line, else to the line's end.
+  const add = ({ source, line, column }, end) =>
+    owners.set(source, (owners.get(source) ?? '') + lines[line - 1].slice(column, end));
   consumer.eachMapping((mapping) => {
-    if (previous && previous.line === mapping.generatedLine)
-      add(previous.source, previous.line, previous.column, mapping.generatedColumn);
-    else if (previous) add(previous.source, previous.line, previous.column);
+    if (previous)
+      add(previous, previous.line === mapping.generatedLine ? mapping.generatedColumn : undefined);
     previous = {
       line: mapping.generatedLine,
       column: mapping.generatedColumn,
       source: mapping.source ?? '(none)',
     };
   });
-  if (previous) add(previous.source, previous.line, previous.column);
+  if (previous) add(previous);
   return owners;
 };
 const group = (source) => {
@@ -222,7 +223,7 @@ if (process.env.MINDROOM_CLIENT_PLUGINS) {
     code: '',
   }));
   let mapped = false;
-  for (const row of rows.filter((row) => row.file.endsWith('.js'))) {
+  for (const row of jsRows) {
     const file = path.join(dist, row.file);
     // eslint-disable-next-line no-await-in-loop
     const owners = await attribute(file);
@@ -235,7 +236,7 @@ if (process.env.MINDROOM_CLIENT_PLUGINS) {
   }
   if (mapped) {
     summary.clientPlugins = Object.fromEntries(
-      plugins.map(({ id, code }) => [id, { raw: code.length, gzip: gzipSync(code, { level: 9 }).length }])
+      plugins.map(({ id, code }) => [id, { raw: Buffer.byteLength(code), gzip: gzipSync(code, { level: 9 }).length }])
     );
     console.log(`\nClient plugins (minified JS, from the source maps):`);
     console.log(`${'plugin'.padEnd(58)} ${'raw'.padStart(12)} ${'gzip'.padStart(11)}`);
