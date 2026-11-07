@@ -14,7 +14,7 @@ import { useRoomOrder } from '../room-nav/roomOrder';
 import { SortableRoomList, SortableRoomRow } from '../room-nav/SortableRoomList';
 import { RoomNavItem } from '../room-nav/RoomNavItem';
 import { SubRoomRows, nestSubRooms, withSubRooms } from '../room-nav/SubRoomRows';
-import { roomToParentsAtom } from '../../matrix/state/roomToParents';
+import { chatRoomParentsAtom, roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { JoinBeforeNavigate } from '../../rooms/join/JoinBeforeNavigate';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useResolvedRoomIdOrAlias } from '../../navigation/useResolvedRoomIdOrAlias';
@@ -349,11 +349,13 @@ export function Space() {
   const lobbySelected = useMatch(SPACE_LOBBY_PATH) !== null;
 
   const roomToParents = useAtomValue(roomToParentsAtom);
+  const chatRooms = useAtomValue(chatRoomParentsAtom);
   const roomsByName = useMemo(() => sortRoomIdsByName(client, ownRooms), [client, ownRooms]);
   // The sub-rooms of the space's own rooms show under them, A to Z.
   const tree = useMemo(
-    () => nestSubRooms(roomsByName, sortRoomIdsByName(client, spaceRooms), roomToParents),
-    [client, roomsByName, spaceRooms, roomToParents]
+    () =>
+      nestSubRooms(roomsByName, sortRoomIdsByName(client, spaceRooms), roomToParents, chatRooms),
+    [client, roomsByName, spaceRooms, roomToParents, chatRooms]
   );
   // Like Home: A to Z until the person drags a room, then their order.
   const roomOrder = useRoomOrder(space.roomId, tree.top);

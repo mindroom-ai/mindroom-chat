@@ -9,8 +9,13 @@ import { nestSubRooms, SubRoomRows } from './SubRoomRows';
 const parents = (entries: Record<string, string[]>) =>
   new Map(Object.entries(entries).map(([roomId, ids]) => [roomId, new Set(ids)]));
 
-const nest = (top: string[], shown: string[], entries: Record<string, string[]>) => {
-  const tree = nestSubRooms(top, shown, parents(entries));
+const nest = (
+  top: string[],
+  shown: string[],
+  entries: Record<string, string[]>,
+  chatRooms: string[] = []
+) => {
+  const tree = nestSubRooms(top, shown, parents(entries), new Set(chatRooms));
   return { top: tree.top, children: Object.fromEntries(tree.children) };
 };
 
@@ -54,6 +59,25 @@ describe('nestSubRooms', () => {
         '!subspace-room-sub': ['!subspace-room'],
       })
     ).toEqual({ top: ['!own'], children: { '!own': ['!own-sub'] } });
+  });
+
+  it("shows a space's sub-room at top level while the room it sits under is hidden", () => {
+    const own = ['!own'];
+    const anyDepth = ['!archived-own-sub', '!own', '!subspace-room'];
+
+    expect(
+      nest(
+        own,
+        anyDepth,
+        {
+          '!own': ['!space'],
+          '!archived-own-sub': ['!archived-own'],
+          '!archived-own': ['!space'],
+          '!subspace-room': ['!subspace'],
+        },
+        ['!archived-own']
+      )
+    ).toEqual({ top: ['!archived-own-sub', '!own'], children: {} });
   });
 
   it('shows a room listed by two rooms of the section once, under the first', () => {

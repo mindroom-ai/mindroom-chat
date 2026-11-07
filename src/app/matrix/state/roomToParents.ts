@@ -20,15 +20,17 @@ import { type RoomToParents, StateEvent } from '../types/room';
 import { matchesEnum } from '../../lib/matchesEnum';
 
 type RoomToParentsAction =
-  | { type: 'INITIALIZE'; roomToParents: RoomToParents }
+  /** `chatRooms`: the parents that are chat rooms, not Spaces. */
+  | { type: 'INITIALIZE'; roomToParents: RoomToParents; chatRooms?: Iterable<string> }
   /** Sets the children of one Space or chat room. */
-  | { type: 'PUT'; parent: string; children: string[] }
+  | { type: 'PUT'; parent: string; children: string[]; chatRoom?: boolean }
   /** Forgets a Space or chat room, for example after leaving it. */
   | { type: 'DELETE'; parent: string };
 
 type RoomToParentsAtom = WritableAtom<RoomToParents, [RoomToParentsAction], void>;
 
 const parentsAtom = atom<RoomToParents>(new Map());
+const chatRoomsAtom = atom<ReadonlySet<string>>(new Set<string>());
 
 /** `roomToParents` with `parent` listing exactly `children`; unchanged input is returned as is. */
 const setSpaceChildren = (
@@ -71,14 +73,30 @@ export const roomToParentsAtom: RoomToParentsAtom = atom<
         parentsAtom,
         new Map(Array.from(action.roomToParents, ([roomId, parents]) => [roomId, new Set(parents)]))
       );
+      set(chatRoomsAtom, new Set(action.chatRooms));
       return;
     }
     const current = get(parentsAtom);
     const children = action.type === 'PUT' ? new Set(action.children) : new Set<string>();
     const next = setSpaceChildren(current, action.parent, children);
     if (next !== current) set(parentsAtom, next);
+
+    const chatRooms = get(chatRoomsAtom);
+    const listsSubRooms = action.type === 'PUT' && !!action.chatRoom && children.size > 0;
+    if (listsSubRooms !== chatRooms.has(action.parent)) {
+      const nextChatRooms = new Set(chatRooms);
+      if (listsSubRooms) nextChatRooms.add(action.parent);
+      else nextChatRooms.delete(action.parent);
+      set(chatRoomsAtom, nextChatRooms);
+    }
   }
 );
+
+/**
+ * The parents in `roomToParentsAtom` that are chat rooms listing sub-rooms, not Spaces: what tells
+ * the rooms above a room apart from the Spaces above it, for counts that only Spaces sum up.
+ */
+export const chatRoomParentsAtom = atom((get) => get(chatRoomsAtom));
 
 const hasVia = (content: Record<string, unknown>): boolean => {
   const { via } = content;
@@ -134,6 +152,7 @@ export const useBindRoomToParentsAtom = (
 
   useEffect(() => {
     const roomToParents: RoomToParents = new Map();
+    const chatRooms = new Set<string>();
     mx.getRooms()
       .filter(isTrackedParent)
       .forEach((parent) => {
@@ -141,14 +160,19 @@ export const useBindRoomToParentsAtom = (
           const parents = roomToParents.get(childId) ?? new Set<string>();
           parents.add(parent.roomId);
           roomToParents.set(childId, parents);
+          if (!parent.isSpaceRoom()) chatRooms.add(parent.roomId);
         });
       });
-    setParents({ type: 'INITIALIZE', roomToParents });
+    setParents({ type: 'INITIALIZE', roomToParents, chatRooms });
 
     const putParent = (parent: Room) => {
-      if (isTrackedParent(parent)) {
-        setParents({ type: 'PUT', parent: parent.roomId, children: getChildIds(mx, parent) });
-      }
+      if (!isTrackedParent(parent)) return;
+      setParents({
+        type: 'PUT',
+        parent: parent.roomId,
+        children: getChildIds(mx, parent),
+        chatRoom: !parent.isSpaceRoom(),
+      });
     };
     // A room's own list, and the lists of the chat rooms it names as parents, which it may join,
     // leave or come into the client's store as a sub-room of.

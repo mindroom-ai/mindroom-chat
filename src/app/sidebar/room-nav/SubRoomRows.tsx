@@ -17,19 +17,27 @@ export type SubRoomTree = { top: string[]; children: ReadonlyMap<string, string[
 
 /**
  * Nests the sub-rooms of a sidebar section under the rooms that list them (`roomToParentsAtom`).
- * `topRoomIds` are the rooms the section shows on their own and `roomIds` every room it may show
- * under them, each in the order the section shows them. A room shows once: under the first of its
- * parents in the section, else on its own when it is one of `topRoomIds`. Of rooms that list each
- * other in a loop, the first shows on its own.
+ * `roomIds` are the rooms the section may show, in its order, and `topRoomIds` those of them it
+ * shows on their own. A room shows once: under the first of its
+ * parents in the section, else on its own when it is one of `topRoomIds` or a sub-room whose chat
+ * rooms (`chatRoomParentsAtom`) the section does not show, such as an archived one. Of rooms that
+ * list each other in a loop, the first shows on its own.
  */
 export const nestSubRooms = (
   topRoomIds: string[],
   roomIds: string[],
-  roomToParents: RoomToParents
+  roomToParents: RoomToParents,
+  chatRooms: ReadonlySet<string>
 ): SubRoomTree => {
   const inSection = new Set([...topRoomIds, ...roomIds]);
   const parentsInSection = (roomId: string) =>
     [...(roomToParents.get(roomId) ?? [])].filter((id) => id !== roomId && inSection.has(id));
+  const ownTop = new Set(topRoomIds);
+  const isOrphan = (roomId: string) => {
+    const parents = [...(roomToParents.get(roomId) ?? [])];
+    return parents.length > 0 && parents.every((id) => chatRooms.has(id) && !inSection.has(id));
+  };
+  const candidates = roomIds.filter((roomId) => ownTop.has(roomId) || isOrphan(roomId));
   const listedUnder = new Map<string, string[]>();
   roomIds.forEach((roomId) =>
     parentsInSection(roomId).forEach((parentId) =>
@@ -46,9 +54,9 @@ export const nestSubRooms = (
     if (under.length > 0) children.set(roomId, under);
     under.forEach(place);
   };
-  const top = topRoomIds.filter((roomId) => parentsInSection(roomId).length === 0);
+  const top = candidates.filter((roomId) => parentsInSection(roomId).length === 0);
   top.forEach(place);
-  topRoomIds.forEach((roomId) => {
+  candidates.forEach((roomId) => {
     if (placed.has(roomId)) return;
     top.push(roomId);
     place(roomId);

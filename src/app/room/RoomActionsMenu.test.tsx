@@ -5,6 +5,7 @@ import type { Room } from 'matrix-js-sdk';
 import { getDefaultStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
+import { mDirectAtom } from '../matrix/state/mDirectList';
 import { MenuEntry } from '../ui/MenuEntry';
 import { getSpaceSearchPath, withSearchParam } from '../routes/pathUtils';
 import { ROOM_ACTIONS } from './roomActions';
@@ -170,6 +171,7 @@ afterEach(() => {
   state.encrypted = false;
   state.rooms = {};
   getDefaultStore().set(roomToParentsAtom, { type: 'INITIALIZE', roomToParents: new Map() });
+  getDefaultStore().set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set() });
   vi.clearAllMocks();
 });
 
@@ -289,6 +291,12 @@ describe('the shared room actions', () => {
     expect(rows()).not.toContain('New Sub-room');
   });
 
+  it('has no New Sub-room in the menu of a direct chat, whose partner could not find it', () => {
+    getDefaultStore().set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set([room.roomId]) });
+    render(<Harness />);
+    expect(rows()).toEqual(SHARED.filter((name) => name !== 'New Sub-room'));
+  });
+
   it("takes a sub-room off its parent room's list, and leaves its own link to the parent", () => {
     state.rooms['!parent:example.org'] = {
       roomId: '!parent:example.org',
@@ -314,7 +322,7 @@ describe('the shared room actions', () => {
     ]);
   });
 
-  it('keeps Take Off, disabled with the reason, for someone who may not change the parent', () => {
+  it('keeps Remove from, disabled with the reason, for someone who may not change the parent', () => {
     state.canListRooms = false;
     state.rooms['!parent:example.org'] = {
       roomId: '!parent:example.org',

@@ -12,7 +12,7 @@ import {
   RoomEvent,
   RoomStateEvent,
 } from 'matrix-js-sdk';
-import { roomToParentsAtom, useBindRoomToParentsAtom } from './roomToParents';
+import { chatRoomParentsAtom, roomToParentsAtom, useBindRoomToParentsAtom } from './roomToParents';
 
 enableMapSet();
 
@@ -72,7 +72,7 @@ const setup = (spaces: Record<string, string[]>) => {
       rooms.get(spaceId)!.currentState.setStateEvents([spaceChildEvent(spaceId, childId, false)]);
     });
   const parentsOf = (roomId: string) => store.get(roomToParentsAtom).get(roomId);
-  return { unlinkChild, parentsOf };
+  return { unlinkChild, parentsOf, store };
 };
 
 describe('useBindRoomToParentsAtom', () => {
@@ -97,6 +97,12 @@ describe('useBindRoomToParentsAtom', () => {
 
     expect(parentsOf('!subspace:example.org')).toBeUndefined();
     expect(parentsOf('!room:example.org')).toEqual(new Set(['!subspace:example.org']));
+  });
+
+  it('counts no Space among the chat rooms that list sub-rooms', () => {
+    const { store } = setup({ '!space:example.org': ['!room:example.org'] });
+
+    expect(store.get(chatRoomParentsAtom)).toEqual(new Set());
   });
 
   it("deletes a room's entry when its last Space removes it", () => {
@@ -178,14 +184,16 @@ const setupChatRooms = ({
       room.currentState.setStateEvents([stateEvent(room.roomId, type, stateKey, content)]);
     });
   const childParents = () => store.get(roomToParentsAtom).get(CHILD);
-  return { parent, child, setState, childParents };
+  const chatRoomParents = () => store.get(chatRoomParentsAtom);
+  return { parent, child, setState, childParents, chatRoomParents };
 };
 
 describe('useBindRoomToParentsAtom with a chat room as parent', () => {
   it('lists a room under a chat room that lists it and that it names as its canonical parent', () => {
-    const { childParents } = setupChatRooms();
+    const { childParents, chatRoomParents } = setupChatRooms();
 
     expect(childParents()).toEqual(new Set([PARENT]));
+    expect(chatRoomParents()).toEqual(new Set([PARENT]));
   });
 
   it.each<[string, ChatRoomsOptions]>([
@@ -199,9 +207,10 @@ describe('useBindRoomToParentsAtom with a chat room as parent', () => {
     ['the listed room is a Space', { childIsSpace: true }],
     ['the account has not joined the chat room', { parentMembership: KnownMembership.Invite }],
   ])('leaves a room at top level when %s', (_case, options) => {
-    const { childParents } = setupChatRooms(options);
+    const { childParents, chatRoomParents } = setupChatRooms(options);
 
     expect(childParents()).toBeUndefined();
+    expect(chatRoomParents()).toEqual(new Set());
   });
 
   it('lists the room once it names the chat room back', () => {
@@ -222,18 +231,20 @@ describe('useBindRoomToParentsAtom with a chat room as parent', () => {
   });
 
   it('puts the room back at top level when the chat room takes it off its list', () => {
-    const { parent, setState, childParents } = setupChatRooms();
+    const { parent, setState, childParents, chatRoomParents } = setupChatRooms();
 
     setState(parent, 'm.space.child', CHILD, {});
 
     expect(childParents()).toBeUndefined();
+    expect(chatRoomParents()).toEqual(new Set());
   });
 
   it('forgets the chat room when the account leaves it', () => {
-    const { parent, childParents } = setupChatRooms();
+    const { parent, childParents, chatRoomParents } = setupChatRooms();
 
     act(() => parent.updateMyMembership(KnownMembership.Leave));
 
     expect(childParents()).toBeUndefined();
+    expect(chatRoomParents()).toEqual(new Set());
   });
 });

@@ -20,6 +20,7 @@ import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
+import { mDirectAtom } from '../matrix/state/mDirectList';
 import { useOpenRoomSettings } from '../navigation/useRoomSettingsState';
 import { getCanonicalAliasOrRoomId, isRoomAlias } from '../matrix/matrix';
 import { getMatrixToRoom } from '../matrix/matrix-to';
@@ -129,11 +130,15 @@ function InviteEntry({ room, close, showDialog }: RoomActionProps) {
   );
 }
 
-/** Opens New Sub-room for a chat room; a space lists its rooms in its lobby instead. */
+/**
+ * Opens New Sub-room for a chat room. A space lists its rooms in its lobby instead, and a direct
+ * chat's partner would find no list to join its sub-rooms from.
+ */
 function NewSubRoomEntry({ room, spaceId, close, showDialog }: RoomActionProps) {
   const { t } = useTranslation();
   const allowed = useCanListRooms(room);
-  if (room.isSpaceRoom()) return null;
+  const direct = useAtomValue(mDirectAtom).has(room.roomId);
+  if (room.isSpaceRoom() || direct) return null;
   return (
     <MenuEntry
       icon={Icons.Plus}

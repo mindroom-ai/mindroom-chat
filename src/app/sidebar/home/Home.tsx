@@ -22,7 +22,7 @@ import { HOME_ROOM_LIST, useRoomOrder } from '../room-nav/roomOrder';
 import { SortableRoomList, SortableRoomRow } from '../room-nav/SortableRoomList';
 import { RoomNavItem } from '../room-nav/RoomNavItem';
 import { SubRoomRows, nestSubRooms, withSubRooms } from '../room-nav/SubRoomRows';
-import { roomToParentsAtom } from '../../matrix/state/roomToParents';
+import { chatRoomParentsAtom, roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useSelectedRoom } from '../../navigation/useSelectedRoom';
 import {
@@ -162,11 +162,12 @@ export function Home() {
   const handleCategoryClick = useCategoryHandler(setClosedCategories, isCategoryClosed);
 
   const roomToParents = useAtomValue(roomToParentsAtom);
+  const chatRooms = useAtomValue(chatRoomParentsAtom);
   const roomsByName = useMemo(() => sortRoomIdsByName(client, homeRooms), [client, homeRooms]);
   // Sub-rooms show under their room, A to Z.
   const tree = useMemo(
-    () => nestSubRooms(roomsByName, roomsByName, roomToParents),
-    [roomsByName, roomToParents]
+    () => nestSubRooms(roomsByName, roomsByName, roomToParents, chatRooms),
+    [roomsByName, roomToParents, chatRooms]
   );
   // A to Z until the person drags a room; then their order, on every device.
   const roomOrder = useRoomOrder(HOME_ROOM_LIST, tree.top);
