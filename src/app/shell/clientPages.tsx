@@ -53,14 +53,20 @@ export { Notifications } from '../notifications/inbox/Notifications';
 export { PluginPageRoute } from '../plugins/pluginPages';
 
 /**
+ * The rail beside the page, but none beside a plugin page that fills the window. It reads the
+ * address itself, so a navigation renders it again and not the frame around every page.
+ */
+function RailBesidePage({ rail }: { rail: ReactNode }) {
+  return <>{usePluginPage()?.page.fillsWindow ? null : rail}</>;
+}
+
+/**
  * The signed-in frame around every page: account atoms, dialogs, the rail and the page. Wider
  * than a phone, the page and the side panels beside a room float as cards on the app background;
- * phones, also held sideways, stay full-bleed. A plugin page that fills the window has no rail,
- * and on phones no top bar or drawer.
+ * phones, also held sideways, stay full-bleed.
  */
 export function SignedInChrome() {
   const floating = useFloatingCardsLayout();
-  const rail = !usePluginPage()?.page.fillsWindow;
   // Beside the page on wider screens; on phones in the drawer below the top bar.
   const nav = <CollapsibleSidebarNav />;
   return (
@@ -69,9 +75,9 @@ export function SignedInChrome() {
         <NavigationProvider>
           <FloatingCardsContext.Provider value={floating}>
             <ClientLayout
-              nav={rail && nav}
-              phoneTopBar={rail && <PhoneTopBar />}
-              phoneNavDrawer={rail && <PhoneNavDrawer nav={nav} />}
+              nav={<RailBesidePage rail={nav} />}
+              phoneTopBar={<PhoneTopBar />}
+              phoneNavDrawer={<PhoneNavDrawer nav={nav} />}
               className={floating ? FloatingShell : undefined}
             >
               {/* A page whose code is still loading leaves the rail and dialogs in place. */}
