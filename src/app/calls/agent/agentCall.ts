@@ -3,7 +3,7 @@ import { Membership, RoomType, StateEvent } from '../../matrix/types/room';
 import {
   createRoomCallState,
   createRoomEncryptionState,
-  createVoiceRoomPowerLevelsOverride,
+  createRoomPowerLevelsOverride,
 } from '../../matrix/createRoom';
 import {
   RoomNotificationMode,
@@ -126,7 +126,7 @@ export const createAgentVoiceRoom = async (
     },
   ];
   if (encrypted) initialState.unshift(createRoomEncryptionState());
-  const voiceLevels = createVoiceRoomPowerLevelsOverride();
+  const voiceLevels = createRoomPowerLevelsOverride();
 
   const result = await mx.createRoom({
     name: `Call with ${displayName ?? getMxIdLocalPart(agentUserId) ?? agentUserId}`,
