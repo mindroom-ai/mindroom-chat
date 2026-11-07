@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Avatar, Box, Chip, Icon, Icons, Text, config, toRem } from 'folds';
-import { PopOut, ownDirectionLine } from '../../ui/directional';
+import { PopOut, ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
@@ -224,7 +224,7 @@ export function SpaceItemCard({
               }
             >
               <Text size="H4" truncate {...ownDirectionLine}>
-                {localSummary.name}
+                {revealDirectionControls(localSummary.name)}
               </Text>
             </Chip>
           )}
@@ -236,7 +236,7 @@ export function SpaceItemCard({
     );
   }
 
-  const spaceName = summary?.name || summary?.canonical_alias || roomId;
+  const spaceName = revealDirectionControls(summary?.name || summary?.canonical_alias || roomId);
   const avatarSrc = summary?.avatar_url
     ? mxcUrlToHttp(client, summary.avatar_url, authenticated, 96, 96, 'crop') ?? undefined
     : undefined;
