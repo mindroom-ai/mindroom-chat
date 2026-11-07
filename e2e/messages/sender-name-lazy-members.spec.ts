@@ -185,7 +185,9 @@ const checkTimeline = async (page: Page, tag: string, desktop: boolean) => {
     .last();
   await expect(copyJoined).toContainText(copy.userId);
   if (desktop) {
-    await page.getByRole('button', { name: /^(Show|Hide) Members$/ }).click();
+    // Desktop opens the members panel by default; open it when it is closed.
+    const showMembers = page.getByRole('button', { name: 'Show Members', exact: true });
+    if ((await showMembers.count()) > 0) await showMembers.click();
     await expect(memberRow(page, real.userId)).toContainText(real.userId);
     await expect(memberRow(page, copy.userId)).toContainText(copy.userId);
     await expect(memberRow(page, reader.userId)).toHaveText(/^Robin Reader/);
