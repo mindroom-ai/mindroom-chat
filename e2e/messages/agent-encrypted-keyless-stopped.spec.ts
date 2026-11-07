@@ -84,6 +84,16 @@ const keylessShowsFinished = async (
       .toBe(true);
     const engine = fresh.context().browser()?.browserType().name() ?? 'browser';
     if (SHOTS) await fresh.screenshot({ path: `${SHOTS}/keyless-stopped-${engine}.png` });
+
+    // Regression (P2-e2ee-F004): the reply's row says it cannot be decrypted, once; it showed
+    // "A newer edit couldn't be decrypted" under that too.
+    await fresh.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
+    await expect(fresh.getByText(/Couldn.t decrypt this message/).first()).toBeVisible({
+      timeout: 90_000,
+    });
+    await fresh.waitForTimeout(3_000);
+    if (SHOTS) await fresh.screenshot({ path: `${SHOTS}/keyless-thread-${engine}.png` });
+    await expect(fresh.getByText(/A newer edit couldn.t be decrypted/)).toHaveCount(0);
   } finally {
     writeFileSync(test.info().outputPath('card.log'), `${log.join('\n')}\n`);
     await fresh.context().close();
