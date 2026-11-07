@@ -85,6 +85,21 @@ describe('readChatUiAction', () => {
     });
   });
 
+  it('keeps a request whose bundled edit is another member’s, not the agent’s', () => {
+    const { room } = makeUiRoom();
+    const withBundledEdit = (sender: string) =>
+      makeUiEvent(
+        {},
+        { unsigned: { 'm.relations': { 'm.replace': { event_id: '$edit', sender } } } }
+      );
+
+    expect(readChatUiAction(withBundledEdit(viewerId), viewerId, room)).toMatchObject({
+      eventId: '$request',
+      action: 'show_computer',
+    });
+    expect(readChatUiAction(withBundledEdit(agentId), viewerId, room)).toBeUndefined();
+  });
+
   describe('show_canvas', () => {
     const canvas = { title: 'Choose a plan', html: '<button>Pro</button>' };
     const canvasEdit = (metadata: Record<string, unknown>) =>
