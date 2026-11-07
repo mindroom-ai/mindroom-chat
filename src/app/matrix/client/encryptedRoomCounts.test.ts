@@ -534,12 +534,29 @@ describe('unread counts of an encrypted room', () => {
     expect(reloaded.totalCount()).toBe(0);
   });
 
-  it('take a message of the reader as reading everything before it, in every thread', async () => {
-    const f = await fixture(true);
-    await f.deliver([...answeredQuestion(), plain('$later', ME, 30)], [otherThreadReceipt]);
-    await f.decrypt(f.find(REPLY), clear[REPLY]);
-    await f.decrypt(f.find('$done'), finishedContent(REPLY));
-    expect(f.totalCount()).toBe(0);
+  // The server (mindroom-tuwunel #139) takes an event of the reader's as reading its own thread,
+  // or the main timeline, and nothing else: a message sent in the room left a thread the reader
+  // never opened unread on the server, while the client counted it read.
+  it('take a message of the reader as reading only its own thread or the main timeline', async () => {
+    const inMain = await fixture(true);
+    await inMain.deliver([...answeredQuestion(), plain('$later', ME, 30)], [otherThreadReceipt]);
+    await inMain.decrypt(inMain.find(REPLY), clear[REPLY]);
+    await inMain.decrypt(inMain.find('$done'), finishedContent(REPLY));
+    await inMain.decrypt(inMain.find('$title'), titleNotice);
+    expect(inMain.room().getRoomUnreadNotificationCount()).toBe(0);
+    expect(inMain.threadCount()).toBe(1);
+    clients.splice(0).forEach((mx) => mx.stopClient());
+
+    const inItsThread = await fixture(true);
+    await inItsThread.deliver(
+      [...answeredQuestion(), plain('$later', ME, 30, { rel_type: 'm.thread', event_id: ROOT })],
+      [otherThreadReceipt]
+    );
+    await inItsThread.decrypt(inItsThread.find(REPLY), clear[REPLY]);
+    await inItsThread.decrypt(inItsThread.find('$done'), finishedContent(REPLY));
+    await inItsThread.decrypt(inItsThread.find('$title'), titleNotice);
+    expect(inItsThread.threadCount()).toBe(0);
+    expect(inItsThread.room().getRoomUnreadNotificationCount()).toBe(1);
   });
 
   it('do not count streaming edits a new session cannot decrypt', async () => {
