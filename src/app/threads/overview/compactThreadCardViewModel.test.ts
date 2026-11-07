@@ -305,10 +305,29 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
     });
 
     expect(model.titleText).toBe('Edited root preview');
-    expect(model.previewText).toBe('Edited root preview');
+    // A root nobody answered says so, rather than repeat its title (P2-lane4-F011).
+    expect(model.previewText).toBe('No replies yet');
     expect(model.messageCount).toBe(0);
     expect(model.messageCountLabel).toBe('0 replies');
     expect(model.recentThreadSummaryText).toBe('Edited root preview');
+  });
+
+  it('previews the root of a titled thread nobody answered yet', () => {
+    const rootEvent = makeEvent({
+      eventId: '$root',
+      sender: '@me:server',
+      body: 'Can someone check the staging deploy?',
+    });
+    const room = makeRoom({ rootEvent });
+
+    const model = buildModel(room, {
+      threadRootEvent: rootEvent,
+      summaryInfo: { summaryText: 'Staging deploy check', messageCount: 0 },
+      fallbackMessageCount: 0,
+    });
+
+    expect(model.titleText).toBe('Staging deploy check');
+    expect(model.previewText).toContain('Can someone check the staging deploy?');
   });
 
   it('uses voice message previews for zero-reply compact card models', () => {
@@ -334,7 +353,7 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
 
     expect(model.titleText).toBe('Voice message');
     expect(model.displayTitleText).toBe('Voice message');
-    expect(model.previewText).toBe('Voice message');
+    expect(model.previewText).toBe('No replies yet');
     expect(model.primarySummaryText).toBe('Voice message');
     expect(model.recentThreadSummaryText).toBe('Voice message');
     expect(model.messageCount).toBe(0);
