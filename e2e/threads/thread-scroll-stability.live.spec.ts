@@ -122,6 +122,13 @@ test.describe('scrolling a room with many agent threads', () => {
             return widths;
           });
         expect(Math.max(...ageWidths) - Math.min(...ageWidths), 'age label widths').toBeLessThan(1);
+        // A list loads only the cards on screen until the reader scrolls it (one request per shown
+        // card, thread-bootstrap-requests); from the first scroll on, cards near the view load
+        // before they come into view. The reader starts with one step, and the recording follows.
+        const warmUp = await startRecording(page, 'compact', false);
+        await scrollRoom(page, cdp, input, warmUp, { flicks: 0, readingSteps: 1, backFlicks: 0 });
+        await stopRecording(page);
+        await page.waitForTimeout(1_500);
         const compactAt = await startRecording(page, 'compact', false);
         await scrollRoom(page, cdp, input, compactAt, {
           flicks: 0,
