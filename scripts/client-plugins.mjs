@@ -136,9 +136,9 @@ const PUBLIC_FILES = 'public/plugins';
 export const pluginPublicFiles = (dir) => {
   const root = path.join(dir, 'public');
   /** @returns {never} */
-  const fail = (/** @type {string} */ name) => {
+  const fail = (/** @type {string} */ name, /** @type {string} */ what) => {
     throw new Error(
-      `MINDROOM_CLIENT_PLUGINS: ${dir}: ${name} is neither a file nor a directory, such as a symbolic link: a plugin ships only the files inside its public/ directory`
+      `MINDROOM_CLIENT_PLUGINS: ${dir}: ${name} is ${what}: a plugin ships only the files inside its public/ directory`
     );
   };
   /** @type {string[]} */
@@ -148,12 +148,13 @@ export const pluginPublicFiles = (dir) => {
       const name = path.posix.join(relative, entry.name);
       if (entry.isDirectory()) walk(name);
       else if (entry.isFile()) files.push(name);
-      else fail(`public/${name}`);
+      else
+        fail(`public/${name}`, 'neither a file nor a directory (symbolic links are not followed)');
     }
   };
   const stats = lstatSync(root, { throwIfNoEntry: false });
   if (stats?.isDirectory()) walk('');
-  else if (stats) fail('public');
+  else if (stats) fail('public', 'not a directory (symbolic links are not followed)');
   return files;
 };
 
@@ -256,8 +257,8 @@ export const clientPlugins = (env = process.env) => {
         }
       }
     },
-    // The dev server serves the same files at the same paths, as they are, and anything else under
-    // public/plugins/ as a 404.
+    // The dev server serves the same files at the same paths, as it serves any file (scripts and
+    // style sheets through its transforms), and anything else under public/plugins/ as a 404.
     configureServer: (server) => {
       server.middlewares.use((req, res, next) => {
         const [pathname = ''] = (req.url ?? '').split('?');

@@ -295,16 +295,16 @@ describe("a plugin's public/ directory", () => {
   });
 
   it.each([
-    ['in it', 'public/outside'],
-    ['as the directory itself', 'public'],
-  ])('fails the build for a symbolic link %s, naming it', async (_case, link) => {
+    ['in it', 'public/outside', 'neither a file nor a directory'],
+    ['as the directory itself', 'public', 'not a directory'],
+  ])('fails the build for a symbolic link %s, naming it', async (_case, link, what) => {
     const dir = pluginDir(declaring());
     writeFiles(dir, { 'public/kept.txt': 'kept' });
     const outside = emptyDir();
     writeFileSync(path.join(outside, 'secret.txt'), 'secret');
     if (link === 'public') rmSync(path.join(dir, 'public'), { recursive: true });
     symlinkSync(outside, path.join(dir, link));
-    const reason = `MINDROOM_CLIENT_PLUGINS: ${dir}: ${link} is neither a file nor a directory`;
+    const reason = `MINDROOM_CLIENT_PLUGINS: ${dir}: ${link} is ${what}`;
     expect(() => pluginPublicFiles(dir)).toThrow(reason);
     await expect(publicFilesBuilt({ MINDROOM_CLIENT_PLUGINS: dir })).rejects.toThrow(reason);
   });
