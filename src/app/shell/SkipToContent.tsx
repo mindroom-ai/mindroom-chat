@@ -1,5 +1,8 @@
 import { MouseEvent } from 'react';
+import { flushSync } from 'react-dom';
+import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
+import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { firstTabbable } from '../lib/overlayFocus';
 import { PAGE_MAIN_ID } from '../ui/page/Page';
 import * as css from './SkipToContent.css';
@@ -22,9 +25,13 @@ const skipTarget = (doc: Document): HTMLElement | undefined => {
 /** The first stop of Tab on every signed-in screen; it jumps past the navigation to the page. */
 export function SkipToContent() {
   const { t } = useTranslation();
+  const setNavDrawerOpen = useSetAtom(phoneNavDrawerOpenAtom);
   const skip = (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
-    skipTarget(event.currentTarget.ownerDocument)?.focus();
+    const doc = event.currentTarget.ownerDocument;
+    // A phone's open navigation drawer leaves the page inert: put it away before the focus moves.
+    flushSync(() => setNavDrawerOpen(false));
+    skipTarget(doc)?.focus();
   };
   return (
     <a className={css.SkipLink} href={`#${PAGE_MAIN_ID}`} onClick={skip}>

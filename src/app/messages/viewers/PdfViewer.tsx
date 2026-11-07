@@ -5,6 +5,7 @@ import { Box, Icon, Icons, Text, as } from 'folds';
 import { Chip, Header, IconButton } from '../../ui/glass/GlassPrimitives';
 import { saveFile } from '../../native/nativeFileSave';
 import { appUrl } from '../../lib/basePath';
+import { revealDirectionControls } from '../../ui/directional';
 import * as css from './PdfViewer.css';
 
 type PdfViewerProps = {
@@ -59,7 +60,7 @@ export const PdfViewer = as<'div', PdfViewerProps>(
           </IconButton>
           <Box grow="Yes" style={{ minWidth: 0 }}>
             <Text truncate size="T300">
-              {name}
+              {revealDirectionControls(name)}
             </Text>
           </Box>
           <Chip

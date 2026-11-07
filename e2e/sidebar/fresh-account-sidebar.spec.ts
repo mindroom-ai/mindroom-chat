@@ -199,6 +199,11 @@ const threadsCategory = (page: Page) =>
 const openHome = async (page: Page) => {
   // Pressing Home while Home shows folds a desktop's list away instead.
   if (new URL(page.url()).pathname !== '/home/') {
+    // A phone keeps the rail in its navigation drawer.
+    const menu = page.locator('#phone-nav-menu-button');
+    if ((await menu.count()) > 0 && (await menu.getAttribute('aria-expanded')) !== 'true') {
+      await menu.click();
+    }
     await rail(page).getByRole('button', { name: 'Home', exact: true }).click();
   }
   await expect(page).toHaveURL(/\/home\/$/);

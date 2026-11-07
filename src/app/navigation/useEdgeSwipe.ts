@@ -1,6 +1,7 @@
 import { useAtomValue } from 'jotai';
 import { useEffect, useRef } from 'react';
 import { imageViewerOpenAtom } from './imageViewerState';
+import { phoneNavDrawerOpenAtom } from './phoneNavDrawer';
 import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
 import { isIOSStandaloneWebApp } from '../native/nativeSso';
 
@@ -28,6 +29,7 @@ export const useEdgeSwipe = ({
 }): void => {
   const onSwipeRef = useRef(onSwipe);
   const imageViewerOpen = useAtomValue(imageViewerOpenAtom);
+  const navDrawerOpen = useAtomValue(phoneNavDrawerOpenAtom);
   const standaloneBlocked = blockStandaloneWebApp && isIOSStandaloneWebApp();
 
   useEffect(() => {
@@ -35,7 +37,8 @@ export const useEdgeSwipe = ({
   }, [onSwipe]);
 
   useEffect(() => {
-    if (!enabled || standaloneBlocked || imageViewerOpen || typeof window === 'undefined') return;
+    if (!enabled || standaloneBlocked || imageViewerOpen || navDrawerOpen) return;
+    if (typeof window === 'undefined') return;
 
     let tracking = false;
     // Far enough to go back or forward when the finger lifts. The swipe acts on the lift, not
@@ -110,5 +113,5 @@ export const useEdgeSwipe = ({
       window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('touchcancel', reset);
     };
-  }, [direction, enabled, imageViewerOpen, standaloneBlocked]);
+  }, [direction, enabled, imageViewerOpen, navDrawerOpen, standaloneBlocked]);
 };
