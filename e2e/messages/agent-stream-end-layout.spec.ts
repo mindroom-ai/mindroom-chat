@@ -328,6 +328,7 @@ const watchReplyFinish = async (
   const findings = judge(samples, baseline);
   writeFileSync(testInfo.outputPath('frames.json'), JSON.stringify({ baseline, samples }));
   writeFileSync(testInfo.outputPath('findings.json'), JSON.stringify(findings, null, 2));
+  await page.screenshot({ path: testInfo.outputPath('end.png') });
   expect(findings.blank, 'painted frames with a blank band under the newest row').toEqual([]);
   expect(findings.barReturns, 'the jobs bar left and came back during one reply').toEqual([]);
   expect(Math.abs(findings.finalGap - baseline)).toBeLessThanOrEqual(2);
