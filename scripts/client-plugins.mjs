@@ -21,11 +21,13 @@ const ENTRIES_MODULE = normalizePath(
 /** @typedef {{ id: string, version: string, dir: string, entry: string }} ClientPluginInfo */
 
 /**
- * The plugin in `dir`, or an error that names the directory and what is wrong with it.
+ * The plugin in `dir`, or an error that names the directory and what is wrong with it; `earlier`
+ * are the plugins listed before it.
  * @param {string} dir
+ * @param {ClientPluginInfo[]} earlier
  * @returns {ClientPluginInfo}
  */
-const readPlugin = (dir) => {
+const readPlugin = (dir, earlier) => {
   /** @returns {never} */
   const fail = (/** @type {string} */ reason) => {
     throw new Error(`MINDROOM_CLIENT_PLUGINS: ${dir}: ${reason}`);
@@ -58,6 +60,8 @@ const readPlugin = (dir) => {
   }
   const entryPath = typeof entry === 'string' && entry !== '' ? path.resolve(dir, entry) : '';
   if (!entryPath || !existsSync(entryPath)) fail(`entry ${JSON.stringify(entry)} does not exist`);
+  const other = earlier.find((plugin) => plugin.id === id);
+  if (other) fail(`id "${id}" is also the id of ${other.dir}`);
   return { id, version: manifest.version, dir, entry: normalizePath(entryPath) };
 };
 
@@ -67,23 +71,12 @@ const readPlugin = (dir) => {
  * @returns {ClientPluginInfo[]}
  */
 export const readClientPlugins = (list) => {
-  /** @type {Map<string, string>} */
-  const dirById = new Map();
-  return (list ?? '')
-    .split(',')
-    .map((dir) => dir.trim())
-    .filter((dir) => dir !== '')
-    .map((dir) => {
-      const plugin = readPlugin(dir);
-      const other = dirById.get(plugin.id);
-      if (other) {
-        throw new Error(
-          `MINDROOM_CLIENT_PLUGINS: ${dir}: id "${plugin.id}" is also the id of ${other}`
-        );
-      }
-      dirById.set(plugin.id, dir);
-      return plugin;
-    });
+  /** @type {ClientPluginInfo[]} */
+  const plugins = [];
+  for (const dir of (list ?? '').split(',').map((item) => item.trim())) {
+    if (dir !== '') plugins.push(readPlugin(dir, plugins));
+  }
+  return plugins;
 };
 
 /**
