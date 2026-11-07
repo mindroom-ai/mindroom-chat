@@ -202,6 +202,14 @@ export const checkPanelFrame = async (
   await expect(conversation).toHaveCount(0);
   await expect(fill).toHaveAttribute('aria-pressed', 'true');
   expect(await widthOf(panel)).toBeGreaterThan(besideWidth + conversationWidth - 20);
+  // The panel's own content ends where the panel does, its end edge (its Close) in view.
+  const end = async (locator: Locator) => {
+    const box = (await locator.boundingBox())!;
+    return box.x + box.width;
+  };
+  expect(await end(panel.locator(':scope > :first-child > :last-child'))).toBeLessThanOrEqual(
+    (await end(panel)) + 1
+  );
   await shot('filled');
   await fill.click();
   await expect(conversation).toBeVisible();

@@ -263,11 +263,12 @@ export function ResizablePanel({
     setPreferredWidth(Math.round(clamp(next, maxWidth)));
   };
 
-  let contentStyle: CSSProperties | undefined;
-  if (passthrough) contentStyle = { display: 'contents' };
-  else if (!full) {
+  let contentStyle: CSSProperties = { display: 'contents' };
+  if (!passthrough) {
+    // The frame's strip takes its width from the content's.
     const strip = frame ? STRIP_WIDTH : 0;
-    contentStyle = { ['--mr-panel-content-width' as string]: `${contentWidth - strip}px` };
+    const own = full ? `calc(100% - ${strip}px)` : `${contentWidth - strip}px`;
+    contentStyle = { ['--mr-panel-content-width' as string]: own };
   }
   let panelStyle: CSSProperties | undefined = { width };
   if (passthrough) panelStyle = { display: 'contents' };

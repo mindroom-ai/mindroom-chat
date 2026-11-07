@@ -90,6 +90,8 @@ describe('the frame of a side panel', () => {
   it('filling the room, takes its full width with no splitter, and Fill brings it back', async () => {
     const setLayout = renderFramed('filled');
     expect(panel().style.width).toBe('100%');
+    // The content takes the room's width but for the strip, so its end edge stays in view.
+    expect(content().style.getPropertyValue('--mr-panel-content-width')).toBe('calc(100% - 40px)');
     expect(separator()).toBeNull();
     const fill = screen.getByRole('button', { name: 'Fill the room with Notes' });
     expect(fill.getAttribute('aria-pressed')).toBe('true');
