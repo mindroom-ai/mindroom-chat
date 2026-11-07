@@ -56,9 +56,6 @@ export const Card = style([
     textAlign: 'start',
     cursor: 'pointer',
     transition: transition(['background-color', 'border-color']),
-    ':hover': {
-      backgroundColor: color.SurfaceVariant.ContainerHover,
-    },
     ':focus-visible': {
       outline: `${config.borderWidth.B300} solid ${color.Primary.Main}`,
       outlineOffset: '1px',
@@ -66,8 +63,15 @@ export const Card = style([
   },
 ]);
 
-globalStyle(`${CardShell}:hover ${Card}, ${CardShell}:focus-within ${Card}`, {
+globalStyle(`${CardShell}:focus-within ${Card}`, {
   backgroundColor: color.SurfaceVariant.ContainerHover,
+});
+
+// A touch screen keeps :hover on the card tapped last; only a pointer that can hover tints it.
+globalStyle(`${CardShell}:hover ${Card}, ${Card}:hover`, {
+  '@media': {
+    '(hover: hover)': { backgroundColor: color.SurfaceVariant.ContainerHover },
+  },
 });
 
 export const CardAction = style({
@@ -170,9 +174,14 @@ export const TitleText = style({
   overflow: 'hidden',
 });
 
+// A fixed slot for the short ages ("now", "1m", "59m", "23h"): a label that ticks to another
+// width would wrap the title beside it again, and the card would change its height on screen.
 export const TimeText = style({
   whiteSpace: 'nowrap',
   flexShrink: 0,
+  minInlineSize: '4ch',
+  textAlign: 'end',
+  fontVariantNumeric: 'tabular-nums',
 });
 
 export const TimeTextUnread = style({

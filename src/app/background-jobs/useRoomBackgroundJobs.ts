@@ -6,6 +6,9 @@ import {
   selectBackgroundJobs,
 } from '../matrix/protocol/backgroundJobsContract';
 
-/** Every live background job of the room, read again only when its agents' jobs state could have changed. */
-export const useRoomBackgroundJobs = (room: Room): BackgroundJob[] =>
+/**
+ * The room's listed background jobs and the number of its live ones, read again only when its
+ * agents' jobs state could have changed.
+ */
+export const useRoomBackgroundJobs = (room: Room): { jobs: BackgroundJob[]; total: number } =>
   useAgentRoomState(room, MINDROOM_BACKGROUND_JOBS_EVENT, selectBackgroundJobs);
