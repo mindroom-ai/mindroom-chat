@@ -20,7 +20,8 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // The page a room link opens when the person is not in the room. A room left on another device
 // just as the app starts keeps its name there. A join the server refuses says why, there and on
-// a space lobby's card. The person has 25 other rooms; desktop (1280 by
+// a space lobby's card. A person banned from the room reads that they are, who banned them and
+// why, whether this device knew the room or not. The person has 25 other rooms; desktop (1280 by
 // 800, classic scrollbars) and phone (390 by 844, touch), light and dark, Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. Set JOIN_PAGE_SHOTS=<directory>
 // for screenshots.
@@ -38,6 +39,9 @@ const TOPIC = 'Measurements from the north face, and who walks which section nex
 const LEFT_AT_START = 'Quarry survey';
 const LINKED = 'Open studio';
 const LOBBY_ROOM = 'Garden club';
+const BANNED_BEFORE = 'Old front desk';
+const BANNED_LIVE = 'Night shift';
+const BAN_REASON = 'Repeated off-topic posts in the handover thread';
 /** What the app says for the server's 403, and the start of the server's own words. */
 const REFUSED = "You don't have permission to do this.";
 
@@ -298,6 +302,50 @@ const checkRefusedJoin = async (
   await page.context().close();
 };
 
+/**
+ * The person was banned from one room before signing in on this device, which never learns of
+ * that room, and from another while signed in, which this device keeps as banned. Each room's
+ * page says so, names who banned them and gives the reason, and offers no Join.
+ */
+const checkBanned = async (browser: Browser, label: string, options: BrowserContextOptions) => {
+  const { owner, viewer } = await seedAccounts(label);
+  const ban = (roomId: string) =>
+    post(owner, roomPath(roomId, 'ban'), { user_id: viewer.userId, reason: BAN_REASON });
+  const before = await publicRoom(owner, BANNED_BEFORE);
+  await joinRoom(HOMESERVER, viewer.accessToken, before);
+  await ban(before);
+  const live = await publicRoom(owner, BANNED_LIVE);
+  await joinRoom(HOMESERVER, viewer.accessToken, live);
+  const { page, problems } = await signIn(browser, viewer, options);
+  const main = page.locator('main');
+  await openPath(page, `/home/${encodeURIComponent(live)}/`);
+  await expect(main.getByText('Open evening on Thursday; bring a sketchbook.')).toBeVisible();
+  await ban(live);
+  for (const [roomId, name] of [
+    [before, BANNED_BEFORE],
+    [live, BANNED_LIVE],
+  ] as const) {
+    // eslint-disable-next-line no-await-in-loop
+    await openPath(page, `/home/${encodeURIComponent(roomId)}/`);
+    // eslint-disable-next-line no-await-in-loop
+    await expect(main.getByText('You are banned from this room.')).toBeVisible({
+      timeout: 30_000,
+    });
+    // eslint-disable-next-line no-await-in-loop
+    await expect(main.getByText(name, { exact: true }).first()).toBeVisible();
+    // eslint-disable-next-line no-await-in-loop
+    await expect(main.getByText(`Reason: ${BAN_REASON}`)).toBeVisible();
+    // eslint-disable-next-line no-await-in-loop
+    await expect(main.getByText(new RegExp(`^Banned by: .*${owner.username}`))).toBeVisible();
+    // eslint-disable-next-line no-await-in-loop
+    await expect(main.getByRole('button', { name: 'Join', exact: true })).toHaveCount(0);
+    // eslint-disable-next-line no-await-in-loop
+    await shots(page, `${label}-banned-${roomId === before ? 'before' : 'live'}`);
+  }
+  expect(problems).toEqual([]);
+  await page.context().close();
+};
+
 test.beforeEach(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
   test.setTimeout(240_000);
@@ -339,3 +387,19 @@ for (const [device, options] of [
     }
   });
 }
+
+test('a banned person reads who banned them and why on the room page (Chromium desktop)', async ({
+  browser,
+}) => {
+  await checkBanned(browser, 'chromium-desktop', DESKTOP);
+});
+
+test('a banned person reads who banned them and why on the room page (WebKit phone)', async () => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  const browser = await launchWebKit();
+  try {
+    await checkBanned(browser, 'webkit-phone', PHONE);
+  } finally {
+    await browser.close();
+  }
+});
