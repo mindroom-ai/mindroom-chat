@@ -132,9 +132,9 @@ const focusOwnsTyping = (): boolean =>
 /**
  * Typing a letter or digit with nothing focused starts a message in the composer, and Escape
  * outside a field or menu goes back to it (the room's Escape handler reads its main timeline, or
- * the open thread, as well). Neither takes a key that another handler cancelled
- * (`preventDefault`), nor a key pressed inside an element marked `data-keeps-typing`: a region
- * that needs its own typing (an embedded editor, a terminal, a canvas) carries that attribute.
+ * the open thread, as well). Neither takes a key that a handler cancelled (`preventDefault`)
+ * before it reached the window, nor a key pressed inside an element marked `data-keeps-typing`:
+ * a region that reads keys without a text field (a game, a drawing surface) carries it.
  */
 const useTypeToCompose = (editor: ReturnType<typeof useEditor>, enabled: boolean) => {
   const handleKey = useCallback(
