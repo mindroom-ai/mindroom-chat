@@ -5,6 +5,7 @@ import { Box, Icon, Icons, Text, as } from 'folds';
 import { Chip, Header, IconButton } from '../../ui/glass/GlassPrimitives';
 import { PageScroll } from '../../ui/page/PageScroll';
 import { copyToClipboard } from '../../lib/dom';
+import { revealDirectionControls } from '../../ui/directional';
 import * as css from './TextViewer.css';
 
 /** How long the copy chip shows its check mark. */
@@ -15,11 +16,16 @@ type TextSource = { name: string; langName: string; text: string };
 
 type TextViewerProps = TextSource & { requestClose: () => void };
 
-/** Full-height read-only view of a text file or event source, with copy and close actions. */
+/**
+ * Full-height read-only view of a text file or event source, with copy and close actions. The name
+ * and the text show their bidirectional controls as code points (`<U+202E>`), so both read in the
+ * order they hold; Copy All copies the text as it is.
+ */
 export const TextViewer = as<'div', TextViewerProps>(
   ({ className, langName, name, requestClose, text, ...props }, ref) => {
     const { t } = useTranslation();
     const [copied, setCopied] = useState(false);
+    const shownName = revealDirectionControls(name);
 
     // The check mark clears itself a moment after a successful copy.
     useEffect(() => {
@@ -37,8 +43,8 @@ export const TextViewer = as<'div', TextViewerProps>(
       <Box direction="Column" className={rootClassName} {...props} ref={ref}>
         <Header size="400" className={css.TextViewerHeader}>
           <Box grow="Yes" style={{ minWidth: 0 }}>
-            <Text title={name} truncate size="H4">
-              {name}
+            <Text title={shownName} truncate size="H4">
+              {shownName}
             </Text>
           </Box>
           <Chip
@@ -61,7 +67,7 @@ export const TextViewer = as<'div', TextViewerProps>(
         </Header>
         <PageScroll className={css.TextViewerContent}>
           <pre className={classNames(css.TextViewerPre, `language-${langName}`)}>
-            <code>{text}</code>
+            <code>{revealDirectionControls(text)}</code>
           </pre>
         </PageScroll>
       </Box>

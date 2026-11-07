@@ -8,6 +8,7 @@ import { usePan } from '../../lib/hooks/usePan';
 import { downloadMedia } from '../../matrix/matrix';
 import { saveFile } from '../../native/nativeFileSave';
 import { DOWNLOAD_MIME_TYPE } from '../content/attachmentDownload';
+import { revealDirectionControls } from '../../ui/directional';
 import * as css from './ImageViewer.css';
 
 const ZOOM_STEP = 0.2;
@@ -92,7 +93,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
           </IconButton>
           <Box grow="Yes" style={{ minWidth: 0 }}>
             <Text truncate size="T300">
-              {alt}
+              {revealDirectionControls(alt)}
             </Text>
           </Box>
           <Box alignItems="Center" shrink="No" gap="200">
