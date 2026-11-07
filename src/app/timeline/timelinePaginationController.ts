@@ -47,8 +47,8 @@ const fetchEventContext = async (
  * A loader for the room's history around one event. Each load ends in one call: `onLoad` with the
  * chain linked to the returned timeline (oldest first) and the event's index across that chain,
  * or `onError` when the request fails, returns nothing, or returns a timeline without the event.
- * An event without a row under the filters in `filterOptsRef` comes with a page of history on
- * each side, so the jump lands on the row nearest to it.
+ * An event the server sends alone comes with a page of history on each side (`loadRowsAround`),
+ * so the jump has rows to land among.
  * The handlers of the newest render answer. Loads are neither merged nor cancelled, and the loader
  * does not check that its component is still mounted: the handlers do.
  */
@@ -156,10 +156,15 @@ const requestPage = async (
 };
 
 /**
- * The server sends the event alone (the SDK asks `/context` for no neighbours), and an event that
+ * The server sends the event alone (the SDK asks `/context` for no neighbours). An event that
  * makes no row of its own (the room's creation, a reaction, a hidden membership change) leaves a
- * jump nothing to land on. So when no timeline of the chain around `holder` has a row under
- * `opts`, one page of history loads on each side of it, decrypted in an encrypted room.
+ * jump nothing to land on, and a row alone leaves it no room to aim: the row sits where a lone
+ * row sits, at the bottom of the view, the jump ends there, and the rows that load around it
+ * afterwards keep it there, so what follows it (the New Messages line under a read marker) stays
+ * out of view. A page of the room's previous rows that is still out can also land meanwhile and
+ * link the event's timeline to the live one behind a window that shows the event alone. So when
+ * the chain around `holder` holds at most one row under `opts`, one page of history loads on each
+ * side of it before the jump, decrypted in an encrypted room.
  */
 const loadRowsAround = async (
   mx: MatrixClient,
@@ -168,7 +173,8 @@ const loadRowsAround = async (
   opts: RecalibrateFilterOpts
 ): Promise<void> => {
   const chain = getLinkedTimelines(holder);
-  if (chain.some((timeline) => countTimelineRows(timeline, opts) > 0)) return;
+  const rows = chain.reduce((total, timeline) => total + countTimelineRows(timeline, opts), 0);
+  if (rows > 1) return;
   const ends = [
     { edge: chain[0], backwards: true },
     { edge: chain[chain.length - 1], backwards: false },
