@@ -144,7 +144,9 @@ IDs whose apps are in the call now), `pausedBy` (user ID, or null when not pause
   to the transcript message (`transcript_event_id`) in its thread. The transcript message itself uses the existing
   transcript card, with the notes as its text; for a message carrying `io.mindroom.call_notes` from a MindRoom agent,
   speakers who were in the room but have left still count as trusted, so the transcript stays visible.
-- The MindRoom server for a room is found the way the app already finds it for other MindRoom features.
+- The MindRoom server for a room is the one the room's MindRoom agents published (while the homeserver binds sign-in
+  tokens to it), else the one the deployment names. A device's own choice of server for agents' computers doesn't
+  apply: transcription needs the MindRoom whose router is in the room.
 - Strings in every locale; the app's own components and theme tokens; no new colours.
 
 ## Testing
