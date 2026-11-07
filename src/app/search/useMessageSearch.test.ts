@@ -145,7 +145,12 @@ describe('deduplicateResults', () => {
 });
 
 /** An original as servers return it with its latest edit bundled (spec v1.7 and later). */
-const withLatestEdit = (result: ISearchResult, editId: string, body: string): ISearchResult =>
+const withLatestEdit = (
+  result: ISearchResult,
+  editId: string,
+  body: string,
+  sender = result.result.sender
+): ISearchResult =>
   ({
     ...result,
     result: {
@@ -154,6 +159,7 @@ const withLatestEdit = (result: ISearchResult, editId: string, body: string): IS
         'm.relations': {
           'm.replace': {
             event_id: editId,
+            sender,
             content: {
               body: `* ${body}`,
               msgtype: 'm.text',
@@ -177,6 +183,18 @@ describe('deduplicateResults with a bundled latest edit', () => {
 
     expect(getEventIds(deduplicateResults([olderEdit, original]))).toEqual(['$original']);
   });
+
+  it('keeps the sender’s edit over an original that carries another sender’s bundled edit', () => {
+    const original = withLatestEdit(
+      makeSearchResult({ eventId: '$original', ts: 100 }),
+      '$other-edit',
+      'other text',
+      '@bob:example.org'
+    );
+    const ownEdit = makeSearchResult({ eventId: '$edit-1', ts: 200, editTargetId: '$original' });
+
+    expect(getEventIds(deduplicateResults([ownEdit, original]))).toEqual(['$edit-1']);
+  });
 });
 
 describe('dropEditedAwayResults', () => {
@@ -195,6 +213,19 @@ describe('dropEditedAwayResults', () => {
     ];
 
     expect(getEventIds(dropEditedAwayResults(results, 'Thinking'))).toEqual(['$still', '$plain']);
+  });
+
+  it('keeps a hit whose bundled edit another sender made', () => {
+    const results = [
+      withLatestEdit(
+        makeSearchResult({ eventId: '$hit', ts: 100, content: { body: 'Thinking...' } }),
+        '$other-edit',
+        'Hello from **Helper**.',
+        '@bob:example.org'
+      ),
+    ];
+
+    expect(getEventIds(dropEditedAwayResults(results, 'Thinking'))).toEqual(['$hit']);
   });
 
   it('keeps hits it cannot compare: edits, unedited messages and stemmed matches', () => {

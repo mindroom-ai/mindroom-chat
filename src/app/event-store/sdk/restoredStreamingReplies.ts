@@ -4,6 +4,7 @@ import {
   getStreamStatusFromContent,
   TERMINAL_STREAM_STATUSES,
 } from '../../matrix/protocol/aiRun';
+import { getSameSenderBundledEdit } from '../../matrix/editEvent';
 import { createSessionId } from '../../matrix/session/sessions';
 import {
   createPreferLiveEventMapper,
@@ -24,7 +25,7 @@ import {
 // the reply (a root's bundled latest reply), `matrix/client/mappedCopyEdits.ts` keeps the newer
 // edit on it.
 
-type SavedEvent = Partial<IEvent> & { unsigned?: { 'm.relations'?: Record<string, unknown> } };
+type SavedEvent = Partial<IEvent>;
 
 /** The SDK's sync accumulator: the saved timeline of each joined room. */
 type SavedSync = { joinRooms?: Record<string, { _timeline?: { event: SavedEvent }[] }> };
@@ -75,10 +76,7 @@ export const findSavedStreamingReplies = (sync: SavedSync | undefined): SavedRep
       if (typeof eventId !== 'string') return;
       replies.set(eventId, relatedId(event, RelationType.Thread));
       note(eventId, streamStatusOf(event.content));
-      const bundled = event.unsigned?.['m.relations']?.[RelationType.Replace] as
-        | SavedEvent
-        | undefined;
-      note(eventId, streamStatusOf(bundled?.content));
+      note(eventId, streamStatusOf(getSameSenderBundledEdit(event)?.content));
     });
     return [...replies]
       .filter(([eventId]) => streaming.has(eventId) && !finished.has(eventId))
