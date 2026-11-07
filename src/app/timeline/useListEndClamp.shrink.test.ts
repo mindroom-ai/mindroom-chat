@@ -59,4 +59,20 @@ describe('listShrinkNotRendered', () => {
     const inner = list(622, [{ index: 2, top: 376, height: 246 }]);
     expect(listShrinkNotRendered(inner, rows([68, 3626, 246, 0]))).toBe(0);
   });
+
+  it('finds nothing pending for a page of older rows folded above a reader at the newest one', () => {
+    // 100 older replies landed above: the ledger lifts the list by their 9660 px, and the list
+    // grew by as much, so it still ends at its newest row.
+    const inner = list(622, [{ index: 102, top: 376, height: 246 }]);
+    inner.style.marginTop = '-9660px';
+    expect(listShrinkNotRendered(inner, rows([...Array<number>(102).fill(96), 246]), 9660)).toBe(0);
+  });
+
+  it('counts the part of the margin no rows brought with them', () => {
+    // A correction the ledger took for a row above (169.5 px) lifted the list without the list
+    // growing: the scroll content lost that much below the reader.
+    const inner = list(622, [{ index: 2, top: 376, height: 246 }]);
+    inner.style.marginTop = '-169.5px';
+    expect(listShrinkNotRendered(inner, rows([68, 3626, 246]), 0)).toBe(169.5);
+  });
 });
