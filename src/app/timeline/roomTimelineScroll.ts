@@ -208,19 +208,26 @@ const useLatestRowRequest = ({
     // reader's. The room below the view that rows which shrank still take until React renders the
     // list does not count: the correction that keeps the end in place for them scrolls up as much.
     // The rows can still measure a shrink that React has already rendered: never less than none.
+    // A scroll up no larger than the scroll area grew is the browser keeping the position inside
+    // the taller area (a phone's keyboard band that widens while the rows measure again): the
+    // view's lower edge stays where it was, and that scroll is not the reader's either.
     const roomBelow = () =>
       Math.max(0, distanceBelowView(scrollElement) - (pendingListShrinkPxRef.current?.() ?? 0));
     let lastTop = scrollElement.scrollTop;
     let lastBelow = roomBelow();
+    let lastHeight = scrollElement.clientHeight;
     const followScroll = () => {
       const top = scrollElement.scrollTop;
       const below = roomBelow();
+      const height = scrollElement.clientHeight;
+      const lowerEdgeRose = top < lastTop && top + height < lastTop + lastHeight;
       const leftLatest = latestAtTopRef.current
         ? top > lastTop + LEFT_LATEST_ROW_PX
-        : top < lastTop && below > lastBelow + LEFT_LATEST_ROW_PX;
+        : lowerEdgeRose && below > lastBelow + LEFT_LATEST_ROW_PX;
       if (leftLatest) release();
       lastTop = top;
       lastBelow = below;
+      lastHeight = height;
     };
     READER_INTENT_EVENTS.forEach((name) =>
       scrollElement.addEventListener(name, release, { passive: true })
