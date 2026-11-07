@@ -53,7 +53,13 @@ import { useRoomViewMode } from '../navigation/useRoomViewMode';
 import { useThreadRootEvent } from '../threads/useThreadRootEvent';
 import { useInitializeOpenThread } from '../threads/useInitializeOpenThread';
 import { RoomMessageAnnouncer } from '../timeline/RoomMessageAnnouncer';
-import { useCallPanel, useInCall } from '../calls/callStore';
+import {
+  isActiveCallShownIn,
+  useActiveCall,
+  useCallActions,
+  useCallPanel,
+  useInCall,
+} from '../calls/callStore';
 import type { CallPanel as CallPanelComponent } from '../calls/CallPanel';
 import { type PartLoadRetry, lazyPart } from '../lib/lazyPart';
 import { PartUnavailable } from '../ui/PartUnavailable';
@@ -61,14 +67,37 @@ import { PartUnavailable } from '../ui/PartUnavailable';
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;
 const COMPUTER_MAX_WIDTH = 1600;
-/** Without its chunk (offline before any call here) the call panel says so and offers Retry. */
+/**
+ * Without its chunk (offline when the panel is first needed) the call panel says so and offers
+ * Retry. A call already on in this room gets End too, as the panel's own End did not load and Retry
+ * may not reload.
+ */
 function CallPanelUnavailable({
+  room,
   onClose,
   retryLoad,
 }: ComponentProps<typeof CallPanelComponent> & PartLoadRetry) {
   const { t } = useTranslation();
+  const mx = useMatrixClient();
+  const { endCall } = useCallActions(mx);
+  const callHere = isActiveCallShownIn(useActiveCall(), room.roomId);
   return (
     <PartUnavailable retryLoad={retryLoad}>
+      {callHere && (
+        <Button
+          type="button"
+          size="300"
+          radii="300"
+          variant="Critical"
+          fill="Soft"
+          onClick={() => {
+            // The call is over for this device either way; a failed leave leaves nothing to do.
+            endCall().catch(() => undefined);
+          }}
+        >
+          <Text size="B300">{t('featureUi.call.callControls.end')}</Text>
+        </Button>
+      )}
       <Button
         type="button"
         size="300"
