@@ -29,16 +29,6 @@ const routerToken = (stack: AgentStack): string =>
 const card = (page: Page, rootId: string): Locator =>
   page.locator(`button[data-thread-root-id="${rootId}"]`);
 
-type Notices = { unmarked: string; fromPerson: string; marked: string };
-
-const expectListed = async (page: Page, notices: Notices, body: string) => {
-  // The notices that stay out were sent first, so the client holds them once the marked one shows.
-  await expect(card(page, notices.marked)).toBeVisible({ timeout: 90_000 });
-  await expect(card(page, notices.marked)).toContainText(body);
-  await expect(card(page, notices.unmarked)).toHaveCount(0);
-  await expect(card(page, notices.fromPerson)).toHaveCount(0);
-};
-
 test("an agent's marked notice lists as a conversation", async ({ page, stack }) => {
   test.setTimeout(300_000);
   const word = uniqueWord('notice');
@@ -53,18 +43,25 @@ test("an agent's marked notice lists as a conversation", async ({ page, stack })
       ...(marked ? { 'io.mindroom.conversation': true } : {}),
     });
   const agent = routerToken(stack);
-  const notices: Notices = {
+  const notices = {
     unmarked: await send(agent, `${word} indexing finished`, false),
     fromPerson: await send(stack.tester.accessToken, `${word} a card from a person`, true),
     marked: await send(agent, report, true),
   };
+  // The notices that stay out were sent first, so the client holds them once the marked one shows.
+  const expectListed = async () => {
+    await expect(card(page, notices.marked)).toBeVisible({ timeout: 90_000 });
+    await expect(card(page, notices.marked)).toContainText(report);
+    await expect(card(page, notices.unmarked)).toHaveCount(0);
+    await expect(card(page, notices.fromPerson)).toHaveCount(0);
+  };
 
   // Arriving live, and again from the stored timeline after a reload.
-  await expectListed(page, notices, report);
+  await expectListed();
   await page.screenshot({ path: test.info().outputPath('conversation-notice-live.png') });
   await page.reload({ timeout: 180_000 });
   await expect(composer(page)).toBeVisible({ timeout: 90_000 });
-  await expectListed(page, notices, report);
+  await expectListed();
   await page.screenshot({ path: test.info().outputPath('conversation-notice-reload.png') });
 
   // Its card opens it as a conversation: the thread, with the notice as its root.
