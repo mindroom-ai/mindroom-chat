@@ -71,6 +71,15 @@ def corpus_head(corpus):
         sys.exit(f"upstream-overlap: {corpus} is not a git clone of the upstream client with commits; nothing was checked")
 
 
+def make_cache():
+    """CACHE and the parents it lacks, owner-only whatever the umask: mkdir's mode covers only the last one."""
+    umask = os.umask(0o077)
+    try:
+        CACHE.mkdir(mode=0o700, parents=True, exist_ok=True)
+    finally:
+        os.umask(umask)
+
+
 def write_atomic(path, data):
     """Replace a cache file whole, so that a run reading it at the same time never sees part of it."""
     tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
@@ -146,7 +155,7 @@ def strip_imports(text):
 
 
 def corpus_lines(corpus):
-    CACHE.mkdir(mode=0o700, parents=True, exist_ok=True)
+    make_cache()
     head = corpus_head(corpus)
     rules = hashlib.sha256((IMPORTS.pattern + "".join(t.pattern for t in TRIVIAL) + str(MIN_LEN)).encode()).hexdigest()[:12]
     cached = CACHE / f"corpus-{head}-{rules}.json"
@@ -270,7 +279,7 @@ def corpus_windows(corpus):
     for text in read_blobs(corpus, list(blobs)).values():
         found.update(windows([t for t, _, _ in tokens(text)]))
     data.extend(sorted(found))
-    CACHE.mkdir(mode=0o700, parents=True, exist_ok=True)
+    make_cache()
     write_atomic(cached, data.tobytes())
     return found
 
