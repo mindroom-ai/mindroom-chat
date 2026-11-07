@@ -230,8 +230,8 @@ const LAYERS = [
   ['src/index.tsx', 'src/client-sdk'],
 ];
 const domainDir = (domain) => (domain.startsWith('src/') ? `./${domain}` : `./src/app/${domain}`);
-// One zone per domain: it may import nothing of its own layer or above. The entry point, alone at
-// the top, needs none.
+// One zone per domain: it may import nothing of its own layer or above. A domain alone in the top
+// layer would need none.
 const LAYER_ZONES = LAYERS.flatMap((layer, index) =>
   layer.map((domain) => ({
     target: domainDir(domain),
