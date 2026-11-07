@@ -882,6 +882,78 @@ describe('CommandPalette people from the server', () => {
     expect(requestClose).toHaveBeenCalledOnce();
   });
 
+  it('ranks the person whose whole name or user name is typed above people with a direct chat', async () => {
+    const localPerson = (name: string, boost: number, dm: boolean) => {
+      const localpart = name.toLowerCase().replace(' ', '');
+      return {
+        id: `user:@${localpart}:example.org`,
+        kind: 'user' as const,
+        displayName: name,
+        userId: `@${localpart}:example.org`,
+        localpart,
+        ...(dm ? { dmRoomName: name, existingDmRoomId: `!dm-${localpart}:example.org` } : {}),
+        boost,
+        onSelect: vi.fn(),
+      };
+    };
+    const source: CommandPaletteSource = {
+      ...FIXTURE_SOURCE,
+      getUsers: vi.fn(() => [
+        localPerson('User B', 10, true),
+        localPerson('User C', 5, false),
+        localPerson('User H', 5, false),
+      ]),
+    };
+    for (const initialTab of ['users', 'all'] as const) {
+      const renderer = renderPalette({ initialTab, source });
+      await type(renderer, 'User H');
+      expect(peopleLines(renderer)[0]).toBe('user:@userh:example.org');
+      await type(renderer, 'userh');
+      expect(peopleLines(renderer)[0]).toBe('user:@userh:example.org');
+      // A word they share leaves the direct chat first.
+      await type(renderer, 'User');
+      expect(peopleLines(renderer)[0]).toBe('user:@userb:example.org');
+    }
+    const renderer = renderPalette({ initialTab: 'users', source });
+    await type(renderer, 'User C');
+    expect(selectedId(renderer)).toBe('user:@userc:example.org');
+  });
+
+  it("ranks the server's exact match above people the palette knows who only resemble it", async () => {
+    const source: CommandPaletteSource = {
+      ...FIXTURE_SOURCE,
+      getUsers: vi.fn(() => [
+        {
+          id: 'user:@userb:example.org',
+          kind: 'user' as const,
+          displayName: 'User B',
+          userId: '@userb:example.org',
+          localpart: 'userb',
+          existingDmRoomId: '!dm:example.org',
+          boost: 10,
+          onSelect: vi.fn(),
+        },
+      ]),
+    };
+    const renderer = renderPalette({ initialTab: 'users', source });
+    setPeople({
+      status: 'done',
+      items: [
+        serverPerson('User Z', {
+          id: 'user:@userz:example.org',
+          userId: '@userz:example.org',
+          localpart: 'userz',
+        }),
+      ],
+    });
+    await type(renderer, 'User Z');
+    expect(peopleLines(renderer).slice(0, 2)).toEqual([
+      'user:@userz:example.org',
+      'user:@userb:example.org',
+    ]);
+    expect(selectedId(renderer)).toBe('user:@userz:example.org');
+  });
+
   it('opens an existing direct chat at once instead of starting another', async () => {
     const requestClose = vi.fn();
     const onSelect = vi.fn();
