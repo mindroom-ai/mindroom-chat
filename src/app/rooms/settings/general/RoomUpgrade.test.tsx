@@ -87,7 +87,9 @@ const upgrade = async (onOpened: () => void): Promise<ReactTestRenderer> => {
   act(() => {
     renderer = create(<RoomUpgrade room={room} space={false} onOpened={onOpened} />);
   });
-  act(() => buttonNamed(renderer, 'Upgrade')?.props.onClick());
+  act(() => {
+    buttonNamed(renderer, 'Upgrade')?.props.onClick();
+  });
   await act(async () => {
     buttonNamed(renderer, 'Upgrade Room')?.props.onClick();
   });
@@ -133,7 +135,9 @@ it('names the rooms that did not come along, and offers the new room', async () 
   const alert = textOf(renderer.root.findByProps({ role: 'alert' }));
   expect(alert).toContain('Tools');
   expect(alert).not.toContain('Seeds');
-  act(() => buttonNamed(renderer, 'Open New Room')?.props.onClick());
+  act(() => {
+    buttonNamed(renderer, 'Open New Room')?.props.onClick();
+  });
   expect(onOpened).toHaveBeenCalledOnce();
   expect(navigateRoom).toHaveBeenCalledWith('!new');
 });
