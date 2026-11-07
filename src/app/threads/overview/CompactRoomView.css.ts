@@ -170,9 +170,14 @@ export const TitleText = style({
   overflow: 'hidden',
 });
 
+// A fixed slot for the short ages ("now", "1m", "59m", "23h"): a label that ticks to another
+// width would wrap the title beside it again, and the card would change its height on screen.
 export const TimeText = style({
   whiteSpace: 'nowrap',
   flexShrink: 0,
+  minInlineSize: '4ch',
+  textAlign: 'end',
+  fontVariantNumeric: 'tabular-nums',
 });
 
 export const TimeTextUnread = style({
