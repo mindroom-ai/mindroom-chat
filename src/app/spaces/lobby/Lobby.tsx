@@ -29,6 +29,7 @@ import { RoomItemCard } from './RoomItem';
 import { AddToSpaceChips, SpaceItemCard } from './SpaceItem';
 import { HierarchyItemMenu } from './HierarchyItemMenu';
 import { canSendState } from './spaceChildren';
+import * as styleCss from './style.css';
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../../matrix/hooks/useRoomPermissions';
 import { allRoomsAtom } from '../../matrix/state/roomList';
@@ -228,12 +229,12 @@ function LobbyContent() {
 
   const renderRoom = (item: HierarchyItem) => {
     const local = getRoom(item.roomId);
-    const card = (summary: CardSummary, cardLoading: boolean, error: Error | null) => (
+    const card = (summary: CardSummary, cardLoading: boolean) => (
       <RoomItemCard
         key={item.roomId}
         item={item}
         loading={cardLoading}
-        error={error}
+        error={null}
         summary={summary}
         onOpen={openRoom}
         onDragging={noop}
@@ -249,12 +250,12 @@ function LobbyContent() {
     if (local && (joinedCopy(item.roomId) || !known)) {
       return (
         <LocalRoomSummaryLoader key={item.roomId} room={local}>
-          {(summary) => card(toCardSummary(summary), false, null)}
+          {(summary) => card(toCardSummary(summary), false)}
         </LocalRoomSummaryLoader>
       );
     }
-    if (known) return card(known, false, null);
-    if (loading) return card(undefined, true, null);
+    if (known) return card(known, false);
+    if (loading) return card(undefined, true);
     return (
       <RoomSummaryLoader
         key={item.roomId}
@@ -262,13 +263,16 @@ function LobbyContent() {
         viaServers={item.content.via}
       >
         {(state) =>
-          card(
-            state.status === AsyncStatus.Success
-              ? (state.data as unknown as CardSummary)
-              : undefined,
-            state.status === AsyncStatus.Loading || state.status === AsyncStatus.Idle,
-            state.status === AsyncStatus.Error ? (state.error as Error) : null
-          )
+          // The server neither lists the room in the space's hierarchy nor describes it to this
+          // member, who cannot see it: no card, as MindRoom Chat lists only rooms it can show.
+          state.status === AsyncStatus.Error
+            ? null
+            : card(
+                state.status === AsyncStatus.Success
+                  ? (state.data as unknown as CardSummary)
+                  : undefined,
+                state.status === AsyncStatus.Loading || state.status === AsyncStatus.Idle
+              )
         }
       </RoomSummaryLoader>
     );
@@ -323,6 +327,7 @@ function LobbyContent() {
               return (
                 <Box
                   key={`${item.parentId}/${item.roomId}`}
+                  className={styleCss.LobbyEntry}
                   direction="Column"
                   style={nestingInset(item.depth)}
                   data-lobby-entry={item.roomId}
