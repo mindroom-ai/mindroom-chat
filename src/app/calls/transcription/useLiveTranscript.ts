@@ -32,6 +32,9 @@ export type LiveTranscriptView = {
 
 type ReadView = Pick<LiveTranscriptView, 'state' | 'live'>;
 
+/** The server and room reads come from, and the last line they read there. */
+type LastRead = { client: TranscriptionClient; roomId: string; lineId?: string };
+
 /** One client per Matrix client and server, so rows, panels and remounts share its sign-in. */
 const clients = new WeakMap<MatrixClient, Map<string, TranscriptionClient>>();
 
@@ -76,13 +79,18 @@ const useLiveCallReads = (
     [apiUrl, discovered, mx]
   );
   const [view, setView] = useState<ReadView>({ state: 'loading' });
-  /** The last line read of the room, while its lines stay: reads that start again go on from it. */
-  const lastLine = useRef<{ roomId: string; id: string }>();
+  const lastRead = useRef<LastRead>();
   useEffect(() => {
     if (!client || !reading) return undefined;
-    // What was read of the room stays while reading pauses; another room's goes.
-    setView((shown) => (shown.live?.roomId === roomId ? shown : { state: 'loading' }));
-    if (lastLine.current?.roomId !== roomId) lastLine.current = undefined;
+    // What was read of the room on this server stays while reading pauses, and reads that start
+    // again go on after its last line; another room's or server's goes.
+    const last = lastRead.current;
+    const read: LastRead =
+      last?.client === client && last.roomId === roomId ? last : { client, roomId };
+    lastRead.current = read;
+    setView((shown) =>
+      read === last && shown.live?.roomId === roomId ? shown : { state: 'loading' }
+    );
     const stop = new AbortController();
     void pollLiveCall(
       client,
@@ -90,18 +98,17 @@ const useLiveCallReads = (
       everyMs,
       stop.signal,
       (live) => {
-        const id = live.lines[live.lines.length - 1]?.id;
-        if (id) lastLine.current = { roomId, id };
+        read.lineId = live.lines[live.lines.length - 1]?.id ?? read.lineId;
         setView((shown) => ({
           state: 'live',
           live: applyLiveUpdate(shown.live, roomId, { type: 'live', live }),
         }));
       },
       () => setView((shown) => ({ ...shown, state: 'unavailable' })),
-      lastLine.current?.id
+      read.lineId
     ).then((outcome) => {
       if (outcome !== 'not-transcribed') return;
-      lastLine.current = undefined;
+      read.lineId = undefined;
       setView({ state: 'not-transcribed' });
     });
     return () => stop.abort();

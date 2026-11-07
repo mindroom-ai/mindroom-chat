@@ -340,18 +340,31 @@ describe('CallRow', () => {
     expect(button('Transcript')).toBeUndefined();
   });
 
-  it('reads no more once a read showed the row ended', () => {
-    render(LIVE);
-    inView(true);
-    act(() => state.polls[0]?.onLive({ call: null, lines: [], names: {} }));
-    expect(container.textContent).toContain('Call ended');
-    expect(state.polls[0]?.signal.aborted).toBe(true);
+  it.each([
+    ['names no live call', () => state.polls[0]?.onLive({ call: null, lines: [], names: {} })],
+    ['says the room is not transcribed', () => state.polls[0]?.finish('not-transcribed')],
+  ])(
+    "follows the room's own server once it is known, after the deployment's %s",
+    async (_case, answer) => {
+      state.apiUrl = 'https://deployment.example.org';
+      const store = render(LIVE);
+      inView(true);
+      await act(async () => answer());
+      expect(container.textContent).toContain('Call ended');
 
-    inView(false);
-    inView(true);
-    expect(state.polls).toHaveLength(1);
-    expect(container.textContent).toContain('Call ended');
-  });
+      // What another server said goes with it; reads start over on the room's own.
+      state.apiUrl = 'https://published.example.org';
+      render(LIVE, store);
+      expect(state.polls).toHaveLength(2);
+      expect(state.polls[1]?.after).toBeUndefined();
+      expect(container.textContent).toContain('Call in progress');
+      act(() => state.polls[1]?.onLive({ call: CALL, lines: [], names: {} }));
+      expect(container.textContent).toContain('Call in progress');
+      expect(faces()).toEqual(['Bob', 'Ann']);
+      expect(button('Join')).toBeDefined();
+      expect(button('Transcript')).toBeDefined();
+    }
+  );
 
   it('stays live, as posted, on a device that knows no MindRoom server for the room', () => {
     state.apiUrl = undefined;
