@@ -26,19 +26,20 @@ const SYMBOLS = new Map(
 // Function names, which read as themselves.
 const FUNCTION_NAME =
   /^(?:(?:arc)?(?:sin|cos|tan|cot|sec|csc)h?|log|ln|lg|exp|lim|max|min|sup|inf|det|gcd|deg|dim|arg|ker|Pr)$/;
-// Commands whose braced argument reads as written: text, upright letters, a name, a box.
-const PLAIN_COMMAND = /^(?:text(?:rm|it|bf)?|mathrm|mathit|operatorname|boxed)$/;
+// Commands whose braced argument reads as written: text, upright letters, a box.
+const PLAIN_COMMAND = /^(?:text(?:rm|it|bf)?|mathrm|mathit|boxed)$/;
 // Commands that only size or tighten what they touch.
 const SILENT_COMMAND = /^(?:left|right|[bB]igg?[lr]?|displaystyle|limits|nolimits|!)$/;
 const SPACE_COMMAND = /^(?:[,:;> ]|quad|qquad)$/;
 // Code that the renderer's tokenizer cannot tell from text in a Markdown body: a run of two or of
-// four and more backticks, a tilde fence, or a line indented like code.
-const UNSEEN_CODE = /(?<!`)``(?!`)|````|^ {0,3}~~~|^(?: {4}|\t)/m;
+// four and more backticks, a tilde fence or an indented line (in a block quote too), or HTML code.
+const UNSEEN_CODE = /(?<!`)``(?!`)|````|^[ >]*(?:~~~| {4}|\t)|<(?:code|pre)\b/m;
 
 /** A command, a space, one character, or the nodes of a braced group. */
 type TexNode = string | TexNode[];
 
-const parseTex = (tex: string): TexNode[] => {
+/** The nodes of `tex`, or `undefined` when its braces do not pair. */
+const parseTex = (tex: string): TexNode[] | undefined => {
   const parents: TexNode[][] = [];
   let group: TexNode[] = [];
   for (const [token] of tex.matchAll(/\\(?:[A-Za-z]+|[\s\S]?)|\s+|[\s\S]/gu)) {
@@ -48,12 +49,14 @@ const parseTex = (tex: string): TexNode[] => {
       parents.push(group);
       group = child;
     } else if (token === '}') {
-      group = parents.pop() ?? group;
+      const parent = parents.pop();
+      if (!parent) return undefined;
+      group = parent;
     } else {
       group.push(/^\s/u.test(token) ? ' ' : token);
     }
   }
-  return parents[0] ?? group;
+  return parents.length === 0 ? group : undefined;
 };
 
 // A part of more than one character keeps its extent in parentheses, unless it is a number.
@@ -64,10 +67,13 @@ const part = (text: string): string => {
 
 /**
  * The formula as plain text, or `undefined` when any of it has no exact reading here: a command
- * other than those above, a fraction and a root, a root with an index, a line break, or nothing to
- * read. A fraction always keeps parentheses (`(a/b)`), and so does a root's radicand (`√(x)`).
+ * other than those above, a root with an index, a mixed number, a line break, a comment, braces
+ * that do not pair, or nothing to read. A fraction always keeps parentheses (`(a/b)`), and so do a
+ * root's radicand (`√(x)`) and a bare script that something runs into (`x^(2)3`).
  */
 const readFormula = (tex: string): string | undefined => {
+  const tree = parseTex(tex);
+  if (!tree) return undefined;
   let exact = true;
   const readNodes = (nodes: TexNode[]): string => {
     let index = 0;
@@ -79,15 +85,19 @@ const readFormula = (tex: string): string | undefined => {
       skipSpace();
       return read();
     };
-    // Whether what comes next would run into the text before it: a letter, digit, group or command.
-    const joins = (): boolean => {
-      const next = nodes[index];
-      if (typeof next !== 'string') return next !== undefined;
-      const name = next.startsWith('\\') ? next.slice(1) : '';
-      return (
-        /^[\p{L}\p{N}]/u.test(next) ||
-        (name !== '' && !SILENT_COMMAND.test(name) && !SPACE_COMMAND.test(name))
-      );
+    // Whether the next node past sizes would run into the text before it: a letter, digit, group or
+    // command, and with `brackets` an opening bracket.
+    const joins = (brackets = false): boolean => {
+      let at = index;
+      let next = nodes[at];
+      while (typeof next === 'string' && next.startsWith('\\') && SILENT_COMMAND.test(next.slice(1))) {
+        at += 1;
+        next = nodes[at];
+      }
+      if (next === undefined || next === ' ') return false;
+      if (typeof next !== 'string') return true;
+      if (next.startsWith('\\')) return !SPACE_COMMAND.test(next.slice(1));
+      return (brackets ? /^[\p{L}\p{N}([]/u : /^[\p{L}\p{N}]/u).test(next);
     };
     // The next node, with the arguments of the command it names.
     const read = (): string => {
@@ -95,13 +105,18 @@ const readFormula = (tex: string): string | undefined => {
       if (node === undefined) return '';
       if (typeof node !== 'string') return readNodes(node);
       if (node === '^' || node === '_') {
-        const script = part(argument());
-        return node + ([...script].length === 1 && joins() ? `(${script})` : script);
+        const bare = argument().trim();
+        const script = part(bare);
+        return node + (script === bare && joins(true) ? `(${script})` : script);
       }
       if (node === '~') return ' ';
+      if (node === '%') exact = false;
       if (!node.startsWith('\\')) return node;
       const name = node.slice(1);
+      const before = nodes[index - 2];
       if (/^[dt]?frac$/.test(name)) {
+        // After a digit a fraction makes a mixed number (`3\frac{1}{4}`), which no reading fits.
+        if (typeof before === 'string' && /^\d$/.test(before)) exact = false;
         const numerator = part(argument());
         return `(${numerator}/${part(argument())})`;
       }
@@ -110,17 +125,21 @@ const readFormula = (tex: string): string | undefined => {
         if (nodes[index] === '[') exact = false;
         return `√(${read().trim()})`;
       }
+      if (FUNCTION_NAME.test(name) || (name === 'operatorname' && Array.isArray(nodes[index]))) {
+        // Spaces keep a function apart from its neighbours (`a\cos\theta` reads `a cos θ`).
+        const word = name === 'operatorname' ? read() : name;
+        const spaced = Array.isArray(before) || /^[\p{L}\p{N}\\]/u.test(before ?? '');
+        return `${spaced ? ' ' : ''}${word}${joins() ? ' ' : ''}`;
+      }
       if (PLAIN_COMMAND.test(name) && Array.isArray(nodes[index])) return read();
-      if (SILENT_COMMAND.test(name)) return '';
+      if (SILENT_COMMAND.test(name)) {
+        // `\left.` and `\right.` set no delimiter.
+        if (nodes[index] === '.') index += 1;
+        return '';
+      }
       if (SPACE_COMMAND.test(name)) return ' ';
       const symbol = SYMBOLS.get(name);
       if (symbol !== undefined) return symbol;
-      if (FUNCTION_NAME.test(name)) {
-        // A space keeps a function apart from a factor before it (`a\cos` reads `a cos`, not `acos`).
-        const before = nodes[index - 2];
-        const spaced = Array.isArray(before) || /^[\p{L}\p{N}\\]/u.test(before ?? '');
-        return `${spaced ? ' ' : ''}${name}${joins() ? ' ' : ''}`;
-      }
       if (!/^[{}%$#&_]$/.test(name)) exact = false;
       return name;
     };
@@ -128,7 +147,7 @@ const readFormula = (tex: string): string | undefined => {
     while (index < nodes.length) text += read();
     return text;
   };
-  const text = readNodes(parseTex(tex));
+  const text = readNodes(tree);
   return exact && text.trim() ? text : undefined;
 };
 

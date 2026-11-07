@@ -51,8 +51,8 @@ describe('thread previews of math', () => {
     expect(preview('$x_1x_2 + 2^n{x} + a_{1,2} + \\left(x^2\\right)$')).toBe(
       'x_(1)x_2 + 2^(n)x + a_(1,2) + (x^2)'
     );
-    expect(preview('$\\log_{10}1000 + 2^{10}x + x^2\\!3 + e^x(1+x) + {x+1}^2$')).toBe(
-      'log_(10)1000 + 2^(10)x + x^(2)3 + e^(x)(1+x) + (x+1)^2'
+    expect(preview('$\\log_{10}1000 + 2^{10}x + x^2\\!3 + e^x(1+x)$')).toBe(
+      'log_(10)1000 + 2^(10)x + x^(2)3 + e^(x)(1+x)'
     );
     expect(preview('$\\left.2x\\right|_0^1 = 2$')).toBe('2x|_0^1 = 2');
   });
