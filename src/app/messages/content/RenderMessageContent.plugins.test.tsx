@@ -6,13 +6,14 @@ import { ClientConfigProvider, type ClientConfig } from '../../config/useClientC
 import type { PluginEvent } from '../../plugins/messageRenderers';
 import { RenderMessageContent } from './RenderMessageContent';
 
-const mocks = vi.hoisted(() => ({ reportBoundaryError: vi.fn() }));
+const mocks = vi.hoisted(() => ({ reportBoundaryError: vi.fn(), chartRenders: vi.fn() }));
 vi.mock('../../bug-reports/error-reporting/errorReporting', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   reportBoundaryError: mocks.reportBoundaryError,
 }));
 
-// Two plugins as a build lists them: one renders greetings, the other fails on what it matches.
+// Plugins as a build lists them: one renders greetings, one fails on what it matches, and one fails
+// on a chart until the chart has its series, as a reply that streams in does.
 vi.mock('../../plugins/pluginEntries', () => {
   const greeting = ({ event }: { event: PluginEvent }) =>
     `plugin:${String(event.content['com.example.greeting'])} from ${event.sender} in ${String(
@@ -50,6 +51,23 @@ vi.mock('../../plugins/pluginEntries', () => {
               Component: () => {
                 // eslint-disable-next-line @typescript-eslint/no-throw-literal
                 throw 'not an error';
+              },
+            },
+          ],
+        },
+      },
+      {
+        id: 'chart',
+        version: '2.0.0',
+        plugin: {
+          messageRenderers: [
+            {
+              match: (event: PluginEvent) => typeof event.content['com.example.chart'] === 'object',
+              Component: ({ event }: { event: PluginEvent }) => {
+                mocks.chartRenders();
+                const { series } = event.content['com.example.chart'] as { series?: string };
+                if (!series) throw new Error('no series yet');
+                return `chart:${series}`;
               },
             },
           ],
@@ -185,5 +203,28 @@ describe('RenderMessageContent with client plugins', () => {
       expect.objectContaining({ message: '[plugin broken@0.1.0] not an error' }),
       expect.any(String)
     );
+  });
+
+  it('tries a plugin that failed on a message again once the message changes, as it streams in', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect(render(AGENT, text({ 'com.example.chart': {} }))).toContain('Fallback body');
+    expect(update(AGENT, text({ 'com.example.chart': { series: '1,2' } }))).toContain('chart:1,2');
+  });
+
+  it('does not try a failed plugin again while the message stays the same', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    render(AGENT, text({ 'com.example.chart': {} }));
+    const tries = mocks.chartRenders.mock.calls.length;
+    // Drawn again with new objects of the same content, as the timeline draws an edited message.
+    expect(update(AGENT, text({ 'com.example.chart': {} }))).toContain('Fallback body');
+    expect(mocks.chartRenders.mock.calls.length).toBe(tries);
+  });
+
+  it('lets another plugin render the same message once a refreshed config.json hands it over', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const both = text({ explode: true, 'com.example.greeting': 'Hello' });
+    const exampleOff = { plugins: { example: { enabled: false } } } as unknown as ClientConfig;
+    expect(render(AGENT, both, { config: exampleOff })).toContain('Fallback body');
+    expect(update(AGENT, both, { config: {} })).toContain('plugin:Hello');
   });
 });

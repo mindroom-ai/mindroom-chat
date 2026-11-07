@@ -350,6 +350,9 @@ function PluginMessageContent({
   return (
     <ErrorBoundary
       fallback={fallback}
+      // After a failure the plugin tries again once another renderer or other content comes along,
+      // as a reply streams in, not each time the timeline draws the same message again.
+      resetKeys={[Component, JSON.stringify(event.content)]}
       onError={(thrown: unknown, info) => {
         // eslint-disable-next-line no-console
         console.error(`[plugin ${tag}] failed to render a message; core renders it`, thrown);
@@ -385,9 +388,8 @@ export function RenderMessageContent(props: RenderMessageContentProps) {
     : undefined;
   const plugin = useMessageRenderer(event, viewerId);
   const core = <CoreMessageContent {...props} />;
-  // Keyed by plugin, so a plugin that takes the message after another failed on it starts afresh.
   return plugin && event ? (
-    <PluginMessageContent key={plugin.tag} {...plugin} event={event} fallback={core} />
+    <PluginMessageContent {...plugin} event={event} fallback={core} />
   ) : (
     core
   );
