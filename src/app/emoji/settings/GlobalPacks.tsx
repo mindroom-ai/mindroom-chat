@@ -31,6 +31,7 @@ import { PackAvatar } from '../packs/PackMetaEditor';
 import { stopPropagation } from '../../lib/keyboard';
 import { AccountDataEvent } from '../../matrix/types/accountData';
 import { SettingsCard } from '../../ui/settings/SettingsCard';
+import { revealDirectionControls } from '../../ui/directional';
 
 const GLOBAL = 'featureUi.settings.emojisStickers.globalPacks';
 
@@ -80,7 +81,7 @@ function RoomPackGroup({
   onToggle: (id: string) => void;
 }) {
   const { t } = useTranslation();
-  const name = useRoomName(room);
+  const name = revealDirectionControls(useRoomName(room));
   return (
     <Box direction="Column" gap="100">
       <Text size="L400">{name}</Text>

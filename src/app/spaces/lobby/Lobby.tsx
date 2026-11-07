@@ -34,6 +34,7 @@ import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../../matrix/hooks/useRoomPermissions';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { StateEvent } from '../../matrix/types/room';
+import { revealDirectionControls } from '../../ui/directional';
 
 type CardSummary = (Omit<IHierarchyRoom, 'join_rule'> & { join_rule?: string }) | undefined;
 
@@ -97,8 +98,10 @@ const useScrolledPast = (
  */
 function LobbyHero({ heroRef }: { heroRef: RefObject<HTMLDivElement> }) {
   const lobbySpace = useSpace();
-  const spaceTopic = useRoomTopic(lobbySpace);
-  const name = useRoomName(lobbySpace);
+  // Direction controls in the name and topic show as code points, so they cannot reorder them.
+  const topic = useRoomTopic(lobbySpace);
+  const spaceTopic = topic && revealDirectionControls(topic);
+  const name = revealDirectionControls(useRoomName(lobbySpace));
   const pictureSrc = useSpaceAvatarSrc(lobbySpace);
   return (
     <PageHeroSection ref={heroRef} style={{ paddingBlock: config.space.S500 }}>
