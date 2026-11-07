@@ -17,6 +17,7 @@ import type {
   ExecutableCommandPaletteUserItem,
 } from './commandPaletteItems';
 import { commandPaletteSearchConfig, searchCommandPaletteSection } from './commandPaletteSearch';
+import { rankCommandPalettePeople } from './commandPalettePeopleRanking';
 import {
   CommandPaletteList,
   getCommandPaletteOptionId,
@@ -103,14 +104,16 @@ const getLocalSectionItems = ({
       });
     default: {
       const hasSearchText = searchText.length > 0;
-      return searchCommandPaletteSection({
+      // Every match, ranked by how well it matches before the limit takes the best ones.
+      const people = searchCommandPaletteSection({
         items: source.getUsers({
           exhaustive: hasSearchText,
           includeRelatedRooms: tab === 'users' || hasSearchText,
         }),
         query: searchText,
-        config: { ...commandPaletteSearchConfig.users, limit },
+        config: { ...commandPaletteSearchConfig.users, limit: Number.POSITIVE_INFINITY },
       });
+      return rankCommandPalettePeople(people, searchText).slice(0, limit);
     }
   }
 };
@@ -160,16 +163,18 @@ const buildMessageSection = (
 };
 
 /**
- * The people found locally, then the server's people the palette does not list already. Those
- * arrive below the local ones, so the rows above them stay put; All takes only as many as fit its
- * limit, plus a Matrix ID typed in full. A spinner beside the title shows while the server is
- * asked, and a failed search adds one quiet line after the rows.
+ * The people found locally and the server's people the palette does not list already, ranked
+ * together by how well they match the text: equal matches keep the local ones above, so those
+ * rows stay put, while the server's exact match goes above near local ones. All takes only as
+ * many as fit its limit, plus a Matrix ID typed in full. A spinner beside the title shows while
+ * the server is asked, and a failed search adds one quiet line after the rows.
  */
 const buildPeopleSection = (
   local: ExecutableCommandPaletteItem[],
   people: CommandPalettePeople,
   source: CommandPaletteSource,
   tab: CommandPaletteTab,
+  searchText: string,
   t: TFunction
 ): CommandPaletteListSection | undefined => {
   let items = local;
@@ -178,10 +183,12 @@ const buildPeopleSection = (
       source.getUsers({ exhaustive: true, includeRelatedRooms: true }).map((user) => user.userId)
     );
     const found = people.items.filter((item) => !listed.has(item.userId));
-    const free = Math.max(getCommandPaletteSectionLimit('users', tab) - local.length, 0);
+    const limit = Math.max(getCommandPaletteSectionLimit('users', tab), local.length);
     items = [
-      ...local,
-      ...found.filter((item) => !item.typedId).slice(0, free),
+      ...rankCommandPalettePeople(
+        [...local, ...found.filter((item) => !item.typedId)],
+        searchText
+      ).slice(0, limit),
       ...found.filter((item) => item.typedId),
     ];
   }
@@ -278,7 +285,9 @@ export function CommandPalette({
         .map((sectionId): CommandPaletteListSection | undefined => {
           if (sectionId === 'messages') return buildMessageSection(messages, searchText, tab, t);
           const items = getLocalSectionItems({ sectionId, tab, searchText, source, starterRooms });
-          if (sectionId === 'users') return buildPeopleSection(items, people, source, tab, t);
+          if (sectionId === 'users') {
+            return buildPeopleSection(items, people, source, tab, searchText, t);
+          }
           if (items.length === 0) return undefined;
           return { id: sectionId, title: t(TAB_LABEL_KEYS[sectionId]), items };
         })
