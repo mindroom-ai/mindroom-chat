@@ -92,7 +92,7 @@ export function ArchivedRooms({ requestClose, onNavigate }: ArchivedRoomsProps) 
   return (
     <SettingsPageFrame title={t('archivedRooms.title')} requestClose={requestClose}>
       <Box direction="Column" gap="100">
-        <Text size="T300" priority="300">
+        <Text size="T300" priority="300" data-settings-heading="">
           {t('archivedRooms.description')}
         </Text>
         <SequenceCard variant="SurfaceVariant" direction="Column" gap="400">
