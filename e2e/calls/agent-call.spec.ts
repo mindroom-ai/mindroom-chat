@@ -279,9 +279,14 @@ test('the agent hears a spoken question in a call from a thread and answers it a
     { timeout: 60_000, description: 'the call posted back into the thread' }
   );
   expect(bodyOf(writeback)).toMatch(/capital of France/i);
-  await expect(messageRow(page, writeback.event_id)).toContainText(/Voice call · \d+ min/, {
-    timeout: 30_000,
-  });
+  // The message shows as the call's card: "Voice call" and how long it lasted, then the
+  // transcript's button with how many turns it holds.
+  const row = messageRow(page, writeback.event_id);
+  await expect(row.locator('[data-call-transcript-header]')).toHaveText(
+    /^Voice call\s*\d+ (sec|min)$/,
+    { timeout: 30_000 }
+  );
+  await expect(row.getByRole('button', { name: /^Transcript \d+ turns$/ })).toBeVisible();
 });
 
 test('a call about an encrypted conversation is encrypted end to end', async ({ page, stack }) => {
