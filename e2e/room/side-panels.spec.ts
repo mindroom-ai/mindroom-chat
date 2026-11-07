@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { disposableHomeserverIsUp } from '../helpers/disposableAccounts';
 import {
   CORE_PANELS,
+  checkPanelFrame,
   closePanel,
   openPanel,
   openPanelRoom,
@@ -46,4 +47,15 @@ test('each core side panel takes the place of every other', async ({ context, pa
       });
     }
   }
+});
+
+test('a core side panel fills the room and folds to a tab at its edge, per room', async ({
+  context,
+  page,
+}, testInfo) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+  test.setTimeout(5 * 60_000);
+  const room = await openPanelRoom(context, page);
+  await openPanel(page, room, 'call');
+  await checkPanelFrame(page, testInfo, room, { panel: panelLocator(page, 'call'), label: 'Call' });
 });

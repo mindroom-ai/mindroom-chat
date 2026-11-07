@@ -5,6 +5,7 @@ import { MatrixRTCSessionEvent } from 'matrix-js-sdk/lib/matrixrtc';
 import type { CallDevices, CallPhase, CallState, RoomCall } from './RoomCall';
 import { activeMemberships, type CallMember } from './callMemberships';
 import { takeDeviceCallLock } from './callResume';
+import { requestOwnSfuGrant } from './rtcFocus';
 
 /** Where an agent call came from: the room and thread the agent is told about and posts back to. */
 export type CallOrigin = { roomId: string; threadId?: string };
@@ -230,10 +231,9 @@ export const useCallActions = (mx: MatrixClient) => {
       prepare,
       ...meta
     }: StartCallOptions): Promise<RoomCall | Exclude<StartCallResult, 'started'>> => {
-      // The engine is a chunk of its own; after a deploy the server may no longer have the one
-      // this page asks for.
-      const engine = await import('./RoomCall').catch(() => undefined);
-      if (!engine) return 'failed';
+      // The engine is a chunk of its own, loaded while the call is prepared; after a deploy the
+      // server may no longer have the one this page asks for.
+      const loading = import('./RoomCall').catch(() => undefined);
       // Another tab of this session shares the device: joining here would withdraw and replace
       // that tab's membership, and the two would keep replacing each other. The check and the
       // lock are one step, so two tabs that start at the same moment cannot both get through.
@@ -248,6 +248,8 @@ export const useCallActions = (mx: MatrixClient) => {
       // The store is app-wide: a call whose account went away while this waited would become
       // the next account's call.
       if (!mx.clientRunning) return giveUp('failed');
+      // The call service's grant is asked for meanwhile too, so the join need not wait for it.
+      const grant = requestOwnSfuGrant(mx, room.roomId).catch(() => undefined);
       if (prepare) {
         prepared = true;
         try {
@@ -257,7 +259,8 @@ export const useCallActions = (mx: MatrixClient) => {
         }
       }
       await room.loadMembersIfNeeded().catch(() => undefined);
-      if (!mx.clientRunning) return giveUp('failed');
+      const engine = await loading;
+      if (!engine || !mx.clientRunning) return giveUp('failed');
       const call = new engine.RoomCall({
         mx,
         room,
@@ -266,6 +269,7 @@ export const useCallActions = (mx: MatrixClient) => {
         devices,
         notify,
         releaseDeviceLock,
+        grant,
       });
       const active: ActiveCall = {
         ...meta,

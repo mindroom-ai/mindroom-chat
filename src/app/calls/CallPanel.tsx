@@ -11,7 +11,7 @@ import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import { useCallFailureNotice } from './agent/useCallFailureNotice';
 import { useCallFailureDismissal } from './agent/useCallFailureDismissal';
-import type { CallDevices, CallProblem, CallState } from './RoomCall';
+import type { CallDevices, CallParticipant, CallProblem, CallState } from './RoomCall';
 import {
   callStartProblemAtom,
   isActiveCallShownIn,
@@ -193,6 +193,21 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
   const finished = state.phase === 'failed' || state.phase === 'ended';
   const agentCall = active.kind === 'agent';
   const access = useCallAccess(mx, call.room, !agentCall && !finished);
+  // The called agent shows from the start, waiting until it joins: a call in which nobody seems
+  // to be coming gets ended before the agent arrives.
+  const { agentUserId } = active;
+  const awaitedAgent: CallParticipant | undefined =
+    agentCall && agentUserId && !state.participants.some(({ userId }) => userId === agentUserId)
+      ? {
+          key: `awaited:${agentUserId}`,
+          userId: agentUserId,
+          deviceId: '',
+          local: false,
+          connected: false,
+          speaking: false,
+          microphone: true,
+        }
+      : undefined;
 
   const controls = finished ? (
     <div className={css.ControlBar}>
@@ -325,6 +340,9 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
           {state.participants.map((participant) => (
             <CallTile key={participant.key} room={call.room} participant={participant} />
           ))}
+          {awaitedAgent && (
+            <CallTile key={awaitedAgent.key} room={call.room} participant={awaitedAgent} />
+          )}
         </ul>
       )}
     </PanelShell>

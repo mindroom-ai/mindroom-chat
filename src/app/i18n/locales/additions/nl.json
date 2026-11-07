@@ -560,7 +560,8 @@
     },
     "computer": {
       "resize": "Grootte van het computerpaneel wijzigen",
-      "close": "Computer sluiten"
+      "close": "Computer sluiten",
+      "title": "Computer"
     },
     "plugins": {
       "sidePanel": {
@@ -568,6 +569,11 @@
         "close": "{{label}} sluiten",
         "failed": "Dit paneel werkt niet meer."
       }
+    },
+    "sidePanel": {
+      "fill": "Kamer vullen met {{label}}",
+      "fold": "{{label}} naar de rand inklappen",
+      "unfold": "{{label}} uitklappen"
     },
     "commands": {
       "descriptions": {

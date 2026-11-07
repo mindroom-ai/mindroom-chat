@@ -15,12 +15,14 @@ import {
 import E2EEWorker from 'livekit-client/e2ee-worker?worker';
 import { MatrixRTCSessionEvent, type MatrixRTCSession } from 'matrix-js-sdk/lib/matrixrtc';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
-import { MatrixRtcKeyProvider } from './callKeyProvider';
+import { MatrixRtcKeyProvider, sendCallKey } from './callKeyProvider';
 import {
   chooseCallService,
   firstLivekitServiceUrl,
   getLivekitServiceUrl,
   requestSfuGrant,
+  type OwnSfuGrant,
+  type SfuGrant,
 } from './rtcFocus';
 import { activeMemberships, membershipIdentity } from './callMemberships';
 import { withdrawOwnMemberships } from './callResume';
@@ -97,12 +99,23 @@ export type RoomCallOptions = {
    * taken before the call starts). The call runs it once it has left.
    */
   releaseDeviceLock?: () => void;
+  /**
+   * A grant of the deployment's own call service asked for while the call was being prepared
+   * (`requestOwnSfuGrant`), undefined when it could not be had; the join asks again then, and
+   * when it is for another service.
+   */
+  grant?: Promise<OwnSfuGrant | undefined>;
 };
+
+/** Who this device joins a call as, as the session takes it and hands it back with its own keys. */
+type OwnMembership = { userId: string; deviceId: string; memberId: string };
 
 /** How long a leave waits for the membership update before the call is given up locally. */
 const LEAVE_TIMEOUT_MS = 5000;
 /** How long a join waits for this device's leftover membership to go before joining anyway. */
 const LEFTOVER_TIMEOUT_MS = 10_000;
+/** When sending this device's media key to one device again fails, the waits before the next tries. */
+const KEY_RESEND_RETRY_MS = [1_000, 3_000];
 
 const sameParticipants = (a: CallParticipant[], b: CallParticipant[]) =>
   a.length === b.length &&
@@ -152,6 +165,24 @@ export class RoomCall {
 
   /** Releases the lock that tells this device's other tabs it is in a call. */
   private releaseDeviceLock?: () => void;
+
+  /** The identity this call joined the session with; its own keys come back with it. */
+  private ownMembership?: OwnMembership;
+
+  /** This device's current media key in the call, as the session made it. */
+  private ownKey?: { key: Uint8Array; index: number };
+
+  /**
+   * The other devices (media identities) this device sends its own key to again: those whose
+   * first key reached this device or whose media joined (`resendOwnKey`).
+   */
+  private readonly keyPeers = new Set<string>();
+
+  /** `<media identity> <membership time> <own key index>` of every key sent again, or on its way. */
+  private readonly keysResent = new Set<string>();
+
+  /** Failed sends of the own key, by the same keys as `keysResent`. */
+  private readonly keyResendFailures = new Map<string, number>();
 
   constructor(options: RoomCallOptions) {
     this.options = options;
@@ -293,7 +324,11 @@ export class RoomCall {
         this.detachAudio(track);
         this.refresh();
       })
-      .on(RoomEvent.ParticipantConnected, this.refresh)
+      .on(RoomEvent.ParticipantConnected, (participant) => {
+        this.keyPeers.add(participant.identity);
+        this.resendOwnKey();
+        this.refresh();
+      })
       .on(RoomEvent.ParticipantDisconnected, this.refresh)
       .on(RoomEvent.TrackMuted, this.refresh)
       .on(RoomEvent.TrackUnmuted, this.refresh)
@@ -313,16 +348,66 @@ export class RoomCall {
       });
   }
 
-  private onMemberships = () => this.refresh();
+  private onMemberships = () => {
+    this.refresh();
+    this.resendOwnKey();
+  };
 
   private onKey = (
     key: Uint8Array,
     keyIndex: number,
-    _membership: unknown,
+    membership: unknown,
     participantIdentity: string
   ) => {
+    if (participantIdentity === this.identity) {
+      // A left call's key manager stays with the room's session until the next join replaces it,
+      // and goes on making keys for this device: only this call's own keys encrypt its media.
+      if (!this.ownMembership || membership !== this.ownMembership) return;
+      this.ownKey = { key, index: keyIndex };
+    } else {
+      this.keyPeers.add(participantIdentity);
+    }
     this.keyProvider?.setParticipantKey(key, keyIndex, participantIdentity).catch(() => undefined);
+    this.resendOwnKey();
   };
+
+  /**
+   * Sends this device's current media key once more to each device whose first key reached this
+   * device or whose media joined. The session sends it when their membership arrives, but gives up
+   * for good when that send fails (an Olm session it cannot make, a store error): the key counts
+   * as shared, and the other side never hears this device. Their key arriving here shows an Olm
+   * session that works, so the key goes again then, once per membership and own key index; a send
+   * that fails is tried twice more.
+   */
+  private resendOwnKey() {
+    const own = this.ownKey;
+    if (!own || !this.encrypted || this.stopped) return;
+    const members = activeMemberships(this.session);
+    this.keyPeers.forEach((identity) => {
+      const member = members.find((candidate) => membershipIdentity(candidate) === identity);
+      if (!member) return;
+      // A device that joins again (a new membership) gets the key again.
+      const sent = `${identity} ${member.createdTs} ${own.index}`;
+      if (this.keysResent.has(sent)) return;
+      this.keysResent.add(sent);
+      sendCallKey(this.mx, {
+        roomId: this.room.roomId,
+        key: own.key,
+        keyIndex: own.index,
+        memberId: this.identity,
+        to: member,
+      }).catch(() => {
+        const failures = (this.keyResendFailures.get(sent) ?? 0) + 1;
+        this.keyResendFailures.set(sent, failures);
+        const wait = KEY_RESEND_RETRY_MS[failures - 1];
+        if (wait === undefined) return;
+        window.setTimeout(() => {
+          this.keysResent.delete(sent);
+          this.resendOwnKey();
+        }, wait);
+      });
+    });
+  }
 
   private onMembershipError = () => this.fail('connection');
 
@@ -372,7 +457,19 @@ export class RoomCall {
     });
   }
 
-  /** Joins the call: media connection first, then the membership others see, then the devices. */
+  /** A grant for the call service: the one asked for while preparing, or a new one. */
+  private async grantFor(serviceUrl: string, deviceId: string): Promise<SfuGrant> {
+    const early = await this.options.grant;
+    if (early?.serviceUrl === serviceUrl) return early.grant;
+    const token = await this.mx.getOpenIdToken();
+    return requestSfuGrant(serviceUrl, { roomId: this.room.roomId, deviceId, token });
+  }
+
+  /**
+   * Joins the call: once the call service grants it, the membership others see, with the media
+   * connection on its way meanwhile; then the devices. Announcing first lets the others (a
+   * MindRoom agent too) start joining while this device connects, instead of after it.
+   */
   async join(): Promise<void> {
     const { mx, room } = this;
     const deviceId = mx.getDeviceId();
@@ -400,15 +497,40 @@ export class RoomCall {
     }
     const serviceUrl = service.url;
 
+    let grant: SfuGrant;
+    try {
+      grant = await this.grantFor(serviceUrl, deviceId);
+    } catch {
+      this.fail('service');
+      return;
+    }
+    if (this.stopped) return;
+
+    // The session hands over the media keys from the moment it joins; LiveKit takes the ones that
+    // came before its connection when it connects.
+    if (this.encrypted) this.keyProvider = new MatrixRtcKeyProvider();
+    try {
+      // Announce the membership; the session shares this device's media key with the others.
+      this.ownMembership = { userId: mx.getSafeUserId(), deviceId, memberId: this.identity };
+      this.session.joinRTCSession(
+        this.ownMembership,
+        [{ type: 'livekit', livekit_service_url: serviceUrl, livekit_alias: room.roomId }],
+        undefined,
+        {
+          manageMediaKeys: this.encrypted,
+          callIntent: this.state.camera ? 'video' : 'audio',
+          notificationType: this.options.notify,
+        }
+      );
+    } catch {
+      // The SDK refuses a membership it cannot make at once; the panel offers Dismiss.
+      this.fail('service');
+      return;
+    }
+
     let media: MediaRoom;
     try {
-      const token = await mx.getOpenIdToken();
-      const grant = await requestSfuGrant(serviceUrl, { roomId: room.roomId, deviceId, token });
-      if (this.stopped) return;
-      if (this.encrypted) {
-        this.keyProvider = new MatrixRtcKeyProvider();
-        this.worker = new E2EEWorker();
-      }
+      if (this.keyProvider) this.worker = new E2EEWorker();
       media = new MediaRoom({
         adaptiveStream: true,
         dynacast: true,
@@ -437,25 +559,13 @@ export class RoomCall {
       await media.disconnect(true).catch(() => undefined);
       return;
     }
-
-    try {
-      // Announce the membership; the session shares this device's media key with the others.
-      this.session.joinRTCSession(
-        { userId: mx.getSafeUserId(), deviceId, memberId: this.identity },
-        [{ type: 'livekit', livekit_service_url: serviceUrl, livekit_alias: room.roomId }],
-        undefined,
-        {
-          manageMediaKeys: this.encrypted,
-          callIntent: this.state.camera ? 'video' : 'audio',
-          notificationType: this.options.notify,
-        }
-      );
-    } catch {
-      // The SDK refuses a membership it cannot make at once; the panel offers Dismiss.
-      this.fail('service');
-      return;
-    }
     this.update({ phase: 'connected' });
+    // LiveKit takes up the keys set before it connected with the newest index of any member as
+    // current; this device's own key is set again so its media goes out with that one.
+    const own = this.ownKey;
+    if (own) {
+      this.keyProvider?.setParticipantKey(own.key, own.index, this.identity).catch(() => undefined);
+    }
 
     let problem: CallProblem | undefined;
     await media.localParticipant.setMicrophoneEnabled(this.state.microphone).catch(() => {

@@ -550,7 +550,8 @@
     },
     "computer": {
       "resize": "调整计算机面板大小",
-      "close": "关闭计算机"
+      "close": "关闭计算机",
+      "title": "计算机"
     },
     "plugins": {
       "sidePanel": {
@@ -558,6 +559,11 @@
         "close": "关闭{{label}}",
         "failed": "此面板已停止工作。"
       }
+    },
+    "sidePanel": {
+      "fill": "以{{label}}填满聊天室",
+      "fold": "将{{label}}折叠到边缘",
+      "unfold": "展开{{label}}"
     },
     "commands": {
       "descriptions": {

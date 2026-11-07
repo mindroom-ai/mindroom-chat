@@ -28,6 +28,9 @@ export const THREADS_PATH = '/threads/';
 /** Opens the Settings dialog on a page; settingsRegistry.ts lists the page ids. */
 export const SETTINGS_PATH = '/settings/:page?/';
 export const CANVASES_PATH = '/canvases/';
+/** A client plugin's root, and its pages under it (src/app/plugins/pluginPages.tsx). */
+export const PLUGIN_ROOT_PATH = '/p/:pluginId/';
+export const PLUGIN_PAGE_PATH = `${PLUGIN_ROOT_PATH}*`;
 
 export const EXPLORE_PATH = '/explore/';
 export const EXPLORE_FEATURED_PATH = '/explore/featured/';

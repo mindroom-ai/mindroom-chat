@@ -560,7 +560,8 @@
     },
     "computer": {
       "resize": "Bilgisayar panelini yeniden boyutlandır",
-      "close": "Bilgisayarı kapat"
+      "close": "Bilgisayarı kapat",
+      "title": "Bilgisayar"
     },
     "plugins": {
       "sidePanel": {
@@ -568,6 +569,11 @@
         "close": "Kapat: {{label}}",
         "failed": "Bu panel çalışmayı durdurdu."
       }
+    },
+    "sidePanel": {
+      "fill": "Odayı doldur: {{label}}",
+      "fold": "Kenara katla: {{label}}",
+      "unfold": "Katlamayı aç: {{label}}"
     },
     "commands": {
       "descriptions": {

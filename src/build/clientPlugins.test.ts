@@ -103,8 +103,8 @@ describe('readClientPlugins', () => {
     ],
     [
       'a plugin that needs a newer client SDK',
-      () => pluginDir(declaring({ apiVersion: 3 })),
-      /plugin "some-plugin" needs client SDK apiVersion 3; this client provides 2/,
+      () => pluginDir(declaring({ apiVersion: 6 })),
+      /plugin "some-plugin" needs client SDK apiVersion 6; this client provides 5/,
     ],
     [
       'an apiVersion that is not a number',
@@ -295,6 +295,17 @@ describe('packages the app shares with plugins', () => {
     expect(modules.filter((id) => id.startsWith(ownCopies))).toEqual([
       `${ownCopies}helper/index.js`,
     ]);
+  });
+
+  it("resolves react-aria to the app's copy over the one the plugin installed", async () => {
+    const dir = pluginDir(declaring(), { entry: false });
+    importing(dir, ['react-aria/usePreventScroll']);
+    // A copy of its own would keep its own scroll lock, overlay stack and focus scopes.
+    installStandIn(dir, 'react-aria');
+    writeFileSync(path.join(dir, 'node_modules/react-aria/usePreventScroll.js'), 'export {};\n');
+    const modules = await bundlePlugin(dir);
+    expect(modules.some((id) => id.startsWith(appCopy('react-aria')))).toBe(true);
+    expect(modules.filter((id) => id.startsWith(`${realpathSync(dir)}/node_modules/`))).toEqual([]);
   });
 
   it("fails the build for an import the app's copy cannot resolve, naming the plugin and the import", async () => {

@@ -570,7 +570,8 @@
     },
     "computer": {
       "resize": "Redimensionar o painel do computador",
-      "close": "Fechar o computador"
+      "close": "Fechar o computador",
+      "title": "Computador"
     },
     "plugins": {
       "sidePanel": {
@@ -578,6 +579,11 @@
         "close": "Fechar {{label}}",
         "failed": "Este painel parou de funcionar."
       }
+    },
+    "sidePanel": {
+      "fill": "Preencher a sala com {{label}}",
+      "fold": "Dobrar {{label}} para a borda",
+      "unfold": "Desdobrar {{label}}"
     },
     "commands": {
       "descriptions": {

@@ -570,7 +570,8 @@
     },
     "computer": {
       "resize": "Redimensionner le panneau de l’ordinateur",
-      "close": "Fermer l’ordinateur"
+      "close": "Fermer l’ordinateur",
+      "title": "Ordinateur"
     },
     "plugins": {
       "sidePanel": {
@@ -578,6 +579,11 @@
         "close": "Fermer {{label}}",
         "failed": "Ce panneau a cessé de fonctionner."
       }
+    },
+    "sidePanel": {
+      "fill": "Remplir le salon avec {{label}}",
+      "fold": "Replier {{label}} sur le bord",
+      "unfold": "Déplier {{label}}"
     },
     "commands": {
       "descriptions": {

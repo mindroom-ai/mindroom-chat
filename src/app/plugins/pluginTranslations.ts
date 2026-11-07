@@ -21,7 +21,8 @@ export type PluginT = (
   options?: TOptions & { returnObjects?: false; returnDetails?: false }
 ) => string;
 
-const namespace = (pluginId: string): string => `plugin.${pluginId}`;
+/** The i18n namespace of a plugin's strings. */
+export const pluginNamespace = (pluginId: string): string => `plugin.${pluginId}`;
 
 /** Registers a plugin's strings as the namespace `plugin.<id>`; none without an `en` record. */
 export const registerPluginTranslations = (pluginId: string, translations: unknown): void => {
@@ -29,14 +30,14 @@ export const registerPluginTranslations = (pluginId: string, translations: unkno
   const { en, load } = translations;
   const loader: NamespaceLoader =
     typeof load === 'function' ? (load as NamespaceLoader) : async () => undefined;
-  void registerNamespace(namespace(pluginId), en as LocaleTree, loader);
+  void registerNamespace(pluginNamespace(pluginId), en as LocaleTree, loader);
 };
 
 /** A plugin component's `t`, in the plugin's own strings: it renders again when the language changes. */
 export const usePluginTranslation = (pluginId: string): PluginT =>
   // The app's typed keys cover its own catalog only.
-  useTranslation(namespace(pluginId) as never).t as unknown as PluginT;
+  useTranslation(pluginNamespace(pluginId) as never).t as unknown as PluginT;
 
 /** The same `t` for code outside React: each call translates into the language in use then. */
 export const getPluginTranslation = (pluginId: string): PluginT =>
-  i18n.getFixedT(null, namespace(pluginId) as never) as unknown as PluginT;
+  i18n.getFixedT(null, pluginNamespace(pluginId) as never) as unknown as PluginT;

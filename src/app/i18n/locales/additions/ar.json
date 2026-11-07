@@ -600,7 +600,8 @@
     },
     "computer": {
       "resize": "تغيير حجم لوحة الكمبيوتر",
-      "close": "إغلاق الكمبيوتر"
+      "close": "إغلاق الكمبيوتر",
+      "title": "الكمبيوتر"
     },
     "plugins": {
       "sidePanel": {
@@ -608,6 +609,11 @@
         "close": "إغلاق ⁨{{label}}⁩",
         "failed": "توقفت هذه اللوحة عن العمل."
       }
+    },
+    "sidePanel": {
+      "fill": "ملء الغرفة بـ⁨{{label}}⁩",
+      "fold": "طي ⁨{{label}}⁩ إلى الحافة",
+      "unfold": "إظهار ⁨{{label}}⁩"
     },
     "commands": {
       "descriptions": {

@@ -560,7 +560,8 @@
     },
     "computer": {
       "resize": "Resize computer panel",
-      "close": "Close computer"
+      "close": "Close computer",
+      "title": "Computer"
     },
     "plugins": {
       "sidePanel": {
@@ -568,6 +569,11 @@
         "close": "Close {{label}}",
         "failed": "This panel stopped working."
       }
+    },
+    "sidePanel": {
+      "fill": "Fill the room with {{label}}",
+      "fold": "Fold {{label}} to the edge",
+      "unfold": "Unfold {{label}}"
     },
     "commands": {
       "descriptions": {

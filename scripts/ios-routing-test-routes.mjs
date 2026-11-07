@@ -18,6 +18,7 @@ export const ROUTE_PARAM_SAMPLES = {
   spaceIdOrAlias: ['!space:mindroom.chat', '#space:matrix.org'],
   eventId: ['$event:matrix.org'],
   page: ['general'],
+  pluginId: ['example'],
 };
 
 /** Every concrete path of the patterns, in their order, without duplicates. */
