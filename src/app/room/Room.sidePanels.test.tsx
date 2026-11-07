@@ -555,7 +555,7 @@ describe('the side panels of a room', () => {
     expect(notes()).toBeNull();
   });
 
-  it('opens no panel for a remembered value it cannot read, or one of a panel that does not remember', async () => {
+  it('reads what the room remembers at its documented key, and opens no panel for what it cannot read or a panel that does not remember', async () => {
     const key = `mindroom.plugin:${encodeURIComponent(
       '@alice:example.org'
     )}/:side-panel/${encodeURIComponent(room.roomId)}`;
@@ -567,6 +567,9 @@ describe('the side panels of a room', () => {
       expect(screen.getByTestId('room-view')).toBeTruthy();
       cleanup();
     }
+    localStorage.setItem(key, '{"id":"notes/board","request":"kept"}');
+    await renderRoom();
+    expect(screen.getByText('Board request "kept"')).toBeTruthy();
   });
 
   it('forgets a panel that remembers when it closes, or another panel opens, in its room', async () => {

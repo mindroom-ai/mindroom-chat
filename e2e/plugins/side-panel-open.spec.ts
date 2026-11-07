@@ -176,7 +176,6 @@ test("a card opens the plugin's panel with its request, which stays open in its 
     await reloaded;
     expect(await panelKeysOf(page, alice.userId)).toEqual([]);
   } finally {
-    await context.unrouteAll({ behavior: 'ignoreErrors' });
     await context.close();
     await server.close();
   }

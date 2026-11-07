@@ -117,7 +117,7 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
   return (
     <>
       <p>Example panel of {roomId}</p>
-      {typeof request === 'string' && <p data-example-panel-request>Greeting: {request}</p>}
+      {typeof request === 'string' && <p>Greeting: {request}</p>}
     </>
   );
 }
