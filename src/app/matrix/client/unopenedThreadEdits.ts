@@ -8,6 +8,7 @@ import {
   type Thread,
 } from 'matrix-js-sdk';
 import { getLatestEdit } from '../room';
+import { isThreadSummaryEvent } from '../protocol/threadSummary';
 import { watchRoomThreads } from '../watchRoomThreads';
 
 // The MindRoom SDK patch leaves a thread unopened (summary only) until the app shows or opens it.
@@ -18,6 +19,39 @@ import { watchRoomThreads } from '../watchRoomThreads';
 // it (one large-room burst of 400 edits ended with a card on its first message). This module puts
 // the newest waiting edit on the reply it replaces, in memory and without loading the thread;
 // opening or showing the thread later replays the edits as before.
+//
+// The SDK forgets the summary's reply as soon as a newer thread event arrives, such as the title
+// notice that follows a finished reply. That copy of the reply is in no timeline, so the edit
+// still waiting for it, and the card, would lose it. The watcher keeps the reply each unopened
+// thread last summarized for as long as the thread stays unopened.
+
+/** The reply each unopened thread last summarized. */
+const summarizedReplies = new WeakMap<object, MatrixEvent>();
+
+type SummarizedThread = {
+  id?: string;
+  replyToEvent?: MatrixEvent | null;
+  initialEventsFetched?: boolean;
+};
+
+/** A reply the thread's summary may name: not its root, nor its title notice. */
+const isSummarizedReply = (
+  thread: SummarizedThread,
+  event: MatrixEvent | null | undefined
+): event is MatrixEvent => !!event && event.getId() !== thread.id && !isThreadSummaryEvent(event);
+
+/**
+ * The thread's newest reply outside its timeline: the reply its summary names, or, in an unopened
+ * thread whose summary moved on to a title notice, the reply it named before, on its newest edit.
+ */
+export const getThreadSummaryReply = (
+  thread: SummarizedThread | null | undefined
+): MatrixEvent | undefined => {
+  if (!thread) return undefined;
+  const summarized = thread.replyToEvent ?? undefined;
+  if (isSummarizedReply(thread, summarized) || thread.initialEventsFetched) return summarized;
+  return summarizedReplies.get(thread) ?? summarized;
+};
 
 const isValidEdit = (target: MatrixEvent, edit: MatrixEvent): boolean => {
   const newContent = edit.getContent()['m.new_content'];
@@ -35,7 +69,7 @@ const isValidEdit = (target: MatrixEvent, edit: MatrixEvent): boolean => {
  * latest event of the root's summary, which is in no timeline.
  */
 const findReply = (thread: Thread, eventId: string): MatrixEvent | undefined => {
-  const summarized = thread.replyToEvent;
+  const summarized = getThreadSummaryReply(thread);
   return (
     thread.findEventById(eventId) ?? (summarized?.getId() === eventId ? summarized : undefined)
   );
@@ -128,7 +162,12 @@ const createEditWatcher = (): EditWatcher => {
   };
 
   const showThreadEdits = (thread: Thread): boolean => {
-    if (thread.initialEventsFetched) return false;
+    if (thread.initialEventsFetched) {
+      summarizedReplies.delete(thread);
+      return false;
+    }
+    if (isSummarizedReply(thread, thread.replyToEvent))
+      summarizedReplies.set(thread, thread.replyToEvent);
     let changed = false;
     const targets = new Set<MatrixEvent>();
     (thread.replayEvents ?? []).forEach((edit) => {
