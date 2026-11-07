@@ -124,7 +124,8 @@ type World = {
 /**
  * Two people, alone in a room whose name holds controls (so every message of the member notifies
  * the reader), among 24 other rooms; 24 messages of history, then the member's message, their
- * file, the reader's replies to both, and the member's file again as the message's thread reply.
+ * file, the reader's replies to both, and a thread on the message: the reader's reply, then the
+ * member's file again.
  */
 const seed = async (engine: string): Promise<World> => {
   const reader = await registerAndLogin(`reader_${engine}`, 'Robin Reader');
@@ -164,6 +165,18 @@ const seed = async (engine: string): Promise<World> => {
     });
   const textReplyId = await reply(rootId, 'Done, the report has its new name now.');
   const fileReplyId = await reply(fileId, 'Thanks, I am opening the report now.');
+  // The reader takes part in the thread, so the Threads page lists it; the file is its newest
+  // reply.
+  await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: 'Can you attach the renamed report here as well?',
+    'm.relates_to': {
+      rel_type: 'm.thread',
+      event_id: rootId,
+      is_falling_back: true,
+      'm.in_reply_to': { event_id: rootId },
+    },
+  });
   await sendRoomMessage(HOMESERVER, member.accessToken, roomId, {
     ...fileContent(FILE_NAME, fileUrl),
     'm.relates_to': {
@@ -326,8 +339,7 @@ const check = async (page: Page, world: World, label: string) => {
   await page.getByRole('button', { name: 'Cancel reply' }).click();
   await expect(replyBar).toBeHidden();
 
-  // The Threads page, which lists the threads of rooms the reader has opened: the thread's room,
-  // its title (the message) and its newest reply (the file).
+  // The Threads page: the thread's room, its title (the message) and its newest reply (the file).
   await go(page, '/threads/');
   const threadCard = main.locator(`button[data-thread-root-id="${rootId}"]`);
   await expect(threadCard).toBeVisible({ timeout: 60_000 });
