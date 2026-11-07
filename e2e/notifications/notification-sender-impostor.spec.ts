@@ -293,6 +293,47 @@ const inboxRow = (page: Page, text: string) =>
 /** The bold sender name at the top of an Inbox row. */
 const rowSender = (page: Page, text: string) => inboxRow(page, text).locator('b').first();
 
+/**
+ * Whether the row of `text` shows `userId` whole: its characters are laid out inside the row, the
+ * viewport and every element between them that clips what overflows it (an ellipsis included).
+ */
+const showsUserIdWhole = (page: Page, text: string, userId: string) =>
+  inboxRow(page, text).evaluate((row, id) => {
+    const walker = row.ownerDocument.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const start = node.textContent?.indexOf(id) ?? -1;
+      if (start < 0) continue;
+      const range = row.ownerDocument.createRange();
+      range.setStart(node, start);
+      range.setEnd(node, start + id.length);
+      const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 0);
+      const boxes = [
+        { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight },
+        row.getBoundingClientRect(),
+      ];
+      for (let element = node.parentElement; element && element !== row; ) {
+        const style = getComputedStyle(element);
+        if (style.overflowX !== 'visible' || style.overflowY !== 'visible') {
+          boxes.push(element.getBoundingClientRect());
+        }
+        element = element.parentElement;
+      }
+      return (
+        rects.length > 0 &&
+        rects.every((rect) =>
+          boxes.every(
+            (box) =>
+              rect.left >= box.left - 0.5 &&
+              rect.right <= box.right + 0.5 &&
+              rect.top >= box.top - 0.5 &&
+              rect.bottom <= box.bottom + 0.5
+          )
+        )
+      );
+    }
+    return false;
+  }, userId);
+
 const checkInbox = async (page: Page, tag: string) => {
   const { host, copy, agentCopy } = seeded!;
   // The member lists wait until the rows show, so the names before they arrive are checked too.
@@ -323,6 +364,16 @@ const checkInbox = async (page: Page, tag: string) => {
   await expect(rowSender(page, INBOX_HOST)).toHaveText('Jordan Host', { timeout: 30_000 });
   await expect(rowSender(page, INBOX_PERSON_COPY)).toHaveText(withId(PERSON_NAME, copy.userId));
   await expect(rowSender(page, INBOX_AGENT_COPY)).toHaveText(withId(AGENT_NAME, agentCopy.userId));
+  // The user ID is what tells a copy apart, so no row may cut it off, a phone's narrow rows
+  // included: the sender line wraps instead.
+  for (const [text, userId] of [
+    [INBOX_PERSON_COPY, copy.userId],
+    [INBOX_AGENT_COPY, agentCopy.userId],
+  ] as const) {
+    await inboxRow(page, text).scrollIntoViewIfNeeded();
+    await expect.poll(() => showsUserIdWhole(page, text, userId), { message: userId }).toBe(true);
+  }
+  await inboxRow(page, INBOX_HOST).scrollIntoViewIfNeeded();
   await shoot(page, `inbox-${tag}`);
 };
 
