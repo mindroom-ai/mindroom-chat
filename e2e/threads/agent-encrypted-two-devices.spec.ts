@@ -6,6 +6,7 @@ import {
   expect,
   mentionHelper,
   openNewSession,
+  readRouterWelcome,
   serverUnreadCounts,
   test,
   type AgentStack,
@@ -130,6 +131,7 @@ test('two devices of one account count an encrypted room the same, and clear it 
       accessToken: colleague.accessToken,
       body: '{}',
     });
+    await readRouterWelcome(stack, roomId);
 
     // The desk asks the helper and goes Home before the reply comes (30 words, then a title).
     await desk.goto(`/home/${room}`, { timeout: 180_000 });
@@ -140,11 +142,15 @@ test('two devices of one account count an encrypted room the same, and clear it 
     // The finished reply and its title notice; then the colleague writes twice, from a client
     // without encryption, in the room's main timeline.
     await expect
-      .poll(async () => Object.values((await serverUnreadCounts(stack, roomId!)).threads)[0] ?? 0, {
-        timeout: 200_000,
-        intervals: [1000],
-        message: 'the server counts the finished reply and its title',
-      })
+      .poll(
+        async () =>
+          Math.max(0, ...Object.values((await serverUnreadCounts(stack, roomId!)).threads)),
+        {
+          timeout: 200_000,
+          intervals: [1000],
+          message: 'the server counts the finished reply and its title',
+        }
+      )
       .toBeGreaterThanOrEqual(2);
     for (const body of ['The release notes are up.', 'Ping me when you read them.']) {
       await sendRoomMessage(stack.homeserver, colleague.accessToken, roomId, {
