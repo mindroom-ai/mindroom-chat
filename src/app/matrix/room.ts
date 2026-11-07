@@ -113,27 +113,30 @@ const comparableName = (member: RoomMember): string => {
 };
 
 /**
- * Whether another member of `room` shows a name that reads like `member`'s, among everyone but
- * members who left or were banned. Decided from the room's members as they are now, because the
- * SDK's own clash check (`RoomMember.disambiguate`) fails in lazy-loaded rooms: it files a member
- * loaded later under their name with the user ID already added, so the member they clash with
- * keeps a plain name, and of two members loaded later it marks only the second.
+ * Whether a member of `room` other than `userId` shows a name that reads like `name`, among
+ * everyone but members who left or were banned. Decided from the room's members as they are now,
+ * because the SDK's own clash check (`RoomMember.disambiguate`) fails in lazy-loaded rooms: it
+ * files a member loaded later under their name with the user ID already added, so the member they
+ * clash with keeps a plain name, and of two members loaded later it marks only the second.
  */
-const sharesName = (room: Room, member: RoomMember): boolean => {
-  const name = comparableName(member);
+const nameIsShared = (room: Room, userId: string, name: string): boolean => {
+  const wanted = removeHiddenChars(name);
   // Stand-ins for a room in tests may hold no member list.
   const members = room.getMembers?.() ?? [];
   return (
-    name !== '' &&
+    wanted !== '' &&
     members.some(
       (other) =>
-        other.userId !== member.userId &&
+        other.userId !== userId &&
         !matchesEnum(other.membership, Membership.Leave) &&
         !matchesEnum(other.membership, Membership.Ban) &&
-        comparableName(other) === name
+        comparableName(other) === wanted
     )
   );
 };
+
+/** `name` with the user ID after it, isolated so it reads left to right in any text. */
+const withUserId = (name: string, userId: string): string => `${name} (\u2066${userId}\u2069)`;
 
 /**
  * The name the room shows for a member as the sender of something, or undefined when they have
@@ -154,8 +157,20 @@ export const getRoomMemberName = (
   const clashes =
     member.disambiguate ||
     name !== member.rawDisplayName ||
-    (!!room && (sharesName(room, member) || takesNamelessLocalpart(room, member, name)));
-  return clashes ? `${name} (\u2066${member.userId}\u2069)` : name;
+    (!!room &&
+      (nameIsShared(room, member.userId, name) || takesNamelessLocalpart(room, member, name)));
+  return clashes ? withUserId(name, member.userId) : name;
+};
+
+/**
+ * A name a member event carries for `userId` (joined as, changed their name to), shown as the room
+ * shows names now: the user ID follows when another member of `room` shows a name that reads the
+ * same, or when the name holds one of the characters above, which are left out.
+ */
+export const getMemberEventName = (room: Room, userId: string, name: string): string => {
+  const shown = name.replace(NAME_DISGUISES, '');
+  if (!shown.trim()) return name;
+  return shown !== name || nameIsShared(room, userId, shown) ? withUserId(shown, userId) : shown;
 };
 
 /**

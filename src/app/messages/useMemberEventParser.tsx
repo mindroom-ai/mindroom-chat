@@ -4,7 +4,7 @@ import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { Trans, useTranslation } from 'react-i18next';
 import { Membership } from '../matrix/types/room';
 import { getMxIdLocalPart } from '../matrix/matrix';
-import { getMemberDisplayName, getRoomMemberName } from '../matrix/room';
+import { getMemberDisplayName, getMemberEventName, getRoomMemberName } from '../matrix/room';
 
 type ParsedMemberEvent = {
   icon: IconSrc;
@@ -185,12 +185,19 @@ const describeMemberEvent = (event: MatrixEvent, room?: Room): MemberEventFacts 
   const targetId = event.getStateKey() ?? undefined;
   const selfChange = !!senderId && senderId === targetId;
 
-  const knownName =
+  // A name the events carry shows as the room shows names now, with the user ID where another
+  // member reads the same; without one, the member as the room knows them.
+  const carriedName =
     current.displayname ??
     previous.displayname ??
-    (room && targetId
-      ? nameBefore(room, event, targetId) ?? getMemberDisplayName(room, targetId)
-      : undefined);
+    (room && targetId ? nameBefore(room, event, targetId) : undefined);
+  let knownName = carriedName;
+  if (room && targetId) {
+    knownName =
+      carriedName === undefined
+        ? getMemberDisplayName(room, targetId)
+        : getMemberEventName(room, targetId, carriedName);
+  }
   const userName = nameOf(targetId, knownName);
   return {
     kind: getMemberEventKind(current, previous, selfChange),
