@@ -13,10 +13,11 @@ import type { ClientPlugin } from '../app/plugins/registry';
 afterEach(cleanup);
 
 /**
- * Renders `ui`, made of the components of the plugin `id`, into the document as the app would:
- * `config` is the plugin's section of config.json (`plugins.<id>`, what `usePluginConfig` reads),
- * and `usePluginTranslation` translates into `language` (default English) with the strings of
- * `plugin`, its entry's default export. The test file needs a DOM: `// @vitest-environment jsdom`.
+ * Renders `ui`, made of the components of the plugin `id`, into the document with the setup the
+ * SDK's hooks need: `config` is the plugin's section of config.json (`plugins.<id>`, what
+ * `usePluginConfig` reads), and `usePluginTranslation` translates into `language` (default English)
+ * with the strings of `plugin`, its entry's default export. A component that needs more of the app,
+ * such as its query client, gets it from `ui`. The test file needs `// @vitest-environment jsdom`.
  */
 export const renderPluginComponent = async (
   ui: ReactElement,

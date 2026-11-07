@@ -19,6 +19,8 @@ const SRC = realpathSync(fileURLToPath(new URL('src', import.meta.url)));
 const pluginDirs = readClientPlugins(process.env.MINDROOM_CLIENT_PLUGINS)
   .map(({ dir }) => normalizePath(realpathSync(dir)))
   .filter((dir) => path.relative(SRC, dir).startsWith('..'));
+// Without such plugins, the app's own tests resolve and compile as they always did.
+const withPlugins = pluginDirs.length > 0;
 
 export default defineConfig({
   resolve: {
@@ -30,13 +32,19 @@ export default defineConfig({
         new URL('src/client-sdk/testing.ts', import.meta.url)
       ),
     },
-    dedupe: SHARED_PACKAGES,
+    dedupe: withPlugins ? SHARED_PACKAGES : undefined,
   },
-  esbuild: { jsx: 'automatic' },
-  server: { fs: { allow: [searchForWorkspaceRoot(process.cwd()), ...pluginDirs] } },
+  esbuild: withPlugins ? { jsx: 'automatic' } : undefined,
+  server: withPlugins
+    ? { fs: { allow: [searchForWorkspaceRoot(process.cwd()), ...pluginDirs] } }
+    : undefined,
   test: {
     environment: 'node',
-    include: ['src/**/*.test.{ts,tsx}', ...pluginDirs.map((dir) => `${dir}/**/*.test.{ts,tsx}`)],
+    include: [
+      'src/**/*.test.{ts,tsx}',
+      // A directory such as `plugins (old)` holds characters globs read as syntax.
+      ...pluginDirs.map((dir) => `${dir.replace(/[()*?[\]{|}]/g, '\\$&')}/**/*.test.{ts,tsx}`),
+    ],
     // Vite, not Node, loads the packages a plugin installed, so that their imports of the shared
     // packages resolve to the app's copies too; a CommonJS `require` still resolves in its directory.
     server: {
