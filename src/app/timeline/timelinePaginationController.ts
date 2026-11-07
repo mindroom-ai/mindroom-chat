@@ -4,7 +4,7 @@ import { useAlive } from '../lib/hooks/useAlive';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { decryptAllTimelineEvent } from '../matrix/room';
 import { getRenderableEvents } from '../event-store/timeline/roomTimelineEvents';
-import { paginateRoomKeepingReplies } from '../event-store/sdk/roomHistoryPageSdk';
+import { paginateRoomHistory } from '../event-store/sdk/roomHistoryPageSdk';
 import {
   getEventIdAbsoluteIndex,
   getTimelinesEventsCount,
@@ -133,8 +133,9 @@ const timelinesFrom = (
 };
 
 /**
- * Asks the server for one page at `edge`. The Classic view (`opts` showing thread replies in the
- * room) keeps the page's thread replies, which the SDK drops. False when the request failed.
+ * Asks the server for one page at `edge`. A page of the room's own history goes through
+ * `paginateRoomHistory`, and the Classic view (`opts` showing thread replies in the room) keeps the
+ * page's thread replies, which the SDK drops. False when the request failed.
  */
 const requestPage = async (
   mx: MatrixClient,
@@ -144,8 +145,15 @@ const requestPage = async (
   opts: RecalibrateFilterOpts | undefined
 ): Promise<boolean> => {
   try {
-    if (opts?.showThreadRepliesInRoom && !opts.threadId) {
-      await paginateRoomKeepingReplies(mx, opts.room, edge, backwards, limit);
+    if (opts && !opts.threadId) {
+      await paginateRoomHistory(
+        mx,
+        opts.room,
+        edge,
+        backwards,
+        limit,
+        !!opts.showThreadRepliesInRoom
+      );
     } else {
       await mx.paginateEventTimeline(edge, { backwards, limit });
     }
