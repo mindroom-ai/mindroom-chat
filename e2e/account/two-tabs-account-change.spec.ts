@@ -48,7 +48,11 @@ const bothTabsFollow = async (context: BrowserContext, browserName: string) => {
   const failures = await recordStartFailures(context);
   const pageErrors: string[] = [];
   context.on('page', (page) => {
-    page.on('pageerror', (error) => pageErrors.push(`${page.url()}: ${error.message}`));
+    page.on('pageerror', (error) => {
+      pageErrors.push(`${page.url()}: ${error.message}`);
+      // eslint-disable-next-line no-console
+      console.log(`[probe-stack] ${error.message}\n${error.stack ?? ''}`);
+    });
   });
   const first = await registerDisposableUser(`ttac_a_${browserName}_${RUN}`, PASSWORD);
   const second = await registerDisposableUser(`ttac_b_${browserName}_${RUN}`, PASSWORD);
