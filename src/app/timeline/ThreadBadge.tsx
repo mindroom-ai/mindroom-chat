@@ -4,6 +4,7 @@ import { Box, config } from 'folds';
 import { ThreadIndicator } from '../messages/ThreadIndicator';
 import { ThreadSummaryCard } from '../messages/thread-summary/ThreadSummaryCard';
 import { buildThreadBadgeViewModelFromRecord } from '../threads/threadBadgeViewModel';
+import { revealDirectionControls } from '../ui/directional';
 import type { ThreadBadgeViewModel, ThreadRecord } from '../event-store/threads/types';
 
 type ThreadBadgeProps = {
@@ -30,7 +31,7 @@ export const ThreadBadge = ({
           <ThreadSummaryCard
             compact
             summaryInfo={model.summaryInfo}
-            renderBody={({ body }) => <>{body}</>}
+            renderBody={({ body }) => <>{revealDirectionControls(body)}</>}
           />
         </Box>
       )}

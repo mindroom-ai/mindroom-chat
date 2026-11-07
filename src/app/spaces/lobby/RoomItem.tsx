@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import type { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
 import { SequenceCard } from '../../ui/SequenceCard';
-import { ownDirectionLine } from '../../ui/directional';
+import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import { RoomAvatar, RoomIcon } from '../../avatars/RoomAvatar';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
@@ -91,8 +91,11 @@ export function RoomItemCard({
   if (opensByCard) onCardClick = openFromCard;
   else if (!joined) onCardClick = pressCardAction;
 
-  const roomName = summary?.name || summary?.canonical_alias || localRoom?.name || roomId;
-  const topic = summary?.topic;
+  // Direction controls in the name and topic show as code points, so they cannot reorder them.
+  const roomName = revealDirectionControls(
+    summary?.name || summary?.canonical_alias || localRoom?.name || roomId
+  );
+  const topic = summary?.topic && revealDirectionControls(summary.topic);
   const avatarSrc = summary?.avatar_url
     ? mxcUrlToHttp(client, summary.avatar_url, authenticated, 96, 96, 'crop') ?? undefined
     : localRoom
