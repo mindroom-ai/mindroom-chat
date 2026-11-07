@@ -1,7 +1,7 @@
 import React, { ReactNode, useId, useState } from 'react';
 import { Icon, Icons, IconSrc, Spinner } from 'folds';
 import * as css from './ThreadActivity.css';
-import { ownDirectionLine } from './directional';
+import { IsolatedText, ownDirectionLine } from './directional';
 
 export type ActivityTone = keyof typeof css.Icon;
 
@@ -53,7 +53,9 @@ export function ThreadActivity({
         onClick={() => setExpanded((value) => !value)}
       >
         {icon}
-        <span className={css.Title}>{title}</span>
+        <span className={css.Title}>
+          <IsolatedText text={title} />
+        </span>
         {detail && <span className={css.Detail} {...ownDirectionLine}>{detail}</span>}
         <Icon size="50" className={css.Chevron} src={Icons.ChevronRight} aria-hidden />
       </button>

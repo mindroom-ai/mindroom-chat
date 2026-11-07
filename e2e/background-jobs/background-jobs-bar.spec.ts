@@ -65,14 +65,18 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
     started_at: `2026-10-11T12:00:0${jobId.slice(-1)}+00:00`,
     ...extra,
   });
-  const publish = (agent: typeof coder, jobs: Record<string, unknown>[]) =>
+  const publish = (
+    agent: typeof coder,
+    jobs: Record<string, unknown>[],
+    extra: Record<string, unknown> = {}
+  ) =>
     sendStateEvent(
       homeserver!,
       agent.access_token,
       fixture.roomId,
       'io.mindroom.background_jobs',
       agent.user_id,
-      { jobs }
+      { jobs, ...extra }
     );
   const coderJobs = [
     job('job_1', fixture.rootId, 'run_tests'),
@@ -192,12 +196,22 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   const room = page.getByRole('region', { name: '3 background jobs' });
   await room.getByRole('button', { name: '3 background jobs' }).click();
   await expect(room).toContainText('web_search');
+  // An agent with more live jobs than fit its state lists its newest and states how many it runs.
+  const researcherJobs = [
+    job('job_3', fixture.rootId, 'research', { kind: 'subagent' }),
+    job('job_4', null, 'web_search'),
+  ];
+  await publish(researcher, researcherJobs, { total: 90 });
+  const partial = page.getByRole('region', { name: '91 background jobs (showing 3)' });
+  await expect(partial.getByRole('listitem')).toHaveCount(3);
+  await page.screenshot({ path: testInfo.outputPath('desktop-unlisted-jobs.png') });
 
   // On a phone, the bar sits above the composer in light and dark.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(
     `/home/${encodeURIComponent(fixture.roomId)}?threadId=${encodeURIComponent(fixture.rootId)}`
   );
+  // The thread counts only its listed jobs, because the agents count theirs per room.
   await expect(page.getByRole('region', { name: '2 background jobs' })).toBeVisible();
   await expect(page.getByText(/^Catching up/)).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('phone-dark.png') });

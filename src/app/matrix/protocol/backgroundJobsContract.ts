@@ -47,11 +47,27 @@ const byCodePoint = (a: string, b: string): number => {
   return a > b ? 1 : 0;
 };
 
-/** Every job of the agents' jobs state, oldest first. */
-export const selectBackgroundJobs = (events: MatrixEvent[]): BackgroundJob[] =>
-  events
-    .flatMap(parseBackgroundJobsStateEvent)
-    .sort((a, b) => byCodePoint(a.startedAt, b.startedAt) || byCodePoint(a.jobId, b.jobId));
+/**
+ * The listed jobs of the agents' jobs state, oldest first, and the number of their live jobs here.
+ * An agent lists only its newest jobs that fit the event and states `total`, its live jobs in the
+ * room listed or not; a `total` that is no whole number or below its listed jobs counts as absent.
+ */
+export const selectBackgroundJobs = (
+  events: MatrixEvent[]
+): { jobs: BackgroundJob[]; total: number } => {
+  let total = 0;
+  const jobs = events.flatMap((event) => {
+    const listed = parseBackgroundJobsStateEvent(event);
+    const stated: unknown = event.getContent().total;
+    total +=
+      Number.isSafeInteger(stated) && (stated as number) >= listed.length
+        ? (stated as number)
+        : listed.length;
+    return listed;
+  });
+  jobs.sort((a, b) => byCodePoint(a.startedAt, b.startedAt) || byCodePoint(a.jobId, b.jobId));
+  return { jobs, total };
+};
 
 /** The jobs a view shows: the open thread's, or every job of the room in the main timeline. */
 export const jobsInView = (jobs: BackgroundJob[], threadId: string | null): BackgroundJob[] =>

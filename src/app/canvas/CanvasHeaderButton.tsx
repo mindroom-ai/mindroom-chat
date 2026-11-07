@@ -2,7 +2,7 @@ import { MouseEvent, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import { Box, Icon, IconButton, Icons, RectCords, Scroll, Text, Tooltip, config } from 'folds';
-import { PopOut, TooltipProvider } from '../ui/directional';
+import { PopOut, TooltipProvider, ownDirectionLine } from '../ui/directional';
 import { Menu, MenuItem } from '../ui/glass/GlassPrimitives';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import type { CanvasListEntry } from './canvasIndexStore';
@@ -80,7 +80,7 @@ export function CanvasMenu({
                       onClick={() => onChoose(canvas.canvasId)}
                     >
                       <Box direction="Column" style={{ minWidth: 0 }}>
-                        <Text size="T300" truncate>
+                        <Text size="T300" truncate {...ownDirectionLine}>
                           {canvas.title}
                         </Text>
                         <Text size="T200" priority="300" truncate>

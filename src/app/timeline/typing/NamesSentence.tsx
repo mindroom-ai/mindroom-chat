@@ -1,7 +1,8 @@
 import { Trans } from 'react-i18next';
 import type { ParseKeys } from 'i18next';
 
-const NAME = <b />;
+// Each name reads in its own direction, whatever the sentence's.
+const NAME = <b dir="auto" />;
 const NAMES = { name: NAME, first: NAME, second: NAME, third: NAME, others: NAME };
 
 /**
