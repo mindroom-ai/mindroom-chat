@@ -129,6 +129,19 @@ const seed = async (engine: string): Promise<World> => {
   });
   await joinRoom(HOMESERVER, member.accessToken, roomId);
   await addRoomToSpace(HOMESERVER, reader.accessToken, spaceId, roomId);
+  // Any member may join a call in the room, as in a room made for calls.
+  const levelsPath = `/rooms/${encodeURIComponent(roomId)}/state/m.room.power_levels/`;
+  const levels = await matrixFetch<{ events?: Record<string, number> }>(HOMESERVER, levelsPath, {
+    accessToken: reader.accessToken,
+  });
+  await matrixFetch(HOMESERVER, levelsPath, {
+    method: 'PUT',
+    accessToken: reader.accessToken,
+    body: JSON.stringify({
+      ...levels,
+      events: { ...levels.events, 'org.matrix.msc3401.call.member': 0 },
+    }),
+  });
   for (let index = 1; index <= FILLER_ROOMS; index += 1)
     await createRoom(HOMESERVER, reader.accessToken, { name: `Ledger room ${index}` });
   await sendStateEvent(HOMESERVER, reader.accessToken, roomId, 'm.room.name', '', {
@@ -189,9 +202,34 @@ const go = (page: Page, route: string) =>
 
 const roomPath = (roomId: string) => `/home/${encodeURIComponent(roomId)}/`;
 
-/** The member rings the room, as another client does when it starts a call. */
+/**
+ * The member rings the room, as another client does when it starts a call: its call membership,
+ * then a ring. A ring whose call has nobody in it stops within a second, so the membership keeps
+ * this one up until the reader dismisses it.
+ */
 const ring = async (world: World, tag: string) => {
   const { member, reader, roomId } = world;
+  const { device_id: device } = await matrixFetch<{ device_id: string }>(
+    HOMESERVER,
+    '/account/whoami',
+    { accessToken: member.accessToken }
+  );
+  await sendStateEvent(
+    HOMESERVER,
+    member.accessToken,
+    roomId,
+    'org.matrix.msc3401.call.member',
+    `_${member.userId}_${device}_m.call`,
+    {
+      application: 'm.call',
+      call_id: '',
+      scope: 'm.room',
+      device_id: device,
+      expires: 14_400_000,
+      focus_active: { type: 'livekit', focus_selection: 'oldest_membership' },
+      foci_preferred: [],
+    }
+  );
   await matrixFetch(
     HOMESERVER,
     `/rooms/${encodeURIComponent(roomId)}/send/org.matrix.msc4075.rtc.notification/ring${tag}`,
@@ -202,7 +240,7 @@ const ring = async (world: World, tag: string) => {
         notification_type: 'ring',
         'm.mentions': { user_ids: [reader.userId] },
         sender_ts: Date.now(),
-        lifetime: 60_000,
+        lifetime: 120_000,
       }),
     }
   );
@@ -249,7 +287,7 @@ const check = async (page: Page, world: World, label: string) => {
   const ringCard = page.getByRole('alertdialog', { name: 'Incoming Call' });
   await expectShown(ringCard, `${MEMBER_NAME} is calling in ${ROOM_NAME_SHOWN}`);
   await shot(page, `${label}-incoming-call`);
-  await ringCard.getByRole('button', { name: 'Ignore' }).click();
+  await ringCard.getByRole('button', { name: 'Ignore' }).click({ timeout: 30_000 });
   await expect(ringCard).toBeHidden();
 
   // The thread banner shows the thread's summary.
@@ -343,16 +381,21 @@ const check = async (page: Page, world: World, label: string) => {
   await expectShown(main, ROOM_NAME_SHOWN);
   await expectShown(main, ROOM_TOPIC_SHOWN);
   await shot(page, `${label}-lobby`);
-  await expectShown(page.locator(`[data-id="${spaceId}"]`).first(), SPACE_NAME_SHOWN);
-  if (!phone) {
-    await expectShown(
-      page
-        .locator('nav')
-        .getByText(/^Finance /)
-        .first(),
-      SPACE_NAME_SHOWN
-    );
+  // The rail tab and the space's list. A phone keeps both in its navigation drawer, which leaving
+  // the Home list put away: it drops them once it has slid out (320 ms), so a check that comes
+  // later finds neither. The phone opens it here, from the closed state the lobby leaves it in.
+  if (phone) {
+    const menu = page.locator('#phone-nav-menu-button');
+    await expect(menu).toHaveAttribute('aria-expanded', 'false');
+    await menu.click();
+    await expect(menu).toHaveAttribute('aria-expanded', 'true');
   }
+  const drawer = page.locator('#phone-nav-drawer');
+  const railTab = (phone ? drawer : page.locator('body')).locator(`[data-id="${spaceId}"]`);
+  await expectShown(railTab.first(), SPACE_NAME_SHOWN);
+  const spaceList = (phone ? drawer : page.locator('nav')).getByText(/^Finance /);
+  await expectShown(spaceList.first(), SPACE_NAME_SHOWN);
+  await shot(page, `${label}-space-navigation`);
 };
 
 const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {

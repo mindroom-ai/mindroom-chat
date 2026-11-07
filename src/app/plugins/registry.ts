@@ -3,6 +3,8 @@ import type { Room } from 'matrix-js-sdk';
 import { isRecord } from '../lib/isRecord';
 import type { MessageRenderer } from './messageRenderers';
 import { pluginEntries, type PluginEntry } from './pluginEntries';
+import { isSidePanel, type SidePanel } from './sidePanels';
+import { registerPluginTranslations, type PluginTranslations } from './pluginTranslations';
 
 /** A component shown under the room header, given the open room; it renders there or nothing. */
 export type RoomHeaderSlotComponent = ComponentType<{ room: Room }>;
@@ -11,6 +13,8 @@ export type RoomHeaderSlotComponent = ComponentType<{ room: Room }>;
 export type ClientPlugin = {
   messageRenderers?: readonly MessageRenderer[];
   roomHeaderSlot?: readonly RoomHeaderSlotComponent[];
+  sidePanels?: readonly SidePanel[];
+  translations?: PluginTranslations;
 };
 
 /** A plugin of this build; `tag` (`<id>@<version>`) names it in logs and error reports. */
@@ -19,11 +23,14 @@ export type RegisteredPlugin = {
   readonly tag: string;
   readonly messageRenderers: readonly MessageRenderer[];
   readonly roomHeaderSlot: readonly RoomHeaderSlotComponent[];
+  readonly sidePanels: readonly SidePanel[];
 };
 
 const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   const renderers = isRecord(plugin) ? plugin.messageRenderers : undefined;
   const headerSlot = isRecord(plugin) ? plugin.roomHeaderSlot : undefined;
+  const panels = isRecord(plugin) ? plugin.sidePanels : undefined;
+  registerPluginTranslations(id, isRecord(plugin) ? plugin.translations : undefined);
   return Object.freeze({
     id,
     tag: `${id}@${version}`,
@@ -35,6 +42,7 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
     ),
     // Its slot renders each entry in a boundary, so one that is no component only fails there.
     roomHeaderSlot: Object.freeze(Array.isArray(headerSlot) ? [...headerSlot] : []),
+    sidePanels: Object.freeze(Array.isArray(panels) ? panels.filter(isSidePanel) : []),
   });
 };
 

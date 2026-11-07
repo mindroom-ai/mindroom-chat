@@ -44,7 +44,7 @@ const PINNED_STATE_LEVEL = 100;
  * privileged (room version 12, MSC4289), servers raise the upgrade (`m.room.tombstone`) level
  * above every assignable level, to 150.
  */
-export const createVoiceRoomPowerLevelsOverride = (version?: string) => {
+export const createRoomPowerLevelsOverride = (version?: string) => {
   const events: Record<string, number> = {
     [StateEvent.RoomEncryption]: PINNED_STATE_LEVEL,
     [StateEvent.RoomHistoryVisibility]: PINNED_STATE_LEVEL,
@@ -168,7 +168,7 @@ export const createRoom = async (client: MatrixClient, data: CreateRoomData): Pr
     // publish their state.
     ...(type === RoomType.Space
       ? {}
-      : { power_level_content_override: createVoiceRoomPowerLevelsOverride(version) }),
+      : { power_level_content_override: createRoomPowerLevelsOverride(version) }),
   };
 
   const result = await client.createRoom(options);
@@ -213,7 +213,7 @@ export const createDirectRoom = async (
     visibility: Visibility.Private,
     // Someone invited later joins its calls too, not only the two who started it, and an agent
     // invited later publishes its state.
-    power_level_content_override: createVoiceRoomPowerLevelsOverride(version),
+    power_level_content_override: createRoomPowerLevelsOverride(version),
   });
   await addRoomIdToMDirect(client, roomId, userId);
   return roomId;
