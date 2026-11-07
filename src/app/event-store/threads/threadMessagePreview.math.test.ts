@@ -3,6 +3,8 @@ import { getThreadMessagePreviewText } from './threadMessagePreview';
 import backendBodies from '../../messages/__fixtures__/backendToolMarkerBodies.json';
 
 const preview = (body: string) => getThreadMessagePreviewText({ msgtype: 'm.text', body });
+// The preview shows `body` as it is: its formulas as written, its text unchanged.
+const expectKept = (body: string) => expect(preview(body)).toBe(body);
 
 describe('thread previews of math', () => {
   it('read a formula as plain text instead of its TeX source', () => {
@@ -70,27 +72,15 @@ describe('thread previews of math', () => {
   });
 
   it('keep a formula as written when the reader does not know all of it', () => {
-    expect(preview('$\\bar{x} \\neq x$ and $\\binom {5}{2} = 10$ and $\\mathcal{F} \\ne F$')).toBe(
-      '$\\bar{x} \\neq x$ and $\\binom {5}{2} = 10$ and $\\mathcal{F} \\ne F$'
-    );
-    expect(preview('$\\sqrt [3]{8} = 2$, $\\vec F$, $a \\\\ b$ and ${}$')).toBe(
-      '$\\sqrt [3]{8} = 2$, $\\vec F$, $a \\\\ b$ and ${}$'
-    );
-    expect(preview('$\\operatorname*{arg\\,max}_x f$')).toBe('$\\operatorname*{arg\\,max}_x f$');
-    expect(preview('$3\\frac{1}{4}$, $\\frac{1}{2$, $a}b$ and $x % note$')).toBe(
-      '$3\\frac{1}{4}$, $\\frac{1}{2$, $a}b$ and $x % note$'
-    );
-    expect(preview('$3 \\frac{1}{4}$, $2\\,\\tfrac{3}{4}$, ${12}\\frac{1}{4}$ and $2^(n-1)$')).toBe(
-      '$3 \\frac{1}{4}$, $2\\,\\tfrac{3}{4}$, ${12}\\frac{1}{4}$ and $2^(n-1)$'
-    );
-    expect(preview('$3~\\frac{1}{4}$, $3\\!\\frac{1}{4}$ and $3{\\frac{1}{4}}$')).toBe(
-      '$3~\\frac{1}{4}$, $3\\!\\frac{1}{4}$ and $3{\\frac{1}{4}}$'
-    );
-    expect(preview('$x^$, $\\frac{a}$, $\\text{snake_case}$ and $\\textbf{v}$')).toBe(
-      '$x^$, $\\frac{a}$, $\\text{snake_case}$ and $\\textbf{v}$'
-    );
-    expect(preview('$x^{}y$, $\\frac{}{}$ and $\\sqrt{}$')).toBe('$x^{}y$, $\\frac{}{}$ and $\\sqrt{}$');
-    expect(preview('$a & b$ or $a # b$')).toBe('$a & b$ or $a # b$');
+    expectKept('$\\bar{x} \\neq x$ and $\\binom {5}{2} = 10$ and $\\mathcal{F} \\ne F$');
+    expectKept('$\\sqrt [3]{8} = 2$, $\\vec F$, $a \\\\ b$ and ${}$');
+    expectKept('$\\operatorname*{arg\\,max}_x f$');
+    expectKept('$3\\frac{1}{4}$, $\\frac{1}{2$, $a}b$ and $x % note$');
+    expectKept('$3 \\frac{1}{4}$, $2\\,\\tfrac{3}{4}$, ${12}\\frac{1}{4}$ and $2^(n-1)$');
+    expectKept('$3~\\frac{1}{4}$, $3\\!\\frac{1}{4}$ and $3{\\frac{1}{4}}$');
+    expectKept('$x^$, $\\frac{a}$, $\\text{snake_case}$ and $\\textbf{v}$');
+    expectKept('$x^{}y$, $\\frac{}{}$ and $\\sqrt{}$');
+    expectKept('$a & b$ or $a # b$');
     expect(preview('$$\nx\n$$ and $$\ny\n$$')).toBe('$$ x $$ and $$ y $$');
     expect(preview('$$\n\\begin{vmatrix}\n1 & 2 \\\\\n3 & 4\n\\end{vmatrix} = -2\n$$')).toBe(
       '$$ \\begin{vmatrix} 1 & 2 \\\\ 3 & 4 \\end{vmatrix} = -2 $$'
@@ -102,11 +92,11 @@ describe('thread previews of math', () => {
   });
 
   it('leave prices, code and text without math as written', () => {
-    expect(preview('It costs $5 and $10 per seat.')).toBe('It costs $5 and $10 per seat.');
+    expectKept('It costs $5 and $10 per seat.');
     expect(preview('Run `echo $HOME` or `$\\frac{a}{b}$` here.')).toBe(
       'Run echo $HOME or $\\frac{a}{b}$ here.'
     );
-    expect(preview('Plain text stays plain.')).toBe('Plain text stays plain.');
+    expectKept('Plain text stays plain.');
   });
 
   it('keep every formula of a body with code the tokenizer cannot find as written', () => {
@@ -119,22 +109,18 @@ describe('thread previews of math', () => {
       'Example: $\\frac{a}{b}$ and $x^2$'
     );
     expect(preview('> ~~~\n> $\\frac{a}{b}$\n> ~~~\n\nand $x^2$')).toBe('$\\frac{a}{b}$ and $x^2$');
-    expect(preview('<code>$\\frac{a}{b}$</code> and $x^2$')).toBe(
-      '<code>$\\frac{a}{b}$</code> and $x^2$'
-    );
+    expectKept('<code>$\\frac{a}{b}$</code> and $x^2$');
     expect(preview('A backslash (`\\`) starts `$\\frac{a}{b}$`, shown as $\\frac{a}{b}$.')).toBe(
       'A backslash (\\) starts $\\frac{a}{b}$, shown as $\\frac{a}{b}$.'
     );
     expect(preview('```markdown\n```latex\n$\\frac{1}{2}$\n```\n```')).toBe(
       '```latex $\\frac{1}{2}$'
     );
-    expect(preview('Press ` then $x^2$')).toBe('Press ` then $x^2$');
+    expectKept('Press ` then $x^2$');
     expect(preview('Press Ctrl+` for a terminal.\n\nThen run `cp "${A}/a" "${B}/b"`.')).toBe(
       'Press Ctrl+` for a terminal. Then run cp "${A}/a" "${B}/b".'
     );
-    expect(preview('<CODE>$\\frac{a}{b}$</CODE> and $x$')).toBe(
-      '<CODE>$\\frac{a}{b}$</CODE> and $x$'
-    );
-    expect(preview('\uE0000\uE001 and $x^2$')).toBe('\uE0000\uE001 and $x^2$');
+    expectKept('<CODE>$\\frac{a}{b}$</CODE> and $x$');
+    expectKept('\uE0000\uE001 and $x^2$');
   });
 });
