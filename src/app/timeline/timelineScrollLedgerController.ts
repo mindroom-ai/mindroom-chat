@@ -625,6 +625,10 @@ export const useTimelineScrollLedgerController = ({
   const noteAppliedCorrection = useClampedCorrectionFinish(getScrollElement);
   const handleAppliedCorrection = useCallback((deltaPx: number) => {
     noteAppliedCorrection(deltaPx);
+    // virtual-core writes this correction itself, so the view moves without the compositor: a
+    // move back toward the pre-settle offset is no discarded settle any more (a row above that
+    // grew and shrank again landed 8 px from it and had the settle folded in a second time).
+    settleDiscardWatchRef.current = undefined;
     // Only upward movement can look like relinquished opening ownership. A downward growth
     // adjustment can be clamped before React extends the range, so it cannot cancel this sum.
     measurementCorrectionPxRef.current += Math.min(0, deltaPx);
