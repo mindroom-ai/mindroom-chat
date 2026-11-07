@@ -62,32 +62,30 @@ const message = ({
   });
 
 /**
- * A room the reader last read before `event`, where `members` are joined; the server counts
- * `count` unread messages.
+ * Whether a room the reader last read before `event`, where `members` are joined, is unread. With
+ * `notified`, the push rules notify for `event` and the server counts it.
  */
-const room = (event: MatrixEvent, count = 0, members = [READER, AGENT]) => ({
-  roomId: ROOM_ID,
-  getMembers: () => members.map((userId) => ({ userId, membership: 'join' })),
-  findEventById: () => undefined,
-  getEventReadUpTo: () => null,
-  getLiveTimeline: () => ({ getEvents: () => [event] }),
-  getMyMembership: () => 'join',
-  getThread: () => null,
-  getUnreadNotificationCount: () => count,
-  getRoomUnreadNotificationCount: () => count,
-  isSpaceRoom: () => false,
-});
-
-const client = (notifies = false) => ({
-  getAccountData: () => undefined,
-  getPushActionsForEvent: () => ({ notify: notifies, tweaks: {} }),
-  getRoomPushRule: () => undefined,
-  getUserId: () => READER,
-});
-
-const isUnread = (event: MatrixEvent, count = 0, notifies = false, members?: string[]): boolean =>
-  getRoomUnreadAction(client(notifies) as never, room(event, count, members) as never).type ===
-  'PUT';
+const isUnread = (
+  event: MatrixEvent,
+  { notified = false, members = [READER, AGENT] }: { notified?: boolean; members?: string[] } = {}
+): boolean => {
+  const count = notified ? 1 : 0;
+  const room = {
+    roomId: ROOM_ID,
+    getMembers: () => members.map((userId) => ({ userId, membership: 'join' })),
+    getEventReadUpTo: () => null,
+    getLiveTimeline: () => ({ getEvents: () => [event] }),
+    getMyMembership: () => 'join',
+    getUnreadNotificationCount: () => count,
+    getRoomUnreadNotificationCount: () => count,
+    isSpaceRoom: () => false,
+  };
+  const client = {
+    getPushActionsForEvent: () => ({ notify: notified, tweaks: {} }),
+    getUserId: () => READER,
+  };
+  return getRoomUnreadAction(client as never, room as never).type === 'PUT';
+};
 
 describe('getRoomUnreadAction for notices', () => {
   it.each([
@@ -110,11 +108,11 @@ describe('getRoomUnreadAction for notices', () => {
   });
 
   it('counts every notice in a room without a MindRoom agent', () => {
-    expect(isUnread(message({ sender: PERSON }), 0, false, [READER, PERSON])).toBe(true);
+    expect(isUnread(message({ sender: PERSON }), { members: [READER, PERSON] })).toBe(true);
   });
 
   it('leaves the room read when the push rules notify for a notice no thread list shows', () => {
-    expect(isUnread(message({ sender: AGENT }), 1, true)).toBe(false);
-    expect(isUnread(message({ sender: AGENT, marked: true }), 1, true)).toBe(true);
+    expect(isUnread(message({ sender: AGENT }), { notified: true })).toBe(false);
+    expect(isUnread(message({ sender: AGENT, marked: true }), { notified: true })).toBe(true);
   });
 });
