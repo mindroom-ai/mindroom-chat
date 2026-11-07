@@ -399,10 +399,13 @@ class PrivateDirTests(unittest.TestCase):
         command = 'set -euo pipefail; . "$1"; private_dir "$2"'
         return subprocess.run(["bash", "-c", command, "test", helper, path], capture_output=True, text=True)
 
-    def test_a_missing_root_is_made_the_owners_only_whatever_the_umask(self) -> None:
+    def test_a_missing_root_and_its_missing_parents_are_made_the_owners_only_whatever_the_umask(self) -> None:
+        self.root.chmod(0o755)
         root = self.root / "new" / "e2e"
         self.assertEqual(self.private_dir(f"{root}/").returncode, 0)
         self.assertEqual(root.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(root.parent.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(self.root.stat().st_mode & 0o777, 0o755, "a parent that was there stays as it was")
 
     def test_a_root_that_is_a_symlink_another_users_or_writable_by_others_is_refused_untouched(self) -> None:
         target = self.root / "target"
@@ -427,6 +430,32 @@ class PrivateDirTests(unittest.TestCase):
                 self.assertEqual(list(target.iterdir()), [])
         target.chmod(0o755)
         self.assertEqual(self.private_dir(str(target)).returncode, 0, "a directory others may only read")
+
+
+class SlotTeardownTests(unittest.TestCase):
+    """scripts/e2e-slot.sh stops the slot's agent stack with the homeserver of a --fresh run."""
+
+    def test_a_refused_agent_stack_root_is_named(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            tmp = Path(directory)
+            # A stand-in for Docker that starts and stops nothing.
+            (tmp / "bin").mkdir()
+            docker = tmp / "bin" / "docker"
+            docker.write_text("#!/bin/sh\nexit 0\n")
+            docker.chmod(0o755)
+            (tmp / "elsewhere").mkdir()
+            (tmp / "agents").symlink_to(tmp / "elsewhere")
+            env = {
+                **os.environ,
+                "PATH": f"{tmp / 'bin'}{os.pathsep}{os.environ['PATH']}",
+                "E2E_SNAPSHOT_ROOT": str(tmp / "e2e"),
+                "E2E_AGENT_STACK_ROOT": str(tmp / "agents"),
+                "E2E_MAX_CONCURRENT": "0",
+            }
+            slot = Path(__file__).resolve().parents[1] / "e2e-slot.sh"
+            result = subprocess.run(["bash", str(slot), "99", "--fresh", "true"], capture_output=True, text=True, env=env)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(f"agent-stack: refusing {tmp / 'agents'}:", result.stderr)
 
 
 class SlotTests(unittest.TestCase):

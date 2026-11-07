@@ -47,7 +47,8 @@ IMPORTS = re.compile(
 )
 MIN_LEN, MIN_RUN = 8, 3
 SNAPSHOT_TAGS = ["v1.8.2", "v2.2.6", "v3.2.0", "v4.0.0", "v4.10.2", "v4.12.8"]
-CACHE = Path(tempfile.gettempdir()) / "upstream-overlap-cache"
+# The user's cache directory, the same from every shell (nix develop gives each shell its own TMPDIR).
+CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "upstream-overlap"
 
 
 def git(repo, *args, text=True):
@@ -145,7 +146,7 @@ def strip_imports(text):
 
 
 def corpus_lines(corpus):
-    CACHE.mkdir(exist_ok=True)
+    CACHE.mkdir(mode=0o700, parents=True, exist_ok=True)
     head = corpus_head(corpus)
     rules = hashlib.sha256((IMPORTS.pattern + "".join(t.pattern for t in TRIVIAL) + str(MIN_LEN)).encode()).hexdigest()[:12]
     cached = CACHE / f"corpus-{head}-{rules}.json"
@@ -269,7 +270,7 @@ def corpus_windows(corpus):
     for text in read_blobs(corpus, list(blobs)).values():
         found.update(windows([t for t, _, _ in tokens(text)]))
     data.extend(sorted(found))
-    CACHE.mkdir(exist_ok=True)
+    CACHE.mkdir(mode=0o700, parents=True, exist_ok=True)
     write_atomic(cached, data.tobytes())
     return found
 

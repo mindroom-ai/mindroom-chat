@@ -1,13 +1,13 @@
 """Tests of check.py's pre-push mode and the pre-push hook (scripts/git-hooks/): which commits a push adds,
 which file versions those commits carry, and that the hook blocks any push with a finding.
 
-The corpus is a made-up upstream repository built here; no upstream file is read. The hook runs the checker
-with TMPDIR=/tmp, so the hook tests leave a few small cache files for that made-up corpus in
-/tmp/upstream-overlap-cache; their names stay the same from run to run because every commit date is fixed.
+The corpus is a made-up upstream repository built here; no upstream file is read. Each test keeps the checker's
+cache in its own temporary directory (XDG_CACHE_HOME).
 """
 
 from __future__ import annotations
 
+import hashlib
 import io
 import os
 import shutil
@@ -96,6 +96,9 @@ class Fixture(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="overlap-test-"))
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        patcher = mock.patch.dict(os.environ, {"XDG_CACHE_HOME": str(self.tmp / "user-cache")})
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.corpus = new_repo(self.tmp / "corpus")
         commit(self.corpus, {"src/app/heron.ts": UPSTREAM}, "made-up upstream file")
         self.repo = new_repo(self.tmp / "client")
@@ -269,16 +272,31 @@ class PrePushTests(Fixture):
         tip = commit(self.repo, {"src/app/own.ts": OWN_CODE}, "clean")
         result = run(self.repo, sys.executable, str(HERE / "check.py"), "--corpus", str(self.corpus),
                      "--pre-push", str(self.remote), input=f"refs/heads/work {tip} refs/heads/work {ZERO}\n",
-                     check=False, env={**os.environ, "TMPDIR": str(self.tmp), "GIT_DIR": str(self.repo / ".git")})
+                     check=False, env={**os.environ, "GIT_DIR": str(self.repo / ".git")})
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_a_missing_corpus_fails_and_says_why(self) -> None:
         tip = commit(self.repo, {"src/app/own.ts": CLEAN}, "clean")
         result = run(self.repo, sys.executable, str(HERE / "check.py"), "--corpus", str(self.tmp / "nowhere"),
                      "--pre-push", str(self.remote), input=f"refs/heads/work {tip} refs/heads/work {ZERO}\n",
-                     check=False, env={**os.environ, "TMPDIR": str(self.tmp)})
+                     check=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("is not a git clone of the upstream client", result.stderr)
+
+    def test_the_cache_is_the_users_own_whatever_the_temporary_directory_holds(self) -> None:
+        bad = commit(self.repo, {"src/app/copy.ts": COPIED}, "copy")
+        temporary = self.tmp / "temporary"
+        key = hashlib.sha256((HERE / "check.py").read_bytes() + check.corpus_head(self.corpus).encode()).hexdigest()[:16]
+        blob = git(self.repo, "rev-parse", f"{bad}:src/app/copy.ts")
+        marker = temporary / "upstream-overlap-cache" / f"clean-{key}" / f"{blob}-code"
+        marker.parent.mkdir(parents=True)
+        marker.touch()
+        result = run(self.repo, sys.executable, str(HERE / "check.py"), "--corpus", str(self.corpus),
+                     "--pre-push", str(self.remote), input=f"refs/heads/work {bad} refs/heads/work {ZERO}\n",
+                     check=False, env={**os.environ, "TMPDIR": str(temporary)})
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(f"{bad}\tsrc/app/copy.ts\t1-3\tline-run", result.stdout)
+        self.assertTrue((self.tmp / "user-cache" / "upstream-overlap").is_dir())
 
 
 class HookTests(Fixture):
