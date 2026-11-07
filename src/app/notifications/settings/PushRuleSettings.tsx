@@ -123,7 +123,9 @@ function RuleSection({ title, rows }: { title: string; rows: RuleRow[] }) {
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{title}</Text>
+      <Text size="L400" data-settings-heading="">
+        {title}
+      </Text>
       <SettingsCard>
         {present.map(({ row, rule }) => (
           <RuleTile
@@ -285,7 +287,9 @@ export function KeywordNotifications() {
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t(`${key}.keywordMessages`)}</Text>
+      <Text size="L400" data-settings-heading="">
+        {t(`${key}.keywordMessages`)}
+      </Text>
       <SettingsCard>
         <SettingTile
           focusId="notifyKeywords"

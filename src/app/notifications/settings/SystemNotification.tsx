@@ -168,7 +168,9 @@ export function SystemNotification() {
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t('featureUi.settings.notifications.systemNotification.system')}</Text>
+      <Text size="L400" data-settings-heading="">
+        {t('featureUi.settings.notifications.systemNotification.system')}
+      </Text>
       <SequenceCard
         variant="SurfaceVariant"
         className={SequenceCardStyle}

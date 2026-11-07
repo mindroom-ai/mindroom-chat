@@ -299,7 +299,9 @@ export function RoomAddresses({ room }: AddressProps) {
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t('featureUi.roomSettings.general.addresses')}</Text>
+      <Text size="L400" data-settings-heading="">
+        {t('featureUi.roomSettings.general.addresses')}
+      </Text>
       <Box direction="Column" gap="200">
         <PublishedAddresses room={room} onChange={publish} />
         <LocalAddresses room={room} onPublish={publish} />

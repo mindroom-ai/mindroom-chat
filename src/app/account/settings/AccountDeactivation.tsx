@@ -126,7 +126,9 @@ export function AccountDeactivation() {
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t(`${KEY}.accountManagement`)}</Text>
+      <Text size="L400" data-settings-heading="">
+        {t(`${KEY}.accountManagement`)}
+      </Text>
       <SettingsCard>
         <SettingTile
           focusId="deactivateAccount"

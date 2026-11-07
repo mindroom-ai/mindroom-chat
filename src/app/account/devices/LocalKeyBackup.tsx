@@ -338,7 +338,9 @@ export function LocalKeyBackup() {
   const { t } = useTranslation();
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t(`${KEY}.localBackup`)}</Text>
+      <Text size="L400" data-settings-heading="">
+        {t(`${KEY}.localBackup`)}
+      </Text>
       <SettingsCard>
         <ExportKeys />
         <ImportKeys />
