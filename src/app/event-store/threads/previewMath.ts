@@ -191,8 +191,8 @@ const readFormula = (tex: string): string | undefined => {
  * messages typeset (`$…$`, `$$…$$`) read as plain text where `readFormula` reads it exactly: the
  * preview shows `(a/b)` rather than `$\frac{a}{b}$`. Any other formula stays as written, and so
  * does every formula of a body whose code the tokenizer may not find: it pairs single backticks
- * across lines and paragraphs, which Markdown does not, so a body with other code, or with a line
- * that leaves a backtick unpaired, keeps its formulas as written. Formulas stand in as placeholders
+ * across paragraphs, which Markdown does not, so a body with other code, or with a line that
+ * leaves a backtick unpaired, keeps its formulas as written. Formulas stand in as placeholders
  * while `strip` runs, so its Markdown rules never change them. The tokenizer also scans for links,
  * several times the cost of the rest of a preview, so only text that holds a formula goes through
  * it.
