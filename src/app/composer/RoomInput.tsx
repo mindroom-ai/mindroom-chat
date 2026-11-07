@@ -713,7 +713,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           // The composer floats over the timeline and the cards, which scroll beneath it.
           className={glassDenseOverBackdrop}
           placeholder={t('composer.placeholder')}
-          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onKeyUp={resyncAfterKey}
