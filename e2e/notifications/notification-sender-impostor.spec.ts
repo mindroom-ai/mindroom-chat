@@ -294,11 +294,23 @@ const inboxRow = (page: Page, text: string) =>
 const rowSender = (page: Page, text: string) => inboxRow(page, text).locator('b').first();
 
 /**
- * Whether the row of `text` shows `userId` whole: its characters are laid out inside the row, the
- * viewport and every element between them that clips what overflows it (an ellipsis included).
+ * Whether the row of `text` shows `userId` whole: brought into view, it holds still (its box is
+ * the same in two animation frames, as Playwright judges an element stable), and the ID's
+ * characters are laid out inside the row, the viewport and every element between them that clips
+ * what overflows it (an ellipsis included). The Inbox lays out only rows near the viewport
+ * (`content-visibility: auto`); the others keep a placeholder height. Rows that come near by the
+ * scroll take their real height a frame later, and WebKit keeps no scroll anchor, so a row
+ * scrolled to the viewport's edge can be pushed past it. A row still moving is checked again.
  */
 const showsUserIdWhole = (page: Page, text: string, userId: string) =>
-  inboxRow(page, text).evaluate((row, id) => {
+  inboxRow(page, text).evaluate(async (row, id) => {
+    row.scrollIntoView({ block: 'center' });
+    const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+    const placed = row.getBoundingClientRect();
+    await frame();
+    await frame();
+    const settled = row.getBoundingClientRect();
+    if (settled.top !== placed.top || settled.height !== placed.height) return false;
     const walker = row.ownerDocument.createTreeWalker(row, NodeFilter.SHOW_TEXT);
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const start = node.textContent?.indexOf(id) ?? -1;
@@ -370,7 +382,6 @@ const checkInbox = async (page: Page, tag: string) => {
     [INBOX_PERSON_COPY, copy.userId],
     [INBOX_AGENT_COPY, agentCopy.userId],
   ] as const) {
-    await inboxRow(page, text).scrollIntoViewIfNeeded();
     await expect.poll(() => showsUserIdWhole(page, text, userId), { message: userId }).toBe(true);
     // The name stays bold.
     const weight = await rowSender(page, text).evaluate((name) =>
