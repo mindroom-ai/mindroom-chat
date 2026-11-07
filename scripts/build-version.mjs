@@ -99,7 +99,7 @@ const SOURCE_PATHS = [
 
 /**
  * Adds the file or directory `relative` in `root` to `hash`: each file's path and contents, in name
- * order, without the directories `skip` names.
+ * order, without the entries `skip` names.
  * @param {import('node:crypto').Hash} hash
  * @param {string} root
  * @param {string} relative
