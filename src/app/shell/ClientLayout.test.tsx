@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { act, create } from 'react-test-renderer';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientLayout } from './ClientLayout';
 import { resolveRootRouteRedirect } from '../navigation/routeSessionGuards';
@@ -72,6 +72,44 @@ describe('ClientLayout', () => {
     });
     expect(getActiveSession()?.sessionId).toBe(bob.sessionId);
     expect(getActiveSession()?.lastKnownPath).toBe('/home/!bobs-room%3Aexample.org');
+  });
+
+  it('opens the last route of a session that became active without a navigation', async () => {
+    putSession({
+      baseUrl: 'https://matrix.example.org',
+      userId: '@alice:example.org',
+      deviceId: 'DEVICE',
+      accessToken: 'fake',
+    });
+    let shown: string | undefined;
+    function Shown() {
+      shown = useLocation().pathname;
+      return null;
+    }
+    const page = () => (
+      <MemoryRouter initialEntries={[ROOM_PATH]}>
+        <ClientLayout nav={null}>
+          <Shown />
+        </ClientLayout>
+      </MemoryRouter>
+    );
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(page());
+    });
+    expect(shown).toBe(ROOM_PATH);
+    // Another tab switches to Bob: this tab leaves Alice's room for Bob's last route.
+    putSession({
+      baseUrl: 'https://matrix.example.org',
+      userId: '@bob:example.org',
+      deviceId: 'DEVICE',
+      accessToken: 'fake',
+      lastKnownPath: '/home/!bobs-room%3Aexample.org',
+    });
+    await act(async () => {
+      renderer?.update(page());
+    });
+    expect(shown).toBe('/home/!bobs-room%3Aexample.org');
   });
 
   it.each(['/connections', '/connections/'])(
