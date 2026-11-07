@@ -89,7 +89,7 @@ describe('thread previews of math', () => {
     expect(preview('$x^$, $\\frac{a}$, $\\text{snake_case}$ and $\\textbf{v}$')).toBe(
       '$x^$, $\\frac{a}$, $\\text{snake_case}$ and $\\textbf{v}$'
     );
-    expect(preview('$a & b$')).toBe('$a & b$');
+    expect(preview('$a & b$ or $a # b$')).toBe('$a & b$ or $a # b$');
     expect(preview('$$\nx\n$$ and $$\ny\n$$')).toBe('$$ x $$ and $$ y $$');
     expect(preview('$$\n\\begin{vmatrix}\n1 & 2 \\\\\n3 & 4\n\\end{vmatrix} = -2\n$$')).toBe(
       '$$ \\begin{vmatrix} 1 & 2 \\\\ 3 & 4 \\end{vmatrix} = -2 $$'

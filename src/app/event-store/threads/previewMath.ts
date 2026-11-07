@@ -153,8 +153,7 @@ const readFormula = (tex: string): string | undefined => {
         if (hasMarkup(nodes[index])) exact = false;
         const content = argument();
         // A script after a box or text applies to all of it: `\boxed{1+2}^2` reads `(1+2)^2`.
-        const following = nodes[index] === ' ' ? nodes[index + 1] : nodes[index];
-        return following === '^' || following === '_' ? part(content) : content;
+        return nodes[index] === '^' || nodes[index] === '_' ? part(content) : content;
       }
       if (SILENT_COMMAND.test(name)) {
         // `\left.` and `\right.` set no delimiter.
