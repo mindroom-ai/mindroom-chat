@@ -13,7 +13,7 @@ const SLOT_STYLE: CSSProperties = {
   color: color.Surface.OnContainer,
 };
 
-const reportFailure = (tag: string, thrown: unknown, componentStack: string | undefined) => {
+const reportFailure = (tag: string, thrown: unknown, componentStack?: string | null) => {
   // eslint-disable-next-line no-console
   console.error(`[plugin ${tag}] failed to render under the room header`, thrown);
   // A plugin may throw anything, not only an Error.

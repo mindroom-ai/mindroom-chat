@@ -59,6 +59,7 @@ vi.stubGlobal('window', {
   addEventListener: () => undefined,
   removeEventListener: () => undefined,
   dispatchEvent: () => true,
+  location: { search: '' },
   navigator: {
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
   },
