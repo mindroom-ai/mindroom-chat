@@ -26,10 +26,11 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
   const { discovered } = server;
   // A muted microphone sends nothing.
   const track = state.microphone ? state.microphoneTrack : undefined;
-  // Paused as MindRoom says, or as Pause pressed here says until MindRoom answers.
+  // Paused as MindRoom says, and at once when Pause is pressed here; Resume waits for MindRoom's
+  // answer, so nothing said before it resumed is sent.
   const request = useAtomValue(pauseRequestAtom);
   const live = useAtomValue(liveTranscriptAtom);
-  const paused = request ?? !!pausedByIn(live, roomId);
+  const paused = request === true || !!pausedByIn(live, roomId);
 
   const transcriberRef = useRef<CallTranscriber>();
   const latest = useRef({ track, paused });

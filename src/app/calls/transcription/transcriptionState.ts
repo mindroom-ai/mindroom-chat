@@ -19,8 +19,8 @@ export type CallTranscription = { roomId: string; status: TranscriptionStatus };
 export const callTranscriptionAtom = atom<CallTranscription | undefined>(undefined);
 
 /**
- * Pause (true) or resume (false) as pressed on this device, until MindRoom answers: this device's
- * capture and the controls follow it at once.
+ * Pause (true) or resume (false) as pressed on this device, until MindRoom answers: the controls
+ * follow it at once, and so does this device's capture for Pause (Resume waits for the answer).
  */
 export const pauseRequestAtom = atom<boolean | undefined>(undefined);
 

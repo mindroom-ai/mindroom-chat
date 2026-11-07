@@ -294,6 +294,32 @@ describe('CallTranscription', () => {
     expect(transcriber.setPaused).toHaveBeenLastCalledWith(true);
   });
 
+  it('keeps listening paused after Resume pressed here until MindRoom answers it', async () => {
+    const { store, set } = mount();
+    set({ phase: 'connected', microphoneTrack: MIC_A });
+    await loaded();
+    const transcriber = only();
+    act(() =>
+      transcriber.options.onUpdate({
+        type: 'call',
+        call: { ...CALL, pausedBy: '@bob:example.org' },
+      })
+    );
+    expect(transcriber.setPaused).toHaveBeenLastCalledWith(true);
+    const answer = pending();
+    transcriber.pause.mockImplementationOnce(() => answer.promise);
+
+    act(() => store.set(pauseRequestAtom, false));
+    expect(transcriber.pause).toHaveBeenLastCalledWith(false);
+    expect(transcriber.setPaused).toHaveBeenLastCalledWith(true);
+
+    await act(async () => {
+      transcriber.options.onUpdate({ type: 'call', call: CALL });
+      answer.resolve();
+    });
+    expect(transcriber.setPaused).toHaveBeenLastCalledWith(false);
+  });
+
   it('shows the state MindRoom reports after a refused Pause, which resumes listening', async () => {
     const { store, set } = mount();
     set({ phase: 'connected', microphoneTrack: MIC_A });
