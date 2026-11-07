@@ -103,7 +103,8 @@ describe('readMessageNotice', () => {
 
   it('stays quiet for a message read already, on this device or another', () => {
     const event = makeEvent({ msgtype: 'm.text', body: 'seen elsewhere' });
-    const { client, room } = setup(loud, [], [event.getId() as string]);
+    // A live message is in the timeline that announced it.
+    const { client, room } = setup(loud, [event], [event.getId() as string]);
     expect(readMessageNotice(client, room, event, NOW)).toBeUndefined();
   });
 
