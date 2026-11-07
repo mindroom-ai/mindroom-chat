@@ -9,9 +9,9 @@ import * as membersDrawer from '../members/useMembersDrawer';
 import type { RoomViewProps } from './RoomView';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
 
-// The room's side panels (the computer, a canvas, the call and the members), opened as their
-// users open them, through the room: the header's controls, an agent's live request, and the call
-// store, which the call buttons and a call started elsewhere set.
+// The room's side panels (the computer, a canvas, the call, the members and a plugin's panel),
+// opened as their users open them, through the room: the header's controls, an agent's live
+// request, and the call store, which the call buttons and a call started elsewhere set.
 
 const { mx, room, state } = vi.hoisted(() => {
   const listeners = new Map<string, (...args: unknown[]) => void>();
@@ -92,6 +92,39 @@ vi.mock('../navigation/useRoomViewMode', () => ({
 vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoom: () => undefined, navigateRoomThread: () => undefined }),
 }));
+// Two plugins of the build: one whose panel names its room, one whose panel fails.
+vi.mock('../plugins/pluginEntries', () => ({
+  pluginEntries: [
+    {
+      id: 'notes',
+      version: '1.0.0',
+      plugin: {
+        sidePanels: [
+          {
+            id: 'panel',
+            label: 'Notes',
+            Component: ({ roomId }: { roomId: string }) => <p>Notes of {roomId}</p>,
+          },
+        ],
+      },
+    },
+    {
+      id: 'broken',
+      version: '2.0.0',
+      plugin: {
+        sidePanels: [
+          {
+            id: 'panel',
+            label: 'Broken',
+            Component: () => {
+              throw new Error('no notes today');
+            },
+          },
+        ],
+      },
+    },
+  ],
+}));
 
 importBeforeTests(() => import('./Room'));
 
@@ -154,7 +187,7 @@ const open = async (panel: CorePanel) => {
 
 const isOpen = (panel: CorePanel): boolean => {
   if (panel === 'computer') return state.view?.computerOpen === true;
-  if (panel === 'canvas') return state.view?.canvasOpen === true;
+  if (panel === 'canvas') return state.view?.openCanvasId !== undefined;
   if (panel === 'call') return store.get(callPanelRoomAtom) === room.roomId;
   return store.get(membersOpenAtom);
 };
@@ -217,5 +250,79 @@ describe('the side panels of a room', () => {
     } else {
       expect(isOpen(first)).toBe(false);
     }
+  });
+
+  it('toggles the members from the header by the same rule, even behind the call', async () => {
+    await renderRoom();
+    await open('computer');
+    await act(async () => state.view?.onPanelToggle?.('members'));
+    expect(isOpen('computer')).toBe(false);
+    expect(shown()).toEqual(['members']);
+    expect(state.view?.shownPanel).toBe('members');
+
+    await open('call');
+    expect(shown()).toEqual(['call']);
+    await act(async () => state.view?.onPanelToggle?.('members'));
+    expect(isOpen('call')).toBe(false);
+    expect(shown()).toEqual(['members']);
+
+    await act(async () => state.view?.onPanelToggle?.('members'));
+    expect(isOpen('members')).toBe(false);
+    expect(shown()).toEqual([]);
+  });
+
+  const notes = () => screen.queryByRole('region', { name: 'Notes' });
+
+  it.each(PANELS)(
+    "a plugin's panel takes the side panel from %s, and gives it back",
+    async (core) => {
+      await renderRoom();
+      expect(state.view?.pluginPanels?.map(({ id, label }) => [id, label])).toEqual([
+        ['notes/panel', 'Notes'],
+        ['broken/panel', 'Broken'],
+      ]);
+      await open(core);
+      await act(async () => state.view?.onPanelToggle?.('notes/panel'));
+      expect(notes()).not.toBeNull();
+      expect(screen.getByText(`Notes of ${room.roomId}`)).toBeTruthy();
+      expect(state.view?.shownPanel).toBe('notes/panel');
+      expect(isOpen(core)).toBe(false);
+      expect(shown()).toEqual([]);
+
+      await open(core);
+      expect(notes()).toBeNull();
+      expect(shown()).toEqual([core]);
+    }
+  );
+
+  it("closes a plugin's panel from its Close button and from the header", async () => {
+    await renderRoom();
+    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
+    await act(async () => screen.getByRole('button', { name: 'Close Notes' }).click());
+    expect(notes()).toBeNull();
+
+    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
+    expect(notes()).not.toBeNull();
+    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
+    expect(notes()).toBeNull();
+  });
+
+  it('lists no panel of a plugin that config.json turns off', async () => {
+    state.config = { ...state.config, plugins: { notes: { enabled: false } } } as ClientConfig;
+    await renderRoom();
+    expect(state.view?.pluginPanels?.map(({ id }) => id)).toEqual(['broken/panel']);
+  });
+
+  it("keeps the room when a plugin's panel fails, and says so in the panel", async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await renderRoom();
+    await act(async () => state.view?.onPanelToggle?.('broken/panel'));
+    const panel = screen.getByRole('region', { name: 'Broken' });
+    expect(panel.textContent).toContain('This panel stopped working.');
+    expect(state.view?.shownPanel).toBe('broken/panel');
+    expect(logged).toHaveBeenCalledWith(
+      '[plugin broken@2.0.0] its side panel failed',
+      expect.objectContaining({ message: 'no notes today' })
+    );
   });
 });

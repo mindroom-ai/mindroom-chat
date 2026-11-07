@@ -72,8 +72,6 @@ vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoomThread: vi.fn() }),
 }));
 vi.mock('../navigation/useRoomSettingsState', () => ({ useOpenRoomSettings: () => vi.fn() }));
-vi.mock('../calls/callStore', () => ({ useCallPanel: () => [false, vi.fn()] }));
-vi.mock('../members/useMembersDrawer', () => ({ useMembersDrawer: () => [false, vi.fn()] }));
 vi.mock('../schedules/RoomSchedulesButton', () => ({
   RoomSchedulesButton: () => null,
   RoomSchedulesMenuEntry: () => null,

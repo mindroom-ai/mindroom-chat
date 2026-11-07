@@ -1,6 +1,6 @@
 // A client plugin for the tests (docs/architecture.md "Client plugins"): a message that carries
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
-// section (`plugins.example.label`).
+// section (`plugins.example.label`), and a side panel, "Example panel", names the room it is open in.
 import type { ClientPlugin } from '../../registry';
 import type { PluginEvent } from '../../messageRenderers';
 import { usePluginConfig } from '../../pluginConfig';
@@ -27,8 +27,13 @@ function Greeting({ event }: { event: PluginEvent }) {
   );
 }
 
+function ExamplePanel({ roomId }: { roomId: string }) {
+  return <p data-example-panel>Example panel of {roomId}</p>;
+}
+
 const plugin: ClientPlugin = {
   messageRenderers: [{ match: (event) => greetingText(event) !== undefined, Component: Greeting }],
+  sidePanels: [{ id: 'panel', label: 'Example panel', Component: ExamplePanel }],
 };
 
 export default plugin;
