@@ -282,6 +282,23 @@ export const useTimelineScrollLedgerController = ({
       scrollCompensationPxRef.current += foldPx;
       ledgerSettleWantedRef.current = true;
     }
+    if (roomLedgerFoldPx !== 0 || roomFoldPxAtRender !== 0) {
+      // eslint-disable-next-line no-console
+      console.log(
+        '[room-ledger]',
+        JSON.stringify({
+          fold: Math.round(roomLedgerFoldPx),
+          pending: pendingRoomFoldPxRef.current,
+          anchor: roomLedgerAnchorRef.current
+            ? [String(roomLedgerAnchorRef.current.key).slice(0, 10), roomLedgerAnchorRef.current.index]
+            : null,
+          count: roomRowKeys.length,
+          first: String(roomRowKeys[0]).slice(0, 10),
+          comp: scrollCompensationPxRef.current,
+          t: Math.round(performance.now()),
+        })
+      );
+    }
     if (anchoringRoomRows) pendingRoomFoldPxRef.current = 0;
     else pendingRoomFoldPxRef.current -= roomFoldPxAtRender;
     if (threadLedgerRenderPlan.probe) countCacheProbe(threadLedgerRenderPlan.probe);

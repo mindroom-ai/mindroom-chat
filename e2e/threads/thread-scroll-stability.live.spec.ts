@@ -80,6 +80,9 @@ test.describe('scrolling a room with many agent threads', () => {
         });
         await context.addInitScript(instrumentScrolling);
         const page = await context.newPage();
+        page.on('console', (message) => {
+          if (message.text().startsWith('[room-ledger]')) console.log(engine, viewport, message.text());
+        });
         const cdp = engine === 'chromium' ? await context.newCDPSession(page) : undefined;
         // Chromium's synthetic touch gestures do not scroll the list at a reading pace, so a phone
         // moves it by a finger's speed from inside the page, in both engines.
