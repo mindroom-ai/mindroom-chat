@@ -14,7 +14,8 @@ import { AutoDiscoveryInfoProvider } from '../../matrix/hooks/useAutoDiscoveryIn
 import { AuthServerProvider } from './useAuthServer';
 import { useClientConfig } from '../../config/useClientConfig';
 import { useActiveSession } from '../../matrix/session/useSessionStore';
-import { MINDROOM_AUTH_BRANDING } from './authUi';
+import { useDeploymentBranding } from '../../ui/branding/deploymentBranding';
+import { BrandLogo } from './BrandLogo';
 import { createMatrixFetchFn } from '../../matrix/client/matrixClientFactory';
 import { decodeRouteParam } from '../../routes/pathUtils';
 import { resolveAuthRouteRedirect } from '../../navigation/routeSessionGuards';
@@ -180,6 +181,7 @@ export function AuthLayout() {
   const defaultServer = useDefaultServer();
   const locked = useServerLocked();
   const { auth, homeserverList } = useClientConfig();
+  const branding = useDeploymentBranding();
   const requestedServer = encodedServer ? decodeRouteParam(encodedServer) : undefined;
   const server = resolveAuthServer(requestedServer, defaultServer, locked, homeserverList);
   const [discovery, retryDiscovery] = useServerDiscovery(server);
@@ -220,14 +222,10 @@ export function AuthLayout() {
       <Surface as="main" className={classNames(css.AuthCard, glassOverBackdrop)}>
         <Header className={css.AuthHeader} size="600" variant="Surface">
           <Box grow="Yes" alignItems="Center" gap="300">
-            <img
-              className={css.AuthLogo}
-              src={MINDROOM_AUTH_BRANDING.logoSrc}
-              alt={MINDROOM_AUTH_BRANDING.logoAlt}
-            />
+            <BrandLogo className={css.AuthLogo} />
             {/* The page's one heading; each page's own title is a paragraph under the server. */}
-            <Text as="h1" size="H3">
-              {MINDROOM_AUTH_BRANDING.appName}
+            <Text as="h1" size="H3" truncate>
+              {branding.title}
             </Text>
           </Box>
         </Header>

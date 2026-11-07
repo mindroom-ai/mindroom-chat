@@ -67,6 +67,16 @@ export const AuthLogo = style([
   },
 ]);
 
+/**
+ * A deployment's own logo keeps its proportions at the same height, up to a wordmark's width, and
+ * leaves the shrinking to the title beside it.
+ */
+export const AuthLogoCustom = style({
+  flexShrink: 0,
+  inlineSize: 'auto',
+  maxInlineSize: toRem(160),
+});
+
 /** The card's title bar with the logo and the app name. */
 export const AuthHeader = style({
   padding: `0 ${config.space.S400}`,
