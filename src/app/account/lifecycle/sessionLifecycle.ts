@@ -30,6 +30,7 @@ import {
 import { stopSyncEngineForClient } from '../../event-store/engine/syncEngine';
 import { getCanvasStateDbName } from '../../canvas/canvasStateStore';
 import { getCanvasIndexDbName } from '../../canvas/canvasIndexStore';
+import { forgetAccountInPlugins } from '../../plugins/pluginStorage';
 import {
   SessionCleanupContext,
   clearAppScopedCacheStorage,
@@ -149,6 +150,7 @@ const deleteSessionLocalData = async (
     // Saved canvas state is the user's data rather than a cache, so only account removal deletes it.
     deleteNamedDatabase(getCanvasStateDbName(session.sessionId)),
     deleteNamedDatabase(getCanvasIndexDbName(session.sessionId)),
+    clearUserScopedState ? forgetAccountInPlugins(session.userId) : undefined,
   ]);
   clearSessionScopedNativeState(session.sessionId);
 };
@@ -224,6 +226,7 @@ export const removeCurrentClientSessionAndReload = async (
     // Saved canvas state and the canvas list need only the session ID, so they are deleted here too.
     deleteNamedDatabase(getCanvasStateDbName(identity.sessionId)).catch(() => undefined),
     deleteNamedDatabase(getCanvasIndexDbName(identity.sessionId)).catch(() => undefined),
+    clearUserScopedState ? forgetAccountInPlugins(identity.userId) : undefined,
   ]);
   clearSessionScopedUiState(identity, clearUserScopedState);
   reloadAppAt(nextHref);
