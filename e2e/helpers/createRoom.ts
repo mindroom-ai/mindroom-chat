@@ -7,6 +7,8 @@ export type NewRoom = {
   invite?: string[];
   /** Creates a space (`m.space`) instead of a room. */
   space?: boolean;
+  /** The local part of the room's address, which becomes its canonical alias. */
+  alias?: string;
 };
 
 /** Creates a room without a topic, private unless `preset` says otherwise; answers its ID. */
@@ -23,6 +25,7 @@ export const createRoom = async (
       preset: room.preset ?? 'private_chat',
       invite: room.invite,
       creation_content: room.space ? { type: 'm.space' } : undefined,
+      room_alias_name: room.alias,
     }),
   });
   return created.room_id;
