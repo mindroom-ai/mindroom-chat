@@ -225,11 +225,19 @@ test.describe('thread scroll jitter', () => {
                     await cdp.send('Profiler.setSamplingInterval', { interval: 250 });
                     await cdp.send('Profiler.start');
                   }
+                  const builds = () =>
+                    page.evaluate(
+                      () =>
+                        (window as unknown as { __threadRecordBuilds?: number })
+                          .__threadRecordBuilds ?? 0
+                    );
+                  const buildsBefore = await builds();
                   const at = await startRecording(page, view, input === 'touch');
                   const started = Date.now();
                   await scrollRoom(page, cdp, input, at);
                   const elapsed = Date.now() - started;
                   const state = await stopRecording(page);
+                  const rebuilds = (await builds()) - buildsBefore;
                   if (cdp && FRAMES) {
                     await cdp.send('Page.stopScreencast');
                     mkdirSync(`${OUT_DIR}/${name}-frames`, { recursive: true });
@@ -265,6 +273,8 @@ test.describe('thread scroll jitter', () => {
                     throttle,
                     elapsedMs: elapsed,
                     scrolledPx: Math.round(state.scrolled),
+                    rebuilds,
+                    rebuildsPerSecond: Math.round((rebuilds / (elapsed / 1000)) * 10) / 10,
                     frames: state.frames.length,
                     frameP50: percentile(state.frames, 50),
                     frameP95: percentile(state.frames, 95),
