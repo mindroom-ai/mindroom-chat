@@ -10,15 +10,16 @@ import {
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
 
-const { view, screen } = vi.hoisted(() => ({
+const { view, screen, navigate } = vi.hoisted(() => ({
   view: {
     mode: 'compact' as RoomViewMode,
     setViewMode: (() => undefined) as (mode: string) => void,
   },
   screen: { size: 'Desktop' },
+  navigate: vi.fn(),
 }));
 
-vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
+vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }));
 // The room menu renders in place of folds' portal while it has an anchor, without a focus trap.
 vi.mock('folds', async (importOriginal) => ({
   ...(await importOriginal<typeof import('folds')>()),
@@ -95,6 +96,7 @@ afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
   screen.size = 'Desktop';
+  navigate.mockReset();
 });
 
 const renderHeader = ({
@@ -260,5 +262,51 @@ describe("a phone's room header", () => {
 
     renderHeader({ hidden: true });
     expect(byData('data-room-menu-dot')).toHaveLength(0);
+  });
+
+  /** A finger from the screen's left edge toward the middle, lifted there, on the window. */
+  const swipeFromLeftEdge = () => {
+    const fire = (type: string, x?: number) => {
+      const event = new Event(type, { cancelable: true });
+      const touches = x === undefined ? [] : [{ clientX: x, clientY: 400 }];
+      Object.defineProperty(event, 'touches', { value: touches });
+      window.dispatchEvent(event);
+    };
+    act(() => {
+      fire('touchstart', 4);
+      for (const x of [40, 80, 120, 160]) fire('touchmove', x);
+      fire('touchend');
+    });
+  };
+
+  it('leaves the room on a swipe from the left edge, as its back chevron does', () => {
+    screen.size = 'Mobile';
+    renderHeader();
+    const [back] =
+      renderer?.root.findAll(
+        (node) => node.type === 'button' && node.props['aria-label'] === 'Back'
+      ) ?? [];
+    if (!back) throw new Error('no Back button');
+    act(() => {
+      back.props.onClick();
+    });
+    const chevron = navigate.mock.calls;
+    expect(chevron).toHaveLength(1);
+    navigate.mockReset();
+
+    swipeFromLeftEdge();
+    expect(navigate.mock.calls).toEqual(chevron);
+  });
+
+  it('leaves a swipe to an open thread, and does nothing on a wider screen', () => {
+    screen.size = 'Mobile';
+    renderHeader({ threadId: '$thread' });
+    swipeFromLeftEdge();
+    expect(navigate).not.toHaveBeenCalled();
+
+    screen.size = 'Desktop';
+    renderHeader();
+    swipeFromLeftEdge();
+    expect(navigate).not.toHaveBeenCalled();
   });
 });
