@@ -278,6 +278,8 @@ export function ResizablePanel({
       data-collapse-preview={collapseOnRelease || undefined}
     >
       <div style={contentStyle}>{children}</div>
+      {/* Before the splitter, which paints over it where they meet. */}
+      {overlay && <div style={{ ...contentStyle, display: 'contents' }}>{overlay}</div>}
       {/* A focusable separator implements the adjustable splitter pattern. */}
       {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
       {!fullWidth && !passthrough && (
@@ -300,7 +302,6 @@ export function ResizablePanel({
         />
       )}
       {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
-      {overlay && <div style={{ ...contentStyle, display: 'contents' }}>{overlay}</div>}
     </div>
   );
 }

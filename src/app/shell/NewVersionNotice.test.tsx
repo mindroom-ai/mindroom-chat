@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { getDefaultStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import { PHONE_SLIDE_OUT_MS, phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { listNoticeSlotAtom, pageNoticeSlotAtom } from '../ui/noticeSlots';
 import { LEAVE_MS, NewVersionNotice } from './NewVersionNotice';
 
@@ -109,7 +109,8 @@ describe('NewVersionNotice', () => {
     expect(liveRegion(container).querySelector('[data-new-version-card="page"]')).toBeTruthy();
   });
 
-  it('comes in on a phone only once the drawer has gone, so it is read out, and then stays', () => {
+  it('comes in on a phone once the drawer has slid away, so it is read out, and then stays', () => {
+    vi.useFakeTimers();
     update.state.version = 'build-2';
     const page = document.body.appendChild(document.createElement('div'));
     page.setAttribute('data-phone', '');
@@ -122,6 +123,11 @@ describe('NewVersionNotice', () => {
     expect(page.querySelector('[data-new-version-card]')).toBeNull();
 
     act(() => store.set(phoneNavDrawerOpenAtom, false));
+    // Not as the place stops being hidden, which would not be read out.
+    expect(page.querySelector('[data-new-version-card]')).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(PHONE_SLIDE_OUT_MS);
+    });
     expect(page.querySelector('[data-new-version-card="page"]')).toBeTruthy();
 
     act(() => store.set(phoneNavDrawerOpenAtom, true));
