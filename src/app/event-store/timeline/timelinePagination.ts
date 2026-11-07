@@ -230,7 +230,7 @@ export const recalibrateTimelinePagination = (
 
 /**
  * Where the reader's read marker sits in the room, or undefined when there is nothing unread to
- * point at (no receipt yet, or the receipt is on the newest event).
+ * point at (no receipt yet, or nothing after the receipt but the reader's own events).
  *
  * The SDK answers `getEventReadUpTo` only for an event it has loaded. A room the reader left
  * further back than the synced rows still has its receipt: it points at an event outside the
@@ -243,8 +243,10 @@ export const getRoomUnreadInfo = (room: Room, scrollTo = false): RoomUnreadInfo 
     room.getEventReadUpTo(userId) ?? room.getReadReceiptForUserId?.(userId)?.eventId;
   if (!readUptoEventId) return undefined;
   const liveEvents = getLiveTimeline(room).getEvents();
-  const latestEvent = liveEvents[liveEvents.length - 1];
-  if (latestEvent?.getId() === readUptoEventId) return undefined;
-  const inLiveTimeline = liveEvents.some((event) => event.getId() === readUptoEventId);
-  return { readUptoEventId, inLiveTimeline, scrollTo };
+  const readIndex = liveEvents.findIndex((event) => event.getId() === readUptoEventId);
+  // Nothing after the marker is new when the reader sent all of it: messages just sent, or unsent
+  // ones a reload put back.
+  if (readIndex >= 0 && liveEvents.slice(readIndex + 1).every((e) => e.getSender() === userId))
+    return undefined;
+  return { readUptoEventId, inLiveTimeline: readIndex >= 0, scrollTo };
 };
