@@ -33,6 +33,7 @@ import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { usePinnedEventIds as useRoomPinnedEvents } from '../event-store/threads/useThreadPinning';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
+import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
 import { getCanonicalAliasOrRoomId, mxcUrlToHttp } from '../matrix/matrix';
@@ -263,6 +264,10 @@ export function RoomViewHeader({
     if (origin) navigate(-origin.steps);
     else navigate(sectionPath, { replace: true });
   };
+  // A swipe from the screen's left edge does the same, in the iOS app too, whose web view has no
+  // back gesture of its own. A thread open in the room takes the swipe itself
+  // (useRoomViewThreadState).
+  useEdgeSwipeBack(leaveRoom, mobile && !threadId);
 
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [pinAnchor, setPinAnchor] = useState<RectCords>();
