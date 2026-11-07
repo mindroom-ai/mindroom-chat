@@ -29,7 +29,7 @@ import { launchWebKit } from '../helpers/webkit';
 // wide, where "[+all]" keeps its place, in light and dark, in English and Arabic (right to left),
 // in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
 // Set UNREAD_PILLS_SHOTS=<directory> to save each screen. On a phone the pills also fit the screen
-// in every language the app offers, each label whole on its pill.
+// in every language the app offers, each label whole and inside its pill.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'unread-pills-expand-all-spec-password';
 const RUN = Date.now().toString(36);
@@ -514,10 +514,21 @@ const measurePills = (page: Page, labels: Labels) =>
         const label = [...button.querySelectorAll<HTMLElement>('*')].find(
           (element) => element.textContent?.trim() === button.textContent?.trim()
         );
+        // Where the label's letters are drawn, which can spill out of a pill that is too small.
+        const range = document.createRange();
+        if (label) range.selectNodeContents(label);
+        const pill = button.getBoundingClientRect();
+        const text = range.getBoundingClientRect();
         return {
           text: button.textContent?.trim() ?? '',
-          pill: box(button.getBoundingClientRect()),
-          labelFits: !!label && label.scrollWidth <= label.clientWidth + 1,
+          pill: box(pill),
+          labelFits:
+            !!label &&
+            label.scrollWidth <= label.clientWidth + 1 &&
+            text.top >= pill.top - 0.5 &&
+            text.bottom <= pill.bottom + 0.5 &&
+            text.left >= pill.left - 0.5 &&
+            text.right <= pill.right + 0.5,
         };
       });
     return { area: box(scroller.getBoundingClientRect()), pills };
@@ -531,6 +542,11 @@ const checkEveryLanguage = async (
   const accounts = await seedAccounts(`langs_${engine}`);
   const { roomId } = await seedRoom(accounts, 'Harbor log languages');
   const context = await browser.newContext({ ...DEVICES[0]![1], baseURL, serviceWorkers: 'block' });
+  // The room stays unread through every language's visit: no read receipt or marker leaves.
+  await context.route(
+    (url) => /\/(receipt|read_markers)(\/|$)/.test(url.pathname),
+    (route) => route.fulfill({ json: {} })
+  );
   try {
     const page = await context.newPage();
     await loginWithPassword(page, {
@@ -560,7 +576,7 @@ const checkEveryLanguage = async (
         if (pill.pill.left < m.area.left - 0.5 || pill.pill.right > m.area.right + 0.5) {
           problems.push(`${code}: "${pill.text}" ${fmt(pill.pill)} leaves ${fmt(m.area)}`);
         }
-        if (!pill.labelFits) problems.push(`${code}: "${pill.text}" is cut`);
+        if (!pill.labelFits) problems.push(`${code}: "${pill.text}" is cut or spills out`);
       });
       const [first, second] = m.pills;
       if (first && second && intersects(first.pill, second.pill)) {
