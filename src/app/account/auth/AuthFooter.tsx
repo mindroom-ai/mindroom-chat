@@ -1,19 +1,11 @@
 import { Fragment, ReactNode } from 'react';
 import { Box, Text } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
-import { useClientConfig } from '../../config/useClientConfig';
-import { MINDROOM_AUTH_BRANDING } from './authUi';
+import { useDeploymentBranding } from '../../ui/branding/deploymentBranding';
 import { ParticleTextBackdrop } from '../../ui/particle-background/ParticleTextBackdrop.css';
 import * as css from './styles.css';
 
 type PoweredByLink = { readonly label: string; readonly url: string };
-
-type AuthFooterConfig = {
-  poweredBy?: readonly PoweredByLink[];
-  supportUrl?: string;
-  privacyUrl?: string;
-  termsUrl?: string;
-};
 
 /** Joins the links the way the app language writes a list ("A, B, and C"). */
 const joinLinks = (links: readonly PoweredByLink[], language: string): ReactNode[] => {
@@ -65,11 +57,14 @@ function PolicyLink({ label, url }: PoweredByLink) {
   );
 }
 
-/** Credits and policy links under the sign-in card. */
+/**
+ * Under the sign-in card: the deployment's footer text, the credits, then support, privacy and
+ * terms and the deployment's own links. `useDeploymentBranding` has checked every value.
+ */
 export function AuthFooter() {
   const { t, i18n } = useTranslation();
-  const auth = (useClientConfig().auth ?? {}) as AuthFooterConfig;
-  const credited = auth.poweredBy ?? MINDROOM_AUTH_BRANDING.poweredBy;
+  const branding = useDeploymentBranding();
+  const credited = branding.poweredBy;
   const language = i18n.resolvedLanguage ?? i18n.language ?? 'en';
 
   // Support, privacy and terms, in that order; a page without a configured URL is left out.
@@ -77,9 +72,10 @@ export function AuthFooter() {
   const addPolicyPage = (label: string, url: string | undefined) => {
     if (url) policyPages.push({ label, url });
   };
-  addPolicyPage(t('sharedUi.authFooter.support'), auth.supportUrl);
-  addPolicyPage(t('sharedUi.authFooter.privacy'), auth.privacyUrl);
-  addPolicyPage(t('sharedUi.authFooter.terms'), auth.termsUrl);
+  addPolicyPage(t('sharedUi.authFooter.support'), branding.supportUrl);
+  addPolicyPage(t('sharedUi.authFooter.privacy'), branding.privacyUrl);
+  addPolicyPage(t('sharedUi.authFooter.terms'), branding.termsUrl);
+  const links = [...policyPages, ...branding.footerLinks];
 
   const creditLine =
     credited.length === 0 ? null : (
@@ -93,9 +89,15 @@ export function AuthFooter() {
 
   return (
     <Box as="footer" className={css.AuthFooter} justifyContent="Center" gap="400" wrap="Wrap">
+      {branding.footerText !== undefined && (
+        // Shown as written, in its own direction, never as markup.
+        <Text size="T300" align="Center" dir="auto" className={ParticleTextBackdrop}>
+          {branding.footerText}
+        </Text>
+      )}
       {creditLine}
-      {policyPages.map((page) => (
-        <PolicyLink key={page.url} label={page.label} url={page.url} />
+      {links.map((page) => (
+        <PolicyLink key={`${page.label} ${page.url}`} label={page.label} url={page.url} />
       ))}
     </Box>
   );

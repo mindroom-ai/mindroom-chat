@@ -30,10 +30,78 @@ The configuration this repository ships (`config.mindroom.json`) sets `homeserve
 | `auth.allowRegistration` | boolean | `true` | `false` removes the Register link and sends `/register/...` to the login page. |
 | `auth.disablePasswordLogin` | boolean | `false` | `true` hides the password form, and password registration, on every server. On `mindroom.chat` both are always off and registration is single sign-on only, whatever this says. |
 | `auth.requireAppleProvider` | boolean | `false` | With `true`, on `mindroom.chat` only: when the server offers no Apple sign-in, the single sign-on buttons are replaced by an error (an App Store rule). |
-| `auth.poweredBy` | `{label, url}[]` | MindRoom (`https://mindroom.chat`) and Matrix (`https://matrix.org`) | The "Powered by" links under the sign-in card. `[]` hides the line. |
-| `auth.supportUrl` | string | none | A Support link under the sign-in card. |
-| `auth.privacyUrl` | string | none | A Privacy link under the sign-in card. |
-| `auth.termsUrl` | string | none | A Terms link under the sign-in card. |
+| `auth.poweredBy` | `{label, url}[]` | MindRoom (`https://mindroom.chat`) and Matrix (`https://matrix.org`) | The "Powered by" links under the sign-in card. `[]` hides the line. Each `url` must be an absolute `http`, `https` or `mailto` address; other entries are left out, and a value that is no list keeps the default. |
+| `auth.supportUrl` | string | none | A Support link under the sign-in card (`http`, `https` or `mailto`). |
+| `auth.privacyUrl` | string | none | A Privacy link under the sign-in card (`http`, `https` or `mailto`). |
+| `auth.termsUrl` | string | none | A Terms link under the sign-in card (`http`, `https` or `mailto`). |
+
+### Branding
+
+A company can put its own logo, name and footer on the signed-out pages without a new build: sign-in, registration and password reset (with every state inside their card: the server lookup, single sign-on, errors), and the Local MindRoom pairing page. The loading and error screens and the browser tab take the name too.
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `branding.title` | string | `MindRoom Chat` | The name beside the logo in the card's header (the page's heading), at the bottom of the loading and error screens once the configuration has loaded, and in the browser tab, where a signed-in account adds its unread count in front. Without it the tab keeps `MindRoom`. A title too long for the header ends in an ellipsis. |
+| `branding.logo.src` | string (URL) | the MindRoom Chat logo | The logo in the card's header: an `https` URL, or a path on the app's own origin such as `/branding/logo.svg`, served beside `config.json`. Shown 28 pixels high and as wide as its proportions make it, up to 160 pixels. It is loaded without a referrer; if it does not load, the default logo is shown. |
+| `branding.logo.srcDark` | string (URL) | `src` | The logo in dark themes, under the same rules. Signed out, the app follows the system's light or dark setting. |
+| `branding.logo.alt` | string | `MindRoom Chat Logo` | Required with `src`: what screen readers say for the logo. |
+| `branding.footer.text` | string | none | A line of plain text under the card, before the credits. Markup is shown as written, not rendered. |
+| `branding.footer.links` | `{label, url}[]` | `[]` | Links after the Support, Privacy and Terms links, each opened in a new tab. `url` must be an absolute `http`, `https` or `mailto` address. |
+
+The credits and the Support, Privacy and Terms links stay under `auth` (above); `"poweredBy": []` hides the "Powered by" line. The footer shows, in this order: `branding.footer.text`, the credits, Support, Privacy, Terms, then `branding.footer.links`.
+
+Values are checked when the configuration loads. A value that fails keeps its default and logs one `[branding]` warning in the browser console, so a typo never leaves the page blank:
+
+- `branding` that is not an object: the whole look stays the default.
+- A blank or non-text `title`: the default title.
+- A `logo` without `alt` text, or whose `src` is not an `https` URL or on the app's own origin (`http` elsewhere, `data:`, `blob:`, `javascript:` and others are refused): the default logo. A refused `srcDark` makes dark themes show `src`.
+- A `footer` that is not an object, or `text` that is not text: no footer text.
+- A link without a label or with another scheme, in `branding.footer.links` or `auth.poweredBy`: that link is left out, the others stay.
+
+Not covered by `branding`: the loading screen of the very first start (before any configuration has loaded, so it names MindRoom Chat), the welcome page (`welcome.*` below), the favicon, the web app manifest and home screen icons, notification titles, the device name a sign-in gives the session (`MindRoom Chat Web`), and the native apps' names.
+
+An example:
+
+```json
+{
+  "branding": {
+    "title": "Example Co",
+    "logo": {
+      "src": "https://www.example.com/chat-logo.svg",
+      "srcDark": "https://www.example.com/chat-logo-dark.svg",
+      "alt": "Example Co"
+    },
+    "footer": {
+      "text": "Example Co team chat. Ask the help desk for an account.",
+      "links": [
+        { "label": "Imprint", "url": "https://www.example.com/imprint" },
+        { "label": "Help desk", "url": "mailto:help@example.com" }
+      ]
+    }
+  },
+  "auth": {
+    "privacyUrl": "https://www.example.com/privacy"
+  }
+}
+```
+
+The MindRoom web client Helm chart (`cluster/k8s/client` in the MindRoom repository) deep-merges `config.values` over the `config.json` it renders, so a deployment sets the same keys there:
+
+```yaml
+config:
+  values:
+    branding:
+      title: Example Co
+      logo:
+        src: https://www.example.com/chat-logo.svg
+        srcDark: https://www.example.com/chat-logo-dark.svg
+        alt: Example Co
+      footer:
+        text: Example Co team chat. Ask the help desk for an account.
+        links:
+          - label: Imprint
+            url: https://www.example.com/imprint
+```
 
 ### Routing
 

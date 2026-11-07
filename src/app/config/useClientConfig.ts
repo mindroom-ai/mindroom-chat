@@ -45,6 +45,20 @@ type AuthConfig = {
   termsUrl?: string;
 };
 
+/**
+ * A deployment's own look on the signed-out pages (docs/configuration.md "Branding"). Values come
+ * from an operator's file: `resolveDeploymentBranding` checks each one and keeps the default for
+ * any it refuses.
+ */
+type BrandingConfig = {
+  /** The name in the sign-in card's header, on the pairing page, the loading screens and the tab. */
+  title?: string;
+  /** An https or same-origin image; `srcDark` in dark themes. */
+  logo?: { src?: string; srcDark?: string; alt?: string };
+  /** Plain text and http, https or mailto links under the sign-in card. */
+  footer?: { text?: string; links?: { label: string; url: string }[] };
+};
+
 /** The Explore page's Featured section, and whether the Explore tab opens it first. */
 type FeaturedCommunitiesConfig = {
   openAsDefault?: boolean;
@@ -80,6 +94,7 @@ export type ClientConfig = {
   /** Whether people may type a homeserver that is not in the list. */
   allowCustomHomeservers?: boolean;
   auth?: AuthConfig;
+  branding?: BrandingConfig;
 
   hashRouter?: HashRouterConfig;
   featuredCommunities?: FeaturedCommunitiesConfig;

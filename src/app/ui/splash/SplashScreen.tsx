@@ -5,7 +5,7 @@ import {
   ParticleBackgroundSurface,
   usePersistentParticleBackground,
 } from '../particle-background/PersistentParticleBackground';
-import { MINDROOM_CLIENT_BRANDING } from '../branding/clientBranding';
+import { useDeploymentBranding } from '../branding/deploymentBranding';
 import {
   ParticleTextBackdrop,
   ParticleTextQuiet,
@@ -22,6 +22,8 @@ type SplashScreenProps = {
 export function SplashScreen({ children, background }: SplashScreenProps) {
   const persistentBackground = usePersistentParticleBackground();
   const customBackground = background !== undefined && background !== null && background !== false;
+  // The deployment's name once its configuration has loaded; MindRoom Chat's while it loads.
+  const { title } = useDeploymentBranding();
 
   return (
     <Box
@@ -42,7 +44,7 @@ export function SplashScreen({ children, background }: SplashScreenProps) {
           align="Center"
           className={classNames(ParticleTextQuiet, ParticleTextBackdrop)}
         >
-          {MINDROOM_CLIENT_BRANDING.appName}
+          {title}
         </Text>
       </Box>
     </Box>

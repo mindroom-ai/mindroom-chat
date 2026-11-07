@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useLayoutEffect, useState } from 'react';
 import { Provider as JotaiProvider } from 'jotai';
 import { RouterProvider } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -19,6 +19,7 @@ import { useErrorReporting } from '../bug-reports/error-reporting/errorReporting
 import { ConfigConfigError, ConfigConfigLoading } from './ConfigConfig';
 import { createRouter } from './Router';
 import { PersistentParticleBackgroundProvider } from '../ui/particle-background/PersistentParticleBackground';
+import { deploymentBranding } from '../ui/branding/deploymentBranding';
 import '../ui/particle-background/particleCanvasReveal.css';
 
 const queryClient = new QueryClient();
@@ -50,6 +51,12 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
   const [router] = useState(() => createRouter(clientConfig));
   // Error reports, when the configuration names a collector, follow the router's pages.
   useErrorReporting(clientConfig, router);
+  // A configured brand names the browser tab too. A layout effect, so the unread count's title
+  // (UnreadTitle, a passive effect) starts from it.
+  const { pageTitle } = deploymentBranding(clientConfig);
+  useLayoutEffect(() => {
+    if (pageTitle !== undefined) document.title = pageTitle;
+  }, [pageTitle]);
   return (
     <ScreenSizeProvider value={screenSize}>
       <RouterProvider router={router} />
