@@ -1,6 +1,7 @@
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { Avatar, Box, Button, Icon, Icons, Spinner, Text, color, config } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import {
   ClientEvent,
   EventType,
@@ -13,6 +14,7 @@ import {
   SyncState,
 } from 'matrix-js-sdk';
 import { Page, PageHeader } from '../../ui/page/Page';
+import { PhoneBackButton } from '../../ui/page/PhoneBackButton';
 import { RoomAvatar } from '../../avatars/RoomAvatar';
 import { RoomSummaryLoader, type RoomSummaryState } from '../RoomSummaryLoader';
 import { useLocalRoomSummary } from '../useLocalRoomSummary';
@@ -28,8 +30,12 @@ import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { nameInitials } from '../../lib/common';
 import { Membership } from '../../matrix/types/room';
 import { getMemberDisplayName } from '../../matrix/room';
-import { getHomePath } from '../../routes/pathUtils';
-import { isRoomAlias } from '../../matrix/matrix';
+import { getDirectPath, getHomePath, getSpacePath } from '../../routes/pathUtils';
+import { previousHistoryOrigin, showsRoom } from '../../routes/historyStack';
+import { useDirectSelected } from '../../routes/useDirectSelected';
+import { useSelectedSpace } from '../../navigation/useSelectedSpace';
+import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
+import { getCanonicalAliasOrRoomId, isRoomAlias } from '../../matrix/matrix';
 import { declineInvite } from '../../notifications/inbox/declineInvite';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { isRecord } from '../../lib/isRecord';
@@ -479,12 +485,42 @@ const headerTarget = (roomIdOrAlias: string, summary?: SummaryData, knownName?: 
   knownName ||
   roomIdOrAlias;
 
-/** The page header: a link icon and how the room is named (`headerTarget`). */
-function LinkHeader({ target }: { target: string }) {
+/**
+ * A phone's way off the page, where it fills the screen: back to the page it was opened from,
+ * passing over the room's own entries; opened from outside the app, to the list its route sits in
+ * (the space's, Direct's or Home's), which takes the page's place in history.
+ */
+function PageBack({ addresses }: { addresses: string[] }) {
+  const mx = useMatrixClient();
+  const navigate = useNavigate();
+  const space = useSelectedSpace();
+  const direct = useDirectSelected();
+  const leave = () => {
+    const origin = previousHistoryOrigin((page) => !showsRoom(page, addresses));
+    if (origin) {
+      navigate(-origin.steps);
+      return;
+    }
+    let list = getHomePath();
+    // The page of a space that is not joined sits at the space's own path.
+    if (space && !addresses.includes(space)) {
+      list = getSpacePath(getCanonicalAliasOrRoomId(mx, space));
+    } else if (direct) list = getDirectPath();
+    navigate(list, { replace: true });
+  };
+  return <PhoneBackButton onBack={leave} />;
+}
+
+/**
+ * The page header: a link icon (a back button on phones) and how the room is named
+ * (`headerTarget`).
+ */
+function LinkHeader({ target, addresses }: { target: string; addresses: string[] }) {
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
   return (
     <PageHeader balance>
       <Box grow="Yes" alignItems="Center" gap="200" style={{ minWidth: 0 }}>
-        <Icon size="200" src={Icons.Link} />
+        {phone ? <PageBack addresses={addresses} /> : <Icon size="200" src={Icons.Link} />}
         <Text as="h1" size="H4" truncate>
           {target}
         </Text>
@@ -563,7 +599,12 @@ function JoinPage({ state, retry, roomId, ...props }: JoinPageProps) {
 
   return (
     <Page>
-      <LinkHeader target={headerTarget(roomIdOrAlias, summary, knownRoomName(room))} />
+      <LinkHeader
+        target={headerTarget(roomIdOrAlias, summary, knownRoomName(room))}
+        addresses={[roomIdOrAlias, summary?.room_id ?? roomId ?? room?.roomId].filter(
+          (address): address is string => !!address
+        )}
+      />
       <Box
         grow="Yes"
         direction="Column"
