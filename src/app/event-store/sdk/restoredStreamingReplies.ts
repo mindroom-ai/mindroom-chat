@@ -26,6 +26,8 @@ type SavedSync = { joinRooms?: Record<string, { _timeline?: { event: SavedEvent 
 
 type SavedReply = { roomId: string; eventId: string };
 
+type SavedCopy = { roomId: string; raw: Partial<IEvent> };
+
 const savedSyncOf = (mx: MatrixClient): SavedSync | undefined =>
   (mx.store as unknown as { backend?: { syncAccumulator?: SavedSync } }).backend?.syncAccumulator;
 
@@ -96,7 +98,7 @@ export const restoreStreamingRepliesFromCache = async (mx: MatrixClient): Promis
           )
         )
       )
-    ).filter((copy) => copy !== undefined);
+    ).filter((copy): copy is SavedCopy => copy !== undefined);
     if (copies.length === 0) return;
     // The SDK replays the saved sync before its first sync state; the rooms show after that.
     mx.once(ClientEvent.Sync, () => {
