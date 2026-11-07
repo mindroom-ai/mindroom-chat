@@ -122,10 +122,16 @@ export const useRoomPaginationCommandController = ({
       // The room scope can hold events the room's timeline refuses, such as an edit of a thread
       // reply saved while the reply was unknown. A page of only those would add no row and keep
       // the earliest event, so every later page would read it again: the server pages instead.
+      // So does a page of events the room holds already: cached pages run in (sent time, event
+      // ID) order, so events sent in the earliest loaded event's millisecond can come back.
       const cachedEvents = cachedPaginationSnapshot.events;
       if (
         cachedPaginationSnapshot.status === 'cache-hit' &&
-        cachedEvents.some((mEvent) => room.eventShouldLiveIn(mEvent, cachedEvents).shouldLiveInRoom)
+        cachedEvents.some(
+          (mEvent) =>
+            !room.findEventById(mEvent.getId() ?? '') &&
+            room.eventShouldLiveIn(mEvent, cachedEvents).shouldLiveInRoom
+        )
       ) {
         await prependCachedRoomTimeline({
           mx,
