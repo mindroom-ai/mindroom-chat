@@ -31,6 +31,11 @@ describe('createRoom', () => {
           'm.room.history_visibility': 100,
           'm.room.tombstone': tombstone,
           'org.matrix.msc3401.call.member': 0,
+          'io.mindroom.server': 0,
+          'io.mindroom.background_jobs': 0,
+          'io.mindroom.auto_approve': 0,
+          'com.mindroom.thread.tags': 0,
+          'io.mindroom.thread_mode': 0,
         },
       });
     }

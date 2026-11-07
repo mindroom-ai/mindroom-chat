@@ -78,7 +78,7 @@ The sign-in page offers `mindroom.chat` and `matrix.org`, and takes any other ho
 
 ## Self-host
 
-`just build` writes a static site to `dist/`. Serve it over HTTPS from the root of an origin, answer every path that is not a file with `index.html`, send the framing headers that [`docs/deployment.md`](docs/deployment.md#serve) describes, and replace `config.json` to choose the homeservers people may sign in to and where the MindRoom API lives.
+`just build` writes a static site to `dist/`. Serve it over HTTPS from the root of an origin, answer every path that is not a file with `index.html` (but a missing file under `/public/` with 404), send the framing headers that [`docs/deployment.md`](docs/deployment.md#serve) describes, and replace `config.json` to choose the homeservers people may sign in to and where the MindRoom API lives.
 
 ```bash
 just build

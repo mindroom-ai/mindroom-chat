@@ -1,4 +1,11 @@
-import { ClientEvent, KnownMembership, SyncState, type MatrixClient } from 'matrix-js-sdk';
+import {
+  ClientEvent,
+  KnownMembership,
+  Method,
+  SyncState,
+  type MatrixClient,
+  type SyncStateData,
+} from 'matrix-js-sdk';
 import { matchesEnum } from '../../lib/matchesEnum';
 
 // A room left and forgotten on another device in one go never arrives here as left: the
@@ -10,8 +17,11 @@ import { matchesEnum } from '../../lib/matchesEnum';
 //
 // A room left on another device while the question is out is missing from the answer too, but
 // its leave is still on the way through sync. Dropping it then made sync bring it back as a new
-// room with no state ("Empty room"), so the drop waits for two more batches from the server: the
-// second one's request went out after the answer, so it carries any leave the answer reflects.
+// room with no state ("Empty room"). So the rooms the answer misses are looked up in sync itself:
+// one /sync from the batch the question followed, answered at once and limited to those rooms,
+// carries the leave of every room left since, and never that of a forgotten one. Waiting for the
+// SDK's own next batches instead kept a forgotten room in the list for up to a minute, as an idle
+// account gets a batch only when the 30 second long poll ends.
 
 /** The part of the SDK's IndexedDB store that keeps the saved sync. */
 type SavedSyncStore = {
@@ -28,34 +38,45 @@ const joinedRoomIds = (mx: MatrixClient): string[] =>
     .filter((room) => matchesEnum(room.getMyMembership(), KnownMembership.Join))
     .map((room) => room.roomId);
 
-/** Batches from the server to wait for after the answer before a room counts as forgotten. */
-const SETTLING_BATCHES = 2;
+const NOTHING = { not_types: ['*'] };
 
-/** Resolves once the SDK has processed `count` more batches from the server. */
-const nextBatches = (mx: MatrixClient, count: number): Promise<void> =>
-  new Promise((resolve) => {
-    let left = count;
-    const onSync = (state: SyncState | null) => {
-      if (state !== SyncState.Syncing) return;
-      left -= 1;
-      if (left > 0) return;
-      mx.removeListener(ClientEvent.Sync, onSync);
-      resolve();
-    };
-    mx.on(ClientEvent.Sync, onSync);
-  });
+/** The rooms of `roomIds` that sync from the batch `since` brings as left, answered at once. */
+const roomsLeftSince = async (
+  mx: MatrixClient,
+  since: string,
+  roomIds: string[]
+): Promise<Set<string>> => {
+  // The leave is the room's last timeline event; nothing else is needed.
+  const filter = {
+    presence: NOTHING,
+    account_data: NOTHING,
+    room: {
+      rooms: roomIds,
+      timeline: { limit: 1 },
+      state: NOTHING,
+      ephemeral: NOTHING,
+      account_data: NOTHING,
+    },
+  };
+  const response = await mx.http.authedRequest<{ rooms?: { leave?: Record<string, unknown> } }>(
+    Method.Get,
+    '/sync',
+    { since, timeout: '0', filter: JSON.stringify(filter) }
+  );
+  return new Set(Object.keys(response.rooms?.leave ?? {}));
+};
 
 /** Removes rooms that `/joined_rooms` no longer lists; call it before the client starts. */
 export const dropRoomsForgottenElsewhere = (mx: MatrixClient): void => {
-  const reconcile = async () => {
-    // Only rooms joined before the question: a room joined since is not in an older answer.
-    const asked = joinedRoomIds(mx);
+  // `asked`: the rooms joined as of the batch `since`; one joined later is not in an older answer.
+  const reconcile = async (asked: string[], since: string) => {
     const { joined_rooms: listed } = await mx.getJoinedRooms();
-    if (asked.every((roomId) => listed.includes(roomId))) return;
-    // A room left meanwhile arrives as left with these batches and is no longer joined here.
-    await nextBatches(mx, SETTLING_BATCHES);
+    const missing = asked.filter((roomId) => !listed.includes(roomId));
+    if (missing.length === 0) return;
+    const left = await roomsLeftSince(mx, since, missing);
+    // A room this device left or forgot meanwhile is no longer joined here.
     const stillJoined = new Set(joinedRoomIds(mx));
-    const gone = asked.filter((roomId) => !listed.includes(roomId) && stillJoined.has(roomId));
+    const gone = missing.filter((roomId) => !left.has(roomId) && stillJoined.has(roomId));
     if (gone.length === 0) return;
     const leave = Object.fromEntries(gone.map((roomId) => [roomId, {}]));
     (mx.store as SavedSyncStore).backend?.syncAccumulator?.accumulateRooms?.({ rooms: { leave } });
@@ -70,12 +91,14 @@ export const dropRoomsForgottenElsewhere = (mx: MatrixClient): void => {
     await mx.store.save(true);
   };
 
-  // The SDK reports SYNCING once it has processed a batch from the server; the saved sync
-  // replayed at start is reported as PREPARED only.
-  const onSync = (state: SyncState | null) => {
+  // The SDK reports SYNCING once it has processed a batch from the server, with that batch's
+  // token; the saved sync replayed at start is reported as PREPARED only.
+  const onSync = (state: SyncState | null, _previous: SyncState | null, data?: SyncStateData) => {
     if (state !== SyncState.Syncing) return;
     mx.removeListener(ClientEvent.Sync, onSync);
-    reconcile().catch((error: unknown) => {
+    const since = data?.nextSyncToken;
+    if (!since) return;
+    reconcile(joinedRoomIds(mx), since).catch((error: unknown) => {
       // eslint-disable-next-line no-console
       console.warn('[roomsForgottenElsewhere] could not compare the joined rooms', error);
     });

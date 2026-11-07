@@ -2845,3 +2845,4 @@ src/app/room/RoomHeaderMenu.tsx	src/app/room/RoomActionsMenu.tsx	room-menu-unify
 src/app/room/RoomHeaderMenu.css.ts	src/app/room/RoomActionsMenu.css.ts	room-menu-unify
 src/app/messages/useLongPress.ts	src/app/lib/hooks/useLongPress.ts	phone-row-menu
 src/app/messages/useLongPress.test.tsx	src/app/lib/hooks/useLongPress.test.tsx	phone-row-menu
+src/app/messages/useMatrixEventRenderer.ts		plugin-followups

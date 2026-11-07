@@ -5,6 +5,7 @@ import { getMemberDisplayName, trimReplyFromBody } from '../../matrix/room';
 import { isVoiceMessageContent } from '../../matrix/protocol/voiceMessage';
 import { readCanvasNoticeTitle } from '../../matrix/protocol/chatUiProtocol';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
+import { revealDirectionControls } from '../../ui/directional';
 import { stripPreviewMath } from './previewMath';
 
 export const VOICE_MESSAGE_PREVIEW_TEXT = 'Voice message';
@@ -277,7 +278,10 @@ export const localizeThreadPreview = (
   localization: ThreadPreviewLocalization | undefined,
   t?: TFunction
 ): string | undefined => {
-  if (!localization || !t) return text;
+  // Without `t` the text stays as stored: records keep it, and an edit of a summary starts from it.
+  if (!t) return text;
+  // On screen, the user's own text shows each direction control as its code point.
+  if (!localization) return text && revealDirectionControls(text);
   switch (localization.kind) {
     case 'voice':
       return t('sharedUi.threadPreviews.voiceMessage');
@@ -293,7 +297,9 @@ export const localizeThreadPreview = (
       return t('mindroomUi.message-search.searchResultPreview.file');
     case 'tools': {
       const badge = `🔧 ${t('sharedUi.threadPreviews.tools', { count: localization.count })}`;
-      return localization.prose ? `${badge} · ${localization.prose}` : badge;
+      return localization.prose
+        ? `${badge} · ${revealDirectionControls(localization.prose)}`
+        : badge;
     }
     default:
       return text;
