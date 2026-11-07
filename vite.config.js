@@ -169,6 +169,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     target: 'es2022',
+    minify: false,
     ...(fixturePagesOnly
       ? { emptyOutDir: false, copyPublicDir: false, rollupOptions: { input: fixturePageInputs() } }
       : {}),
