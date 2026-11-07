@@ -36,8 +36,9 @@ vi.mock('../styles.css', () => ({
 
 vi.mock('../agent-run/ModelBadge.css', () => ({
   Badge: 'Badge',
-  Icon: 'Icon',
+  Frame: 'Frame',
   Label: 'Label',
+  Mark: 'Mark',
 }));
 
 vi.mock('../MessageCopyActions.css', () => ({
