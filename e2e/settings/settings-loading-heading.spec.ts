@@ -77,26 +77,44 @@ const exercise = async (page: Page) => {
   await expect(dialog.getByText('Blocked Users', { exact: true })).toBeVisible();
 
   // The loading card is the only card straight in the page's column.
-  const column = page.locator('[data-settings-page] > *');
-  const loadingCard = column.locator(':scope > [data-sequence-card]');
-  await expect(loadingCard).toHaveCount(1);
-  const before = await lookOf(column.locator(':scope > :has(+ [data-sequence-card])'));
-  expect(before).toHaveLength(1);
+  const content = dialog.locator('[data-settings-page]');
+  const loadingCards = () =>
+    content.evaluate(
+      (element) =>
+        [...(element.firstElementChild?.children ?? [])].filter((child) =>
+          child.matches('[data-sequence-card]')
+        ).length
+    );
+  await expect.poll(loadingCards).toBe(1);
+  const before = await content.evaluate((element): Look | null => {
+    const card = [...(element.firstElementChild?.children ?? [])].find((child) =>
+      child.matches('[data-sequence-card]')
+    );
+    const section = card?.previousElementSibling;
+    if (!section) return null;
+    const style = getComputedStyle(section);
+    return {
+      text: (section.textContent ?? '').trim().slice(0, 40),
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+      paddingInlineStart: style.paddingInlineStart,
+    };
+  });
   // The section in front of the loading card is not a heading.
-  expect(before[0]?.fontSize).not.toBe(HEADING.fontSize);
-  expect(before[0]?.fontWeight).not.toBe(HEADING.fontWeight);
-  expect(before[0]?.paddingInlineStart).toBe('0px');
+  expect(before).not.toBeNull();
+  expect(before?.fontSize).not.toBe(HEADING.fontSize);
+  expect(before?.fontWeight).not.toBe(HEADING.fontWeight);
+  expect(before?.paddingInlineStart).toBe('0px');
   // The page's headings keep the heading style.
-  const heading = (name: string) =>
-    lookOf(dialog.locator('[data-settings-page]').getByText(name, { exact: true }).first());
+  const heading = (name: string) => lookOf(content.getByText(name, { exact: true }).first());
   for (const name of ['Privacy', 'Blocked Users']) {
     expect((await heading(name))[0], name).toMatchObject(HEADING);
   }
 
   release();
-  await expect(loadingCard).toHaveCount(0);
-  await expect(dialog.getByText('Current session', { exact: true })).toBeVisible();
-  expect((await heading('Current session'))[0]).toMatchObject(HEADING);
+  await expect.poll(loadingCards).toBe(0);
+  await expect(dialog.getByText('Current', { exact: true })).toBeVisible();
+  expect((await heading('Current'))[0]).toMatchObject(HEADING);
 };
 
 test('a section in front of a loading card keeps its own style', async ({ page }) => {
