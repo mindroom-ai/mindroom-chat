@@ -45,3 +45,6 @@ export const THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS = 15;
 // flush pending upserts synchronously. Lives in this leaf module so
 // tests can mock it without loading the engine module graph.
 export const THREAD_EDIT_COMPACTION_DEBOUNCE_MS = 1000;
+// A reply that keeps streaming is still saved at least this often, so a
+// reload mid-stream finds its recent text rather than its placeholder.
+export const THREAD_EDIT_COMPACTION_MAX_WAIT_MS = 2000;
