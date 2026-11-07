@@ -296,7 +296,7 @@ class PrePushTests(Fixture):
                      check=False, env={**os.environ, "TMPDIR": str(temporary)})
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn(f"{bad}\tsrc/app/copy.ts\t1-3\tline-run", result.stdout)
-        self.assertTrue((self.tmp / "user-cache" / "upstream-overlap").is_dir())
+        self.assertEqual((self.tmp / "user-cache" / "upstream-overlap").stat().st_mode & 0o777, 0o700)
 
 
 class HookTests(Fixture):
