@@ -50,5 +50,32 @@ describe('withNewestCachedReplies', () => {
     expect(restored).not.toHaveProperty('io.mindroom.title');
     // Nothing newer in the cache: the server's summary stays as it was.
     expect(withNewestCachedReplies(listedRoot, [])).toBe(listedRoot);
+    // The cache holds the summary's own latest event, unchanged: the previews still describe it.
+    expect(summary(withNewestCachedReplies(listedRoot, [placeholder]))).toHaveProperty(
+      'io.mindroom.latest_reply'
+    );
+    // The same event with a newer edit: the previews no longer do.
+    const edited = {
+      ...placeholder,
+      unsigned: {
+        'm.relations': {
+          'm.replace': {
+            event_id: '$edit',
+            sender: placeholder.sender,
+            type: 'm.room.message',
+            origin_server_ts: 2000,
+            content: {
+              msgtype: 'm.text',
+              body: '* Ready',
+              'm.new_content': { msgtype: 'm.text', body: 'Ready' },
+              'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+            },
+          },
+        },
+      },
+    };
+    expect(summary(withNewestCachedReplies(listedRoot, [edited]))).not.toHaveProperty(
+      'io.mindroom.latest_reply'
+    );
   });
 });
