@@ -9,6 +9,7 @@ import { navigationRoomsAtom } from './archivedRooms';
 import { isEmojiRoom, isSpace } from '../room';
 import type { RoomToParents } from '../types/room';
 import { mergeSearchRoomSources } from './useSpaceSearchRooms';
+import { getAncestorSpaceIds } from './spaceAncestors';
 
 /** Joins room ID lists in order, keeping the first occurrence of each ID. */
 export const mergeHomeSearchRoomSources = mergeSearchRoomSources;
@@ -20,7 +21,10 @@ const isHomeRoom = (
   roomToParents: RoomToParents
 ): boolean => {
   if (directRoomIds.has(roomId)) return false;
-  if ((roomToParents.get(roomId)?.size ?? 0) > 0) return false;
+  // Inside a space at any depth, through the chat rooms a sub-room sits under too.
+  if (getAncestorSpaceIds(roomToParents, roomId).some((id) => isSpace(client.getRoom(id)))) {
+    return false;
+  }
   const room = client.getRoom(roomId);
   return !isSpace(room) && !isEmojiRoom(room);
 };
@@ -28,7 +32,7 @@ const isHomeRoom = (
 /**
  * Rooms that Home lists and message search covers from Home: joined rooms
  * that are not direct messages, not spaces, not the server emoji room, and
- * not inside a space.
+ * not inside a space, sub-rooms of the other Home rooms included.
  */
 export const getHomeSearchRooms = (
   client: MatrixClient,

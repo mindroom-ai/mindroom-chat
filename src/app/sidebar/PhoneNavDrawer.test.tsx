@@ -1,9 +1,15 @@
 // @vitest-environment jsdom
+import { Profiler } from 'react';
+import { createRoot } from 'react-dom/client';
 import { Provider, createStore } from 'jotai';
 import { act, create } from 'react-test-renderer';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import { phoneNavDrawerOpenAtom, phoneNavSectionRootAtom } from '../navigation/phoneNavDrawer';
+import {
+  phoneNavDrawerOpenAtom,
+  phoneNavSectionRootAtom,
+  useMarkPhoneSectionRoot,
+} from '../navigation/phoneNavDrawer';
 import { PhoneNavDrawer } from './PhoneNavDrawer';
 import { followRouterSignalsInNode } from '../../test/utils/nodeSignalRequests';
 
@@ -144,5 +150,56 @@ describe('PhoneNavDrawer', () => {
     });
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
     act(() => renderer?.unmount());
+  });
+
+  it('shows the drawer out without sliding it on the section page it opens with', () => {
+    // The first frame comes at once, as on a busy phone whose frame beats the drawer's next render.
+    const frame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0);
+      return 0;
+    });
+    function SectionPage() {
+      useMarkPhoneSectionRoot();
+      return null;
+    }
+    const router = createMemoryRouter(
+      [
+        {
+          path: '*',
+          element: (
+            <>
+              <SectionPage />
+              <PhoneNavDrawer nav={null} />
+            </>
+          ),
+        },
+      ],
+      { initialEntries: ['/home/'] }
+    );
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    // The drawer's state in each commit: out, and moving.
+    const commits: string[] = [];
+    const record = () => {
+      const panel = container.querySelector('#phone-nav-drawer');
+      commits.push(
+        `open=${panel?.hasAttribute('data-open')} animate=${panel?.hasAttribute('data-animate')}`
+      );
+    };
+    act(() =>
+      root.render(
+        <Profiler id="drawer" onRender={record}>
+          <Provider store={createStore()}>
+            <RouterProvider router={router} />
+          </Provider>
+        </Profiler>
+      )
+    );
+    // It comes out still and moves only from a later commit on.
+    const firstOut = commits.findIndex((commit) => commit.startsWith('open=true'));
+    expect(commits[firstOut]).toBe('open=true animate=false');
+    expect(commits.at(-1)).toBe('open=true animate=true');
+    act(() => root.unmount());
+    frame.mockRestore();
   });
 });

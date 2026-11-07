@@ -9,20 +9,36 @@ const roomOfType = (type: string) =>
     }),
   } as never);
 
+/** A client that knows one room, a space. */
+const mxWithSpace = {
+  getRoom: (roomId: string) => (roomId === '!space:example.org' ? roomOfType('m.space') : null),
+} as never;
+
 describe('getHomeSearchRooms', () => {
   it('filters directs, child rooms, and known spaces from the search scope', () => {
-    const mx = {
-      getRoom: (roomId: string) => (roomId === '!space:example.org' ? roomOfType('m.space') : null),
-    } as never;
-
     expect(
       getHomeSearchRooms(
-        mx,
+        mxWithSpace,
         ['!root:example.org', '!space:example.org', '!child:example.org', '!dm:example.org'],
         new Set(['!dm:example.org']),
         new Map([['!child:example.org', new Set(['!space:example.org'])]])
       )
     ).toEqual(['!root:example.org']);
+  });
+
+  it('keeps the sub-rooms of rooms outside spaces, and drops those of rooms inside one', () => {
+    expect(
+      getHomeSearchRooms(
+        mxWithSpace,
+        ['!room:example.org', '!room-sub:example.org', '!space-room-sub:example.org'],
+        new Set(),
+        new Map([
+          ['!room-sub:example.org', new Set(['!room:example.org'])],
+          ['!space-room-sub:example.org', new Set(['!space-room:example.org'])],
+          ['!space-room:example.org', new Set(['!space:example.org'])],
+        ])
+      )
+    ).toEqual(['!room:example.org', '!room-sub:example.org']);
   });
 
   it('keeps the server emoji room out of the search scope', () => {

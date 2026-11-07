@@ -1,4 +1,2 @@
-export const getModelBadgeMaxWidth = (
-  avatarWidth: string,
-  messageLayoutGap: string
-): string => `calc(${avatarWidth} + ${messageLayoutGap})`;
+export const getModelBadgeMaxWidth = (avatarWidth: string, overhang: string): string =>
+  `calc(${avatarWidth} + 2 * ${overhang})`;

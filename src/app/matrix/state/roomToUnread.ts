@@ -22,7 +22,7 @@ import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import type { RoomToUnread, Unread, UnreadInfo } from '../types/room';
 import { getUnreadInfo, isMainUnreadCountRead, roomHaveUnread } from '../room';
 import { isRecord } from '../../lib/isRecord';
-import { roomToParentsAtom } from './roomToParents';
+import { chatRoomParentsAtom, roomToParentsAtom } from './roomToParents';
 import { matchesEnum } from '../../lib/matchesEnum';
 import { getAncestorSpaceIds } from './spaceAncestors';
 import { isRoomMuted } from '../hooks/useRoomsNotificationPreferences';
@@ -43,17 +43,21 @@ export const roomToUnreadAtom: RoomToUnreadAtom = atom<RoomToUnread, [RoomToUnre
   (get) => {
     const roomUnreads = get(roomUnreadsAtom);
     const roomToParents = get(roomToParentsAtom);
+    const chatRooms = get(chatRoomParentsAtom);
     const result: RoomToUnread = new Map(roomUnreads);
     const spaces = new Map<string, Required<Unread>>();
 
     roomUnreads.forEach((unread, roomId) => {
-      getAncestorSpaceIds(roomToParents, roomId).forEach((spaceId) => {
-        const space = spaces.get(spaceId) ?? { total: 0, highlight: 0, from: new Set<string>() };
-        space.total += unread.total;
-        space.highlight += unread.highlight;
-        space.from.add(roomId);
-        spaces.set(spaceId, space);
-      });
+      getAncestorSpaceIds(roomToParents, roomId)
+        // The chat rooms a sub-room sits under keep their own counts; only Spaces sum them up.
+        .filter((id) => !chatRooms.has(id))
+        .forEach((spaceId) => {
+          const space = spaces.get(spaceId) ?? { total: 0, highlight: 0, from: new Set<string>() };
+          space.total += unread.total;
+          space.highlight += unread.highlight;
+          space.from.add(roomId);
+          spaces.set(spaceId, space);
+        });
     });
     spaces.forEach((space, spaceId) => result.set(spaceId, space));
     return result;

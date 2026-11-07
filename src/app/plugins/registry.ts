@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { isRecord } from '../lib/isRecord';
 import { isHeaderAction, type HeaderAction } from './headerActions';
+import { isConversationCover, type ConversationCover } from './conversationCovers';
 import type { MessageRenderer } from './messageRenderers';
 import type { PluginPage } from './pluginPages';
 import { pluginEntries, type PluginEntry } from './pluginEntries';
@@ -13,6 +14,7 @@ export type RoomHeaderSlotComponent = ComponentType<{ room: Room }>;
 
 /** What the entry module of a client plugin exports by default: its contributions, by kind. */
 export type ClientPlugin = {
+  conversationCovers?: readonly ConversationCover[];
   messageRenderers?: readonly MessageRenderer[];
   pages?: readonly PluginPage[];
   /** Deletes what the plugin keeps for `userId` outside its storage (`pluginStorage.ts`). */
@@ -27,6 +29,7 @@ export type ClientPlugin = {
 export type RegisteredPlugin = {
   readonly id: string;
   readonly tag: string;
+  readonly conversationCovers: readonly ConversationCover[];
   readonly messageRenderers: readonly MessageRenderer[];
   readonly pages: readonly PluginPage[];
   readonly forgetAccount?: ClientPlugin['forgetAccount'];
@@ -41,6 +44,7 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   const headerSlot = isRecord(plugin) ? plugin.roomHeaderSlot : undefined;
   const panels = isRecord(plugin) ? plugin.sidePanels : undefined;
   const actions = isRecord(plugin) ? plugin.headerActions : undefined;
+  const covers = isRecord(plugin) ? plugin.conversationCovers : undefined;
   registerPluginTranslations(id, isRecord(plugin) ? plugin.translations : undefined);
   return Object.freeze({
     id,
@@ -66,6 +70,9 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
     roomHeaderSlot: Object.freeze(Array.isArray(headerSlot) ? [...headerSlot] : []),
     sidePanels: Object.freeze(Array.isArray(panels) ? panels.filter(isSidePanel) : []),
     headerActions: Object.freeze(Array.isArray(actions) ? actions.filter(isHeaderAction) : []),
+    conversationCovers: Object.freeze(
+      Array.isArray(covers) ? covers.filter(isConversationCover) : []
+    ),
   });
 };
 
