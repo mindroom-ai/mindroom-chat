@@ -74,14 +74,33 @@ const languageDetector: LanguageDetectorModule = {
   cacheUserLanguage: (language: string) => storeLanguage(language),
 };
 
+/** A registered namespace's strings in one language, or undefined when it has none. */
+export type NamespaceLoader = (language: string) => Promise<LocaleTree | undefined>;
+
+const namespaceLoaders = new Map<string, NamespaceLoader>();
+
+const toError = (error: unknown): Error =>
+  error instanceof Error ? error : new Error(String(error));
+
 /**
  * Fetches non-English catalogs from the deployed `public/locales/` directory on demand, with the
- * language's overlay of Lane C keys (locales/additions/<code>.json) merged in.
+ * language's overlay of Lane C keys (locales/additions/<code>.json) merged in. A namespace added
+ * with `registerNamespace` loads from its own loader instead.
  */
 const httpBackend: BackendModule = {
   type: 'backend',
   init: () => undefined,
-  read: (language: string, _namespace: string, callback: ReadCallback) => {
+  read: (language: string, namespace: string, callback: ReadCallback) => {
+    if (namespace !== 'translation') {
+      // A language without strings keeps an empty bundle, so its loader is not asked again.
+      Promise.resolve(language)
+        .then((code) => namespaceLoaders.get(namespace)?.(code))
+        .then(
+          (strings) => callback(null, strings ?? {}),
+          (error: unknown) => callback(toError(error), false)
+        );
+      return;
+    }
     const additions = loadLocaleAdditions(language);
     fetch(getLocaleUrl(language), {
       method: 'GET',
@@ -98,7 +117,7 @@ const httpBackend: BackendModule = {
         callback(null, (overlay ? mergeLocaleTrees(catalog, overlay) : catalog) as ResourceKey);
       })
       .catch((error: unknown) => {
-        callback(error instanceof Error ? error : new Error(String(error)), false);
+        callback(toError(error), false);
       });
   },
 };
@@ -111,9 +130,20 @@ const applyDocumentLanguage = (language: string): void => {
   document.documentElement.setAttribute('dir', RTL_LANGUAGES.has(base) ? 'rtl' : 'ltr');
 };
 
+// The language asked for last. This i18next version applies each change of language once its loads
+// finish, so an earlier change whose loads finish later would replace it: it is asked for again.
+let requestedLanguage: string | undefined;
+
+i18n.on('languageChanging', (language: string | undefined) => {
+  requestedLanguage = language;
+});
+
 i18n.on('languageChanged', (language) => {
   const code = syncDayjsLocale(language);
   applyDocumentLanguage(code);
+  if (requestedLanguage !== undefined && language !== requestedLanguage) {
+    void i18n.changeLanguage(requestedLanguage);
+  }
 });
 
 void i18n
@@ -145,5 +175,25 @@ void i18n
     react: { useSuspense: false },
     returnNull: false,
   });
+
+/**
+ * Adds a namespace beside the app's own catalog, such as a plugin's `plugin.<id>`: its English
+ * strings apply at once, and `load` gives another language's strings while that language is in use.
+ * Resolves once the strings of the language in use, or of the one being switched to, have loaded.
+ */
+export const registerNamespace = async (
+  namespace: string,
+  english: LocaleTree,
+  load: NamespaceLoader
+): Promise<void> => {
+  namespaceLoaders.set(namespace, load);
+  i18n.addResourceBundle('en', namespace, english);
+  const loading = i18n.loadNamespaces(namespace);
+  // A change of language under way loads only the namespaces it started with.
+  if (requestedLanguage !== undefined && requestedLanguage !== i18n.language) {
+    await i18n.changeLanguage(requestedLanguage);
+  }
+  await loading;
+};
 
 export default i18n;
