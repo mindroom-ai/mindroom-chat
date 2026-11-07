@@ -49,7 +49,7 @@ const makeRoom = (lazyLoadMembers = false) =>
 const mount = (room: Room) => {
   const seen: BackgroundJob[][] = [];
   function Probe() {
-    seen.push(useRoomBackgroundJobs(room));
+    seen.push(useRoomBackgroundJobs(room).jobs);
     return null;
   }
   act(() => {

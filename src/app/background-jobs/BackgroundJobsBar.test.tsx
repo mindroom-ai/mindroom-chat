@@ -8,8 +8,14 @@ import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import { BackgroundJobsBar } from './BackgroundJobsBar';
 import { keepCancelsOf } from './sentCancels';
 
-const state = vi.hoisted(() => ({ jobs: [] as BackgroundJob[], send: vi.fn() }));
-vi.mock('./useRoomBackgroundJobs', () => ({ useRoomBackgroundJobs: () => state.jobs }));
+const state = vi.hoisted(() => ({
+  jobs: [] as BackgroundJob[],
+  total: undefined as number | undefined,
+  send: vi.fn(),
+}));
+vi.mock('./useRoomBackgroundJobs', () => ({
+  useRoomBackgroundJobs: () => ({ jobs: state.jobs, total: state.total ?? state.jobs.length }),
+}));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ sendEvent: state.send, makeTxnId: () => 'txn' }),
 }));
@@ -92,6 +98,7 @@ beforeEach(() => {
   keepCancelsOf(room.roomId, new Set());
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   state.jobs = [];
+  state.total = undefined;
   state.send = vi.fn().mockResolvedValue({ event_id: '$sent' });
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -131,6 +138,19 @@ it('shows several jobs on one line, and lists them while the title is pressed', 
   expect(container.querySelector('ul')).not.toBeNull();
   expand();
   expect(container.querySelector('ul')).toBeNull();
+});
+
+it('counts the live jobs the agents did not list in the main timeline only', () => {
+  state.jobs = [job('a'), job('b', { threadId: '$other' })];
+  state.total = 90;
+  render(null);
+  expect(title()).toBe('mindroomUi.backgroundJobs.jobCountShowing{"count":90,"shown":2}');
+  expand();
+  expect(container.querySelectorAll('li')).toHaveLength(2);
+  // A thread cannot tell which of the room's unlisted jobs are its own.
+  state.jobs = [job('a'), job('b')];
+  render('$thread');
+  expect(title()).toBe('mindroomUi.backgroundJobs.jobCount{"count":2}');
 });
 
 it('closes the list on Escape, back on the title, and on a press outside', async () => {
