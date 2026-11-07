@@ -22,10 +22,11 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // where the reader reads. A "New messages" line there would mark the newest row, not the place
 // where the reader stopped, so the view draws none and offers no Jump to Unread or Mark as Read
 // pills, as MindRoom Chat does; a room read oldest first still offers Jump to Unread, which leads
-// to the line where the unread messages start. Each room holds 30 read and 30 unread messages, among 25 rooms; desktop (1280
-// by 800, classic scrollbars) and phone (390 by 844, touch), Chromium and, when
-// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. The page sends no read receipt,
-// so the rooms stay unread. Set UNREAD_LINE_SHOTS=<directory> for screenshots.
+// to the line where the unread messages start. Each room holds 30 read and 30 unread messages,
+// among 25 rooms; desktop (1280 by 800, classic scrollbars) and phone (390 by 844, touch),
+// Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. The page
+// sends no read receipt, so the rooms stay unread. Set UNREAD_LINE_SHOTS=<directory> for
+// screenshots.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'threads-view-unread-line-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;

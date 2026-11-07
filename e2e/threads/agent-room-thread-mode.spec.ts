@@ -1,12 +1,5 @@
-import { matrixFetch } from '../helpers/matrix';
-import {
-  composer,
-  expect,
-  sendFromComposer,
-  test,
-  uniqueWord,
-  type AgentStack,
-} from '../helpers/agentStack';
+import { matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import { composer, expect, test, uniqueWord, type AgentStack } from '../helpers/agentStack';
 import { expectRoomCompact } from '../helpers/roomViewSwitch';
 
 // The real MindRoom backend publishes each room's effective thread mode as room state
@@ -89,8 +82,14 @@ test('the room view follows the thread mode MindRoom publishes', async ({ page, 
   await expectRoomCompact(page, true);
   await page.screenshot({ path: test.info().outputPath('thread-mode-thread.png') });
 
-  // The room's admin moves its agents to the main timeline.
-  await sendFromComposer(page, '!thread_mode room');
+  // The room's admin moves its agents to the main timeline, from another device: Compact's own
+  // composer would start a thread with the command and open it.
+  const command = (body: string) =>
+    sendRoomMessage(stack.homeserver, stack.tester.accessToken, roomId, {
+      msgtype: 'm.text',
+      body,
+    });
+  await command('!thread_mode room');
   await expect
     .poll(() => publishedMode(stack, roomId), { timeout: 60_000, message: 'room published' })
     .toBe('room');
@@ -98,7 +97,7 @@ test('the room view follows the thread mode MindRoom publishes', async ({ page, 
   await page.screenshot({ path: test.info().outputPath('thread-mode-room.png') });
 
   // Back to the configured mode.
-  await sendFromComposer(page, '!thread_mode reset');
+  await command('!thread_mode reset');
   await expect
     .poll(() => publishedMode(stack, roomId), { timeout: 60_000, message: 'thread published' })
     .toBe('thread');
