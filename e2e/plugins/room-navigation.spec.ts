@@ -80,10 +80,10 @@ const shot = async (page: Page, name: string) => {
 };
 
 for (const [router, hashRouter] of [
-  ['browser router', false],
-  ['hash router', true],
+  ['browser', false],
+  ['hash', true],
 ] as const) {
-  test(`the plugin's page opens a room and its thread, and links to them, with the ${router}`, async ({
+  test(`the plugin's page opens a room and its thread, and links to them, with the ${router} router`, async ({
     browser,
   }) => {
     // Several page loads: the sign-in, the links and Back with the browser router, and the reload.
@@ -127,7 +127,7 @@ for (const [router, hashRouter] of [
 
       await open(`/p/example/rooms/${encodeURIComponent(roomId)}/${encodeURIComponent(rootId)}`);
       await expect(examplePage).toBeVisible({ timeout: 30_000 });
-      await shot(page, `room-navigation-${hashRouter ? 'hash' : 'browser'}`);
+      await shot(page, `room-navigation-${router}`);
       const roomLink = page.getByRole('link', { name: 'Link to the room' });
       const threadLink = page.getByRole('link', { name: 'Link to the thread' });
       await expect(roomLink).toHaveAttribute('href', href(roomPath));

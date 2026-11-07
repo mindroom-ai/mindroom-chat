@@ -74,6 +74,14 @@ describe('useRoomHref', () => {
 });
 
 describe('useRoomNavigate', () => {
+  /** A room picker that tells its callback more than the room. */
+  function Picker({ onPick }: { onPick: (roomId: string, how: string) => void }) {
+    return (
+      <button type="button" onClick={() => onPick(ROOM, 'clicked')}>
+        Pick
+      </button>
+    );
+  }
   function Buttons() {
     const { navigateRoom, navigateRoomThread } = useRoomNavigate();
     return (
@@ -84,6 +92,7 @@ describe('useRoomNavigate', () => {
         <button type="button" onClick={() => navigateRoomThread(ROOM, THREAD)}>
           Thread
         </button>
+        <Picker onPick={navigateRoom} />
       </>
     );
   }
@@ -91,41 +100,28 @@ describe('useRoomNavigate', () => {
     const { pathname, search } = useLocation();
     return <output>{`${pathname}${search}`}</output>;
   }
-  /** A room picker that tells its callback more than the room. */
-  function Picker({ onPick }: { onPick: (roomId: string, how: string) => void }) {
-    return (
-      <button type="button" onClick={() => onPick(ROOM, 'clicked')}>
-        Pick
-      </button>
-    );
-  }
-
-  it('opens a room, and a thread in it', () => {
+  const renderButtons = () =>
     renderSignedIn(
       <MemoryRouter initialEntries={['/p/example/']}>
         <Buttons />
         <Address />
       </MemoryRouter>
     );
-    const address = () => screen.getByRole('status').textContent;
-    fireEvent.click(screen.getByRole('button', { name: 'Room' }));
+  const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
+  const address = () => screen.getByRole('status').textContent;
+
+  it('opens a room, and a thread in it', () => {
+    renderButtons();
+    click('Room');
     expect(address()).toBe('/home/!lobby%3Aexample.org');
-    fireEvent.click(screen.getByRole('button', { name: 'Thread' }));
+    click('Thread');
     expect(address()).toBe('/home/!lobby%3Aexample.org?threadId=%24root%3Aexample.org');
   });
 
   it('opens the room itself when it is a callback that gets more arguments', () => {
-    function PickRoom() {
-      return <Picker onPick={useRoomNavigate().navigateRoom} />;
-    }
-    renderSignedIn(
-      <MemoryRouter initialEntries={['/p/example/']}>
-        <PickRoom />
-        <Address />
-      </MemoryRouter>
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Pick' }));
-    expect(screen.getByRole('status').textContent).toBe('/home/!lobby%3Aexample.org');
+    renderButtons();
+    click('Pick');
+    expect(address()).toBe('/home/!lobby%3Aexample.org');
   });
 });
 

@@ -131,7 +131,7 @@ Where a file goes, first match wins:
 8. **Route pages:** in the domain that owns the screen (`threads/page/`, `canvas/page/`, `rooms/explore/`, `notifications/inbox/`, `account/auth/`, `room/RoomRoute.tsx`). `shell/Router.tsx` maps `routes/paths.ts` to the lazy modules of `shell/clientPages.tsx`; there is no `pages/` folder.
 9. **e2e:** `e2e/<domain>/<name>.spec.ts`, and `<name>.live.spec.ts` for long specs against the live homeserver.
 
-No barrel files: import a name from the module that declares it. The two `index.ts` files that stay, `event-store/engine/index.ts` and `event-store/cache/db/index.ts`, are the public surfaces of the sync engine and the cache database, which their architecture tests check. The client SDK (`src/client-sdk/`) is a third exception: its modules (`core`, `room`) re-export the app for client plugins, and the app never imports the SDK.
+No barrel files: import a name from the module that declares it. The two `index.ts` files that stay, `event-store/engine/index.ts` and `event-store/cache/db/index.ts`, are the public surfaces of the sync engine and the cache database, which their architecture tests check. The client SDK (`src/client-sdk/`) is a third exception: its modules re-export the app for client plugins, and the app never imports the SDK.
 
 Naming:
 
