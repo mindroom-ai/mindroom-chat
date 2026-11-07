@@ -67,6 +67,11 @@ class SPAHandler(http.server.SimpleHTTPRequestHandler):
 
             request_path = request_path[len(BASE_PATH) :] or "/"
 
+        # Files under /public/ are only ever files: a missing one is a 404, not the app shell.
+        public_file = request_path.startswith("/public/")
+        if public_file and not os.path.isfile(self.translate_path(request_path)):
+            return ("not_found", None)
+
         return ("path", request_path)
 
     def do_GET(self):
