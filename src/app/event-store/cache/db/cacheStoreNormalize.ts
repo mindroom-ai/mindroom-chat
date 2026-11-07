@@ -252,7 +252,9 @@ export const getCachedThreadSummaryInfoFromRawEvent = (
     getContent: () => content,
     getTs: () => rawEvent.origin_server_ts,
     replacingEventDate: () => {
-      const timestamp = rawEvent.unsigned?.['m.relations']?.['m.replace']?.origin_server_ts;
+      // Only the sender's own bundled edit counts, as in the SDK.
+      const edit = rawEvent.unsigned?.['m.relations']?.['m.replace'];
+      const timestamp = edit && edit.sender === rawEvent.sender ? edit.origin_server_ts : undefined;
       return typeof timestamp === 'number' ? new Date(timestamp) : undefined;
     },
   });
