@@ -1,3 +1,5 @@
+import { revealDirectionControls } from '../ui/directional';
+
 export type ArgumentValue =
   | { kind: 'text'; text: string }
   | { kind: 'scalar'; text: string }
@@ -15,7 +17,8 @@ const INLINE_LIST_MAX_CHARS = 80;
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
-const formatJson = (value: unknown): string => JSON.stringify(value, null, 2) ?? '';
+const formatJson = (value: unknown): string =>
+  revealDirectionControls(JSON.stringify(value, null, 2) ?? '');
 
 // Tool arguments often carry JSON encoded as a string; only complete objects or arrays count.
 const parseJsonContainer = (text: string): unknown => {
@@ -34,7 +37,7 @@ const toListValue = (items: unknown[]): ArgumentValue => {
   const primitives = items.every(
     (item) => item === null || ['string', 'number', 'boolean'].includes(typeof item)
   );
-  const inline = items.map(String).join(', ');
+  const inline = revealDirectionControls(items.map(String).join(', '));
   return primitives &&
     items.length <= INLINE_LIST_MAX_ITEMS &&
     inline.length <= INLINE_LIST_MAX_CHARS &&
@@ -46,7 +49,9 @@ const toListValue = (items: unknown[]): ArgumentValue => {
 function toValue(value: unknown, nested: boolean): ArgumentValue {
   if (typeof value === 'string') {
     const container = parseJsonContainer(value);
-    return container === undefined ? { kind: 'text', text: value } : toValue(container, nested);
+    return container === undefined
+      ? { kind: 'text', text: revealDirectionControls(value) }
+      : toValue(container, nested);
   }
   if (Array.isArray(value)) return toListValue(value);
   if (isRecord(value)) {
@@ -58,13 +63,16 @@ function toValue(value: unknown, nested: boolean): ArgumentValue {
 }
 
 function toFields(record: Record<string, unknown>, nested: boolean): ArgumentField[] {
-  return Object.entries(record).map(([key, value]) => ({ key, value: toValue(value, nested) }));
+  return Object.entries(record).map(([key, value]) => ({
+    key: revealDirectionControls(key),
+    value: toValue(value, nested),
+  }));
 }
 
 export const toArgumentFields = (value: unknown): ArgumentFields => {
   const parsed = typeof value === 'string' ? parseJsonContainer(value) : value;
   if (isRecord(parsed)) return { fields: toFields(parsed, false) };
-  if (typeof value === 'string') return { raw: value };
+  if (typeof value === 'string') return { raw: revealDirectionControls(value) };
   return { raw: value === undefined ? '' : formatJson(value) };
 };
 
@@ -183,7 +191,9 @@ export const toToolArgumentFields = (preview: unknown): ArgumentFields => {
     return toArgumentFields(preview);
   }
   const matches = [...preview.matchAll(TOOL_ARGUMENT_KEY)];
-  if (matches.length === 0 || matches[0].index !== 0) return { raw: preview };
+  if (matches.length === 0 || matches[0].index !== 0) {
+    return { raw: revealDirectionControls(preview) };
+  }
   return {
     fields: matches.map((match, index) => {
       const start = (match.index ?? 0) + match[0].length;

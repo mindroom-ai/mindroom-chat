@@ -109,18 +109,21 @@ function TextMessage({
   const whiteSpace = customBody ? 'normal' : 'pre-wrap';
   // A message of only emoji shows them large; an emote keeps them at the size of its sender name.
   const jumboEmoji = prefix === undefined && isJumboEmojiBody(trimmedBody, customBody);
+  const direction = textDirection(trimmedBody);
 
   return (
     <>
       {/* The body reads in the direction of its plain text, so an English message keeps its
           punctuation at the end in a right-to-left interface, and an Arabic one in a
           left-to-right one. The interface's labels inside it, such as an agent's tool calls,
-          keep the interface's direction (index.css). A body reads at P400 opacity and a notice
-          at P300, as in thread-light.png. */}
+          keep the interface's direction (index.css), and a short body sits at its own side
+          (layout.css.ts). A body reads at P400 opacity and a notice at P300, as in
+          thread-light.png. */}
       <MessageTextBody
         priority={notice ? '300' : '400'}
         jumboEmoji={jumboEmoji}
-        dir={textDirection(trimmedBody) ?? 'auto'}
+        dir={direction ?? 'auto'}
+        data-body-direction={direction}
         style={{ whiteSpace, overflowWrap: 'anywhere', ...style }}
       >
         {prefix}

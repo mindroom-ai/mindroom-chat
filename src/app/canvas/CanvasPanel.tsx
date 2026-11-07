@@ -28,6 +28,7 @@ import { uploadLongTextSidecar } from '../matrix/send/longTextSidecarUpload';
 import * as css from './CanvasPanel.css';
 import { IconTooltip } from '../ui/IconTooltip';
 import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
+import { ownDirectionLine } from '../ui/directional';
 
 /** A new snapshot cannot be sent by a click that was already on its way. */
 export const CANVAS_SEND_ARM_DELAY_MS = 500;
@@ -486,7 +487,7 @@ export function CanvasPanel({
         <Box className={css.TitleGroup} alignItems="Center" gap="200">
           <Icon size="300" src={Icons.Category} />
           <div className={css.Title}>
-            <Text size="H4" truncate>
+            <Text size="H4" truncate {...ownDirectionLine}>
               {displayed.title}
             </Text>
             <Text size="T200" priority="300" truncate>

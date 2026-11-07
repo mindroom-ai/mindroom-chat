@@ -423,6 +423,55 @@ describe('dropRedactedContent', () => {
     expect(timeline?.prev_batch).toBe('token-1');
   });
 
+  it("drops the copies of deleted replies and titles beside a thread's summary", () => {
+    const accumulator = new SyncAccumulator({ maxTimelineEntries: 500 });
+    const replyEdit = editOf('$reply-edit', '$reply', 'reply v2');
+    const notice = raw('$title', {
+      msgtype: 'm.notice',
+      body: 'title stays',
+      'io.mindroom.thread_summary': { summary: 'title stays' },
+      ...inThread,
+    });
+    accumulator.accumulate(
+      syncOf(
+        [
+          raw('$root', text('root stays'), {
+            unsigned: {
+              'm.relations': {
+                'm.thread': {
+                  count: 2,
+                  latest_event: notice,
+                  'io.mindroom.title': notice,
+                  'io.mindroom.latest_reply': raw('$reply', text('reply v1', inThread), {
+                    unsigned: { 'm.relations': { 'm.replace': replyEdit } },
+                  }),
+                },
+              },
+            },
+          }),
+          raw('$reply', text('reply v1', inThread)),
+          replyEdit,
+          notice,
+        ],
+        'token-1',
+        'batch-1'
+      )
+    );
+    accumulator.accumulate(syncOf([redaction('$redacts-reply', '$reply')], 'token-2', 'b2'));
+
+    dropRedactedContent(accumulator as never);
+
+    const timeline = savedTimeline(accumulator);
+    const json = JSON.stringify(timeline);
+    ['reply v1', 'reply v2'].forEach((deleted) => expect(json).not.toContain(deleted));
+    const root = timeline?.events.find((event) => event.event_id === '$root');
+    expect(root?.unsigned?.['m.relations']?.['m.thread']).toEqual({
+      count: 2,
+      latest_event: notice,
+      'io.mindroom.title': notice,
+    });
+  });
+
   it('gives the next event the pagination token of a dropped edit', () => {
     const accumulator = new SyncAccumulator({ maxTimelineEntries: 500 });
     accumulator.accumulate(

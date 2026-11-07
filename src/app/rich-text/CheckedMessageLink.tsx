@@ -1,4 +1,11 @@
-import { type ComponentProps, type MouseEvent, type SyntheticEvent, useRef, useState } from 'react';
+import {
+  type ComponentProps,
+  type DragEvent,
+  type MouseEvent,
+  type SyntheticEvent,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Text } from 'folds';
 import { ActionDialog } from '../ui/ActionDialog';
@@ -21,7 +28,9 @@ const stop = (evt: SyntheticEvent) => evt.stopPropagation();
 /**
  * A message link that names its real address on hover (its title, whatever the message's HTML
  * says) and, when its visible text reads as an address on another site, shows where it really
- * goes and opens only on a second confirmation.
+ * goes and opens only on a second confirmation. Every way a page sees of opening it asks: a click
+ * (also with a new-tab modifier) or Enter, a middle click, the context menu (the browser's offers
+ * to open the link; a long press on Android opens it too), and dragging it to the tab bar.
  */
 export function CheckedMessageLink({ onClick, ...props }: ComponentProps<typeof MessageLink>) {
   const { t } = useTranslation();
@@ -30,6 +39,16 @@ export function CheckedMessageLink({ onClick, ...props }: ComponentProps<typeof 
   const anchor = useRef<HTMLAnchorElement | null>(null);
   const confirmed = useRef(false);
 
+  const misleads = (link: HTMLAnchorElement) =>
+    !!href && linkTextMisleads(link.textContent ?? '', href);
+
+  const ask = (evt: MouseEvent<HTMLAnchorElement>) => {
+    if (!misleads(evt.currentTarget)) return;
+    evt.preventDefault();
+    anchor.current = evt.currentTarget;
+    setAsking(true);
+  };
+
   const handleClick = (evt: MouseEvent<HTMLAnchorElement>) => {
     onClick?.(evt);
     if (evt.defaultPrevented || !href) return;
@@ -37,10 +56,23 @@ export function CheckedMessageLink({ onClick, ...props }: ComponentProps<typeof 
       confirmed.current = false;
       return;
     }
-    if (!linkTextMisleads(evt.currentTarget.textContent ?? '', href)) return;
-    evt.preventDefault();
-    anchor.current = evt.currentTarget;
-    setAsking(true);
+    ask(evt);
+  };
+
+  // A middle click opens the link in a new tab.
+  const handleAuxClick = (evt: MouseEvent<HTMLAnchorElement>) => {
+    if (evt.button === 1) ask(evt);
+  };
+
+  // The question replaces the menu, also a thread card's or a message's own.
+  const handleContextMenu = (evt: MouseEvent<HTMLAnchorElement>) => {
+    ask(evt);
+    if (evt.defaultPrevented) evt.stopPropagation();
+  };
+
+  // A link dropped on the tab bar or the address bar opens there.
+  const handleDragStart = (evt: DragEvent<HTMLAnchorElement>) => {
+    if (misleads(evt.currentTarget)) evt.preventDefault();
   };
 
   const open = () => {
@@ -52,7 +84,14 @@ export function CheckedMessageLink({ onClick, ...props }: ComponentProps<typeof 
 
   return (
     <>
-      <MessageLink {...props} title={href} onClick={handleClick} />
+      <MessageLink
+        {...props}
+        title={href}
+        onClick={handleClick}
+        onAuxClick={handleAuxClick}
+        onContextMenu={handleContextMenu}
+        onDragStart={handleDragStart}
+      />
       {asking && href && (
         <span onClick={stop} onKeyDown={stop} role="presentation">
           <ActionDialog
