@@ -1,6 +1,6 @@
 import { createClient, MatrixEvent, Room, RoomMember } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { getMemberDisplayName, getRoomMemberName } from './room';
+import { getMemberDisplayName, getRoomMemberName, splitUserIdSuffix } from './room';
 
 const ROOM_ID = '!room:example.org';
 const AGENT = '@mindroom_helper:example.org';
@@ -233,5 +233,17 @@ describe('getMemberDisplayName', () => {
       rename(room, EVE, 'Dana');
       expect(getMemberDisplayName(room, DANA)).toBe(withId('Dana', DANA));
     });
+  });
+});
+
+describe('splitUserIdSuffix', () => {
+  it('splits a name before the user ID the room put after it, and leaves other names whole', () => {
+    expect(splitUserIdSuffix(withId('Sam', SAM), SAM)).toEqual(['Sam', ` (\u2066${SAM}\u2069)`]);
+    expect(splitUserIdSuffix('Sam', SAM)).toEqual(['Sam', '']);
+    // Another member's user ID is not this sender's suffix.
+    expect(splitUserIdSuffix(withId('Sam', OTHER_SAM), SAM)).toEqual([
+      withId('Sam', OTHER_SAM),
+      '',
+    ]);
   });
 });

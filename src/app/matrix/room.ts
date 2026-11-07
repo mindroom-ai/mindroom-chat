@@ -276,7 +276,19 @@ export const getSenderName = (room: Room, userId: string): string => {
   if (room.membersLoaded()) return name ?? getMxIdLocalPart(userId) ?? userId;
   if (name === undefined) return userId;
   // `getMemberDisplayName` may have added the user ID already.
-  return name.endsWith(withUserId('', userId)) ? name : withUserId(name, userId);
+  return splitUserIdSuffix(name, userId)[1] ? name : withUserId(name, userId);
+};
+
+/**
+ * A sender's name split before the user ID that `getRoomMemberName` or `getSenderName` put after
+ * it: the name and ` (user ID)`, or the name and an empty string. For layouts that may cut a long
+ * name short but must show the user ID whole, since it tells a copied name apart.
+ */
+export const splitUserIdSuffix = (name: string, userId: string): [name: string, suffix: string] => {
+  const suffix = withUserId('', userId);
+  return name.endsWith(suffix) && name.length > suffix.length
+    ? [name.slice(0, -suffix.length), suffix]
+    : [name, ''];
 };
 
 export const getMemberAvatarMxc = (room: Room, userId: string): string | undefined =>
