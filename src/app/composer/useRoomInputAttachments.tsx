@@ -327,7 +327,7 @@ export const useRoomInputAttachments = ({
   // a reload gets its paste files back. A chip whose text was not kept leaves the draft with a
   // notice: no chip sends without its file. Restores run one after another.
   const [lostPastes, setLostPastes] = useState(false);
-  const pasteRestores = useRef({ last: Promise.resolve(true), pending: 0 });
+  const pasteRestores = useRef(Promise.resolve(true));
   // The paste chips in the editor whose file is not staged.
   const missingPastes = useCallback((): string[] => {
     const staged = new Set(access.snapshot().staged.map(pasteFileNameOf));
@@ -378,12 +378,8 @@ export const useRoomInputAttachments = ({
       setLostPastes(true);
       return false;
     };
-    const restores = pasteRestores.current;
-    restores.pending += 1;
-    const next = restores.last.then(restore, restore).finally(() => {
-      restores.pending -= 1;
-    });
-    restores.last = next.catch(() => true);
+    const next = pasteRestores.current.then(restore, restore);
+    pasteRestores.current = next.catch(() => true);
     return next;
   }, [access, createUploadItems, missingPastes, userId]);
   const restorePastesRef = useRef(restorePastes);
@@ -413,12 +409,10 @@ export const useRoomInputAttachments = ({
       .catch(() => undefined);
   }, [draftKey, roomId, userId]);
 
-  // Synchronous when there is nothing to settle, so a plain send starts in the same task.
+  // Synchronous when every chip has its file, so a plain send starts in the same task.
   const settlePastes = useCallback(
     (): true | Promise<boolean> =>
-      pasteRestores.current.pending === 0 && missingPastes().length === 0
-        ? true
-        : restorePastesRef.current(),
+      missingPastes().length === 0 ? true : restorePastesRef.current(),
     [missingPastes]
   );
   const dismissLostPastes = useCallback(() => setLostPastes(false), []);
