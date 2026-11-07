@@ -286,7 +286,8 @@ def prepare_source(checkout: Path, sha: str, extras: tuple[str, ...] = ()) -> Pa
 
 
 def worker_image(checkout: Path, sha: str) -> str:
-    """The Docker image of the commit's Worker Computers, built once: MindRoom refuses a worker of another release."""
+    """The Docker image of the commit's Worker Computers, built once: MindRoom refuses a worker whose protocol differs
+    from the backend's."""
     image = f"mindroom-client-e2e-worker:{sha[:12]}"
     with locked(stack_root() / "src" / f"{sha}-worker.lock"):
         if subprocess.run(["docker", "image", "inspect", image], capture_output=True).returncode == 0:
