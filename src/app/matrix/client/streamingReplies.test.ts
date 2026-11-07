@@ -18,7 +18,7 @@ import { buildThreadRecord } from '../../event-store/threads/threadRecord';
 import { loadRoomThreads } from '../../event-store/threads/roomThreadList';
 import { restoreCachedRoomThreads } from '../../event-store/sdk/roomTimelineSdk';
 import { startClient } from './clientSyncPolicy';
-import { CHECK_DELAY_MS } from './streamingReplies';
+import { CHECK_DELAY_MS, isStreamingReplyCurrent } from './streamingReplies';
 import { defined } from '../../../test/utils/defined';
 
 // A streamed reply shows as streaming on its thread's card only while the client can trust that it
@@ -420,6 +420,24 @@ describe('streaming replies on thread cards', () => {
       await afterCheckDelay();
       expect(f.card()).toEqual({ preview: finished, streaming: false });
       expect(f.replyRequests()).toBe(1);
+    });
+
+    it('vouches for a reply outside threads on its sender’s live edit', async () => {
+      const now = Date.now();
+      const f = fixture();
+      const roomReply = message(replyId, now - 50_000, {
+        body: 'Thinking...',
+        'io.mindroom.stream_status': 'pending',
+      });
+      await f.start();
+      await f.deliver([roomReply]);
+      await f.deliver([chat('$chat-1', now - 15_000)], true);
+      await f.deliver([edit('The notes list', now - 10_000, 'streaming')]);
+
+      const held = defined(f.room().findEventById(replyId), 'the reply');
+      expect(isStreamingReplyCurrent(f.room(), held)).toBe(true);
+      await afterCheckDelay();
+      expect(f.replyRequests()).toBe(0);
     });
 
     it('keeps the finishing edit it learned when another sender’s live edit follows', async () => {
