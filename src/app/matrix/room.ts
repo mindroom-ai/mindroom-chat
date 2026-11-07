@@ -4,14 +4,17 @@ import {
   EventType,
   NotificationCountType,
   RelationType,
+  RoomStateEvent,
   type EventTimelineSet,
   type IContent,
   type MatrixClient,
   type MatrixEvent,
   type Room,
   type RoomMember,
+  type RoomState,
 } from 'matrix-js-sdk';
 import type { Relations } from 'matrix-js-sdk/lib/models/relations';
+import { removeHiddenChars } from 'matrix-js-sdk/lib/utils';
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { Membership, MessageEvent, MsgType, RoomType, StateEvent } from './types/room';
 import { getMxIdLocalPart } from './matrix';
@@ -79,7 +82,7 @@ const shownName = (member: RoomMember): string | undefined => {
 
 /**
  * Whether `name` is how another member of `room` shows: one who is in or invited to the room and,
- * having no name of their own, shows as their user ID's localpart. The SDK's clash index holds
+ * having no name of their own, shows as their user ID's localpart. The clash index below holds
  * display names only.
  */
 const takesNamelessLocalpart = (room: Room, member: RoomMember, name: string): boolean =>
@@ -96,13 +99,59 @@ const takesNamelessLocalpart = (room: Room, member: RoomMember, name: string): b
     );
 
 /**
+ * The user IDs of a room state's members by the name they show, compared as matrix-js-sdk compares
+ * names (`removeHiddenChars`: hidden characters out, look-alike letters folded): everyone but
+ * members who left or were banned. The SDK's own clash check (`RoomMember.disambiguate`) fails in
+ * lazy-loaded rooms: it files a member loaded later under their name with the user ID already
+ * added, so the member they clash with keeps a plain name, and of two members loaded later it
+ * marks only the second. This index is built from the members as they are and dropped whenever
+ * one changes, members loaded later included.
+ */
+const nameIndexes = new WeakMap<RoomState, Map<string, string[]>>();
+const watchedStates = new WeakSet<RoomState>();
+
+const getNameIndex = (state: RoomState): Map<string, string[]> => {
+  const cached = nameIndexes.get(state);
+  if (cached) return cached;
+  if (!watchedStates.has(state)) {
+    watchedStates.add(state);
+    const drop = () => {
+      nameIndexes.delete(state);
+    };
+    state.on(RoomStateEvent.Members, drop);
+    state.on(RoomStateEvent.Update, drop);
+  }
+  const index = new Map<string, string[]>();
+  state.getMembers().forEach((member) => {
+    if (
+      matchesEnum(member.membership, Membership.Leave) ||
+      matchesEnum(member.membership, Membership.Ban)
+    ) {
+      return;
+    }
+    const name = shownName(member);
+    const key = name === undefined ? '' : removeHiddenChars(name);
+    if (key) index.set(key, [...(index.get(key) ?? []), member.userId]);
+  });
+  nameIndexes.set(state, index);
+  return index;
+};
+
+/** Whether another member of `room` shows a name that reads like `name`. */
+const sharesName = (room: Room, member: RoomMember, name: string): boolean =>
+  (getNameIndex(room.currentState).get(removeHiddenChars(name)) ?? []).some(
+    (userId) => userId !== member.userId
+  );
+
+/**
  * The name the room shows for a member as the sender of something, or undefined when they have
  * none of their own; a timeline event's `sender` names them as they were then. As matrix-js-sdk's
- * `RoomMember.name` does, the user ID follows the name when another member's name looks the same
- * or the name looks like a user ID, so nobody can pass for someone else, an agent included; it
- * also follows any name that holds one of the characters above, which are left out of it, and,
- * given the `room`, a name that is the localpart another member without a name shows as. The ID
- * is isolated so it reads left to right in any text.
+ * `RoomMember.name` does, the user ID follows a name that looks like a user ID or holds direction
+ * marks; it also follows the name when another member of the `room` shows a name that reads the
+ * same, decided from the room's members as they are now (the ones loaded later included), so
+ * nobody can pass for someone else, an agent included; and it follows any name that holds one of
+ * the characters above, which are left out of it, and a name that is the localpart another member
+ * without a name shows as. The ID is isolated so it reads left to right in any text.
  */
 export const getRoomMemberName = (
   member: RoomMember | null | undefined,
@@ -113,7 +162,7 @@ export const getRoomMemberName = (
   const clashes =
     member.disambiguate ||
     name !== member.rawDisplayName ||
-    (!!room && takesNamelessLocalpart(room, member, name));
+    (!!room && (sharesName(room, member, name) || takesNamelessLocalpart(room, member, name)));
   return clashes ? `${name} (\u2066${member.userId}\u2069)` : name;
 };
 
