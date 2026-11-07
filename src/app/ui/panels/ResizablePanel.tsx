@@ -101,12 +101,12 @@ export function ResizablePanel({
   const minWidth = Math.min(MIN_WIDTH, maxWidth);
   const settledWidth = clamp(preferredWidth ?? defaultWidth, maxWidth);
   const width =
-    previewWidth === undefined || fullWidth ? settledWidth : Math.min(previewWidth, maxWidth);
+    previewWidth === undefined || full ? settledWidth : Math.min(previewWidth, maxWidth);
   // Narrower than its smallest width (a drag on its way to closing it), the panel clips its
   // content instead of squeezing it.
   const contentWidth = Math.max(width, minWidth);
   const collapseOnRelease =
-    !fullWidth && !!onCollapse && previewWidth !== undefined && width <= COLLAPSE_WIDTH;
+    !full && !!onCollapse && previewWidth !== undefined && width <= COLLAPSE_WIDTH;
   const resizeDirection = () => {
     const inlineDirection =
       panelRef.current && getComputedStyle(panelRef.current).direction === 'rtl' ? -1 : 1;
