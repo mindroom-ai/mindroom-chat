@@ -34,8 +34,8 @@ export const nestSubRooms = (
     [...(roomToParents.get(roomId) ?? [])].filter((id) => id !== roomId && inSection.has(id));
   const ownTop = new Set(topRoomIds);
   const isOrphan = (roomId: string) => {
-    const parents = [...(roomToParents.get(roomId) ?? [])];
-    return parents.length > 0 && parents.every((id) => chatRooms.has(id) && !inSection.has(id));
+    const rooms = [...(roomToParents.get(roomId) ?? [])].filter((id) => chatRooms.has(id));
+    return rooms.length > 0 && rooms.every((id) => !inSection.has(id));
   };
   const candidates = roomIds.filter((roomId) => ownTop.has(roomId) || isOrphan(roomId));
   const listedUnder = new Map<string, string[]>();

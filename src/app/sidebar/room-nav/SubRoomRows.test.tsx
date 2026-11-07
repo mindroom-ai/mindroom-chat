@@ -80,6 +80,24 @@ describe('nestSubRooms', () => {
     ).toEqual({ top: ['!archived-own-sub', '!own'], children: {} });
   });
 
+  it('shows a sub-room of a hidden room of the space at top level, also when another space lists it', () => {
+    const own = ['!own'];
+    const anyDepth = ['!archived-own-sub', '!own'];
+
+    expect(
+      nest(
+        own,
+        anyDepth,
+        {
+          '!own': ['!space'],
+          '!archived-own-sub': ['!archived-own', '!other-space'],
+          '!archived-own': ['!space'],
+        },
+        ['!archived-own']
+      )
+    ).toEqual({ top: ['!archived-own-sub', '!own'], children: {} });
+  });
+
   it('shows a room listed by two rooms of the section once, under the first', () => {
     const rooms = ['!a', '!b', '!shared'];
 

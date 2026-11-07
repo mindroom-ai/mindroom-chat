@@ -171,7 +171,7 @@ afterEach(() => {
   state.encrypted = false;
   state.rooms = {};
   getDefaultStore().set(roomToParentsAtom, { type: 'INITIALIZE', roomToParents: new Map() });
-  getDefaultStore().set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set() });
+  getDefaultStore().set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
   vi.clearAllMocks();
 });
 
