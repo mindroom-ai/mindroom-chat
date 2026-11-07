@@ -1,5 +1,6 @@
 import {
   type CSSProperties,
+  type FocusEvent,
   type KeyboardEvent,
   type RefObject,
   Suspense,
@@ -99,21 +100,42 @@ function CoverLayer({ entry: { cover }, room, conversationRef, onFailure }: Cove
     };
   }, [before]);
 
-  // Tab and Shift+Tab go round inside the cover: from its last control (or its first, or itself)
-  // to the other end, unless something in it took the key.
+  // Tab and Shift+Tab go round inside the cover, unless something in it took the key: from its last
+  // control (or its first, or itself) the cover moves the focus to the other end. Where the browser
+  // still takes it out (past a control it skips, such as Safari's buttons), it comes back to the
+  // other end. Keys and focus from layers a component portals elsewhere are theirs.
+  const tabbingRef = useRef<{ backwards: boolean }>();
+  const controlAt = (backwards: boolean): HTMLElement | undefined => {
+    const controls = layerRef.current ? tabbablesOf(layerRef.current) : [];
+    const inOrder = controls.filter((control) => control.tabIndex >= 0);
+    return backwards ? inOrder[inOrder.length - 1] : inOrder[0];
+  };
   const keepTabInside = (event: KeyboardEvent) => {
     const layer = layerRef.current;
-    if (!layer || event.defaultPrevented) return;
-    const controls = tabbablesOf(layer).filter((control) => control.tabIndex >= 0);
-    const first = controls[0];
-    const last = controls[controls.length - 1];
+    if (!layer || event.defaultPrevented || !layer.contains(event.target as Node)) return;
+    const backwards = event.shiftKey;
     const active = document.activeElement;
-    const wrapTo = event.shiftKey
-      ? (active === layer || active === first) && (last ?? layer)
-      : (active === last || !last) && (first ?? layer);
-    if (!wrapTo) return;
-    event.preventDefault();
-    wrapTo.focus({ preventScroll: true });
+    const end = controlAt(!backwards);
+    if (active === end || (backwards && active === layer) || !end) {
+      event.preventDefault();
+      (controlAt(backwards) ?? layer).focus({ preventScroll: true });
+      return;
+    }
+    tabbingRef.current = { backwards };
+    window.setTimeout(() => {
+      tabbingRef.current = undefined;
+    }, 0);
+  };
+  const bringTabBack = (event: FocusEvent) => {
+    const layer = layerRef.current;
+    const tabbing = tabbingRef.current;
+    if (!layer || !tabbing || !layer.contains(event.target as Node)) return;
+    if (event.relatedTarget instanceof Node && layer.contains(event.relatedTarget)) return;
+    tabbingRef.current = undefined;
+    // After the browser has finished moving the focus out, which a move now would lose to.
+    window.setTimeout(() => {
+      (controlAt(tabbing.backwards) ?? layer).focus({ preventScroll: true });
+    }, 0);
   };
 
   // Escape in the cover closes it when its plugin allows, unless something in it took the key or an
@@ -140,6 +162,7 @@ function CoverLayer({ entry: { cover }, room, conversationRef, onFailure }: Cove
         if (event.key === 'Tab') keepTabInside(event);
         else if (event.key === 'Escape') closeOnEscape(event);
       }}
+      onBlur={bringTabBack}
     >
       <ErrorBoundary
         fallback={null}

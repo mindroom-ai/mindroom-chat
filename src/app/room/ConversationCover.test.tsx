@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { getDefaultStore } from 'jotai';
 import { createClient, Room } from 'matrix-js-sdk';
@@ -49,7 +50,8 @@ vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) 
 // Plugins as a build lists them: `broken`, with a cover that throws once open, one whose condition
 // throws, one whose subscription throws, one whose subscription's stop throws and one whose
 // condition throws later; `example`, with a cover Escape closes; `other`, with a cover
-// Escape leaves and one that puts the focus in its own field; and `faulty`, whose close throws.
+// Escape leaves, one that puts the focus in its own field and one with a portaled popover; and
+// `faulty`, whose close throws.
 vi.mock('../plugins/pluginEntries', () => ({
   pluginEntries: [
     {
@@ -111,6 +113,10 @@ vi.mock('../plugins/pluginEntries', () => ({
           // A cover that puts the focus in its own field as it shows.
           mocks.cover('autofocus', {
             Component: () => <input aria-label="autofocus field" autoFocus />,
+          }),
+          // A cover without controls of its own, whose popover is portaled into the page's body.
+          mocks.cover('portal', {
+            Component: () => createPortal(<input aria-label="popover field" />, document.body),
           }),
         ],
       },
@@ -242,6 +248,49 @@ describe('a conversation cover', () => {
     button.tabIndex = -1;
     expect(fireEvent.keyDown(field, { key: 'Tab' })).toBe(false);
     expect(document.activeElement).toBe(field);
+    button.tabIndex = 0;
+  });
+
+  it("leaves Tab in a popover the cover's component portals elsewhere to the popover", () => {
+    renderRoom();
+    show('portal');
+    const popoverField = screen.getByRole('textbox', { name: 'popover field' });
+    popoverField.focus();
+    expect(fireEvent.keyDown(popoverField, { key: 'Tab' })).toBe(true);
+    expect(document.activeElement).toBe(popoverField);
+  });
+
+  it('brings the focus back when Tab takes it out of the cover all the same', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([{}] as never);
+    renderRoom();
+    show('fixed');
+    const field = screen.getByRole('textbox', { name: 'fixed field' });
+    const button = screen.getByRole('button', { name: 'fixed button' });
+    const header = screen.getByRole('button', { name: 'Header' });
+    // A browser that skips the button (Safari's default) takes Tab from the field out of the cover:
+    // the focus comes round to the cover's first control.
+    const nextTask = () => act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    field.focus();
+    expect(fireEvent.keyDown(field, { key: 'Tab' })).toBe(true);
+    header.focus();
+    await nextTask();
+    expect(document.activeElement).toBe(field);
+    // Backwards, to its last.
+    button.focus();
+    fireEvent.keyDown(button, { key: 'Tab', shiftKey: true });
+    header.focus();
+    await nextTask();
+    expect(document.activeElement).toBe(button);
+    // Tab between the cover's own controls leaves the focus where the browser put it.
+    field.focus();
+    fireEvent.keyDown(field, { key: 'Tab' });
+    button.focus();
+    await nextTask();
+    expect(document.activeElement).toBe(button);
+    // A click elsewhere is no Tab: the focus goes there.
+    header.focus();
+    await nextTask();
+    expect(document.activeElement).toBe(header);
   });
 
   it("takes away a cover whose close throws on Escape, and reports it under its plugin's tag", () => {
