@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useAtomValue } from 'jotai';
-import type { MatrixClient } from 'matrix-js-sdk';
+import { EventTimeline, EventType, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { AccountDataEvent } from '../matrix/types/accountData';
 import { useAccountData } from '../matrix/hooks/useAccountData';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -37,15 +37,39 @@ export const parseSidebarItems = (content: SidebarContent | undefined): SidebarI
   });
 };
 
-/** Joined spaces that sit in no other space: the rail always shows them. */
+/** When the room was made, by its create event; a room without one sorts last. */
+const createdAt = (room: Room | null): number =>
+  room
+    ?.getLiveTimeline()
+    .getState(EventTimeline.FORWARDS)
+    ?.getStateEvents(EventType.RoomCreate, '')
+    ?.getTs() ?? Number.POSITIVE_INFINITY;
+
+/**
+ * Space IDs, oldest space first. The client gets rooms in whatever order a start brings them (by
+ * room ID from the server's first sync, then as they come), so a new space sat last until the next
+ * start or device put it elsewhere.
+ */
+export const sortSpacesByAge = (client: MatrixClient, spaceIds: string[]): string[] => {
+  const age = new Map(spaceIds.map((roomId) => [roomId, createdAt(client.getRoom(roomId))]));
+  return [...spaceIds].sort(
+    (a, b) => (age.get(a) ?? 0) - (age.get(b) ?? 0) || (a < b ? -1 : a > b ? 1 : 0)
+  );
+};
+
+/** Joined spaces that sit in no other space, oldest first: the rail always shows them. */
 export const useTopLevelSpaceIds = (): string[] => {
   const client = useMatrixClient();
   const joinedRoomIds = useAtomValue(allRoomsAtom);
   const parentsByRoom = useAtomValue(roomToParentsAtom);
   return useMemo(
     () =>
-      joinedRoomIds.filter(
-        (roomId) => isSpace(client.getRoom(roomId)) && (parentsByRoom.get(roomId)?.size ?? 0) === 0
+      sortSpacesByAge(
+        client,
+        joinedRoomIds.filter(
+          (roomId) =>
+            isSpace(client.getRoom(roomId)) && (parentsByRoom.get(roomId)?.size ?? 0) === 0
+        )
       ),
     [client, joinedRoomIds, parentsByRoom]
   );
