@@ -38,6 +38,7 @@ import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
 import { RoomTimeline, type RoomTimelineProps } from '../timeline/RoomTimeline';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 import * as overlay from '../ui/styles/RoomOverlay.css';
+import * as css from './RoomView.css';
 import { ThreadContextBanner } from '../threads/ThreadContextBanner';
 import { isConfirmedMatrixEventId, isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
@@ -297,10 +298,14 @@ export function RoomView({
 
   return (
     <Page>
-      <div ref={areaRef} style={AREA_STYLE}>
+      <div ref={areaRef} className={css.RoomArea} style={AREA_STYLE}>
         <div
           ref={headerRef}
-          className={classNames(overlay.Header, effectiveThreadId && overlay.HeaderInThread)}
+          className={classNames(
+            overlay.Header,
+            css.HeaderInShortArea,
+            effectiveThreadId && overlay.HeaderInThread
+          )}
         >
           <RoomViewHeader
             hasMindroomAgents={hasMindroomAgents}
