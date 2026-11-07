@@ -783,13 +783,15 @@ def calls_setting(args: argparse.Namespace) -> dict | None:
 
 
 def started_with(state: dict, args: argparse.Namespace, sha: str, homeserver: str) -> bool:
-    """Whether a stack's state comes from a start with this model, calls, client sessions and computers, of this
-    commit, on this homeserver; a state without clientSessions or computers counts as one started without them."""
+    """Whether a stack's state comes from a start with this model, calls, client sessions, computers and approval
+    expiry, of this commit, on this homeserver; a state without clientSessions or computers counts as one started
+    without them."""
     return (
         state.get("model", "stub") == args.model
         and state.get("calls") == calls_setting(args)
         and state.get("clientSessions", False) == args.client_sessions
         and state.get("computers", False) == args.computers
+        and state.get("approvalExpirySeconds") == round(args.approval_expiry_days * 86400)
         and state.get("sha") == sha
         and state.get("homeserver") == homeserver
     )
