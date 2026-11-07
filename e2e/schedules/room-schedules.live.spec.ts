@@ -90,7 +90,12 @@ test.describe('room schedules in the chat header', () => {
     await loginWithPassword(page, { homeserver, ...credentials });
     await page.goto(`/home/${encodeURIComponent(roomId)}`);
     const trigger = page.getByRole('button', { name: 'Scheduled tasks (1)', exact: true });
-    await expect(page.getByText('Schedule viewer integration test', { exact: true })).toBeVisible();
+    // The header's topic says the room has loaded; the timeline quotes it too, in the room
+    // intro and in the row of the event that set it.
+    const roomHeader = page.getByRole('banner').filter({ has: page.locator('h1') });
+    await expect(
+      roomHeader.getByText('Schedule viewer integration test', { exact: true })
+    ).toBeVisible();
     await expect(trigger).toHaveCount(0);
     await addAgent();
     await trigger.click();
