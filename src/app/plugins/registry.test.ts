@@ -3,14 +3,23 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const entries = vi.hoisted(() => {
   const renderer = { match: () => true, Component: (): null => null };
+  const forgetAccount = () => undefined;
   return {
     renderer,
+    forgetAccount,
     list: [
-      { id: 'alpha', version: '1.0.0', plugin: { messageRenderers: 'not a list' } },
+      {
+        id: 'alpha',
+        version: '1.0.0',
+        plugin: { messageRenderers: 'not a list', forgetAccount: 'not a function' },
+      },
       {
         id: 'beta',
         version: '2.1.0',
-        plugin: { messageRenderers: [renderer, null, { Component: (): null => null }] },
+        plugin: {
+          messageRenderers: [renderer, null, { Component: (): null => null }],
+          forgetAccount,
+        },
       },
     ],
   };
@@ -35,6 +44,9 @@ describe('registeredPlugins', () => {
     // A contribution that is not a list counts as none, and so does a renderer without `match`.
     expect(plugins[0]?.messageRenderers).toEqual([]);
     expect(plugins[1]?.messageRenderers).toEqual([entries.renderer]);
+    // So does a `forgetAccount` that is not a function.
+    expect(plugins[0]?.forgetAccount).toBeUndefined();
+    expect(plugins[1]?.forgetAccount).toBe(entries.forgetAccount);
   });
 
   it('is frozen when its module loads', async () => {

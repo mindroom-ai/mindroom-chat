@@ -5,6 +5,8 @@ import { pluginEntries, type PluginEntry } from './pluginEntries';
 /** What the entry module of a client plugin exports by default: its contributions, by kind. */
 export type ClientPlugin = {
   messageRenderers?: readonly MessageRenderer[];
+  /** Deletes what the plugin keeps for `userId` outside its storage (`pluginStorage.ts`). */
+  forgetAccount?: (userId: string) => void | Promise<void>;
 };
 
 /** A plugin of this build; `tag` (`<id>@<version>`) names it in logs and error reports. */
@@ -12,6 +14,7 @@ export type RegisteredPlugin = {
   readonly id: string;
   readonly tag: string;
   readonly messageRenderers: readonly MessageRenderer[];
+  readonly forgetAccount?: ClientPlugin['forgetAccount'];
 };
 
 const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
@@ -25,6 +28,10 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
         ? renderers.filter((renderer) => isRecord(renderer) && typeof renderer.match === 'function')
         : []
     ),
+    forgetAccount:
+      isRecord(plugin) && typeof plugin.forgetAccount === 'function'
+        ? (plugin.forgetAccount as ClientPlugin['forgetAccount'])
+        : undefined,
   });
 };
 
