@@ -34,6 +34,9 @@ const KEPT_MODULES: Record<string, string> = {
     "this device's voice message speed and volume, saved in localStorage",
   'src/app/computer/computerServiceSettings.ts':
     'the computer service chosen on this device, saved in localStorage',
+  // Put back to 0 first, it would go below 0 as the pages below the account's root leave.
+  'src/app/navigation/useEdgeSwipeBack.ts':
+    'counts the back swipes of the pages shown, each taken back as its page goes',
 };
 
 // The importer of the app: every module under src/app/, keyed by its path from the root.

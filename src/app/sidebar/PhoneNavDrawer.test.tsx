@@ -3,13 +3,14 @@ import { Profiler } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider, createStore } from 'jotai';
 import { act, create } from 'react-test-renderer';
-import { RouterProvider, createMemoryRouter } from 'react-router-dom';
+import { MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import {
   phoneNavDrawerOpenAtom,
   phoneNavSectionRootAtom,
   useMarkPhoneSectionRoot,
 } from '../navigation/phoneNavDrawer';
+import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { PhoneNavDrawer } from './PhoneNavDrawer';
 import { followRouterSignalsInNode } from '../../test/utils/nodeSignalRequests';
 
@@ -27,6 +28,23 @@ vi.mock('./PhoneNavDrawer.css', () => ({
 
 // The data router builds a Request per navigation; under jsdom its signal needs this.
 followRouterSignalsInNode();
+
+/** A finger from the screen's left edge 112 px into the page, then lifted. */
+const swipeFromLeftEdge = () => {
+  const touch = (type: string, touches: { clientX: number; clientY: number }[]) =>
+    window.dispatchEvent(Object.assign(new Event(type, { cancelable: true }), { touches }));
+  act(() => {
+    touch('touchstart', [{ clientX: 8, clientY: 300 }]);
+    touch('touchmove', [{ clientX: 120, clientY: 304 }]);
+    touch('touchend', []);
+  });
+};
+
+/** A room on the page, whose swipe from the left edge goes back. */
+function RoomWithBackSwipe({ onBack }: { onBack: () => void }) {
+  useEdgeSwipeBack(onBack);
+  return null;
+}
 
 describe('PhoneNavDrawer', () => {
   it('puts the drawer away when it unmounts, as a phone turned sideways does', () => {
@@ -201,5 +219,43 @@ describe('PhoneNavDrawer', () => {
     expect(commits.at(-1)).toBe('open=true animate=true');
     act(() => root.unmount());
     frame.mockRestore();
+  });
+
+  it('comes out with a swipe from the left edge on a page that takes no such swipe', () => {
+    const store = createStore();
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(
+        <Provider store={store}>
+          <MemoryRouter initialEntries={['/home/']}>
+            <PhoneNavDrawer nav={null} />
+          </MemoryRouter>
+        </Provider>
+      );
+    });
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+    swipeFromLeftEdge();
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
+    act(() => renderer?.unmount());
+  });
+
+  it('leaves the swipe from the left edge to a room, which goes back with it', () => {
+    const store = createStore();
+    const onBack = vi.fn();
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(
+        <Provider store={store}>
+          <MemoryRouter initialEntries={['/home/!room:example.org/']}>
+            <RoomWithBackSwipe onBack={onBack} />
+            <PhoneNavDrawer nav={null} />
+          </MemoryRouter>
+        </Provider>
+      );
+    });
+    swipeFromLeftEdge();
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+    act(() => renderer?.unmount());
   });
 });
