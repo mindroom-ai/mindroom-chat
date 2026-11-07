@@ -11,7 +11,7 @@ import { useAtomValue } from 'jotai';
 import FocusTrap from 'focus-trap-react';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { Icon, IconButton, Icons, RectCords, Spinner, Text } from 'folds';
-import { PopOut } from '../../ui/directional';
+import { PopOut, revealDirectionControls } from '../../ui/directional';
 import { Menu } from '../../ui/glass/GlassPrimitives';
 import type { IAudioInfo } from '../../matrix/types/common';
 import type { EventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
@@ -134,7 +134,11 @@ function VoiceDetailsMenu({
           filename={filename ?? subject}
         />
         {filename ? (
-          <DetailRow label={t('sharedUi.voiceAudioContent.name')} value={filename} truncate />
+          <DetailRow
+            label={t('sharedUi.voiceAudioContent.name')}
+            value={revealDirectionControls(filename)}
+            truncate
+          />
         ) : null}
         <DetailRow
           label={t('sharedUi.voiceAudioContent.type')}
@@ -321,8 +325,14 @@ export function VoiceAudioContent({
   return (
     <div className={css.Root}>
       {!isVoiceMessage && filename && (
-        <Text as="div" size="T200" className={css.Title} truncate title={filename}>
-          {filename}
+        <Text
+          as="div"
+          size="T200"
+          className={css.Title}
+          truncate
+          title={revealDirectionControls(filename)}
+        >
+          {revealDirectionControls(filename)}
         </Text>
       )}
       <div className={css.Capsule} data-playing={playing || undefined}>
