@@ -53,8 +53,10 @@ Changes apply to the next request, without a restart.
   at least every 60 seconds; apps send a heartbeat every 20 seconds. An app that leaves is out at once. Only people
   whose apps take part are in the call: people on other Matrix apps are neither listed nor transcribed. MatrixRTC
   membership is not consulted.
-- **Ending.** A call ends when nobody is in it, checked when someone leaves and every 15 seconds while it is live. After
-  MindRoom starts, apps get a full minute to check in before anyone counts as gone.
+- **Ending.** A call ends when nobody is in it, checked when someone leaves and every 15 seconds while it is live; it
+  ended at its apps' last check-in or leave, not when that was noticed. After MindRoom starts, apps get a full minute to
+  check in before anyone counts as gone. A request that left the call cannot bring its sender back into it: a heartbeat
+  that arrived before its sender's leave neither rejoins nor starts a call.
 - **The row.** When a call starts, the router posts a notice in the room: body `Call started`, content
   `io.mindroom.call: {"call_id": "<id>"}`. It wakes no agent and notifies nobody. If the router is not ready, it is
   posted once it is. When the call ends, the router edits the row (`m.replace`, still a notice): body
@@ -64,21 +66,28 @@ Changes apply to the next request, without a restart.
   posts one notice in the row's thread: body = the notes in Markdown (or `Call · N min` without a notes model), with
   `io.mindroom.call_transcript: {"duration_seconds", "turns": [{"sender": "<Matrix user ID>", "text"}]}` (paused
   stretches are not turns) and `io.mindroom.call_notes: {"call_id"}`. Too large for one event: the transcript goes into
-  MindRoom's existing large-message sidecar, as voice agents' transcripts do. It wakes no agent, notifies nobody, and
-  neutralises mentions in the notes. A failed post or failed notes are retried once after 60 seconds; then the
-  transcript is posted without notes. A call with no speech posts nothing. Afterwards the call's lines are deleted.
+  MindRoom's existing large-message sidecar, as voice agents' transcripts do; a message whose transcript cannot be sent
+  is not sent without it. It wakes no agent, notifies nobody, and neutralises mentions in the notes. Failed notes are
+  tried once more after 60 seconds, then the transcript is posted without them; a failed post is retried every minute.
+  A call with no speech posts nothing; a call whose speech could not be transcribed at all posts the message with no
+  turns and a body saying so. Afterwards the call's lines are deleted. A message not posted within a day of the end, or
+  in a room the router has left, is given up and its lines deleted, so the server never keeps them indefinitely.
 - **Pause.** Anyone in the call can pause transcription, and anyone in it can resume it; the call records who paused.
   It stays paused until someone resumes or the call ends. While paused, speech is refused, and so is a stretch that
-  overlapped a paused period, whenever it arrives. Each pause appears once in the live transcript as a gap.
+  overlapped a paused period, whenever it arrives; a stretch counts from when its app says it began until it arrives, so
+  a device clock running behind cannot move speech said during a pause to before it. Each pause appears once in the live
+  transcript as a gap.
 - **Speech.** WAV, 16-bit PCM, mono, at most 30 seconds by its header and 1 MB; never written to disk (not even a
   temporary file); from a person currently in the call through their app; one stretch in flight per person and at most
   240 a minute (refusals say when to try again with `Retry-After`). A stretch said before its call ended is accepted
-  until the transcript message is posted. A stretch that fails to transcribe becomes a gap ("Not transcribed"); one in
+  until MindRoom starts writing the transcript message; once the notes are written no more is taken, so the notes always
+  match the transcript. A stretch that fails to transcribe becomes a gap ("Not transcribed"); one in
   which no words were heard adds nothing. The call goes on.
 - **Who may do what.** Starting or joining needs permission to post messages in the room (Matrix power levels);
   heartbeats from someone already in the call do not re-check it. Reading the live call needs room membership. A call's
   routes take the room from the call, never from the request, and answer 404 to anyone outside that room.
-- The server records each call's seconds of speech and the token usage of its transcription and notes.
+- The server logs each call's seconds of speech, and records the token usage of transcription and notes in MindRoom's
+  system usage.
 
 ### Routes
 
@@ -115,14 +124,15 @@ IDs whose apps are in the call now), `pausedBy` (user ID, or null when not pause
   a long steady tone must not count as speech forever. Nothing is captured while paused.
 - **Status.** Once a call route has answered in this call, if the server becomes unreachable or answers 5xx, the call
   goes on, the controls say "Transcripts are unavailable", nothing is sent, and the heartbeat keeps trying; the first
-  answered heartbeat resumes. Before any call route has answered (for example a server that predates this feature,
+  answered heartbeat resumes. A live read that fails or takes longer than 10 seconds counts the same, and polling goes on. Before any call route has answered (for example a server that predates this feature,
   whose cross-origin rules refuse these routes), stay silent while the heartbeat keeps trying. A 404 or 403 means this
   room isn't transcribed: show nothing, send nothing. A refused join (`too-many-requests`) is retried after
   `Retry-After`, silently.
 - **Pause** sits in the call's controls: a toggle button (an ordinary button, so keyboards and assistive technology
   work as usual) that pauses or resumes transcription for everyone. Pausing stops this device's capture at once, before
-  the server answers. Paused looks like the call controls' warning state, with "Paused by Ann" naming who paused. A
-  refused request shows the state the server reports. The paused state comes from the server's answers and polls.
+  the server answers; resuming waits for the server's answer, so nothing said before the server resumed is sent. Paused looks like the call controls' warning state, with "Paused by Ann" naming who paused. A
+  refused request shows the state the server reports. The paused state comes from the server's answers (the join's too) and polls; a poll sent before a newer answer never
+  undoes it.
 - **Live transcript** opens in the room's side panel from Transcript (in the controls and on the row), reading the live
   call every 2 seconds while open: lines under display names, gaps, who is in the call, and a line saying the call is
   transcribed. Pause is also in its header
