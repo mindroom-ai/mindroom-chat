@@ -11,8 +11,12 @@ const entries = vi.hoisted(() => {
   const autoAction = { id: 'auto', label: 'auto', icon, run, placement: 'auto' };
   const banner = (): null => null;
   const headerSlot = [banner];
+  const forgotten: string[] = [];
+  const page = { path: 'board', Component: (): null => null };
   return {
     renderer,
+    page,
+    forgotten,
     panel,
     actions: [action, autoAction],
     banner,
@@ -23,9 +27,11 @@ const entries = vi.hoisted(() => {
         version: '1.0.0',
         plugin: {
           messageRenderers: 'not a list',
+          pages: {},
           sidePanels: 'not a list',
           headerActions: 'not a list',
           roomHeaderSlot: banner,
+          forgetAccount: 'not a function',
         },
       },
       {
@@ -33,6 +39,7 @@ const entries = vi.hoisted(() => {
         version: '2.1.0',
         plugin: {
           messageRenderers: [renderer, null, { Component }],
+          pages: [page, null, { path: 'other' }, { path: 7, Component: (): null => null }],
           sidePanels: [
             panel,
             null,
@@ -52,6 +59,11 @@ const entries = vi.hoisted(() => {
             autoAction,
           ],
           roomHeaderSlot: headerSlot,
+          forgotten,
+          // A method of the plugin object, which it calls with the plugin as `this`.
+          forgetAccount(this: { forgotten: string[] }, userId: string) {
+            this.forgotten.push(userId);
+          },
         },
       },
     ],
@@ -77,6 +89,9 @@ describe('registeredPlugins', () => {
     // A contribution that is not a list counts as none, and so does a renderer without `match`.
     expect(plugins[0]?.messageRenderers).toEqual([]);
     expect(plugins[1]?.messageRenderers).toEqual([entries.renderer]);
+    // So does a page without a path or a component.
+    expect(plugins[0]?.pages).toEqual([]);
+    expect(plugins[1]?.pages).toEqual([entries.page]);
     // A side panel needs an id, a label and a component.
     expect(plugins[0]?.sidePanels).toEqual([]);
     expect(plugins[1]?.sidePanels).toEqual([entries.panel]);
@@ -85,6 +100,10 @@ describe('registeredPlugins', () => {
     expect(plugins[1]?.headerActions).toEqual(entries.actions);
     expect(plugins[0]?.roomHeaderSlot).toEqual([]);
     expect(plugins[1]?.roomHeaderSlot).toEqual([entries.banner]);
+    // So does a `forgetAccount` that is not a function.
+    expect(plugins[0]?.forgetAccount).toBeUndefined();
+    await plugins[1]?.forgetAccount?.('@alice:example.org');
+    expect(entries.forgotten).toEqual(['@alice:example.org']);
   });
 
   it('is frozen when its module loads', async () => {
@@ -93,6 +112,7 @@ describe('registeredPlugins', () => {
     for (const plugin of plugins) {
       expect(Object.isFrozen(plugin)).toBe(true);
       expect(Object.isFrozen(plugin.messageRenderers)).toBe(true);
+      expect(Object.isFrozen(plugin.pages)).toBe(true);
       expect(Object.isFrozen(plugin.sidePanels)).toBe(true);
       expect(Object.isFrozen(plugin.headerActions)).toBe(true);
       expect(Object.isFrozen(plugin.roomHeaderSlot)).toBe(true);

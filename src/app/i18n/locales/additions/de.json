@@ -542,7 +542,8 @@
     },
     "computer": {
       "resize": "Größe des Computerbereichs ändern",
-      "close": "Computer schließen"
+      "close": "Computer schließen",
+      "title": "Computer"
     },
     "plugins": {
       "sidePanel": {
@@ -550,6 +551,11 @@
         "close": "{{label}} schließen",
         "failed": "Dieser Bereich funktioniert nicht mehr."
       }
+    },
+    "sidePanel": {
+      "fill": "Raum mit {{label}} füllen",
+      "fold": "{{label}} an den Rand einklappen",
+      "unfold": "{{label}} ausklappen"
     },
     "commands": {
       "descriptions": {

@@ -532,7 +532,8 @@
     },
     "computer": {
       "resize": "調整電腦面板大小",
-      "close": "關閉電腦"
+      "close": "關閉電腦",
+      "title": "電腦"
     },
     "plugins": {
       "sidePanel": {
@@ -540,6 +541,11 @@
         "close": "關閉{{label}}",
         "failed": "此面板已停止運作。"
       }
+    },
+    "sidePanel": {
+      "fill": "以{{label}}填滿聊天室",
+      "fold": "將{{label}}摺疊到邊緣",
+      "unfold": "展開{{label}}"
     },
     "commands": {
       "descriptions": {

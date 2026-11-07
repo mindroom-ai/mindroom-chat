@@ -266,15 +266,17 @@ class CommandLineTests(unittest.TestCase):
         patcher = mock.patch.dict(os.environ, environment)
         patcher.start()
         self.addCleanup(patcher.stop)
-        self.slot_dir = Path(directory.name) / "slot-7"
+        self.root = Path(directory.name)
+        self.slot_dir = self.root / "slot-7"
         # The usual umask, which lets other users read what a process writes; the tests after these get theirs back.
         self.addCleanup(os.umask, os.umask(0o022))
 
     def main(self, *argv: str) -> object:
+        self.stderr = io.StringIO()
         with (
             mock.patch.object(sys, "argv", ["stack.py", *argv]),
             contextlib.redirect_stdout(io.StringIO()),
-            contextlib.redirect_stderr(io.StringIO()),
+            contextlib.redirect_stderr(self.stderr),
         ):
             try:
                 return stack.main()
@@ -349,6 +351,82 @@ class CommandLineTests(unittest.TestCase):
             ):
                 self.assertEqual(self.main("7", command), 0, command)
             self.assertEqual(self.mode(self.slot_dir), 0o700, command)
+
+    def test_a_missing_root_is_made_the_owners_only_whatever_the_umask(self) -> None:
+        root = self.root / "new" / "agents"
+        # A umask that lets the group write, as many systems give their users.
+        os.umask(0o002)
+        with mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": str(root)}):
+            self.assertEqual(stack.stack_root(), root)
+        self.assertEqual(self.mode(root), 0o700)
+
+    def test_a_root_that_is_a_symlink_another_users_or_writable_by_others_is_refused_untouched(self) -> None:
+        target = self.root / "target"
+        target.mkdir(mode=0o700)
+        (self.root / "link").symlink_to(target)
+        (self.root / "file").touch(mode=0o600)
+        roots = {
+            "a symlink": (self.root / "link", 0o700, os.geteuid()),
+            "a file": (self.root / "file", 0o700, os.geteuid()),
+            "another user's": (target, 0o700, os.geteuid() + 1),
+            "writable by its group": (target, 0o770, os.geteuid()),
+            "writable by others": (target, 0o707, os.geteuid()),
+        }
+        for name, (root, mode, user) in roots.items():
+            target.chmod(mode)
+            with (
+                self.subTest(name),
+                mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": str(root)}),
+                mock.patch.object(os, "geteuid", return_value=user),
+            ):
+                self.assertEqual(self.main("7", "status"), 1)
+                self.assertIn(f"refusing {root}:", self.stderr.getvalue())
+                self.assertEqual(list(target.iterdir()), [])
+
+
+class PrivateDirTests(unittest.TestCase):
+    """scripts/private-dir.sh, which checks the e2e scripts' roots as stack_root() checks this script's."""
+
+    def setUp(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        # A umask that lets the group write, as many systems give their users.
+        self.addCleanup(os.umask, os.umask(0o002))
+
+    def private_dir(self, path: str) -> subprocess.CompletedProcess:
+        helper = Path(__file__).resolve().parents[1] / "private-dir.sh"
+        command = 'set -euo pipefail; . "$1"; private_dir "$2"'
+        return subprocess.run(["bash", "-c", command, "test", helper, path], capture_output=True, text=True)
+
+    def test_a_missing_root_is_made_the_owners_only_whatever_the_umask(self) -> None:
+        root = self.root / "new" / "e2e"
+        self.assertEqual(self.private_dir(f"{root}/").returncode, 0)
+        self.assertEqual(root.stat().st_mode & 0o777, 0o700)
+
+    def test_a_root_that_is_a_symlink_another_users_or_writable_by_others_is_refused_untouched(self) -> None:
+        target = self.root / "target"
+        target.mkdir(mode=0o700)
+        (self.root / "link").symlink_to(target)
+        (self.root / "file").touch(mode=0o600)
+        roots = {
+            "a symlink": (f"{self.root}/link", 0o700),
+            "a symlink with a trailing slash": (f"{self.root}/link//", 0o700),
+            "a file": (f"{self.root}/file", 0o700),
+            "writable by its group": (str(target), 0o770),
+            "writable by others": (str(target), 0o707),
+        }
+        if os.geteuid() != 0:
+            roots["another user's"] = ("/usr", 0o700)
+        for name, (root, mode) in roots.items():
+            target.chmod(mode)
+            with self.subTest(name):
+                result = self.private_dir(root)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(root.rstrip("/"), result.stderr)
+                self.assertEqual(list(target.iterdir()), [])
+        target.chmod(0o755)
+        self.assertEqual(self.private_dir(str(target)).returncode, 0, "a directory others may only read")
 
 
 class SlotTests(unittest.TestCase):
