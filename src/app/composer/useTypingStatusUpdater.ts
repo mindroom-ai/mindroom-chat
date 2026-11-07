@@ -47,15 +47,7 @@ export const useTypingStatusUpdater = (
 
   // Leaving the room, or the account, while typing ends the notice there at once; otherwise
   // the others would see this person typing until it expires.
-  useEffect(
-    () => () => {
-      clearExpiry();
-      if (!typingRef.current) return;
-      typingRef.current = false;
-      send(false);
-    },
-    [clearExpiry, send]
-  );
+  useEffect(() => stop, [stop]);
 
   // Leaving the page (a reload, a link, a closed tab) unmounts nothing, so the effect above
   // does not run. The stop goes out as the page goes, in a request that outlives it. It must
@@ -92,12 +84,7 @@ export const useTypingStatusUpdater = (
         typingRef.current = true;
         send(true);
         clearExpiry();
-        expiryRef.current = setTimeout(() => {
-          expiryRef.current = undefined;
-          if (!typingRef.current) return;
-          typingRef.current = false;
-          send(false);
-        }, TYPING_TIMEOUT_MS);
+        expiryRef.current = setTimeout(stop, TYPING_TIMEOUT_MS);
         return;
       }
       stop();
