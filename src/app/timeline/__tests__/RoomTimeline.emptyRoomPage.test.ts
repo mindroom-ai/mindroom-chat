@@ -1,7 +1,7 @@
 import React from 'react';
 import { Direction } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
-import { describe, expect, it, type Mock } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import {
   create,
   createControlledRoomTimelineHarness,
@@ -15,6 +15,18 @@ import {
   virtualPaginatorState,
 } from '../test-utils/RoomTimeline.test.shared';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
+
+// Room pages go through roomHistoryPageSdk, which has its own tests; here a page is the client
+// mock's page, as the timeline loaded it before.
+vi.mock('../../event-store/sdk/roomHistoryPageSdk', () => ({
+  paginateRoomHistory: (
+    mx: { paginateEventTimeline: (edge: unknown, opts: object) => Promise<boolean> },
+    _room: unknown,
+    edge: unknown,
+    backwards: boolean,
+    limit: number
+  ) => mx.paginateEventTimeline(edge, { backwards, limit }),
+}));
 
 type TestTimeline = ReturnType<typeof makeTimeline>;
 

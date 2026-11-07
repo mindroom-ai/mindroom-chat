@@ -40,6 +40,7 @@ import { CanvasResponseReceipt } from '../canvas/CanvasResponseReceipt';
 import { CanvasResponseSidecarReceipt } from '../canvas/CanvasResponseSidecarReceipt';
 import { readCallTranscript } from '../../matrix/protocol/callTranscript';
 import { CallTranscriptCard } from './CallTranscriptCard';
+import { ownDirectionLine } from '../../ui/directional';
 
 export type RenderAgentMessageContentOptions = {
   mEvent?: MatrixEvent;
@@ -482,7 +483,7 @@ export const renderAgentMessageContent = ({
               ? () => (
                   <Box as="span" alignItems="Center" gap="200" data-canvas-notice-title>
                     <Icon size="100" src={Icons.Category} />
-                    <span>{canvasTitle}</span>
+                    <span {...ownDirectionLine}>{canvasTitle}</span>
                   </Box>
                 )
               : renderBody(content)

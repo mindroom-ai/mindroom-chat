@@ -107,21 +107,17 @@ export const getVisibleThreadEventBodyPreviewText = (
 export const getLatestRenderableVisibleThreadReplyEvent = (
   replyEvents: MatrixEvent[]
 ): MatrixEvent | undefined => {
-  let summaryFallback: MatrixEvent | undefined;
-
   for (let i = replyEvents.length - 1; i >= 0; i -= 1) {
     const event = replyEvents[i];
     if (!getVisibleThreadEventBodyPreviewText(event)) continue;
 
-    if (isThreadSummaryEvent(event)) {
-      summaryFallback ??= event;
-      continue;
-    }
+    // A title notice is never a reply preview: the card's title line already shows it.
+    if (isThreadSummaryEvent(event)) continue;
 
     return event;
   }
 
-  return summaryFallback;
+  return undefined;
 };
 
 export const getPreferredVisibleThreadReplyEvents = (

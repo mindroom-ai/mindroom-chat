@@ -33,6 +33,26 @@ const SNIPPET_CHARS = 120;
 // The part of a long message around its first match that loses its Markdown syntax.
 const PLAIN_SOURCE_CHARS = 2000;
 const PLAIN_TEXT_TYPES: readonly unknown[] = [MsgType.Text, MsgType.Notice, MsgType.Emote];
+// A phone's row shows about 40 characters of a snippet before its ellipsis.
+const MATCH_LEAD_CHARS = 20;
+
+/**
+ * The snippet from a few words before its first match, after an ellipsis, when the match comes
+ * later: a short message is not cut around its match, and in either direction the row's ending
+ * ellipsis would hide a match far from the start.
+ */
+const leadToFirstMatch = (snippet: string, highlights: string[]): string => {
+  const lowered = snippet.toLocaleLowerCase();
+  const matches = highlights
+    .filter(Boolean)
+    .map((word) => lowered.indexOf(word.toLocaleLowerCase()))
+    .filter((index) => index >= 0);
+  const first = Math.min(...matches);
+  if (matches.length === 0 || first <= MATCH_LEAD_CHARS) return snippet;
+  // From the first word that starts in the lead, so no word is cut.
+  const space = snippet.indexOf(' ', first - MATCH_LEAD_CHARS);
+  return `…${snippet.slice(space >= 0 && space < first ? space + 1 : first)}`;
+};
 
 /**
  * A hit's latest text as one line of plain text around the first match: the palette shows no
@@ -54,10 +74,13 @@ const getPlainSnippet = (event: IEventWithRoomId, highlights: string[], t: TFunc
           .replace(/\s+/g, ' ')
           .trim()
       : '';
-  return getSearchResultBodySnippet(
-    plain || getSearchResultPreviewText(event, highlights, t),
-    highlights,
-    SNIPPET_CHARS
+  return leadToFirstMatch(
+    getSearchResultBodySnippet(
+      plain || getSearchResultPreviewText(event, highlights, t),
+      highlights,
+      SNIPPET_CHARS
+    ),
+    highlights
   );
 };
 

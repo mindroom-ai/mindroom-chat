@@ -62,6 +62,53 @@ export const textDirection = (text: string): 'ltr' | 'rtl' | undefined => {
   return undefined;
 };
 
+/**
+ * Bidirectional controls: the embeddings and overrides U+202A to U+202E, the isolates U+2066 to
+ * U+2069 and the marks U+200E, U+200F and U+061C. Each changes the order its neighbours show in
+ * without showing itself.
+ */
+const DIRECTION_CONTROLS = /[؜‎‏‪-‮⁦-⁩]/g;
+
+/**
+ * Text a person checks before trusting it, such as a tool call's arguments, its output or a
+ * command, with each bidirectional control written out as its code point (`<U+202E>`): the text
+ * shows in the order it holds, and where the controls were. Applied, a right-to-left override
+ * makes `echo hi <U+202E>; rm -rf data #<U+202C>` read as one echo and a comment. What a person
+ * copies from such text carries the same marks, so a paste cannot reorder it either.
+ */
+export const revealDirectionControls = (text: string): string =>
+  text.replace(
+    DIRECTION_CONTROLS,
+    (control) => `<U+${control.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}>`
+  );
+
+/**
+ * A name for a sentence, between a first-strong isolate and its end (U+2068, U+2069): it reads in
+ * its own direction and keeps the sentence's words out of its own, so an Arabic name that ends in
+ * a Latin letter shows the same order in "Requested by ..." as on its own line. Direction
+ * controls in the name go, so none can end the isolate early. {@link IsolatedText} shows it.
+ */
+export const isolateInSentence = (name: string): string =>
+  `⁨${name.replace(DIRECTION_CONTROLS, '')}⁩`;
+
+const ISOLATE = /⁨([^⁨⁩]*)⁩/;
+
+/**
+ * Text whose isolated parts ({@link isolateInSentence}, or a translation's own U+2068 and U+2069)
+ * show as `<bdi>` elements: they read as before, and what a reader copies or a test reads holds
+ * no invisible characters.
+ */
+export function IsolatedText({ text }: { text: string }) {
+  const parts = text.split(ISOLATE);
+  if (parts.length === 1) return <>{text}</>;
+  return (
+    <>
+      {/* split puts each isolated part at an odd index; the parts never move. */}
+      {parts.map((part, index) => (index % 2 === 1 ? <bdi key={index}>{part}</bdi> : part))}
+    </>
+  );
+}
+
 /** Whether the document reads right to left; i18n.ts sets `dir` with the language. */
 export const documentIsRightToLeft = (): boolean =>
   // Some tests stand in a partial document, without an element or one without methods.
