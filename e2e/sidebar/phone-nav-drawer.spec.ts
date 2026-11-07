@@ -15,7 +15,9 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // the start edge over the page, with the icon rail and the section's room list side by side; a
 // room picked there closes it, a space picked there keeps it out with that space's list, and the
 // scrim, Escape, the menu button and a sideways swipe put it away. A room's back chevron and edge
-// swipe still return to the list, which the drawer then holds out. 390 by 844 with touch, in
+// swipe still return to the list, which the drawer then holds out. The drawer rounds only its
+// corner over the page, as the page's card does where it floats, and no line rules the top bar off
+// from the page. 390 by 844 (and 744 by 1133 for the corner and the bar) with touch, in
 // Chromium with real touches and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in
 // WebKit. Set PHONE_NAV_SHOTS=<directory> to save screenshots.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
@@ -114,9 +116,14 @@ const inRoom = (room: string): Partial<Place> => ({ room, thread: null });
 const expectAt = (page: Page, expected: Partial<Place>, step: string) =>
   expect.poll(() => place(page), { message: step, timeout: 20_000 }).toMatchObject(expected);
 
-const shoot = async (page: Page, testInfo: TestInfo, name: string) => {
-  await page.screenshot({ path: testInfo.outputPath(`${name}.png`) });
-  if (SHOTS) await page.screenshot({ path: `${SHOTS}/${testInfo.project.name}-${name}.png` });
+const shoot = async (
+  page: Page,
+  testInfo: TestInfo,
+  name: string,
+  clip?: { x: number; y: number; width: number; height: number }
+) => {
+  await page.screenshot({ path: testInfo.outputPath(`${name}.png`), clip });
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/${testInfo.project.name}-${name}.png`, clip });
 };
 
 const drawer = (page: Page) => page.locator('#phone-nav-drawer');
@@ -340,6 +347,139 @@ for (const engine of ENGINES) {
         ).toBeVisible();
       } finally {
         await shoot(page, testInfo, 'last');
+        await context.close();
+      }
+    } finally {
+      if (engine === 'webkit') await own.close();
+    }
+  });
+}
+
+// A tablet held upright is still narrow enough for the drawer (750 px and below).
+const TABLET = { width: 744, height: 1133 };
+// Wide enough for the page to float as a card beside the rail.
+const DESKTOP = { width: 1280, height: 800 };
+
+/** An element's corner radii in px: top-left, top-right, bottom-right, bottom-left. */
+const cornersOf = (element: Element) => {
+  const style = getComputedStyle(element);
+  return [
+    style.borderTopLeftRadius,
+    style.borderTopRightRadius,
+    style.borderBottomRightRadius,
+    style.borderBottomLeftRadius,
+  ].map((radius) => parseFloat(radius));
+};
+
+/**
+ * Whatever rules the top bar off from the page: a border or shadow of its own, a pseudo-element,
+ * or a line across the screen at its lower edge (a thin element, or a page's top border).
+ */
+const topBarRules = (page: Page) =>
+  page.locator('[data-phone-top-bar]').evaluate((bar) => {
+    const found: string[] = [];
+    const style = getComputedStyle(bar);
+    if (style.borderBottomStyle !== 'none' && parseFloat(style.borderBottomWidth) > 0) {
+      found.push(`border-bottom ${style.borderBottomWidth} ${style.borderBottomStyle}`);
+    }
+    if (style.boxShadow !== 'none') found.push(`box-shadow ${style.boxShadow}`);
+    for (const pseudo of ['::before', '::after']) {
+      const { content } = getComputedStyle(bar, pseudo);
+      if (content !== 'none' && content !== 'normal') found.push(`${pseudo} ${content}`);
+    }
+    const edge = bar.getBoundingClientRect().bottom;
+    for (const element of Array.from(document.body.querySelectorAll('*'))) {
+      const box = element.getBoundingClientRect();
+      if (box.width < window.innerWidth * 0.9 || Math.abs(box.top - edge) > 2) continue;
+      const own = getComputedStyle(element);
+      const thin = box.height > 0 && box.height <= 2;
+      const ruled = own.borderTopStyle !== 'none' && parseFloat(own.borderTopWidth) > 0;
+      if (thin || ruled) found.push(element.outerHTML.slice(0, 120));
+    }
+    return found;
+  });
+
+for (const engine of ENGINES) {
+  test(`${engine}: the drawer rounds its free corner as the page card does, and no line rules the top bar off`, async ({
+    browser,
+  }, testInfo) => {
+    test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+    test.setTimeout(300_000);
+    const own = engine === 'webkit' ? await launchWebKit() : browser;
+    try {
+      const seeded = await seed(engine, 'corner');
+      const { context, page } = await signIn(own, seeded);
+      try {
+        await pickRoom(page, 'Garden Club', seeded.garden);
+        await expect(page.getByText('Seed order for spring').last()).toBeVisible();
+
+        // Pictures first, so the run before the fix records how it looked.
+        for (const scheme of ['light', 'dark'] as const) {
+          /* eslint-disable no-await-in-loop -- one picture after the other on one page. */
+          await page.emulateMedia({ colorScheme: scheme });
+          for (const [size, viewport] of [
+            ['phone', PHONE.viewport],
+            ['tablet', TABLET],
+          ] as const) {
+            await page.setViewportSize(viewport);
+            await expectDrawer(page, false, `the room shows at ${size} size`);
+            await page.waitForTimeout(400);
+            await shoot(page, testInfo, `corner-${engine}-${size}-${scheme}-closed`);
+            await openDrawer(page);
+            await shoot(page, testInfo, `corner-${engine}-${size}-${scheme}-open`);
+            // The drawer's lower end corner, close up.
+            const panel = (await drawer(page).boundingBox())!;
+            await shoot(page, testInfo, `corner-${engine}-${size}-${scheme}-zoom`, {
+              x: panel.x + panel.width - 120,
+              y: panel.y + panel.height - 80,
+              width: 160,
+              height: 80,
+            });
+            await page.keyboard.press('Escape');
+            await expectDrawer(page, false, 'Escape puts the drawer away');
+          }
+          /* eslint-enable no-await-in-loop */
+        }
+
+        // The page card's corner, where the page floats beside the rail.
+        await page.setViewportSize(DESKTOP);
+        await expect(menuButton(page)).toHaveCount(0);
+        const card = await page.evaluate(() => {
+          const main = document.querySelector('main[data-page-main]');
+          const surface = Array.from(main?.querySelectorAll('*') ?? []).find(
+            (element) =>
+              element.getBoundingClientRect().width > 400 &&
+              parseFloat(getComputedStyle(element).borderBottomRightRadius) > 0
+          );
+          return surface ? parseFloat(getComputedStyle(surface).borderBottomRightRadius) : 0;
+        });
+        expect(card, 'the page floats as a rounded card on a wide screen').toBeGreaterThan(0);
+
+        for (const viewport of [PHONE.viewport, TABLET]) {
+          /* eslint-disable no-await-in-loop -- one size after the other on one page. */
+          await page.setViewportSize(viewport);
+          await expectDrawer(page, false, `the room shows at ${viewport.width} px`);
+          expect(await topBarRules(page), 'no line under the top bar').toEqual([]);
+          await openDrawer(page);
+          // Only the corner over the page is round: the top one meets the bar, the others the
+          // screen's edge. What the drawer holds is clipped to it.
+          expect(await drawer(page).evaluate(cornersOf)).toEqual([0, 0, card, 0]);
+          expect(await drawer(page).evaluate((panel) => getComputedStyle(panel).overflow)).toMatch(
+            /^(clip|hidden)$/
+          );
+          expect(await topBarRules(page), 'no line under the top bar with the drawer out').toEqual(
+            []
+          );
+          await page.keyboard.press('Escape');
+          await expectDrawer(page, false, 'Escape puts the drawer away');
+          /* eslint-enable no-await-in-loop */
+        }
+
+        // Right to left, the drawer comes from the right edge and rounds its bottom-left corner.
+        await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
+        await openDrawer(page);
+        expect(await drawer(page).evaluate(cornersOf)).toEqual([0, 0, 0, card]);
+      } finally {
         await context.close();
       }
     } finally {
