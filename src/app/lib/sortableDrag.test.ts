@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnimateLayoutChanges } from '@dnd-kit/sortable';
 import {
   animateSortableLayoutDuringDrag,
-  suppressNextClickDefaultAfterPointerDrag,
+  preventClickDefaultsDuringPointerDrag,
 } from './sortableDrag';
 
 const layoutArgs = (
@@ -45,12 +45,12 @@ describe('animateSortableLayoutDuringDrag', () => {
   });
 });
 
-describe('suppressNextClickDefaultAfterPointerDrag', () => {
+describe('preventClickDefaultsDuringPointerDrag', () => {
   // A press on a button starts the drag, the way the drag library passes its activator event on.
   const startDrag = (type: 'mousedown' | 'touchstart' = 'mousedown') => {
     const button = document.createElement('button');
     document.body.append(button);
-    button.addEventListener(type, suppressNextClickDefaultAfterPointerDrag);
+    button.addEventListener(type, preventClickDefaultsDuringPointerDrag);
     button.dispatchEvent(new MouseEvent(type, { bubbles: true }));
   };
   const release = (type: string) => {
@@ -108,7 +108,7 @@ describe('suppressNextClickDefaultAfterPointerDrag', () => {
   });
 
   it('does not suppress clicks after keyboard drag activators', () => {
-    suppressNextClickDefaultAfterPointerDrag(new KeyboardEvent('keydown', { key: ' ' }));
+    preventClickDefaultsDuringPointerDrag(new KeyboardEvent('keydown', { key: ' ' }));
 
     expect(clickActs()).toBe(true);
   });
