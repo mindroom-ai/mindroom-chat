@@ -6,7 +6,7 @@
 
 **Goal:** On phones, a fixed top bar (menu, search with shortcut hint, account) and a drawer holding the rail and the section's list that slides in over the page.
 
-**Architecture:** One jotai atom (`navigation/phoneNavDrawer.ts`) holds whether the drawer is open; a pure function decides it on each navigation from the navigation type and whether the new route is a section index (route `handle`). `ClientLayout` keeps one element tree on every size; on phones it renders the top bar and the drawer, and the section's list is portaled into the drawer.
+**Architecture:** One jotai atom (`navigation/phoneNavDrawer.ts`) holds whether the drawer is open; a pure function decides it on each navigation from the navigation type and whether the new route is a section index (first a route `handle`; later the shown index page marks its entry, `useMarkPhoneSectionRoot`). `ClientLayout` keeps one element tree on every size; on phones it renders the top bar and the drawer, and the section's list is portaled into the drawer.
 
 **Tech Stack:** React 18, react-router 6 data router, jotai, vanilla-extract, folds, Vitest, Playwright.
 

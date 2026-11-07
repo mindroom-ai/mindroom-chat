@@ -38,8 +38,16 @@ const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean
   // one runs; the value rendered here can lag that by a render.
   const store = useStore();
   const rootKey = useAtomValue(phoneNavSectionRootAtom);
+  const shown = useRef<{ key: string; sectionRoot: boolean }>();
   useLayoutEffect(() => {
     const sectionRoot = store.get(phoneNavSectionRootAtom) === key;
+    const before = shown.current;
+    shown.current = { key, sectionRoot };
+    // The section's page gave way on the spot (a space left while open shows its join page).
+    if (before?.key === key && before.sectionRoot && !sectionRoot) {
+      setOpen(() => false);
+      return;
+    }
     setOpen((open) => nextPhoneNavDrawerOpen(open, sectionRoot, action));
   }, [key, rootKey, action, setOpen, store]);
 };
