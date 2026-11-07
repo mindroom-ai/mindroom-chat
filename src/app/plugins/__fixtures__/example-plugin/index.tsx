@@ -1,6 +1,7 @@
 // A client plugin for the tests (docs/architecture.md "Client plugins"): a message that carries
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
-// section (`plugins.example.label`).
+// section (`plugins.example.label`). Under the room header it shows "Example banner in <room name>".
+import type { Room } from 'matrix-js-sdk';
 import type { ClientPlugin } from '../../registry';
 import type { PluginEvent } from '../../messageRenderers';
 import { usePluginConfig } from '../../pluginConfig';
@@ -27,8 +28,17 @@ function Greeting({ event }: { event: PluginEvent }) {
   );
 }
 
+function RoomBanner({ room }: { room: Room }) {
+  return (
+    <div data-example-plugin-banner style={{ paddingBlock: 8, paddingInline: 16 }}>
+      Example banner in {room.name}
+    </div>
+  );
+}
+
 const plugin: ClientPlugin = {
   messageRenderers: [{ match: (event) => greetingText(event) !== undefined, Component: Greeting }],
+  roomHeaderSlot: [RoomBanner],
 };
 
 export default plugin;
