@@ -58,6 +58,7 @@ describe('thread previews of math', () => {
       'log_(10)1000 + 2^(10)x + x^(2)3 + e^(x)(1+x)'
     );
     expect(preview('$\\left.2x\\right|_0^1 = 2$ and $x^{2}.5$')).toBe('2x|_0^1 = 2 and x^(2).5');
+    expect(preview('$\\boxed{1+2}^2 = 9$')).toBe('(1+2)^2 = 9');
   });
 
   it('read sizing, spacing and escaped characters', () => {
@@ -82,9 +83,14 @@ describe('thread previews of math', () => {
     expect(preview('$3 \\frac{1}{4}$, $2\\,\\tfrac{3}{4}$, ${12}\\frac{1}{4}$ and $2^(n-1)$')).toBe(
       '$3 \\frac{1}{4}$, $2\\,\\tfrac{3}{4}$, ${12}\\frac{1}{4}$ and $2^(n-1)$'
     );
+    expect(preview('$3~\\frac{1}{4}$, $3\\!\\frac{1}{4}$ and $3{\\frac{1}{4}}$')).toBe(
+      '$3~\\frac{1}{4}$, $3\\!\\frac{1}{4}$ and $3{\\frac{1}{4}}$'
+    );
     expect(preview('$x^$, $\\frac{a}$, $\\text{snake_case}$ and $\\textbf{v}$')).toBe(
       '$x^$, $\\frac{a}$, $\\text{snake_case}$ and $\\textbf{v}$'
     );
+    expect(preview('$a & b$')).toBe('$a & b$');
+    expect(preview('$$\nx\n$$ and $$\ny\n$$')).toBe('$$ x $$ and $$ y $$');
     expect(preview('$$\n\\begin{vmatrix}\n1 & 2 \\\\\n3 & 4\n\\end{vmatrix} = -2\n$$')).toBe(
       '$$ \\begin{vmatrix} 1 & 2 \\\\ 3 & 4 \\end{vmatrix} = -2 $$'
     );
@@ -122,6 +128,10 @@ describe('thread previews of math', () => {
       '```latex $\\frac{1}{2}$'
     );
     expect(preview('Press ` then $x^2$')).toBe('Press ` then $x^2$');
+    expect(preview('Press Ctrl+` for a terminal.\n\nThen run `cp "${A}/a" "${B}/b"`.')).toBe(
+      'Press Ctrl+` for a terminal. Then run cp "${A}/a" "${B}/b".'
+    );
+    expect(preview('<CODE>$\\frac{a}{b}$</CODE> and $x$')).toBe('<CODE>$\\frac{a}{b}$</CODE> and $x$');
     expect(preview('\uE0000\uE001 and $x^2$')).toBe('\uE0000\uE001 and $x^2$');
   });
 });
