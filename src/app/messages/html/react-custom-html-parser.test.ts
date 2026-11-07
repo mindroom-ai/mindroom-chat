@@ -256,16 +256,27 @@ describe('CodeBlock clipboard feedback', () => {
     renderer.unmount();
   });
 
-  it('copies code with its direction controls as code points, as it shows', async () => {
+  it('shows the direction controls in code as code points and copies the code as it is', async () => {
     clipboardMocks.copyToClipboard.mockResolvedValue(true);
-    const renderer = renderCustomHtmlTree('<pre><code>echo hi \u202e; ls #\u202c</code></pre>');
+    const code = 'echo hi \u202e; ls #\u202c';
+    const renderer = renderCustomHtmlTree(`<pre><code>${code}</code></pre>`);
+    const formatted = renderCustomHtmlTree(`<pre><b>${code}</b></pre>`);
+    const shown = (tree: ReactTestRenderer) => JSON.stringify(tree.toJSON());
+    expect(shown(renderer)).toContain('echo hi <U+202E>; ls #<U+202C>');
+    expect(shown(formatted)).toContain('<U+202E>');
+    expect(shown(renderer) + shown(formatted)).not.toMatch(/[\u202A-\u202E]/);
 
     await act(async () => {
       await getCopyControl(renderer).props.onClick();
     });
+    await act(async () => {
+      await getCopyControl(formatted).props.onClick();
+    });
 
-    expect(clipboardMocks.copyToClipboard).toHaveBeenCalledWith('echo hi <U+202E>; ls #<U+202C>');
+    expect(clipboardMocks.copyToClipboard).toHaveBeenNthCalledWith(1, code);
+    expect(clipboardMocks.copyToClipboard).toHaveBeenNthCalledWith(2, code);
     renderer.unmount();
+    formatted.unmount();
   });
 
   it('keeps Copy visible when every clipboard path fails', async () => {

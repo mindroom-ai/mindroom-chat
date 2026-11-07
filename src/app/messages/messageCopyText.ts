@@ -1,5 +1,4 @@
 import { sanitizeCustomHtml } from '../rich-text/sanitize';
-import { revealDirectionControls } from '../ui/directional';
 import {
   MINDROOM_TOOL_REF_ICON,
   formatMessageTextBodyAsHtml,
@@ -230,12 +229,9 @@ const formatToolCallMarkdown = (
   const heading = `**${MINDROOM_TOOL_REF_ICON} Tool call ${toolRef.index}${
     notes.length > 0 ? ` (${notes.join(', ')})` : ''
   }**`;
-  // A paste shows direction controls as code points, as the tool call on screen does.
-  const command = revealDirectionControls(argsPreview ? `${toolName}(${argsPreview})` : toolName);
+  const command = argsPreview ? `${toolName}(${argsPreview})` : toolName;
   const lines = [heading, '', ...toFencedCodeBlock(command)];
-  if (resultPreview) {
-    lines.push('', 'Result:', '', ...toFencedCodeBlock(revealDirectionControls(resultPreview)));
-  }
+  if (resultPreview) lines.push('', 'Result:', '', ...toFencedCodeBlock(resultPreview));
   return lines;
 };
 
