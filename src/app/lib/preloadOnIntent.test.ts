@@ -8,13 +8,13 @@ afterEach(() => {
 
 describe('preloadOnIntent', () => {
   it('starts the load when the pointer reaches the control, and when the focus does', () => {
-    const load = vi.fn(() => Promise.resolve('panel'));
+    const load = vi.fn(() => Promise.resolve());
     const intent = preloadOnIntent(load);
     expect(load).not.toHaveBeenCalled();
 
-    intent.onPointerEnter?.();
+    intent.onPointerEnter();
     expect(load).toHaveBeenCalledTimes(1);
-    intent.onFocus?.();
+    intent.onFocus();
     expect(load).toHaveBeenCalledTimes(2);
   });
 
@@ -22,7 +22,7 @@ describe('preloadOnIntent', () => {
     const unhandled = vi.fn();
     process.on('unhandledRejection', unhandled);
     try {
-      preloadOnIntent(() => Promise.reject(new Error('chunk gone'))).onPointerEnter?.();
+      preloadOnIntent(() => Promise.reject(new Error('chunk gone'))).onPointerEnter();
       await new Promise((resolve) => {
         setTimeout(resolve, 0);
       });
@@ -37,8 +37,8 @@ describe('preloadOnIntent', () => {
     const load = vi.fn(() => Promise.resolve());
     const intent = preloadOnIntent(load);
 
-    intent.onPointerEnter?.();
-    intent.onFocus?.();
+    intent.onPointerEnter();
+    intent.onFocus();
     expect(load).not.toHaveBeenCalled();
   });
 });
