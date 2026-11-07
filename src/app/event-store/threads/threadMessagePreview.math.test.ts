@@ -60,6 +60,7 @@ describe('thread previews of math', () => {
       'log_(10)1000 + 2^(10)x + x^(2)3 + e^(x)(1+x)'
     );
     expect(preview('$\\left.2x\\right|_0^1 = 2$ and $x^{2}.5$')).toBe('2x|_0^1 = 2 and x^(2).5');
+    expect(preview('$e^x\\left (1+x\\right)$')).toBe('e^(x)(1+x)');
     expect(preview('$\\boxed{1+2}^2 = 9$ and $\\boxed{1+2} ^2$')).toBe('(1+2)^2 = 9 and (1+2) ^2');
   });
 
@@ -78,6 +79,7 @@ describe('thread previews of math', () => {
     expectKept('$3\\frac{1}{4}$, $\\frac{1}{2$, $a}b$ and $x % note$');
     expectKept('$3 \\frac{1}{4}$, $2\\,\\tfrac{3}{4}$, ${12}\\frac{1}{4}$ and $2^(n-1)$');
     expectKept('$3~\\frac{1}{4}$, $3\\!\\frac{1}{4}$ and $3{\\frac{1}{4}}$');
+    expectKept('$3{\\displaystyle\\frac{1}{4}}$');
     expectKept('$x^$, $\\frac{a}$, $\\text{snake_case}$ and $\\textbf{v}$');
     expectKept('$x^{}y$, $\\frac{}{}$ and $\\sqrt{}$');
     expectKept('$a & b$ or $a # b$');
@@ -110,6 +112,7 @@ describe('thread previews of math', () => {
     );
     expect(preview('> ~~~\n> $\\frac{a}{b}$\n> ~~~\n\nand $x^2$')).toBe('$\\frac{a}{b}$ and $x^2$');
     expectKept('<code>$\\frac{a}{b}$</code> and $x^2$');
+    expect(preview('- ~~~\n  $\\frac{a}{b}$\n  ~~~\n\nThen $x^2$.')).toBe('$\\frac{a}{b}$ Then $x^2$.');
     expect(preview('A backslash (`\\`) starts `$\\frac{a}{b}$`, shown as $\\frac{a}{b}$.')).toBe(
       'A backslash (\\) starts $\\frac{a}{b}$, shown as $\\frac{a}{b}$.'
     );
