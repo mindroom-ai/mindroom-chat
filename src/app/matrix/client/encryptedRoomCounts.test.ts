@@ -335,7 +335,7 @@ describe('unread counts of an encrypted room', () => {
     expect(f.totalCount()).toBe(0);
   });
 
-  it('count a reply finished after the receipt on an earlier reply's terminal edit', async () => {
+  it('count a reply finished after a receipt on the terminal edit of an earlier one', async () => {
     const f = await fixture(true);
     // The reader watched the first reply to its end, then left before the follow-up finished.
     await f.deliver(
