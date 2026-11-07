@@ -1,6 +1,6 @@
 # AGENTS.md
 
-MindRoom Chat (`mindroom-ai/mindroom-chat`; `mindroom-ai/mindroom-client` until 2026-11-07 UTC, now private) is an Apache-2.0 web client for MindRoom, built on `matrix-js-sdk` with its Rust crypto. It is a clean-room rebuild: files whose lines `git blame` credits to Bas Nijholt (at least 95% of each) are ported from the legacy MindRoom Chat client (`mindroom-ai/mindroom-chat-legacy`), and everything else is written fresh without access to the upstream client or the legacy client's source. Below, "MindRoom Chat" as a source means that legacy client.
+MindRoom Chat (`mindroom-ai/mindroom-chat`) is an Apache-2.0 web client for MindRoom, built on `matrix-js-sdk` with its Rust crypto. It is a clean-room rebuild: files whose lines `git blame` credits to Bas Nijholt (at least 95% of each) are ported from the legacy MindRoom Chat client (`mindroom-ai/mindroom-chat-legacy`), and everything else is written fresh without access to the upstream client or the legacy client's source. Below, "MindRoom Chat" as a source means that legacy client.
 
 ## The two lanes
 
