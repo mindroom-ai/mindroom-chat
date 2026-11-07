@@ -60,17 +60,40 @@ export const useRingLine = (
 const windowHasFocus = (): boolean => document.visibilityState === 'visible' && document.hasFocus();
 
 /**
+ * Whether the room's member list has loaded, or failed to. A system notification cannot change
+ * its text once shown, so a ring's waits for the list, as a message's does, and names the caller
+ * the way the ring card does once the list is there; if the list cannot load, the user ID stays.
+ */
+const useMemberListSettled = (room: Room): boolean => {
+  const [settled, setSettled] = useState<Room>();
+  useEffect(() => {
+    if (room.membersLoaded()) return undefined;
+    let disposed = false;
+    const settle = () => {
+      if (!disposed) setSettled(room);
+    };
+    room.loadMembersIfNeeded().then(settle, settle);
+    return () => {
+      disposed = true;
+    };
+  }, [room]);
+  return room.membersLoaded() || settled === room;
+};
+
+/**
  * While a ring shows: the ringtone (when notification sounds are on) and, when the window is in
- * the background, a system notification (when desktop notifications are on and allowed) that
- * brings the window and the ring forward. Both stop with the ring.
+ * the background and `notify` is set, a system notification (when desktop notifications are on
+ * and allowed) that brings the window and the ring forward. Both stop with the ring.
  */
 function RingAlerts({
   ring,
   line,
+  notify,
   onOpen,
 }: {
   ring: IncomingRing;
   line: string;
+  notify: boolean;
   onOpen: () => void;
 }) {
   const { t } = useTranslation();
@@ -83,7 +106,7 @@ function RingAlerts({
 
   useEffect(() => {
     const SystemNotification = typeof window === 'undefined' ? undefined : window.Notification;
-    if (!desktop || SystemNotification?.permission !== 'granted' || windowHasFocus()) {
+    if (!notify || !desktop || SystemNotification?.permission !== 'granted' || windowHasFocus()) {
       return undefined;
     }
     const note = new SystemNotification(latest.current.title, {
@@ -100,7 +123,7 @@ function RingAlerts({
       latest.current.onOpen();
     };
     return () => note.close();
-  }, [desktop, ring.eventId, ring.roomId]);
+  }, [notify, desktop, ring.eventId, ring.roomId]);
 
   return null;
 }
@@ -108,6 +131,7 @@ function RingAlerts({
 export function RingCard({ room, ring, onAnswer, onDecline, onIgnore, onOpen }: RingCardProps) {
   const { t } = useTranslation();
   const { caller, line } = useRingLine(room, ring);
+  const membersSettled = useMemberListSettled(room);
   return (
     <Surface
       className={css.Card}
@@ -116,7 +140,7 @@ export function RingCard({ room, ring, onAnswer, onDecline, onIgnore, onOpen }: 
       aria-describedby={`incoming-call-${ring.eventId}`}
       data-incoming-call={room.roomId}
     >
-      <RingAlerts ring={ring} line={line(caller)} onOpen={onOpen} />
+      <RingAlerts ring={ring} line={line(caller)} notify={membersSettled} onOpen={onOpen} />
       <Box alignItems="Center" gap="300">
         <CallMemberAvatar room={room} userId={ring.sender} size="400" />
         <Box direction="Column" style={{ minWidth: 0 }}>
