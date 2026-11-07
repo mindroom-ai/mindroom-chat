@@ -14,6 +14,7 @@ import {
   type ThreadSummaryInfo,
 } from '../../matrix/protocol/threadSummary';
 import { getMemberDisplayName } from '../../matrix/room';
+import { getThreadSummaryReply } from '../../matrix/client/unopenedThreadEdits';
 import { getBundledThreadPreviews, getThreadPreviewRevisionTs } from './threadBundledPreviews';
 import {
   getCompactThreadRootBodyPreviewText,
@@ -119,12 +120,13 @@ export const resolveThreadPresentationSnapshot = ({
   const bundle = getBundledThreadPreviews(room, rootEvent ?? thread?.rootEvent);
   const cachedReplyTs = fallbackLatestReplyTs ?? fallbackLastActivityTs;
   const replyEvents = visibleReplyEvents ?? getPreferredVisibleThreadReplyEvents(thread);
+  const summaryReply = getThreadSummaryReply(thread);
   // A root fetched earlier keeps the server's previews of that moment. Once this device knows a
   // newer thread event, or a newer revision of the bundle's latest one, its reply is out of date.
   const bundleLatest = bundle.latest;
   const outgrown =
     !!bundleLatest &&
-    [...replyEvents, thread?.replyToEvent].some(
+    [...replyEvents, summaryReply].some(
       (event) =>
         !!event &&
         (event.getId() === bundleLatest.id
@@ -143,12 +145,13 @@ export const resolveThreadPresentationSnapshot = ({
       ? undefined
       : loadedPreviewCandidate;
   // The SDK restores the bundled reply before loading the thread timeline.
-  // Use it for presentation without treating one event as the full reply count.
-  const bundledReply = bundled.reply ?? thread?.replyToEvent;
+  // Use it for presentation without treating one event as the full reply count. Like the server's
+  // bundled reply, it replaces a cached copy of the reply older than its newest revision.
+  const bundledReply = bundled.reply ?? summaryReply;
   const candidatePreviewEvent =
     (!fallbackLatestReplyPreviewText ||
-      (bundled.reply && cachedReplyTs !== undefined &&
-        getThreadPreviewRevisionTs(bundled.reply) > cachedReplyTs)) &&
+      (bundledReply && cachedReplyTs !== undefined &&
+        getThreadPreviewRevisionTs(bundledReply) > cachedReplyTs)) &&
     bundledReply &&
     !isThreadSummaryEvent(bundledReply) &&
     isVisibleThreadReplyEvent(bundledReply) &&
