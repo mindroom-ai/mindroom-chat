@@ -56,7 +56,8 @@ const openMidStream = async (
     const record = () => {
       const row = document.querySelector(`[data-message-id="${replyId}"]`);
       if (!row) return;
-      const words = row.textContent?.match(/\bword\d+\b/g)?.length ?? 0;
+      // No word boundaries: the row's text runs the time, the words and Stop together.
+      const words = row.textContent?.match(/word\d+/g)?.length ?? 0;
       // The thinking placeholder, not the streaming dots that share its label: it has the mark.
       const thinking = !!row.querySelector('[role="status"] img');
       const last = samples[samples.length - 1];
