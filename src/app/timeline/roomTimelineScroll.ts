@@ -119,7 +119,7 @@ export const useViewportAtBottomNow = (
   }, [atBottomRef, latestAtTopRef, scrollRef]);
 
 /** Gestures and keys that hand the scroll position over to the reader. */
-const READER_INTENT_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
+export const READER_INTENT_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
 /** How much further from the newest row a scroll must leave the reader to count as theirs. */
 const LEFT_LATEST_ROW_PX = 32;
 
