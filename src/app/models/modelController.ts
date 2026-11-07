@@ -384,17 +384,6 @@ export class ModelController {
     if (scope.snapshot.runtime?.id === runtime.id && scope.catalogs.has(runtime.id)) {
       scope.catalogs.set(runtime.id, { runtime, response });
       this.showRuntime(scope, runtime);
-    } else if (
-      !scope.catalogs.size &&
-      !scope.send &&
-      (scope.chosenRuntimeId ?? runtime.id) === runtime.id
-    ) {
-      // A first discovery shows its first answer now rather than when the window ends, so the chip
-      // is there before someone types `!model`, and a runtime that answers it can ask again.
-      scope.catalogs = new Map([[runtime.id, { runtime, response }]]);
-      scope.needsRefresh = false;
-      this.publish(scope, { eligible: true, runtimes: [runtime], error: undefined });
-      this.showRuntime(scope, runtime);
     }
   }
 
