@@ -5,10 +5,12 @@
 //
 // "Initial" is index.html's module script with every chunk it imports statically (the browser
 // fetches all of them before the entry runs), plus index.html's style sheets. Dynamic imports
-// load later and are listed as other chunks. --sources attributes each initial chunk's bytes to
-// packages and app folders through the build's source maps (`vite build --sourcemap`).
+// load later and are listed as other chunks; with the manifest of `vite build --manifest`, every
+// chunk is also listed under a name that stays the same between builds. --sources attributes
+// each initial chunk's bytes to packages and app folders through the build's source maps
+// (`vite build --sourcemap`).
 // --budget fails (exit 1) when a gzip size goes over the limits in the given JSON file.
-import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
 
@@ -120,6 +122,36 @@ console.log(
 console.log(`\nLargest 25 other chunks (load on demand):`);
 console.log(table(rows.filter((row) => !row.initial).slice(0, 25)));
 console.log(`all JS: ${kb(summary.allJs.raw)} raw in ${summary.allJs.files} files`);
+
+// Every chunk with its style sheets, under a name that stays the same from build to build (file
+// hashes change even between two builds of one commit), sorted by name so two reports diff line by
+// line. The manifest of `vite build --manifest` names a chunk by its source module, with the path
+// cut back to node_modules/ where the install sits outside the project, else by its chunk name.
+const manifestFile = path.join(dist, '.vite', 'manifest.json');
+if (existsSync(manifestFile)) {
+  const byFile = new Map(rows.map((row) => [row.file, row]));
+  const chunks = Object.values(JSON.parse(readFileSync(manifestFile, 'utf8')))
+    .filter((chunk) => chunk.file.endsWith('.js'))
+    .map((chunk) => {
+      const files = [chunk.file, ...(chunk.css ?? [])].map((file) => byFile.get(file));
+      const name = chunk.src?.replace(/^.*?(?=node_modules\/)/, '') ?? chunk.name;
+      return {
+        file: initial.has(path.join(dist, chunk.file)) ? `${name} (initial)` : name,
+        raw: sum(files, 'raw'),
+        gzip: sum(files, 'gzip'),
+        brotli: sum(files, 'brotli'),
+      };
+    })
+    .sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
+  console.log(
+    `\nEvery chunk with its style sheets, by name; those not marked initial load on demand:`
+  );
+  console.log(table(chunks));
+} else {
+  console.log(
+    '\nTo list every chunk under a name that stays the same between builds, build with `npx vite build --manifest`.'
+  );
+}
 
 // Bytes of each generated chunk per source file, read from its source map's mappings.
 const attribute = async (file) => {
