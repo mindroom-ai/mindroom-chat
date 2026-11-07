@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { loginWithPassword } from '../helpers/auth';
+import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 
@@ -158,10 +158,21 @@ const measure = (dialog: Locator) =>
       round(rtl ? edges.right - box.right : box.left - edges.left);
     const end = (box: Edges, edges: Edges) =>
       round(rtl ? box.left - edges.left : edges.right - box.right);
+    // The box of the text itself, without the padding of the elements around it.
     const textBox = (node: Node) => {
-      const range = document.createRange();
-      range.selectNodeContents(node);
-      return range.getBoundingClientRect();
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      const boxes: DOMRect[] = [];
+      for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+        if (!text.textContent?.trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        boxes.push(range.getBoundingClientRect());
+      }
+      const left = Math.min(...boxes.map((box) => box.left));
+      const top = Math.min(...boxes.map((box) => box.top));
+      const right = Math.max(...boxes.map((box) => box.right));
+      const bottom = Math.max(...boxes.map((box) => box.bottom));
+      return new DOMRect(left, top, right - left, bottom - top);
     };
     const center = (box: DOMRect) => round(box.top + box.height / 2);
     const iconStart = (row: Element, edges: Edges) => {
@@ -341,7 +352,9 @@ const openSettings = async (page: Page, viewport: Viewport, theme: string, langu
   await page.goto('/home/');
   await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 60_000 });
   await expect(page.getByText('Project room 9', { exact: true }).first()).toBeVisible();
-  await page.keyboard.press('ControlOrMeta+,');
+  // ⌘, or Ctrl+, opens Settings in any language; WebKit on Linux takes the account menu's entry.
+  if (language === 'en') await chooseFromAccountMenu(page, 'Settings');
+  else await page.keyboard.press('ControlOrMeta+,');
   const dialog = page
     .getByRole('dialog')
     .filter({ has: page.locator('nav, [data-settings-page]') });
@@ -385,7 +398,19 @@ const checkMeasures = ({ state, measures }: Record_, phone: boolean) => {
       expect
         .soft(menu.aboveLogout, `${state}: last row to Logout`)
         .toBeGreaterThanOrEqual(INSET - 1);
+    // Wider screens show the whole menu in the 700 px dialog (without Local MindRoom).
+    if (!phone && menu.belowField >= 0)
+      expect.soft(menu.menuOverflow, `${state}: the menu scrolls`).toBeLessThanOrEqual(1);
   }
+  if (menu && measures.menuTitle) {
+    const bar = measures.menuTitle;
+    near(bar.text, INSET, `${state}: menu title from the start edge`);
+    near(bar.button.end, INSET, `${state}: menu close button from the end edge`);
+    near(bar.button.center, bar.textCenter, `${state}: menu title and close line`);
+    near(menu.fieldTop - bar.height, INSET, `${state}: search field under the menu title`);
+  }
+  if (header && phone)
+    near(header.button.center, header.textCenter, `${state}: back and title line`);
   if (header && menu && !phone) {
     if (menu.searchBar !== null) near(header.height, menu.searchBar, `${state}: bar heights`);
     near(header.button.top, INSET, `${state}: close button from the top edge`);
