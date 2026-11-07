@@ -14,8 +14,10 @@ import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 /**
  * Deleting your own messages (live-test lane 9, L9-F008 and L9-F009): an edited thread reply
- * deleted from the message menu leaves the thread at once, and after a reload the sync store
- * keeps no text of the deleted messages or of their edits.
+ * deleted from the message menu leaves the thread at once, and neither the saved sync nor the
+ * app's cache keeps any text of the deleted messages or of their edits, before a reload or after
+ * it. A homeserver that bundles a thread's latest reply beside its summary
+ * (`io.mindroom.latest_reply`, live-test pass 2, P2-lane9-F002) gives the root a copy of it too.
  */
 
 type Fixture = {
@@ -72,12 +74,15 @@ const deleteFromMenu = async (page: Page, eventId: string) => {
   await expect(dialog).toBeHidden();
 };
 
-/** Every record of the account's saved sync stores. */
-const readSyncStores = (page: Page): Promise<unknown[]> =>
+/** Every record of the account's saved sync stores and of the app's cache. */
+const readSavedStores = (page: Page): Promise<unknown[]> =>
   page.evaluate(async () => {
     const names = (await indexedDB.databases())
       .map((database) => database.name ?? '')
-      .filter((name) => name.startsWith('matrix-js-sdk:web-sync-store'));
+      .filter(
+        (name) =>
+          name.startsWith('matrix-js-sdk:web-sync-store') || name.startsWith('mindroom-cache')
+      );
     const dumps = await Promise.all(
       names.map(
         (name) =>
@@ -110,6 +115,25 @@ const findText = (value: unknown, needle: string, path = ''): string[] => {
   return Object.entries(value).flatMap(([key, child]) => findText(child, needle, `${here}/${key}`));
 };
 
+const DELETED_TEXTS = [
+  'mainplain v1',
+  'mainedited v1',
+  'mainedited v2',
+  'threadplain v1',
+  'threadedited v1',
+  'threadedited v2',
+];
+
+/** The deleted texts the saved stores still hold, with where they are. */
+const keptTexts = async (page: Page, stamp: string, texts = DELETED_TEXTS) => {
+  const saved = await readSavedStores(page);
+  // The message that was not deleted is there, so the stores were read.
+  expect(findText(saved, `Thread root ${stamp}`).length).toBeGreaterThan(0);
+  return texts
+    .map((text) => ({ text, paths: findText(saved, `${text} ${stamp}`) }))
+    .filter(({ paths }) => paths.length > 0);
+};
+
 /** Signs in and opens the fixture's thread. */
 const openThread = async (page: Page, fixture: Fixture) => {
   const homeserver = getHomeserver();
@@ -129,7 +153,10 @@ const openThread = async (page: Page, fixture: Fixture) => {
   await expect(page.getByText(`threadplain v1 ${stamp}`)).toBeVisible();
 };
 
-/** L9-F008: an edited reply deleted from its menu leaves the thread with the server's answer. */
+/**
+ * L9-F008: an edited reply deleted from its menu leaves the thread with the server's answer.
+ * P2-lane9-F002: the stores keep none of its text once the next save ran, nor after a reload.
+ */
 const deleteEditedReply = async (page: Page) => {
   const fixture = await createFixture();
   const { stamp } = fixture;
@@ -143,9 +170,18 @@ const deleteEditedReply = async (page: Page) => {
     await page.screenshot({ path: `${shots}/after-delete-${test.info().title.split(':')[0]}.png` });
   await deleteFromMenu(page, fixture.plainReplyId);
   await expect(page.getByText(`threadplain v1 ${stamp}`)).toHaveCount(0, { timeout: 5_000 });
+
+  // A redaction is saved at most two seconds after it arrives.
+  const deleted = ['threadplain v1', 'threadedited v1', 'threadedited v2'];
+  await page.waitForTimeout(5_000);
+  expect(await keptTexts(page, stamp, deleted), 'deleted texts before a reload').toEqual([]);
+  await page.reload();
+  await expect(page.getByText(`Thread root ${stamp}`).first()).toBeVisible({ timeout: 60_000 });
+  await page.waitForTimeout(5_000);
+  expect(await keptTexts(page, stamp, deleted), 'deleted texts after a reload').toEqual([]);
 };
 
-/** L9-F009: after a reload, the saved sync holds no text of a deleted message or its edits. */
+/** L9-F009: after a reload, the saved stores hold no text of a deleted message or its edits. */
 const reloadAfterDeletes = async (page: Page) => {
   const homeserver = getHomeserver();
   const { username, password } = getPrimaryCredentials();
@@ -170,14 +206,7 @@ const reloadAfterDeletes = async (page: Page) => {
   await expect(page.getByText(`Thread root ${stamp}`).first()).toBeVisible({ timeout: 60_000 });
   await page.waitForTimeout(5_000);
 
-  const saved = await readSyncStores(page);
-  // The message that was not deleted is there, so the store was read.
-  expect(findText(saved, `Thread root ${stamp}`).length).toBeGreaterThan(0);
-  const kept = ['mainplain v1', 'mainedited v1', 'mainedited v2', 'threadplain v1']
-    .concat(['threadedited v1', 'threadedited v2'])
-    .map((text) => ({ text, paths: findText(saved, `${text} ${stamp}`) }))
-    .filter(({ paths }) => paths.length > 0);
-  expect(kept, 'deleted texts in the saved sync').toEqual([]);
+  expect(await keptTexts(page, stamp), 'deleted texts in the saved stores').toEqual([]);
 };
 
 const onWebKit = (baseURL: string | undefined, check: (page: Page) => Promise<void>) => {
@@ -197,11 +226,11 @@ test.describe('deleting edited messages', () => {
     await onWebKit(baseURL, deleteEditedReply);
   });
 
-  test('Chromium: the saved sync keeps no text of deleted messages', async ({ page }) => {
+  test('Chromium: the saved stores keep no text of deleted messages', async ({ page }) => {
     await reloadAfterDeletes(page);
   });
 
-  test('WebKit: the saved sync keeps no text of deleted messages', async ({ baseURL }) => {
+  test('WebKit: the saved stores keep no text of deleted messages', async ({ baseURL }) => {
     await onWebKit(baseURL, reloadAfterDeletes);
   });
 });
