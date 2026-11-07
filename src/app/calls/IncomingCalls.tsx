@@ -30,7 +30,7 @@ type RingCardProps = {
 };
 
 /** "Maya is calling", or "Maya is calling in Planning" outside a direct chat. */
-const useRingLine = (room: Room, ring: IncomingRing): string => {
+export const useRingLine = (room: Room, ring: IncomingRing): string => {
   const { t } = useTranslation();
   const { name } = useCallMemberProfile(room, ring.sender);
   const roomName = useRoomName(room);
