@@ -32,14 +32,18 @@ export type SettingsPageProps = Pick<SettingsPageFrameProps, 'requestClose'>;
 type FrameHeaderProps = Pick<SettingsPageFrameProps, 'title' | 'requestClose'>;
 
 // Inline and in plain units, because the shared page header and content set their own padding
-// and the unit tests of the pages load this frame with folds and styles mocked. The close button
-// sits 24 px from the dialog's end edge (the right, or the left in a right-to-left language), in
-// a title bar as tall as the search field's beside it (`SettingsDialog` in frame.css.ts sets the
-// height, 48 px elsewhere); the page's sections form a centered column of at most 680 px.
+// and the unit tests of the pages load this frame with folds and styles mocked. The title bar is as
+// tall as the search field's beside it (`SettingsDialog` in frame.css.ts sets the height, 48 px
+// elsewhere). It keeps the dialog's inset (frame.css.ts): the 32 px close button, as tall as the
+// search field, stays 12 px from the dialog's end edge (the right, or the left in a right-to-left
+// language), and the breadcrumb starts 20 px from the divider, as the menu's icons do from the
+// dialog's edge. The page's sections form a centered column of at most 680 px, 24 px under it.
 const HEADER_STYLE = {
   height: 'var(--mr-settings-bar-height, 3rem)',
-  paddingInlineEnd: '1.5rem',
+  paddingInlineStart: '1.25rem',
+  paddingInlineEnd: '0.75rem',
 };
+const CLOSE_STYLE = { width: '2rem', height: '2rem' };
 // On phones the breadcrumb keeps clear of the back button's focus ring, which shows as the page
 // opens.
 const PHONE_HEADER_STYLE = { gap: '0.5rem' };
@@ -47,7 +51,7 @@ const CONTENT_COLUMN = {
   width: '100%',
   maxWidth: '42.5rem',
   marginInline: 'auto',
-  paddingTop: '1.75rem',
+  paddingTop: '1.5rem',
   paddingInline: '1.25rem',
 };
 const TRAIL_STYLE = { minWidth: 0 };
@@ -113,6 +117,7 @@ function FrameHeader({ title, requestClose }: FrameHeaderProps) {
         variant="Surface"
         onClick={requestClose}
         aria-label={t('featureUi.settings.emojisStickers.globalPacks.close')}
+        style={CLOSE_STYLE}
       >
         <Icon size="100" src={Icons.Cross} />
       </IconButton>
