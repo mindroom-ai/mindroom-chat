@@ -230,8 +230,7 @@ const LAYERS = [
   ['src/index.tsx', 'src/client-sdk'],
 ];
 const domainDir = (domain) => (domain.startsWith('src/') ? `./${domain}` : `./src/app/${domain}`);
-// One zone per domain: it may import nothing of its own layer or above. A domain alone in the top
-// layer would need none.
+// One zone per domain: it may import nothing of its own layer or above.
 const LAYER_ZONES = LAYERS.flatMap((layer, index) =>
   layer.map((domain) => ({
     target: domainDir(domain),
@@ -241,7 +240,7 @@ const LAYER_ZONES = LAYERS.flatMap((layer, index) =>
       .map(domainDir),
     message: `${domain} (layer ${index}) may import only lower layers; see docs/architecture.md "Layers".`,
   }))
-).filter((zone) => zone.from.length > 0);
+);
 // Tests and their helpers (the files tsconfig.app.json leaves out) may import any layer.
 const LAYERS_EXEMPT = [
   '**/*.test.{ts,tsx}',

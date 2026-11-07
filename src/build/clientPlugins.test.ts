@@ -45,6 +45,7 @@ describe('readClientPlugins', () => {
   });
 
   it('reads the id, version and entry of each listed directory, in order', () => {
+    // The example needs client SDK 2; the other was written for 1, which this client still builds.
     const other = pluginDir(declaring());
     expect(readClientPlugins(` ${EXAMPLE} ,${other},`)).toEqual([
       { id: 'example', version: '1.0.0', dir: EXAMPLE, entry: path.join(EXAMPLE, 'index.tsx') },
@@ -101,13 +102,6 @@ describe('readClientPlugins', () => {
     expect(() => readClientPlugins(list)).toThrow(reason);
   });
 
-  it('accepts a plugin written for an older client SDK', () => {
-    const dir = pluginDir(declaring({ apiVersion: 1 }));
-    expect(readClientPlugins(dir)).toEqual([
-      { id: 'some-plugin', version: '2.0.0', dir, entry: path.join(dir, 'index.js') },
-    ]);
-  });
-
   it('fails the build for an id two directories share, naming both', () => {
     const first = pluginDir(declaring());
     const second = pluginDir(declaring());
@@ -148,11 +142,9 @@ describe('clientPlugins', () => {
 
   it('lets the dev server serve the plugin directories besides the workspace', () => {
     const config = (plugins: string | undefined) =>
-      (
-        clientPlugins({ MINDROOM_CLIENT_PLUGINS: plugins }).config as () => UserConfig | undefined
-      )();
-    expect(config(EXAMPLE)?.server?.fs?.allow).toEqual([path.resolve(ROOT), EXAMPLE]);
-    expect(config(undefined)?.server).toBeUndefined();
+      (clientPlugins({ MINDROOM_CLIENT_PLUGINS: plugins }).config as () => UserConfig)();
+    expect(config(EXAMPLE).server?.fs?.allow).toEqual([path.resolve(ROOT), EXAMPLE]);
+    expect(config(undefined).server).toBeUndefined();
   });
 
   it('resolves the client SDK for a plugin outside this repository', async () => {
