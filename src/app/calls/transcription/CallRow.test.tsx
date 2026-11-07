@@ -26,6 +26,8 @@ const state = vi.hoisted(() => ({
     everyMs: number;
     signal: AbortSignal;
     onLive: (live: LiveCall) => void;
+    /** Ends the reads, as MindRoom saying the room is not transcribed does. */
+    finish: (outcome: 'not-transcribed') => void;
   }>,
 }));
 
@@ -40,8 +42,8 @@ vi.mock('./liveCallPoll', () => ({
     signal: AbortSignal,
     onLive: (live: LiveCall) => void
   ) =>
-    new Promise(() => {
-      state.polls.push({ client, everyMs, signal, onLive });
+    new Promise((finish) => {
+      state.polls.push({ client, everyMs, signal, onLive, finish });
     }),
 }));
 vi.mock('../../matrix/openidAudience', () => ({ requestAudienceOpenIdToken: vi.fn() }));
@@ -284,6 +286,28 @@ describe('CallRow', () => {
     expect(button('Join')).toBeUndefined();
     expect(button('Transcript')).toBeUndefined();
     expect(button('Notes and transcript')).toBeUndefined();
+  });
+
+  it.each([
+    ['names no live call', () => state.polls[0]?.onLive({ call: null, lines: [], names: {} })],
+    [
+      'names another call',
+      () => state.polls[0]?.onLive({ call: { ...CALL, id: 'call-2' }, lines: [], names: {} }),
+    ],
+    ['says the room is not transcribed', () => state.polls[0]?.finish('not-transcribed')],
+  ])('shows an unedited row as ended when the read %s', async (_case, answer) => {
+    render(LIVE);
+    inView(true);
+    act(() => state.polls[0]?.onLive({ call: CALL, lines: [], names: {} }));
+    expect(container.textContent).toContain('Call in progress');
+
+    await act(async () => answer());
+    expect(container.textContent).toContain('Call ended');
+    expect(container.textContent).not.toContain('Call in progress');
+    expect(container.textContent).not.toContain('min');
+    expect(faces()).toEqual([]);
+    expect(button('Join')).toBeUndefined();
+    expect(button('Transcript')).toBeUndefined();
   });
 
   it('links to the transcript message in its thread once the router names it', () => {
