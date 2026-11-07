@@ -162,7 +162,12 @@ export const resolveThreadPresentationSnapshot = ({
     cachedReplyTs !== undefined && (!candidatePreviewEvent ||
       cachedReplyTs > getThreadPreviewRevisionTs(candidatePreviewEvent));
   const latestPreviewEvent = preferCachedReply ? undefined : candidatePreviewEvent;
-  const lastEvent = preferCachedReply ? undefined : latestPreviewEvent ?? replyEvents[replyEvents.length - 1];
+  // A cached preview keeps its own sender: a newer reply not shown yet (one still encrypted) did
+  // not write it (P2-e2ee-F005).
+  const lastEvent = preferCachedReply
+    ? undefined
+    : latestPreviewEvent ??
+      (fallbackLatestReplyPreviewText ? undefined : replyEvents[replyEvents.length - 1]);
   const lastSenderId =
     lastEvent?.getSender?.() ??
     fallbackLastSenderId ??
