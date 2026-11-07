@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Avatar, Box, Icon, IconButton, Icons, Text, Tooltip, config, toRem } from 'folds';
-import { PopOut, ownDirectionLine } from '../../ui/directional';
+import { PopOut, ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useFocusWithin, useHover } from 'react-aria';
@@ -333,7 +333,8 @@ export function RoomNavItem(props: RoomNavItemProps) {
   const [engaged, engagementProps] = useRowEngagement();
   const [optionsAnchor, setOptionsAnchor] = useState<RectCords>();
   const { dialog, showDialog } = useRoomActionDialog();
-  const name = useRoomName(room);
+  // Direction controls in the name show as code points, so they cannot reorder it.
+  const name = revealDirectionControls(useRoomName(room));
   const unread = useRoomUnread(room.roomId, roomToUnreadAtom);
   const rowRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLSpanElement>(null);
