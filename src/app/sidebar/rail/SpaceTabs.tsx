@@ -43,7 +43,7 @@ import { useOpenSpaceSettings } from '../../navigation/useSpaceSettingsState';
 import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
 import { getRoomAvatarUrl, isSpace } from '../../matrix/room';
 import { copyToClipboard } from '../../lib/dom';
-import { suppressNextClickDefaultAfterPointerDrag } from '../../lib/sortableDrag';
+import { preventClickDefaultsDuringPointerDrag } from '../../lib/sortableDrag';
 import { LongPressTouchSensor } from '../../lib/longPressTouchSensor';
 import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
 import { moveStep } from '../../shortcuts/shortcuts';
@@ -460,7 +460,7 @@ export function SpaceTabs({ onSelect }: SpaceTabsProps = {}) {
     });
 
   const handleDragStart = (event: DragStartEvent) => {
-    suppressNextClickDefaultAfterPointerDrag(event.activatorEvent);
+    preventClickDefaultsDuringPointerDrag(event.activatorEvent);
   };
   const handleDragMove = (event: DragMoveEvent) => {
     const instruction = instructionFor(event);

@@ -104,3 +104,5 @@ src/app/mindroom/threads/roomLiveRenderController.ts	1	rewritten in Lane C from 
 src/app/components/invite-user-prompt/InviteAutocompleteMenu.tsx	1	rewritten in Lane C from a behaviour spec (ancestry audit)
 src/app/components/splash-screen/MindRoomSplashScreen.tsx	1	rewritten in Lane C from a behaviour spec (ancestry audit)
 src/app/mindroom/native/iosCiVersion.test.ts	1	tested the 4.12.x build-counter versions that calendar versions replaced; written again in Lane C for them
+src/app/utils/suppressNextClickDefault.test.ts	1	merged into src/app/lib/sortableDrag.test.ts (room-order-dnd)
+src/app/utils/suppressNextClickDefault.ts	1	merged into src/app/lib/sortableDrag.ts (room-order-dnd)
