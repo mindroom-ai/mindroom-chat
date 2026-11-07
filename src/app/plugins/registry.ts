@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { isRecord } from '../lib/isRecord';
+import { isHeaderAction, type HeaderAction } from './headerActions';
 import { isConversationCover, type ConversationCover } from './conversationCovers';
 import type { MessageRenderer } from './messageRenderers';
 import { pluginEntries, type PluginEntry } from './pluginEntries';
@@ -14,8 +15,11 @@ export type RoomHeaderSlotComponent = ComponentType<{ room: Room }>;
 export type ClientPlugin = {
   conversationCovers?: readonly ConversationCover[];
   messageRenderers?: readonly MessageRenderer[];
+  /** Deletes what the plugin keeps for `userId` outside its storage (`pluginStorage.ts`). */
+  forgetAccount?: (userId: string) => void | Promise<void>;
   roomHeaderSlot?: readonly RoomHeaderSlotComponent[];
   sidePanels?: readonly SidePanel[];
+  headerActions?: readonly HeaderAction[];
   translations?: PluginTranslations;
 };
 
@@ -25,14 +29,17 @@ export type RegisteredPlugin = {
   readonly tag: string;
   readonly conversationCovers: readonly ConversationCover[];
   readonly messageRenderers: readonly MessageRenderer[];
+  readonly forgetAccount?: ClientPlugin['forgetAccount'];
   readonly roomHeaderSlot: readonly RoomHeaderSlotComponent[];
   readonly sidePanels: readonly SidePanel[];
+  readonly headerActions: readonly HeaderAction[];
 };
 
 const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   const renderers = isRecord(plugin) ? plugin.messageRenderers : undefined;
   const headerSlot = isRecord(plugin) ? plugin.roomHeaderSlot : undefined;
   const panels = isRecord(plugin) ? plugin.sidePanels : undefined;
+  const actions = isRecord(plugin) ? plugin.headerActions : undefined;
   const covers = isRecord(plugin) ? plugin.conversationCovers : undefined;
   registerPluginTranslations(id, isRecord(plugin) ? plugin.translations : undefined);
   return Object.freeze({
@@ -44,9 +51,14 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
         ? renderers.filter((renderer) => isRecord(renderer) && typeof renderer.match === 'function')
         : []
     ),
+    forgetAccount:
+      isRecord(plugin) && typeof plugin.forgetAccount === 'function'
+        ? (plugin.forgetAccount.bind(plugin) as ClientPlugin['forgetAccount'])
+        : undefined,
     // Its slot renders each entry in a boundary, so one that is no component only fails there.
     roomHeaderSlot: Object.freeze(Array.isArray(headerSlot) ? [...headerSlot] : []),
     sidePanels: Object.freeze(Array.isArray(panels) ? panels.filter(isSidePanel) : []),
+    headerActions: Object.freeze(Array.isArray(actions) ? actions.filter(isHeaderAction) : []),
     conversationCovers: Object.freeze(
       Array.isArray(covers) ? covers.filter(isConversationCover) : []
     ),

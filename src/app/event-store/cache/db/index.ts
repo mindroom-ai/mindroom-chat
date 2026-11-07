@@ -49,7 +49,6 @@ export {
 
 export {
   filterPageableCachedThreadEvents,
-  getCachedThreadSummaryInfoFromRawEvent,
   getRoomCursorAnchor,
   getThreadCursorAnchor,
   mergeThreadCacheFlag,

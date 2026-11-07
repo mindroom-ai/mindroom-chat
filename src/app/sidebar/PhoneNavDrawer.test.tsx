@@ -7,7 +7,11 @@ import { phoneNavDrawerOpenAtom, phoneNavSectionRootAtom } from '../navigation/p
 import { PhoneNavDrawer } from './PhoneNavDrawer';
 import { followRouterSignalsInNode } from '../../test/utils/nodeSignalRequests';
 
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+// Partly: the app's i18n setup, which the plugin registry loads, takes the rest of the module.
+vi.mock('react-i18next', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-i18next')>()),
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
 vi.mock('./PhoneNavDrawer.css', () => ({
   SheetSlot: 'sheet-slot',
   Scrim: 'scrim',

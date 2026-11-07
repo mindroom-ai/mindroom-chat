@@ -19,6 +19,7 @@ const plugin = (id: string, ...messageRenderers: MessageRenderer[]): RegisteredP
   roomHeaderSlot: [],
   conversationCovers: [],
   sidePanels: [],
+  headerActions: [],
 });
 
 const renderer = (overrides: Partial<MessageRenderer> = {}): MessageRenderer => ({
