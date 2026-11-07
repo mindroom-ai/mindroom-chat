@@ -29,7 +29,7 @@ import { ResizableMembersPanel } from '../members/ResizableMembersPanel';
 import { PanelRow } from '../members/PanelRow';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
 import { usePanelSlot } from '../ui/panels/panelPresence';
-import { PanelFrameProvider } from '../ui/panels/PanelFrame';
+import { type PanelFrame, PanelFrameProvider } from '../ui/panels/PanelFrame';
 import { type RoomPanel, useRoomPanels } from '../ui/panels/roomPanels';
 import { registeredPlugins } from '../plugins/registry';
 import { enabledSidePanels } from '../plugins/sidePanels';
@@ -421,10 +421,13 @@ function RoomContent() {
   ];
   const { shown, layout: shownLayout, setLayout, request } = useRoomPanels(roomId, panels);
   // Beside the conversation the shown panel has a frame, which fills the room with it or folds it
-  // to a tab at the room's edge. Phones show the panel over the conversation as before, with no
-  // frame; the members, a list their header button already shows and hides, have none either.
-  const frameLabel = mobile ? undefined : shown?.label;
-  const layout = frameLabel === undefined ? 'beside' : shownLayout;
+  // to a tab at the room's edge. Phones show the panel over the conversation, with no frame; the
+  // members, a list their header button already shows and hides, have none either.
+  const frame: PanelFrame | undefined =
+    !mobile && shown?.label !== undefined
+      ? { label: shown.label, layout: shownLayout, setLayout: (next) => setLayout(shown.id, next) }
+      : undefined;
+  const layout = frame?.layout ?? 'beside';
   function toggleFilled(id: string) {
     setLayout(id, layout === 'filled' ? 'beside' : 'filled');
   }
@@ -580,14 +583,7 @@ function RoomContent() {
   // taking another's place changes width without closing first.
   const sidePanel = usePanelSlot(
     shown && (
-      <PanelFrameProvider
-        key={shown.id}
-        value={
-          frameLabel === undefined
-            ? undefined
-            : { label: frameLabel, layout, setLayout: (next) => setLayout(shown.id, next) }
-        }
-      >
+      <PanelFrameProvider key={shown.id} value={frame}>
         {shown.render()}
       </PanelFrameProvider>
     )

@@ -26,11 +26,11 @@ export type RoomPanel = {
 /** The layout of each panel, by room. */
 type Layouts = Readonly<Record<string, Readonly<Record<string, PanelLayout>>>>;
 
-/** `id` opened beside the conversation in `room`: what it was in the other rooms no longer holds. */
-const openedBeside = (layouts: Layouts, id: string, room: string): Layouts => ({
-  ...layouts,
-  [id]: { [room]: 'beside' },
-});
+/**
+ * `id` opened: beside the conversation, which is what no layout means, in every room; what it was
+ * before no longer holds.
+ */
+const opened = (layouts: Layouts, id: string): Layouts => ({ ...layouts, [id]: {} });
 
 /** Closes every panel but `id` that does not yield to it. */
 const makeRoomFor = (panels: readonly RoomPanel[], id: string) =>
@@ -64,7 +64,7 @@ export function useRoomPanels<Panel extends RoomPanel>(room: string, panels: rea
     const { room: here, panels: current } = latest.current;
     makeRoomFor(current, id);
     const open = current.some((panel) => panel.id === id && panel.open);
-    setLayouts((all) => (open && all[id]?.[here] === 'filled' ? all : openedBeside(all, id, here)));
+    setLayouts((all) => (open && all[id]?.[here] === 'filled' ? all : opened(all, id)));
     show();
   }, []);
 
@@ -78,7 +78,7 @@ export function useRoomPanels<Panel extends RoomPanel>(room: string, panels: rea
     panels.forEach((panel) => {
       if (panel.opensElsewhere && panel.open && !before.has(panel.id)) {
         makeRoomFor(panels, panel.id);
-        setLayouts((all) => openedBeside(all, panel.id, room));
+        setLayouts((all) => opened(all, panel.id));
       }
     });
   });
