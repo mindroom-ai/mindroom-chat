@@ -27,8 +27,6 @@ type UpsertFn = () => void;
 type PendingUpsert = {
   upsert: UpsertFn;
   timer: ReturnType<typeof setTimeout>;
-  /** When the first of the coalesced upserts was scheduled. */
-  since: number;
 };
 
 export type EditCompactionScheduler = {
@@ -50,13 +48,8 @@ export type EditCompactionScheduler = {
   pendingCount: () => number;
 };
 
-/**
- * `maxWaitMs` bounds the coalescing: a target that keeps being edited faster than the debounce
- * (a long streamed reply) is still saved at least that often, so a reload mid-stream finds it.
- */
 export const createEditCompactionScheduler = (
-  debounceMs: number,
-  maxWaitMs = Infinity
+  debounceMs: number
 ): EditCompactionScheduler => {
   const pending = new Map<string, PendingUpsert>();
 
@@ -80,10 +73,8 @@ export const createEditCompactionScheduler = (
       if (existing) {
         clearTimeout(existing.timer);
       }
-      const since = existing?.since ?? Date.now();
-      const wait = Math.max(0, Math.min(debounceMs, since + maxWaitMs - Date.now()));
-      const timer = setTimeout(() => runUpsert(key), wait);
-      pending.set(key, { upsert, timer, since });
+      const timer = setTimeout(() => runUpsert(key), debounceMs);
+      pending.set(key, { upsert, timer });
     },
     flushTarget: (key) => runUpsert(key),
     flushAll: () => {

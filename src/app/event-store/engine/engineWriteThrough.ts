@@ -45,10 +45,7 @@ import {
   persistRoomEventCacheSnapshot,
   persistThreadEventCacheSnapshot,
 } from '../cache/eventRepository';
-import {
-  THREAD_EDIT_COMPACTION_DEBOUNCE_MS,
-  THREAD_EDIT_COMPACTION_MAX_WAIT_MS,
-} from '../cache/preloadSettings';
+import { THREAD_EDIT_COMPACTION_DEBOUNCE_MS } from '../cache/preloadSettings';
 import { forgetRedactedThreadSummaries } from '../threads/threadSummaryState';
 import {
   createEditCompactionScheduler,
@@ -173,11 +170,7 @@ export const createEngineWriteThrough = (
     else persistThreadEvents(session, room, threadId, events, tailLoaded);
   };
   const scheduler =
-    options.scheduler ??
-    createEditCompactionScheduler(
-      THREAD_EDIT_COMPACTION_DEBOUNCE_MS,
-      THREAD_EDIT_COMPACTION_MAX_WAIT_MS
-    );
+    options.scheduler ?? createEditCompactionScheduler(THREAD_EDIT_COMPACTION_DEBOUNCE_MS);
   const pendingCompactionReplace = new Map<string, MatrixEvent>();
 
   /**
