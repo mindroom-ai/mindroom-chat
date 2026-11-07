@@ -25,6 +25,7 @@ import { matchesEnum } from '../lib/matchesEnum';
 import { getMainTimelineReadTs, isMainTimelineMessageUnread } from './mainTimelineRead';
 import { countSeenThreadRootsAfter } from './seenThreadRoots';
 import { isUnreadableYet } from './decryptionWaits';
+import { getSyncedEdit } from './client/syncedEdits';
 
 /** A room's current state event of `eventType` (and `stateKey`), if the client has it. */
 export const getStateEvent = (room: Room, type: string, stateKey = ''): MatrixEvent | undefined => {
@@ -256,7 +257,10 @@ const getRelationEdits = (
   );
 };
 
-/** The edits by `mEvent`'s sender: the SDK's applied one, the relation edits, the bundled one. */
+/**
+ * The edits by `mEvent`'s sender: the SDK's applied one, the relation edits, the bundled one and
+ * the newest one the sync brought.
+ */
 const getEditCandidates = (
   eventId: string,
   mEvent: MatrixEvent,
@@ -267,6 +271,8 @@ const getEditCandidates = (
     getAppliedEdit(mEvent) ?? undefined,
     ...getRelationEdits(eventId, mEvent, timelineSet),
     serializedReplacementCandidate ?? getShallowSerializedReplacementEvent(mEvent),
+    // One the SDK cannot decrypt is in none of those until the server bundles it after a reload.
+    getSyncedEdit(eventId),
   ].filter(
     (candidate): candidate is MatrixEvent =>
       isSameSenderEditEvent(mEvent, candidate) && !candidate.isRedacted()
