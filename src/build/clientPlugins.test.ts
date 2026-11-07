@@ -84,7 +84,7 @@ describe('readClientPlugins', () => {
   });
 
   it('reads the id, version and entry of each listed directory, in order', () => {
-    // The example needs client SDK 6; the other was written for 1, which this client still builds.
+    // The other was written for client SDK 1, which this client still builds.
     const other = pluginDir(declaring());
     expect(readClientPlugins(` ${EXAMPLE} ,${other},`)).toEqual([
       { id: 'example', version: '1.0.0', dir: EXAMPLE, entry: path.join(EXAMPLE, 'index.tsx') },
@@ -174,32 +174,19 @@ describe('clientPlugins', () => {
   });
 
   it('resolves the client SDK for a plugin outside this repository', async () => {
-    const dir = pluginDir(declaring({ apiVersion: 2 }), { entry: false });
+    const dir = pluginDir(declaring({ apiVersion: 8 }), { entry: false });
     writeFileSync(
       path.join(dir, 'index.js'),
       "import { usePluginConfig } from '@mindroom/client-sdk/core';\n" +
         "import { useRoomMembers } from '@mindroom/client-sdk/matrix';\n" +
         'export default { messageRenderers: [], usePluginConfig, useRoomMembers };\n'
     );
-    const output = (await build({
-      configFile: false,
-      root: ROOT,
-      publicDir: false,
-      logLevel: 'silent',
-      plugins: [clientPlugins({ MINDROOM_CLIENT_PLUGINS: dir })],
-      build: {
-        write: false,
-        rollupOptions: {
-          input: path.join(ROOT, 'src/app/plugins/pluginEntries.ts'),
-          preserveEntrySignatures: 'strict',
-          // Packages, such as the Matrix SDK the `matrix` subpath imports, stay out; the SDK stays in.
-          external: (id) => packages(id) && !id.startsWith('@mindroom/client-sdk/'),
-        },
-      },
-    })) as Rollup.RollupOutput;
-    const modules = output.output.flatMap((file) =>
-      file.type === 'chunk' ? Object.keys(file.modules) : []
+    const chunks = await buildEntries(
+      { MINDROOM_CLIENT_PLUGINS: dir },
+      // Packages, such as the Matrix SDK the `matrix` subpath imports, stay out; the SDK stays in.
+      { external: (id) => packages(id) && !id.startsWith('@mindroom/client-sdk/') }
     );
+    const modules = chunks.flatMap((chunk) => Object.keys(chunk.modules));
     // The SDK's exports are the app's own modules, not copies or stand-ins.
     expect(modules).toContain(path.join(ROOT, 'src/app/plugins/pluginConfig.ts'));
     expect(modules).toContain(path.join(ROOT, 'src/app/matrix/hooks/useRoomMembers.ts'));
