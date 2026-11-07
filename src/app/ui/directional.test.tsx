@@ -2,9 +2,11 @@
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  IsolatedText,
   PopOut,
   TooltipProvider,
   documentIsRightToLeft,
+  isolateInSentence,
   mirrorPlacement,
   revealDirectionControls,
   textDirection,
@@ -114,6 +116,28 @@ describe('revealDirectionControls', () => {
     expect(revealDirectionControls(text)).toBe(text);
     const shown = revealDirectionControls('a\u2067b\u2069c');
     expect(revealDirectionControls(shown)).toBe(shown);
+  });
+});
+
+describe('isolateInSentence and IsolatedText', () => {
+  it('isolates a name and drops the direction controls that could end the isolate early', () => {
+    expect(isolateInSentence('المستخدم E')).toBe('\u2068المستخدم E\u2069');
+    expect(isolateInSentence('a\u2069\u202eb')).toBe('\u2068ab\u2069');
+  });
+
+  it('shows each isolated part as a <bdi>, with no invisible characters left', () => {
+    const sentence = `Requested by ${isolateInSentence('المستخدم E')} · expires soon`;
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(<IsolatedText text={sentence} />);
+    });
+    expect(renderer?.toJSON()).toEqual([
+      'Requested by ',
+      expect.objectContaining({ type: 'bdi', children: ['المستخدم E'] }),
+      ' · expires soon',
+    ]);
+    act(() => renderer?.update(<IsolatedText text="No names here" />));
+    expect(renderer?.toJSON()).toBe('No names here');
   });
 });
 
