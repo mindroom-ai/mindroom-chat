@@ -110,14 +110,14 @@ test('a sub-room shows under its room, opens to its members and brings its agent
   await page.getByRole('button', { name: 'Create', exact: true }).click();
 
   await expect.poll(() => listedRooms(stack, parentId), AGENT_WAIT).toHaveLength(1);
-  const [subId] = await listedRooms(stack, parentId);
+  const subId = (await listedRooms(stack, parentId))[0]!;
   await goHome(page);
   await expectUnderParent(page, parentId, subName);
   await shot(page, '1-creator-under-room');
 
   // The agents in the room join it on their own.
   await expect
-    .poll(() => joinedMembers(stack, subId!), AGENT_WAIT)
+    .poll(() => joinedMembers(stack, subId), AGENT_WAIT)
     .toEqual(expect.arrayContaining([stack.agents.helper, stack.agents.router]));
 
   // A member of the room sees it under the room and joins it from there.
@@ -133,19 +133,19 @@ test('a sub-room shows under its room, opens to its members and brings its agent
   await shot(memberPage, '3-member-joined');
 
   // Someone outside the room cannot join it.
-  await expect(joinRoom(stack.homeserver, outsider.accessToken, subId!)).rejects.toThrow(/403/);
+  await expect(joinRoom(stack.homeserver, outsider.accessToken, subId)).rejects.toThrow(/403/);
 
   // Taking it off the room's list puts it at top level for both, and the agents leave.
-  await page.goto(`/home/${encodeURIComponent(subId!)}`);
+  await page.goto(`/home/${encodeURIComponent(subId)}`);
   await expect(roomMoreOptions(page)).toBeVisible({ timeout: 60_000 });
   await roomMoreOptions(page).click();
   await page.getByRole('menuitem', { name: `Remove from ${parentName}`, exact: true }).click();
   await goHome(page);
-  await expectAtTopLevel(page, subId!);
-  await expectAtTopLevel(memberPage, subId!);
+  await expectAtTopLevel(page, subId);
+  await expectAtTopLevel(memberPage, subId);
   await shot(page, '4-creator-removed');
   await shot(memberPage, '5-member-removed');
   await expect
-    .poll(() => joinedMembers(stack, subId!), AGENT_WAIT)
+    .poll(() => joinedMembers(stack, subId), AGENT_WAIT)
     .not.toEqual(expect.arrayContaining([stack.agents.helper]));
 });

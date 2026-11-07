@@ -57,12 +57,13 @@ export function CreateSubRoomDialog({ parent, spaceId, requestClose }: CreateSub
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!name.trim()) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
     setError(undefined);
     setCreating(true);
     try {
       const roomId = await createRoom(client, {
-        name: name.trim(),
+        name: trimmed,
         parent,
         access: CreateRoomAccess.Restricted,
         knock: false,

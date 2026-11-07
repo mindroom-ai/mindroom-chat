@@ -297,19 +297,22 @@ describe('the shared room actions', () => {
     expect(rows()).toEqual(SHARED.filter((name) => name !== 'New Sub-room'));
   });
 
-  it("takes a sub-room off its parent room's list, and leaves its own link to the parent", () => {
+  /** Lists the menu's room under the chat room Garden and the given other parents. */
+  const listUnderGarden = (...otherParents: string[]) => {
     state.rooms['!parent:example.org'] = {
       roomId: '!parent:example.org',
       name: 'Garden',
       isSpaceRoom: () => false,
     };
-    state.rooms['!space:example.org'] = { roomId: '!space:example.org', isSpaceRoom: () => true };
     getDefaultStore().set(roomToParentsAtom, {
       type: 'INITIALIZE',
-      roomToParents: new Map([
-        ['!room:example.org', new Set(['!space:example.org', '!parent:example.org'])],
-      ]),
+      roomToParents: new Map([[room.roomId, new Set([...otherParents, '!parent:example.org'])]]),
     });
+  };
+
+  it("takes a sub-room off its parent room's list, and leaves its own link to the parent", () => {
+    state.rooms['!space:example.org'] = { roomId: '!space:example.org', isSpaceRoom: () => true };
+    listUnderGarden('!space:example.org');
     const close = vi.fn();
     render(<Harness close={close} />);
     expect(rows()).toEqual([...SHARED.slice(0, -2), 'Remove from Garden', ...SHARED.slice(-2)]);
@@ -324,15 +327,7 @@ describe('the shared room actions', () => {
 
   it('keeps Remove from, disabled with the reason, for someone who may not change the parent', () => {
     state.canListRooms = false;
-    state.rooms['!parent:example.org'] = {
-      roomId: '!parent:example.org',
-      name: 'Garden',
-      isSpaceRoom: () => false,
-    };
-    getDefaultStore().set(roomToParentsAtom, {
-      type: 'INITIALIZE',
-      roomToParents: new Map([['!room:example.org', new Set(['!parent:example.org'])]]),
-    });
+    listUnderGarden();
     render(<Harness />);
     expect(rows()).toContain("Remove from Garden (You can't change the rooms listed under Garden)");
     fireEvent.click(screen.getByRole('menuitem', { name: 'Remove from Garden' }));

@@ -47,11 +47,13 @@ const CreateSubRoomDialog = lazy(() =>
   }))
 );
 
-/** Whether the signed-in user may change which rooms `room` lists (`m.space.child`). */
-const useCanListRooms = (room: Room): boolean => {
+/** Why the signed-in user may not change which rooms `room` lists (`m.space.child`), if so. */
+const useListRoomsRefusal = (room: Room): string | undefined => {
+  const { t } = useTranslation();
   const client = useMatrixClient();
   const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevels(room));
-  return permissions.stateEvent(StateEvent.SpaceChild, client.getSafeUserId());
+  if (permissions.stateEvent(StateEvent.SpaceChild, client.getSafeUserId())) return undefined;
+  return t('featureUi.subRooms.noPermission', { name: revealDirectionControls(room.name) });
 };
 
 /** A dialog an entry opens; it outlives the menu, and `close` ends it. */
@@ -136,18 +138,14 @@ function InviteEntry({ room, close, showDialog }: RoomActionProps) {
  */
 function NewSubRoomEntry({ room, spaceId, close, showDialog }: RoomActionProps) {
   const { t } = useTranslation();
-  const allowed = useCanListRooms(room);
+  const refusal = useListRoomsRefusal(room);
   const direct = useAtomValue(mDirectAtom).has(room.roomId);
   if (room.isSpaceRoom() || direct) return null;
   return (
     <MenuEntry
       icon={Icons.Plus}
       label={t('featureUi.subRooms.newSubRoom')}
-      disabledReason={
-        allowed
-          ? undefined
-          : t('featureUi.subRooms.noPermission', { name: revealDirectionControls(room.name) })
-      }
+      disabledReason={refusal}
       onSelect={() => {
         close();
         showDialog((done) => (
@@ -173,14 +171,13 @@ function TakeOffParentEntry({
 }) {
   const { t } = useTranslation();
   const client = useMatrixClient();
-  const allowed = useCanListRooms(parent);
-  const name = revealDirectionControls(parent.name);
+  const refusal = useListRoomsRefusal(parent);
   return (
     <MenuEntry
       icon={Icons.ArrowGoLeft}
       directional
-      label={t('featureUi.subRooms.takeOff', { name })}
-      disabledReason={allowed ? undefined : t('featureUi.subRooms.noPermission', { name })}
+      label={t('featureUi.subRooms.takeOff', { name: revealDirectionControls(parent.name) })}
+      disabledReason={refusal}
       onSelect={() => {
         close();
         void client.sendStateEvent(
@@ -194,7 +191,7 @@ function TakeOffParentEntry({
   );
 }
 
-/** Take Off, for each chat room the room is a sub-room of. */
+/** Remove from, for each chat room the room is a sub-room of. */
 function TakeOffEntry({ room, close }: RoomActionProps) {
   const client = useMatrixClient();
   const parents = [...(useAtomValue(roomToParentsAtom).get(room.roomId) ?? [])].flatMap(
