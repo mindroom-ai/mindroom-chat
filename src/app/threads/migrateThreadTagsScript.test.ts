@@ -8,21 +8,24 @@ import { MINDROOM_THREAD_TAGS_EVENT } from '../event-store/threads/threadTags';
 
 describe('migrate-thread-tags script helpers', () => {
   it('tombstones malformed legacy state keys even when no valid tags survive parsing', () => {
-    const collectedState = collectRoomState([
-      {
-        type: MINDROOM_THREAD_TAGS_EVENT,
-        state_key: '$root',
-        content: {
-          tags: {
-            urgent: { set_by: '@alice:example.org' },
-            'bad tag': {
-              set_by: '@alice:example.org',
-              set_at: '2026-04-07T00:00:01.000Z',
+    const collectedState = collectRoomState(
+      [
+        {
+          type: MINDROOM_THREAD_TAGS_EVENT,
+          state_key: '$root',
+          content: {
+            tags: {
+              urgent: { set_by: '@alice:example.org' },
+              'bad tag': {
+                set_by: '@alice:example.org',
+                set_at: '2026-04-07T00:00:01.000Z',
+              },
             },
           },
         },
-      },
-    ]);
+      ],
+      '@alice:example.org'
+    );
 
     expect(collectedState.legacyStateKeys).toEqual(['$root']);
     expect(collectedState.legacyStates).toEqual([]);
