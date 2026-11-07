@@ -1,5 +1,6 @@
 import { type MouseEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { Text } from 'folds';
+import FocusTrap from 'focus-trap-react';
+import { Overlay, OverlayBackdrop, OverlayCenter, Text } from 'folds';
 import { useSetAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -24,7 +25,7 @@ import { withAddAccountSearch } from '../../navigation/addAccount';
 import { resolveSessionRestorePath } from '../../routes/sessionRouteRestore';
 import { AccountMenu } from '../../account/switcher/AccountMenu';
 import { AccountSwitcher } from '../../account/switcher/AccountSwitcher';
-import { useAccountRemoval } from '../../account/switcher/useAccountRemoval';
+import { LogoutDialog } from '../../account/LogoutDialog';
 import { useShortcut } from '../../shortcuts/useShortcut';
 
 const AVATAR_SIZE = 96;
@@ -123,6 +124,8 @@ export function SettingsTab() {
   const [menuButton, setMenuButton] = useState<HTMLElement>();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [error, setError] = useState<string>();
+  /** The inactive account whose logout waits for confirmation. */
+  const [leaving, setLeaving] = useState<StoredSession>();
 
   const userId = activeSessionHook?.userId ?? client.getUserId() ?? '';
   // The stored copy carries the freshest cached profile fields.
@@ -184,8 +187,7 @@ export function SettingsTab() {
     navigate(resolveSessionRestorePath(session.lastKnownPath));
   };
 
-  const clearError = useCallback(() => setError(undefined), []);
-  const { removingSessionId, remove: handleRemove } = useAccountRemoval(clearError, failed);
+  const closeLeaving = useCallback(() => setLeaving(undefined), []);
 
   const handleAddAccount = () => {
     setSwitcherOpen(false);
@@ -260,15 +262,29 @@ export function SettingsTab() {
                   ? avatarSrc
                   : session.lastKnownAvatarDataUrl,
             }))}
-            busySessionId={removingSessionId}
             error={error}
             onOpenSettings={openSettings}
             onSwitchAccount={handleSwitch}
-            onRemoveAccount={(session) => void handleRemove(session)}
+            onRemoveAccount={setLeaving}
             onAddAccount={handleAddAccount}
             onClose={() => setSwitcherOpen(false)}
           />
         </Modal500>
+      )}
+      {leaving && (
+        <Overlay open backdrop={<OverlayBackdrop />}>
+          <OverlayCenter>
+            {/* Escape or a click beside the confirmation keeps the account. */}
+            <FocusTrap
+              focusTrapOptions={{
+                clickOutsideDeactivates: true,
+                onDeactivate: closeLeaving,
+              }}
+            >
+              <LogoutDialog session={leaving} handleClose={closeLeaving} />
+            </FocusTrap>
+          </OverlayCenter>
+        </Overlay>
       )}
     </>
   );

@@ -54,6 +54,29 @@ export const logoutClient = async (mx: MatrixClient): Promise<void> => {
   }
 };
 
+/** A client of `session` without stores or sync, for requests in its name. */
+export const createSessionRequestClient = (session: ClientBootstrapSession): MatrixClient =>
+  createMatrixClient({
+    baseUrl: session.baseUrl,
+    accessToken: session.accessToken,
+    refreshToken: session.refreshToken,
+    tokenRefreshFunction: createStoredSessionTokenRefresh(session),
+    userId: session.userId,
+    deviceId: session.deviceId,
+  });
+
+/** The homeserver logs the session's device out and drops the keys it keeps for it. */
+const logoutOnServer = async (session: ClientBootstrapSession): Promise<void> => {
+  const mx = createSessionRequestClient(session);
+  // A logout that cannot pass Cloudflare Access leaves the device on the server.
+  await renewExpiredCloudflareAccess(session.baseUrl);
+  try {
+    await mx.logout(true);
+  } catch {
+    // The server may already have dropped this device; local cleanup still runs.
+  }
+};
+
 /**
  * Ends a session whose encryption keys this browser lost, then opens `nextHref`: the homeserver
  * logs the device out (and drops the keys it keeps for it), and this browser forgets the account
@@ -63,21 +86,7 @@ export const logoutSessionWithoutStores = async (
   session: ClientBootstrapSession,
   nextHref: string
 ): Promise<void> => {
-  const mx = createMatrixClient({
-    baseUrl: session.baseUrl,
-    accessToken: session.accessToken,
-    refreshToken: session.refreshToken,
-    tokenRefreshFunction: createStoredSessionTokenRefresh(session),
-    userId: session.userId,
-    deviceId: session.deviceId,
-  });
-  // A logout that cannot pass Cloudflare Access leaves the device on the server.
-  await renewExpiredCloudflareAccess(session.baseUrl);
-  try {
-    await mx.logout(true);
-  } catch {
-    // The server may already have dropped this device; local cleanup still runs.
-  }
+  await logoutOnServer(session);
   try {
     await sessionLifecycle.removeSessionAndReload(session, undefined, nextHref);
   } finally {
@@ -91,6 +100,16 @@ export const removeStoredSession = async (session: StoredSession): Promise<void>
   } finally {
     clearFetchedAvatars(session.userId);
   }
+};
+
+/**
+ * Logs out an account that is not the active one, as Logout does for the active one: the
+ * homeserver logs its device out, and this browser forgets the account and deletes its stores.
+ * The active account goes on.
+ */
+export const logoutStoredSession = async (session: StoredSession): Promise<void> => {
+  await logoutOnServer(session);
+  await removeStoredSession(session);
 };
 
 export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> => {
