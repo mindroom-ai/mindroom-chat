@@ -56,11 +56,20 @@ for (const engine of ['chromium', 'webkit'] as const) {
       for (let round = 0; round < 3; round += 1) {
         await go(page, `/home/${encodeURIComponent(roomId)}/`, keyed);
         await page.waitForTimeout(500);
+        await go(page, `/home/search/?term=probe&rooms=${encodeURIComponent(roomId)}`, keyed);
+        await page.waitForTimeout(500);
         await go(page, '/home/', keyed);
         const home = await sample(page);
+        await page.locator('button[aria-keyshortcuts]').first().click();
+        const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
+        await palette.getByRole('combobox').fill('Probe');
+        await page.waitForTimeout(300);
+        await page.keyboard.press('Escape');
+        await expect(palette).toBeHidden();
+        const afterPalette = await sample(page);
         await go(page, `/${encodeURIComponent(spaceId)}/lobby/`, keyed);
         const lobby = await sample(page);
-        results.push(`round ${round}: home ${home.seen.join('>')} lobby ${lobby.seen.join('>')} state ${lobby.state}`);
+        results.push(`round ${round}: home ${home.seen.join('>')} afterPalette ${afterPalette.seen.join('>')} lobby ${lobby.seen.join('>')} state ${lobby.state}`);
       }
       console.log(`PROBE ${engine} keyed=${keyed}\n${results.join('\n')}`);
       await context.close();
