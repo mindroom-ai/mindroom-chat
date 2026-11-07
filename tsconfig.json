@@ -15,7 +15,10 @@
     "skipLibCheck": true,
     "noEmit": true,
     "types": ["node", "vite/client"],
-    "paths": { "@mindroom/client-sdk/core": ["./src/client-sdk/core.ts"] }
+    "paths": {
+      "@mindroom/client-sdk/core": ["./src/client-sdk/core.ts"],
+      "@mindroom/client-sdk/testing": ["./src/client-sdk/testing.ts"]
+    }
   },
   "include": ["src", "e2e", "vite.config.js", "vitest.config.ts", "playwright.config.ts"]
 }
