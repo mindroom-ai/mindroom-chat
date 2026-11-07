@@ -286,6 +286,9 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
       data-editable-name={editableName}
       // The text runs in the direction of the language it starts in, whatever the app language.
       dir="auto"
+      // Chat is full of names, numbers and file names a dictionary does not know, so the browser
+      // draws no spell-check squiggles here, as in MindRoom Chat.
+      spellCheck={false}
       aria-label={ariaLabel}
       readOnly={readOnly}
       placeholder={placeholder}
