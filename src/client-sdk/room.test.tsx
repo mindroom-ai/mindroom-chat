@@ -9,22 +9,9 @@ import {
   createHashRouter,
   useLocation,
 } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { MatrixClientProvider } from '../app/matrix/hooks/useMatrixClient';
-import { reloadForNewVersion, useRoomHref, useRoomNavigate } from './room';
-
-// The page's version check, which the test finishes, and its reloads.
-const update = vi.hoisted(() => ({ finishCheck: () => {}, reloads: 0 }));
-vi.mock('../app/config/appUpdate', () => ({
-  checkForNewVersion: () =>
-    new Promise<void>((resolve) => {
-      update.finishCheck = resolve;
-    }),
-  reloadForNewVersion: () => {
-    update.reloads += 1;
-    return Promise.resolve();
-  },
-}));
+import { useRoomHref, useRoomNavigate } from './room';
 
 const ROOM = '!lobby:example.org';
 const THREAD = '$root:example.org';
@@ -122,16 +109,5 @@ describe('useRoomNavigate', () => {
     renderButtons();
     click('Pick');
     expect(address()).toBe('/home/!lobby%3Aexample.org');
-  });
-});
-
-describe('reloadForNewVersion', () => {
-  it('reloads once the page asked the server for its version', async () => {
-    const reloading = reloadForNewVersion();
-    await Promise.resolve();
-    expect(update.reloads).toBe(0);
-    update.finishCheck();
-    await reloading;
-    expect(update.reloads).toBe(1);
   });
 });

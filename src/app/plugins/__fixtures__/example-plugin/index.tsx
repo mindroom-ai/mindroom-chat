@@ -17,6 +17,7 @@ import { Icons } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import {
   pluginPublicUrl,
+  reloadForNewVersion,
   usePluginConfig,
   usePluginRouteHref,
   usePluginStorage,
@@ -25,7 +26,7 @@ import {
   type PluginEvent,
   type PluginPageProps,
 } from '@mindroom/client-sdk/core';
-import { reloadForNewVersion, useRoomHref, useRoomNavigate } from '@mindroom/client-sdk/room';
+import { useRoomHref, useRoomNavigate } from '@mindroom/client-sdk/room';
 
 /** This page load; what the plugin stored in it does not count as seen before. */
 const pageLoad = `${Date.now()}-${Math.random()}`;

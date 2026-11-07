@@ -1,13 +1,8 @@
 // `@mindroom/client-sdk/room`, the client SDK's subpath for taking the user to rooms and threads
-// (docs/architecture.md "Client plugins"): it opens them, links to them, and reloads the page into
-// a newly deployed version. Like `/core` it only grows, and each addition raises
-// CLIENT_PLUGIN_API_VERSION in scripts/client-plugins.mjs.
+// (docs/architecture.md "Client plugins"): it opens them and links to them. Like `/core` it only
+// grows, and each addition raises CLIENT_PLUGIN_API_VERSION in scripts/client-plugins.mjs.
 import { useMemo } from 'react';
 import { useHref } from 'react-router-dom';
-import {
-  checkForNewVersion,
-  reloadForNewVersion as reloadAppForNewVersion,
-} from '../app/config/appUpdate';
 import { useRoomNavigate as useAppRoomNavigate } from '../app/navigation/useRoomNavigate';
 import { withSearchParam } from '../app/routes/pathUtils';
 
@@ -38,13 +33,3 @@ export const useRoomNavigate = (): RoomNavigate => {
  */
 export const useRoomHref = (roomId: string, threadId?: string): string =>
   useHref(withSearchParam(useAppRoomNavigate().roomPath(roomId), { threadId }));
-
-/**
- * Reloads the page into the newest version the server has, as the app's own update notice does,
- * also when the page has not noticed that version yet.
- */
-export const reloadForNewVersion = async (): Promise<void> => {
-  // A version the page has not noticed stages no new worker, and the old one would answer the reload.
-  await checkForNewVersion();
-  await reloadAppForNewVersion();
-};

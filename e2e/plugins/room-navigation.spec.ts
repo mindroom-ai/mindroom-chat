@@ -16,13 +16,14 @@ import { sendRoomMessage } from '../helpers/matrix';
 import { roomHeader } from '../helpers/roomMenu';
 import { serveBuild } from '../helpers/staticBuildServer';
 
-// The client SDK's `room` subpath (src/client-sdk/room.ts) in a production build with the example
-// client plugin (src/app/plugins/__fixtures__/example-plugin), served as a deployment serves it,
-// against the disposable homeserver, with the browser router and with the hash router. The plugin's
-// page at /p/example/rooms/<room>/<thread> links to the room and to its thread at the paths the app
-// opens them at, and both links open them; its buttons open the room, and the thread, whose Back
-// button returns to the page; and its reload button reloads the page. Set PLUGIN_SHOTS=<directory>
-// to save screenshots.
+// The client SDK's `room` subpath (src/client-sdk/room.ts), and `reloadForNewVersion` of its `core`
+// subpath, in a production build with the example client plugin
+// (src/app/plugins/__fixtures__/example-plugin), served as a deployment serves it, against the
+// disposable homeserver, with the browser router and with the hash router. The plugin's page at
+// /p/example/rooms/<room>/<thread> links to the room and to its thread at the paths the app opens
+// them at, and both links open them; its buttons open the room, and the thread, whose Back button
+// returns to the page; and its reload button reloads the page. Set PLUGIN_SHOTS=<directory> to save
+// screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'room-navigation-password';
 const RUN = Date.now().toString(36);
