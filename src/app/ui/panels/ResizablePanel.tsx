@@ -70,7 +70,8 @@ export function ResizablePanel({
   testId: string;
   /**
    * Rendered over the panel after its content, for a child placed against the panel's box; the
-   * content's width is `--mr-panel-content-width` there too.
+   * content's width is `--mr-panel-content-width` there too. Above the splitter in z-index, it
+   * keeps clear of the splitter's reach into the panel (`--mr-panel-handle-inset`).
    */
   overlay?: ReactNode;
 }) {
@@ -301,7 +302,7 @@ export function ResizablePanel({
         {frame && <PanelFrameStrip frame={frame} />}
         {children}
       </div>
-      {/* Before the splitter, which paints over it where they meet. */}
+      {/* After the content, before the splitter. */}
       {overlay && <div style={{ ...contentStyle, display: 'contents' }}>{overlay}</div>}
       {/* A focusable separator implements the adjustable splitter pattern. */}
       {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
