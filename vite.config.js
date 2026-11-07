@@ -8,6 +8,7 @@ import { defineConfig, searchForWorkspaceRoot } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { e2eClientConfig } from './scripts/e2e-client-config.mjs';
+import { pluginDirectories, pluginPageInputs, pluginPages } from './scripts/e2e-plugin-pages.mjs';
 import { frameHeaders } from './scripts/frame-headers.mjs';
 import { onePackageCopyPerVersion } from './scripts/package-copies.mjs';
 import { startupPrecache } from './scripts/precache-plan.mjs';
@@ -127,6 +128,12 @@ const fixturePageInputs = () =>
       .filter((name) => name.endsWith('.html'))
       .map((name) => [`fixture-${name.slice(0, -'.html'.length)}`, `${fixturePagesDir}${name}`])
   );
+// The plugin directories of the e2e stack (E2E_PLUGIN_DIRS, scripts/agent-stack/stack.py): the dev server and the
+// fixture page build serve their fixture pages at /e2e/plugins/<directory name>/.
+const pluginDirs = pluginDirectories(
+  process.env.E2E_PLUGIN_DIRS,
+  fileURLToPath(new URL('.', import.meta.url))
+);
 
 export default defineConfig({
   ...(slotPort ? { cacheDir: `node_modules/.vite-slot-${slotPort}` } : {}),
@@ -142,6 +149,7 @@ export default defineConfig({
     // (scripts/package-copies.mjs). `?worker` bundles take only `worker.plugins`; the app's one,
     // livekit-client's encryption worker, is a single prebuilt module.
     onePackageCopyPerVersion(),
+    ...(pluginDirs.length ? [pluginPages(pluginDirs)] : []),
     ...(fixturePagesOnly
       ? []
       : [
@@ -176,7 +184,11 @@ export default defineConfig({
     outDir: 'dist',
     target: 'es2022',
     ...(fixturePagesOnly
-      ? { emptyOutDir: false, copyPublicDir: false, rollupOptions: { input: fixturePageInputs() } }
+      ? {
+          emptyOutDir: false,
+          copyPublicDir: false,
+          rollupOptions: { input: { ...fixturePageInputs(), ...pluginPageInputs(pluginDirs) } },
+        }
       : {}),
   },
 });
