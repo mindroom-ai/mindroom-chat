@@ -113,19 +113,19 @@ const withSwitch = async (
   }
 };
 
+/** The legacy app's account button, which its signed-in shell shows. */
+const legacyAccountButton = (page: Page, user: DisposableUser) =>
+  page.getByRole('button', { name: `Open settings for ${user.username}`, exact: true });
+
 /** Signs in through the legacy app's own login page, as a person would. */
 const signInOnLegacy = async (page: Page, user: DisposableUser) => {
   await page.goto('/');
   await page.locator('input[name="usernameInput"]').fill(user.username);
   await page.locator('input[name="passwordInput"]').fill(user.password);
   await page.getByRole('button', { name: 'Login' }).click();
-  await expect(page.locator('input[name="passwordInput"]')).toHaveCount(0, { timeout: 60_000 });
+  await expect(legacyAccountButton(page, user)).toBeVisible({ timeout: 60_000 });
   await expect.poll(() => controllerScript(page), { timeout: 60_000 }).not.toBe('');
   expect(await runningEntry(page)).toBe(entryOf(legacy!));
-  await test.info().attach('legacy signed in', {
-    body: await page.locator('body').ariaSnapshot(),
-    contentType: 'text/plain',
-  });
 };
 
 const forwardSwitch = async (page: Page, name: string, flip: () => void) => {
@@ -155,11 +155,11 @@ const forwardSwitch = async (page: Page, name: string, flip: () => void) => {
     .catch(() => undefined);
   await page.reload();
   await expect.poll(() => runningEntry(page), { timeout: 60_000 }).not.toBe('');
-  await shot(page, `forward-${name}-2-after-reload`);
   expect(await runningEntry(page), 'the first normal reload starts this client').toBe(
     entryOf(CURRENT!)
   );
   await waitForLoggedInShell(page);
+  await shot(page, `forward-${name}-2-after-reload`);
   // It stays, and says nothing about another version.
   await page.reload();
   await expect.poll(() => runningEntry(page), { timeout: 60_000 }).toBe(entryOf(CURRENT!));
@@ -187,17 +187,14 @@ const rollback = async (page: Page, name: string, flip: () => void) => {
   await expect
     .poll(() => runningEntry(page), { timeout: 60_000, intervals: [1_000] })
     .toBe(entryOf(legacy!));
-  await expect(page.locator('input[name="passwordInput"]')).toHaveCount(0);
+  // Still signed in, in the legacy app.
+  await expect(legacyAccountButton(page, user)).toBeVisible({ timeout: 60_000 });
   await shot(page, `rollback-${name}-2-legacy`);
-  // The legacy app keeps the page through a normal reload.
+  // The legacy app keeps the page through a normal reload, under its own worker.
   await page.reload();
   await expect.poll(() => runningEntry(page), { timeout: 60_000 }).toBe(entryOf(legacy!));
+  await expect(legacyAccountButton(page, user)).toBeVisible({ timeout: 60_000 });
   await expect.poll(() => controllerScript(page), { timeout: 60_000 }).not.toBe('');
-  await expect(page.locator('input[name="passwordInput"]')).toHaveCount(0);
-  await test.info().attach('legacy after rollback', {
-    body: await page.locator('body').ariaSnapshot(),
-    contentType: 'text/plain',
-  });
 };
 
 const onWebKitPhone = async (origin: string, check: (page: Page) => Promise<void>) => {
