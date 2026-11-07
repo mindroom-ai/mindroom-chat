@@ -39,9 +39,9 @@ const REPLIES = [
   'I moved the kickoff call to Thursday at 10:00 so the regional leads can join.',
 ];
 
-/** The message toolbars on screen. */
+/** The message toolbars on screen, by the reaction button only they have. */
 const toolbars = (page: Page) =>
-  page.getByRole('button', { name: 'More Options', exact: true }).filter({ visible: true });
+  page.getByRole('button', { name: 'Add Reaction', exact: true }).filter({ visible: true });
 
 const tapLeavesNoToolbar = async (page: Page, label: string) => {
   const reader = await registerDisposableUser(`tht_reader_${label}_${RUN}`, PASSWORD);
@@ -98,6 +98,12 @@ const tapLeavesNoToolbar = async (page: Page, label: string) => {
   await page.waitForTimeout(800);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/tap-toolbar-${label}-message.png` });
   await expect(toolbars(page), 'toolbars after a tap on a message').toHaveCount(1);
+
+  // A tap on blank space below the messages leaves none.
+  await page.touchscreen.tap(195, 640);
+  await page.waitForTimeout(800);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/tap-toolbar-${label}-blank.png` });
+  await expect(toolbars(page), 'toolbars after a tap on blank space').toHaveCount(0);
 };
 
 test('a navigating tap leaves no message toolbar on a phone (Chromium)', async ({ page }) => {
