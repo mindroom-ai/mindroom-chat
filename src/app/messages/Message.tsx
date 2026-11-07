@@ -1005,8 +1005,9 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       );
     };
 
-    // An agent reply owns its Reply details dialog, which its header and menu open.
-    if (!aiRunInfo) return renderBody();
+    // An agent reply owns its Reply details dialog, which its header and menu open. Every message
+    // renders through the controls, so a streaming reply whose run details arrive with a later
+    // edit keeps its row and the state inside it, such as an open tool-call list.
     return (
       <AiRunControls info={aiRunInfo} eventId={eventId} forwardedRef={baseRef}>
         {renderBody}
