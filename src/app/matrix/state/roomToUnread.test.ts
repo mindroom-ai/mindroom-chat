@@ -42,6 +42,7 @@ const makeThreadReplyEvent = (eventId: string) =>
   });
 
 const makeRoom = ({
+  answeredRoots = [],
   events,
   highlight = 0,
   membership = 'join',
@@ -52,6 +53,8 @@ const makeRoom = ({
   roomTotal = total,
   threadTotal = 0,
 }: {
+  /** Roots the user replied to in their threads. */
+  answeredRoots?: string[];
   events: MatrixEvent[];
   highlight?: number;
   membership?: string;
@@ -70,6 +73,9 @@ const makeRoom = ({
       getEvents: () => events,
     })),
     getMyMembership: vi.fn(() => membership),
+    getThread: vi.fn((rootId: string) =>
+      answeredRoots.includes(rootId) ? { hasCurrentUserParticipated: true } : null
+    ),
     getUnreadNotificationCount: vi.fn((type: string) => {
       if (type === 'highlight') return highlight;
       return total;
@@ -89,6 +95,7 @@ const makeRoom = ({
 const makeClient = () =>
   ({
     getAccountData: vi.fn(() => undefined),
+    getPushActionsForEvent: vi.fn(() => ({ notify: true })),
     getRoomPushRule: vi.fn(() => undefined),
     getUserId: vi.fn(() => USER_ID),
   }) as const;
@@ -147,6 +154,66 @@ describe('getRoomUnreadAction', () => {
     expect(getRoomUnreadAction(makeClient() as never, room as never)).toEqual({
       type: 'DELETE',
       roomId: ROOM_ID,
+    });
+  });
+});
+
+// A reply or a thread receipt reads only its thread on the server, so a root the user answered
+// from another client stays in the main-timeline count, though the client counts it as read.
+describe('getRoomUnreadAction for roots answered in their threads', () => {
+  it('leaves the room read when the main count is a root the user answered', () => {
+    const room = makeRoom({
+      answeredRoots: ['$root'],
+      events: [makeMessageEvent('$root')],
+      total: 1,
+    });
+
+    expect(getRoomUnreadAction(makeClient() as never, room as never)).toEqual({
+      type: 'DELETE',
+      roomId: ROOM_ID,
+    });
+  });
+
+  it('keeps the thread counts when the main count is a root the user answered', () => {
+    const room = makeRoom({
+      answeredRoots: ['$root'],
+      events: [makeMessageEvent('$root')],
+      highlight: 1,
+      roomHighlight: 1,
+      roomTotal: 1,
+      total: 3,
+      threadTotal: 2,
+    });
+
+    expect(getRoomUnreadAction(makeClient() as never, room as never)).toEqual({
+      type: 'PUT',
+      unreadInfo: { roomId: ROOM_ID, highlight: 0, total: 2 },
+    });
+  });
+
+  it('keeps a main count larger than the answered roots it has loaded', () => {
+    const room = makeRoom({
+      answeredRoots: ['$root'],
+      events: [makeMessageEvent('$root')],
+      total: 2,
+    });
+
+    expect(getRoomUnreadAction(makeClient() as never, room as never)).toEqual({
+      type: 'PUT',
+      unreadInfo: { roomId: ROOM_ID, highlight: 0, total: 2 },
+    });
+  });
+
+  it('keeps the main count when an unanswered root is newer than the answered one', () => {
+    const room = makeRoom({
+      answeredRoots: ['$answered'],
+      events: [makeMessageEvent('$answered'), makeMessageEvent('$new')],
+      total: 1,
+    });
+
+    expect(getRoomUnreadAction(makeClient() as never, room as never)).toEqual({
+      type: 'PUT',
+      unreadInfo: { roomId: ROOM_ID, highlight: 0, total: 1 },
     });
   });
 });
