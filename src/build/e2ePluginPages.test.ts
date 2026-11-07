@@ -132,7 +132,8 @@ describe('pluginDirectoryServer', () => {
           ]),
         ],
         optimizeDeps: { noDiscovery: true },
-        server: { middlewareMode: true, hmr: false, watch: null },
+        // No HMR socket: in middleware mode it takes a fixed port, which a parallel run may hold.
+        server: { middlewareMode: true, hmr: false, ws: false, watch: null },
       });
       http = createHttpServer(vite.middlewares);
       await new Promise<void>((resolve) => {

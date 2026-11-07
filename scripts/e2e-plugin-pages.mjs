@@ -93,8 +93,8 @@ export const pluginDirectoryServer = (directories) => {
       const [request = '', ...query] = source.split('?');
       const file = fileOf(request);
       if (file) return [file, ...query].join('?');
-      // A module in a plugin directory imports a package from the directory's own node_modules, else from
-      // this repository's, as its copy in a --preview snapshot does.
+      // A module in a plugin directory imports a package as Vite resolves it from the directory (its own
+      // node_modules, or a package Vite pre-bundled for the app), else from this repository's node_modules.
       if (
         importer &&
         /^[\w@]/.test(source) &&
