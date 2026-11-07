@@ -234,8 +234,9 @@ export const aggregateThreadTagEvents = (events: MatrixEvent[]): Map<string, Thr
     if (typeof stateKey !== 'string' || !sender) {
       return;
     }
+    const fromAgent = isMindroomAgentUserIdForViewer(sender, viewerId);
     const attribute = (tag: TagMetadata): TagMetadata =>
-      isMindroomAgentUserIdForViewer(sender, viewerId) ? tag : { ...tag, set_by: sender };
+      fromAgent ? tag : { ...tag, set_by: sender };
 
     const parsedStateKey = parsePerTagStateKey(stateKey);
     if (parsedStateKey === null) {

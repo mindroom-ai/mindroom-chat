@@ -2,10 +2,10 @@
 // Migrates a room's legacy thread tags (one `com.mindroom.thread.tags` state event per thread,
 // state key = thread root, content `{ tags: { <tag>: metadata } }`) to the canonical per-tag
 // format (state key `["<root>","<tag>"]`, content = metadata), then tombstones the legacy
-// event. The parsing and attribution rules match src/app/event-store/threads/threadTags.ts, seen
-// from the account running it: a tag names its sender unless the sender is the person it names or
-// a MindRoom agent (a `mindroom_` account) on that account's homeserver. The migration writes as
-// that account, so it refuses to write when the room's tags would come to name someone else.
+// event. The parsing and attribution rules match src/app/event-store/threads/threadTags.ts: a tag
+// names its sender unless the sender is the person it names or a MindRoom agent (a `mindroom_`
+// account) on the viewer's homeserver. The migration writes as the account it runs as, so it
+// refuses to write when the tags that the members of any joined homeserver see would change.
 //
 // Usage: MATRIX_HOMESERVER=... MATRIX_ACCESS_TOKEN=... node scripts/migrate-thread-tags.mjs <room id> [--apply]
 // Use the access token of a MindRoom agent on the room's homeserver, so the tags keep their names.
@@ -82,14 +82,14 @@ export const perTagStateKey = (threadRootId, tag) => JSON.stringify([threadRootI
 const serverOf = (userId) => userId.slice(userId.indexOf(':') + 1);
 
 /**
- * The merged tags per thread, as the client of `viewer` shows them: legacy tags, minus per-tag
- * tombstones, plus per-tag records, each naming its sender unless the sender is a MindRoom agent
- * on the viewer's homeserver; a state event without a sender counts for nothing.
+ * The merged tags per thread, as the client shows them to a viewer on `server`: legacy tags,
+ * minus per-tag tombstones, plus per-tag records, each naming its sender unless the sender is a
+ * MindRoom agent on that homeserver; a state event without a sender counts for nothing.
  * @param {Map<string, TagState>} stateByKey
- * @param {string} viewer
+ * @param {string} server
  * @returns {Map<string, { tags: Record<string, TagMetadata> }>}
  */
-const aggregate = (stateByKey, viewer) => {
+const aggregate = (stateByKey, server) => {
   /** @type {Map<string, Record<string, TagMetadata>>} */
   const legacy = new Map();
   /** @type {Map<string, Record<string, TagMetadata>>} */
@@ -100,8 +100,7 @@ const aggregate = (stateByKey, viewer) => {
   stateByKey.forEach(({ sender, content }, stateKey) => {
     if (!sender) return;
     const agent =
-      sender.slice(1).toLowerCase().startsWith('mindroom_') &&
-      serverOf(sender) === serverOf(viewer);
+      sender.slice(1).toLowerCase().startsWith('mindroom_') && serverOf(sender) === server;
     /** @param {TagMetadata} metadata @returns {TagMetadata} */
     const attribute = (metadata) => (agent ? metadata : { ...metadata, set_by: sender });
     const perTag = parsePerTagStateKey(stateKey);
@@ -150,16 +149,25 @@ const aggregate = (stateByKey, viewer) => {
 
 /**
  * Reads the thread tag state of a room (the `/rooms/{roomId}/state` response or a list of state
- * events), as `viewer`, the account running the migration, sees it.
+ * events), with the homeservers of `viewer`, the account running the migration, and of each
+ * joined member.
  * @param {RawStateEvent[]} events
  * @param {string} viewer
  */
 export const collectRoomState = (events, viewer) => {
   /** @type {Map<string, TagState>} */
   const stateByKey = new Map();
+  const servers = new Set([serverOf(viewer)]);
   events.forEach((event) => {
     if (event?.type === THREAD_TAGS_EVENT && typeof event.state_key === 'string') {
       stateByKey.set(event.state_key, { sender: event.sender, content: event.content ?? {} });
+    } else if (
+      event?.type === 'm.room.member' &&
+      typeof event.state_key === 'string' &&
+      isRecord(event.content) &&
+      event.content.membership === 'join'
+    ) {
+      servers.add(serverOf(event.state_key));
     }
   });
 
@@ -217,7 +225,8 @@ export const collectRoomState = (events, viewer) => {
     perTagTombstones,
     warnings,
     viewer,
-    merged: aggregate(stateByKey, viewer),
+    servers,
+    merged: aggregate(stateByKey, serverOf(viewer)),
   };
 };
 
@@ -255,20 +264,43 @@ export const buildMigrationPlans = (collected) => {
 };
 
 /**
- * The merged tags the room will show once the plans are applied, written as the account running
- * the migration; it must equal the current merged tags, or the migration would change what people
- * see.
+ * The merged tags the room will show to a viewer on `server` (default: the homeserver of the
+ * account running the migration) once the plans are applied, written as that account.
  * @param {ReturnType<typeof collectRoomState>} collected
  * @param {ReturnType<typeof buildMigrationPlans>} migration
+ * @param {string} [server]
  */
-export const predictMergedStateAfterMigration = (collected, migration) => {
+export const predictMergedStateAfterMigration = (
+  collected,
+  migration,
+  server = serverOf(collected.viewer)
+) => {
   const next = new Map(collected.stateByKey);
   const sender = collected.viewer;
   migration.plans.forEach((plan) => {
     plan.writes.forEach(({ stateKey, content }) => next.set(stateKey, { sender, content }));
     if (plan.tombstoneLegacy) next.set(plan.threadRootId, { sender, content: {} });
   });
-  return aggregate(next, sender);
+  return aggregate(next, server);
+};
+
+/**
+ * The threads whose tags the plans would change for the members of any of the room's homeservers.
+ * @param {ReturnType<typeof collectRoomState>} collected
+ * @param {ReturnType<typeof buildMigrationPlans>} migration
+ * @returns {string[]}
+ */
+export const changedThreads = (collected, migration) => {
+  /** @type {Set<string>} */
+  const changed = new Set();
+  collected.servers.forEach((server) => {
+    const before = aggregate(collected.stateByKey, server);
+    const after = predictMergedStateAfterMigration(collected, migration, server);
+    new Set([...before.keys(), ...after.keys()]).forEach((root) => {
+      if (JSON.stringify(before.get(root)) !== JSON.stringify(after.get(root))) changed.add(root);
+    });
+  });
+  return [...changed].sort();
 };
 
 /**
@@ -295,11 +327,12 @@ const migrateRoom = async (homeserver, accessToken, roomId, apply) => {
   );
   collected.warnings.forEach((warning) => console.warn(warning));
   const migration = buildMigrationPlans(collected);
-  const predicted = predictMergedStateAfterMigration(collected, migration);
-  if (JSON.stringify([...predicted]) !== JSON.stringify([...collected.merged])) {
+  const changed = changedThreads(collected, migration);
+  if (changed.length > 0) {
     throw new Error(
-      'The migration would change the visible tags; nothing was written. A tag names its sender ' +
-        `unless the sender is a MindRoom agent on the homeserver of ${viewer}, which it runs as.`
+      `The migration would change whom the tags of ${changed.join(', ')} name; nothing was ` +
+        'written. A tag names its sender unless the sender is the person it names or a MindRoom ' +
+        `agent on the viewer's homeserver, and the migration writes as ${viewer}.`
     );
   }
   console.log(JSON.stringify(migration, null, 2));
