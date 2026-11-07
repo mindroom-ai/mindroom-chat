@@ -176,6 +176,12 @@ test('a room upgrade keeps its sub-room under the new room, with its agents', as
   await goHome(memberPage);
   await expect.soft(subRoomUnder(page, newId, subName)).toBeVisible({ timeout: 60_000 });
   await expect.soft(subRoomUnder(memberPage, newId, subName)).toBeVisible({ timeout: 60_000 });
+  for (const shown of [page, memberPage]) {
+    // eslint-disable-next-line no-await-in-loop
+    await expect
+      .soft(shown.getByTestId('room-nav-category').getByRole('link', { name: subName }))
+      .toHaveCount(1);
+  }
   await shot(page, '2-creator-after');
   await shot(memberPage, '3-member-after');
 
