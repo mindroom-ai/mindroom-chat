@@ -148,6 +148,7 @@ describe('plugin translations', () => {
     await i18n.changeLanguage('de');
 
     expect(translations.getPluginTranslation<Strings>('demo')('label')).toBe('Example plugin');
+    expect(i18n.hasResourceBundle('en', 'plugin.demo')).toBe(true);
     expect(i18n.hasResourceBundle('en', 'plugin.bad')).toBe(false);
     expect(i18n.hasResourceBundle('en', 'plugin.none')).toBe(false);
   });
