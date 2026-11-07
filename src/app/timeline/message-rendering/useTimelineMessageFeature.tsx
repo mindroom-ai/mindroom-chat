@@ -112,9 +112,18 @@ type UseTimelineMessageFeatureOptions = TimelineSettings & {
   showThreadRepliesInRoom: boolean;
 };
 
-/** The user's own confirmed text message, a long text sent as a file included. */
-const isEditableOwnMessage = (client: MatrixClient, event: MatrixEvent): boolean =>
-  isConfirmedMatrixEventId(event.getId()) && canEditEvent(client, event);
+/**
+ * The user's latest text message among `events` (newest last), a long text sent as a file
+ * included, when the server has confirmed it. While the latest is still sending there is none:
+ * the message before it is not the one the user means, and an edit would overwrite it.
+ */
+const latestConfirmedOwnMessage = (
+  client: MatrixClient,
+  events: MatrixEvent[]
+): MatrixEvent | undefined => {
+  const latest = [...events].reverse().find((event) => canEditEvent(client, event));
+  return latest && isConfirmedMatrixEventId(latest.getId()) ? latest : undefined;
+};
 
 /**
  * Whether the row quotes what it replies to: a genuine reply (not a thread fallback) to a message
@@ -313,18 +322,14 @@ export const useTimelineMessageFeature = ({
     const activeThreadId = threadIdRef.current;
     if (activeThreadId) {
       const thread = room.getThread(activeThreadId);
-      // The thread's own live timeline chain; the root may be stored apart from it.
+      // The thread's own live timeline chain, after its root, which may be stored apart from it.
       const events = thread?.liveTimeline
         ? getLinkedTimelines(thread.liveTimeline).flatMap((timeline) => timeline.getEvents())
         : [];
-      const reply = [...events].reverse().find((event) => isEditableOwnMessage(client, event));
-      if (reply) return reply;
       const root = thread?.rootEvent;
-      return root && isEditableOwnMessage(client, root) ? root : undefined;
+      return latestConfirmedOwnMessage(client, root ? [root, ...events] : events);
     }
-    return [...room.getLiveTimeline().getEvents()]
-      .reverse()
-      .find((event) => isEditableOwnMessage(client, event));
+    return latestConfirmedOwnMessage(client, room.getLiveTimeline().getEvents());
   }, [client, room]);
 
   // Up in an empty composer edits the user's latest message, as in most chat clients.
