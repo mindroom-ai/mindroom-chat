@@ -6,7 +6,8 @@ import { TooltipProvider } from '../ui/directional';
 import { UserAvatar } from '../avatars/UserAvatar';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
-import { getMemberAvatarMxc, getMemberDisplayName } from '../matrix/room';
+import { useLoadedRoomMembers } from '../matrix/hooks/useLoadedRoomMembers';
+import { getMemberAvatarMxc, getSenderName } from '../matrix/room';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../matrix/matrix';
 import { nameInitials } from '../lib/common';
 import { ExpandIcon } from '../ui/panels/panelIcons';
@@ -16,11 +17,18 @@ import * as css from './CallPanel.css';
 /** Tiles draw pictures up to 80 px wide; twice that keeps them sharp on dense screens. */
 const PICTURE_SIZE = 160;
 
-/** A member's name and picture in the call's room, as tiles and the prescreen show them. */
+/**
+ * A member's name and picture in the call's room, as tiles and the prescreen show them. The call
+ * starts after the room's member list loaded, but that load may have failed: until the list is
+ * there, the user ID follows the name (`getSenderName`), so nobody shows as a member the client has
+ * not loaded yet, and the list is asked for again.
+ */
 export const useCallMemberProfile = (room: Room, userId: string) => {
+  const mx = useMatrixClient();
+  useLoadedRoomMembers(mx, [room.roomId]);
   const picture = getMemberAvatarMxc(room, userId);
   const httpPicture = mxcUrlToHttp(
-    useMatrixClient(),
+    mx,
     picture ?? '',
     useMediaAuthentication(),
     PICTURE_SIZE,
@@ -28,7 +36,7 @@ export const useCallMemberProfile = (room: Room, userId: string) => {
     'crop'
   );
   return {
-    name: getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId,
+    name: getSenderName(room, userId),
     avatarSrc: picture && httpPicture ? httpPicture : undefined,
   };
 };
@@ -53,7 +61,7 @@ export function CallMemberAvatar({
         src={avatarSrc}
         renderFallback={() => (
           <Text as="span" size={size === '500' ? 'H3' : 'L400'}>
-            {nameInitials(name)}
+            {nameInitials(name === userId ? getMxIdLocalPart(userId) : name)}
           </Text>
         )}
       />
