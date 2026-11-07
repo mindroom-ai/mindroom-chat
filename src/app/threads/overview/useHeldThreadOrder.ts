@@ -32,18 +32,24 @@ const holdOrder = (shownIds: string[], liveIds: string[]): string[] => {
   return [...leading, ...kept, ...trailing];
 };
 
-type CardInView = { rootId: string; top: number };
+type CardInView = { rootId: string; top: number; scrollTop: number };
 
-/** The topmost card in view (cards carry `data-scroll-anchor`) and its top on screen. */
+/** The topmost card in view (cards carry `data-scroll-anchor`), its top on screen, the offset then. */
 const firstCardInView = (view: HTMLElement): CardInView | undefined => {
   const viewTop = view.getBoundingClientRect().top;
   for (const card of view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')) {
     const { top, bottom } = card.getBoundingClientRect();
     const rootId = card.getAttribute('data-scroll-anchor');
-    if (bottom > viewTop && rootId) return { rootId, top };
+    if (bottom > viewTop && rootId) return { rootId, top, scrollTop: view.scrollTop };
   }
   return undefined;
 };
+
+/** CSS scroll anchoring (Chromium, Firefox) keeps the cards in view in place by itself. */
+const browserAnchorsScroll = (): boolean =>
+  typeof CSS !== 'undefined' &&
+  typeof CSS.supports === 'function' &&
+  CSS.supports('overflow-anchor', 'auto');
 
 /**
  * The overview's thread order, held while `held` (the reader points at, focuses or has a menu
@@ -53,8 +59,9 @@ const firstCardInView = (view: HTMLElement): CardInView | undefined => {
  *
  * A reader at the top of the list sees new cards arrive there. Further down, cards that join
  * above the ones in view would push them down, so while held the list scrolls by as much and the
- * cards in view stay where they are; Chromium's scroll anchoring does that by itself, WebKit has
- * none.
+ * cards in view stay where they are; Chromium's scroll anchoring does that by itself, so the list
+ * scrolls only in browsers without it (WebKit). A card's move counts from where the reader's own
+ * scrolling took it: the scroll offset can change before its scroll event records the card again.
  */
 export const useHeldThreadOrder = (
   liveRootIds: string[],
@@ -72,11 +79,12 @@ export const useHeldThreadOrder = (
     const view = viewRef?.current;
     if (!view) return;
     const before = cardInViewRef.current;
-    if (held && before && view.scrollTop > 0) {
+    if (held && before && view.scrollTop > 0 && !browserAnchorsScroll()) {
       const card = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')].find(
         (element) => element.getAttribute('data-scroll-anchor') === before.rootId
       );
-      const moved = card ? card.getBoundingClientRect().top - before.top : 0;
+      const scrolled = view.scrollTop - before.scrollTop;
+      const moved = card ? card.getBoundingClientRect().top + scrolled - before.top : 0;
       if (Math.abs(moved) >= 0.5) view.scrollTop += moved;
     }
     cardInViewRef.current = firstCardInView(view);
