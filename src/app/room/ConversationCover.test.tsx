@@ -119,6 +119,17 @@ vi.mock('../plugins/pluginEntries', () => ({
             Component: () => createPortal(<input aria-label="popover field" />, document.body),
             close: () => mocks.set('portal', false),
           }),
+          // A cover whose dialog, portaled into the page's body, focuses its own field as it mounts.
+          mocks.cover('dialog', {
+            Component: () => {
+              const fieldRef = useRef<HTMLInputElement>(null);
+              useEffect(() => fieldRef.current?.focus(), []);
+              return createPortal(
+                <input ref={fieldRef} aria-label="dialog field" />,
+                document.body
+              );
+            },
+          }),
           // A cover with a text editor at either end of it.
           mocks.cover('editors', {
             Component: () => (
@@ -395,6 +406,13 @@ describe('a conversation cover', () => {
     await act(async () => mocks.set('fixed', true));
     expect(screen.queryByRole('textbox', { name: 'board search' })).toBeNull();
     expect(layer()!.contains(document.activeElement)).toBe(true);
+  });
+
+  it('leaves the focus in a field its component portals elsewhere and focuses as it mounts', async () => {
+    renderRoom();
+    composer().focus();
+    await act(async () => mocks.set('dialog', true));
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'dialog field' }));
   });
 
   it('gives the composer back its caret with the focus', () => {
