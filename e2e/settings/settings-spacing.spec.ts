@@ -6,9 +6,11 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 
 // The Settings dialog keeps one inset. Every box of the menu column (the search field, the rows,
 // the search results and Logout) stays that far from the dialog's edges and from the divider, and
-// the close button stays that far from the top and the end edge. The icons, the group headings and
-// the page's breadcrumb start one step further in, the same distance from their column's edge. The
-// field, the breadcrumb and the close button share one line. Every page and the search results are
+// the close button stays that far from the top and the end edge. The icons and the group headings
+// start one step further in, the same distance from the column's edge, and the page's breadcrumb
+// starts where the page's text does. The field, the breadcrumb and the close button share one
+// line. On wider screens the dialog is tall enough for the whole menu, Local MindRoom included,
+// and a room's settings dialog has the same title bars. Every page and the search results are
 // checked at 1280x800, 1440x900 and 390x844, in dark and light themes, left to right and in Arabic.
 // SETTINGS_SPACING_OUT=<directory> also writes every measurement as JSON and screenshots of the
 // dialog there.
@@ -18,6 +20,11 @@ const OUT = process.env.SETTINGS_SPACING_OUT;
 const ROOM_COUNT = 26;
 /** The settings dialog's inset: folds `S300`. */
 const INSET = 12;
+/** The tallest the desktop dialog grows, and its margin to the window's edges. */
+const DIALOG_HEIGHT = 730;
+const DIALOG_MARGIN = 16;
+/** Both title bars on wider screens: the 32 px search field and the inset above and below it. */
+const BAR = 56;
 const THEMES = ['dark-theme', 'light-theme'] as const;
 
 type Viewport = { width: number; height: number };
@@ -46,8 +53,24 @@ const homeserverIsUp = async (): Promise<boolean> => {
   }
 };
 
-/** A fresh account named Alice in 26 rooms, signed in on `page`. */
+/** The deployment offers Local MindRoom to this homeserver's accounts; the slot has no service. */
+const routeLocalMindroom = async (page: Page) => {
+  await page.route('**/config.json', async (route) => {
+    const response = await route.fetch();
+    const config = (await response.json()) as Record<string, Record<string, unknown>>;
+    await route.fulfill({
+      response,
+      json: { ...config, sidebar: { ...config.sidebar, mindRoomProvisioningUrl: HOMESERVER } },
+    });
+  });
+  await page.route('**/v1/local-mindroom/connections', (route) =>
+    route.fulfill({ json: { connections: [] } })
+  );
+};
+
+/** A fresh account named Alice in 26 rooms, signed in on `page`; returns the first room. */
 const signIn = async (page: Page, prefix: string) => {
+  await routeLocalMindroom(page);
   const username = `${prefix}_${Date.now().toString(36)}`;
   const { access_token: accessToken, user_id: userId } = await matrixFetch<{
     access_token: string;
@@ -61,14 +84,18 @@ const signIn = async (page: Page, prefix: string) => {
     accessToken,
     body: JSON.stringify({ displayname: 'Alice' }),
   });
+  const roomIds: string[] = [];
   for (let index = 0; index < ROOM_COUNT; index += 1) {
-    // eslint-disable-next-line no-await-in-loop -- the rooms list in creation order.
-    await createPrivateRoom(HOMESERVER, accessToken, {
-      name: `Project room ${index + 1}`,
-      topic: `Planning and updates for project ${index + 1}`,
-    });
+    roomIds.push(
+      // eslint-disable-next-line no-await-in-loop -- the rooms list in creation order.
+      await createPrivateRoom(HOMESERVER, accessToken, {
+        name: `Project room ${index + 1}`,
+        topic: `Planning and updates for project ${index + 1}`,
+      })
+    );
   }
   await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
+  return roomIds[0]!;
 };
 
 /** Distances in CSS pixels, measured from the side a reader starts on (the right in Arabic). */
@@ -103,8 +130,11 @@ type BarMeasures = {
   /** The first text's distance from the bar's start edge, and its vertical center. */
   text: number;
   textCenter: number;
-  /** The button's box from the dialog's top edge and the bar's start and end edges, and its icon. */
-  button: {
+  /**
+   * The button's box from the dialog's top edge and the bar's start and end edges, and its icon
+   * (none in a room's menu title bar on wider screens).
+   */
+  button: null | {
     top: number;
     start: number;
     end: number;
@@ -126,14 +156,21 @@ type PageMeasures = {
   /** Space under the page's last element once scrolled to the end. */
   bottom: number;
   scrolls: boolean;
+  /**
+   * Where the page's text starts, from the pane's start edge: the first section heading's text, or
+   * the first card's rows on a page without headings.
+   */
+  textEdge: number;
 };
 
 type Measures = {
   rtl: boolean;
+  /** The dialog's height. */
+  height: number;
   menu?: MenuMeasures;
-  /** The phone menu's title bar ("Settings" and the close button). */
+  /** The menu's title bar: a phone's "Settings" and close button, or a room's name. */
   menuTitle?: BarMeasures;
-  /** The open page's title bar ("Settings / Appearance"). */
+  /** The open page's title bar ("Settings / Appearance", or a room's "General"). */
   header?: BarMeasures;
   page?: PageMeasures;
 };
@@ -179,7 +216,7 @@ const measure = (dialog: Locator) =>
       const icon = row.querySelector('svg');
       return icon ? start(icon.getBoundingClientRect(), edges) : null;
     };
-    const result: Measures = { rtl };
+    const result: Measures = { rtl, height: round(outer.height) };
 
     const nav = element.querySelector('nav');
     const input = element.querySelector('[role="combobox"]');
@@ -252,28 +289,36 @@ const measure = (dialog: Locator) =>
     const barOf = (header: Element, text: Element): BarMeasures => {
       const bar = header.getBoundingClientRect();
       const buttons = [...header.querySelectorAll('button')];
-      const button = buttons[buttons.length - 1]!;
-      const box = button.getBoundingClientRect();
-      const icon = button.querySelector('svg')!.getBoundingClientRect();
+      const button = buttons[buttons.length - 1];
+      const box = button?.getBoundingClientRect();
+      const icon = button?.querySelector('svg')?.getBoundingClientRect();
       return {
         height: round(bar.height),
         text: start(textBox(text), bar),
         textCenter: center(textBox(text)),
-        button: {
-          top: round(box.top - frame.top),
-          start: start(box, bar),
-          end: end(box, bar),
-          center: center(box),
-          iconStart: start(icon, bar),
-          iconEnd: end(icon, bar),
-        },
+        button:
+          box && icon
+            ? {
+                top: round(box.top - frame.top),
+                start: start(box, bar),
+                end: end(box, bar),
+                center: center(box),
+                iconStart: start(icon, bar),
+                iconEnd: end(icon, bar),
+              }
+            : null,
       };
     };
     const menuTitle = nav?.querySelector('header h2');
     if (menuTitle) result.menuTitle = barOf(menuTitle.closest('header')!, menuTitle);
 
-    const title = element.querySelector('[data-dialog-title]');
-    const titleBar = title?.closest('header');
+    // The page's title bar is the header outside the menu; its text, the breadcrumb.
+    const titleBar = [...element.querySelectorAll('header')].find(
+      (header) => !header.closest('nav')
+    );
+    const title = titleBar
+      ? [...titleBar.children].find((child) => child.textContent?.trim())
+      : undefined;
     if (title && titleBar) {
       const bar = titleBar.getBoundingClientRect();
       result.header = barOf(titleBar, title);
@@ -323,6 +368,14 @@ const measure = (dialog: Locator) =>
               : null,
           bottom,
           scrolls,
+          textEdge: headings[0]
+            ? start(textBox(headings[0]), bar)
+            : firstCard && cards[0]!.firstElementChild
+            ? round(
+                start(firstCard, bar) +
+                  parseFloat(getComputedStyle(cards[0]!.firstElementChild).paddingInlineStart)
+              )
+            : -1,
         };
       }
     }
@@ -375,8 +428,13 @@ const near = (actual: number, expected: number, what: string) =>
     .toBeLessThanOrEqual(1);
 
 /** The checks every measurement must pass; `phone` has no divider and no title bar beside the menu. */
-const checkMeasures = ({ state, measures }: Record_, phone: boolean) => {
+const checkMeasures = ({ state, measures }: Record_, viewport: Viewport) => {
   const { menu, header, page } = measures;
+  const phone = viewport.width < 600;
+  if (!phone) {
+    const height = Math.min(DIALOG_HEIGHT, viewport.height - 2 * DIALOG_MARGIN);
+    near(measures.height, height, `${state}: dialog height`);
+  }
   if (menu) {
     near(menu.fieldStart, INSET, `${state}: search field from the start edge`);
     near(menu.fieldEnd, INSET, `${state}: search field from the end edge`);
@@ -398,24 +456,26 @@ const checkMeasures = ({ state, measures }: Record_, phone: boolean) => {
       expect
         .soft(menu.aboveLogout, `${state}: last row to Logout`)
         .toBeGreaterThanOrEqual(INSET - 1);
-    // Wider screens show the whole menu in the 700 px dialog (without Local MindRoom).
+    // Wider screens show the whole menu, Local MindRoom included.
     if (!phone && menu.belowField >= 0)
       expect.soft(menu.menuOverflow, `${state}: the menu scrolls`).toBeLessThanOrEqual(1);
   }
-  if (menu && measures.menuTitle) {
+  if (menu && measures.menuTitle?.button) {
     const bar = measures.menuTitle;
+    const button = measures.menuTitle.button;
     near(bar.text, INSET, `${state}: menu title from the start edge`);
-    near(bar.button.end, INSET, `${state}: menu close button from the end edge`);
-    near(bar.button.center, bar.textCenter, `${state}: menu title and close line`);
+    near(button.end, INSET, `${state}: menu close button from the end edge`);
+    near(button.center, bar.textCenter, `${state}: menu title and close line`);
     near(menu.fieldTop - bar.height, INSET, `${state}: search field under the menu title`);
   }
-  if (header && phone)
+  if (header?.button && phone)
     near(header.button.center, header.textCenter, `${state}: back and title line`);
-  if (header && menu && !phone) {
+  if (header?.button && menu && !phone) {
     if (menu.searchBar !== null) near(header.height, menu.searchBar, `${state}: bar heights`);
     near(header.button.top, INSET, `${state}: close button from the top edge`);
     near(header.button.end, INSET, `${state}: close button from the end edge`);
-    near(header.text, menu.searchIcon, `${state}: breadcrumb from the divider`);
+    if (page && page.textEdge >= 0)
+      near(header.text, page.textEdge, `${state}: breadcrumb on the page's text edge`);
     near(header.button.iconEnd, menu.searchIcon, `${state}: close icon from the end edge`);
     near(header.textCenter, menu.fieldCenter, `${state}: breadcrumb and field line`);
     near(header.button.center, menu.fieldCenter, `${state}: close and field line`);
@@ -454,7 +514,7 @@ const walkSettings = async (
       });
     };
     const rowCount = await menuRows(dialog).count();
-    expect(rowCount).toBeGreaterThan(10);
+    expect(rowCount, 'the menu, Local MindRoom included').toBe(14);
     if (phone) {
       out.push({ state: `${tag} menu`, measures: await measure(dialog) });
       await shot('menu');
@@ -486,7 +546,65 @@ const walkSettings = async (
     mkdirSync(OUT, { recursive: true });
     writeFileSync(`${OUT}/${browser}-${size}-${language}.json`, JSON.stringify(out, null, 2));
   }
-  for (const record of out) checkMeasures(record, phone);
+  for (const record of out) checkMeasures(record, viewport);
+};
+
+/**
+ * A room's settings dialog: its menu's title bar (the room's name) and the page's title bar are
+ * both 56 px, the close button keeps the inset from the top and the end edge, the room's name, the
+ * page's title and the close button share one line, and the title starts where the page's text
+ * does.
+ */
+const checkRoomMeasures = ({ state, measures }: Record_) => {
+  const { menuTitle, header, page } = measures;
+  expect(menuTitle, `${state}: the room's name`).toBeTruthy();
+  expect(header?.button, `${state}: the close button`).toBeTruthy();
+  if (!menuTitle || !header?.button) return;
+  near(menuTitle.height, BAR, `${state}: room name bar height`);
+  near(header.height, BAR, `${state}: page title bar height`);
+  near(header.button.top, INSET, `${state}: close button from the top edge`);
+  near(header.button.end, INSET, `${state}: close button from the end edge`);
+  near(header.textCenter, menuTitle.textCenter, `${state}: room name and page title line`);
+  near(header.button.center, header.textCenter, `${state}: page title and close line`);
+  if (page && page.textEdge >= 0)
+    near(header.text, page.textEdge, `${state}: page title on the page's text edge`);
+};
+
+/** Every page of a room's settings, in both themes. */
+const walkRoomSettings = async (page: Page, size: string, roomId: string, out: Record_[]) => {
+  const viewport = SIZES[size]!;
+  for (const theme of THEMES) {
+    /* eslint-disable no-await-in-loop -- one state after the other in one dialog. */
+    await openSettings(page, viewport, theme, 'en');
+    await page.keyboard.press('Escape');
+    await page.goto(`/home/${encodeURIComponent(roomId)}`);
+    const roomHeader = page.locator('header').filter({ hasText: 'Project room 1' });
+    await roomHeader.getByRole('button').last().click();
+    await page.getByRole('menuitem', { name: 'Room Settings', exact: true }).click();
+    const dialog = page.getByRole('dialog').filter({ has: page.locator('[data-settings-page]') });
+    await expect(dialog).toBeVisible();
+    await settle(page);
+    const rows = dialog.locator('nav button');
+    const rowCount = await rows.count();
+    expect(rowCount).toBeGreaterThan(3);
+    for (let index = 0; index < rowCount; index += 1) {
+      const row = rows.nth(index);
+      const name = (await row.innerText()).trim();
+      await row.click();
+      await expect(dialog.locator('header:not(nav header)').first()).toContainText(name);
+      await settle(page);
+      out.push({ state: `room ${size} ${theme} ${name}`, measures: await measure(dialog) });
+      if (OUT && index === 0) {
+        mkdirSync(OUT, { recursive: true });
+        await dialog.screenshot({ path: `${OUT}/chromium-room-${size}-${theme}-page-0.png` });
+      }
+    }
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    /* eslint-enable no-await-in-loop */
+  }
+  if (OUT) writeFileSync(`${OUT}/chromium-room-${size}.json`, JSON.stringify(out, null, 2));
+  for (const record of out) checkRoomMeasures(record);
 };
 
 test.beforeEach(async () => {
@@ -508,6 +626,19 @@ for (const size of Object.keys(SIZES)) {
       }
     });
   }
+}
+
+for (const size of ['desktop-1280', 'desktop-1440']) {
+  test(`a room's settings dialog has the same title bars: ${size}`, async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+    const roomId = await signIn(page, `settings_spacing_room_${size.replace('-', '_')}`);
+    const out: Record_[] = [];
+    try {
+      await walkRoomSettings(page, size, roomId, out);
+    } finally {
+      await testInfo.attach('room-measures.json', { body: JSON.stringify(out, null, 2) });
+    }
+  });
 }
 
 test('the Settings dialog keeps one inset in WebKit: desktop-1440, en', async ({
