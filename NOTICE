@@ -1,4 +1,4 @@
-mindroom-client
+MindRoom Chat
 Copyright 2026 MindRoom
 
 Licensed under the Apache License, Version 2.0 (see LICENSE).
@@ -6,8 +6,9 @@ Licensed under the Apache License, Version 2.0 (see LICENSE).
 Ported files
 ------------
 The files listed in docs/provenance/portable.tsv (first import) and
-docs/provenance/portable-wave2.tsv (second import) were copied from MindRoom
-Chat (mindroom-ai/mindroom-chat) at commit fc3a5905; git blame credited at
+docs/provenance/portable-wave2.tsv (second import) were copied from the legacy
+MindRoom Chat client (mindroom-ai/mindroom-chat-legacy, then named
+mindroom-ai/mindroom-chat) at commit fc3a5905; git blame credited at
 least 95% of each file's lines to Bas Nijholt. Per his instruction of
 2026-11-02, he licenses the lines he wrote in those files under the Apache
 License, Version 2.0 for this project. The grant covers only the lines he
@@ -35,7 +36,7 @@ project.
 
 Third-party notices
 -------------------
-mindroom-client installs its dependencies from npm under their own licenses;
+MindRoom Chat installs its dependencies from npm under their own licenses;
 package-lock.json pins the exact versions, and the build gathers the license
 and notice files of the production dependencies into THIRD_PARTY_NOTICES.txt
 (see below). scripts/license-check.mjs accepts these licenses:
@@ -61,7 +62,7 @@ noVNC
 folds
   folds 2.7.1, by Ajay Bura, Apache License 2.0 (https://www.npmjs.com/package/folds;
   the license text ships in the package as LICENSE). It is the design system
-  mindroom-client's components are built on, installed from npm as a
+  MindRoom Chat's components are built on, installed from npm as a
   dependency; the web bundle includes its components and styles, patched as
   listed under "Modified dependencies".
 
