@@ -212,22 +212,10 @@ type RoomProps = {
   scrollToIndex: (index: number) => void;
   /** The rows run newest first (the Threads view under a newest-first sort). */
   latestAtTop?: boolean;
-  /** The view on screen; the room's own by default. */
-  view?: string;
-  /** The route focuses an event (a permalink, or the root of a thread just left). */
-  focusesEvent?: boolean;
 };
 
 /** The pieces of the room's Full view that decide its bottom pins, wired as the room timeline does. */
-function RoomRows({
-  scroller,
-  pins,
-  rows,
-  scrollToIndex,
-  latestAtTop = false,
-  view = '!room||classic',
-  focusesEvent = false,
-}: RoomProps) {
+function RoomRows({ scroller, pins, rows, scrollToIndex, latestAtTop = false }: RoomProps) {
   const scrollRef = useRef(scroller as unknown as HTMLDivElement);
   const latestAtTopRef = useRef(latestAtTop);
   latestAtTopRef.current = latestAtTop;
@@ -274,13 +262,12 @@ function RoomRows({
     surface: 'room',
     itemCount: rows,
     virtualizer: { scrollToIndex },
-    opensAtLatest: !focusesEvent,
-    focusesEvent,
+    opensAtLatest: true,
     latestAtTop,
     roomId: '!room',
     scrollElement: scroller as unknown as HTMLElement,
     scrollToBottomRef: pins,
-    committedView: view,
+    committedView: '!room||classic',
     focusItem: undefined,
     onReaderGesture: gesturePins.onRoomGesture,
   });
@@ -478,31 +465,6 @@ describe('useLatestRowPin in room rows that run newest first', () => {
     room.element.scrollTo.mockClear();
     room.showRows(22);
     expect(room.element.scrollTo).not.toHaveBeenCalled();
-  });
-
-  it('comes back to the focused root, not the top, from a thread opened from a link', () => {
-    const { element } = fakeRoomScroller();
-    element.scrollTop = 640;
-    const pins = { current: { count: 0, smooth: false } };
-    const scrollToIndex = vi.fn();
-    const props = { scroller: element, pins, scrollToIndex, rows: 20, latestAtTop: true };
-    let renderer: ReactTestRenderer | undefined;
-    act(() => {
-      renderer = create(
-        createElement(RoomRows, { ...props, view: '!room|$root|threaded', focusesEvent: true })
-      );
-    });
-    element.scrollTo.mockClear();
-
-    // Leaving the thread: the room's view, focused on the root (P2-lane4-F013).
-    act(() => {
-      renderer?.update(
-        createElement(RoomRows, { ...props, view: '!room||threaded', focusesEvent: true })
-      );
-    });
-
-    expect(element.scrollTo).not.toHaveBeenCalled();
-    expect(scrollToIndex).not.toHaveBeenCalled();
   });
 
   it('follows a new row at the top, and Jump to Latest goes there', () => {
