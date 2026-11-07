@@ -100,6 +100,21 @@ describe('useKeptComposerState', () => {
     expect(kept?.lostFileNames).toEqual([]);
   });
 
+  it('leaves large pastes out of the notice, since the draft keeps their text', () => {
+    openPage();
+    keepStagedFileNames(ME, ROOM, [staged('notes.txt'), staged('mindroom-paste-a3f19c.txt')]);
+    const store = reload();
+    expect(kept?.lostFileNames).toEqual(['notes.txt']);
+    // The paste the composer puts back does not answer the notice of the file still missing.
+    act(() =>
+      store.set(roomIdToUploadItemsAtomFamily(ROOM), {
+        type: 'PUT',
+        item: [staged('mindroom-paste-a3f19c.txt')],
+      })
+    );
+    expect(kept?.lostFileNames).toEqual(['notes.txt']);
+  });
+
   it('says nothing while the files are still staged, as after switching rooms', () => {
     const store = createStore();
     const items = [staged('notes.txt')];
