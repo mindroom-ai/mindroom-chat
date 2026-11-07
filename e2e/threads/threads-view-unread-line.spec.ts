@@ -1,0 +1,247 @@
+import {
+  expect,
+  test,
+  type Browser,
+  type BrowserContextOptions,
+  type Page,
+} from '@playwright/test';
+import { loginWithPassword } from '../helpers/auth';
+import { createRoom } from '../helpers/createRoom';
+import {
+  joinRoom,
+  loginToMatrix,
+  matrixFetch,
+  registerAgentAccount,
+  sendRoomMessage,
+  type MatrixSession,
+} from '../helpers/matrix';
+import { expectRoomCompact, toggleRoomView } from '../helpers/roomViewSwitch';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+
+// The Threads view of a room with an agent lists the newest thread first, where it opens and
+// where the reader reads. A "New messages" line there would mark the newest row, not the place
+// where the reader stopped, so the view draws none and offers no Jump to Unread or Mark as Read
+// pills, as MindRoom Chat does; a room read oldest first still draws the line where the unread
+// messages start. Each room holds 30 read and 30 unread messages, among 25 rooms; desktop (1280
+// by 800, classic scrollbars) and phone (390 by 844, touch), Chromium and, when
+// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. The page sends no read receipt,
+// so the rooms stay unread. Set UNREAD_LINE_SHOTS=<directory> for screenshots.
+const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
+const PASSWORD = 'threads-view-unread-line-password';
+const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+const SHOTS = process.env.UNREAD_LINE_SHOTS;
+const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
+const PHONE: BrowserContextOptions = {
+  viewport: { width: 390, height: 844 },
+  hasTouch: true,
+  isMobile: true,
+};
+const AGENT_ROOM = 'Harbor log';
+const PEOPLE_ROOM = 'Harbor crew';
+const BODIES = [
+  'The morning tide came in at the usual height. Crane two loaded the containers for berth four.',
+  'Pilot boarding moved to 14:30 because of the fog bank outside the breakwater.',
+  'Customs cleared the reefer containers; the paperwork for the last two is in the shared folder.',
+  'Berth four is free again after the ferry left, so the barge can come alongside tonight.',
+];
+
+test.use({
+  launchOptions: {
+    // Classic scrollbars, as desktop browsers show them. The other options repeat
+    // playwright.config.ts.
+    executablePath: process.env.CHROMIUM_PATH || undefined,
+    args: ['--disable-features=IsolateSandboxedIframes'],
+    ignoreDefaultArgs: ['--hide-scrollbars'],
+  },
+});
+
+const homeserverIsUp = async (): Promise<boolean> => {
+  try {
+    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
+      signal: AbortSignal.timeout(2_000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+};
+
+const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
+  const username = `tvu_${name}_${RUN}`;
+  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username,
+      password: PASSWORD,
+      auth: { type: 'm.login.dummy' },
+      inhibit_login: true,
+    }),
+  });
+  expect(response.ok, `registering ${username}`).toBe(true);
+  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
+};
+
+/** A room where `writer` sent 30 messages the reader read and 30 it has not. */
+const seedRoom = async (
+  reader: MatrixSession,
+  writer: MatrixSession,
+  name: string
+): Promise<string> => {
+  const roomId = await createRoom(HOMESERVER, reader.accessToken, {
+    name,
+    invite: [writer.userId],
+  });
+  await joinRoom(HOMESERVER, writer.accessToken, roomId);
+  const send = (index: number) =>
+    sendRoomMessage(HOMESERVER, writer.accessToken, roomId, {
+      msgtype: 'm.text',
+      body: `Entry ${index}: ${BODIES[index % BODIES.length] ?? ''}`,
+    });
+  let lastRead = '';
+  for (let index = 1; index <= 30; index += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    lastRead = await send(index);
+  }
+  await matrixFetch(HOMESERVER, `/rooms/${encodeURIComponent(roomId)}/read_markers`, {
+    method: 'POST',
+    accessToken: reader.accessToken,
+    body: JSON.stringify({ 'm.fully_read': lastRead, 'm.read': lastRead }),
+  });
+  for (let index = 31; index <= 60; index += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await send(index);
+  }
+  return roomId;
+};
+
+const seed = async (label: string) => {
+  const reader = await registerAndLogin(`reader_${label}`);
+  const colleague = await registerAndLogin(`colleague_${label}`);
+  const agent = await registerAgentAccount(HOMESERVER, `harbor_${label}`);
+  await Promise.all(
+    Array.from({ length: 25 }, (_, index) =>
+      createRoom(HOMESERVER, reader.accessToken, { name: `Project room ${index + 1}` })
+    )
+  );
+  const agentRoom = await seedRoom(reader, agent, AGENT_ROOM);
+  const peopleRoom = await seedRoom(reader, colleague, PEOPLE_ROOM);
+  return { reader, agentRoom, peopleRoom };
+};
+
+const shots = async (page: Page, name: string) => {
+  if (!SHOTS) return;
+  for (const scheme of ['light', 'dark'] as const) {
+    // eslint-disable-next-line no-await-in-loop
+    await page.emulateMedia({ colorScheme: scheme });
+    // eslint-disable-next-line no-await-in-loop
+    await page.waitForTimeout(300);
+    // eslint-disable-next-line no-await-in-loop
+    await page.screenshot({ path: `${SHOTS}/${name}-${scheme}.png` });
+  }
+  await page.emulateMedia({ colorScheme: null });
+};
+
+/** The timeline's scroll container, scrolled by `by` px (down when positive). */
+const scrollBy = (page: Page, by: number) =>
+  page.evaluate((delta) => {
+    let scroller = document.querySelector<HTMLElement>(
+      '[data-testid="room-virtual-inner"]'
+    )?.parentElement;
+    while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) {
+      scroller = scroller.parentElement;
+    }
+    if (!scroller) return;
+    scroller.dispatchEvent(new WheelEvent('wheel', { deltaY: delta, bubbles: true }));
+    scroller.scrollTop += delta;
+  }, by);
+
+const check = async (browser: Browser, label: string, options: BrowserContextOptions) => {
+  const { reader, agentRoom, peopleRoom } = await seed(label);
+  // The service worker would take requests out of the page's routes (WebKit).
+  const context = await browser.newContext({ ...options, serviceWorkers: 'block' });
+  context.setDefaultTimeout(30_000);
+  // The rooms stay unread: no read receipt or marker leaves the page.
+  await context.route(
+    (url) => /\/(receipt|read_markers)(\/|$)/.test(url.pathname),
+    (route) => route.fulfill({ json: {} })
+  );
+  const page = await context.newPage();
+  try {
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: reader.username,
+      password: PASSWORD,
+    });
+    const line = page.getByText('New Messages', { exact: true });
+    const pills = page.getByRole('button', { name: /^(Jump to Unread|Mark as Read)$/ });
+
+    // The agent's room, in its Threads view: newest first.
+    await page.goto(`/home/${encodeURIComponent(agentRoom)}/`);
+    await expectRoomCompact(page, true, 60_000);
+    await toggleRoomView(page);
+    await expectRoomCompact(page, false);
+    await expect(page.getByText(/^Entry 60:/).first()).toBeVisible();
+    // Long enough for the line and the pills to have come if they were to.
+    await page.waitForTimeout(2_000);
+    await shots(page, `${label}-threads-top`);
+    await expect(line).toHaveCount(0);
+    await expect(pills).toHaveCount(0);
+    // Down past where the unread messages end: still no line.
+    for (let step = 0; step < 8; step += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await scrollBy(page, 500);
+      // eslint-disable-next-line no-await-in-loop
+      await page.waitForTimeout(300);
+      // eslint-disable-next-line no-await-in-loop
+      await expect(line).toHaveCount(0);
+    }
+    await expect(page.getByText(/^Entry 30:/).first()).toBeAttached();
+
+    // A room of people, read oldest first: the line sits right above the first unread message.
+    await page.goto(`/home/${encodeURIComponent(peopleRoom)}/`);
+    await expect(line).toBeVisible({ timeout: 60_000 });
+    const [lineBox, firstUnread, lastRead] = await Promise.all([
+      line.boundingBox(),
+      page
+        .getByText(/^Entry 31:/)
+        .first()
+        .boundingBox(),
+      page
+        .getByText(/^Entry 30:/)
+        .first()
+        .boundingBox(),
+    ]);
+    expect(lineBox!.y).toBeLessThan(firstUnread!.y);
+    expect(lineBox!.y).toBeGreaterThan(lastRead!.y);
+    await shots(page, `${label}-people-room`);
+  } finally {
+    await context.close();
+  }
+};
+
+test.beforeEach(async () => {
+  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.setTimeout(240_000);
+});
+
+for (const [device, options] of [
+  ['desktop', DESKTOP],
+  ['phone', PHONE],
+] as const) {
+  test(`a newest-first Threads view draws no New Messages line (Chromium ${device})`, async ({
+    browser,
+  }) => {
+    await check(browser, `chromium-${device}`, options);
+  });
+
+  test(`a newest-first Threads view draws no New Messages line (WebKit ${device})`, async () => {
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    const browser = await launchWebKit();
+    try {
+      await check(browser, `webkit-${device}`, options);
+    } finally {
+      await browser.close();
+    }
+  });
+}
