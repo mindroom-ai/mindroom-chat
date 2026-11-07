@@ -506,11 +506,11 @@ describe('the side panels of a room', () => {
     expect(notes()).toBeNull();
   });
 
-  it('opens no panel for a remembered value it cannot read', async () => {
+  it('opens no panel for a remembered value it cannot read, or one of a panel that does not remember', async () => {
     const key = `mindroom.plugin:${encodeURIComponent(
       '@alice:example.org'
     )}/:side-panel/${encodeURIComponent(room.roomId)}`;
-    for (const stored of ['{not json', '"notes/board"']) {
+    for (const stored of ['{not json', 'null', '"notes/board"', '{"id":"notes/panel"}']) {
       localStorage.setItem(key, stored);
       // eslint-disable-next-line no-await-in-loop
       await renderRoom();
@@ -551,6 +551,12 @@ describe('the side panels of a room', () => {
       await renderRoom();
       expect(board()).toBeNull();
       expect(shown()).toEqual([core]);
+      // Nor when that panel closes.
+      await act(async () => {
+        if (core === 'call') store.set(callPanelRoomAtom, undefined);
+        else store.set(membersOpenAtom, false);
+      });
+      expect(board()).toBeNull();
     }
   );
 
