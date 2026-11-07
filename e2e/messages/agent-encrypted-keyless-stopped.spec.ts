@@ -9,6 +9,7 @@ import {
   test,
   type AgentStack,
 } from '../helpers/agentStack';
+import { matrixFetch } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Regression (P2-e2ee-F002): a device without the keys of an encrypted room showed an agent's
@@ -20,6 +21,21 @@ test.describe.configure({ timeout: 300_000 });
 
 // Set E2EE_SHOTS=<directory> to save the keyless device's room.
 const SHOTS = process.env.E2EE_SHOTS;
+
+/** The reader's own message in the room, which roots the reply's thread. */
+const readerRoot = async (stack: AgentStack, roomId: string): Promise<string> => {
+  type Raw = { event_id: string; sender: string; content: { 'm.relates_to'?: unknown } };
+  const { chunk } = await matrixFetch<{ chunk: Raw[] }>(
+    stack.homeserver,
+    `/rooms/${encodeURIComponent(roomId)}/messages?dir=b&limit=100`,
+    { accessToken: stack.tester.accessToken }
+  );
+  const root = chunk.find(
+    (event) => event.sender === stack.tester.userId && !event.content['m.relates_to']
+  );
+  if (!root) throw new Error("The reader's message is not in the room");
+  return root.event_id;
+};
 
 /** The reader asks the helper in a new encrypted room and stops the reply after a few words. */
 const stoppedReply = async (page: Page, stack: AgentStack): Promise<string> => {
@@ -50,7 +66,8 @@ const keylessShowsFinished = async (
   const log: string[] = [];
   try {
     await fresh.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
-    const card = fresh.locator('[data-thread-root-id]').first();
+    const rootId = await readerRoot(stack, roomId);
+    const card = fresh.locator(`[data-thread-root-id="${rootId}"]`).first();
     await expect(card).toBeVisible({ timeout: 90_000 });
     // The card settles: it never says "streaming" for 15 seconds in a row.
     let held = 0;
