@@ -234,6 +234,19 @@ describe('SDK edits older than the sender’s bundled edit', () => {
     expect(body(event)).toBe('The forklift is back.');
   });
 
+  it('shows the bundled edit again once a pending edit that took its place in the bundle is cancelled', async () => {
+    const { event, pending, cancel } = await withPendingEdit(
+      [bundled(newestEdit())],
+      edit('~pending-edit', AUTHOR, 6, 'The forklift is gone.')
+    );
+    event.setUnsigned({ 'm.relations': { 'm.replace': pending.event } });
+    expect(body(event)).toBe('The forklift is gone.');
+
+    await cancel();
+
+    expect(body(event)).toBe('The forklift is back.');
+  });
+
   it('drops a pending edit of the sender once it is cancelled', async () => {
     const { event, cancel } = await withPendingEdit([new MatrixEvent(original())], {
       ...ownEdit(),
