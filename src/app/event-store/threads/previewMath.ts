@@ -128,6 +128,13 @@ const readFormula = (tex: string): string | undefined => {
       if (node === undefined) return '';
       if (typeof node !== 'string') return readNodes(node);
       if (node === '^' || node === '_') {
+        // A script of a script (`x^^y`), which KaTeX rejects, has no reading, and a chain of them
+        // is read one node at a time rather than recursing once per script.
+        const following = skipSpace();
+        if (following === '^' || following === '_') {
+          exact = false;
+          return '';
+        }
         const script = argument().trim();
         if (/^[!-/:-@[-`{-~]$/.test(script)) exact = false;
         return node + (part(script) === script && endsScript() ? script : `(${script})`);
