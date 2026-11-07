@@ -22,6 +22,7 @@ const reducedMotion = '(prefers-reduced-motion: reduce)';
 const motionFrom = (enter: string, leave: string) => ({
   animation: `${enter} ${motion.duration.Slow} ${motion.easing.Decelerate}`,
   selectors: {
+    '&[data-settled]:not([data-leaving])': { animation: 'none' },
     '&[data-leaving]': {
       animation: `${leave} ${motion.duration.Normal} ${motion.easing.Accelerate} forwards`,
       pointerEvents: 'none' as const,

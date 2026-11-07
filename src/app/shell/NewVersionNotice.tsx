@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { type AnimationEvent, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
@@ -41,6 +41,10 @@ export function NewVersionNotice() {
   const leaving = leftFrom !== undefined;
   const slot = leftFrom ? leftFrom.slot : listSlot ?? pageSlot;
   const placement: Placement = leftFrom?.placement ?? (listSlot ? 'list' : 'page');
+  // The card comes in once where it is placed: rebuilt in a new place of the same kind (the list
+  // of another section), it shows at once instead of arriving again.
+  const cameInAt = useRef<Placement>();
+  const settled = cameInAt.current === placement;
   // A phone's drawer or members sheet covers the page's place and makes it inert, where an
   // assistive technology would not read the card out. Found meanwhile, the card waits until they
   // have slid away, so the place is a live region again before the card is added to it, and then
@@ -76,6 +80,10 @@ export function NewVersionNotice() {
       className={css.Card({ placement })}
       data-new-version-card={placement}
       data-leaving={leaving || undefined}
+      data-settled={settled || undefined}
+      onAnimationEnd={(event: AnimationEvent<HTMLElement>) => {
+        if (event.target === event.currentTarget && !leaving) cameInAt.current = placement;
+      }}
     >
       <span className={css.Mark({ placement })} aria-hidden>
         <Icon src={Icons.Download} size="100" />

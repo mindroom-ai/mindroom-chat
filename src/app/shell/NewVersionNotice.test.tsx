@@ -157,4 +157,19 @@ describe('NewVersionNotice', () => {
     expect(list.textContent).toBe('');
     expect(page.textContent).toBe('');
   });
+
+  it('comes in once, and shows at once when rebuilt in another list', () => {
+    update.state.version = 'build-2';
+    const first = document.body.appendChild(document.createElement('div'));
+    const second = document.body.appendChild(document.createElement('div'));
+    const store = getDefaultStore();
+    act(() => store.set(listNoticeSlotAtom, first));
+    render(<NewVersionNotice />);
+    const arriving = first.querySelector<HTMLElement>('[data-new-version-card]');
+    expect(arriving?.hasAttribute('data-settled')).toBe(false);
+
+    fireEvent.animationEnd(arriving!);
+    act(() => store.set(listNoticeSlotAtom, second));
+    expect(second.querySelector('[data-new-version-card="list"][data-settled]')).toBeTruthy();
+  });
 });
