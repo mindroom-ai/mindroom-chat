@@ -91,14 +91,15 @@ describe('useRoomEscapeReadReceipts', () => {
   it("marks nothing read while a phone's navigation drawer covers the conversation", () => {
     keyHotkeyMock.mockReturnValue(true);
     getDefaultStore().set(phoneNavDrawerOpenAtom, true);
+    const renderer = create(React.createElement(Harness, { threadId: '$thread' }));
     try {
-      create(React.createElement(Harness, { threadId: '$thread' }));
       act(() => {
         state.handler?.({} as KeyboardEvent);
       });
       expect(markThreadAsReadMock).not.toHaveBeenCalled();
       expect(markMainTimelineAsReadMock).not.toHaveBeenCalled();
     } finally {
+      act(() => renderer.unmount());
       getDefaultStore().set(phoneNavDrawerOpenAtom, false);
     }
   });
