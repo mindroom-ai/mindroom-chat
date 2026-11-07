@@ -55,6 +55,7 @@ import {
   getDirectRoomAvatarUrl,
   getRoomAvatarUrl,
   getSenderName,
+  splitUserIdSuffix,
 } from '../../matrix/room';
 import { useLoadedRoomMembers } from '../../matrix/hooks/useLoadedRoomMembers';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
@@ -290,6 +291,7 @@ const NotificationRow = memo(function NotificationRow({
   useLoadedRoomMembers(client, [room.roomId]);
   const sender = event.getSender() ?? '';
   const senderName = getSenderName(room, sender);
+  const [shownName, userIdSuffix] = splitUserIdSuffix(senderName, sender);
   const eventId = event.getId() ?? notification.event.event_id;
   const content = event.getContent();
   const highlighted = isHighlightNotification(notification);
@@ -331,7 +333,7 @@ const NotificationRow = memo(function NotificationRow({
       }}
     >
       <Box direction="Column" grow="Yes" gap="100" style={{ minWidth: 0 }}>
-        <Box gap="200" alignItems="Center">
+        <Box gap="200" alignItems="Center" wrap="Wrap" style={{ rowGap: 0 }}>
           {!notification.read && (
             <Badge
               variant="Primary"
@@ -343,9 +345,19 @@ const NotificationRow = memo(function NotificationRow({
               style={unreadDotStyle}
             />
           )}
-          <Text size="T300" truncate {...ownDirectionLine}>
-            <b>{senderName}</b>
-          </Text>
+          {/* An ellipsis may cut the display name short, never the user ID after it, which tells a
+              copied name apart: on a narrow row the ID wraps onto the next line, and a very long
+              one breaks across lines. */}
+          <b style={{ display: 'contents' }}>
+            <Text as="span" size="T300" truncate {...ownDirectionLine}>
+              {shownName}
+            </Text>
+            {userIdSuffix && (
+              <Text as="span" size="T300" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                {userIdSuffix}
+              </Text>
+            )}
+          </b>
           <Text size="T200" priority="300" style={{ flexShrink: 0 }}>
             {timeMonthDayHourMinute(notification.ts, hour24Clock, i18n.language)}
           </Text>
