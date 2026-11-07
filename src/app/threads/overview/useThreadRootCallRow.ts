@@ -6,10 +6,10 @@ import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 
 /**
  * The call's row a thread's root is (`io.mindroom.call` from a MindRoom agent), as its latest
- * edit has it, following the edits; undefined for any other root, or one the room has not loaded.
+ * edit has it, following the edits; undefined for any other root, or one (or a room) not loaded.
  */
-export const useThreadRootCallRow = (room: Room, rootId: string) => {
-  const root = findThreadRootEvent(room, rootId);
+export const useThreadRootCallRow = (room: Room | null, rootId: string) => {
+  const root = room ? findThreadRootEvent(room, rootId) : undefined;
   const isRow = !!root && isCallRowEvent(root);
   const [, setEdits] = useState(0);
   useEffect(() => {
@@ -20,7 +20,7 @@ export const useThreadRootCallRow = (room: Room, rootId: string) => {
       root.off(MatrixEventEvent.Replaced, edited);
     };
   }, [isRow, root]);
-  if (!root || !isRow) return undefined;
+  if (!room || !root || !isRow) return undefined;
   const edit = getEditedEvent(rootId, root, room.getUnfilteredTimelineSet());
   const content = getLatestMessageContent(root, edit);
   const row = readCallRow(content);
