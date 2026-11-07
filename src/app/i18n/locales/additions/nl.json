@@ -206,6 +206,9 @@
       "messageIn": "Bericht in {{room}}",
       "threadIn": "Thread in {{room}}",
       "messageElsewhere": "Bericht in een andere kamer"
+    },
+    "deviceVerification": {
+      "acceptStalled": "De andere sessie heeft niet geantwoord. Sluit dit en start de verificatie opnieuw."
     }
   },
   "featureUi": {

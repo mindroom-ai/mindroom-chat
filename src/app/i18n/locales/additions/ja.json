@@ -202,6 +202,9 @@
       "messageIn": "{{room}} のメッセージ",
       "threadIn": "{{room}} のスレッド",
       "messageElsewhere": "別のルームのメッセージ"
+    },
+    "deviceVerification": {
+      "acceptStalled": "もう一方のセッションが応答しませんでした。これを閉じて、確認をもう一度開始してください。"
     }
   },
   "featureUi": {

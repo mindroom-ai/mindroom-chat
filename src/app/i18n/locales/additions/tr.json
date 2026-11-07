@@ -206,6 +206,9 @@
       "messageIn": "{{room}} içindeki mesaj",
       "threadIn": "{{room}} içindeki konu",
       "messageElsewhere": "Başka bir odadaki mesaj"
+    },
+    "deviceVerification": {
+      "acceptStalled": "Diğer oturum yanıt vermedi. Bunu kapatın ve doğrulamayı yeniden başlatın."
     }
   },
   "featureUi": {
