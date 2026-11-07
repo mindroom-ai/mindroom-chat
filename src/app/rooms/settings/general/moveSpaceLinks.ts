@@ -15,8 +15,8 @@ const hasVia = (content: Record<string, unknown> | undefined): boolean =>
  * links; each is best effort, since a space this account may not change keeps its old child, which
  * the tombstone then leads on from. The replacement also lists the old room's children, and each
  * child that names the old room as its parent names the replacement instead, the old link going
- * once the new one is in place, so a sub-room moves under the replacement and no longer counts as
- * under the old room. A Space lists its rooms on its own, so their links back to it are best effort,
+ * once the replacement lists the child and the child names it, so a sub-room moves under the
+ * replacement and no longer counts as under the old room. A Space lists its rooms on its own, so their links back to it are best effort,
  * as when a room is added to one; a chat room's sub-room needs its own link to the replacement as
  * well. Resolves to the children that did not come along: one the replacement could not list, and
  * for a chat room one that refused the new parent or that this account has not joined.
@@ -57,16 +57,16 @@ export const moveSpaceLinks = async (
     const parent = joined
       ? stateOf(child, StateEvent.SpaceParent, oldRoomId)?.getContent()
       : undefined;
-    const link = hasVia(parent)
-      ? send(childId, StateEvent.SpaceParent, parent as object, newRoomId).then(() =>
-          send(childId, StateEvent.SpaceParent, {}, oldRoomId)
-        )
+    const listed = send(newRoomId, StateEvent.SpaceChild, event.getContent(), childId);
+    const linked = hasVia(parent)
+      ? send(childId, StateEvent.SpaceParent, parent as object, newRoomId)
       : undefined;
+    // The old link goes only once the replacement lists the child and the child names it.
+    const relinked = Promise.all([listed, linked]).then(
+      () => linked && send(childId, StateEvent.SpaceParent, {}, oldRoomId)
+    );
     try {
-      await Promise.all([
-        send(newRoomId, StateEvent.SpaceChild, event.getContent(), childId),
-        space ? link?.catch(() => undefined) : link,
-      ]);
+      await Promise.all([listed, space ? relinked.catch(() => undefined) : relinked]);
     } catch {
       return childId;
     }
