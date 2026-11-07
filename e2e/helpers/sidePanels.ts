@@ -188,6 +188,10 @@ export const checkPanelFrame = async (
   await createPrivateRoom(HOMESERVER, room.viewer.accessToken, { name: otherRoom });
 
   await expect(fill).toHaveAttribute('aria-pressed', 'false');
+  // The panel has moved in to its width.
+  await panel.evaluate((element) =>
+    Promise.all(element.getAnimations().map((animation) => animation.finished))
+  );
   const besideWidth = await widthOf(panel);
   const conversationWidth = await widthOf(conversation);
   await shot('beside');
