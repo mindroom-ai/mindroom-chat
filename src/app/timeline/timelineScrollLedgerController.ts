@@ -173,6 +173,13 @@ export const applyLedgerSettle = <TOptions extends { scrollMargin?: number }>(
  * correction therefore cannot update scrollMargin, the inner margin, or tile
  * positions through independent component paths.
  */
+
+// SCRATCH instrumentation (mrs2): never carried.
+const ltfpLog = (entry: Record<string, unknown>) => {
+  const w = window as unknown as { __ltfpLog?: unknown[] };
+  (w.__ltfpLog ??= []).push({ t: Math.round(performance.now()), ...entry });
+};
+
 export const useTimelineScrollLedgerController = ({
   alive,
   anchorRoomRows,
@@ -267,6 +274,26 @@ export const useTimelineScrollLedgerController = ({
       roomLedgerFoldPx;
 
   useLayoutEffect(() => {
+    if (threadId) {
+      const se = getScrollElement();
+      const a = threadLedgerAnchorRef.current;
+      ltfpLog({
+        k: 'plan',
+        reset: resettingLedgerView,
+        n: threadEvents?.length,
+        fold: threadLedgerRenderPlan.foldPx,
+        probe: threadLedgerRenderPlan.probe,
+        aId: a?.eventId?.slice(1, 7),
+        aIdx: a?.index,
+        aN: a?.events.length,
+        sameEv: a?.events === threadEvents,
+        comp: scrollCompensationPxRef.current,
+        ledger: ledgerPxAtRender,
+        st: se?.scrollTop,
+        sh: se?.scrollHeight,
+        ch: se?.clientHeight,
+      });
+    }
     if (resettingLedgerView) return;
 
     const foldPx =
@@ -463,11 +490,27 @@ export const useTimelineScrollLedgerController = ({
       inset: Number.parseFloat(getComputedStyle(scrollElement).scrollPaddingTop) || 0,
     };
     anchorThreadLedgerAt(scrollElement.scrollTop);
+    ltfpLog({
+      k: 'anchor',
+      id: threadLedgerAnchorRef.current?.eventId?.slice(1, 7),
+      idx: threadLedgerAnchorRef.current?.index,
+      st: scrollElement.scrollTop,
+      sh: scrollElement.scrollHeight,
+      listTop: threadLedgerViewRef.current?.listTop,
+    });
   });
   useEffect(() => {
     const scrollElement = getScrollElement();
     if (!scrollElement || !threadId) return undefined;
-    const onScroll = () => anchorThreadLedgerAt(scrollElement.scrollTop);
+    const onScroll = () => {
+      anchorThreadLedgerAt(scrollElement.scrollTop);
+      ltfpLog({
+        k: 'scroll',
+        st: scrollElement.scrollTop,
+        sh: scrollElement.scrollHeight,
+        id: threadLedgerAnchorRef.current?.eventId?.slice(1, 7),
+      });
+    };
     scrollElement.addEventListener('scroll', onScroll, { passive: true });
     return () => scrollElement.removeEventListener('scroll', onScroll);
   }, [anchorThreadLedgerAt, getScrollElement, threadId]);
@@ -589,6 +632,7 @@ export const useTimelineScrollLedgerController = ({
 
   const handleDroppedCorrection = useCallback(
     (deltaPx: number) => {
+      ltfpLog({ k: 'drop', d: deltaPx });
       scrollCompensationPxRef.current += deltaPx;
       // react-virtual can skip its own update when the visible range is
       // unchanged, so the ledger must force the coherent paint itself.
