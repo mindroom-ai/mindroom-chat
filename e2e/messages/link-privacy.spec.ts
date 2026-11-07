@@ -351,6 +351,42 @@ const checkDestinations = async (
       expect(pages, `${engine}: ${label} did not open after Cancel`).toEqual([]);
     }
 
+    // Every other way a mouse opens a link asks the same (live-test pass 2, P2-lane9-F001): a
+    // middle click, a click with a new-tab modifier, the browser's own link menu, which offers to
+    // open the link, and dragging the link to the tab bar.
+    if (!options.hasTouch) {
+      const claimed = linkIn(page, 'Claimed');
+      const asks = async (how: string, act: () => Promise<unknown>) => {
+        await act();
+        await expect(dialog, `${engine}: ${how} asks before opening`).toBeVisible();
+        await expect(dialog.getByText('https://evil.example/login', { exact: true })).toBeVisible();
+        if (SHOTS) {
+          mkdirSync(SHOTS, { recursive: true });
+          const name = how.replace(/^a /, '').replace(/\W+/g, '-');
+          await page.screenshot({ path: `${SHOTS}/link-confirm-${name}-${engine}.png` });
+        }
+        await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+        await expect(dialog).toHaveCount(0);
+        await page.waitForTimeout(500);
+        expect(pages, `${engine}: ${how} opened nothing`).toEqual([]);
+      };
+      await asks('a middle click', () => claimed.click({ button: 'middle' }));
+      await asks('a modifier click', () => claimed.click({ modifiers: ['ControlOrMeta'] }));
+      await asks('a right click', () => claimed.click({ button: 'right' }));
+      const dragged = await claimed.evaluate((link) => {
+        const drag = new DragEvent('dragstart', { bubbles: true, cancelable: true });
+        link.dispatchEvent(drag);
+        return !drag.defaultPrevented;
+      });
+      expect(dragged, `${engine}: a misleading link cannot be dragged out`).toBe(false);
+      const honestDrag = await linkIn(page, 'Honest').evaluate((link) => {
+        const drag = new DragEvent('dragstart', { bubbles: true, cancelable: true });
+        link.dispatchEvent(drag);
+        return !drag.defaultPrevented;
+      });
+      expect(honestDrag, `${engine}: an honest link drags as usual`).toBe(true);
+    }
+
     // Opening anyway goes to the real address.
     await press(linkIn(page, 'Claimed'));
     const opened = context.waitForEvent('page');
@@ -406,6 +442,18 @@ test('links show their real destination and ask before a misleading one opens (C
   baseURL,
 }) => {
   await checkDestinations(browser, DESKTOP, 'chromium', baseURL);
+});
+
+test('links show their real destination and ask before a misleading one opens (WebKit desktop)', async ({
+  baseURL,
+}) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  const webkit = await launchWebKit();
+  try {
+    await checkDestinations(webkit, DESKTOP, 'webkit_desk', baseURL);
+  } finally {
+    await webkit.close();
+  }
 });
 
 test('links show their real destination and ask before a misleading one opens (WebKit)', async ({

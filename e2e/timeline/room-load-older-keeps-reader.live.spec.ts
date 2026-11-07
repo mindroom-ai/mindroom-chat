@@ -14,6 +14,7 @@ import {
   seedRoomOverviewState,
   sendRoomMessage,
 } from '../helpers/matrix';
+import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 
 const readScroll = (page: Page) =>
   page.getByTestId('room-virtual-inner').evaluate((inner) => {
@@ -24,9 +25,11 @@ const readScroll = (page: Page) =>
   });
 
 // A short room loads its older rows only when the reader scrolls up; they must
-// not send a reader at the top back to the bottom.
-test('older rows loaded above a reader at the top keep them there', async ({ page }) => {
-  test.setTimeout(180_000);
+// not send a reader at the top back to the bottom. The room holds more history than the
+// first /sync brings (20 events, STARTUP_SYNC_TIMELINE_LIMIT), so its start is not loaded.
+const EARLIER_NOTES = 15;
+
+const olderRowsKeepReader = async (page: Page) => {
   test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
   const secondary = getSecondaryCredentials();
   test.skip(!secondary, 'A second local Matrix account is required');
@@ -47,6 +50,13 @@ test('older rows loaded above a reader at the top keep them there', async ({ pag
 
   try {
     await joinRoom(homeserver, other.accessToken, roomId);
+    for (let index = 1; index <= EARLIER_NOTES; index += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await sendRoomMessage(homeserver, author.accessToken, roomId, {
+        msgtype: 'm.text',
+        body: `Earlier ${index}: a line long enough to wrap in the timeline.\nA second line.`,
+      });
+    }
     for (let index = 1; index <= 9; index += 1) {
       // eslint-disable-next-line no-await-in-loop
       await sendRoomMessage(homeserver, author.accessToken, roomId, {
@@ -86,6 +96,14 @@ test('older rows loaded above a reader at the top keep them there', async ({ pag
     const atTop = await readScroll(page);
     expect(atTop.max - atTop.top).toBeGreaterThan(200);
     await expect(page.getByRole('button', { name: 'Jump to Latest', exact: true })).toBeVisible();
+
+    // Reading on up reaches the room's first message.
+    await expect(async () => {
+      await page.mouse.wheel(0, -3000);
+      await expect(timeline.getByText('Earlier 1:', { exact: false })).toBeVisible({
+        timeout: 1_000,
+      });
+    }).toPass({ timeout: 30_000 });
   } finally {
     const results = await Promise.allSettled([
       ...[other, author].map(async ({ accessToken }) => {
@@ -102,5 +120,22 @@ test('older rows loaded above a reader at the top keep them there', async ({ pag
       }),
     ]);
     expect(results.filter((result) => result.status === 'rejected')).toEqual([]);
+  }
+};
+
+test('older rows loaded above a reader at the top keep them there (Chromium)', async ({ page }) => {
+  test.setTimeout(180_000);
+  await olderRowsKeepReader(page);
+});
+
+test('older rows loaded above a reader at the top keep them there (WebKit)', async ({ baseURL }) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+  test.setTimeout(180_000);
+  const browser = await launchWebKit();
+  try {
+    const context = await browser.newContext({ baseURL });
+    await olderRowsKeepReader(await context.newPage());
+  } finally {
+    await browser.close();
   }
 });

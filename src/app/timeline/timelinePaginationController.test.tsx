@@ -11,17 +11,17 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { decryptAllTimelineEvent } from '../matrix/room';
 import type { RecalibrateFilterOpts, Timeline } from '../event-store/timeline/timelinePagination';
-import { paginateRoomKeepingReplies } from '../event-store/sdk/roomHistoryPageSdk';
+import { paginateRoomHistory } from '../event-store/sdk/roomHistoryPageSdk';
 import { useEventTimelineLoader, useTimelinePagination } from './timelinePaginationController';
 
 vi.mock('../matrix/room', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../matrix/room')>()),
   decryptAllTimelineEvent: vi.fn(),
 }));
-// The Classic view's pages keep their thread replies (roomHistoryPageSdk has its own tests).
-// Here such a page is the SDK's page, so the fake timelines take its events the same way.
+// Pages of the room's own history go through roomHistoryPageSdk, which has its own tests. Here
+// such a page is the SDK's page, so the fake timelines take its events the same way.
 vi.mock('../event-store/sdk/roomHistoryPageSdk', () => ({
-  paginateRoomKeepingReplies: vi.fn(
+  paginateRoomHistory: vi.fn(
     (mx: MatrixClient, _room: Room, edge: EventTimeline, backwards: boolean, limit: number) =>
       mx.paginateEventTimeline(edge, { backwards, limit })
   ),
@@ -609,7 +609,7 @@ describe('useEventTimelineLoader', () => {
     await act(() => view.load('$create'));
 
     // The Classic view's pages keep their thread replies.
-    expect(paginateRoomKeepingReplies).toHaveBeenCalledWith(client, room, sdk(holder), true, 200);
+    expect(paginateRoomHistory).toHaveBeenCalledWith(client, room, sdk(holder), true, 200, true);
     expect(paginateEventTimeline).toHaveBeenCalledWith(sdk(holder), {
       backwards: true,
       limit: 200,
@@ -627,11 +627,49 @@ describe('useEventTimelineLoader', () => {
     expect(absoluteIndex).toBe(0);
   });
 
-  it('loads an event with a row of its own alone', async () => {
+  it('brings a page on each side of a row the server sent alone before it reports the load', async () => {
+    // Alone, the row would sit at the bottom of the view, and a jump to it could not aim it.
     const holder = makeTimeline('holder', [message('$target')], {
       back: 'before',
       forward: 'after',
     });
+    const { client, getEventTimeline, paginateEventTimeline } = makeClient();
+    getEventTimeline.mockResolvedValue(sdk(holder));
+    paginateEventTimeline.mockImplementation(async (_timeline, { backwards }) => {
+      if (backwards) {
+        holder.events.unshift(...messages('$earlier', 2));
+        holder.backToken = null;
+      } else {
+        holder.events.push(...messages('$later', 2));
+        holder.forwardToken = null;
+      }
+      return true;
+    });
+    const { room } = makeRoom(false);
+    const onLoad = vi.fn<LoadHandler>();
+    const { view } = mountLoader({
+      client,
+      room,
+      onLoad,
+      onError: vi.fn(),
+      filterOpts: fullViewFilters(room),
+    });
+
+    await act(() => view.load('$target'));
+
+    expect(paginateEventTimeline).toHaveBeenCalledTimes(2);
+    expect(onLoad).toHaveBeenCalledTimes(1);
+    const [, chain, absoluteIndex] = onLoad.mock.calls[0] ?? [];
+    expect(
+      chain?.flatMap((timeline) => timeline.getEvents().map((event) => event.getId()))
+    ).toEqual(['$earlier0', '$earlier1', '$target', '$later0', '$later1']);
+    expect(absoluteIndex).toBe(2);
+  });
+
+  it('loads nothing more around an event that comes with rows around it', async () => {
+    const { older, holder } = loadedChain();
+    holder.backToken = 'before';
+    older.backToken = 'before';
     const { client, getEventTimeline, paginateEventTimeline } = makeClient();
     getEventTimeline.mockResolvedValue(sdk(holder));
     const { room } = makeRoom(false);
