@@ -53,11 +53,11 @@ export const createVoiceRoomPowerLevelsOverride = (version?: string) => {
     [StateEvent.RoomTombstone]: creatorsSupported(version) ? 150 : PINNED_STATE_LEVEL,
     // MSC3401 call membership: any member may join the call.
     [StateEvent.GroupCallMemberPrefix]: 0,
-    // State MindRoom's agents and router publish; they join with no power. Server, jobs and
-    // auto-approve state is keyed by its sender's own user ID, which Matrix accepts only from that
-    // user; any member may write thread tags and the thread mode. The rooms MindRoom creates open
-    // the same types but the thread mode, which their router writes as an admin; the router of a
-    // room made here is not known when it is made.
+    // State MindRoom's agents and router publish; they join with no power. The client reads
+    // server, jobs and auto-approve state only from an agent under its own user ID, a state key
+    // Matrix accepts only from that user; any member may write thread tags and the thread mode.
+    // The rooms MindRoom creates open the same types but the thread mode, which their router
+    // writes as an admin; the router of a room made here is not known when it is made.
     'io.mindroom.server': 0,
     [MINDROOM_BACKGROUND_JOBS_EVENT]: 0,
     [MINDROOM_AUTO_APPROVE_EVENT]: 0,
