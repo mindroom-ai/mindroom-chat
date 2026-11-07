@@ -84,11 +84,14 @@ export const pluginPages = (directories) => {
       root = config.root;
     },
     resolveId(source, importer, options) {
+      const [request = '', ...query] = source.split('?');
       const page = pageOf(
-        importer && source.startsWith('.') ? path.join(path.dirname(importer), source) : source
+        importer && request.startsWith('.') ? path.join(path.dirname(importer), request) : request
       );
       // A page keeps a path under the root as its ID, so the build writes it to its URL; its modules are their files.
-      if (page) return page.file.endsWith('.html') ? `${root}${page.url}` : page.file;
+      if (page) {
+        return page.file.endsWith('.html') ? `${root}${page.url}` : [page.file, ...query].join('?');
+      }
       // A module in a plugin directory imports packages as this repository's own modules do.
       if (
         importer &&
@@ -107,10 +110,15 @@ export const pluginPages = (directories) => {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const [url = '', ...query] = (req.url ?? '').split('?');
-        const page = pageOf(url);
+        let page;
+        try {
+          page = pageOf(decodeURI(url));
+        } catch {
+          // A malformed escape names no page.
+        }
         if (!page || !page.file.endsWith('.html')) {
           // A page's other files, modules and assets alike, are served from where they are.
-          if (page) req.url = ['/@fs' + page.file, ...query].join('?');
+          if (page) req.url = ['/@fs' + encodeURI(page.file), ...query].join('?');
           next();
           return;
         }

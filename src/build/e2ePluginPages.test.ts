@@ -18,10 +18,8 @@ const repository = fileURLToPath(new URL('../..', import.meta.url));
 // imports a package by name and a source of this repository from /src/.
 let outside = '';
 let plugin = '';
-beforeEach(() => {
-  outside = realpathSync(mkdtempSync(path.join(tmpdir(), 'e2e-plugin-pages-')));
-  plugin = path.join(outside, 'my-plugin');
-  const pages = path.join(plugin, 'e2e', 'fixtures');
+const writePlugin = (directory: string) => {
+  const pages = path.join(directory, 'e2e', 'fixtures');
   mkdirSync(pages, { recursive: true });
   writeFileSync(
     path.join(pages, 'page.html'),
@@ -35,6 +33,11 @@ beforeEach(() => {
       "document.body.className = classNames('plugin-page-marker', { record: isRecord({}) });",
     ].join('\n')
   );
+  return directory;
+};
+beforeEach(() => {
+  outside = realpathSync(mkdtempSync(path.join(tmpdir(), 'e2e-plugin-pages-')));
+  plugin = writePlugin(path.join(outside, 'my-plugin'));
 });
 afterEach(() => rmSync(outside, { recursive: true, force: true }));
 
@@ -91,7 +94,7 @@ describe('pluginPages', () => {
         configFile: false,
         root: repository,
         logLevel: 'silent',
-        plugins: [pluginPages([plugin])],
+        plugins: [pluginPages([plugin, writePlugin(path.join(outside, '50% off plugin'))])],
         optimizeDeps: { noDiscovery: true },
         server: { middlewareMode: true, hmr: false, watch: null },
       });
@@ -128,6 +131,13 @@ describe('pluginPages', () => {
       expect(await data.json()).toEqual({ from: 'the plugin' });
     });
 
+    it('serves a directory whose name a URL escapes', async () => {
+      const page = await fetch(`${origin}/e2e/plugins/50%25%20off%20plugin/page.html`);
+      expect(await page.text()).toContain('src="./page.ts"');
+      const module = await fetch(`${origin}/e2e/plugins/50%25%20off%20plugin/page.ts`);
+      expect(await module.text()).toContain('plugin-page-marker');
+    });
+
     it('serves nothing outside the fixture pages', async () => {
       writeFileSync(path.join(plugin, 'e2e', 'outside.html'), '<p>outside the pages</p>');
       // A raw path: a URL would resolve the dot segments before the request goes out.
@@ -149,6 +159,10 @@ describe('pluginPages', () => {
   });
 
   it('writes a built page to its URL', async () => {
+    writeFileSync(
+      path.join(plugin, 'e2e', 'fixtures', 'query.html'),
+      '<!doctype html><html><body><script type="module" src="./page.ts?v=1"></script></body></html>'
+    );
     const result = (await build({
       configFile: false,
       root: repository,
@@ -168,5 +182,7 @@ describe('pluginPages', () => {
     )?.[1];
     const chunk = script === undefined ? undefined : files.get(script);
     expect(chunk?.type === 'chunk' ? chunk.code : '').toContain('plugin-page-marker');
+    // A module the page asks for with a query is found too.
+    expect(files.get('e2e/plugins/my-plugin/query.html')?.type).toBe('asset');
   }, 60_000);
 });

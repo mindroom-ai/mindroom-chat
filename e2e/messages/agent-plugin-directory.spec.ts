@@ -10,6 +10,7 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, delimiter, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { test as pageTest } from '@playwright/test';
 import {
   expect,
   messageRow,
@@ -65,10 +66,11 @@ test("a plugin directory's scenario drives the stub to its plugin's tool", async
   await expect(messageRow(page, reply.event_id)).toContainText('Hello Ada, from the sample plugin');
 });
 
-// Its own test, so the page opens in a browser that has not loaded the app: in a production build the
-// app's service worker answers later navigations with the app, as it does for e2e/fixtures/ pages.
-test("a plugin directory's fixture page is served", async ({ page }) => {
-  test.skip(!sampleDir, 'E2E_PLUGIN_DIRS names no copy of e2e/fixtures/sample-plugin');
+// Its own test, without the agent stack, so the page opens in a browser that has not loaded the app: in a
+// production build the app's service worker answers later navigations with the app, as it does for
+// e2e/fixtures/ pages.
+pageTest("a plugin directory's fixture page is served", async ({ page }) => {
+  pageTest.skip(!sampleDir, 'E2E_PLUGIN_DIRS names no copy of e2e/fixtures/sample-plugin');
   await page.goto(`/e2e/plugins/${basename(sampleDir ?? '')}/page.html`);
   await expect(page.getByText("Rendered by the sample plugin's page")).toBeVisible();
 });
