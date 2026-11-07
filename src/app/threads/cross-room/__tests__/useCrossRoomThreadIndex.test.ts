@@ -339,6 +339,7 @@ describe('useCrossRoomThreadIndex', () => {
     const { room } = makeRoomWithThreadReplies('!room:example.org', 40);
     const tag = new StateMatrixEvent({
       type: MINDROOM_THREAD_TAGS_EVENT,
+      sender: '@me:example.org',
       state_key: '["$root-0","resolved"]',
       content: { set_by: '@me:example.org', set_at: '2026-09-21T00:00:00Z' },
     });
@@ -373,6 +374,7 @@ describe('useCrossRoomThreadIndex', () => {
       const { room, replies } = makeRoomWithThreadReplies('!room:example.org', 3);
       let tag = new StateMatrixEvent({
         type: MINDROOM_THREAD_TAGS_EVENT,
+        sender: '@me:example.org',
         state_key: format === 'canonical' ? '["$root-1","resolved"]' : '$root-1',
         content: {},
       });
@@ -432,6 +434,7 @@ describe('useCrossRoomThreadIndex', () => {
       };
       const tags = new StateMatrixEvent({
         type: MINDROOM_THREAD_TAGS_EVENT,
+        sender: '@me:example.org',
         state_key: '["$root","resolved"]',
         content: { set_by: '@me:example.org', set_at: '2026-09-21T00:00:00Z' },
       });
