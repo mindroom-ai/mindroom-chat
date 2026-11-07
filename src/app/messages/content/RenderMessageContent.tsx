@@ -342,15 +342,11 @@ function CoreMessageContent({
 
 /** A client plugin's rendering of a message; if it fails, `fallback` (core's) shows instead. */
 function PluginMessageContent({
-  plugin: { tag, renderer },
+  tag,
+  renderer: { Component },
   event,
   fallback,
-}: {
-  plugin: MatchedRenderer;
-  event: PluginEvent;
-  fallback: ReactElement;
-}) {
-  const { Component } = renderer;
+}: MatchedRenderer & { event: PluginEvent; fallback: ReactElement }) {
   return (
     <ErrorBoundary
       fallback={fallback}
@@ -391,7 +387,7 @@ export function RenderMessageContent(props: RenderMessageContentProps) {
   const core = <CoreMessageContent {...props} />;
   // Keyed by plugin, so a plugin that takes the message after another failed on it starts afresh.
   return plugin && event ? (
-    <PluginMessageContent key={plugin.tag} plugin={plugin} event={event} fallback={core} />
+    <PluginMessageContent key={plugin.tag} {...plugin} event={event} fallback={core} />
   ) : (
     core
   );
