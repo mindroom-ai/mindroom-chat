@@ -40,7 +40,9 @@ test('server copies of a deleted thread reply', async () => {
       event: await matrixFetch<unknown>(homeserver, `/rooms/${r}/event/${encodeURIComponent(rootId)}`, { accessToken }),
       context: await matrixFetch<unknown>(homeserver, `/rooms/${r}/context/${encodeURIComponent(rootId)}?limit=5`, { accessToken }),
       messages: await matrixFetch<unknown>(homeserver, `/rooms/${r}/messages?dir=b&limit=50`, { accessToken }),
-      threads: await matrixFetch<unknown>(homeserver, `/rooms/${r}/threads`, { accessToken }),
+      threads: await fetch(`${homeserver}/_matrix/client/v1/rooms/${r}/threads`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }).then((response) => response.json() as Promise<unknown>),
       sync: await matrixFetch<unknown>(homeserver, `/sync?timeout=0&filter=${encodeURIComponent(JSON.stringify({ room: { rooms: [roomId], timeline: { limit: 50 } } }))}`, { accessToken }),
     };
     const hits: Record<string, string[]> = {};
