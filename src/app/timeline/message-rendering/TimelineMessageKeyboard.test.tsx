@@ -96,6 +96,7 @@ describe('Up-arrow message editing', () => {
     const keyboard = await mountKeyboard(
       [
         message('$root'),
+        message('~pending'),
         message('$older'),
         message('$latest', undefined, {
           'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
@@ -105,7 +106,6 @@ describe('Up-arrow message editing', () => {
         message('$replacement', undefined, {
           'm.relates_to': { rel_type: 'm.replace', event_id: '$latest' },
         }),
-        message('~pending'),
       ],
       '$root',
       message('$root')
@@ -113,6 +113,23 @@ describe('Up-arrow message editing', () => {
     const result = keyboard.pressUp();
     expect(result.editingEventId).toBe('$latest');
     expect(result.prevented).toHaveBeenCalledOnce();
+  });
+
+  it('edits nothing while the latest own message is still sending', async () => {
+    // The message before it is not the one the user means, and the edit would overwrite it.
+    const keyboard = await mountKeyboard(
+      [
+        message('$root'),
+        message('$older'),
+        message('~sending'),
+        message('$other', '@bob:example.org'),
+      ],
+      '$root',
+      message('$root')
+    );
+    const result = keyboard.pressUp();
+    expect(result.editingEventId).toBeUndefined();
+    expect(result.prevented).not.toHaveBeenCalled();
   });
 
   it('keeps normal room editing and follows thread navigation without remounting', async () => {
