@@ -45,7 +45,12 @@ const job = (jobId: string, overrides: Partial<BackgroundJob> = {}): BackgroundJ
   ...overrides,
 });
 
-const room = { roomId: '!room:example.org', getEventForTxnId: () => undefined } as unknown as Room;
+const room = {
+  roomId: '!room:example.org',
+  getEventForTxnId: () => undefined,
+  // The agent's reply is not loaded, so the jobs' thread never reads as streaming.
+  getThread: () => null,
+} as unknown as Room;
 let container: HTMLDivElement;
 let root: Root;
 
