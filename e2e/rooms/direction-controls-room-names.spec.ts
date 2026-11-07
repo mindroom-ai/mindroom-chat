@@ -190,30 +190,9 @@ const go = (page: Page, route: string) =>
 
 const roomPath = (roomId: string) => `/home/${encodeURIComponent(roomId)}/`;
 
-/** The member rings the room, as another client does: a call membership, then a ring. */
+/** The member rings the room, as another client does when it starts a call. */
 const ring = async (world: World, tag: string) => {
   const { member, reader, roomId } = world;
-  const { device_id: device } = await matrixFetch<{ device_id: string }>(
-    HOMESERVER,
-    '/account/whoami',
-    { accessToken: member.accessToken }
-  );
-  await sendStateEvent(
-    HOMESERVER,
-    member.accessToken,
-    roomId,
-    'org.matrix.msc3401.call.member',
-    `_${member.userId}_${device}_m.call`,
-    {
-      application: 'm.call',
-      call_id: '',
-      scope: 'm.room',
-      device_id: device,
-      expires: 14_400_000,
-      focus_active: { type: 'livekit', focus_selection: 'oldest_membership' },
-      foci_preferred: [],
-    }
-  );
   await matrixFetch(
     HOMESERVER,
     `/rooms/${encodeURIComponent(roomId)}/send/org.matrix.msc4075.rtc.notification/ring${tag}`,
