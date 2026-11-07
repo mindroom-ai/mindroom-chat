@@ -419,15 +419,14 @@ function RoomContent() {
       ),
     },
   ];
-  const { shown, layout: shownLayout, setLayout, request } = useRoomPanels(roomId, panels);
+  const { shown, layout, setLayout, request } = useRoomPanels(roomId, panels);
   // Beside the conversation the shown panel has a frame, which fills the room with it or folds it
   // to a tab at the room's edge. Phones show the panel over the conversation, with no frame; the
   // members, a list their header button already shows and hides, have none either.
   const frame: PanelFrame | undefined =
     !mobile && shown?.label !== undefined
-      ? { label: shown.label, layout: shownLayout, setLayout: (next) => setLayout(shown.id, next) }
+      ? { label: shown.label, layout, setLayout: (next) => setLayout(shown.id, next) }
       : undefined;
-  const layout = frame?.layout ?? 'beside';
   function toggleFilled(id: string) {
     setLayout(id, layout === 'filled' ? 'beside' : 'filled');
   }
