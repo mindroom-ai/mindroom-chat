@@ -36,3 +36,4 @@ src/app/mindroom/commands/MindroomCommandAutocomplete.tsx	1	bas=69%	MindroomComm
 src/app/mindroom/html/customHtmlPolicy.ts	1	bas=92%	mindroomCustomHtmlSanitizerPolicy	merged into src/app/rich-text/sanitize.ts, one sanitizer module (restructure-p3-c6)
 src/app/plugins/recent-emoji.ts	1	bas=34%	getRecentEmojis	restructure: dead code, getRecentEmojis was test-only and addRecentEmoji a re-export (restructure-p3-c5)
 src/app/components/upload-card/CompactUploadCardRenderer.tsx	1	bas=25%	CompactUploadCardRenderer	restructure: dead code, no production use (restructure-p3-c5)
+src/app/hooks/useMatrixEventRenderer.ts	2	bas=0%	EventRenderer,EventRendererOpts	dead code, no caller since restructure-p3; client plugin renderers match by predicate, not by event type (plugin-followups)

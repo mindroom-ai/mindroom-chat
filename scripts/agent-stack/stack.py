@@ -31,7 +31,7 @@ environment and nothing else; no file this script writes holds one. The backend 
 so set $E2E_AGENT_STACK_ROOT to a private directory for a real-model stack. `down` writes the stack's model calls and
 tokens to $E2E_AGENT_STACK_ROOT/usage/ before it deletes the stack.
 
---calls SERVICE_URL (or $E2E_AGENT_CALLS) makes the helper answer MatrixRTC voice calls on the MatrixRTC authorization
+--calls SERVICE_URL makes the helper answer MatrixRTC voice calls on the MatrixRTC authorization
 service at that URL (the slot's scripts/e2e-rtc.sh service), with a realtime OpenAI voice model: gpt-realtime-2.1-mini
 (--calls-profile realtime, the default) or gpt-live-1 (live). It needs OPENAI_API_KEY in the environment, which, like
 the real model's keys, reaches only the backend's process; the stub models keep a placeholder key of their own. The
@@ -41,8 +41,8 @@ backend then runs from an environment with MindRoom's matrix_calls extra ($E2E_A
 --client-sessions lets the slot's Chat (http://127.0.0.1:4300+N, slot 0: 4200) sign in to the backend's client
 sessions, which plugin routes accept: the Chat origin goes into MINDROOM_COMPUTER_ALLOWED_ORIGINS, and the API's URL
 into MINDROOM_PUBLIC_URL, which makes it the OpenID audience and the origin the agents publish. Sign-in also needs a
-homeserver that binds OpenID tokens, MindRoom's Tuwunel with TUWUNEL_MINDROOM_OPENID_AUDIENCE=true, which
-e2e/docker-compose.yaml does not set; on any other, POST /api/client-sessions answers 403.
+homeserver that binds OpenID tokens, MindRoom's Tuwunel with TUWUNEL_MINDROOM_OPENID_AUDIENCE=true, as
+e2e/docker-compose.yaml starts it for every slot; on any other, POST /api/client-sessions answers 403.
 
 --computers gives the helper a Worker Computer (MindRoom's docs/tools/worker-computer.md): MindRoom runs Docker
 workers with the computer security policy from mindroom-client-e2e-worker:<commit>, an image the first start builds
@@ -848,14 +848,15 @@ def calls_setting(args: argparse.Namespace) -> dict | None:
 def started_with(
     state: dict, args: argparse.Namespace, sha: str, homeserver: str, plugin_dirs: list[dict] | None = None
 ) -> bool:
-    """Whether a stack's state comes from a start with this model, calls, client sessions, computers and plugin
-    directories (as check_plugin_dirs reports them), of this commit, on this homeserver; a state without
-    clientSessions, computers or pluginDirs counts as one started without them."""
+    """Whether a stack's state comes from a start with this model, calls, client sessions, computers, approval
+    expiry and plugin directories (as check_plugin_dirs reports them), of this commit, on this homeserver; a state
+    without clientSessions, computers or pluginDirs counts as one started without them."""
     return (
         state.get("model", "stub") == args.model
         and state.get("calls") == calls_setting(args)
         and state.get("clientSessions", False) == args.client_sessions
         and state.get("computers", False) == args.computers
+        and state.get("approvalExpiryDays") == args.approval_expiry_days
         and state.get("pluginDirs", []) == (plugin_dirs or [])
         and state.get("sha") == sha
         and state.get("homeserver") == homeserver
@@ -996,6 +997,8 @@ def start(
         "calls": calls,
         "clientSessions": args.client_sessions,
         "computers": args.computers,
+        # The config's timeout_days, exactly: approvalExpirySeconds below is rounded.
+        "approvalExpiryDays": args.approval_expiry_days,
         "pluginDirs": plugin_dirs,
         "sha": sha,
         "checkout": str(checkout),
