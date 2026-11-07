@@ -109,8 +109,7 @@ const seed = async (engine: string): Promise<World> => {
 /** The number on a room row's badge, or 0 without one. */
 const rowCount = (page: Page, roomId: string): Promise<number> =>
   page.evaluate((id) => {
-    const text = (document.querySelector(`[data-room-id="${id}"]`) as HTMLElement | null)
-      ?.innerText;
+    const text = document.querySelector<HTMLElement>(`[data-room-id="${id}"]`)?.innerText;
     const match = /(\d+)\s*$/.exec(text?.trim() ?? '');
     return match ? Number(match[1]) : 0;
   }, roomId);
@@ -172,8 +171,7 @@ const sampleFromLoad = (page: Page, roomIds: string[]) =>
     (window as unknown as { readSamples: string[] }).readSamples = samples;
     const take = () => {
       const rows = ids.map((id) => {
-        const text = (document.querySelector(`[data-room-id="${id}"]`) as HTMLElement | null)
-          ?.innerText;
+        const text = document.querySelector<HTMLElement>(`[data-room-id="${id}"]`)?.innerText;
         if (text === undefined) return 'absent';
         return /(\d+)\s*$/.exec(text.trim())?.[1] ?? '0';
       });
