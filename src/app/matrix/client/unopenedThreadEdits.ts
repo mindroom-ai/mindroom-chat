@@ -67,7 +67,7 @@ const isValidEdit = (target: MatrixEvent, edit: MatrixEvent): boolean => {
  * A reply of an unopened thread: in its timeline, or, for a thread listed with the room, the
  * latest event of the root's summary, which is in no timeline.
  */
-const findReply = (thread: Thread, eventId: string): MatrixEvent | undefined => {
+export const findReply = (thread: Thread, eventId: string): MatrixEvent | undefined => {
   const summarized = getThreadSummaryReply(thread);
   return (
     thread.findEventById(eventId) ?? (summarized?.getId() === eventId ? summarized : undefined)

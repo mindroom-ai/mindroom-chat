@@ -17,7 +17,7 @@ import {
 } from '../protocol/aiRun';
 import { getSameSenderBundledEdit } from '../editEvent';
 import { getLatestEdit, isEventOrderedAfter } from '../room';
-import { getThreadSummaryReply } from './unopenedThreadEdits';
+import { findReply } from './unopenedThreadEdits';
 
 // A thread's card says "streaming" while its newest reply says it streams. What the client holds of
 // a reply can be old, though: a root's thread summary is the server's word at the moment it was
@@ -155,10 +155,8 @@ const heldReply = (
   edit: MatrixEvent,
   replyId: string
 ): MatrixEvent | undefined => {
-  const summarized = getThreadSummaryReply(
-    edit.threadRootId ? room?.getThread(edit.threadRootId) : undefined
-  );
-  return room?.findEventById(replyId) ?? (summarized?.getId() === replyId ? summarized : undefined);
+  const thread = edit.threadRootId ? room?.getThread(edit.threadRootId) : undefined;
+  return (thread && findReply(thread, replyId)) ?? room?.findEventById(replyId);
 };
 
 /**

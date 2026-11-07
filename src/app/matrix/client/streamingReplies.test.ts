@@ -491,6 +491,36 @@ describe('streaming replies on thread cards', () => {
       expect(f.card()).toEqual({ preview: finished, streaming: false });
       expect(f.replyRequests()).toBe(1);
     });
+
+    it('asks about a listed reply that only another sender’s edit says streams', async () => {
+      const now = Date.now();
+      const f = fixture();
+      const plainReply = message(replyId, now - 50_000, {
+        body: 'The notes',
+        'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+      });
+      f.setServerReply(withEdit(plainReply, edit(finished, now - 20_000, 'completed')));
+      await f.start();
+      await f.deliver([chat('$chat-1', now - 10_000)]);
+      const streamed = withEdit(plainReply, edit('The notes list', now - 40_000, 'streaming'));
+      restoreCachedRoomThreads(f.room(), [
+        { rootEvent: f.mx.getEventMapper()(withSummary(root(now - 60_000), streamed)) },
+      ]);
+      const openList = f.holdThreadList([
+        withSummary(
+          root(now - 60_000),
+          withEdit(plainReply, othersEdit('Still thinking', now - 10_000, 'streaming'))
+        ),
+      ]);
+      expect(f.card()).toEqual({ preview: 'The notes list', streaming: false });
+      const listing = loadRoomThreads(f.room());
+      await afterCheckDelay();
+
+      openList();
+      await listing;
+      await settle();
+      expect(f.replyRequests()).toBe(1);
+    });
   });
 
   describe('while the room’s thread list is read', () => {
