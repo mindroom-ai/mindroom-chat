@@ -7,6 +7,7 @@ import {
   expect,
   mentionHelper,
   openNewSession,
+  readRouterWelcome,
   sendFromComposer,
   serverUnreadCounts,
   test,
@@ -113,52 +114,6 @@ const describeRoom = async (stack: AgentStack, roomId: string): Promise<string> 
     })
     .join('\n');
   return `${events}\nreceipts: ${JSON.stringify(sync.rooms?.join?.[roomId]?.ephemeral?.events)}`;
-};
-
-/**
- * Reads the router's welcome thread in a new room, its root with a main-timeline receipt and its
- * reply with a receipt in its thread, so the counts below are the reply's alone. A session that
- * cannot decrypt the welcome counts it otherwise: the server takes the reader's own message after
- * it as reading it, the SDK does not.
- */
-const readRouterWelcome = async (stack: AgentStack, roomId: string): Promise<void> => {
-  type Raw = { event_id: string; sender: string; content: { 'm.relates_to'?: unknown } };
-  let welcome: Raw[] = [];
-  await expect
-    .poll(
-      async () => {
-        const { chunk } = await matrixFetch<{ chunk: Raw[] }>(
-          stack.homeserver,
-          `/rooms/${encodeURIComponent(roomId)}/messages?dir=b&limit=20`,
-          { accessToken: stack.tester.accessToken }
-        );
-        welcome = chunk.filter(
-          (event) =>
-            event.sender === stack.agents.router && event.content['m.relates_to'] !== undefined
-        );
-        const root = chunk.find(
-          (event) => event.sender === stack.agents.router && !event.content['m.relates_to']
-        );
-        if (root) welcome = [root, ...welcome];
-        return welcome.length;
-      },
-      { timeout: 30_000, intervals: [500, 1000], message: "the router's welcome thread" }
-    )
-    .toBeGreaterThanOrEqual(2);
-  const [root, ...replies] = welcome;
-  if (!root) throw new Error("The router's welcome has no root");
-  const receipt = (eventId: string, threadId: string) =>
-    matrixFetch(
-      stack.homeserver,
-      `/rooms/${encodeURIComponent(roomId)}/receipt/m.read/${encodeURIComponent(eventId)}`,
-      {
-        method: 'POST',
-        accessToken: stack.tester.accessToken,
-        body: JSON.stringify({ thread_id: threadId }),
-      }
-    );
-  await receipt(root.event_id, 'main');
-  if (replies[0]) await receipt(replies[0].event_id, root.event_id);
 };
 
 const atMostServer = (shown: number, server: number) => shown <= server;
