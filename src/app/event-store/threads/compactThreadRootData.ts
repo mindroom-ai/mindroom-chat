@@ -10,7 +10,7 @@ import {
   isPendingLocalEchoThreadRootEvent,
 } from './threadRouteUtils';
 import { getThreadMessagePreviewText } from './threadMessagePreview';
-import { isConversationNotice } from './conversationNotice';
+import { isUnmarkedNotice } from '../../matrix/protocol/conversationNotice';
 import {
   findThreadRootEvent,
   getPreferredVisibleThreadReplyEvents,
@@ -74,8 +74,6 @@ export const isNestedThreadReplyEvent = (event: MatrixEvent | undefined): boolea
 const isEditRelationEvent = (event: MatrixEvent | undefined): boolean =>
   event?.getRelation?.()?.rel_type === 'm.replace';
 
-const isNoticeMessage = (event: MatrixEvent): boolean => event.getContent()?.msgtype === 'm.notice';
-
 export const isZeroReplyStandaloneThreadRootEvent = (
   event: MatrixEvent | undefined,
   now = Date.now()
@@ -83,7 +81,7 @@ export const isZeroReplyStandaloneThreadRootEvent = (
   const eventId = event?.getId();
   if (!event || !eventId) return false;
   if (!isVisibleThreadTextMessageEventType(event.getType())) return false;
-  if (isNoticeMessage(event) && !isConversationNotice(event)) return false;
+  if (isUnmarkedNotice(event)) return false;
   if (typeof event.isRedacted === 'function' && event.isRedacted()) return false;
   if (event.threadRootId && event.threadRootId !== eventId) return false;
   if (isNestedThreadReplyEvent(event) || isEditRelationEvent(event)) return false;
