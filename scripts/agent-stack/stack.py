@@ -41,8 +41,8 @@ backend then runs from an environment with MindRoom's matrix_calls extra ($E2E_A
 --client-sessions lets the slot's Chat (http://127.0.0.1:4300+N, slot 0: 4200) sign in to the backend's client
 sessions, which plugin routes accept: the Chat origin goes into MINDROOM_COMPUTER_ALLOWED_ORIGINS, and the API's URL
 into MINDROOM_PUBLIC_URL, which makes it the OpenID audience and the origin the agents publish. Sign-in also needs a
-homeserver that binds OpenID tokens, MindRoom's Tuwunel with TUWUNEL_MINDROOM_OPENID_AUDIENCE=true, which
-e2e/docker-compose.yaml does not set; on any other, POST /api/client-sessions answers 403.
+homeserver that binds OpenID tokens, MindRoom's Tuwunel with TUWUNEL_MINDROOM_OPENID_AUDIENCE=true, as
+e2e/docker-compose.yaml starts it for every slot; on any other, POST /api/client-sessions answers 403.
 
 --computers gives the helper a Worker Computer (MindRoom's docs/tools/worker-computer.md): MindRoom runs Docker
 workers with the computer security policy from mindroom-client-e2e-worker:<commit>, an image the first start builds
