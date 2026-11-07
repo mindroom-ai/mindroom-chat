@@ -177,8 +177,10 @@ test('while the example cover shows the room sends no receipt or typing notice, 
     });
     await expect(timeline.getByText(`Arrived in view ${RUN}`)).toBeVisible({ timeout: 60_000 });
     await expect.poll(() => activity.receipts).toContain(seen);
+    // Where the caret was: after the draft.
     await page.keyboard.type(' again');
     await expect.poll(() => activity.typing).toEqual([true, false, true]);
+    await expect(composer).toHaveText('draft again');
     await dropFile(page.locator('[data-room-footer]'));
     await expect(page.getByText(DROPPED)).toBeVisible();
     await shot(page, 'conversation-cover-closed');

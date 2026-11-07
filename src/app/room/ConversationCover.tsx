@@ -76,12 +76,18 @@ function CoverLayer({ entry: { cover, tag }, room, conversationRef, onFailure }:
   useLayoutEffect(() => {
     const layer = layerRef.current;
     const before = document.activeElement;
+    // The page's selection holds the composer's caret, and a click in the cover moves it.
+    const selection = document.getSelection();
+    const caret = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : undefined;
     if (layer && !layer.contains(before)) layer.focus({ preventScroll: true });
     // Focus the person moved out of the cover stays there: once this commit is done, React gives
     // the focus back to the element that had it when that is still in the page.
     return () => {
-      if (before instanceof HTMLElement && before.isConnected)
-        before.focus({ preventScroll: true });
+      if (!(before instanceof HTMLElement) || !before.isConnected) return;
+      before.focus({ preventScroll: true });
+      if (!caret) return;
+      document.getSelection()?.removeAllRanges();
+      document.getSelection()?.addRange(caret);
     };
   }, []);
 

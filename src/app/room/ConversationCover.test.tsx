@@ -113,7 +113,7 @@ vi.mock('../approvals/ThreadApprovalProvider', () => ({
 // The composer is its Slate text box.
 vi.mock('../composer/RoomInput', () => ({
   RoomInput: ({ editor }: { editor: Editor }) => (
-    <Slate editor={editor} initialValue={[{ type: 'paragraph', children: [{ text: '' }] }]}>
+    <Slate editor={editor} initialValue={[{ type: 'paragraph', children: [{ text: 'draft' }] }]}>
       <Editable aria-label="Message" />
     </Slate>
   ),
@@ -178,6 +178,20 @@ describe('a conversation cover', () => {
     expect(conversation().hasAttribute('aria-hidden')).toBe(false);
     expect(covered()).toBe(false);
     expect(document.activeElement).toBe(composer());
+  });
+
+  it('gives the composer back its caret with the focus', () => {
+    renderRoom();
+    composer().focus();
+    const text = screen.getByText('draft').firstChild!;
+    document.getSelection()!.collapse(text, 3);
+    show('fixed');
+    // A click in the cover takes the page's selection there, as a browser does.
+    document.getSelection()!.collapse(screen.getByText('fixed cover').firstChild!, 2);
+    show('fixed', false);
+    expect(document.activeElement).toBe(composer());
+    const caret = document.getSelection()!;
+    expect([caret.anchorNode, caret.anchorOffset]).toEqual([text, 3]);
   });
 
   it('leaves the focus where the person moved it when the cover goes', () => {
