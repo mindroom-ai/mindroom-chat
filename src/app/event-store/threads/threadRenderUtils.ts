@@ -247,6 +247,22 @@ export const buildMeasurementScrollCorrectionHook =
     if (!apply && (itemFullyAboveViewport || automaticFillPredecessor)) {
       onDroppedCorrection(delta);
     }
+    {
+      const host = instance.scrollElement as unknown as HTMLElement | null | undefined;
+      const tile = host?.querySelector?.(`[data-index="${item.index}"]`) as HTMLElement | null | undefined;
+      const parts: string[] = [];
+      tile?.querySelectorAll<HTMLElement>('*').forEach((el) => {
+        if (parts.length > 40) return;
+        const h = el.offsetHeight;
+        if (h < 14) return;
+        const tag = el.tagName.toLowerCase();
+        const label = el.getAttribute('aria-label') ?? el.getAttribute('role') ?? '';
+        const data = Array.from(el.attributes).filter((a) => a.name.startsWith('data-') && a.name !== 'data-index').map((a) => a.name.slice(5)).join(',');
+        if (!label && !data) return;
+        parts.push(`${tag}[${label}|${data}]${h}`);
+      });
+      ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'measure', index: item.index, key: String((item as { key?: unknown }).key ?? ''), end: item.end, delta, apply, fullyAbove: itemFullyAboveViewport, pastEnd: shrinksPastEnd(delta, renderedOffset, instance.scrollElement), scrollOffset, renderedOffset, cached: instance.scrollOffset, dir: instance.scrollDirection, sh: instance.scrollElement?.scrollHeight, ch: instance.scrollElement?.clientHeight, tileH: tile?.offsetHeight, msg: tile?.querySelector('[data-message-id]')?.getAttribute('data-message-id')?.slice(0, 8), text: tile?.textContent?.slice(0, 60), parts: parts.join(' ') }) }));
+    }
     if (apply) onAppliedCorrection?.(delta);
     return apply;
   };

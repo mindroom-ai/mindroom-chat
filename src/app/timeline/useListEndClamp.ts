@@ -36,7 +36,10 @@ export const listShrinkNotRendered = (
     .reduce((room, row) => (mounted.has(row.index) ? room : room + row.size), 0);
   const ledgerMargin = (parseFloat(inner.style.marginTop) || 0) + rowFoldPx;
   const reach = inner.getBoundingClientRect().bottom - newest.getBoundingClientRect().bottom;
-  return Math.max(0, reach - ledgerMargin - unmountedAfter);
+  const result = Math.max(0, reach - ledgerMargin - unmountedAfter);
+  if (result > 0)
+    ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'shrink', result, reach, mt: inner.style.marginTop, rowFoldPx, unmountedAfter, newest: indexOf(newest), rows: tiles.map((tile) => `${tile.dataset.index}:${tile.offsetHeight}`).join(' ') }) }));
+  return result;
 };
 
 /**
@@ -60,6 +63,7 @@ export function useListEndClamp(
     if (!scroll || !content || !probe || typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(() => {
       const end = scroll.scrollHeight - scroll.clientHeight - pendingListShrinkPx();
+      ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'endClamp', end, top: scroll.scrollTop, sh: scroll.scrollHeight, pending: pendingListShrinkPx() }) }));
       if (scroll.scrollTop > end) scroll.scrollTop = Math.max(0, end);
     });
     observer.observe(content);
