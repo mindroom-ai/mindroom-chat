@@ -1276,7 +1276,7 @@
       "matchingUsers_other": "{{count}} matching users"
     },
     "mindRoomSplashScreen": {
-      "loading": "Loading MindRoom Chat"
+      "loading": "Loading {{appName}}"
     },
     "commands": {
       "CommandMe": "Send action message",
