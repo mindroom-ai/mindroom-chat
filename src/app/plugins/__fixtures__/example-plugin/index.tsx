@@ -1,9 +1,8 @@
 // A client plugin for the tests (docs/architecture.md "Client plugins"): a message that carries
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
-// section (`plugins.example.label`).
-import type { ClientPlugin } from '../../registry';
-import type { PluginEvent } from '../../messageRenderers';
-import { usePluginConfig } from '../../pluginConfig';
+// section (`plugins.example.label`). Like a plugin outside this repository, it imports the app
+// only through the client SDK.
+import { usePluginConfig, type ClientPlugin, type PluginEvent } from '@mindroom/client-sdk/core';
 
 const greetingText = (event: PluginEvent): string | undefined => {
   const greeting = event.content['com.example.greeting'];

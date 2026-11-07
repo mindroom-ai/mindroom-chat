@@ -5,7 +5,7 @@
   "description": "A MindRoom client plugin for the tests: renders messages that carry com.example.greeting.",
   "mindroomClientPlugin": {
     "id": "example",
-    "apiVersion": 1,
+    "apiVersion": 2,
     "entry": "./index.tsx"
   }
 }
