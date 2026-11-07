@@ -101,9 +101,21 @@ export function useMobileKeyboardViewportFix(): void {
         viewportHeight !== undefined &&
         layoutHeight !== undefined &&
         viewportHeight <= layoutHeight - MIN_KEYBOARD_VIEWPORT_REDUCTION;
+      // Unzoomed, the visual viewport is as wide as the layout. Right after a rotation iOS Safari
+      // reports the layout's new size while the visual viewport still has the old orientation's,
+      // keyboard included (874 wide and 20 tall on a phone turned back upright): that height would
+      // leave the app a sliver and the screen blank, so the page keeps its height until the
+      // visual viewport catches up.
+      const viewportWidth = positiveFinite(window.visualViewport?.width);
+      const layoutWidth = positiveFinite(document.documentElement.clientWidth);
+      const viewportMatchesLayout =
+        viewportWidth === undefined ||
+        layoutWidth === undefined ||
+        Math.abs(viewportWidth - layoutWidth) < 1;
 
       if (
         !unzoomed ||
+        !viewportMatchesLayout ||
         !layoutStillFullHeight ||
         (!editorFocused && (!keyboardGeometryActive || !retainWithoutFocus)) ||
         viewportHeight === undefined
