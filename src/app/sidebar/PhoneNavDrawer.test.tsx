@@ -31,7 +31,7 @@ describe('PhoneNavDrawer', () => {
   it('opens on a shown section page and goes away when that page gives way on the spot', () => {
     const store = createStore();
     const router = createMemoryRouter([{ path: '*', element: <PhoneNavDrawer nav={null} /> }], {
-      initialEntries: ['/!space:example.org/'],
+      initialEntries: ['/!space:example.org/!room:example.org/'],
     });
     let renderer: ReturnType<typeof create> | undefined;
     act(() => {
@@ -40,6 +40,10 @@ describe('PhoneNavDrawer', () => {
           <RouterProvider router={router} />
         </Provider>
       );
+    });
+    // A room's back chevron replaces the room with its space's own page.
+    act(() => {
+      void router.navigate('/!space:example.org/', { replace: true });
     });
     act(() => store.set(phoneNavSectionRootAtom, router.state.location.key));
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
