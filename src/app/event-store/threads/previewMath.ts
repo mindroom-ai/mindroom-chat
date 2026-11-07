@@ -76,8 +76,9 @@ const part = (text: string): string => {
 
 /**
  * The formula as plain text, or `undefined` when any of it has no exact reading here: a command
- * other than those above, a missing argument, a script that is a lone sign, a root with an index,
- * a mixed number, a line break, a comment, braces that do not pair, or nothing to read. A fraction
+ * other than those above, a missing or empty argument, a script that is a lone sign, a root with an
+ * index, a mixed number, a line break, a comment, a stray `&`, `#` or `$`, braces that do not
+ * pair, or nothing to read. A fraction
  * always keeps parentheses (`(a/b)`), and so do a root's radicand (`√(x)`) and a bare script that
  * anything but a space, a sign, a closing bracket or another script follows (`x^(2)3`).
  */
@@ -90,11 +91,12 @@ const readFormula = (tex: string): string | undefined => {
     const skipSpace = () => {
       if (nodes[index] === ' ') index += 1;
     };
-    // The next node after a space; reading past the end has no exact reading.
+    // The next node after a space; a missing or empty argument has no exact reading.
     const argument = (): string => {
       skipSpace();
-      if (index >= nodes.length) exact = false;
-      return read();
+      const text = read();
+      if (!text.trim()) exact = false;
+      return text;
     };
     // The next node past sizing commands.
     const next = (): TexNode | undefined => {
@@ -153,7 +155,8 @@ const readFormula = (tex: string): string | undefined => {
         if (hasMarkup(nodes[index])) exact = false;
         const content = argument();
         // A script after a box or text applies to all of it: `\boxed{1+2}^2` reads `(1+2)^2`.
-        return nodes[index] === '^' || nodes[index] === '_' ? part(content) : content;
+        const following = nodes[index] === ' ' ? nodes[index + 1] : nodes[index];
+        return following === '^' || following === '_' ? part(content) : content;
       }
       if (SILENT_COMMAND.test(name)) {
         // `\left.` and `\right.` set no delimiter.
