@@ -42,6 +42,7 @@ export function useFooterBottomPin(
       inset = nextInset;
       viewHeight = nextViewHeight;
       viewWidth = nextViewWidth;
+      ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'footerPin', covered, readerAtBottom, inset: nextInset, top: scroll.scrollTop, sh: scroll.scrollHeight }) }));
       if (readerAtBottom && covered > 0) scroll.scrollTop += covered;
       // Until the rows have measured again, the reader still counts as at the bottom.
       const followsRows = readerAtBottom && rewrapped;

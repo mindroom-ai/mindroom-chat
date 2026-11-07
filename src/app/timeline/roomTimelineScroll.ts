@@ -194,7 +194,8 @@ const useLatestRowRequest = ({
   }, [focusItem]);
   useEffect(() => {
     if (!scrollElement) return undefined;
-    const release = () => {
+    const release = (event?: Event) => {
+      ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'release', type: event?.type ?? 'scroll' }) }));
       requestRef.current = false;
       seenCountRef.current = scrollToBottomRef.current.count;
       onReaderGestureRef.current();
@@ -218,6 +219,7 @@ const useLatestRowRequest = ({
       const leftLatest = latestAtTopRef.current
         ? top > lastTop + LEFT_LATEST_ROW_PX
         : top < lastTop && below > lastBelow + LEFT_LATEST_ROW_PX;
+      ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'followScroll', top, lastTop, below, lastBelow, sh: scrollElement.scrollHeight, ch: scrollElement.clientHeight, pending: pendingListShrinkPxRef.current?.() ?? 0, leftLatest, request: requestRef.current }) }));
       if (leftLatest) release();
       lastTop = top;
       lastBelow = below;
@@ -294,6 +296,7 @@ export const useLatestRowPin = ({
   });
   const { scrollElement, latestAtTop } = request;
   useLayoutEffect(() => {
+    ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'latestRowPin', surface, request: latestRowRequestRef.current, top: scrollElement?.scrollTop, sh: scrollElement?.scrollHeight }) }));
     if (!surface || !latestRowRequestRef.current || itemCount === 0) return;
     if (surface === 'room' && latestAtTop) scrollElement?.scrollTo({ top: 0 });
     else if (surface === 'room') virtualizer.scrollToIndex(itemCount - 1, { align: 'end' });

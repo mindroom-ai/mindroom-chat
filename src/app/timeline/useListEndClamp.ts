@@ -59,6 +59,7 @@ export function useListEndClamp(
     if (!scroll || !content || !probe || typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(() => {
       const end = scroll.scrollHeight - scroll.clientHeight - pendingListShrinkPx();
+      ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'endClamp', end, top: scroll.scrollTop, sh: scroll.scrollHeight, pending: pendingListShrinkPx() }) }));
       if (scroll.scrollTop > end) scroll.scrollTop = Math.max(0, end);
     });
     observer.observe(content);
