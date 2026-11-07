@@ -382,6 +382,31 @@ const checkInbox = async (page: Page, tag: string) => {
     [INBOX_PERSON_COPY, copy.userId],
     [INBOX_AGENT_COPY, agentCopy.userId],
   ] as const) {
+    const dump = await inboxRow(page, text).evaluate((row, id) => {
+      const walker = row.ownerDocument.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+      const out: unknown[] = [];
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const start = node.textContent?.indexOf(id) ?? -1;
+        if (start < 0) continue;
+        const range = row.ownerDocument.createRange();
+        range.setStart(node, start);
+        range.setEnd(node, start + id.length);
+        out.push({
+          rects: Array.from(range.getClientRects()).map((r) => [r.left, r.top, r.width, r.height].map(Math.round)),
+          parents: (() => {
+            const list: unknown[] = [];
+            for (let el = node.parentElement; el && el !== row; el = el.parentElement) {
+              const st = getComputedStyle(el);
+              const b = el.getBoundingClientRect();
+              list.push([el.tagName, st.overflowX, st.textOverflow, [b.left, b.right].map(Math.round)]);
+            }
+            return list;
+          })(),
+        });
+      }
+      return out;
+    }, userId);
+    console.log(`DUMP ${tag} ${JSON.stringify(dump)}`);
     await expect.poll(() => showsUserIdWhole(page, text, userId), { message: userId }).toBe(true);
     // The name stays bold.
     const weight = await rowSender(page, text).evaluate((name) =>
