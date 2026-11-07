@@ -61,7 +61,7 @@ const openMidStream = async (
       const thinking = !!row.querySelector('[role="status"] img');
       const last = samples[samples.length - 1];
       if (last?.words !== words || last.thinking !== thinking)
-        samples.push({ at: performance.now(), words, thinking });
+        samples.push({ at: performance.now(), words, thinking, ...(words === 0 ? { html: row.outerHTML.slice(0, 4000) } : {}) } as Sample);
     };
     new MutationObserver(record).observe(document, {
       childList: true,
