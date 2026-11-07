@@ -26,6 +26,42 @@ const wordCount = (text: string): number => text.match(/\bword\d+\b/g)?.length ?
 
 type Sample = { at: number; words: number; thinking: boolean };
 
+/** The words of the reply's newest revision that the page's event cache holds. */
+const savedReplyWords = (page: Page, replyId: string): Promise<number> =>
+  page.evaluate(async (id) => {
+    type Raw = {
+      content?: Record<string, unknown>;
+      unsigned?: { 'm.relations'?: Record<string, Raw | undefined> };
+    };
+    let most = 0;
+    for (const { name } of await indexedDB.databases()) {
+      if (!name) continue;
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open(name);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      if (db.objectStoreNames.contains('events')) {
+        const records = await new Promise<{ eventId?: string; rawEvent?: Raw }[]>((resolve) => {
+          const request = db.transaction('events', 'readonly').objectStore('events').getAll();
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => resolve([]);
+        });
+        records
+          .filter((record) => record.eventId === id)
+          .forEach(({ rawEvent }) => {
+            const edit = rawEvent?.unsigned?.['m.relations']?.['m.replace'];
+            const newContent = edit?.content?.['m.new_content'] as { body?: unknown } | undefined;
+            const body = newContent?.body ?? rawEvent?.content?.body;
+            const words = typeof body === 'string' ? body.match(/word\d+/g)?.length ?? 0 : 0;
+            most = Math.max(most, words);
+          });
+      }
+      db.close();
+    }
+    return most;
+  }, replyId);
+
 const openMidStream = async (
   page: Page,
   stack: AgentStack,
@@ -47,6 +83,8 @@ const openMidStream = async (
   // A page that received the edit saves it a second later (edits are coalesced before they are
   // written); the reload comes after that, so the page has saved what it showed.
   if (reload) await page.waitForTimeout(2_000);
+  // What the page holds of the reply before it reloads; it only saves more until then.
+  const saved = reload ? await savedReplyWords(page, editedEvent.event_id) : 0;
 
   // Record the reply row's word count, and whether it shows the thinking placeholder, at every
   // change, from the page load on.
@@ -87,8 +125,14 @@ const openMidStream = async (
   ).toEqual([]);
   const shown = samples.map(({ words }) => words).filter((words) => words > 0);
   if (reload) {
-    // A reload paints what the page saved, which may trail the server's last edit; from there the
-    // reply only grows.
+    // A reload first paints the newest revision the page holds: at least what its cache saved,
+    // which may trail the server's last edit (never a restored older one, such as "word1"); from
+    // there the reply only grows.
+    expect(saved, 'the page saved the streaming reply before the reload').toBeGreaterThan(0);
+    expect(
+      shown[0] ?? 0,
+      `saved ${saved} words; word counts after the load: ${shown.join(' ')}`
+    ).toBeGreaterThanOrEqual(saved);
     expect(
       shown.filter((words, index) => index > 0 && words < (shown[index - 1] ?? 0)),
       `word counts after the load: ${shown.join(' ')}`
