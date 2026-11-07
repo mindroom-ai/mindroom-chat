@@ -30,6 +30,7 @@ import {
 } from '../event-store/timeline/timelineScrollUtils';
 import { isLatestAnchorInReach } from './roomTimelineScroll';
 import { waitForScrollQuiescence } from './scrollQuiescence';
+import { useReaderSees } from './useReaderSees';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 
 /**
@@ -214,12 +215,8 @@ export const useTimelineReadReceiptController = ({
 
   // A phone's navigation drawer over the timeline hides it as a window without the focus does;
   // once the drawer goes, the reader sees it again.
+  const readerSees = useReaderSees();
   const navDrawerOpen = useAtomValue(phoneNavDrawerOpenAtom);
-  const navDrawerOpenRef = useLatestRef(navDrawerOpen);
-  const readerSees = useCallback(
-    () => document.hasFocus() && !navDrawerOpenRef.current,
-    [navDrawerOpenRef]
-  );
 
   // The view is gone once it unmounts; a frame it scheduled then reads nothing.
   const mountedRef = useRef(false);
@@ -294,7 +291,7 @@ export const useTimelineReadReceiptController = ({
 
   const handleWindowFocus = useCallback(
     (inFocus: boolean) => {
-      if (!inFocus || navDrawerOpenRef.current || !atBottomRef.current) return;
+      if (!inFocus || !readerSees() || !atBottomRef.current) return;
       const context = contextRef.current;
       if (context.threadId) {
         if (atLiveEndRef.current) readThreadOnceLanded(context, stillReading);
@@ -328,7 +325,7 @@ export const useTimelineReadReceiptController = ({
       atLiveEndRef,
       contextRef,
       getScrollElement,
-      navDrawerOpenRef,
+      readerSees,
       readUptoEventIdRef,
       stillReading,
     ]

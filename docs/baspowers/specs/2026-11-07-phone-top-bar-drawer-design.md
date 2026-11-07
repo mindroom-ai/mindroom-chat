@@ -44,7 +44,7 @@ On phones the rail leaves out its own search and account buttons, which the bar 
   - On first render it follows the same rule without motion.
 - Focus: opened with the menu button, the drawer takes the focus; brought out by a navigation, it leaves the focus to the page's own restoring; put away around the focus, it returns the focus to the menu button. Escape reaches it in the capture phase wherever the focus is. The menu button keeps one name ("Navigation"); `aria-expanded` says whether the drawer is out, and its unread dot is its description.
 - Edge swipes (`navigation/useEdgeSwipe.ts`) do nothing while the drawer is open.
-- While the drawer covers a room, the room's read receipts wait as they do for a window without the focus (`timeline/timelineReadReceiptController.ts`), and the room is read again when the drawer goes. Skip to content puts the drawer away before it moves the focus.
+- While the drawer covers a room, the room's automatic read receipts wait as they do for a window without the focus (`timeline/useReaderSees.ts`, in both receipt controllers), and the room is read again when the drawer goes. Skip to content puts the drawer away before it moves the focus.
 
 ### Section index pages (`shell/Router.tsx`, `shell/clientPages.tsx`)
 
