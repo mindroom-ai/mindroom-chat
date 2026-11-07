@@ -1,5 +1,5 @@
 import type { IEvent } from 'matrix-js-sdk';
-import { mergeRawEventRevisions } from '../../matrix/eventRevision';
+import { describeRawEventRevision, mergeRawEventRevisions } from '../../matrix/eventRevision';
 
 // A root's thread summary (`unsigned['m.relations']['m.thread']`) is the server's word at the
 // moment the page read the root. A thread list read while an agent streams keeps the reply's
@@ -8,6 +8,12 @@ import { mergeRawEventRevisions } from '../../matrix/eventRevision';
 // saved root, so a reload restored the old summary: the card streamed again, and every such
 // thread was checked with the server, until a whole thread list read replaced the roots. The
 // restored root takes the newest events the cache holds for its thread instead.
+//
+// The server's MindRoom previews beside the summary (`io.mindroom.title` and
+// `io.mindroom.latest_reply`) describe the summary it sent. Once the cache names a newer latest
+// event they are out of date, possibly a reply's placeholder, and the rewritten summary drops them:
+// the cache holds the newer events they would stand in for.
+const SERVER_PREVIEWS = ['io.mindroom.title', 'io.mindroom.latest_reply'];
 
 type RawEvent = Partial<IEvent>;
 type ThreadSummary = { latest_event?: RawEvent; count?: number };
@@ -43,13 +49,21 @@ export const withNewestCachedReplies = (root: RawEvent, replies: RawEvent[]): Ra
   const sameReply = replies.find((reply) => reply.event_id === latest.event_id);
   const next = later[0] ?? (sameReply && mergeRawEventRevisions(latest, sameReply));
   if (!next) return root;
+  const revision = (event: RawEvent) => {
+    const { redacted, replacement } = describeRawEventRevision(event);
+    return `${String(redacted)} ${replacement?.eventId ?? ''}`;
+  };
+  const newer = later.length > 0 || revision(next) !== revision(latest);
+  const standard = newer
+    ? Object.fromEntries(Object.entries(summary).filter(([key]) => !SERVER_PREVIEWS.includes(key)))
+    : summary;
   return {
     ...root,
     unsigned: {
       ...root.unsigned,
       'm.relations': {
         ...root.unsigned?.['m.relations'],
-        'm.thread': { ...summary, latest_event: next, count: (summary.count ?? 0) + later.length },
+        'm.thread': { ...standard, latest_event: next, count: (summary.count ?? 0) + later.length },
       },
     },
   };
