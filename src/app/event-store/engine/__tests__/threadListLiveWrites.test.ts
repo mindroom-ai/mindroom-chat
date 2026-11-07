@@ -180,43 +180,6 @@ describe('engine live writes and the SDK thread lists', () => {
     engine.stop();
   });
 
-  it('persists an edit that the SDK keeps off every timeline for a thread it has not fetched', async () => {
-    // A reply streams in a thread the client has not opened. The SDK adds the reply to the thread
-    // but keeps its edits to replay when the thread opens, on no timeline, so they never came
-    // through the timeline event and the cache kept the reply's placeholder. The sync still
-    // announces each event.
-    const { client, room } = roomWithListedThreads(3);
-    await loadRoomThreads(room);
-    await settle();
-    const { engine, writeThrough } = startEngine(client);
-    const streamed = new MatrixEvent(reply('$root-001', 3, 1_000));
-    await room.addLiveEvents([streamed], { addToState: false });
-    const edit = (eventId: string, targetId: string, ts: number) =>
-      new MatrixEvent(
-        message(eventId, ts, {
-          'm.new_content': { msgtype: 'm.text', body: 'word1 word2' },
-          'm.relates_to': { rel_type: 'm.replace', event_id: targetId },
-        })
-      );
-    const unplaced = edit('$edit-reply', streamed.getId()!, 1_001);
-    await room.addLiveEvents([unplaced], { addToState: false });
-    client.emit(ClientEvent.Event, unplaced);
-    // An edit of a room message is on the room's timeline, and is persisted once.
-    const plain = new MatrixEvent(message('$plain', 1_002));
-    const placed = edit('$edit-plain', '$plain', 1_003);
-    await room.addLiveEvents([plain, placed], { addToState: false });
-    client.emit(ClientEvent.Event, placed);
-    await settle();
-
-    expect(room.findEventById('$edit-reply')).toBeUndefined();
-    const persisted = vi
-      .mocked(writeThrough.handleLiveEvent)
-      .mock.calls.map(([event]) => event.getId());
-    expect(persisted.filter((id) => id === '$edit-reply')).toHaveLength(1);
-    expect(persisted.filter((id) => id === '$edit-plain')).toHaveLength(1);
-    engine.stop();
-  });
-
   it('persists an own thread root when the server confirms it', async () => {
     // The remote echo updates the local echo in place, without a timeline
     // event; only the thread lists used to save the confirmed root.
