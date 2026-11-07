@@ -2,10 +2,15 @@
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
 // A side panel, "Example panel", names the room it is open in.
-import type { ClientPlugin } from '../../registry';
-import type { PluginEvent } from '../../messageRenderers';
-import { usePluginConfig } from '../../pluginConfig';
-import { usePluginTranslation } from '../../pluginTranslations';
+// Under the room header it shows "Example banner in <room name>". Like a plugin outside this
+// repository, it imports the app only through the client SDK.
+import type { Room } from 'matrix-js-sdk';
+import {
+  usePluginConfig,
+  usePluginTranslation,
+  type ClientPlugin,
+  type PluginEvent,
+} from '@mindroom/client-sdk/core';
 
 const greetingText = (event: PluginEvent): string | undefined => {
   const greeting = event.content['com.example.greeting'];
@@ -30,12 +35,21 @@ function Greeting({ event }: { event: PluginEvent }) {
   );
 }
 
+function RoomBanner({ room }: { room: Room }) {
+  return (
+    <div data-example-plugin-banner style={{ paddingBlock: 8, paddingInline: 16 }}>
+      Example banner in {room.name}
+    </div>
+  );
+}
+
 function ExamplePanel({ roomId }: { roomId: string }) {
   return <p>Example panel of {roomId}</p>;
 }
 
 const plugin: ClientPlugin = {
   messageRenderers: [{ match: (event) => greetingText(event) !== undefined, Component: Greeting }],
+  roomHeaderSlot: [RoomBanner],
   sidePanels: [{ id: 'panel', label: 'Example panel', Component: ExamplePanel }],
   translations: {
     en: { label: 'Example plugin' },

@@ -4,14 +4,24 @@
 // package.json that declares `"mindroomClientPlugin": { "id", "apiVersion", "entry" }`; the build
 // fails on a directory it cannot use. The build replaces src/app/plugins/pluginEntries.ts with a
 // module that imports each plugin's entry; without plugins that module lists none and no plugin code
-// ships.
+// ships. Plugins import the app through the client SDK (`@mindroom/client-sdk/<subpath>`), which
+// the build resolves to src/client-sdk/.
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizePath, searchForWorkspaceRoot } from 'vite';
 
-/** The plugin API this client implements; each plugin declares the one it was written for. */
-const CLIENT_PLUGIN_API_VERSION = 1;
+/**
+ * The client SDK version this client provides (`src/client-sdk/`); each plugin declares, as its
+ * `apiVersion`, the one it needs. Version 1 had no SDK; each later addition to the SDK (an export,
+ * or a contribution kind in `ClientPlugin`) raises it.
+ */
+const CLIENT_PLUGIN_API_VERSION = 2;
+
+/** The SDK's subpaths, which plugins import, and the modules they are. */
+export const CLIENT_SDK_ALIAS = {
+  '@mindroom/client-sdk/core': fileURLToPath(new URL('../src/client-sdk/core.ts', import.meta.url)),
+};
 
 const KEBAB_CASE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const ENTRIES_MODULE = normalizePath(
@@ -74,11 +84,12 @@ const readPlugin = (dir, earlier) => {
   if (typeof id !== 'string' || !KEBAB_CASE.test(id)) {
     fail(`id ${JSON.stringify(id)} is not kebab-case, such as "my-plugin"`);
   }
-  if (apiVersion !== CLIENT_PLUGIN_API_VERSION) {
+  if (!Number.isInteger(apiVersion) || apiVersion < 1) {
+    fail(`apiVersion ${JSON.stringify(apiVersion)} is not a positive whole number`);
+  }
+  if (apiVersion > CLIENT_PLUGIN_API_VERSION) {
     fail(
-      `apiVersion ${JSON.stringify(
-        apiVersion
-      )} is not ${CLIENT_PLUGIN_API_VERSION}, the plugin API this client supports`
+      `plugin "${id}" needs client SDK apiVersion ${apiVersion}; this client provides ${CLIENT_PLUGIN_API_VERSION}`
     );
   }
   if (typeof manifest.version !== 'string' || manifest.version === '') {
@@ -161,18 +172,19 @@ export const clientPlugins = (env = process.env) => {
   return {
     name: 'mindroom-client-plugins',
     enforce: 'pre',
-    config: () =>
-      plugins.length > 0
-        ? {
-            // The dev server serves files outside the workspace only from directories it allows,
-            // and a list of them replaces its default, the workspace root.
-            server: {
+    config: () => ({
+      resolve: { alias: CLIENT_SDK_ALIAS },
+      // The dev server serves files outside the workspace only from directories it allows, and a
+      // list of them replaces its default, the workspace root.
+      server:
+        plugins.length > 0
+          ? {
               fs: {
                 allow: [searchForWorkspaceRoot(process.cwd()), ...plugins.map(({ dir }) => dir)],
               },
-            },
-          }
-        : undefined,
+            }
+          : undefined,
+    }),
     configResolved: ({ command }) => {
       building = command === 'build';
     },

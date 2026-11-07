@@ -53,6 +53,13 @@ vi.mock('../../plugins/pluginEntries', () => {
                 throw 'not an error';
               },
             },
+            {
+              // Throws a value with no text form at all.
+              match: (event: PluginEvent) => event.content.explode === 'opaque',
+              Component: () => {
+                throw Object.create(null);
+              },
+            },
           ],
         },
       },
@@ -196,14 +203,20 @@ describe('RenderMessageContent with client plugins', () => {
     expect(shown).toContain('plugin:Edited');
   });
 
-  it('falls back to core and reports under the tag when a plugin throws something not an Error', () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    expect(render(AGENT, text({ explode: 'string' }))).toContain('Fallback body');
-    expect(mocks.reportBoundaryError).toHaveBeenCalledWith(
-      expect.objectContaining({ message: '[plugin broken@0.1.0] not an error' }),
-      expect.any(String)
-    );
-  });
+  it.each([
+    ['something not an Error', 'string', 'not an error'],
+    ['a value with no text form', 'opaque', 'a value that cannot be shown as text'],
+  ])(
+    'falls back to core and reports under the tag when a plugin throws %s',
+    (_, explode, message) => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      expect(render(AGENT, text({ explode }))).toContain('Fallback body');
+      expect(mocks.reportBoundaryError).toHaveBeenCalledWith(
+        expect.objectContaining({ message: `[plugin broken@0.1.0] ${message}` }),
+        expect.any(String)
+      );
+    }
+  );
 
   it('tries a plugin that failed on a message again once the message changes, as it streams in', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
