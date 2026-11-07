@@ -21,14 +21,6 @@ const update = vi.hoisted(() => {
   };
 });
 vi.mock('../config/appUpdate', () => update);
-vi.mock('../notifications/notices/NoticeBanners.css', () => ({
-  NoticeStack: 'notice-stack',
-  Notice: ({ level }: { level: string }) => `notice-${level}`,
-  NoticeIcon: 'notice-icon',
-  NoticeBody: 'notice-body',
-  NoticeText: 'notice-text',
-  NoticeAction: 'notice-action',
-}));
 
 /** The notice's live region, which the page has from the start. */
 const liveRegion = (container: HTMLElement): HTMLElement => {
@@ -55,7 +47,7 @@ describe('NewVersionNotice', () => {
     act(() => update.publish('build-2'));
 
     expect(region.textContent).toContain('A new version of MindRoom is available.');
-    expect(region.querySelector('[data-notice-level="info"]')).toBeTruthy();
+    expect(region.querySelector('[data-new-version-card]')).toBeTruthy();
   });
 
   it('reloads for the new version from its Reload action, once', () => {
