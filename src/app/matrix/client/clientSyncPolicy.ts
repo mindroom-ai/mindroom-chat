@@ -4,6 +4,7 @@ import { readCachedSpecVersions } from '../cachedSpecVersions';
 import { getSafeLocalStorage, removeStorageItemSafe } from '../../lib/safeLocalStorage';
 import { dropRoomsForgottenElsewhere } from './roomsForgottenElsewhere';
 import { keepBundledEditsInTheirRoom } from './bundledEditRoom';
+import { keepNewerEditsOnMappedCopies } from './mappedCopyEdits';
 import { keepRedactionsInSavedSync } from './savedSyncRedactions';
 import { keepThreadReplyCounts } from './threadReplyCounts';
 import { relistThreadsAfterGaps } from './threadListGaps';
@@ -88,6 +89,7 @@ export const startClient = async (
   if (mx instanceof MatrixClient && !countedClients.has(mx)) {
     countedClients.add(mx);
     keepBundledEditsInTheirRoom(mx);
+    keepNewerEditsOnMappedCopies(mx);
     keepThreadReplyCounts(mx);
     keepUnopenedThreadEditsShown(mx);
     keepStreamingRepliesChecked(mx);
