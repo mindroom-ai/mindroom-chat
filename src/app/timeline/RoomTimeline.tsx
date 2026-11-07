@@ -820,10 +820,15 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const { virtualizer } = ledger;
   const virtualizerRef = useLatestRef(virtualizer);
   // How far the list still reaches below its newest row (`listShrinkNotRendered`).
-  const { virtualInnerRef } = ledger;
+  const { virtualInnerRef, readRowFoldPx } = ledger;
   const pendingListShrinkPx = useCallback(
-    () => listShrinkNotRendered(virtualInnerRef.current, virtualizerRef.current.measurementsCache),
-    [virtualInnerRef, virtualizerRef]
+    () =>
+      listShrinkNotRendered(
+        virtualInnerRef.current,
+        virtualizerRef.current.measurementsCache,
+        readRowFoldPx()
+      ),
+    [readRowFoldPx, virtualInnerRef, virtualizerRef]
   );
   // virtual-core corrects the scroll position in its ResizeObserver callback, and the ledger renders
   // the moved rows before the paint, inside the browser's ResizeObserver loop. That render keeps the
