@@ -4,7 +4,6 @@ import {
   ThreadEvent,
   type MatrixClient,
   type MatrixEvent,
-  type Room,
   type Thread,
 } from 'matrix-js-sdk';
 import { getLatestEdit } from '../room';
@@ -215,12 +214,3 @@ export const keepUnopenedThreadEditsShown = (mx: MatrixClient): (() => void) => 
     watcher.stop();
   };
 };
-
-/**
- * The unopened thread of `room` whose waiting edits hold `edit`. These edits reach no timeline, so
- * whoever saves the timelines' events must take them from here.
- */
-export const unopenedThreadHoldingEdit = (room: Room, edit: MatrixEvent): Thread | undefined =>
-  room
-    .getThreads()
-    .find((thread) => !thread.initialEventsFetched && !!thread.replayEvents?.includes(edit));
