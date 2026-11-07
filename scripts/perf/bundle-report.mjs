@@ -127,10 +127,17 @@ console.log(`all JS: ${kb(summary.allJs.raw)} raw in ${summary.allJs.files} file
 // hashes change even between two builds of one commit), sorted by name so two reports diff line by
 // line. The manifest of `vite build --manifest` names a chunk by its source module, with the path
 // cut back to node_modules/ where the install sits outside the project, else by its chunk name.
+// `?worker` bundles are built apart and stay out of the manifest: they go by their file name
+// without the hash.
 const manifestFile = path.join(dist, '.vite', 'manifest.json');
 if (existsSync(manifestFile)) {
   const byFile = new Map(rows.map((row) => [row.file, row]));
-  const chunks = Object.values(JSON.parse(readFileSync(manifestFile, 'utf8')))
+  const manifest = Object.values(JSON.parse(readFileSync(manifestFile, 'utf8')));
+  const recorded = new Set(manifest.map((chunk) => chunk.file));
+  const workers = rows
+    .filter((row) => row.file.endsWith('.js') && !recorded.has(row.file))
+    .map((row) => ({ ...row, file: row.file.replace(/^assets\/(.+)-[\w-]{8}\.js$/, '$1') }));
+  const chunks = manifest
     .filter((chunk) => chunk.file.endsWith('.js'))
     .map((chunk) => {
       const files = [chunk.file, ...(chunk.css ?? [])].map((file) => byFile.get(file));
@@ -142,6 +149,7 @@ if (existsSync(manifestFile)) {
         brotli: sum(files, 'brotli'),
       };
     })
+    .concat(workers)
     .sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
   console.log(
     `\nEvery chunk with its style sheets, by name; those not marked initial load on demand:`
