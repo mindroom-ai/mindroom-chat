@@ -7,7 +7,8 @@ import { config } from 'folds';
 // At the foot of the room list, over its last rows, inside the list's resizable panel. Its notice
 // keeps the width of the list's content (ResizablePanel's --mr-panel-content-width) at the end
 // edge, and the place clips it at the panel's sides, so while the list opens, closes or is dragged
-// narrow the notice slides with the list instead of squeezing.
+// narrow the notice slides with the list instead of squeezing. No inline padding, so the place is
+// never wider than the panel; the notice keeps its own distance from the sides.
 export const ListSlot = style({
   position: 'absolute',
   zIndex: 1,
@@ -15,7 +16,6 @@ export const ListSlot = style({
   insetBlockEnd: 0,
   display: 'flex',
   justifyContent: 'flex-end',
-  paddingInline: config.space.S200,
   paddingBlockStart: config.space.S300,
   paddingBlockEnd: `calc(env(safe-area-inset-bottom, 0px) + ${config.space.S300})`,
   overflowX: 'clip',

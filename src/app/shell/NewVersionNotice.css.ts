@@ -57,6 +57,7 @@ export const Card = recipe({
         ...motionFrom(enterFromBelow, leaveDownward),
         flexShrink: 0,
         inlineSize: `calc(var(--mr-panel-content-width, 100%) - 2 * ${config.space.S200})`,
+        marginInline: config.space.S200,
         display: 'grid',
         gridTemplateColumns: 'auto minmax(0, 1fr) auto',
         gridTemplateAreas: '"mark text dismiss" ". action action"',
