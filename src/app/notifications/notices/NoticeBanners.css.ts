@@ -4,6 +4,8 @@ import { color, config, toRem } from 'folds';
 
 // In normal flow above the app, so the layout below shrinks instead of being covered.
 export const NoticeStack = style({
+  // Positioned, so it paints above the fixed particle background that comes before it in the page.
+  position: 'relative',
   display: 'flex',
   flexDirection: 'column',
   flexShrink: 0,
