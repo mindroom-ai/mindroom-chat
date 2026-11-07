@@ -1,8 +1,9 @@
+import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizePath, searchForWorkspaceRoot } from 'vite';
 import { defineConfig } from 'vitest/config';
-import { CLIENT_SDK_ALIAS, readClientPlugins } from './scripts/client-plugins.mjs';
+import { CLIENT_SDK_ALIAS, SHARED_PACKAGES, readClientPlugins } from './scripts/client-plugins.mjs';
 
 // Unit tests run without the vanilla-extract plugin: tests mock `*.css.ts` modules
 // (see src/test/vitest.setup.ts) or load them under one file scope (src/test/vitest.styles.setup.ts), so
@@ -11,11 +12,12 @@ import { CLIENT_SDK_ALIAS, readClientPlugins } from './scripts/client-plugins.mj
 // and tests that read files through `new URL(..., import.meta.url)` break under jsdom's URL.
 
 // The tests of the client plugins MINDROOM_CLIENT_PLUGINS lists run with the app's, with its setup
-// files and, as in the build, its React and automatic JSX. `src/**` already holds the tests of a
-// plugin inside src/, such as the example plugin.
-const SRC = fileURLToPath(new URL('src', import.meta.url));
+// files and, as in the build, automatic JSX and the app's copies of the packages it shares with
+// plugins. `src/**` already holds the tests of a plugin inside src/, such as the example plugin.
+// Real paths, as module ids are.
+const SRC = realpathSync(fileURLToPath(new URL('src', import.meta.url)));
 const pluginDirs = readClientPlugins(process.env.MINDROOM_CLIENT_PLUGINS)
-  .map(({ dir }) => dir)
+  .map(({ dir }) => normalizePath(realpathSync(dir)))
   .filter((dir) => path.relative(SRC, dir).startsWith('..'));
 
 export default defineConfig({
@@ -28,16 +30,22 @@ export default defineConfig({
         new URL('src/client-sdk/testing.ts', import.meta.url)
       ),
     },
-    dedupe: ['react', 'react-dom'],
+    dedupe: SHARED_PACKAGES,
   },
   esbuild: { jsx: 'automatic' },
   server: { fs: { allow: [searchForWorkspaceRoot(process.cwd()), ...pluginDirs] } },
   test: {
     environment: 'node',
-    include: [
-      'src/**/*.test.{ts,tsx}',
-      ...pluginDirs.map((dir) => `${normalizePath(dir)}/**/*.test.{ts,tsx}`),
-    ],
+    include: ['src/**/*.test.{ts,tsx}', ...pluginDirs.map((dir) => `${dir}/**/*.test.{ts,tsx}`)],
+    // Vite, not Node, loads the packages a plugin installed, so that their imports of the shared
+    // packages resolve to the app's copies too; a CommonJS `require` still resolves in its directory.
+    server: {
+      deps: {
+        inline: pluginDirs.map(
+          (dir) => new RegExp(`^${dir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/node_modules/`)
+        ),
+      },
+    },
     setupFiles: [
       './src/test/vitest.styles.setup.ts',
       './src/test/vitest.setup.ts',
