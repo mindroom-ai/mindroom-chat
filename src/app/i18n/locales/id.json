@@ -1272,7 +1272,7 @@
       "matchingUsers_other": "{{count}} pengguna cocok"
     },
     "mindRoomSplashScreen": {
-      "loading": "Memuat MindRoom Chat"
+      "loading": "Memuat {{appName}}"
     },
     "commands": {
       "CommandMe": "Kirim pesan tindakan",
