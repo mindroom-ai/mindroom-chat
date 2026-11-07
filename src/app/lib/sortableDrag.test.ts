@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnimateLayoutChanges } from '@dnd-kit/sortable';
 import {
   animateSortableLayoutDuringDrag,
@@ -46,26 +46,70 @@ describe('animateSortableLayoutDuringDrag', () => {
 });
 
 describe('suppressNextClickDefaultAfterPointerDrag', () => {
-  it('suppresses the next native click after a pointer drag ends', () => {
+  // A press on a button starts the drag, the way the drag library passes its activator event on.
+  const startDrag = (type: 'mousedown' | 'touchstart' = 'mousedown') => {
     const button = document.createElement('button');
     document.body.append(button);
-
-    button.addEventListener('mousedown', suppressNextClickDefaultAfterPointerDrag);
-    button.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-
+    button.addEventListener(type, suppressNextClickDefaultAfterPointerDrag);
+    button.dispatchEvent(new MouseEvent(type, { bubbles: true }));
+  };
+  const release = (type: string) => {
+    document.body.dispatchEvent(new MouseEvent(type, { bubbles: true }));
+  };
+  const clickActs = () => {
     const click = new MouseEvent('click', { bubbles: true, cancelable: true });
-    document.dispatchEvent(click);
+    document.body.dispatchEvent(click);
+    return !click.defaultPrevented;
+  };
 
-    expect(click.defaultPrevented).toBe(true);
-    button.remove();
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.runAllTimers();
+    vi.useRealTimers();
+    document.body.replaceChildren();
+  });
+
+  it('keeps the click that ends a pointer drag from acting', () => {
+    startDrag();
+    release('mouseup');
+
+    expect(clickActs()).toBe(false);
+  });
+
+  it('keeps the drop from acting however long the drag lasts', () => {
+    startDrag();
+    vi.advanceTimersByTime(2_000);
+    release('mouseup');
+
+    expect(clickActs()).toBe(false);
+  });
+
+  it('keeps every click from acting until the drag library lets clicks through, 50 ms after the release', () => {
+    startDrag();
+    release('mouseup');
+
+    expect(clickActs()).toBe(false);
+    expect(clickActs()).toBe(false);
+    vi.advanceTimersByTime(50);
+    expect(clickActs()).toBe(true);
+  });
+
+  it('ends with the release of the press that started the drag', () => {
+    startDrag('touchstart');
+    release('mouseup');
+    vi.advanceTimersByTime(50);
+    expect(clickActs()).toBe(false);
+
+    release('touchend');
+    vi.advanceTimersByTime(50);
+    expect(clickActs()).toBe(true);
   });
 
   it('does not suppress clicks after keyboard drag activators', () => {
     suppressNextClickDefaultAfterPointerDrag(new KeyboardEvent('keydown', { key: ' ' }));
 
-    const click = new MouseEvent('click', { bubbles: true, cancelable: true });
-    document.dispatchEvent(click);
-
-    expect(click.defaultPrevented).toBe(false);
+    expect(clickActs()).toBe(true);
   });
 });

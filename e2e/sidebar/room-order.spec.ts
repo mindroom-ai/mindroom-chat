@@ -180,6 +180,42 @@ test('a room dragged above another keeps its place after a reload and on a secon
   await expect.poll(() => savedLists(account)).toEqual({});
 });
 
+test('a room dragged slowly moves without opening it or reloading the page', async ({ page }) => {
+  test.setTimeout(120_000);
+  const account = await registerAndLogin('slow');
+  const alder = await createRoom(HOMESERVER, account.accessToken, { name: 'Alder' });
+  const birch = await createRoom(HOMESERVER, account.accessToken, { name: 'Birch' });
+  const cedar = await createRoom(HOMESERVER, account.accessToken, { name: 'Cedar' });
+
+  await signIn(page, account);
+  await expect
+    .poll(() => rowOrder(page, 'Home'), { timeout: 30_000 })
+    .toEqual([alder, birch, cedar]);
+  // A mark on this document, which a reload would drop.
+  await page.evaluate(() => {
+    document.body.dataset.beforeDrag = 'yes';
+  });
+
+  // A person's drag of Cedar onto Alder: two seconds from the press to the drop.
+  const start = (await row(page, 'Home', cedar).boundingBox())!;
+  const target = (await row(page, 'Home', alder).boundingBox())!;
+  const x = start.x + start.width / 2;
+  const fromY = start.y + start.height / 2;
+  const toY = target.y + target.height * 0.1;
+  await page.mouse.move(x, fromY);
+  await page.mouse.down();
+  for (let step = 1; step <= 20; step += 1) {
+    await page.mouse.move(x, fromY + ((toY - fromY) * step) / 20);
+    await page.waitForTimeout(100);
+  }
+  await page.mouse.up();
+
+  await expect.poll(() => rowOrder(page, 'Home')).toEqual([cedar, alder, birch]);
+  await expect.poll(() => savedLists(account)).toEqual({ home: [cedar, alder, birch] });
+  await expect(page.locator('body')).toHaveAttribute('data-before-drag', 'yes');
+  await expect(page).not.toHaveURL(new RegExp(encodeURIComponent(cedar)));
+});
+
 test("a space's rooms and the rail's spaces move by drag and drop", async ({ page }) => {
   test.setTimeout(240_000);
   const account = await registerAndLogin('space');
