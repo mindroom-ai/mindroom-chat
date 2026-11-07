@@ -130,6 +130,8 @@ vi.mock('focus-trap-react', () => ({
 vi.mock('../../ui/panels/ResizablePanel.css', () => ({ Panel: 'panel', Handle: 'handle' }));
 vi.mock('../../members/ResizableMembersPanel.css', () => ({ MobileOverlay: 'mobile-overlay' }));
 vi.mock('../../ui/panels/SidePanel.css', () => ({ Panel: 'panel', Header: 'header' }));
+vi.mock('../../members/PhoneMembersSheet.css', () => ({ Layer: 'layer', Scrim: 'scrim', Panel: 'panel' }));
+vi.mock('../../lib/openOverlay', () => ({ hasOpenOverlay: () => false }));
 
 vi.mock('is-hotkey', () => ({
   isKeyHotkey: vi.fn(() => false),

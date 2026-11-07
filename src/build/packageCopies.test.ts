@@ -99,3 +99,23 @@ describe('onePackageCopyPerVersion', () => {
     expect(() => endBuild(modules, undefined, [at('plugins/other')])).toThrow(/shared@1\.0\.0/);
   });
 });
+
+describe('a client plugin', () => {
+  it('fails the build, naming the plugin and the package, when it bundles its own copy of a package the app shares', () => {
+    // An npm alias ("jotai-copy": "npm:jotai@2.6.0") installs jotai under another name.
+    install({ 'plugins/example/node_modules/jotai-copy': ['jotai', '2.6.0'] });
+    const modules = { [at('plugins/example/node_modules/jotai-copy/esm/index.mjs')]: true };
+    expect(() => endBuild(modules, undefined, [at('plugins/example')])).toThrow(
+      `jotai: ${path.relative(
+        process.cwd(),
+        at('plugins/example/node_modules/jotai-copy')
+      )} (client plugin ${at('plugins/example')})`
+    );
+  });
+
+  it("leaves out shared packages outside the plugin's node_modules, such as the app's in a plugin directory that holds it", () => {
+    install({ 'plugins/acme/client/node_modules/jotai': ['jotai', '2.6.0'] });
+    const modules = { [at('plugins/acme/client/node_modules/jotai/esm/index.mjs')]: true };
+    expect(() => endBuild(modules, undefined, [at('plugins/acme')])).not.toThrow();
+  });
+});

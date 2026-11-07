@@ -261,9 +261,14 @@ class CommandLineTests(unittest.TestCase):
         self.addCleanup(signal.signal, signal.SIGTERM, signal.getsignal(signal.SIGTERM))
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        patcher = mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": directory.name})
+        # A real model or plugin directories that the shell running the tests sets stay out of them.
+        environment = {"E2E_AGENT_STACK_ROOT": directory.name, "E2E_AGENT_MODEL": "", "E2E_PLUGIN_DIRS": ""}
+        patcher = mock.patch.dict(os.environ, environment)
         patcher.start()
         self.addCleanup(patcher.stop)
+        self.slot_dir = Path(directory.name) / "slot-7"
+        # The usual umask, which lets other users read what a process writes; the tests after these get theirs back.
+        self.addCleanup(os.umask, os.umask(0o022))
 
     def main(self, *argv: str) -> object:
         with (
@@ -285,6 +290,65 @@ class CommandLineTests(unittest.TestCase):
         with mock.patch.object(stack, "up", return_value={}) as up:
             self.assertEqual(self.main("5", "up", "--computers"), 0)
         self.assertTrue(up.call_args.args[1].client_sessions)
+
+    def mode(self, path: Path) -> int:
+        return path.stat().st_mode & 0o777
+
+    def found_homeserver_and_checkout(self) -> contextlib.ExitStack:
+        patches = contextlib.ExitStack()
+        patches.enter_context(mock.patch.object(stack, "resolve_checkout", return_value=Path("/mindroom")))
+        patches.enter_context(mock.patch.object(stack, "resolve_commit", return_value="a" * 40))
+        patches.enter_context(mock.patch.object(stack, "http_json", return_value=(200, {})))
+        return patches
+
+    def starting(self) -> contextlib.ExitStack:
+        """A start whose processes never run but whose every wait finds the backend's accounts and rooms."""
+        accounts = {
+            f"agent_{name}": {"username": f"mindroom_{name}", "domain": "matrix.localhost", "access_token": "token"}
+            for name in ("router", "helper", "scout")
+        }
+        backend_state = {"rooms": {"lobby": {"room_id": "!lobby"}}, "space_room_id": "!space", "accounts": accounts}
+        patches = self.found_homeserver_and_checkout()
+        patches.enter_context(mock.patch.object(stack, "prepare_source", return_value=Path("/mindroom-source")))
+        account = {"user_id": TESTER, "access_token": "tester-token"}
+        self.register = patches.enter_context(mock.patch.object(stack, "register", return_value=account))
+        patches.enter_context(mock.patch.object(stack, "matrix", return_value=(200, {})))
+        patches.enter_context(mock.patch.object(stack, "start_process", return_value=0))
+        patches.enter_context(mock.patch.object(stack, "wait_until", return_value=backend_state))
+        return patches
+
+    def test_a_new_slot_without_keys_and_its_files_are_the_owners_only(self) -> None:
+        with self.starting():
+            self.assertEqual(self.main("7", "up"), 0)
+        self.assertEqual(self.mode(self.slot_dir), 0o700)
+        for name in ("state.json", ".env", "config.yaml"):
+            self.assertEqual(self.mode(self.slot_dir / name), 0o600, name)
+
+    def test_each_start_signs_the_test_account_up_with_a_password_of_its_own(self) -> None:
+        passwords = []
+        for _ in range(2):
+            # The second start finds the first one's processes gone, so it starts again.
+            with self.starting():
+                self.assertEqual(self.main("7", "up"), 0)
+            password = self.register.call_args.args[2]
+            self.assertEqual(stack.read_state(self.slot_dir)["tester"]["password"], password)
+            passwords.append(password)
+        self.assertGreaterEqual(len(passwords[0]), 32)
+        self.assertNotEqual(passwords[0], passwords[1])
+
+    def test_a_slot_an_older_start_left_readable_becomes_the_owners_only(self) -> None:
+        self.slot_dir.mkdir()
+        (self.slot_dir / "state.json").write_text("{}")
+        for command in ("up", "status"):
+            self.slot_dir.chmod(0o755)
+            with (
+                self.found_homeserver_and_checkout(),
+                mock.patch.object(stack, "running", return_value=True),
+                mock.patch.object(stack, "started_with", return_value=True),
+                mock.patch.object(stack, "token_is_valid", return_value=True),
+            ):
+                self.assertEqual(self.main("7", command), 0, command)
+            self.assertEqual(self.mode(self.slot_dir), 0o700, command)
 
 
 class SlotTests(unittest.TestCase):

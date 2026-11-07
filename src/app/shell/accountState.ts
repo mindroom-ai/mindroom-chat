@@ -28,6 +28,8 @@ import {
   phoneNavDrawerOpenAtom,
   phoneNavSectionRootAtom,
   phoneNavSlotAtom,
+  phoneSheetOpenAtom,
+  phoneSheetSlotAtom,
 } from '../navigation/phoneNavDrawer';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import { allInvitesAtom } from '../matrix/state/inviteList';
@@ -102,6 +104,8 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(phoneNavDrawerOpenAtom),
   toInitial(phoneNavSlotAtom),
   toInitial(phoneNavSectionRootAtom),
+  toInitial(phoneSheetSlotAtom),
+  toInitial(phoneSheetOpenAtom),
 ];
 
 /** Forgets everything {@link ACCOUNT_STATE} lists. */

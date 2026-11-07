@@ -5,7 +5,9 @@ import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ResizablePanel } from '../ui/panels/ResizablePanel';
+import { usePanelForm } from '../ui/panels/panelPresence';
 import { useMembersOverlay } from './PanelRow';
+import { PhoneMembersSheet, usePhoneSheetSlot } from './PhoneMembersSheet';
 import * as css from './ResizableMembersPanel.css';
 
 export function ResizableMembersPanel({
@@ -19,7 +21,9 @@ export function ResizableMembersPanel({
   const userId = useMatrixClient().getSafeUserId();
   // A room too narrow for the panel beside it shows it over the room, as a phone does.
   const overlay = useMembersOverlay();
-  const mobile = useScreenSizeContext() === ScreenSize.Mobile || overlay;
+  // A closing panel keeps its form: one that closes as the window narrows never opens over the room.
+  const mobile = usePanelForm(useScreenSizeContext() === ScreenSize.Mobile || overlay);
+  const phoneSheetSlot = usePhoneSheetSlot();
   const panel = (
     <ResizablePanel
       side="end"
@@ -36,6 +40,14 @@ export function ResizableMembersPanel({
   );
 
   if (!mobile) return panel;
+  // A phone slides the members in below its top bar, as its navigation drawer.
+  if (phoneSheetSlot) {
+    return (
+      <PhoneMembersSheet slot={phoneSheetSlot} onClose={onClose}>
+        {children}
+      </PhoneMembersSheet>
+    );
+  }
 
   return (
     <Overlay open backdrop={<OverlayBackdrop onClick={onClose} />}>
