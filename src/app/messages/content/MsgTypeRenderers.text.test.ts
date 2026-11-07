@@ -2,7 +2,7 @@ import React from 'react';
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MsgType } from 'matrix-js-sdk';
-import { MEmote, MText } from './MsgTypeRenderers';
+import { MEmote, MNotice, MText } from './MsgTypeRenderers';
 
 vi.mock('./FallbackContent', () => ({
   MessageBadEncryptedContent: () => null,
@@ -56,6 +56,33 @@ describe('text message body', () => {
     expect(
       bodyWhiteSpace({ body: 'one\ntwo', format: 'org.matrix.custom.html', formatted_body: '' })
     ).toBe('pre-wrap');
+  });
+});
+
+describe('notices', () => {
+  it('read quieter than text, and a notice that becomes text keeps its body and its state', () => {
+    // An agent reply streams as a notice and its last edit makes it text.
+    expect(MNotice).toBe(MText);
+    const Body = ({ body }: { body: string }) => {
+      const [opened] = React.useState(() => ({ body }));
+      return React.createElement('span', { 'data-first-body': opened.body }, body);
+    };
+    const message = (msgtype: MsgType, body: string) =>
+      React.createElement(msgtype === MsgType.Notice ? MNotice : MText, {
+        content: { msgtype, body },
+        renderBody: ({ body: text }) => React.createElement(Body, { body: text }),
+      });
+    const priority = (renderer: ReturnType<typeof create>) =>
+      renderer.root.find(
+        (node) => typeof node.type === 'string' && node.props['data-body-direction'] !== undefined
+      ).props.priority;
+    const renderer = create(message(MsgType.Notice, 'Working on it'));
+    expect(priority(renderer)).toBe('300');
+
+    renderer.update(message(MsgType.Text, 'Done'));
+    expect(priority(renderer)).toBe('400');
+    expect(renderer.root.findByType('span').props['data-first-body']).toBe('Working on it');
+    renderer.unmount();
   });
 });
 
