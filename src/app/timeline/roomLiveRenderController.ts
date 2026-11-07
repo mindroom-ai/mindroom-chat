@@ -192,7 +192,8 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     threadResolutionMap,
     unreadInfo,
   } = options;
-  // Automatic read receipts wait while the window has no focus or a phone's drawer covers the room.
+  // Automatic read receipts wait while the window has no focus, or a phone's drawer or a plugin's
+  // cover hides the room.
   const readerSees = useReaderSees();
 
   // A reply decrypted after the reader left its thread was not watched there.
