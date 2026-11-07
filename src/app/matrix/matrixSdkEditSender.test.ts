@@ -1,4 +1,11 @@
-import { createClient, MatrixEvent, Room, type IEvent } from 'matrix-js-sdk';
+import {
+  createClient,
+  EventStatus,
+  MatrixEvent,
+  PendingEventOrdering,
+  Room,
+  type IEvent,
+} from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 
 // Only a message's sender can edit it (Matrix specification, "Event replacements"). The SDK's own
@@ -171,6 +178,25 @@ describe('SDK edits older than the sender’s bundled edit', () => {
         content: { redacts: '$newest-edit' },
       })
     );
+
+    expect(event.replacingEvent()).toBeNull();
+  });
+
+  it('drops a pending edit of the sender once it is cancelled', async () => {
+    const room = new Room(ROOM, client, AUTHOR, {
+      timelineSupport: true,
+      pendingEventOrdering: PendingEventOrdering.Detached,
+    });
+    await room.addLiveEvents([new MatrixEvent(original())], { addToState: false });
+    const event = room.findEventById('$message')!;
+    const pending = new MatrixEvent({ ...ownEdit(), event_id: '~pending-edit' });
+    pending.setStatus(EventStatus.NOT_SENT);
+    room.addPendingEvent(pending, 'txn');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(body(event)).toBe('The forklift is at the dock.');
+
+    room.updatePendingEvent(pending, EventStatus.CANCELLED);
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(event.replacingEvent()).toBeNull();
   });
