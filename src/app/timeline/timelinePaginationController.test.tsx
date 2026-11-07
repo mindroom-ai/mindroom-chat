@@ -11,17 +11,17 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { decryptAllTimelineEvent } from '../matrix/room';
 import type { RecalibrateFilterOpts, Timeline } from '../event-store/timeline/timelinePagination';
-import { paginateRoomKeepingReplies } from '../event-store/sdk/roomHistoryPageSdk';
+import { paginateRoomHistory } from '../event-store/sdk/roomHistoryPageSdk';
 import { useEventTimelineLoader, useTimelinePagination } from './timelinePaginationController';
 
 vi.mock('../matrix/room', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../matrix/room')>()),
   decryptAllTimelineEvent: vi.fn(),
 }));
-// The Classic view's pages keep their thread replies (roomHistoryPageSdk has its own tests).
-// Here such a page is the SDK's page, so the fake timelines take its events the same way.
+// Pages of the room's own history go through roomHistoryPageSdk, which has its own tests. Here
+// such a page is the SDK's page, so the fake timelines take its events the same way.
 vi.mock('../event-store/sdk/roomHistoryPageSdk', () => ({
-  paginateRoomKeepingReplies: vi.fn(
+  paginateRoomHistory: vi.fn(
     (mx: MatrixClient, _room: Room, edge: EventTimeline, backwards: boolean, limit: number) =>
       mx.paginateEventTimeline(edge, { backwards, limit })
   ),
@@ -609,7 +609,7 @@ describe('useEventTimelineLoader', () => {
     await act(() => view.load('$create'));
 
     // The Classic view's pages keep their thread replies.
-    expect(paginateRoomKeepingReplies).toHaveBeenCalledWith(client, room, sdk(holder), true, 200);
+    expect(paginateRoomHistory).toHaveBeenCalledWith(client, room, sdk(holder), true, 200, true);
     expect(paginateEventTimeline).toHaveBeenCalledWith(sdk(holder), {
       backwards: true,
       limit: 200,
