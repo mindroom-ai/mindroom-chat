@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import {
   getHomeserver,
@@ -126,6 +127,30 @@ test('following glass appears only while another reader follows the latest messa
         })
       );
     });
+    await page.addInitScript(() => {
+      const w = window as unknown as { __ltfpLog?: unknown[] };
+      const log = (entry: Record<string, unknown>) =>
+        (w.__ltfpLog ??= []).push({ t: Math.round(performance.now()), ...entry });
+      const desc = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop')!;
+      Object.defineProperty(Element.prototype, 'scrollTop', {
+        configurable: true,
+        get() {
+          return desc.get!.call(this);
+        },
+        set(value: number) {
+          const before = desc.get!.call(this) as number;
+          desc.set!.call(this, value);
+          if (this.querySelector?.('[data-testid="room-virtual-inner"]'))
+            log({ k: 'write', from: before, to: value, now: desc.get!.call(this), stack: new Error().stack?.split('\n').slice(2, 6).join(' | ') });
+        },
+      });
+      const original = Element.prototype.scrollTo as (...args: unknown[]) => void;
+      (Element.prototype as unknown as Record<string, unknown>).scrollTo = function wrapped(this: Element, ...args: unknown[]) {
+        if (this.querySelector?.('[data-testid="room-virtual-inner"]'))
+          log({ k: 'scrollTo', args: JSON.stringify(args), stack: new Error().stack?.split('\n').slice(2, 6).join(' | ') });
+        return original.apply(this, args);
+      };
+    });
     await loginWithPassword(page, { homeserver, ...primary });
     const roomPath = `/home/${encodeURIComponent(roomId)}`;
     await seedRoomOverviewState({ page, roomId, userId: author.userId, viewMode: 'classic' });
@@ -151,8 +176,16 @@ test('following glass appears only while another reader follows the latest messa
         )
       )
       .toBeLessThan(2);
+    await page.evaluate(() => {
+      (window as unknown as { __ltfpLog?: unknown[] }).__ltfpLog = [{ k: 'mark', t: Math.round(performance.now()) }];
+    });
     await page.mouse.move(195, 400);
     await page.mouse.wheel(0, -180);
+    await page.waitForTimeout(3000);
+    writeFileSync(
+      testInfo.outputPath('ledger-wheel.json'),
+      JSON.stringify(await page.evaluate(() => (window as unknown as { __ltfpLog?: unknown[] }).__ltfpLog ?? []))
+    );
     await expect
       .poll(() =>
         scroll.evaluate(

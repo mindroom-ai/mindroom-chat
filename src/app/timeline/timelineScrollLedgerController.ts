@@ -274,6 +274,23 @@ export const useTimelineScrollLedgerController = ({
       roomLedgerFoldPx;
 
   useLayoutEffect(() => {
+    if (!threadId) {
+      const se = getScrollElement();
+      const inner = virtualInnerRef.current;
+      ltfpLog({
+        k: 'rplan',
+        n: itemCount,
+        roomFold: roomFoldPxAtRender,
+        roomLedgerFold: roomLedgerFoldPx,
+        lead: threadLeadingFoldPx,
+        comp: scrollCompensationPxRef.current,
+        ledger: ledgerPxAtRender,
+        innerH: inner?.style.height,
+        margin: inner?.style.marginTop,
+        st: se?.scrollTop,
+        sh: se?.scrollHeight,
+      });
+    }
     if (threadId) {
       const se = getScrollElement();
       const a = threadLedgerAnchorRef.current;
