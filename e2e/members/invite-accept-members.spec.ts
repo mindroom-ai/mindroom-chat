@@ -96,10 +96,13 @@ const acceptFromInbox = async (page: Page, roomLabel: string) => {
   await page.goto('/inbox/invites/');
   const card = page.locator('[data-invite-room-id]').filter({ hasText: roomLabel });
   await card.first().getByRole('button', { name: 'Accept', exact: true }).click({ timeout: 30_000 });
+  await expect(card).toHaveCount(0, { timeout: 30_000 });
 };
 
-const openRoom = async (page: Page, name: string | RegExp) => {
-  await page.getByRole('link', { name }).first().click();
+/** Opens the room from the rail's section and its room list, without loading the page again. */
+const openRoom = async (page: Page, section: 'Home' | 'Direct Messages', name: RegExp) => {
+  await page.getByRole('button', { name: section, exact: true }).first().click();
+  await page.getByRole('link', { name }).first().click({ timeout: 30_000 });
 };
 
 const acceptedFromInbox = async (page: Page, browserName: string) => {
@@ -109,7 +112,7 @@ const acceptedFromInbox = async (page: Page, browserName: string) => {
   await inviteGuest(people, roomName, body);
   await signIn(page, people.guest);
   await acceptFromInbox(page, roomName);
-  await openRoom(page, new RegExp(roomName));
+  await openRoom(page, 'Home', new RegExp(roomName));
   await expectHostKnown(page, people, body);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/inbox-accept-${browserName}.png` });
   await page.reload();
@@ -123,7 +126,7 @@ const acceptedOnInvitePage = async (page: Page, browserName: string) => {
   const roomId = await inviteGuest(people, roomName, body);
   await signIn(page, people.guest);
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
-  await page.getByRole('button', { name: /^(Join|Accept)$/ }).first().click();
+  await page.getByRole('button', { name: /^(Join|Accept)$/ }).first().click({ timeout: 30_000 });
   await expectHostKnown(page, people, body);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/invite-page-join-${browserName}.png` });
 };
@@ -134,10 +137,8 @@ const directChatNamedAfterHost = async (page: Page, browserName: string) => {
   await inviteGuest(people, undefined, body);
   await signIn(page, people.guest);
   await acceptFromInbox(page, HOST_NAME);
-  await expect(page.getByRole('button', { name: 'Accept', exact: true })).toHaveCount(0);
   // The direct chat is listed and titled with the host's name, never their Matrix ID.
-  await page.goto('/direct/');
-  await openRoom(page, new RegExp(HOST_NAME));
+  await openRoom(page, 'Direct Messages', new RegExp(HOST_NAME));
   await expectHostKnown(page, people, body);
   await expect(page.getByText(people.host.userId, { exact: true })).toHaveCount(0);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/direct-accept-${browserName}.png` });
