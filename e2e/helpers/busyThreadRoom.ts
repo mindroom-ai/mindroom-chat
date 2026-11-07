@@ -633,10 +633,13 @@ export const instrumentScrolling = () => {
         const median = ds[Math.floor(ds.length / 2)] ?? 0;
         // Rows that moved apart: something on screen changed its size or was put between them.
         const spread = Math.max(...ds.map((d) => Math.abs(d - median)));
-        // Rows that moved together while the reader gave no input for a while.
+        // Rows that moved together while the reader gave no input for a while, other than by a
+        // scroll the browser made (a wheel's smooth scroll that ends late): the app wrote no
+        // offset and the rows moved by exactly as much as the list scrolled.
         const inputAge = now - state.lastInput;
         const quiet = inputAge > state.quietMs;
-        const quietMove = quiet ? Math.abs(median) : 0;
+        const browserScroll = appDelta === 0 && Math.abs(median + dScroll) < 2;
+        const quietMove = quiet && !browserScroll ? Math.abs(median) : 0;
         const px = Math.max(spread, quietMove);
         if (px >= 2) {
           state.moveFrames += 1;
