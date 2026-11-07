@@ -573,6 +573,7 @@ export const useTimelineScrollLedgerController = ({
   // guard interrupting momentum at the loaded window's edge.
   const settleScrollCompensation = useCallback(
     (cause: 'quiescence' | 'boundary') => {
+      ltfpLog({ k: 'settle', cause, px: scrollCompensationPxRef.current });
       const px = scrollCompensationPxRef.current;
       const inner = virtualInnerRef.current;
       const scrollElement = getScrollElement();

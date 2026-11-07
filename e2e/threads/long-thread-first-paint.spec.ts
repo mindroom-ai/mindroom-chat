@@ -240,6 +240,12 @@ const longThreadOpensAtItsNewestReplies = async (page: Page, browserName: string
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/long-thread-link-${browserName}.png` });
   const fromLink = await readFrames(page);
   writeFileSync(
+    test.info().outputPath(`ledger-link-${browserName}.json`),
+    JSON.stringify(
+      await page.evaluate(() => (window as unknown as { __ltfpLog?: unknown[] }).__ltfpLog ?? [])
+    )
+  );
+  writeFileSync(
     test.info().outputPath(`frames-link-${browserName}.json`),
     JSON.stringify(fromLink)
   );
