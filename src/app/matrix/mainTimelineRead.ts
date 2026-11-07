@@ -1,6 +1,6 @@
 import { ReceiptType, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { isSeenThreadRoot } from './seenThreadRoots';
-import { isConversationNotice } from './protocol/conversationNotice';
+import { isUnmarkedNotice } from './protocol/conversationNotice';
 import { hasActiveMindroomAgent } from './protocol/agentIdentity';
 
 /**
@@ -34,15 +34,12 @@ const answeredInThread = (room: Room, event: MatrixEvent, userId: string): boole
 };
 
 /**
- * Whether the thread lists that a room with a MindRoom agent shows leave out a notice: one
- * without replies that no agent marked as a conversation (`isConversationNotice`), such as an
- * agent's status line. A room without an agent shows its whole conversation, notices included.
+ * Whether the thread lists that a room with a MindRoom agent shows leave out a notice: an unmarked
+ * one (`isUnmarkedNotice`) without replies. A room without an agent shows its whole conversation,
+ * notices included.
  */
 const isUnlistedNotice = (room: Room, event: MatrixEvent): boolean =>
-  event.getContent().msgtype === 'm.notice' &&
-  !event.isThreadRoot &&
-  !isConversationNotice(event) &&
-  hasActiveMindroomAgent(room.getMembers());
+  isUnmarkedNotice(event) && !event.isThreadRoot && hasActiveMindroomAgent(room.getMembers());
 
 /**
  * Whether a message in the main timeline, such as a thread root, is unread for the user: someone

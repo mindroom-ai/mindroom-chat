@@ -9,6 +9,14 @@ import { getActiveSession } from '../session/sessions';
  * the key. Without an active account no notice counts. The content is the latest edit's, so an
  * agent keeps the mark in its edits' `m.new_content` too.
  */
-export const isConversationNotice = (event: MatrixEvent): boolean =>
+const isConversationNotice = (event: MatrixEvent): boolean =>
   event.getContent()['io.mindroom.conversation'] === true &&
   isMindroomAgentUserIdForViewer(event.getSender(), getActiveSession()?.userId);
+
+/**
+ * Whether the event is a notice no agent marked as the start of a conversation
+ * (`isConversationNotice`), such as an agent's status line: the thread lists show it only once its
+ * thread has replies.
+ */
+export const isUnmarkedNotice = (event: MatrixEvent): boolean =>
+  event.getContent()?.msgtype === 'm.notice' && !isConversationNotice(event);
