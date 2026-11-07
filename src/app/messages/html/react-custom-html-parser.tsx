@@ -44,6 +44,7 @@ import {
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { CheckedMessageLink } from '../../rich-text/CheckedMessageLink';
 import { stripBidiControls } from '../../rich-text/linkDestination';
+import { revealDirectionControls } from '../../ui/directional';
 import { containsSpoiler } from '../../rich-text/linkFaviconPolicy';
 import { copyToClipboard } from '../../lib/dom';
 import { getCanonicalAliasRoomId } from '../../matrix/matrix';
@@ -590,6 +591,17 @@ const stripLinkTextBidi = (nodes: ChildNode[]): void => {
   });
 };
 
+/**
+ * Writes out the bidirectional controls in code as code points, in the parsed tree, so a command
+ * shows, and copies, in the order it runs.
+ */
+const revealCodeBidi = (nodes: ChildNode[]): void => {
+  nodes.forEach((node) => {
+    if (isText(node)) node.data = revealDirectionControls(node.data);
+    else if (isTag(node)) revealCodeBidi(node.children);
+  });
+};
+
 const hasAncestor = (node: ChildNode, names: string[]): boolean => {
   for (let parent = node.parent; parent; parent = parent.parent) {
     if (isTag(parent) && names.includes(parent.name)) return true;
@@ -714,6 +726,7 @@ export const getReactCustomHtmlParser = (
             </ol>
           );
         case 'pre':
+          revealCodeBidi(children);
           return (
             <CodeBlock opts={parserOptions} highlightRegex={params.highlightRegex}>
               {children}
@@ -722,7 +735,10 @@ export const getReactCustomHtmlParser = (
         case 'code':
           return (
             <code {...props} className={classNames(css.Code, props.className)}>
-              {renderStyledText(textContent(children), params.highlightRegex)}
+              {renderStyledText(
+                revealDirectionControls(textContent(children)),
+                params.highlightRegex
+              )}
             </code>
           );
         case 'a': {

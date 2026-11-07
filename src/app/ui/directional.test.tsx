@@ -6,6 +6,7 @@ import {
   TooltipProvider,
   documentIsRightToLeft,
   mirrorPlacement,
+  revealDirectionControls,
   textDirection,
 } from './directional';
 
@@ -88,6 +89,31 @@ describe('textDirection', () => {
   it('has no direction for a text without letters', () => {
     expect(textDirection('')).toBeUndefined();
     expect(textDirection('👍 123 !?')).toBeUndefined();
+  });
+});
+
+describe('revealDirectionControls', () => {
+  it('writes out every embedding, override, isolate and mark as its code point', () => {
+    const controls = [
+      ...'\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069\u200E\u200F\u061C',
+    ];
+    expect(controls.map((control) => revealDirectionControls(control)).join(' ')).toBe(
+      '<U+202A> <U+202B> <U+202C> <U+202D> <U+202E> <U+2066> <U+2067> <U+2068> <U+2069> ' +
+        '<U+200E> <U+200F> <U+061C>'
+    );
+  });
+
+  it('shows an overridden command in the order it runs', () => {
+    expect(revealDirectionControls('echo hello \u202e; echo pwned #\u202c done')).toBe(
+      'echo hello <U+202E>; echo pwned #<U+202C> done'
+    );
+  });
+
+  it('keeps other text, right-to-left letters and joiners included, and is idempotent', () => {
+    const text = 'نسخ الملف config.yaml \u200d👩\u200d💻 שלום';
+    expect(revealDirectionControls(text)).toBe(text);
+    const shown = revealDirectionControls('a\u2067b\u2069c');
+    expect(revealDirectionControls(shown)).toBe(shown);
   });
 });
 
