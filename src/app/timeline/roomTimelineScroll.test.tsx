@@ -11,6 +11,7 @@ import type { EventTimeline } from 'matrix-js-sdk';
 import {
   heldListHeight,
   useGestureBottomPins,
+  useLatestPinAsked,
   useLatestRowPin,
   useRowsGeneration,
   useTimelineRowJumps,
@@ -725,6 +726,32 @@ describe('useRowsGeneration', () => {
     show([context]);
     show([context, live]);
     expect(counts).toEqual([0, 0, 1, 2, 2]);
+  });
+});
+
+describe('useLatestPinAsked', () => {
+  it('is true only in the render that a bottom pin asked for since the last commit', () => {
+    const asked: boolean[] = [];
+    const pins: { current: ScrollToBottomState } = { current: { count: 0, smooth: false } };
+    function Rows({ step }: { step: number }) {
+      asked.push(useLatestPinAsked(pins));
+      return step;
+    }
+    let renderer: ReactTestRenderer | undefined;
+    const show = (step: number) =>
+      act(() => {
+        if (renderer) renderer.update(createElement(Rows, { step }));
+        else renderer = create(createElement(Rows, { step }));
+      });
+
+    show(0);
+    show(1);
+    // Jump to Latest: the pin comes with the render of the newest rows.
+    pins.current = { count: 1, smooth: false };
+    show(2);
+    // The next render, a page or a measurement, asks for nothing new.
+    show(3);
+    expect(asked).toEqual([false, false, true, false]);
   });
 });
 
