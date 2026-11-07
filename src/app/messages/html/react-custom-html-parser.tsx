@@ -373,6 +373,16 @@ type CodeBlockProps = {
   highlightRegex?: RegExp;
 };
 
+/** Parser options that also show the direction controls of text as code points. */
+const revealingText = (opts: HTMLReactParserOptions): HTMLReactParserOptions => ({
+  ...opts,
+  replace: (node) => {
+    if (!isText(node)) return opts.replace?.(node);
+    const shown = revealDirectionControls(node.data);
+    return shown === node.data ? opts.replace?.(node) : <>{shown}</>;
+  },
+});
+
 /**
  * A fenced code block: a header with the language (as an icon when there is one) or the block's
  * `data-label`, and buttons to wrap lines, expand a long block and copy the code; then the code,
@@ -398,7 +408,9 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
     (language && getCodeBlockLanguageIconToken(language)) ||
     (labelExtension && getCodeBlockLanguageIconToken(labelExtension)) ||
     undefined;
-  const code = textContent(codeElement ? codeElement.children : children).replace(/\n$/, '');
+  // The block shows its direction controls as code points; Copy copies the code as it is.
+  const source = textContent(codeElement ? codeElement.children : children).replace(/\n$/, '');
+  const code = revealDirectionControls(source);
   const formatted = !codeElement && opts !== undefined && children.some((child) => isTag(child));
   const searchMatch = highlightRegex !== undefined && toGlobal(highlightRegex).test(code);
 
@@ -416,7 +428,7 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
   };
 
   const copy = async () => {
-    const done = await copyToClipboard(code);
+    const done = await copyToClipboard(source);
     setCopied(done);
     clearTimeout(copiedTimer.current);
     if (done) copiedTimer.current = setTimeout(() => setCopied(false), COPIED_FEEDBACK_MS);
@@ -431,7 +443,7 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
   if (formatted && opts) {
     body = (
       <code id={CODE_BLOCK_CONTENT_ID} className={css.CodeBlockInternal} style={codeStyle}>
-        {domToReact(children, opts)}
+        {domToReact(children, revealingText(opts))}
       </code>
     );
   } else if (searchMatch) {
@@ -591,17 +603,6 @@ const stripLinkTextBidi = (nodes: ChildNode[]): void => {
   });
 };
 
-/**
- * Writes out the bidirectional controls in code as code points, in the parsed tree, so a command
- * shows, and copies, in the order it runs.
- */
-const revealCodeBidi = (nodes: ChildNode[]): void => {
-  nodes.forEach((node) => {
-    if (isText(node)) node.data = revealDirectionControls(node.data);
-    else if (isTag(node)) revealCodeBidi(node.children);
-  });
-};
-
 const hasAncestor = (node: ChildNode, names: string[]): boolean => {
   for (let parent = node.parent; parent; parent = parent.parent) {
     if (isTag(parent) && names.includes(parent.name)) return true;
@@ -726,7 +727,6 @@ export const getReactCustomHtmlParser = (
             </ol>
           );
         case 'pre':
-          revealCodeBidi(children);
           return (
             <CodeBlock opts={parserOptions} highlightRegex={params.highlightRegex}>
               {children}
