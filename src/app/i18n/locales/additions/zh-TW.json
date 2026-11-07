@@ -535,6 +535,7 @@
     "cancelReply": "取消回覆",
     "moreActions": "更多操作",
     "lostFiles": "未隨此草稿保留：{{files}}。傳送前請重新附加。",
+    "lostPastes": "貼上的文字未隨此草稿保留。傳送前請重新貼上。",
     "dismissLostFiles": "關閉"
   },
   "commandPalette": {

@@ -545,6 +545,7 @@
     "cancelReply": "Cancel reply",
     "moreActions": "More actions",
     "lostFiles": "Not kept with this draft: {{files}}. Attach them again before sending.",
+    "lostPastes": "Pasted text was not kept with this draft. Paste it again before sending.",
     "dismissLostFiles": "Dismiss"
   },
   "commandPalette": {

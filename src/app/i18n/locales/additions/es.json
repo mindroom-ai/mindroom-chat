@@ -555,6 +555,7 @@
     "cancelReply": "Cancelar respuesta",
     "moreActions": "Más acciones",
     "lostFiles": "No se conservaron con este borrador: {{files}}. Vuelve a adjuntarlos antes de enviar.",
+    "lostPastes": "El texto pegado no se conservó con este borrador. Vuelve a pegarlo antes de enviar.",
     "dismissLostFiles": "Descartar"
   },
   "commandPalette": {

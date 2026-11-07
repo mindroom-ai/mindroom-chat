@@ -535,6 +535,7 @@
     "cancelReply": "답장 취소",
     "moreActions": "추가 작업",
     "lostFiles": "이 초안에 보관되지 않음: {{files}}. 보내기 전에 다시 첨부하세요.",
+    "lostPastes": "붙여넣은 텍스트가 이 초안에 보관되지 않았습니다. 보내기 전에 다시 붙여넣으세요.",
     "dismissLostFiles": "닫기"
   },
   "commandPalette": {

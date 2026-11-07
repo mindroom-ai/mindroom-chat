@@ -545,6 +545,7 @@
     "cancelReply": "Yanıtı iptal et",
     "moreActions": "Diğer işlemler",
     "lostFiles": "Bu taslakla saklanmadı: {{files}}. Göndermeden önce yeniden ekleyin.",
+    "lostPastes": "Yapıştırılan metin bu taslakla saklanmadı. Göndermeden önce yeniden yapıştırın.",
     "dismissLostFiles": "Kapat"
   },
   "commandPalette": {

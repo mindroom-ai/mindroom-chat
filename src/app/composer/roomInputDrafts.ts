@@ -1,7 +1,7 @@
 /**
- * Composer state per room and thread: the unsent message (kept in localStorage per account),
- * the message being replied to (kept there too), staged attachments (only their names are kept),
- * and a voice message whose send failed.
+ * Composer state per room and thread: the unsent message (kept in localStorage per account, the
+ * text of its large pastes in IndexedDB), the message being replied to (kept there too), staged
+ * attachments (only their names are kept), and a voice message whose send failed.
  */
 import { atom, type createStore, type WritableAtom } from 'jotai';
 import { atomFamily } from 'jotai/utils';
@@ -18,6 +18,7 @@ import {
 } from '../lib/safeLocalStorage';
 import { createUploadAtom, type TUploadAtom, type TUploadItem } from '../matrix/state/upload';
 import { isEncryptedRoomOf } from '../matrix/client/encryptedRoomTextOffDisk';
+import { clearKeptPastes } from './keptPastes';
 
 // TUploadItem is declared with the upload state; this seam keeps exporting it (seams.tsv).
 export type { TUploadItem } from '../matrix/state/upload';
@@ -146,11 +147,12 @@ const STAGED_FILES_STORAGE_PREFIX = 'roomInputStagedFiles:';
 const STORAGE_PREFIXES = [DRAFT_STORAGE_PREFIX, REPLY_STORAGE_PREFIX, STAGED_FILES_STORAGE_PREFIX];
 
 /**
- * Forgets every unsent message of an account, in storage and in memory, with the reply targets
- * and staged file names it kept.
+ * Forgets every unsent message of an account, in storage and in memory, with the reply targets,
+ * staged file names and paste texts it kept.
  */
 export const clearRoomInputDrafts = (userId: string): void => {
   draftGenerations.set(userId, getDraftGeneration(userId) + 1);
+  clearKeptPastes(userId).catch(() => undefined);
   roomIdToMsgDraftAtomFamily.setShouldRemove(
     (_createdAt, draftKey) => getDraftUserId(draftKey) === userId
   );

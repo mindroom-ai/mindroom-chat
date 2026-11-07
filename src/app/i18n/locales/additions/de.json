@@ -545,6 +545,7 @@
     "cancelReply": "Antwort abbrechen",
     "moreActions": "Weitere Aktionen",
     "lostFiles": "Nicht mit diesem Entwurf behalten: {{files}}. Hänge sie vor dem Senden erneut an.",
+    "lostPastes": "Eingefügter Text wurde nicht mit diesem Entwurf behalten. Füge ihn vor dem Senden erneut ein.",
     "dismissLostFiles": "Ausblenden"
   },
   "commandPalette": {
