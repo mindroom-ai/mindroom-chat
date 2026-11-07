@@ -41,7 +41,7 @@ type OpenMode = 'hover' | 'pinned';
 export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsBarProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  const roomJobs = useRoomBackgroundJobs(room);
+  const { jobs: roomJobs, total: roomTotal } = useRoomBackgroundJobs(room);
   const sent = useSentCancels(room.roomId);
   const viewJobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
   const jobs = useJobsHeldBetweenCalls(viewJobs, threadId, (jobId) => sent.has(jobId), room);
@@ -128,7 +128,9 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
     [mx, room, threadId]
   );
 
-  const model = presentBackgroundJobs(jobs, (jobId) => sent.has(jobId), t);
+  // The agents count their live jobs per room, so only the main timeline knows of jobs they do not list.
+  const total = threadId === null ? Math.max(roomTotal, jobs.length) : jobs.length;
+  const model = presentBackgroundJobs(jobs, (jobId) => sent.has(jobId), t, total);
   if (!model) return null;
   const stoppable = model.items.filter((item) => !item.stopping);
   // A failure shows in its own view while its job is listed and no cancel reached it, here or elsewhere.
