@@ -32,15 +32,19 @@ export type SettingsPageProps = Pick<SettingsPageFrameProps, 'requestClose'>;
 type FrameHeaderProps = Pick<SettingsPageFrameProps, 'title' | 'requestClose'>;
 
 // Inline and in plain units, because the shared page header and content set their own padding
-// and the unit tests of the pages load this frame with folds and styles mocked. The title bar is as
-// tall as the search field's beside it (`SettingsDialog` in frame.css.ts sets the height, 48 px
-// elsewhere). It keeps the dialog's inset (frame.css.ts): the 32 px close button, as tall as the
-// search field, stays 12 px from the dialog's end edge (the right, or the left in a right-to-left
-// language), and the breadcrumb starts 20 px from the divider, as the menu's icons do from the
-// dialog's edge. The page's sections form a centered column of at most 680 px, 24 px under it.
+// and the unit tests of the pages load this frame with folds and styles mocked. The page's sections
+// form a centered column of at most 680 px, 24 px under the title bar, and their headings' text
+// starts 16 px (S400, frame.css.ts) into it. The title bar is as tall as the search field's beside
+// it (`--mr-settings-bar-height`, 48 px where nothing sets it). Its breadcrumb starts where the
+// sections' text does, and the 32 px close button, as tall as the search field, keeps the dialog's
+// 12 px inset from its end edge (the right, or the left in a right-to-left language).
+const COLUMN_WIDTH = '42.5rem';
+const COLUMN_PADDING = '1.25rem';
+const TEXT_EDGE = `calc(${COLUMN_PADDING} + 1rem)`;
 const HEADER_STYLE = {
   height: 'var(--mr-settings-bar-height, 3rem)',
-  paddingInlineStart: '1.25rem',
+  // The column's start in the pane, at least its padding, then the headings' inset.
+  paddingInlineStart: `max(${TEXT_EDGE}, calc((100% - ${COLUMN_WIDTH}) / 2 + ${TEXT_EDGE}))`,
   paddingInlineEnd: '0.75rem',
 };
 const CLOSE_STYLE = { width: '2rem', height: '2rem' };
@@ -49,10 +53,10 @@ const CLOSE_STYLE = { width: '2rem', height: '2rem' };
 const PHONE_HEADER_STYLE = { gap: '0.5rem' };
 const CONTENT_COLUMN = {
   width: '100%',
-  maxWidth: '42.5rem',
+  maxWidth: COLUMN_WIDTH,
   marginInline: 'auto',
   paddingTop: '1.5rem',
-  paddingInline: '1.25rem',
+  paddingInline: COLUMN_PADDING,
 };
 const TRAIL_STYLE = { minWidth: 0 };
 const ROOT_STYLE = { flexShrink: 0 };

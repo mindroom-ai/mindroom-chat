@@ -8,10 +8,11 @@ import { color, config, toRem } from 'folds';
 //
 // The Settings dialog keeps one inset, 12 px (S300). The search field, the menu's rows, the search
 // results and Logout stay that far from the dialog's edges and from the divider; so do the page's
-// close button and, on a phone, the menu's title and its close button. The icons, the group
-// headings and the page's breadcrumb start 8 px (S200) further in, 20 px from their column's edge,
-// as the close button's icon does from the end edge. Between the field and the first group, between
-// the groups and above Logout the menu keeps the inset as well.
+// close button and, on a phone, the menu's title and its close button. The icons and the group
+// headings start 8 px (S200) further in, 20 px from the column's edge, as the close button's icon
+// does from the end edge; the page's breadcrumb starts where its sections' text does
+// (SettingsPageFrame). Between the field and the first group, between the groups and above Logout
+// the menu keeps the inset as well.
 
 /** The dialog's inset. */
 const INSET = config.space.S300;
