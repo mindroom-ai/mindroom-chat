@@ -92,11 +92,14 @@ describe('migrate-thread-tags script helpers', () => {
       ]);
     });
 
-    it('would name the person a tag claims, where the room shows its sender, even run by an agent', () => {
-      expect(resolvers([legacyResolved(OPERATOR, ALICE)], '@mindroom_router:example.org')).toEqual([
-        OPERATOR,
-        ALICE,
-      ]);
-    });
+    it.each([OPERATOR, '@mindroom_helper:elsewhere.example'])(
+      'would name the person a tag from %s claims, where the room shows its sender, even run by an agent',
+      (sender) => {
+        expect(resolvers([legacyResolved(sender, ALICE)], '@mindroom_router:example.org')).toEqual([
+          sender,
+          ALICE,
+        ]);
+      }
+    );
   });
 });
