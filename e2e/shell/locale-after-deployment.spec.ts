@@ -110,8 +110,10 @@ const germanOnFirstBuild = async (page: Page, name: string) => {
 };
 
 /**
- * Without a service worker: opening the app again after the deployment runs the second build. A
- * navigation, as a relaunch or a new tab makes: WebKit's reload revalidates every file it loads.
+ * Without a service worker: opening the app again after the deployment, as a relaunch or a new tab
+ * does, runs the second build. Chromium answers the first build's catalog from its HTTP cache
+ * without the fix; Playwright's WebKit asked the server again on reload and on navigation alike, so
+ * its case checks the phone layout only.
  */
 const reopenWithoutWorker = async (page: Page, name: string, deploy: () => void) => {
   await germanOnFirstBuild(page, name);
