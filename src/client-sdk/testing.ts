@@ -20,7 +20,11 @@ afterEach(cleanup);
  * client knows no room, so the `room` subpath's paths name rooms by their ID.
  */
 const USER_ID = '@plugin-tester:example.org';
-const client = { getSafeUserId: () => USER_ID, getRoom: () => null } as unknown as MatrixClient;
+const client = {
+  getSafeUserId: () => USER_ID,
+  getRoom: () => null,
+  getRooms: () => [],
+} as unknown as MatrixClient;
 
 /**
  * Renders `ui`, made of the components of the plugin `id`, into the document with what the SDK's

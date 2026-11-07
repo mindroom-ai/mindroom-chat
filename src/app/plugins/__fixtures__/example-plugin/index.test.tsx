@@ -74,11 +74,12 @@ describe('example plugin', () => {
     expect(view.getByText('Fill the window').getAttribute('href')).toBe('/p/example/window');
   });
 
-  it('links its room page to the room and to its thread under a router', async () => {
+  it('links its room page to the room and to its thread, also at a space address', async () => {
     const page = plugin.pages?.find(({ path }) => path === 'rooms/:roomId/:threadId');
     if (!page) throw new Error('the example plugin has no room page');
+    // A space's address by its alias, as a room's own components see, of a space the client lacks.
     const view = await renderPluginComponent(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/%23team%3Aexample.org/']}>
         <page.Component params={{ roomId: '!lobby:example.org', threadId: '$root:example.org' }} />
       </MemoryRouter>,
       { id: 'example', plugin }
