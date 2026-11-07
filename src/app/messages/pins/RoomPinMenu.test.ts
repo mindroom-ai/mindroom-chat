@@ -50,6 +50,7 @@ const {
     roomId: '!room:example.org',
     hasEncryptionStateEvent: vi.fn(() => false),
     getTimelineForEvent: vi.fn(() => undefined),
+    getUnfilteredTimelineSet: vi.fn(() => undefined),
   },
   settingValues: {} as Record<string, boolean>,
 }));
