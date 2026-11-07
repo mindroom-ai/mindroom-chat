@@ -58,7 +58,7 @@ describe('thread previews of math', () => {
       'log_(10)1000 + 2^(10)x + x^(2)3 + e^(x)(1+x)'
     );
     expect(preview('$\\left.2x\\right|_0^1 = 2$ and $x^{2}.5$')).toBe('2x|_0^1 = 2 and x^(2).5');
-    expect(preview('$\\boxed{1+2}^2 = 9$')).toBe('(1+2)^2 = 9');
+    expect(preview('$\\boxed{1+2}^2 = 9$ and $\\boxed{1+2} ^2$')).toBe('(1+2)^2 = 9 and (1+2) ^2');
   });
 
   it('read sizing, spacing and escaped characters', () => {
@@ -89,6 +89,7 @@ describe('thread previews of math', () => {
     expect(preview('$x^$, $\\frac{a}$, $\\text{snake_case}$ and $\\textbf{v}$')).toBe(
       '$x^$, $\\frac{a}$, $\\text{snake_case}$ and $\\textbf{v}$'
     );
+    expect(preview('$x^{}y$, $\\frac{}{}$ and $\\sqrt{}$')).toBe('$x^{}y$, $\\frac{}{}$ and $\\sqrt{}$');
     expect(preview('$a & b$ or $a # b$')).toBe('$a & b$ or $a # b$');
     expect(preview('$$\nx\n$$ and $$\ny\n$$')).toBe('$$ x $$ and $$ y $$');
     expect(preview('$$\n\\begin{vmatrix}\n1 & 2 \\\\\n3 & 4\n\\end{vmatrix} = -2\n$$')).toBe(
