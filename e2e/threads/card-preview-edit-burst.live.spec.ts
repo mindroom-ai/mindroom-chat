@@ -139,8 +139,7 @@ const check = async (page: Page, world: World, engine: string) => {
   for (let revision = 1; revision <= REVISIONS; revision += 1) {
     await inBatches(world.threads.length, 10, async (offset) => {
       const thread = world.threads[offset];
-      if (!thread)
-        return;
+      if (!thread) return;
       await sendMessageEdit(
         HOMESERVER,
         world.writer.accessToken,
