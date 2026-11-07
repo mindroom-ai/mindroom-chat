@@ -15,3 +15,8 @@ export const LinePlaceholder = style({
   borderRadius: config.radii.R300,
   backgroundColor: color.SurfaceVariant.Container,
 });
+
+/** A lobby entry; one whose room the member cannot see renders nothing, and takes no gap. */
+export const LobbyEntry = style({
+  selectors: { '&:empty': { display: 'none' } },
+});
