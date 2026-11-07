@@ -80,7 +80,7 @@ describe('createRoom agent state levels', () => {
     ],
     ['a direct chat', () => requestOf((client) => createDirectRoom(client, '@friend:calls.test'))],
   ])(
-    'opens the agent state, and no other state, to members without power in %s',
+    'opens only the agent state and call membership to members without power in %s',
     async (_name, request) => {
       const { events = {}, ...rest } = (await request()).power_level_content_override ?? {};
       expect(rest).toEqual({});
