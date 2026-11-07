@@ -187,7 +187,8 @@ const check = async (browser: Browser, label: string, options: BrowserContextOpt
     await shots(page, `${label}-threads-top`);
     await expect(line).toHaveCount(0);
     await expect(pills).toHaveCount(0);
-    // Down past where the unread messages end: still no line.
+    // Down past where the unread messages end: still no line where they meet the read ones.
+    let boundarySeen = false;
     for (let step = 0; step < 8; step += 1) {
       // eslint-disable-next-line no-await-in-loop
       await scrollBy(page, 500);
@@ -195,8 +196,10 @@ const check = async (browser: Browser, label: string, options: BrowserContextOpt
       await page.waitForTimeout(300);
       // eslint-disable-next-line no-await-in-loop
       await expect(line).toHaveCount(0);
+      // eslint-disable-next-line no-await-in-loop
+      if ((await page.getByText(/^Entry 30:/).count()) > 0) boundarySeen = true;
     }
-    await expect(page.getByText(/^Entry 30:/).first()).toBeAttached();
+    expect(boundarySeen, 'the rows where read and unread meet were shown').toBe(true);
 
     // A room of people, read oldest first: the line sits right above the first unread message.
     await page.goto(`/home/${encodeURIComponent(peopleRoom)}/`);
