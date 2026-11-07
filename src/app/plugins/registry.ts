@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { isRecord } from '../lib/isRecord';
+import { isHeaderAction, type HeaderAction } from './headerActions';
 import type { MessageRenderer } from './messageRenderers';
 import { pluginEntries, type PluginEntry } from './pluginEntries';
 import { isSidePanel, type SidePanel } from './sidePanels';
@@ -16,6 +17,7 @@ export type ClientPlugin = {
   forgetAccount?: (userId: string) => void | Promise<void>;
   roomHeaderSlot?: readonly RoomHeaderSlotComponent[];
   sidePanels?: readonly SidePanel[];
+  headerActions?: readonly HeaderAction[];
   translations?: PluginTranslations;
 };
 
@@ -27,12 +29,14 @@ export type RegisteredPlugin = {
   readonly forgetAccount?: ClientPlugin['forgetAccount'];
   readonly roomHeaderSlot: readonly RoomHeaderSlotComponent[];
   readonly sidePanels: readonly SidePanel[];
+  readonly headerActions: readonly HeaderAction[];
 };
 
 const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   const renderers = isRecord(plugin) ? plugin.messageRenderers : undefined;
   const headerSlot = isRecord(plugin) ? plugin.roomHeaderSlot : undefined;
   const panels = isRecord(plugin) ? plugin.sidePanels : undefined;
+  const actions = isRecord(plugin) ? plugin.headerActions : undefined;
   registerPluginTranslations(id, isRecord(plugin) ? plugin.translations : undefined);
   return Object.freeze({
     id,
@@ -50,6 +54,7 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
     // Its slot renders each entry in a boundary, so one that is no component only fails there.
     roomHeaderSlot: Object.freeze(Array.isArray(headerSlot) ? [...headerSlot] : []),
     sidePanels: Object.freeze(Array.isArray(panels) ? panels.filter(isSidePanel) : []),
+    headerActions: Object.freeze(Array.isArray(actions) ? actions.filter(isHeaderAction) : []),
   });
 };
 

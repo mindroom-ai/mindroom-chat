@@ -2,11 +2,14 @@
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
 // A side panel, "Example panel", names the room it is open in.
-// Under the room header it shows "Example banner in <room name>". Its storage notes each greeting
-// the signed-in account saw, when it shows and when it goes, and a greeting the account saw in an
-// earlier page load also shows "Seen before". Like a plugin outside this repository, it imports the
-// app only through the client SDK.
+// Under the room header it shows "Example banner in <room name>". Like a plugin outside this
+// repository, it imports the app only through the client SDK.
+// A header action, "Wave" ("Winken" in German), shows in the room header's row, except on phones,
+// where it goes in the room menu, and says where it ran in an alert.
+// Its storage notes each greeting the signed-in account saw, when it shows and when it goes, and a
+// greeting the account saw in an earlier page load also shows "Seen before".
 import { useEffect } from 'react';
+import { Icons } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import {
   usePluginConfig,
@@ -77,8 +80,20 @@ const plugin: ClientPlugin = {
   },
   roomHeaderSlot: [RoomBanner],
   sidePanels: [{ id: 'panel', label: 'Example panel', Component: ExamplePanel }],
+  headerActions: [
+    {
+      id: 'wave',
+      label: 'wave',
+      icon: Icons.Smile,
+      placement: 'auto',
+      run: ({ roomId, threadId }) => {
+        // eslint-disable-next-line no-alert
+        window.alert(`Example wave in ${roomId}${threadId ? ` ${threadId}` : ''}`);
+      },
+    },
+  ],
   translations: {
-    en: { label: 'Example plugin' },
+    en: { label: 'Example plugin', wave: 'Wave' },
     load: async (language) =>
       language === 'de' ? (await import('./locales/de.json')).default : undefined,
   },

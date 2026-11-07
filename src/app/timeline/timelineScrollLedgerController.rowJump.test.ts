@@ -115,10 +115,27 @@ const mountRoomLedger = ({ settle = true } = {}) => {
       scrollTop = top;
       onScroll?.();
     });
+  /**
+   * virtual-core applies a correction for a row above the reader that changed by `delta`, and
+   * writes the position it moves the view to, as its `applyScrollAdjustment` does.
+   */
+  const applyCorrection = (delta: number) => {
+    let applied = false;
+    act(() => {
+      applied = correction({ end: 50 }, delta, {
+        scrollOffset: scrollTop,
+        scrollDirection: 'forward',
+        scrollElement: scrollArea,
+      });
+    });
+    if (applied) scrollTo(scrollTop + delta);
+    return applied;
+  };
   return {
     rows,
     writes,
     scrollTo,
+    applyCorrection,
     endSettleDiscardWatch: () => controller?.endSettleDiscardWatch(),
     /** The room shows other rows: emptied for an event it has not loaded, say. */
     replaceRows: () =>
@@ -150,6 +167,15 @@ describe('the offset ledger after a settle', () => {
     ledger.scrollTo(0);
     expect(ledger.rows.style.marginTop).toBe('');
     expect(ledger.writes).toEqual([959]);
+    ledger.unmount();
+  });
+
+  it('leaves the settle where it is after a correction the timeline applied itself', () => {
+    const ledger = mountRoomLedger();
+    // A row above the reader shrinks by 700 px right after the settle, and the timeline moves the
+    // view up by as much: close to where it was before the settle, but the settle's write held.
+    expect(ledger.applyCorrection(-700)).toBe(true);
+    expect(ledger.rows.style.marginTop).toBe('');
     ledger.unmount();
   });
 
