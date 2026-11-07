@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -6,7 +6,8 @@ import { onePackageCopyPerVersion } from '../../scripts/package-copies.mjs';
 
 let root = '';
 beforeEach(() => {
-  root = mkdtempSync(path.join(tmpdir(), 'package-copies-'));
+  // Module ids are real paths, so the modules below are named by one (macOS links /var).
+  root = realpathSync(mkdtempSync(path.join(tmpdir(), 'package-copies-')));
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
