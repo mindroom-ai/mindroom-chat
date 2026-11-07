@@ -1,5 +1,5 @@
 import { createVar, style } from '@vanilla-extract/css';
-import { shortRail } from '../../ui/sidebar/SidebarContent.css';
+import { shortViewport } from '../../ui/styles/shortViewport';
 
 // The rail's part above its foot group (SidebarContent's `scrollable`). Pinned, the top group
 // stays put and only the part below it scrolls; unpinned, the whole part scrolls as one column.
@@ -45,9 +45,9 @@ export const RailScrollArea = style({
     '&[data-pinned]': { overflow: 'hidden' },
   },
   '@media': {
-    // A short rail scrolls as a whole (`shortRail`): this part takes its full height and does not
-    // scroll or fade on its own.
-    [shortRail]: {
+    // A phone in landscape scrolls the whole rail (SidebarScrollPart): this part takes its full
+    // height and does not scroll or fade on its own.
+    [shortViewport]: {
       selectors: {
         '&&&': { flex: 'none', overflow: 'visible', maskImage: 'none', WebkitMaskImage: 'none' },
       },
@@ -66,7 +66,7 @@ export const RailScrollRest = style({
     [`${RailScrollArea}[data-pinned] > &::-webkit-scrollbar`]: { display: 'none' },
   },
   '@media': {
-    [shortRail]: {
+    [shortViewport]: {
       selectors: {
         [`${RailScrollArea}[data-pinned] > &&`]: {
           flex: 'none',

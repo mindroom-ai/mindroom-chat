@@ -10,8 +10,8 @@ type RailSections = {
 };
 
 /**
- * Splits the rail into a scrolling part and a part pinned to its foot. In a short rail
- * (`shortRail`) the rail scrolls as a whole and the foot group scrolls with it.
+ * Splits the rail into a scrolling part and a part pinned to its foot. On a phone in landscape the
+ * rail scrolls as a whole and the foot group scrolls with it (SidebarScrollPart).
  */
 export function SidebarContent({ scrollable, sticky }: RailSections) {
   return (
