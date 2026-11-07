@@ -1,13 +1,14 @@
 // A client plugin for the tests (docs/architecture.md "Client plugins"): a message that carries
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
-// section (`plugins.example.label`). Its storage notes each greeting the signed-in account saw, when
-// it shows and when it goes, and a greeting the account saw in an earlier page load also shows
-// "Seen before".
+// section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
+// Its storage notes each greeting the signed-in account saw, when it shows and when it goes, and a
+// greeting the account saw in an earlier page load also shows "Seen before".
 import { useEffect } from 'react';
 import type { ClientPlugin } from '../../registry';
 import type { PluginEvent } from '../../messageRenderers';
 import { usePluginConfig } from '../../pluginConfig';
 import { usePluginStorage } from '../../pluginStorage';
+import { usePluginTranslation } from '../../pluginTranslations';
 
 /** This page load; what the plugin stored in it does not count as seen before. */
 const pageLoad = `${Date.now()}-${Math.random()}`;
@@ -31,13 +32,14 @@ function Greeting({ event }: { event: PluginEvent }) {
     // Notes it again as it goes, as a plugin that saves when it unmounts would.
     return note;
   }, [storage, seenKey]);
+  const t = usePluginTranslation('example');
   const label =
     typeof config === 'object' &&
     config !== null &&
     'label' in config &&
     typeof config.label === 'string'
       ? config.label
-      : 'Example plugin';
+      : t('label');
   return (
     <>
       <div data-example-plugin>
@@ -54,6 +56,11 @@ const plugin: ClientPlugin = {
   // account it was asked to forget in this tab.
   forgetAccount: (userId) => {
     sessionStorage.setItem('example-plugin.forgot', userId);
+  },
+  translations: {
+    en: { label: 'Example plugin' },
+    load: async (language) =>
+      language === 'de' ? (await import('./locales/de.json')).default : undefined,
   },
 };
 

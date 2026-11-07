@@ -1,12 +1,14 @@
 import { isRecord } from '../lib/isRecord';
 import type { MessageRenderer } from './messageRenderers';
 import { pluginEntries, type PluginEntry } from './pluginEntries';
+import { registerPluginTranslations, type PluginTranslations } from './pluginTranslations';
 
 /** What the entry module of a client plugin exports by default: its contributions, by kind. */
 export type ClientPlugin = {
   messageRenderers?: readonly MessageRenderer[];
   /** Deletes what the plugin keeps for `userId` outside its storage (`pluginStorage.ts`). */
   forgetAccount?: (userId: string) => void | Promise<void>;
+  translations?: PluginTranslations;
 };
 
 /** A plugin of this build; `tag` (`<id>@<version>`) names it in logs and error reports. */
@@ -19,6 +21,7 @@ export type RegisteredPlugin = {
 
 const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   const renderers = isRecord(plugin) ? plugin.messageRenderers : undefined;
+  registerPluginTranslations(id, isRecord(plugin) ? plugin.translations : undefined);
   return Object.freeze({
     id,
     tag: `${id}@${version}`,
