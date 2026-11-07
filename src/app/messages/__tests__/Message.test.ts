@@ -910,6 +910,7 @@ describe('Message copy text tool markers', () => {
       const { renderer } = await renderMessage(toolMarkerContent);
 
       // A touch screen shows no hover toolbar; a long press opens the menu, as a context menu.
+      vi.stubGlobal('document', { getSelection: () => null });
       const row = renderer.root.find(
         (node) =>
           typeof node.props.onContextMenu === 'function' &&
