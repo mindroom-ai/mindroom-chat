@@ -83,7 +83,20 @@ const keepNewer = (edits: Map<string, MatrixEvent>, eventId: string, edit: Matri
 export const keepSyncedEdits = (mx: MatrixClient): (() => void) => {
   newestEdits.clear();
   finishingEdits.clear();
+  // A redaction marks a kept edit redacted only when the client holds the edit as an event. One the
+  // client knows only from its message's bundle is forgotten here, when the redaction's sender may
+  // redact it, as the SDK patch's Room.dropRedactedBundledEdit drops it from the bundle.
+  const forget = (redaction: MatrixEvent) => {
+    const state = mx.getRoom(redaction.getRoomId())?.currentState;
+    newestEdits.forEach((edit, messageId) => {
+      if (edit.getId() !== redaction.event.redacts) return;
+      if (state?.maySendRedactionForEvent(edit, redaction.getSender() ?? '')) {
+        newestEdits.delete(messageId);
+      }
+    });
+  };
   const remember = (event: MatrixEvent) => {
+    if (event.isRedaction()) forget(event);
     const relation: unknown = event.getWireContent()['m.relates_to'];
     if (!isRecord(relation) || relation.rel_type !== RelationType.Replace) return;
     if (typeof relation.event_id !== 'string' || event.isRedacted()) return;

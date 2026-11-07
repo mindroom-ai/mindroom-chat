@@ -1,13 +1,19 @@
+import { EventEmitter } from 'events';
 import {
+  ClientEvent,
   createClient,
   EventStatus,
+  FeatureSupport,
   MatrixEvent,
+  MatrixEventEvent,
   PendingEventOrdering,
   Room,
+  Thread,
   type IEvent,
+  type MatrixClient,
 } from 'matrix-js-sdk';
-import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getSyncedEdit, keepSyncedEdits } from './client/syncedEdits';
 import { getEditedEvent, getLatestMessageContent } from './room';
 
 // Only a message's sender can edit it (Matrix specification, "Event replacements"). The SDK's own
@@ -352,6 +358,59 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
 
     expect(body(event)).toBe('The forklift is back.');
     expect(rendered(room, event)).toBe('The forklift is back.');
+  });
+
+  it('keeps a newer edit that arrives while the previous edit still decrypts', async () => {
+    const previous = new MatrixEvent(ownEdit());
+    const { add, event } = await message(bundled(newestEdit()), previous);
+    let decrypted = () => {};
+    vi.spyOn(previous, 'isBeingDecrypted').mockReturnValue(true);
+    vi.spyOn(previous, 'getDecryptionPromise').mockReturnValue(
+      new Promise<void>((resolve) => {
+        decrypted = resolve;
+      })
+    );
+
+    await add(redaction('$redaction', '$newest-edit', 5));
+    await add(new MatrixEvent(edit('$later-edit', AUTHOR, 6, 'Sold.')));
+    decrypted();
+    await tick();
+
+    expect(body(event)).toBe('Sold.');
+  });
+
+  describe('in an encrypted room', () => {
+    afterEach(() => {
+      // Forgets the edits the client kept.
+      keepSyncedEdits(new EventEmitter() as unknown as MatrixClient)();
+    });
+
+    /** Redacts the message's bundled edit, which the client kept once it decrypted it. */
+    const redactKeptEdit = async (...redactions: MatrixEvent[]) => {
+      const { room, add, event } = await message(bundled(newestEdit()));
+      const mx = Object.assign(new EventEmitter(), { getRoom: () => room });
+      keepSyncedEdits(mx as unknown as MatrixClient);
+      mx.emit(MatrixEventEvent.Decrypted, event.replacingEvent());
+      await add(...redactions);
+      redactions.forEach((redacted) => mx.emit(ClientEvent.Event, redacted));
+      return { shown: rendered(room, event), kept: getSyncedEdit('$message')?.getId() };
+    };
+
+    it('shows the original text once the sender redacts the bundled edit', async () => {
+      expect(await redactKeptEdit(redaction('$redaction', '$newest-edit', 5))).toEqual({
+        shown: 'The forklift is charged.',
+        kept: undefined,
+      });
+    });
+
+    it('keeps the edit when another member, or another edit, is redacted', async () => {
+      expect(
+        await redactKeptEdit(
+          redaction('$redaction', '$newest-edit', 5, OTHER),
+          redaction('$second-redaction', '$own-edit', 6)
+        )
+      ).toEqual({ shown: 'The forklift is back.', kept: '$newest-edit' });
+    });
   });
 
   it('keeps the bundled edit when the sender redacts another of their edits', async () => {
