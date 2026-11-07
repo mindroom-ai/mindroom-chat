@@ -54,14 +54,27 @@ const inviteGuest = async (
   name: string | undefined,
   body: string
 ): Promise<string> => {
+  if (name === undefined) {
+    // A direct chat invites at creation, so the invite carries `is_direct`, as a client's does.
+    const direct = await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
+      method: 'POST',
+      accessToken: host.accessToken,
+      body: JSON.stringify({
+        preset: 'trusted_private_chat',
+        is_direct: true,
+        invite: [guest.userId],
+      }),
+    });
+    await sendRoomMessage(HOMESERVER, host.accessToken, direct.room_id, {
+      msgtype: 'm.text',
+      body,
+    });
+    return direct.room_id;
+  }
   const created = await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
     method: 'POST',
     accessToken: host.accessToken,
-    body: JSON.stringify(
-      name === undefined
-        ? { preset: 'trusted_private_chat', is_direct: true }
-        : { preset: 'private_chat', name }
-    ),
+    body: JSON.stringify({ preset: 'private_chat', name }),
   });
   const roomId = created.room_id;
   await sendRoomMessage(HOMESERVER, host.accessToken, roomId, { msgtype: 'm.text', body });
@@ -85,8 +98,12 @@ const expectHostKnown = async (page: Page, { host }: People, body: string) => {
   const showMembers = page.getByRole('button', { name: 'Members', exact: true });
   await expect(showMembers.or(page.getByRole('button', { name: 'Hide Members' }))).toBeVisible();
   if (await showMembers.isVisible()) await showMembers.click();
-  const hostRow = page.locator(`button[data-user-id="${host.userId}"]`);
-  await expect(hostRow).toHaveText(HOST_NAME, { timeout: 20_000 });
+  // The panel: the nearest box around its name filter that holds member rows.
+  const panel = page
+    .getByRole('textbox', { name: 'Type name...' })
+    .locator('xpath=ancestor::*[.//button[@data-user-id]][1]');
+  const hostRow = panel.locator(`button[data-user-id="${host.userId}"]`);
+  await expect(hostRow).toContainText(HOST_NAME, { timeout: 20_000 });
   // The host created the room, so the panel lists them under its top role.
   await expect(page.getByText('Founder', { exact: true })).toBeVisible();
   await expect(page.getByText(HOST_NAME, { exact: true }).first()).toBeVisible();
@@ -98,7 +115,10 @@ const expectHostKnown = async (page: Page, { host }: People, body: string) => {
 const acceptFromInbox = async (page: Page, roomLabel: string) => {
   await page.getByRole('button', { name: 'Inbox', exact: true }).first().click();
   const card = page.locator('[data-invite-room-id]').filter({ hasText: roomLabel });
-  await card.first().getByRole('button', { name: 'Accept', exact: true }).click({ timeout: 30_000 });
+  await card
+    .first()
+    .getByRole('button', { name: 'Accept', exact: true })
+    .click({ timeout: 30_000 });
   await expect(card).toHaveCount(0, { timeout: 30_000 });
 };
 
@@ -130,9 +150,10 @@ const acceptedFromInbox = async (page: Page, browserName: string) => {
   await acceptFromInbox(page, roomName);
   await openRoom(page, 'Home', roomId, new RegExp(roomName));
   await expectHostKnown(page, people, body);
-  if (SHOTS) await page.screenshot({ path: `${SHOTS}/inbox-accept-${browserName}.png` });
+  // A reload starts from the saved sync, which must keep the host too.
   await page.reload();
   await expectHostKnown(page, people, body);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/inbox-accept-${browserName}.png` });
 };
 
 const acceptedOnInvitePage = async (page: Page, browserName: string) => {
@@ -142,7 +163,12 @@ const acceptedOnInvitePage = async (page: Page, browserName: string) => {
   const roomId = await inviteGuest(people, roomName, body);
   await signIn(page, people.guest);
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
-  await page.getByRole('button', { name: /^(Join|Accept)$/ }).first().click({ timeout: 30_000 });
+  await page
+    .getByRole('button', { name: /^(Join|Accept)$/ })
+    .first()
+    .click({ timeout: 30_000 });
+  await expectHostKnown(page, people, body);
+  await page.reload();
   await expectHostKnown(page, people, body);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/invite-page-join-${browserName}.png` });
 };
@@ -158,6 +184,11 @@ const directChatNamedAfterHost = async (page: Page, browserName: string) => {
   await expect(page.getByRole('link', { name: new RegExp(HOST_NAME) }).first()).toBeVisible();
   await expectHostKnown(page, people, body);
   await expect(page.getByText(people.host.userId, { exact: true })).toHaveCount(0);
+  // A reload starts from the saved sync, which must keep the host too.
+  await page.reload();
+  await expectHostKnown(page, people, body);
+  await expect(page.getByText(people.host.userId, { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: new RegExp(HOST_NAME) }).first()).toBeVisible();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/direct-accept-${browserName}.png` });
 };
 

@@ -76,7 +76,10 @@ const departedKeepsName = async (page: Page, browserName: string) => {
   await moderate(host, roomId, 'unban', member.userId);
 
   await loginWithPassword(page, { homeserver: HOMESERVER, ...host });
-  await page.getByRole('link', { name: new RegExp(roomName) }).first().click({ timeout: 60_000 });
+  await page
+    .getByRole('link', { name: new RegExp(roomName) })
+    .first()
+    .click({ timeout: 60_000 });
   await setRoomCompact(page, true);
   const card = page.locator(`[data-compact-room-view] [data-thread-root-id="${rootId}"]`);
   await expect(card).toContainText(replyBody, { timeout: 30_000 });

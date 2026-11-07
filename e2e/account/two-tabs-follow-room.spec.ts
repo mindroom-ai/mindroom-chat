@@ -49,7 +49,10 @@ const followsSwitchOutOfTheRoom = async (context: BrowserContext, browserName: s
   await chooseFromAccountMenu(one, 'Add Account');
   await loginWithPassword(one, { homeserver: HOMESERVER, ...first, addAccount: true });
   await expect(accountButton(one, first)).toBeVisible({ timeout: 60_000 });
-  await one.getByRole('link', { name: new RegExp(firstRoomName) }).first().click();
+  await one
+    .getByRole('link', { name: new RegExp(firstRoomName) })
+    .first()
+    .click();
   await expect
     .poll(() => decodeURIComponent(new URL(one.url()).pathname), { timeout: 20_000 })
     .toContain(firstRoom);
