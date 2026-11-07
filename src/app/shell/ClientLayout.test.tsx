@@ -11,6 +11,8 @@ vi.mock('folds', () => ({
   Box: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
 }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => ({}) }));
+// The notice places are tested in ui/noticeSlots.test.tsx.
+vi.mock('../ui/noticeSlots', () => ({ NoticeSlot: () => null }));
 vi.mock('../matrix/session/useSessionStore', async () => {
   const sessions = await import('../matrix/session/sessions');
   return { useActiveSession: () => sessions.getActiveSession() };

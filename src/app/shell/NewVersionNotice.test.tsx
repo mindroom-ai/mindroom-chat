@@ -2,9 +2,8 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { getDefaultStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
-import { pageNavNoticeSlotAtom } from '../sidebar/pageNavNoticeSlot';
-import { NewVersionNotice } from './NewVersionNotice';
+import { listNoticeSlotAtom, pageNoticeSlotAtom } from '../ui/noticeSlots';
+import { LEAVE_MS, NewVersionNotice } from './NewVersionNotice';
 
 const update = vi.hoisted(() => {
   const listeners = new Set<() => void>();
@@ -34,11 +33,12 @@ const liveRegion = (container: HTMLElement): HTMLElement => {
 
 describe('NewVersionNotice', () => {
   afterEach(() => {
+    vi.useRealTimers();
     cleanup();
     update.state.version = undefined;
     update.reloadForNewVersion.mockClear();
-    getDefaultStore().set(pageNavNoticeSlotAtom, null);
-    getDefaultStore().set(phoneNavDrawerOpenAtom, false);
+    getDefaultStore().set(listNoticeSlotAtom, null);
+    getDefaultStore().set(pageNoticeSlotAtom, null);
     document.body.innerHTML = '';
   });
 
@@ -53,7 +53,7 @@ describe('NewVersionNotice', () => {
     act(() => update.publish('build-2'));
 
     expect(region.textContent).toContain('A new version of MindRoom is available.');
-    // No room list beside the page: the card floats over the page.
+    // Signed out, no place is offered: the card floats over the page from the region.
     expect(region.querySelector('[data-new-version-card="page"]')).toBeTruthy();
   });
 
@@ -67,38 +67,43 @@ describe('NewVersionNotice', () => {
     expect(update.reloadForNewVersion).toHaveBeenCalledOnce();
   });
 
-  it('goes away for the life of the page when dismissed', () => {
+  it('plays its way out when dismissed, then stays away for the life of the page', () => {
+    vi.useFakeTimers();
     update.state.version = 'build-2';
     const { container } = render(<NewVersionNotice />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    // Still there while it leaves.
+    expect(container.querySelector('[data-new-version-card][data-leaving]')).toBeTruthy();
+    act(() => {
+      vi.advanceTimersByTime(LEAVE_MS);
+    });
     expect(liveRegion(container).textContent).toBe('');
 
     act(() => update.publish('build-3'));
     expect(liveRegion(container).textContent).toBe('');
   });
 
-  it('shows at the foot of the room list while the list offers its place, and over the page again once it goes', () => {
+  it("takes the room list's place while there is one, else the page's", () => {
     update.state.version = 'build-2';
-    const slot = document.body.appendChild(document.createElement('div'));
+    const list = document.body.appendChild(document.createElement('div'));
+    const page = document.body.appendChild(document.createElement('div'));
     const store = getDefaultStore();
-    act(() => store.set(pageNavNoticeSlotAtom, slot));
+    act(() => {
+      store.set(listNoticeSlotAtom, list);
+      store.set(pageNoticeSlotAtom, page);
+    });
     const { container } = render(<NewVersionNotice />);
 
-    expect(slot.querySelector('[data-new-version-card="list"]')).toBeTruthy();
+    expect(list.querySelector('[data-new-version-card="list"]')).toBeTruthy();
+    expect(page.textContent).toBe('');
     expect(liveRegion(container).textContent).toBe('');
 
-    act(() => store.set(pageNavNoticeSlotAtom, null));
-    expect(slot.textContent).toBe('');
+    act(() => store.set(listNoticeSlotAtom, null));
+    expect(list.textContent).toBe('');
+    expect(page.querySelector('[data-new-version-card="page"]')).toBeTruthy();
+
+    act(() => store.set(pageNoticeSlotAtom, null));
     expect(liveRegion(container).querySelector('[data-new-version-card="page"]')).toBeTruthy();
-  });
-
-  it('marks the region while a phone drawer covers the page, so the card waits under it', () => {
-    update.state.version = 'build-2';
-    const { container } = render(<NewVersionNotice />);
-    expect(liveRegion(container).hasAttribute('data-phone-layer-open')).toBe(false);
-
-    act(() => getDefaultStore().set(phoneNavDrawerOpenAtom, true));
-    expect(liveRegion(container).hasAttribute('data-phone-layer-open')).toBe(true);
   });
 });

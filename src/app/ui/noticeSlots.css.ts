@@ -1,0 +1,51 @@
+import { style } from '@vanilla-extract/css';
+import { recipe } from '@vanilla-extract/recipes';
+import { config } from 'folds';
+
+// Empty, the places have no size or take no clicks, so they cover nothing.
+
+// At the foot of the room list, over its last rows, inside the list's resizable panel. Its notice
+// keeps the width of the list's content (ResizablePanel's --mr-panel-content-width) at the end
+// edge, and the place clips it at the panel's sides, so while the list opens, closes or is dragged
+// narrow the notice slides with the list instead of squeezing.
+export const ListSlot = style({
+  position: 'absolute',
+  zIndex: 1,
+  insetInline: 0,
+  insetBlockEnd: 0,
+  display: 'flex',
+  justifyContent: 'flex-end',
+  paddingInline: config.space.S200,
+  paddingBlockStart: config.space.S300,
+  paddingBlockEnd: `calc(env(safe-area-inset-bottom, 0px) + ${config.space.S300})`,
+  overflowX: 'clip',
+  pointerEvents: 'none',
+});
+
+export const PageSlot = recipe({
+  variants: {
+    phone: {
+      // Over the top of the page, centred: placed against the signed-in layout (or, signed out,
+      // against the top of the app), so whatever sits above it moves it along.
+      false: {
+        position: 'absolute',
+        // Above the pages, below folds' dialogs, menus and tooltips in their own layer.
+        zIndex: 1000,
+        insetBlockStart: config.space.S300,
+        insetInline: config.space.S300,
+        display: 'flex',
+        justifyContent: 'center',
+        pointerEvents: 'none',
+      },
+      // A line of no height between the top bar and the page, which its notice hangs from. At
+      // z-index 1 it paints over the page (an isolated layer, painted as z-index 0), and the
+      // drawer and a room's members sheet, at z-index 1 later in the page, slide in over it.
+      true: {
+        position: 'relative',
+        zIndex: 1,
+        flexShrink: 0,
+        blockSize: 0,
+      },
+    },
+  },
+});

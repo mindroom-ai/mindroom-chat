@@ -1,51 +1,80 @@
-import { style } from '@vanilla-extract/css';
+import { keyframes, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { color, config, toRem } from 'folds';
-import { phoneTopBarHeight } from '../sidebar/PhoneTopBar.css';
+import { motion } from '../ui/styles/Motion.css';
 
-/** Phones get the phone layout up to 750 px wide (lib/hooks/useScreenSize.ts). */
-const phone = '(max-width: 750px)';
+// The card comes in from the edge it is placed at, a little smaller and faded, and leaves the same
+// way once dismissed (NewVersionNotice.tsx removes it after the Normal motion token). With
+// reduced motion it only fades: an animation still runs, so leaving takes the same time.
+const away = (edge: 1 | -1) => ({
+  opacity: 0,
+  transform: `translateY(calc(${edge} * ${toRem(8)})) scale(0.98)`,
+});
+const enterFromBelow = keyframes({ from: away(1) });
+const enterFromAbove = keyframes({ from: away(-1) });
+const leaveDownward = keyframes({ to: away(1) });
+const leaveUpward = keyframes({ to: away(-1) });
+const fadeIn = keyframes({ from: { opacity: 0 } });
+const fadeOut = keyframes({ to: { opacity: 0 } });
+const reducedMotion = '(prefers-reduced-motion: reduce)';
 
-// The live region: the first row of the app's content box (NoticeLayoutContent), as wide as the
-// box and no height. The card over the page is placed against it, so it moves with the operator
-// notices above and with a phone's keyboard, and the region covers nothing it could take clicks
-// from.
+const motionFrom = (enter: string, leave: string) => ({
+  animation: `${enter} ${motion.duration.Slow} ${motion.easing.Decelerate}`,
+  selectors: {
+    '&[data-leaving]': {
+      animation: `${leave} ${motion.duration.Normal} ${motion.easing.Accelerate} forwards`,
+      pointerEvents: 'none' as const,
+    },
+  },
+  '@media': {
+    [reducedMotion]: {
+      animationName: fadeIn,
+      selectors: { '&[data-leaving]': { animationName: fadeOut } },
+    },
+  },
+});
+
+const pageMotion = motionFrom(enterFromAbove, leaveUpward);
+
+// The live region at the top of the app's content box (NoticeLayoutContent), as wide as the box
+// and no height. Signed out, the card floats from it, so it moves with the operator notices above.
 export const Region = style({ position: 'relative', flexShrink: 0 });
 
-// The notice's card. At the foot of the room list it stacks its text over Reload, as wide as the
-// list. Without a list beside the page it floats over the page, which stays where it is, in one
-// row: centred at the top on wider screens, right below the top bar on a phone, clear of the
-// composer.
+// The notice's card. In the room list's place it is as wide as the list's content, the text beside
+// the mark and Reload under it. In the page's place it is one row as wide as it needs, Reload
+// going under the text only when the row is too narrow; on a phone it spans the page under the
+// top bar. Its places take no clicks, the card does.
 export const Card = recipe({
   base: {
-    display: 'flex',
-    alignItems: 'flex-start',
+    pointerEvents: 'auto',
     gap: config.space.S300,
     padding: config.space.S300,
     borderRadius: config.radii.R500,
   },
   variants: {
     placement: {
-      list: {},
+      list: {
+        ...motionFrom(enterFromBelow, leaveDownward),
+        flexShrink: 0,
+        inlineSize: `calc(var(--mr-panel-content-width, 100%) - 2 * ${config.space.S200})`,
+        display: 'grid',
+        gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+        gridTemplateAreas: '"mark text dismiss" ". action action"',
+        rowGap: config.space.S200,
+        alignItems: 'start',
+      },
       page: {
-        position: 'absolute',
-        // Above the pages, below folds' dialogs, menus and tooltips in their own layer.
-        zIndex: 1000,
-        insetBlockStart: config.space.S300,
-        insetInline: 0,
-        marginInline: 'auto',
-        inlineSize: 'fit-content',
-        maxInlineSize: `min(${toRem(480)}, calc(100% - 2 * ${config.space.S300}))`,
+        ...pageMotion,
+        display: 'flex',
         alignItems: 'center',
-        '@media': {
-          [phone]: {
-            insetBlockStart: `calc(${phoneTopBarHeight} + ${config.space.S200})`,
+        maxInlineSize: toRem(480),
+        selectors: {
+          ...pageMotion.selectors,
+          '[data-phone] > &': {
+            position: 'absolute',
+            insetBlockStart: config.space.S200,
             insetInline: config.space.S200,
-            inlineSize: 'auto',
             maxInlineSize: 'none',
-            // The navigation drawer and a room's members slide in under the top bar, over the
-            // page: the notice waits under them.
-            selectors: { '[data-phone-layer-open] > &': { display: 'none' } },
           },
         },
       },
@@ -54,34 +83,50 @@ export const Card = recipe({
 });
 
 /** The update mark, in an accent tile. */
-export const Mark = style({
-  flexShrink: 0,
-  display: 'grid',
-  placeItems: 'center',
-  inlineSize: toRem(28),
-  blockSize: toRem(28),
-  borderRadius: config.radii.R400,
-  backgroundColor: color.Primary.Container,
-  color: color.Primary.Main,
+export const Mark = recipe({
+  base: {
+    flexShrink: 0,
+    display: 'grid',
+    placeItems: 'center',
+    inlineSize: toRem(28),
+    blockSize: toRem(28),
+    borderRadius: config.radii.R400,
+    backgroundColor: color.Primary.Container,
+    color: color.Primary.Main,
+  },
+  variants: { placement: { list: { gridArea: 'mark' }, page: {} } },
 });
 
-// Text and Reload: in one row on the page, Reload going under the text when the row is too
-// narrow for both; at the foot of the list always under the text.
-export const Body = style({
-  flexGrow: 1,
-  minInlineSize: 0,
-  display: 'flex',
-  flexWrap: 'wrap',
-  alignItems: 'center',
-  gap: config.space.S200,
+export const Body = recipe({
+  variants: {
+    placement: {
+      list: { display: 'contents' },
+      page: {
+        flexGrow: 1,
+        minInlineSize: 0,
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: config.space.S200,
+      },
+    },
+  },
 });
 
 export const Text = recipe({
   base: { minInlineSize: 0, overflowWrap: 'anywhere' },
   variants: {
     placement: {
-      list: { flexBasis: '100%' },
+      list: { gridArea: 'text', alignSelf: 'center' },
       page: { flex: '1 1 0', minInlineSize: '10em' },
     },
   },
+});
+
+export const Action = recipe({
+  variants: { placement: { list: { gridArea: 'action', justifySelf: 'start' }, page: {} } },
+});
+
+export const Dismiss = recipe({
+  variants: { placement: { list: { gridArea: 'dismiss' }, page: {} } },
 });

@@ -50,6 +50,10 @@ const floatsInItsPlace = async (page: Page, anchorBefore: Box) => {
   const phone = (page.viewportSize()?.width ?? 0) <= 750;
   const card = page.locator('[data-new-version-card]');
   await expect(card).toHaveAttribute('data-new-version-card', phone ? 'page' : 'list');
+  // Measured once it has come in.
+  await card.evaluate((element) =>
+    Promise.all(element.getAnimations().map((animation) => animation.finished))
+  );
   const anchor = await anchorOf(page).boundingBox();
   const box = await card.boundingBox();
   if (!anchor || !box) throw new Error('the notice card or what it is placed against has no size');
@@ -63,13 +67,16 @@ const floatsInItsPlace = async (page: Page, anchorBefore: Box) => {
     expect(box.y + box.height).toBeLessThanOrEqual(anchor.y + anchor.height);
     expect(anchor.y + anchor.height - (box.y + box.height)).toBeLessThan(32);
   }
-  expect(
-    await card.evaluate((element) => {
-      const { x, y, width, height } = element.getBoundingClientRect();
-      const hit = document.elementFromPoint(x + width / 2, y + height / 2);
-      return hit !== null && element.contains(hit);
-    })
-  ).toBe(true);
+  // Once a phone's drawer has slid away, nothing covers it.
+  await expect
+    .poll(() =>
+      card.evaluate((element) => {
+        const { x, y, width, height } = element.getBoundingClientRect();
+        const hit = document.elementFromPoint(x + width / 2, y + height / 2);
+        return hit !== null && element.contains(hit);
+      })
+    )
+    .toBe(true);
 };
 
 const announcesTheNewVersion = async (page: Page, browserName: string) => {
@@ -87,11 +94,9 @@ const announcesTheNewVersion = async (page: Page, browserName: string) => {
   deployment.version = `deployment-${browserName}-${RUN}`;
   // The person comes back to the tab.
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-  const region = page.locator('[data-new-version-notice]');
-  if ((await region.getAttribute('data-phone-layer-open')) !== null) {
-    // A phone's drawer, out on a section's own page, covers the page: the notice waits under it.
+  if ((page.viewportSize()?.width ?? 0) <= 750) {
+    // A phone's drawer, out on a section's own page, slides over the page and the notice with it.
     await expect(page.locator('[data-new-version-card]')).toBeAttached({ timeout: 15_000 });
-    await expect(notice).toBeHidden();
     await page.keyboard.press('Escape');
   }
   await expect(notice).toBeVisible({ timeout: 15_000 });
@@ -121,6 +126,25 @@ test('a deployment is announced when the page is shown again (Chromium)', async 
     const context = await browser.newContext({ baseURL: origin });
     try {
       await announcesTheNewVersion(await context.newPage(), browserName);
+    } finally {
+      await context.close();
+    }
+  });
+});
+
+test('a deployment is announced when the page is shown again (Chromium phone)', async ({
+  browser,
+}) => {
+  test.setTimeout(180_000);
+  await withDeployment(async (origin) => {
+    const context = await browser.newContext({
+      baseURL: origin,
+      viewport: { width: 390, height: 844 },
+      hasTouch: true,
+      isMobile: true,
+    });
+    try {
+      await announcesTheNewVersion(await context.newPage(), 'chromiumphone');
     } finally {
       await context.close();
     }

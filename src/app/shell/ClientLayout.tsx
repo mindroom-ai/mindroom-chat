@@ -15,6 +15,7 @@ import { RUNTIME_NAVIGATION_PATHS } from '../../boot/serviceWorkerNavigation';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useInert } from '../lib/hooks/useInert';
 import { phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
+import { NoticeSlot } from '../ui/noticeSlots';
 import * as css from './ClientLayout.css';
 
 type ClientLayoutProps = {
@@ -109,13 +110,17 @@ export function ClientLayout({
       grow="Yes"
       direction={phone ? 'Column' : 'Row'}
       className={className}
-      style={{ height: '100%', minHeight: 0, position: phone ? 'relative' : undefined }}
+      style={{ height: '100%', minHeight: 0, position: 'relative' }}
     >
       {phone ? phoneTopBar : nav}
+      {/* Where a notice floats without a room list beside the page: under a phone's top bar. */}
+      {phone && <NoticeSlot place="page" phone covered={layerOpen} />}
       <div ref={pageRef} className={phone ? css.PhonePage : css.PassThrough}>
         {waitingForAlias && sessionId ? null : children}
       </div>
       {phone && phoneNavDrawer}
+      {/* Wider than a phone, over the top of the layout. */}
+      {!phone && <NoticeSlot place="page" />}
     </Box>
   );
 }

@@ -66,7 +66,10 @@ export function ResizablePanel({
   resizeLabel: string;
   collapseLabel: string;
   testId: string;
-  /** Rendered over the panel after its content, for a child placed against the panel's box. */
+  /**
+   * Rendered over the panel after its content, for a child placed against the panel's box; the
+   * content's width is `--mr-panel-content-width` there too.
+   */
   overlay?: ReactNode;
 }) {
   const widthAtom = useMemo(
@@ -297,7 +300,7 @@ export function ResizablePanel({
         />
       )}
       {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
-      {overlay}
+      {overlay && <div style={{ ...contentStyle, display: 'contents' }}>{overlay}</div>}
     </div>
   );
 }

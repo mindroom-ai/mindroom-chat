@@ -6,6 +6,8 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useActiveSession } from '../../matrix/session/useSessionStore';
 import { updateSessionLastPath } from '../../matrix/session/sessions';
 
+// The notice places are tested in ui/noticeSlots.test.tsx.
+vi.mock('../../ui/noticeSlots', () => ({ NoticeSlot: () => null }));
 vi.mock('folds', async () => {
   const reactModule = await import('react');
   return {

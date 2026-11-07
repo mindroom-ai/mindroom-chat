@@ -5,6 +5,8 @@ import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { ResizablePageNav } from './ResizablePageNav';
 import { ResizablePanel } from '../ui/panels/ResizablePanel';
 
+// The notice places are tested in ui/noticeSlots.test.tsx.
+vi.mock('../ui/noticeSlots', () => ({ NoticeSlot: () => null }));
 vi.mock('../ui/panels/ResizablePanel.css', () => ({ Panel: 'panel', Handle: 'handle' }));
 vi.mock('../ui/page/Page', () => ({
   PageNav: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
