@@ -136,7 +136,11 @@ describe('reading a thread root', () => {
       type: 'm.room.message',
     });
     const room = makeRoom({ main: [older, root1, notice], receiptTs: 2000 });
-    expect(getThreadRootReadAction(client(), room, root1)).toBe('receipt');
+    const withAgent = {
+      ...room,
+      getMembers: () => [{ userId: notice.getSender(), membership: 'join' }],
+    } as unknown as Room;
+    expect(getThreadRootReadAction(client(), withAgent, root1)).toBe('receipt');
   });
 
   it("stops at the reader's own message, since everything before it was read", () => {
