@@ -909,7 +909,20 @@ describe('Message copy text tool markers', () => {
     try {
       const { renderer } = await renderMessage(toolMarkerContent);
 
-      await openContextMenu(renderer);
+      // A touch screen shows no hover toolbar; a long press opens the menu, as a context menu.
+      const row = renderer.root.find(
+        (node) =>
+          typeof node.props.onContextMenu === 'function' &&
+          typeof node.props.onFocusCapture === 'function'
+      );
+      await act(async () => {
+        row.props.onContextMenu({
+          target: { closest: () => null },
+          preventDefault: () => undefined,
+          clientX: 24,
+          clientY: 24,
+        });
+      });
 
       expect(getButtonByAriaLabel(renderer, 'Copy Text with Tool Calls')).toBeUndefined();
       const labelledRow = getButtonByText(renderer, 'Copy Text with Tool Calls');
