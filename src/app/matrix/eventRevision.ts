@@ -292,6 +292,9 @@ const pickFresherRawObservation = (
   return stableSerialize(incoming) > stableSerialize(current) ? incoming : current;
 };
 
+// MindRoom's previews beside a thread summary describe the latest event the server sent them with.
+const MINDROOM_THREAD_PREVIEWS = ['io.mindroom.title', 'io.mindroom.latest_reply'];
+
 const mergePartialThreadBundle = (current: unknown, incoming: unknown): unknown => {
   if (!isRecord(current)) return canonicalizeAggregation(incoming);
   if (!isRecord(incoming)) return canonicalizeAggregation(current);
@@ -323,6 +326,20 @@ const mergePartialThreadBundle = (current: unknown, incoming: unknown): unknown 
 
   if (latestEvent) merged.latest_event = canonicalizeAggregation(latestEvent);
   else delete merged.latest_event;
+  // The previews come from a copy whose latest event is the one kept, the newer copy first, or not
+  // at all: an older copy's previews may name a reply's placeholder beside a later latest event.
+  const keepsLatest = (bundle: Record<string, unknown>) =>
+    !!latestEvent &&
+    isRecord(bundle.latest_event) &&
+    bundle.latest_event.event_id === latestEvent.event_id &&
+    getRawObservationTs(bundle.latest_event) === getRawObservationTs(latestEvent);
+  const previews = [canonicalIncoming, canonicalCurrent].find(
+    (bundle) => keepsLatest(bundle) && MINDROOM_THREAD_PREVIEWS.some((key) => key in bundle)
+  );
+  MINDROOM_THREAD_PREVIEWS.forEach((key) => {
+    if (previews && key in previews) merged[key] = previews[key];
+    else delete merged[key];
+  });
   return canonicalizeAggregation(merged);
 };
 
