@@ -118,10 +118,13 @@ const readMainTimeline = async (
   );
   if (!room || !target) return;
   const userId = mx.getUserId();
-  // A receipt never moves back: an older event of a sync replayed after a reload gets none.
+  // A receipt never moves back: none on an event at or before the reader's receipt, nor, while
+  // the receipt's event is not loaded (a reload restores the room in steps), on one sent before
+  // the receipt was.
   const readUpTo = userId ? room.getEventReadUpTo(userId) : null;
-  if (readUpTo && events.findIndex((event) => event.getId() === readUpTo) >= events.indexOf(target))
-    return;
+  const readIndex = readUpTo ? events.findIndex((event) => event.getId() === readUpTo) : -1;
+  if (readIndex >= events.indexOf(target)) return;
+  if (readIndex === -1 && userId && target.getTs() <= getMainTimelineReadTs(room, userId)) return;
   await send(
     sendOwnReceipt(() =>
       mx.sendReceipt(target, receiptTypeFor(hideActivity), { thread_id: MAIN_ROOM_TIMELINE })
