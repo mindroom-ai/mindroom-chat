@@ -545,6 +545,7 @@
     "cancelReply": "Antwoord annuleren",
     "moreActions": "Meer acties",
     "lostFiles": "Niet bewaard bij dit concept: {{files}}. Voeg ze opnieuw toe voordat je verstuurt.",
+    "lostPastes": "Geplakte tekst is niet bewaard bij dit concept. Plak hem opnieuw voordat je verstuurt.",
     "dismissLostFiles": "Sluiten"
   },
   "commandPalette": {
