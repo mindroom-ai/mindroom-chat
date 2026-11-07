@@ -60,4 +60,16 @@ describe('build version with client plugins', () => {
     writeFileSync(path.join(copy, 'node_modules', 'some-package', 'index.js'), 'export {};\n');
     expect(versionWith(copy)).toBe(versionWith(original));
   });
+
+  // Pages take a published version of at most 128 characters (src/app/config/appVersion.ts).
+  it('keeps a long version within what pages accept, and two long versions apart', () => {
+    const plugins = plugin('export default { messageRenderers: [] };\n');
+    const versionOf = (base: string) =>
+      readBuildVersion({ MINDROOM_BUILD_VERSION: base, MINDROOM_CLIENT_PLUGINS: plugins });
+    const one = versionOf(`${'a'.repeat(127)}1`);
+    const two = versionOf(`${'a'.repeat(127)}2`);
+    expect(one).toMatch(/^[A-Za-z0-9._+-]{1,128}$/);
+    expect(two).toMatch(/^[A-Za-z0-9._+-]{1,128}$/);
+    expect(one).not.toBe(two);
+  });
 });
