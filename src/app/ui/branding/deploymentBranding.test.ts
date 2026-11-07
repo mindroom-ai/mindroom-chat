@@ -16,6 +16,7 @@ const resolve = (config: unknown) => {
 
 const DEFAULTS = {
   title: 'MindRoom Chat',
+  showTitle: true,
   pageTitle: undefined,
   logo: {
     src: MINDROOM_LOGO_SRC,
@@ -62,6 +63,7 @@ describe('resolveDeploymentBranding', () => {
     expect(warnings).toEqual([]);
     expect(branding).toEqual({
       title: 'Example Co',
+      showTitle: true,
       pageTitle: 'Example Co',
       logo: {
         src: 'https://cdn.example.test/logo.svg',
@@ -100,12 +102,29 @@ describe('resolveDeploymentBranding', () => {
     }
   });
 
-  it('keeps the default title for a blank or non-string title', () => {
-    for (const title of ['', '   ', 7, { text: 'Example Co' }]) {
+  it('keeps the default title for a non-string title', () => {
+    for (const title of [7, { text: 'Example Co' }]) {
       const { branding, warnings } = resolve({ branding: { title } });
       expect(branding.title).toBe('MindRoom Chat');
+      expect(branding.showTitle).toBe(true);
       expect(branding.pageTitle).toBeUndefined();
       expect(warnings).toEqual([expect.stringContaining('branding.title')]);
+    }
+  });
+
+  it('hides the title beside the logo for an empty title, naming the deployment by its logo', () => {
+    const logo = { src: 'https://cdn.example.test/wordmark.svg', alt: 'Example Co' };
+    for (const title of ['', '   ']) {
+      // A wordmark logo already shows the name; its alt text names the deployment elsewhere.
+      expect(resolve({ branding: { title, logo } })).toMatchObject({
+        branding: { title: 'Example Co', showTitle: false, pageTitle: 'Example Co' },
+        warnings: [],
+      });
+      // With MindRoom Chat's own logo the name stays MindRoom Chat, and the tab keeps its title.
+      expect(resolve({ branding: { title } })).toEqual({
+        branding: { ...DEFAULTS, showTitle: false },
+        warnings: [],
+      });
     }
   });
 
