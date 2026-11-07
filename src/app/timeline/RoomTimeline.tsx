@@ -1449,7 +1449,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
     roomWindowRows,
     roomRowEntries,
     windowStart: activeTimelineRange.start,
-    readUptoAbsoluteIndex: windowState.readUptoAbsoluteIndex,
+    // With the newest row first, the line would mark the newest row rather than where the reader
+    // stopped; that view draws none (as MindRoom Chat), and reading at its top reads the room.
+    readUptoAbsoluteIndex: latestAtTop ? undefined : windowState.readUptoAbsoluteIndex,
     ignoredUsersSet,
     showHiddenEvents,
     timelineSet: (threadId && threadState.threadTimelineSet) || room.getUnfilteredTimelineSet(),
@@ -1471,12 +1473,15 @@ export function RoomTimeline(props: RoomTimelineProps) {
     !threadId && (activeTimelineRange.start > 0 || canPaginateRoomBack || roomHasMoreCachedBack);
   const showRoomFrontSentinel =
     !threadId && (activeTimelineRange.end < roomRows.length || canPaginateRoomFront);
-  const showJumpToUnread = offersJumpToUnread({
-    threadId,
-    unreadInfo,
-    roomUnread,
-    unreadMarkerShown,
-  });
+  // Nothing to jump to without the line; the newest-first view opens at the unread rows anyway.
+  const showJumpToUnread =
+    !latestAtTop &&
+    offersJumpToUnread({
+      threadId,
+      unreadInfo,
+      roomUnread,
+      unreadMarkerShown,
+    });
   // In the room and in a thread the toggle takes a line of its own above the rows. A phone's
   // unread pills, as wide as the line nearly, sit at its height: while they show, the toggle moves
   // to the line's start and they keep clear of it there.
