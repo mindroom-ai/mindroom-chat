@@ -8,6 +8,7 @@ import {
   RelationType,
   SearchOrderBy,
 } from 'matrix-js-sdk';
+import { getSameSenderBundledEdit } from '../matrix/editEvent';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 
 /** One server search hit with the messages around it. */
@@ -49,14 +50,6 @@ const editTarget = (result: ISearchResult): string | undefined => {
     : undefined;
 };
 
-/** The latest edit the server bundled with a message (spec v1.7 and later), if any. */
-const bundledEdit = (result: ISearchResult): Record<string, unknown> | undefined => {
-  const relations: unknown = result.result.unsigned?.['m.relations'];
-  if (typeof relations !== 'object' || relations === null) return undefined;
-  const edit: unknown = (relations as Record<string, unknown>)[RelationType.Replace];
-  return typeof edit === 'object' && edit !== null ? (edit as Record<string, unknown>) : undefined;
-};
-
 /**
  * How well a hit shows its message's latest text: the original with its latest edit bundled
  * knows it for sure, an edit is at least newer than the original, and a bare original may be
@@ -64,7 +57,7 @@ const bundledEdit = (result: ISearchResult): Record<string, unknown> | undefined
  */
 const freshness = (result: ISearchResult): number => {
   if (editTarget(result) !== undefined) return 1;
-  return bundledEdit(result) ? 2 : 0;
+  return getSameSenderBundledEdit(result.result) ? 2 : 0;
 };
 
 /**
@@ -119,7 +112,7 @@ export const dropEditedAwayResults = (results: ISearchResult[], term: string): I
   if (words.length === 0) return results;
   const has = (text: string) => words.some((word) => text.includes(word));
   return results.filter((result) => {
-    const edit = bundledEdit(result);
+    const edit = getSameSenderBundledEdit(result.result);
     if (!edit || editTarget(result) !== undefined) return true;
     const editContent = edit.content as Record<string, unknown> | undefined;
     const latest = bodyOf(editContent?.['m.new_content'] ?? editContent);

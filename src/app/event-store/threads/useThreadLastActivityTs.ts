@@ -7,17 +7,13 @@ import {
 } from './threadUtils';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 import { isAiRunStreaming } from '../../matrix/protocol/aiRun';
+import { getSameSenderBundledEdit } from '../../matrix/editEvent';
 
 type BundledThreadLatestEvent = {
   origin_server_ts?: unknown;
   type?: unknown;
-  unsigned?: {
-    ['m.relations']?: {
-      ['m.replace']?: {
-        origin_server_ts?: unknown;
-      };
-    };
-  };
+  sender?: unknown;
+  unsigned?: unknown;
 };
 
 const getEventActivityTs = (mEvent: MatrixEvent | null | undefined): number | undefined => {
@@ -50,9 +46,7 @@ const getBundledThreadLatestEventTs = (rootEvent: MatrixEvent | undefined): numb
   }
 
   const latestEventTs = getPositiveTs(latestEvent.origin_server_ts);
-  const latestEditTs = getPositiveTs(
-    latestEvent.unsigned?.['m.relations']?.['m.replace']?.origin_server_ts
-  );
+  const latestEditTs = getPositiveTs(getSameSenderBundledEdit(latestEvent)?.origin_server_ts);
 
   if (latestEventTs === undefined) return latestEditTs;
   if (latestEditTs === undefined) return latestEventTs;

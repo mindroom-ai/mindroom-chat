@@ -1,5 +1,6 @@
 import { IEventWithRoomId, MsgType, RelationType } from 'matrix-js-sdk';
 import type { TFunction } from 'i18next';
+import { getSameSenderBundledEdit } from '../matrix/editEvent';
 import { MessageEvent } from '../matrix/types/room';
 import { shouldUseLongTextSearchResultBody } from '../messages/content/searchResultPolicy';
 import { parseInlineMD } from '../rich-text/markdown/inline/parser';
@@ -56,11 +57,8 @@ export const getSearchResultBodySnippet = (
 const getSerializedReplacementContent = (
   event: IEventWithRoomId
 ): IEventWithRoomId['content'] | undefined => {
-  const unsignedRelations = event.unsigned?.['m.relations'];
-  if (!isRecord(unsignedRelations)) return undefined;
-
-  const replacement = unsignedRelations[RelationType.Replace];
-  if (!isRecord(replacement) || !isRecord(replacement.content)) return undefined;
+  const replacement = getSameSenderBundledEdit(event);
+  if (!replacement || !isRecord(replacement.content)) return undefined;
 
   const replacementNewContent = replacement.content['m.new_content'];
   if (isRecord(replacementNewContent)) {
