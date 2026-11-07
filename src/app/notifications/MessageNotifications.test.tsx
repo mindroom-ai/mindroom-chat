@@ -62,6 +62,7 @@ const room = {
     userId === '@maya:example.org' ? { name: 'Maya Chen', rawDisplayName: 'Maya Chen' } : null,
   findEventById: () => undefined,
   hasUserReadEvent: () => false,
+  getThread: () => null,
 };
 
 let actions: Actions = { notify: true, tweaks: { sound: 'default' } };

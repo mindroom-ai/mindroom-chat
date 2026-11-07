@@ -20,6 +20,7 @@ import { decodeRouteParam } from '../routes/pathUtils';
 import { DIRECT_ROOM_PATH, HOME_ROOM_PATH, SPACE_ROOM_PATH } from '../routes/paths';
 import { matchesEnum } from '../lib/matchesEnum';
 import { STREAM_STATUS_KEY, TERMINAL_STREAM_STATUSES } from '../matrix/protocol/aiRun';
+import { threadReceiptNamesEvent } from '../event-store/threads/streamFinish';
 
 /** Messages older than this when they arrive are a catch-up after time offline, not news. */
 export const MESSAGE_NOTIFY_MAX_AGE_MS = 2 * 60 * 1000;
@@ -117,6 +118,24 @@ const actionsForFinishedReply = (
 };
 
 /**
+ * Whether the account read `event` already, here or on another device. The SDK holds back the
+ * edits of a thread this device never opened, so it cannot place a receipt against such an edit
+ * (and warns when asked to): only a receipt in its thread that names it reads it then.
+ */
+const isReadAlready = (
+  room: Room,
+  userId: string,
+  event: MatrixEvent,
+  threadId: string | undefined
+): boolean => {
+  const eventId = event.getId();
+  if (!eventId) return false;
+  if (room.findEventById(eventId)) return room.hasUserReadEvent(userId, eventId);
+  const thread = threadId ? room.getThread(threadId) : null;
+  return !!thread && threadReceiptNamesEvent(thread, userId, eventId);
+};
+
+/**
  * Whether a live event should notify, and how. Own messages, rooms the account is not in,
  * redacted or undecryptable events, messages read already, and old events (before
  * `now - MESSAGE_NOTIFY_MAX_AGE_MS`) never do; the rest follow the push rules.
@@ -146,14 +165,16 @@ export const readMessageNotice = (
   if (!actions?.notify) return undefined;
 
   const source = completed?.reply ?? event;
+  const threadId = getEventThreadId(source);
   // Read already, here or on another device, before this client heard of it. The room's receipts
   // answer for threads too; a thread's own answer counts every thread as read until the account
-  // sent its first threaded receipt in the room.
-  if (room.hasUserReadEvent(me, source.getId() ?? eventId)) return undefined;
+  // sent its first threaded receipt in the room. A finished reply counts as new from the edit
+  // that finished it, so a receipt sent while it streamed, on the reply itself, leaves it unread.
+  if (isReadAlready(room, me, event, threadId)) return undefined;
   return {
     roomId: room.roomId,
     eventId: source.getId() ?? eventId,
-    threadId: getEventThreadId(source),
+    threadId,
     sender,
     content: completed?.content ?? event.getContent(),
     sound: !!actions.tweaks?.sound,
