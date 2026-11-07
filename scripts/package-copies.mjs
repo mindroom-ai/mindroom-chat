@@ -15,7 +15,8 @@ const PACKAGE_DIR = /^(.*\/node_modules\/(?:@[^/]+\/)?[^/]+)\//;
  * directories of one package name and version. It checks at the end of the build phase: the
  * service worker build that runs once the app's bundle closes would hide a later error behind its
  * own. The packages a client plugin installed in its own directory (`pluginDirs`, from
- * MINDROOM_CLIENT_PLUGINS) are left out: they are the plugin's, until plugins share the app's.
+ * MINDROOM_CLIENT_PLUGINS) are left out: they are the plugin's, and the packages the app shares with
+ * plugins never come from there (scripts/client-plugins.mjs).
  * @param {string[]} [pluginDirs]
  * @returns {import('vite').Plugin}
  */

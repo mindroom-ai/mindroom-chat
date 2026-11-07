@@ -5,7 +5,7 @@
 // fails on a directory it cannot use. The build replaces src/app/plugins/pluginEntries.ts with a
 // module that imports each plugin's entry; without plugins that module lists none and no plugin code
 // ships.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizePath, searchForWorkspaceRoot } from 'vite';
@@ -17,6 +17,32 @@ const KEBAB_CASE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const ENTRIES_MODULE = normalizePath(
   fileURLToPath(new URL('../src/app/plugins/pluginEntries.ts', import.meta.url))
 );
+
+/**
+ * The packages the app shares with every plugin: imports of them from a plugin's files resolve to the
+ * app's copy, so that the state each keeps is one (React's hooks, the Matrix SDK's classes and module
+ * state, jotai's stores, TanStack Query's client, React Router's router, the translations, folds'
+ * theme, focus-trap's stack of traps, dayjs's locale). A plugin that would import its own copy of one
+ * fails the build.
+ */
+export const SHARED_PACKAGES = [
+  'react',
+  'react-dom',
+  'scheduler',
+  'matrix-js-sdk',
+  'jotai',
+  '@tanstack/react-query',
+  '@tanstack/query-core',
+  'react-router',
+  'react-router-dom',
+  '@remix-run/router',
+  'i18next',
+  'react-i18next',
+  'folds',
+  'focus-trap',
+  'focus-trap-react',
+  'dayjs',
+];
 
 /** @typedef {{ id: string, version: string, dir: string, entry: string }} ClientPluginInfo */
 
@@ -80,6 +106,21 @@ export const readClientPlugins = (list) => {
 };
 
 /**
+ * The copy of package `name` that Node would find first from `file`, when it is inside the plugin
+ * directory `root`: the plugin's own.
+ * @param {string} file
+ * @param {string} name
+ * @param {string} root
+ */
+const ownCopy = (file, name, root) => {
+  for (let dir = path.dirname(file); `${dir}/`.startsWith(root); dir = path.dirname(dir)) {
+    const copy = path.join(dir, 'node_modules', name);
+    if (existsSync(copy)) return copy;
+  }
+  return undefined;
+};
+
+/**
  * What src/app/plugins/pluginEntries.ts becomes: an import of each plugin's entry, in order.
  * @param {ClientPluginInfo[]} plugins
  */
@@ -98,14 +139,18 @@ const entriesModule = (plugins) => {
  */
 export const clientPlugins = (env = process.env) => {
   const plugins = readClientPlugins(env.MINDROOM_CLIENT_PLUGINS);
+  // Module ids are real paths.
+  const roots = plugins.map((plugin) => ({ plugin, root: `${realpathSync(plugin.dir)}/` }));
   return {
     name: 'mindroom-client-plugins',
     enforce: 'pre',
-    // The dev server serves files outside the workspace only from directories it allows, and a list
-    // of them replaces its default, the workspace root.
     config: () =>
       plugins.length > 0
         ? {
+            // Resolved from the app's root, wherever the importer is.
+            resolve: { dedupe: SHARED_PACKAGES },
+            // The dev server serves files outside the workspace only from directories it allows,
+            // and a list of them replaces its default, the workspace root.
             server: {
               fs: {
                 allow: [searchForWorkspaceRoot(process.cwd()), ...plugins.map(({ dir }) => dir)],
@@ -113,6 +158,27 @@ export const clientPlugins = (env = process.env) => {
             },
           }
         : undefined,
+    // A plugin's file that imports a shared package fails the build when it would find its own copy.
+    resolveId(source, importer) {
+      const name = source.split('/', source.startsWith('@') ? 2 : 1).join('/');
+      const file = importer?.split('?')[0];
+      if (!file || !SHARED_PACKAGES.includes(name)) return null;
+      for (const { plugin, root } of roots) {
+        const copy = file.startsWith(root) ? ownCopy(file, name, root) : undefined;
+        if (!copy) continue;
+        this.error(
+          [
+            `MINDROOM_CLIENT_PLUGINS: ${plugin.dir} (plugin "${plugin.id}"):`,
+            `${path.relative(root, file)} imports ${name} from the plugin's own copy`,
+            `(${path.relative(root, copy)}).`,
+            `The app shares ${name} with every plugin: list it under`,
+            'peerDependencies rather than dependencies, and install the plugin with',
+            "npm ci --omit=dev --omit=peer, so that it resolves to the app's copy.",
+          ].join(' ')
+        );
+      }
+      return null;
+    },
     load: (id) =>
       plugins.length > 0 && normalizePath(id.split('?')[0] ?? id) === ENTRIES_MODULE
         ? entriesModule(plugins)
