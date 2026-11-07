@@ -431,6 +431,14 @@ describe('the side panels of a room', () => {
     state.inView = ['panel', 'board', 'missing'].map((panel) => <Card key={panel} panel={panel} />);
   };
   const board = () => screen.queryByRole('region', { name: 'Board' });
+  /** Stores Alice's login in this browser, without which nothing is remembered for her. */
+  const signIn = () =>
+    putSession({
+      baseUrl: 'https://example.org',
+      userId: '@alice:example.org',
+      deviceId: 'ROOMTEST',
+      accessToken: 'room-test',
+    });
 
   it("opens a plugin's panel from the plugin's code with a request, which each open replaces", async () => {
     withCards();
@@ -465,12 +473,7 @@ describe('the side panels of a room', () => {
   });
 
   it('keeps a panel that remembers open in its room for the account, across reloads and rooms', async () => {
-    putSession({
-      baseUrl: 'https://example.org',
-      userId: '@alice:example.org',
-      deviceId: 'ROOMTEST',
-      accessToken: 'room-test',
-    });
+    signIn();
     withCards();
     await renderRoom();
     await act(async () => controls.board?.open({ item: 'a' }));
@@ -493,22 +496,32 @@ describe('the side panels of a room', () => {
     expect(board()).toBeNull();
     cleanup();
 
-    // A panel that does not remember is gone after a reload.
+    // A panel that does not remember is gone after a reload, and keeps nothing.
     state.userId = '@alice:example.org';
     await renderRoom();
     await act(async () => controls.panel?.open());
+    expect(Object.keys(localStorage).filter((key) => key.includes(':side-panel/'))).toEqual([]);
     cleanup();
     await renderRoom();
     expect(notes()).toBeNull();
   });
 
+  it('opens no panel for a remembered value it cannot read', async () => {
+    const key = `mindroom.plugin:${encodeURIComponent(
+      '@alice:example.org'
+    )}/:side-panel/${encodeURIComponent(room.roomId)}`;
+    for (const stored of ['{not json', '"notes/board"']) {
+      localStorage.setItem(key, stored);
+      // eslint-disable-next-line no-await-in-loop
+      await renderRoom();
+      expect(board()).toBeNull();
+      expect(screen.getByTestId('room-view')).toBeTruthy();
+      cleanup();
+    }
+  });
+
   it('forgets a panel that remembers when it closes, or another panel opens, in its room', async () => {
-    putSession({
-      baseUrl: 'https://example.org',
-      userId: '@alice:example.org',
-      deviceId: 'ROOMTEST',
-      accessToken: 'room-test',
-    });
+    signIn();
     withCards();
     await renderRoom();
     await act(async () => controls.board?.open());
@@ -525,21 +538,30 @@ describe('the side panels of a room', () => {
     expect(board()).toBeNull();
   });
 
-  it('opens a panel that remembers again only when no other panel of its room is open', async () => {
-    putSession({
-      baseUrl: 'https://example.org',
-      userId: '@alice:example.org',
-      deviceId: 'ROOMTEST',
-      accessToken: 'room-test',
-    });
+  it.each(['call', 'members'] as const)(
+    'opens a panel that remembers again only when no other panel of its room is open: %s',
+    async (core) => {
+      signIn();
+      withCards();
+      await renderRoom();
+      await act(async () => controls.board?.open());
+      cleanup();
+      if (core === 'call') store.set(callPanelRoomAtom, room.roomId);
+      else store.set(membersOpenAtom, true);
+      await renderRoom();
+      expect(board()).toBeNull();
+      expect(shown()).toEqual([core]);
+    }
+  );
+
+  it('remembers nothing for an account whose login this browser no longer has', async () => {
     withCards();
     await renderRoom();
     await act(async () => controls.board?.open());
+    expect(board()).not.toBeNull();
     cleanup();
-    store.set(membersOpenAtom, true);
     await renderRoom();
     expect(board()).toBeNull();
-    expect(shown()).toEqual(['members']);
   });
 
   it("covers the conversation with a plugin's panel on phones, which has no frame", async () => {
