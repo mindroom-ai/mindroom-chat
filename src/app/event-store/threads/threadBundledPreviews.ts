@@ -38,10 +38,10 @@ export const getBundledThreadPreviews = (
     const relation = raw.content['m.relates_to'];
     if (!object(relation) || relation.rel_type !== 'm.thread' || relation.event_id !== rootId)
       return undefined;
-    // As the server sorts them: any sender's m.notice whose own content has an object marker is a
+    // As the server sorts them: any sender's m.notice whose own content has a truthy marker is a
     // title, every other thread event a reply. A marker added only by an edit makes no title.
     const marked =
-      raw.content.msgtype === 'm.notice' && object(raw.content['io.mindroom.thread_summary']);
+      raw.content.msgtype === 'm.notice' && !!raw.content['io.mindroom.thread_summary'];
     if (marked !== title) return undefined;
     const known = room.getThread(rootId)?.findEventById(raw.event_id);
     if (known?.isRedacted()) return undefined;
