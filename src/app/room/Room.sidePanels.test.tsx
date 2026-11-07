@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen } from '@testing-library/react';
+import { useLayoutEffect } from 'react';
 import { getDefaultStore, type PrimitiveAtom } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
@@ -488,6 +489,19 @@ describe('the side panels of a room', () => {
     await act(async () => controls.board?.open());
     await act(async () => boardThen?.close());
     expect(board()).not.toBeNull();
+  });
+
+  it("opens a plugin's panel from the plugin's layout effect, as the room first shows and after a switch", async () => {
+    function OpensAtOnce() {
+      const panel = useRoomSidePanel('notes', 'panel');
+      useLayoutEffect(() => panel?.open('at once'), [panel]);
+      return null;
+    }
+    state.inView = <OpensAtOnce />;
+    const showRoom = await renderRoom();
+    expect(screen.getByText('Notes request "at once"')).toBeTruthy();
+    await showRoom('!other:example.org');
+    expect(screen.getByText('Notes request "at once"')).toBeTruthy();
   });
 
   it("does nothing for a plugin's late call after the room's page has gone", async () => {
