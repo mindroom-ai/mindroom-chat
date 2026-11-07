@@ -192,6 +192,8 @@ describe('clientPlugins', () => {
         rollupOptions: {
           input: path.join(ROOT, 'src/app/plugins/pluginEntries.ts'),
           preserveEntrySignatures: 'strict',
+          // Packages, such as the Matrix SDK the `matrix` subpath imports, stay out; the SDK stays in.
+          external: (id) => packages(id) && !id.startsWith('@mindroom/client-sdk/'),
         },
       },
     })) as Rollup.RollupOutput;

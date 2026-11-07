@@ -52,13 +52,19 @@ describe('example plugin', () => {
     expect(view.getByText('From config: Hello')).toBeTruthy();
   });
 
-  it('keeps values in its storage for the account signed in', async () => {
+  it.each([
+    ['the account signed in', undefined],
+    [
+      "the client's account, when the test gives a client",
+      createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' }),
+    ],
+  ])('keeps values in its storage for %s', async (_, client) => {
     function Stored() {
       const storage = usePluginStorage('example');
       const kept = storage.setItem('note', 'kept');
       return <p>{`${String(kept)}: ${storage.getItem('note') ?? 'nothing'}`}</p>;
     }
-    const view = await renderPluginComponent(<Stored />, { id: 'example', plugin });
+    const view = await renderPluginComponent(<Stored />, { id: 'example', plugin, client });
     expect(view.getByText('true: kept')).toBeTruthy();
   });
 
