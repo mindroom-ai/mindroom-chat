@@ -33,11 +33,11 @@ describe('nestSubRooms', () => {
     });
   });
 
-  it('shows a sub-room at top level while its parent room is not in the section', () => {
-    const rooms = ['!sub'];
+  it('shows a sub-room at top level, in its place, while its parent room is not in the section', () => {
+    const rooms = ['!sub', '!zebra'];
 
     expect(nest(rooms, rooms, { '!sub': ['!archived-parent'] })).toEqual({
-      top: ['!sub'],
+      top: ['!sub', '!zebra'],
       children: {},
     });
   });
