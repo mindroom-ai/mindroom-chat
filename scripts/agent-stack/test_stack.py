@@ -259,6 +259,9 @@ class CommandLineTests(unittest.TestCase):
         patcher = mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": directory.name})
         patcher.start()
         self.addCleanup(patcher.stop)
+        self.slot_dir = Path(directory.name) / "slot-7"
+        # The usual umask, which lets other users read what a process writes; the tests after these get theirs back.
+        self.addCleanup(os.umask, os.umask(0o022))
 
     def main(self, *argv: str) -> object:
         with (
@@ -280,6 +283,47 @@ class CommandLineTests(unittest.TestCase):
         with mock.patch.object(stack, "up", return_value={}) as up:
             self.assertEqual(self.main("5", "up", "--computers"), 0)
         self.assertTrue(up.call_args.args[1].client_sessions)
+
+    def mode(self, path: Path) -> int:
+        return path.stat().st_mode & 0o777
+
+    def found_homeserver_and_checkout(self) -> contextlib.ExitStack:
+        patches = contextlib.ExitStack()
+        patches.enter_context(mock.patch.object(stack, "resolve_checkout", return_value=Path("/mindroom")))
+        patches.enter_context(mock.patch.object(stack, "resolve_commit", return_value="a" * 40))
+        patches.enter_context(mock.patch.object(stack, "http_json", return_value=(200, {})))
+        return patches
+
+    def test_a_new_slot_without_keys_and_its_files_are_the_owners_only(self) -> None:
+        account = {"user_id": TESTER, "access_token": "tester-token"}
+        with (
+            self.found_homeserver_and_checkout(),
+            mock.patch.object(stack, "prepare_source", return_value=Path("/mindroom-source")),
+            mock.patch.object(stack, "register", return_value=account),
+            mock.patch.object(stack, "matrix", return_value=(200, {})),
+            mock.patch.object(stack, "start_process", return_value=0),
+            # The stub model never answers, so the start stops once it wrote its files.
+            mock.patch.object(stack, "wait_until", side_effect=stack.StackError("timed out")),
+        ):
+            self.assertEqual(self.main("7", "up"), 1)
+        self.assertEqual(self.mode(self.slot_dir), 0o700)
+        for name in ("state.json", ".env", "config.yaml"):
+            self.assertEqual(self.mode(self.slot_dir / name), 0o600, name)
+
+    def test_a_slot_an_older_start_left_readable_becomes_the_owners_only(self) -> None:
+        state = {"tester": {"accessToken": "tester-token"}, "routerToken": "router-token"}
+        for command in ("up", "status"):
+            self.slot_dir.mkdir(mode=0o755, exist_ok=True)
+            self.slot_dir.chmod(0o755)
+            (self.slot_dir / "state.json").write_text(json.dumps(state))
+            with (
+                self.found_homeserver_and_checkout(),
+                mock.patch.object(stack, "running", return_value=True),
+                mock.patch.object(stack, "started_with", return_value=True),
+                mock.patch.object(stack, "token_is_valid", return_value=True),
+            ):
+                self.assertEqual(self.main("7", command), 0, command)
+            self.assertEqual(self.mode(self.slot_dir), 0o700, command)
 
 
 class SlotTests(unittest.TestCase):
