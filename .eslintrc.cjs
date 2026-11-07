@@ -315,6 +315,22 @@ module.exports = {
       },
     },
     {
+      // A spec's own WebKit comes from e2e/helpers/webkit.ts, whose contexts keep Safari's user
+      // agent and block the service worker, whose requests Playwright's WebKit does not route.
+      files: ['e2e/**/*.{ts,tsx}'],
+      excludedFiles: ['e2e/helpers/webkit.ts'],
+      rules: {
+        'no-restricted-properties': [
+          'error',
+          {
+            object: 'webkit',
+            property: 'launch',
+            message: 'Launch WebKit with launchWebKit or onWebKitPage from e2e/helpers/webkit.ts.',
+          },
+        ],
+      },
+    },
+    {
       // Type-aware rules for Lane C TypeScript: the files tsconfig.json compiles, minus Lane P.
       // Types come from tsconfig.strict.json, whose unchecked index access `just strict` enforces.
       files: laneCTypeScriptFiles(),
