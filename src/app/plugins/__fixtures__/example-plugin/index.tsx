@@ -1,7 +1,9 @@
 // A client plugin for the tests (docs/architecture.md "Client plugins"): a message that carries
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
-// A side panel, "Example panel", names the room it is open in.
+// A side panel, "Example panel", names the room it is open in and the greeting a card asked it to
+// show: in a room, each greeting has "Show in panel", and "Close panel" while the panel shows. The
+// panel stays open in its room across reloads (`remember`).
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg). Like a plugin outside this repository, it imports the app only through the
 // client SDK.
@@ -20,6 +22,7 @@ import {
   usePluginRouteHref,
   usePluginStorage,
   usePluginTranslation,
+  useRoomSidePanel,
   type ClientPlugin,
   type PluginEvent,
 } from '@mindroom/client-sdk/core';
@@ -47,6 +50,8 @@ function Greeting({ event }: { event: PluginEvent }) {
     return note;
   }, [storage, seenKey]);
   const t = usePluginTranslation('example');
+  const panel = useRoomSidePanel('example', 'panel');
+  const text = greetingText(event);
   const label =
     typeof config === 'object' &&
     config !== null &&
@@ -57,9 +62,19 @@ function Greeting({ event }: { event: PluginEvent }) {
   return (
     <>
       <div data-example-plugin>
-        {label}: {greetingText(event)}
+        {label}: {text}
       </div>
       {seenIn !== null && seenIn !== pageLoad && <div data-example-plugin-seen>Seen before</div>}
+      {panel && (
+        <button type="button" onClick={() => panel.open(text)}>
+          Show in panel
+        </button>
+      )}
+      {panel?.isOpen && (
+        <button type="button" onClick={panel.close}>
+          Close panel
+        </button>
+      )}
     </>
   );
 }
@@ -97,8 +112,13 @@ function WindowPage() {
   );
 }
 
-function ExamplePanel({ roomId }: { roomId: string }) {
-  return <p>Example panel of {roomId}</p>;
+function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }) {
+  return (
+    <>
+      <p>Example panel of {roomId}</p>
+      {typeof request === 'string' && <p data-example-panel-request>Greeting: {request}</p>}
+    </>
+  );
 }
 
 const plugin: ClientPlugin = {
@@ -113,7 +133,7 @@ const plugin: ClientPlugin = {
     sessionStorage.setItem('example-plugin.forgot', userId);
   },
   roomHeaderSlot: [RoomBanner],
-  sidePanels: [{ id: 'panel', label: 'Example panel', Component: ExamplePanel }],
+  sidePanels: [{ id: 'panel', label: 'Example panel', Component: ExamplePanel, remember: true }],
   headerActions: [
     {
       id: 'wave',

@@ -74,6 +74,17 @@ describe('example plugin', () => {
     expect(view.getByText('Fill the window').getAttribute('href')).toBe('/p/example/window');
   });
 
+  it('shows the greeting a card asked its panel to show; outside a room a card offers none', async () => {
+    const [panel] = plugin.sidePanels ?? [];
+    if (!panel) throw new Error('the example plugin has no side panel');
+    const view = await renderPluginComponent(
+      <panel.Component roomId="!lobby:example.org" request="Hello" />,
+      { id: 'example', plugin }
+    );
+    expect(view.getByText('Greeting: Hello')).toBeTruthy();
+    expect((await renderGreeting()).queryByRole('button', { name: 'Show in panel' })).toBeNull();
+  });
+
   it('names the open room under the header', async () => {
     if (!Banner) throw new Error('the example plugin has nothing under the room header');
     const room = { roomId: '!lobby:example.org', name: 'Lobby' } as Room;

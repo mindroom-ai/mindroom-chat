@@ -32,7 +32,11 @@ import { usePanelSlot } from '../ui/panels/panelPresence';
 import { type PanelFrame, PanelFrameProvider } from '../ui/panels/PanelFrame';
 import { type RoomPanel, useRoomPanels } from '../ui/panels/roomPanels';
 import { registeredPlugins } from '../plugins/registry';
-import { enabledSidePanels } from '../plugins/sidePanels';
+import {
+  type RoomSidePanels,
+  RoomSidePanelsContext,
+  enabledSidePanels,
+} from '../plugins/sidePanels';
 import { usePluginHeaderActions } from '../plugins/headerActions';
 import { ComputerPanel } from '../computer/ComputerPanel';
 import type { ComputerAgent } from '../computer/types';
@@ -68,6 +72,7 @@ import type { CallPanel as CallPanelComponent } from '../calls/CallPanel';
 import { type PartLoadRetry, lazyPart } from '../lib/lazyPart';
 import { PartUnavailable } from '../ui/PartUnavailable';
 import { PluginSidePanel } from './PluginSidePanel';
+import { usePluginPanel } from './usePluginPanel';
 
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;
@@ -289,8 +294,13 @@ function RoomContent() {
   );
   const pluginActions = usePluginHeaderActions(registeredPlugins, clientConfig);
   // A plugin's panel belongs to the room it opened in.
-  const [pluginPanel, setPluginPanel] = useState<{ roomId: string; id: string }>();
-  const closePluginPanel = useCallback(() => setPluginPanel(undefined), []);
+  const pluginPanel = usePluginPanel(
+    ownUserId,
+    roomId,
+    pluginPanels,
+    computerOpen || !!canvas || callOpen || membersOpen
+  );
+  const closePluginPanel = pluginPanel.close;
 
   const closeCall = () => setCallOpen(false);
   const closeMembers = () => setMembersOpen(false);
@@ -384,9 +394,9 @@ function RoomContent() {
     ...pluginPanels.map(
       (panel): PanelEntry => ({
         id: panel.id,
-        open: pluginPanel?.roomId === roomId && pluginPanel.id === panel.id,
+        open: pluginPanel.here?.id === panel.id,
         close: closePluginPanel,
-        show: () => setPluginPanel({ roomId, id: panel.id }),
+        show: () => pluginPanel.show(panel.id),
         label: panel.label,
         covers: mobile,
         render: () => (
@@ -402,7 +412,12 @@ function RoomContent() {
             onCollapse={closePluginPanel}
             testId="resizable-plugin-panel"
           >
-            <PluginSidePanel panel={panel} roomId={roomId} onClose={closePluginPanel} />
+            <PluginSidePanel
+              panel={panel}
+              roomId={roomId}
+              request={pluginPanel.here?.request}
+              onClose={closePluginPanel}
+            />
           </ResizablePanel>
         ),
       })
@@ -432,6 +447,23 @@ function RoomContent() {
   function toggleFilled(id: string) {
     setLayout(id, layout === 'filled' ? 'beside' : 'filled');
   }
+  // What a plugin's code may do with its panels here (useRoomSidePanel).
+  const shownId = shown?.id;
+  const { show: showPluginPanel } = pluginPanel;
+  const roomSidePanels = useMemo<RoomSidePanels>(
+    () => ({
+      shown: shownId,
+      open: (id, panelRequest) => {
+        if (pluginPanels.some((panel) => panel.id === id)) {
+          request(id, () => showPluginPanel(id, panelRequest));
+        }
+      },
+      close: (id) => {
+        if (shownId === id) closePluginPanel();
+      },
+    }),
+    [closePluginPanel, pluginPanels, request, showPluginPanel, shownId]
+  );
 
   const showCanvas = useCallback(
     (event: MatrixEvent, filled = false) =>
@@ -594,22 +626,24 @@ function RoomContent() {
   return (
     <PowerLevelsContextProvider value={powerLevels}>
       <ChatUiActionContext.Provider value={uiActions}>
-        {!conversationHidden && (
-          <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
-            <RoomMessageAnnouncer room={room} threadId={routedThreadId} myUserId={ownUserId} />
-            <RoomView
-              room={room}
-              eventId={eventId}
-              threadId={routedThreadId}
-              focusEventInRoom={focusEventInRoom}
-              hasMindroomAgents={hasMindroomAgents}
-              joinRequestCount={joinRequestCount}
-              onThreadLoadError={onThreadLoadError}
-              {...headerPanels}
-            />
-          </Box>
-        )}
-        {sidePanel}
+        <RoomSidePanelsContext.Provider value={roomSidePanels}>
+          {!conversationHidden && (
+            <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
+              <RoomMessageAnnouncer room={room} threadId={routedThreadId} myUserId={ownUserId} />
+              <RoomView
+                room={room}
+                eventId={eventId}
+                threadId={routedThreadId}
+                focusEventInRoom={focusEventInRoom}
+                hasMindroomAgents={hasMindroomAgents}
+                joinRequestCount={joinRequestCount}
+                onThreadLoadError={onThreadLoadError}
+                {...headerPanels}
+              />
+            </Box>
+          )}
+          {sidePanel}
+        </RoomSidePanelsContext.Provider>
       </ChatUiActionContext.Provider>
     </PowerLevelsContextProvider>
   );

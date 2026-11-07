@@ -161,7 +161,7 @@ const widthOf = async (locator: Locator): Promise<number> =>
   (await locator.boundingBox())?.width ?? 0;
 
 /** Opens another room of the viewer, `name`, from the room list, and waits for its header. */
-const showRoom = async (page: Page, name: string) => {
+export const showRoom = async (page: Page, name: string) => {
   await page.getByRole('link', { name, exact: true }).first().click();
   await expect(roomHeader(page).getByRole('heading', { name, exact: true })).toBeVisible();
 };

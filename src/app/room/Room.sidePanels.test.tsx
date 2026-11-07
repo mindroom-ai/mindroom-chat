@@ -8,13 +8,16 @@ import type { AgentServer } from '../computer/agentServer';
 import { computerServicePreferenceAtom } from '../computer/computerServiceSettings';
 import * as membersDrawer from '../members/useMembersDrawer';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
+import { putSession } from '../matrix/session/sessions';
+import { type RoomSidePanelControl, useRoomSidePanel } from '../plugins/sidePanels';
 import type { RoomViewProps } from './RoomView';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
 import { makeUiEvent } from '../ui-actions/testUtils';
 
 // The room's side panels (the computer, a canvas, the call, the members and a plugin's panel),
 // opened as their users open them, through the room: the header's controls, an agent's live
-// request, and the call store, which the call buttons and a call started elsewhere set.
+// request, the call store, which the call buttons and a call started elsewhere set, and a plugin's
+// code in the room (a card in the conversation).
 
 const reportBoundaryError = vi.hoisted(() => vi.fn());
 vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) => ({
@@ -37,12 +40,15 @@ const { mx, room, state } = vi.hoisted(() => {
       servers: [] as AgentServer[],
       bindsOpenIdTokens: false,
       view: undefined as RoomViewProps | undefined,
+      // What the conversation shows besides the mock's own element, such as a plugin's cards.
+      inView: undefined as React.ReactNode,
+      userId: '@alice:example.org',
       computer: undefined as { expanded?: boolean; onToggleExpanded?: () => void } | undefined,
       canvas: undefined as { expanded?: boolean; onToggleExpanded?: () => void } | undefined,
       roomId: '!room:example.org',
     },
     mx: {
-      getSafeUserId: () => '@alice:example.org',
+      getSafeUserId: () => state.userId,
       isInitialSyncComplete: () => true,
       getSyncState: () => 'SYNCING',
       on: (name: string, handler: (...args: unknown[]) => void) => listeners.set(name, handler),
@@ -67,7 +73,7 @@ vi.mock('react-router-dom', () => ({
 vi.mock('./RoomView', () => ({
   RoomView: (props: RoomViewProps) => {
     state.view = props;
-    return <div data-testid="room-view" />;
+    return <div data-testid="room-view">{state.inView}</div>;
   },
 }));
 vi.mock('../members/MembersDrawer', () => ({ MembersDrawer: () => <aside /> }));
@@ -116,8 +122,9 @@ vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoom: () => undefined, navigateRoomThread: () => undefined }),
 }));
 const { neverLoads } = vi.hoisted(() => ({ neverLoads: new Promise<never>(() => undefined) }));
-// Two plugins of the build: one whose panel names its room, one whose panels fail or wait for
-// their code (a lazy component that never loads).
+// Two plugins of the build: one whose panels name their room and request, the second of which
+// remembers it is open, and one whose panels fail or wait for their code (a lazy component that
+// never loads).
 vi.mock('../plugins/pluginEntries', () => ({
   pluginEntries: [
     {
@@ -128,7 +135,26 @@ vi.mock('../plugins/pluginEntries', () => ({
           {
             id: 'panel',
             label: 'Notes',
-            Component: ({ roomId }: { roomId: string }) => <p>Notes of {roomId}</p>,
+            Component: ({ roomId, request }: { roomId: string; request?: unknown }) => {
+              if (request === 'missing note') throw new Error('no such note');
+              return (
+                <>
+                  <p>Notes of {roomId}</p>
+                  {request !== undefined && <p>Notes request {JSON.stringify(request)}</p>}
+                </>
+              );
+            },
+          },
+          {
+            id: 'board',
+            label: 'Board',
+            remember: true,
+            Component: ({ roomId, request }: { roomId: string; request?: unknown }) => (
+              <>
+                <p>Board of {roomId}</p>
+                {request !== undefined && <p>Board request {JSON.stringify(request)}</p>}
+              </>
+            ),
           },
         ],
         headerActions: [{ id: 'add', label: 'Add a note', icon: () => null, run: () => undefined }],
@@ -259,6 +285,9 @@ describe('the side panels of a room', () => {
     state.servers = [];
     state.bindsOpenIdTokens = false;
     state.view = undefined;
+    state.inView = undefined;
+    state.userId = '@alice:example.org';
+    localStorage.clear();
     state.computer = undefined;
     state.canvas = undefined;
     state.roomId = room.roomId;
@@ -392,6 +421,127 @@ describe('the side panels of a room', () => {
     expect(notes()).not.toBeNull();
   });
 
+  /** What the plugin's code in the conversation gets for each of its panels. */
+  const controls: Record<string, RoomSidePanelControl | undefined> = {};
+  function Card({ panel }: { panel: string }) {
+    controls[panel] = useRoomSidePanel('notes', panel);
+    return null;
+  }
+  const withCards = () => {
+    state.inView = ['panel', 'board', 'missing'].map((panel) => <Card key={panel} panel={panel} />);
+  };
+  const board = () => screen.queryByRole('region', { name: 'Board' });
+
+  it("opens a plugin's panel from the plugin's code with a request, which each open replaces", async () => {
+    withCards();
+    await renderRoom();
+    await open('computer');
+    expect(controls.panel?.isOpen).toBe(false);
+    await act(async () => controls.panel?.open({ note: 1 }));
+    expect(isOpen('computer')).toBe(false);
+    expect(screen.getByText('Notes request {"note":1}')).toBeTruthy();
+    expect(controls.panel?.isOpen).toBe(true);
+    expect(controls.board?.isOpen).toBe(false);
+
+    await act(async () => controls.panel?.open({ note: 2 }));
+    expect(screen.getByText('Notes request {"note":2}')).toBeTruthy();
+    // Another plugin panel's close, or the open of a panel the build lacks, leaves it.
+    await act(async () => controls.board?.close());
+    await act(async () => controls.missing?.open('nothing'));
+    expect(controls.panel?.isOpen).toBe(true);
+
+    await act(async () => controls.panel?.close());
+    expect(notes()).toBeNull();
+    expect(controls.panel?.isOpen).toBe(false);
+    // The room menu opens it with no request.
+    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
+    expect(screen.getByText(`Notes of ${room.roomId}`)).toBeTruthy();
+    expect(screen.queryByText(/^Notes request/)).toBeNull();
+  });
+
+  it("gives a plugin's code no panels outside a room's page", async () => {
+    render(<Card panel="panel" />);
+    expect(controls.panel).toBeUndefined();
+  });
+
+  it('keeps a panel that remembers open in its room for the account, across reloads and rooms', async () => {
+    putSession({
+      baseUrl: 'https://example.org',
+      userId: '@alice:example.org',
+      deviceId: 'ROOMTEST',
+      accessToken: 'room-test',
+    });
+    withCards();
+    await renderRoom();
+    await act(async () => controls.board?.open({ item: 'a' }));
+    cleanup();
+
+    const showRoom = await renderRoom();
+    expect(board()).not.toBeNull();
+    expect(screen.getByText('Board request {"item":"a"}')).toBeTruthy();
+    // Not in another room, whose own plugin panel then takes the page's place for one.
+    await showRoom('!other:example.org');
+    expect(board()).toBeNull();
+    await act(async () => controls.panel?.open());
+    await showRoom(room.roomId);
+    expect(screen.getByText('Board request {"item":"a"}')).toBeTruthy();
+    cleanup();
+
+    // Another account never sees it.
+    state.userId = '@bob:example.org';
+    await renderRoom();
+    expect(board()).toBeNull();
+    cleanup();
+
+    // A panel that does not remember is gone after a reload.
+    state.userId = '@alice:example.org';
+    await renderRoom();
+    await act(async () => controls.panel?.open());
+    cleanup();
+    await renderRoom();
+    expect(notes()).toBeNull();
+  });
+
+  it('forgets a panel that remembers when it closes, or another panel opens, in its room', async () => {
+    putSession({
+      baseUrl: 'https://example.org',
+      userId: '@alice:example.org',
+      deviceId: 'ROOMTEST',
+      accessToken: 'room-test',
+    });
+    withCards();
+    await renderRoom();
+    await act(async () => controls.board?.open());
+    await act(async () => screen.getByRole('button', { name: 'Close Board' }).click());
+    cleanup();
+    await renderRoom();
+    expect(board()).toBeNull();
+
+    await act(async () => controls.board?.open());
+    await act(async () => state.view?.onPanelToggle?.('members'));
+    await act(async () => state.view?.onPanelToggle?.('members'));
+    cleanup();
+    await renderRoom();
+    expect(board()).toBeNull();
+  });
+
+  it('opens a panel that remembers again only when no other panel of its room is open', async () => {
+    putSession({
+      baseUrl: 'https://example.org',
+      userId: '@alice:example.org',
+      deviceId: 'ROOMTEST',
+      accessToken: 'room-test',
+    });
+    withCards();
+    await renderRoom();
+    await act(async () => controls.board?.open());
+    cleanup();
+    store.set(membersOpenAtom, true);
+    await renderRoom();
+    expect(board()).toBeNull();
+    expect(shown()).toEqual(['members']);
+  });
+
   it("covers the conversation with a plugin's panel on phones, which has no frame", async () => {
     await renderRoom(ScreenSize.Mobile);
     await act(async () => state.view?.onPanelToggle?.('notes/panel'));
@@ -499,6 +649,7 @@ describe('the side panels of a room', () => {
     await renderRoom();
     expect(state.view?.pluginPanels?.map(({ id, label }) => [id, label])).toEqual([
       ['notes/panel', 'Notes'],
+      ['notes/board', 'Board'],
       ['broken/panel', 'Broken'],
       ['broken/opaque', 'Opaque'],
       ['broken/waiting', 'Waiting'],
@@ -556,5 +707,15 @@ describe('the side panels of a room', () => {
       expect.objectContaining({ name: 'Error', message: '[plugin broken@2.0.0] no notes today' }),
       expect.any(String)
     );
+  });
+
+  it("tries a plugin's failed panel again with its next request", async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    withCards();
+    await renderRoom();
+    await act(async () => controls.panel?.open('missing note'));
+    expect(notes()?.textContent).toContain('This panel stopped working.');
+    await act(async () => controls.panel?.open({ note: 3 }));
+    expect(notes()?.textContent).toContain('Notes request {"note":3}');
   });
 });

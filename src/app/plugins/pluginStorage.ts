@@ -25,7 +25,8 @@ export type PluginStorage = {
 const PLUGIN_KEYS = 'mindroom.plugin:';
 
 /** The start of the localStorage key of every plugin value kept for `userId`. */
-const accountPrefix = (userId: string): string => `${PLUGIN_KEYS}${encodeURIComponent(userId)}/`;
+export const accountPrefix = (userId: string): string =>
+  `${PLUGIN_KEYS}${encodeURIComponent(userId)}/`;
 
 const deleteKeys = (doomed: (key: string) => boolean): void => {
   const storage = getSafeLocalStorage();
