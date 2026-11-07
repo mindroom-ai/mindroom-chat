@@ -17,6 +17,18 @@ import {
 } from '../test-utils/RoomTimeline.test.shared';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
+// Room pages go through roomHistoryPageSdk, which has its own tests; here a page is the client
+// mock's page, as the timeline loaded it before.
+vi.mock('../../event-store/sdk/roomHistoryPageSdk', () => ({
+  paginateRoomHistory: (
+    mx: { paginateEventTimeline: (edge: unknown, opts: object) => Promise<boolean> },
+    _room: unknown,
+    edge: unknown,
+    backwards: boolean,
+    limit: number
+  ) => mx.paginateEventTimeline(edge, { backwards, limit }),
+}));
+
 type TestEvent = ReturnType<typeof makeEvent>;
 type TestTimeline = ReturnType<typeof makeTimeline>;
 type TestRoom = ReturnType<typeof makeRoom>;
