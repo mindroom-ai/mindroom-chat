@@ -91,6 +91,22 @@ describe('markShownThreadRepliesAsRead', () => {
     expect(mx.sendReceipt).toHaveBeenCalledWith(a2, ReceiptType.Read, { thread_id: '$a' });
   });
 
+  it('reads the replies a sync adds one by one with one receipt per thread', async () => {
+    const a1 = reply('$a1', 2, '$a');
+    const a2 = reply('$a2', 5, '$a');
+    const b1 = reply('$b1', 4, '$b');
+    const mx = setup([thread('$a', [a1, a2]), thread('$b', [b1])]);
+
+    // The classic view asks to read each reply as it arrives.
+    await Promise.all(
+      [a1, b1, a2].map((shown) =>
+        markShownThreadRepliesAsRead(mx as never, ROOM_ID, [shown], false)
+      )
+    );
+
+    expect(receipts(mx).sort()).toEqual(['$a2 $a', '$b1 $b']);
+  });
+
   it('reads a finished streamed reply up to its finishing edit, privately when asked', async () => {
     const answer = reply('$answer', 2, '$root');
     const finish = finishingEdit('$finish', 4, '$answer', '$root');

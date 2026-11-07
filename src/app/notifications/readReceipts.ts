@@ -88,10 +88,16 @@ const send = (promise: Promise<unknown> | undefined): Promise<void> =>
   );
 
 /**
- * Reads the room's main timeline: a `main` receipt on its newest event outside threads.
- * Thread replies stay unread.
+ * Reads that are asked for together share one: a sync adds its events one by one and each arrival
+ * asks to read the room, so a limited sync of ten events asked for ten receipts at once. The
+ * shared read runs once the current task is over, on what the room holds then.
  */
-export const markMainTimelineAsRead = async (
+const nextTask = (): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+
+const readMainTimeline = async (
   mx: MatrixClient,
   roomId: string,
   hideActivity: boolean
@@ -112,12 +118,39 @@ export const markMainTimelineAsRead = async (
   );
   if (!room || !target) return;
   const userId = mx.getUserId();
-  if (userId && room.getEventReadUpTo(userId) === target.getId()) return;
+  // A receipt never moves back: an older event of a sync replayed after a reload gets none.
+  const readUpTo = userId ? room.getEventReadUpTo(userId) : null;
+  if (readUpTo && events.findIndex((event) => event.getId() === readUpTo) >= events.indexOf(target))
+    return;
   await send(
     sendOwnReceipt(() =>
       mx.sendReceipt(target, receiptTypeFor(hideActivity), { thread_id: MAIN_ROOM_TIMELINE })
     )
   );
+};
+
+const queuedMainReads = new WeakMap<MatrixClient, Map<string, Promise<void>>>();
+
+/**
+ * Reads the room's main timeline: a `main` receipt on its newest event outside threads, unless
+ * the reader's receipt is on it or after it already. Thread replies stay unread. Calls for a
+ * room in the same task send one receipt.
+ */
+export const markMainTimelineAsRead = (
+  mx: MatrixClient,
+  roomId: string,
+  hideActivity: boolean
+): Promise<void> => {
+  const queued = queuedMainReads.get(mx) ?? new Map<string, Promise<void>>();
+  queuedMainReads.set(mx, queued);
+  const waiting = queued.get(roomId);
+  if (waiting) return waiting;
+  const read = nextTask().then(() => {
+    queued.delete(roomId);
+    return readMainTimeline(mx, roomId, hideActivity);
+  });
+  queued.set(roomId, read);
+  return read;
 };
 
 const fetchNewestRelation = async (
@@ -280,14 +313,7 @@ export const markThreadAsRead = async (
   );
 };
 
-/**
- * Reads the threads of replies the reader saw outside them (the classic view shows replies among
- * the room's rows): each thread up to its newest reply in `shown`, or the edit that finished that
- * reply, with a receipt scoped to the thread, unless the reader's receipt there already reads it.
- * An edit in `shown` that finished a reply counts as that reply read to its end. The roots are
- * main timeline rows and are read with the main timeline.
- */
-export const markShownThreadRepliesAsRead = async (
+const readShownThreadReplies = async (
   mx: MatrixClient,
   roomId: string,
   shown: MatrixEvent[],
@@ -320,6 +346,42 @@ export const markShownThreadRepliesAsRead = async (
       );
     })
   );
+};
+
+const queuedShownReplies = new WeakMap<
+  MatrixClient,
+  Map<string, { shown: MatrixEvent[]; read: Promise<void> }>
+>();
+
+/**
+ * Reads the threads of replies the reader saw outside them (the classic view shows replies among
+ * the room's rows): each thread up to its newest reply in `shown`, or the edit that finished that
+ * reply, with a receipt scoped to the thread, unless the reader's receipt there already reads it.
+ * An edit in `shown` that finished a reply counts as that reply read to its end. The roots are
+ * main timeline rows and are read with the main timeline. Calls for a room in the same task
+ * share their replies and send one receipt per thread.
+ */
+export const markShownThreadRepliesAsRead = (
+  mx: MatrixClient,
+  roomId: string,
+  shown: MatrixEvent[],
+  hideActivity: boolean
+): Promise<void> => {
+  const queued =
+    queuedShownReplies.get(mx) ?? new Map<string, { shown: MatrixEvent[]; read: Promise<void> }>();
+  queuedShownReplies.set(mx, queued);
+  const waiting = queued.get(roomId);
+  if (waiting) {
+    waiting.shown.push(...shown);
+    return waiting.read;
+  }
+  const batch = [...shown];
+  const read = nextTask().then(() => {
+    queued.delete(roomId);
+    return readShownThreadReplies(mx, roomId, batch, hideActivity);
+  });
+  queued.set(roomId, { shown: batch, read });
+  return read;
 };
 
 const latestRoomEvent = (room: Room): MatrixEvent | undefined => {
