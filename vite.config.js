@@ -103,7 +103,7 @@ const serviceWorkerPlugin = VitePWA({
 });
 
 // The client plugins MINDROOM_CLIENT_PLUGINS lists: the packages each installed in its own directory
-// are its own, which the one-copy check leaves out until plugins share the app's.
+// are its own, which the one-copy check leaves out (the packages the app shares come from the app).
 const clientPluginDirs = readClientPlugins(process.env.MINDROOM_CLIENT_PLUGINS).map(
   ({ dir }) => dir
 );

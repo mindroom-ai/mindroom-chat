@@ -1,12 +1,15 @@
 // Usage: node scripts/license-check.mjs [node_modules]
 //
 // Fails (exit 1) and prints `name@version license` for every installed package whose license is
-// not on the allowlist (Global Constraints) or that declares none. An SPDX `OR` expression passes
-// when one side is allowed, `AND` needs both sides, `WITH <exception>` is judged by the license.
+// not on the allowlist (Global Constraints) or that declares none, in node_modules and in the
+// node_modules of each client plugin that MINDROOM_CLIENT_PLUGINS lists. An SPDX `OR` expression
+// passes when one side is allowed, `AND` needs both sides, `WITH <exception>` is judged by the
+// license.
 // Exit 2 means the directory could not be read.
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { readClientPlugins } from './client-plugins.mjs';
 
 const ALLOWED = new Set(
   [
@@ -149,24 +152,29 @@ function main() {
   const offenders = new Set();
   const excepted = new Set();
   let checked = 0;
-  for (const dir of packageDirs(nodeModules, new Set())) {
-    const manifestPath = path.join(dir, 'package.json');
-    if (!existsSync(manifestPath)) {
-      offenders.add(`${path.relative(nodeModules, dir)}@? (no package.json)`);
-      continue;
+  const check = (modules, suffix = '') => {
+    for (const dir of packageDirs(modules, new Set())) {
+      const manifestPath = path.join(dir, 'package.json');
+      if (!existsSync(manifestPath)) {
+        offenders.add(`${path.relative(modules, dir)}@? (no package.json)${suffix}`);
+        continue;
+      }
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+      const name = manifest.name ?? path.basename(dir);
+      const id = `${name}@${manifest.version ?? '?'}`;
+      const license = licenseOf(manifest);
+      checked += 1;
+      if (Object.hasOwn(EXCEPTIONS, name)) {
+        excepted.add(id);
+      } else if (license === undefined || !isAllowedExpression(license)) {
+        offenders.add(`${id} ${license ?? '(no license)'}${suffix}`);
+      }
     }
-    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-    const name = manifest.name ?? path.basename(dir);
-    const id = `${name}@${manifest.version ?? '?'}`;
-    const license = licenseOf(manifest);
-    checked += 1;
-    if (Object.hasOwn(EXCEPTIONS, name)) {
-      excepted.add(id);
-    } else if (license === undefined) {
-      offenders.add(`${id} (no license)`);
-    } else if (!isAllowedExpression(license)) {
-      offenders.add(`${id} ${license}`);
-    }
+  };
+  check(nodeModules);
+  for (const { id, dir } of readClientPlugins(process.env.MINDROOM_CLIENT_PLUGINS)) {
+    const modules = path.join(dir, 'node_modules');
+    if (isDirectory(modules)) check(modules, ` (client plugin ${id})`);
   }
 
   if (offenders.size > 0) {
