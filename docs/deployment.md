@@ -26,7 +26,40 @@ To deploy, serve `dist/` from the root of an origin and answer every path that i
 Who may frame the app is a response header, not part of the build (values in `scripts/frame-headers.json`, rule in `scripts/frame-headers.mjs`): `Content-Security-Policy: frame-ancestors 'self'` and `X-Frame-Options: SAMEORIGIN` on every path, and `frame-ancestors 'none'` with `X-Frame-Options: DENY` on the pairing page, in every spelling the router renders it under (`/connect`, `/CONNECT/`, `/%63onnect`, under a base path). `vite preview`, `serve.py` and the nginx start script `docker-entrypoint.d/40-frame-headers.sh` send them, and the service worker gives the pairing page its own when it answers from the cached app shell. `netlify.toml` sends them too, but its rules name only `/connect` and `/connect/`, so other spellings may get `'self'` there on a first visit. With `hashRouter.enabled`, the pairing page is `/#/connect`, which reaches the server and the service worker as `/`, so it gets the `'self'` headers too; in a frame, the page itself shows a warning and does not pair (`src/app/local-mindroom/ConnectPage.tsx`).
 
 - `cd dist && python3 ../serve.py 8090` serves a build with the `index.html` fallback and the framing headers, over plain HTTP on every interface: use it to try a build, and put HTTPS in front of any deployment. It generates its own `runtime-config.js` from `APP_BASE_PATH` and `APP_ENABLE_SERVICE_WORKER`.
-- The repository has no Dockerfile. `docker-entrypoint.d/` holds start scripts for an image based on the official `nginx` image, with `dist/` in `/usr/share/nginx/html` and the build's `runtime-config.js` copied to `/opt/mindroom/runtime-config.js`. `99-runtime-config.sh` writes `runtime-config.js` from `APP_BASE_PATH`, `APP_ENABLE_SERVICE_WORKER`, `APP_AUTHENTICATION_RECOVERY_PROBE_URL` and `APP_AUTHENTICATION_RECOVERY_NAVIGATION_URL`, then appends the build's own. `40-frame-headers.sh` writes `/etc/nginx/conf.d/mindroom-frame-headers.conf`, which sends the framing headers from the `http` block; a `server` or `location` with an `add_header` of its own must `include /etc/nginx/mindroom-frame-headers.inc`, because nginx then drops the inherited headers. The nginx site needs the same `index.html` fallback.
+- The container image (below) serves a build through nginx with the same fallback and headers.
+
+## Container image
+
+Every release publishes `ghcr.io/mindroom-ai/mindroom-chat` for `linux/amd64` and `linux/arm64`, built from the release's commit as that release. Releases are the calendar versions `vYYYY.M.N` of [`ios-release.md`](ios-release.md#calendar-versions): one after every push to `main` whose CI passes, and any cut by hand with `just release`.
+
+| Tag | Image |
+|---|---|
+| `YYYY.M.N`, for example `2026.11.0` | release `v2026.11.0` |
+| `vYYYY.M.N` | the same image, under the release's Git tag |
+| `sha-<commit>` | the same image, under the first 7 characters of the release's commit |
+| `latest`, `dev`, `commit-<sha>`, branch names | the earlier MindRoom Chat app, which its own repository still publishes to this package; this repository never moves them |
+
+A release's tags never move to another image. The image reports its release everywhere: `version.json` holds `{"version":"v2026.11.0","release":"v2026.11.0"}`, Settings > About shows `v2026.11.0`, and the labels `org.opencontainers.image.version` and `org.opencontainers.image.revision` name the release and its commit.
+
+`.github/workflows/image.yml` builds it: `release.yml` calls it after an automatic release, and the release event starts it for one cut by hand. It builds each platform's image, starts it and checks what it serves (`scripts/image-smoke-test.sh`: the release in `version.json`, the app shell on any route, a 404 for a missing build file, `config.json`, `notices.json`, `runtime-config.js`, the cache and framing headers), and pushes only when both pass. If the push fails, the release stays without an image: rerun the workflow run's failed job (Actions, the run, **Re-run failed jobs**). Pull requests that change the image, and a manual run of the workflow, do the same checks as the next release and push nothing.
+
+### Updating a deployment
+
+Pin a release and move the pin to update; a running page notices the new `version.json` within five minutes and offers to reload.
+
+- **Newest release:** `gh release view --repo mindroom-ai/mindroom-chat --json tagName --jq .tagName`, or the [releases page](https://github.com/mindroom-ai/mindroom-chat/releases).
+- **MindRoom Helm chart** (`charts/mindroom-client`, MindRoom's `cluster/k8s/client`): set `image.tag` to the release, for example `--set image.tag=2026.11.0`, or `image.digest` to its digest. The chart's default tag, `latest`, is still the earlier app.
+- **Automated updates** (Renovate, Flux image automation, Argo CD Image Updater): track tags matching `^\d{4}\.\d{1,2}\.\d+$` and order them as versions, not as text (`2026.11.10` is newer than `2026.11.9`).
+- **Docker:** `docker run -d -p 8080:80 -v "$PWD/config.json:/app/config.json:ro" ghcr.io/mindroom-ai/mindroom-chat:2026.11.0`, then pull and start the next tag.
+
+### What the image holds
+
+- `nginx:1.30-alpine` listening on port 80, with the build in `/app` and `/usr/share/nginx/html` a link to it. Mount a deployment's `config.json` over `/app/config.json` ([`configuration.md`](configuration.md)).
+- `docker/default.conf`, the site: every path that is not a file gets `index.html`; files under `/assets/` (hashed names) are cached for a year and a missing one is a 404; every other response is revalidated (`Cache-Control: no-cache`). `notices.json` comes from `/opt/mindroom/notices/notices.json`, an empty list; mount a directory holding your own `notices.json` over `/opt/mindroom/notices`.
+- `docker-entrypoint.d/`, run by nginx's entrypoint before it starts. `99-runtime-config.sh` writes `runtime-config.js` from `APP_BASE_PATH`, `APP_ENABLE_SERVICE_WORKER`, `APP_AUTHENTICATION_RECOVERY_PROBE_URL` and `APP_AUTHENTICATION_RECOVERY_NAVIGATION_URL`, then appends the build's own, kept in `/opt/mindroom/runtime-config.js`. `40-frame-headers.sh` writes `/etc/nginx/conf.d/mindroom-frame-headers.conf`, which sends the framing headers from the `http` block; a `server` or `location` with an `add_header` of its own must `include /etc/nginx/mindroom-frame-headers.inc`, because nginx then drops the inherited headers, as `docker/default.conf` does.
+- The MindRoom Helm chart starts `nginx` itself, as user 101 with a read-only root file system, mounts its own site config over `docker/default.conf` and answers `runtime-config.js` itself, so the start scripts do not run there; its README lists the settings.
+
+`docker build -t mindroom-chat .` builds the image from a checkout; pass `--build-arg MINDROOM_BUILD_VERSION=<tag> --build-arg MINDROOM_RELEASE_VERSION=<tag>` to name its version, since `.git` stays out of the build (otherwise it reports a digest of its sources and `v` plus the package version). The app is built once, on the build machine's platform, and copied into each platform's nginx image.
 
 ## Homeserver and MindRoom backend
 
