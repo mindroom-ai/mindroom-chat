@@ -14,12 +14,17 @@ const closed = (panels: RoomPanel[]) =>
   panels.filter((panel) => vi.mocked(panel.close).mock.calls.length > 0).map((panel) => panel.id);
 
 /** The rule in room `room` over `panels`, as a room renders it. */
-const roomPanels = ({ room = '!a', panels }: { room?: string; panels: readonly RoomPanel[] }) =>
-  useRoomPanels(room, panels);
+const useRoomPanelsIn = ({
+  room = '!a',
+  panels,
+}: {
+  room?: string;
+  panels: readonly RoomPanel[];
+}) => useRoomPanels(room, panels);
 
 describe('useRoomPanels', () => {
   it('shows the first open panel in their order', () => {
-    const { result, rerender } = renderHook(roomPanels, {
+    const { result, rerender } = renderHook(useRoomPanelsIn, {
       initialProps: { panels: panelsOf({ b: true, c: true }) },
     });
     expect(result.current.shown?.id).toBe('b');
@@ -37,7 +42,7 @@ describe('useRoomPanels', () => {
 
   it('closes the others the same way when a panel opens elsewhere, and only then', () => {
     const options = { b: { opensElsewhere: true }, c: { yieldsTo: ['b'] } };
-    const { rerender } = renderHook(roomPanels, {
+    const { rerender } = renderHook(useRoomPanelsIn, {
       initialProps: { panels: panelsOf({ b: true }, options) },
     });
     // Open from the start: nothing to make room for.
@@ -53,7 +58,7 @@ describe('useRoomPanels', () => {
   });
 
   it('leaves the others alone when a panel opens by its own state without opensElsewhere', () => {
-    const { rerender } = renderHook(roomPanels, {
+    const { rerender } = renderHook(useRoomPanelsIn, {
       initialProps: { panels: panelsOf({ a: true }) },
     });
     const next = panelsOf({ a: true, b: true });
@@ -62,7 +67,7 @@ describe('useRoomPanels', () => {
   });
 
   it("keeps each room's layout of a panel while it stays open, also while it is hidden", () => {
-    const { result, rerender } = renderHook(roomPanels, {
+    const { result, rerender } = renderHook(useRoomPanelsIn, {
       initialProps: { panels: panelsOf({ b: true }) },
     });
     expect(result.current.layout).toBe('beside');
@@ -85,7 +90,7 @@ describe('useRoomPanels', () => {
 
   it('opens a panel beside the conversation again, by a request or from elsewhere', () => {
     const options = { b: { opensElsewhere: true } };
-    const { result, rerender } = renderHook(roomPanels, {
+    const { result, rerender } = renderHook(useRoomPanelsIn, {
       initialProps: { panels: panelsOf({ a: true }, options) },
     });
     act(() => result.current.setLayout('a', 'filled'));
