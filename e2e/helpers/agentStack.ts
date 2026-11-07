@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -239,6 +239,11 @@ export { expect };
 /** A word unique to this test, so its thread and messages are easy to find. */
 export const uniqueWord = (prefix: string): string =>
   `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+/** The router's access token, from the stack's state file; the stack keeps it out of its output. */
+export const routerToken = (stack: AgentStack): string =>
+  (JSON.parse(readFileSync(join(stack.dir, 'state.json'), 'utf8')) as { routerToken: string })
+    .routerToken;
 
 /** Posts a message to the lobby as the test account; the agents answer it in a thread rooted on it. */
 export const startThread = (stack: AgentStack, body: string): Promise<string> =>
