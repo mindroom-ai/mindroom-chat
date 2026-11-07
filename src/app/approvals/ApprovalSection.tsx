@@ -18,7 +18,7 @@ import { mxcUrlToHttp } from '../matrix/mediaUrl';
 import { toolTitle } from './approvalLabels';
 import type { ApprovalChipLabel, describeApprovalChip } from './approvalLabels';
 import * as css from './ThreadApprovals.css';
-import { ownDirectionLine } from '../ui/directional';
+import { IsolatedText, ownDirectionLine } from '../ui/directional';
 
 const CHIP_LABEL_KEYS = {
   waitingForYou: 'mindroomUi.messages.threadApprovalControls.waitingForYou',
@@ -131,10 +131,12 @@ export function ApprovalMeta({
     : t('mindroomUi.messages.threadApprovalControls.unknown');
   return (
     <Text size="T200" className={css.SectionMeta}>
-      {t('mindroomUi.messages.threadApprovalControls.sectionMeta', {
-        agent: agentDisplayName(room, approval.agentName),
-        requester,
-      })}
+      <IsolatedText
+        text={t('mindroomUi.messages.threadApprovalControls.sectionMeta', {
+          agent: agentDisplayName(room, approval.agentName),
+          requester,
+        })}
+      />
       {approval.expiresAt &&
         ` · ${t('mindroomUi.messages.threadApprovalControls.expires', {
           time:

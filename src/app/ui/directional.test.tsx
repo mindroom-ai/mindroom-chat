@@ -2,10 +2,13 @@
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  IsolatedText,
   PopOut,
   TooltipProvider,
   documentIsRightToLeft,
+  isolateInSentence,
   mirrorPlacement,
+  revealDirectionControls,
   textDirection,
 } from './directional';
 
@@ -88,6 +91,53 @@ describe('textDirection', () => {
   it('has no direction for a text without letters', () => {
     expect(textDirection('')).toBeUndefined();
     expect(textDirection('👍 123 !?')).toBeUndefined();
+  });
+});
+
+describe('revealDirectionControls', () => {
+  it('writes out every embedding, override, isolate and mark as its code point', () => {
+    const controls = [
+      ...'\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069\u200E\u200F\u061C',
+    ];
+    expect(controls.map((control) => revealDirectionControls(control)).join(' ')).toBe(
+      '<U+202A> <U+202B> <U+202C> <U+202D> <U+202E> <U+2066> <U+2067> <U+2068> <U+2069> ' +
+        '<U+200E> <U+200F> <U+061C>'
+    );
+  });
+
+  it('shows an overridden command in the order it runs', () => {
+    expect(revealDirectionControls('echo hello \u202e; echo pwned #\u202c done')).toBe(
+      'echo hello <U+202E>; echo pwned #<U+202C> done'
+    );
+  });
+
+  it('keeps other text, right-to-left letters and joiners included, and is idempotent', () => {
+    const text = 'نسخ الملف config.yaml \u200d👩\u200d💻 שלום';
+    expect(revealDirectionControls(text)).toBe(text);
+    const shown = revealDirectionControls('a\u2067b\u2069c');
+    expect(revealDirectionControls(shown)).toBe(shown);
+  });
+});
+
+describe('isolateInSentence and IsolatedText', () => {
+  it('isolates a name and drops the direction controls that could end the isolate early', () => {
+    expect(isolateInSentence('المستخدم E')).toBe('\u2068المستخدم E\u2069');
+    expect(isolateInSentence('a\u2069\u202eb')).toBe('\u2068ab\u2069');
+  });
+
+  it('shows each isolated part as a <bdi>, with no invisible characters left', () => {
+    const sentence = `Requested by ${isolateInSentence('المستخدم E')} · expires soon`;
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(<IsolatedText text={sentence} />);
+    });
+    expect(renderer?.toJSON()).toEqual([
+      'Requested by ',
+      expect.objectContaining({ type: 'bdi', children: ['المستخدم E'] }),
+      ' · expires soon',
+    ]);
+    act(() => renderer?.update(<IsolatedText text="No names here" />));
+    expect(renderer?.toJSON()).toBe('No names here');
   });
 });
 
