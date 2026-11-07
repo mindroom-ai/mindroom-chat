@@ -49,9 +49,12 @@ const expectSpellCheckOff = async (
   expect(await composer.evaluate((box: HTMLElement) => box.spellcheck)).toBe(false);
 
   // Up in an empty composer edits one's last message.
-  await page.keyboard.press('ControlOrMeta+a');
-  await page.keyboard.press('Backspace');
-  await expect(composer.locator('[data-slate-string]')).toHaveCount(0);
+  // Clear until empty, as thread-arrow-up-edit.spec.ts does: a key can reach the editor before the
+  // selection does.
+  await expect(async () => {
+    await composer.fill('');
+    await expect(composer.locator('[data-slate-string]')).toHaveCount(0, { timeout: 1_000 });
+  }).toPass();
   await page.keyboard.press('ArrowUp');
   const editBox = page.locator('[contenteditable="true"]').filter({ hasText: SENT });
   await expect(editBox).toBeFocused();
