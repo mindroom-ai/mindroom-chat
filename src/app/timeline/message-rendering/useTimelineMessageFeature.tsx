@@ -440,9 +440,12 @@ export const useTimelineMessageFeature = ({
       if (!kind) return null;
 
       const editedEvent = getEditedEvent(eventId, event, row.timelineSet);
-      // A newer edit that could not be decrypted leaves this version shown, with a note.
+      // A newer edit that could not be decrypted leaves this version shown, with a note; a row
+      // that shows no readable version says so itself (P2-e2ee-F004).
       const editNotDecrypted =
-        kind === 'message' && hasUndecryptedNewerEdit(eventId, event, row.timelineSet, editedEvent);
+        kind === 'message' &&
+        (!!editedEvent || !event.isDecryptionFailure?.()) &&
+        hasUndecryptedNewerEdit(eventId, event, row.timelineSet, editedEvent);
       renderedEventsRef.current?.push(...getPendingEdits(eventId, event, row.timelineSet));
       const content = (
         kind === 'approval'
