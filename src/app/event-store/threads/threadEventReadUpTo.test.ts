@@ -114,7 +114,7 @@ describe('getThreadEventReadUpTo', () => {
       'm.relations': {
         [RelationType.Replace]: {
           event_id: '$finish',
-          sender: '@bob:example.org',
+          sender: reply.getSender(),
           origin_server_ts: 2500,
         },
       },
