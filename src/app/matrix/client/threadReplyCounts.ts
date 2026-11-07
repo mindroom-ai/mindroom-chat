@@ -18,8 +18,8 @@ import { watchRoomThreads } from '../watchRoomThreads';
 // replies its summary already counts (the first sync, the saved sync replayed after a reload, a
 // limited sync, the event cache) counted those replies twice: 4, 6 and 8 for threads of 2, 3 and
 // 4. This module keeps the count of an unopened thread at what its summary and the replies the
-// client holds imply. An opened thread counts from the server's root and first page, and is left
-// to the SDK.
+// client holds imply, also while the thread opens. An opened thread counts from the server's root
+// and first page, and is left to the SDK.
 
 type ThreadSummary = IThreadBundledRelationship;
 
@@ -118,12 +118,31 @@ const applyLateRedactions = (room: Room, thread: Thread): void => {
 export const keepThreadReplyCounts = (mx: MatrixClient): (() => void) => {
   // The SDK announces a thread once its first batch is in, and updates it once each later batch
   // is counted, also when it read the summary again.
+  // The SDK counts a reply once its thread's timeline adds it, and announces an opening thread
+  // only after its first page is in. Opening reads the root again, whose summary can count a reply
+  // that sync brings before that page, so the SDK counted it twice (5 for a thread of 4) and the
+  // count stayed once the thread was open. The count is settled as soon as each event is in; these
+  // listeners run after the SDK's own.
+  const timelineStops = new Map<Room, Map<Thread, () => void>>();
+  const watchTimeline = (room: Room, thread: Thread) => {
+    const stops = timelineStops.get(room);
+    if (!stops || stops.has(thread)) return;
+    const onAdded = () => {
+      settleThreadReplyCount(thread);
+    };
+    thread.timelineSet.on(RoomEvent.Timeline, onAdded);
+    stops.set(thread, () => thread.timelineSet.removeListener(RoomEvent.Timeline, onAdded));
+  };
+
   const onThread = (room: Room, thread: Thread) => {
+    watchTimeline(room, thread);
     applyLateRedactions(room, thread);
     settleThreadReplyCount(thread);
   };
 
   const onRoom = (room: Room) => {
+    const stops = new Map<Thread, () => void>();
+    timelineStops.set(room, stops);
     // The same test as the SDK's, which lowers the thread's own count before the redaction.
     const onBeforeRedaction = (event: MatrixEvent, redaction: MatrixEvent) => {
       if (redaction.status || !event.isRelation(THREAD_RELATION_TYPE.name)) return;
@@ -138,7 +157,11 @@ export const keepThreadReplyCounts = (mx: MatrixClient): (() => void) => {
     room.getThreads().forEach((thread) => {
       thread.events.forEach((event) => forwardRedactions(room, event));
     });
-    return () => room.removeListener(MatrixEventEvent.BeforeRedaction, onBeforeRedaction);
+    return () => {
+      room.removeListener(MatrixEventEvent.BeforeRedaction, onBeforeRedaction);
+      stops.forEach((stop) => stop());
+      timelineStops.delete(room);
+    };
   };
 
   const onTimeline = (
