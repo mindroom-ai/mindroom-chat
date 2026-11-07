@@ -148,9 +148,12 @@ export const readBuildVersion = (env, cwd) => {
     resolveBuildVersion(env, readGitCommit(cwd)) ?? readSourceVersion(cwd ?? process.cwd());
   const plugins = readClientPlugins(env.MINDROOM_CLIENT_PLUGINS);
   if (plugins.length === 0) return version;
-  const hash = createHash('sha256');
+  const hash = createHash('sha256').update(`${version}\0`);
   plugins.forEach(({ dir }) => addFiles(hash, dir, '.', PLUGIN_SKIP));
-  return `${version}-plugins-${hash.digest('hex').slice(0, 16)}`;
+  const suffix = `-plugins-${hash.digest('hex').slice(0, 16)}`;
+  // Pages take a published version of at most 128 characters (src/app/config/appVersion.ts); the
+  // digest covers the whole version, so a long one cut short still tells builds apart.
+  return `${version.slice(0, 128 - suffix.length)}${suffix}`;
 };
 
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
