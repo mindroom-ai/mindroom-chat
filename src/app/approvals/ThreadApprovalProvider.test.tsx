@@ -1,6 +1,15 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
-import { createClient, MatrixEvent, MatrixEventEvent, Room, ThreadEvent } from 'matrix-js-sdk';
+import {
+  ClientEvent,
+  ConnectionError,
+  createClient,
+  MatrixEvent,
+  MatrixEventEvent,
+  Room,
+  SyncState,
+  ThreadEvent,
+} from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { hydrateCachedEvents, serializeEventsForCache } from '../event-store/cache/eventCacheEditUtils';
@@ -245,6 +254,43 @@ it('keeps a submitted request in review past local expiry until Matrix acknowled
   expect(current.records[0].approval.status).toBe('approved');
   expect(current.actions.size).toBe(0);
   expect(current.pendingEventIds.size).toBe(0);
+});
+
+it('waits for the connection without an error and asks again once the sync gets through', async () => {
+  mocks.backfill.mockRejectedValueOnce(new ConnectionError('fetch failed'));
+  await mount();
+  expect(mocks.backfill).toHaveBeenCalledTimes(1);
+  expect(current.error).toBeUndefined();
+  expect(current.loading).toBe(true);
+  await act(async () => {
+    mx.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Error);
+  });
+  expect(mocks.backfill).toHaveBeenCalledTimes(2);
+  expect(current.error).toBeUndefined();
+  expect(current.loading).toBe(false);
+});
+
+it('asks again for history that failed to load when the sync gets through again', async () => {
+  mocks.backfill.mockResolvedValueOnce({ events: [], repairedEventIds: [], error: 'unloadable' });
+  await mount();
+  expect(current.error).toBe('unloadable');
+  // A sync that keeps going is no return, and a sync that has not got through yet neither.
+  await act(async () => {
+    mx.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Syncing);
+    mx.emit(ClientEvent.Sync, SyncState.Reconnecting, SyncState.Syncing);
+  });
+  expect(mocks.backfill).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    mx.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Reconnecting);
+  });
+  expect(mocks.backfill).toHaveBeenCalledTimes(2);
+  expect(current.error).toBeUndefined();
+  // History that loaded is not asked for again.
+  await act(async () => {
+    mx.emit(ClientEvent.Sync, SyncState.Error, SyncState.Syncing);
+    mx.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Error);
+  });
+  expect(mocks.backfill).toHaveBeenCalledTimes(2);
 });
 
 it('keeps failed discovery visible after a successful targeted repair until full retry succeeds', async () => {

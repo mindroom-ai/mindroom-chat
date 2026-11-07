@@ -8,7 +8,16 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { MatrixEvent, MatrixEventEvent, Room, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
+import {
+  ClientEvent,
+  ConnectionError,
+  MatrixEvent,
+  MatrixEventEvent,
+  Room,
+  RoomEvent,
+  SyncState,
+  ThreadEvent,
+} from 'matrix-js-sdk';
 import { useIgnoredUsers } from '../matrix/hooks/useIgnoredUsers';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { enqueueThreadApprovalBackfill, useSyncEngine } from '../event-store/engine';
@@ -106,6 +115,8 @@ function ActiveThreadApprovalProvider({
   });
   const [now, setNow] = useState(Date.now);
   const fetching = useRef(false);
+  // Whether the last request failed, so the sync's return asks again.
+  const failed = useRef(false);
   const repairedOrigins = useRef(new Set<string>());
   const decryptionStarted = useRef(new WeakSet<MatrixEvent>());
   const viewerId = mx.getUserId() ?? undefined;
@@ -245,23 +256,37 @@ function ActiveThreadApprovalProvider({
           repairedOrigins.current.add(id);
         });
         ingest(result.events, true);
+        failed.current = result.error === 'unloadable';
         setRequestError(result.error);
         // Only complete discovery also proves that earlier repair failures recovered.
         if (!request.origins && !result.error) setRepairError(undefined);
         setLoading(false);
       })
-      .catch(() => {
-        if (active) {
-          fetching.current = false;
-          setRequestError('unloadable');
-          setLoading(false);
-        }
+      .catch((reason: unknown) => {
+        if (!active) return;
+        fetching.current = false;
+        failed.current = true;
+        // Offline the history is not loaded yet, which is no error: it stays loading until the
+        // connection returns.
+        if (reason instanceof ConnectionError) return;
+        setRequestError('unloadable');
+        setLoading(false);
       });
     return () => {
       active = false;
       scheduler.abort(room.roomId, threadId, 'thread-approvals');
     };
   }, [mx, scheduler, room.roomId, threadId, request, ingest]);
+  useEffect(() => {
+    const onSync = (state: SyncState, previous: SyncState | null) => {
+      if (state === SyncState.Syncing && previous !== SyncState.Syncing && failed.current)
+        refresh();
+    };
+    mx.on(ClientEvent.Sync, onSync);
+    return () => {
+      mx.removeListener(ClientEvent.Sync, onSync);
+    };
+  }, [mx, refresh]);
   useEffect(() => {
     const origins = [...events]
       .filter(
