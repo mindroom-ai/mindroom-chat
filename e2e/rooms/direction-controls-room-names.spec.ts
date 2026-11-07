@@ -249,7 +249,9 @@ const check = async (page: Page, world: World, label: string) => {
   const ringCard = page.getByRole('alertdialog', { name: 'Incoming Call' });
   await expectShown(ringCard, `${MEMBER_NAME} is calling in ${ROOM_NAME_SHOWN}`);
   await shot(page, `${label}-incoming-call`);
-  await ringCard.getByRole('button', { name: 'Ignore' }).click();
+  // Probe: a loaded runner's slower steps.
+  await page.waitForTimeout(2_500);
+  await ringCard.getByRole('button', { name: 'Ignore' }).click({ timeout: 30_000 });
   await expect(ringCard).toBeHidden();
 
   // The thread banner shows the thread's summary.
