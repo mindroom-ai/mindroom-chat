@@ -113,11 +113,7 @@ const readFormula = (tex: string): string | undefined => {
     // Whether a letter, digit, group or command follows, which would run into a function name.
     const joins = (): boolean => {
       const node = next();
-      return (
-        Array.isArray(node) ||
-        (typeof node === 'string' && /^[\p{L}\p{N}]/u.test(node)) ||
-        (isCommand(node, /./) && !isCommand(node, SPACE_COMMAND))
-      );
+      return typeof node === 'string' ? /^[\p{L}\p{N}\\]/u.test(node) : node !== undefined;
     };
     // The next node, with the arguments of the command it names.
     const read = (): string => {

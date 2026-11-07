@@ -35,7 +35,9 @@ describe('thread previews of math', () => {
     expect(preview('$\\|x\\|_2 \\leq |y|$ and $a\\cos\\theta + \\sin(x)$')).toBe(
       '‖x‖_2 ≤ |y| and a cos θ + sin(x)'
     );
-    expect(preview('$x\\operatorname{sgn}(x) + \\operatorname{tr}A$')).toBe('x sgn(x) + tr A');
+    expect(preview('$x\\operatorname{sgn}(x) + \\operatorname{tr}A + \\ln{x}$')).toBe(
+      'x sgn(x) + tr A + ln x'
+    );
     expect(preview('$a \\cdot b$ for $x_1, x_2 \\in S$')).toBe('a ⋅ b for x_1, x_2 ∈ S');
   });
 
