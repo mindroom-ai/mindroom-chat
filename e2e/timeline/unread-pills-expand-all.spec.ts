@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   expect,
@@ -28,7 +28,8 @@ import { launchWebKit } from '../helpers/webkit';
 // so no row moves. Checked on a phone (390 by 844, touch) and on desktop windows 1280 and 1440
 // wide, where "[+all]" keeps its place, in light and dark, in English and Arabic (right to left),
 // in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
-// Set UNREAD_PILLS_SHOTS=<directory> to save each screen.
+// Set UNREAD_PILLS_SHOTS=<directory> to save each screen. On a phone the pills also fit the screen
+// in every language the app offers, each label whole on its pill.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'unread-pills-expand-all-spec-password';
 const RUN = Date.now().toString(36);
@@ -478,6 +479,116 @@ test('the unread pills and "[+all]" never cover each other (WebKit)', async ({ b
   const browser = await launchWebKit();
   try {
     await run(browser, 'webkit', baseURL);
+  } finally {
+    await browser.close();
+  }
+});
+
+/** Every language the app offers: one catalog per language. */
+const ALL_LOCALES = readdirSync(path.join(process.cwd(), 'src/app/i18n/locales'))
+  .filter((file) => file.endsWith('.json'))
+  .map((file) => file.replace(/\.json$/, ''))
+  .sort();
+
+/**
+ * Each pill's box, its label's box and whether the label's text fits inside it, and the box of the
+ * timeline's area.
+ */
+const measurePills = (page: Page, labels: Labels) =>
+  page.evaluate(({ jump, mark }) => {
+    const box = (rect: DOMRect) => ({
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+      bottom: rect.bottom,
+    });
+    const inner = document.querySelector<HTMLElement>('[data-testid="room-virtual-inner"]');
+    let scroller = inner?.parentElement ?? null;
+    while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) {
+      scroller = scroller.parentElement;
+    }
+    if (!scroller) throw new Error('Timeline scroller missing');
+    const pills = [...document.querySelectorAll<HTMLElement>('button')]
+      .filter((button) => [jump, mark].includes(button.textContent?.trim() ?? ''))
+      .map((button) => {
+        const label = [...button.querySelectorAll<HTMLElement>('*')].find(
+          (element) => element.textContent?.trim() === button.textContent?.trim()
+        );
+        return {
+          text: button.textContent?.trim() ?? '',
+          pill: box(button.getBoundingClientRect()),
+          labelFits: !!label && label.scrollWidth <= label.clientWidth + 1,
+        };
+      });
+    return { area: box(scroller.getBoundingClientRect()), pills };
+  }, labels);
+
+const checkEveryLanguage = async (
+  browser: Browser,
+  engine: string,
+  baseURL: string | undefined
+) => {
+  const accounts = await seedAccounts(`langs_${engine}`);
+  const { roomId } = await seedRoom(accounts, 'Harbor log languages');
+  const context = await browser.newContext({ ...DEVICES[0]![1], baseURL, serviceWorkers: 'block' });
+  try {
+    const page = await context.newPage();
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: accounts.reader.username,
+      password: PASSWORD,
+    });
+    const problems: string[] = [];
+    for (const code of ALL_LOCALES) {
+      const labels = pillLabels(code);
+      // eslint-disable-next-line no-await-in-loop
+      await page.evaluate((language) => localStorage.setItem('i18nextLng', language), code);
+      // eslint-disable-next-line no-await-in-loop
+      await page.goto(`/home/${encodeURIComponent(roomId)}/`);
+      // eslint-disable-next-line no-await-in-loop
+      await expect(page.getByRole('button', { name: labels.jump, exact: true })).toBeVisible({
+        timeout: 30_000,
+      });
+      // eslint-disable-next-line no-await-in-loop
+      await page.waitForTimeout(300);
+      // eslint-disable-next-line no-await-in-loop
+      const m = await measurePills(page, labels);
+      const widths = m.pills.map((pill) => (pill.pill.right - pill.pill.left).toFixed(0));
+      report.push(`${engine}, phone, ${code}: pills ${widths.join(' + ')} px in ${fmt(m.area)}`);
+      if (m.pills.length !== 2) problems.push(`${code}: ${m.pills.length} pills`);
+      m.pills.forEach((pill) => {
+        if (pill.pill.left < m.area.left - 0.5 || pill.pill.right > m.area.right + 0.5) {
+          problems.push(`${code}: "${pill.text}" ${fmt(pill.pill)} leaves ${fmt(m.area)}`);
+        }
+        if (!pill.labelFits) problems.push(`${code}: "${pill.text}" is cut`);
+      });
+      const [first, second] = m.pills;
+      if (first && second && intersects(first.pill, second.pill)) {
+        problems.push(`${code}: the pills overlap`);
+      }
+      if (SHOTS && ['de', 'ru', 'bn'].includes(code)) {
+        // eslint-disable-next-line no-await-in-loop
+        await page.screenshot({ path: `${SHOTS}/${engine}-phone-${code}-pills.png` });
+      }
+    }
+    expect(problems).toEqual([]);
+  } finally {
+    console.log(report.join('\n'));
+    await context.close();
+  }
+};
+
+test('the unread pills fit a phone in every language (Chromium)', async ({ browser, baseURL }) => {
+  test.setTimeout(480_000);
+  await checkEveryLanguage(browser, 'chromium', baseURL);
+});
+
+test('the unread pills fit a phone in every language (WebKit)', async ({ baseURL }) => {
+  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.setTimeout(480_000);
+  const browser = await launchWebKit();
+  try {
+    await checkEveryLanguage(browser, 'webkit', baseURL);
   } finally {
     await browser.close();
   }
