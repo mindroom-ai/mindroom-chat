@@ -119,6 +119,16 @@ vi.mock('../plugins/pluginEntries', () => ({
             Component: () => createPortal(<input aria-label="popover field" />, document.body),
             close: () => mocks.set('portal', false),
           }),
+          // A cover with a text editor at either end of it.
+          mocks.cover('editors', {
+            Component: () => (
+              <div>
+                <div contentEditable suppressContentEditableWarning aria-label="first editor" />
+                <button type="button">editors button</button>
+                <div contentEditable suppressContentEditableWarning aria-label="last editor" />
+              </div>
+            ),
+          }),
         ],
       },
     },
@@ -250,6 +260,21 @@ describe('a conversation cover', () => {
     expect(fireEvent.keyDown(field, { key: 'Tab' })).toBe(false);
     expect(document.activeElement).toBe(field);
     button.tabIndex = 0;
+  });
+
+  it('counts a text editor at either end of the cover as a control Tab reaches', () => {
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([{}] as never);
+    renderRoom();
+    show('editors');
+    const button = screen.getByRole('button', { name: 'editors button' });
+    // Between the editors, the browser moves the focus on to either.
+    expect(fireEvent.keyDown(button, { key: 'Tab' })).toBe(true);
+    expect(fireEvent.keyDown(button, { key: 'Tab', shiftKey: true })).toBe(true);
+    // From the last editor, Tab goes round to the first.
+    const last = screen.getByLabelText('last editor');
+    last.focus();
+    expect(fireEvent.keyDown(last, { key: 'Tab' })).toBe(false);
+    expect(document.activeElement).toBe(screen.getByLabelText('first editor'));
   });
 
   it("leaves Tab and Escape in a popover the cover's component portals elsewhere to the popover", () => {

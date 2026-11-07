@@ -194,3 +194,40 @@ test('while the example cover shows the room sends no receipt or typing notice, 
     await server.close();
   }
 });
+
+test('an emoji board open in the composer closes as the cover opens, and the cover takes the focus', async ({
+  browser,
+}) => {
+  const reader = await registerDisposableUser(`cover_board_${RUN}`, PASSWORD);
+  const roomId = await createRoom(HOMESERVER, reader.accessToken, { name: ROOM_NAME });
+  await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: SEEDED,
+  });
+
+  const server = await serveBuild(build!);
+  const context = await browser.newContext({ baseURL: server.origin });
+  const page = await context.newPage();
+  try {
+    await loginWithPassword(page, { homeserver: HOMESERVER, ...reader });
+    await page.goto(`/home/${encodeURIComponent(roomId)}`);
+    await expect(page.getByText(SEEDED).first()).toBeVisible({ timeout: 60_000 });
+    // The composer's Emoji button; a message's own reaction button comes earlier on the page.
+    await page.getByRole('button', { name: 'Emoji', exact: true }).last().click();
+    const anEmoji = page.getByRole('button', { name: /^grinning face/i }).first();
+    await expect(anEmoji).toBeVisible({ timeout: 30_000 });
+
+    // The plugin opens its cover of its own accord, as from script.
+    await page
+      .getByRole('button', { name: 'Show example cover' })
+      .evaluate((button) => (button as HTMLButtonElement).click());
+    await expect(page.locator('[data-conversation-cover]')).toContainText(
+      `Example cover of ${ROOM_NAME}`
+    );
+    await expect(anEmoji).toHaveCount(0);
+    await expect.poll(() => focusInCover(page)).toBe(true);
+  } finally {
+    await context.close();
+    await server.close();
+  }
+});
