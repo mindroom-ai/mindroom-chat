@@ -190,3 +190,22 @@ export const requestSfuGrant = async (
   }
   return { url, jwt };
 };
+
+/** A grant of this deployment's own call service, with the service that gave it. */
+export type OwnSfuGrant = { serviceUrl: string; grant: SfuGrant };
+
+/**
+ * Asks this deployment's own call service (`getLivekitServiceUrl`, never one a room member named)
+ * for a grant to a room's call, so a call can ask while it is still being prepared and join without
+ * the wait. Undefined when the deployment announces no service; rejects as `requestSfuGrant` does.
+ */
+export const requestOwnSfuGrant = async (
+  mx: MatrixClient,
+  roomId: string
+): Promise<OwnSfuGrant | undefined> => {
+  const serviceUrl = await getLivekitServiceUrl(mx);
+  const deviceId = mx.getDeviceId();
+  if (!serviceUrl || !deviceId) return undefined;
+  const token = await mx.getOpenIdToken();
+  return { serviceUrl, grant: await requestSfuGrant(serviceUrl, { roomId, deviceId, token }) };
+};
