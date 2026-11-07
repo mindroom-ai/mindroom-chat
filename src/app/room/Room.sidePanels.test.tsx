@@ -14,6 +14,12 @@ import { makeUiEvent } from '../ui-actions/testUtils';
 // opened as their users open them, through the room: the header's controls, an agent's live
 // request, and the call store, which the call buttons and a call started elsewhere set.
 
+const reportBoundaryError = vi.hoisted(() => vi.fn());
+vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  reportBoundaryError,
+}));
+
 const { mx, room, state } = vi.hoisted(() => {
   const listeners = new Map<string, (...args: unknown[]) => void>();
   const members = [
@@ -237,6 +243,7 @@ describe('the side panels of a room', () => {
     state.roomId = room.roomId;
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    reportBoundaryError.mockClear();
   });
 
   it.each(
@@ -370,6 +377,12 @@ describe('the side panels of a room', () => {
     const panel = screen.getByRole('region', { name: 'Opaque' });
     expect(panel.textContent).toContain('This panel stopped working.');
     expect(screen.queryByTestId('room-view')).not.toBeNull();
+    expect(reportBoundaryError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: '[plugin broken@2.0.0] a value that cannot be shown as text',
+      }),
+      expect.any(String)
+    );
   });
 
   it("keeps the room on screen while a plugin's panel waits for its code", async () => {
@@ -390,6 +403,10 @@ describe('the side panels of a room', () => {
     expect(logged).toHaveBeenCalledWith(
       '[plugin broken@2.0.0] its side panel failed',
       expect.objectContaining({ message: 'no notes today' })
+    );
+    expect(reportBoundaryError).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Error', message: '[plugin broken@2.0.0] no notes today' }),
+      expect.any(String)
     );
   });
 });

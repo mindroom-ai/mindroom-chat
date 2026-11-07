@@ -53,6 +53,13 @@ vi.mock('../../plugins/pluginEntries', () => {
                 throw 'not an error';
               },
             },
+            {
+              // Throws a value with no text form at all.
+              match: (event: PluginEvent) => event.content.explode === 'opaque',
+              Component: () => {
+                throw Object.create(null);
+              },
+            },
           ],
         },
       },
@@ -201,6 +208,17 @@ describe('RenderMessageContent with client plugins', () => {
     expect(render(AGENT, text({ explode: 'string' }))).toContain('Fallback body');
     expect(mocks.reportBoundaryError).toHaveBeenCalledWith(
       expect.objectContaining({ message: '[plugin broken@0.1.0] not an error' }),
+      expect.any(String)
+    );
+  });
+
+  it('falls back to core and reports under the tag when a plugin throws a value with no text form', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect(render(AGENT, text({ explode: 'opaque' }))).toContain('Fallback body');
+    expect(mocks.reportBoundaryError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: '[plugin broken@0.1.0] a value that cannot be shown as text',
+      }),
       expect.any(String)
     );
   });

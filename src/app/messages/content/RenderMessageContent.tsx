@@ -47,6 +47,7 @@ import {
   type MatchedRenderer,
   type PluginEvent,
 } from '../../plugins/messageRenderers';
+import { pluginFailure } from '../../plugins/pluginFailure';
 import { reportBoundaryError } from '../../bug-reports/error-reporting/errorReporting';
 
 const MSG_TYPES: ReadonlySet<string> = new Set(Object.values(MsgType));
@@ -356,12 +357,7 @@ function PluginMessageContent({
       onError={(thrown: unknown, info) => {
         // eslint-disable-next-line no-console
         console.error(`[plugin ${tag}] failed to render a message; core renders it`, thrown);
-        // A plugin may throw anything, not only an Error.
-        const error = thrown instanceof Error ? thrown : new Error(String(thrown));
-        reportBoundaryError(
-          { name: error.name, message: `[plugin ${tag}] ${error.message}`, stack: error.stack },
-          info.componentStack
-        );
+        reportBoundaryError(pluginFailure(tag, thrown), info.componentStack);
       }}
     >
       <Component event={event} />
