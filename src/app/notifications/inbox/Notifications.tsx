@@ -53,10 +53,10 @@ import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize'
 import {
   getDirectPartnerId,
   getDirectRoomAvatarUrl,
-  getMemberDisplayName,
   getRoomAvatarUrl,
+  getSenderName,
 } from '../../matrix/room';
-import { getMxIdLocalPart } from '../../matrix/matrix';
+import { useLoadedRoomMembers } from '../../matrix/hooks/useLoadedRoomMembers';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import {
@@ -285,8 +285,11 @@ const NotificationRow = memo(function NotificationRow({
   const event = useNotificationEvent(client, room, notification.event);
   const parserOptions = useBodyParserOptions(client, room.roomId);
   const autoLoadMedia = useSettingValue(settingsAtom, 'mediaAutoLoad');
+  // The row renders again once the room's member list is in, which may tell a copied name from
+  // the real one; until then the sender's user ID follows their name.
+  useLoadedRoomMembers(client, [room.roomId]);
   const sender = event.getSender() ?? '';
-  const senderName = getMemberDisplayName(room, sender) ?? getMxIdLocalPart(sender) ?? sender;
+  const senderName = getSenderName(room, sender);
   const eventId = event.getId() ?? notification.event.event_id;
   const content = event.getContent();
   const highlighted = isHighlightNotification(notification);
