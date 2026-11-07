@@ -177,6 +177,13 @@ const checkTimeline = async (page: Page, tag: string, desktop: boolean) => {
   // name then shows its user ID too.
   await expect(copyName).toContainText(copy.userId, { timeout: 20_000 });
   await expect(copyName).toContainText(SHARED_NAME);
+  // So does the row that says the copy joined.
+  const copyJoined = page
+    .locator('[data-message-id]')
+    .filter({ hasText: 'joined the room' })
+    .filter({ hasText: SHARED_NAME })
+    .last();
+  await expect(copyJoined).toContainText(copy.userId);
   if (desktop) {
     await page.getByRole('button', { name: /^(Show|Hide) Members$/ }).click();
     await expect(memberRow(page, real.userId)).toContainText(real.userId);
