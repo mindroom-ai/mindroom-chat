@@ -9,10 +9,14 @@ const entries = vi.hoisted(() => {
   const run = () => undefined;
   const action = { id: 'wave', label: 'wave', icon, run };
   const autoAction = { id: 'auto', label: 'auto', icon, run, placement: 'auto' };
+  const banner = (): null => null;
+  const headerSlot = [banner];
   return {
     renderer,
     panel,
     actions: [action, autoAction],
+    banner,
+    headerSlot,
     list: [
       {
         id: 'alpha',
@@ -21,6 +25,7 @@ const entries = vi.hoisted(() => {
           messageRenderers: 'not a list',
           sidePanels: 'not a list',
           headerActions: 'not a list',
+          roomHeaderSlot: banner,
         },
       },
       {
@@ -47,6 +52,7 @@ const entries = vi.hoisted(() => {
             { id: 'row', label: 'row', icon, run, placement: 'row' },
             autoAction,
           ],
+          roomHeaderSlot: headerSlot,
         },
       },
     ],
@@ -78,6 +84,8 @@ describe('registeredPlugins', () => {
     // A header action needs an id, a label, an icon, a run, and no placement, `auto` or `menu`.
     expect(plugins[0]?.headerActions).toEqual([]);
     expect(plugins[1]?.headerActions).toEqual(entries.actions);
+    expect(plugins[0]?.roomHeaderSlot).toEqual([]);
+    expect(plugins[1]?.roomHeaderSlot).toEqual([entries.banner]);
   });
 
   it('is frozen when its module loads', async () => {
@@ -88,7 +96,10 @@ describe('registeredPlugins', () => {
       expect(Object.isFrozen(plugin.messageRenderers)).toBe(true);
       expect(Object.isFrozen(plugin.sidePanels)).toBe(true);
       expect(Object.isFrozen(plugin.headerActions)).toBe(true);
+      expect(Object.isFrozen(plugin.roomHeaderSlot)).toBe(true);
     }
+    // The plugin's own list stays as it was.
+    expect(Object.isFrozen(entries.headerSlot)).toBe(false);
   });
 
   it('lists none for a load whose address says ?plugins=off', async () => {
