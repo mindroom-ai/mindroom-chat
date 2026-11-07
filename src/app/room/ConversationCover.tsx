@@ -85,7 +85,8 @@ function CoverLayer({ entry: { cover, tag }, room, conversationRef, onFailure }:
     return () => {
       if (!(before instanceof HTMLElement) || !before.isConnected) return;
       before.focus({ preventScroll: true });
-      if (!caret) return;
+      // Only a caret in that element: one elsewhere could take the focus with it.
+      if (!caret || !before.contains(caret.startContainer)) return;
       document.getSelection()?.removeAllRanges();
       document.getSelection()?.addRange(caret);
     };

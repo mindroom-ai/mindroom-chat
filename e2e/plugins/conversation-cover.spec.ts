@@ -145,16 +145,15 @@ test('while the example cover shows the room sends no receipt or typing notice, 
     await expect(timeline.getByText(`Arrived under the cover ${RUN}`)).toBeAttached({
       timeout: 60_000,
     });
-    // Typing in the cover, and Tab through it, neither tells the room nor reaches the conversation.
-    await page.getByRole('textbox', { name: 'Example cover note' }).fill('a note');
+    // Typing in the cover does not tell the room. The conversation, between the button and the
+    // cover's field in the page, is out of Tab's reach either way.
+    const note = page.getByRole('textbox', { name: 'Example cover note' });
+    await note.fill('a note');
     await page.keyboard.type(' more');
-    for (let step = 0; step < 4; step += 1) {
-      await page.keyboard.press('Tab');
-      expect(
-        await page.evaluate(() => !!document.activeElement?.closest('[inert]')),
-        'the focus stays out of the hidden conversation'
-      ).toBe(false);
-    }
+    await page.keyboard.press('Shift+Tab');
+    await expect(opener).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(note).toBeFocused();
     await cover.getByRole('heading').click();
     expect(await focusInCover(page)).toBe(true);
     // A file dropped on the cover is not attached.
@@ -184,6 +183,13 @@ test('while the example cover shows the room sends no receipt or typing notice, 
     await dropFile(page.locator('[data-room-footer]'));
     await expect(page.getByText(DROPPED)).toBeVisible();
     await shot(page, 'conversation-cover-closed');
+
+    // Opened with its button, the cover gives the focus back to the button.
+    await opener.click();
+    await expect.poll(() => focusInCover(page)).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(cover).toHaveCount(0);
+    await expect(opener).toBeFocused();
   } finally {
     await context.close();
     await server.close();

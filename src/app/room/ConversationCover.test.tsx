@@ -187,7 +187,7 @@ describe('a conversation cover', () => {
     document.getSelection()!.collapse(text, 3);
     show('fixed');
     // A click in the cover takes the page's selection there, as a browser does.
-    document.getSelection()!.collapse(screen.getByText('fixed cover').firstChild!, 2);
+    document.getSelection()!.collapse(screen.getByText('fixed cover').firstChild, 2);
     show('fixed', false);
     expect(document.activeElement).toBe(composer());
     const caret = document.getSelection()!;
