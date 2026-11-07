@@ -1,5 +1,6 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { Trans } from 'react-i18next';
+import { revealDirectionControls } from '../ui/directional';
 
 const KEYS = 'mindroomUi.threads.roomTimelineStateEventRenderers';
 
@@ -59,7 +60,7 @@ export function RoomStateSentence({ change, sender }: { change: RoomStateChange;
   return (
     <Trans
       i18nKey={change.key as never}
-      values={{ sender, value: change.value ?? '' }}
+      values={{ sender, value: revealDirectionControls(change.value ?? '') }}
       components={{ sender: <b dir="auto" />, value: <bdi /> }}
       tOptions={{ interpolation: { escapeValue: true } }}
       shouldUnescape

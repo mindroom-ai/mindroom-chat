@@ -149,7 +149,7 @@ const roomName = (mx: MatrixClient, roomIdOrAlias: string): string => {
     ? getCanonicalAliasRoomId(mx, roomIdOrAlias)
     : roomIdOrAlias;
   const room = roomId ? mx.getRoom(roomId) : undefined;
-  return room?.name ? `#${room.name}` : roomIdOrAlias;
+  return room?.name ? `#${revealDirectionControls(room.name)}` : roomIdOrAlias;
 };
 
 /**
@@ -188,7 +188,11 @@ function MessageLinkLabel({
   const isAlias = roomIdOrAlias.startsWith('#');
   const roomId = isAlias ? getCanonicalAliasRoomId(client, roomIdOrAlias) : roomIdOrAlias;
   const room = roomId ? client.getRoom(roomId) : null;
-  const place = room?.name ? `#${room.name}` : isAlias ? roomIdOrAlias : undefined;
+  const place = room?.name
+    ? `#${revealDirectionControls(room.name)}`
+    : isAlias
+    ? roomIdOrAlias
+    : undefined;
   if (!place) return <>{t('sharedUi.messageLink.messageElsewhere')}</>;
   const inThread = !!room?.getThread(eventId) || !!room?.findEventById(eventId)?.threadRootId;
   return (
