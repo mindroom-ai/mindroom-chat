@@ -215,6 +215,20 @@ test('every invite card keeps Decline and Accept in one row at its end', async (
 
   // A phone's width moves the buttons under the name and nothing overflows the card.
   await page.setViewportSize({ width: 390, height: 844 });
+  const probe = await page.evaluate(() => {
+    const card = document.querySelector('[data-invite-room-id]');
+    const name = card?.querySelector('h3')?.getBoundingClientRect();
+    const accept = [...(card?.querySelectorAll('button') ?? [])].find((b) => b.textContent === 'Accept')?.getBoundingClientRect();
+    return {
+      width: window.innerWidth,
+      back: !!document.querySelector('button[aria-label="Back"]'),
+      nav: !!document.querySelector('nav[aria-label="Inbox"]'),
+      nameBottom: name ? Math.round(name.bottom) : null,
+      acceptTop: accept ? Math.round(accept.top) : null,
+    };
+  });
+  // eslint-disable-next-line no-console
+  console.log(`[probe-resize] ${JSON.stringify(probe)}`);
   for (let index = 0; index < 3; index += 1) {
     const card = cards.nth(index);
     const name = await box(card.getByRole('heading', { level: 3 }));
