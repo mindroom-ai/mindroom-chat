@@ -136,15 +136,16 @@ test("with MINDROOM_CLIENT_PLUGINS, each plugin's minified and gzip size from th
     });
   assert.match(report().stdout, /build with `npx vite build --sourcemap`/);
 
-  // The lazy chunk: the app's code, then the plugin's and a package it installed, on two lines.
+  // The lazy chunk: the app's code around the plugin's, then a package the plugin installed.
   const assets = path.join(dist, 'assets');
-  const lines = ['const app=1;const plug=2;', 'const own=3;'];
+  const lines = ['const app=1;const plug=2;const tail=4;', 'const own=3;'];
   writeFileSync(path.join(assets, 'lazy-CCCCCCCC.js'), lines.join('\n'));
   const map = new SourceMapGenerator({ file: 'lazy-CCCCCCCC.js' });
   const from = (file) => path.relative(assets, file);
   for (const [line, column, source] of [
     [1, 0, from(path.join(dist, '../src/app/main.js'))],
     [1, 12, from(path.join(plugin, 'index.js'))],
+    [1, 25, from(path.join(dist, '../src/app/main.js'))],
     [2, 0, from(path.join(plugin, 'node_modules/own/index.js'))],
   ]) {
     map.addMapping({ generated: { line, column }, original: { line: 1, column: 0 }, source });
