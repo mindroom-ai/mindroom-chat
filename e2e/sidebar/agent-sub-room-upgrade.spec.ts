@@ -13,9 +13,10 @@ import { joinRoom, matrixFetch, sendStateEvent } from '../helpers/matrix';
 import { roomMoreOptions } from '../helpers/roomMenu';
 
 // A room upgrade keeps the room's sub-rooms: after the creator upgrades a chat room from its
-// settings, the new room lists the sub-room and the sub-room names the new room as its parent, so
-// it shows under the new room for the creator and for a member who follows the upgrade, and the
-// room's agents, invited to the new room too, stay in it.
+// settings, the new room lists the sub-room and the sub-room names the new room as its parent
+// instead of the old one, so it shows under the new room for the creator and for a member who
+// follows the upgrade, its menu offers to remove it from the new room only, and the room's agents,
+// invited to the new room too, stay in it.
 test.describe.configure({ timeout: 480_000 });
 
 const PASSWORD = 'agent-sub-room-upgrade-spec-password';
@@ -168,6 +169,7 @@ test('a room upgrade keeps its sub-room under the new room, with its agents', as
   expect
     .soft(await stateContent(stack, subId, 'm.space.parent', newId))
     .toEqual(expect.objectContaining({ canonical: true }));
+  expect.soft(await stateContent(stack, subId, 'm.space.parent', parentId)).toEqual({});
 
   // It shows under the new room for both, not at top level.
   await goHome(page);
@@ -176,6 +178,15 @@ test('a room upgrade keeps its sub-room under the new room, with its agents', as
   await expect.soft(subRoomUnder(memberPage, newId, subName)).toBeVisible({ timeout: 60_000 });
   await shot(page, '2-creator-after');
   await shot(memberPage, '3-member-after');
+
+  // The sub-room's menu offers to remove it from one room of that name, the new one.
+  await page.goto(`/home/${encodeURIComponent(subId)}`);
+  await expect(roomMoreOptions(page)).toBeVisible({ timeout: 60_000 });
+  await roomMoreOptions(page).click();
+  await expect
+    .soft(page.getByRole('menuitem', { name: `Remove from ${parentName}`, exact: true }))
+    .toHaveCount(1);
+  await page.keyboard.press('Escape');
 
   // The agents, now in the new room, stay in the sub-room.
   await page.waitForTimeout(20_000);
