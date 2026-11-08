@@ -281,8 +281,9 @@ type ReadPdfFileProps = AttachmentProps &
     renderViewer: (props: RenderPdfViewerProps) => ReactNode;
   };
 
-// The viewer frame renders whatever the URL serves, so the bytes are always typed as PDF,
-// whatever type the sender declared: a blob claiming to be HTML would run in this origin.
+// The viewer's frame page shows the bytes as a PDF whatever type the blob carries, and they are
+// typed as PDF here too, whatever type the sender declared, since the viewer also saves this object
+// URL: a blob claiming to be HTML would run in this origin if a browser opened it as a page.
 const toPdfObjectUrl = async (blob: Blob): Promise<string> =>
   URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
 

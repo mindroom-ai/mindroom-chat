@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-// `renderPluginComponent`'s stand-in client and side panel frame, as a plugin's test meets them:
-// through the SDK only.
+// `renderPluginComponent`'s stand-in client, side panel frame, screen size and theme kind, as a
+// plugin's test meets them: through the SDK only.
 import { fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { usePanelFrame } from '@mindroom/client-sdk/core';
 import { mxcUrlToHttp, useMatrixClient, useMediaAuthentication } from '@mindroom/client-sdk/matrix';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
+import { useScreenSize, useThemeKind } from '@mindroom/client-sdk/ui';
 
 /** An avatar as a plugin draws one: authenticated as the app asks, unless the test says. */
 function Avatar({ authenticated }: { authenticated?: boolean }) {
@@ -31,6 +32,11 @@ function Card() {
       {`Fill ${frame.label}, ${frame.layout}`}
     </button>
   );
+}
+
+/** What a surface a plugin draws itself reads of the app's layout. */
+function Layout() {
+  return <p>{`${useScreenSize()}, ${useThemeKind()}`}</p>;
 }
 
 describe('renderPluginComponent', () => {
@@ -69,5 +75,21 @@ describe('renderPluginComponent', () => {
   it('gives a component no side panel frame unless the test gives one', async () => {
     const view = await renderPluginComponent(<Card />, { id: 'card', plugin: {} });
     expect(view.container.textContent).toBe('No frame');
+  });
+
+  it('gives a component the screen size and theme kind the test gives', async () => {
+    const view = await renderPluginComponent(<Layout />, {
+      id: 'layout',
+      plugin: {},
+      screenSize: 'Mobile',
+      themeKind: 'dark',
+    });
+    expect(view.container.textContent).toBe('Mobile, dark');
+  });
+
+  // After the test above, so its dark theme kind must not outlive it.
+  it('gives a component Desktop and light unless the test gives others', async () => {
+    const view = await renderPluginComponent(<Layout />, { id: 'layout', plugin: {} });
+    expect(view.container.textContent).toBe('Desktop, light');
   });
 });
