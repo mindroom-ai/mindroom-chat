@@ -63,9 +63,11 @@ test('a canvas does not open during a call, and says why', async ({ page, stack 
   await page.locator('[data-room-call-button]').click();
   const callPanel = page.getByTestId('call-panel');
   await callPanel.getByRole('button', { name: 'Join', exact: true }).click();
+  // Counted, not seen: alone in the call, the voice stage lists this device's person only for
+  // screen readers.
   await expect(
     page.locator(`[data-call-tile="${stack.tester.userId}"][data-connected="true"]`)
-  ).toBeVisible({ timeout: 60_000 });
+  ).toHaveCount(1, { timeout: 60_000 });
   await expect(page.locator('[data-call-tab]')).toBeVisible();
   await showThread(page, stack, rootId);
 
@@ -86,6 +88,10 @@ test('a canvas does not open during a call, and says why', async ({ page, stack 
   await page.locator('[data-call-tab]').click();
   await callPanel.getByRole('button', { name: 'End' }).click();
   await expect(page.locator('[data-call-tab]')).toHaveCount(0, { timeout: 30_000 });
+  // The call view stays open on the room's call; closed, its window no longer floats over the
+  // thread.
+  await callPanel.getByRole('button', { name: 'Close call' }).click();
+  await expect(callPanel).toHaveCount(0);
   await showThread(page, stack, rootId);
   await expect(open).toBeEnabled({ timeout: 30_000 });
   await expect(headerCanvases).toHaveCount(1);
