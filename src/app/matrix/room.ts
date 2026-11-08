@@ -630,9 +630,8 @@ export const roomHaveUnread = (client: MatrixClient, room: Room): boolean => {
 
 /**
  * Whether everything the server counts as unread in the room's main timeline is read by this
- * client's rule (`isMainTimelineMessageUnread`): roots the user answered in their threads, or
- * opened on this device. A reply or a thread receipt reads only its thread on the server, so a
- * root answered from another client stays in the main count until a main receipt reaches it.
+ * client's rule (`isMainTimelineMessageUnread`): roots the user opened on this device, which a
+ * thread receipt does not read on the server.
  *
  * The walk goes back from the newest loaded event to the user's read position or own last
  * message, and stops at the first message that is unread by the client's rule. The read ones

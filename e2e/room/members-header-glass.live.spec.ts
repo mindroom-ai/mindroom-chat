@@ -150,31 +150,39 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
       await drawer.screenshot({ path: testInfo.outputPath('members-invited-hover.png') });
       await page.mouse.move(500, 600);
       const controls = header.locator('button');
-      const expectClearControl = async (index: number) => {
+      // No control paints a fill at rest, and the Invited link never does. Hovered and pressed, the
+      // icon buttons (labelled by aria-label) take their flat fill as the room header's do
+      // (e2e/members/members-header-hover.spec.ts), but no control takes a raised material.
+      const expectFlatControl = async (index: number, state: 'rest' | 'hover' | 'press') => {
         const material = await controls.nth(index).evaluate((element) => {
           const css = getComputedStyle(element);
           return {
+            iconButton: element.hasAttribute('aria-label'),
             background: css.backgroundColor,
             image: css.backgroundImage,
             shadow: css.boxShadow,
           };
         });
-        expect(material).toEqual({ background: 'rgba(0, 0, 0, 0)', image: 'none', shadow: 'none' });
+        expect(material, `control ${index} at ${state}`).toMatchObject({
+          ...((state === 'rest' || !material.iconButton) && { background: 'rgba(0, 0, 0, 0)' }),
+          image: 'none',
+          shadow: 'none',
+        });
       };
       for (let index = 0; index < (await controls.count()); index += 1) {
         // Check resting, hover, and press without triggering the button's action.
         // eslint-disable-next-line no-await-in-loop
-        await expectClearControl(index);
+        await expectFlatControl(index, 'rest');
         // eslint-disable-next-line no-await-in-loop
         const controlBounds = (await controls.nth(index).boundingBox())!;
         // eslint-disable-next-line no-await-in-loop
         await page.mouse.move(controlBounds.x + 4, controlBounds.y + 4);
         // eslint-disable-next-line no-await-in-loop
-        await expectClearControl(index);
+        await expectFlatControl(index, 'hover');
         // eslint-disable-next-line no-await-in-loop
         await page.mouse.down();
         // eslint-disable-next-line no-await-in-loop
-        await expectClearControl(index);
+        await expectFlatControl(index, 'press');
         // eslint-disable-next-line no-await-in-loop
         await page.mouse.move(500, 600);
         // eslint-disable-next-line no-await-in-loop
