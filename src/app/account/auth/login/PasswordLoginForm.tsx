@@ -3,7 +3,7 @@ import { Box, Button, Input, Spinner, Text } from 'folds';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { PasswordInput } from '../../../ui/PasswordInput';
-import { MINDROOM_AUTH_BRANDING } from '../authUi';
+import { getDeviceDisplayName } from '../authUi';
 import { getResetPasswordPath } from '../../../routes/pathUtils';
 import { isAddAccountSearch, withAddAccountSearchIf } from '../../../navigation/addAccount';
 import { FieldError } from '../FiledError';
@@ -77,7 +77,7 @@ export function PasswordLoginForm({ baseUrl, server }: PasswordLoginFormProps) {
               ? { type: 'm.id.thirdparty', medium: 'email', address: user }
               : { type: 'm.id.user', user },
           password,
-          initial_device_display_name: MINDROOM_AUTH_BRANDING.deviceDisplayName,
+          initial_device_display_name: getDeviceDisplayName(),
         } as never)
       );
     } catch (loginError) {
