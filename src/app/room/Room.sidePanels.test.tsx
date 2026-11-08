@@ -794,7 +794,7 @@ describe('the side panels of a room', () => {
   it("covers the conversation with a plugin's panel on phones, which has no frame", async () => {
     await renderRoom(ScreenSize.Mobile);
     await act(async () => state.view?.onPanelToggle?.('notes/panel'));
-    expect(notes()).not.toBeNull();
+    expect(notes()?.textContent).toContain('Notes frame none');
     expect(hidden()).toBe(true);
     expect(screen.queryByRole('button', { name: 'Fill the room with Notes' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Fold Notes to the edge' })).toBeNull();
@@ -870,18 +870,13 @@ describe('the side panels of a room', () => {
     }
   );
 
-  it("gives a framed panel's component its frame beside the conversation, and none on phones", async () => {
+  it("gives a framed panel's component its frame beside the conversation", async () => {
     await renderRoom();
     await act(async () => state.view?.onPanelToggle?.('notes/panel'));
     expect(notes()?.textContent).toContain('Notes frame beside');
     expect(screen.queryByRole('separator', { name: 'Resize Notes' })).not.toBeNull();
     await act(async () => frameButton('Fill the room with Notes')?.click());
     expect(notes()?.textContent).toContain('Notes frame filled');
-    cleanup();
-
-    await renderRoom(ScreenSize.Mobile);
-    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
-    expect(notes()?.textContent).toContain('Notes frame none');
   });
 
   it('covers the conversation on a phone with a framed panel that was folded on a wide screen', async () => {

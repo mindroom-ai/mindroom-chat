@@ -25,6 +25,7 @@ export function PluginSidePanel({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const own = frame === 'own';
   const framed = (content: ReactNode) => (
     <section className={Panel} style={{ flexGrow: 1 }} aria-label={label}>
       <header className={Header}>
@@ -53,7 +54,7 @@ export function PluginSidePanel({
   );
   const shown = (
     <ErrorBoundary
-      fallback={frame === 'own' ? framed(failed) : failed}
+      fallback={own ? framed(failed) : failed}
       resetKeys={[Component, roomId, request]}
       onError={(thrown: unknown, info) => {
         // eslint-disable-next-line no-console
@@ -62,10 +63,10 @@ export function PluginSidePanel({
       }}
     >
       {/* A component that loads its code waits here, not in place of the page. */}
-      <Suspense fallback={frame === 'own' ? framed(null) : null}>
+      <Suspense fallback={own ? framed(null) : null}>
         <Component roomId={roomId} request={request} />
       </Suspense>
     </ErrorBoundary>
   );
-  return frame === 'own' ? shown : framed(shown);
+  return own ? shown : framed(shown);
 }

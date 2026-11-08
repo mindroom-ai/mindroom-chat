@@ -157,7 +157,7 @@ export const closePanel = async (page: Page, panel: CorePanel) => {
   await expect(panelLocator(page, panel)).toHaveCount(0);
 };
 
-const widthOf = async (locator: Locator): Promise<number> =>
+export const widthOf = async (locator: Locator): Promise<number> =>
   (await locator.boundingBox())?.width ?? 0;
 
 /** Opens another room of the viewer, `name`, from the room list, and waits for its header. */

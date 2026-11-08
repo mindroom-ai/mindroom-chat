@@ -2,17 +2,10 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import {
-  expect,
-  test,
-  type Browser,
-  type Locator,
-  type Page,
-  type TestInfo,
-} from '@playwright/test';
+import { expect, test, type Browser, type Page, type TestInfo } from '@playwright/test';
 import { disposableHomeserverIsUp } from '../helpers/disposableAccounts';
 import { roomHeader, roomMoreOptions } from '../helpers/roomMenu';
-import { openPanelRoom, panelLocator } from '../helpers/sidePanels';
+import { openPanelRoom, panelLocator, widthOf } from '../helpers/sidePanels';
 import { serveBuild } from '../helpers/staticBuildServer';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
@@ -54,8 +47,6 @@ const card = (page: Page) => page.getByRole('region', { name: 'Example card', ex
 const button = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
 const menuEntry = (page: Page) =>
   page.getByRole('menuitemcheckbox', { name: 'Example card', exact: true });
-const widthOf = async (locator: Locator): Promise<number> =>
-  (await locator.boundingBox())?.width ?? 0;
 
 const shots = async (page: Page, testInfo: TestInfo, layout: string) => {
   for (const scheme of ['light', 'dark'] as const) {
