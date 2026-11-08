@@ -8,7 +8,7 @@ import { useInitializeShownThread } from '../useInitializeShownThread';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
-import { useThreadRootCallRow } from '../overview/useThreadRootCallRow';
+import { useThreadRootLiveCallRow } from '../overview/useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import * as css from './ThreadsView.css';
 import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
@@ -27,8 +27,8 @@ export function ThreadsViewRow({ entry }: ThreadsViewRowProps) {
   const shownRef = useInitializeShownThread(entry.roomId, entry.threadRootId);
 
   const room = mx.getRoom(entry.roomId);
-  // A call's row shows in its card as in the room's compact list.
-  const callRow = useThreadRootCallRow(room, entry.threadRootId);
+  // A live call's row shows in its card as in the room's compact list.
+  const callRow = useThreadRootLiveCallRow(room, entry.threadRootId);
   const spaceName = entry.parentSpaceIds
     .map((spaceId) => mx.getRoom(spaceId))
     .find((space) => space?.isSpaceRoom())?.name;
