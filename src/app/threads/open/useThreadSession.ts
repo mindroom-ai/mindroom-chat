@@ -280,6 +280,9 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
           },
           onCacheHydrated: (complete) => {
             cacheComplete = complete;
+            // Decided now, not when React applies the update: the server load can finish before
+            // that, and then it leaves the tail to this complete cache.
+            const cacheHasTail = complete && !liveProgressed;
             publish((current) => ({
               ...current,
               open: {
@@ -288,10 +291,9 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
                 loadError: networkLoadError && !complete,
                 latestPending: complete ? false : current.open.latestPending,
               },
-              history:
-                complete && !liveProgressed
-                  ? { hasMoreCachedBack: false, tailLoaded: true }
-                  : current.history,
+              history: cacheHasTail
+                ? { hasMoreCachedBack: false, tailLoaded: true }
+                : current.history,
             }));
           },
         }).then((result) => {
