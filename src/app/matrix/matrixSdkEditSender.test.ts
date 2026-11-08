@@ -379,38 +379,61 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
     expect(body(event)).toBe('Sold.');
   });
 
+  it('drops a bundled edit that the app hides because it could not read it yet', async () => {
+    const { add, event } = await message(bundled(newestEdit()));
+    // The app's replacingEvent() leaves out an edit that failed to decrypt (untrustedContent.ts);
+    // the message would show it once its key arrives.
+    vi.spyOn(event, 'replacingEvent').mockReturnValue(null);
+
+    await add(redaction('$redaction', '$newest-edit', 5));
+
+    expect(event.replacingEventId()).toBeUndefined();
+  });
+
   describe('in an encrypted room', () => {
     afterEach(() => {
       // Forgets the edits the client kept.
       keepSyncedEdits(new EventEmitter() as unknown as MatrixClient)();
     });
 
-    /** Redacts the message's bundled edit, which the client kept once it decrypted it. */
-    const redactKeptEdit = async (...redactions: MatrixEvent[]) => {
+    /**
+     * Redacts the message's bundled edit, which the client keeps once it decrypts it: `decrypts`
+     * before the redactions arrive or after them, as when its key comes later.
+     */
+    const redactKeptEdit = async (decrypts: 'before' | 'after', ...redactions: MatrixEvent[]) => {
       const { room, add, event } = await message(bundled(newestEdit()));
+      const bundledEdit = event.replacingEvent();
       const mx = Object.assign(new EventEmitter(), { getRoom: () => room });
       keepSyncedEdits(mx as unknown as MatrixClient);
-      mx.emit(MatrixEventEvent.Decrypted, event.replacingEvent());
+      if (decrypts === 'before') mx.emit(MatrixEventEvent.Decrypted, bundledEdit);
       await add(...redactions);
       redactions.forEach((redacted) => mx.emit(ClientEvent.Event, redacted));
+      if (decrypts === 'after') mx.emit(MatrixEventEvent.Decrypted, bundledEdit);
       return { shown: rendered(room, event), kept: getSyncedEdit('$message')?.getId() };
     };
 
-    it('shows the original text once the sender redacts the bundled edit', async () => {
-      expect(await redactKeptEdit(redaction('$redaction', '$newest-edit', 5))).toEqual({
-        shown: 'The forklift is charged.',
-        kept: undefined,
-      });
-    });
+    it.each(['before', 'after'] as const)(
+      'shows the original text once the sender redacts the bundled edit it decrypts %s',
+      async (decrypts) => {
+        expect(await redactKeptEdit(decrypts, redaction('$redaction', '$newest-edit', 5))).toEqual({
+          shown: 'The forklift is charged.',
+          kept: undefined,
+        });
+      }
+    );
 
-    it('keeps the edit when another member, or another edit, is redacted', async () => {
-      expect(
-        await redactKeptEdit(
-          redaction('$redaction', '$newest-edit', 5, OTHER),
-          redaction('$second-redaction', '$own-edit', 6)
-        )
-      ).toEqual({ shown: 'The forklift is back.', kept: '$newest-edit' });
-    });
+    it.each(['before', 'after'] as const)(
+      'keeps the edit it decrypts %s another edit, or another member, is redacted',
+      async (decrypts) => {
+        expect(
+          await redactKeptEdit(
+            decrypts,
+            redaction('$redaction', '$own-edit', 5),
+            redaction('$second-redaction', '$newest-edit', 6, OTHER)
+          )
+        ).toEqual({ shown: 'The forklift is back.', kept: '$newest-edit' });
+      }
+    );
   });
 
   it('keeps the bundled edit when the sender redacts another of their edits', async () => {
