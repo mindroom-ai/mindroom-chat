@@ -123,8 +123,11 @@ function VoiceStage({ room, people, microphone }: VoiceStageProps) {
   const others = people.filter((participant) => !participant.local);
   const speaker = others.find((participant) => participant.speaking);
   const anyoneSpeaks = people.some((participant) => participant.speaking);
-  // Agents listen while nobody talks; quiet people are just quiet, so nothing is said of them.
-  const agentsOnly = others.every(({ userId }) => isMindroomAgentUserId(userId));
+  // Agents listen while nobody talks; quiet people are just quiet, so nothing is said of them. An
+  // agent the call still waits for is not listening yet: its face says it is awaited.
+  const agentsOnly = others.every(
+    ({ userId, connected }) => connected && isMindroomAgentUserId(userId)
+  );
   let status: ReactNode;
   if (speaker) status = <SpeakingLine room={room} userId={speaker.userId} />;
   else if (!microphone) status = t('featureUi.calls.stage.muted');
@@ -201,8 +204,8 @@ function MoreFaces({ count, inlineEnd }: { count: number; inlineEnd: number }) {
       style={style}
       aria-label={t('featureUi.calls.stage.moreLabel', { count })}
     >
-      <Avatar size="200" radii="Pill" aria-hidden>
-        <Text as="span" size="L400">
+      <Avatar className={css.MoreFaces} size="200" radii="Pill" aria-hidden>
+        <Text as="span" size="L400" className={css.MoreCount[count < 10 ? 'short' : 'long']}>
           {t('featureUi.calls.stage.more', { count })}
         </Text>
       </Avatar>

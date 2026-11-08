@@ -38,6 +38,7 @@ const BADGE_OFFSET = toRem(-2);
 const BAR_WIDTH = toRem(4);
 const BAR_REST = 'scaleY(0.35)';
 const ONE_PIXEL = toRem(1);
+const MORE_COUNT_LONG = toRem(10);
 
 const bareList = { margin: 0, padding: 0, listStyle: 'none' } as const;
 
@@ -92,6 +93,19 @@ export const SpeakerFace = style({
   selectors: {
     '&[data-speaking="true"]': { zIndex: 1, boxShadow: ring(2, color.Success.Main) },
   },
+});
+
+// The count of the faces a long row leaves out sits on the tiles' own fill: the circle is over the
+// video or screen in focus, where a see-through one would not read.
+export const MoreFaces = style({
+  background: color.SurfaceVariant.Container,
+  color: color.SurfaceVariant.OnContainer,
+});
+
+// "+12" in the folds label size nearly touches the 24 px circle's sides; two digits step down.
+export const MoreCount = styleVariants({
+  short: {},
+  long: { selectors: { '&&': { fontSize: MORE_COUNT_LONG } } },
 });
 
 // The own camera, small in the bottom end corner over the tile in focus.

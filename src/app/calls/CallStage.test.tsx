@@ -189,6 +189,17 @@ describe('CallStage without video', () => {
     expect(face.dataset.connected).toBe('false');
     expect(face.textContent).toContain('Waiting for Mind');
   });
+
+  it('says an agent listens only once the agent the call waits for is connected', () => {
+    const awaited = { ...helper, key: `awaited:${helper.userId}`, deviceId: '', connected: false };
+    const waiting = showStage({ participants: [me], awaited });
+    expect(tileOf(waiting.container, helper.userId).textContent).toContain('Waiting for Helper');
+    expect(within(waiting.container).queryByText('Listening')).toBeNull();
+    cleanup();
+
+    const joined = showStage({ participants: [me, helper] });
+    expect(within(joined.container).getByText('Listening')).toBeTruthy();
+  });
 });
 
 describe('CallStage with video', () => {
@@ -268,6 +279,19 @@ describe('CallStage with video', () => {
     expect(more.hasAttribute('data-call-tile')).toBe(false);
     expect(more.getAttribute('aria-label')).toBe('5 more');
     expect(more.textContent).toBe('+5');
+    // A filled circle, so the count reads over the video or screen in focus.
+    expect(withStyle(more, css.MoreFaces)).toHaveLength(1);
+    expect(withStyle(more, css.MoreCount.long)).toHaveLength(0);
+  });
+
+  it('counts a long rest in smaller text, so two digits fit the face', () => {
+    const crowd = Array.from({ length: 16 }, (_, index) =>
+      person(`guest${index}`, { key: `@guest${index}:stage.test:DEVICE` })
+    );
+    const { container } = showStage({ participants: [{ ...mind, screen: track() }, ...crowd] });
+    const more = within(container).getByText('+13');
+    expect(more.closest(`.${css.MoreFaces.trim().split(/\s+/).join('.')}`)).not.toBeNull();
+    expect(withStyle(container, css.MoreCount.long)).toHaveLength(1);
   });
 
   it('shows every face in speaker view while there are five or fewer', () => {
