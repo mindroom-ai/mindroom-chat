@@ -1,4 +1,4 @@
-import { accountPrefix, deleteKeys } from './pluginStorage';
+import { deletePluginStorageOfAccount } from './pluginStorage';
 import { registeredPlugins } from './registry';
 
 /** How long forgetting an account waits for the plugins before the app goes on (and reloads). */
@@ -11,8 +11,7 @@ const FORGET_WAIT_MS = 5_000;
  * account stays.
  */
 export const forgetAccountInPlugins = async (userId: string): Promise<void> => {
-  const prefix = accountPrefix(userId);
-  deleteKeys((key) => key.startsWith(prefix));
+  deletePluginStorageOfAccount(userId);
   const forgetting = registeredPlugins.map(async ({ tag, forgetAccount }) => {
     try {
       await forgetAccount?.(userId);

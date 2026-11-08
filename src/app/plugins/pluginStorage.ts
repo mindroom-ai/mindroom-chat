@@ -24,10 +24,9 @@ export type PluginStorage = {
 const PLUGIN_KEYS = 'mindroom.plugin:';
 
 /** The start of the localStorage key of every plugin value kept for `userId`. */
-export const accountPrefix = (userId: string): string =>
-  `${PLUGIN_KEYS}${encodeURIComponent(userId)}/`;
+const accountPrefix = (userId: string): string => `${PLUGIN_KEYS}${encodeURIComponent(userId)}/`;
 
-export const deleteKeys = (doomed: (key: string) => boolean): void => {
+const deleteKeys = (doomed: (key: string) => boolean): void => {
   const storage = getSafeLocalStorage();
   getStorageKeysSafe(storage)
     .filter(doomed)
@@ -36,7 +35,7 @@ export const deleteKeys = (doomed: (key: string) => boolean): void => {
 
 /**
  * The storage of plugin `pluginId` for the signed-in account. The app deletes it with the rest of
- * the account's local data (`forgetAccountInPlugins.ts`).
+ * the account's local data ({@link deletePluginStorageOfAccount}).
  */
 export const usePluginStorage = (pluginId: string): PluginStorage => {
   const userId = useMatrixClient().getSafeUserId();
@@ -54,6 +53,12 @@ export const usePluginStorage = (pluginId: string): PluginStorage => {
       },
     };
   }, [pluginId, userId]);
+};
+
+/** Deletes every plugin's storage for `userId`. */
+export const deletePluginStorageOfAccount = (userId: string): void => {
+  const prefix = accountPrefix(userId);
+  deleteKeys((key) => key.startsWith(prefix));
 };
 
 /**
