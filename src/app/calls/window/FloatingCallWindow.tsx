@@ -122,6 +122,7 @@ export function FloatingCallWindow({ label, children }: { label: string; childre
       handleProps: {
         'data-call-window-handle': '',
         tabIndex: 0,
+        role: 'group',
         'aria-label': moveLabel,
         onKeyDown,
       },

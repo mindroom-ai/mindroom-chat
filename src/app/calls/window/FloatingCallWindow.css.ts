@@ -36,10 +36,12 @@ export const Box = style({
 });
 
 // The call view's title bar moves the window: a touch on it drags instead of scrolling the page,
-// and keyboard focus on it shows.
+// selecting text or opening the callout a long press opens, and keyboard focus on it shows.
 const FOCUS_RING = config.borderWidth.B400;
-globalStyle(`${Frame} [data-call-window-handle]`, { touchAction: 'none' });
-globalStyle(`${Frame} [data-call-window-handle]:focus-visible`, {
+const HANDLE = `${Frame} [data-call-window-handle]`;
+const DRAGS_ONLY = { touchAction: 'none', userSelect: 'none', WebkitTouchCallout: 'none' } as const;
+globalStyle(HANDLE, DRAGS_ONLY);
+globalStyle(`${HANDLE}:focus-visible`, {
   outline: `${FOCUS_RING} solid ${color.Primary.Main}`,
   outlineOffset: `calc(-1 * ${FOCUS_RING})`,
 });

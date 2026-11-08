@@ -121,6 +121,8 @@ describe('FloatingCallWindow', () => {
     expect(frame?.bar).toBe(false);
     expect(handle().tagName).toBe('HEADER');
     expect(handle().tabIndex).toBe(0);
+    // A group, so screen readers read the handle's name ("Move call window") on focus.
+    expect(handle().getAttribute('role')).toBe('group');
   });
 
   it('opens at the start edge in a right-to-left document', () => {

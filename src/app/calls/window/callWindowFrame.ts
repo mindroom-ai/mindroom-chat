@@ -4,6 +4,8 @@ import { createContext, useContext, type KeyboardEvent } from 'react';
 export type CallWindowHandleProps = {
   'data-call-window-handle': '';
   tabIndex: 0;
+  // Screen readers read the name of a focused element only when it has a role.
+  role: 'group';
   'aria-label': string;
   onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
 };
