@@ -1,11 +1,19 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { MatrixClient, MatrixEvent, MemoryStore, Room, RoomVersionStability } from 'matrix-js-sdk';
+import {
+  MatrixClient,
+  MatrixError,
+  MatrixEvent,
+  MemoryStore,
+  Room,
+  RoomVersionStability,
+} from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
 import { createSubRoom } from '../../../client-sdk/room';
 import { CreateSubRoomDialog } from './CreateSubRoomDialog';
+import { createSubRoom as createAppSubRoom } from './createSubRoom';
 
 const navigation = vi.hoisted(() => ({ navigate: vi.fn(), navigateRoom: vi.fn() }));
 
@@ -233,5 +241,69 @@ describe("the client SDK's createSubRoom", () => {
     );
 
     expect(createRoom).not.toHaveBeenCalled();
+  });
+});
+
+describe('createSubRoom, when the parent does not list the new room', () => {
+  /**
+   * The server of `setup`, where each room created is a new one and the parent refuses, rate
+   * limited, to list the first `failures` of them. `hidden` gives the rooms created that the parent
+   * does not list and that the user has not left and forgotten.
+   */
+  const refusingLinks = (failures: number) => {
+    const { mx, parent, createRoom, sendStateEvent } = setup();
+    const created: string[] = [];
+    const listed: string[] = [];
+    const left: string[] = [];
+    const forgotten: string[] = [];
+    let refusals = failures;
+    createRoom.mockImplementation(async () => {
+      created.push(`!new${created.length + 1}:example.org`);
+      return { room_id: created[created.length - 1]! };
+    });
+    sendStateEvent.mockImplementation((async (...[, , , stateKey]: unknown[]) => {
+      if (refusals-- > 0) {
+        throw new MatrixError({ errcode: 'M_LIMIT_EXCEEDED', error: 'Too many requests' }, 429);
+      }
+      listed.push(String(stateKey));
+      return { event_id: '$child' };
+    }) as never);
+    vi.spyOn(mx, 'leave').mockImplementation(async (roomId) => {
+      left.push(roomId);
+      return {};
+    });
+    vi.spyOn(mx, 'forget').mockImplementation(async (roomId) => {
+      if (left.includes(roomId)) forgotten.push(roomId);
+      return {};
+    });
+    const hidden = () =>
+      created.filter((roomId) => !listed.includes(roomId) && !forgotten.includes(roomId));
+    return { parent, listed, hidden };
+  };
+
+  it('leaves no room behind when the link fails once, and trying again makes one listed room', async () => {
+    const { parent, listed, hidden } = refusingLinks(1);
+
+    await expect(createAppSubRoom(parent, 'Ideas', undefined)).rejects.toThrow(
+      'Ideas was not created'
+    );
+    expect(hidden()).toEqual([]);
+    await expect(createAppSubRoom(parent, 'Ideas', undefined)).resolves.toBe('!new2:example.org');
+
+    expect(listed).toEqual(['!new2:example.org']);
+    expect(hidden()).toEqual([]);
+  });
+
+  it('leaves no room behind, and says it was not created and why, when the link keeps failing', async () => {
+    const { parent, listed, hidden } = refusingLinks(Infinity);
+
+    const failure = createAppSubRoom(parent, 'Ideas', undefined);
+
+    await expect(failure).rejects.toThrow(
+      "Ideas was not created, because !parent:example.org couldn't list it. Too many requests."
+    );
+    await expect(failure).rejects.toMatchObject({ cause: { errcode: 'M_LIMIT_EXCEEDED' } });
+    expect(listed).toEqual([]);
+    expect(hidden()).toEqual([]);
   });
 });
