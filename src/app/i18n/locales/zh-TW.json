@@ -467,13 +467,10 @@
     },
     "deviceVerificationSetup": {
       "recoveryKey": "復原金鑰",
-      "passphraseOptional": "密碼（可選）",
       "continue": "繼續",
       "authenticationStepsToPerformThisActionAreNotSupportedByClient": "用戶端不支援執行此操作的身分驗證步驟。",
-      "storeTheRecoveryKeyInASafePlaceForFutureUseAs": "請妥善保管復原金鑰。無法存取其他裝置時，您需要使用它來驗證身分。",
       "copy": "複製",
       "download": "下載",
-      "setupDeviceVerification": "設定裝置驗證",
       "resetDeviceVerification": "重設裝置驗證",
       "resettingDeviceVerificationIsPermanent": "重置裝置驗證是永久性的。",
       "recoveryPassphrase": "復原通關密語",
@@ -481,7 +478,6 @@
       "unexpectedError": "意外錯誤！",
       "hide": "隱藏",
       "show": "顯示",
-      "recoveryDescription": "產生<b>復原金鑰</b>，以便無法存取其他裝置時驗證身分。您也可以設定容易記住的復原通關密語。",
       "resetWarning": "所有與您互相驗證過的使用者都會看到安全警示，且您的加密備份將會遺失。除非您已遺失<b>復原金鑰</b>、<b>復原通關密語</b>以及所有可用於驗證的裝置，否則請勿執行此操作。"
     },
     "hexColorPickerPopOut": {
@@ -497,14 +493,6 @@
       "cancel": "取消",
       "logoutFailed": "登出失敗！{{error}}"
     },
-    "manualVerification": {
-      "recoveryPassphrase": "復原通關密語",
-      "recoveryKey": "復原金鑰",
-      "verifyManually": "手動驗證",
-      "deviceVerified": "裝置已驗證！",
-      "selectAVerificationMethod": "選擇驗證方法。",
-      "provideRecoveryKey": "提供復原金鑰。"
-    },
     "pdfViewer": {
       "zoomOut": "縮小",
       "zoomIn": "放大",
@@ -517,13 +505,6 @@
       "saving": "儲存...",
       "retryDownload": "重試下載",
       "download": "下載"
-    },
-    "secretStorage": {
-      "recoveryPassphrase": "復原通關密語",
-      "verify": "驗證",
-      "recoveryKey": "復原金鑰",
-      "invalidRecoveryPassphrase": "復原通關密語無效。",
-      "invalidRecoveryKey": "復原金鑰無效。"
     },
     "uIAFlowOverlay": {
       "exit": "退出",
@@ -2053,12 +2034,9 @@
           "logoutSelectedDevices_other": "從所選裝置登出。（已選取 {{count}} 個）"
         },
         "verification": {
-          "currentDeviceHelpLess": "從其他裝置開始驗證或手動驗證。<toggle><strong>收合</strong></toggle>",
-          "currentDeviceHelpMore": "從其他裝置開始驗證或手動驗證。 <toggle><strong>瞭解更多</strong></toggle>",
           "enable": "啟用",
           "findDevice": "在<section>裝置/工作階段</section>部分中找到此裝置。",
           "initiateVerification": "啟動驗證。",
-          "manualVerificationHint": "如果您沒有任何經過驗證的裝置，請按下<action>「手動驗證」</action>按鈕。",
           "openSettings": "開啟<settings>設定</settings>。",
           "openVerifiedDevice": "開啟您的其他經過驗證的裝置。",
           "reset": "重設",
@@ -2068,8 +2046,7 @@
           "unverifiedCount_other": "{{count}} 未驗證",
           "verified": "已驗證",
           "verify": "驗證",
-          "verifyDeviceDescription": "驗證裝置身分並授予加密訊息的存取權限。",
-          "verifyManually": "手動驗證"
+          "verifyDeviceDescription": "驗證裝置身分並授予加密訊息的存取權限。"
         }
       },
       "emojisStickers": {
@@ -2797,15 +2774,6 @@
       },
       "mindroomMarkRoomsReadMenuItem": {
         "markAsRead": "標記為已讀"
-      }
-    },
-    "onboarding": {
-      "keyBackupNudge": {
-        "backUpYourEncryptedHistory": "備份您的加密歷史記錄",
-        "dismissBackupReminder": "關閉備份提醒",
-        "setUpSecureBackupSoYouCanStillReadYour": "設定安全備份，以便在新裝置上登入後仍能閱讀加密的 AI 代理聊天記錄。",
-        "setUpSecureKeyBackup": "設定安全金鑰備份",
-        "setUpBackup": "設定備份"
       }
     },
     "sidebar": {

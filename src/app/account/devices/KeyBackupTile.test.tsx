@@ -8,6 +8,22 @@ import { KeyBackupTile } from './KeyBackupTile';
 
 const client = vi.hoisted(() => ({ current: undefined as unknown }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client.current }));
+const storage = vi.hoisted(() => ({
+  key: undefined as unknown,
+  turnOn: vi.fn(),
+  keyFromInput: vi.fn(),
+}));
+vi.mock('../encryption/useDefaultSecretStorageKey', () => ({
+  useDefaultSecretStorageKey: () => storage.key,
+}));
+vi.mock('../encryption/turnOnKeyBackup', async (importActual) => ({
+  ...(await importActual<typeof import('../encryption/turnOnKeyBackup')>()),
+  turnOnKeyBackup: storage.turnOn,
+}));
+vi.mock('../encryption/recoveryInput', async (importActual) => ({
+  ...(await importActual<typeof import('../encryption/recoveryInput')>()),
+  keyFromRecoveryInput: storage.keyFromInput,
+}));
 
 const NO_BACKUP_TEXT = 'No backup present on server!';
 const CHECK_FAILED_TEXT = 'Could not check for a backup on the server.';
@@ -31,7 +47,11 @@ const clientAnswering = (...answers: Array<() => Promise<unknown>>) => {
 
 const settle = () => act(async () => undefined);
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  storage.key = undefined;
+  vi.clearAllMocks();
+});
 
 describe('KeyBackupTile', () => {
   it('says there is no backup only when the server says so', async () => {
@@ -99,5 +119,54 @@ describe('KeyBackupTile', () => {
     expect(authedRequest).toHaveBeenCalledTimes(2);
     expect(screen.queryByText(CHECK_FAILED_TEXT)).toBeNull();
     expect(screen.getByText(/Version: 7/)).toBeTruthy();
+  });
+});
+
+describe('KeyBackupTile without a backup', () => {
+  const noBackup = () =>
+    Promise.reject(new MatrixError({ errcode: 'M_NOT_FOUND', error: 'No backup' }, 404));
+
+  it('offers to turn a backup on when the account has secret storage', async () => {
+    storage.key = ['key1', { passphrase: { algorithm: 'm.pbkdf2', salt: 's', iterations: 1 } }];
+    const derived = new Uint8Array([9]);
+    storage.keyFromInput.mockResolvedValue(derived);
+    storage.turnOn.mockResolvedValue(undefined);
+    clientAnswering(noBackup, noBackup);
+    render(<KeyBackupTile canTurnOn />);
+    await settle();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Turn on backup' }));
+    fireEvent.change(document.querySelector('input[name="recoveryInput"]') as HTMLInputElement, {
+      target: { value: '  my recovery password  ' },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Turn on backup' }));
+    });
+
+    expect(storage.keyFromInput).toHaveBeenCalledWith(
+      expect.anything(),
+      'my recovery password',
+      expect.objectContaining({ passphrase: expect.anything() })
+    );
+    expect(storage.turnOn).toHaveBeenCalledWith(expect.anything(), 'key1', derived);
+    expect(document.querySelector('input[name="recoveryInput"]')).toBeNull();
+  });
+
+  it('offers nothing to a session that is not verified', async () => {
+    storage.key = ['key1', {}];
+    clientAnswering(noBackup);
+    render(<KeyBackupTile canTurnOn={false} />);
+    await settle();
+
+    expect(screen.queryByRole('button', { name: 'Turn on backup' })).toBeNull();
+  });
+
+  it('offers nothing without secret storage to keep the backup key in', async () => {
+    clientAnswering(noBackup);
+    render(<KeyBackupTile canTurnOn />);
+    await settle();
+
+    expect(screen.getByText(NO_BACKUP_TEXT)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Turn on backup' })).toBeNull();
   });
 });

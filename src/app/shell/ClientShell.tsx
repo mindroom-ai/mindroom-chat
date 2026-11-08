@@ -16,6 +16,8 @@ import { CreateSpaceModalRenderer } from '../spaces/create/CreateSpaceModal';
 import { UserRoomProfileRenderer } from '../members/profile/UserRoomProfileRenderer';
 import { CommandPaletteRenderer } from '../command-palette/CommandPaletteRenderer';
 import { ShortcutRoot } from './shortcuts/ShortcutRoot';
+import { EncryptionRecoveryPrompt } from '../account/encryption/EncryptionRecoveryPrompt';
+import { RecoveryDialogRenderer } from '../account/encryption/RecoveryDialogRenderer';
 import { IncomingVerificationRequests } from '../account/verification/IncomingVerificationRequests';
 import { CallFeatures } from '../calls/CallFeatures';
 import { ClientInitStorageAtom } from './ClientInitStorageAtom';
@@ -69,6 +71,8 @@ export function ClientShell({ children }: { children: ReactNode }) {
           <ShortcutRoot />
           <UserRoomProfileRenderer />
           <IncomingVerificationRequests />
+          <RecoveryDialogRenderer />
+          <EncryptionRecoveryPrompt />
           <CallFeatures />
         </RoomsNotificationPreferencesProvider>
       </ClientInitStorageAtom>

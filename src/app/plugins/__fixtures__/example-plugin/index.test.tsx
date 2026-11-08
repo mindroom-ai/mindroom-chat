@@ -37,6 +37,15 @@ const greeting: PluginEvent = {
   content: { body: 'Hello', 'com.example.greeting': { text: 'Hello' } },
 };
 
+/** The greeting's message in the room !lobby:example.org, as the homeserver answers for it. */
+const fetchedGreeting = {
+  event_id: '$greeting',
+  room_id: '!lobby:example.org',
+  type: 'm.room.message',
+  sender: greeting.sender,
+  content: { ...greeting.content },
+};
+
 describe('example plugin', () => {
   // Its panel asks the client's homeserver through `fetch` whether it binds sign-in tokens; the
   // stub keeps that off the network, and its answer counts as no.
@@ -118,13 +127,7 @@ describe('example plugin', () => {
     if (!panel) throw new Error('the example plugin has no side panel');
     // The panel reads the room's members and the greeting's message through the account's client.
     const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
-    const fetched = vi.spyOn(client, 'fetchRoomEvent').mockResolvedValue({
-      event_id: '$greeting',
-      room_id: '!lobby:example.org',
-      type: 'm.room.message',
-      sender: greeting.sender,
-      content: { ...greeting.content },
-    });
+    const fetched = vi.spyOn(client, 'fetchRoomEvent').mockResolvedValue(fetchedGreeting);
     const view = await renderPluginComponent(
       <panel.Component roomId="!lobby:example.org" request="$greeting" />,
       { id: 'example', plugin, client }
@@ -132,6 +135,43 @@ describe('example plugin', () => {
     expect(await view.findByText('Greeting: Hello')).toBeTruthy();
     expect(fetched).toHaveBeenCalledWith('!lobby:example.org', '$greeting');
     expect((await renderGreeting()).queryByRole('button', { name: 'Show in panel' })).toBeNull();
+  });
+
+  it("names its greeting's sender by their name in the room, and shows the account's own profile card", async () => {
+    const [panel] = plugin.sidePanels ?? [];
+    if (!panel) throw new Error('the example plugin has no side panel');
+    const userId = '@ada:example.org';
+    const client = createClient({ baseUrl: 'https://example.org', userId });
+    const room = new Room('!lobby:example.org', client, userId);
+    room.currentState.setStateEvents(
+      [
+        [userId, 'Ada Lovelace'],
+        [greeting.sender, 'Helper'],
+      ].map(
+        ([member, displayname]) =>
+          new MatrixEvent({
+            type: 'm.room.member',
+            room_id: room.roomId,
+            sender: member,
+            state_key: member,
+            content: { membership: KnownMembership.Join, displayname },
+          })
+      )
+    );
+    client.store.storeRoom(room);
+    vi.spyOn(client, 'fetchRoomEvent').mockResolvedValue(fetchedGreeting);
+    const view = await renderPluginComponent(
+      <MemoryRouter>
+        <panel.Component roomId={room.roomId} request="$greeting" />
+      </MemoryRouter>,
+      { id: 'example', plugin, client }
+    );
+    // The name is a button, which opens the app's floating card of the sender.
+    expect(await view.findByRole('button', { name: 'Helper' })).toBeTruthy();
+    // The card the app shows for the account, in the panel itself.
+    expect(view.getByRole('heading', { name: 'Ada Lovelace' })).toBeTruthy();
+    expect(view.getByText(userId)).toBeTruthy();
+    expect(view.queryByRole('dialog')).toBeNull();
   });
 
   it('links its room page to the room and to its thread, also at a space address', async () => {
@@ -227,11 +267,12 @@ describe('example plugin', () => {
       ['@carol:example.org', Join],
       ['@mindroom_helper:example.org', Leave],
     ]);
+    // The panel shows the account's profile card in each room, which needs a router.
     const view = await renderPluginComponent(
-      <>
+      <MemoryRouter>
         <panel.Component roomId="!agent:example.org" />
         <panel.Component roomId="!people:example.org" />
-      </>,
+      </MemoryRouter>,
       { id: 'example', plugin, client }
     );
     expect(view.getByText('Members: 2, with a MindRoom agent')).toBeTruthy();
@@ -266,10 +307,10 @@ describe('example plugin', () => {
     addRoom('!open:example.org', 0);
     addRoom('!announcements:example.org', 50);
     const view = await renderPluginComponent(
-      <>
+      <MemoryRouter>
         <panel.Component roomId="!open:example.org" />
         <panel.Component roomId="!announcements:example.org" />
-      </>,
+      </MemoryRouter>,
       { id: 'example', plugin, client }
     );
     expect(view.getByText('You may post here')).toBeTruthy();
@@ -370,11 +411,12 @@ describe('example plugin', () => {
     const room = new Room('!lobby:example.org', client, userId);
     room.name = 'Lobby';
     client.store.storeRoom(room);
-    const view = await renderPluginComponent(<panel.Component roomId={room.roomId} />, {
-      id: 'example',
-      plugin,
-      client,
-    });
+    const view = await renderPluginComponent(
+      <MemoryRouter>
+        <panel.Component roomId={room.roomId} />
+      </MemoryRouter>,
+      { id: 'example', plugin, client }
+    );
     // Its rows mark the chosen one as the sidebar marks the open room.
     const row = view.getByRole('button', { name: 'Second example row' });
     fireEvent.click(row);

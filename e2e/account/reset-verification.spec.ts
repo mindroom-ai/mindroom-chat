@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { openSettingsFromAccountRail } from '../helpers/accounts';
+import { setUpRecoveryPassword } from '../helpers/recovery';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { buildLoginPath } from '../env';
 
@@ -12,7 +13,6 @@ import { buildLoginPath } from '../env';
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'reset-verification-spec-password';
 const RECOVERY_KEY = /^E\w{3}( \w{4}){11}$/;
-const SHOTS = process.env.RESET_VERIFICATION_SHOTS;
 
 const homeserverIsUp = async (): Promise<boolean> => {
   try {
@@ -66,21 +66,16 @@ const openSecurity = async (page: Page) => {
 };
 
 /**
- * The recovery key the setup shows, after the account password when the server asks for it. The
- * error the reset used to stop with fails the test at once.
+ * Runs the setup dialog with a recovery password, answering the account password prompt when the
+ * server asks for it. Resolves to the recovery key. The error the reset used to stop with fails
+ * the test at once.
  */
-const awaitRecoveryKey = async (page: Page) => {
-  const keyText = page.getByRole('dialog').locator('code');
-  const password = page.locator('input[name="passwordInput"]');
+const setUpWithPassword = async (page: Page, recoveryPassword: string) => {
   const failure = page.getByText('getSecretStorageKey callback returned falsey');
-  await expect(keyText.or(password).or(failure).first()).toBeVisible({ timeout: 60_000 });
+  const recoveryKey = await setUpRecoveryPassword(page, recoveryPassword, PASSWORD);
   await expect(failure).toHaveCount(0);
-  if (await password.isVisible()) {
-    await password.fill(PASSWORD);
-    await password.press('Enter');
-  }
-  await expect(keyText).toHaveText(RECOVERY_KEY, { timeout: 60_000 });
-  return (await keyText.textContent()) ?? '';
+  expect(recoveryKey).toMatch(RECOVERY_KEY);
+  return recoveryKey;
 };
 
 const resetFromFreshPage = async (browser: Browser, baseURL: string | undefined) => {
@@ -100,9 +95,7 @@ const resetFromFreshPage = async (browser: Browser, baseURL: string | undefined)
     // The first setup: cross-signing, secret storage and key backup.
     await openSecurity(page);
     await page.getByRole('button', { name: 'Enable' }).click();
-    await page.getByRole('button', { name: 'Continue' }).click();
-    const firstRecoveryKey = await awaitRecoveryKey(page);
-    await page.getByRole('button', { name: 'Okay' }).click();
+    const firstRecoveryKey = await setUpWithPassword(page, 'e2e recovery password 1');
     await expect(page.getByText(/Connected · Version: \S+ · Keys: \d+/)).toBeVisible({
       timeout: 30_000,
     });
@@ -115,10 +108,7 @@ const resetFromFreshPage = async (browser: Browser, baseURL: string | undefined)
     await openSecurity(page);
     await page.getByRole('button', { name: 'Reset', exact: true }).click({ timeout: 30_000 });
     await page.getByRole('alertdialog').getByRole('button', { name: 'Reset' }).click();
-    await page.getByRole('button', { name: 'Continue' }).click();
-    expect(await awaitRecoveryKey(page)).not.toBe(firstRecoveryKey);
-    if (SHOTS) await page.screenshot({ path: `${SHOTS}/F028-${browser.browserType().name()}.png` });
-    await page.getByRole('button', { name: 'Okay' }).click();
+    expect(await setUpWithPassword(page, 'e2e recovery password 2')).not.toBe(firstRecoveryKey);
 
     // The server has the new identity, and secret storage holds it under the new key.
     const newMaster = await masterKey(token, userId);

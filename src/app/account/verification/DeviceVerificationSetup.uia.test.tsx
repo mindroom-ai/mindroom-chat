@@ -22,6 +22,7 @@ const crypto = vi.hoisted(() => ({
         }
       })
   ),
+  userHasCrossSigningKeys: vi.fn(async () => true),
   bootstrapSecretStorage: vi.fn(async () => undefined),
 }));
 
@@ -65,7 +66,7 @@ vi.mock('folds', () => {
     config: {
       borderWidth: { B300: '1px' },
       radii: { R400: '4px' },
-      space: { S200: '8px', S300: '12px', S400: '16px' },
+      space: { S100: '4px', S200: '8px', S300: '12px', S400: '16px' },
     },
   };
 });
@@ -86,10 +87,19 @@ vi.mock('../../ui/PasswordInput', () => ({
   PasswordInput: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
 }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getCrypto: () => crypto, getUserId: () => '@alice:example.org' }),
+  useMatrixClient: () => ({
+    getCrypto: () => crypto,
+    secretStorage: { hasKey: async () => false },
+    getUserId: () => '@alice:example.org',
+    getSafeUserId: () => '@alice:example.org',
+  }),
 }));
 vi.mock('file-saver', () => ({ default: { saveAs: vi.fn() } }));
 vi.mock('../../matrix/client/secretStorageKeys', () => ({ clearSecretStorageKeys: vi.fn() }));
+// The server still has no encryption setup when Continue asks again.
+vi.mock('../devices/serverEncryptionSetup', () => ({
+  hasServerEncryptionSetup: vi.fn(async () => false),
+}));
 vi.mock('../../lib/dom', () => ({ copyToClipboard: vi.fn() }));
 vi.mock('../../ui/styles/ContainerColor.css', () => ({ ContainerColor: () => '' }));
 
@@ -112,7 +122,13 @@ const startSetupWithUnsupportedFlow = async (): Promise<ReactTestRenderer> => {
   });
   const form = renderer.root.findByType('form');
   act(() => {
-    form.props.onSubmit({ preventDefault: vi.fn(), target: {} });
+    form.props.onSubmit({
+      preventDefault: vi.fn(),
+      target: {
+        recoveryPasswordInput: { value: 'a long recovery password' },
+        recoveryPasswordConfirmInput: { value: 'a long recovery password' },
+      },
+    });
   });
   await flush();
   expect(renderer.root.findAllByProps({ 'data-overlay': true })).toHaveLength(1);
@@ -126,11 +142,10 @@ const expectSetupStopped = (renderer: ReactTestRenderer) => {
   expect(renderer.root.findAllByProps({ 'data-spinner': true })).toHaveLength(0);
   const error = renderer.root.findAllByType('b').at(-1);
   expect(error && textOf(error)).toBe('Unexpected Error!');
-  // The new secret storage is made before the cross-signing keys, whose upload asks for the
-  // authentication; the setup stops there and shows no recovery key.
-  const [storage] = crypto.bootstrapSecretStorage.mock.invocationCallOrder.slice(-1);
-  const [crossSigning] = crypto.bootstrapCrossSigning.mock.invocationCallOrder.slice(-1);
-  expect(storage).toBeLessThan(crossSigning ?? 0);
+  // The cross-signing keys are published first, and their upload asks for the authentication;
+  // the setup stops there, before any secret storage or key backup is made, and shows no key.
+  expect(crypto.bootstrapCrossSigning).toHaveBeenCalled();
+  expect(crypto.bootstrapSecretStorage).not.toHaveBeenCalled();
   expect(textOf(renderer.root)).not.toContain('EsTc 1234');
 };
 
@@ -163,13 +178,25 @@ describe('DeviceVerificationSetup unsupported auth flow', () => {
   });
 });
 
-describe('DeviceVerificationSetup passphrase field', () => {
+describe('DeviceVerificationSetup password fields', () => {
   it('asks password managers for a new secret, not the account password', () => {
     let renderer!: ReactTestRenderer;
     act(() => {
       renderer = create(<DeviceVerificationSetup onCancel={vi.fn()} />);
     });
 
-    expect(renderer.root.findByType('input').props.autoComplete).toBe('new-password');
+    const inputs = renderer.root.findAllByType('input');
+    expect(inputs.map((input) => input.props.name)).toEqual([
+      undefined,
+      'recoveryPasswordInput',
+      'recoveryPasswordConfirmInput',
+    ]);
+    // A username of its own keeps the recovery password apart from the saved login.
+    expect(inputs.map((input) => input.props.autoComplete)).toEqual([
+      'username',
+      'new-password',
+      'new-password',
+    ]);
+    expect(inputs[0]?.props.value).toBe('@alice:example.org recovery password');
   });
 });
