@@ -15,6 +15,7 @@ import {
   hasVideo,
   pickFocus,
   screenKey,
+  sharedScreens,
 } from './stageLayout';
 import * as css from './CallStage.css';
 
@@ -218,18 +219,22 @@ type CallStageProps = {
   participants: CallParticipant[];
   /** The agent an agent call waits for, shown waiting until it joins. */
   awaited?: CallParticipant;
-  /** The person picked speaker view; a shared screen or a small stage shows it as well. */
+  /** The person picked speaker view; one shared screen or a small stage shows it as well. */
   speakerView: boolean;
   /** This device's microphone is on. */
   microphone: boolean;
-  /** Hears whether a shared screen or tiles too small for the grid show speaker view anyway. */
+  /**
+   * Hears whether the stage overrides the pick: one shared screen or tiles too small for the grid
+   * show speaker view anyway, two or more shared screens show all of them.
+   */
   onForcedChange?: (forced: boolean) => void;
 };
 
 /**
  * The joined call's stage. While anyone shows a camera or a screen: everyone's tiles in a grid,
  * or speaker view, with one tile filling the stage, the others as faces and the own camera as an
- * inset. While nobody does: the voice stage.
+ * inset; while two or more screens are shared, each of them as wide as the stage and everyone's
+ * tiles after them. While nobody does: the voice stage.
  */
 export function CallStage(props: CallStageProps) {
   const { room, participants, awaited, speakerView, microphone, onForcedChange } = props;
@@ -238,11 +243,11 @@ export function CallStage(props: CallStageProps) {
   const people = awaited ? [...participants, awaited] : participants;
   const video = hasVideo(people);
   const fit = size && fitTiles(people.length, size.width, size.height, TILE_GAP);
-  const forced =
-    video &&
-    (people.some((participant) => participant.screen) ||
-      (!!fit && fit.size < SPEAKER_VIEW_MIN_TILE));
-  const speaker = video && (speakerView || forced);
+  const screens = sharedScreens(people);
+  // Speaker view has room for one screen; two or more each get a row of their own.
+  const screenRows = screens.length > 1;
+  const forced = video && (screens.length > 0 || (!!fit && fit.size < SPEAKER_VIEW_MIN_TILE));
+  const speaker = video && !screenRows && (speakerView || forced);
   useEffect(() => {
     onForcedChange?.(forced);
   }, [forced, onForcedChange]);
@@ -258,6 +263,17 @@ export function CallStage(props: CallStageProps) {
   let body;
   if (!video) {
     body = <VoiceStage room={room} people={people} microphone={microphone} />;
+  } else if (screenRows) {
+    body = (
+      <ul className={css.Screens} aria-label={participantsLabel}>
+        {screens.map((participant) => (
+          <ScreenTile key={screenKey(participant)} room={room} participant={participant} />
+        ))}
+        {people.map((participant) => (
+          <CallTile key={participant.key} room={room} participant={participant} />
+        ))}
+      </ul>
+    );
   } else if (!speaker) {
     const gridStyle: CSSProperties | undefined = fit && {
       gridTemplateColumns: `repeat(${fit.columns}, ${Math.floor(fit.tileWidth)}px)`,

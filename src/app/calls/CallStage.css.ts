@@ -34,8 +34,8 @@ const INSET_SHADOW = `0 ${toRem(4)} ${toRem(12)} ${color.Other.Shadow}`;
 const VOICE_FACES_GAP = toRem(20);
 /** A name under a face stops at this width, the waiting line wraps there. */
 const FACE_MAX_WIDTH = toRem(160);
-/** Before the stage was measured, grid tiles are at least this wide. */
-const UNMEASURED_TILE = toRem(160);
+/** Grid tiles before the stage was measured and tiles under shared screens: this wide at least. */
+const FLOW_TILE = toRem(160);
 const BADGE_OFFSET = toRem(-2);
 const BAR_WIDTH = toRem(4);
 const BAR_REST = 'scaleY(0.35)';
@@ -81,12 +81,24 @@ export const Grid = style({
   gap: toRem(TILE_GAP),
   height: '100%',
   display: 'grid',
-  gridTemplateColumns: `repeat(auto-fit, minmax(${UNMEASURED_TILE}, 1fr))`,
+  gridTemplateColumns: `repeat(auto-fit, minmax(${FLOW_TILE}, 1fr))`,
   placeContent: 'center',
 });
 
 // A grid cell sets the tile's shape, between square and 16:9, in place of its own 4:3.
 globalStyle(`${Grid} > li`, { aspectRatio: 'auto', minWidth: 0 });
+
+// Two or more shared screens: each fills a row (a screen tile spans the columns), everyone's tiles
+// follow at their 4:3 under them, and the list scrolls from its first row once they outgrow it.
+export const Screens = style({
+  ...bareList,
+  display: 'grid',
+  gridTemplateColumns: `repeat(auto-fill, minmax(${FLOW_TILE}, 1fr))`,
+  height: '100%',
+  gap: toRem(TILE_GAP),
+  overflowY: 'auto',
+  alignContent: 'safe center',
+});
 
 export const Speaker = style({ ...bareList, position: 'relative', height: '100%' });
 

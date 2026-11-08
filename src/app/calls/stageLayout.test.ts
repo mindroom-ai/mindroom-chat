@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CallParticipant, CallVideoTrack } from './RoomCall';
-import { SPEAKER_VIEW_MIN_TILE, fitTiles, hasVideo, pickFocus } from './stageLayout';
+import { SPEAKER_VIEW_MIN_TILE, fitTiles, hasVideo, pickFocus, sharedScreens } from './stageLayout';
 
 const track = {} as CallVideoTrack;
 
@@ -82,6 +82,15 @@ describe('hasVideo', () => {
     expect(hasVideo([me, mind])).toBe(false);
     expect(hasVideo([me, { ...mind, video: track }])).toBe(true);
     expect(hasVideo([{ ...me, screen: track }, mind])).toBe(true);
+  });
+});
+
+describe('sharedScreens', () => {
+  it("lists the sharers in the call's order, this device's own last", () => {
+    const sharers = [{ ...me, screen: track }, mind, { ...ada, screen: track }];
+
+    expect(sharedScreens(sharers).map(({ key }) => key)).toEqual([ada.key, me.key]);
+    expect(sharedScreens([me, mind])).toEqual([]);
   });
 });
 

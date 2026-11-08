@@ -90,6 +90,12 @@ const tileOf = (container: HTMLElement, userId: string) => {
   return tile;
 };
 
+/** Whose shared screens the stage shows, in its order. */
+const screensShown = (container: HTMLElement) =>
+  Array.from(container.querySelectorAll<HTMLElement>('[data-call-screen]'), ({ dataset }) => {
+    return dataset.callScreen;
+  });
+
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', FakeResizeObserver);
 });
@@ -229,16 +235,59 @@ describe('CallStage with video', () => {
     expect(container.querySelectorAll('[data-call-tile]')).toHaveLength(3);
   });
 
-  it("shows someone else's screen while this device shares one too", () => {
+  it('shows every screen while two or more are shared, the own one last, then everyone', () => {
     const { container } = showStage({
       participants: [
-        { ...me, screen: track() },
+        { ...me, video: track(), screen: track() },
         { ...mind, screen: track() },
+        ada,
+        { ...tom, screen: track() },
       ],
     });
 
-    expect(container.querySelector(`[data-call-screen="${mind.userId}"]`)).not.toBeNull();
-    expect(container.querySelector(`[data-call-screen="${me.userId}"]`)).toBeNull();
+    const stage = stageOf(container);
+    expect(stage.dataset.callStage).toBe('video');
+    expect(stage.hasAttribute('data-speaker-view')).toBe(false);
+    expect(screensShown(container)).toEqual([mind.userId, tom.userId, me.userId]);
+    expect(container.querySelector('[data-call-inset]')).toBeNull();
+    // Everyone keeps their one tile, after the screens.
+    const tiles = container.querySelectorAll<HTMLElement>('[data-call-tile]');
+    expect(Array.from(tiles, (tile) => tile.dataset.callTile)).toEqual(
+      [me, mind, ada, tom].map(({ userId }) => userId)
+    );
+    const list = withStyle(container, css.Screens)[0];
+    expect(list?.lastElementChild?.getAttribute('data-call-tile')).toBe(tom.userId);
+    expect(list?.firstElementChild?.getAttribute('data-call-screen')).toBe(mind.userId);
+  });
+
+  it('shows every screen over a picked speaker view and a stage too small for the grid', () => {
+    stageSize.width = 300;
+    stageSize.height = 120;
+    const onForcedChange = vi.fn();
+    const { container } = showStage({
+      participants: [me, { ...mind, screen: track() }, { ...ada, screen: track() }, tom],
+      speakerView: true,
+      onForcedChange,
+    });
+
+    expect(stageOf(container).hasAttribute('data-speaker-view')).toBe(false);
+    expect(screensShown(container)).toEqual([mind.userId, ada.userId]);
+    expect(container.querySelectorAll('[data-call-tile]')).toHaveLength(4);
+    expect(onForcedChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it('goes back to speaker view with the one screen left once a second share stops', () => {
+    const sharing = { ...mind, screen: track() };
+    const stage = (participants: CallParticipant[]) => (
+      <CallStage room={room} speakerView={false} microphone participants={participants} />
+    );
+    const { container, rerender } = render(stage([{ ...me, screen: track() }, sharing, ada]));
+    expect(screensShown(container)).toEqual([mind.userId, me.userId]);
+
+    rerender(stage([me, sharing, ada]));
+    expect(stageOf(container).hasAttribute('data-speaker-view')).toBe(true);
+    expect(screensShown(container)).toEqual([mind.userId]);
+    expect(container.querySelectorAll('[data-call-tile]')).toHaveLength(3);
   });
 
   it('shows speaker view when the person picks it, with the remote speaker in focus', () => {
@@ -329,6 +378,17 @@ describe('CallStage with video', () => {
       />
     );
     expect(onForcedChange).toHaveBeenLastCalledWith(true);
+
+    rerender(
+      <CallStage
+        room={room}
+        speakerView={false}
+        microphone
+        participants={[me, camera]}
+        onForcedChange={onForcedChange}
+      />
+    );
+    expect(onForcedChange).toHaveBeenLastCalledWith(false);
     cleanup();
 
     stageSize.width = 300;
