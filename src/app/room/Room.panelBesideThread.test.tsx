@@ -237,6 +237,31 @@ describe("a plugin's side panel beside the thread shown", () => {
     expect(state.view?.shownPanel).toBe('notes/panel');
   });
 
+  it("opens as the thread shows when the root's card stays mounted, as the room's timeline keeps it", async () => {
+    state.Root = undefined;
+    state.inView = <Card eventId="$a" />;
+    await renderRoom();
+    expect(notes()).toBeNull();
+    await showThread('$a');
+    expect(notesRequest()).toBe('Notes request "beside $a"');
+  });
+
+  it('gives a new openBesideThread as the room shows another thread, but keeps open and close', async () => {
+    let control: RoomSidePanelControl | undefined;
+    function Keeps() {
+      control = useRoomSidePanel('notes', 'panel');
+      return null;
+    }
+    state.Root = undefined;
+    state.inView = <Keeps />;
+    await renderRoom('$a');
+    const before = control;
+    await showThread('$b');
+    expect(control?.openBesideThread).not.toBe(before?.openBesideThread);
+    expect(control?.open).toBe(before?.open);
+    expect(control?.close).toBe(before?.close);
+  });
+
   it('does not open on a phone', async () => {
     await renderRoom('$a', ScreenSize.Mobile);
     expect(notes()).toBeNull();
@@ -320,6 +345,16 @@ describe("a plugin's side panel beside the thread shown", () => {
     // The call of the room shown opens it there.
     await act(async () => late?.('$a', 'here'));
     expect(notesRequest()).toBe('Notes request "here"');
+  });
+
+  it('does nothing for a late call from a thread no longer shown', async () => {
+    state.Root = undefined;
+    state.inView = <Holds />;
+    await renderRoom('$a');
+    const fromA = late;
+    await showThread('$b');
+    await act(async () => fromA?.('$a', 'late'));
+    expect(notes()).toBeNull();
   });
 
   it('stays closed while the thread shows once the person closed it', async () => {

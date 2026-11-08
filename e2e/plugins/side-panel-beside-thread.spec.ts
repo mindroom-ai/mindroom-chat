@@ -24,9 +24,10 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
 // served as a deployment serves it, against the disposable homeserver. An agent's greeting that
 // begins a thread opens the plugin's panel beside the thread as the thread shows, from the room's
-// thread list or from a link, with the greeting as its request. Closed, the panel stays closed while
-// the thread shows, also as the thread's next message arrives; once another thread has shown, the
-// greeting's thread opens it again. It does not open while the members show, nor on a phone.
+// thread list, from the thread's badge in the Threads view or from a link, with the greeting as its
+// request. Closed, the panel stays closed while the thread shows, also as the thread's next message
+// arrives; once another thread has shown, the greeting's thread opens it again. It does not open
+// while the members show, nor on a phone.
 // Set PLUGIN_SHOTS=<directory> to save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'plugin-beside-password';
@@ -102,7 +103,10 @@ const banner = (page: Page) => page.locator('[data-thread-context-banner]');
 const threadPath = (root: string) =>
   `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(root)}`;
 
-/** Opens the thread `root` from the room's thread list (its Compact view) and waits for it. */
+/**
+ * Opens the thread `root` from the room's thread list: its card in the Compact view, or its badge
+ * in the Threads view. Waits for it.
+ */
 const openFromList = async (page: Page, root: string) => {
   await page.locator(`[data-thread-root-id="${root}"]`).first().click();
   await expect(banner(page)).toBeVisible({ timeout: 30_000 });
@@ -173,6 +177,16 @@ test("a greeting that begins a thread opens the plugin's panel beside the thread
     await openFromList(page, greetingRoot);
     await expect(panel(page)).toContainText(`Greeting: ${GREETING}`, { timeout: 30_000 });
     await shot(page, 'opened-again');
+
+    // From the Threads view, whose timeline shows the greeting, through its thread's badge.
+    await page.getByRole('button', { name: 'Close Example panel', exact: true }).click();
+    await exitThread(page);
+    await setRoomCompact(page, false);
+    await greetingShown(page);
+    await expect(panel(page)).toHaveCount(0);
+    await openFromList(page, greetingRoot);
+    await expect(panel(page)).toContainText(`Greeting: ${GREETING}`, { timeout: 30_000 });
+    await shot(page, 'opened-from-threads-view');
 
     // From a link, here on the plugin's own page, which opens the thread.
     await page.getByRole('button', { name: 'Close Example panel', exact: true }).click();

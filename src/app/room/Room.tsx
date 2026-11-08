@@ -528,8 +528,8 @@ function RoomContent() {
   const shownId = shown?.id;
   const now = useLatestRef({ roomId, shownId, threadId, mobile });
   const alive = useAlive();
-  // `open`, `openBesideThread` and `close` keep their identity while the room shows, so plugin code
-  // that depends on them does not run again when another panel shows.
+  // `open` and `close` keep their identity while the room shows, so plugin code that depends on them
+  // does not run again when another panel shows.
   const openPluginPanel = useCallback<PluginPanelControls['open']>(
     (id, panelRequest) => {
       if (
@@ -548,13 +548,16 @@ function RoomContent() {
   useEffect(() => {
     if (calledBeside.current !== threadId) calledBeside.current = undefined;
   }, [threadId]);
+  // It takes a new identity whenever the room shows another thread, so a renderer's effect that
+  // depends on it asks again, also in a card the room's timeline keeps mounted as its thread opens.
   const openPluginPanelBesideThread = useCallback<PluginPanelControls['openBesideThread']>(
     (id, besideThread, panelRequest) => {
       const { shownId: shownNow, threadId: threadNow, mobile: phone } = now.current;
       if (
         !alive() ||
         now.current.roomId !== roomId ||
-        threadNow !== besideThread ||
+        threadNow !== threadId ||
+        besideThread !== threadId ||
         calledBeside.current === besideThread ||
         !pluginPanels.some((panel) => panel.id === id)
       ) {
@@ -566,7 +569,7 @@ function RoomContent() {
       if (shownNow === id) showPluginPanel(id, panelRequest);
       else if (shownNow === undefined) request(id, () => showPluginPanel(id, panelRequest));
     },
-    [alive, now, pluginPanels, request, roomId, showPluginPanel]
+    [alive, now, pluginPanels, request, roomId, showPluginPanel, threadId]
   );
   const closeShownPluginPanel = useCallback<PluginPanelControls['close']>(
     (id) => {

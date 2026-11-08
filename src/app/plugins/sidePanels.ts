@@ -92,13 +92,14 @@ export type RoomSidePanelControl = {
   open: (request?: unknown) => void;
   /**
    * Opens it beside the thread `threadId` with `request`, as a renderer of that thread's root
-   * message may ask as it mounts. Only the first call since the room began to show that thread
-   * counts, so a component that mounts again does not open a panel the person closed; once another
-   * thread or the room's own timeline has shown, the thread's next call counts again. That call
-   * does something only while the room shows that thread and not on a phone: it opens the panel
-   * when no other side panel shows, and when the panel itself shows, it hands it `request` and
-   * leaves it folded or filling the room. Otherwise it does nothing. It keeps its identity as
-   * `open` does.
+   * message may ask from an effect that depends on it: it takes a new identity whenever the room
+   * shows another thread or its own timeline, so the effect asks again then, also in a card the
+   * room's timeline keeps mounted as its thread opens. Only the first call since the room began to
+   * show that thread counts, so a component that mounts again does not open a panel the person
+   * closed; once another thread or the room's own timeline has shown, the thread's next call
+   * counts again. That call does something only while the room shows that thread and not on a
+   * phone: it opens the panel when no other side panel shows, and when the panel itself shows, it
+   * hands it `request` and leaves it folded or filling the room. Otherwise it does nothing.
    */
   openBesideThread: (threadId: string, request?: unknown) => void;
   /** Closes it, if the room shows it; it keeps its identity as `open` does. */
@@ -122,15 +123,22 @@ export const useRoomSidePanel = (
   const actions = useMemo(
     () =>
       roomOpen &&
-      roomOpenBeside &&
       roomClose && {
         open: (request?: unknown) => roomOpen(id, request),
-        openBesideThread: (threadId: string, request?: unknown) =>
-          roomOpenBeside(id, threadId, request),
         close: () => roomClose(id),
       },
-    [id, roomClose, roomOpen, roomOpenBeside]
+    [id, roomClose, roomOpen]
+  );
+  // Its own memo: it changes with each thread the room shows, `open` and `close` do not.
+  const openBesideThread = useMemo(
+    () =>
+      roomOpenBeside &&
+      ((threadId: string, request?: unknown) => roomOpenBeside(id, threadId, request)),
+    [id, roomOpenBeside]
   );
   const isOpen = controls?.shown === id;
-  return useMemo(() => actions && { ...actions, isOpen }, [actions, isOpen]);
+  return useMemo(
+    () => actions && openBesideThread && { ...actions, openBesideThread, isOpen },
+    [actions, isOpen, openBesideThread]
+  );
 };
