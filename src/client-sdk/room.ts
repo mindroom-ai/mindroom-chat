@@ -2,12 +2,13 @@
 // "Client plugins"): it opens them, links to them, creates sub-rooms, and shows a person's profile
 // card in a room. Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in
 // scripts/client-plugins.mjs.
-import { useCallback, useMemo } from 'react';
+import { createElement, useCallback, useMemo, type ComponentProps } from 'react';
 import { useHref } from 'react-router-dom';
 import type { Position, RectCords } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { getClientConfig } from '../app/config/useClientConfig';
 import { useRoomNavigate as useAppRoomNavigate } from '../app/navigation/useRoomNavigate';
+import { UserRoomProfile } from '../app/members/profile/UserRoomProfile';
 import { useOpenUserRoomProfile } from '../app/navigation/useUserRoomProfileState';
 import { withSearchParam } from '../app/routes/pathUtils';
 import { createSubRoom as createAppSubRoom } from '../app/rooms/create/createSubRoom';
@@ -102,5 +103,8 @@ export const useOpenUserProfile = () => {
 /**
  * The profile card of the person `userId` in `room`, as the floating card shows it, for a plugin's
  * own surface; `onDone` runs when the card has done its job, such as before it opens the direct chat.
+ * Like the floating card, it starts afresh for another room or person, so what one began there (a
+ * ban and its reason) never goes to the next.
  */
-export { UserRoomProfile as UserProfileCard } from '../app/members/profile/UserRoomProfile';
+export const UserProfileCard = (props: ComponentProps<typeof UserRoomProfile>) =>
+  createElement(UserRoomProfile, { ...props, key: `${props.room.roomId}:${props.userId}` });
