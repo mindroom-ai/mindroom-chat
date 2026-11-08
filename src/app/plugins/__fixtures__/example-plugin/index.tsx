@@ -16,6 +16,8 @@
 // "Show in panel", and "Close panel" while the panel shows. A greeting that begins a thread opens
 // the panel beside that thread as the thread shows. The panel stays open in its room across reloads
 // (`remember`), so a card hands it only the greeting's event ID, and it reads the greeting itself.
+// Its name is a key of its strings ("Beispielbereich" in German). It may take the members list's
+// place (`opensOverMembers`): as it opens again in its room, and beside a thread.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg); its build module (build.mjs) writes "Example banner" in place of a marker, which
 // unit tests, where no build module runs, show as it is. The banner also has a button, "Show
@@ -575,11 +577,12 @@ const plugin: ClientPlugin = {
   sidePanels: [
     {
       id: 'panel',
-      label: 'Example panel',
+      label: 'panel',
       icon: Icons.Leaf,
       placement: 'auto',
       Component: ExamplePanel,
       remember: true,
+      opensOverMembers: true,
     },
   ],
   headerActions: [
@@ -634,6 +637,7 @@ const plugin: ClientPlugin = {
   translations: {
     en: {
       label: 'Example plugin',
+      panel: 'Example panel',
       wave: 'Wave',
       greet: 'Send the room a greeting. Example: /greet Hello',
       subroom: 'Create a sub-room of this room. Example: /subroom Ideas',

@@ -121,7 +121,8 @@ vi.mock('../navigation/useRoomViewMode', () => ({
 vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoom: () => undefined, navigateRoomThread: () => undefined }),
 }));
-// Two plugins, each with a panel that names its request and remembers it is open.
+// Two plugins, each with a panel that names its request and remembers it is open; the first has
+// another, which may open over the members.
 vi.mock('../plugins/pluginEntries', () => {
   const panel = (label: string) => ({
     id: 'panel',
@@ -135,7 +136,13 @@ vi.mock('../plugins/pluginEntries', () => {
   });
   return {
     pluginEntries: [
-      { id: 'notes', version: '1.0.0', plugin: { sidePanels: [panel('Notes')] } },
+      {
+        id: 'notes',
+        version: '1.0.0',
+        plugin: {
+          sidePanels: [panel('Notes'), { ...panel('Over'), id: 'over', opensOverMembers: true }],
+        },
+      },
       { id: 'other', version: '1.0.0', plugin: { sidePanels: [panel('Other')] } },
     ],
   };
@@ -150,6 +157,11 @@ function Card({ eventId, panel = 'panel' }: { eventId: string; panel?: string })
   const openBesideThread = useRoomSidePanel('notes', panel)?.openBesideThread;
   useEffect(() => openBesideThread?.(eventId, `beside ${eventId}`), [eventId, openBesideThread]);
   return null;
+}
+
+/** The renderer of a message whose panel may open over the members. */
+function OverCard({ eventId }: { eventId: string }) {
+  return <Card eventId={eventId} panel="over" />;
 }
 
 const notes = () => screen.queryByRole('region', { name: 'Notes' });
@@ -267,20 +279,38 @@ describe("a plugin's side panel beside the thread shown", () => {
     expect(notes()).toBeNull();
   });
 
-  it.each(Object.keys(OTHERS) as (keyof typeof OTHERS)[])(
-    'does not open while %s shows',
-    async (other) => {
-      state.Root = undefined;
-      await renderRoom('$thread');
-      await OTHERS[other]();
-      const before = state.view?.shownPanel;
-      expect(before).toBeDefined();
-      state.Root = Card;
-      await mountAgain();
-      expect(notes()).toBeNull();
-      expect(state.view?.shownPanel).toBe(before);
-    }
-  );
+  const others = Object.keys(OTHERS) as (keyof typeof OTHERS)[];
+  it.each([
+    ...others.map((other) => ({ other, name: 'Notes', Root: Card })),
+    // One that may open over the members opens over no other panel.
+    ...others
+      .filter((other) => other !== 'members')
+      .map((other) => ({ other, name: 'Over', Root: OverCard })),
+  ])('does not open $name while $other shows', async ({ other, name, Root }) => {
+    state.Root = undefined;
+    await renderRoom('$thread');
+    await OTHERS[other]();
+    const before = state.view?.shownPanel;
+    expect(before).toBeDefined();
+    state.Root = Root;
+    await mountAgain();
+    expect(screen.queryByRole('region', { name })).toBeNull();
+    expect(state.view?.shownPanel).toBe(before);
+  });
+
+  it('opens over the members when it may, and the members close', async () => {
+    state.Root = undefined;
+    await renderRoom('$thread');
+    await OTHERS.members();
+    expect(state.view?.shownPanel).toBe('members');
+    state.Root = OverCard;
+    await mountAgain();
+    expect(screen.queryByText(/^Over request/)?.textContent).toBe('Over request "beside $thread"');
+    expect(state.view?.shownPanel).toBe('notes/over');
+    // Closed, it leaves no members behind it.
+    await click('Close Over');
+    expect(state.view?.shownPanel).toBeUndefined();
+  });
 
   it('does not open for a thread the room does not show, which leaves the shown thread its chance', async () => {
     state.Root = undefined;
