@@ -14,7 +14,7 @@ import { useOpenUserRoomProfile } from '../app/navigation/useUserRoomProfileStat
 import { withSearchParam } from '../app/routes/pathUtils';
 import { createSubRoom as createAppSubRoom } from '../app/rooms/create/createSubRoom';
 
-export { getParentRooms, offersSubRooms, useParentRooms } from '../app/room/roomActions';
+export { getParentRooms, offersSubRooms, useParentRooms } from '../app/matrix/state/subRooms';
 
 /** Where in the room `navigateRoom` and `navigateRoomThread` open it, and how. */
 type RoomNavigateOptions = {
