@@ -44,6 +44,7 @@ import { useRoomHref, useRoomNavigate } from '@mindroom/client-sdk/room';
 
 /** The drag type of the item its panel offers, which the room header takes. */
 const ITEM_TYPE = 'application/x-example-item';
+const ITEM_DRAG_EVENTS = ['dragenter', 'dragover', 'drop'] as const;
 
 /** This page load; what the plugin stored in it does not count as seen before. */
 const pageLoad = `${Date.now()}-${Math.random()}`;
@@ -103,23 +104,14 @@ function RoomBanner({ room, headerRef }: { room: Room; headerRef: RefObject<HTML
   useEffect(() => {
     const header = headerRef.current;
     if (!header) return undefined;
-    const carriesItem = (event: DragEvent) => !!event.dataTransfer?.types.includes(ITEM_TYPE);
-    const allowDrop = (event: DragEvent) => {
-      if (carriesItem(event)) event.preventDefault();
-    };
-    const drop = (event: DragEvent) => {
-      if (!carriesItem(event)) return;
+    // Takes only its own item, so a drag of files goes on to the composer.
+    const take = (event: DragEvent) => {
+      if (!event.dataTransfer?.types.includes(ITEM_TYPE)) return;
       event.preventDefault();
-      setDropped(event.dataTransfer?.getData(ITEM_TYPE));
+      if (event.type === 'drop') setDropped(event.dataTransfer.getData(ITEM_TYPE));
     };
-    header.addEventListener('dragenter', allowDrop);
-    header.addEventListener('dragover', allowDrop);
-    header.addEventListener('drop', drop);
-    return () => {
-      header.removeEventListener('dragenter', allowDrop);
-      header.removeEventListener('dragover', allowDrop);
-      header.removeEventListener('drop', drop);
-    };
+    ITEM_DRAG_EVENTS.forEach((type) => header.addEventListener(type, take));
+    return () => ITEM_DRAG_EVENTS.forEach((type) => header.removeEventListener(type, take));
   }, [headerRef]);
   return (
     <div data-example-plugin-banner style={{ paddingBlock: 8, paddingInline: 16 }}>

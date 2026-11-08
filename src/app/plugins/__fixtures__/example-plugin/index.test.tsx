@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The example plugin's test, written as a plugin outside this repository writes one: it imports the
 // app only through the client SDK, `/testing` included, and runs in the app's vitest.
-import { useRef } from 'react';
+import { createRef } from 'react';
 import { fireEvent } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MemoryRouter } from 'react-router-dom';
@@ -10,13 +10,16 @@ import { usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
 import plugin from './index';
 
-/** A drag event as the browser fires it, carrying `data` (format to text), which a drag start fills. */
+/**
+ * A drag event as the browser fires it, carrying `data` (format to text), which a drag start fills
+ * and only a drop can read.
+ */
 const dragEvent = (type: string, data: Map<string, string>): Event => {
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.defineProperty(event, 'dataTransfer', {
     value: {
       types: [...data.keys()],
-      getData: (format: string) => data.get(format) ?? '',
+      getData: (format: string) => (type === 'drop' ? data.get(format) ?? '' : ''),
       setData: (format: string, text: string) => data.set(format, text),
     },
   });
@@ -139,21 +142,19 @@ describe('example plugin', () => {
     const [panel] = plugin.sidePanels ?? [];
     if (!Banner || !panel) throw new Error('the example plugin has no banner or no side panel');
     const room = { roomId: '!lobby:example.org', name: 'Lobby' } as Room;
-    // The room's page as the app draws it: the header's row and its slot, and the side panel.
-    const RoomPage = () => {
-      const headerRef = useRef<HTMLDivElement>(null);
-      return (
-        <>
-          <div ref={headerRef}>
-            <h1>Lobby</h1>
-            <Banner room={room} headerRef={headerRef} />
-          </div>
-          <panel.Component roomId={room.roomId} />
-        </>
-      );
-    };
     const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
-    const view = await renderPluginComponent(<RoomPage />, { id: 'example', plugin, client });
+    const headerRef = createRef<HTMLDivElement>();
+    // The room's page as the app draws it: the header's row and its slot, and the side panel.
+    const view = await renderPluginComponent(
+      <>
+        <div ref={headerRef}>
+          <h1>Lobby</h1>
+          <Banner room={room} headerRef={headerRef} />
+        </div>
+        <panel.Component roomId={room.roomId} />
+      </>,
+      { id: 'example', plugin, client }
+    );
     const name = view.getByRole('heading', { name: 'Lobby' });
 
     // A drag of files passes untouched, for the composer.
