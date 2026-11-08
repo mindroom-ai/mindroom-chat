@@ -1,12 +1,11 @@
-import type { CSSProperties, RefObject } from 'react';
-import type { Room } from 'matrix-js-sdk';
+import type { ComponentProps, CSSProperties } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { color } from 'folds';
 import { useOptionalClientConfig } from '../config/useClientConfig';
 import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
 import { isPluginEnabled } from '../plugins/pluginConfig';
 import { pluginFailure } from '../plugins/pluginFailure';
-import { registeredPlugins } from '../plugins/registry';
+import { registeredPlugins, type RoomHeaderSlotComponent } from '../plugins/registry';
 
 // The conversation scrolls under the header, and under the slot with it.
 const SLOT_STYLE: CSSProperties = {
@@ -27,13 +26,7 @@ const reportFailure = (tag: string, thrown: unknown, componentStack?: string | n
  * A component that throws shows nothing and is reported under its plugin's tag; each mounts afresh
  * in every room, so one that failed in a room tries again in the next.
  */
-export function RoomHeaderSlot({
-  room,
-  headerRef,
-}: {
-  room: Room;
-  headerRef: RefObject<HTMLElement>;
-}) {
+export function RoomHeaderSlot({ room, headerRef }: ComponentProps<RoomHeaderSlotComponent>) {
   const config = useOptionalClientConfig();
   const slot = registeredPlugins.flatMap(({ id, tag, roomHeaderSlot }) =>
     isPluginEnabled(config, id)
