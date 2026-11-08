@@ -16,8 +16,9 @@ import { cornersOf, pageCardRadius } from '../helpers/cardCorners';
 // left edge of a page that takes no such swipe itself, slides a drawer in from the start edge over
 // the page, with the icon rail and the section's room list side by side; a room picked there
 // closes it, a space picked there keeps it out with that space's list, and the scrim, Escape, the
-// menu button and a sideways swipe put it away. A room's back chevron and edge
-// swipe still return to the list, which the drawer then holds out. The drawer rounds only its
+// menu button and a sideways swipe put it away. A room's back chevron still returns to the list,
+// which the drawer then holds out; a swipe from a room's left edge brings the drawer out over the
+// room instead, also for a room opened from a space's lobby. The drawer rounds only its
 // corner over the page, as the page's card does where it floats, and no line rules the top bar off
 // from the page. 390 by 844 (and 744 by 1133 for the corner and the bar) with touch, in
 // Chromium with real touches and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in
@@ -331,13 +332,25 @@ for (const engine of ENGINES) {
         const spaceRoot = place(page).path;
         expect(spaceRoot).not.toMatch(/lobby/);
         await shoot(page, testInfo, 'space-drawer');
-        await pickRoom(page, 'Bus Schedule', bus);
 
-        // A swipe from the left edge of a room goes back as its chevron does, to the space's list
-        // with the drawer out; in a thread it leaves the thread for its room.
+        // Put away, the space's lobby shows. A room opened from its card keeps its place on a swipe
+        // from the left edge: the drawer comes out over the room, its row marked in the list,
+        // instead of the swipe going back to the lobby. In a thread the swipe leaves the thread for
+        // its room.
+        await menuButton(page).tap();
+        await expectDrawer(page, false, 'the menu button puts the drawer away over the lobby');
+        await page.locator('main [data-lobby-entry]').filter({ hasText: 'Bus Schedule' }).tap();
+        await expectAt(page, inRoom(bus), 'the lobby card opens the room');
+        const roomAddress = page.url();
         await edgeSwipe(page, engine);
-        await expectAt(page, { path: spaceRoot }, 'the edge swipe returns to the space');
-        await expectDrawer(page, true, 'with its list out');
+        await expectDrawer(page, true, 'the edge swipe brings the drawer out over the room');
+        await shoot(page, testInfo, 'room-edge-swipe-drawer');
+        await page.waitForTimeout(1_000);
+        expect(page.url(), 'the edge swipe stays in the room, not the lobby').toBe(roomAddress);
+        await expect(roomList(page).getByRole('link', { name: 'Bus Schedule' })).toHaveAttribute(
+          'aria-current',
+          'page'
+        );
         await rail(page).getByRole('button', { name: 'Home', exact: true }).tap();
         await pickRoom(page, 'Garden Club', garden);
         await page.locator(`button[data-thread-root-id="${gardenRoot}"]`).first().tap();

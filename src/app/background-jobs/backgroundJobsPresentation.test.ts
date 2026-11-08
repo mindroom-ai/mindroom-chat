@@ -63,6 +63,22 @@ describe('presentBackgroundJobs', () => {
     expect(here?.items[0].stopping).toBe(true);
   });
 
+  it('names finished jobs as finished, with nothing left to stop', () => {
+    const finished = { status: 'finished' };
+    const one = presentBackgroundJobs([job('job_1', finished)], (jobId) => jobId === 'job_1', t);
+    expect(one?.title).toBe('Finished: run_tests');
+    expect(one?.items[0]).toMatchObject({ finished: true, stopping: false, waiting: false });
+    const several = presentBackgroundJobs(
+      [job('job_1', finished), job('job_2', finished)],
+      none,
+      t,
+      90
+    );
+    expect(several?.title).toBe('2 background jobs finished');
+    expect(several?.items.map((item) => item.finished)).toEqual([true, true]);
+    expect(presentBackgroundJobs([job('job_1')], none, t)?.items[0].finished).toBe(false);
+  });
+
   it('counts several jobs and lists them in order', () => {
     const presented = presentBackgroundJobs(
       [job('job_1'), job('job_2', { tool: 'download' })],
@@ -75,9 +91,7 @@ describe('presentBackgroundJobs', () => {
 
   it('counts the live jobs the agents did not list, and how many it shows', () => {
     const jobs = [job('job_1'), job('job_2')];
-    expect(presentBackgroundJobs(jobs, none, t, 90)?.title).toBe(
-      '90 background jobs (showing 2)'
-    );
+    expect(presentBackgroundJobs(jobs, none, t, 90)?.title).toBe('90 background jobs (showing 2)');
     expect(presentBackgroundJobs(jobs, none, t, 90)?.items).toHaveLength(2);
     expect(presentBackgroundJobs(jobs, none, t, 2)?.title).toBe('2 background jobs');
   });

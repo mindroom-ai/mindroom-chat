@@ -18,7 +18,8 @@ import {
 import { MemoryStore } from 'matrix-js-sdk/lib/store/memory';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
-import { keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
+import { getFinishingEdit } from '../../event-store/threads/streamFinish';
+import { getThreadSummaryReply, keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
 import { defined } from '../../../test/utils/defined';
 
 const roomId = '!room:example.org';
@@ -356,6 +357,47 @@ describe('edits of unopened threads', () => {
 
     await f.deliver([redaction('$edit-150', 170)]);
     expect(f.card()).toEqual({ preview: 'Thinking about it', streaming: true });
+  });
+
+  it('shows the reply as sent once its bundled edit is redacted after a title notice', async () => {
+    const leaked = edit('Leaked a secret', 151, 'completed');
+    const bundled = (): IEvent => ({
+      ...reply(),
+      unsigned: { 'm.relations': { 'm.replace': leaked } },
+    });
+    const f = fixture(() => [bundled()]);
+    await f.start();
+    // The reply and its edit are known only from the root's summary; then the title notice follows.
+    await f.deliver([withSummary(bundled())]);
+    await f.deliver([title(160)]);
+    expect(f.card().preview).toBe('Leaked a secret');
+
+    await f.deliver([redaction('$edit-151', 170)]);
+    expect(f.card().preview).toBe('Thinking about it');
+    // Nor does the reply still name the edit as the one that finished its stream.
+    const kept = defined(getThreadSummaryReply(f.thread()), 'the reply the thread keeps');
+    expect(getFinishingEdit(kept, f.thread())).toBeUndefined();
+
+    expect(f.loadedThread()).toBe(false);
+  });
+
+  it('does not show a stale copy of a bundled edit the room took a redaction of', async () => {
+    const leaked = edit('Leaked a secret', 151, 'completed');
+    const bundled = (): IEvent => ({
+      ...reply(),
+      unsigned: { 'm.relations': { 'm.replace': leaked } },
+    });
+    const f = fixture(() => [bundled()]);
+    await f.start();
+    await f.deliver([withSummary(bundled())]);
+    await f.deliver([redaction('$edit-151', 170)]);
+    expect(f.card().preview).toBe('Thinking about it');
+
+    // A copy of the edit as it was before its redaction comes back, as from a cached page.
+    await f.deliver([leaked]);
+
+    expect(f.card().preview).toBe('Thinking about it');
+    expect(f.loadedThread()).toBe(false);
   });
 
   it('shows an encrypted edit once a later attempt decrypts it', async () => {

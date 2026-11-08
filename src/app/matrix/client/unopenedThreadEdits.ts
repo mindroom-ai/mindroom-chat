@@ -4,9 +4,11 @@ import {
   ThreadEvent,
   type MatrixClient,
   type MatrixEvent,
+  type Room,
   type Thread,
 } from 'matrix-js-sdk';
 import { getLatestEdit } from '../room';
+import { isKnownRedactedEventId, stripRedactedRelationsFromRawEvent } from '../eventRevision';
 import { isThreadSummaryEvent } from '../protocol/threadSummary';
 import { watchRoomThreads } from '../watchRoomThreads';
 
@@ -30,7 +32,13 @@ const summarizedReplies = new WeakMap<object, MatrixEvent>();
 type SummarizedThread = {
   id?: string;
   replyToEvent?: MatrixEvent | null;
+  room?: Room;
+  replayEvents?: MatrixEvent[] | null;
 };
+
+/** Whether `room` took a redaction of the edit `editId` (eventRevision.ts). */
+const isKnownRedactedEdit = (room: Room | undefined, editId: string | undefined): boolean =>
+  !!room && !!editId && isKnownRedactedEventId(room, editId);
 
 /** A reply the thread's summary may name: not its root, nor its title notice. */
 const isSummarizedReply = (
@@ -48,7 +56,18 @@ export const getThreadSummaryReply = (
   if (!thread) return undefined;
   const summarized = thread.replyToEvent ?? undefined;
   if (isSummarizedReply(thread, summarized)) return summarized;
-  return summarizedReplies.get(thread) ?? summarized;
+  const retained = summarizedReplies.get(thread);
+  if (!retained) return summarized;
+  // The SDK takes a redacted bundled edit off the copies it holds, from their bundle too; it does
+  // not hold this one. The app hides an edit it cannot decrypt yet from replacingEvent(), not
+  // from replacingEventId().
+  const editId = retained.replacingEventId();
+  if (editId && isKnownRedactedEdit(thread.room, editId)) {
+    const { unsigned } = stripRedactedRelationsFromRawEvent(retained.event, new Set([editId]));
+    retained.setUnsigned(unsigned ?? {});
+    showNewestEdit(thread, retained);
+  }
+  return retained;
 };
 
 const isValidEdit = (target: MatrixEvent, edit: MatrixEvent): boolean => {
@@ -74,7 +93,7 @@ export const findReply = (thread: Thread, eventId: string): MatrixEvent | undefi
 };
 
 /** The edits waiting in an unopened thread for the given reply. */
-const waitingEditsFor = (thread: Thread, targetId: string): MatrixEvent[] =>
+const waitingEditsFor = (thread: SummarizedThread, targetId: string): MatrixEvent[] =>
   (thread.replayEvents ?? []).filter(
     (event) => event.isRelation(RelationType.Replace) && event.getAssociatedId() === targetId
   );
@@ -84,12 +103,15 @@ const waitingEditsFor = (thread: Thread, targetId: string): MatrixEvent[] =>
  * stays when it is newer, so a bundled or cached edit is never replaced by an older one. Returns
  * whether the reply changed.
  */
-const showNewestEdit = (thread: Thread, target: MatrixEvent): boolean => {
+const showNewestEdit = (thread: SummarizedThread, target: MatrixEvent): boolean => {
   const targetId = target.getId();
   if (!targetId || target.isRedacted() || target.isState()) return false;
   const shown = target.replacingEvent();
-  const candidates = waitingEditsFor(thread, targetId).filter((edit) => isValidEdit(target, edit));
-  if (shown && !shown.isRedacted()) candidates.unshift(shown);
+  const waiting = waitingEditsFor(thread, targetId).filter((edit) => isValidEdit(target, edit));
+  const candidates = [shown ?? undefined, ...waiting].filter(
+    (edit): edit is MatrixEvent =>
+      !!edit && !edit.isRedacted() && !isKnownRedactedEdit(thread.room, edit.getId())
+  );
   const newest = getLatestEdit(target, candidates);
   if (newest === shown || (!newest && !shown)) return false;
   target.makeReplaced(newest);

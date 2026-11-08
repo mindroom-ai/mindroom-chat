@@ -51,7 +51,7 @@ class ConfigTests(unittest.TestCase):
         self.assertNotIn(STUB_URL, config)
         # Every scenario of the stub has a line in the script.
         script = "\n".join(stack.REAL_INSTRUCTIONS)
-        for tag in ("#slow", "#stopme", "#long", "#multi", "#approve", "#title", "#tag", "#expire", "#job"):
+        for tag in ("#slow", "#stopme", "#long", "#multi", "#pause", "#approve", "#title", "#tag", "#expire", "#job"):
             self.assertIn(f"{tag}:", script)
 
     def test_a_key_in_the_environment_never_reaches_the_config(self) -> None:
@@ -898,6 +898,18 @@ class StubScenarioTests(unittest.TestCase):
     def test_the_stub_answers_with_the_scenarios_of_its_files(self) -> None:
         message = self.answer([SAMPLE_SCENARIOS], chat("#samplegreet"))
         self.assertEqual(message["tool_calls"][0]["function"]["name"], "sample_greet")
+
+    def test_the_stub_thinks_before_a_call_that_asks_for_it_and_never_sends_the_key(self) -> None:
+        shell = [{"type": "function", "function": {"name": "run_shell_command"}}]
+        first = {"model": "stub-fast", "messages": [{"role": "user", "content": "#pause"}], "tools": shell}
+        second = {**first, "messages": [*first["messages"], {"role": "tool", "content": "first step"}]}
+        with mock.patch.object(stub_model.asyncio, "sleep", mock.AsyncMock()) as sleep:
+            message = self.answer([], first)
+            sleep.assert_not_called()
+            message = self.answer([], second)
+            sleep.assert_awaited_once_with(3.5)
+        arguments = json.loads(message["tool_calls"][0]["function"]["arguments"])
+        self.assertEqual(arguments, {"args": "sleep 1; echo second step"})
 
     def test_the_stub_says_in_its_reply_that_a_file_is_broken(self) -> None:
         broken = self.scenarios("{not json")

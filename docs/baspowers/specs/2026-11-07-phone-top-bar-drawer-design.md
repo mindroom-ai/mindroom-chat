@@ -53,7 +53,7 @@ The drawer shows the list, so a phone's section root shows the page a wider scre
 
 ### Room header on phones (`room/RoomViewHeader.tsx`)
 
-Unchanged: the back chevron and the swipe from the start edge still return to wherever the room was opened from; for a room opened from the list that is the section root, where the drawer comes out with the list. A thread keeps its own back chevron and swipe.
+Unchanged: the back chevron and the swipe from the start edge still return to wherever the room was opened from; for a room opened from the list that is the section root, where the drawer comes out with the list. A thread keeps its own back chevron and swipe. (Superseded for the swipe by #98: a room's swipe from the start edge brings the drawer out over the room; the back chevron is unchanged.)
 
 Decision note: a first version dropped the room's back chevron for the menu button. Astra advised keeping it for rooms opened from elsewhere (search results, a notification, another room), and `e2e/sidebar/phone-back-entries.spec.ts` and the iOS edge swipe show that contextual back was built on purpose, so it stays; the menu button is the second way to the list.
 

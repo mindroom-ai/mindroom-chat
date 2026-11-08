@@ -10,6 +10,7 @@ import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { isSpace } from '../../matrix/room';
+import { revealDirectionControls } from '../../ui/directional';
 import { ProfilePopMenu } from './ProfilePopMenu';
 
 const KEY = 'sharedUi.userChips';
@@ -81,7 +82,7 @@ export function MutualRoomsChip({ userId, onOpen }: { userId: string; onOpen: ()
             onClick={() => open(room)}
           >
             <Text size="T300" truncate>
-              {room.name}
+              {revealDirectionControls(room.name)}
             </Text>
           </MenuItem>
         ))}
