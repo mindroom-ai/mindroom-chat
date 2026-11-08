@@ -25,7 +25,7 @@ import { getEditedEvent, getLatestMessageContent } from './room';
 
 const ROOM = '!room:example.org';
 const AUTHOR = '@author:example.org';
-const OTHER = '@other:example.org';
+const OTHER = '@other:elsewhere.org';
 
 const client = createClient({ baseUrl: 'https://example.org', userId: AUTHOR });
 
