@@ -37,12 +37,12 @@ const json = (body: unknown, status = 200) =>
 
 /** The servers' answers: client sessions, numbered, and what `route` answers for the rest. */
 const fakeFetch = () => {
-  const urls: string[] = [];
+  const sent: { url: string; init: RequestInit }[] = [];
   let sessions = 0;
   const route = vi.fn((_url: string): Response => json({}));
-  const request = vi.fn(async (input: RequestInfo | URL) => {
+  const request = vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const url = String(input);
-    urls.push(url);
+    sent.push({ url, init });
     if (url.endsWith('/api/client-sessions')) {
       sessions += 1;
       return json({ session_token: `session-${sessions}`, expires_at: Date.now() / 1000 + 3600 });
@@ -50,11 +50,15 @@ const fakeFetch = () => {
     return route(url);
   });
   vi.stubGlobal('fetch', request);
+  const toRoutes = () => sent.filter(({ url }) => !url.endsWith('/api/client-sessions'));
   return {
     route,
     request,
     signIns: () => sessions,
-    routes: () => urls.filter((url) => !url.endsWith('/api/client-sessions')),
+    routes: () => toRoutes().map(({ url }) => url),
+    /** The bearer each request after the sign-ins carried. */
+    bearers: () => toRoutes().map(({ init }) => new Headers(init.headers).get('Authorization')),
+    last: () => sent.at(-1),
   };
 };
 
@@ -88,6 +92,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -181,5 +186,86 @@ describe('MindroomServer.request', () => {
     await expect(published().request('https://evil.example.org/steal')).rejects.toThrow(TypeError);
 
     expect(answers.request).not.toHaveBeenCalled();
+  });
+});
+
+describe('MindroomServer.send', () => {
+  it('resolves with the answer whatever its type or status, sent with the session and no cookies', async () => {
+    const answers = fakeFetch();
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+    answers.route
+      .mockImplementationOnce(
+        () => new Response(png, { status: 200, headers: { 'Content-Type': 'image/png' } })
+      )
+      .mockImplementationOnce(() => new Response('<html>', { status: 404 }));
+    const { send } = published();
+
+    const image = await send('/api/plugins/notes/rooms/x/mark.png');
+    expect(image.headers.get('Content-Type')).toBe('image/png');
+    expect(new Uint8Array(await image.arrayBuffer())).toEqual(png);
+    expect(answers.last()?.init).toMatchObject({ credentials: 'omit', cache: 'no-store' });
+    expect((await send('/api/plugins/notes/rooms/x/gone')).status).toBe(404);
+    expect(answers.bearers()).toEqual(['Bearer session-1', 'Bearer session-1']);
+  });
+
+  it('signs in again after a 401 and resolves with the answer it sends once more', async () => {
+    const answers = fakeFetch();
+    answers.route
+      .mockImplementationOnce(() => json({ detail: 'expired' }, 401))
+      .mockImplementationOnce(() => new Response('note', { status: 200 }));
+
+    const response = await published().send('/api/plugins/notes/rooms/x/note.txt');
+
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toBe('note');
+    expect(answers.signIns()).toBe(2);
+    expect(answers.bearers()).toEqual(['Bearer session-1', 'Bearer session-2']);
+  });
+
+  it('rejects with status 0 without an answer, and sends nothing to another origin', async () => {
+    const answers = fakeFetch();
+    answers.route.mockImplementationOnce(() => {
+      throw new TypeError('Failed to fetch');
+    });
+    const { send } = published();
+
+    await expect(send('/api/plugins/notes/a')).rejects.toMatchObject({ status: 0 });
+    answers.request.mockClear();
+    await expect(send('https://evil.example.org/steal')).rejects.toThrow(TypeError);
+    expect(answers.request).not.toHaveBeenCalled();
+  });
+});
+
+describe('MindroomServer.token', () => {
+  it('is the bearer request sends, new once the server refused it or it ran out', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const answers = fakeFetch();
+    const { request, token } = published();
+
+    await expect(token()).resolves.toBe('session-1');
+    await request('/api/plugins/notes/a');
+    expect(answers.signIns()).toBe(1);
+
+    // A 401 for it signs in again; a later refusal of the same token leaves the new one.
+    await expect(token({ refused: 'session-1' })).resolves.toBe('session-2');
+    await expect(token({ refused: 'session-1' })).resolves.toBe('session-2');
+    await request('/api/plugins/notes/b');
+
+    // An hour later the session ran out.
+    vi.setSystemTime(Date.now() + 3600_000);
+    await expect(token()).resolves.toBe('session-3');
+    expect(answers.signIns()).toBe(3);
+    expect(answers.bearers()).toEqual(['Bearer session-1', 'Bearer session-2']);
+  });
+
+  it('rejects once its signal aborts while it signs in', async () => {
+    const answers = fakeFetch();
+    answers.request.mockImplementationOnce(() => new Promise<Response>(() => undefined));
+    const stop = new AbortController();
+
+    const asked = published().token({ signal: stop.signal });
+    stop.abort();
+
+    await expect(asked).rejects.toMatchObject({ status: 0 });
   });
 });
