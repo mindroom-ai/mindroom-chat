@@ -107,7 +107,7 @@ export const useMindroomServer = (roomId: string): MindroomServer | undefined =>
  * the room's members or the homeserver's answer on binding sign-in tokens are not in yet, with no
  * `server`. A check that could not reach the homeserver counts as an answer that it does not bind
  * them, and a member list that could not load as the members the client has. A room the client does
- * not know has no server and is not pending.
+ * not know has no member list to wait for: once the homeserver answered, it has no server.
  */
 export const useMindroomServerStatus = (
   roomId: string
