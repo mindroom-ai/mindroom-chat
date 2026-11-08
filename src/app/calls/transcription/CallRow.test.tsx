@@ -68,13 +68,17 @@ vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
 }));
 
 const NAMES: Record<string, string> = { [VIEWER]: 'Ann', [BOB]: 'Bob' };
+/** Whether the room has loaded its member list; until it has, names carry their user ID. */
+let membersLoaded = true;
 const room = {
   roomId: ROOM_ID,
   getMember: (userId: string) =>
     NAMES[userId]
       ? { userId, name: NAMES[userId], rawDisplayName: NAMES[userId], getMxcAvatarUrl: () => null }
       : null,
-  membersLoaded: () => true,
+  membersLoaded: () => membersLoaded,
+  // The list stays unloaded for as long as a test wants it so.
+  loadMembersIfNeeded: () => new Promise(() => undefined),
 };
 const mx = {
   getRoom: (roomId: string) => (roomId === ROOM_ID ? room : null),
@@ -212,6 +216,25 @@ describe('CallRow', () => {
     // Another call in the room is not this row's.
     act(() => state.polls[1]?.onLive({ call: { ...CALL, id: 'call-2' }, lines: [], names: {} }));
     expect(faces()).toEqual([]);
+  });
+
+  it("names who is in the call with their user ID until the room's members are loaded", () => {
+    membersLoaded = false;
+    const MALLORY = '@mallory:example.org';
+    try {
+      render(LIVE);
+      inView(true);
+      act(() =>
+        state.polls[0]?.onLive({
+          call: { ...CALL, members: [MALLORY] },
+          lines: [],
+          names: { [MALLORY]: 'Bob' },
+        })
+      );
+      expect(faces()).toEqual([MALLORY]);
+    } finally {
+      membersLoaded = true;
+    }
   });
 
   it('reads only the lines after the last one read when it reads again', () => {

@@ -217,14 +217,18 @@ export const ControlsStatus = style({
   selectors: { '&:not(:empty)': { marginBlockEnd: space.S200 } },
 });
 
-// "Paused by Ann", in the colors of the panel's warnings, like Pause while the call is paused.
+// "Paused by Ann", in the colors of the panel's warnings, like Pause while the call is paused. A
+// user ID after the name wraps onto a line of its own rather than being cut (NameWithUserId).
 export const ControlsPaused = style([
   tinted(color.Warning),
   {
-    display: 'inline-block',
+    display: 'inline-flex',
     paddingBlock: toRem(2),
+    flexWrap: 'wrap',
     paddingInline: space.S200,
+    columnGap: space.S100,
     borderRadius: radii.R300,
+    maxWidth: '100%',
   },
 ]);
 

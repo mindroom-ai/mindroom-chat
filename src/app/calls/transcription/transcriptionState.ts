@@ -1,7 +1,4 @@
 import { atom } from 'jotai';
-import type { Room } from 'matrix-js-sdk';
-import { getMemberDisplayName } from '../../matrix/room';
-import { getMxIdLocalPart } from '../../matrix/matrix';
 import type { LiveCall, TranscriptCall, TranscriptLine } from './api';
 
 /**
@@ -82,13 +79,3 @@ export const applyLiveUpdate = (
 /** Who paused the room's live call, as MindRoom last said; null while it is not paused. */
 export const pausedByIn = (live: LiveTranscript | undefined, roomId: string): string | null =>
   (live?.roomId === roomId && live.call?.pausedBy) || null;
-
-/**
- * The name someone in the room's call shows under: the room's, which tells apart members who
- * share a name, else the one MindRoom knows them by (a member the room has not loaded yet).
- */
-export const nameInCall = (room: Room, live: LiveTranscript | undefined, userId: string): string =>
-  getMemberDisplayName(room, userId) ??
-  (live?.roomId === room.roomId ? live.names[userId] : undefined) ??
-  getMxIdLocalPart(userId) ??
-  userId;

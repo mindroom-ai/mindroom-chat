@@ -2,11 +2,13 @@ import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Icon, IconButton, Icons, Text } from 'folds';
-import { ownDirectionLine, textDirection } from '../../ui/directional';
+import { textDirection } from '../../ui/directional';
+import { getSenderName } from '../../matrix/room';
+import { NameWithUserId } from '../../matrix/NameWithUserId';
 import { CallMemberAvatar } from '../CallTile';
 import type { TranscriptLine } from './api';
 import { PauseControl } from './PauseControl';
-import { nameInCall, type LiveTranscript } from './transcriptionState';
+import type { LiveTranscript } from './transcriptionState';
 import { useLiveTranscript } from './useLiveTranscript';
 import * as panelCss from '../CallPanel.css';
 import * as css from './LiveTranscriptPanel.css';
@@ -45,7 +47,10 @@ const groupLines = (lines: readonly TranscriptLine[]): Item[] =>
     return items;
   }, []);
 
-/** Who is in the call, by their avatar and name. */
+/**
+ * Who is in the call, by their avatar and name; the user ID follows a name until the room's members
+ * are loaded (`getSenderName`), so nobody passes for someone else.
+ */
 function Members({ room, live }: { room: Room; live: LiveTranscript }) {
   const { t } = useTranslation();
   const members = live.call?.members ?? [];
@@ -54,9 +59,9 @@ function Members({ room, live }: { room: Room; live: LiveTranscript }) {
       {members.map((userId) => (
         <li key={userId} className={css.Member}>
           <CallMemberAvatar room={room} userId={userId} size="200" />
-          <Text as="span" size="T300" truncate data-live-transcript-member="" {...ownDirectionLine}>
-            {nameInCall(room, live, userId)}
-          </Text>
+          <span className={css.NameRow} data-live-transcript-member="">
+            <NameWithUserId name={getSenderName(room, userId)} userId={userId} size="T300" />
+          </span>
         </li>
       ))}
     </ul>
@@ -89,16 +94,14 @@ function Lines({ room, live }: { room: Room; live: LiveTranscript }) {
             <li key={item.key} className={css.Group}>
               <CallMemberAvatar room={room} userId={item.userId} size="200" />
               <div className={css.GroupBody}>
-                <Text
-                  as="span"
-                  size="T300"
-                  truncate
-                  className={css.Name}
-                  data-live-transcript-name=""
-                  {...ownDirectionLine}
-                >
-                  {nameInCall(room, live, item.userId)}
-                </Text>
+                <span className={css.NameRow} data-live-transcript-name="">
+                  <NameWithUserId
+                    name={getSenderName(room, item.userId)}
+                    userId={item.userId}
+                    size="T300"
+                    className={css.Name}
+                  />
+                </span>
                 {item.lines.map((line) => (
                   <Text
                     key={line.id}

@@ -22,6 +22,7 @@ const room = {
   roomId: ROOM_ID,
   getMember: (userId: string) =>
     userId === '@bob:example.org' ? { userId, name: 'Bob', rawDisplayName: 'Bob' } : null,
+  membersLoaded: () => true,
 } as unknown as Room;
 
 let container: HTMLDivElement;

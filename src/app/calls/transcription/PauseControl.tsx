@@ -3,23 +3,22 @@ import { useAtomValue, useSetAtom } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { Icons } from 'folds';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { getSenderName } from '../../matrix/room';
 import { CallControl } from '../CallControls';
-import { liveTranscriptAtom, nameInCall, pausedByIn, pauseRequestAtom } from './transcriptionState';
+import { liveTranscriptAtom, pausedByIn, pauseRequestAtom } from './transcriptionState';
 
 /**
- * "Paused by Ann": who paused the room's call as MindRoom last said, or this person while Pause
- * pressed here waits for MindRoom's answer. None while it is not paused.
+ * Who paused the room's call as MindRoom last said, or this person while Pause pressed here waits
+ * for MindRoom's answer. None while it is not paused.
  */
 export const usePausedBy = (room: Room): string | undefined => {
-  const { t } = useTranslation();
   const ownUserId = useMatrixClient().getSafeUserId();
   const request = useAtomValue(pauseRequestAtom);
   const live = useAtomValue(liveTranscriptAtom);
   let userId = pausedByIn(live, room.roomId);
   if (request === false) userId = null;
   else if (request) userId ??= ownUserId;
-  if (!userId) return undefined;
-  return t('featureUi.calls.transcription.pausedBy', { name: nameInCall(room, live, userId) });
+  return userId ?? undefined;
 };
 
 /**
@@ -33,7 +32,10 @@ export function PauseControl({ room, small }: { room: Room; small?: boolean }) {
   return (
     <CallControl
       label={t('featureUi.calls.transcription.pause')}
-      description={pausedBy}
+      description={
+        pausedBy &&
+        t('featureUi.calls.transcription.pausedBy', { name: getSenderName(room, pausedBy) })
+      }
       icon={Icons.Pause}
       warning={!!pausedBy}
       pressed={!!pausedBy}

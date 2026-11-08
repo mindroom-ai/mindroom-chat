@@ -68,6 +68,15 @@ export const GroupBody = style({
 
 export const Name = style({ fontWeight: 600, maxWidth: '100%' });
 
+/** A name and the user ID that may follow it: the ID wraps onto the next line, never cut. */
+export const NameRow = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  columnGap: space.S100,
+  minWidth: 0,
+  maxWidth: '100%',
+});
+
 /** Spoken text keeps its line breaks and wraps anywhere rather than overflow the panel. */
 export const Text = style({
   margin: 0,

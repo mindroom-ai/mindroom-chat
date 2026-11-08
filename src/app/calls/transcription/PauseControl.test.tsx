@@ -23,10 +23,13 @@ const MEMBERS: Record<string, string> = {
   '@ann:example.org': 'Ann',
   '@bob:example.org': 'Bob',
 };
+/** Whether the room has loaded its member list; until it has, names carry their user ID. */
+let membersLoaded = true;
 const room = {
   roomId: ROOM_ID,
   getMember: (userId: string) =>
     MEMBERS[userId] ? { userId, name: MEMBERS[userId], rawDisplayName: MEMBERS[userId] } : null,
+  membersLoaded: () => membersLoaded,
 } as unknown as Room;
 
 const CALL: TranscriptCall = {
@@ -86,6 +89,7 @@ const mount = () => {
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
+  membersLoaded = true;
   vi.restoreAllMocks();
 });
 
@@ -97,7 +101,7 @@ describe('PauseControl', () => {
     t.click();
     expect(t.request()).toBe(true);
     expect(t.button().props['aria-pressed']).toBe(true);
-    expect(t.pausedBy()).toBe('Paused by Ann');
+    expect(t.pausedBy()).toBe('@ann:example.org');
 
     t.click();
     expect(t.request()).toBe(false);
@@ -126,11 +130,13 @@ describe('PauseControl', () => {
     // Its name stays; who paused is its description.
     expect(t.button().props['aria-label']).toBe('Pause transcription');
     expect(t.button().props['aria-description']).toBe('Paused by Bob');
-    expect(t.pausedBy()).toBe('Paused by Bob');
+    expect(t.pausedBy()).toBe('@bob:example.org');
 
-    // A member the room has not loaded, by MindRoom's name.
-    t.pausedInCall('@dee:example.org', { '@dee:example.org': 'Dee' });
-    expect(t.pausedBy()).toBe('Paused by Dee');
+    // Before the room loaded its members, nobody passes for someone else by the name MindRoom
+    // has for them: the user ID shows.
+    membersLoaded = false;
+    t.pausedInCall('@mallory:example.org', { '@mallory:example.org': 'Bob' });
+    expect(t.button().props['aria-description']).toBe('Paused by @mallory:example.org');
   });
 
   it('shows the state MindRoom reports once its answer ends the request', () => {

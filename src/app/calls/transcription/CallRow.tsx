@@ -4,6 +4,7 @@ import { useStore } from 'jotai';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Button, Icon, Icons, Text } from 'folds';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { getSenderName } from '../../matrix/room';
 import {
   getIntersectionObserverEntry,
   useIntersectionObserver,
@@ -15,7 +16,6 @@ import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { useSelectedRoom } from '../../navigation/useSelectedRoom';
 import { callPanelRoomAtom, isActiveCallShownIn, useActiveCall } from '../callStore';
 import { CallMemberAvatar } from '../CallTile';
-import { nameInCall } from './transcriptionState';
 import { openTranscriptPanel } from './transcriptPanel';
 import { useLiveTranscript } from './useLiveTranscript';
 import * as css from './CallRow.css';
@@ -102,7 +102,7 @@ function LiveCallRow({ room, row }: RowProps) {
         <div className={css.People}>
           <ul className={css.Faces} aria-label={t('featureUi.calls.panel.participants')}>
             {people.map((userId) => {
-              const name = nameInCall(room, live, userId);
+              const name = getSenderName(room, userId);
               return (
                 <li key={userId} aria-label={name} title={name} data-call-row-member="">
                   <CallMemberAvatar room={room} userId={userId} size="200" />

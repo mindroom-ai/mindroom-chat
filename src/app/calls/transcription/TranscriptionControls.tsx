@@ -2,6 +2,8 @@ import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { Icons, Text } from 'folds';
+import { getSenderName } from '../../matrix/room';
+import { NameWithUserId } from '../../matrix/NameWithUserId';
 import { CallControl } from '../CallControls';
 import { callTranscriptionAtom } from './transcriptionState';
 import { PauseControl, usePausedBy } from './PauseControl';
@@ -51,9 +53,14 @@ export function TranscriptionStatus({ room }: { room: Room }) {
         </Text>
       )}
       {status === 'transcribing' && pausedBy && (
-        <Text as="span" size="T200" className={css.ControlsPaused}>
-          {pausedBy}
-        </Text>
+        <span className={css.ControlsPaused}>
+          <NameWithUserId
+            name={getSenderName(room, pausedBy)}
+            userId={pausedBy}
+            text={(name) => t('featureUi.calls.transcription.pausedBy', { name })}
+            size="T200"
+          />
+        </span>
       )}
     </div>
   );

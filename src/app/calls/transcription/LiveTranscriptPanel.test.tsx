@@ -55,8 +55,10 @@ vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
 
-// Carol is in the call, but the room has not loaded her membership: MindRoom names her.
+// Carol is in the call, but the room does not know her: she shows by her user ID's localpart.
 const NAMES: Record<string, string> = { [ANN]: 'Ann', [BOB]: 'Bob' };
+/** Whether the room has loaded its member list; until it has, names carry their user ID. */
+let membersLoaded = true;
 const room = {
   roomId: ROOM_ID,
   name: 'Planning',
@@ -64,7 +66,9 @@ const room = {
     NAMES[userId]
       ? { userId, name: NAMES[userId], rawDisplayName: NAMES[userId], getMxcAvatarUrl: () => null }
       : null,
-  membersLoaded: () => true,
+  membersLoaded: () => membersLoaded,
+  // The list stays unloaded for as long as a test wants it so.
+  loadMembersIfNeeded: () => new Promise(() => undefined),
 } as unknown as Room;
 
 const CALL: TranscriptCall = {
@@ -191,7 +195,7 @@ describe('LiveTranscriptPanel', () => {
         names: {},
       })
     );
-    expect(text('[data-live-transcript-name]')).toEqual(['Carol']);
+    expect(text('[data-live-transcript-name]')).toEqual(['carol']);
     expect(text('[data-live-transcript-text]')).toEqual(['Hello all.', 'Joining late, sorry.']);
     expect(text('[data-live-transcript-member]')).toEqual(['Ann', 'Bob']);
     // Pause is for the call this device is in.
@@ -242,6 +246,27 @@ describe('LiveTranscriptPanel', () => {
     act(() => state.polls[0]?.onFailure?.());
     expect(container.textContent).toContain('Transcripts are unavailable');
     expect(container.textContent).not.toContain('No call is on in this room.');
+  });
+
+  it('names people the room has not loaded with their user ID, so a copied name passes for nobody', () => {
+    membersLoaded = false;
+    const MALLORY = '@mallory:example.org';
+    try {
+      render(
+        inCall({
+          call: { ...CALL, members: [BOB, MALLORY] },
+          lines: [line('l1', MALLORY, '2026-11-07T09:30:00Z', { text: 'Trust me.' })],
+          names: { [MALLORY]: 'Ann' },
+        })
+      );
+      const members = text('[data-live-transcript-member]');
+      expect(members[0]).toContain('Bob');
+      expect(members[0]).toContain(BOB);
+      expect(members[1]).toBe(MALLORY);
+      expect(text('[data-live-transcript-name]')).toEqual([MALLORY]);
+    } finally {
+      membersLoaded = true;
+    }
   });
 
   it('says transcripts are unavailable while MindRoom cannot be reached', () => {
