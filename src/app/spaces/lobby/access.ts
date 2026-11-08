@@ -22,7 +22,7 @@ const KNOWN_JOIN_RULES = new Set<string>([
 /**
  * A summary without a join rule describes a public room (the specification's
  * default). An unknown rule or a failed discovery never counts as public; a
- * cached invitation always lets the user join.
+ * cached invitation always lets the user join, and a cached ban never does.
  */
 export const resolveLobbyItemAccess = (
   summaryJoinRule: string | undefined,
@@ -30,6 +30,7 @@ export const resolveLobbyItemAccess = (
   membership: string | undefined
 ): LobbyItemAccess => {
   if (membership === Membership.Invite) return { kind: 'join', joinRule: JoinRule.Invite };
+  if (membership === Membership.Ban) return { kind: 'unavailable' };
   if (!hasSummary) return { kind: 'unknown' };
 
   const joinRule = (summaryJoinRule ?? JoinRule.Public) as JoinRule;
