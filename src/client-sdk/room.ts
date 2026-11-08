@@ -14,15 +14,24 @@ type RoomNavigateOptions = {
   replace?: boolean;
 };
 
-/** What `useRoomNavigate` gives. */
+/**
+ * What `useRoomNavigate` gives. Each function also keeps its call without options, so it still fits
+ * a callback type that passes more arguments, as it did before it took options.
+ */
 export type RoomNavigate = {
   /** Opens the room `roomId` where the app opens it: in its space, in Direct, or in Home. */
-  navigateRoom: (roomId: string, options?: RoomNavigateOptions) => void;
+  navigateRoom: {
+    (roomId: string): void;
+    (roomId: string, options: RoomNavigateOptions): void;
+  };
   /**
    * Opens the thread `threadId` (its root's event ID) of the room; its back button returns here,
    * unless it replaced this page: then it leads to the page before, or to the room.
    */
-  navigateRoomThread: (roomId: string, threadId: string, options?: RoomNavigateOptions) => void;
+  navigateRoomThread: {
+    (roomId: string, threadId: string): void;
+    (roomId: string, threadId: string, options: RoomNavigateOptions): void;
+  };
 };
 
 /**
@@ -39,8 +48,9 @@ export const useRoomNavigate = (): RoomNavigate => {
   const { navigateRoom, navigateRoomThread } = useAppRoomNavigate();
   return useMemo(
     () => ({
-      navigateRoom: (roomId, options) => navigateRoom(roomId, ...appArguments(options)),
-      navigateRoomThread: (roomId, threadId, options) =>
+      navigateRoom: (roomId: string, options?: RoomNavigateOptions) =>
+        navigateRoom(roomId, ...appArguments(options)),
+      navigateRoomThread: (roomId: string, threadId: string, options?: RoomNavigateOptions) =>
         navigateRoomThread(roomId, threadId, ...appArguments(options)),
     }),
     [navigateRoom, navigateRoomThread]

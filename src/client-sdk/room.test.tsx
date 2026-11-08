@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { MatrixClient } from 'matrix-js-sdk';
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import {
   BrowserRouter,
   HashRouter,
@@ -64,8 +64,14 @@ describe('useRoomHref', () => {
 });
 
 describe('useRoomNavigate', () => {
-  /** A room picker that tells its callback more than the room: an index, a name, or the click. */
-  function Picker({ onPick }: { onPick: (roomId: string, how: unknown) => void }) {
+  /** A room picker that tells its callbacks more than the room: an index, a name, or the click. */
+  function Picker({
+    onPick,
+    onPickThread,
+  }: {
+    onPick: (roomId: string, how: number | string | MouseEvent) => void;
+    onPickThread: (roomId: string, threadId: string, index: number) => void;
+  }) {
     return (
       <>
         <button type="button" onClick={() => onPick(ROOM, 1)}>
@@ -76,6 +82,9 @@ describe('useRoomNavigate', () => {
         </button>
         <button type="button" onClick={(event) => onPick(ROOM, event)}>
           Pick by click
+        </button>
+        <button type="button" onClick={() => onPickThread(ROOM, THREAD, 2)}>
+          Pick the thread
         </button>
       </>
     );
@@ -102,7 +111,7 @@ describe('useRoomNavigate', () => {
         <button type="button" onClick={() => navigateRoomThread(ROOM, THREAD, { replace: true })}>
           Thread in place
         </button>
-        <Picker onPick={navigateRoom as (roomId: string, how: unknown) => void} />
+        <Picker onPick={navigateRoom} onPickThread={navigateRoomThread} />
       </>
     );
   }
@@ -138,7 +147,7 @@ describe('useRoomNavigate', () => {
     );
   });
 
-  it('opens the room itself, as a new page, when it is a callback that gets more arguments', () => {
+  it('opens the room or the thread itself, as a new page, as a callback that gets more arguments', () => {
     window.history.replaceState(null, '', '/p/example/');
     renderSignedIn(
       <BrowserRouter>
@@ -154,6 +163,13 @@ describe('useRoomNavigate', () => {
       );
       expect(window.history.length).toBe(entries + 1);
     }
+    click('Room');
+    const entries = window.history.length;
+    click('Pick the thread');
+    expect(`${window.location.pathname}${window.location.search}`).toBe(
+      '/home/!lobby%3Aexample.org?threadId=%24root%3Aexample.org'
+    );
+    expect(window.history.length).toBe(entries + 1);
   });
 
   for (const [name, Router, start, shown] of [
