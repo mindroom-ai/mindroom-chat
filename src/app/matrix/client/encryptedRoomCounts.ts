@@ -13,7 +13,7 @@ import {
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { getStreamStatusFromContent, TERMINAL_STREAM_STATUSES } from '../protocol/aiRun';
 import { isRecord } from '../../lib/isRecord';
-import { receiptReadTs, unthreadedReceiptReadTs } from '../receiptReadTs';
+import { contextReceiptReadTs, receiptReadTs } from '../receiptReadTs';
 import { getFinishingEdit } from './syncedEdits';
 
 // The server cannot read an encrypted event, so in an encrypted room the SDK takes the server's
@@ -110,7 +110,7 @@ const readUpTo = (
   userId: string,
   ownReadTs: number
 ): number => {
-  let readTs = Math.max(ownReadTs, unthreadedReceiptReadTs(room, userId, context) ?? -Infinity);
+  let readTs = Math.max(ownReadTs, contextReceiptReadTs(room, userId, context) ?? -Infinity);
   [ReceiptType.Read, ReceiptType.ReadPrivate].forEach((receiptType) => {
     [true, false].forEach((realOnly) => {
       const receipt = context.getReadReceiptForUserId(userId, realOnly, receiptType);

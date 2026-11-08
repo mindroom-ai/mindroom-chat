@@ -33,13 +33,19 @@ const message = (id: string, ts: number, threadId?: string) =>
   });
 
 /** A read receipt; `threadId` undefined makes it unthreaded. */
-const receipt = (userId: string, eventId: string, ts: number, threadId: string | undefined) =>
+const receipt = (
+  userId: string,
+  eventId: string,
+  ts: number,
+  threadId: string | undefined,
+  type = ReceiptType.Read
+) =>
   new MatrixEvent({
     type: 'm.receipt',
     room_id: ROOM_ID,
     content: {
       [eventId]: {
-        [ReceiptType.Read]: { [userId]: { ts, ...(threadId && { thread_id: threadId }) } },
+        [type]: { [userId]: { ts, ...(threadId && { thread_id: threadId }) } },
       },
     },
   });
@@ -169,5 +175,16 @@ describe('getThreadEventReadUpTo', () => {
 
     expect(getThreadEventReadUpTo(thread, USER_ID)).toBeNull();
     expect(getThreadUnread(thread, USER_ID)).toBe(true);
+  });
+
+  it('keeps the newer of a public and a private unthreaded receipt', async () => {
+    const { room, thread } = await setupThread();
+    room.addReceipt(receipt(USER_ID, '$other', 1500, '$x'));
+    room.addReceipt(receipt(USER_ID, '$reply', 3000, undefined));
+    // Another device's private receipt on an older event, taken later.
+    room.addReceipt(receipt(USER_ID, '$root', 4000, undefined, ReceiptType.ReadPrivate));
+
+    expect(getThreadReadState(thread, USER_ID)?.readUpToTs).toBe(2000);
+    expect(getThreadUnread(thread, USER_ID)).toBe(false);
   });
 });
