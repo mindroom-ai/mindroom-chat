@@ -41,9 +41,10 @@
 // thread's composer to that thread, through the room's client, and refuses with its usage without a
 // text, which the composer shows with its description. Its slash command `/subroom <name>` creates a
 // sub-room of the room called <name>, as New Sub-room does, and refuses with its usage without a
-// name. Its slash command `/topic <text>` sets the room's topic to <text> (without a text, clears it),
-// and fails without sending anything where the room's levels, as they are when it runs, do not let
-// the account.
+// name, and fails in a space or a direct chat, where the room menu offers no New Sub-room. Its slash
+// command `/topic <text>` sets the room's topic to <text> (without a text, clears it), and fails
+// without sending anything where the room's levels, as they are when it runs, do not let the account.
+// Its panel names the chat rooms its room is a sub-room of, as the room menu's Remove from does.
 // Every room's menu but a space's lists its entry "Example room info" ("Beispiel-Rauminfo" in
 // German), whose dialog says "Example dialog of <room name>" until its Close button closes it.
 // Every room's menu also lists, after Leave and drawn as Leave is, its critical entry "Example
@@ -102,8 +103,10 @@ import {
 } from '@mindroom/client-sdk/matrix';
 import {
   createSubRoom,
+  offersSubRooms,
   UserProfileCard,
   useOpenUserProfile,
+  useParentRooms,
   useRoomHref,
   useRoomNavigate,
 } from '@mindroom/client-sdk/room';
@@ -537,6 +540,13 @@ function ExampleMenu({ onShowDialog, onClear }: { onShowDialog: () => void; onCl
   );
 }
 
+/** The chat rooms `room` is a sub-room of, which it follows as their lists change. */
+function ParentRooms({ room }: { room: Room }) {
+  const parents = useParentRooms(room);
+  if (parents.length === 0) return null;
+  return <p>Sub-room of {parents.map(({ name }) => name).join(', ')}</p>;
+}
+
 function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }) {
   const client = useMatrixClient();
   const members = useRoomMembers(client, roomId);
@@ -577,6 +587,7 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
         agent
       </p>
       {room && <PostingRight room={room} />}
+      {room && <ParentRooms room={room} />}
       {typeof request === 'string' && (
         <FetchedGreeting key={request} roomId={roomId} eventId={request} />
       )}
@@ -768,6 +779,9 @@ const plugin: ClientPlugin = {
       name: 'subroom',
       description: 'subroom',
       run: async ({ room, args }) => {
+        if (!offersSubRooms(room)) {
+          throw new Error('Sub-rooms go in chat rooms, not in spaces or direct chats.');
+        }
         if (!args.trim()) throw commandUsage();
         await createSubRoom(room, { name: args });
       },
