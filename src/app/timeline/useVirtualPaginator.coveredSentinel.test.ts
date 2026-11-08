@@ -30,7 +30,15 @@ const makeScrollArea = () => {
   return root;
 };
 
-function Harness({ root, onEnd }: { root: HTMLElement; onEnd: (back: boolean) => void }) {
+type HarnessProps = {
+  root: HTMLElement;
+  onEnd: (back: boolean) => void;
+  suppress?: () => boolean;
+  defer?: (retry: () => boolean) => boolean;
+  onPaginator?: (paginator: ReturnType<typeof useVirtualPaginator>) => void;
+};
+
+function Harness({ root, onEnd, suppress, defer, onPaginator }: HarnessProps) {
   const paginator = useVirtualPaginator({
     count: 20,
     limit: 20,
@@ -39,9 +47,27 @@ function Harness({ root, onEnd }: { root: HTMLElement; onEnd: (back: boolean) =>
     getScrollElement: () => root,
     getItemElement: () => undefined,
     onEnd,
+    shouldSuppressPagination: suppress,
+    deferAutomaticPagination: defer,
   });
+  onPaginator?.(paginator);
   return React.createElement('span', { ref: paginator.observeBackAnchor });
 }
+
+/** The back sentinel in the scroll area, at `box`. */
+const placeSentinel = (root: HTMLElement, box: () => Box) => {
+  const sentinel = document.createElement('span');
+  sentinel.getBoundingClientRect = () => boxRect(box());
+  root.append(sentinel);
+  return sentinel;
+};
+
+const reportShown = (sentinel: HTMLElement) =>
+  act(() => {
+    observerState.report?.([
+      { target: sentinel, isIntersecting: true } as unknown as IntersectionObserverEntry,
+    ]);
+  });
 
 describe('useVirtualPaginator sentinels under floating bars', () => {
   afterEach(() => {
@@ -128,5 +154,79 @@ describe('useVirtualPaginator sentinels under floating bars', () => {
       root.dispatchEvent(new Event('scroll'));
     });
     expect(onEnd).not.toHaveBeenCalled();
+  });
+
+  it('pages once the reader scrolls up to a sentinel the opening fill left under the header', () => {
+    const root = makeScrollArea();
+    let sentinelBox: Box = { top: 300, height: 1 };
+    const sentinel = placeSentinel(root, () => sentinelBox);
+    const onEnd = vi.fn();
+    let retry: (() => boolean) | undefined;
+    const defer = (next: () => boolean) => {
+      retry = next;
+      return true;
+    };
+    act(() => {
+      create(React.createElement(Harness, { root, onEnd, defer }), {
+        createNodeMock: () => sentinel,
+      });
+    });
+
+    // In view when the observer reports it, but the fill holds pagination...
+    reportShown(sentinel);
+    expect(onEnd).not.toHaveBeenCalled();
+    // ...and its rows settle with the sentinel under the header, inside the scroll area: the
+    // observer reports nothing more, and the fill finds nothing to load.
+    sentinelBox = { top: 30, height: 1 };
+    let retried: boolean | undefined;
+    act(() => {
+      retried = retry?.();
+    });
+    expect(retried).toBe(false);
+    expect(onEnd).not.toHaveBeenCalled();
+
+    // The reader scrolls up to the top: the sentinel shows below the header, history loads once.
+    sentinelBox = { top: 80, height: 1 };
+    act(() => {
+      root.dispatchEvent(new Event('scroll'));
+      root.dispatchEvent(new Event('scroll'));
+    });
+    expect(onEnd.mock.calls).toEqual([[true]]);
+  });
+
+  it('pages once the reader scrolls up to a sentinel a focus jump left under the header', () => {
+    const root = makeScrollArea();
+    let sentinelBox: Box = { top: 300, height: 1 };
+    const sentinel = placeSentinel(root, () => sentinelBox);
+    const onEnd = vi.fn();
+    let suppressed = true;
+    let paginator: ReturnType<typeof useVirtualPaginator> | undefined;
+    act(() => {
+      create(
+        React.createElement(Harness, {
+          root,
+          onEnd,
+          suppress: () => suppressed,
+          onPaginator: (next) => {
+            paginator = next;
+          },
+        }),
+        { createNodeMock: () => sentinel }
+      );
+    });
+
+    // Reported in view during the jump, which holds pagination; the jump lands with the sentinel
+    // under the header, and its retry finds nothing in view.
+    reportShown(sentinel);
+    sentinelBox = { top: 30, height: 1 };
+    suppressed = false;
+    act(() => paginator?.retryPagination());
+    expect(onEnd).not.toHaveBeenCalled();
+
+    sentinelBox = { top: 80, height: 1 };
+    act(() => {
+      root.dispatchEvent(new Event('scroll'));
+    });
+    expect(onEnd.mock.calls).toEqual([[true]]);
   });
 });
