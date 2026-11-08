@@ -55,6 +55,12 @@ export type AgentStack = {
    * the tools the helper took from it, and its stub-model scenario file or null.
    */
   pluginDirs?: { dir: string; plugin: string | null; tools: string[]; scenarios: string | null }[];
+  /**
+   * Call transcripts (`calls.transcripts`): `stub` speech-to-text is a stand-in that answers from
+   * each recording's length, `real` is OpenAI's (`--transcription real`); and the model that writes
+   * the notes. Null for a MindRoom without them.
+   */
+  transcription?: { stt: 'stub' | 'real'; notesModel: string } | null;
 };
 
 export type MatrixEvent = {

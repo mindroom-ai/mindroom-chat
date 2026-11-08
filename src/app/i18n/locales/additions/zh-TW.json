@@ -408,7 +408,32 @@
       "transcript": {
         "title": "語音通話",
         "transcript": "逐字稿",
-        "turns_other": "{{count}} 則發言"
+        "turns_other": "{{count}} 則發言",
+        "moreTurns_other": "另有 {{count}} 則發言未顯示",
+        "callTitle": "通話"
+      },
+      "transcription": {
+        "unavailable": "逐字稿無法使用",
+        "pause": "暫停轉錄",
+        "pausedBy": "{{name}} 已暫停",
+        "liveTranscript": "即時逐字稿",
+        "close": "關閉即時逐字稿",
+        "resize": "調整即時逐字稿大小",
+        "transcribed": "此通話正在轉錄。",
+        "inCall": "通話中",
+        "lines": "目前的逐字稿",
+        "noCall": "此聊天室目前沒有通話。",
+        "notTranscribed": "此聊天室的通話不會轉錄。",
+        "nothingYet": "還沒有人說話。",
+        "gap": {
+          "paused": "已暫停",
+          "notTranscribed": "未轉錄"
+        }
+      },
+      "row": {
+        "live": "通話進行中",
+        "ended": "通話已結束",
+        "notes": "筆記和逐字稿"
       }
     },
     "room": {

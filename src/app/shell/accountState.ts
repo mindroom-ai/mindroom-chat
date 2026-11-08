@@ -1,6 +1,12 @@
 import type { PrimitiveAtom, useStore } from 'jotai';
 import { forgetCallState } from '../calls/callStore';
 import { agentCallFailureAtom } from '../calls/agent/agentCaller';
+import {
+  callTranscriptionAtom,
+  liveTranscriptAtom,
+  pauseRequestAtom,
+} from '../calls/transcription/transcriptionState';
+import { transcriptPanelAtom } from '../calls/transcription/transcriptPanel';
 import { commandPaletteOpenAtom } from '../command-palette/commandPaletteState';
 import { shortcutHelpOpenAtom } from '../navigation/shortcutHelpState';
 import {
@@ -81,10 +87,15 @@ const ACCOUNT_STATE: readonly Forget[] = [
   (store) => store.set(crossRoomThreadIndexAtom, emptyCrossRoomThreadIndexSnapshot()),
   toInitial(userDirectoryCacheAtom),
   toInitial(lastExitedThreadAtom),
-  // What the person was doing: composer replies and staged files, the call and its panel, why an
-  // agent call did not start, and the dialogs and overlays open.
+  // What the person was doing: composer replies and staged files, the call and its panel, its
+  // transcription, Pause and live transcript panel, why an agent call did not start, and the
+  // dialogs and overlays open.
   forgetComposerStateOfSession,
   forgetCallState,
+  toInitial(callTranscriptionAtom),
+  toInitial(liveTranscriptAtom),
+  toInitial(pauseRequestAtom),
+  toInitial(transcriptPanelAtom),
   toInitial(agentCallFailureAtom),
   toInitial(settingsModalAtom),
   toInitial(roomSettingsAtom),

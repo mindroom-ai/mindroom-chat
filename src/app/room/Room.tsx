@@ -11,7 +11,7 @@ import {
   useState,
 } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { useSetAtom } from 'jotai';
+import { useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { Box, Button, Text } from 'folds';
@@ -74,6 +74,7 @@ import {
   useInCall,
 } from '../calls/callStore';
 import type { CallPanel as CallPanelComponent } from '../calls/CallPanel';
+import { transcriptPanelAtom, useTranscriptPanel } from '../calls/transcription/transcriptPanel';
 import { type PartLoadRetry, lazyPart } from '../lib/lazyPart';
 import { PartUnavailable } from '../ui/PartUnavailable';
 import { PluginSidePanel } from './PluginSidePanel';
@@ -134,6 +135,13 @@ const CallPanel = lazyPart(
   () => import('../calls/CallPanel').then((module) => ({ default: module.CallPanel })),
   CallPanelUnavailable
 );
+const LiveTranscriptPanel = lazyPart(
+  () =>
+    import('../calls/transcription/LiveTranscriptPanel').then((module) => ({
+      default: module.LiveTranscriptPanel,
+    })),
+  CallPanelUnavailable
+);
 const HeaderCallButtons = lazyPart(() =>
   import('../calls/HeaderCallButtons').then((module) => ({ default: module.HeaderCallButtons }))
 );
@@ -146,6 +154,8 @@ const HeaderCallMenuEntries = lazyPart(() =>
 /** The call panel fits two tiles side by side; wider, it fits more. A plugin's panel opens as wide. */
 const CALL_DEFAULT_WIDTH = 400;
 const CALL_MAX_WIDTH = 1200;
+/** The live transcript is read like a conversation, no wider than a readable line or two. */
+const TRANSCRIPT_MAX_WIDTH = 800;
 
 const CONVERSATION_STYLE: CSSProperties = { minWidth: 0 };
 // Behind a side panel in its place, the conversation takes no room in the row but stays as it was
@@ -305,6 +315,7 @@ function RoomContent() {
   // A canvas does not open while this device is in a call (PANEL-09).
   const [callOpen, setCallOpen] = useCallPanel(roomId);
   const inCall = useInCall();
+  const transcript = useTranscriptPanel(roomId);
 
   const pluginPanels = useMemo(
     () => enabledSidePanels(registeredPlugins, clientConfig),
@@ -321,15 +332,16 @@ function RoomContent() {
   } = usePluginPanel(
     roomId,
     pluginPanels,
-    computerOpen || !!canvas || callOpen || (membersOpen && !membersOverPage)
+    computerOpen || !!canvas || callOpen || transcript.open || (membersOpen && !membersOverPage)
   );
 
   const closeCall = () => setCallOpen(false);
   const closeMembers = () => setMembersOpen(false);
 
   // One side panel at a time (useRoomPanels), the first open one of these. Opening one closes the
-  // others, except that the members stay open behind the call and show again when it closes. The
-  // computer and a canvas have their own Expand, which fills the room as their frame's Fill does.
+  // others, except that the members stay open behind the call or its live transcript and show
+  // again when it closes. The computer and a canvas have their own Expand, which fills the room as
+  // their frame's Fill does.
   const panels: PanelEntry[] = [
     {
       id: 'computer',
@@ -413,6 +425,35 @@ function RoomContent() {
         </ResizablePanel>
       ),
     },
+    {
+      id: 'transcript',
+      open: transcript.open,
+      // Another panel takes its place for good; its own close brings back the call panel it
+      // replaced (transcriptPanel.ts).
+      close: transcript.dismiss,
+      // The call controls and the call row open it in the call store.
+      opensElsewhere: true,
+      label: t('featureUi.calls.transcription.liveTranscript'),
+      covers: mobile,
+      render: () => (
+        <ResizablePanel
+          side="end"
+          storageKey={`mindroom.callTranscript.width:${ownUserId}`}
+          defaultWidth={CALL_DEFAULT_WIDTH}
+          minContentWidth={CONVERSATION_MIN_WIDTH}
+          maxPanelWidth={TRANSCRIPT_MAX_WIDTH}
+          passthrough={mobile}
+          resizeLabel={t('featureUi.calls.transcription.resize')}
+          collapseLabel={t('featureUi.calls.transcription.close')}
+          onCollapse={transcript.close}
+          testId="resizable-transcript-panel"
+        >
+          <Suspense fallback={null}>
+            <LiveTranscriptPanel room={room} onClose={transcript.close} />
+          </Suspense>
+        </ResizablePanel>
+      ),
+    },
     ...pluginPanels.map(
       (panel): PanelEntry => ({
         id: panel.id,
@@ -449,7 +490,7 @@ function RoomContent() {
       open: membersOpen,
       close: closeMembers,
       show: () => setMembersOpen(true),
-      yieldsTo: ['call'],
+      yieldsTo: ['call', 'transcript'],
       covers: false,
       render: () => (
         <ResizableMembersPanel onClose={closeMembers}>
@@ -459,6 +500,17 @@ function RoomContent() {
     },
   ];
   const { shown, layout, setLayout, request } = useRoomPanels(roomId, panels);
+  // Transcript, in the call's controls or on its row, asks for the panel as the room's own buttons
+  // ask for theirs, also while it shows: folded, it unfolds.
+  const store = useStore();
+  useEffect(
+    () =>
+      store.sub(transcriptPanelAtom, () => {
+        if (store.get(transcriptPanelAtom)?.roomId === roomId)
+          request('transcript', () => undefined);
+      }),
+    [request, roomId, store]
+  );
   // Beside the conversation the shown panel has a frame, which fills the room with it or folds it
   // to a tab at the room's edge. Phones show the panel over the conversation, with no frame; the
   // members, a list their header button already shows and hides, have none either.

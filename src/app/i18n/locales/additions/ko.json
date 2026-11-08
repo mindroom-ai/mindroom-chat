@@ -408,7 +408,32 @@
       "transcript": {
         "title": "음성 통화",
         "transcript": "대화 기록",
-        "turns_other": "발언 {{count}}개"
+        "turns_other": "발언 {{count}}개",
+        "moreTurns_other": "표시되지 않은 발언 {{count}}개 더 있음",
+        "callTitle": "통화"
+      },
+      "transcription": {
+        "unavailable": "녹취록을 사용할 수 없습니다",
+        "pause": "기록 일시 중지",
+        "pausedBy": "{{name}} 님이 일시 중지함",
+        "liveTranscript": "실시간 대화 기록",
+        "close": "실시간 대화 기록 닫기",
+        "resize": "실시간 대화 기록 크기 조정",
+        "transcribed": "이 통화는 기록되고 있습니다.",
+        "inCall": "통화 중",
+        "lines": "지금까지의 대화 기록",
+        "noCall": "이 방에서 진행 중인 통화가 없습니다.",
+        "notTranscribed": "이 방의 통화는 기록되지 않습니다.",
+        "nothingYet": "아직 아무 말도 없었습니다.",
+        "gap": {
+          "paused": "일시 중지됨",
+          "notTranscribed": "기록되지 않음"
+        }
+      },
+      "row": {
+        "live": "통화 진행 중",
+        "ended": "통화 종료",
+        "notes": "메모 및 대화 기록"
       }
     },
     "room": {

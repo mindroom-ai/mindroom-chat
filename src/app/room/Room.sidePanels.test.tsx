@@ -5,6 +5,11 @@ import { getDefaultStore, type PrimitiveAtom } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
 import { callPanelRoomAtom } from '../calls/callStore';
+import {
+  closeTranscriptPanel,
+  openTranscriptPanel,
+  transcriptPanelAtom,
+} from '../calls/transcription/transcriptPanel';
 import { conversationOutOfSightAtom } from '../navigation/conversationCover';
 import type { AgentServer } from '../computer/agentServer';
 import { computerServicePreferenceAtom } from '../computer/computerServiceSettings';
@@ -16,10 +21,11 @@ import type { RoomViewProps } from './RoomView';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
 import { makeUiEvent } from '../ui-actions/testUtils';
 
-// The room's side panels (the computer, a canvas, the call, the members and a plugin's panel),
-// opened as their users open them, through the room: the header's controls, an agent's live
-// request, the call store, which the call buttons and a call started elsewhere set, and a plugin's
-// code in the room (a card in the conversation).
+// The room's side panels (the computer, a canvas, the call, its live transcript, the members and a
+// plugin's panel), opened as their users open them, through the room: the header's controls, an
+// agent's live request, the call store, which the call buttons, a call started elsewhere, the call
+// controls' Transcript and a call row's Transcript set, and a plugin's code in the room (a card in
+// the conversation).
 
 const reportBoundaryError = vi.hoisted(() => vi.fn());
 vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) => ({
@@ -109,6 +115,7 @@ vi.mock('../canvas/RoomCanvasPanel', () => ({
   },
 }));
 vi.mock('../calls/CallPanel', () => ({ CallPanel: () => null }));
+vi.mock('../calls/transcription/LiveTranscriptPanel', () => ({ LiveTranscriptPanel: () => null }));
 vi.mock('../canvas/canvasIndex', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../canvas/canvasIndex')>()),
   useConversationCanvases: () => [],
@@ -212,14 +219,17 @@ importBeforeTests(() => import('./Room'));
 const store = getDefaultStore();
 const { membersOpenAtom } = membersDrawer as unknown as { membersOpenAtom: PrimitiveAtom<boolean> };
 
-const PANELS = ['computer', 'canvas', 'call', 'members'] as const;
+const PANELS = ['computer', 'canvas', 'call', 'transcript', 'members'] as const;
 type CorePanel = (typeof PANELS)[number];
 const TEST_IDS: Record<CorePanel, string> = {
   computer: 'resizable-computer-panel',
   canvas: 'room-canvas-panel',
   call: 'resizable-call-panel',
+  transcript: 'resizable-transcript-panel',
   members: 'resizable-members-panel',
 };
+/** The panels the members stay open behind. */
+const MEMBERS_YIELD_TO: readonly CorePanel[] = ['call', 'transcript'];
 
 let serial = 0;
 /** An agent's live request in the conversation, as sync delivers it. */
@@ -244,6 +254,8 @@ const open = async (panel: CorePanel) => {
     await agentRequest('show_canvas', { canvas: { title: 'Choose', html: '<p></p>' } });
   } else if (panel === 'call') {
     await act(async () => store.set(callPanelRoomAtom, room.roomId));
+  } else if (panel === 'transcript') {
+    await act(async () => openTranscriptPanel(store, room.roomId));
   } else {
     await agentRequest('open_panel', { panel: 'members' });
   }
@@ -253,6 +265,7 @@ const isOpen = (panel: CorePanel): boolean => {
   if (panel === 'computer') return state.view?.computerOpen === true;
   if (panel === 'canvas') return state.view?.openCanvasId !== undefined;
   if (panel === 'call') return store.get(callPanelRoomAtom) === room.roomId;
+  if (panel === 'transcript') return store.get(transcriptPanelAtom)?.roomId === room.roomId;
   return store.get(membersOpenAtom);
 };
 
@@ -294,6 +307,7 @@ describe('the side panels of a room', () => {
   afterEach(() => {
     cleanup();
     store.set(callPanelRoomAtom, undefined);
+    store.set(transcriptPanelAtom, undefined);
     store.set(membersOpenAtom, false);
     store.set(computerServicePreferenceAtom, null);
     state.servers = [];
@@ -324,17 +338,20 @@ describe('the side panels of a room', () => {
     await open(then);
     expect(isOpen(then)).toBe(true);
     expect(shown()).toEqual([then]);
-    if (first === 'members' && then === 'call') {
-      // The members stay open behind the call and come back when it closes.
+    if (first === 'members' && MEMBERS_YIELD_TO.includes(then)) {
+      // The members stay open behind the call or its transcript and come back when it closes.
       expect(isOpen('members')).toBe(true);
-      await act(async () => store.set(callPanelRoomAtom, undefined));
+      await act(async () => {
+        store.set(callPanelRoomAtom, undefined);
+        closeTranscriptPanel(store, room.roomId);
+      });
       expect(shown()).toEqual(['members']);
     } else {
       expect(isOpen(first)).toBe(false);
     }
   });
 
-  it.each(['canvas', 'call', 'members'] as const)(
+  it.each(['canvas', 'call', 'transcript', 'members'] as const)(
     "an agent's request for the computer takes the side panel from %s",
     async (first) => {
       await renderRoom();
@@ -392,6 +409,28 @@ describe('the side panels of a room', () => {
     await act(async () => state.view?.onPanelToggle?.('members'));
     expect(isOpen('members')).toBe(false);
     expect(shown()).toEqual([]);
+  });
+
+  it("shows the live transcript in the call panel's place, and the call again when it closes", async () => {
+    await renderRoom();
+    await open('call');
+    await open('transcript');
+    expect(isOpen('call')).toBe(false);
+    expect(shown()).toEqual(['transcript']);
+
+    await act(async () => closeTranscriptPanel(store, room.roomId));
+    expect(isOpen('transcript')).toBe(false);
+    expect(shown()).toEqual(['call']);
+  });
+
+  it("lets another panel take the live transcript's place for good", async () => {
+    await renderRoom();
+    await open('call');
+    await open('transcript');
+    await open('canvas');
+    expect(shown()).toEqual(['canvas']);
+    expect(isOpen('transcript')).toBe(false);
+    expect(isOpen('call')).toBe(false);
   });
 
   const notes = () => screen.queryByRole('region', { name: 'Notes' });
@@ -645,7 +684,7 @@ describe('the side panels of a room', () => {
     expect(board()).toBeNull();
   });
 
-  it.each(['call', 'members'] as const)(
+  it.each(['call', 'transcript', 'members'] as const)(
     'opens a panel that remembers again only when no other panel of its room is open: %s',
     async (core) => {
       signIn();
@@ -654,6 +693,7 @@ describe('the side panels of a room', () => {
       await act(async () => controls.board?.open());
       cleanup();
       if (core === 'call') store.set(callPanelRoomAtom, room.roomId);
+      else if (core === 'transcript') openTranscriptPanel(store, room.roomId);
       else store.set(membersOpenAtom, true);
       await renderRoom();
       expect(board()).toBeNull();
@@ -661,6 +701,7 @@ describe('the side panels of a room', () => {
       // Nor when that panel closes.
       await act(async () => {
         if (core === 'call') store.set(callPanelRoomAtom, undefined);
+        else if (core === 'transcript') closeTranscriptPanel(store, room.roomId);
         else store.set(membersOpenAtom, false);
       });
       expect(board()).toBeNull();
@@ -767,6 +808,24 @@ describe('the side panels of a room', () => {
       expect(frameButton(fill)).not.toBeNull();
     }
   );
+
+  it('unfolds the live transcript when Transcript is pressed again, which still brings back the call on close', async () => {
+    await renderRoom();
+    await open('call');
+    await open('transcript');
+    await act(async () => frameButton('Fold Live transcript to the edge')?.click());
+    expect(frameButton('Unfold Live transcript')).not.toBeNull();
+
+    await open('transcript');
+    expect(frameButton('Unfold Live transcript')).toBeNull();
+    expect(frameButton('Fill the room with Live transcript')?.getAttribute('aria-pressed')).toBe(
+      'false'
+    );
+    expect(shown()).toEqual(['transcript']);
+
+    await act(async () => closeTranscriptPanel(store, room.roomId));
+    expect(shown()).toEqual(['call']);
+  });
 
   it('takes the focus out of the conversation as a panel fills the room', async () => {
     await renderRoom();

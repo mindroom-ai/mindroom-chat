@@ -7,7 +7,9 @@ import {
   clipTurnText,
   groupCallTranscriptTurns,
   readCallTranscript,
+  speakerMemberships,
 } from './callTranscript';
+import { defined } from '../../../test/utils/defined';
 
 const PERSON = '@robin:example.org';
 const AGENT = '@mindroom_helper:example.org';
@@ -33,6 +35,36 @@ describe('readCallTranscript', () => {
         { sender: AGENT, text: 'Yes, loud and clear.' },
       ],
     });
+  });
+
+  it("names the call of a people call's transcript message, whose body is the notes", () => {
+    const content = {
+      ...withTranscript({ duration_seconds: 720, turns: [turn(PERSON, 'Shall we ship it?')] }),
+      'io.mindroom.call_notes': { call_id: 'call-1' },
+    };
+    expect(readCallTranscript(content)).toEqual({
+      durationSeconds: 720,
+      turns: [{ sender: PERSON, text: 'Shall we ship it?' }],
+      callId: 'call-1',
+      summaryOnly: false,
+    });
+    // Without a notes model the body is only the one-line summary.
+    expect(readCallTranscript({ ...content, body: 'Call · 12 min' })?.summaryOnly).toBe(true);
+  });
+
+  it('counts speakers who were in a call between people and left since', () => {
+    const turns = [turn(PERSON, 'Hello')];
+    const people = readCallTranscript({
+      ...withTranscript({ duration_seconds: 60, turns }),
+      'io.mindroom.call_notes': { call_id: 'call-1' },
+    });
+    const agentCall = readCallTranscript(withTranscript({ duration_seconds: 60, turns }));
+    expect([...speakerMemberships(defined(people, 'people'))].sort()).toEqual([
+      'ban',
+      'join',
+      'leave',
+    ]);
+    expect([...speakerMemberships(defined(agentCall, 'agent call'))]).toEqual(['join']);
   });
 
   it('rounds a fractional duration and ignores extra fields', () => {
@@ -136,6 +168,32 @@ describe('readCallTranscript', () => {
         withTranscript({ duration_seconds: 10, turns: turns(CALL_TRANSCRIPT_MAX_TURNS + 1) })
       )
     ).toBeUndefined();
+  });
+
+  it("shows a call between people's first turns up to the limits, and how many more there are", () => {
+    const notes = { 'io.mindroom.call_notes': { call_id: 'call-1' } };
+    const colleague = '@kai:example.org';
+    const many = Array.from({ length: CALL_TRANSCRIPT_MAX_TURNS + 5 }, (_, index) =>
+      turn(index % 2 ? colleague : PERSON, `Line ${index}`)
+    );
+    const long = readCallTranscript({
+      ...withTranscript({ duration_seconds: 7200, turns: many }),
+      ...notes,
+    });
+    expect(long?.turns).toHaveLength(CALL_TRANSCRIPT_MAX_TURNS);
+    expect(long?.turns.at(-1)?.text).toBe(`Line ${CALL_TRANSCRIPT_MAX_TURNS - 1}`);
+    expect(long?.moreTurns).toBe(5);
+
+    const half = 'a'.repeat(CALL_TRANSCRIPT_MAX_TOTAL_LENGTH / 2);
+    const large = readCallTranscript({
+      ...withTranscript({
+        duration_seconds: 7200,
+        turns: [turn(PERSON, half), turn(colleague, half), turn(PERSON, 'One more.')],
+      }),
+      ...notes,
+    });
+    expect(large?.turns.map((each) => each.sender)).toEqual([PERSON, colleague]);
+    expect(large?.moreTurns).toBe(1);
   });
 
   it('keeps a long turn whole: one speaker can talk for many minutes', () => {
