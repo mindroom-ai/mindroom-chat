@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { MatrixClient, MatrixEvent, MemoryStore, Room } from 'matrix-js-sdk';
+import { MatrixClient, MatrixEvent, MemoryStore, Room, RoomVersionStability } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
@@ -71,7 +71,10 @@ const setup = (myLevel = 100) => {
   const sendStateEvent = vi.spyOn(mx, 'sendStateEvent').mockResolvedValue({ event_id: '$child' });
   // The homeserver creates rooms in version 12 unless asked for another.
   vi.spyOn(mx, 'getCachedCapabilities').mockReturnValue({
-    'm.room_versions': { default: '12', available: { '11': 'stable', '12': 'stable' } },
+    'm.room_versions': {
+      default: '12',
+      available: { '11': RoomVersionStability.Stable, '12': RoomVersionStability.Stable },
+    },
   });
   return { mx, parent, createRoom, sendStateEvent };
 };

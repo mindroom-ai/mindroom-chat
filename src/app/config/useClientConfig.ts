@@ -6,7 +6,7 @@ configContext.displayName = 'ClientConfig';
 const depthContext = createContext(0);
 
 /** What each mounted `ClientConfigProvider` supplies, at its depth, in the order they mounted. */
-const mounted: { config: ClientConfig; depth: number }[] = [];
+const mounted: { config: ClientConfig | undefined; depth: number }[] = [];
 
 /**
  * Supplies the loaded `config.json` to everything rendered below it, and to `getClientConfig()`
@@ -16,7 +16,7 @@ export function ClientConfigProvider({
   value,
   children,
 }: {
-  value: ClientConfig;
+  value: ClientConfig | undefined;
   children?: ReactNode;
 }) {
   const depth = useContext(depthContext) + 1;
