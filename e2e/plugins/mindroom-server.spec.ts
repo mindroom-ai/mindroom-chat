@@ -6,6 +6,7 @@ import {
   openLobby,
   openNewSession,
   routeClientConfig,
+  showPath,
   test,
   uniqueWord,
   type AgentStack,
@@ -158,13 +159,6 @@ const CONFIGURED = 'http://127.0.0.1:29599';
 const greetingLines = (page: Page) =>
   page.evaluate(() => (window as unknown as { greetingLines: string[] }).greetingLines);
 
-/** Moves the loaded client to a room, as a link inside the app would. */
-const switchRoom = (page: Page, roomId: string) =>
-  page.evaluate((url) => {
-    window.history.pushState(null, '', url);
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  }, `/home/${encodeURIComponent(roomId)}`);
-
 test("a plugin's panel waits for the room's server: the published one, never the configured one, and none only once the members are in", async ({
   page,
   stack,
@@ -200,10 +194,9 @@ test("a plugin's panel waits for the room's server: the published one, never the
   await page.reload();
   await expect(panel.getByText(published)).toBeVisible({ timeout: 90_000 });
   // Soft, as the checks below, so a run on a client without the wait reports each difference.
-  expect.soft(await greetingLines(page)).not.toContain('No MindRoom server');
-  expect
-    .soft((await greetingLines(page)).filter((line) => line.startsWith('MindRoom server:')))
-    .toEqual([published]);
+  const reloaded = await greetingLines(page);
+  expect.soft(reloaded).not.toContain('No MindRoom server');
+  expect.soft(reloaded.filter((line) => line.startsWith('MindRoom server:'))).toEqual([published]);
 
   // A load that starts in a room without an agent, then switches into the lobby, whose members it
   // has not loaded yet.
@@ -212,7 +205,7 @@ test("a plugin's panel waits for the room's server: the published one, never the
   await roomHeader(page).getByRole('button', { name: 'Example panel', exact: true }).click();
   await expect(panel.getByText('No MindRoom server')).toBeVisible({ timeout: 60_000 });
   const before = (await greetingLines(page)).length;
-  await switchRoom(page, stack.rooms.lobby);
+  await showPath(page, `/home/${encodeURIComponent(stack.rooms.lobby)}`);
   await expect(panel.getByText(published)).toBeVisible({ timeout: 60_000 });
   expect.soft((await greetingLines(page)).slice(before)).not.toContain('No MindRoom server');
 

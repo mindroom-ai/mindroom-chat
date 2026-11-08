@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
-import type { IOpenIDToken, MatrixClient } from 'matrix-js-sdk';
+import type { IOpenIDToken, MatrixClient, Room } from 'matrix-js-sdk';
 import { useEffect, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TranscriptionClient } from '../app/calls/transcription/api';
@@ -17,6 +17,7 @@ import {
 const ROOM_ID = '!room:example.org';
 const PUBLISHED = 'https://published.example.org';
 const DEPLOYMENT = 'https://deployment.example.org';
+const AGENT = { userId: '@mindroom_router:example.org', membership: 'join' };
 
 const state = vi.hoisted(() => ({
   // Undefined asks the homeserver, which gives `binding`'s answer, as the app does.
@@ -50,22 +51,26 @@ const json = (body: unknown, status = 200) =>
 const fakeFetch = () => {
   const sent: { url: string; init: RequestInit }[] = [];
   let sessions = 0;
+  const isSignIn = (url: string) => url.endsWith('/api/client-sessions');
   const route = vi.fn((_url: string): Response => json({}));
   const request = vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const url = String(input);
     sent.push({ url, init });
-    if (url.endsWith('/api/client-sessions')) {
+    if (isSignIn(url)) {
       sessions += 1;
       return json({ session_token: `session-${sessions}`, expires_at: Date.now() / 1000 + 3600 });
     }
     return route(url);
   });
   vi.stubGlobal('fetch', request);
-  const toRoutes = () => sent.filter(({ url }) => !url.endsWith('/api/client-sessions'));
+  const toRoutes = () => sent.filter(({ url }) => !isSignIn(url));
   return {
     route,
     request,
     signIns: () => sessions,
+    /** The origin of each sign-in. */
+    signInOrigins: () =>
+      sent.filter(({ url }) => isSignIn(url)).map(({ url }) => new URL(url).origin),
     routes: () => toRoutes().map(({ url }) => url),
     /** The bearer each request after the sign-ins carried. */
     bearers: () => toRoutes().map(({ init }) => new Headers(init.headers).get('Authorization')),
@@ -100,13 +105,6 @@ const bindingAnswer = () => {
   return (binds: boolean | undefined) => act(async () => answer(binds));
 };
 
-/** The origins the page signed in at. */
-const signInOrigins = (answers: ReturnType<typeof fakeFetch>) =>
-  answers.request.mock.calls
-    .map(([input]) => String(input))
-    .filter((url) => url.endsWith('/api/client-sessions'))
-    .map((url) => new URL(url).origin);
-
 const published = (): MindroomServer => {
   state.published = PUBLISHED;
   const found = server(DEPLOYMENT);
@@ -118,9 +116,8 @@ beforeEach(() => {
   // Each test signs in afresh: sessions are kept per account.
   mx = { getRoom: () => null, getSafeUserId: () => '@ann:example.org' } as unknown as MatrixClient;
   state.bindsTokens = true;
-  state.binding = Promise.resolve(true);
   state.published = undefined;
-  state.members = [{ userId: '@mindroom_router:example.org', membership: 'join' }];
+  state.members = [AGENT];
 });
 
 afterEach(() => {
@@ -165,7 +162,7 @@ describe('useMindroomServer', () => {
 
     expect(seen[0]).toBe(DEPLOYMENT);
     expect(seen.at(-1)).toBe(PUBLISHED);
-    await vi.waitFor(() => expect(signInOrigins(answers)).toEqual([DEPLOYMENT, PUBLISHED]));
+    await vi.waitFor(() => expect(answers.signInOrigins()).toEqual([DEPLOYMENT, PUBLISHED]));
   });
 
   it('shares one sign-in between every plugin and call transcripts', async () => {
@@ -186,8 +183,6 @@ describe('useMindroomServer', () => {
 });
 
 describe('useMindroomServerStatus', () => {
-  const AGENT = { userId: '@mindroom_router:example.org', membership: 'join' };
-
   /**
    * Each status the hook gives, from a plugin that requests as soon as it has a server, and a
    * switch of that plugin to another room.
@@ -207,7 +202,7 @@ describe('useMindroomServerStatus', () => {
     return { seen, showRoom: (roomId: string) => rerender({ roomId }) };
   };
 
-  const rooms = new Map<string, unknown>();
+  const rooms = new Map<string, Pick<Room, 'membersLoaded' | 'loadMembersIfNeeded'>>();
   beforeEach(() => rooms.clear());
 
   /** Makes `roomId` a room whose member list, lazy-loaded, is still out until the test settles it. */
@@ -276,7 +271,7 @@ describe('useMindroomServerStatus', () => {
     expect(seen.at(-1)).toEqual({ origin: PUBLISHED, pending: false });
     expect(seen.filter(({ origin }) => origin)).toHaveLength(1);
     await vi.waitFor(() => expect(answers.routes()).toHaveLength(1));
-    expect(signInOrigins(answers)).toEqual([PUBLISHED]);
+    expect(answers.signInOrigins()).toEqual([PUBLISHED]);
   });
 
   it("counts a binding check that could not reach the homeserver as an answer: the deployment's server", async () => {
