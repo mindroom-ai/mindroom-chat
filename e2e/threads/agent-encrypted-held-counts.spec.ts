@@ -292,9 +292,10 @@ test('a new session whose keys come late from the key backup shows an unread fin
       await page.getByRole('button', { name: 'Verify Manually' }).click({ timeout: 30_000 });
       await page.locator('input[name="recoveryKeyInput"]').fill(recoveryKey);
       await page.getByRole('button', { name: 'Verify', exact: true }).last().click();
-      await expect(page.getByRole('button', { name: 'Unverified Device' })).toHaveCount(0, {
-        timeout: 60_000,
-      });
+      // The other sessions stay unverified ("Unverified Devices"); this one is verified.
+      await expect(
+        page.getByRole('button', { name: 'Unverified Device', exact: true })
+      ).toHaveCount(0, { timeout: 60_000 });
       const restore = page.getByRole('button', { name: 'Restore Backup' });
       await expect(restore).toBeEnabled({ timeout: 30_000 });
       await restore.click();
