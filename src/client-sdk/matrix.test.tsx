@@ -16,7 +16,6 @@ const stateEvent = (type: string, content: Record<string, unknown>) =>
     room_id: '!lobby:example.org',
     sender: CREATOR,
     state_key: '',
-    event_id: `$${type}-${Math.random()}`,
     content,
   });
 

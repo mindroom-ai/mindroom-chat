@@ -278,7 +278,8 @@ describe('example plugin', () => {
       { id: 'example', plugin, client }
     );
     const agent = view.getByText('From @mindroom_helper:example.org, a MindRoom agent');
-    // Without a service worker that adds the access token, the app asks for media without it.
+    // A test knows neither the homeserver's versions nor a service worker, so its media is the
+    // unauthenticated kind.
     expect(agent.querySelector('img')?.getAttribute('src')).toBe(
       'https://example.org/_matrix/media/v3/thumbnail/example.org/helper?width=32&height=32&method=crop'
     );
