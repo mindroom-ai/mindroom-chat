@@ -407,7 +407,14 @@ function MobileSurface({ state, requestClose, onCommand }: Omit<SurfaceProps, 'm
   );
 }
 
-export function ModelPicker({ state }: { state: ModelPickerState }) {
+export function ModelPicker({
+  state,
+  conversationHidden = false,
+}: {
+  state: ModelPickerState;
+  /** The conversation it is in is hidden (a cover over it, a side panel in its place): it closes. */
+  conversationHidden?: boolean;
+}) {
   const { t } = useTranslation();
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const [open, setOpen] = useState(false);
@@ -425,6 +432,12 @@ export function ModelPicker({ state }: { state: ModelPickerState }) {
     setOpen(false);
     triggerRef.current?.focus();
   };
+  useEffect(() => {
+    if (!conversationHidden) return;
+    commandStartedRef.current = false;
+    sawPendingRef.current = false;
+    setOpen(false);
+  }, [conversationHidden]);
 
   useEffect(() => {
     if (!open || !commandStartedRef.current) return;
@@ -509,7 +522,13 @@ export function ModelPicker({ state }: { state: ModelPickerState }) {
   );
 }
 
-function ExistingThreadModelPicker({ room, threadId }: { room: Room; threadId: string }) {
+type ThreadModelPickerProps = { room: Room; conversationHidden?: boolean };
+
+function ExistingThreadModelPicker({
+  room,
+  threadId,
+  conversationHidden,
+}: ThreadModelPickerProps & { threadId: string }) {
   const { t } = useTranslation();
   const state = useModelPicker(room, threadId);
   if (!state.eligible) return null;
@@ -517,12 +536,15 @@ function ExistingThreadModelPicker({ room, threadId }: { room: Room; threadId: s
   return (
     <div className={css.ComposerRow}>
       <span className={css.ScopeLabel}>{t('mindroomUi.models.modelPicker.threadModel')}</span>
-      <ModelPicker state={state} />
+      <ModelPicker state={state} conversationHidden={conversationHidden} />
     </div>
   );
 }
 
-export function ThreadModelPicker({ room, threadId }: { room: Room; threadId?: string }) {
+export function ThreadModelPicker({
+  threadId,
+  ...props
+}: ThreadModelPickerProps & { threadId?: string }) {
   if (!threadId) return null;
-  return <ExistingThreadModelPicker room={room} threadId={threadId} />;
+  return <ExistingThreadModelPicker threadId={threadId} {...props} />;
 }

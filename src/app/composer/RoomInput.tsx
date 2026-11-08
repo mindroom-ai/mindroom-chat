@@ -729,7 +729,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           onPaste={attachments.onPaste}
           top={
             <>
-              <ThreadModelPicker room={room} threadId={threadId} />
+              <ThreadModelPicker
+                room={room}
+                threadId={threadId}
+                conversationHidden={conversationHidden}
+              />
               {replyDraft ? (
                 <RoomInputReplyPreview
                   room={room}
