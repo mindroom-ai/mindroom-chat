@@ -94,6 +94,9 @@ export function ReactionTooltipMsg({ room, reaction, events }: ReactionTooltipMs
         reaction: revealDirectionControls(shortcode),
       }}
       components={{ names: <b />, reaction: <span /> }}
+      // Escaped, a key's `<U+202E>` and a name's `<` stay text instead of reading as tags.
+      tOptions={{ interpolation: { escapeValue: true } }}
+      shouldUnescape
     />
   );
 }
