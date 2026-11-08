@@ -6,7 +6,7 @@ import type {
 } from 'matrix-js-sdk/lib/crypto-api';
 import { clearSecretStorageKeys } from '../../matrix/client/secretStorageKeys';
 import { fetchKeyBackupVersion } from './keyBackupVersion';
-import { refreshOwnIdentity } from './unlockWithRecoveryKey';
+import { holdsPublishedIdentity, refreshOwnIdentity } from './unlockWithRecoveryKey';
 
 // Thrown in English and translated when shown, so a retained error follows language changes.
 export const CRYPTO_NOT_FOUND = 'Unexpected Error! Crypto module not found!';
@@ -45,7 +45,8 @@ const withoutSecretStorage = async (
  * that can fail (the person closes the account confirmation, the server refuses it). Had the new
  * storage and backup come first, a failure would leave secret storage holding keys the server
  * never got, and the previous backup deleted. A failed publish also leaves this session holding
- * the unpublished keys, so the server's identity is asked for again before the error goes on.
+ * the unpublished keys, so the server's identity is asked for again and the keys this session
+ * held before are put back before the error goes on.
  */
 export const setUpRecovery = async (
   client: Pick<MatrixClient, 'getCrypto' | 'secretStorage' | 'getSafeUserId'>,
@@ -59,12 +60,15 @@ export const setUpRecovery = async (
   const { encodedPrivateKey } = recoveryKey;
   if (!encodedPrivateKey) throw new Error(RECOVERY_KEY_FAILED);
 
+  // None on an account without cross-signing yet.
+  const previous = await crypto.exportSecretsBundle?.().catch(() => undefined);
   try {
     await withoutSecretStorage(client.secretStorage, () =>
       crypto.bootstrapCrossSigning({ setupNewCrossSigning: true, authUploadDeviceSigningKeys })
     );
   } catch (error) {
     await refreshOwnIdentity(client);
+    if (previous) await crypto.importSecretsBundle?.(previous).catch(() => undefined);
     throw error;
   }
 
@@ -98,21 +102,18 @@ const holdsBackupKey = async (
 /**
  * Stores the cross-signing keys and the backup key this session holds under a new secret
  * storage key, so a changed recovery password covers them without new keys or a new backup.
- * Refuses, before touching anything, when this session lacks any of them.
+ * Refuses, before touching anything, when this session lacks any of them, or holds an identity
+ * the server no longer publishes (one replaced on another device), which would overwrite the
+ * account's.
  */
 export const storeSecretsUnderNewKey = async (
-  client: Pick<MatrixClient, 'getCrypto' | 'http'>,
+  client: Pick<MatrixClient, 'getCrypto' | 'http' | 'getSafeUserId'>,
   recoveryKey: GeneratedSecretStorageKey
 ): Promise<void> => {
   const crypto = client.getCrypto();
   if (!crypto) throw new Error(CRYPTO_NOT_FOUND);
 
-  const { privateKeysCachedLocally } = await crypto.getCrossSigningStatus();
-  const crossSigningCached =
-    privateKeysCachedLocally.masterKey &&
-    privateKeysCachedLocally.selfSigningKey &&
-    privateKeysCachedLocally.userSigningKey;
-  if (!crossSigningCached || !(await holdsBackupKey(client, crypto))) {
+  if (!(await holdsPublishedIdentity(client)) || !(await holdsBackupKey(client, crypto))) {
     throw new Error(RECOVERY_SECRETS_NOT_CACHED);
   }
 

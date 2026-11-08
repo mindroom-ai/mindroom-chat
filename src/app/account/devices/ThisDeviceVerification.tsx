@@ -91,6 +91,8 @@ type ThisDeviceVerificationProps = {
   onRequest: (request: VerificationRequest) => void;
   /** Called when an unlock with the recovery password or key starts. */
   onUnlockStarted?: () => void;
+  /** Called when that unlock fails. */
+  onUnlockFailed?: () => void;
 };
 
 /**
@@ -101,6 +103,7 @@ type ThisDeviceVerificationProps = {
 export function ThisDeviceVerification({
   onRequest,
   onUnlockStarted,
+  onUnlockFailed,
 }: ThisDeviceVerificationProps) {
   const { t } = useTranslation();
   const client = useMatrixClient();
@@ -196,6 +199,7 @@ export function ThisDeviceVerification({
         <RecoveryUnlock
           secretStorageKey={describeKey(secretStorageKey)}
           onUnlockStarted={onUnlockStarted}
+          onUnlockFailed={onUnlockFailed}
           onUnlocked={() => setUnlocked(true)}
         />
       )}

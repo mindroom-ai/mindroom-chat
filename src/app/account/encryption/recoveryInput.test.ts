@@ -49,6 +49,12 @@ describe('keyFromRecoveryInput', () => {
     );
   });
 
+  it('derives the key from a password that reads as another recovery key', async () => {
+    const derived = await deriveRecoveryKeyFromPassphrase(encoded, 'salt', 10);
+    const { client } = clientAccepting(derived);
+    await expect(keyFromRecoveryInput(client, encoded, withPassphrase)).resolves.toEqual(derived);
+  });
+
   it('rejects a password when the key has no passphrase', async () => {
     const { client, checkKey } = clientAccepting(recoveryKey);
     await expect(keyFromRecoveryInput(client, 'correct horse battery', {})).rejects.toThrow(

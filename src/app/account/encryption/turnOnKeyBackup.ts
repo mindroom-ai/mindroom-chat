@@ -13,7 +13,8 @@ export const BACKUP_NOT_IN_USE = 'The new key backup is not in use.';
  * key the recovery password gives (cached here first, or the SDK could not write it), and starts
  * uploading every room key this session holds. Every session that unlocks with the recovery
  * password then uses the same backup. The SDK's reset deletes older backup versions, so this
- * refuses when the server already has one.
+ * refuses when the server already has one. It reports success only once the recovery password
+ * opens the server's backup.
  */
 export async function turnOnKeyBackup(
   client: Pick<MatrixClient, 'getCrypto' | 'http'>,
@@ -35,9 +36,9 @@ export async function turnOnKeyBackup(
     await crypto.resetKeyBackup();
     await crypto.checkKeyBackupAndEnable();
   }
-  // The server's backup must be the one this session uses (another session turning backup on at
-  // the same moment could have replaced it), or its key in secret storage would open nothing.
-  const active = await crypto.getActiveSessionBackupVersion();
-  const onServer = await fetchKeyBackupVersion(client);
-  if (!active || onServer?.version !== active) throw new Error(BACKUP_NOT_IN_USE);
+  // The key in secret storage has to open the server's backup (the SDK refuses a stored key that
+  // does not match it).
+  await crypto.loadSessionBackupPrivateKeyFromSecretStorage().catch(() => {
+    throw new Error(BACKUP_NOT_IN_USE);
+  });
 }

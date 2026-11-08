@@ -37,8 +37,10 @@ const decodeKey = (text: string): Uint8Array | null => {
 
 /**
  * Turns what a person typed into the secret storage key it stands for: a base58 recovery key, or
- * else the password the key's passphrase info derives it from. The key is checked against the key
- * description; anything that does not match rejects with `INVALID_RECOVERY_INPUT`.
+ * else the password the key's passphrase info derives it from (also when the text reads as a
+ * recovery key that does not fit, since any text can be chosen as the password). The key is
+ * checked against the key description; anything that does not match rejects with
+ * `INVALID_RECOVERY_INPUT`.
  */
 export const keyFromRecoveryInput = async (
   client: Pick<MatrixClient, 'secretStorage'>,
@@ -47,15 +49,13 @@ export const keyFromRecoveryInput = async (
 ): Promise<Uint8Array> => {
   const trimmed = input.trim();
   if (!trimmed) throw new Error(INVALID_RECOVERY_INPUT);
-  let key = decodeKey(trimmed);
-  if (!key && keyContent.passphrase) {
-    const { salt, iterations, bits } = keyContent.passphrase;
-    key = await deriveRecoveryKeyFromPassphrase(trimmed, salt, iterations, bits);
-  }
-  if (!key) throw new Error(INVALID_RECOVERY_INPUT);
   const description = keyContent as SecretStorageKeyDescriptionAesV1;
-  if (!(await client.secretStorage.checkKey(key, description))) {
-    throw new Error(INVALID_RECOVERY_INPUT);
+  const decoded = decodeKey(trimmed);
+  if (decoded && (await client.secretStorage.checkKey(decoded, description))) return decoded;
+  if (keyContent.passphrase) {
+    const { salt, iterations, bits } = keyContent.passphrase;
+    const derived = await deriveRecoveryKeyFromPassphrase(trimmed, salt, iterations, bits);
+    if (await client.secretStorage.checkKey(derived, description)) return derived;
   }
-  return key;
+  throw new Error(INVALID_RECOVERY_INPUT);
 };

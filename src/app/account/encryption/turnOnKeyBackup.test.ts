@@ -30,6 +30,9 @@ const makeCrypto = (calls: string[]): FakeCrypto => {
       calls.push(`delete:${deleted}`);
       active = null;
     }),
+    loadSessionBackupPrivateKeyFromSecretStorage: vi.fn(async () => {
+      calls.push('check stored key');
+    }),
   };
 };
 
@@ -39,8 +42,7 @@ const clientWith = (crypto: FakeCrypto | undefined) =>
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.fetchKeyBackupVersion.mockReset();
-  // No backup at first; afterwards the server has the one this session made last.
-  mocks.fetchKeyBackupVersion.mockResolvedValueOnce(null).mockResolvedValue({ version: '2' });
+  mocks.fetchKeyBackupVersion.mockResolvedValue(null);
 });
 
 describe('turnOnKeyBackup', () => {
@@ -52,14 +54,24 @@ describe('turnOnKeyBackup', () => {
     expect(mocks.storePrivateKey).toHaveBeenCalledWith('key1', KEY);
     // The first version is turned off by deleting it while active, which makes the SDK forget
     // the keys it uploaded to an earlier backup; the second one then receives all of them.
-    expect(calls).toEqual(['cache', 'reset:1', 'enable:1', 'delete:1', 'reset:2', 'enable:2']);
+    expect(calls).toEqual([
+      'cache',
+      'reset:1',
+      'enable:1',
+      'delete:1',
+      'reset:2',
+      'enable:2',
+      'check stored key',
+    ]);
   });
 
-  it('fails when the server ends up with another backup than the one this session uses', async () => {
-    mocks.fetchKeyBackupVersion.mockReset();
-    mocks.fetchKeyBackupVersion.mockResolvedValueOnce(null).mockResolvedValue({ version: '9' });
+  it('fails when the key in secret storage does not open the backup', async () => {
+    const crypto = makeCrypto([]);
+    crypto.loadSessionBackupPrivateKeyFromSecretStorage!.mockRejectedValue(
+      new Error('decryption key does not match backup info')
+    );
 
-    await expect(turnOnKeyBackup(clientWith(makeCrypto([])), 'key1', KEY)).rejects.toThrow(
+    await expect(turnOnKeyBackup(clientWith(crypto), 'key1', KEY)).rejects.toThrow(
       BACKUP_NOT_IN_USE
     );
   });

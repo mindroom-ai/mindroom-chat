@@ -265,6 +265,34 @@ describe('RecoveryUnlock', () => {
     expect(onUnlocked).toHaveBeenCalledTimes(1);
   });
 
+  it('tells the parent when an unlock fails, so it no longer holds the form for it', async () => {
+    mocks.keyFromRecoveryInput.mockRejectedValue(new Error(INVALID_RECOVERY_INPUT));
+    const onUnlockFailed = vi.fn();
+    const onUnlocked = vi.fn();
+    render(
+      <RecoveryUnlock
+        secretStorageKey={KEY}
+        onUnlockFailed={onUnlockFailed}
+        onUnlocked={onUnlocked}
+      />
+    );
+    await submit('wrong');
+
+    expect(onUnlockFailed).toHaveBeenCalledTimes(1);
+    expect(onUnlocked).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed backup lookup as a failed restore, after the unlock', async () => {
+    mocks.backupVersion.mockRejectedValue(new Error('offline'));
+    render(<RecoveryUnlock secretStorageKey={KEY} />);
+    await submit('my long password');
+
+    expect(screen.getByText('This device is verified.')).toBeTruthy();
+    expect(
+      screen.getByText('Some messages could not be restored. You can try again in Settings.')
+    ).toBeTruthy();
+  });
+
   it('disables Unlock while it runs', async () => {
     unlock.mockReturnValue(new Promise(() => undefined));
     render(<RecoveryUnlock secretStorageKey={KEY} />);

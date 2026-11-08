@@ -370,6 +370,7 @@ export function DeviceSettings({ trust }: { trust: OwnDeviceTrust | undefined })
                 <ThisDeviceVerification
                   onRequest={setVerification}
                   onUnlockStarted={() => setUnlockedHere(true)}
+                  onUnlockFailed={() => setUnlockedHere(false)}
                 />
               )}
             </SettingsCard>

@@ -14,13 +14,13 @@ vi.mock('./keyBackupVersion', () => ({ fetchKeyBackupVersion: vi.fn() }));
 
 const GENERATED = { keyInfo: {}, privateKey: new Uint8Array([1]), encodedPrivateKey: 'EsT1 KEY' };
 
-type Cached = { masterKey: boolean; selfSigningKey: boolean; userSigningKey: boolean };
-const ALL_CACHED: Cached = { masterKey: true, selfSigningKey: true, userSigningKey: true };
+const BUNDLE = { cross_signing: { master_key: 'old' } };
 
 const makeCrypto = (
   options: {
     generated?: typeof GENERATED | { encodedPrivateKey?: undefined };
-    cached?: Cached;
+    /** Whether this session holds the private keys of the identity the server publishes. */
+    published?: boolean;
     backupInfo?: { version: string } | null;
     backupKeyMatches?: boolean;
     ready?: boolean;
@@ -36,9 +36,10 @@ const makeCrypto = (
     createRecoveryKeyFromPassphrase: track('create', options.generated ?? GENERATED),
     bootstrapSecretStorage: track('storage', undefined),
     bootstrapCrossSigning: track('crossSigning', undefined),
-    getCrossSigningStatus: track('status', {
-      privateKeysCachedLocally: options.cached ?? ALL_CACHED,
-    }),
+    userHasCrossSigningKeys: track('refresh', true),
+    getCrossSigningKeyId: track('keyId', options.published === false ? null : 'MASTER'),
+    exportSecretsBundle: track('export', BUNDLE),
+    importSecretsBundle: track('import', undefined),
     // This session holds a backup key; whether it fits the server's backup is the question.
     getSessionBackupPrivateKey: track('backupKey', new Uint8Array([7])),
     getKeyBackupInfo: track('backupInfo', options.backupInfo ?? null),
@@ -63,16 +64,15 @@ beforeEach(() => {
  */
 const setupClient = (crypto: ReturnType<typeof makeCrypto>['crypto'], calls: string[]) => {
   const secretStorage = { hasKey: vi.fn(async () => true) };
-  const userHasCrossSigningKeys = vi.fn(async () => {
-    calls.push('refresh');
-    return true;
-  });
   crypto.bootstrapCrossSigning.mockImplementation(async () => {
     calls.push(`crossSigning:storage=${String(await secretStorage.hasKey())}`);
   });
-  Object.assign(crypto, { userHasCrossSigningKeys });
-  const client = { getCrypto: () => crypto, secretStorage, getSafeUserId: () => '@me:example.org' };
-  return { client: client as never, secretStorage, userHasCrossSigningKeys };
+  const client = {
+    getCrypto: () => crypto,
+    secretStorage,
+    getSafeUserId: () => '@me:example.org',
+  };
+  return { client: client as never, secretStorage };
 };
 
 describe('setUpRecovery', () => {
@@ -85,7 +85,7 @@ describe('setUpRecovery', () => {
     const key = await setUpRecovery(client, 'a long recovery password', auth);
 
     expect(key).toBe('EsT1 KEY');
-    expect(calls).toEqual(['create', 'crossSigning:storage=false', 'clear', 'storage']);
+    expect(calls).toEqual(['create', 'export', 'crossSigning:storage=false', 'clear', 'storage']);
     // Hidden in this tab only, and visible again afterwards.
     await expect(secretStorage.hasKey()).resolves.toBe(true);
     expect(crypto.createRecoveryKeyFromPassphrase).toHaveBeenCalledWith('a long recovery password');
@@ -104,8 +104,8 @@ describe('setUpRecovery', () => {
     await expect(createSecretStorageKey()).resolves.toBe(GENERATED);
   });
 
-  it('a publish that fails changes nothing on the server and drops the unpublished keys here', async () => {
-    const { crypto, calls } = makeCrypto();
+  it('a publish that fails changes nothing on the server and puts back the keys held here', async () => {
+    const { crypto, calls } = makeCrypto({ published: false });
     vi.mocked(clearSecretStorageKeys).mockImplementation(() => void calls.push('clear'));
     const { client, secretStorage } = setupClient(crypto, calls);
     crypto.bootstrapCrossSigning.mockImplementation(async () => {
@@ -116,7 +116,8 @@ describe('setUpRecovery', () => {
     await expect(setUpRecovery(client, 'a long recovery password', vi.fn())).rejects.toThrow(
       'Authentication cancelled'
     );
-    expect(calls).toEqual(['create', 'crossSigning:storage=false', 'refresh']);
+    expect(calls).toEqual(['create', 'export', 'crossSigning:storage=false', 'refresh', 'import']);
+    expect(crypto.importSecretsBundle).toHaveBeenCalledWith(BUNDLE);
     await expect(secretStorage.hasKey()).resolves.toBe(true);
     expect(crypto.bootstrapSecretStorage).not.toHaveBeenCalled();
     expect(clearSecretStorageKeys).not.toHaveBeenCalled();
@@ -135,7 +136,8 @@ describe('setUpRecovery', () => {
 });
 
 describe('storeSecretsUnderNewKey', () => {
-  const client = (crypto: unknown) => ({ getCrypto: () => crypto, http: {} } as never);
+  const client = (crypto: unknown) =>
+    ({ getCrypto: () => crypto, http: {}, getSafeUserId: () => '@me:example.org' } as never);
 
   it('storeSecretsUnderNewKey writes the cached secrets under the new key without a new backup', async () => {
     const { crypto, calls } = makeCrypto();
@@ -143,7 +145,7 @@ describe('storeSecretsUnderNewKey', () => {
 
     await storeSecretsUnderNewKey(client(crypto), GENERATED);
 
-    expect(calls).toEqual(['status', 'clear', 'storage', 'storageStatus']);
+    expect(calls).toEqual(['refresh', 'keyId', 'clear', 'storage', 'storageStatus']);
     expect(crypto.bootstrapSecretStorage).toHaveBeenCalledTimes(1);
     const [options] = crypto.bootstrapSecretStorage.mock.calls[0] as [
       { createSecretStorageKey: () => Promise<unknown> }
@@ -157,8 +159,10 @@ describe('storeSecretsUnderNewKey', () => {
     expect(crypto.bootstrapCrossSigning).not.toHaveBeenCalled();
   });
 
-  it('storeSecretsUnderNewKey refuses when a cross-signing key is not cached', async () => {
-    const { crypto } = makeCrypto({ cached: { ...ALL_CACHED, userSigningKey: false } });
+  // Also an identity replaced on another device that this session has not heard of yet: the
+  // fresh answer from the server leaves its old keys unmatched.
+  it("storeSecretsUnderNewKey refuses when this session does not hold the server's identity", async () => {
+    const { crypto } = makeCrypto({ published: false });
 
     await expect(storeSecretsUnderNewKey(client(crypto), GENERATED)).rejects.toThrow(
       RECOVERY_SECRETS_NOT_CACHED

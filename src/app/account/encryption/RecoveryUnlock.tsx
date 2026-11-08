@@ -44,6 +44,8 @@ type RecoveryUnlockProps = {
   onSetPassword?: () => void;
   /** Called when an unlock attempt starts, so a parent keeps this form on screen until it ends. */
   onUnlockStarted?: () => void;
+  /** Called when an unlock or repair attempt fails, so a parent no longer holds the form for it. */
+  onUnlockFailed?: () => void;
   /** Called once the device is unlocked, before the restore starts (not after unmounting). */
   onUnlocked?: () => void;
 };
@@ -56,6 +58,7 @@ export function RecoveryUnlock({
   secretStorageKey,
   onSetPassword,
   onUnlockStarted,
+  onUnlockFailed,
   onUnlocked,
 }: RecoveryUnlockProps) {
   const { keyId, keyContent, hasPassphrase } = secretStorageKey;
@@ -76,10 +79,11 @@ export function RecoveryUnlock({
 
   const restoreMessages = useCallback(async () => {
     const crypto = client.getCrypto();
-    // An account without a usable backup has nothing to restore, which is not a failure.
-    if (!crypto || !(await crypto.getActiveSessionBackupVersion())) return;
-    if (alive()) setRestore({ phase: 'running' });
+    if (!crypto) return;
     try {
+      // An account without a usable backup has nothing to restore, which is not a failure.
+      if (!(await crypto.getActiveSessionBackupVersion())) return;
+      if (alive()) setRestore({ phase: 'running' });
       await crypto.restoreKeyBackup({
         progressCallback: (progress) => alive() && setRestore({ phase: 'running', progress }),
       });
@@ -126,7 +130,7 @@ export function RecoveryUnlock({
     onUnlockStarted?.();
     repair()
       .then(finishUnlock)
-      .catch(() => undefined);
+      .catch(() => onUnlockFailed?.());
   };
 
   const submit: FormEventHandler<HTMLFormElement> = (evt) => {
@@ -137,7 +141,7 @@ export function RecoveryUnlock({
     onUnlockStarted?.();
     unlock(value)
       .then(finishUnlock)
-      .catch(() => undefined);
+      .catch(() => onUnlockFailed?.());
   };
 
   if (unlockState.status === AsyncStatus.Success || repaired) {
