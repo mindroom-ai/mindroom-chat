@@ -87,6 +87,14 @@ function CoverLayer({ entry: { cover }, room, conversationRef, onFailure }: Cove
     if (!before.focused?.isConnected) Object.assign(before, readFocus());
     const layer = layerRef.current;
     if (layer && !layer.contains(document.activeElement)) layer.focus({ preventScroll: true });
+    // A composer popover that held the focus (the emoji board) takes it back, then closes as the
+    // conversation hides, in the render this commit sets off, and leaves the focus nowhere: the
+    // cover takes it then. Focus that went anywhere else stays there.
+    queueMicrotask(() => {
+      if (!document.activeElement || document.activeElement === document.body) {
+        layer?.focus({ preventScroll: true });
+      }
+    });
     // Focus the person moved out of the cover stays there: once this commit is done, React gives
     // the focus back to the element that had it when that is still in the page.
     return () => {
@@ -107,7 +115,11 @@ function CoverLayer({ entry: { cover }, room, conversationRef, onFailure }: Cove
   const tabbingRef = useRef<{ backwards: boolean }>();
   const controlAt = (backwards: boolean): HTMLElement | undefined => {
     const controls = layerRef.current ? tabbablesOf(layerRef.current) : [];
-    const inOrder = controls.filter((control) => control.tabIndex >= 0);
+    // Tab skips a control whose tabindex is negative. A text editor with none, whose `tabIndex`
+    // reads -1 all the same, it reaches.
+    const inOrder = controls.filter(
+      (control) => !control.hasAttribute('tabindex') || control.tabIndex >= 0
+    );
     return backwards ? inOrder[inOrder.length - 1] : inOrder[0];
   };
   const keepTabInside = (event: KeyboardEvent) => {

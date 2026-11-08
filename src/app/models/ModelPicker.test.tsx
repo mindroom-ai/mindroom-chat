@@ -570,6 +570,17 @@ describe('responsive model picker', () => {
     expect(container.querySelector('input[role="searchbox"]')).not.toBeNull();
   });
 
+  it('closes as the conversation it is in hides', () => {
+    const state = createState();
+    act(() => root.render(<ModelPicker state={state} />));
+    click(container.querySelector('button[aria-label="Choose model"]')!);
+    expect(container.querySelector('input[role="searchbox"]')).not.toBeNull();
+
+    act(() => root.render(<ModelPicker state={state} conversationHidden />));
+
+    expect(container.querySelector('input[role="searchbox"]')).toBeNull();
+  });
+
   it('names the trigger "Choose model" followed by the model label it shows', () => {
     act(() => root.render(<ModelPicker state={createState({ override: 'reset' })} />));
 
