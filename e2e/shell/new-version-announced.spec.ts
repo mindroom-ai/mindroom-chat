@@ -68,6 +68,10 @@ const floatsInItsPlace = async (page: Page, anchorBefore: Box) => {
     expect(box.y + box.height).toBeLessThanOrEqual(anchor.y + anchor.height);
     expect(anchor.y + anchor.height - (box.y + box.height)).toBeLessThan(32);
   }
+  // Its mark keeps its 28 px tile, also in a phone's full row.
+  const mark = await card.locator('span[aria-hidden]').boundingBox();
+  expect(mark?.width).toBeCloseTo(28, 1);
+  expect(mark?.height).toBeCloseTo(28, 1);
   // Once a phone's drawer has slid away, nothing covers it.
   await expect
     .poll(() =>

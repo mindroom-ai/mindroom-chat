@@ -23,26 +23,22 @@ export const ListSlot = style({
   pointerEvents: 'none',
 });
 
-// The page's place stacks its notices, the new version notice above a sync status (their own
-// `order`, so the notice someone may tap never moves when the other comes or goes), a gap apart.
+// The page's place stacks its notices in a grid, a gap apart and centred, the new version notice
+// above a sync status (their own `order`, so the notice someone may tap never moves when the other
+// comes or goes). Its rows keep the height of their notices, also in a phone's place of no height.
+// It takes no clicks; a notice that offers something takes its own.
 export const PageSlot = recipe({
-  base: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: config.space.S200,
-  },
+  base: { display: 'grid', gap: config.space.S200, justifyItems: 'center', pointerEvents: 'none' },
   variants: {
     phone: {
-      // Over the top of the page, centred: placed against the signed-in layout (or, signed out,
-      // against the top of the app), so whatever sits above it moves it along.
+      // Over the top of the page: placed against the signed-in layout (or, signed out, against
+      // the top of the app), so whatever sits above it moves it along.
       false: {
         position: 'absolute',
         // Above the pages, below folds' dialogs, menus and tooltips in their own layer.
         zIndex: 1000,
         insetBlockStart: config.space.S300,
         insetInline: config.space.S300,
-        alignItems: 'center',
-        pointerEvents: 'none',
       },
       // A line of no height between the top bar and the page, which its notices hang from, S200
       // below it and across the page. At z-index 1 it paints over the page (an isolated layer,
@@ -51,7 +47,6 @@ export const PageSlot = recipe({
       true: {
         position: 'relative',
         zIndex: 1,
-        flexShrink: 0,
         blockSize: 0,
         insetBlockStart: config.space.S200,
         paddingInline: config.space.S200,
