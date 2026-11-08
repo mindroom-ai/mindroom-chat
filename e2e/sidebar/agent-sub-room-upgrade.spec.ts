@@ -16,7 +16,8 @@ import { roomMoreOptions } from '../helpers/roomMenu';
 // settings, the new room lists the sub-room and the sub-room names the new room as its parent
 // instead of the old one, so it shows under the new room for the creator and for a member who
 // follows the upgrade, its menu offers to remove it from the new room only, and the room's agents,
-// invited to the new room too, stay in it.
+// invited to the new room too, stay in it. The restricted sub-room admits the new room's members
+// as well as the old room's, so someone who joins only the new room may join it.
 test.describe.configure({ timeout: 480_000 });
 
 const PASSWORD = 'agent-sub-room-upgrade-spec-password';
@@ -173,6 +174,20 @@ test('a room upgrade keeps its sub-room under the new room, with its agents', as
     .soft(await stateContent(stack, subId, 'm.space.parent', newId))
     .toEqual(expect.objectContaining({ canonical: true }));
   expect.soft(await stateContent(stack, subId, 'm.space.parent', parentId)).toEqual({});
+
+  // Someone who joins only the new room may join the sub-room too.
+  const newcomer = await registerDisposableUser(`upgrade_newcomer_${word}`.toLowerCase(), PASSWORD);
+  await invite(stack, newId, newcomer.userId);
+  await joinRoom(stack.homeserver, newcomer.accessToken, newId);
+  expect.soft(await stateContent(stack, subId, 'm.room.join_rules', '')).toEqual({
+    join_rule: 'restricted',
+    allow: [
+      { type: 'm.room_membership', room_id: parentId },
+      { type: 'm.room_membership', room_id: newId },
+    ],
+  });
+  await joinRoom(stack.homeserver, newcomer.accessToken, subId);
+  expect(await joinedMembers(stack, subId)).toContain(newcomer.userId);
 
   // It shows under the new room for both, not at top level.
   await goHome(page);
