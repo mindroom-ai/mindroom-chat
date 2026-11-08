@@ -25,7 +25,8 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // The toggle is pressed while the panel shows, but not while it is folded to its tab, when choosing
 // it unfolds the panel. On a phone the toggle is an entry of the room menu.
 // It counts the room's members, the viewer and an agent, which it reads through the client SDK's
-// `matrix` subpath. Taller than the panel, what the plugin shows keeps its size and the panel scrolls.
+// `matrix` subpath. Taller than the panel, it scrolls, and its rows, which may not shrink, keep their
+// size.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PHONE = { width: 390, height: 844 };
 

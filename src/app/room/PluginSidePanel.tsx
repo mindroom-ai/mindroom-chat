@@ -43,10 +43,7 @@ export function PluginSidePanel({
         </IconButton>
       </header>
       <Box grow="Yes" direction="Column" style={{ minHeight: 0, overflowY: 'auto' }}>
-        {/* Never shorter than what it holds, so a taller panel scrolls instead of squeezing it. */}
-        <Box grow="Yes" shrink="No" direction="Column">
-          {content}
-        </Box>
+        {content}
       </Box>
     </section>
   );

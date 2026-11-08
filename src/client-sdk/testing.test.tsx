@@ -2,7 +2,7 @@
 // `renderPluginComponent`'s stand-in client, side panel frame, screen size and theme kind, as a
 // plugin's test meets them: through the SDK only.
 import { fireEvent } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { usePanelFrame } from '@mindroom/client-sdk/core';
 import { mxcUrlToHttp, useMatrixClient, useMediaAuthentication } from '@mindroom/client-sdk/matrix';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
@@ -100,23 +100,27 @@ describe('renderPluginComponent', () => {
     expect(view.container.textContent).toBe('Desktop, light');
   });
 
-  it('gives a component the theme kind the test gives over the one the document has', async () => {
-    document.documentElement.dataset.themeKind = 'dark';
-    const view = await renderPluginComponent(<Layout />, {
-      id: 'layout',
-      plugin: {},
-      themeKind: 'light',
+  describe('in a document marked dark', () => {
+    beforeAll(() => {
+      document.documentElement.dataset.themeKind = 'dark';
     });
-    expect(view.container.textContent).toBe('Desktop, light');
-  });
+    afterAll(() => {
+      delete document.documentElement.dataset.themeKind;
+    });
 
-  // After the test above, which marked the document dark itself.
-  it('gives a component the theme kind the document has unless the test gives one', async () => {
-    try {
+    it('gives a component the theme kind the test gives', async () => {
+      const view = await renderPluginComponent(<Layout />, {
+        id: 'layout',
+        plugin: {},
+        themeKind: 'light',
+      });
+      expect(view.container.textContent).toBe('Desktop, light');
+    });
+
+    // Also after the test above, whose light theme kind must not outlive it.
+    it("gives a component the document's theme kind unless the test gives one", async () => {
       const view = await renderPluginComponent(<Layout />, { id: 'layout', plugin: {} });
       expect(view.container.textContent).toBe('Desktop, dark');
-    } finally {
-      delete document.documentElement.dataset.themeKind;
-    }
+    });
   });
 });
