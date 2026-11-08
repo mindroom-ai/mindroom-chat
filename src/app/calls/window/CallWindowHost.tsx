@@ -5,7 +5,12 @@ import { Box, Spinner } from 'folds';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { PowerLevelsContextProvider, usePowerLevels } from '../../matrix/hooks/usePowerLevels';
 import { mainContentFocusTarget } from '../../ui/page/mainContentFocus';
-import { callPanelRoomAtom, isActiveCallShownIn, useActiveCall } from '../callStore';
+import {
+  callPanelRoomAtom,
+  isActiveCallShownIn,
+  useActiveCall,
+  useForgetPrescreenChoices,
+} from '../callStore';
 import { CallPanelPart } from '../CallPanelPart';
 import { useCallViewFloats, useExpandCallWindow } from './callWindowState';
 import { FloatingCallWindow } from './FloatingCallWindow';
@@ -83,6 +88,8 @@ export function CallWindowHost() {
   const room = panelRoomId ? mx.getRoom(panelRoomId) : null;
   const floats = useCallViewFloats() && !!room;
   useCloseWithRoom();
+  // Mounted on every screen, so the prescreen's choices go with the call view wherever it shows.
+  useForgetPrescreenChoices();
 
   // A call view shows the call rather than the bar it was minimized to when it opens (from none,
   // or another room's) and when a call starts in it (a ring answered in a room whose view stayed

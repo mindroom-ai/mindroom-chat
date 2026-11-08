@@ -7,7 +7,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { callPanelRoomAtom, type ActiveCall } from './callStore';
-import type { CallParticipant, CallState } from './RoomCall';
+import type { CallDeviceKind, CallDevices, CallParticipant, CallState } from './RoomCall';
 import { CallPanel } from './CallPanel';
 import {
   CallWindowFrameContext,
@@ -36,6 +36,7 @@ const calls = vi.hoisted(() => ({
 const navigation = vi.hoisted(() => ({ navigateRoom: vi.fn(), navigateRoomThread: vi.fn() }));
 const leave = vi.hoisted(() => vi.fn(async () => undefined));
 const dismiss = vi.hoisted(() => vi.fn());
+const start = vi.hoisted(() => vi.fn(async (_options: unknown) => 'started' as const));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getSafeUserId: () => '@me:panel.test' }),
@@ -73,8 +74,26 @@ vi.mock('./callStore', async (importOriginal) => ({
   useCallActions: () => ({
     endCall: leave,
     dismissCall: dismiss,
-    startCall: async () => 'started',
+    startCall: start,
   }),
+}));
+// The device menu lists the browser's devices; here it picks a second microphone at once.
+vi.mock('./CallControls', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./CallControls')>()),
+  DeviceControl: ({
+    chosen,
+    onChoose,
+  }: {
+    chosen: CallDevices;
+    onChoose: (kind: CallDeviceKind, deviceId: string) => void;
+  }) => (
+    <button
+      type="button"
+      aria-label="Settings"
+      data-microphone={chosen.audioinput}
+      onClick={() => onChoose('audioinput', 'second-mic')}
+    />
+  ),
 }));
 vi.mock('./CallTile', () => ({
   useCallMemberProfile: (_room: Room, userId: string) => ({ name: userId }),
@@ -387,6 +406,57 @@ describe('the call view title bar', () => {
     roomCall([me, person('@ana:panel.test')]);
     renderPanel({ frame: frame() });
     expect(button('Go to the conversation')).toBeNull();
+  });
+});
+
+describe('the prescreen as the call view moves', () => {
+  const microphonePick = () =>
+    screen.getByRole('button', { name: 'Settings' }).getAttribute('data-microphone');
+
+  it('keeps the microphone, camera and devices picked when it docks, and joins with them', () => {
+    calls.members = [{ userId: '@ana:panel.test' }];
+    const inWindow = renderPanel({ frame: frame() });
+    press('Turn Off Microphone');
+    press('Start Camera');
+    press('Settings');
+    expect(microphonePick()).toBe('second-mic');
+
+    press('Dock to the side');
+    inWindow.unmount();
+    renderPanel();
+    expect(button('Turn On Microphone')?.getAttribute('aria-pressed')).toBe('false');
+    expect(button('Stop Camera')?.getAttribute('aria-pressed')).toBe('true');
+    expect(microphonePick()).toBe('second-mic');
+
+    press('Join');
+    expect(start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        microphone: false,
+        video: true,
+        devices: { audioinput: 'second-mic' },
+      })
+    );
+  });
+
+  it('keeps them when it floats again and on a phone, for its own room only', () => {
+    store.set(getCallWindowSettingsAtom(USER), { mode: 'docked' });
+    store.set(callPanelRoomAtom, room.roomId);
+    const docked = renderPanel();
+    press('Turn Off Microphone');
+    press('Float');
+    docked.unmount();
+
+    const inWindow = renderPanel({ frame: frame() });
+    expect(button('Turn On Microphone')).not.toBeNull();
+    inWindow.unmount();
+    const onPhone = renderPanel({ size: 'Mobile' });
+    expect(button('Turn On Microphone')).not.toBeNull();
+    onPhone.unmount();
+
+    // Another room's prescreen starts from the defaults.
+    renderPanel({ panelRoom: callRoom });
+    expect(button('Turn Off Microphone')).not.toBeNull();
+    expect(button('Start Camera')).not.toBeNull();
   });
 });
 

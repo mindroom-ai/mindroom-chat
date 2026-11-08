@@ -65,7 +65,7 @@ The joined call's body is a stage over the control bar, with the notices above t
 - The awaited agent of an agent call shows on the voice stage as it shows as a tile today, waiting until it joins.
 - **Controls** in every call: microphone, camera, screen share (where the browser shares screens), sound, devices, leave. Agent calls gain camera and screen share.
 - **Title bar buttons:** speaker or grid (video stage only), open conversation (agent calls with an origin), dock or float (desktop), minimize (floating), close. A title bar narrower than its buttons drops the speaker switch first.
-- Prescreen (before Join): unchanged content in the same frame; the bar shows only the title, Expand and Close.
+- Prescreen (before Join): unchanged content in the same frame; the bar shows only the title, Expand and Close. Dock, Float and a phone's panel mount the prescreen anew, so the microphone, camera and devices picked there are kept with the open call view (`callPrescreenChoicesAtom` in `callStore.ts`, for its room) and Join uses them wherever it is pressed; they go when the view closes or shows another room, when a call starts, and with the account.
 - A failed chunk load shows the existing "This couldn't load" view with End and Close, in the window as in the panel.
 
 ### Live transcript in the window
@@ -124,9 +124,9 @@ Unit (vitest; DOM tests with `// @vitest-environment jsdom`, a `PointerEvent` st
 - state: defaults, junk in storage, mode switch, minimize then expand returns the height, an expand from outside after the viewport changed grows the bar where it shows;
 - `fitTiles`: one to six tiles in wide, tall and tiny stages, the speaker-view threshold;
 - `FloatingCallWindow`: drag moves and saves, resize, minimize and expand, keyboard, viewport resize, an expand from outside and a window that comes back (Dock, then Float) after the viewport changed;
-- `CallWindowHost`: shows on desktop in floating mode, not on phones or when docked, stays when the route changes;
+- `CallWindowHost`: shows on desktop in floating mode, not on phones or when docked, stays when the route changes; forgets the prescreen's choices when the view closes or shows another room, or a call starts;
 - `CallStage`: voice stage without video, grid with a camera on, speaker view with a screen share and the inset, every screen while two or more are shared, the speaker switch;
-- `CallPanel`: agent calls show camera and screen share; title bar buttons per mode;
+- `CallPanel`: agent calls show camera and screen share; title bar buttons per mode; the prescreen's microphone, camera and devices kept through Dock, Float and a phone's panel, and Join with them;
 - `Room.tsx` side panels: the call panel opens only on phones or docked;
 - `transcriptLayout`: layouts at the size thresholds, split clamp, pointer (stacked, side, right to left) and key steps;
 - `WindowTranscript`: shown only when switched on and MindRoom answered, the side panel's content without reading on its own, layouts and divider orientation, subtitle and hidden log, divider values, keys and pointer, the end kept in view through layout and divider changes unless scrolled up, the divider's focus going to the handle;

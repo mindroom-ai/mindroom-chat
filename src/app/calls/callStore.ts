@@ -45,6 +45,34 @@ export type CallStartProblem = { roomId: string; result: Exclude<StartCallResult
 
 export const callStartProblemAtom = atom<CallStartProblem | undefined>(undefined);
 
+/** What a room's call prescreen joins with: the microphone, the camera and the devices picked. */
+export type PrescreenChoices = {
+  roomId: string;
+  microphone: boolean;
+  camera: boolean;
+  devices: CallDevices;
+};
+
+/**
+ * The open call view's prescreen choices. The view mounts its prescreen anew where it moves (the
+ * floating window, the docked panel, a phone's panel), so they are kept here rather than in it,
+ * until the view closes or shows another room, or a call starts (`useForgetPrescreenChoices`).
+ */
+export const callPrescreenChoicesAtom = atom<PrescreenChoices | undefined>(undefined);
+
+/**
+ * Forgets the prescreen's choices once the call view they were made in closes or shows another
+ * room, and once a call starts: the next prescreen starts from the defaults.
+ */
+export const useForgetPrescreenChoices = (): void => {
+  const panelRoomId = useAtomValue(callPanelRoomAtom);
+  const active = useAtomValue(activeCallAtom);
+  const setChoices = useSetAtom(callPrescreenChoicesAtom);
+  useEffect(() => {
+    setChoices((kept) => (kept && (active || kept.roomId !== panelRoomId) ? undefined : kept));
+  }, [active, panelRoomId, setChoices]);
+};
+
 type Store = ReturnType<typeof useStore>;
 
 /** Leaves the call without waiting for the server, then runs what follows its end. */
@@ -79,12 +107,14 @@ export const dropActiveCall = (store: Store): void => {
 
 /**
  * What an account leaves in the call state when its screens go: its call (left), the open call
- * panel, a start still running (which gives up, its client being stopped) and why the last start
- * failed. The next account would otherwise find them in a room both accounts are in.
+ * panel and its prescreen's choices, a start still running (which gives up, its client being
+ * stopped) and why the last start failed. The next account would otherwise find them in a room
+ * both accounts are in.
  */
 export const forgetCallState = (store: Store): void => {
   dropActiveCall(store);
   store.set(callPanelRoomAtom, undefined);
+  store.set(callPrescreenChoicesAtom, undefined);
   store.set(callStartingAtom, undefined);
   store.set(callStartProblemAtom, undefined);
 };

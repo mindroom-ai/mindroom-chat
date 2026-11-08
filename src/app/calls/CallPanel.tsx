@@ -17,10 +17,11 @@ import { IconTooltip } from '../ui/IconTooltip';
 import { ExpandIcon } from '../ui/panels/panelIcons';
 import { useCallFailureNotice } from './agent/useCallFailureNotice';
 import { useCallFailureDismissal } from './agent/useCallFailureDismissal';
-import type { CallDevices, CallParticipant, CallProblem, CallState } from './RoomCall';
+import type { CallParticipant, CallProblem, CallState } from './RoomCall';
 import {
   callHomeRoomId,
   callPanelRoomAtom,
+  callPrescreenChoicesAtom,
   callStartProblemAtom,
   isActiveCallShownIn,
   noteCallStart,
@@ -30,6 +31,7 @@ import {
   useRoomCallMembers,
   type ActiveCall,
   type CallOrigin,
+  type PrescreenChoices,
 } from './callStore';
 import { callUserIds } from './callMemberships';
 import { browserSharesScreens, browserSupportsCalls, useCallSupport } from './callSupport';
@@ -650,6 +652,23 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
   );
 }
 
+/**
+ * The prescreen's microphone, camera and devices: kept with the call view, so they stay as picked
+ * when Dock, Float or a phone's panel mounts the prescreen anew; the microphone on and the camera
+ * off until then.
+ */
+const usePrescreenChoices = (roomId: string) => {
+  const [kept, setKept] = useAtom(callPrescreenChoicesAtom);
+  const choices: PrescreenChoices =
+    kept?.roomId === roomId ? kept : { roomId, microphone: true, camera: false, devices: {} };
+  const choose = (change: (last: PrescreenChoices) => Partial<PrescreenChoices>) =>
+    setKept((last) => {
+      const from = last?.roomId === roomId ? last : choices;
+      return { ...from, ...change(from) };
+    });
+  return [choices, choose] as const;
+};
+
 /** A room's call before this device joins it: who is in it, and Join. */
 function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
   const { t } = useTranslation();
@@ -663,9 +682,7 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
   const direct = useAtomValue(mDirectAtom).has(room.roomId);
   const store = useStore();
   const { startCall } = useCallActions(mx);
-  const [microphone, setMicrophone] = useState(true);
-  const [camera, setCamera] = useState(false);
-  const [devices, setDevices] = useState<CallDevices>({});
+  const [{ microphone, camera, devices }, choose] = usePrescreenChoices(room.roomId);
   const [joining, setJoining] = useState(false);
   // Why the last Join (or Answer on a ring) did not start the call: this session's other tab is
   // in a call (it shares this device), or the call could not start at all.
@@ -757,7 +774,7 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
                 icon={microphone ? Icons.Mic : Icons.MicMute}
                 off={!microphone}
                 pressed={microphone}
-                onClick={() => setMicrophone((on) => !on)}
+                onClick={() => choose((last) => ({ microphone: !last.microphone }))}
               />
               <CallControl
                 label={
@@ -767,11 +784,13 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
                 }
                 icon={camera ? Icons.VideoCamera : Icons.VideoCameraMute}
                 pressed={camera}
-                onClick={() => setCamera((on) => !on)}
+                onClick={() => choose((last) => ({ camera: !last.camera }))}
               />
               <DeviceControl
                 chosen={devices}
-                onChoose={(kind, id) => setDevices((chosen) => ({ ...chosen, [kind]: id }))}
+                onChoose={(kind, id) =>
+                  choose((last) => ({ devices: { ...last.devices, [kind]: id } }))
+                }
               />
             </Box>
             <Button
