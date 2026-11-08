@@ -32,6 +32,8 @@
 // Close button or Escape closes it. Its panel also offers "Example item" to drag, in a drag type of
 // its own, and the banner shows "Dropped: <text>" when one lands anywhere on the room header. Like a
 // plugin outside this repository, it imports the app only through the client SDK.
+// While the room shows a thread, the banner also says "Thread: <root event ID>", that thread's root
+// also when the room's address names a reply in it, and nothing in the room's own timeline.
 // A header action, "Wave" ("Winken" in German), shows in the room header's row, except on phones,
 // where it goes in the room menu, and says where it ran in an alert.
 // Its storage notes each greeting the signed-in account saw, when it shows and when it goes, and a
@@ -112,6 +114,7 @@ import {
   useParentRooms,
   useRoomHref,
   useRoomNavigate,
+  useShownThread,
 } from '@mindroom/client-sdk/room';
 import { MindroomServerError, useMindroomServer } from '@mindroom/client-sdk/server';
 import {
@@ -205,6 +208,7 @@ function Greeting({ event }: { event: PluginEvent }) {
 }
 
 function RoomBanner({ room, headerRef }: { room: Room; headerRef: RefObject<HTMLElement> }) {
+  const thread = useShownThread();
   const [dropped, setDropped] = useState<string>();
   // The header's element is set by the time effects run; a drag of its item may drop anywhere on it.
   useEffect(() => {
@@ -229,6 +233,7 @@ function RoomBanner({ room, headerRef }: { room: Room; headerRef: RefObject<HTML
         style={{ marginInlineEnd: 8, verticalAlign: 'middle' }}
       />
       EXAMPLE_BANNER in {room.name}
+      {thread !== undefined && <div data-example-plugin-thread>Thread: {thread}</div>}
       {dropped !== undefined && <div data-example-plugin-dropped>Dropped: {dropped}</div>}
     </div>
   );
