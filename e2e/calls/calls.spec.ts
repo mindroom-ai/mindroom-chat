@@ -376,6 +376,8 @@ test.describe('calls', () => {
       await expect(tileOf(bobPage, alice.userId)).toHaveCount(0, { timeout: 30_000 });
       await expect(alicePage.locator('[data-call-tab]')).toHaveCount(0);
       await expect(aliceWindow).toHaveCount(0);
+      // The focus End had goes to the room's call button rather than to the page's body.
+      await expect(alicePage.locator('[data-room-call-button]')).toBeFocused();
       await alicePage.locator('[data-room-call-button]').click();
       await expect(callPanel(alicePage)).toContainText('1 person in the call', { timeout: 30_000 });
       await callPanel(bobPage).getByRole('button', { name: 'End' }).click();

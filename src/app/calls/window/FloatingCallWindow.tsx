@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent, PointerEvent, ReactNode } from 'react';
+import type { KeyboardEvent, PointerEvent, ReactNode, Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
 import { clampToViewport, defaultRect, fitToViewport, isBar, keyStep } from './callWindowGeometry';
@@ -48,7 +48,8 @@ const dragFrom = (target: EventTarget): { edge: ResizeEdge | undefined } | undef
  * box, moves it by the title bar the call view marks with `handleProps`, resizes it from eight grips
  * and keeps it inside the viewport. It has a fixed name; the call view inside names the call.
  */
-export function FloatingCallWindow({ children }: { children: ReactNode }) {
+export function FloatingCallWindow(props: { children: ReactNode; frameRef?: Ref<HTMLElement> }) {
+  const { children, frameRef } = props;
   const { t } = useTranslation();
   const [settings, setSettings] = useCallWindowSettings();
   const [viewport, setViewport] = useState(readViewport);
@@ -171,6 +172,7 @@ export function FloatingCallWindow({ children }: { children: ReactNode }) {
   return (
     <CallWindowFrameContext.Provider value={frame}>
       <section
+        ref={frameRef}
         className={css.Frame}
         aria-label={t('featureUi.calls.window.label')}
         data-testid="call-window"

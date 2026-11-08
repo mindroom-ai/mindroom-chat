@@ -5,6 +5,7 @@ import type { Room } from 'matrix-js-sdk';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
+import { PAGE_MAIN_ID } from '../../ui/page/Page';
 import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from '../callStore';
 import {
   callWindowStorageKey,
@@ -47,7 +48,12 @@ vi.mock('../CallPanel', () => ({
   CallPanel: ({ room }: { room: Room }) => {
     if (loading.until) throw loading.until;
     panelRenders.count += 1;
-    return <p data-testid="call-panel">{room.roomId}</p>;
+    return (
+      <>
+        <p data-testid="call-panel">{room.roomId}</p>
+        <button type="button">Close call view</button>
+      </>
+    );
   },
 }));
 
@@ -66,12 +72,13 @@ function Route() {
   return null;
 }
 
-const renderHost = (store: Store, size: ScreenSize = 'Desktop') =>
+const renderHost = (store: Store, size: ScreenSize = 'Desktop', page?: React.ReactNode) =>
   render(
     <Provider store={store}>
       <ScreenSizeProvider value={size}>
         <MemoryRouter initialEntries={['/home/']}>
           <Route />
+          {page}
           <CallWindowHost />
         </MemoryRouter>
       </ScreenSizeProvider>
@@ -301,6 +308,93 @@ describe('CallWindowHost', () => {
     act(() => store.set(activeCallAtom, undefined));
     expect(store.get(callPanelRoomAtom)).toBe(LOBBY);
     expect(callWindow()).not.toBeNull();
+  });
+
+  describe('the focus when the window closes with its call', () => {
+    /** The page under the window: a room's header with its call button, or a page without one. */
+    const page = (callButton: boolean) => (
+      <main id={PAGE_MAIN_ID}>
+        <h1>Lobby</h1>
+        {callButton && (
+          <button type="button" data-room-call-button="">
+            Call
+          </button>
+        )}
+        <input aria-label="Message" />
+      </main>
+    );
+    const inWindow = () => screen.getByRole('button', { name: 'Close call view' });
+    const callButton = () => screen.getByRole('button', { name: 'Call' });
+
+    it("goes to the room's call button from the window, or from the call view's End that went", async () => {
+      const store = createStore();
+      store.set(activeCallAtom, callIn(LOBBY));
+      store.set(callPanelRoomAtom, LOBBY);
+      renderHost(store, 'Desktop', page(true));
+      await screen.findByTestId('call-panel');
+      inWindow().focus();
+      act(() => store.set(activeCallAtom, undefined));
+      expect(callWindow()).toBeNull();
+      expect(document.activeElement).toBe(callButton());
+
+      // The End button went with the call before the window did: the focus is on the page.
+      act(() => store.set(activeCallAtom, callIn(LOBBY)));
+      act(() => store.set(callPanelRoomAtom, LOBBY));
+      (document.activeElement as HTMLElement).blur();
+      act(() => store.set(activeCallAtom, undefined));
+      expect(document.activeElement).toBe(callButton());
+    });
+
+    it("goes to the page's title where no room's call button shows", async () => {
+      const store = createStore();
+      store.set(activeCallAtom, callIn(LOBBY));
+      store.set(callPanelRoomAtom, LOBBY);
+      renderHost(store, 'Desktop', page(false));
+      await screen.findByTestId('call-panel');
+      inWindow().focus();
+      act(() => store.set(activeCallAtom, undefined));
+      expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Lobby' }));
+    });
+
+    it('goes to the call button when an agent call takes its window away with it', async () => {
+      const store = createStore();
+      const agentCall = { ...callIn('!agent:host.test'), kind: 'agent', origin: { roomId: LOBBY } };
+      store.set(activeCallAtom, agentCall as ActiveCall);
+      store.set(callPanelRoomAtom, LOBBY);
+      renderHost(store, 'Desktop', page(true));
+      await screen.findByTestId('call-panel');
+      inWindow().focus();
+      // The call store closes an agent call's view as the call ends (closeAgentCallPanel).
+      act(() => {
+        store.set(activeCallAtom, undefined);
+        store.set(callPanelRoomAtom, undefined);
+      });
+      expect(callWindow()).toBeNull();
+      expect(document.activeElement).toBe(callButton());
+    });
+
+    it('stays where the person put it outside the window', async () => {
+      const store = createStore();
+      store.set(activeCallAtom, callIn(LOBBY));
+      store.set(callPanelRoomAtom, LOBBY);
+      renderHost(store, 'Desktop', page(true));
+      await screen.findByTestId('call-panel');
+      const message = screen.getByRole('textbox', { name: 'Message' });
+      message.focus();
+      act(() => store.set(activeCallAtom, undefined));
+      expect(document.activeElement).toBe(message);
+    });
+
+    it('stays put when the window only closes, the call going on', async () => {
+      const store = createStore();
+      store.set(activeCallAtom, callIn(LOBBY));
+      store.set(callPanelRoomAtom, LOBBY);
+      renderHost(store, 'Desktop', page(true));
+      await screen.findByTestId('call-panel');
+      inWindow().focus();
+      act(() => store.set(callPanelRoomAtom, undefined));
+      expect(document.activeElement).toBe(document.body);
+    });
   });
 
   it('closes when an agent call started from the room it shows ends', () => {
