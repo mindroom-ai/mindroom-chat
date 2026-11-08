@@ -39,10 +39,10 @@ import { launchWebKit } from '../helpers/webkit';
 // what depends on being in the open room (view switch, filters, members and the like on phones),
 // in a section before the shared entries. An entry the person cannot use here stays in its place,
 // disabled, and says why. Four rooms: one the tester created (admin), an encrypted one where the
-// tester may not invite, a direct message and a room in a space; 28 rooms in all. Desktop
-// (1440 by 900) and phone (390 by 844, touch), light and dark, Chromium and, when
-// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. Set DESIGN_CHOICES_SHOTS to save
-// the screenshots.
+// tester may not invite or add sub-rooms, a direct message (no New Sub-room) and a room in a
+// space; 28 rooms in all. Desktop (1440 by 900) and phone (390 by 844, touch), light and dark,
+// Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. Set
+// DESIGN_CHOICES_SHOTS to save the screenshots.
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const ENGINES = ['chromium', ...(WEBKIT ? ['webkit'] : [])] as const;
 type Engine = (typeof ENGINES)[number];
@@ -62,6 +62,8 @@ type Case = {
   /** The room's own page. */
   room: string;
   canInvite: boolean;
+  /** Why New Sub-room is disabled, '' when it is not; a direct message's menu has none. */
+  newSubRoom?: string;
   encrypted: boolean;
 };
 
@@ -73,10 +75,11 @@ const item = (name: string, reason = ''): Item => ({
 });
 
 /** The entries every room menu shares, in their order. */
-const sharedItems = ({ canInvite, encrypted }: Case): Item[] => [
+const sharedItems = ({ canInvite, newSubRoom, encrypted }: Case): Item[] => [
   item('Mark as Read'),
   item('Notifications'),
   item('Invite', canInvite ? '' : NO_INVITE),
+  ...(newSubRoom === undefined ? [] : [item('New Sub-room', newSubRoom)]),
   item('Copy Link'),
   item('Room Settings'),
   item('Message Search', encrypted ? NO_SEARCH : ''),
@@ -161,6 +164,7 @@ const seed = async (label: string): Promise<Seed> => {
         list: '/home/',
         room: `/home/${enc(admin)}/`,
         canInvite: true,
+        newSubRoom: '',
         encrypted: false,
       },
       {
@@ -169,6 +173,7 @@ const seed = async (label: string): Promise<Seed> => {
         list: '/home/',
         room: `/home/${enc(member)}/`,
         canInvite: false,
+        newSubRoom: "You can't change the rooms listed under Vendor Updates",
         encrypted: true,
       },
       {
@@ -185,6 +190,7 @@ const seed = async (label: string): Promise<Seed> => {
         list: `/${enc(space)}/`,
         room: `/${enc(space)}/${enc(spaceRoom)}/`,
         canInvite: true,
+        newSubRoom: '',
         encrypted: false,
       },
     ],

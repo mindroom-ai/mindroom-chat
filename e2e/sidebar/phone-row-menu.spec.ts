@@ -41,11 +41,15 @@ const HOLD_MS = 700;
 
 test.use({ launchOptions: LAUNCH });
 
-/** The entries of the room menu of a room the tester created. */
+/**
+ * The entries of the room menu of a room the tester created; a direct message's menu has no New
+ * Sub-room.
+ */
 const ENTRIES = [
   'Mark as Read',
   'Notifications',
   'Invite',
+  'New Sub-room',
   'Copy Link',
   'Room Settings',
   'Message Search',
@@ -145,7 +149,13 @@ const expectNoMenu = async (page: Page, where: string) => {
  * A long press on the row opens its room menu next to the row, with every entry; the lift does
  * not open the room, and nothing moved.
  */
-const checkLongPress = async (page: Page, nav: Locator, roomId: string, tag: string) => {
+const checkLongPress = async (
+  page: Page,
+  nav: Locator,
+  roomId: string,
+  entries: string[],
+  tag: string
+) => {
   const before = await rowOrder(nav);
   const url = page.url();
   const target = link(nav, roomId);
@@ -162,7 +172,7 @@ const checkLongPress = async (page: Page, nav: Locator, roomId: string, tag: str
   await save(page, `${tag}-long-press`);
   const menu = roomMenu(page);
   await expect(menu, `${tag}: a long press opens the room menu`).toBeVisible();
-  expect(await menuEntries(menu), `${tag}: the room menu's entries`).toEqual(ENTRIES);
+  expect(await menuEntries(menu), `${tag}: the room menu's entries`).toEqual(entries);
   expect(press.liftAllowed, `${tag}: the lift after the menu opens does not click`).toBe(false);
   expect(page.url(), `${tag}: the long press opens no room`).toBe(url);
   if (before.length > 0) expect(await rowOrder(nav), `${tag}: nothing moved`).toEqual(before);
@@ -306,8 +316,10 @@ const run = async (browser: Browser, engine: 'chromium' | 'webkit') => {
         }
         const rows = sortable ? await rowOrder(nav) : [data.direct];
         const [, , third] = rows;
+        const entries =
+          key === 'direct' ? ENTRIES.filter((entry) => entry !== 'New Sub-room') : ENTRIES;
         // eslint-disable-next-line no-await-in-loop
-        await checkLongPress(page, nav, rows[0]!, tag);
+        await checkLongPress(page, nav, rows[0]!, entries, tag);
         if (sortable) {
           // eslint-disable-next-line no-await-in-loop
           await checkDrag(page, nav, tag);
