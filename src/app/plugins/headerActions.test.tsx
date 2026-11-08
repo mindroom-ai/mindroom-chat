@@ -28,6 +28,7 @@ const plugin = (id: string, headerActions: HeaderAction[]): RegisteredPlugin => 
   sidePanels: [],
   headerActions,
   slashCommands: [],
+  roomActions: [],
 });
 
 describe('usePluginHeaderActions', () => {
