@@ -52,7 +52,7 @@ SNAPSHOT_TAGS = ["v1.8.2", "v2.2.6", "v3.2.0", "v4.0.0", "v4.10.2", "v4.12.8"]
 # XDG_CACHE_HOME is ignored, as the XDG Base Directory specification says; it would put upstream lines in the checkout.
 XDG_CACHE = Path(os.environ.get("XDG_CACHE_HOME", ""))
 CACHE = (XDG_CACHE if XDG_CACHE.is_absolute() else Path.home() / ".cache") / "upstream-overlap"
-# Findings in old blobs that were reviewed as generic: blob, path, start-end, reason (AGENTS.md).
+# Findings in old blobs that were reviewed, each with its reason: blob, path, start-end, reason (AGENTS.md).
 REVIEWED = Path(__file__).with_name("reviewed-history.tsv")
 
 
