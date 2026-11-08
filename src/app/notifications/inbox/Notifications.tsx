@@ -78,6 +78,7 @@ import { useHour24Clock } from '../../preferences/useHour24Clock';
 import { timeMonthDayHourMinute } from '../../lib/time';
 import { MarkRoomReadChip } from '../MarkRoomReadChip';
 import { isHighlightNotification, isMessageNotification } from '../inboxNotification';
+import { readRingKind } from '../../calls/callRings';
 import { getEventThreadId } from '../messageNotificationRules';
 import {
   resolveNotificationEvent,
@@ -411,12 +412,25 @@ const NotificationRow = memo(function NotificationRow({
   const eventId = event.getId() ?? notification.event.event_id;
   const content = event.getContent();
   const highlighted = isHighlightNotification(notification);
+  const ringKind = readRingKind(event);
 
   let body: ReactNode;
   if (event.isRedacted()) body = <MessageDeletedContent />;
   else if (event.isDecryptionFailure()) body = <MessageBadEncryptedContent />;
   else if (event.isEncrypted() && !event.getClearContent()) body = <Spinner size="100" />;
-  else {
+  else if (ringKind) {
+    // A call's ring notified: the caller above, and the kind of call they started.
+    body = (
+      <Box gap="200" alignItems="Center">
+        <Icon size="100" src={ringKind === 'video' ? Icons.VideoCamera : Icons.Phone} aria-hidden />
+        <Text size="T300">
+          {ringKind === 'video'
+            ? t('featureUi.calls.incoming.videoCall')
+            : t('featureUi.calls.incoming.voiceCall')}
+        </Text>
+      </Box>
+    );
+  } else {
     body = (
       <RenderMessageContent
         mEvent={event}
