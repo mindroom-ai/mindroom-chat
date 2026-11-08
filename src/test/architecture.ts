@@ -118,7 +118,7 @@ export const isReExportOnlyModule = (path: string): boolean => {
   );
 };
 
-const resolveRelativeModule = (fromFile: string, specifier: string): string | undefined => {
+export const resolveRelativeModule = (fromFile: string, specifier: string): string | undefined => {
   if (!specifier.startsWith('.')) return undefined;
 
   const base = resolve(dirname(fromFile), specifier);
