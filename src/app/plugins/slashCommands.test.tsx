@@ -146,15 +146,9 @@ describe('usePluginSlashCommands', () => {
       // The command as the composer holds it (useCommands).
       const { name, description } = enabled;
       const run = (args: string) => enabled.run({ room, args });
-      const error = await run(' ').then(
-        () => undefined,
-        (reason: unknown) => reason
-      );
-      return describeCommandFailure(
-        i18n.t,
-        { command: { name, description, run }, run, args: ' ' },
-        error
-      );
+      const acting = { command: { name, description, run }, run, args: ' ' };
+      const error = await acting.run(acting.args).catch((reason: unknown) => reason);
+      return describeCommandFailure(i18n.t, acting, error);
     };
     expect(await problem()).toBe(
       '/greet konnte nicht ausgeführt werden. Dem Raum einen Gruß senden.'
