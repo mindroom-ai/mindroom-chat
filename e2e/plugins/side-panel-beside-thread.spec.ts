@@ -44,6 +44,14 @@ let roomId = '';
 let greetingRoot = '';
 let plainRoot = '';
 
+/** Sends `body` as `session` into the thread of `root`. */
+const reply = (session: { accessToken: string }, root: string, body: string) =>
+  sendRoomMessage(HOMESERVER, session.accessToken, roomId, {
+    msgtype: 'm.text',
+    body,
+    'm.relates_to': { rel_type: 'm.thread', event_id: root },
+  });
+
 test.beforeAll(async () => {
   if (!(await disposableHomeserverIsUp())) return;
   test.setTimeout(10 * 60_000);
@@ -67,21 +75,13 @@ test.beforeAll(async () => {
     msgtype: 'm.text',
     body: 'A plain question',
   });
-  await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
-    msgtype: 'm.text',
-    body: 'A plain answer',
-    'm.relates_to': { rel_type: 'm.thread', event_id: plainRoot },
-  });
+  await reply(agent, plainRoot, 'A plain answer');
   greetingRoot = await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
     msgtype: 'm.text',
     body: GREETING,
     'com.example.greeting': { text: GREETING },
   });
-  await sendRoomMessage(HOMESERVER, alice.accessToken, roomId, {
-    msgtype: 'm.text',
-    body: 'Good morning to you too',
-    'm.relates_to': { rel_type: 'm.thread', event_id: greetingRoot },
-  });
+  await reply(alice, greetingRoot, 'Good morning to you too');
 });
 
 test.afterAll(() => {
@@ -155,11 +155,7 @@ test("a greeting that begins a thread opens the plugin's panel beside the thread
     // Closed, it stays closed while the thread shows, also as the thread's next message arrives.
     await page.getByRole('button', { name: 'Close Example panel', exact: true }).click();
     await expect(panel(page)).toHaveCount(0);
-    await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
-      msgtype: 'm.text',
-      body: 'Have a good day',
-      'm.relates_to': { rel_type: 'm.thread', event_id: greetingRoot },
-    });
+    await reply(agent, greetingRoot, 'Have a good day');
     await expect(page.getByText('Have a good day', { exact: true })).toBeVisible({
       timeout: 30_000,
     });
@@ -170,7 +166,6 @@ test("a greeting that begins a thread opens the plugin's panel beside the thread
 
     // Another thread shows without it; back in the greeting's thread it opens again.
     await exitThread(page);
-    await setRoomCompact(page, true);
     await openFromList(page, plainRoot);
     await page.waitForTimeout(1_000);
     await expect(panel(page)).toHaveCount(0);

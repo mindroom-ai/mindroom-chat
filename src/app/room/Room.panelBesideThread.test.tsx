@@ -1,12 +1,11 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { type ComponentType, useEffect } from 'react';
-import { getDefaultStore, type PrimitiveAtom } from 'jotai';
+import { getDefaultStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
 import { callPanelRoomAtom } from '../calls/callStore';
 import { openTranscriptPanel, transcriptPanelAtom } from '../calls/transcription/transcriptPanel';
-import * as membersDrawer from '../members/useMembersDrawer';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { putSession } from '../matrix/session/sessions';
 import { type RoomSidePanelControl, useRoomSidePanel } from '../plugins/sidePanels';
@@ -27,9 +26,15 @@ const { mx, room, state } = vi.hoisted(() => {
     state: {
       listeners,
       members,
-      config: {} as ClientConfig,
-      /** The query of the room's URL, which names the thread it shows. */
-      search: '',
+      config: {
+        mindroom: {
+          computers: { apiUrl: 'https://computer.example.org' },
+          uiActions: { autoOpenFromHomeservers: ['example.org'] },
+          canvas: { enabled: true },
+        },
+      } as ClientConfig,
+      /** The thread the room's URL names. */
+      thread: undefined as string | undefined,
       view: undefined as RoomViewProps | undefined,
       /** The plugin's renderer of the root message of the thread shown, if the plugin renders it. */
       Root: undefined as ComponentType<{ eventId: string }> | undefined,
@@ -60,7 +65,7 @@ const { mx, room, state } = vi.hoisted(() => {
 
 vi.mock('react-router-dom', () => ({
   useParams: () => ({}),
-  useSearchParams: () => [new URLSearchParams(state.search)],
+  useSearchParams: () => [new URLSearchParams(state.thread ? { threadId: state.thread } : {})],
 }));
 vi.mock('./RoomView', () => ({
   RoomView: (props: RoomViewProps) => {
@@ -78,9 +83,8 @@ vi.mock('./RoomView', () => ({
 }));
 vi.mock('../members/MembersDrawer', () => ({ MembersDrawer: () => <aside /> }));
 vi.mock('../members/useMembersDrawer', async () => {
-  const { atom, useAtom } = await vi.importActual<typeof import('jotai')>('jotai');
-  const membersOpenAtom = atom(false);
-  return { membersOpenAtom, useMembersDrawer: () => useAtom(membersOpenAtom) };
+  const { useState } = await vi.importActual<typeof import('react')>('react');
+  return { useMembersDrawer: () => useState(false) };
 });
 vi.mock('../computer/ComputerPanel', () => ({
   ComputerPanel: () => <div data-testid="computer-panel" />,
@@ -136,7 +140,6 @@ vi.mock('../plugins/pluginEntries', () => {
 importBeforeTests(() => import('./Room'));
 
 const store = getDefaultStore();
-const { membersOpenAtom } = membersDrawer as unknown as { membersOpenAtom: PrimitiveAtom<boolean> };
 
 /** The renderer of a message of the plugin `notes`, which opens its panel beside the message's thread. */
 function Card({ eventId, panel = 'panel' }: { eventId: string; panel?: string }) {
@@ -152,7 +155,7 @@ const click = (name: string) => act(async () => screen.getByRole('button', { nam
 
 let rerenderRoom: (() => Promise<void>) | undefined;
 const renderRoom = async (thread?: string, size: ScreenSize = ScreenSize.Desktop) => {
-  state.search = thread ? `threadId=${encodeURIComponent(thread)}` : '';
+  state.thread = thread;
   const { Room } = await import('./Room');
   const ui = () => (
     <ScreenSizeProvider value={size}>
@@ -164,7 +167,7 @@ const renderRoom = async (thread?: string, size: ScreenSize = ScreenSize.Desktop
 };
 /** Shows the thread `thread`, or the room's own timeline, as a link or the thread list does. */
 const showThread = async (thread: string | undefined) => {
-  state.search = thread ? `threadId=${encodeURIComponent(thread)}` : '';
+  state.thread = thread;
   await rerenderRoom?.();
 };
 /** Mounts the conversation's components again, as a switch of view does. */
@@ -198,13 +201,6 @@ const OTHERS = {
 
 describe("a plugin's side panel beside the thread shown", () => {
   beforeEach(() => {
-    state.config = {
-      mindroom: {
-        computers: { apiUrl: 'https://computer.example.org' },
-        uiActions: { autoOpenFromHomeservers: ['example.org'] },
-        canvas: { enabled: true },
-      },
-    };
     state.Root = Card;
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     vi.stubGlobal(
@@ -220,7 +216,6 @@ describe("a plugin's side panel beside the thread shown", () => {
     cleanup();
     store.set(callPanelRoomAtom, undefined);
     store.set(transcriptPanelAtom, undefined);
-    store.set(membersOpenAtom, false);
     state.view = undefined;
     state.inView = undefined;
     state.viewMount = 0;
