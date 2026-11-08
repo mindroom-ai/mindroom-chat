@@ -55,7 +55,9 @@ export function ContactInfo() {
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t(`${KEY}.contactInformation`)}</Text>
+      <Text size="L400" data-settings-heading="">
+        {t(`${KEY}.contactInformation`)}
+      </Text>
       <SettingsCard>
         <SettingTile
           focusId="email"

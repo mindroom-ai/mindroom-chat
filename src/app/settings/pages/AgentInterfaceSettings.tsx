@@ -123,7 +123,9 @@ export function AgentInterfaceSettings({ className }: AgentInterfaceSettingsProp
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t('featureUi.settings.sidebar.title')}</Text>
+      <Text size="L400" data-settings-heading="">
+        {t('featureUi.settings.sidebar.title')}
+      </Text>
       <SequenceCard className={className} variant="SurfaceVariant" direction="Column" gap="400">
         {switches
           .filter(([button]) => offered[button])

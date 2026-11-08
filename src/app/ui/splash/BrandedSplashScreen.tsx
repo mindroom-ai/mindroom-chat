@@ -3,6 +3,8 @@ import { Box, Spinner, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { SplashScreen } from './SplashScreen';
 import { ParticleTextBackdrop } from '../particle-background/ParticleTextBackdrop.css';
+import { useLoadedOrCachedClientConfig } from '../../config/ClientConfigLoader';
+import { deploymentBranding } from '../branding/deploymentBranding';
 
 /** The loading line when there is no other line with text in it. */
 export const DEFAULT_MINDROOM_SPLASH_MESSAGES = ['Loading MindRoom Chat'] as const;
@@ -26,7 +28,7 @@ export const pickMindRoomSplashMessage = (
 type MindRoomSplashScreenProps = {
   /** Shown under the loading line, in the same centred column. */
   children?: ReactNode;
-  /** The deployment's loading lines (`splash.loadingMessages` in the client config). */
+  /** The deployment's loading lines (`splash.loadingMessages`); the configuration's without. */
   loadingMessages?: readonly string[];
   /** A fixed line, shown instead of a picked one. */
   message?: ReactNode;
@@ -37,8 +39,10 @@ type MindRoomSplashScreenProps = {
 /**
  * The branded splash while the app starts: the particle background with the app name, and in the
  * middle a spinner over one loading line. The line is `message` when there is one, else a line
- * picked from the deployment's `loadingMessages`, else the translated default. A pick stays while
- * its inputs keep their identity, so the line holds still while the splash is up.
+ * picked from the loading lines of the configuration (or of the last one this browser loaded),
+ * else the translated default with the deployment's name. Before any configuration has loaded the
+ * name is unknown, and only the spinner shows. A pick stays while its inputs keep their identity,
+ * so the line holds still while the splash is up.
  */
 export function MindRoomSplashScreen({
   children,
@@ -47,20 +51,23 @@ export function MindRoomSplashScreen({
   random,
 }: MindRoomSplashScreenProps) {
   const { t } = useTranslation();
+  const config = useLoadedOrCachedClientConfig();
+  const lines = loadingMessages ?? config?.splash?.loadingMessages;
+  const name = config && deploymentBranding(config).title;
   const line = useMemo<ReactNode>(() => {
     if (message !== undefined && message !== null) return message;
-    const configured = loadingMessages?.some((entry) => entry.trim() !== '');
-    return pickMindRoomSplashMessage(
-      configured ? loadingMessages : [t('sharedUi.mindRoomSplashScreen.loading')],
-      random
-    );
-  }, [loadingMessages, message, random, t]);
+    if (lines?.some((entry) => entry.trim() !== ''))
+      return pickMindRoomSplashMessage(lines, random);
+    return name && t('sharedUi.mindRoomSplashScreen.loading', { appName: name });
+  }, [lines, message, name, random, t]);
 
   return (
     <SplashScreen>
       <Box grow="Yes" direction="Column" justifyContent="Center" alignItems="Center" gap="400">
         <Spinner size="600" variant="Secondary" />
-        <Text className={ParticleTextBackdrop}>{line}</Text>
+        {line !== undefined && line !== null && (
+          <Text className={ParticleTextBackdrop}>{line}</Text>
+        )}
         {children}
       </Box>
     </SplashScreen>

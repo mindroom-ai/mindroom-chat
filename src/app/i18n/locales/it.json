@@ -1284,7 +1284,7 @@
       "matchingUsers_many": "{{count}} utenti corrispondenti"
     },
     "mindRoomSplashScreen": {
-      "loading": "Caricamento di MindRoom Chat"
+      "loading": "Caricamento di {{appName}}"
     },
     "commands": {
       "CommandMe": "Invia messaggio d'azione",

@@ -37,11 +37,11 @@ The configuration this repository ships (`config.mindroom.json`) sets `homeserve
 
 ### Branding
 
-A company can put its own logo, name and footer on the signed-out pages without a new build: sign-in, registration and password reset (with every state inside their card: the server lookup, single sign-on, errors), and the Local MindRoom pairing page. The loading and error screens and the browser tab take the name too.
+A company can put its own logo, name and footer on the signed-out pages without a new build: sign-in, registration and password reset (with every state inside their card: the server lookup, single sign-on, errors), and the Local MindRoom pairing page. The loading and error screens and the browser tab take the name too. Before the configuration has loaded, the loading and error screens go by the last configuration this browser loaded (a native app loads a fresh one at every start); on the very first start they show no name, as the deployment's is not known yet.
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
-| `branding.title` | string | `MindRoom Chat` | The name beside the logo in the card's header (the page's heading), at the bottom of the loading and error screens once the configuration has loaded, and in the browser tab, where a signed-in account adds its unread count in front. Without it the tab keeps `MindRoom`. A title too long for the header ends in an ellipsis. |
+| `branding.title` | string | `MindRoom Chat` | The name beside the logo in the card's header (the page's heading), in the loading screens' line and at their bottom, and in the browser tab, where a signed-in account adds its unread count in front. Without it the tab keeps `MindRoom`. A title too long for the header ends in an ellipsis. An empty title (`""`) shows no name beside the logo, for a wordmark logo that shows it already: the logo alone is the page's heading, which screen readers name by the logo's `alt` text, and that text is the name, which the loading screens and the tab then show (with the default logo it stays `MindRoom Chat`, and the tab keeps `MindRoom`). |
 | `branding.logo.src` | string (URL) | the MindRoom Chat logo | The logo in the card's header: an `https` URL, or a path on the app's own origin such as `/branding/logo.svg`, served beside `config.json`. Shown 28 pixels high and as wide as its proportions make it, up to 160 pixels. It is loaded without a referrer; if it does not load, the default logo is shown. |
 | `branding.logo.srcDark` | string (URL) | `src` | The logo in dark themes, under the same rules. Signed out, the app follows the system's light or dark setting. |
 | `branding.logo.alt` | string | `MindRoom Chat Logo` | Required with `src`: what screen readers say for the logo. |
@@ -53,12 +53,12 @@ The credits and the Support, Privacy and Terms links stay under `auth` (above); 
 Values are checked when the configuration loads. A value that fails keeps its default and logs one `[branding]` warning in the browser console, so a typo never leaves the page blank:
 
 - `branding` that is not an object: the whole look stays the default.
-- A blank or non-text `title`: the default title.
+- A `title` that is not text: the default title.
 - A `logo` without `alt` text, or whose `src` is not an `https` URL or on the app's own origin (`http` elsewhere, `data:`, `blob:`, `javascript:` and others are refused): the default logo. A refused `srcDark` makes dark themes show `src`.
 - A `footer` that is not an object, or `text` that is neither text nor a list: no footer text. In a `text` list, a link whose `url` is refused shows its label as plain text, and an entry without a label is left out.
 - A link without a label or with another scheme, in `branding.footer.links` or `auth.poweredBy`: that link is left out, the others stay.
 
-Not covered by `branding`: the loading screen of the very first start (before any configuration has loaded, so it names MindRoom Chat), the welcome page (`welcome.*` below), the favicon, the web app manifest and home screen icons, notification titles, the device name a sign-in gives the session (`MindRoom Chat Web`), and the native apps' names.
+Not covered by `branding`: the welcome page (`welcome.*` below), the favicon, the web app manifest and home screen icons, notification titles, the device name a sign-in gives the session (`MindRoom Chat Web`), and the native apps' names.
 
 An example:
 
@@ -154,7 +154,7 @@ With `showEncryptionOption: false` and `defaultEncryption: false` together, the 
 | `welcome.docsLabel` | string | `Docs` | Label of the second welcome button. |
 | `welcome.docsUrl` | string | `https://docs.mindroom.chat/` | Its link. An empty string hides the button. |
 | `welcome.poweredBy` | `{label, url}[]` | MindRoom and Matrix | The "Powered by" links on the welcome page. `[]` hides the line. |
-| `splash.loadingMessages` | string[] | `Loading MindRoom Chat`, translated | The startup screen shows one of these, picked at random at each start. Blank entries are skipped. |
+| `splash.loadingMessages` | string[] | `Loading MindRoom Chat` (with `branding.title` for the name), translated | The startup screen shows one of these, picked at random at each start. Blank entries are skipped. |
 | `mindroom.thinkingPlaceholderMessages` | string[] | `Making progress`, `Almost there`, `Boosting the GPUs`, `Checking the thread`, `Composing the reply` | Shown in turn, every 3.6 seconds, while an agent's reply still reads `Thinking...`. Blank and non-string entries are skipped; an empty list means the defaults. |
 
 A `welcome` text equal to its English default is shown translated into the app language; any other text is shown as written in every language.

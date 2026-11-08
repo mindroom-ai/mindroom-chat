@@ -2,7 +2,13 @@ import MindRoomLogo from '../../../../public/res/branding/mindroom-logo.png';
 import MindRoomFavicon from '../../../../public/res/branding/mindroom-favicon.png';
 
 export const MINDROOM_APP_NAME = 'MindRoom Chat';
-export const MINDROOM_DEVICE_DISPLAY_NAME = 'MindRoom Chat Web';
+/** The name a new session (Matrix device) gets, by the app it signs in from. */
+export const MINDROOM_DEVICE_DISPLAY_NAMES = {
+  web: `${MINDROOM_APP_NAME} Web`,
+  ios: `${MINDROOM_APP_NAME} iOS`,
+  android: `${MINDROOM_APP_NAME} Android`,
+  macos: `${MINDROOM_APP_NAME} macOS`,
+} as const;
 export const MINDROOM_NOTIFICATION_BRAND = MINDROOM_APP_NAME;
 
 export const MINDROOM_SITE_URL = 'https://mindroom.chat';

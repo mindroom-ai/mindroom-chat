@@ -1,7 +1,8 @@
 import React, { type ReactNode } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Box, Spinner, Text } from 'folds';
+import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
 import { MindRoomSplashScreen, pickMindRoomSplashMessage } from './BrandedSplashScreen';
 
 vi.mock('folds', () => ({
@@ -15,10 +16,14 @@ vi.mock('./SplashScreen', () => ({
 
 type SplashProps = React.ComponentProps<typeof MindRoomSplashScreen>;
 
-const renderSplash = (props: SplashProps) => {
+/** The splash with `props`, under a loaded `config` when one is given. */
+const renderSplash = (props: SplashProps, config?: ClientConfig) => {
   let renderer: ReactTestRenderer | undefined;
+  const splash = <MindRoomSplashScreen {...props} />;
   act(() => {
-    renderer = create(<MindRoomSplashScreen {...props} />);
+    renderer = create(
+      config ? <ClientConfigProvider value={config}>{splash}</ClientConfigProvider> : splash
+    );
   });
   if (!renderer) throw new Error('not rendered');
   return renderer;
@@ -27,7 +32,17 @@ const renderSplash = (props: SplashProps) => {
 const shownLine = (renderer: ReactTestRenderer) =>
   renderer.root.findByProps({ 'data-line': true }).children.join('');
 
+/** This browser's copy of the last configuration it loaded (ClientConfigLoader's cache). */
+const cacheConfig = (config: unknown) =>
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => (key.endsWith('/config.json') ? JSON.stringify(config) : null),
+  });
+
 describe('MindRoomSplashScreen line', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('shows a given message instead of a picked line, even an empty one', () => {
     const random = vi.fn(() => 0);
 
@@ -39,9 +54,34 @@ describe('MindRoomSplashScreen line', () => {
   });
 
   it('uses the translated line when every configured line is blank', () => {
-    expect(shownLine(renderSplash({ loadingMessages: ['', '   '], random: () => 0.5 }))).toBe(
+    expect(shownLine(renderSplash({ loadingMessages: ['', '   '], random: () => 0.5 }, {}))).toBe(
       'Loading MindRoom Chat'
     );
+  });
+
+  it("names the deployment's brand in the translated line", () => {
+    expect(shownLine(renderSplash({}, { branding: { title: 'Example Co' } }))).toBe(
+      'Loading Example Co'
+    );
+    expect(
+      shownLine(
+        renderSplash({}, { branding: { title: 'Example Co' }, splash: { loadingMessages: ['Hi'] } })
+      )
+    ).toBe('Hi');
+  });
+
+  it('shows only the spinner before any configuration is known, as a line may name another app', () => {
+    cacheConfig(null);
+    const renderer = renderSplash({});
+    expect(renderer.root.findAllByProps({ 'data-line': true })).toHaveLength(0);
+    expect(renderer.root.findAllByType(Spinner)).toHaveLength(1);
+  });
+
+  it('takes the line of the last configuration this browser loaded until one loads', () => {
+    cacheConfig({ branding: { title: 'Example Co' } });
+    expect(shownLine(renderSplash({}))).toBe('Loading Example Co');
+    cacheConfig({ splash: { loadingMessages: ['Waking up your agents'] } });
+    expect(shownLine(renderSplash({}))).toBe('Waking up your agents');
   });
 
   it('picks the first line at 0 and the last line at exactly 1', () => {
