@@ -29,6 +29,8 @@ export const moveSpaceLinks = async (
 ): Promise<string[]> => {
   const oldRoom = client.getRoom(oldRoomId);
   const space = oldRoom?.isSpaceRoom();
+  // Right after the upgrade, this account's server is the one surely in the replacement.
+  const domain = client.getDomain();
   const send = (roomId: string, type: string, content: object, stateKey: string) =>
     client.sendStateEvent(roomId, type as never, content as never, stateKey);
   const writes: Array<Promise<unknown>> = [];
@@ -59,7 +61,12 @@ export const moveSpaceLinks = async (
       : undefined;
     const listed = send(newRoomId, StateEvent.SpaceChild, event.getContent(), childId);
     const linked = hasVia(parent)
-      ? send(childId, StateEvent.SpaceParent, parent as object, newRoomId)
+      ? send(
+          childId,
+          StateEvent.SpaceParent,
+          { ...parent, via: domain ? [domain] : parent?.via },
+          newRoomId
+        )
       : undefined;
     // The old link goes only once the replacement lists the child and the child names it.
     const relinked = Promise.all([listed, linked]).then(
