@@ -310,10 +310,7 @@ const startWatch = (scroller: Scroller) =>
     };
   });
 
-/**
- * The first row fully inside the visible band and its top, to see whether it moves, and whether
- * the reader sees the end of the loaded rows: the sentinel that loads older history.
- */
+/** The first row fully inside the visible band and its top, to see whether it moves. */
 const readPlace = (scroller: Scroller) =>
   scroller.evaluate((view) => {
     const style = getComputedStyle(view);
@@ -325,12 +322,7 @@ const readPlace = (scroller: Scroller) =>
       .filter(({ rect }) => rect.height > 0 && rect.top >= bandTop && rect.bottom <= bandBottom)
       .sort((a, b) => a.rect.top - b.rect.top);
     const first = rows[0];
-    const edge = view.querySelector('[data-paginator-anchor="B"]')?.getBoundingClientRect();
-    return {
-      id: first?.id,
-      top: first?.rect.top ?? 0,
-      atEnd: !!edge && edge.bottom > bandTop && edge.top < bandBottom,
-    };
+    return { id: first?.id, top: first?.rect.top ?? 0 };
   });
 
 /** Waits until the scroll position has not moved for five frames: the flick has run out. */
@@ -369,17 +361,21 @@ const inView = (scroller: Scroller, id: string) =>
     );
   }, id);
 
+const NOTCH_PX = 200;
+const NOTCHES = 4;
+const FLICK_PX = NOTCH_PX * NOTCHES;
+
 /**
  * One flick: four wheel notches 40 ms apart on a desktop; on a phone a touch, four steps of the
  * same size and the lift.
  */
 const flick = async (page: Page, scroller: Scroller, device: Device, down: boolean) => {
-  const delta = down ? 200 : -200;
+  const delta = down ? NOTCH_PX : -NOTCH_PX;
   if (device === 'phone')
     await scroller.evaluate((view) =>
       view.dispatchEvent(new Event('touchstart', { bubbles: true }))
     );
-  for (let notch = 0; notch < 4; notch += 1) {
+  for (let notch = 0; notch < NOTCHES; notch += 1) {
     if (device === 'desktop') {
       // eslint-disable-next-line no-await-in-loop
       await page.mouse.wheel(0, delta);
@@ -415,8 +411,8 @@ const diff = (after: Requests, before: Requests): Requests => ({
 /**
  * Reads towards older rows like a person: a flick, a glance, until `target` is in view or nothing
  * new shows for fifteen flicks. Each step records the requests it caused, the rows it showed for
- * the first time, whether the reader saw the end of the loaded rows while older ones remained, and
- * how far the row at the top of the view moved in the 400 ms after the flick ran out.
+ * the first time, whether the flick ran into the end of the loaded rows while older ones remained,
+ * and how far the row at the top of the view moved in the 400 ms after the flick ran out.
  */
 const readToOldest = async (
   page: Page,
@@ -440,9 +436,13 @@ const readToOldest = async (
   while (idle < 15 && steps.length < 400) {
     const stepBefore = { ...requests };
     // eslint-disable-next-line no-await-in-loop
+    const from = await readPlace(scroller);
+    // eslint-disable-next-line no-await-in-loop
     await flick(page, scroller, device, down);
     // eslint-disable-next-line no-await-in-loop
     await settle(scroller);
+    // eslint-disable-next-line no-await-in-loop
+    const moved = from.id ? await topOf(scroller, from.id) : undefined;
     // eslint-disable-next-line no-await-in-loop
     const place = await readPlace(scroller);
     // eslint-disable-next-line no-await-in-loop
@@ -450,15 +450,14 @@ const readToOldest = async (
     // eslint-disable-next-line no-await-in-loop
     const later = place.id ? await topOf(scroller, place.id) : undefined;
     // eslint-disable-next-line no-await-in-loop
-    const settled = await readPlace(scroller);
-    // eslint-disable-next-line no-await-in-loop
     reached = await inView(scroller, target);
     // eslint-disable-next-line no-await-in-loop
     const now = await page.evaluate(() => (window as WatchWindow).manyThreadsWatch?.seen.size ?? 0);
     steps.push({
       requests: diff(requests, stepBefore),
       rows: now - seen,
-      stalled: !reached && (place.atEnd || settled.atEnd),
+      // The flick ran into the end of the loaded rows: the rows moved less than half its distance.
+      stalled: !reached && moved !== undefined && Math.abs(moved - from.top) < FLICK_PX / 2,
       drift: later === undefined ? 0 : Math.round(Math.abs(later - place.top)),
     });
     if (reached) break;
@@ -509,11 +508,11 @@ let fixture: Fixture;
 /** Rows on screen move no more than subpixel rounding while rows load around them. */
 const MAX_DRIFT_PX = 2;
 /**
- * Flicks that show no new row before the oldest thread is in view: the reader scrolled into the
- * end of the loaded rows and waited. A few at the end, where history the view no longer needs
- * still pages in, are allowed.
+ * Flicks that ran into the end of the loaded rows before the oldest thread was in view: the reader
+ * waited for rows. The last one, where the view pages in the history below its last thread, is
+ * allowed.
  */
-const MAX_WAITS = 3;
+const MAX_STALLS = 1;
 
 /** Reports the reading and checks it; `held` is the Threads view's count of held threads. */
 const check = (reading: Reading, held?: number) => {
@@ -522,8 +521,9 @@ const check = (reading: Reading, held?: number) => {
   expect(reading.reached, `${label}: the oldest thread came into view`).toBe(true);
   if (held !== undefined)
     expect(held, `${label}: threads the Threads view holds without a page`).toBe(THREADS);
-  const waits = reading.steps.slice(0, -1).filter((step) => step.rows === 0).length;
-  expect(waits, `${label}: flicks that showed no new row`).toBeLessThanOrEqual(MAX_WAITS);
+  expect(reading.stalls, `${label}: flicks that ran into the end of the rows`).toBeLessThanOrEqual(
+    MAX_STALLS
+  );
   expect(
     reading.maxDrift,
     `${label}: px the rows on screen moved as rows loaded`
