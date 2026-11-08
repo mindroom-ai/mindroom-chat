@@ -414,6 +414,100 @@ describe('MessageNotificationsFeature', () => {
     expect(bodies()).toEqual(['mindroom_helper: The notes are ready.']);
   });
 
+  describe('an agent reply that finishes while another device of the account watches it', () => {
+    /** A streamed reply in a thread, and its finishing edit, which the sync delivers. */
+    const finishReply = () => {
+      const agentMessage = (content: IContent) =>
+        new MatrixEvent({
+          type: 'm.room.message',
+          room_id: ROOM,
+          sender: '@mindroom_helper:example.org',
+          event_id: `$a${Math.random()}`,
+          origin_server_ts: Date.now(),
+          content,
+        });
+      const reply = agentMessage({
+        msgtype: 'm.text',
+        body: 'Thinking...',
+        'io.mindroom.stream_status': 'pending',
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+      });
+      const finished = agentMessage({
+        msgtype: 'm.text',
+        body: '* The notes are ready.',
+        'io.mindroom.stream_status': 'completed',
+        'm.new_content': {
+          msgtype: 'm.text',
+          body: 'The notes are ready.',
+          'io.mindroom.stream_status': 'completed',
+        },
+        'm.relates_to': { rel_type: 'm.replace', event_id: reply.getId() },
+      });
+      vi.spyOn(room, 'findEventById').mockImplementation(((id: string) =>
+        id === reply.getId() ? reply : undefined) as never);
+      arrive(reply);
+      act(() => {
+        emitter.emit(ClientEvent.Event, reply);
+        emitter.emit(ClientEvent.Event, finished);
+      });
+      return finished;
+    };
+
+    /** The account's receipt in the reply's thread, as a later sync brings it from the device. */
+    const receiptInThread = (eventId: string) =>
+      vi
+        .spyOn(room, 'getThread')
+        .mockImplementation(((threadId: string) =>
+          threadId === '$root' ? { getReadReceiptForUserId: () => ({ eventId }) } : null) as never);
+
+    it('stays quiet when the receipt on the finishing edit comes within the hold', () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+      try {
+        render('/home/');
+        const finished = finishReply();
+        act(() => {
+          vi.advanceTimersByTime(300);
+        });
+        receiptInThread(defined(finished.getId(), 'the edit ID'));
+        act(() => {
+          vi.advanceTimersByTime(5_000);
+        });
+        expect(FakeNotification.shown).toHaveLength(0);
+        expect(playChime).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('notifies after the hold when no device read it', () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+      try {
+        render('/home/');
+        finishReply();
+        expect(FakeNotification.shown).toHaveLength(0);
+        act(() => {
+          vi.advanceTimersByTime(5_000);
+        });
+        expect(FakeNotification.shown.map((note) => note.options.body)).toEqual([
+          'mindroom_helper: The notes are ready.',
+        ]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('still notifies a plain message at once', () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+      try {
+        render('/home/');
+        arrive(message({ msgtype: 'm.text', body: 'Standup moves to 11:00.' }));
+        expect(FakeNotification.shown).toHaveLength(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   it('waits for the member list of a room not opened, so a copied name shows the user ID', async () => {
     // The real Maya Chen has not posted lately, so the client learns of her only from the list.
     let listArrives: () => void = () => undefined;
