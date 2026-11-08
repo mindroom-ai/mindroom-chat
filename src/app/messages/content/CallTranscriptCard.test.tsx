@@ -20,9 +20,18 @@ const CALLER = '@robin:example.org';
 const COLLEAGUE = '@kai:example.org';
 const STRANGER = '@visitor_42:other.example';
 const LEFT = '@former:example.org';
+const BANNED = '@banned:example.org';
+const INVITED = '@invited:example.org';
 const OTHER_AGENT = '@mindroom_research:example.org';
 const PERSON = '@person:example.org';
 const ROOM_ID = '!room:example.org';
+// Members the loaded list leaves out (lazy loading skips who left), as the server has them.
+const GONE = '@gone:example.org';
+const ONLY_INVITED = '@only_invited:example.org';
+const SERVER_MEMBERS: Record<string, { membership: string }> = {
+  [GONE]: { membership: 'leave' },
+  [ONLY_INVITED]: { membership: 'invite' },
+};
 
 const BODY = '📞 Voice call · 2 min\n\nTranscript\n\nRobin: Can you hear me?';
 const FORMATTED =
@@ -71,6 +80,8 @@ const MEMBERS: Record<string, { name?: string; membership: string }> = {
   [COLLEAGUE]: { membership: 'join' },
   [OTHER_AGENT]: { name: 'Research', membership: 'join' },
   [LEFT]: { name: 'Former Member', membership: 'leave' },
+  [BANNED]: { name: 'Banned Member', membership: 'ban' },
+  [INVITED]: { name: 'Invited Member', membership: 'invite' },
 };
 
 describe('a voice call transcript message', () => {
@@ -124,6 +135,12 @@ describe('a voice call transcript message', () => {
     const mx = {
       getUserId: () => VIEWER,
       getRoom: (roomId: string) => (roomId === ROOM_ID ? room : null),
+      getStateEvent: async (roomId: string, type: string, userId: string) => {
+        const state = SERVER_MEMBERS[userId];
+        if (roomId !== ROOM_ID || type !== 'm.room.member' || !state)
+          throw new Error('M_NOT_FOUND');
+        return state;
+      },
       on: () => undefined,
       removeListener: () => undefined,
     } as unknown as MatrixClient;
@@ -374,6 +391,178 @@ describe('a voice call transcript message', () => {
       expect(hydrateLongText).toHaveBeenCalled();
       expect(card()).toBeNull();
       expect(container.querySelector('details summary')?.textContent).toBe('Transcript');
+    });
+  });
+
+  // MindRoom's router posts it in a call row's thread: the notes as the body.
+  describe('of a call between people', () => {
+    const ROUTER = '@mindroom_router:example.org';
+    const NOTES = 'Decided to ship on Friday. Robin writes the release notes.';
+    const notesContent = (transcript: unknown = VALID): IContent => ({
+      msgtype: 'm.notice',
+      body: NOTES,
+      'io.mindroom.call_transcript': transcript,
+      'io.mindroom.call_notes': { call_id: 'call-1' },
+    });
+    const PEOPLE = {
+      duration_seconds: 720,
+      turns: [
+        { sender: CALLER, text: 'Shall we ship it on Friday?' },
+        { sender: COLLEAGUE, text: 'Yes, and I will write the notes.' },
+      ],
+    };
+
+    it('shows the notes as the card\'s text, under "Call" and how long it lasted', () => {
+      render(notesContent(PEOPLE), ROUTER);
+
+      const header = card()?.querySelector('[data-call-transcript-header]');
+      expect(header?.textContent).toContain('Call');
+      expect(header?.textContent).not.toContain('Voice call');
+      expect(header?.textContent).toContain('12 min');
+      expect(card()?.querySelector('[data-call-transcript-notes]')?.textContent).toContain(NOTES);
+      expect(toggle()?.textContent).toContain('2 turns');
+      act(() => toggle()?.click());
+      expect(groups()).toHaveLength(2);
+    });
+
+    it('shows the first turns of a transcript past the limits, then how many more there are', () => {
+      const half = 'word '.repeat(50_000);
+      render(
+        notesContent({
+          duration_seconds: 7200,
+          turns: [
+            { sender: CALLER, text: half },
+            { sender: COLLEAGUE, text: half },
+            { sender: CALLER, text: 'One more thing.' },
+          ],
+        }),
+        ROUTER
+      );
+
+      expect(toggle()?.textContent).toContain('3 turns');
+      act(() => toggle()?.click());
+      expect(groups()).toHaveLength(2);
+      expect(card()?.textContent).not.toContain('One more thing.');
+      expect(card()?.textContent).toContain('1 more turn not shown');
+    });
+
+    it('keeps the transcript of speakers who were in the room and have left since', () => {
+      render(
+        notesContent({
+          duration_seconds: 60,
+          turns: [
+            { sender: CALLER, text: 'Ship it?' },
+            { sender: LEFT, text: 'Ship it.' },
+            { sender: BANNED, text: 'Agreed.' },
+          ],
+        }),
+        ROUTER
+      );
+
+      expect(card()?.querySelector('[data-call-transcript-notes]')?.textContent).toContain(NOTES);
+      act(() => toggle()?.click());
+      expect(
+        groups().map((group) => group.querySelector('[data-call-transcript-name]')?.textContent)
+      ).toEqual(['Robin Tester', 'Former Member', 'Banned Member']);
+    });
+
+    it('keeps the transcript of a speaker who left, whom the loaded members leave out', async () => {
+      const said = (speaker: string) =>
+        notesContent({
+          duration_seconds: 60,
+          turns: [
+            { sender: CALLER, text: 'Ship it?' },
+            { sender: speaker, text: 'Ship it.' },
+          ],
+        });
+      render(said(GONE), ROUTER);
+      await act(async () => {});
+      act(() => toggle()?.click());
+      expect(groups()).toHaveLength(2);
+
+      // Not one who was only invited.
+      render(said(ONLY_INVITED), ROUTER);
+      await act(async () => {});
+      expect(card()).toBeNull();
+      expect(container.textContent).toContain(NOTES);
+    });
+
+    it.each([
+      ['someone outside the room', STRANGER],
+      ['someone only invited', INVITED],
+      ['another agent', OTHER_AGENT],
+    ])('shows only the notes while it names %s', (_, speaker) => {
+      render(
+        notesContent({ duration_seconds: 60, turns: [{ sender: speaker, text: 'Ship it.' }] }),
+        ROUTER
+      );
+
+      expect(card()).toBeNull();
+      expect(container.textContent).toContain(NOTES);
+    });
+
+    it('shows its body as text when nothing of the call could be transcribed', () => {
+      render(
+        {
+          ...notesContent({ duration_seconds: 120, turns: [] }),
+          body: 'Call · 2 min. Nothing could be transcribed.',
+        },
+        ROUTER
+      );
+
+      expect(card()).toBeNull();
+      expect(container.textContent).toContain('Call · 2 min. Nothing could be transcribed.');
+    });
+
+    it('shows the one-line summary once, in the header, without a notes model', () => {
+      render({ ...notesContent(PEOPLE), body: 'Call · 12 min' }, ROUTER);
+
+      expect(card()?.querySelector('[data-call-transcript-notes]')).toBeNull();
+      expect(container.textContent).not.toContain('Call · 12 min');
+      expect(card()?.querySelector('[data-call-transcript-header]')?.textContent).toContain(
+        '12 min'
+      );
+    });
+
+    it("shows the notes in the card once a long call's sidecar is hydrated", async () => {
+      hydrateLongText.mockReset();
+      hydrateLongText.mockResolvedValue(notesContent(PEOPLE));
+      render(
+        {
+          ...sidecarPreview(),
+          body: NOTES,
+          'io.mindroom.call_notes': { call_id: 'call-1' },
+        },
+        ROUTER
+      );
+      await act(async () => {});
+
+      expect(card()?.querySelector('[data-call-transcript-notes]')?.textContent).toContain(NOTES);
+      expect(toggle()?.textContent).toContain('2 turns');
+    });
+
+    it("shows the card once a long call's notice preview is hydrated", async () => {
+      hydrateLongText.mockReset();
+      hydrateLongText.mockResolvedValue(notesContent(PEOPLE));
+      // A notice's preview stays a quiet notice, with the call it finishes beside the pointer.
+      render(
+        {
+          ...sidecarPreview(),
+          msgtype: 'm.notice',
+          body: NOTES.slice(0, 30),
+          'm.mentions': {},
+          'io.mindroom.call_notes': { call_id: 'call-1' },
+        },
+        ROUTER
+      );
+      await act(async () => {});
+
+      expect(hydrateLongText).toHaveBeenCalled();
+      expect(card()?.querySelector('[data-call-transcript-header]')?.textContent).toContain(
+        '12 min'
+      );
+      expect(card()?.querySelector('[data-call-transcript-notes]')?.textContent).toContain(NOTES);
+      expect(toggle()?.textContent).toContain('2 turns');
     });
   });
 });

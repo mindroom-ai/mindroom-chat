@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Direction, EventType, type IRoomEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { useOptionalClientConfig } from '../../config/useClientConfig';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import {
@@ -13,6 +14,8 @@ import {
 import { getDirectCreatePath, getHomePath, withSearchParam } from '../../routes/pathUtils';
 import { readableReason } from '../../lib/errorReason';
 import { matchesEnum } from '../../lib/matchesEnum';
+import { registeredPlugins } from '../../plugins/registry';
+import { usePluginSlashCommands } from '../../plugins/slashCommands';
 
 /**
  * The composer's slash commands, by the name typed after the `/`. The first group changes the
@@ -84,10 +87,16 @@ export type CommandContext = {
 type CommandAction = (context: CommandContext, args: string) => Promise<void>;
 
 export type SlashCommand = {
-  name: Command;
+  /** A built-in command, or one a plugin adds (`src/app/plugins/slashCommands.ts`). */
+  name: string;
   description: string;
   /** For commands that act instead of sending a message; message commands have none. */
   run?: (args: string) => Promise<void>;
+  /**
+   * A plugin's command, which runs in the composer's thread: like a message, it waits for a root
+   * the server has not confirmed yet.
+   */
+  inThread?: true;
 };
 
 const wordsOf = (text: string): string[] => text.split(/\s+/).filter((word) => word !== '');
@@ -374,13 +383,16 @@ export const isActingCommand = (name: Command): boolean => ACTIONS[name] !== und
 
 /**
  * The slash commands for `room`, by name: each with its description in the person's language,
- * and for commands that act, `run` with the text typed after the name.
+ * and for commands that act, `run` with the text typed after the name. The plugins' commands
+ * follow the built-in ones, which keep their names: a plugin's command of the same name is none.
+ * A plugin's command runs in `threadId`, the thread the composer writes to, if any.
  */
-export const useCommands = (room: Room): Record<string, SlashCommand> => {
+export const useCommands = (room: Room, threadId?: string): Record<string, SlashCommand> => {
   const client = useMatrixClient();
   const { navigateRoom } = useRoomNavigate();
   const goTo = useNavigate();
   const { t } = useTranslation();
+  const pluginCommands = usePluginSlashCommands(registeredPlugins, useOptionalClientConfig());
 
   return useMemo(() => {
     const context: CommandContext = {
@@ -401,6 +413,17 @@ export const useCommands = (room: Room): Record<string, SlashCommand> => {
         return [name, { name, description, run }];
       }
     );
-    return Object.fromEntries(entries);
-  }, [client, goTo, navigateRoom, room, t]);
+    const commands: Record<string, SlashCommand> = Object.fromEntries(entries);
+    pluginCommands.forEach(({ name, description, run }) => {
+      if (!Object.hasOwn(commands, name)) {
+        commands[name] = {
+          name,
+          description,
+          run: (args) => run({ room, args, threadId }),
+          inThread: true,
+        };
+      }
+    });
+    return commands;
+  }, [client, goTo, navigateRoom, pluginCommands, room, t, threadId]);
 };

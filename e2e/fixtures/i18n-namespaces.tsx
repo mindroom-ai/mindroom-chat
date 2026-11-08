@@ -25,11 +25,10 @@ void registerNamespace(NAMESPACE, { greeting: 'Hello from the plugin' }, async (
 Object.assign(window, { fixtureI18n: i18n });
 
 function PluginGreeting() {
-  // The app's typed keys cover its own catalog only, and checking a key against all of them runs
-  // past TypeScript's depth limit: the plugin's line is read with an untyped function.
-  const { t } = useTranslation(NAMESPACE as never);
-  const translate = t as unknown as (key: string) => string;
-  return <p data-testid="plugin-greeting">{translate('greeting')}</p>;
+  // The app's typed keys cover its own catalog only; checking a key against all of them is too
+  // deep a type for the compiler, so this namespace's `t` takes any key (as a plugin's does).
+  const t = useTranslation(NAMESPACE as never).t as unknown as (key: string) => string;
+  return <p data-testid="plugin-greeting">{t('greeting')}</p>;
 }
 
 createRoot(document.getElementById('root')!).render(

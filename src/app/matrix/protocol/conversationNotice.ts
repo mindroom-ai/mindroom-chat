@@ -1,6 +1,7 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { isMindroomAgentUserIdForViewer } from './agentIdentity';
 import { getActiveSession } from '../session/sessions';
+import { isCallRowEvent } from './callRow';
 
 /**
  * Whether an agent marked the event as the start of a conversation: its content says
@@ -15,8 +16,10 @@ const isConversationNotice = (event: MatrixEvent): boolean =>
 
 /**
  * Whether the event is a notice no agent marked as the start of a conversation
- * (`isConversationNotice`), such as an agent's status line: the thread lists show it only once its
- * thread has replies.
+ * (`isConversationNotice`), such as an agent's status line, and no call's row (`isCallRowEvent`):
+ * the thread lists show it only once its thread has replies.
  */
 export const isUnmarkedNotice = (event: MatrixEvent): boolean =>
-  event.getContent()?.msgtype === 'm.notice' && !isConversationNotice(event);
+  event.getContent()?.msgtype === 'm.notice' &&
+  !isConversationNotice(event) &&
+  !isCallRowEvent(event);

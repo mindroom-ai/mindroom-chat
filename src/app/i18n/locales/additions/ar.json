@@ -448,7 +448,37 @@
         "turns_two": "مداخلتان (⁨{{count}}⁩)",
         "turns_few": "⁨{{count}}⁩ مداخلات",
         "turns_many": "⁨{{count}}⁩ مداخلةً",
-        "turns_other": "⁨{{count}}⁩ مداخلة"
+        "turns_other": "⁨{{count}}⁩ مداخلة",
+        "moreTurns_zero": "⁨{{count}}⁩ مداخلة أخرى غير معروضة",
+        "moreTurns_one": "⁨{{count}}⁩ مداخلة أخرى غير معروضة",
+        "moreTurns_two": "مداخلتان أخريان غير معروضتين (⁨{{count}}⁩)",
+        "moreTurns_few": "⁨{{count}}⁩ مداخلات أخرى غير معروضة",
+        "moreTurns_many": "⁨{{count}}⁩ مداخلةً أخرى غير معروضة",
+        "moreTurns_other": "⁨{{count}}⁩ مداخلة أخرى غير معروضة",
+        "callTitle": "مكالمة"
+      },
+      "transcription": {
+        "unavailable": "نصوص المكالمة غير متاحة",
+        "pause": "إيقاف التفريغ النصي مؤقتًا",
+        "pausedBy": "أوقفه مؤقتًا ⁨{{name}}⁩",
+        "liveTranscript": "نص المكالمة المباشر",
+        "close": "إغلاق نص المكالمة المباشر",
+        "resize": "تغيير حجم نص المكالمة المباشر",
+        "transcribed": "يجري تفريغ هذه المكالمة نصيًا.",
+        "inCall": "في المكالمة",
+        "lines": "نص المكالمة حتى الآن",
+        "noCall": "لا توجد مكالمة جارية في هذه الغرفة.",
+        "notTranscribed": "لا يجري تفريغ المكالمات في هذه الغرفة نصيًا.",
+        "nothingYet": "لم يُقل شيء بعد.",
+        "gap": {
+          "paused": "متوقف مؤقتًا",
+          "notTranscribed": "لم يُفرَّغ نصيًا"
+        }
+      },
+      "row": {
+        "live": "مكالمة جارية",
+        "ended": "انتهت المكالمة",
+        "notes": "الملاحظات ونص المكالمة"
       },
       "stage": {
         "speaking": "⁨{{name}}⁩ يتحدث",

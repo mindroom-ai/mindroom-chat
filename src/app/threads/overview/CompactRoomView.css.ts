@@ -63,7 +63,30 @@ export const Card = style([
   },
 ]);
 
-globalStyle(`${CardShell}:focus-within ${Card}`, {
+// A card that holds controls of its own besides opening its thread (a call's row): the button
+// that opens the thread fills the card's place for the summary.
+export const CardButton = style([
+  DefaultReset,
+  {
+    display: 'flex',
+    flexDirection: 'column',
+    rowGap: config.space.S100,
+    inlineSize: '100%',
+    minInlineSize: 0,
+    color: 'inherit',
+    textAlign: 'start',
+    cursor: 'pointer',
+    borderRadius: config.radii.R300,
+    ':focus-visible': {
+      outline: `${config.borderWidth.B300} solid ${color.Primary.Main}`,
+      outlineOffset: '1px',
+    },
+  },
+]);
+
+// The keyboard's focus on the card or its buttons tints it; a menu that hands focus back to its
+// button after a tap or a click does not.
+globalStyle(`${CardShell}:has(:focus-visible) ${Card}`, {
   backgroundColor: color.SurfaceVariant.ContainerHover,
 });
 
@@ -130,6 +153,13 @@ export const CardMenuButton = style({
     [touchActions]: {
       width: '2.5rem',
       height: '2.5rem',
+    },
+    // A touch screen keeps :hover on the button tapped last, so after its menu closes the button
+    // would stay tinted; there only the press itself and the keyboard's focus tint it.
+    '(hover: none)': {
+      selectors: {
+        '&:hover:not(:focus-visible, :active)': { backgroundColor: 'transparent' },
+      },
     },
   },
 });

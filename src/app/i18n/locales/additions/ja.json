@@ -408,7 +408,32 @@
       "transcript": {
         "title": "音声通話",
         "transcript": "文字起こし",
-        "turns_other": "{{count}} 件の発言"
+        "turns_other": "{{count}} 件の発言",
+        "moreTurns_other": "ほかに {{count}} 件の発言は表示されていません",
+        "callTitle": "通話"
+      },
+      "transcription": {
+        "unavailable": "文字起こしを利用できません",
+        "pause": "文字起こしを一時停止",
+        "pausedBy": "{{name}} が一時停止中",
+        "liveTranscript": "ライブ文字起こし",
+        "close": "ライブ文字起こしを閉じる",
+        "resize": "ライブ文字起こしのサイズを変更",
+        "transcribed": "この通話は文字起こしされています。",
+        "inCall": "通話中",
+        "lines": "これまでの文字起こし",
+        "noCall": "このルームで進行中の通話はありません。",
+        "notTranscribed": "このルームの通話は文字起こしされません。",
+        "nothingYet": "まだ何も話されていません。",
+        "gap": {
+          "paused": "一時停止",
+          "notTranscribed": "文字起こしなし"
+        }
+      },
+      "row": {
+        "live": "通話中",
+        "ended": "通話終了",
+        "notes": "メモと文字起こし"
       },
       "stage": {
         "speaking": "{{name}}さんが話しています",

@@ -1,4 +1,12 @@
-import { FormEventHandler, ReactNode, useCallback, useEffect, useState } from 'react';
+import {
+  FormEventHandler,
+  ReactNode,
+  RefObject,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { Box, Button, Input, Scroll, Spinner, Text, color } from 'folds';
 import { Header, Surface } from '../../ui/glass/GlassPrimitives';
 import { glassOverBackdrop } from '../../ui/styles/Glass.css';
@@ -154,16 +162,61 @@ function ServerPicker({
   );
 }
 
+/** Room kept between a form's submit button and the keyboard, and above the focused field. */
+const KEYBOARD_REVEAL_GAP = 16;
+
+/**
+ * On a phone the keyboard makes the page shorter: the iOS app's web view shrinks, and so does
+ * Safari's visual viewport, which useMobileKeyboardViewportFix hands on to the app. The browser
+ * brings only the focused field into view, which left the form's submit button under the keyboard.
+ * While a field of a form has the focus, the page scrolls the button into view too, as far as the
+ * field stays in view.
+ */
+const useSubmitAboveKeyboard = (scrollRef: RefObject<HTMLElement>) => {
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller) return undefined;
+    const reveal = () => {
+      const field = document.activeElement;
+      if (!(field instanceof HTMLElement) || !scroller.contains(field)) return;
+      const submit = field.closest('form')?.querySelector('[type="submit"]');
+      if (!submit) return;
+      const view = scroller.getBoundingClientRect();
+      const hidden = submit.getBoundingClientRect().bottom + KEYBOARD_REVEAL_GAP - view.bottom;
+      const spare = field.getBoundingClientRect().top - KEYBOARD_REVEAL_GAP - view.top;
+      const by = Math.min(hidden, spare);
+      if (by > 0) scroller.scrollTop += by;
+    };
+    // The keyboard resizes the scroller, and the focus can move to another field while it is up.
+    const resizeObserver = new ResizeObserver(reveal);
+    resizeObserver.observe(scroller);
+    scroller.addEventListener('focusin', reveal);
+    return () => {
+      resizeObserver.disconnect();
+      scroller.removeEventListener('focusin', reveal);
+    };
+  }, [scrollRef]);
+};
+
 /** The full-height scrolling page the sign-in card sits on, above the particle background. */
 function AuthFrame({ children }: { children: ReactNode }) {
   const persistentParticle = usePersistentParticleBackground();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useSubmitAboveKeyboard(scrollRef);
   const layoutClassName = classNames(
     css.AuthLayout,
     persistentParticle && css.AuthLayoutPersistentParticle
   );
 
   return (
-    <Scroll className={css.AuthScroll} hideTrack size="300" variant="Background" visibility="Hover">
+    <Scroll
+      ref={scrollRef}
+      className={css.AuthScroll}
+      hideTrack
+      size="300"
+      variant="Background"
+      visibility="Hover"
+    >
       <Box className={layoutClassName}>
         <ParticleBackgroundSurface />
         {children}
@@ -222,11 +275,20 @@ export function AuthLayout() {
       <Surface as="main" className={classNames(css.AuthCard, glassOverBackdrop)}>
         <Header className={css.AuthHeader} size="600" variant="Surface">
           <Box grow="Yes" alignItems="Center" gap="300">
-            <BrandLogo className={css.AuthLogo} />
-            {/* The page's one heading; each page's own title is a paragraph under the server. */}
-            <Text as="h1" size="H3" truncate>
-              {branding.title}
-            </Text>
+            {/* The page's one heading; each page's own title is a paragraph under the server. An
+                empty title leaves the logo alone as the heading, named by its alt text. */}
+            {branding.showTitle ? (
+              <>
+                <BrandLogo className={css.AuthLogo} />
+                <Text as="h1" size="H3" truncate>
+                  {branding.title}
+                </Text>
+              </>
+            ) : (
+              <h1 className={css.AuthLogoHeading}>
+                <BrandLogo className={css.AuthLogo} />
+              </h1>
+            )}
           </Box>
         </Header>
         <Box className={css.AuthCardContent} direction="Column" gap="500">

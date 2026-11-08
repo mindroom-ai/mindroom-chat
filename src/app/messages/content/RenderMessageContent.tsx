@@ -41,6 +41,8 @@ import { MessageEvent } from '../../matrix/types/room';
 import { MEDIA_SPOILER_PROPERTY } from '../../matrix/send/msgContent';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { readCallTranscript } from '../../matrix/protocol/callTranscript';
+import { readCallRow } from '../../matrix/protocol/callRow';
+import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { CallTranscriptCard } from './CallTranscriptCard';
 import {
   useMessageRenderer,
@@ -147,6 +149,11 @@ function CoreMessageContent({
     () => (fromMindroomAgent ? readCallTranscript(content) : undefined),
     [content, fromMindroomAgent]
   );
+
+  // A call between people starts with the router's row, shown as its latest edit has it: who is
+  // in the call, Join and Transcript while live; how long it lasted once over.
+  const callRow = fromMindroomAgent ? readCallRow(content) : undefined;
+  if (callRow && mEvent) return <LazyCallRow mEvent={mEvent} row={callRow} body={content.body} />;
 
   const renderUrlsPreview = urlPreview
     ? (urls: string[]) => <UrlPreviewList urls={urls} sentAt={ts} />

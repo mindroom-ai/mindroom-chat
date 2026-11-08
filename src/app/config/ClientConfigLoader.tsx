@@ -1,6 +1,6 @@
-import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
-import type { ClientConfig } from './useClientConfig';
+import { type ClientConfig, useOptionalClientConfig } from './useClientConfig';
 import { trimTrailingSlash } from '../lib/common';
 import {
   authenticationConfigurationLoaded,
@@ -47,6 +47,15 @@ export const readCachedClientConfig = (
   } catch {
     return undefined;
   }
+};
+
+/**
+ * The loaded configuration, else the last one this browser loaded: what the screens shown before
+ * or instead of a fresh load (the loading splash, the configuration error) go by.
+ */
+export const useLoadedOrCachedClientConfig = (): ClientConfig | undefined => {
+  const loaded = useOptionalClientConfig();
+  return useMemo(() => loaded ?? readCachedClientConfig(), [loaded]);
 };
 
 const writeCachedClientConfig = (basePath: string, config: ClientConfig) => {

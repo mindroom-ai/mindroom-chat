@@ -30,7 +30,9 @@ export function UserPack({ onViewPack }: { onViewPack: (pack: ImagePack) => void
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t(`${USER_PACK}.title`)}</Text>
+      <Text size="L400" data-settings-heading="">
+        {t(`${USER_PACK}.title`)}
+      </Text>
       <SettingsCard>
         <SettingTile
           focusId="personalPack"

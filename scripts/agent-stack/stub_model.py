@@ -26,20 +26,26 @@ the same shape as TOOL_SCENARIOS below, as JSON: {"#hashtag": [["tool_function",
 files are read for every request, so an edit applies at once; a hashtag the stub already has gets the file's steps.
 
 Anything else gets a short echo naming the model ("Hello from **stub-fast**. You said: <message>").
+A call's notes (structured, about the call's <transcript>) say "Stub notes of the call." and "stub" in each list.
 When MindRoom reports that background jobs ended, the stub collects them with the job tool and reports
 the result. After a tool result the scenario calls its next tool or answers with the last result. Structured-output
 requests (the router, thread summaries and tags, schedule parsing) get JSON built from their schema.
 Every request is appended to the --log file as one JSON line.
+
+It also stands in for speech-to-text (/v1/audio/transcriptions, OpenAI's form): it hears nothing and answers with the
+length its WAV's header gives, "Stand-in transcript of 4.5 seconds of speech."
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import io
 import json
 import re
 import time
 import uuid
+import wave
 from pathlib import Path
 
 from aiohttp import web
@@ -205,6 +211,8 @@ def schema_value(schema: dict, defs: dict, text: str, key: str = ""):
     if key in ("entity_name", "agent_name"):
         routed = text.split('Message: "', 1)[-1].lower()
         return "scout" if "scout" in routed else "helper"
+    if key == "summary" and "<transcript>" in text:
+        return "Stub notes of the call."
     if key == "summary":
         person = re.search(r"@tester_[a-z0-9]+:[a-z.]+: ([^\n]+)", text)
         words = " ".join((person.group(1) if person else text).replace("#", "").split()[:6])
@@ -406,6 +414,32 @@ class Stub:
         await response.write_eof()
         return response
 
+    async def transcriptions(self, request: web.Request) -> web.Response:
+        """Speech-to-text that hears nothing: the length of the recording, from its WAV header."""
+        form = await request.post()
+        upload = form.get("file")
+        if not isinstance(upload, web.FileField):
+            return web.json_response({"error": {"message": "no file", "type": "invalid_request_error"}}, status=400)
+        try:
+            seconds = wav_seconds(upload.file.read())
+        except (wave.Error, EOFError, ZeroDivisionError):
+            return web.json_response({"error": {"message": "not a WAV", "type": "invalid_request_error"}}, status=400)
+        self.record(
+            {
+                "time": time.time(),
+                "model": form.get("model"),
+                "language": form.get("language"),
+                "transcription": round(seconds, 2),
+            }
+        )
+        return web.json_response({"text": f"Stand-in transcript of {seconds:.1f} seconds of speech."})
+
+
+def wav_seconds(audio: bytes) -> float:
+    """How long a WAV lasts by its header."""
+    with wave.open(io.BytesIO(audio)) as recording:
+        return recording.getnframes() / recording.getframerate()
+
 
 async def list_models(_request: web.Request) -> web.Response:
     return web.json_response(
@@ -429,6 +463,7 @@ def main() -> None:
     stub = Stub(args.log, args.scenarios)
     app = web.Application(client_max_size=64 * 1024 * 1024)
     app.router.add_post("/v1/chat/completions", stub.completions)
+    app.router.add_post("/v1/audio/transcriptions", stub.transcriptions)
     app.router.add_get("/v1/models", list_models)
     web.run_app(app, host="127.0.0.1", port=args.port, print=None)
 

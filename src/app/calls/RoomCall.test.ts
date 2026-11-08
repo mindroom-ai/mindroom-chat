@@ -37,7 +37,8 @@ vi.mock('livekit-client', async () => {
       isScreenShareEnabled: false,
       isSpeaking: false,
       isMicrophoneEnabled: false,
-      getTrackPublication: () => undefined,
+      getTrackPublication: vi.fn((_source: string): unknown => undefined),
+      trackPublications: new Map<string, unknown>(),
       setMicrophoneEnabled: vi.fn(async () => undefined),
       setCameraEnabled: vi.fn(async () => undefined),
       setScreenShareEnabled: vi.fn(async () => undefined),
@@ -73,6 +74,7 @@ vi.mock('livekit-client', async () => {
       Kind: { Audio: 'audio', Video: 'video' },
       Source: { Camera: 'camera', Microphone: 'microphone', ScreenShare: 'screen_share' },
     },
+    TrackEvent: { Restarted: 'restarted' },
     Room: FakeMediaRoom,
     isBrowserSupported: () => fakes.browserSupported,
     isE2EESupported: () => true,
@@ -167,9 +169,12 @@ type FakeMediaRoom = EventEmitter & {
   disconnect: ReturnType<typeof vi.fn>;
   setE2EEEnabled: ReturnType<typeof vi.fn>;
   localParticipant: {
+    getTrackPublication: ReturnType<typeof vi.fn>;
+    trackPublications: Map<string, unknown>;
     setMicrophoneEnabled: ReturnType<typeof vi.fn>;
     setCameraEnabled: ReturnType<typeof vi.fn>;
   };
+  switchActiveDevice: ReturnType<typeof vi.fn>;
 };
 
 const mediaRooms = () => fakes.rooms as FakeMediaRoom[];
@@ -558,6 +563,99 @@ describe('RoomCall after joining', () => {
 
     expect(call.getState().phase).toBe('ended');
     expect(call.getState().problem).toBeUndefined();
+  });
+});
+
+/** The microphone this device publishes: LiveKit's track, which swaps its media track on a switch. */
+const microphonePublication = (mediaStreamTrack: MediaStreamTrack) => {
+  const track = Object.assign(new EventEmitter(), { mediaStreamTrack });
+  return { source: 'microphone', isMuted: false, track };
+};
+
+const MIC_A = { id: 'mic-a' } as MediaStreamTrack;
+const MIC_B = { id: 'mic-b' } as MediaStreamTrack;
+const MIC_C = { id: 'mic-c' } as MediaStreamTrack;
+
+describe('RoomCall microphone track', () => {
+  it('shows the microphone it publishes, none while muted, and tells its subscribers of each change', async () => {
+    const { call } = setup();
+    await call.join();
+    const media = onlyMediaRoom();
+    const listener = vi.fn();
+    call.subscribe(listener);
+    expect(call.getState().microphoneTrack).toBeUndefined();
+
+    const publication = microphonePublication(MIC_A);
+    media.localParticipant.getTrackPublication.mockImplementation((source: string) =>
+      source === 'microphone' ? publication : undefined
+    );
+    media.emit('LocalTrackPublished', publication);
+    expect(call.getState().microphoneTrack).toBe(MIC_A);
+    expect(listener).toHaveBeenCalled();
+
+    publication.isMuted = true;
+    media.emit('TrackMuted', publication);
+    expect(call.getState().microphoneTrack).toBeUndefined();
+    publication.isMuted = false;
+    media.emit('TrackUnmuted', publication);
+    expect(call.getState().microphoneTrack).toBe(MIC_A);
+
+    // Another microphone: LiveKit keeps its track and swaps the media track inside it.
+    publication.track.mediaStreamTrack = MIC_B;
+    media.emit('ActiveDeviceChanged', 'audioinput', 'usb-mic');
+    expect(call.getState()).toMatchObject({
+      microphoneTrack: MIC_B,
+      devices: { audioinput: 'usb-mic' },
+    });
+
+    // The same microphone opened again (its track had ended) is a new media track too.
+    publication.track.mediaStreamTrack = MIC_C;
+    listener.mockClear();
+    publication.track.emit('restarted');
+    expect(call.getState().microphoneTrack).toBe(MIC_C);
+    expect(listener).toHaveBeenCalled();
+
+    media.localParticipant.getTrackPublication.mockImplementation(() => undefined);
+    media.emit('LocalTrackUnpublished', publication);
+    expect(call.getState().microphoneTrack).toBeUndefined();
+    expect(publication.track.listenerCount('restarted')).toBe(0);
+  });
+
+  it('shows the new microphone once a switch this device asked for is done', async () => {
+    const { call } = setup();
+    await call.join();
+    const media = onlyMediaRoom();
+    const publication = microphonePublication(MIC_A);
+    media.localParticipant.getTrackPublication.mockImplementation((source: string) =>
+      source === 'microphone' ? publication : undefined
+    );
+    media.emit('LocalTrackPublished', publication);
+    media.switchActiveDevice.mockImplementationOnce(async () => {
+      publication.track.mediaStreamTrack = MIC_B;
+      return true;
+    });
+
+    await call.setDevice('audioinput', 'usb-mic');
+
+    expect(call.getState().microphoneTrack).toBe(MIC_B);
+  });
+
+  it('lets go of the microphone track when the call ends', async () => {
+    const { call } = setup();
+    await call.join();
+    const media = onlyMediaRoom();
+    const publication = microphonePublication(MIC_A);
+    media.localParticipant.getTrackPublication.mockImplementation((source: string) =>
+      source === 'microphone' ? publication : undefined
+    );
+    media.localParticipant.trackPublications.set('microphone', publication);
+    media.emit('LocalTrackPublished', publication);
+    expect(publication.track.listenerCount('restarted')).toBe(1);
+
+    await call.leave();
+
+    expect(call.getState().microphoneTrack).toBeUndefined();
+    expect(publication.track.listenerCount('restarted')).toBe(0);
   });
 });
 

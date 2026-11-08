@@ -1,6 +1,6 @@
-import { type ReactNode, useId, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Room } from 'matrix-js-sdk';
+import { EventType, type MatrixClient, type Room, type RoomMember } from 'matrix-js-sdk';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { Avatar, Icon, Icons, Text } from 'folds';
 import { UserAvatar } from '../../avatars/UserAvatar';
@@ -9,11 +9,16 @@ import { useRoomMembers } from '../../matrix/hooks/useRoomMembers';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../matrix/room';
 import { getMxIdLocalPart } from '../../matrix/matrix';
+import {
+  isMindroomAgentUserId,
+  isMindroomAgentUserIdForViewer,
+} from '../../matrix/protocol/agentIdentity';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import {
   callTranscriptSpeakersTrusted,
   clipTurnText,
   groupCallTranscriptTurns,
+  speakerMemberships,
   type CallTranscript,
   type CallTranscriptGroup,
 } from '../../matrix/protocol/callTranscript';
@@ -33,12 +38,57 @@ type CallTranscriptCardProps = {
   roomId?: string;
   /**
    * The message as it renders without the card, shown while the transcript names a speaker the
-   * card may not (`callTranscriptSpeakersTrusted`).
+   * card may not (`callTranscriptSpeakersTrusted`). For a call between people it is the call's
+   * notes, which the card shows as its text.
    */
   fallback: ReactNode;
   /** A search's matches: they are marked, and a transcript with one starts open. */
   highlightRegex?: RegExp;
   linkifyOpts: LinkifyOpts;
+};
+
+const NOBODY: ReadonlySet<string> = new Set();
+
+/**
+ * Speakers of a call between people whom the room's members leave out (lazy loading skips who
+ * left), as the room's state on the server has them: those who were in the room, and joined, left
+ * or were banned since. Asked only for a transcript MindRoom's agent posted.
+ */
+const useSpeakersFromServer = (
+  client: MatrixClient,
+  transcript: CallTranscript,
+  sender: string | undefined,
+  roomId: string | undefined,
+  members: RoomMember[]
+): ReadonlySet<string> => {
+  const [found, setFound] = useState(NOBODY);
+  const unlisted = useMemo(() => {
+    const posted = isMindroomAgentUserIdForViewer(sender, client.getUserId() ?? undefined);
+    if (transcript.callId === undefined || !posted) return '';
+    const listed = new Set(members.map((member) => member.userId));
+    const speakers = new Set(transcript.turns.map((turn) => turn.sender));
+    return [...speakers]
+      .filter((userId) => !listed.has(userId) && !isMindroomAgentUserId(userId))
+      .join(' ');
+  }, [client, members, sender, transcript]);
+  useEffect(() => {
+    if (!roomId || !unlisted) return undefined;
+    let current = true;
+    const counted = speakerMemberships(transcript);
+    const asked = unlisted.split(' ').map((userId) =>
+      client.getStateEvent(roomId, EventType.RoomMember, userId).then(
+        (content) => (counted.has(String(content.membership)) ? [userId] : []),
+        () => []
+      )
+    );
+    void Promise.all(asked).then((answers) => {
+      if (current) setFound(new Set(answers.flat()));
+    });
+    return () => {
+      current = false;
+    };
+  }, [client, roomId, transcript, unlisted]);
+  return found;
 };
 
 const matchesAny = (regex: RegExp, texts: readonly string[]): boolean => {
@@ -177,7 +227,9 @@ function TranscriptGroup({ group, room, highlightRegex, linkifyOpts }: GroupProp
  * A finished voice call (`io.mindroom.call_transcript`) on one row: the phone icon, "Voice call"
  * and how long it lasted, then at the row's end the transcript's button, which says how many
  * turns it holds. Open, the transcript reads like a chat below the row: each run of turns by one
- * speaker under their avatar and name.
+ * speaker under their avatar and name. A call between people says "Call", with its notes (the
+ * message's body) between the row and the transcript, and past the card's limits a line under its
+ * first turns says how many more there are.
  */
 export function CallTranscriptCard({
   transcript,
@@ -194,7 +246,11 @@ export function CallTranscriptCard({
   const turnsId = useId();
   const toggleLabelId = useId();
   const toggleCountId = useId();
-  const { durationSeconds, turns } = transcript;
+  const { durationSeconds, turns, callId, summaryOnly, moreTurns } = transcript;
+  // A call between people: the message's body is its notes, not the transcript again; without a
+  // notes model it is only the summary the row already gives.
+  const peopleCall = callId !== undefined;
+  const withNotes = peopleCall && !summaryOnly;
   const [open, setOpen] = useState(
     () =>
       !!highlightRegex &&
@@ -207,17 +263,21 @@ export function CallTranscriptCard({
   const room = roomId ? client.getRoom(roomId) : null;
   // The room's members load in the background; a speaker who joins them later is trusted then.
   const members = useRoomMembers(client, roomId ?? '');
+  const fromServer = useSpeakersFromServer(client, transcript, sender, roomId, members);
   const trusted = useMemo(() => {
-    const joined = new Set(
-      members.filter((member) => member.membership === 'join').map((member) => member.userId)
+    const counted = speakerMemberships(transcript);
+    const speakers = new Set(
+      members
+        .filter(({ membership }) => membership !== undefined && counted.has(membership))
+        .map((member) => member.userId)
     );
     return callTranscriptSpeakersTrusted(
       transcript,
       sender,
       client.getUserId() ?? undefined,
-      (userId) => joined.has(userId)
+      (userId) => speakers.has(userId) || fromServer.has(userId)
     );
-  }, [client, members, sender, transcript]);
+  }, [client, fromServer, members, sender, transcript]);
   if (!trusted) return <>{fallback}</>;
 
   return (
@@ -236,7 +296,9 @@ export function CallTranscriptCard({
             <Icon size="100" src={Icons.Phone} aria-hidden />
           </span>
           <Text as="span" size="T300" className={`${css.Label} ${css.Title}`}>
-            {t('featureUi.calls.transcript.title')}
+            {peopleCall
+              ? t('featureUi.calls.transcript.callTitle')
+              : t('featureUi.calls.transcript.title')}
           </Text>
           <Text as="span" size="T300" priority="300" className={css.Label}>
             {formatCallDuration(durationSeconds, language)}
@@ -255,13 +317,18 @@ export function CallTranscriptCard({
             {t('featureUi.calls.transcript.transcript')}
           </span>
           <Text as="span" size="T300" id={toggleCountId} className={css.Label}>
-            {t('featureUi.calls.transcript.turns', { count: turns.length })}
+            {t('featureUi.calls.transcript.turns', { count: turns.length + (moreTurns ?? 0) })}
           </Text>
           <span className={css.IconSlot}>
             <Icon size="50" src={open ? Icons.ChevronTop : Icons.ChevronBottom} aria-hidden />
           </span>
         </button>
       </div>
+      {withNotes && (
+        <div className={css.Notes} data-call-transcript-notes="">
+          {fallback}
+        </div>
+      )}
       {open && (
         <ol id={turnsId} className={css.Turns}>
           {groups.map((group) => (
@@ -274,6 +341,11 @@ export function CallTranscriptCard({
             />
           ))}
         </ol>
+      )}
+      {open && moreTurns !== undefined && (
+        <Text as="p" size="T200" priority="300" data-call-transcript-more-turns="">
+          {t('featureUi.calls.transcript.moreTurns', { count: moreTurns })}
+        </Text>
       )}
     </div>
   );

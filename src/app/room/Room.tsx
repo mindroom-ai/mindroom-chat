@@ -10,7 +10,7 @@ import {
   useState,
 } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { useSetAtom } from 'jotai';
+import { useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { Box } from 'folds';
@@ -66,7 +66,8 @@ import { useThreadRootEvent } from '../threads/useThreadRootEvent';
 import { useInitializeOpenThread } from '../threads/useInitializeOpenThread';
 import { RoomMessageAnnouncer } from '../timeline/RoomMessageAnnouncer';
 import { useCallPanel, useInCall } from '../calls/callStore';
-import { CallPanelPart } from '../calls/CallPanelPart';
+import { CallPanelPart, CallPanelUnavailable } from '../calls/CallPanelPart';
+import { transcriptPanelAtom, useTranscriptPanel } from '../calls/transcription/transcriptPanel';
 import { useCallViewFloats } from '../calls/window/callWindowState';
 import { lazyPart } from '../lib/lazyPart';
 import { PluginSidePanel } from './PluginSidePanel';
@@ -77,6 +78,15 @@ import { useAlive } from '../lib/hooks/useAlive';
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;
 const COMPUTER_MAX_WIDTH = 1600;
+// The live transcript loads on first use too, and says so as the call panel does when its chunk
+// does not load.
+const LiveTranscriptPanel = lazyPart(
+  () =>
+    import('../calls/transcription/LiveTranscriptPanel').then((module) => ({
+      default: module.LiveTranscriptPanel,
+    })),
+  CallPanelUnavailable
+);
 // The call buttons load on first use, as the call panel does.
 const HeaderCallButtons = lazyPart(() =>
   import('../calls/HeaderCallButtons').then((module) => ({ default: module.HeaderCallButtons }))
@@ -90,6 +100,8 @@ const HeaderCallMenuEntries = lazyPart(() =>
 /** The call panel fits two tiles side by side; wider, it fits more. A plugin's panel opens as wide. */
 const CALL_DEFAULT_WIDTH = 400;
 const CALL_MAX_WIDTH = 1200;
+/** The live transcript is read like a conversation, no wider than a readable line or two. */
+const TRANSCRIPT_MAX_WIDTH = 800;
 
 const CONVERSATION_STYLE: CSSProperties = { minWidth: 0 };
 // Behind a side panel in its place, the conversation takes no room in the row but stays as it was
@@ -253,6 +265,7 @@ function RoomContent() {
   // alone: the room does not render again when the floating window moves.
   const callFloats = useCallViewFloats();
   const callInSidePanel = callOpen && !callFloats;
+  const transcript = useTranscriptPanel(roomId);
 
   const pluginPanels = useMemo(
     () => enabledSidePanels(registeredPlugins, clientConfig),
@@ -269,7 +282,11 @@ function RoomContent() {
   } = usePluginPanel(
     roomId,
     pluginPanels,
-    computerOpen || !!canvas || callInSidePanel || (membersOpen && !membersOverPage)
+    computerOpen ||
+      !!canvas ||
+      callInSidePanel ||
+      transcript.open ||
+      (membersOpen && !membersOverPage)
   );
 
   const closeCall = () => setCallOpen(false);
@@ -306,8 +323,9 @@ function RoomContent() {
   };
 
   // One side panel at a time (useRoomPanels), the first open one of these. Opening one closes the
-  // others, except that the members stay open behind the call and show again when it closes. The
-  // computer and a canvas have their own Expand, which fills the room as their frame's Fill does.
+  // others, except that the members stay open behind the call or its live transcript and show
+  // again when it closes. The computer and a canvas have their own Expand, which fills the room as
+  // their frame's Fill does.
   const panels: PanelEntry[] = [
     {
       id: 'computer',
@@ -365,6 +383,35 @@ function RoomContent() {
         ),
     },
     ...(callFloats ? [] : [callPanel]),
+    {
+      id: 'transcript',
+      open: transcript.open,
+      // Another panel takes its place for good; its own close brings back the call panel it
+      // replaced (transcriptPanel.ts).
+      close: transcript.dismiss,
+      // The call controls and the call row open it in the call store.
+      opensElsewhere: true,
+      label: t('featureUi.calls.transcription.liveTranscript'),
+      covers: mobile,
+      render: () => (
+        <ResizablePanel
+          side="end"
+          storageKey={`mindroom.callTranscript.width:${ownUserId}`}
+          defaultWidth={CALL_DEFAULT_WIDTH}
+          minContentWidth={CONVERSATION_MIN_WIDTH}
+          maxPanelWidth={TRANSCRIPT_MAX_WIDTH}
+          passthrough={mobile}
+          resizeLabel={t('featureUi.calls.transcription.resize')}
+          collapseLabel={t('featureUi.calls.transcription.close')}
+          onCollapse={transcript.close}
+          testId="resizable-transcript-panel"
+        >
+          <Suspense fallback={null}>
+            <LiveTranscriptPanel room={room} onClose={transcript.close} />
+          </Suspense>
+        </ResizablePanel>
+      ),
+    },
     ...pluginPanels.map(
       (panel): PanelEntry => ({
         id: panel.id,
@@ -401,7 +448,7 @@ function RoomContent() {
       open: membersOpen,
       close: closeMembers,
       show: () => setMembersOpen(true),
-      yieldsTo: ['call'],
+      yieldsTo: ['call', 'transcript'],
       covers: false,
       render: () => (
         <ResizableMembersPanel onClose={closeMembers}>
@@ -411,6 +458,17 @@ function RoomContent() {
     },
   ];
   const { shown, layout, setLayout, request } = useRoomPanels(roomId, panels);
+  // Transcript, in the call's controls or on its row, asks for the panel as the room's own buttons
+  // ask for theirs, also while it shows: folded, it unfolds.
+  const store = useStore();
+  useEffect(
+    () =>
+      store.sub(transcriptPanelAtom, () => {
+        if (store.get(transcriptPanelAtom)?.roomId === roomId)
+          request('transcript', () => undefined);
+      }),
+    [request, roomId, store]
+  );
   // Beside the conversation the shown panel has a frame, which fills the room with it or folds it
   // to a tab at the room's edge. Phones show the panel over the conversation, with no frame; the
   // members, a list their header button already shows and hides, have none either.

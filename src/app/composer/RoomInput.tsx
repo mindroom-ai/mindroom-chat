@@ -313,7 +313,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const saveDraft = useRoomInputDraft(editor, userId, roomId, threadId);
     const { lostFileNames, dismissLostFiles } = useKeptComposerState(userId, roomId);
     const linkSchemes = useOptionalClientConfig()?.messageRendering?.additionalAllowedUriSchemes;
-    const commands = useCommands(room);
+    const commands = useCommands(room, threadingEnabled ? threadId : undefined);
     const commandList = useMemo(() => Object.values(commands), [commands]);
     const [commandProblem, setCommandProblem] = useState<string>();
 
@@ -472,6 +472,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       }
       const acting = readActingCommand(editor.children, commands);
       if (acting) {
+        if (acting.command.inThread && holdForRoot({ kind: 'message' })) return;
         await runActingCommand(acting);
         return;
       }

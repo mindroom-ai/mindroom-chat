@@ -298,7 +298,9 @@ export function RoomPermissionsPage({ room, space = false, requestClose }: Permi
       requestClose={requestClose}
     >
       <Box direction="Column" gap="100">
-        <Text size="L400">{t(`${POWERS}.powerLevels`)}</Text>
+        <Text size="L400" data-settings-heading="">
+          {t(`${POWERS}.powerLevels`)}
+        </Text>
         <SettingsCard>
           <SettingTile
             title={t(`${POWERS}.powerLevels`)}
@@ -336,7 +338,9 @@ export function RoomPermissionsPage({ room, space = false, requestClose }: Permi
         </Text>
       )}
       <Box direction="Column" gap="100">
-        <Text size="L400">{t(`${GROUPS}.users`)}</Text>
+        <Text size="L400" data-settings-heading="">
+          {t(`${GROUPS}.users`)}
+        </Text>
         <SettingsCard>
           {tile({
             labelKey: `${GROUPS}.defaultPower`,
@@ -346,7 +350,7 @@ export function RoomPermissionsPage({ room, space = false, requestClose }: Permi
       </Box>
       {(space ? SPACE_PERMISSION_GROUPS : PERMISSION_GROUPS).map(({ group, items }) => (
         <Box key={group} direction="Column" gap="100">
-          <Text size="L400">
+          <Text size="L400" data-settings-heading="">
             {t(`${space ? SPACE_PERMISSIONS : PERMISSIONS}.groups.${group}` as never)}
           </Text>
           <SettingsCard>{items.map(tile)}</SettingsCard>

@@ -424,7 +424,34 @@
         "transcript": "Transcription",
         "turns_one": "{{count}} prise de parole",
         "turns_many": "{{count}} de prises de parole",
-        "turns_other": "{{count}} prises de parole"
+        "turns_other": "{{count}} prises de parole",
+        "moreTurns_one": "{{count}} autre prise de parole non affichée",
+        "moreTurns_many": "{{count}} de prises de parole supplémentaires non affichées",
+        "moreTurns_other": "{{count}} autres prises de parole non affichées",
+        "callTitle": "Appel"
+      },
+      "transcription": {
+        "unavailable": "Les transcriptions ne sont pas disponibles",
+        "pause": "Mettre la transcription en pause",
+        "pausedBy": "Mise en pause par {{name}}",
+        "liveTranscript": "Transcription en direct",
+        "close": "Fermer la transcription en direct",
+        "resize": "Redimensionner la transcription en direct",
+        "transcribed": "Cet appel est transcrit.",
+        "inCall": "Dans l’appel",
+        "lines": "Transcription jusqu’ici",
+        "noCall": "Aucun appel en cours dans ce salon.",
+        "notTranscribed": "Les appels de ce salon ne sont pas transcrits.",
+        "nothingYet": "Rien n’a encore été dit.",
+        "gap": {
+          "paused": "En pause",
+          "notTranscribed": "Non transcrit"
+        }
+      },
+      "row": {
+        "live": "Appel en cours",
+        "ended": "Appel terminé",
+        "notes": "Notes et transcription"
       },
       "stage": {
         "speaking": "{{name}} parle",

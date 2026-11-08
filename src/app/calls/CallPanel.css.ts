@@ -158,9 +158,12 @@ export const TileVideo = style({
   background: color.Other.Shadow,
 });
 
-// The name sits on a dark scrim, readable on video and on the plain tile alike.
+// The name sits on a dark scrim, readable on video and on the plain tile alike. A user ID after
+// the name wraps onto a line of its own when the tile is too narrow for both (NameWithUserId).
 export const TileLabel = style(
   lined('row', space.S100, {
+    flexWrap: 'wrap',
+    rowGap: 0,
     position: 'absolute',
     insetInlineStart: space.S100,
     insetBlockEnd: space.S100,
@@ -174,12 +177,18 @@ export const TileLabel = style(
   })
 );
 
-export const TileStatus = style({
-  position: 'absolute',
-  insetBlockStart: space.S100,
-  insetInline: space.S100,
-  textAlign: 'center',
-});
+// "Waiting for ..." over the tile's top, centered; a user ID after the name wraps as in the label.
+export const TileStatus = style(
+  lined('row', space.S100, {
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    rowGap: 0,
+    position: 'absolute',
+    insetBlockStart: space.S100,
+    insetInline: space.S100,
+    textAlign: 'center',
+  })
+);
 
 // Before joining: who is in the call, the toggles and Join, in the middle of the panel.
 export const Prescreen = style({
@@ -216,17 +225,45 @@ export const NoticeText = style({
 
 export const NoticeAction = style({ flexShrink: 0, marginInlineStart: 'auto' });
 
-// The control bar under the tiles, centred, wrapping on a narrow panel.
-export const Controls = style(
-  lined('row', space.S200, {
+// The control bar under the tiles: a line about the transcript over the controls.
+export const ControlBar = style(
+  lined('column', '0', {
     flex: 'none',
-    flexWrap: 'wrap',
-    placeContent: 'center',
     alignItems: 'center',
     padding: space.S300,
     borderBlockStart: hairline,
   })
 );
+
+// The controls, centred, wrapping on a narrow panel.
+export const Controls = style(
+  lined('row', space.S200, {
+    flexWrap: 'wrap',
+    placeContent: 'center',
+    alignItems: 'center',
+  })
+);
+
+// Empty, it takes no room; it stays in place so screen readers hear what it says next.
+export const ControlsStatus = style({
+  textAlign: 'center',
+  selectors: { '&:not(:empty)': { marginBlockEnd: space.S200 } },
+});
+
+// "Paused by Ann", in the colors of the panel's warnings, like Pause while the call is paused. A
+// user ID after the name wraps onto a line of its own rather than being cut (NameWithUserId).
+export const ControlsPaused = style([
+  tinted(color.Warning),
+  {
+    display: 'inline-flex',
+    paddingBlock: toRem(2),
+    flexWrap: 'wrap',
+    paddingInline: space.S200,
+    columnGap: space.S100,
+    borderRadius: radii.R300,
+    maxWidth: '100%',
+  },
+]);
 
 export const DeviceMenu = style({
   minWidth: toRem(240),

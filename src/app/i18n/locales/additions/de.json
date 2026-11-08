@@ -416,7 +416,33 @@
         "title": "Sprachanruf",
         "transcript": "Transkript",
         "turns_one": "{{count}} Beitrag",
-        "turns_other": "{{count}} Beiträge"
+        "turns_other": "{{count}} Beiträge",
+        "moreTurns_one": "{{count}} weiterer Beitrag nicht angezeigt",
+        "moreTurns_other": "{{count}} weitere Beiträge nicht angezeigt",
+        "callTitle": "Anruf"
+      },
+      "transcription": {
+        "unavailable": "Transkripte sind nicht verfügbar",
+        "pause": "Transkription pausieren",
+        "pausedBy": "Pausiert von {{name}}",
+        "liveTranscript": "Live-Transkript",
+        "close": "Live-Transkript schließen",
+        "resize": "Größe des Live-Transkripts ändern",
+        "transcribed": "Dieser Anruf wird transkribiert.",
+        "inCall": "Im Anruf",
+        "lines": "Bisheriges Transkript",
+        "noCall": "In diesem Raum läuft kein Anruf.",
+        "notTranscribed": "Anrufe in diesem Raum werden nicht transkribiert.",
+        "nothingYet": "Bisher wurde nichts gesagt.",
+        "gap": {
+          "paused": "Pausiert",
+          "notTranscribed": "Nicht transkribiert"
+        }
+      },
+      "row": {
+        "live": "Anruf läuft",
+        "ended": "Anruf beendet",
+        "notes": "Notizen und Transkript"
       },
       "stage": {
         "speaking": "{{name}} spricht",

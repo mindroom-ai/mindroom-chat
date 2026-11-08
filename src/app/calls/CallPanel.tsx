@@ -41,6 +41,7 @@ import { hasVideo } from './stageLayout';
 import { useCallWindowFrame } from './window/callWindowFrame';
 import { focusHandOffAtom, useCallWindowMode } from './window/callWindowState';
 import { DockIcon, FloatIcon } from './window/windowIcons';
+import { TranscriptionControls, TranscriptionStatus } from './transcription/TranscriptionControls';
 import * as css from './CallPanel.css';
 import { revealDirectionControls } from '../ui/directional';
 
@@ -456,55 +457,62 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
 
   const dismissLabel = t('featureUi.calls.panel.dismiss');
   const controls = finished ? (
-    <div className={css.Controls}>
-      <Button size="400" radii="Pill" variant="Secondary" fill="Soft" onClick={dismissCall}>
-        <Text size="B400">{dismissLabel}</Text>
-      </Button>
+    <div className={css.ControlBar}>
+      <div className={css.Controls}>
+        <Button size="400" radii="Pill" variant="Secondary" fill="Soft" onClick={dismissCall}>
+          <Text size="B400">{dismissLabel}</Text>
+        </Button>
+      </div>
     </div>
   ) : (
-    <div className={css.Controls} role="toolbar" aria-label={title}>
-      <CallControl
-        label={microphoneLabel}
-        icon={microphoneIcon}
-        off={!state.microphone}
-        onClick={toggleMicrophone}
-      />
-      <CallControl
-        label={
-          state.camera
-            ? t('featureUi.call.controls.stopCamera')
-            : t('featureUi.call.controls.startCamera')
-        }
-        icon={state.camera ? Icons.VideoCamera : Icons.VideoCameraMute}
-        onClick={() => void call.setCamera(!state.camera)}
-      />
-      {browserSharesScreens() && (
+    <div className={css.ControlBar}>
+      {/* Who paused the transcript, or that transcripts are unavailable (the call goes on). */}
+      {!agentCall && <TranscriptionStatus room={call.room} />}
+      <div className={css.Controls} role="toolbar" aria-label={title}>
+        <CallControl
+          label={microphoneLabel}
+          icon={microphoneIcon}
+          off={!state.microphone}
+          onClick={toggleMicrophone}
+        />
         <CallControl
           label={
-            state.screenShare
-              ? t('featureUi.call.controls.stopScreenshare')
-              : t('featureUi.call.controls.startScreenshare')
+            state.camera
+              ? t('featureUi.call.controls.stopCamera')
+              : t('featureUi.call.controls.startCamera')
           }
-          icon={Icons.ScreenShare}
-          pressed={state.screenShare}
-          onClick={() => void call.setScreenShare(!state.screenShare)}
+          icon={state.camera ? Icons.VideoCamera : Icons.VideoCameraMute}
+          onClick={() => void call.setCamera(!state.camera)}
         />
-      )}
-      <CallControl
-        label={
-          state.sound
-            ? t('featureUi.call.controls.turnOffSound')
-            : t('featureUi.call.controls.turnOnSound')
-        }
-        icon={state.sound ? Icons.Headphone : Icons.HeadphoneMute}
-        off={!state.sound}
-        onClick={() => call.setSound(!state.sound)}
-      />
-      <DeviceControl
-        chosen={state.devices}
-        onChoose={(kind, id) => void call.setDevice(kind, id)}
-      />
-      <CallControl label={leaveLabel} icon={Icons.PhoneDown} critical onClick={leave} />
+        {browserSharesScreens() && (
+          <CallControl
+            label={
+              state.screenShare
+                ? t('featureUi.call.controls.stopScreenshare')
+                : t('featureUi.call.controls.startScreenshare')
+            }
+            icon={Icons.ScreenShare}
+            pressed={state.screenShare}
+            onClick={() => void call.setScreenShare(!state.screenShare)}
+          />
+        )}
+        <CallControl
+          label={
+            state.sound
+              ? t('featureUi.call.controls.turnOffSound')
+              : t('featureUi.call.controls.turnOnSound')
+          }
+          icon={state.sound ? Icons.Headphone : Icons.HeadphoneMute}
+          off={!state.sound}
+          onClick={() => call.setSound(!state.sound)}
+        />
+        {!agentCall && <TranscriptionControls room={call.room} />}
+        <DeviceControl
+          chosen={state.devices}
+          onChoose={(kind, id) => void call.setDevice(kind, id)}
+        />
+        <CallControl label={leaveLabel} icon={Icons.PhoneDown} critical onClick={leave} />
+      </div>
     </div>
   );
 

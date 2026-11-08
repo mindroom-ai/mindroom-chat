@@ -26,54 +26,66 @@ import * as css from './CallPanel.css';
 
 type ControlProps = {
   label: string;
+  /** Its state, such as who paused, in its tooltip instead of its name and to screen readers. */
+  description?: string;
   icon: IconSrc;
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   /** Silenced audio (a muted microphone, sound off) is tinted red so nobody talks unheard. */
   off?: boolean;
   critical?: boolean;
+  /** Something everyone in the call should know of, such as the transcript paused. */
+  warning?: boolean;
   pressed?: boolean;
   expanded?: boolean;
   disabled?: boolean;
+  /** Smaller, for a panel's header. */
+  small?: boolean;
 };
 
 /** A round call control that names itself in a tooltip. */
 export function CallControl({
   label,
+  description,
   icon,
   onClick,
   off,
   critical,
+  warning,
   pressed,
   expanded,
   disabled,
+  small,
 }: ControlProps) {
-  const variant = critical || off ? 'Critical' : 'SurfaceVariant';
+  let variant: 'Critical' | 'Warning' | 'SurfaceVariant' = 'SurfaceVariant';
+  if (critical || off) variant = 'Critical';
+  else if (warning) variant = 'Warning';
   return (
     <TooltipProvider
       position="Top"
       offset={4}
       tooltip={
         <Tooltip>
-          <Text size="T200">{label}</Text>
+          <Text size="T200">{description ?? label}</Text>
         </Tooltip>
       }
     >
       {(anchorRef) => (
         <IconButton
           ref={anchorRef}
-          size="500"
+          size={small ? '300' : '500'}
           radii="Pill"
           variant={variant}
           fill="Soft"
           className={critical ? css.EndControl : undefined}
           aria-label={label}
+          aria-description={description}
           aria-pressed={pressed}
           aria-expanded={expanded}
           aria-haspopup={expanded === undefined ? undefined : 'menu'}
           disabled={disabled}
           onClick={onClick}
         >
-          <Icon size="400" src={icon} />
+          <Icon size={small ? '200' : '400'} src={icon} />
         </IconButton>
       )}
     </TooltipProvider>

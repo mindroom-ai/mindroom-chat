@@ -416,7 +416,33 @@
         "title": "Voice call",
         "transcript": "Transcript",
         "turns_one": "{{count}} turn",
-        "turns_other": "{{count}} turns"
+        "turns_other": "{{count}} turns",
+        "moreTurns_one": "{{count}} more turn not shown",
+        "moreTurns_other": "{{count}} more turns not shown",
+        "callTitle": "Call"
+      },
+      "transcription": {
+        "unavailable": "Transcripts are unavailable",
+        "pause": "Pause transcription",
+        "pausedBy": "Paused by {{name}}",
+        "liveTranscript": "Live transcript",
+        "close": "Close the live transcript",
+        "resize": "Resize the live transcript",
+        "transcribed": "This call is transcribed.",
+        "inCall": "In the call",
+        "lines": "Transcript so far",
+        "noCall": "No call is on in this room.",
+        "notTranscribed": "Calls in this room are not transcribed.",
+        "nothingYet": "Nothing has been said yet.",
+        "gap": {
+          "paused": "Paused",
+          "notTranscribed": "Not transcribed"
+        }
+      },
+      "row": {
+        "live": "Call in progress",
+        "ended": "Call ended",
+        "notes": "Notes and transcript"
       },
       "stage": {
         "speaking": "{{name}} is speaking",

@@ -9,6 +9,7 @@ const entries = vi.hoisted(() => {
   const run = () => undefined;
   const action = { id: 'wave', label: 'wave', icon, run };
   const autoAction = { id: 'auto', label: 'auto', icon, run, placement: 'auto' };
+  const command = { name: 'greet', description: 'greet', run };
   const banner = (): null => null;
   const headerSlot = [banner];
   const cover = { covers: () => false, subscribe: () => () => undefined, Component };
@@ -20,6 +21,7 @@ const entries = vi.hoisted(() => {
     forgotten,
     panel,
     actions: [action, autoAction],
+    command,
     banner,
     headerSlot,
     cover,
@@ -32,6 +34,7 @@ const entries = vi.hoisted(() => {
           pages: {},
           sidePanels: 'not a list',
           headerActions: 'not a list',
+          slashCommands: 'not a list',
           roomHeaderSlot: banner,
           conversationCovers: cover,
           forgetAccount: 'not a function',
@@ -60,6 +63,16 @@ const entries = vi.hoisted(() => {
             // A phone's header keeps its row to Back, the name and the room menu.
             { id: 'row', label: 'row', icon, run, placement: 'row' },
             autoAction,
+          ],
+          slashCommands: [
+            command,
+            null,
+            { name: '', description: 'none', run },
+            // The composer reads a command's name as letters a to z only.
+            { name: 'Greet', description: 'upper', run },
+            { name: 'greet-all', description: 'dash', run },
+            { name: 'wave', description: 2, run },
+            { name: 'idle', description: 'idle' },
           ],
           roomHeaderSlot: headerSlot,
           conversationCovers: [
@@ -109,6 +122,9 @@ describe('registeredPlugins', () => {
     // A header action needs an id, a label, an icon, a run, and no placement, `auto` or `menu`.
     expect(plugins[0]?.headerActions).toEqual([]);
     expect(plugins[1]?.headerActions).toEqual(entries.actions);
+    // A slash command needs a name of letters a to z, a description and a run.
+    expect(plugins[0]?.slashCommands).toEqual([]);
+    expect(plugins[1]?.slashCommands).toEqual([entries.command]);
     expect(plugins[0]?.roomHeaderSlot).toEqual([]);
     expect(plugins[1]?.roomHeaderSlot).toEqual([entries.banner]);
     // A cover needs its condition, a subscription and a component, and Escape's close is a function.
@@ -129,6 +145,7 @@ describe('registeredPlugins', () => {
       expect(Object.isFrozen(plugin.pages)).toBe(true);
       expect(Object.isFrozen(plugin.sidePanels)).toBe(true);
       expect(Object.isFrozen(plugin.headerActions)).toBe(true);
+      expect(Object.isFrozen(plugin.slashCommands)).toBe(true);
       expect(Object.isFrozen(plugin.roomHeaderSlot)).toBe(true);
       expect(Object.isFrozen(plugin.conversationCovers)).toBe(true);
     }
