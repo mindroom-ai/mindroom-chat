@@ -28,7 +28,7 @@ import { IconTooltip } from '../../ui/IconTooltip';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
 import { useStagedCardIds } from './useStagedCardIds';
-import { useThreadRootCallRow } from './useThreadRootCallRow';
+import { useThreadRootLiveCallRow } from './useThreadRootLiveCallRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 
 const ThreadActionsMenu = lazy(() =>
@@ -94,8 +94,9 @@ const CompactThreadCardRow = React.memo(
     const { roomId } = room;
     const rootId = viewModel.id.threadRootId;
     const shownRef = useInitializeShownThread(roomId, rootId, scrollRootRef);
-    // A call's row shows in its card as in the timeline: who is in the call, Join and Transcript.
-    const callRow = useThreadRootCallRow(room, rootId);
+    // A live call's row shows in its card as in the timeline: who is in the call, Join and
+    // Transcript. Once the call ends the card is a thread like any other.
+    const callRow = useThreadRootLiveCallRow(room, rootId);
 
     return (
       <div

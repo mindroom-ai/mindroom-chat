@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import type FocusTrap from 'focus-trap-react';
 import { getDefaultStore, Provider as StoreProvider } from 'jotai';
 import {
@@ -33,6 +33,7 @@ import {
   useParentRooms,
   useRoomHref,
   useRoomNavigate,
+  useShownThread,
   type RoomNavigate,
 } from './room';
 
@@ -488,5 +489,12 @@ describe('useParentRooms, getParentRooms and offersSubRooms', () => {
     expect(offersSubRooms(ideas)).toBe(true);
     expect(offersSubRooms(estate)).toBe(false);
     expect(offersSubRooms(withBob)).toBe(false);
+  });
+});
+
+// In a room's page, src/app/room/Room.panelBesideThread.test.tsx reads it through the room.
+describe('useShownThread', () => {
+  it("is undefined outside a room's page", () => {
+    expect(renderHook(() => useShownThread()).result.current).toBeUndefined();
   });
 });

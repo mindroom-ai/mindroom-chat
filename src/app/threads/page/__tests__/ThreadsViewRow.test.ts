@@ -123,43 +123,53 @@ describe('ThreadsViewRow', () => {
     expect(navigateRoomThreadMock).toHaveBeenCalledWith('!room:example.org', '$root');
   });
 
-  it("shows a call's row in its card, as the room's compact list does", async () => {
-    trustAgentsOfViewer('@me:example.org');
-    // Rows count from the active account's agents.
-    putSession(
-      {
-        baseUrl: 'https://matrix.example',
-        userId: '@me:example.org',
-        deviceId: 'DEVICE',
-        accessToken: 'token',
-      },
-      { setActive: true }
-    );
-    roots.set(
-      '$root',
-      new MatrixEvent({
-        type: 'm.room.message',
-        room_id: '!room:example.org',
-        event_id: '$root',
-        sender: '@mindroom_router:example.org',
-        origin_server_ts: 1,
-        content: {
-          msgtype: 'm.notice',
-          body: 'Call started',
-          'io.mindroom.call': { call_id: 'call-1' },
+  it.each([
+    ['a live call', { call_id: 'call-1' }, 1],
+    [
+      'an ended call',
+      { call_id: 'call-1', ended_at: '2026-11-07T10:00:00Z', duration_seconds: 720 },
+      0,
+    ],
+  ])(
+    "%s: the card shows the call's row only while the call is live, as the room's compact list does",
+    async (_name, call, shown) => {
+      trustAgentsOfViewer('@me:example.org');
+      // Rows count from the active account's agents.
+      putSession(
+        {
+          baseUrl: 'https://matrix.example',
+          userId: '@me:example.org',
+          deviceId: 'DEVICE',
+          accessToken: 'token',
         },
-      } as Partial<IEvent>)
-    );
-    let renderer: ReactTestRenderer | undefined;
-    await act(async () => {
-      renderer = create(React.createElement(ThreadsViewRow, { entry }));
-    });
-    // The row loads on first use.
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
+        { setActive: true }
+      );
+      roots.set(
+        '$root',
+        new MatrixEvent({
+          type: 'm.room.message',
+          room_id: '!room:example.org',
+          event_id: '$root',
+          sender: '@mindroom_router:example.org',
+          origin_server_ts: 1,
+          content: {
+            msgtype: 'm.notice',
+            body: 'Call started',
+            'io.mindroom.call': call,
+          },
+        } as Partial<IEvent>)
+      );
+      let renderer: ReactTestRenderer | undefined;
+      await act(async () => {
+        renderer = create(React.createElement(ThreadsViewRow, { entry }));
+      });
+      // The row loads on first use.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
 
-    const rows = renderer?.root.findAll((node) => node.props['data-call-row-stub'] === '$root');
-    expect(rows).toHaveLength(1);
-  });
+      const rows = renderer?.root.findAll((node) => node.props['data-call-row-stub'] === '$root');
+      expect(rows).toHaveLength(shown);
+    }
+  );
 });
