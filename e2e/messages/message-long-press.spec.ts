@@ -23,10 +23,10 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // TouchEvents where the engine can build them. Checked in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
 // P2-macos-safari-F001: iOS also selected a word under the resting finger and showed its Copy and
-// Look Up bar over the menu, or selected the menu's first entry once it opened there. While a
-// press that may open the menu rests no text on the page is selectable, a selection the platform
-// makes meanwhile is gone once the menu opens, the menu's text is never selectable, and the page
-// is selectable again after the lift. Checked on a phone and on a tablet.
+// Look Up bar over the menu, or selected the menu's first entry once it opened there. Once a press
+// that may open the menu has rested 150 ms no text on the page is selectable, a selection the
+// platform makes meanwhile is gone once the menu opens, the menu's text is never selectable, and
+// the page is selectable again after the lift. Checked on a phone and on a tablet.
 // Set LONG_PRESS_SHOTS=<directory> to save the open menu.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'message-long-press-spec-password';

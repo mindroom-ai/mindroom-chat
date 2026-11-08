@@ -1,5 +1,5 @@
 import { expect, type Page } from '@playwright/test';
-import { activeAccountButtonNamePattern, waitForLoggedInShell } from './auth';
+import { activeAccountButton, waitForLoggedInShell } from './auth';
 
 // Single sign-on against the disposable homeserver of `just hs-up`. The test homeserver has no
 // identity provider, so two requests are answered here: the login flows gain an `m.login.sso`
@@ -119,7 +119,7 @@ export const stubIdentityProvider = async (
 
 /** The signed-in shell; a first sync on a busy machine can outlast the shared helper's wait. */
 export const waitForShell = async (page: Page) => {
-  await expect(page.getByRole('button', { name: activeAccountButtonNamePattern })).toBeVisible({
+  await expect(activeAccountButton(page)).toBeVisible({
     timeout: 90_000,
   });
   await waitForLoggedInShell(page);

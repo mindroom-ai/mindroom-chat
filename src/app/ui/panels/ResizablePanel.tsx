@@ -294,6 +294,7 @@ export function ResizablePanel({
       data-testid={testId}
       data-side={side}
       data-folded={folded || undefined}
+      data-filled={full || undefined}
       data-collapse-preview={collapseOnRelease || undefined}
     >
       {/* The frame's strip opens the panel's box; folded, the content stays mounted out of sight

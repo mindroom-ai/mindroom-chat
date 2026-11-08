@@ -23,7 +23,10 @@ export const ListSlot = style({
   pointerEvents: 'none',
 });
 
+// The page's place stacks its notices, the new version notice above a sync status (their own
+// `order`, so the notice someone may tap never moves when the other comes or goes), a gap apart.
 export const PageSlot = recipe({
+  base: { display: 'flex', flexDirection: 'column', gap: config.space.S200 },
   variants: {
     phone: {
       // Over the top of the page, centred: placed against the signed-in layout (or, signed out,
@@ -34,18 +37,20 @@ export const PageSlot = recipe({
         zIndex: 1000,
         insetBlockStart: config.space.S300,
         insetInline: config.space.S300,
-        display: 'flex',
-        justifyContent: 'center',
+        alignItems: 'center',
         pointerEvents: 'none',
       },
-      // A line of no height between the top bar and the page, which its notice hangs from. At
-      // z-index 1 it paints over the page (an isolated layer, painted as z-index 0), and the
-      // drawer and a room's members sheet, at z-index 1 later in the page, slide in over it.
+      // A line of no height between the top bar and the page, which its notices hang from, S200
+      // below it and across the page. At z-index 1 it paints over the page (an isolated layer,
+      // painted as z-index 0), and the drawer and a room's members sheet, at z-index 1 later in
+      // the page, slide in over it.
       true: {
         position: 'relative',
+        blockSize: 0,
         zIndex: 1,
         flexShrink: 0,
-        blockSize: 0,
+        insetBlockStart: config.space.S200,
+        paddingInline: config.space.S200,
       },
     },
   },

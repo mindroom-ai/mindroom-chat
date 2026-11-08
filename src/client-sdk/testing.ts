@@ -15,19 +15,26 @@ import type { ClientPlugin } from '../app/plugins/registry';
 // The app's vitest has no globals, so React Testing Library does not unmount after each test itself.
 afterEach(cleanup);
 
-/** The client of the account a plugin's components see signed in, unless the test gives one. */
-const standIn = { getSafeUserId: () => '@plugin-tester:example.org' } as MatrixClient;
+/**
+ * The client of the account a plugin's components see signed in, unless the test gives one. It
+ * knows no room, so the `room` subpath's paths name rooms by their ID.
+ */
+const standIn = {
+  getSafeUserId: () => '@plugin-tester:example.org',
+  getRoom: () => null,
+  getRooms: () => [],
+} as unknown as MatrixClient;
 
 /**
  * Renders `ui`, made of the components of the plugin `id`, into the document with what the SDK's
  * config, translation, storage and Matrix hooks need: `config` is the plugin's section of
  * config.json (`plugins.<id>`, what `usePluginConfig` reads), `usePluginTranslation` translates
  * into `language` (default English) with the strings of `plugin`, its entry's default export,
- * `useMatrixClient` returns `client`, the signed-in account's (default a stand-in that has only
- * `getSafeUserId`), and `usePluginStorage` keeps values in the document's localStorage, for the
- * rest of the test file, for that account, signed in there. A component that needs more of the app,
- * such as a router for `usePluginRouteHref` or the app's query client, gets it from `ui`. The test
- * file needs `// @vitest-environment jsdom`.
+ * `useMatrixClient` returns `client`, the signed-in account's (default a stand-in that has
+ * `getSafeUserId` and knows no room), and `usePluginStorage` keeps values in the document's
+ * localStorage, for the rest of the test file, for that account, signed in there. A component that
+ * needs more of the app, such as a router for `usePluginRouteHref` or the app's query client, gets
+ * it from `ui`. The test file needs `// @vitest-environment jsdom`.
  */
 export const renderPluginComponent = async (
   ui: ReactElement,

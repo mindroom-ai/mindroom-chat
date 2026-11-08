@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
-import { activeAccountButtonNamePattern, loginWithPassword } from '../helpers/auth';
+import { activeAccountButton, loginWithPassword } from '../helpers/auth';
 import { expectFloatingNavHeader } from '../helpers/glassVisual';
 import { expectInsetScrollbar } from '../helpers/insetScrollbar';
 import {
@@ -94,9 +94,7 @@ for (const [themeId, width] of [
       await expect(page.getByText('Catching up...', { exact: true })).toHaveCount(0, {
         timeout: 60_000,
       });
-      await expect(page.getByRole('button', { name: activeAccountButtonNamePattern })).toHaveCount(
-        1
-      );
+      await expect(activeAccountButton(page)).toBeVisible();
       // Read both rectangles in one snapshot: sync status can move the entire
       // application between separate Playwright calls without moving this header.
       const headerOffset = () =>

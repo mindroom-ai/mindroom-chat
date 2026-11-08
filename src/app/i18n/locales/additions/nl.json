@@ -220,6 +220,11 @@
       },
       "developerTools": {
         "invalidJson": "Geef de gebeurtenis een type en inhoud die een JSON-object is."
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "Deze kamers konden niet mee met de upgrade: {{rooms}}"
+        }
       }
     },
     "settings": {

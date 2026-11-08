@@ -4,7 +4,10 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { getDefaultStore } from 'jotai';
 import { afterEach, describe, expect, it } from 'vitest';
 import { TYPING_TIMEOUT_MS } from '../matrix/state/typingMembers';
-import { conversationCoveredAtom } from '../navigation/conversationCover';
+import {
+  conversationBehindPanelAtom,
+  conversationCoveredAtom,
+} from '../navigation/conversationCover';
 import { useTypingStatusUpdater } from './useTypingStatusUpdater';
 
 const ROOM = '!garden:example.org';
@@ -59,15 +62,18 @@ describe('useTypingStatusUpdater with activity hidden', () => {
   });
 });
 
-describe("useTypingStatusUpdater under a plugin's cover", () => {
+describe.each([
+  ["a plugin's cover", conversationCoveredAtom],
+  ['a side panel in its place', conversationBehindPanelAtom],
+])('useTypingStatusUpdater while the conversation is hidden under %s', (_what, atom) => {
   afterEach(() => {
-    act(() => getDefaultStore().set(conversationCoveredAtom, false));
+    act(() => getDefaultStore().set(atom, false));
   });
 
-  it('ends a notice as the cover shows, sends none while it does, and types again after', () => {
+  it('ends a notice as it hides, sends none while it does, and types again after', () => {
     const updater = mountUpdater(false);
     updater.type(true);
-    act(() => getDefaultStore().set(conversationCoveredAtom, true));
+    act(() => getDefaultStore().set(atom, true));
     const ended = [
       [ROOM, true, TYPING_TIMEOUT_MS],
       [ROOM, false, TYPING_TIMEOUT_MS],
@@ -75,7 +81,7 @@ describe("useTypingStatusUpdater under a plugin's cover", () => {
     expect(updater.calls).toEqual(ended);
     updater.type(true);
     expect(updater.calls).toEqual(ended);
-    act(() => getDefaultStore().set(conversationCoveredAtom, false));
+    act(() => getDefaultStore().set(atom, false));
     updater.type(true);
     expect(updater.calls).toEqual([...ended, [ROOM, true, TYPING_TIMEOUT_MS]]);
     updater.unmount();
