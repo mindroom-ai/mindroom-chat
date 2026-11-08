@@ -65,19 +65,6 @@ describe('sidebarOrder', () => {
     unmount();
   });
 
-  it('removes a space from the persisted space order', () => {
-    const atom = makeSpaceOrderAtom('@alice:example.org');
-    const store = createStore();
-    const unmount = store.sub(atom, () => undefined);
-
-    store.set(atom, { type: 'REORDER', order: ['!space-a', '!space-b', '!space-c'] });
-    store.set(atom, { type: 'REMOVE', id: '!space-b' });
-
-    expect(store.get(atom)).toEqual(['!space-a', '!space-c']);
-
-    unmount();
-  });
-
   it('hydrates localStorage and applies storage events while mounted', () => {
     const key = `${SPACE_ORDER_STORAGE_KEY_PREFIX}@alice:example.org`;
     storageState.set(key, '["!space-a"]');

@@ -1,5 +1,4 @@
 import { atom, WritableAtom } from 'jotai';
-import { produce } from 'immer';
 import {
   atomWithLocalStorage,
   getLocalStorageItem,
@@ -8,15 +7,10 @@ import {
 
 export type SpaceOrderState = string[];
 
-export type SpaceOrderAction =
-  | {
-      type: 'REORDER';
-      order: string[];
-    }
-  | {
-      type: 'REMOVE';
-      id: string;
-    };
+export type SpaceOrderAction = {
+  type: 'REORDER';
+  order: string[];
+};
 
 export type SpaceOrderAtom = WritableAtom<SpaceOrderState, [SpaceOrderAction], undefined>;
 
@@ -49,21 +43,8 @@ export const makeSpaceOrderAtom = (userId: string): SpaceOrderAtom => {
 
   return atom<SpaceOrderState, [SpaceOrderAction], undefined>(
     (get) => get(baseSpaceOrderAtom),
-    (get, set, action) => {
-      if (action.type === 'REORDER') {
-        set(baseSpaceOrderAtom, uniqueStrings(action.order));
-        return;
-      }
-
-      if (action.type === 'REMOVE') {
-        set(
-          baseSpaceOrderAtom,
-          produce(get(baseSpaceOrderAtom), (draft) => {
-            const index = draft.indexOf(action.id);
-            if (index >= 0) draft.splice(index, 1);
-          })
-        );
-      }
+    (_get, set, action) => {
+      set(baseSpaceOrderAtom, uniqueStrings(action.order));
     }
   );
 };
