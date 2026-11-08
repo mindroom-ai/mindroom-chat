@@ -10,11 +10,12 @@
 // and "Close panel" while the panel shows. The panel stays open in its room across reloads
 // (`remember`), so the card hands it only the greeting's event ID, and it reads the greeting itself.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
-// (public/mark.svg), and a button, "Show example cover", that covers the room's conversation with
-// "Example cover of <room name>" until its Close button or Escape closes it. Its panel also offers
-// "Example item" to drag, in a drag type of its own, and the banner shows "Dropped: <text>" when
-// one lands anywhere on the room header. Like a plugin outside this repository, it imports the app
-// only through the client SDK.
+// (public/mark.svg); its build module (build.mjs) writes "Example banner" in place of a marker, which
+// unit tests, where no build module runs, show as it is. The banner also has a button, "Show
+// example cover", that covers the room's conversation with "Example cover of <room name>" until its
+// Close button or Escape closes it. Its panel also offers "Example item" to drag, in a drag type of
+// its own, and the banner shows "Dropped: <text>" when one lands anywhere on the room header. Like a
+// plugin outside this repository, it imports the app only through the client SDK.
 // A header action, "Wave" ("Winken" in German), shows in the room header's row, except on phones,
 // where it goes in the room menu, and says where it ran in an alert.
 // Its storage notes each greeting the signed-in account saw, when it shows and when it goes, and a
@@ -150,7 +151,7 @@ function RoomBanner({ room, headerRef }: { room: Room; headerRef: RefObject<HTML
         height={16}
         style={{ marginInlineEnd: 8, verticalAlign: 'middle' }}
       />
-      Example banner in {room.name}
+      __EXAMPLE_BANNER__ in {room.name}
       {dropped !== undefined && <div data-example-plugin-dropped>Dropped: {dropped}</div>}
     </div>
   );

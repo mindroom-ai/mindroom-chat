@@ -6,10 +6,11 @@
 // module that imports each plugin's entry; without plugins that module lists none and no plugin code
 // ships. Plugins import the app through the client SDK (`@mindroom/client-sdk/<subpath>`), which
 // the build resolves to src/client-sdk/. A plugin's public/ directory, if it has one, ships as it
-// is under public/plugins/<id>/.
+// is under public/plugins/<id>/. A declaration's optional `"build"` names a module of Vite plugins
+// for the plugin's own modules.
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { contentType } from 'mime-types';
 import { normalizePath, searchForWorkspaceRoot } from 'vite';
 
@@ -18,7 +19,7 @@ import { normalizePath, searchForWorkspaceRoot } from 'vite';
  * `apiVersion`, the one it needs. Version 1 had no SDK; each later addition to the SDK (an export,
  * or a contribution kind in `ClientPlugin`) raises it.
  */
-const CLIENT_PLUGIN_API_VERSION = 21;
+const CLIENT_PLUGIN_API_VERSION = 22;
 
 /** The SDK's subpaths a build resolves, which plugins import, and the modules they are. */
 export const CLIENT_SDK_ALIAS = {
@@ -71,7 +72,7 @@ const sharedPackage = (/** @type {string} */ source) => {
   return SHARED_PACKAGES.includes(name) ? name : undefined;
 };
 
-/** @typedef {{ id: string, version: string, dir: string, entry: string }} ClientPluginInfo */
+/** @typedef {{ id: string, version: string, dir: string, entry: string, build?: string }} ClientPluginInfo */
 
 /**
  * The plugin in `dir`, or an error that names the directory and what is wrong with it; `earlier`
@@ -97,7 +98,7 @@ const readPlugin = (dir, earlier) => {
   if (typeof declaration !== 'object' || declaration === null) {
     fail('package.json declares no "mindroomClientPlugin" object');
   }
-  const { id, apiVersion, entry } = declaration;
+  const { id, apiVersion, entry, build } = declaration;
   if (typeof id !== 'string' || !KEBAB_CASE.test(id)) {
     fail(`id ${JSON.stringify(id)} is not kebab-case, such as "my-plugin"`);
   }
@@ -114,6 +115,13 @@ const readPlugin = (dir, earlier) => {
   }
   const entryPath = typeof entry === 'string' && entry !== '' ? path.resolve(dir, entry) : '';
   if (!entryPath || !existsSync(entryPath)) fail(`entry ${JSON.stringify(entry)} does not exist`);
+  const buildPath = typeof build === 'string' && build !== '' ? path.resolve(dir, build) : '';
+  if (buildPath && path.relative(dir, buildPath).split(path.sep)[0] === '..') {
+    fail(`build ${JSON.stringify(build)} is outside the plugin's directory`);
+  }
+  if (build !== undefined && !existsSync(buildPath)) {
+    fail(`build ${JSON.stringify(build)} does not exist`);
+  }
   const other = earlier.find((plugin) => plugin.id === id);
   if (other) fail(`id "${id}" is also the id of ${other.dir}`);
   const shared = SHARED_PACKAGES.find((name) => Object.hasOwn(manifest.dependencies ?? {}, name));
@@ -122,7 +130,13 @@ const readPlugin = (dir, earlier) => {
       `plugin "${id}" lists ${shared} under dependencies, but every plugin gets the app's ${shared}: list it under peerDependencies instead`
     );
   }
-  return { id, version: manifest.version, dir, entry: normalizePath(entryPath) };
+  return {
+    id,
+    version: manifest.version,
+    dir,
+    entry: normalizePath(entryPath),
+    build: buildPath ? normalizePath(buildPath) : undefined,
+  };
 };
 
 /**
@@ -211,14 +225,74 @@ const entriesModule = (plugins) => {
   return `${imports.join('\n')}\nexport const pluginEntries = [${entries.join(', ')}];\n`;
 };
 
+/** The hooks a plugin's build module may have, each with the argument that names its module. */
+const BUILD_HOOKS = new Map([
+  ['resolveId', 1],
+  ['load', 0],
+  ['transform', 1],
+]);
+
+/**
+ * The Vite plugins of the build modules (`build`) of `plugins`, in their order, with each hook kept
+ * to its plugin's modules: `transform` and `load` run only for them, and `resolveId` only for their
+ * imports. Any other hook fails the build, so that no plugin changes the app's build or what another
+ * plugin's modules become.
+ * @param {ClientPluginInfo[]} plugins
+ * @returns {Promise<import('vite').Plugin[]>}
+ */
+const buildModulePlugins = async (plugins) => {
+  const ownerOf = pluginOwner(plugins);
+  const builds = await Promise.all(
+    plugins.map(async (plugin) => {
+      if (!plugin.build) return [];
+      /** @returns {never} */
+      const fail = (/** @type {string} */ reason) => {
+        throw new Error(`MINDROOM_CLIENT_PLUGINS: ${plugin.dir}: ${reason}`);
+      };
+      const { default: exported } = await import(pathToFileURL(plugin.build).href);
+      return [exported].flat(Infinity).map((/** @type {any} */ vitePlugin) => {
+        if (typeof vitePlugin !== 'object' || vitePlugin === null) {
+          fail(`the default export of ${plugin.build} is not a Vite plugin or an array of them`);
+        }
+        /** @type {Record<string, unknown>} */
+        const scoped = {};
+        for (const [key, hook] of Object.entries(vitePlugin)) {
+          const at = BUILD_HOOKS.get(key);
+          // A hook left undefined is none, as Vite reads it.
+          if (key === 'name' || key === 'enforce' || key === 'apply' || hook == null) {
+            scoped[key] = hook;
+          } else if (at === undefined) {
+            fail(
+              `the Vite plugin "${vitePlugin.name}" of plugin "${plugin.id}" has the hook ${key}, but a plugin's build module may only have resolveId, load and transform`
+            );
+          } else {
+            const handler = typeof hook === 'function' ? hook : hook.handler;
+            /** @this {unknown} */
+            const own = function (/** @type {unknown[]} */ ...args) {
+              const file = args[at];
+              return typeof file === 'string' && ownerOf(file)?.plugin === plugin
+                ? handler.apply(this, args)
+                : null;
+            };
+            scoped[key] = typeof hook === 'function' ? own : { ...hook, handler: own };
+          }
+        }
+        return /** @type {import('vite').Plugin} */ (scoped);
+      });
+    })
+  );
+  return builds.flat();
+};
+
 /**
  * @param {Record<string, string | undefined>} [env]
- * @returns {import('vite').Plugin}
+ * @returns {import('vite').PluginOption[]}
  */
 export const clientPlugins = (env = process.env) => {
   const plugins = readClientPlugins(env.MINDROOM_CLIENT_PLUGINS);
   const ownerOf = pluginOwner(plugins);
-  return {
+  /** @type {import('vite').Plugin} */
+  const app = {
     name: 'mindroom-client-plugins',
     enforce: 'pre',
     config: () => ({
@@ -320,4 +394,7 @@ export const clientPlugins = (env = process.env) => {
       });
     },
   };
+  // The plugins of their build modules come first, so that a plugin's resolveId sees its imports of
+  // the packages the app shares before `app` resolves them.
+  return [buildModulePlugins(plugins), app];
 };
