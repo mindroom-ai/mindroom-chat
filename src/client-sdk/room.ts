@@ -2,11 +2,12 @@
 // "Client plugins"): it opens them, links to them, creates sub-rooms, and shows a person's profile
 // card in a room. Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in
 // scripts/client-plugins.mjs.
-import { createElement, useCallback, useMemo, type ComponentProps } from 'react';
+import { createElement, useCallback, useMemo } from 'react';
 import { useHref } from 'react-router-dom';
 import type { Position, RectCords } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { getClientConfig } from '../app/config/useClientConfig';
+import { useMatrixClient } from '../app/matrix/hooks/useMatrixClient';
 import { useRoomNavigate as useAppRoomNavigate } from '../app/navigation/useRoomNavigate';
 import { UserRoomProfile } from '../app/members/profile/UserRoomProfile';
 import { useOpenUserRoomProfile } from '../app/navigation/useUserRoomProfileState';
@@ -89,14 +90,17 @@ export const createSubRoom = async (parent: Room, { name }: { name: string }): P
 /**
  * Opens the profile card of the person `userId` in the room `roomId`, floating at `anchor` (an
  * element's `getBoundingClientRect()`) on its `side`, below it unless given, as a mention pill opens
- * it. Escape or a click outside closes it; for a room the client does not have, nothing shows.
+ * it. Escape or a click outside closes it. For a room the client does not have it opens nothing, not
+ * even once sync brings the room, where the card would pop up at a stale anchor.
  */
 export const useOpenUserProfile = () => {
+  const client = useMatrixClient();
   const open = useOpenUserRoomProfile();
   return useCallback(
-    (roomId: string, userId: string, anchor: RectCords, side?: Position) =>
-      open(roomId, undefined, userId, anchor, side),
-    [open]
+    (roomId: string, userId: string, anchor: RectCords, side?: Position) => {
+      if (client.getRoom(roomId)) open(roomId, undefined, userId, anchor, side);
+    },
+    [client, open]
   );
 };
 
@@ -106,5 +110,5 @@ export const useOpenUserProfile = () => {
  * Like the floating card, it starts afresh for another room or person, so what one began there (a
  * ban and its reason) never goes to the next.
  */
-export const UserProfileCard = (props: ComponentProps<typeof UserRoomProfile>) =>
+export const UserProfileCard = (props: { room: Room; userId: string; onDone: () => void }) =>
   createElement(UserRoomProfile, { ...props, key: `${props.room.roomId}:${props.userId}` });
