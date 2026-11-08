@@ -10,6 +10,8 @@ const entries = vi.hoisted(() => {
   const action = { id: 'wave', label: 'wave', icon, run };
   const autoAction = { id: 'auto', label: 'auto', icon, run, placement: 'auto' };
   const command = { name: 'greet', description: 'greet', run };
+  const roomAction = { id: 'about', label: 'about', icon, run };
+  const spacesAction = { ...roomAction, id: 'spaces', shows: () => true };
   const banner = (): null => null;
   const headerSlot = [banner];
   const cover = { covers: () => false, subscribe: () => () => undefined, Component };
@@ -22,6 +24,7 @@ const entries = vi.hoisted(() => {
     panel,
     actions: [action, autoAction],
     command,
+    roomActions: [roomAction, spacesAction],
     banner,
     headerSlot,
     cover,
@@ -35,6 +38,7 @@ const entries = vi.hoisted(() => {
           sidePanels: 'not a list',
           headerActions: 'not a list',
           slashCommands: 'not a list',
+          roomActions: roomAction,
           roomHeaderSlot: banner,
           conversationCovers: cover,
           forgetAccount: 'not a function',
@@ -73,6 +77,16 @@ const entries = vi.hoisted(() => {
             { name: 'greet-all', description: 'dash', run },
             { name: 'wave', description: 2, run },
             { name: 'idle', description: 'idle' },
+          ],
+          roomActions: [
+            roomAction,
+            null,
+            { ...roomAction, id: '' },
+            { ...roomAction, label: 1 },
+            { ...roomAction, icon: 'Info' },
+            { ...roomAction, run: undefined },
+            { ...roomAction, shows: true },
+            spacesAction,
           ],
           roomHeaderSlot: headerSlot,
           conversationCovers: [
@@ -125,6 +139,9 @@ describe('registeredPlugins', () => {
     // A slash command needs a name of letters a to z, a description and a run.
     expect(plugins[0]?.slashCommands).toEqual([]);
     expect(plugins[1]?.slashCommands).toEqual([entries.command]);
+    // A room action needs an id, a label, an icon and a run, and its shows is a function.
+    expect(plugins[0]?.roomActions).toEqual([]);
+    expect(plugins[1]?.roomActions).toEqual(entries.roomActions);
     expect(plugins[0]?.roomHeaderSlot).toEqual([]);
     expect(plugins[1]?.roomHeaderSlot).toEqual([entries.banner]);
     // A cover needs its condition, a subscription and a component, and Escape's close is a function.
@@ -146,6 +163,7 @@ describe('registeredPlugins', () => {
       expect(Object.isFrozen(plugin.sidePanels)).toBe(true);
       expect(Object.isFrozen(plugin.headerActions)).toBe(true);
       expect(Object.isFrozen(plugin.slashCommands)).toBe(true);
+      expect(Object.isFrozen(plugin.roomActions)).toBe(true);
       expect(Object.isFrozen(plugin.roomHeaderSlot)).toBe(true);
       expect(Object.isFrozen(plugin.conversationCovers)).toBe(true);
     }
