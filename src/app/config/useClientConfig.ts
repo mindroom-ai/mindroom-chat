@@ -1,14 +1,16 @@
-import { createContext, createElement, useContext, useEffect, type ReactNode } from 'react';
+import { createContext, createElement, useContext, useLayoutEffect, type ReactNode } from 'react';
 
 const configContext = createContext<ClientConfig | undefined>(undefined);
 configContext.displayName = 'ClientConfig';
+/** How many `ClientConfigProvider`s are above, so the innermost one's configuration counts. */
+const depthContext = createContext(0);
 
-/** What each mounted `ClientConfigProvider` supplies, in the order they mounted or last changed. */
-const mountedProviders: { config: ClientConfig | undefined }[] = [];
+/** What each mounted `ClientConfigProvider` supplies, at its depth, in the order they mounted. */
+const mountedProviders: { config: ClientConfig | undefined; depth: number }[] = [];
 
 /**
  * Supplies the loaded `config.json` to everything rendered below it, and to `getClientConfig()`
- * while it is mounted.
+ * while it is mounted: from before the mount effects of what it renders run.
  */
 export function ClientConfigProvider({
   value,
@@ -17,23 +19,31 @@ export function ClientConfigProvider({
   value: ClientConfig | undefined;
   children?: ReactNode;
 }) {
-  useEffect(() => {
-    const entry = { config: value };
+  const depth = useContext(depthContext) + 1;
+  useLayoutEffect(() => {
+    const entry = { config: value, depth };
     mountedProviders.push(entry);
     return () => {
       mountedProviders.splice(mountedProviders.indexOf(entry), 1);
     };
-  }, [value]);
-  return createElement(configContext.Provider, { value }, children);
+  }, [value, depth]);
+  return createElement(
+    depthContext.Provider,
+    { value: depth },
+    createElement(configContext.Provider, { value }, children)
+  );
 }
 
 /**
- * The configuration of the `ClientConfigProvider` that mounted or changed last of those mounted
- * (the app mounts one), for code that runs outside components, such as a plugin command's `run`;
- * undefined while none is mounted.
+ * The configuration of the innermost mounted `ClientConfigProvider`, as `useClientConfig` gives it
+ * below that provider (of several as deep, the last to mount or change), for code that runs
+ * outside components, such as a plugin command's `run`; undefined while none is mounted.
  */
 export const getClientConfig = (): ClientConfig | undefined =>
-  mountedProviders[mountedProviders.length - 1]?.config;
+  mountedProviders.reduce<(typeof mountedProviders)[number] | undefined>(
+    (innermost, entry) => (!innermost || entry.depth >= innermost.depth ? entry : innermost),
+    undefined
+  )?.config;
 
 /** The deployment's configuration; throws when no `ClientConfigProvider` is above the caller. */
 export const useClientConfig = (): ClientConfig => {

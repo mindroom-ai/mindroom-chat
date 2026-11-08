@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import { useEffect, type ReactElement } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ClientConfigProvider, getClientConfig } from './useClientConfig';
@@ -20,6 +20,38 @@ describe('getClientConfig', () => {
       else renderer = create(ui);
     });
   };
+
+  it("is the inner provider's of two that mount together, as useClientConfig is below it", () => {
+    render(
+      <ClientConfigProvider value={OUTER}>
+        <ClientConfigProvider value={INNER} />
+      </ClientConfigProvider>
+    );
+    expect(getClientConfig()).toBe(INNER);
+
+    render(
+      <ClientConfigProvider value={{ createRoom: { defaultFederation: true } }}>
+        <ClientConfigProvider value={INNER} />
+      </ClientConfigProvider>
+    );
+    expect(getClientConfig()).toBe(INNER);
+  });
+
+  it('is there for a mount effect of what the provider renders', () => {
+    let seen: unknown;
+    function Child() {
+      useEffect(() => {
+        seen = getClientConfig();
+      }, []);
+      return null;
+    }
+    render(
+      <ClientConfigProvider value={INNER}>
+        <Child />
+      </ClientConfigProvider>
+    );
+    expect(seen).toBe(INNER);
+  });
 
   it("goes back to the outer provider's when the inner one unmounts, and to none when both have", () => {
     const tree = (inner: boolean) => (
