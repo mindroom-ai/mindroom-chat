@@ -553,6 +553,9 @@ REAL_INSTRUCTIONS = [
     "first with args 'echo step one', then with args 'sleep 10; echo step two', then with args 'echo step three'. "
     "Then reply 'Finished multi after 3 tool calls. Last result:' followed by the last call's output in a code "
     "block, and nothing about the other calls.",
+    "#pause: call run_shell_command twice, one call at a time, the second only after the first result arrived: "
+    "first with args 'sleep 1; echo first step', then with args 'sleep 1; echo second step'. Then reply 'Finished "
+    "pause after 2 tool calls. Last result:' followed by the last call's output in a code block.",
     "#narrate (a real model's usual shape, which the stub has no scenario for): first write one sentence saying "
     "you will run a command, then call run_shell_command once with args 'echo narrated', then write two sentences "
     "about its output.",
