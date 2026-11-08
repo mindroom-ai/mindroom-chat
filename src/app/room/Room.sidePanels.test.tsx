@@ -860,6 +860,25 @@ describe('the side panels of a room', () => {
     expect(notes()?.textContent).toContain('Notes frame none');
   });
 
+  it('covers the conversation on a phone with a framed panel that was folded on a wide screen', async () => {
+    const { Room } = await import('./Room');
+    let size = ScreenSize.Desktop;
+    const ui = () => (
+      <ScreenSizeProvider value={size}>
+        <Room />
+      </ScreenSizeProvider>
+    );
+    const { rerender } = await act(async () => render(ui()));
+    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
+    await act(async () => frameButton('Fold Notes to the edge')?.click());
+    expect(hidden()).toBe(false);
+
+    size = ScreenSize.Mobile;
+    await act(async () => rerender(ui()));
+    expect(notes()).not.toBeNull();
+    expect(hidden()).toBe(true);
+  });
+
   const sketch = () => screen.queryByTestId('sketch');
   const sketchButton = (name: string) => screen.getByRole('button', { name });
 

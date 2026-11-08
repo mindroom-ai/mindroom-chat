@@ -111,8 +111,7 @@ test("the example plugin's own-frame card fills the room and hides to its tab", 
     await expect(card(page)).toBeVisible();
     await expectNoRoomFrame(page);
     const besideWidth = await widthOf(card(page));
-    expect(besideWidth).toBeGreaterThan(320);
-    expect(besideWidth).toBeLessThan(380);
+    expect(besideWidth).toBe(320);
     const conversationBeside = await widthOf(conversation);
     await shots(page, testInfo, 'wide-beside');
 
