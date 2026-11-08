@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
+// The registry as this file's load built it, at the default address.
+import { registeredPlugins } from './registry';
 
 const entries = vi.hoisted(() => {
   const Component = (): null => null;
@@ -121,17 +123,19 @@ const entries = vi.hoisted(() => {
 });
 vi.mock('./pluginEntries', () => ({ pluginEntries: entries.list }));
 
-/** The registry as a fresh page load builds it. */
-const loadRegistry = async () => (await import('./registry')).registeredPlugins;
+/** The registry as a fresh page load builds it, at the address a case set. */
+const loadRegistry = async () => {
+  vi.resetModules();
+  return (await import('./registry')).registeredPlugins;
+};
 
 afterEach(() => {
-  vi.resetModules();
   window.history.replaceState(null, '', '/');
 });
 
 describe('registeredPlugins', () => {
   it("lists the build's plugins in their order, tagged with id and version", async () => {
-    const plugins = await loadRegistry();
+    const plugins = registeredPlugins;
     expect(plugins.map(({ id, tag }) => [id, tag])).toEqual([
       ['alpha', 'alpha@1.0.0'],
       ['beta', 'beta@2.1.0'],
@@ -167,8 +171,8 @@ describe('registeredPlugins', () => {
     expect(entries.forgotten).toEqual(['@alice:example.org']);
   });
 
-  it('is frozen when its module loads', async () => {
-    const plugins = await loadRegistry();
+  it('is frozen when its module loads', () => {
+    const plugins = registeredPlugins;
     expect(Object.isFrozen(plugins)).toBe(true);
     for (const plugin of plugins) {
       expect(Object.isFrozen(plugin)).toBe(true);
