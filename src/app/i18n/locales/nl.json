@@ -467,13 +467,10 @@
     },
     "deviceVerificationSetup": {
       "recoveryKey": "Herstelsleutel",
-      "passphraseOptional": "Wachtwoordzin (optioneel)",
       "continue": "Doorgaan",
       "authenticationStepsToPerformThisActionAreNotSupportedByClient": "De authenticatiestappen voor deze actie worden niet door de client ondersteund.",
-      "storeTheRecoveryKeyInASafePlaceForFutureUseAs": "Bewaar de herstelsleutel op een veilige plaats voor later gebruik. Je hebt deze nodig om je identiteit te verifiëren als je geen toegang tot andere apparaten hebt.",
       "copy": "Kopiëren",
       "download": "Downloaden",
-      "setupDeviceVerification": "Apparaatverificatie instellen",
       "resetDeviceVerification": "Apparaatverificatie opnieuw instellen",
       "resettingDeviceVerificationIsPermanent": "Het opnieuw instellen van de apparaatverificatie is definitief.",
       "recoveryPassphrase": "Herstelwachtwoordzin",
@@ -481,7 +478,6 @@
       "unexpectedError": "Onverwachte fout!",
       "hide": "Verbergen",
       "show": "Tonen",
-      "recoveryDescription": "Genereer een <b>herstelsleutel</b> om je identiteit te verifiëren als je geen toegang tot andere apparaten hebt. Stel daarnaast een wachtwoordzin in als makkelijk te onthouden alternatief.",
       "resetWarning": "Iedereen die je hebt geverifieerd, ziet beveiligingswaarschuwingen en je back-up van de versleuteling gaat verloren. Je wilt dit vrijwel zeker niet doen, tenzij je de <b>herstelsleutel</b> of <b>herstelwachtwoordzin</b> en elk apparaat waarmee je jezelf kunt verifiëren bent kwijtgeraakt."
     },
     "hexColorPickerPopOut": {
@@ -497,14 +493,6 @@
       "cancel": "Annuleren",
       "logoutFailed": "Uitloggen mislukt! {{error}}"
     },
-    "manualVerification": {
-      "recoveryPassphrase": "Herstelwachtwoordzin",
-      "recoveryKey": "Herstelsleutel",
-      "verifyManually": "Handmatig verifiëren",
-      "deviceVerified": "Apparaat geverifieerd!",
-      "selectAVerificationMethod": "Selecteer een verificatiemethode.",
-      "provideRecoveryKey": "Voer de herstelsleutel in."
-    },
     "pdfViewer": {
       "zoomOut": "Uitzoomen",
       "zoomIn": "Inzoomen",
@@ -517,13 +505,6 @@
       "saving": "Opslaan...",
       "retryDownload": "Download opnieuw proberen",
       "download": "Downloaden"
-    },
-    "secretStorage": {
-      "recoveryPassphrase": "Herstelwachtwoordzin",
-      "verify": "Verifiëren",
-      "recoveryKey": "Herstelsleutel",
-      "invalidRecoveryPassphrase": "Ongeldige herstelwachtzin.",
-      "invalidRecoveryKey": "Ongeldige herstelsleutel."
     },
     "uIAFlowOverlay": {
       "exit": "Afsluiten",
@@ -2053,12 +2034,9 @@
           "logoutSelectedDevices_other": "Afmelden bij geselecteerde apparaten. ({{count}} geselecteerd)"
         },
         "verification": {
-          "currentDeviceHelpLess": "Start de verificatie vanaf een ander apparaat of verifieer handmatig. <toggle><strong>Minder weergeven</strong></toggle>",
-          "currentDeviceHelpMore": "Start de verificatie vanaf een ander apparaat of verifieer handmatig. <toggle><strong>Meer informatie</strong></toggle>",
           "enable": "Inschakelen",
           "findDevice": "Zoek dit apparaat in het gedeelte <section>Apparaten/sessies</section>.",
           "initiateVerification": "Start de verificatie.",
-          "manualVerificationHint": "Als je geen geverifieerd apparaat hebt, druk je op de knop <action>‘Handmatig verifiëren’</action>.",
           "openSettings": "Open de <settings>Instellingen</settings>.",
           "openVerifiedDevice": "Open je andere geverifieerde apparaat.",
           "reset": "Opnieuw instellen",
@@ -2068,8 +2046,7 @@
           "unverifiedCount_other": "{{count}} niet geverifieerd",
           "verified": "Geverifieerd",
           "verify": "Verifiëren",
-          "verifyDeviceDescription": "Verifieer de identiteit van het apparaat en verleen toegang tot versleutelde berichten.",
-          "verifyManually": "Handmatig verifiëren"
+          "verifyDeviceDescription": "Verifieer de identiteit van het apparaat en verleen toegang tot versleutelde berichten."
         }
       },
       "emojisStickers": {
@@ -2810,15 +2787,6 @@
       },
       "mindroomMarkRoomsReadMenuItem": {
         "markAsRead": "Markeren als gelezen"
-      }
-    },
-    "onboarding": {
-      "keyBackupNudge": {
-        "backUpYourEncryptedHistory": "Maak een back-up van je versleutelde geschiedenis",
-        "dismissBackupReminder": "Back-upherinnering sluiten",
-        "setUpSecureBackupSoYouCanStillReadYour": "Stel een veilige back-up in zodat je je versleutelde agentchats ook na aanmelding op een nieuw apparaat kunt lezen.",
-        "setUpSecureKeyBackup": "Veilige sleutelback-up instellen",
-        "setUpBackup": "Back-up instellen"
       }
     },
     "sidebar": {

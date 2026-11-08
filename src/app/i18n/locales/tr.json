@@ -467,13 +467,10 @@
     },
     "deviceVerificationSetup": {
       "recoveryKey": "Kurtarma anahtarı",
-      "passphraseOptional": "Parola ifadesi (isteğe bağlı)",
       "continue": "Devam et",
       "authenticationStepsToPerformThisActionAreNotSupportedByClient": "Bu işlem için gerekli kimlik doğrulama adımları istemci tarafından desteklenmiyor.",
-      "storeTheRecoveryKeyInASafePlaceForFutureUseAs": "Diğer cihazlarınıza erişemediğinizde kimliğinizi doğrulamak için Kurtarma Anahtarına ihtiyaç duyacağınızdan, anahtarı ileride kullanmak üzere güvenli bir yerde saklayın.",
       "copy": "Kopyala",
       "download": "İndir",
-      "setupDeviceVerification": "Cihaz doğrulamasını ayarla",
       "resetDeviceVerification": "Cihaz doğrulamasını sıfırla",
       "resettingDeviceVerificationIsPermanent": "Cihaz doğrulamasını sıfırlamak kalıcıdır.",
       "recoveryPassphrase": "Kurtarma parolası",
@@ -481,7 +478,6 @@
       "unexpectedError": "Beklenmeyen hata!",
       "hide": "Gizle",
       "show": "Göster",
-      "recoveryDescription": "Diğer cihazlarınıza erişemediğinizde kimliğinizi doğrulamak için bir <b>Kurtarma Anahtarı</b> oluşturun. Ayrıca, hatırlaması kolay bir alternatif olarak bir parola ifadesi ayarlayın.",
       "resetWarning": "Birlikte doğrulama yaptığınız herkes güvenlik uyarıları görecek ve şifreleme yedeğiniz kaybolacak. <b>Kurtarma Anahtarınızı</b> veya <b>Kurtarma Parolanızı</b> ve doğrulama yapabileceğiniz tüm cihazları kaybetmediyseniz, bu işlemi büyük olasılıkla yapmak istemezsiniz."
     },
     "hexColorPickerPopOut": {
@@ -497,14 +493,6 @@
       "cancel": "İptal",
       "logoutFailed": "Çıkış yapılamadı! {{error}}"
     },
-    "manualVerification": {
-      "recoveryPassphrase": "Kurtarma parolası",
-      "recoveryKey": "Kurtarma anahtarı",
-      "verifyManually": "Elle doğrula",
-      "deviceVerified": "Cihaz doğrulandı!",
-      "selectAVerificationMethod": "Bir doğrulama yöntemi seçin.",
-      "provideRecoveryKey": "Kurtarma anahtarını girin."
-    },
     "pdfViewer": {
       "zoomOut": "Uzaklaştır",
       "zoomIn": "Yakınlaştır",
@@ -517,13 +505,6 @@
       "saving": "Kaydediliyor...",
       "retryDownload": "İndirmeyi tekrar dene",
       "download": "İndir"
-    },
-    "secretStorage": {
-      "recoveryPassphrase": "Kurtarma parolası",
-      "verify": "Doğrula",
-      "recoveryKey": "Kurtarma anahtarı",
-      "invalidRecoveryPassphrase": "Geçersiz kurtarma parolası.",
-      "invalidRecoveryKey": "Geçersiz kurtarma anahtarı."
     },
     "uIAFlowOverlay": {
       "exit": "Çık",
@@ -2053,12 +2034,9 @@
           "logoutSelectedDevices_other": "Seçili cihazlardan çıkış yap. ({{count}} seçili)"
         },
         "verification": {
-          "currentDeviceHelpLess": "Başka bir cihazdan doğrulamayı başlatın veya elle doğrulayın. <toggle><strong>Daha az göster</strong></toggle>",
-          "currentDeviceHelpMore": "Başka bir cihazdan doğrulamayı başlatın veya elle doğrulayın. <toggle><strong>Daha fazla bilgi</strong></toggle>",
           "enable": "Etkinleştir",
           "findDevice": "Bu cihazı <section>Cihazlar/Oturumlar</section> bölümünde bulun.",
           "initiateVerification": "Doğrulamayı başlatın.",
-          "manualVerificationHint": "Doğrulanmış bir cihazınız yoksa <action>\"Elle doğrula\"</action> düğmesine basın.",
           "openSettings": "<settings>Ayarlar</settings>'ı açın.",
           "openVerifiedDevice": "Doğrulanmış diğer cihazınızı açın.",
           "reset": "Sıfırla",
@@ -2068,8 +2046,7 @@
           "unverifiedCount_other": "{{count}} doğrulanmamış",
           "verified": "Doğrulandı",
           "verify": "Doğrula",
-          "verifyDeviceDescription": "Cihaz kimliğini doğrulayın ve şifrelenmiş mesajlara erişim verin.",
-          "verifyManually": "Elle doğrula"
+          "verifyDeviceDescription": "Cihaz kimliğini doğrulayın ve şifrelenmiş mesajlara erişim verin."
         }
       },
       "emojisStickers": {
@@ -2810,15 +2787,6 @@
       },
       "mindroomMarkRoomsReadMenuItem": {
         "markAsRead": "Okundu olarak işaretle"
-      }
-    },
-    "onboarding": {
-      "keyBackupNudge": {
-        "backUpYourEncryptedHistory": "Şifreli geçmişinizi yedekleyin",
-        "dismissBackupReminder": "Yedekleme hatırlatıcısını kapat",
-        "setUpSecureBackupSoYouCanStillReadYour": "Yeni bir cihazda oturum açtıktan sonra şifreli ajan sohbetlerinizi okumaya devam edebilmek için güvenli yedeklemeyi ayarlayın.",
-        "setUpSecureKeyBackup": "Güvenli anahtar yedeklemesini ayarla",
-        "setUpBackup": "Yedeklemeyi ayarla"
       }
     },
     "sidebar": {

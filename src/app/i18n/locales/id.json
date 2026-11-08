@@ -467,13 +467,10 @@
     },
     "deviceVerificationSetup": {
       "recoveryKey": "Kunci pemulihan",
-      "passphraseOptional": "Frasa sandi (opsional)",
       "continue": "Lanjutkan",
       "authenticationStepsToPerformThisActionAreNotSupportedByClient": "Langkah autentikasi untuk tindakan ini tidak didukung oleh klien.",
-      "storeTheRecoveryKeyInASafePlaceForFutureUseAs": "Simpan Kunci Pemulihan di tempat aman untuk digunakan nanti. Kunci ini diperlukan untuk memverifikasi identitas Anda saat perangkat lain tidak dapat diakses.",
       "copy": "Salin",
       "download": "Unduh",
-      "setupDeviceVerification": "Siapkan verifikasi perangkat",
       "resetDeviceVerification": "Reset verifikasi perangkat",
       "resettingDeviceVerificationIsPermanent": "Reset verifikasi perangkat bersifat permanen.",
       "recoveryPassphrase": "Frasa sandi pemulihan",
@@ -481,7 +478,6 @@
       "unexpectedError": "Kesalahan tak terduga!",
       "hide": "Sembunyikan",
       "show": "Tampilkan",
-      "recoveryDescription": "Buat <b>Kunci Pemulihan</b> untuk memverifikasi identitas saat perangkat lain tidak dapat diakses. Anda juga dapat menyiapkan frasa sandi sebagai alternatif yang mudah diingat.",
       "resetWarning": "Semua orang yang pernah Anda verifikasi akan melihat peringatan keamanan dan cadangan enkripsi Anda akan hilang. Sebaiknya jangan lakukan ini, kecuali Anda kehilangan <b>Kunci Pemulihan</b> atau <b>Frasa Sandi Pemulihan</b> serta semua perangkat yang dapat digunakan untuk verifikasi."
     },
     "hexColorPickerPopOut": {
@@ -497,14 +493,6 @@
       "cancel": "Batal",
       "logoutFailed": "Gagal keluar! {{error}}"
     },
-    "manualVerification": {
-      "recoveryPassphrase": "Frasa sandi pemulihan",
-      "recoveryKey": "Kunci pemulihan",
-      "verifyManually": "Verifikasi secara manual",
-      "deviceVerified": "Perangkat terverifikasi!",
-      "selectAVerificationMethod": "Pilih metode verifikasi.",
-      "provideRecoveryKey": "Masukkan kunci pemulihan."
-    },
     "pdfViewer": {
       "zoomOut": "Perkecil",
       "zoomIn": "Perbesar",
@@ -517,13 +505,6 @@
       "saving": "Menyimpan...",
       "retryDownload": "Coba unduh lagi",
       "download": "Unduh"
-    },
-    "secretStorage": {
-      "recoveryPassphrase": "Frasa sandi pemulihan",
-      "verify": "Verifikasi",
-      "recoveryKey": "Kunci pemulihan",
-      "invalidRecoveryPassphrase": "Frasa sandi pemulihan tidak valid.",
-      "invalidRecoveryKey": "Kunci pemulihan tidak valid."
     },
     "uIAFlowOverlay": {
       "exit": "Keluar",
@@ -2053,12 +2034,9 @@
           "logoutSelectedDevices_other": "Keluar dari perangkat terpilih. ({{count}} dipilih)"
         },
         "verification": {
-          "currentDeviceHelpLess": "Mulai verifikasi dari perangkat lain atau verifikasi secara manual. <toggle><strong>Tampilkan lebih sedikit</strong></toggle>",
-          "currentDeviceHelpMore": "Mulai verifikasi dari perangkat lain atau verifikasi secara manual. <toggle><strong>Pelajari lebih lanjut</strong></toggle>",
           "enable": "Aktifkan",
           "findDevice": "Temukan perangkat ini di bagian <section>Perangkat/Sesi</section>.",
           "initiateVerification": "Mulai verifikasi.",
-          "manualVerificationHint": "Jika tidak memiliki perangkat terverifikasi, tekan tombol <action>\"Verifikasi secara manual\"</action>.",
           "openSettings": "Buka <settings>Pengaturan</settings>.",
           "openVerifiedDevice": "Buka perangkat terverifikasi Anda yang lain.",
           "reset": "Reset",
@@ -2068,8 +2046,7 @@
           "unverifiedCount_other": "{{count}} belum diverifikasi",
           "verified": "Terverifikasi",
           "verify": "Verifikasi",
-          "verifyDeviceDescription": "Verifikasi identitas perangkat dan berikan akses ke pesan terenkripsi.",
-          "verifyManually": "Verifikasi secara manual"
+          "verifyDeviceDescription": "Verifikasi identitas perangkat dan berikan akses ke pesan terenkripsi."
         }
       },
       "emojisStickers": {
@@ -2797,15 +2774,6 @@
       },
       "mindroomMarkRoomsReadMenuItem": {
         "markAsRead": "Tandai dibaca"
-      }
-    },
-    "onboarding": {
-      "keyBackupNudge": {
-        "backUpYourEncryptedHistory": "Cadangkan riwayat terenkripsi Anda",
-        "dismissBackupReminder": "Tutup pengingat pencadangan",
-        "setUpSecureBackupSoYouCanStillReadYour": "Siapkan cadangan aman agar Anda tetap dapat membaca percakapan agen terenkripsi setelah masuk di perangkat baru.",
-        "setUpSecureKeyBackup": "Siapkan cadangan kunci aman",
-        "setUpBackup": "Siapkan pencadangan"
       }
     },
     "sidebar": {

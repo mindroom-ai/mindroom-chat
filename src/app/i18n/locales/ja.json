@@ -467,13 +467,10 @@
     },
     "deviceVerificationSetup": {
       "recoveryKey": "リカバリーキー",
-      "passphraseOptional": "パスフレーズ (オプション)",
       "continue": "続行",
       "authenticationStepsToPerformThisActionAreNotSupportedByClient": "このアクションを実行するための認証手順は、クライアントではサポートされていません。",
-      "storeTheRecoveryKeyInASafePlaceForFutureUseAs": "リカバリーキーは安全な場所に保管してください。他のデバイスにアクセスできない場合の本人確認に必要です。",
       "copy": "コピー",
       "download": "ダウンロード",
-      "setupDeviceVerification": "デバイス検証のセットアップ",
       "resetDeviceVerification": "デバイス検証のリセット",
       "resettingDeviceVerificationIsPermanent": "デバイス検証のリセットは永続的です。",
       "recoveryPassphrase": "リカバリーパスフレーズ",
@@ -481,7 +478,6 @@
       "unexpectedError": "予期しないエラー!",
       "hide": "非表示",
       "show": "表示",
-      "recoveryDescription": "他のデバイスにアクセスできない場合の本人確認に使う<b>リカバリーキー</b>を生成します。覚えやすい代替手段としてリカバリーパスフレーズも設定できます。",
       "resetWarning": "相互検証済みのすべてのユーザーにセキュリティ警告が表示され、暗号化バックアップも失われます。<b>リカバリーキー</b>、<b>リカバリーパスフレーズ</b>、検証に使えるすべてのデバイスを紛失した場合を除き、この操作は行わないでください。"
     },
     "hexColorPickerPopOut": {
@@ -497,14 +493,6 @@
       "cancel": "キャンセル",
       "logoutFailed": "ログアウトに失敗しました。{{error}}"
     },
-    "manualVerification": {
-      "recoveryPassphrase": "リカバリーパスフレーズ",
-      "recoveryKey": "リカバリーキー",
-      "verifyManually": "手動で検証",
-      "deviceVerified": "デバイスが検証されました。",
-      "selectAVerificationMethod": "検証方法を選択します。",
-      "provideRecoveryKey": "リカバリーキーを入力してください。"
-    },
     "pdfViewer": {
       "zoomOut": "ズームアウト",
       "zoomIn": "ズームイン",
@@ -517,13 +505,6 @@
       "saving": "保存中...",
       "retryDownload": "ダウンロードを再試行する",
       "download": "ダウンロード"
-    },
-    "secretStorage": {
-      "recoveryPassphrase": "リカバリーパスフレーズ",
-      "verify": "検証",
-      "recoveryKey": "リカバリーキー",
-      "invalidRecoveryPassphrase": "リカバリーパスフレーズが正しくありません。",
-      "invalidRecoveryKey": "リカバリーキーが正しくありません。"
     },
     "uIAFlowOverlay": {
       "exit": "終了",
@@ -2053,12 +2034,9 @@
           "logoutSelectedDevices_other": "選択したデバイスからログアウトします。 ({{count}} 個が選択されました)"
         },
         "verification": {
-          "currentDeviceHelpLess": "他のデバイスから検証を開始するか、手動で検証します。 <toggle><strong>表示範囲を縮小</strong></toggle>",
-          "currentDeviceHelpMore": "他のデバイスから検証を開始するか、手動で検証します。 <toggle><strong>詳細</strong></toggle>",
           "enable": "有効にする",
           "findDevice": "このデバイスは <section>デバイス/セッション</section> セクションで見つけます。",
           "initiateVerification": "検証を開始します。",
-          "manualVerificationHint": "検証済みのデバイスがない場合は、<action>「手動で検証」</action> ボタンを押してください。",
           "openSettings": "<settings>設定</settings>を開きます。",
           "openVerifiedDevice": "他の認証済みデバイスを開きます。",
           "reset": "リセット",
@@ -2068,8 +2046,7 @@
           "unverifiedCount_other": "{{count}} 未確認",
           "verified": "検証済み",
           "verify": "検証",
-          "verifyDeviceDescription": "デバイスの ID を確認し、暗号化されたメッセージへのアクセスを許可します。",
-          "verifyManually": "手動で検証"
+          "verifyDeviceDescription": "デバイスの ID を確認し、暗号化されたメッセージへのアクセスを許可します。"
         }
       },
       "emojisStickers": {
@@ -2797,15 +2774,6 @@
       },
       "mindroomMarkRoomsReadMenuItem": {
         "markAsRead": "既読としてマーク"
-      }
-    },
-    "onboarding": {
-      "keyBackupNudge": {
-        "backUpYourEncryptedHistory": "暗号化された履歴をバックアップする",
-        "dismissBackupReminder": "バックアップリマインダーを閉じる",
-        "setUpSecureBackupSoYouCanStillReadYour": "安全なバックアップを設定すると、新しいデバイスでサインインした後でも、暗号化されたエージェント チャットを読むことができます。",
-        "setUpSecureKeyBackup": "安全なキーのバックアップを設定する",
-        "setUpBackup": "バックアップを設定"
       }
     },
     "sidebar": {

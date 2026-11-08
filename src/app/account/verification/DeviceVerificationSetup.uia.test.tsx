@@ -65,7 +65,7 @@ vi.mock('folds', () => {
     config: {
       borderWidth: { B300: '1px' },
       radii: { R400: '4px' },
-      space: { S200: '8px', S300: '12px', S400: '16px' },
+      space: { S100: '4px', S200: '8px', S300: '12px', S400: '16px' },
     },
   };
 });
@@ -86,10 +86,18 @@ vi.mock('../../ui/PasswordInput', () => ({
   PasswordInput: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
 }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getCrypto: () => crypto, getUserId: () => '@alice:example.org' }),
+  useMatrixClient: () => ({
+    getCrypto: () => crypto,
+    getUserId: () => '@alice:example.org',
+    getSafeUserId: () => '@alice:example.org',
+  }),
 }));
 vi.mock('file-saver', () => ({ default: { saveAs: vi.fn() } }));
 vi.mock('../../matrix/client/secretStorageKeys', () => ({ clearSecretStorageKeys: vi.fn() }));
+// The server still has no encryption setup when Continue asks again.
+vi.mock('../devices/serverEncryptionSetup', () => ({
+  hasServerEncryptionSetup: vi.fn(async () => false),
+}));
 vi.mock('../../lib/dom', () => ({ copyToClipboard: vi.fn() }));
 vi.mock('../../ui/styles/ContainerColor.css', () => ({ ContainerColor: () => '' }));
 
@@ -112,7 +120,13 @@ const startSetupWithUnsupportedFlow = async (): Promise<ReactTestRenderer> => {
   });
   const form = renderer.root.findByType('form');
   act(() => {
-    form.props.onSubmit({ preventDefault: vi.fn(), target: {} });
+    form.props.onSubmit({
+      preventDefault: vi.fn(),
+      target: {
+        recoveryPasswordInput: { value: 'a long recovery password' },
+        recoveryPasswordConfirmInput: { value: 'a long recovery password' },
+      },
+    });
   });
   await flush();
   expect(renderer.root.findAllByProps({ 'data-overlay': true })).toHaveLength(1);
@@ -163,13 +177,25 @@ describe('DeviceVerificationSetup unsupported auth flow', () => {
   });
 });
 
-describe('DeviceVerificationSetup passphrase field', () => {
+describe('DeviceVerificationSetup password fields', () => {
   it('asks password managers for a new secret, not the account password', () => {
     let renderer!: ReactTestRenderer;
     act(() => {
       renderer = create(<DeviceVerificationSetup onCancel={vi.fn()} />);
     });
 
-    expect(renderer.root.findByType('input').props.autoComplete).toBe('new-password');
+    const inputs = renderer.root.findAllByType('input');
+    expect(inputs.map((input) => input.props.name)).toEqual([
+      undefined,
+      'recoveryPasswordInput',
+      'recoveryPasswordConfirmInput',
+    ]);
+    // A username of its own keeps the recovery password apart from the saved login.
+    expect(inputs.map((input) => input.props.autoComplete)).toEqual([
+      'username',
+      'new-password',
+      'new-password',
+    ]);
+    expect(inputs[0]?.props.value).toBe('@alice:example.org recovery password');
   });
 });

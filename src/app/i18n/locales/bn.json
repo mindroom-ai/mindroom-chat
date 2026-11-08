@@ -815,12 +815,9 @@
         "security": "নিরাপত্তা",
         "toVerifyDeviceIdentityAndGrantAccess": "ডিভাইসের পরিচয় যাচাই করতে এবং এনক্রিপ্ট করা বার্তাগুলিতে অ্যাক্সেস মঞ্জুর করতে।",
         "verification": {
-          "currentDeviceHelpLess": "অন্য ডিভাইস থেকে যাচাইকরণ শুরু করুন বা ম্যানুয়ালি যাচাই করুন। <toggle><strong>কম দেখান</strong></toggle>",
-          "currentDeviceHelpMore": "অন্য ডিভাইস থেকে যাচাইকরণ শুরু করুন বা ম্যানুয়ালি যাচাই করুন। <toggle><strong>আরো জানুন</strong></toggle>",
           "enable": "সক্রিয় করুন",
           "findDevice": "<section>ডিভাইস/সেশন</section> বিভাগে এই ডিভাইসটি খুঁজুন।",
           "initiateVerification": "যাচাইকরণ শুরু করুন।",
-          "manualVerificationHint": "আপনার কাছে কোনো যাচাইকৃত ডিভাইস না থাকলে <action>\"ম্যানুয়ালি যাচাই করুন\"</action> বোতাম টিপুন।",
           "openSettings": "<settings>সেটিংস</settings> খুলুন।",
           "openVerifiedDevice": "আপনার অন্য যাচাইকৃত ডিভাইস খুলুন.",
           "reset": "রিসেট করুন",
@@ -830,8 +827,7 @@
           "unverifiedCount_other": "{{count}} যাচাই করা হয়নি",
           "verified": "যাচাই করা হয়েছে",
           "verify": "যাচাই করুন",
-          "verifyDeviceDescription": "ডিভাইসের পরিচয় যাচাই করুন এবং এনক্রিপ্ট করা বার্তাগুলিতে অ্যাক্সেস মঞ্জুর করুন৷",
-          "verifyManually": "ম্যানুয়ালি যাচাই করুন"
+          "verifyDeviceDescription": "ডিভাইসের পরিচয় যাচাই করুন এবং এনক্রিপ্ট করা বার্তাগুলিতে অ্যাক্সেস মঞ্জুর করুন৷"
         }
       },
       "emojisStickers": {
@@ -1515,15 +1511,6 @@
         "markAsRead": "পঠিত হিসেবে চিহ্নিত করুন"
       }
     },
-    "onboarding": {
-      "keyBackupNudge": {
-        "backUpYourEncryptedHistory": "আপনার এনক্রিপ্ট করা ইতিহাস ব্যাক আপ করুন",
-        "dismissBackupReminder": "ব্যাকআপ অনুস্মারক খারিজ করুন",
-        "setUpBackup": "ব্যাকআপ সেট আপ করুন",
-        "setUpSecureBackupSoYouCanStillReadYour": "নিরাপদ ব্যাকআপ সেট আপ করুন যাতে আপনি একটি নতুন ডিভাইসে সাইন ইন করার পরেও আপনার এনক্রিপ্ট করা এজেন্ট চ্যাট পড়তে পারেন৷",
-        "setUpSecureKeyBackup": "সুরক্ষিত কী ব্যাকআপ সেট আপ করুন"
-      }
-    },
     "recent-threads": {
       "summary": {
         "encryptedThread": "এনক্রিপ্ট করা থ্রেড",
@@ -2174,17 +2161,13 @@
       "copy": "কপি করুন",
       "download": "ডাউনলোড করুন",
       "hide": "লুকান",
-      "passphraseOptional": "পাসফ্রেজ (ঐচ্ছিক)",
-      "recoveryDescription": "আপনার যদি অন্য ডিভাইসগুলিতে অ্যাক্সেস না থাকে তবে পরিচয় যাচাই করার জন্য একটি <b>রিকভারি কী</b> তৈরি করুন৷ উপরন্তু, একটি স্মরণীয় বিকল্প হিসাবে একটি পাসফ্রেজ সেটআপ করুন।",
       "recoveryKey": "পুনরুদ্ধার কী",
       "recoveryPassphrase": "পুনরুদ্ধার পাসফ্রেজ",
       "reset": "রিসেট করুন",
       "resetDeviceVerification": "ডিভাইস যাচাইকরণ রিসেট করুন",
       "resettingDeviceVerificationIsPermanent": "ডিভাইস যাচাইকরণ রিসেট করা স্থায়ী।",
       "resetWarning": "আপনি যার সাথে যাচাই করেছেন তারা নিরাপত্তা সতর্কতা দেখতে পাবেন এবং আপনার এনক্রিপশন ব্যাকআপ হারিয়ে যাবে। আপনি প্রায় নিশ্চিতভাবেই এটি করতে চান না, যদি না আপনি <b>রিকভারি কী</b> বা <b>রিকভারি পাসফ্রেজ</b> এবং আপনি যাচাই করতে পারেন এমন প্রতিটি ডিভাইস হারিয়ে না ফেলেন৷",
-      "setupDeviceVerification": "ডিভাইস যাচাইকরণ সেট আপ করুন",
       "show": "দেখান",
-      "storeTheRecoveryKeyInASafePlaceForFutureUseAs": "পুনরুদ্ধার কীটি ভবিষ্যতে ব্যবহারের জন্য একটি নিরাপদ স্থানে সংরক্ষণ করুন, কারণ আপনার যদি অন্য ডিভাইসগুলিতে অ্যাক্সেস না থাকে তবে আপনার পরিচয় যাচাই করার জন্য এটির প্রয়োজন হবে৷",
       "unexpectedError": "অপ্রত্যাশিত ত্রুটি!"
     },
     "directCreate": {
@@ -2428,14 +2411,6 @@
       "unverifiedDevice": "অযাচাইকৃত ডিভাইস",
       "verifyYourDeviceBeforeLoggingOutToSaveYourEncryptedMessages": "আপনার এনক্রিপ্ট করা বার্তাগুলি সংরক্ষণ করতে লগ আউট করার আগে আপনার ডিভাইসটি যাচাই করুন৷",
       "youReAboutToLogOutAreYouSure": "আপনি লগ আউট করতে চলেছেন। আপনি কি নিশ্চিত?"
-    },
-    "manualVerification": {
-      "deviceVerified": "ডিভাইস যাচাই করা হয়েছে!",
-      "provideRecoveryKey": "পুনরুদ্ধার কী প্রদান করুন।",
-      "recoveryKey": "পুনরুদ্ধার কী",
-      "recoveryPassphrase": "পুনরুদ্ধার পাসফ্রেজ",
-      "selectAVerificationMethod": "একটি যাচাই পদ্ধতি নির্বাচন করুন.",
-      "verifyManually": "ম্যানুয়ালি যাচাই করুন"
     },
     "memberEvents": {
       "acceptedRequest": "<b>{{senderName}}</b> <b>{{userName}}</b>-এর প্রবেশের অনুরোধ গ্রহণ করেছেন {{reason}}",
@@ -2709,13 +2684,6 @@
       "react": "প্রতিক্রিয়া দিন",
       "search": "খুঁজুন",
       "searchOrTextReaction": "খুঁজুন বা টেক্সট প্রতিক্রিয়া দিন "
-    },
-    "secretStorage": {
-      "recoveryKey": "পুনরুদ্ধার কী",
-      "recoveryPassphrase": "পুনরুদ্ধার পাসফ্রেজ",
-      "verify": "যাচাই করুন",
-      "invalidRecoveryPassphrase": "পুনরুদ্ধারের পাসফ্রেজ অবৈধ।",
-      "invalidRecoveryKey": "পুনরুদ্ধারের চাবি অবৈধ।"
     },
     "server": {
       "changeLimit": "সীমা পরিবর্তন করুন",

@@ -467,13 +467,10 @@
     },
     "deviceVerificationSetup": {
       "recoveryKey": "복구 키",
-      "passphraseOptional": "암호문 (선택 사항)",
       "continue": "계속",
       "authenticationStepsToPerformThisActionAreNotSupportedByClient": "클라이언트가 이 작업에 필요한 인증 절차를 지원하지 않습니다.",
-      "storeTheRecoveryKeyInASafePlaceForFutureUseAs": "다른 기기에 접근할 수 없을 때 신원을 인증하려면 복구 키가 필요합니다. 나중에 사용할 수 있도록 안전한 곳에 보관하세요.",
       "copy": "복사",
       "download": "다운로드",
-      "setupDeviceVerification": "기기 인증 설정",
       "resetDeviceVerification": "기기 인증 초기화",
       "resettingDeviceVerificationIsPermanent": "기기 인증 초기화는 되돌릴 수 없습니다.",
       "recoveryPassphrase": "복구 암호문",
@@ -481,7 +478,6 @@
       "unexpectedError": "예기치 않은 오류!",
       "hide": "숨기기",
       "show": "표시",
-      "recoveryDescription": "다른 기기에 접근할 수 없을 때 신원을 인증할 수 있도록 <b>복구 키</b>를 생성합니다. 기억하기 쉬운 대안으로 암호문을 추가로 설정할 수도 있습니다.",
       "resetWarning": "인증한 모든 상대방에게 보안 경고가 표시되고 암호화 백업이 손실됩니다. <b>복구 키</b> 또는 <b>복구 암호문</b>과 인증에 사용할 수 있는 모든 기기를 잃어버린 경우가 아니라면 이 작업을 하지 않는 것이 좋습니다."
     },
     "hexColorPickerPopOut": {
@@ -497,14 +493,6 @@
       "cancel": "취소",
       "logoutFailed": "로그아웃 실패! {{error}}"
     },
-    "manualVerification": {
-      "recoveryPassphrase": "복구 암호문",
-      "recoveryKey": "복구 키",
-      "verifyManually": "수동 인증",
-      "deviceVerified": "기기가 인증되었습니다!",
-      "selectAVerificationMethod": "인증 방법을 선택하세요.",
-      "provideRecoveryKey": "복구 키를 입력하세요."
-    },
     "pdfViewer": {
       "zoomOut": "축소",
       "zoomIn": "확대",
@@ -517,13 +505,6 @@
       "saving": "저장 중...",
       "retryDownload": "다운로드 재시도",
       "download": "다운로드"
-    },
-    "secretStorage": {
-      "recoveryPassphrase": "복구 암호문",
-      "verify": "인증",
-      "recoveryKey": "복구 키",
-      "invalidRecoveryPassphrase": "복구 암호문이 올바르지 않습니다.",
-      "invalidRecoveryKey": "복구 키가 올바르지 않습니다."
     },
     "uIAFlowOverlay": {
       "exit": "나가기",
@@ -2053,12 +2034,9 @@
           "logoutSelectedDevices_other": "선택한 기기에서 로그아웃합니다. ({{count}}개 선택됨)"
         },
         "verification": {
-          "currentDeviceHelpLess": "다른 기기에서 인증을 시작하거나 수동으로 인증하세요. <toggle><strong>간략히 보기</strong></toggle>",
-          "currentDeviceHelpMore": "다른 기기에서 인증을 시작하거나 수동으로 인증하세요. <toggle><strong>자세히 알아보기</strong></toggle>",
           "enable": "사용",
           "findDevice": "<section>기기/세션</section>에서 이 기기를 찾으세요.",
           "initiateVerification": "인증을 시작하세요.",
-          "manualVerificationHint": "인증된 기기가 없으면 <action>\"수동 인증\"</action> 버튼을 누르세요.",
           "openSettings": "<settings>설정</settings>을 여세요.",
           "openVerifiedDevice": "인증된 다른 기기를 여세요.",
           "reset": "초기화",
@@ -2068,8 +2046,7 @@
           "unverifiedCount_other": "{{count}}개 미인증",
           "verified": "인증됨",
           "verify": "인증",
-          "verifyDeviceDescription": "기기 신원을 인증하고 암호화된 메시지에 대한 접근 권한을 부여하세요.",
-          "verifyManually": "수동 인증"
+          "verifyDeviceDescription": "기기 신원을 인증하고 암호화된 메시지에 대한 접근 권한을 부여하세요."
         }
       },
       "emojisStickers": {
@@ -2797,15 +2774,6 @@
       },
       "mindroomMarkRoomsReadMenuItem": {
         "markAsRead": "읽음으로 표시"
-      }
-    },
-    "onboarding": {
-      "keyBackupNudge": {
-        "backUpYourEncryptedHistory": "암호화된 기록 백업",
-        "dismissBackupReminder": "백업 알림 닫기",
-        "setUpSecureBackupSoYouCanStillReadYour": "새 기기에서 로그인한 후에도 암호화된 에이전트 채팅을 읽을 수 있도록 보안 백업을 설정하세요.",
-        "setUpSecureKeyBackup": "보안 키 백업 설정",
-        "setUpBackup": "백업 설정"
       }
     },
     "sidebar": {

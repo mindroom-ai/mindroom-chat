@@ -109,7 +109,7 @@ const useBackupState = () => {
 };
 
 /** Restore progress in percent; `0` until the keys are downloaded and their count is known. */
-const progressPercent = (progress: ImportRoomKeyProgressData | undefined): number => {
+export const progressPercent = (progress: ImportRoomKeyProgressData | undefined): number => {
   if (!progress || progress.stage !== ImportRoomKeyStage.LoadKeys || progress.total <= 0) return 0;
   return Math.floor(((progress.successes + progress.failures) / progress.total) * 100);
 };

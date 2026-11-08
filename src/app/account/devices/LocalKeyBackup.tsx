@@ -15,7 +15,7 @@ import {
 import { SettingsCard } from '../../ui/settings/SettingsCard';
 import { describeError } from '../../lib/describeError';
 import { ErrorDetail } from '../../ui/ErrorDetail';
-import { isExportPasswordLongEnough } from './exportPassword';
+import { isSecretPasswordLongEnough } from '../encryption/secretPassword';
 
 const KEY = 'featureUi.settings.devices.localBackup';
 const EXPORT_FILE_NAME = 'mindroom-room-keys.txt';
@@ -91,7 +91,7 @@ function ExportKeys() {
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>();
   const mismatch = confirmation.length > 0 && confirmation !== password;
-  const longEnough = isExportPasswordLongEnough(password);
+  const longEnough = isSecretPasswordLongEnough(password);
   const tooShort = password.length > 0 && !longEnough;
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {

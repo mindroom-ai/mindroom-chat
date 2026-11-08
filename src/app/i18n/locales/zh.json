@@ -467,13 +467,10 @@
     },
     "deviceVerificationSetup": {
       "recoveryKey": "恢复密钥",
-      "passphraseOptional": "密码（可选）",
       "continue": "继续",
       "authenticationStepsToPerformThisActionAreNotSupportedByClient": "客户端不支持执行此操作的身份验证步骤。",
-      "storeTheRecoveryKeyInASafePlaceForFutureUseAs": "请将恢复密钥妥善保管。无法访问其他设备时，您需要使用它来验证身份。",
       "copy": "复制",
       "download": "下载",
-      "setupDeviceVerification": "设置设备验证",
       "resetDeviceVerification": "重置设备验证",
       "resettingDeviceVerificationIsPermanent": "重置设备验证是永久性的。",
       "recoveryPassphrase": "恢复口令",
@@ -481,7 +478,6 @@
       "unexpectedError": "意外错误！",
       "hide": "隐藏",
       "show": "显示",
-      "recoveryDescription": "生成<b>恢复密钥</b>，以便无法访问其他设备时验证身份。您还可以设置易于记忆的恢复口令。",
       "resetWarning": "所有与您互相验证过的用户都会看到安全警报，并且您的加密备份将会丢失。除非您已遗失<b>恢复密钥</b>、<b>恢复口令</b>以及所有可用于验证的设备，否则请勿执行此操作。"
     },
     "hexColorPickerPopOut": {
@@ -497,14 +493,6 @@
       "cancel": "取消",
       "logoutFailed": "退出登录失败！{{error}}"
     },
-    "manualVerification": {
-      "recoveryPassphrase": "恢复口令",
-      "recoveryKey": "恢复密钥",
-      "verifyManually": "手动验证",
-      "deviceVerified": "设备已验证！",
-      "selectAVerificationMethod": "选择验证方法。",
-      "provideRecoveryKey": "提供恢复密钥。"
-    },
     "pdfViewer": {
       "zoomOut": "缩小",
       "zoomIn": "放大",
@@ -517,13 +505,6 @@
       "saving": "保存...",
       "retryDownload": "重试下载",
       "download": "下载"
-    },
-    "secretStorage": {
-      "recoveryPassphrase": "恢复口令",
-      "verify": "验证",
-      "recoveryKey": "恢复密钥",
-      "invalidRecoveryPassphrase": "恢复口令无效。",
-      "invalidRecoveryKey": "恢复密钥无效。"
     },
     "uIAFlowOverlay": {
       "exit": "退出",
@@ -2053,12 +2034,9 @@
           "logoutSelectedDevices_other": "从所选设备退出登录。（已选择 {{count}} 个）"
         },
         "verification": {
-          "currentDeviceHelpLess": "从其他设备开始验证或手动验证。<toggle><strong>收起</strong></toggle>",
-          "currentDeviceHelpMore": "从其他设备开始验证或手动验证。 <toggle><strong>了解更多</strong></toggle>",
           "enable": "启用",
           "findDevice": "在<section>设备/会话</section>部分中找到此设备。",
           "initiateVerification": "启动验证。",
-          "manualVerificationHint": "如果您没有任何经过验证的设备，请按<action>“手动验证”</action>按钮。",
           "openSettings": "打开<settings>设置</settings>。",
           "openVerifiedDevice": "打开您的其他经过验证的设备。",
           "reset": "重置",
@@ -2068,8 +2046,7 @@
           "unverifiedCount_other": "{{count}} 未验证",
           "verified": "已验证",
           "verify": "验证",
-          "verifyDeviceDescription": "验证设备身份并授予对加密消息的访问权限。",
-          "verifyManually": "手动验证"
+          "verifyDeviceDescription": "验证设备身份并授予对加密消息的访问权限。"
         }
       },
       "emojisStickers": {
@@ -2797,15 +2774,6 @@
       },
       "mindroomMarkRoomsReadMenuItem": {
         "markAsRead": "标记为已读"
-      }
-    },
-    "onboarding": {
-      "keyBackupNudge": {
-        "backUpYourEncryptedHistory": "备份您的加密历史记录",
-        "dismissBackupReminder": "关闭备份提醒",
-        "setUpSecureBackupSoYouCanStillReadYour": "设置安全备份，以便在新设备上登录后仍能阅读加密的智能体聊天记录。",
-        "setUpSecureKeyBackup": "设置安全密钥备份",
-        "setUpBackup": "设置备份"
       }
     },
     "sidebar": {

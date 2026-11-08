@@ -10,7 +10,10 @@ import { useServerConfigs } from '../../matrix/ServerConfigsLoader';
 import { SettingTile } from '../../ui/SettingTile';
 import { SettingsCard } from '../../ui/settings/SettingsCard';
 import { AuthenticationCancelled, useAuthenticatedAction } from '../uia/useAuthenticatedAction';
-import { countUnverifiedOtherDevices, type OwnDeviceTrust } from '../verification/useOwnDeviceTrust';
+import {
+  countUnverifiedOtherDevices,
+  type OwnDeviceTrust,
+} from '../verification/useOwnDeviceTrust';
 import { SecurityOverlay } from '../verification/SecurityOverlay';
 import {
   VerificationRequestDialog,
@@ -290,6 +293,7 @@ export function DeviceSettings({ trust }: { trust: OwnDeviceTrust | undefined })
   const [signingOut, setSigningOut] = useState<string>();
   const [error, setError] = useState<{ during: 'verify' | 'signOut'; failure: unknown }>();
   const [verification, setVerification] = useState<VerificationRequest>();
+  const [unlockedHere, setUnlockedHere] = useState(false);
   const [requestingFor, setRequestingFor] = useState<string>();
   const currentId = client.getDeviceId();
   const thisDevice = devices?.find((device) => device.device_id === currentId);
@@ -361,8 +365,12 @@ export function DeviceSettings({ trust }: { trust: OwnDeviceTrust | undefined })
                 onRenamed={() => void reload()}
                 verified={trust?.crossSigning ? trust.thisDeviceVerified : undefined}
               />
-              {trust?.crossSigning && !trust.thisDeviceVerified && (
-                <ThisDeviceVerification onRequest={setVerification} />
+              {/* Stays once an unlock started here, so the verified line and the restore progress keep showing. */}
+              {trust?.crossSigning && (!trust.thisDeviceVerified || unlockedHere) && (
+                <ThisDeviceVerification
+                  onRequest={setVerification}
+                  onUnlockStarted={() => setUnlockedHere(true)}
+                />
               )}
             </SettingsCard>
           </Box>

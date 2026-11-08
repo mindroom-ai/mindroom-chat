@@ -467,13 +467,10 @@
     },
     "deviceVerificationSetup": {
       "recoveryKey": "Recovery Key",
-      "passphraseOptional": "Passphrase (Optional)",
       "continue": "Continue",
       "authenticationStepsToPerformThisActionAreNotSupportedByClient": "Authentication steps to perform this action are not supported by client.",
-      "storeTheRecoveryKeyInASafePlaceForFutureUseAs": "Store the Recovery Key in a safe place for future use, as you will need it to verify your identity if you do not have access to other devices.",
       "copy": "Copy",
       "download": "Download",
-      "setupDeviceVerification": "Setup Device Verification",
       "resetDeviceVerification": "Reset Device Verification",
       "resettingDeviceVerificationIsPermanent": "Resetting device verification is permanent.",
       "recoveryPassphrase": "Recovery Passphrase",
@@ -481,7 +478,6 @@
       "unexpectedError": "Unexpected Error!",
       "hide": "Hide",
       "show": "Show",
-      "recoveryDescription": "Generate a <b>Recovery Key</b> for verifying identity if you do not have access to other devices. Additionally, setup a passphrase as a memorable alternative.",
       "resetWarning": "Anyone you have verified with will see security alerts and your encryption backup will be lost. You almost certainly do not want to do this, unless you have lost <b>Recovery Key</b> or <b>Recovery Passphrase</b> and every device you can verify from."
     },
     "hexColorPickerPopOut": {
@@ -497,14 +493,6 @@
       "cancel": "Cancel",
       "logoutFailed": "Failed to logout! {{error}}"
     },
-    "manualVerification": {
-      "recoveryPassphrase": "Recovery Passphrase",
-      "recoveryKey": "Recovery Key",
-      "verifyManually": "Verify Manually",
-      "deviceVerified": "Device verified!",
-      "selectAVerificationMethod": "Select a verification method.",
-      "provideRecoveryKey": "Provide recovery key."
-    },
     "pdfViewer": {
       "zoomOut": "Zoom Out",
       "zoomIn": "Zoom In",
@@ -517,13 +505,6 @@
       "saving": "Saving...",
       "retryDownload": "Retry Download",
       "download": "Download"
-    },
-    "secretStorage": {
-      "recoveryPassphrase": "Recovery Passphrase",
-      "verify": "Verify",
-      "recoveryKey": "Recovery Key",
-      "invalidRecoveryPassphrase": "Invalid recovery passphrase.",
-      "invalidRecoveryKey": "Invalid recovery key."
     },
     "uIAFlowOverlay": {
       "exit": "Exit",
@@ -2053,12 +2034,9 @@
           "logoutSelectedDevices_other": "Logout from selected devices. ({{count}} selected)"
         },
         "verification": {
-          "currentDeviceHelpLess": "Start verification from other device or verify manually. <toggle><strong>View Less</strong></toggle>",
-          "currentDeviceHelpMore": "Start verification from other device or verify manually. <toggle><strong>Learn More</strong></toggle>",
           "enable": "Enable",
           "findDevice": "Find this device in <section>Devices/Sessions</section> section.",
           "initiateVerification": "Initiate verification.",
-          "manualVerificationHint": "If you do not have any verified device press the <action>\"Verify Manually\"</action> button.",
           "openSettings": "Open <settings>Settings</settings>.",
           "openVerifiedDevice": "Open your other verified device.",
           "reset": "Reset",
@@ -2068,8 +2046,7 @@
           "unverifiedCount_other": "{{count}} Unverified",
           "verified": "Verified",
           "verify": "Verify",
-          "verifyDeviceDescription": "Verify device identity and grant access to encrypted messages.",
-          "verifyManually": "Verify Manually"
+          "verifyDeviceDescription": "Verify device identity and grant access to encrypted messages."
         }
       },
       "emojisStickers": {
@@ -2810,15 +2787,6 @@
       },
       "mindroomMarkRoomsReadMenuItem": {
         "markAsRead": "Mark as Read"
-      }
-    },
-    "onboarding": {
-      "keyBackupNudge": {
-        "backUpYourEncryptedHistory": "Back up your encrypted history",
-        "dismissBackupReminder": "Dismiss backup reminder",
-        "setUpSecureBackupSoYouCanStillReadYour": "Set up secure backup so you can still read your encrypted agent chats after signing in on a new device.",
-        "setUpSecureKeyBackup": "Set up secure key backup",
-        "setUpBackup": "Set up backup"
       }
     },
     "sidebar": {

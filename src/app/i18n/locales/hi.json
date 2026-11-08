@@ -815,12 +815,9 @@
         "security": "सुरक्षा",
         "toVerifyDeviceIdentityAndGrantAccess": "डिवाइस की पहचान सत्यापित करने और एन्क्रिप्टेड संदेशों तक पहुंच प्रदान करने के लिए।",
         "verification": {
-          "currentDeviceHelpLess": "दूसरे डिवाइस से सत्यापन शुरू करें या मैन्युअल रूप से सत्यापित करें। <toggle><strong>कम दिखाएँ</strong></toggle>",
-          "currentDeviceHelpMore": "अन्य डिवाइस से सत्यापन प्रारंभ करें या मैन्युअल रूप से सत्यापित करें। <toggle><strong>अधिक जानें</strong></toggle>",
           "enable": "सक्षम करें",
           "findDevice": "यह डिवाइस <section>डिवाइस/सत्र</section> अनुभाग में खोजें।",
           "initiateVerification": "सत्यापन आरंभ करें.",
-          "manualVerificationHint": "यदि आपके पास कोई सत्यापित डिवाइस नहीं है तो <action>\"मैन्युअल रूप से सत्यापित करें\"</action> बटन दबाएं।",
           "openSettings": "<settings>सेटिंग्स</settings> खोलें।",
           "openVerifiedDevice": "अपना अन्य सत्यापित उपकरण खोलें.",
           "reset": "रीसेट करें",
@@ -830,8 +827,7 @@
           "unverifiedCount_other": "{{count}} असत्यापित",
           "verified": "सत्यापित",
           "verify": "सत्यापित करें",
-          "verifyDeviceDescription": "डिवाइस की पहचान सत्यापित करें और एन्क्रिप्टेड संदेशों तक पहुंच प्रदान करें।",
-          "verifyManually": "मैन्युअल रूप से सत्यापित करें"
+          "verifyDeviceDescription": "डिवाइस की पहचान सत्यापित करें और एन्क्रिप्टेड संदेशों तक पहुंच प्रदान करें।"
         }
       },
       "emojisStickers": {
@@ -1515,15 +1511,6 @@
         "markAsRead": "पढ़ा हुआ चिह्नित करें"
       }
     },
-    "onboarding": {
-      "keyBackupNudge": {
-        "backUpYourEncryptedHistory": "अपने एन्क्रिप्टेड इतिहास का बैकअप लें",
-        "dismissBackupReminder": "बैकअप अनुस्मारक ख़ारिज करें",
-        "setUpBackup": "बैकअप की स्थापना करें",
-        "setUpSecureBackupSoYouCanStillReadYour": "सुरक्षित बैकअप सेट करें ताकि आप नए डिवाइस पर साइन इन करने के बाद भी अपने एन्क्रिप्टेड एजेंट चैट पढ़ सकें।",
-        "setUpSecureKeyBackup": "सुरक्षित कुंजी बैकअप सेट करें"
-      }
-    },
     "recent-threads": {
       "summary": {
         "encryptedThread": "एन्क्रिप्टेड थ्रेड",
@@ -2174,17 +2161,13 @@
       "copy": "कॉपी करें",
       "download": "डाउनलोड करें",
       "hide": "छिपाएँ",
-      "passphraseOptional": "पासफ़्रेज़ (वैकल्पिक)",
-      "recoveryDescription": "यदि आपके पास अन्य उपकरणों तक पहुंच नहीं है तो पहचान सत्यापित करने के लिए एक <b>रिकवरी कुंजी</b> जेनरेट करें। इसके अतिरिक्त, एक पासफ़्रेज़ को एक यादगार विकल्प के रूप में सेटअप करें।",
       "recoveryKey": "रिकवरी कुंजी",
       "recoveryPassphrase": "पुनर्प्राप्ति पासफ़्रेज़",
       "reset": "रीसेट करें",
       "resetDeviceVerification": "डिवाइस सत्यापन रीसेट करें",
       "resettingDeviceVerificationIsPermanent": "डिवाइस सत्यापन रीसेट करना स्थायी है.",
       "resetWarning": "आपने जिस किसी के साथ सत्यापन किया है उसे सुरक्षा अलर्ट दिखाई देगा और आपका एन्क्रिप्शन बैकअप खो जाएगा। आप लगभग निश्चित रूप से ऐसा नहीं करना चाहेंगे, जब तक कि आपने <b>रिकवरी कुंजी</b> या <b>रिकवरी पासफ़्रेज़</b> और हर वह डिवाइस नहीं खो दी है, जिससे आप सत्यापित कर सकते हैं।",
-      "setupDeviceVerification": "डिवाइस सत्यापन सेट अप करें",
       "show": "दिखाएँ",
-      "storeTheRecoveryKeyInASafePlaceForFutureUseAs": "भविष्य में उपयोग के लिए पुनर्प्राप्ति कुंजी को सुरक्षित स्थान पर संग्रहीत करें, क्योंकि यदि आपके पास अन्य उपकरणों तक पहुंच नहीं है तो आपको अपनी पहचान सत्यापित करने के लिए इसकी आवश्यकता होगी।",
       "unexpectedError": "अनपेक्षित त्रुटि!"
     },
     "directCreate": {
@@ -2428,14 +2411,6 @@
       "unverifiedDevice": "असत्यापित डिवाइस",
       "verifyYourDeviceBeforeLoggingOutToSaveYourEncryptedMessages": "अपने एन्क्रिप्टेड संदेशों को सहेजने के लिए लॉग आउट करने से पहले अपने डिवाइस को सत्यापित करें।",
       "youReAboutToLogOutAreYouSure": "आप लॉग आउट करने वाले हैं. क्या आपको यकीन है?"
-    },
-    "manualVerification": {
-      "deviceVerified": "डिवाइस सत्यापित!",
-      "provideRecoveryKey": "पुनर्प्राप्ति कुंजी प्रदान करें.",
-      "recoveryKey": "रिकवरी कुंजी",
-      "recoveryPassphrase": "पुनर्प्राप्ति पासफ़्रेज़",
-      "selectAVerificationMethod": "एक सत्यापन विधि चुनें.",
-      "verifyManually": "मैन्युअल रूप से सत्यापित करें"
     },
     "memberEvents": {
       "acceptedRequest": "<b>{{senderName}}</b> ने <b>{{userName}}</b> का प्रवेश अनुरोध स्वीकार किया {{reason}}",
@@ -2709,13 +2684,6 @@
       "react": "प्रतिक्रिया दें",
       "search": "खोजें",
       "searchOrTextReaction": "खोजें या टेक्स्ट प्रतिक्रिया दें "
-    },
-    "secretStorage": {
-      "recoveryKey": "रिकवरी कुंजी",
-      "recoveryPassphrase": "पुनर्प्राप्ति पासफ़्रेज़",
-      "verify": "सत्यापित करें",
-      "invalidRecoveryPassphrase": "रिकवरी पासफ़्रेज़ अमान्य है।",
-      "invalidRecoveryKey": "रिकवरी कुंजी अमान्य है।"
     },
     "server": {
       "changeLimit": "सीमा बदलें",

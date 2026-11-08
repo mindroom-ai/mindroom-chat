@@ -470,13 +470,10 @@
     },
     "deviceVerificationSetup": {
       "recoveryKey": "Clé de récupération",
-      "passphraseOptional": "Phrase secrète (facultative)",
       "continue": "Continuer",
       "authenticationStepsToPerformThisActionAreNotSupportedByClient": "Les étapes d'authentification nécessaires à cette action ne sont pas prises en charge par le client.",
-      "storeTheRecoveryKeyInASafePlaceForFutureUseAs": "Conservez la clé de récupération dans un endroit sûr. Vous en aurez besoin pour vérifier votre identité si vous n'avez accès à aucun autre appareil.",
       "copy": "Copier",
       "download": "Télécharger",
-      "setupDeviceVerification": "Configurer la vérification de l'appareil",
       "resetDeviceVerification": "Réinitialiser la vérification de l'appareil",
       "resettingDeviceVerificationIsPermanent": "La réinitialisation de la vérification de l'appareil est définitive.",
       "recoveryPassphrase": "Phrase secrète de récupération",
@@ -484,7 +481,6 @@
       "unexpectedError": "Erreur inattendue !",
       "hide": "Masquer",
       "show": "Afficher",
-      "recoveryDescription": "Générez une <b>clé de récupération</b> pour vérifier votre identité si vous n'avez accès à aucun autre appareil. Configurez également une phrase secrète comme solution de remplacement facile à mémoriser.",
       "resetWarning": "Toutes les personnes que vous avez vérifiées verront des alertes de sécurité et votre sauvegarde du chiffrement sera perdue. Vous ne souhaitez presque certainement pas effectuer cette opération, sauf si vous avez perdu la <b>clé de récupération</b> ou la <b>phrase secrète de récupération</b>, ainsi que tous les appareils depuis lesquels vous pouvez effectuer une vérification."
     },
     "hexColorPickerPopOut": {
@@ -500,14 +496,6 @@
       "cancel": "Annuler",
       "logoutFailed": "Échec de la déconnexion ! {{error}}"
     },
-    "manualVerification": {
-      "recoveryPassphrase": "Phrase secrète de récupération",
-      "recoveryKey": "Clé de récupération",
-      "verifyManually": "Vérifier manuellement",
-      "deviceVerified": "Appareil vérifié !",
-      "selectAVerificationMethod": "Sélectionnez une méthode de vérification.",
-      "provideRecoveryKey": "Fournissez la clé de récupération."
-    },
     "pdfViewer": {
       "zoomOut": "Zoom arrière",
       "zoomIn": "Zoom avant",
@@ -520,13 +508,6 @@
       "saving": "Enregistrement...",
       "retryDownload": "Réessayer le téléchargement",
       "download": "Télécharger"
-    },
-    "secretStorage": {
-      "recoveryPassphrase": "Phrase secrète de récupération",
-      "verify": "Vérifier",
-      "recoveryKey": "Clé de récupération",
-      "invalidRecoveryPassphrase": "Phrase de récupération non valide.",
-      "invalidRecoveryKey": "Clé de récupération non valide."
     },
     "uIAFlowOverlay": {
       "exit": "Quitter",
@@ -2080,12 +2061,9 @@
           "logoutSelectedDevices_many": "Déconnecter les appareils sélectionnés. ({{count}} sélectionnés)"
         },
         "verification": {
-          "currentDeviceHelpLess": "Lancez la vérification depuis un autre appareil ou vérifiez manuellement. <toggle><strong>Afficher moins</strong></toggle>",
-          "currentDeviceHelpMore": "Lancez la vérification depuis un autre appareil ou vérifiez manuellement. <toggle><strong>En savoir plus</strong></toggle>",
           "enable": "Activer",
           "findDevice": "Recherchez cet appareil dans la section <section>Appareils/Sessions</section>.",
           "initiateVerification": "Lancez la vérification.",
-          "manualVerificationHint": "Si vous ne disposez d’aucun appareil vérifié, appuyez sur le bouton <action>« Vérifier manuellement »</action>.",
           "openSettings": "Ouvrez les <settings>Paramètres</settings>.",
           "openVerifiedDevice": "Ouvrez votre autre appareil vérifié.",
           "reset": "Réinitialiser",
@@ -2096,7 +2074,6 @@
           "verified": "Vérifié",
           "verify": "Vérifier",
           "verifyDeviceDescription": "Vérifiez l’identité de l’appareil et accordez l’accès aux messages chiffrés.",
-          "verifyManually": "Vérifier manuellement",
           "unverifiedCount_many": "{{count}} non vérifiés"
         }
       },
@@ -2868,15 +2845,6 @@
       },
       "mindroomMarkRoomsReadMenuItem": {
         "markAsRead": "Marquer comme lu"
-      }
-    },
-    "onboarding": {
-      "keyBackupNudge": {
-        "backUpYourEncryptedHistory": "Sauvegardez votre historique chiffré",
-        "dismissBackupReminder": "Fermer le rappel de sauvegarde",
-        "setUpSecureBackupSoYouCanStillReadYour": "Configurez une sauvegarde sécurisée afin de pouvoir lire vos discussions chiffrées avec les agents après vous être connecté sur un nouvel appareil.",
-        "setUpSecureKeyBackup": "Configurer la sauvegarde sécurisée des clés",
-        "setUpBackup": "Configurer la sauvegarde"
       }
     },
     "sidebar": {

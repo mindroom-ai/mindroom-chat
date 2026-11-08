@@ -473,13 +473,10 @@
     },
     "deviceVerificationSetup": {
       "recoveryKey": "Ключ восстановления",
-      "passphraseOptional": "Парольная фраза (необязательно)",
       "continue": "Продолжить",
       "authenticationStepsToPerformThisActionAreNotSupportedByClient": "Клиент не поддерживает действия аутентификации, необходимые для этой операции.",
-      "storeTheRecoveryKeyInASafePlaceForFutureUseAs": "Храните ключ восстановления в надёжном месте. Он понадобится для подтверждения личности, если у вас не будет доступа к другим устройствам.",
       "copy": "Копировать",
       "download": "Скачать",
-      "setupDeviceVerification": "Настроить проверку устройства",
       "resetDeviceVerification": "Сбросить проверку устройства",
       "resettingDeviceVerificationIsPermanent": "Сброс проверки устройства необратим.",
       "recoveryPassphrase": "Парольная фраза восстановления",
@@ -487,7 +484,6 @@
       "unexpectedError": "Непредвиденная ошибка!",
       "hide": "Скрыть",
       "show": "Показать",
-      "recoveryDescription": "Создайте <b>ключ восстановления</b> для подтверждения личности, если у вас не будет доступа к другим устройствам. Также можно настроить запоминающуюся парольную фразу как альтернативу.",
       "resetWarning": "Все пользователи, с которыми вы прошли проверку, увидят предупреждения безопасности, а резервная копия шифрования будет потеряна. Почти наверняка этого не следует делать, если только вы не потеряли <b>ключ восстановления</b> или <b>парольную фразу восстановления</b>, а также все устройства, с которых можно пройти проверку."
     },
     "hexColorPickerPopOut": {
@@ -503,14 +499,6 @@
       "cancel": "Отмена",
       "logoutFailed": "Не удалось выйти! {{error}}"
     },
-    "manualVerification": {
-      "recoveryPassphrase": "Парольная фраза восстановления",
-      "recoveryKey": "Ключ восстановления",
-      "verifyManually": "Проверить вручную",
-      "deviceVerified": "Устройство проверено!",
-      "selectAVerificationMethod": "Выберите способ проверки.",
-      "provideRecoveryKey": "Введите ключ восстановления."
-    },
     "pdfViewer": {
       "zoomOut": "Уменьшить масштаб",
       "zoomIn": "Увеличить масштаб",
@@ -523,13 +511,6 @@
       "saving": "Сохранение…",
       "retryDownload": "Повторить скачивание",
       "download": "Скачать"
-    },
-    "secretStorage": {
-      "recoveryPassphrase": "Парольная фраза восстановления",
-      "verify": "Проверить",
-      "recoveryKey": "Ключ восстановления",
-      "invalidRecoveryPassphrase": "Неверная фраза восстановления.",
-      "invalidRecoveryKey": "Неверный ключ восстановления."
     },
     "uIAFlowOverlay": {
       "exit": "Выйти",
@@ -2107,12 +2088,9 @@
           "logoutSelectedDevices_many": "Завершить сеансы на выбранных устройствах. (Выбрано: {{count}})"
         },
         "verification": {
-          "currentDeviceHelpLess": "Начните проверку с другого устройства или проверьте вручную. <toggle><strong>Скрыть</strong></toggle>",
-          "currentDeviceHelpMore": "Начните проверку с другого устройства или проверьте вручную. <toggle><strong>Подробнее</strong></toggle>",
           "enable": "Включить",
           "findDevice": "Найдите это устройство в разделе <section>Устройства/Сеансы</section>.",
           "initiateVerification": "Начните проверку.",
-          "manualVerificationHint": "Если у вас нет проверенного устройства, нажмите <action>«Проверить вручную»</action>.",
           "openSettings": "Откройте <settings>Настройки</settings>.",
           "openVerifiedDevice": "Откройте другое проверенное устройство.",
           "reset": "Сбросить",
@@ -2123,7 +2101,6 @@
           "verified": "Проверено",
           "verify": "Проверить",
           "verifyDeviceDescription": "Проверьте устройство и предоставьте ему доступ к зашифрованным сообщениям.",
-          "verifyManually": "Проверить вручную",
           "unverifiedCount_few": "Не проверено: {{count}}",
           "unverifiedCount_many": "Не проверено: {{count}}"
         }
@@ -2926,15 +2903,6 @@
       },
       "mindroomMarkRoomsReadMenuItem": {
         "markAsRead": "Отметить прочитанным"
-      }
-    },
-    "onboarding": {
-      "keyBackupNudge": {
-        "backUpYourEncryptedHistory": "Создайте резервную копию зашифрованной истории",
-        "dismissBackupReminder": "Скрыть напоминание о резервной копии",
-        "setUpSecureBackupSoYouCanStillReadYour": "Настройте защищённую резервную копию, чтобы читать зашифрованные чаты с агентами после входа на новом устройстве.",
-        "setUpSecureKeyBackup": "Настроить защищённую резервную копию ключей",
-        "setUpBackup": "Настроить резервное копирование"
       }
     },
     "sidebar": {

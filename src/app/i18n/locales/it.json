@@ -470,13 +470,10 @@
     },
     "deviceVerificationSetup": {
       "recoveryKey": "Chiave di ripristino",
-      "passphraseOptional": "Passphrase (facoltativa)",
       "continue": "Continua",
       "authenticationStepsToPerformThisActionAreNotSupportedByClient": "I passaggi di autenticazione necessari per eseguire questa azione non sono supportati dal client.",
-      "storeTheRecoveryKeyInASafePlaceForFutureUseAs": "Conserva la chiave di ripristino in un luogo sicuro per usi futuri: ti servirà per verificare la tua identità se non hai accesso ad altri dispositivi.",
       "copy": "Copia",
       "download": "Scarica",
-      "setupDeviceVerification": "Configura verifica del dispositivo",
       "resetDeviceVerification": "Reimposta verifica del dispositivo",
       "resettingDeviceVerificationIsPermanent": "La reimpostazione della verifica del dispositivo è permanente.",
       "recoveryPassphrase": "Passphrase di ripristino",
@@ -484,7 +481,6 @@
       "unexpectedError": "Errore imprevisto!",
       "hide": "Nascondi",
       "show": "Mostra",
-      "recoveryDescription": "Genera una <b>chiave di ripristino</b> per verificare la tua identità se non hai accesso ad altri dispositivi. Configura inoltre una passphrase come alternativa facile da ricordare.",
       "resetWarning": "Tutte le persone che hai verificato vedranno avvisi di sicurezza e il backup della crittografia andrà perso. Quasi certamente non vuoi farlo, a meno che tu non abbia perso la <b>chiave di ripristino</b> o la <b>passphrase di ripristino</b> e ogni dispositivo da cui puoi effettuare la verifica."
     },
     "hexColorPickerPopOut": {
@@ -500,14 +496,6 @@
       "cancel": "Annulla",
       "logoutFailed": "Disconnessione non riuscita! {{error}}"
     },
-    "manualVerification": {
-      "recoveryPassphrase": "Passphrase di ripristino",
-      "recoveryKey": "Chiave di ripristino",
-      "verifyManually": "Verifica manualmente",
-      "deviceVerified": "Dispositivo verificato!",
-      "selectAVerificationMethod": "Seleziona un metodo di verifica.",
-      "provideRecoveryKey": "Fornisci la chiave di ripristino."
-    },
     "pdfViewer": {
       "zoomOut": "Riduci zoom",
       "zoomIn": "Aumenta zoom",
@@ -520,13 +508,6 @@
       "saving": "Salvataggio...",
       "retryDownload": "Riprova download",
       "download": "Scarica"
-    },
-    "secretStorage": {
-      "recoveryPassphrase": "Passphrase di ripristino",
-      "verify": "Verifica",
-      "recoveryKey": "Chiave di ripristino",
-      "invalidRecoveryPassphrase": "Frase di recupero non valida.",
-      "invalidRecoveryKey": "Chiave di recupero non valida."
     },
     "uIAFlowOverlay": {
       "exit": "Esci",
@@ -2080,12 +2061,9 @@
           "logoutSelectedDevices_many": "Disconnetti i dispositivi selezionati. ({{count}} selezionati)"
         },
         "verification": {
-          "currentDeviceHelpLess": "Avvia la verifica da un altro dispositivo o verifica manualmente. <toggle><strong>Mostra meno</strong></toggle>",
-          "currentDeviceHelpMore": "Avvia la verifica da un altro dispositivo o verifica manualmente. <toggle><strong>Scopri di più</strong></toggle>",
           "enable": "Attiva",
           "findDevice": "Trova questo dispositivo nella sezione <section>Dispositivi/sessioni</section>.",
           "initiateVerification": "Avvia la verifica.",
-          "manualVerificationHint": "Se non hai dispositivi verificati, premi il pulsante <action>“Verifica manualmente”</action>.",
           "openSettings": "Apri le <settings>Impostazioni</settings>.",
           "openVerifiedDevice": "Apri l’altro dispositivo verificato.",
           "reset": "Reimposta",
@@ -2096,7 +2074,6 @@
           "verified": "Verificato",
           "verify": "Verifica",
           "verifyDeviceDescription": "Verifica l’identità del dispositivo e concedi l’accesso ai messaggi crittografati.",
-          "verifyManually": "Verifica manualmente",
           "unverifiedCount_many": "{{count}} non verificati"
         }
       },
@@ -2868,15 +2845,6 @@
       },
       "mindroomMarkRoomsReadMenuItem": {
         "markAsRead": "Segna come letto"
-      }
-    },
-    "onboarding": {
-      "keyBackupNudge": {
-        "backUpYourEncryptedHistory": "Esegui il backup della cronologia crittografata",
-        "dismissBackupReminder": "Chiudi promemoria del backup",
-        "setUpSecureBackupSoYouCanStillReadYour": "Configura un backup sicuro per continuare a leggere le chat crittografate con gli agenti dopo l’accesso su un nuovo dispositivo.",
-        "setUpSecureKeyBackup": "Configura backup sicuro delle chiavi",
-        "setUpBackup": "Configura backup"
       }
     },
     "sidebar": {
