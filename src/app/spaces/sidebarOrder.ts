@@ -29,16 +29,12 @@ const uniqueStrings = (value: unknown): string[] => {
 
 const readStringArray = (key: string): string[] => uniqueStrings(getLocalStorageItem<unknown>(key, []));
 
-const writeStringArray = (key: string, value: string[]) => {
-  setLocalStorageItem(key, uniqueStrings(value));
-};
-
 export const makeSpaceOrderAtom = (userId: string): SpaceOrderAtom => {
   const storeKey = `${SPACE_ORDER_STORAGE_KEY_PREFIX}${userId}`;
   const baseSpaceOrderAtom = atomWithLocalStorage<SpaceOrderState>(
     storeKey,
     readStringArray,
-    writeStringArray
+    setLocalStorageItem
   );
 
   return atom<SpaceOrderState, [SpaceOrderAction], undefined>(
