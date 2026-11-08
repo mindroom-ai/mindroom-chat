@@ -4,17 +4,31 @@
 // and "From <sender>" after the sender's avatar in the room, with ", a MindRoom agent" for an agent.
 // A side panel, "Example panel", names the room it is open in, counts its joined members and says
 // whether a MindRoom agent has joined or is invited, through the account's client, and whether the
-// account may post there, which it says again when the room's levels change. Its toggle, under
-// a leaf icon, shows in the room header's row, except on phones, where it goes in the room menu. It
-// also shows the greeting a card asked it to show: in a room, each greeting has "Show in panel",
-// and "Close panel" while the panel shows. The panel stays open in its room across reloads
-// (`remember`), so the card hands it only the greeting's event ID, and it reads the greeting itself.
+// account may post there, which it says again when the room's levels change. Under "Example rows"
+// it draws its rows, "First example row" and "Second example row", as the sidebar draws its rows,
+// and marks the one chosen; its button "Example menu", beside that title, opens a menu drawn as the
+// room menu is, in a pop-out under it lined up with its end, as is its tooltip: "Show example
+// dialog" opens the dialog of its room entry (below), and "Clear example selection" unmarks the
+// row. They are the app's own pieces, from the client SDK's `ui` subpath, so they look like the
+// app's and mirror in right-to-left languages.
+// Its toggle, under a leaf icon, shows in the room header's row, except on phones, where it goes in
+// the room menu. It also shows the greeting a card asked it to show: in a room, each greeting has
+// "Show in panel", and "Close panel" while the panel shows. A greeting that begins a thread opens
+// the panel beside that thread as the thread shows. The panel stays open in its room across reloads
+// (`remember`), so a card hands it only the greeting's event ID, and it reads the greeting itself.
+// Its name is a key of its strings ("Beispielbereich" in German). It may take the members list's
+// place (`opensOverMembers`): as it opens again in its room, and beside a thread.
+// A second side panel, "Example card", toggled from the room menu, draws its own frame: a plain
+// card, 320 px wide beside the conversation and as wide as the room when it fills it or on a phone,
+// with "Fill example card" ("Shrink example card" while it fills the room) and "Hide example card",
+// which leaves only its tab, "Show example card", at the room's edge.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
-// (public/mark.svg), and a button, "Show example cover", that covers the room's conversation with
-// "Example cover of <room name>" until its Close button or Escape closes it. Its panel also offers
-// "Example item" to drag, in a drag type of its own, and the banner shows "Dropped: <text>" when
-// one lands anywhere on the room header. Like a plugin outside this repository, it imports the app
-// only through the client SDK.
+// (public/mark.svg); its build module (build.mjs) writes "Example banner" in place of a marker, which
+// unit tests, where no build module runs, show as it is. The banner also has a button, "Show
+// example cover", that covers the room's conversation with "Example cover of <room name>" until its
+// Close button or Escape closes it. Its panel also offers "Example item" to drag, in a drag type of
+// its own, and the banner shows "Dropped: <text>" when one lands anywhere on the room header. Like a
+// plugin outside this repository, it imports the app only through the client SDK.
 // A header action, "Wave" ("Winken" in German), shows in the room header's row, except on phones,
 // where it goes in the room menu, and says where it ran in an alert.
 // Its storage notes each greeting the signed-in account saw, when it shows and when it goes, and a
@@ -24,7 +38,9 @@
 // room and that thread, opens either, opens the room at the thread's root, opens the room in place
 // of itself, and reloads the page into a new version.
 // Its slash command, `/greet <text>`, sends the notice "Example greeting: <text>" to the room, or in a
-// thread's composer to that thread, through the room's client, and fails without a text.
+// thread's composer to that thread, through the room's client, and fails without a text. Its slash
+// command `/subroom <name>` creates a sub-room of the room called <name>, as New Sub-room does, and
+// fails without a name.
 // Every room's menu but a space's lists its entry "Example room info" ("Beispiel-Rauminfo" in
 // German), whose dialog says "Example dialog of <room name>" until its Close button closes it.
 // Every room's menu also lists, after Leave and drawn as Leave is, its critical entry "Example
@@ -32,12 +48,30 @@
 // In a room with a MindRoom server, its panel also talks to the routes of e2e's sample MindRoom
 // plugin (e2e/fixtures/sample-plugin/routes.py) as the signed-in user: "Say hello" asks for the
 // backend's hello, and a websocket echoes what "Echo" sends, opened again unless the user left.
-import { useEffect, useRef, useState, type RefObject } from 'react';
-import { Box, Button, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text, color } from 'folds';
+// Its panel names the sender of the greeting it shows, and their name opens their profile card
+// beside the panel, as a mention pill opens one; under it, the panel shows the signed-in person's
+// card itself. It shows the greeting's text as the app renders an agent's reply, as Markdown whose
+// HTML the app sanitized, with the Matrix IDs of the room's members replaced by their names.
+import { useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react';
+import FocusTrap from 'focus-trap-react';
+import {
+  Avatar,
+  Box,
+  Icon,
+  Icons,
+  Overlay,
+  OverlayBackdrop,
+  OverlayCenter,
+  Text,
+  color,
+  config,
+  type RectCords,
+} from 'folds';
 import { KnownMembership, type Room } from 'matrix-js-sdk';
 import {
   pluginPublicUrl,
   reloadForNewVersion,
+  usePanelFrame,
   usePluginConfig,
   usePluginRouteHref,
   usePluginStorage,
@@ -56,8 +90,29 @@ import {
   useRoomMembers,
   useRoomPermissions,
 } from '@mindroom/client-sdk/matrix';
-import { useRoomHref, useRoomNavigate } from '@mindroom/client-sdk/room';
+import {
+  createSubRoom,
+  UserProfileCard,
+  useOpenUserProfile,
+  useRoomHref,
+  useRoomNavigate,
+} from '@mindroom/client-sdk/room';
 import { MindroomServerError, useMindroomServer } from '@mindroom/client-sdk/server';
+import {
+  Dialog,
+  Header,
+  IconButton,
+  IconTooltip,
+  Menu,
+  MenuEntry,
+  MenuGroup,
+  NavButton,
+  NavItem,
+  NavItemContent,
+  PopOut,
+  replaceMatrixUserIdsWithDisplayNames,
+  useMarkdownHtml,
+} from '@mindroom/client-sdk/ui';
 
 /** The drag type of the item its panel offers, which the room header takes. */
 const ITEM_TYPE = 'application/x-example-item';
@@ -91,6 +146,12 @@ function Greeting({ event }: { event: PluginEvent }) {
   const authenticated = useMediaAuthentication();
   const avatarMxc = client.getRoom(event.roomId)?.getMember(event.sender)?.getMxcAvatarUrl();
   const avatar = avatarMxc && mxcUrlToHttp(client, avatarMxc, authenticated, 32, 32, 'crop');
+  const openBesideThread = panel?.openBesideThread;
+  const { eventId } = event;
+  // As the root of the thread the room shows, it opens the panel beside that thread.
+  useEffect(() => {
+    if (eventId) openBesideThread?.(eventId, eventId);
+  }, [eventId, openBesideThread]);
   const text = greetingText(event.content);
   const label =
     typeof config === 'object' &&
@@ -148,7 +209,7 @@ function RoomBanner({ room, headerRef }: { room: Room; headerRef: RefObject<HTML
         height={16}
         style={{ marginInlineEnd: 8, verticalAlign: 'middle' }}
       />
-      Example banner in {room.name}
+      EXAMPLE_BANNER in {room.name}
       {dropped !== undefined && <div data-example-plugin-dropped>Dropped: {dropped}</div>}
     </div>
   );
@@ -279,25 +340,126 @@ function ServerGreeting({ roomId }: { roomId: string }) {
 }
 
 /**
- * The greeting of the message `eventId` in the room, as the homeserver has it: the tests' greetings
- * are not encrypted.
+ * A greeting's text as the app renders an agent's reply, Markdown with its HTML sanitized, and with
+ * the room's members by name; plain until the app's Markdown renderer has loaded.
+ */
+function GreetingText({ room, text }: { room: Room | null; text: string }) {
+  const named = room ? replaceMatrixUserIdsWithDisplayNames(room, text) : text;
+  const html = useMarkdownHtml(named);
+  if (html === undefined) return <p>{named}</p>;
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+/**
+ * The greeting of the message `eventId` in the room, as the homeserver has it (the tests' greetings
+ * are not encrypted), and its sender's name, which opens their profile card beside the panel.
  */
 function FetchedGreeting({ roomId, eventId }: { roomId: string; eventId: string }) {
   const client = useMatrixClient();
-  const [text, setText] = useState<string>();
+  const openUserProfile = useOpenUserProfile();
+  const [greeting, setGreeting] = useState<{ text?: string; sender?: string }>({});
   useEffect(() => {
     let current = true;
     client
       .fetchRoomEvent(roomId, eventId)
       .then((event) => {
-        if (current) setText(greetingText(event.content ?? {}));
+        if (current) setGreeting({ text: greetingText(event.content ?? {}), sender: event.sender });
       })
       .catch(() => undefined);
     return () => {
       current = false;
     };
   }, [client, eventId, roomId]);
-  return text === undefined ? null : <p>Greeting: {text}</p>;
+  const { text, sender } = greeting;
+  if (text === undefined) return null;
+  const room = client.getRoom(roomId);
+  return (
+    <>
+      <div data-example-plugin-greeting>
+        Greeting: <GreetingText room={room} text={text} />
+      </div>
+      {sender && (
+        <p>
+          From{' '}
+          <button
+            type="button"
+            onClick={(event) =>
+              openUserProfile(roomId, sender, event.currentTarget.getBoundingClientRect(), 'Left')
+            }
+          >
+            {room?.getMember(sender)?.name ?? sender}
+          </button>
+        </p>
+      )}
+    </>
+  );
+}
+
+const ROWS = ['First example row', 'Second example row'];
+
+/** Its menu's button, and the menu, which Escape and a click outside close, as the room menu's. */
+function ExampleMenu({ onShowDialog, onClear }: { onShowDialog: () => void; onClear: () => void }) {
+  const [anchor, setAnchor] = useState<RectCords>();
+  const close = () => {
+    setAnchor(undefined);
+    return true;
+  };
+  const choose = (act: () => void) => () => {
+    close();
+    act();
+  };
+  return (
+    <>
+      <IconTooltip label="Example menu" align="End">
+        {(triggerRef) => (
+          <IconButton
+            ref={triggerRef}
+            size="300"
+            radii="300"
+            aria-label="Example menu"
+            aria-haspopup="menu"
+            aria-expanded={anchor !== undefined}
+            onClick={(event: MouseEvent<HTMLButtonElement>) =>
+              setAnchor(event.currentTarget.getBoundingClientRect())
+            }
+          >
+            <Icon size="200" src={Icons.VerticalDots} />
+          </IconButton>
+        )}
+      </IconTooltip>
+      <PopOut
+        anchor={anchor}
+        position="Bottom"
+        align="End"
+        offset={4}
+        content={
+          <FocusTrap
+            focusTrapOptions={{
+              initialFocus: false,
+              returnFocusOnDeactivate: false,
+              clickOutsideDeactivates: close,
+              escapeDeactivates: close,
+            }}
+          >
+            <Menu>
+              <MenuGroup>
+                <MenuEntry
+                  label="Show example dialog"
+                  icon={Icons.Info}
+                  onSelect={choose(onShowDialog)}
+                />
+                <MenuEntry
+                  label="Clear example selection"
+                  icon={Icons.Cross}
+                  onSelect={choose(onClear)}
+                />
+              </MenuGroup>
+            </Menu>
+          </FocusTrap>
+        }
+      />
+    </>
+  );
 }
 
 function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }) {
@@ -305,9 +467,36 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
   const members = useRoomMembers(client, roomId);
   const room = client.getRoom(roomId);
   const joined = members.filter(({ membership }) => membership === KnownMembership.Join);
+  const [selected, setSelected] = useState<string>();
+  const [dialogOpen, setDialogOpen] = useState(false);
   return (
     <>
-      <p>Example panel of {roomId}</p>
+      {/* A room ID breaks anywhere, so it never widens the panel past its edge. */}
+      <p style={{ overflowWrap: 'anywhere' }}>Example panel of {roomId}</p>
+      <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
+        <Text size="L400">Example rows</Text>
+        <ExampleMenu
+          onShowDialog={() => setDialogOpen(true)}
+          onClear={() => setSelected(undefined)}
+        />
+      </Box>
+      {ROWS.map((row) => (
+        <NavItem key={row} variant="Background" radii="400" aria-selected={row === selected}>
+          <NavButton onClick={() => setSelected(row)}>
+            <NavItemContent>
+              <Box as="span" alignItems="Center" gap="200" grow="Yes">
+                <Avatar radii="400" size="200">
+                  <Icon size="100" src={Icons.Leaf} />
+                </Avatar>
+                <Text as="span" size="Inherit" truncate>
+                  {row}
+                </Text>
+              </Box>
+            </NavItemContent>
+          </NavButton>
+        </NavItem>
+      ))}
+      {dialogOpen && room && <RoomDialog room={room} close={() => setDialogOpen(false)} />}
       <p>
         Members: {joined.length}, {hasActiveMindroomAgent(members) ? 'with' : 'without'} a MindRoom
         agent
@@ -320,7 +509,61 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
         Example item
       </p>
       <ServerGreeting roomId={roomId} />
+      {room && (
+        <div data-example-plugin-own-card>
+          <UserProfileCard room={room} userId={client.getSafeUserId()} onDone={() => undefined} />
+        </div>
+      )}
     </>
+  );
+}
+
+// The card's width: its own beside the conversation, the room's when it fills it or on a phone.
+const CARD_CSS = `[data-example-card] { flex: 0 0 320px; }
+[data-example-card][data-filled] { flex: 1 1 0; }
+@media (max-width: 750px) { [data-example-card] { flex: 1 1 0; } }`;
+
+/** The panel that draws its own frame: a card with Fill and Hide, and a tab while hidden. */
+function ExampleCard() {
+  const frame = usePanelFrame();
+  if (!frame) return null;
+  const { layout, setLayout } = frame;
+  const look = {
+    margin: 8,
+    padding: 16,
+    borderRadius: 8,
+    border: `1px solid ${color.Surface.ContainerLine}`,
+    background: color.Surface.Container,
+    color: color.Surface.OnContainer,
+  };
+  if (layout === 'folded') {
+    return (
+      <button
+        type="button"
+        onClick={() => setLayout('beside')}
+        style={{ ...look, writingMode: 'vertical-rl' }}
+      >
+        Show example card
+      </button>
+    );
+  }
+  const filled = layout === 'filled';
+  return (
+    <section
+      aria-label="Example card"
+      data-example-card
+      data-filled={filled || undefined}
+      style={look}
+    >
+      <style>{CARD_CSS}</style>
+      <h2>Example card</h2>
+      <button type="button" onClick={() => setLayout(filled ? 'beside' : 'filled')}>
+        {filled ? 'Shrink example card' : 'Fill example card'}
+      </button>
+      <button type="button" onClick={() => setLayout('folded')}>
+        Hide example card
+      </button>
+    </section>
   );
 }
 
@@ -357,18 +600,19 @@ function RoomDialog({ room, close }: { room: Room; close: () => void }) {
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter>
-        <Box
-          role="dialog"
-          aria-label="Example dialog"
-          direction="Column"
-          gap="300"
-          style={{ padding: 16, borderRadius: 8, background: color.Surface.Container }}
-        >
-          <Text>Example dialog of {room.name}</Text>
-          <Button size="300" onClick={close}>
-            <Text size="B300">Close example dialog</Text>
-          </Button>
-        </Box>
+        <Dialog role="dialog" aria-label="Example dialog">
+          <Header size="500" style={{ paddingInline: `${config.space.S400} ${config.space.S200}` }}>
+            <Text size="H4" style={{ flexGrow: 1 }}>
+              Example dialog
+            </Text>
+            <IconButton aria-label="Close example dialog" size="300" radii="300" onClick={close}>
+              <Icon src={Icons.Cross} size="200" />
+            </IconButton>
+          </Header>
+          <Text size="T300" style={{ padding: config.space.S400 }}>
+            Example dialog of {room.name}
+          </Text>
+        </Dialog>
       </OverlayCenter>
     </Overlay>
   );
@@ -405,12 +649,14 @@ const plugin: ClientPlugin = {
   sidePanels: [
     {
       id: 'panel',
-      label: 'Example panel',
+      label: 'panel',
       icon: Icons.Leaf,
       placement: 'auto',
       Component: ExamplePanel,
       remember: true,
+      opensOverMembers: true,
     },
+    { id: 'card', label: 'Example card', Component: ExampleCard, frame: 'own' },
   ],
   headerActions: [
     {
@@ -431,6 +677,14 @@ const plugin: ClientPlugin = {
       run: async ({ room, args, threadId }) => {
         if (!args.trim()) throw new Error('Type a greeting after /greet.');
         await room.client.sendNotice(room.roomId, threadId ?? null, `Example greeting: ${args}`);
+      },
+    },
+    {
+      name: 'subroom',
+      description: 'subroom',
+      run: async ({ room, args }) => {
+        if (!args.trim()) throw new Error('Type a name after /subroom.');
+        await createSubRoom(room, { name: args });
       },
     },
   ],
@@ -456,8 +710,10 @@ const plugin: ClientPlugin = {
   translations: {
     en: {
       label: 'Example plugin',
+      panel: 'Example panel',
       wave: 'Wave',
       greet: 'Send the room a greeting. Example: /greet Hello',
+      subroom: 'Create a sub-room of this room. Example: /subroom Ideas',
       roomInfo: 'Example room info',
       roomRemoval: 'Example removal',
     },

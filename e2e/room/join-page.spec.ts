@@ -315,7 +315,8 @@ const checkRefusedJoin = async (
 /**
  * The person was banned from one room before signing in on this device, which never learns of
  * that room, and from another while signed in, which this device keeps as banned. Each room's
- * page says so, names who banned them and gives the reason, and offers no Join.
+ * page says so, names who banned them and gives the reason, and offers no Join. Neither does the
+ * kept room's card in the lobby of the space both rooms belong to.
  */
 const checkBanned = async (browser: Browser, label: string, options: BrowserContextOptions) => {
   const { owner, viewer } = await seedAccounts(label);
@@ -326,6 +327,14 @@ const checkBanned = async (browser: Browser, label: string, options: BrowserCont
   await ban(before);
   const live = await publicRoom(owner, BANNED_LIVE);
   await joinRoom(HOMESERVER, viewer.accessToken, live);
+  const space = await createPrivateSpace(HOMESERVER, owner.accessToken, {
+    name: 'Field notes',
+    topic: 'Everything the field team shares',
+    invite: [viewer.userId],
+  });
+  await joinRoom(HOMESERVER, viewer.accessToken, space);
+  await addRoomToSpace(HOMESERVER, owner.accessToken, space, before);
+  await addRoomToSpace(HOMESERVER, owner.accessToken, space, live);
   const { page, problems } = await signIn(browser, viewer, options);
   const main = page.locator('main');
   await openPath(page, `/home/${encodeURIComponent(live)}/`);
@@ -352,6 +361,12 @@ const checkBanned = async (browser: Browser, label: string, options: BrowserCont
     // eslint-disable-next-line no-await-in-loop
     await shots(page, `${label}-banned-${roomId === before ? 'before' : 'live'}`);
   }
+  await openPath(page, `/${encodeURIComponent(space)}/lobby/`);
+  const liveCard = main.locator(`[data-lobby-entry="${live}"]`);
+  await expect(liveCard.getByText('Access unavailable')).toBeVisible({ timeout: 30_000 });
+  await expect(liveCard.getByRole('button', { name: 'Join', exact: true })).toHaveCount(0);
+  await liveCard.scrollIntoViewIfNeeded();
+  await shots(page, `${label}-banned-lobby`);
   expect(problems).toEqual([]);
   await page.context().close();
 };

@@ -1,14 +1,20 @@
 // @vitest-environment jsdom
 // The example plugin's test, written as a plugin outside this repository writes one: it imports the
 // app only through the client SDK, `/testing` included, and runs in the app's vitest.
-import { createRef } from 'react';
-import { fireEvent } from '@testing-library/react';
+import { createRef, type ReactNode } from 'react';
+import { fireEvent, waitFor } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
 import plugin from './index';
+
+// jsdom lays nothing out, so a focus trap finds nothing it could focus and throws; its menu's trap
+// runs in the browser (e2e/plugins/ui.spec.ts).
+vi.mock('focus-trap-react', () => ({
+  default: ({ children }: { children: ReactNode }) => children,
+}));
 
 /**
  * A drag event as the browser fires it, carrying `data` (format to text), which a drag start fills
@@ -29,6 +35,15 @@ const dragEvent = (type: string, data: Map<string, string>): Event => {
 const greeting: PluginEvent = {
   sender: '@mindroom_helper:example.org',
   content: { body: 'Hello', 'com.example.greeting': { text: 'Hello' } },
+};
+
+/** The greeting's message in the room !lobby:example.org, as the homeserver answers for it. */
+const fetchedGreeting = {
+  event_id: '$greeting',
+  room_id: '!lobby:example.org',
+  type: 'm.room.message',
+  sender: greeting.sender,
+  content: { ...greeting.content },
 };
 
 describe('example plugin', () => {
@@ -112,20 +127,55 @@ describe('example plugin', () => {
     if (!panel) throw new Error('the example plugin has no side panel');
     // The panel reads the room's members and the greeting's message through the account's client.
     const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
-    const fetched = vi.spyOn(client, 'fetchRoomEvent').mockResolvedValue({
-      event_id: '$greeting',
-      room_id: '!lobby:example.org',
-      type: 'm.room.message',
-      sender: greeting.sender,
-      content: { ...greeting.content },
-    });
+    const fetched = vi.spyOn(client, 'fetchRoomEvent').mockResolvedValue(fetchedGreeting);
     const view = await renderPluginComponent(
       <panel.Component roomId="!lobby:example.org" request="$greeting" />,
       { id: 'example', plugin, client }
     );
-    expect(await view.findByText('Greeting: Hello')).toBeTruthy();
+    await waitFor(() =>
+      expect(
+        view.container.querySelector('[data-example-plugin-greeting]')?.textContent?.trim()
+      ).toBe('Greeting: Hello')
+    );
     expect(fetched).toHaveBeenCalledWith('!lobby:example.org', '$greeting');
     expect((await renderGreeting()).queryByRole('button', { name: 'Show in panel' })).toBeNull();
+  });
+
+  it("names its greeting's sender by their name in the room, and shows the account's own profile card", async () => {
+    const [panel] = plugin.sidePanels ?? [];
+    if (!panel) throw new Error('the example plugin has no side panel');
+    const userId = '@ada:example.org';
+    const client = createClient({ baseUrl: 'https://example.org', userId });
+    const room = new Room('!lobby:example.org', client, userId);
+    room.currentState.setStateEvents(
+      [
+        [userId, 'Ada Lovelace'],
+        [greeting.sender, 'Helper'],
+      ].map(
+        ([member, displayname]) =>
+          new MatrixEvent({
+            type: 'm.room.member',
+            room_id: room.roomId,
+            sender: member,
+            state_key: member,
+            content: { membership: KnownMembership.Join, displayname },
+          })
+      )
+    );
+    client.store.storeRoom(room);
+    vi.spyOn(client, 'fetchRoomEvent').mockResolvedValue(fetchedGreeting);
+    const view = await renderPluginComponent(
+      <MemoryRouter>
+        <panel.Component roomId={room.roomId} request="$greeting" />
+      </MemoryRouter>,
+      { id: 'example', plugin, client }
+    );
+    // The name is a button, which opens the app's floating card of the sender.
+    expect(await view.findByRole('button', { name: 'Helper' })).toBeTruthy();
+    // The card the app shows for the account, in the panel itself.
+    expect(view.getByRole('heading', { name: 'Ada Lovelace' })).toBeTruthy();
+    expect(view.getByText(userId)).toBeTruthy();
+    expect(view.queryByRole('dialog')).toBeNull();
   });
 
   it('links its room page to the room and to its thread, also at a space address', async () => {
@@ -152,7 +202,9 @@ describe('example plugin', () => {
       id: 'example',
       plugin,
     });
-    expect(view.getByText('Example banner in Lobby')).toBeTruthy();
+    // Its build module, which writes "Example banner" in place of the marker, runs in a build and the
+    // dev server, never in unit tests.
+    expect(view.getByText('EXAMPLE_BANNER in Lobby')).toBeTruthy();
   });
 
   it("shows in its banner its panel's item dropped on the room's name, and lets a file drag pass", async () => {
@@ -221,11 +273,12 @@ describe('example plugin', () => {
       ['@carol:example.org', Join],
       ['@mindroom_helper:example.org', Leave],
     ]);
+    // The panel shows the account's profile card in each room, which needs a router.
     const view = await renderPluginComponent(
-      <>
+      <MemoryRouter>
         <panel.Component roomId="!agent:example.org" />
         <panel.Component roomId="!people:example.org" />
-      </>,
+      </MemoryRouter>,
       { id: 'example', plugin, client }
     );
     expect(view.getByText('Members: 2, with a MindRoom agent')).toBeTruthy();
@@ -260,10 +313,10 @@ describe('example plugin', () => {
     addRoom('!open:example.org', 0);
     addRoom('!announcements:example.org', 50);
     const view = await renderPluginComponent(
-      <>
+      <MemoryRouter>
         <panel.Component roomId="!open:example.org" />
         <panel.Component roomId="!announcements:example.org" />
-      </>,
+      </MemoryRouter>,
       { id: 'example', plugin, client }
     );
     expect(view.getByText('You may post here')).toBeTruthy();
@@ -328,6 +381,74 @@ describe('example plugin', () => {
       'Type a greeting after /greet.'
     );
     expect(sent).toHaveBeenCalledTimes(2);
+  });
+
+  it('creates a sub-room of the room called the name typed after /subroom, and asks for one without it', async () => {
+    const [, subroom] = plugin.slashCommands ?? [];
+    if (!subroom) throw new Error('the example plugin has no /subroom');
+    const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
+    const created = vi
+      .spyOn(client, 'createRoom')
+      .mockResolvedValue({ room_id: '!ideas:example.org' });
+    const listed = vi.spyOn(client, 'sendStateEvent').mockResolvedValue({ event_id: '$child' });
+    const room = new Room('!lobby:example.org', client, '@ada:example.org');
+    // The app provides its configuration to what it renders, and to createSubRoom.
+    await renderPluginComponent(<></>, { id: 'example', plugin });
+
+    await subroom.run({ room, args: 'Ideas' });
+    expect(created).toHaveBeenCalledWith(expect.objectContaining({ name: 'Ideas' }));
+    expect(listed).toHaveBeenCalledWith(
+      '!lobby:example.org',
+      'm.space.child',
+      expect.anything(),
+      '!ideas:example.org'
+    );
+    await expect(async () => subroom.run({ room, args: '  ' })).rejects.toThrow(
+      'Type a name after /subroom.'
+    );
+    expect(created).toHaveBeenCalledTimes(1);
+  });
+
+  it("draws its panel's rows, menu and dialog with the app's own pieces from the ui subpath", async () => {
+    const [panel] = plugin.sidePanels ?? [];
+    if (!panel) throw new Error('the example plugin has no side panel');
+    const userId = '@ada:example.org';
+    const client = createClient({ baseUrl: 'https://example.org', userId });
+    const room = new Room('!lobby:example.org', client, userId);
+    room.name = 'Lobby';
+    client.store.storeRoom(room);
+    const view = await renderPluginComponent(
+      <MemoryRouter>
+        <panel.Component roomId={room.roomId} />
+      </MemoryRouter>,
+      { id: 'example', plugin, client }
+    );
+    // Its rows mark the chosen one as the sidebar marks the open room.
+    const row = view.getByRole('button', { name: 'Second example row' });
+    fireEvent.click(row);
+    expect(row.getAttribute('aria-current')).toBe('true');
+    expect(
+      view.getByRole('button', { name: 'First example row' }).getAttribute('aria-current')
+    ).toBe(null);
+
+    // The app's test setup draws the glass menu as folds' plain one, without the `menu` and
+    // `menuitem` roles the browser shows (e2e/plugins/ui.spec.ts), so the entries go by their text.
+    const menuButton = view.getByRole('button', { name: 'Example menu' });
+    expect(view.queryByText('Show example dialog')).toBeNull();
+    fireEvent.click(menuButton);
+    expect(menuButton.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(view.getByText('Clear example selection'));
+    expect(view.queryByText('Show example dialog')).toBeNull();
+    expect(row.getAttribute('aria-current')).toBe(null);
+
+    fireEvent.click(menuButton);
+    fireEvent.click(view.getByText('Show example dialog'));
+    expect(view.queryByText('Clear example selection')).toBeNull();
+    expect(view.getByRole('dialog', { name: 'Example dialog' }).textContent).toContain(
+      'Example dialog of Lobby'
+    );
+    fireEvent.click(view.getByRole('button', { name: 'Close example dialog' }));
+    expect(view.queryByRole('dialog')).toBeNull();
   });
 
   it("lists its room entry in every room's menu but a space's, and its dialog names the room", async () => {

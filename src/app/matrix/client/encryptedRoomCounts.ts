@@ -1,5 +1,6 @@
 import {
   ClientEvent,
+  Direction,
   EventType,
   MatrixEvent,
   MatrixEventEvent,
@@ -7,13 +8,14 @@ import {
   ReceiptType,
   RelationType,
   RoomEvent,
+  type EventTimeline,
   type MatrixClient,
   type Room,
 } from 'matrix-js-sdk';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { getStreamStatusFromContent, TERMINAL_STREAM_STATUSES } from '../protocol/aiRun';
 import { isRecord } from '../../lib/isRecord';
-import { receiptReadTs, unthreadedReceiptReadTs } from '../receiptReadTs';
+import { contextReceiptReadTs, receiptReadTs } from '../receiptReadTs';
 import { getFinishingEdit } from './syncedEdits';
 
 // The server cannot read an encrypted event, so in an encrypted room the SDK takes the server's
@@ -36,6 +38,17 @@ import { getFinishingEdit } from './syncedEdits';
 // one message once its terminal edit arrives, at that edit's time; the reply's first event, its
 // other edits and reactions count as nothing. The thread's title notice counts on the server,
 // whose push rules cannot read it, but not here, where they can (design decision #17).
+//
+// The client can count a context only from the events it holds after the read point. After a sync
+// gap (a `limited` sync: a device offline for a while, a fresh sign-in, a reload whose saved sync
+// starts after the gap) it holds the newest events only, and counted 20 of 25 messages, or nothing
+// for an agent's finished reply whose first message came before the gap (P3-e2ee-F001, F002, F003,
+// P3-lane5-F002). So a context whose read point is older than what the device holds takes the
+// server's count instead, less the events it holds there that the server counts only because it
+// cannot read them (title notices; a device without the keys cannot tell them from messages, and
+// shows the server's count). The SDK keeps the server's count of an encrypted room only when it
+// is 0; its patch keeps every sync's counts on the room (`serverUnreadNotifications`). A sync sets
+// them before it announces the room's events, which count the room again.
 
 /** Relations that never count as unread messages of their own. */
 const UNCOUNTED_RELATIONS: ReadonlySet<string> = new Set([
@@ -44,6 +57,21 @@ const UNCOUNTED_RELATIONS: ReadonlySet<string> = new Set([
 ]);
 
 type Counts = { total: number; highlight: number };
+
+/** Counts as the server sends them (`unread_notifications`); one it leaves out is 0. */
+const serverCountsOf = (
+  counts: { notification_count?: number; highlight_count?: number } | undefined
+): Counts | undefined =>
+  counts && { total: counts.notification_count ?? 0, highlight: counts.highlight_count ?? 0 };
+
+/**
+ * Since when `timeline` holds every event of its context: from its first event on, or from the
+ * context's start when nothing is before it.
+ */
+const heldSince = (timeline: EventTimeline): number =>
+  timeline.getPaginationToken(Direction.Backward) === null
+    ? -Infinity
+    : timeline.getEvents()[0]?.getTs() ?? Infinity;
 
 const relationOf = (event: MatrixEvent): Record<string, unknown> | undefined => {
   // Relations stay unencrypted, so the wire content has them before decryption too.
@@ -74,17 +102,21 @@ const add = (counts: Counts, actions: ReturnType<MatrixClient['getPushActionsFor
   if (actions?.tweaks?.highlight) counts.highlight += 1;
 };
 
-/** How the push rules take a finished reply: by its final content, once that is readable. */
+/**
+ * How the push rules take a finished reply: by its final content, once that is readable. The server
+ * counts the terminal edit as a message, so one the client cannot read counts as one too (its
+ * ciphertext's clear relation would make the push rules take it as an edit, which counts nothing).
+ */
 const finishedReplyActions = (
   mx: MatrixClient,
   room: Room,
   reply: MatrixEvent,
   edit: MatrixEvent
-) => {
+): ReturnType<MatrixClient['getPushActionsForEvent']> => {
   const finished: unknown = edit.isDecryptionFailure()
     ? undefined
     : edit.getContent()['m.new_content'];
-  if (!isRecord(finished)) return mx.getPushActionsForEvent(edit);
+  if (!isRecord(finished)) return { notify: true, tweaks: {} };
   const content = { ...finished };
   delete content['m.relates_to'];
   return mx.getPushActionsForEvent(
@@ -110,7 +142,7 @@ const readUpTo = (
   userId: string,
   ownReadTs: number
 ): number => {
-  let readTs = Math.max(ownReadTs, unthreadedReceiptReadTs(room, userId, context) ?? -Infinity);
+  let readTs = Math.max(ownReadTs, contextReceiptReadTs(room, userId, context) ?? -Infinity);
   [ReceiptType.Read, ReceiptType.ReadPrivate].forEach((receiptType) => {
     [true, false].forEach((realOnly) => {
       const receipt = context.getReadReceiptForUserId(userId, realOnly, receiptType);
@@ -121,7 +153,10 @@ const readUpTo = (
   return readTs;
 };
 
-/** The unread events of one context, newest first, by the rules above. */
+/**
+ * The unread events of one context, newest first, by the rules above; `serverOnly` of them are
+ * events the server counts because it cannot read them, which the client reads as not notifying.
+ */
 const countContext = (
   mx: MatrixClient,
   room: Room,
@@ -129,8 +164,8 @@ const countContext = (
   threadId: string | undefined,
   readTs: number,
   userId: string
-): Counts => {
-  const counts: Counts = { total: 0, highlight: 0 };
+): Counts & { serverOnly: number } => {
+  const counts = { total: 0, highlight: 0, serverOnly: 0 };
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
     if (!event || event.getId() === threadId) continue;
@@ -144,7 +179,12 @@ const countContext = (
       if (streamed) continue;
       break;
     }
-    if (!streamed && isCountedEvent(event, userId)) add(counts, mx.getPushActionsForEvent(event));
+    if (streamed || !isCountedEvent(event, userId)) continue;
+    const actions = mx.getPushActionsForEvent(event);
+    add(counts, actions);
+    if (!actions?.notify && event.isEncrypted() && !event.isDecryptionFailure()) {
+      counts.serverOnly += 1;
+    }
   }
   return counts;
 };
@@ -187,19 +227,41 @@ const ownLastTsIn = (events: readonly MatrixEvent[], userId: string, threadId?: 
 const recount = (mx: MatrixClient, room: Room): void => {
   const userId = mx.getUserId();
   if (!userId) return;
-  const threads = room.getThreads();
   const ownJoinTs = ownJoinTsOf(room, userId);
-  const count = (context: Room | Thread, events: readonly MatrixEvent[], threadId?: string) =>
-    countContext(
-      mx,
+  // A thread's events come with the room's sync, so a thread holds no more than the room does.
+  const roomSince = heldSince(room.getLiveTimeline());
+  const count = (
+    context: Room | Thread,
+    events: readonly MatrixEvent[],
+    since: number,
+    threadId?: string
+  ): Counts => {
+    const readTs = readUpTo(
       room,
-      events,
-      threadId,
-      readUpTo(room, context, userId, Math.max(ownJoinTs, ownLastTsIn(events, userId, threadId))),
-      userId
+      context,
+      userId,
+      Math.max(ownJoinTs, ownLastTsIn(events, userId, threadId))
     );
-  setCounts(room, undefined, count(room, room.getLiveTimeline().getEvents()));
-  threads.forEach((thread) => setCounts(room, thread.id, count(thread, thread.events, thread.id)));
+    const local = countContext(mx, room, events, threadId, readTs, userId);
+    const fromServer = serverCountsOf(
+      threadId ? room.serverThreadUnreadNotifications?.[threadId] : room.serverUnreadNotifications
+    );
+    if (readTs >= since || !fromServer) return local;
+    return {
+      total: Math.max(local.total, fromServer.total - local.serverOnly),
+      highlight: Math.max(local.highlight, fromServer.highlight),
+    };
+  };
+  setCounts(room, undefined, count(room, room.getLiveTimeline().getEvents(), roomSince));
+  room.getThreads().forEach((thread) => {
+    const since = Math.max(roomSince, heldSince(thread.liveTimeline));
+    setCounts(room, thread.id, count(thread, thread.events, since, thread.id));
+  });
+  // A thread the server counts of which the device holds nothing.
+  Object.entries(room.serverThreadUnreadNotifications ?? {}).forEach(([threadId, counts]) => {
+    const fromServer = serverCountsOf(counts);
+    if (fromServer && !room.getThread(threadId)) setCounts(room, threadId, fromServer);
+  });
 };
 
 /**

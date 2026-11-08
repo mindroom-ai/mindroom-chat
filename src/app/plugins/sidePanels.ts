@@ -1,9 +1,11 @@
 import { type ComponentType, createContext, useContext, useMemo } from 'react';
 import type { IconSrc } from 'folds';
+import { useTranslation } from 'react-i18next';
 import type { ClientConfig } from '../config/useClientConfig';
 import { isRecord } from '../lib/isRecord';
 import { PLACEMENTS, type HeaderAction } from './headerActions';
 import { isPluginEnabled } from './pluginConfig';
+import { pluginNamespace } from './pluginTranslations';
 import type { RegisteredPlugin } from './registry';
 
 /**
@@ -13,7 +15,10 @@ import type { RegisteredPlugin } from './registry';
 export type SidePanel = {
   /** Names it among its plugin's panels. */
   id: string;
-  /** Its title, and the name of its toggle in the room header, which shows and hides it. */
+  /**
+   * Its title, and the name of its toggle in the room header, which shows and hides it: a key of the
+   * plugin's strings (`translations`), shown in the app's language, or any other text, shown as given.
+   */
   label: string;
   /** Its toggle's icon, as folds draws one, such as `Icons.Star`; a bulb by default. */
   icon?: IconSrc;
@@ -35,6 +40,21 @@ export type SidePanel = {
    * panel) or the account's last login leaves this browser.
    */
   remember?: boolean;
+  /**
+   * Whether it may take the members list's place, which then closes as when the person opens the
+   * panel: as it opens again when its room shows, with `remember` (the list over the page never keeps
+   * it closed), and as `openBesideThread` ({@link useRoomSidePanel}) opens it. Without it, the list
+   * keeps it closed then.
+   */
+  opensOverMembers?: true;
+  /**
+   * `own`: its `Component` draws its own frame, such as a card with its own Fill and Hide, and the
+   * room draws none: no title, Close, splitter or frame strip. The component reads and sets its
+   * layout with `usePanelFrame`, on phones too; folded, it covers nothing, there either. Over a
+   * phone's conversation it hides the room header and the panel's toggle with it, so the component
+   * offers a way out of its own: Hide, or a Close that calls `close` of {@link useRoomSidePanel}.
+   */
+  frame?: 'own';
 };
 
 /** Whether a plugin's contribution is a side panel; the build does not type-check plugins. */
@@ -45,21 +65,51 @@ export const isSidePanel = (value: unknown): value is SidePanel =>
   typeof value.label === 'string' &&
   (typeof value.Component === 'function' || isRecord(value.Component)) &&
   (value.icon === undefined || typeof value.icon === 'function') &&
-  (value.placement === undefined || PLACEMENTS.includes(value.placement));
+  (value.placement === undefined || PLACEMENTS.includes(value.placement)) &&
+  (value.opensOverMembers === undefined || value.opensOverMembers === true) &&
+  (value.frame === undefined || value.frame === 'own');
 
 /** A plugin's side panel in a room: `id` is `<plugin id>/<panel id>`, `tag` names its plugin. */
 export type RoomSidePanel = SidePanel & { tag: string };
 
-/** The side panels of the plugins config.json leaves on, in build order. */
-export const enabledSidePanels = (
+/**
+ * The side panels of the plugins config.json leaves on, in build order, with their labels in the
+ * app's language: a new list when the language changes and once a plugin's strings arrive, else
+ * the same one.
+ */
+export const usePluginSidePanels = (
   plugins: readonly RegisteredPlugin[],
   config: ClientConfig | undefined
-): RoomSidePanel[] =>
-  plugins
-    .filter((plugin) => isPluginEnabled(config, plugin.id))
-    .flatMap(({ id, tag, sidePanels }) =>
-      sidePanels.map((panel) => ({ ...panel, id: `${id}/${panel.id}`, tag }))
-    );
+): RoomSidePanel[] => {
+  const enabled = useMemo(
+    () =>
+      plugins.filter(
+        (plugin) => plugin.sidePanels.length > 0 && isPluginEnabled(config, plugin.id)
+      ),
+    [config, plugins]
+  );
+  // A new `t` with each change of language and each plugin's strings that arrive.
+  const { t, i18n } = useTranslation(enabled.map(({ id }) => pluginNamespace(id)) as never);
+  return useMemo(() => {
+    // The app's typed keys and namespaces cover its own catalog only.
+    const translate = t as unknown as (key: string, options: never) => unknown;
+    return enabled.flatMap(({ id, tag, sidePanels }) => {
+      // Only the plugin's own strings: a label's `:` names no other namespace, and a group of
+      // strings comes back as such.
+      const options = { ns: pluginNamespace(id), nsSeparator: false, returnObjects: true } as never;
+      return sidePanels.map((panel) => {
+        // Looked up first, as i18next would read a label that is no key as a template (`$t(…)`).
+        const text = i18n.exists(panel.label, options) && translate(panel.label, options);
+        return {
+          ...panel,
+          id: `${id}/${panel.id}`,
+          tag,
+          label: typeof text === 'string' ? text : panel.label,
+        };
+      });
+    });
+  }, [enabled, i18n, t]);
+};
 
 /** What the open room lets plugin code do with its plugins' panels. */
 export type PluginPanelControls = {
@@ -67,6 +117,8 @@ export type PluginPanelControls = {
   shown: string | undefined;
   /** Opens a plugin's panel by its rule and hands it `request`; nothing for an unknown panel. */
   open: (id: string, request: unknown) => void;
+  /** Opens a plugin's panel beside the thread `threadId`, as {@link RoomSidePanelControl} says. */
+  openBesideThread: (id: string, threadId: string, request: unknown) => void;
   /** Closes a plugin's panel if the room shows it. */
   close: (id: string) => void;
 };
@@ -84,9 +136,23 @@ export type RoomSidePanelControl = {
    * browser, so the request should hold only what the panel needs to open again, never secrets or
    * message text. `open` keeps its identity while the room shows. Call it in answer to something
    * the person does, such as a click, never as a component mounts: the conversation's components
-   * mount again whenever it shows another thread or view.
+   * mount again whenever it shows another thread or view. To open as one mounts, see
+   * `openBesideThread`.
    */
   open: (request?: unknown) => void;
+  /**
+   * Opens it beside the thread `threadId` with `request`, as a renderer of that thread's root
+   * message may ask from an effect that depends on it: it takes a new identity whenever the room
+   * shows another thread or its own timeline, so the effect asks again then, also in a card that
+   * stays mounted as its thread opens. Only the first call since the room began to show that thread
+   * counts, so a component that mounts again does not open a panel the person closed; once another
+   * thread or the room's own timeline has shown, the thread's next call counts again. That call
+   * does something only while the room shows that thread and not on a phone: it opens the panel
+   * when no other side panel shows, or only the members list and the panel has `opensOverMembers`,
+   * and when the panel itself shows, it hands it `request` and leaves it folded or filling the room.
+   * Otherwise it does nothing.
+   */
+  openBesideThread: (threadId: string, request?: unknown) => void;
   /** Closes it, if the room shows it; it keeps its identity as `open` does. */
   close: () => void;
 };
@@ -103,6 +169,7 @@ export const useRoomSidePanel = (
   const controls = useContext(PluginPanelControlsContext);
   const id = `${pluginId}/${panelId}`;
   const roomOpen = controls?.open;
+  const roomOpenBeside = controls?.openBesideThread;
   const roomClose = controls?.close;
   const actions = useMemo(
     () =>
@@ -113,6 +180,16 @@ export const useRoomSidePanel = (
       },
     [id, roomClose, roomOpen]
   );
+  // Its own memo: it changes with each thread the room shows, `open` and `close` do not.
+  const openBesideThread = useMemo(
+    () =>
+      roomOpenBeside &&
+      ((threadId: string, request?: unknown) => roomOpenBeside(id, threadId, request)),
+    [id, roomOpenBeside]
+  );
   const isOpen = controls?.shown === id;
-  return useMemo(() => actions && { ...actions, isOpen }, [actions, isOpen]);
+  return useMemo(
+    () => actions && openBesideThread && { ...actions, openBesideThread, isOpen },
+    [actions, isOpen, openBesideThread]
+  );
 };

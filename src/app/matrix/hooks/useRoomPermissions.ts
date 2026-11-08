@@ -6,7 +6,7 @@ type RoomPermissions = {
   event: (eventType: string, userId: string) => boolean;
   /** Whether `userId` may send a state event of `eventType`. */
   stateEvent: (eventType: string, userId: string) => boolean;
-  /** Whether `userId` may invite, kick, ban, redact others' events, or see history. */
+  /** Whether `userId` may invite, kick, ban, or redact others' events. */
   action: (action: PowerLevelAction, userId: string) => boolean;
   /** Whether `userId` may trigger the `@room` notification (or another notification key). */
   notification: (key: string, userId: string) => boolean;

@@ -61,6 +61,9 @@ vi.mock('../ui/page/Page', async () => {
   };
 });
 
+vi.mock('../account/encryption/recoveryState', () => ({
+  useRecoveryState: () => ({ kind: 'unknown' }),
+}));
 vi.mock('../config/useClientConfig', () => ({
   useClientConfig: vi.fn(),
 }));

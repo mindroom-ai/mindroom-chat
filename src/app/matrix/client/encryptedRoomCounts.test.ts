@@ -101,6 +101,24 @@ const pushRules = {
   global: {
     override: [
       {
+        rule_id: '.m.rule.suppress_edits',
+        default: true,
+        enabled: true,
+        conditions: [
+          { kind: 'event_property_is', key: 'content.m\\.relates_to.rel_type', value: 'm.replace' },
+        ],
+        actions: [],
+      },
+      {
+        rule_id: '.m.rule.is_user_mention',
+        default: true,
+        enabled: true,
+        conditions: [
+          { kind: 'event_property_contains', key: 'content.m\\.mentions.user_ids', value: ME },
+        ],
+        actions: ['notify', { set_tweak: 'highlight' }],
+      },
+      {
         rule_id: '.m.rule.suppress_notices',
         default: true,
         enabled: true,
@@ -143,8 +161,12 @@ const settle = async () => {
 
 const clients: MatrixClient[] = [];
 
+/** The server's unread counts for the room: its main timeline's, and each thread's by root. */
+type ServerCounts = { room: number; threads?: Record<string, number> };
+
 const fixture = async (keep: boolean) => {
   const pendingSyncs: unknown[] = [];
+  const serverEvents = new Map<string, IEvent>();
   const waitingSyncs: Array<(response: Response) => void> = [];
   let batch = 0;
   const mx = createClient({
@@ -165,6 +187,15 @@ const fixture = async (keep: boolean) => {
           waitingSyncs.push(resolve);
         });
       }
+      // An event the client asks for by ID, such as the root of a thread whose replies came
+      // without it.
+      const asked = /\/event\/(.+)$/.exec(path)?.[1];
+      if (asked) {
+        const event = serverEvents.get(asked);
+        return event
+          ? json(event)
+          : new Response(JSON.stringify({ errcode: 'M_NOT_FOUND' }), { status: 404 });
+      }
       return json({});
     },
   });
@@ -183,18 +214,37 @@ const fixture = async (keep: boolean) => {
     keepEncryptedRoomCounts(mx);
   }
 
-  /** Answers the client's next /sync with these events of the room. */
-  const deliver = async (events: IEvent[], ephemeral: unknown[] = []) => {
+  /**
+   * Answers the client's next /sync with these events of the room; `limited` when the server left
+   * out older ones, `counts` the server's unread counts (main timeline and threads) when it sends them.
+   */
+  const deliver = async (
+    events: IEvent[],
+    ephemeral: unknown[] = [],
+    { limited = false, counts }: { limited?: boolean; counts?: ServerCounts } = {}
+  ) => {
     batch += 1;
+    events.forEach((event) => serverEvents.set(event.event_id, event));
     const response = {
       next_batch: `batch-${batch}`,
       rooms: {
         join: {
           [ROOM]: {
             state: { events: [encryption, member(ME), member(AGENT)] },
-            timeline: { events, prev_batch: 'before', limited: false },
+            timeline: { events, prev_batch: `before-${batch}`, limited },
             ephemeral: { events: ephemeral },
             account_data: { events: [] },
+            ...(counts
+              ? {
+                  unread_notifications: { notification_count: counts.room, highlight_count: 0 },
+                  unread_thread_notifications: Object.fromEntries(
+                    Object.entries(counts.threads ?? {}).map(([id, count]) => [
+                      id,
+                      { notification_count: count, highlight_count: 0 },
+                    ])
+                  ),
+                }
+              : {}),
           },
         },
       },
@@ -234,7 +284,10 @@ const fixture = async (keep: boolean) => {
   const threadCount = () =>
     room().getThreadUnreadNotificationCount(ROOT, NotificationCountType.Total) ?? 0;
   const totalCount = () => room().getUnreadNotificationCount(NotificationCountType.Total);
-  return { mx, deliver, room, find, decrypt, threadCount, totalCount };
+  /** Events the server holds that no sync brought, as after a gap. */
+  const serverHolds = (events: IEvent[]) =>
+    events.forEach((event) => serverEvents.set(event.event_id, event));
+  return { mx, deliver, serverHolds, room, find, decrypt, threadCount, totalCount };
 };
 
 /** The reader opened the thread and read the reply's start. */
@@ -592,6 +645,34 @@ describe('unread counts of an encrypted room', () => {
     expect([f.room().getRoomUnreadNotificationCount(), f.threadCount()]).toEqual([2, 2]);
   });
 
+  // P3-lane2-F001: the SDK keeps one receipt for the main timeline, so a stale device's older
+  // unthreaded receipt, on a reply in a thread and taken later, replaced a newer main receipt
+  // and the messages between came back as unread. The server keeps both and only lowers counts.
+  it('keep the main timeline read up to a main receipt when an older unthreaded one comes later', async () => {
+    const reply = (eventId: string, ts: number) =>
+      plain(eventId, OTHER, ts, { rel_type: 'm.thread', event_id: ROOT });
+    const f = await fixture(true);
+    await f.deliver(
+      [
+        plain(ROOT, OTHER, 10),
+        reply('$a1', 11),
+        plain('$m1', OTHER, 12),
+        reply('$a2', 13),
+        plain('$m2', OTHER, 14),
+      ],
+      [otherThreadReceipt]
+    );
+    expect([f.room().getRoomUnreadNotificationCount(), f.threadCount()]).toEqual([3, 2]);
+
+    const readMain = { $m2: { 'm.read': { [ME]: { ts: 20, thread_id: 'main' } } } };
+    await f.deliver([], [{ type: 'm.receipt', content: readMain }]);
+    expect([f.room().getRoomUnreadNotificationCount(), f.threadCount()]).toEqual([0, 2]);
+
+    const readFirstAnswer = { $a1: { 'm.read': { [ME]: { ts: 21 } } } };
+    await f.deliver([], [{ type: 'm.receipt', content: readFirstAnswer }]);
+    expect([f.room().getRoomUnreadNotificationCount(), f.threadCount()]).toEqual([0, 1]);
+  });
+
   it('do not count streaming edits a new session cannot decrypt', async () => {
     const f = await fixture(true);
     // A reply in the room's main timeline (a room in room mode), read at its start.
@@ -608,5 +689,183 @@ describe('unread counts of an encrypted room', () => {
     await f.decrypt(f.find(REPLY), undefined);
     for (let index = 0; index < 5; index += 1) await f.decrypt(f.find(`$edit-${index}`), undefined);
     expect(f.totalCount()).toBe(0);
+  });
+
+  // Regression (P3-e2ee-F002): after a sync gap (a `limited` sync) the client counted only the
+  // events it held after the reader's last read: 20 of 25, live and after a reload, where the
+  // server, and the same messages in an unencrypted room, counted 25.
+  const colleagueMessages = (from: number, count: number) =>
+    Array.from({ length: count }, (_, index) =>
+      plain(`$msg-${from + index}`, OTHER, 100 + from + index)
+    );
+  const readMain = (eventId: string, ts: number) => ({
+    type: 'm.receipt',
+    content: { [eventId]: { 'm.read': { [ME]: { ts, thread_id: 'main' } } } },
+  });
+
+  it("count the server's messages after a sync gap, also after a reload", async () => {
+    const f = await fixture(true);
+    await f.deliver([plain('$read', OTHER, 50)], [readMain('$read', 60)], { counts: { room: 0 } });
+    expect(f.totalCount()).toBe(0);
+    // 25 messages while the device was away; the sync brings the newest 20.
+    f.serverHolds(colleagueMessages(1, 5));
+    await f.deliver(colleagueMessages(6, 20), [], { limited: true, counts: { room: 25 } });
+    expect(f.totalCount()).toBe(25);
+    // A sync that leaves the count out (the server sends only changed counts) keeps it.
+    await f.deliver([], [{ type: 'm.typing', content: { user_ids: [OTHER] } }]);
+    expect(f.totalCount()).toBe(25);
+    clients.splice(0).forEach((mx) => mx.stopClient());
+
+    // A reload: the saved sync starts after the gap, with the receipt but not the event it names.
+    const reloaded = await fixture(true);
+    await reloaded.deliver(colleagueMessages(6, 20), [readMain('$read', 60)], {
+      limited: true,
+      counts: { room: 25 },
+    });
+    expect(reloaded.totalCount()).toBe(25);
+  });
+
+  it('count nothing read on this device while the server still counts it', async () => {
+    const f = await fixture(true);
+    await f.deliver([plain('$read', OTHER, 50)], [readMain('$read', 60)], { counts: { room: 0 } });
+    await f.deliver(colleagueMessages(6, 20), [], { limited: true, counts: { room: 25 } });
+    // The device reads up to the newest message; the server's count follows a sync later.
+    await f.deliver([], [readMain('$msg-25', 200)]);
+    expect(f.totalCount()).toBe(0);
+  });
+
+  it('count a thread the server counts whose events the device does not hold', async () => {
+    const f = await fixture(true);
+    await f.deliver(colleagueMessages(6, 20), [readMain('$msg-25', 130)], {
+      limited: true,
+      counts: { room: 0, threads: { '$gap-root': 3 } },
+    });
+    expect(f.totalCount()).toBe(3);
+  });
+
+  // Regression (P3-e2ee-F001, P3-e2ee-F003, P3-lane5-F002): a device that signed in after an
+  // agent's reply, or that was offline while it streamed, got the reply's last edits and its title
+  // notice in a limited sync, without the reply's first message. It counted the title notice while
+  // it could not decrypt it (1, by chance right), and nothing once the keys came: 0, live and
+  // after a reload, while the server counted the finished reply and the title (2) and every
+  // other device showed 1.
+  const streamingEdits = (count: number, fromTs: number): IEvent[] =>
+    Array.from({ length: count }, (_, index) => {
+      const edit = encrypted(`$stream-${index}`, AGENT, fromTs + index, editsReply);
+      edit.content['io.mindroom.stream_status'] = 'streaming';
+      return edit;
+    });
+  const replyWindow = (): IEvent[] => [
+    ...streamingEdits(18, 12),
+    finishingEdit('$done', REPLY, 40),
+    encrypted('$title', AGENT, 41, inThread),
+  ];
+  const contentOf = (eventId: string) => {
+    if (eventId === '$title') return titleNotice;
+    if (eventId === '$done') return finishedContent(REPLY);
+    return editContent('streaming');
+  };
+  const replyCounts = { room: 0, threads: { [ROOT]: 2 } };
+
+  it('count an unread finished reply whose first message came before the sync, once keys arrive', async () => {
+    const f = await fixture(true);
+    f.serverHolds([encrypted(ROOT, ME, 10), streamedReply(REPLY, 11)]);
+    const window = replyWindow();
+    await f.deliver(window, [readMain(ROOT, 10)], { limited: true, counts: replyCounts });
+    for (const event of window) await f.decrypt(f.find(event.event_id), undefined);
+    // Without keys the device cannot tell the title notice from a message: the server's count.
+    expect(f.totalCount()).toBe(2);
+
+    // The keys come (recovery key or verification): the server's count without the title.
+    for (const event of window) await f.decrypt(f.find(event.event_id), contentOf(event.event_id));
+    expect([f.totalCount(), f.threadCount()]).toEqual([1, 1]);
+  });
+
+  it('count a finished reply streamed while the device was offline, also after a reload', async () => {
+    const f = await fixture(true);
+    await f.deliver([encrypted(ROOT, ME, 10), streamedReply(REPLY, 11)], [readMain(ROOT, 10)], {
+      counts: { room: 0 },
+    });
+    await f.decrypt(f.find(ROOT), clear[ROOT]);
+    await f.decrypt(f.find(REPLY), clear[REPLY]);
+    expect(f.totalCount()).toBe(0);
+    const window = replyWindow();
+    await f.deliver(window, [], { limited: true, counts: replyCounts });
+    for (const event of window) await f.decrypt(f.find(event.event_id), contentOf(event.event_id));
+    expect(f.totalCount()).toBe(1);
+    clients.splice(0).forEach((mx) => mx.stopClient());
+
+    // The saved sync holds what came after the gap.
+    const reloaded = await fixture(true);
+    reloaded.serverHolds([encrypted(ROOT, ME, 10), streamedReply(REPLY, 11)]);
+    await reloaded.deliver(window, [readMain(ROOT, 10)], { limited: true, counts: replyCounts });
+    for (const event of window) {
+      await reloaded.decrypt(reloaded.find(event.event_id), contentOf(event.event_id));
+    }
+    expect(reloaded.totalCount()).toBe(1);
+  });
+
+  // Regression (P3-e2ee-F001, a new session that holds the whole room): the terminal edit of an
+  // unopened thread's reply waits in the thread's buffer, where the session never decrypts it, also
+  // once the keys came. Push rules read on its ciphertext take it as an edit and count nothing, so
+  // the finished reply counted 0 while the server counted it.
+  it('count a finished reply whose terminal edit the session never decrypts', async () => {
+    const f = await fixture(true);
+    const window = [
+      { ...member(ME), origin_server_ts: 1 } as IEvent,
+      encrypted(ROOT, ME, 10),
+      streamedReply(REPLY, 11),
+      ...replyWindow(),
+    ];
+    await f.deliver(window, [], { counts: replyCounts });
+    // Without keys: the server's count, the title notice included.
+    for (const event of window.filter((e) => e.type === 'm.room.encrypted')) {
+      if (event.event_id !== '$done') await f.decrypt(f.find(event.event_id), undefined);
+    }
+    expect(f.totalCount()).toBe(2);
+    // The keys come; the terminal edit stays as it came.
+    for (const event of window.filter((e) => e.type === 'm.room.encrypted')) {
+      const id = event.event_id;
+      if (id === '$done') continue;
+      await f.decrypt(f.find(id), id === ROOT ? clear[ROOT] : id === REPLY ? clear[REPLY] : contentOf(id));
+    }
+    expect([f.totalCount(), f.threadCount()]).toEqual([1, 1]);
+  });
+
+  // In an encrypted room only the client can see a mention. The server bundles a reply's newest
+  // edit with the reply, and that copy stays encrypted until the reply is shown, while the SDK
+  // decrypts the copy the sync brought. The count read the bundled copy, so a finished reply that
+  // names the reader counted, but did not highlight, until the reader opened the room.
+  it('highlight a finished reply that mentions the reader while its bundled edit stays encrypted', async () => {
+    const f = await fixture(true);
+    const bundled = finishingEdit('$done', REPLY, 40);
+    const reply = { ...streamedReply(REPLY, 11), unsigned: { 'm.relations': { 'm.replace': bundled } } };
+    const window = [
+      { ...member(ME), origin_server_ts: 1 } as IEvent,
+      encrypted(ROOT, ME, 10),
+      reply,
+      finishingEdit('$done', REPLY, 40),
+      encrypted('$title', AGENT, 41, inThread),
+    ];
+    await f.deliver(window, [], { counts: replyCounts });
+    await f.decrypt(f.find(ROOT), clear[ROOT]);
+    await f.decrypt(f.find(REPLY), clear[REPLY]);
+    await f.decrypt(f.find('$title'), titleNotice);
+    // The copy the sync brought decrypts; the bundled one on the reply does not.
+    await f.decrypt(f.find('$done'), {
+      ...finishedContent(REPLY),
+      'm.new_content': {
+        msgtype: 'm.text',
+        body: 'The build passed, reader.',
+        'io.mindroom.stream_status': 'completed',
+        'm.mentions': { user_ids: [ME] },
+      },
+    });
+    expect(f.find(REPLY).replacingEvent()?.getClearContent()).toBeNull();
+
+    expect([f.totalCount(), f.threadCount()]).toEqual([1, 1]);
+    expect(
+      f.room().getThreadUnreadNotificationCount(ROOT, NotificationCountType.Highlight)
+    ).toBe(1);
   });
 });

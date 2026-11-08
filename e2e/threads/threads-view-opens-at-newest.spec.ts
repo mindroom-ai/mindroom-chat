@@ -23,8 +23,9 @@ import { launchWebKit } from '../helpers/webkit';
 // with 80 messages from two people and an agent, three of them threads, among 25 rooms, with
 // classic scrollbars, on a desktop (1280 by 800) and a phone (390 by 844, touch), in Chromium
 // and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. The ways in: the
-// view switch from Compact, a reload, the room list (unread), back from a thread, Compact and back,
-// and Jump to Latest from further down; a permalink still lands on its own message. From a
+// view switch from Compact, a reload, the room list (unread), Compact and back, and Jump to
+// Latest from further down; back from a thread opened further down shows the list where the
+// reader left it, and a permalink still lands on its own message. From a
 // message link, opened by a page load or inside the app, Jump to Latest shows and reaches the
 // newest thread, which stays in view. Set THREADS_VIEW_SHOTS=<directory> to save each step.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
@@ -294,7 +295,7 @@ const checkWaysIn = async (page: Page, seeded: Seeded, label: string, phone: boo
   await expectShown(page, 'Status update 81:', `unread, after the room list (${label})`);
   await shot(page, `${label}-4-room-list`);
 
-  // Into a thread further down and back.
+  // Into a thread further down and back: the list is where the reader left it.
   const threadRow = page.locator('[data-message-id]').filter({ hasText: 'Status update 45:' });
   await scrollUntilMounted(page, threadRow);
   await threadRow
@@ -304,7 +305,7 @@ const checkWaysIn = async (page: Page, seeded: Seeded, label: string, phone: boo
   await expect(page.getByText('Checked build 1245').first()).toBeVisible({ timeout: 20_000 });
   await page.goBack();
   await expectRoomCompact(page, false, 20_000);
-  await expectShown(page, 'Status update 81:', `back from a thread (${label})`);
+  await expectShown(page, 'Status update 45:', `back from a thread (${label})`);
   await shot(page, `${label}-5-back`);
 
   // To Compact and back to Threads.

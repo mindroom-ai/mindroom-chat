@@ -81,7 +81,8 @@ type Checker = {
 
 const checkers = new WeakMap<MatrixClient, Checker>();
 
-const newestRevisionTs = (event: MatrixEvent): number => {
+/** When the reply's newest revision the client holds was sent: the reply, its applied or bundled edit. */
+export const newestRevisionTs = (event: MatrixEvent): number => {
   const bundled = event.getServerAggregatedRelation<Partial<IEvent>>(RelationType.Replace);
   return Math.max(
     event.getTs(),

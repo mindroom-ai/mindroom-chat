@@ -44,6 +44,7 @@ import { forgetComposerStateOfSession } from '../composer/roomInputDrafts';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
 import { roomSettingsAtom } from '../navigation/roomSettingsState';
+import { recoveryDialogAtom } from '../account/encryption/recoveryDialog';
 import { settingsModalAtom } from '../navigation/settingsModal';
 import { spaceSettingsAtom } from '../navigation/spaceSettingsState';
 import { roomIdToTypingMembersAtom } from '../matrix/state/typingMembers';
@@ -100,6 +101,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(transcriptPanelAtom),
   toInitial(agentCallFailureAtom),
   toInitial(settingsModalAtom),
+  toInitial(recoveryDialogAtom),
   toInitial(roomSettingsAtom),
   toInitial(spaceSettingsAtom),
   toInitial(createRoomModalAtom),

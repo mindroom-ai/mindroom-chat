@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { importBeforeTests } from '../../test/utils/importBeforeTests';
 
 type AppUpdate = typeof import('./appUpdate');
 
@@ -10,6 +11,8 @@ const loadAppUpdate = async (): Promise<AppUpdate> => {
   vi.resetModules();
   return import('./appUpdate');
 };
+
+importBeforeTests(() => import('./appUpdate'));
 
 const publishes = (version: string | null) =>
   vi.fn(async () => new Response(JSON.stringify({ version }), { status: 200 }));
@@ -34,6 +37,8 @@ describe('new version after a failed part', () => {
 
     expect(getNewVersion()).toBeUndefined();
     failChunk();
+    // The failure asks at once, before the start's own question.
+    expect(fetchMock).toHaveBeenCalledOnce();
     await vi.waitFor(() => expect(getNewVersion()).toBe('build-2'));
     expect(listener).toHaveBeenCalledOnce();
 

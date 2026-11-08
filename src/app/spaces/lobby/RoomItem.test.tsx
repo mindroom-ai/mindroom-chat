@@ -261,6 +261,32 @@ describe('RoomItemCard room access', () => {
     ).toHaveLength(0);
   });
 
+  it('offers no Join for a public room the person is banned from', () => {
+    vi.mocked(mx.getRoom).mockReturnValue(cachedRoom('ban', JoinRule.Public));
+    const renderer = create(<></>);
+    act(() => {
+      renderer.update(
+        <MatrixClientProvider value={mx}>
+          <RoomItemCard
+            item={item}
+            loading={false}
+            error={null}
+            summary={{ ...summary, join_rule: JoinRule.Public }}
+            onOpen={vi.fn()}
+            onDragging={vi.fn()}
+            canReorder={false}
+            getRoom={() => undefined}
+          />
+        </MatrixClientProvider>
+      );
+    });
+
+    expect(
+      renderer.root.findAll((node) => node.children.includes('Access unavailable'))
+    ).toHaveLength(1);
+    expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(0);
+  });
+
   it('uses a refreshed hierarchy rule for a cached knocked room', () => {
     vi.mocked(mx.getRoom).mockReturnValue(cachedRoom('knock', JoinRule.Knock));
     const renderer = create(<></>);

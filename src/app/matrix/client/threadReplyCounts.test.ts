@@ -437,19 +437,21 @@ describe('thread reply counts', () => {
     expect(f.shownCount()).toBe(4);
   });
 
-  it('is what keeps the SDK from counting them twice', async () => {
+  // The SDK patch itself no longer counts a reply its root's summary counts (P3-webkit-cards-F008);
+  // before it, the SDK alone counted 4 here, and 4 again once this module stopped.
+  it('agrees with the SDK, which counts a summarized reply once', async () => {
     const replies = [reply(1), reply(2), reply(3)];
     const f = fixture({ replies });
     await f.start(false);
     await f.deliver([summarizedRoot(replies), reply(3)]);
-    expect(f.thread().length).toBe(4);
+    expect(f.thread().length).toBe(3);
 
     const stop = keepThreadReplyCounts(f.mx);
     expect(f.thread().length).toBe(3);
     stop();
     await f.room().addLiveEvents([reply(1)].map(f.mx.getEventMapper()), { addToState: false });
     await settle();
-    expect(f.thread().length).toBe(4);
+    expect(f.thread().length).toBe(3);
   });
 
   it('lets go of a room the account forgets', async () => {

@@ -248,6 +248,83 @@ const useLatestRowRequest = ({
 };
 
 /**
+ * A place in the room's rows: the row of `eventId` starts `offset` px below the scroll area's top.
+ */
+export type RoomRowsPlace = { roomId: string; eventId: string; offset: number };
+
+/**
+ * The room's row that starts highest among those in view. Measured from the scroll area's own top,
+ * not the band its scroll padding keeps for the bars over the rows: those bars can change height
+ * between the thread's opening and the way back (a phone's thread header).
+ */
+const readRoomRowsPlace = (
+  scrollElement: HTMLElement,
+  roomId: string
+): RoomRowsPlace | undefined => {
+  const viewTop = scrollElement.getBoundingClientRect().top;
+  let place: RoomRowsPlace | undefined;
+  scrollElement
+    .querySelectorAll<HTMLElement>('[data-room-row-index] [data-message-id]')
+    .forEach((row) => {
+      const { top, bottom } = row.getBoundingClientRect();
+      const eventId = row.getAttribute('data-message-id');
+      if (!eventId || bottom <= viewTop || (place && top - viewTop >= place.offset)) return;
+      place = { roomId, eventId, offset: top - viewTop };
+    });
+  return place;
+};
+
+/**
+ * The place of the room's rows while a thread opened over them is open, so the way back shows
+ * them where the reader left them, as Compact's cards do, rather than at the newest row. Opening
+ * or leaving a thread mounts the timeline anew (the approvals provider around it is keyed by the
+ * thread), so the place lives in the room view's `memoryRef`: the rows save it as they unmount,
+ * unless the reader was at their latest end, which they keep following. A thread of the same room
+ * leaves it there; the rows of the same room, shown without a route to an event (which places them
+ * itself), take it and come back there. Any other view forgets it.
+ */
+export const useThreadReturnPlace = ({
+  memoryRef,
+  roomId,
+  threadId,
+  eventId,
+  roomRowsShown,
+  latestAtTop,
+  scrollRef,
+}: {
+  memoryRef: MutableRefObject<RoomRowsPlace | undefined>;
+  roomId: string;
+  threadId: string | undefined;
+  eventId: string | undefined;
+  /** Whether the view shows the room's rows (not a thread, not Compact's cards). */
+  roomRowsShown: boolean;
+  latestAtTop: boolean;
+  scrollRef: MutableRefObject<HTMLElement | null>;
+}): RoomRowsPlace | undefined => {
+  const [place] = useState(() => {
+    const saved = memoryRef.current;
+    return saved?.roomId === roomId && !threadId && roomRowsShown && !eventId ? saved : undefined;
+  });
+  // A thread renders before the rows it replaces save their place, in its own commit.
+  const forThreadRef = useRef(!!threadId);
+  const shownRef = useRef({ roomId, roomRowsShown, latestAtTop, scrollRef });
+  shownRef.current = { roomId, roomRowsShown, latestAtTop, scrollRef };
+  useLayoutEffect(() => {
+    if (!forThreadRef.current) memoryRef.current = undefined;
+    return () => {
+      // Unmounting, while the rows are still on screen.
+      const shown = shownRef.current;
+      const scrollElement = shown.scrollRef.current;
+      if (!shown.roomRowsShown || !scrollElement) return;
+      memoryRef.current = isNearLatestEnd(scrollElement, shown.latestAtTop)
+        ? undefined
+        : readRoomRowsPlace(scrollElement, shown.roomId);
+    };
+  }, [memoryRef]);
+  return place;
+};
+
+/**
  * Ends the scroll the virtual list still reconciles. virtual-core (3.17.3) keeps the row or offset
  * it was last asked to scroll to (`scrollState`) and, until it lands there or 5 s pass, scrolls
  * there again whenever that target moves (`reconcileScroll`): a row that arrives or changes size
@@ -384,10 +461,16 @@ type RoomRowLookup = {
  * Jumps to a row. The paginator scrolls to mounted rows near the view and moves the window; the
  * virtual list scrolls to the rows of the window it has not mounted. A row far from the view is
  * reached without animation: its heights are estimates until it mounts, so a smooth scroll stops
- * short. The virtual list goes to its index, and then, frame by frame, the row is aligned again as
- * it and its neighbours mount and measure, until it keeps its place, the reader scrolls, or
- * another jump starts. A thread's rows are all in the list.
- * `onJump` runs before each jump, so the offset ledger knows the move is the timeline's own.
+ * short. The virtual list goes to its index, and then, frame by frame, the row is aligned again
+ * where the jump asked (its alignment and offset) as it and its neighbours mount and measure, until
+ * it keeps its place, the reader scrolls, or another jump starts. A thread's rows are all in the
+ * list.
+ * `onJump` runs before each jump, so the offset ledger knows the move is the timeline's own. Each
+ * jump also ends the scroll the virtual list still reconciles (`endVirtualListScroll`): a bottom
+ * pin's, or its own `scrollToIndex` that brought a far row in, whose place for the row leaves out
+ * the offset ledger's shift. Left running, it scrolled there again when a row measured after the
+ * jump had aligned its row (Jump to Unread left the "New messages" line under the composer, or
+ * back at the newest row).
  */
 export const useTimelineRowJumps = ({
   paginatorScrollToItem,
@@ -408,12 +491,16 @@ export const useTimelineRowJumps = ({
 }) => {
   const jumpCountRef = useRef(0);
   const rowsRef = useLatestRef(rows);
+  const jumped = useCallback(() => {
+    endVirtualListScroll(virtualizerRef.current);
+    onJump();
+  }, [onJump, virtualizerRef]);
   const scrollToElement = useCallback<ScrollToElement>(
     (element, opts) => {
-      onJump();
+      jumped();
       return paginatorScrollToElement(element, opts);
     },
-    [onJump, paginatorScrollToElement]
+    [jumped, paginatorScrollToElement]
   );
 
   /**
@@ -427,7 +514,8 @@ export const useTimelineRowJumps = ({
       eventId: string | undefined,
       firstIndex: number,
       align: 'start' | 'center' | 'end',
-      afterSmoothScroll = false
+      afterSmoothScroll = false,
+      offset?: number
     ) => {
       const { getScrollElement, getRowElement, roomRowsRef } = rowsRef.current;
       const scrollElement = getScrollElement();
@@ -478,9 +566,9 @@ export const useTimelineRowJumps = ({
         const { start, end: stop } = activeRangeRef.current;
         if (index >= start && index < stop) {
           const row = getRowElement(index);
-          onJump();
+          jumped();
           if (row) {
-            paginatorScrollToElement(row, { align, behavior: 'instant' });
+            paginatorScrollToElement(row, { align, offset, behavior: 'instant' });
             const top = row.getBoundingClientRect().top;
             settledFrames =
               lastTop !== undefined && Math.abs(top - lastTop) < 1 ? settledFrames + 1 : 0;
@@ -498,12 +586,12 @@ export const useTimelineRowJumps = ({
       if (afterSmoothScroll) requestAnimationFrame(step);
       else step();
     },
-    [activeRangeRef, onJump, paginatorScrollToElement, rowsRef, virtualizerRef]
+    [activeRangeRef, jumped, paginatorScrollToElement, rowsRef, virtualizerRef]
   );
 
   const scrollToItem = useCallback<ScrollToItem>(
     (index, opts) => {
-      onJump();
+      jumped();
       const { getScrollElement, getRowElement, roomRowsRef } = rowsRef.current;
       const scrollElement = getScrollElement();
       const mounted = getRowElement(index);
@@ -513,7 +601,8 @@ export const useTimelineRowJumps = ({
       if (!scrollElement || (mounted && rowNearView(mounted, scrollElement))) {
         if (paginatorScrollToItem(index, opts)) {
           if (scrollElement && opts?.behavior === 'smooth') {
-            followFarRow(roomRowsRef.current[index]?.getId(), index, opts.align ?? 'center', true);
+            const eventId = roomRowsRef.current[index]?.getId();
+            followFarRow(eventId, index, opts.align ?? 'center', true, opts.offset);
           }
           return true;
         }
@@ -526,20 +615,21 @@ export const useTimelineRowJumps = ({
       }
       // Outside the window the paginator moves it there first; then the row is followed in.
       if ((index < start || index >= end) && !paginatorScrollToItem(index, opts)) return false;
-      followFarRow(roomRowsRef.current[index]?.getId(), index, opts?.align ?? 'center');
+      const eventId = roomRowsRef.current[index]?.getId();
+      followFarRow(eventId, index, opts?.align ?? 'center', false, opts?.offset);
       return true;
     },
-    [activeRangeRef, followFarRow, onJump, paginatorScrollToItem, rowsRef, virtualizerRef]
+    [activeRangeRef, followFarRow, jumped, paginatorScrollToItem, rowsRef, virtualizerRef]
   );
   const scrollThreadEventIntoView = useCallback(
     (targetEventId: string) => {
       const index = threadEventIndexMapRef.current.get(targetEventId);
       if (index === undefined) return false;
-      onJump();
+      jumped();
       virtualizerRef.current.scrollToIndex(index, { align: 'center' });
       return true;
     },
-    [onJump, threadEventIndexMapRef, virtualizerRef]
+    [jumped, threadEventIndexMapRef, virtualizerRef]
   );
   return { scrollToElement, scrollToItem, scrollThreadEventIntoView };
 };

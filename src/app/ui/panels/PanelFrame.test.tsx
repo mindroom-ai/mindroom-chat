@@ -2,7 +2,7 @@
 import type { ReactElement } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PanelFrameProvider, type PanelFrame } from './PanelFrame';
+import { PanelFrameProvider, type PanelFrame } from './panelFrameContext';
 import { usePanelSlot } from './panelPresence';
 import { ResizablePanel } from './ResizablePanel';
 import type { PanelLayout } from './roomPanels';

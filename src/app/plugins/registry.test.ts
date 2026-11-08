@@ -1,12 +1,23 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
+// The registry as this file's load built it, at the default address.
+import { registeredPlugins } from './registry';
 
 const entries = vi.hoisted(() => {
   const Component = (): null => null;
   const renderer = { match: () => true, Component };
   const icon = () => null;
   const panel = { id: 'notes', label: 'Notes', Component };
-  const autoPanel = { id: 'tasks', label: 'Tasks', Component, icon, placement: 'auto' };
+  const autoPanel = {
+    id: 'tasks',
+    label: 'Tasks',
+    Component,
+    icon,
+    placement: 'auto',
+    remember: true,
+    opensOverMembers: true,
+  };
+  const ownPanel = { id: 'board', label: 'Board', Component, frame: 'own' };
   const run = () => undefined;
   const action = { id: 'wave', label: 'wave', icon, run };
   const autoAction = { id: 'auto', label: 'auto', icon, run, placement: 'auto' };
@@ -23,7 +34,7 @@ const entries = vi.hoisted(() => {
     renderer,
     page,
     forgotten,
-    panels: [panel, autoPanel],
+    panels: [panel, autoPanel, ownPanel],
     actions: [action, autoAction],
     command,
     roomActions: [roomAction, spacesAction, criticalAction],
@@ -61,7 +72,10 @@ const entries = vi.hoisted(() => {
             { id: 'plain', label: 'Plain', Component, icon: 'Bulb' },
             // Its toggle, like a plugin's header action, stays off a phone's header row.
             { id: 'row', label: 'Row', Component, placement: 'row' },
+            { id: 'over', label: 'Over', Component, opensOverMembers: 'yes' },
             autoPanel,
+            { id: 'framed', label: 'Framed', Component, frame: 'yes' },
+            ownPanel,
           ],
           headerActions: [
             action,
@@ -118,17 +132,19 @@ const entries = vi.hoisted(() => {
 });
 vi.mock('./pluginEntries', () => ({ pluginEntries: entries.list }));
 
-/** The registry as a fresh page load builds it. */
-const loadRegistry = async () => (await import('./registry')).registeredPlugins;
+/** The registry as a fresh page load builds it, at the address a case set. */
+const loadRegistry = async () => {
+  vi.resetModules();
+  return (await import('./registry')).registeredPlugins;
+};
 
 afterEach(() => {
-  vi.resetModules();
   window.history.replaceState(null, '', '/');
 });
 
 describe('registeredPlugins', () => {
   it("lists the build's plugins in their order, tagged with id and version", async () => {
-    const plugins = await loadRegistry();
+    const plugins = registeredPlugins;
     expect(plugins.map(({ id, tag }) => [id, tag])).toEqual([
       ['alpha', 'alpha@1.0.0'],
       ['beta', 'beta@2.1.0'],
@@ -139,8 +155,8 @@ describe('registeredPlugins', () => {
     // So does a page without a path or a component.
     expect(plugins[0]?.pages).toEqual([]);
     expect(plugins[1]?.pages).toEqual([entries.page]);
-    // A side panel needs an id, a label, a component, and no icon or one folds draws, and no
-    // placement, `auto` or `menu`.
+    // A side panel needs an id, a label, a component, no icon or one folds draws, no placement,
+    // `auto` or `menu`, no opensOverMembers or `true`, and no frame or `own`.
     expect(plugins[0]?.sidePanels).toEqual([]);
     expect(plugins[1]?.sidePanels).toEqual(entries.panels);
     // A header action needs an id, a label, an icon, a run, and no placement, `auto` or `menu`.
@@ -164,8 +180,8 @@ describe('registeredPlugins', () => {
     expect(entries.forgotten).toEqual(['@alice:example.org']);
   });
 
-  it('is frozen when its module loads', async () => {
-    const plugins = await loadRegistry();
+  it('is frozen when its module loads', () => {
+    const plugins = registeredPlugins;
     expect(Object.isFrozen(plugins)).toBe(true);
     for (const plugin of plugins) {
       expect(Object.isFrozen(plugin)).toBe(true);

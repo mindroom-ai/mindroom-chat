@@ -7,6 +7,7 @@ import {
   dedupeThreadRenderEventEntries,
   estimateThreadEventRowHeight,
   getThreadInitialRenderMode,
+  isDiscardedSettleWrite,
   isThreadFallbackReply,
   mergeThreadRenderEvents,
   pickPreferredThreadRenderEvent,
@@ -558,6 +559,42 @@ describe('shouldSettleLedgerAtBoundary', () => {
     ).toBe(false);
     // Fractional-offset slack: the exact bottom edge is NOT overscroll.
     expect(shouldSettleLedgerAtBoundary({ ...crossedBottom, scrollOffset: 59400.5 })).toBe(true);
+  });
+});
+
+describe('isDiscardedSettleWrite', () => {
+  it('takes a whole-fold return to the pre-settle offset for the compositor reasserting it', () => {
+    // A 512 px fold settled at 1000; one event brings the reader back to 1000.
+    expect(
+      isDiscardedSettleWrite({
+        px: 512,
+        preSettleScrollTop: 1000,
+        previousScrollTop: 1512,
+        currentScrollTop: 1000,
+      })
+    ).toBe(true);
+  });
+
+  it('leaves a reader at the top who scrolls up again after the settle', () => {
+    // Rows came in above a reader at the top (the room's start, say): the settle moved them 349 px
+    // down to keep their row, and a wheel notch brings them back up, clamped at the top. That is
+    // the reader's own scroll; refolding it held them under the new rows for good (macOS WebKit).
+    expect(
+      isDiscardedSettleWrite({
+        px: 349,
+        preSettleScrollTop: 0,
+        previousScrollTop: 349,
+        currentScrollTop: 29,
+      })
+    ).toBe(false);
+    expect(
+      isDiscardedSettleWrite({
+        px: 282.5,
+        preSettleScrollTop: 0,
+        previousScrollTop: 282.5,
+        currentScrollTop: 0,
+      })
+    ).toBe(false);
   });
 });
 

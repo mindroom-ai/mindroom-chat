@@ -8,6 +8,8 @@ export const MINDROOM_BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_
 
 export type BackgroundJob = {
   jobId: string;
+  /** The agent that runs the job and publishes it, whose reply in the job's thread calls it. */
+  agentId: string;
   threadId: string | null;
   kind: string;
   tool: string;
@@ -18,7 +20,7 @@ export type BackgroundJob = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const parseJob = (value: unknown): BackgroundJob | undefined => {
+const parseJob = (agentId: string, value: unknown): BackgroundJob | undefined => {
   if (!isRecord(value)) return undefined;
   const { job_id: jobId, thread_id: threadId, kind, tool, status, started_at: startedAt } = value;
   if (
@@ -31,14 +33,15 @@ const parseJob = (value: unknown): BackgroundJob | undefined => {
   ) {
     return undefined;
   }
-  return { jobId, threadId: threadId ?? null, kind, tool, status, startedAt };
+  return { jobId, agentId, threadId: threadId ?? null, kind, tool, status, startedAt };
 };
 
 /** Read one agent's jobs from state `agentRoomState` already checked the agent published about itself. */
 export const parseBackgroundJobsStateEvent = (event: MatrixEvent): BackgroundJob[] => {
   const jobs = event.getContent().jobs;
-  if (!Array.isArray(jobs)) return [];
-  return jobs.flatMap((value) => parseJob(value) ?? []);
+  const agentId = event.getStateKey();
+  if (!Array.isArray(jobs) || !agentId) return [];
+  return jobs.flatMap((value) => parseJob(agentId, value) ?? []);
 };
 
 // Machine strings sort as the backend sorts them; locale collation would misplace an ISO time without a fraction.

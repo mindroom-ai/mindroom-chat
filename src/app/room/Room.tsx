@@ -33,13 +33,13 @@ import { ResizableMembersPanel } from '../members/ResizableMembersPanel';
 import { PanelRow, useMembersOverlay } from '../members/PanelRow';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
 import { usePanelSlot } from '../ui/panels/panelPresence';
-import { type PanelFrame, PanelFrameProvider } from '../ui/panels/PanelFrame';
+import { type PanelFrame, PanelFrameProvider } from '../ui/panels/panelFrameContext';
 import { type RoomPanel, useRoomPanels } from '../ui/panels/roomPanels';
 import { registeredPlugins } from '../plugins/registry';
 import {
   type PluginPanelControls,
   PluginPanelControlsContext,
-  enabledSidePanels,
+  usePluginSidePanels,
 } from '../plugins/sidePanels';
 import { usePluginHeaderActions } from '../plugins/headerActions';
 import { ComputerPanel } from '../computer/ComputerPanel';
@@ -124,6 +124,8 @@ type ShownCanvas = { event: MatrixEvent; conversation: string };
 type PanelEntry = RoomPanel & {
   label?: string;
   covers: boolean;
+  /** Draws its frame itself (a plugin's `frame: 'own'`): it has its layout on phones too. */
+  ownFrame?: boolean;
   render: () => ReactNode;
   /** Opens it in its own state, for the header's toggle; panels opened otherwise have none. */
   show?: () => void;
@@ -267,11 +269,10 @@ function RoomContent() {
   const callInSidePanel = callOpen && !callFloats;
   const transcript = useTranscriptPanel(roomId);
 
-  const pluginPanels = useMemo(
-    () => enabledSidePanels(registeredPlugins, clientConfig),
-    [clientConfig]
-  );
+  const pluginPanels = usePluginSidePanels(registeredPlugins, clientConfig);
   const pluginActions = usePluginHeaderActions(registeredPlugins, clientConfig);
+  const closeCall = () => setCallOpen(false);
+  const closeMembers = () => setMembersOpen(false);
   // A plugin's panel belongs to the room it opened in. Over the page the members go away with the
   // navigation that shows a room, so they keep no remembered panel from opening again there.
   const membersOverPage = useMembersOverlay() || mobile;
@@ -282,15 +283,9 @@ function RoomContent() {
   } = usePluginPanel(
     roomId,
     pluginPanels,
-    computerOpen ||
-      !!canvas ||
-      callInSidePanel ||
-      transcript.open ||
-      (membersOpen && !membersOverPage)
+    computerOpen || !!canvas || callInSidePanel || transcript.open,
+    { beside: membersOpen && !membersOverPage, close: closeMembers }
   );
-
-  const closeCall = () => setCallOpen(false);
-  const closeMembers = () => setMembersOpen(false);
 
   // The call side panel, while the call view does not float: a floating window is no side panel,
   // so the others neither close it nor are closed by it.
@@ -417,30 +412,38 @@ function RoomContent() {
         id: panel.id,
         open: pluginPanel?.id === panel.id,
         close: closePluginPanel,
-        show: () => showPluginPanel(panel.id),
+        show: () => showPluginPanel(panel),
         label: panel.label,
         covers: mobile,
-        render: () => (
-          <ResizablePanel
-            side="end"
-            storageKey={`mindroom.panel.width:${ownUserId}:${panel.id}`}
-            defaultWidth={CALL_DEFAULT_WIDTH}
-            minContentWidth={CONVERSATION_MIN_WIDTH}
-            maxPanelWidth={CALL_MAX_WIDTH}
-            passthrough={mobile}
-            resizeLabel={t('mindroomUi.plugins.sidePanel.resize', { label: panel.label })}
-            collapseLabel={t('mindroomUi.plugins.sidePanel.close', { label: panel.label })}
-            onCollapse={closePluginPanel}
-            testId="resizable-plugin-panel"
-          >
+        ownFrame: panel.frame === 'own',
+        render: () => {
+          const content = (
             <PluginSidePanel
               panel={panel}
               roomId={roomId}
               request={pluginPanel?.request}
               onClose={closePluginPanel}
             />
-          </ResizablePanel>
-        ),
+          );
+          // One that draws its own frame has no box of the room's either: it sizes itself.
+          if (panel.frame === 'own') return content;
+          return (
+            <ResizablePanel
+              side="end"
+              storageKey={`mindroom.panel.width:${ownUserId}:${panel.id}`}
+              defaultWidth={CALL_DEFAULT_WIDTH}
+              minContentWidth={CONVERSATION_MIN_WIDTH}
+              maxPanelWidth={CALL_MAX_WIDTH}
+              passthrough={mobile}
+              resizeLabel={t('mindroomUi.plugins.sidePanel.resize', { label: panel.label })}
+              collapseLabel={t('mindroomUi.plugins.sidePanel.close', { label: panel.label })}
+              onCollapse={closePluginPanel}
+              testId="resizable-plugin-panel"
+            >
+              {content}
+            </ResizablePanel>
+          );
+        },
       })
     ),
     {
@@ -469,13 +472,6 @@ function RoomContent() {
       }),
     [request, roomId, store]
   );
-  // Beside the conversation the shown panel has a frame, which fills the room with it or folds it
-  // to a tab at the room's edge. Phones show the panel over the conversation, with no frame; the
-  // members, a list their header button already shows and hides, have none either.
-  const frame: PanelFrame | undefined =
-    !mobile && shown?.label !== undefined
-      ? { label: shown.label, layout, setLayout: (next) => setLayout(shown.id, next) }
-      : undefined;
   const folded = layout === 'folded';
   function toggleFilled(id: string) {
     setLayout(id, layout === 'filled' ? 'beside' : 'filled');
@@ -484,21 +480,69 @@ function RoomContent() {
   // got these, once a save ends, say: they act on the room and the panel shown then, and not at all
   // once this page has gone.
   const shownId = shown?.id;
-  const now = useLatestRef({ roomId, shownId });
+  const now = useLatestRef({ roomId, shownId, threadId, mobile, pluginPanels });
   const alive = useAlive();
+  // Beside the conversation the shown panel has a frame, which fills the room with it or folds it
+  // to a tab at the room's edge. Phones show the panel over the conversation, with no frame; the
+  // members, a list their header button already shows and hides, have none either. A panel that
+  // draws its own frame gets its layout on phones too. The frame keeps its identity while the
+  // layout stays, and acts only in the room it came from.
+  const frameLabel = !mobile || shown?.ownFrame ? shown?.label : undefined;
+  const frame = useMemo<PanelFrame | undefined>(
+    () =>
+      shownId === undefined || frameLabel === undefined
+        ? undefined
+        : {
+            label: frameLabel,
+            layout,
+            setLayout: (next) => {
+              if (now.current.roomId === roomId) setLayout(shownId, next);
+            },
+          },
+    [frameLabel, layout, now, roomId, setLayout, shownId]
+  );
   // `open` and `close` keep their identity while the room shows, so plugin code that depends on them
-  // does not run again when another panel shows.
+  // does not run again when another panel shows or the panels' labels change with the language.
   const openPluginPanel = useCallback<PluginPanelControls['open']>(
     (id, panelRequest) => {
-      if (
-        alive() &&
-        now.current.roomId === roomId &&
-        pluginPanels.some((panel) => panel.id === id)
-      ) {
-        request(id, () => showPluginPanel(id, panelRequest));
+      const panel = now.current.pluginPanels.find((candidate) => candidate.id === id);
+      if (alive() && now.current.roomId === roomId && panel) {
+        request(id, () => showPluginPanel(panel, panelRequest));
       }
     },
-    [alive, now, pluginPanels, request, roomId, showPluginPanel]
+    [alive, now, request, roomId, showPluginPanel]
+  );
+  // The thread shown whose one call to open a plugin's panel beside it came; it gets another once
+  // another thread or the room's own timeline has shown.
+  const calledBeside = useRef<string>();
+  useEffect(() => {
+    if (calledBeside.current !== threadId) calledBeside.current = undefined;
+  }, [threadId]);
+  // It takes a new identity whenever the room shows another thread, so a renderer's effect that
+  // depends on it asks again, also in a card that stays mounted as its thread opens.
+  const openPluginPanelBesideThread = useCallback<PluginPanelControls['openBesideThread']>(
+    (id, besideThread, panelRequest) => {
+      const { shownId: shownNow, threadId: threadNow, mobile: phone } = now.current;
+      const panel = now.current.pluginPanels.find((candidate) => candidate.id === id);
+      if (
+        !alive() ||
+        now.current.roomId !== roomId ||
+        threadNow !== threadId ||
+        besideThread !== threadId ||
+        calledBeside.current === besideThread ||
+        !panel
+      ) {
+        return;
+      }
+      calledBeside.current = besideThread;
+      if (phone) return;
+      // Shown already, folded or filling the room, it stays so.
+      if (shownNow === id) showPluginPanel(panel, panelRequest);
+      else if (shownNow === undefined || (shownNow === 'members' && panel.opensOverMembers)) {
+        request(id, () => showPluginPanel(panel, panelRequest));
+      }
+    },
+    [alive, now, request, roomId, showPluginPanel, threadId]
   );
   const closeShownPluginPanel = useCallback<PluginPanelControls['close']>(
     (id) => {
@@ -509,8 +553,13 @@ function RoomContent() {
     [alive, closePluginPanel, now, roomId]
   );
   const pluginPanelControls = useMemo<PluginPanelControls>(
-    () => ({ shown: shownId, open: openPluginPanel, close: closeShownPluginPanel }),
-    [closeShownPluginPanel, openPluginPanel, shownId]
+    () => ({
+      shown: shownId,
+      open: openPluginPanel,
+      openBesideThread: openPluginPanelBesideThread,
+      close: closeShownPluginPanel,
+    }),
+    [closeShownPluginPanel, openPluginPanel, openPluginPanelBesideThread, shownId]
   );
 
   const showCanvas = useCallback(
@@ -628,10 +677,11 @@ function RoomContent() {
   );
   useCanvasOpenRequest(client, room, canvasEnabled, openRequestedCanvas);
 
-  // On phones a panel covers the conversation; filling the room, it takes the conversation's place.
-  // The conversation stays mounted under it, with its draft and a recording in progress, out of
-  // reach and out of sight (conversationBehindPanelAtom), as under a plugin's cover.
-  const behindPanel = !!shown?.covers || layout === 'filled';
+  // On phones a panel covers the conversation, unless it draws its own frame and is folded; filling
+  // the room, it takes the conversation's place. The conversation stays mounted under it, with its
+  // draft and a recording in progress, out of reach and out of sight (conversationBehindPanelAtom),
+  // as under a plugin's cover.
+  const behindPanel = (!!shown?.covers && !(shown.ownFrame && folded)) || layout === 'filled';
   const conversationRef = useRef<HTMLDivElement>(null);
   useInert(conversationRef, behindPanel);
   const setBehindPanel = useSetAtom(conversationBehindPanelAtom);

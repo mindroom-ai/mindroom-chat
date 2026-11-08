@@ -164,12 +164,19 @@ export const closePanel = async (page: Page, panel: CorePanel) => {
   await expect(panelLocator(page, panel)).toHaveCount(0);
 };
 
-const widthOf = async (locator: Locator): Promise<number> =>
+export const widthOf = async (locator: Locator): Promise<number> =>
   (await locator.boundingBox())?.width ?? 0;
 
-/** Opens another room of the viewer, `name`, from the room list, and waits for its header. */
+/**
+ * Opens another room of the viewer, `name`, from the room list, and waits for its header. The row
+ * is found by its name's own text, since a count it shows is part of the link's name.
+ */
 export const showRoom = async (page: Page, name: string) => {
-  await page.getByRole('link', { name, exact: true }).first().click();
+  await page
+    .getByRole('link')
+    .filter({ has: page.getByText(name, { exact: true }) })
+    .first()
+    .click();
   await expect(roomHeader(page).getByRole('heading', { name, exact: true })).toBeVisible();
 };
 

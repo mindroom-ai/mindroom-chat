@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { importBeforeTests } from './test/utils/importBeforeTests';
 
 const mocks = vi.hoisted(() => ({
   isNativeIOS: vi.fn(),
@@ -14,7 +15,6 @@ const mocks = vi.hoisted(() => ({
   createRoot: vi.fn(),
   getActiveSession: vi.fn(),
   waitForServiceWorkerControl: vi.fn(),
-  fetchPublishedAppVersion: vi.fn(),
 }));
 
 vi.mock('react-dom/client', () => ({
@@ -75,13 +75,13 @@ vi.mock('./app/matrix/session/sessions', () => ({
 }));
 
 vi.mock('./sw/swSession', () => ({
+  answerServiceWorkerSessionRequests: vi.fn(),
   pushSessionToSW: vi.fn(),
   waitForServiceWorkerControl: mocks.waitForServiceWorkerControl,
 }));
 
 vi.mock('./app/config/appVersion', () => ({
   APP_BUILD_VERSION: 'test-build',
-  fetchPublishedAppVersion: mocks.fetchPublishedAppVersion,
   startAppVersionMonitor: vi.fn(),
 }));
 
@@ -97,8 +97,31 @@ vi.mock('./app/i18n/i18n', () => ({}));
 
 vi.mock('./app/theme/Typography.css', () => ({}));
 
+// Every case imports index.tsx afresh, so a collaborator left real would load its modules inside
+// each case's time limit.
+vi.mock('./app/diagnostics/sdkDebugLogging', () => ({}));
+
+vi.mock('./app/plugins/registry', () => ({}));
+
+vi.mock('./app/plugins/pluginStorage', () => ({
+  deletePluginStorageOfRemovedAccounts: vi.fn(),
+}));
+
+vi.mock('./app/bug-reports/error-reporting/errorReporting', () => ({
+  installErrorCapture: vi.fn(),
+}));
+
+vi.mock('./app/config/appUpdate', () => ({
+  watchForNewVersion: vi.fn(),
+}));
+
+// With every startup step mocked and no root element yet, this start does nothing the cases see.
+importBeforeTests(() => import('./index'));
+
 describe('application bootstrap', () => {
   const originalServiceWorker = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker');
+  // A startup step that throws is only logged, so the service worker cases check that none did.
+  const warn = vi.spyOn(console, 'warn');
 
   beforeEach(() => {
     vi.resetModules();
@@ -222,6 +245,7 @@ describe('application bootstrap', () => {
     mocks.isServiceWorkerEnabled.mockReturnValue(true);
 
     await import('./index');
+    expect(warn).not.toHaveBeenCalled();
 
     await vi.waitFor(() => expect(mocks.createRoot).toHaveBeenCalledOnce());
     expect(serviceWorker.register).toHaveBeenCalledOnce();
@@ -267,7 +291,6 @@ describe('application bootstrap', () => {
       mocks.isServiceWorkerEnabled.mockReturnValue(true);
       mocks.getActiveSession.mockReturnValue({ baseUrl: 'https://matrix.example.com' });
       mocks.waitForServiceWorkerControl.mockResolvedValue(false);
-      mocks.fetchPublishedAppVersion.mockResolvedValue('new-build');
       const replaceState = vi.spyOn(browserWindow.history, 'replaceState');
       if (historyFails) {
         replaceState.mockImplementationOnce(() => {
@@ -277,6 +300,7 @@ describe('application bootstrap', () => {
 
       try {
         await import('./index');
+        expect(warn).not.toHaveBeenCalled();
         if (historyFails) {
           await vi.waitFor(() => expect(replaceState).toHaveBeenCalled());
           expect(navigationUrls).toHaveLength(0);

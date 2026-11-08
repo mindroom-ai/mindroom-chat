@@ -2,8 +2,9 @@ import React from 'react';
 import { create } from 'react-test-renderer';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
+import { ToolCallMessageContext } from '../../agent-run/toolCallStatus';
+import { RenderMessageContent } from '../RenderMessageContent';
 
-const toolApprovalCardMock = vi.hoisted(() => vi.fn());
 const renderAgentMessageContentMock = vi.hoisted(() => vi.fn());
 
 vi.mock('folds', () => ({
@@ -22,14 +23,10 @@ vi.mock('folds', () => ({
     React.forwardRef(render),
   color: {
     Critical: { Main: '#f00' },
-    Warning: { Main: '#fc0' },
   },
   config: {
     opacity: {
       P300: '0.6',
-    },
-    space: {
-      S200: '8px',
     },
   },
 }));
@@ -37,12 +34,10 @@ vi.mock('folds', () => ({
 vi.mock('../MsgTypeRenderers', () => ({
   MAudio: () => null,
   MBadEncrypted: () => React.createElement('div', { 'data-renderer': 'bad-encrypted' }),
-  MEmote: () => React.createElement('div', { 'data-renderer': 'emote' }),
   MFile: () => null,
   MImage: ({ content, renderAsFile }: any) =>
     content.info?.mimetype === 'image/svg+xml' ? renderAsFile() : null,
   MLocation: () => React.createElement('div', { 'data-renderer': 'location' }),
-  MNotice: () => React.createElement('div', { 'data-renderer': 'notice' }),
   MText: ({ content, renderStateSuffix }: any) =>
     React.createElement(
       'div',
@@ -60,7 +55,6 @@ vi.mock('../FileHeader', () => ({
   FileDownloadButton: () => null,
 }));
 vi.mock('../FileContent', () => ({
-  DownloadFile: () => null,
   FileContent: () => null,
   ReadPdfFile: () => null,
   ReadTextFile: () => null,
@@ -101,10 +95,6 @@ vi.mock('../../viewers/TextViewer', () => ({
   TextViewer: () => null,
 }));
 
-vi.mock('../../../matrix/matrix-to', () => ({
-  testMatrixTo: () => false,
-}));
-
 vi.mock('../renderAgentMessageContent', () => ({
   renderAgentMessageContent: renderAgentMessageContentMock,
 }));
@@ -112,38 +102,6 @@ vi.mock('../renderAgentMessageContent', () => ({
 vi.mock('../../../ui/PendingSendIndicator.css', () => ({
   Container: 'PendingSendIndicator',
 }));
-
-vi.mock('../../../matrix/protocol/longText', () => ({
-  getLongTextSource: () => undefined,
-}));
-
-vi.mock('../LongTextText', () => ({
-  LongTextKind: {
-    Text: 'text',
-    Emote: 'emote',
-    Notice: 'notice',
-  },
-  LongTextText: () => null,
-}));
-
-vi.mock('../../../approvals/ToolApprovalCard', () => ({
-  ToolApprovalCard: ({
-    approval,
-    eventId,
-    roomId,
-    threadId,
-  }: {
-    approval: { toolName: string };
-    eventId?: string;
-    roomId?: string;
-    threadId?: string;
-  }) => {
-    toolApprovalCardMock({ approval, eventId, roomId, threadId });
-    return React.createElement('div', { 'data-renderer': 'tool-approval' }, approval.toolName);
-  },
-}));
-
-vi.mock('../../html/react-custom-html-parser', () => ({}));
 
 vi.mock('../../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@viewer:example.org' }),
@@ -203,8 +161,7 @@ describe('RenderMessageContent', () => {
     ],
   ])(
     'passes the edited-label policy for %s messages to the content renderer',
-    async (_, sender, metadata, edited) => {
-      const { RenderMessageContent } = await import('../RenderMessageContent');
+    (_, sender, metadata, edited) => {
       renderAgentMessageContentMock.mockReset();
       renderAgentMessageContentMock.mockReturnValue(null);
       const content = { msgtype: 'm.text', body: 'Updated answer', ...metadata };
@@ -234,8 +191,7 @@ describe('RenderMessageContent', () => {
     [true, expect.any(Function)],
   ])(
     'passes a URL preview renderer on only with urlPreview on (urlPreview: %s)',
-    async (urlPreview, preview) => {
-      const { RenderMessageContent } = await import('../RenderMessageContent');
+    (urlPreview, preview) => {
       renderAgentMessageContentMock.mockReset();
       renderAgentMessageContentMock.mockReturnValue(null);
       const renderer = create(
@@ -257,9 +213,7 @@ describe('RenderMessageContent', () => {
     }
   );
 
-  it("gives an agent reply's tool rows its event ID to find its approval cards", async () => {
-    const { RenderMessageContent } = await import('../RenderMessageContent');
-    const { ToolCallMessageContext } = await import('../../agent-run/toolCallStatus');
+  it("gives an agent reply's tool rows its event ID to find its approval cards", () => {
     const ToolRows = () =>
       React.createElement('span', null, React.useContext(ToolCallMessageContext));
     renderAgentMessageContentMock.mockReset();
@@ -280,8 +234,7 @@ describe('RenderMessageContent', () => {
     renderer.unmount();
   });
 
-  it('delegates MindRoom-specific message content to the MindRoom renderer seam', async () => {
-    const { RenderMessageContent } = await import('../RenderMessageContent');
+  it('delegates MindRoom-specific message content to the MindRoom renderer seam', () => {
     renderAgentMessageContentMock.mockReset();
     renderAgentMessageContentMock.mockReturnValue(
       React.createElement('div', { 'data-renderer': 'mindroom-message' }, 'delegated')
@@ -327,12 +280,12 @@ describe('RenderMessageContent', () => {
     renderer.unmount();
   });
 
-  it('renders the summary card when thread summary metadata is present on a legacy msgtype', async () => {
-    const { RenderMessageContent } = await import('../RenderMessageContent');
+  it('passes a thread summary on a legacy msgtype to the MindRoom renderer and shows its card', () => {
     renderAgentMessageContentMock.mockReset();
     renderAgentMessageContentMock.mockReturnValue(
       React.createElement('div', { 'data-renderer': 'summary-card' }, 'Rendered summary text')
     );
+    const summary = { version: 1, summary: 'Rendered summary text' };
 
     const renderer = create(
       React.createElement(RenderMessageContent, {
@@ -342,10 +295,7 @@ describe('RenderMessageContent', () => {
         getContent: (() => ({
           msgtype: 'm.notice',
           body: 'Summary body',
-          'io.mindroom.thread_summary': {
-            version: 1,
-            summary: 'Rendered summary text',
-          },
+          'io.mindroom.thread_summary': summary,
         })) as <T>() => T,
         htmlReactParserOptions: {} as never,
         linkifyOpts: {} as never,
@@ -356,17 +306,33 @@ describe('RenderMessageContent', () => {
 
     expect(rendered).toContain('summary-card');
     expect(rendered).toContain('Rendered summary text');
-    expect(rendered).not.toContain('unsupported');
+    expect(renderAgentMessageContentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        msgType: 'm.notice',
+        content: expect.objectContaining({ 'io.mindroom.thread_summary': summary }),
+      })
+    );
 
     renderer.unmount();
   });
 
-  it('keeps rendering edited summaries as summary cards when m.new_content omits metadata', async () => {
-    const { RenderMessageContent } = await import('../RenderMessageContent');
+  it('passes an edited summary to the MindRoom renderer whole and marked edited, and shows its card', () => {
     renderAgentMessageContentMock.mockReset();
     renderAgentMessageContentMock.mockReturnValue(
       React.createElement('div', { 'data-renderer': 'summary-card' }, 'Edited summary body')
     );
+    const content = {
+      msgtype: 'm.notice',
+      body: 'Edited summary body',
+      'io.mindroom.thread_summary': {
+        version: 1,
+        summary: 'Stale metadata summary',
+      },
+      'm.new_content': {
+        msgtype: 'm.notice',
+        body: 'Edited summary body',
+      },
+    };
 
     const renderer = create(
       React.createElement(RenderMessageContent, {
@@ -374,18 +340,7 @@ describe('RenderMessageContent', () => {
         msgType: 'm.notice',
         ts: 0,
         edited: true,
-        getContent: (() => ({
-          msgtype: 'm.notice',
-          body: 'Edited summary body',
-          'io.mindroom.thread_summary': {
-            version: 1,
-            summary: 'Stale metadata summary',
-          },
-          'm.new_content': {
-            msgtype: 'm.notice',
-            body: 'Edited summary body',
-          },
-        })) as <T>() => T,
+        getContent: (() => content) as <T>() => T,
         htmlReactParserOptions: {} as never,
         linkifyOpts: {} as never,
       })
@@ -395,18 +350,18 @@ describe('RenderMessageContent', () => {
 
     expect(rendered).toContain('summary-card');
     expect(rendered).toContain('Edited summary body');
-    expect(rendered).not.toContain('notice');
+    expect(renderAgentMessageContentMock).toHaveBeenCalledWith(
+      expect.objectContaining({ edited: true, content })
+    );
 
     renderer.unmount();
   });
 
-  it('renders the tool approval card for io.mindroom.tool_approval events', async () => {
-    const { RenderMessageContent } = await import('../RenderMessageContent');
+  it('passes an approval event from a MindRoom agent to the MindRoom renderer and shows its card', () => {
     renderAgentMessageContentMock.mockReset();
     renderAgentMessageContentMock.mockReturnValue(
       React.createElement('div', { 'data-renderer': 'tool-approval' }, 'web_search')
     );
-    toolApprovalCardMock.mockReset();
 
     const renderer = create(
       React.createElement(RenderMessageContent, {
@@ -439,7 +394,6 @@ describe('RenderMessageContent', () => {
 
     expect(rendered).toContain('tool-approval');
     expect(rendered).toContain('web_search');
-    expect(rendered).not.toContain('unsupported');
     expect(renderAgentMessageContentMock).toHaveBeenCalledWith(
       expect.objectContaining({
         fromMindroomAgent: true,
@@ -461,8 +415,7 @@ describe('RenderMessageContent', () => {
     ['agent', AGENT, { 'io.mindroom.stream_status': 'completed' }, false],
   ])(
     'keeps send status on %s image captions while applying the edited-label policy',
-    async (_, sender, metadata, showEdited) => {
-      const { RenderMessageContent } = await import('../RenderMessageContent');
+    (_, sender, metadata, showEdited) => {
       renderAgentMessageContentMock.mockReset();
       renderAgentMessageContentMock.mockReturnValue(undefined);
 
@@ -496,8 +449,7 @@ describe('RenderMessageContent', () => {
     }
   );
 
-  it('shows the caption of an SVG image rendered as a file once', async () => {
-    const { RenderMessageContent } = await import('../RenderMessageContent');
+  it('shows the caption of an SVG image rendered as a file once', () => {
     renderAgentMessageContentMock.mockReset();
     renderAgentMessageContentMock.mockReturnValue(undefined);
 

@@ -24,6 +24,17 @@ const DEFAULT_RING_LIFETIME_MS = 30_000;
 const MAX_RING_LIFETIME_MS = 120_000;
 
 /**
+ * Whether `event` is a call's ring (`org.matrix.msc4075.rtc.notification` of type `ring`), and
+ * for a voice or a video call; undefined for any other event. It says nothing of whom it rings.
+ */
+export const readRingKind = (event: MatrixEvent): 'voice' | 'video' | undefined => {
+  if (!matchesEnum(event.getType(), EventType.RTCNotification)) return undefined;
+  const content = event.getContent();
+  if (content.notification_type !== 'ring') return undefined;
+  return content['m.call.intent'] === 'video' ? 'video' : 'voice';
+};
+
+/**
  * The ring an `org.matrix.msc4075.rtc.notification` event asks for, if it rings this account
  * now: sent by someone else, of type `ring`, mentioning the room or this account, and not
  * expired. The expiry counts from the sender's clock, capped by when the event was received.
@@ -33,13 +44,13 @@ export const readRing = (
   myUserId: string,
   now = Date.now()
 ): IncomingRing | undefined => {
-  if (!matchesEnum(event.getType(), EventType.RTCNotification)) return undefined;
+  const kind = readRingKind(event);
+  if (!kind) return undefined;
   const sender = event.getSender();
   const roomId = event.getRoomId();
   const eventId = event.getId();
   if (!sender || sender === myUserId || !roomId || !eventId) return undefined;
   const content = event.getContent();
-  if (content.notification_type !== 'ring') return undefined;
   const mentions = content['m.mentions'] as { room?: unknown; user_ids?: unknown } | undefined;
   const mentioned =
     mentions?.room === true ||
@@ -52,7 +63,7 @@ export const readRing = (
   const sentAt = typeof content.sender_ts === 'number' ? content.sender_ts : event.getTs();
   const expiresAt = Math.min(sentAt, event.getTs()) + lifetime;
   if (expiresAt <= now) return undefined;
-  return { roomId, eventId, sender, video: content['m.call.intent'] === 'video', expiresAt };
+  return { roomId, eventId, sender, video: kind === 'video', expiresAt };
 };
 
 /** Says no to a ring (MSC4310), so the caller's other devices and clients stop ringing too. */

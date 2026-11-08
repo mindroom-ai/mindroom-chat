@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import type { MatrixClient } from 'matrix-js-sdk';
-import type { MouseEvent, ReactNode } from 'react';
+import type FocusTrap from 'focus-trap-react';
+import { Provider as StoreProvider } from 'jotai';
+import { createClient, KnownMembership, MatrixEvent, Room, type MatrixClient } from 'matrix-js-sdk';
+import type { ComponentProps, MouseEvent, ReactNode } from 'react';
 import {
   BrowserRouter,
   HashRouter,
@@ -11,9 +13,29 @@ import {
   createHashRouter,
   useLocation,
 } from 'react-router-dom';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../app/matrix/hooks/useMatrixClient';
-import { useRoomHref, useRoomNavigate, type RoomNavigate } from './room';
+import { UserRoomProfileRenderer } from '../app/members/profile/UserRoomProfileRenderer';
+import {
+  UserProfileCard,
+  useOpenUserProfile,
+  useRoomHref,
+  useRoomNavigate,
+  type RoomNavigate,
+} from './room';
+
+// jsdom lays nothing out, so every element counts as shown for the floating card's focus trap.
+vi.mock('focus-trap-react', async (original) => {
+  const { default: RealTrap } = await original<{ default: typeof FocusTrap }>();
+  return {
+    default: ({ focusTrapOptions, ...props }: ComponentProps<typeof FocusTrap>) => (
+      <RealTrap
+        {...props}
+        focusTrapOptions={{ ...focusTrapOptions, tabbableOptions: { displayCheck: 'none' } }}
+      />
+    ),
+  };
+});
 
 const ROOM = '!lobby:example.org';
 const THREAD = '$root:example.org';
@@ -193,4 +215,142 @@ describe('useRoomNavigate', () => {
       expect(window.history.length).toBe(entries + 1);
     });
   }
+});
+
+describe('useOpenUserProfile and UserProfileCard', () => {
+  const ME = '@ada:example.org';
+  const BOB = '@bob:example.org';
+  const CAROL = '@carol:example.org';
+  // The rectangle of what a plugin's user clicked, as `getBoundingClientRect()` gives it.
+  const ANCHOR = { x: 100, y: 200, width: 50, height: 20 };
+
+  beforeEach(() => {
+    // The card asks the homeserver for the person's profile; the stub keeps that off the network.
+    vi.stubGlobal('fetch', async () => new Response('{}', { status: 404 }));
+    // jsdom lays nothing out; the card places itself in a window of 1024 by 768.
+    vi.spyOn(document.documentElement, 'clientWidth', 'get').mockReturnValue(1024);
+    vi.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(768);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  /** A client signed in as Ada, who moderates the room she shares with Bob and Carol. */
+  const signedIn = () => {
+    const account = createClient({ baseUrl: 'https://example.org', userId: ME });
+    const room = new Room(ROOM, account, ME);
+    room.currentState.setStateEvents([
+      ...[
+        [ME, 'Ada'],
+        [BOB, 'Bob Builder'],
+        [CAROL, 'Carol'],
+      ].map(
+        ([member, displayname]) =>
+          new MatrixEvent({
+            type: 'm.room.member',
+            room_id: ROOM,
+            sender: member,
+            state_key: member,
+            content: { membership: KnownMembership.Join, displayname },
+          })
+      ),
+      new MatrixEvent({
+        type: 'm.room.power_levels',
+        room_id: ROOM,
+        sender: ME,
+        state_key: '',
+        content: { users: { [ME]: 100 } },
+      }),
+    ]);
+    account.store.storeRoom(room);
+    return { account, room };
+  };
+
+  /** A plugin's buttons that open Bob's card in the room `roomId`, below or on the left. */
+  function BobButtons({ roomId }: { roomId: string }) {
+    const openUserProfile = useOpenUserProfile();
+    return (
+      <>
+        <button type="button" onClick={() => openUserProfile(roomId, BOB, ANCHOR)}>
+          Bob
+        </button>
+        <button type="button" onClick={() => openUserProfile(roomId, BOB, ANCHOR, 'Left')}>
+          Bob on the left
+        </button>
+      </>
+    );
+  }
+
+  /** `ui` in the app, signed in to `account`, with the app's floating profile card. */
+  const inApp = (account: MatrixClient, ui: ReactNode) => (
+    <StoreProvider>
+      <MatrixClientProvider value={account}>
+        <MemoryRouter>
+          {ui}
+          <UserRoomProfileRenderer />
+        </MemoryRouter>
+      </MatrixClientProvider>
+    </StoreProvider>
+  );
+  const renderInApp = (account: MatrixClient, ui: ReactNode) => render(inApp(account, ui));
+
+  it("opens the app's floating card of the person in the room at the anchor, which Escape closes", () => {
+    const { account } = signedIn();
+    renderInApp(account, <BobButtons roomId={ROOM} />);
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bob' }));
+    const card = screen.getByRole('dialog', { name: BOB });
+    expect(card.querySelector('h2')?.textContent).toBe('Bob Builder');
+    expect(card.textContent).toContain(BOB);
+    // Under the anchor, lined up with its start, as a mention pill's card opens.
+    expect(card.parentElement?.style.top).toBe('228px');
+    expect(card.parentElement?.style.left).toBe('100px');
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    // On the side it is given: its end 8 pixels before the anchor's start.
+    fireEvent.click(screen.getByRole('button', { name: 'Bob on the left' }));
+    expect(screen.getByRole('dialog', { name: BOB }).parentElement?.style.right).toBe('932px');
+  });
+
+  it('opens nothing for a room the client does not have, also once the room arrives', () => {
+    const { account } = signedIn();
+    const LATER = '!later:example.org';
+    const ui = <BobButtons roomId={LATER} />;
+    const view = renderInApp(account, ui);
+    fireEvent.click(screen.getByRole('button', { name: 'Bob' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    // Sync brings the room, and the app renders again: the click long past opens nothing then.
+    account.store.storeRoom(new Room(LATER, account, ME));
+    view.rerender(inApp(account, ui));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it("shows the person's card inline, without the floating frame", () => {
+    const { account, room } = signedIn();
+    renderInApp(account, <UserProfileCard room={room} userId={ME} onDone={() => undefined} />);
+    expect(screen.getByRole('heading', { name: 'Ada' })).toBeTruthy();
+    expect(screen.getByText(ME)).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('starts afresh for another person, so a ban begun for one never goes to the next', () => {
+    const { account, room } = signedIn();
+    const card = (userId: string) => (
+      <UserProfileCard room={room} userId={userId} onDone={() => undefined} />
+    );
+    const view = renderInApp(account, card(BOB));
+    fireEvent.click(screen.getByRole('button', { name: 'Ban' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Reason (Optional)' }), {
+      target: { value: 'Spam' },
+    });
+
+    view.rerender(inApp(account, card(CAROL)));
+    expect(screen.getByRole('heading', { name: 'Carol' })).toBeTruthy();
+    expect(screen.queryByRole('textbox', { name: 'Reason (Optional)' })).toBeNull();
+  });
 });
