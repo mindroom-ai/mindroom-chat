@@ -198,7 +198,7 @@ describe('clientPlugins', () => {
   });
 
   it('resolves the client SDK for a plugin outside this repository', async () => {
-    const dir = pluginDir(declaring({ apiVersion: 9 }), { entry: false });
+    const dir = pluginDir(declaring({ apiVersion: 22 }), { entry: false });
     writeFileSync(
       path.join(dir, 'index.js'),
       "import { usePluginConfig } from '@mindroom/client-sdk/core';\n" +
