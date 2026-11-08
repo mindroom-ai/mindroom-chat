@@ -133,8 +133,8 @@ type Probe = { pageSelect: string; textSelect: string; selected: string };
 /**
  * One finger on `target`, driven through `steps`: on its middle, 8 px inside its start edge
  * halfway down, or 2 px above its middle. The events go to the element under the finger, as a
- * real touch's do. Answers where the finger rested and on what, whether the lift's default was
- * prevented and how the events were built.
+ * real touch's do. Answers where the finger rested, on what element of which message, whether
+ * the lift's default was prevented and how the events were built.
  */
 const touch = async (
   target: Locator,
@@ -221,7 +221,8 @@ const touch = async (
           liftAllowed = fire('touchend', at.dx, at.dy, true);
         }
       }
-      return { liftAllowed, real, probes, on: hit.tagName };
+      const message = hit.closest('[data-message-id]')?.getAttribute('data-message-id') ?? null;
+      return { liftAllowed, real, probes, on: hit.tagName, message };
     },
     { x, y, plan: steps }
   );
@@ -289,6 +290,9 @@ const checkPhone = async (page: Page, world: World, engine: string, device: stri
     'above'
   );
   console.log(`${engine} long press above bold text: ${JSON.stringify(onBold)}`);
+  expect(onBold.message, `${engine}: the press by bold text is on its message`).toBe(
+    await formatted.getAttribute('data-message-id')
+  );
   expect(onBold.liftAllowed, `${engine}: the lift after a press by bold text may click`).toBe(true);
   await expectNoMenu(page, formatted, `${engine} after a long press by bold text`);
 
@@ -333,11 +337,13 @@ const checkPhone = async (page: Page, world: World, engine: string, device: stri
   await page.evaluate(() => new Promise(requestAnimationFrame));
   await expect(row).toBeVisible();
 
-  // A long press there opens the menu where the finger rests; small jitter is allowed. The
+  // A long press there opens the menu where the finger rests; small jitter is allowed. Text
+  // selected before, as a long press on text leaves it, does not hold the press back. The
   // platform selects text near the finger while it rests, if it can.
   const press = await touch(
     row,
     [
+      { type: 'select' },
       { type: 'probe' },
       { type: 'start' },
       { type: 'wait', ms: 200 },
@@ -352,6 +358,9 @@ const checkPhone = async (page: Page, world: World, engine: string, device: stri
     'start'
   );
   console.log(`${engine} long press: ${JSON.stringify(press)}`);
+  expect(press.message, `${engine}: the press is on the message`).toBe(
+    await row.getAttribute('data-message-id')
+  );
   const { more, entry } = menuOf(page, row);
   await expect(entry, `${engine}: a long press opens the message menu`).toBeVisible();
   await expect(more).toHaveAttribute('aria-pressed', 'true');

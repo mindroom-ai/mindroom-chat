@@ -703,7 +703,8 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     // contextmenu for one (iOS Safari). Touches inside the row's own pop-outs, which React passes
     // up through their portals, are not the row's. A long press on the message's text is the
     // platform's: it selects the word under the finger, with its handles and Copy bar. A tap
-    // shows the toolbar, whose More Options opens the menu there too.
+    // shows the toolbar, whose More Options opens the menu there too. Text selected before does
+    // not hold a press off the text back; the menu clears it when it opens.
     const longPress = useLongPress(
       (x, y) => setMenuAnchor(pointRect(x, y)),
       (evt) => {
@@ -711,7 +712,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
         return (
           !edit &&
           evt.currentTarget.contains(evt.target as Node) &&
-          !wantsBrowserMenu(evt.target) &&
+          !wantsBrowserMenu(evt.target, false) &&
           !(touch && selectableTextNear(evt.target, touch.clientX, touch.clientY, LONG_PRESS_SLOP))
         );
       }
