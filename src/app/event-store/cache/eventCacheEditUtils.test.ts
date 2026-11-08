@@ -101,8 +101,6 @@ const makeReactionEvent = (eventId: string, ts: number, targetEventId: string, k
 const room = {
   roomId: '!room:example.org',
   findEventById: () => undefined,
-  // The redactions these tests read come from members who may make them.
-  mayRedact: () => true,
 } as any;
 
 describe('applyCachedReplaceRelations', () => {

@@ -98,11 +98,9 @@ export const collectRedactedRelationTargetsFromLookup = (
   }, []);
 };
 
-/** Whether `redaction` may remove `target` (Room.mayRedact): a redaction the room holds keeps its decision. */
-const mayRedact = (room: Room, redaction: MatrixEvent, target: MatrixEvent): boolean => {
-  const held = room.findEventById(redaction.getId() ?? '') ?? redaction;
-  return held.getAssociatedId() === target.getId() && room.mayRedact(held, target, []);
-};
+/** Whether `redaction` still names `target`: one the room rejected names none (Room.rejectRedaction, SDK patch). */
+const mayRedact = (room: Room, redaction: MatrixEvent, target: MatrixEvent): boolean =>
+  (room.findEventById(redaction.getId() ?? '') ?? redaction).getAssociatedId() === target.getId();
 
 export const applyCachedRedactions = (
   room: Room,

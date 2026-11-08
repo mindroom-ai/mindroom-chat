@@ -213,6 +213,16 @@ describe('SDK redactions by someone who may not redact the event', () => {
       expect(ofEdit.getAssociatedId()).toBe('$edit');
     });
 
+    it('leaves a page’s redaction of the edit by a member without the right as it was', async () => {
+      const { room, shown } = await moderatedRoom(edited());
+      const rejected = redaction('$edit', OTHER);
+
+      room.processThreadedEvents([rejected], false);
+
+      expect(shown().getContent().body).toBe('The forklift is back.');
+      expect(rejected.getAssociatedId()).toBe('$edit');
+    });
+
     it('drops the edit a moderator redacts before leaving, in the same batch', async () => {
       const { room, add, shown } = await moderatedRoom(edited());
 

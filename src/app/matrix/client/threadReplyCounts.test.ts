@@ -289,7 +289,10 @@ describe('thread reply counts', () => {
       expect(f.shownCount()).toBe(2);
     });
 
-    it('applies a saved redaction of a reply by a moderator who left after it', async () => {
+    it.each([
+      ['applies', 'a moderator who left after it', 50],
+      ['does not apply', 'a member without the right', 0],
+    ])('%s a saved redaction of a reply by %s', async (applies, _, power) => {
       const moderator = '@moderator:elsewhere.org';
       const state = (type: string, stateKey: string, content: object, extra = {}) =>
         ({
@@ -320,14 +323,14 @@ describe('thread reply counts', () => {
           [
             state('m.room.create', '', { creator: userId, room_version: '10' }),
             state('m.room.member', moderator, { membership: 'join' }),
-            state('m.room.power_levels', '', { users: { [moderator]: 50 }, redact: 50 }),
+            state('m.room.power_levels', '', { users: { [moderator]: power }, redact: 50 }),
           ]
         ),
       });
       await f.start();
 
-      expect(f.room().findEventById('$reply-2')?.isRedacted()).toBe(true);
-      expect(f.thread().length).toBe(2);
+      expect(f.room().findEventById('$reply-2')?.isRedacted()).toBe(applies === 'applies');
+      expect(f.thread().length).toBe(applies === 'applies' ? 2 : 3);
     });
 
     it('keeps the replies after the summary while server discovery is pending', async () => {

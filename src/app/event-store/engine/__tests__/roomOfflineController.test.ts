@@ -72,8 +72,6 @@ const fixture = (request = vi.fn().mockResolvedValue({ chunk: [] })) => {
       getState: () => ({ getStateEvents: () => undefined }),
     }),
     getLastActiveTimestamp: () => 0,
-    // The redactions these tests read come from members who may make them.
-    mayRedact: () => true,
   } as unknown as Room;
   const emitter = new EventEmitter();
   const mx = Object.assign(emitter, {
