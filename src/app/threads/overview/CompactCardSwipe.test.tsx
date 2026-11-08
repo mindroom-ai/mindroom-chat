@@ -25,9 +25,14 @@ type FakeTrack = {
   addEventListener: (type: string, listener: (event: unknown) => void) => void;
   removeEventListener: () => void;
   touchMoveListener?: (event: unknown) => void;
+  ownerDocument: {
+    addEventListener: (type: string, listener: (event: unknown) => void) => void;
+    removeEventListener: () => void;
+  };
 };
 
 let track: FakeTrack;
+let documentTouchStarts: Array<(event: unknown) => void>;
 let direction: 'ltr' | 'rtl';
 let renderers: ReactTestRenderer[];
 
@@ -40,7 +45,14 @@ beforeEach(() => {
       if (type === 'touchmove') track.touchMoveListener = listener;
     },
     removeEventListener: () => undefined,
+    ownerDocument: {
+      addEventListener: (type, listener) => {
+        if (type === 'touchstart') documentTouchStarts.push(listener);
+      },
+      removeEventListener: () => undefined,
+    },
   };
+  documentTouchStarts = [];
   direction = 'ltr';
   renderers = [];
   vi.stubGlobal('window', { innerWidth: VIEWPORT_WIDTH });
@@ -214,7 +226,7 @@ describe('CompactCardSwipe', () => {
   it('keeps the scroller out of a touch only once it is a sideways swipe', () => {
     const { pointer } = render();
     const touchMove = (cancelable = true) => {
-      const event = { cancelable, preventDefault: vi.fn(), touches: [{}] };
+      const event = { cancelable, preventDefault: vi.fn() };
       track.touchMoveListener!(event);
       return event.preventDefault;
     };
@@ -302,18 +314,15 @@ describe('CompactCardSwipe', () => {
   });
 
   it('lets go of a swipe without its action once a second finger makes it a pinch', () => {
-    // The pinch changes the page zoom (theme/usePinchToZoom.ts); a finger moving sideways in it is
-    // no swipe. The touch lists every finger, also one that landed outside the card.
+    // The pinch changes the page zoom (theme/usePinchToZoom.ts). Its second finger may land
+    // anywhere, away from the card, and the swiping finger may then hold still.
     const { onSwipe, pointer } = render();
 
     pointer('onPointerDown', 300);
     pointer('onPointerMove', 290);
     pointer('onPointerMove', 150);
-    act(() =>
-      track.touchMoveListener!({ cancelable: true, preventDefault: vi.fn(), touches: [{}, {}] })
-    );
-    pointer('onPointerMove', 140);
-    pointer('onPointerUp', 140);
+    act(() => documentTouchStarts.forEach((listener) => listener({ touches: [{}, {}] })));
+    pointer('onPointerUp', 150);
 
     expect(onSwipe).not.toHaveBeenCalled();
     expect(track.style.transform).toBe('');
