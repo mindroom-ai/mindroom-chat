@@ -1,0 +1,304 @@
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { defined } from '../../src/test/utils/defined';
+
+// The live transcript inside the floating call window (src/app/calls/window/WindowTranscript.tsx),
+// laid out by a browser: under the stage in a window narrower than 560 px, beside it from 560 px
+// wide, and only its latest line over the stage in a window under 240 px tall (under 340 px while
+// narrower than 560 px). The divider between the stage and the transcript follows the pointer,
+// also off the window, and the arrow keys, and keeps where it was left; the transcript keeps its
+// newest line in view through a resize of the window, a divider move and a resize to the subtitle
+// and back, and keeps the place someone scrolled up to. The fixture is the app's own window and call view around a
+// stand-in call with 40 transcript lines: no homeserver, call service or MindRoom.
+
+test.use({ viewport: { width: 1280, height: 800 } });
+
+type Box = { x: number; y: number; width: number; height: number };
+
+const boxOf = async (locator: Locator): Promise<Box> =>
+  defined(await locator.boundingBox(), 'a box on the page');
+
+/** The fixture's window at `width` by `height` px, and its parts. */
+const openWindow = async (page: Page, width: number, height: number) => {
+  await page.goto(`/e2e/fixtures/call-window-transcript.html?width=${width}&height=${height}`);
+  await page.locator('body[data-fixture-ready]').waitFor({ state: 'attached' });
+  const callWindow = page.getByTestId('call-window');
+  const split = callWindow.locator('[data-call-transcript-layout]');
+  const pane = callWindow.locator('[data-call-window-transcript]');
+  return {
+    callWindow,
+    split,
+    stage: split.locator(':scope > div').first(),
+    pane,
+    // The box the transcript scrolls in.
+    log: pane.locator(':scope > div'),
+    divider: callWindow.getByRole('separator', { name: 'Resize the transcript' }),
+    subtitle: callWindow.locator('[data-call-window-subtitle]'),
+  };
+};
+type CallWindow = Awaited<ReturnType<typeof openWindow>>;
+
+/** The stage's share of the length it and the transcript share, as the browser laid them out. */
+const stageShare = async ({ split, stage, pane }: CallWindow) => {
+  const side = (await split.getAttribute('data-call-transcript-layout')) === 'side';
+  const [stageBox, paneBox] = await Promise.all([boxOf(stage), boxOf(pane)]);
+  const length = (box: Box) => (side ? box.width : box.height);
+  return length(stageBox) / (length(stageBox) + length(paneBox));
+};
+
+/** The stage's share the account keeps for the divider, as the window stored it. */
+const storedSplit = (page: Page) =>
+  page.evaluate(
+    (key) =>
+      (JSON.parse(localStorage.getItem(key) ?? '{}') as { transcriptSplit?: number })
+        .transcriptSplit,
+    'mindroom.callWindow:@robin:matrix.localhost'
+  );
+
+/** Where the transcript is scrolled to, and how far from its end that is. */
+const scrollOf = (log: Locator) =>
+  log.evaluate((body) => ({
+    top: body.scrollTop,
+    fromEnd: body.scrollHeight - body.clientHeight - body.scrollTop,
+  }));
+
+/**
+ * Waits two frames: the browser lays out what changed and tells its resize observers in the first,
+ * and fires the scroll events that brought in the next.
+ */
+const twoFrames = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      })
+  );
+
+/** Presses the mouse in the middle of `from`, moves it to `to` in a few steps, and holds it. */
+const pressAndMove = async (page: Page, from: Locator, to: { x: number; y: number }) => {
+  const box = await boxOf(from);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 4 });
+};
+
+/** Drags the window's bottom edge by `dy` px: a resize, as a person makes it. */
+const resizeBy = async (page: Page, { callWindow }: CallWindow, dy: number) => {
+  const grip = callWindow.locator('[data-call-window-edge="s"]');
+  const { x, y, width, height } = await boxOf(grip);
+  const before = (await boxOf(callWindow)).height;
+  await pressAndMove(page, grip, { x: x + width / 2, y: y + height / 2 + dy });
+  await page.mouse.up();
+  await expect.poll(async () => (await boxOf(callWindow)).height).toBe(before + dy);
+};
+
+test.describe('the layout by the window size', () => {
+  for (const [width, height, layout] of [
+    [400, 480, 'stacked'],
+    [559, 480, 'stacked'],
+    [400, 340, 'stacked'],
+    [560, 480, 'side'],
+    [900, 600, 'side'],
+    [560, 240, 'side'],
+    [560, 239, 'subtitle'],
+    [900, 239, 'subtitle'],
+    [400, 339, 'subtitle'],
+  ] as const) {
+    test(`a ${width} by ${height} px window shows the ${layout} layout`, async ({ page }) => {
+      const { callWindow, split, stage, pane, log, divider, subtitle } = await openWindow(
+        page,
+        width,
+        height
+      );
+      expect(await boxOf(callWindow)).toMatchObject({ width, height });
+      await expect(split).toHaveAttribute('data-call-transcript-layout', layout);
+      const stageBox = await boxOf(stage);
+      const paneBox = await boxOf(pane);
+      // The log is there in every layout, so screen readers hear each new line.
+      await expect(callWindow.getByRole('log', { name: 'Transcript so far' })).toBeAttached();
+
+      if (layout === 'subtitle') {
+        await expect(divider).toHaveCount(0);
+        // The transcript is out of sight; the latest line shows over the bottom of the stage.
+        expect(paneBox.width).toBeLessThanOrEqual(1);
+        expect(paneBox.height).toBeLessThanOrEqual(1);
+        await expect(subtitle).toHaveText('Avery Quinn Line 40: noted.');
+        const subtitleBox = await boxOf(subtitle);
+        expect(subtitleBox.y).toBeGreaterThanOrEqual(stageBox.y);
+        expect(subtitleBox.y + subtitleBox.height).toBeLessThanOrEqual(
+          stageBox.y + stageBox.height
+        );
+        return;
+      }
+
+      await expect(subtitle).toHaveCount(0);
+      const dividerBox = await boxOf(divider);
+      // The transcript shows a line or more of its own, scrolled to the newest.
+      expect(paneBox.height).toBeGreaterThan(30);
+      await expect(log.getByText('Line 40: noted.')).toBeInViewport();
+      await expect(divider).toHaveAttribute('aria-valuenow', '60');
+      if (layout === 'side') {
+        // Stage, divider and transcript side by side, the transcript at the end.
+        await expect(divider).toHaveAttribute('aria-orientation', 'vertical');
+        expect(dividerBox.x).toBeCloseTo(stageBox.x + stageBox.width, 0);
+        expect(paneBox.x).toBeCloseTo(dividerBox.x + dividerBox.width, 0);
+        for (const box of [dividerBox, paneBox]) {
+          expect(box.y).toBeCloseTo(stageBox.y, 0);
+          expect(box.height).toBeCloseTo(stageBox.height, 0);
+        }
+      } else {
+        // Stage, divider and transcript one under the other, each as wide as the others.
+        await expect(divider).toHaveAttribute('aria-orientation', 'horizontal');
+        expect(dividerBox.y).toBeCloseTo(stageBox.y + stageBox.height, 0);
+        expect(paneBox.y).toBeCloseTo(dividerBox.y + dividerBox.height, 0);
+        for (const box of [dividerBox, paneBox]) {
+          expect(box.x).toBeCloseTo(stageBox.x, 0);
+          expect(box.width).toBeCloseTo(stageBox.width, 0);
+        }
+      }
+    });
+  }
+});
+
+// The stage keeps a face's height (80 px), more than a quarter of a 400 by 480 px window's
+// split: the divider's tests use a taller window, where every share of the stage shows as set.
+const TALL = { width: 400, height: 640 };
+
+test('the divider follows the pointer, also off the window, and keeps where it was let go', async ({
+  page,
+}) => {
+  const parts = await openWindow(page, TALL.width, TALL.height);
+  const { callWindow, split, divider } = parts;
+  const windowBox = await boxOf(callWindow);
+  const splitBox = await boxOf(split);
+  // Right of the window, over the page: only the pointer capture brings the moves to the divider.
+  const offWindow = windowBox.x + windowBox.width + 200;
+
+  await pressAndMove(page, divider, { x: offWindow, y: splitBox.y + 0.3 * splitBox.height });
+  await expect(divider).toHaveAttribute('aria-valuenow', '30');
+  expect(await stageShare(parts)).toBeCloseTo(0.3, 2);
+  // Past the end of the window it stops at 80 percent.
+  await page.mouse.move(offWindow, windowBox.y + windowBox.height + 100, { steps: 4 });
+  await expect(divider).toHaveAttribute('aria-valuenow', '80');
+  await page.mouse.move(offWindow, splitBox.y + 0.7 * splitBox.height, { steps: 4 });
+  await expect(divider).toHaveAttribute('aria-valuenow', '70');
+  // Kept once let go, not before.
+  expect(await storedSplit(page)).toBeUndefined();
+  await page.mouse.up();
+
+  await expect(divider).toHaveAttribute('aria-valuenow', '70');
+  expect(await stageShare(parts)).toBeCloseTo(0.7, 2);
+  expect(await storedSplit(page)).toBe(0.7);
+  // The press was the divider's: the window stayed where it was.
+  expect(await boxOf(callWindow)).toEqual(windowBox);
+  // A move after the release drags nothing.
+  await page.mouse.move(offWindow, splitBox.y + 0.4 * splitBox.height, { steps: 4 });
+  await twoFrames(page);
+  await expect(divider).toHaveAttribute('aria-valuenow', '70');
+
+  // The split stays through a resize to the subtitle and back, and beside the stage.
+  await resizeBy(page, parts, -320);
+  await expect(split).toHaveAttribute('data-call-transcript-layout', 'subtitle');
+  await resizeBy(page, parts, 320);
+  await expect(divider).toHaveAttribute('aria-valuenow', '70');
+  expect(await stageShare(parts)).toBeCloseTo(0.7, 2);
+
+  const side = await openWindow(page, 700, 480);
+  const sideBox = await boxOf(side.split);
+  const belowWindow = (await boxOf(side.callWindow)).y + 480 + 100;
+  await pressAndMove(page, side.divider, { x: sideBox.x + 0.45 * sideBox.width, y: belowWindow });
+  await page.mouse.up();
+  await expect(side.divider).toHaveAttribute('aria-valuenow', '45');
+  expect(await stageShare(side)).toBeCloseTo(0.45, 2);
+});
+
+test('the arrow keys move the focused divider the way they point, and each step stays', async ({
+  page,
+}) => {
+  const parts = await openWindow(page, TALL.width, TALL.height);
+  const { divider } = parts;
+  await divider.focus();
+  const step = async (key: string, value: number) => {
+    await page.keyboard.press(key);
+    await expect(divider).toHaveAttribute('aria-valuenow', String(value));
+    expect(await stageShare(parts)).toBeCloseTo(value / 100, 2);
+    expect(await storedSplit(page)).toBe(value / 100);
+  };
+  // Under the stage, Down gives the stage more and Up less.
+  await step('ArrowDown', 65);
+  await step('ArrowUp', 60);
+  await step('ArrowUp', 55);
+  await step('Home', 25);
+  await step('End', 80);
+
+  // Beside the stage, Left and Right move it, Up and Down do not.
+  const side = await openWindow(page, 700, 480);
+  await side.divider.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(side.divider).toHaveAttribute('aria-valuenow', '60');
+  await page.keyboard.press('ArrowRight');
+  await expect(side.divider).toHaveAttribute('aria-valuenow', '65');
+  expect(await stageShare(side)).toBeCloseTo(0.65, 2);
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowLeft');
+  await expect(side.divider).toHaveAttribute('aria-valuenow', '55');
+  expect(await stageShare(side)).toBeCloseTo(0.55, 2);
+});
+
+test('the transcript keeps its newest line in view through layout changes, unless scrolled up', async ({
+  page,
+}) => {
+  const parts = await openWindow(page, TALL.width, TALL.height);
+  const { split, log, divider } = parts;
+  const atEnd = async () => {
+    await twoFrames(page);
+    expect((await scrollOf(log)).fromEnd).toBeLessThanOrEqual(1);
+  };
+  await atEnd();
+
+  // A larger stage leaves the transcript less room: by the keys, and by the pointer.
+  await divider.focus();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await expect(divider).toHaveAttribute('aria-valuenow', '70');
+  await atEnd();
+  const splitBox = await boxOf(split);
+  await pressAndMove(page, divider, { x: splitBox.x + 20, y: splitBox.y + 0.8 * splitBox.height });
+  await page.mouse.up();
+  await expect(divider).toHaveAttribute('aria-valuenow', '80');
+  await atEnd();
+
+  // The window made smaller by its edge, and to the subtitle, where the transcript is out of
+  // sight, and back.
+  await resizeBy(page, parts, -280);
+  await expect(split).toHaveAttribute('data-call-transcript-layout', 'stacked');
+  await atEnd();
+  const subtitleAndBack = async () => {
+    await resizeBy(page, parts, -40);
+    await expect(split).toHaveAttribute('data-call-transcript-layout', 'subtitle');
+    await resizeBy(page, parts, 40);
+    await expect(split).toHaveAttribute('data-call-transcript-layout', 'stacked');
+  };
+  await subtitleAndBack();
+  await atEnd();
+
+  // Scrolled up, the transcript stays where the person left it. (The divider's focus went to the
+  // window's handle while the divider was gone.)
+  await divider.focus();
+  await page.keyboard.press('Home');
+  await expect(divider).toHaveAttribute('aria-valuenow', '25');
+  const logBox = await boxOf(log);
+  await page.mouse.move(logBox.x + logBox.width / 2, logBox.y + logBox.height / 2);
+  await page.mouse.wheel(0, -400);
+  await expect.poll(async () => (await scrollOf(log)).fromEnd).toBeGreaterThan(300);
+  await twoFrames(page);
+  const { top } = await scrollOf(log);
+  const keptPlace = async () => {
+    await twoFrames(page);
+    expect((await scrollOf(log)).top).toBe(top);
+  };
+  await page.keyboard.press('End');
+  await expect(divider).toHaveAttribute('aria-valuenow', '80');
+  await keptPlace();
+  await subtitleAndBack();
+  await keptPlace();
+});
