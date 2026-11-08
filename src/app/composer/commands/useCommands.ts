@@ -16,6 +16,7 @@ import { readableReason } from '../../lib/errorReason';
 import { matchesEnum } from '../../lib/matchesEnum';
 import { registeredPlugins } from '../../plugins/registry';
 import { usePluginSlashCommands } from '../../plugins/slashCommands';
+import { CommandRefusedError, usage } from './commandRefusal';
 
 /**
  * The composer's slash commands, by the name typed after the `/`. The first group changes the
@@ -62,19 +63,6 @@ export const COMMAND_FACES: Partial<Record<Command, string>> = {
   [Command.TableFlip]: TABLEFLIP,
   [Command.UnFlip]: UNFLIP,
 };
-
-/** Why a command did not run, for the composer to explain in the person's language. */
-export type CommandRefusal = { code: 'usage' } | { code: 'ownServer'; server: string };
-
-/** Thrown by a command that refuses to run; any other error carries the server's reason. */
-export class CommandRefusedError extends Error {
-  constructor(readonly refusal: CommandRefusal) {
-    super(refusal.code);
-    this.name = 'CommandRefusedError';
-  }
-}
-
-const usage = () => new CommandRefusedError({ code: 'usage' });
 
 /** What a command acts on, and how it opens what it leads to. */
 export type CommandContext = {

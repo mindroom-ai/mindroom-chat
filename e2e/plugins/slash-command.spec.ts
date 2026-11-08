@@ -15,9 +15,10 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
 // served as a deployment serves it, against the disposable homeserver. The plugin's slash commands
 // end with `/greet` and `/subroom`, which show in the composer's command menu after the app's own, in
-// the order the plugin lists them, with their descriptions. Run with a text, `/greet` sends the room the plugin's
-// notice and no message of its own; without one it fails as a built-in command fails: the text stays
-// in the composer with the plugin's error above it, and the composer still sends. Typed in a thread,
+// the order the plugin lists them, with their descriptions. Run with a text, `/greet` sends the room
+// the plugin's notice and no message of its own; without one it refuses with its usage as a built-in
+// command does: the text stays in the composer with the usage line above it, which names the command
+// and gives its description in the app's language, and the composer still sends. Typed in a thread,
 // it greets that thread.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const RUN = Date.now().toString(36);
@@ -120,10 +121,12 @@ test("the example plugin's slash commands show in the command menu, and /greet r
     await page.keyboard.type('/greet ');
     await page.keyboard.press('Enter');
     await expect(
-      page.getByRole('alert').filter({ hasText: '/greet failed: Type a greeting after /greet.' })
+      page.getByRole('alert').filter({
+        hasText: 'Could not run /greet. Send the room a greeting. Example: /greet Hello',
+      })
     ).toBeVisible();
     await expect(composer).toContainText('/greet');
-    await shot('failed');
+    await shot('usage');
 
     await composer.click();
     await page.keyboard.press('ControlOrMeta+a');
@@ -135,6 +138,25 @@ test("the example plugin's slash commands show in the command menu, and /greet r
         ['m.text', 'Still sending', null],
         ['m.notice', 'Example greeting: Hello there', null],
       ]);
+
+    await page.evaluate(() => localStorage.setItem('i18nextLng', 'de'));
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+    await composer.click();
+    await page.keyboard.type('/');
+    await expect(page.locator('[data-slash-command="greet"]')).toContainText(
+      'Dem Raum einen Gruß senden. Beispiel: /greet Hallo'
+    );
+    await page.keyboard.type('greet ');
+    await page.keyboard.press('Enter');
+    await expect(
+      page.getByRole('alert').filter({
+        hasText:
+          '/greet konnte nicht ausgeführt werden. Dem Raum einen Gruß senden. Beispiel: /greet Hallo',
+      })
+    ).toBeVisible();
+    await expect(composer).toContainText('/greet');
+    await shot('usage-german');
   } finally {
     // The page's live sync may still be in a route.
     await context.unrouteAll({ behavior: 'ignoreErrors' });
