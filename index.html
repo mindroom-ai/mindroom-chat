@@ -18,12 +18,16 @@
     <!-- Chromium and Firefox resize the page for the on-screen keyboard with interactive-widget.
          WebKit (every iOS browser, and Safari) does not know the key and logs it as a console
          error on each load, so it gets the key only outside WebKit; iOS keyboard handling is
-         useMobileKeyboardViewportFix's. -->
+         useMobileKeyboardViewportFix's. WebKit gets maximum-scale=1 instead: iOS magnifies the
+         page when a field with text under 16 px is focused (fields have 16 px text at the default
+         page zoom, so below it), and the app's pinch changes the page zoom setting rather than
+         magnifying (theme/usePinchToZoom.ts), so nothing could zoom it back out (the iOS app's
+         web view switches its own pinch off as that zoom begins). -->
     <script>
-      if (!/AppleWebKit/.test(navigator.userAgent) || /Chrome\//.test(navigator.userAgent)) {
-        document.querySelector('meta[name="viewport"]').content +=
-          ', interactive-widget=resizes-content';
-      }
+      document.querySelector('meta[name="viewport"]').content +=
+        !/AppleWebKit/.test(navigator.userAgent) || /Chrome\//.test(navigator.userAgent)
+          ? ', interactive-widget=resizes-content'
+          : ', maximum-scale=1';
     </script>
     <title>MindRoom</title>
     <link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
