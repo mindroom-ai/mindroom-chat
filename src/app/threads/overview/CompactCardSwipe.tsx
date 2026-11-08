@@ -1,5 +1,6 @@
 import React, { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Icon, Icons, Text } from 'folds';
+import { useLatestRef } from '../../lib/hooks/useLatestRef';
 import { EDGE_START_MAX_X } from '../../navigation/useEdgeSwipe';
 import * as css from './CompactCardSwipe.css';
 
@@ -87,6 +88,20 @@ export function CompactCardSwipe({
     track.addEventListener('touchmove', handleTouchMove, { passive: false });
     return () => track.removeEventListener('touchmove', handleTouchMove);
   }, []);
+
+  // A second finger makes the touch a pinch, which changes the page zoom
+  // (theme/usePinchToZoom.ts): the swipe lets go without its action. That finger may land
+  // anywhere, so the whole document listens for it.
+  const cancelRef = useLatestRef(() => finish(false));
+  useEffect(() => {
+    const doc = trackRef.current?.ownerDocument;
+    if (!doc) return undefined;
+    const handleTouchStart = (event: TouchEvent) => {
+      if (event.touches.length > 1 && gestureRef.current) cancelRef.current();
+    };
+    doc.addEventListener('touchstart', handleTouchStart, { capture: true, passive: true });
+    return () => doc.removeEventListener('touchstart', handleTouchStart, { capture: true });
+  }, [cancelRef]);
 
   const finish = (commit: boolean) => {
     const swipe = gestureRef.current?.swipe;
