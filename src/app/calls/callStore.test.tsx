@@ -227,6 +227,14 @@ describe('useCallActions startCall', () => {
     engine.missing = false;
   });
 
+  /** A room whose members are loaded already. */
+  const loadedRoom = () =>
+    ({
+      roomId: '!call:calls.test',
+      loadMembersIfNeeded: async () => undefined,
+      getLiveTimeline: () => ({ getEvents: () => [] }),
+    } as unknown as Room);
+
   it("asks for the call service's grant while the call is prepared, and hands it to the call", async () => {
     const store = createStore();
     const mx = runningClient();
@@ -237,11 +245,7 @@ describe('useCallActions startCall', () => {
     const prepare = vi.fn(async () => {
       askedBeforePrepared = vi.mocked(requestOwnSfuGrant).mock.calls.length === 1;
     });
-    const room = {
-      roomId: '!call:calls.test',
-      loadMembersIfNeeded: async () => undefined,
-      getLiveTimeline: () => ({ getEvents: () => [] }),
-    } as unknown as Room;
+    const room = loadedRoom();
 
     await expect(actionsIn(store, mx).startCall({ room, kind: 'agent', prepare })).resolves.toBe(
       'started'
@@ -256,11 +260,7 @@ describe('useCallActions startCall', () => {
   it('starts the call with no early grant when asking for it failed', async () => {
     const store = createStore();
     vi.mocked(requestOwnSfuGrant).mockRejectedValueOnce(new Error('403'));
-    const room = {
-      roomId: '!call:calls.test',
-      loadMembersIfNeeded: async () => undefined,
-      getLiveTimeline: () => ({ getEvents: () => [] }),
-    } as unknown as Room;
+    const room = loadedRoom();
 
     await expect(actionsIn(store, runningClient()).startCall({ room, kind: 'room' })).resolves.toBe(
       'started'
@@ -329,14 +329,6 @@ describe('useCallActions startCall', () => {
       await settleLocks();
       vi.unstubAllGlobals();
     });
-
-    /** A room whose members are loaded already. */
-    const loadedRoom = () =>
-      ({
-        roomId: '!call:calls.test',
-        loadMembersIfNeeded: async () => undefined,
-        getLiveTimeline: () => ({ getEvents: () => [] }),
-      } as unknown as Room);
 
     it("answers busy while another tab of this session is in a call, and leaves that tab's call alone", async () => {
       useLocks();
@@ -491,51 +483,48 @@ describe('useCallActions startCall', () => {
     expect(store.get(activeCallAtom)).toBeUndefined();
   });
 
-  it('starts no call whose room the person left or forgot while it started, and opens no view on it', async () => {
-    for (const membership of ['leave', null] as const) {
+  it.each(['leave', null] as const)(
+    'starts no call whose room the person left or forgot (%s) while it started, and opens no view on it',
+    async (membership) => {
       const store = createStore();
       const out = new Map<string, 'leave' | null>();
       const { room, finishLoading } = slowRoom();
       const starting = actionsIn(store, runningClient(out)).startCall({ room, kind: 'room' });
-      // eslint-disable-next-line no-await-in-loop
       await finishLoading(() => out.set(room.roomId, membership));
 
-      // eslint-disable-next-line no-await-in-loop
       await expect(starting).resolves.toBe('failed');
       expect(store.get(activeCallAtom)).toBeUndefined();
       expect(store.get(callPanelRoomAtom)).toBeUndefined();
     }
-  });
+  );
 
-  it('starts no agent call whose conversation the person left while it was prepared, and undoes it', async () => {
-    const store = createStore();
-    const out = new Map<string, 'leave' | null>();
-    const onEnded = vi.fn(async () => undefined);
-    // The conversation went (left, then forgotten) while the call room's origin was written.
-    const prepare = vi.fn(async () => {
-      out.set('!planning:calls.test', null);
-    });
-    const room = {
-      roomId: '!callroom:calls.test',
-      loadMembersIfNeeded: async () => undefined,
-      getLiveTimeline: () => ({ getEvents: () => [] }),
-    } as unknown as Room;
+  it.each(['leave', null] as const)(
+    'starts no agent call whose conversation the person left or forgot (%s) while it was prepared, and undoes it',
+    async (membership) => {
+      const store = createStore();
+      const out = new Map<string, 'leave' | null>();
+      const onEnded = vi.fn(async () => undefined);
+      // The conversation went while the call room's origin was written.
+      const prepare = async () => {
+        out.set('!planning:calls.test', membership);
+      };
 
-    await expect(
-      actionsIn(store, runningClient(out)).startCall({
-        room,
-        kind: 'agent',
-        origin: { roomId: '!planning:calls.test' },
-        prepare,
-        onEnded,
-      })
-    ).resolves.toBe('failed');
+      await expect(
+        actionsIn(store, runningClient(out)).startCall({
+          room: loadedRoom(),
+          kind: 'agent',
+          origin: { roomId: '!planning:calls.test' },
+          prepare,
+          onEnded,
+        })
+      ).resolves.toBe('failed');
 
-    expect(store.get(activeCallAtom)).toBeUndefined();
-    // No call view opens on a conversation this client no longer has.
-    expect(store.get(callPanelRoomAtom)).toBeUndefined();
-    expect(onEnded).toHaveBeenCalledTimes(1);
-  });
+      expect(store.get(activeCallAtom)).toBeUndefined();
+      // No call view opens on a conversation the person is no longer in.
+      expect(store.get(callPanelRoomAtom)).toBeUndefined();
+      expect(onEnded).toHaveBeenCalledTimes(1);
+    }
+  );
 });
 
 describe('noteCallStart', () => {
