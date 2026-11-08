@@ -19,12 +19,12 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
 // whose room header slot shows "Example banner in <room name>", and a plugin whose slot component
 // throws, served as a deployment serves it, against the disposable homeserver. The banner shows
-// under the room header, across the conversation column and above the conversation, on the
-// header's own frosted surface in light and dark; the broken
-// component shows nothing and the room keeps working; `?plugins=off` and
-// `plugins.example.enabled: false` leave the banner out. The example's panel item, dragged onto the
-// room's name, shows in the banner through the header element its slot gets, while a file dropped
-// there still goes to the composer. Set PLUGIN_SHOTS=<directory> to save screenshots.
+// under the room header, across the conversation column and above the conversation, on the header's
+// own frosted surface in light and dark; the broken component shows nothing and the room keeps
+// working; `?plugins=off` and `plugins.example.enabled: false` leave the banner out. The example's
+// panel item, dragged onto the room's name, shows in the banner through the header element its slot
+// gets, while a file dropped there still goes to the composer. Set PLUGIN_SHOTS=<directory> to save
+// screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'room-header-slot-password';
 const RUN = Date.now().toString(36);

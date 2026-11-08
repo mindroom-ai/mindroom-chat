@@ -6,6 +6,7 @@ import {
   type ReactTestRendererJSON,
 } from 'react-test-renderer';
 import type { Room } from 'matrix-js-sdk';
+import { color } from 'folds';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import type { RoomHeaderSlotComponent } from '../plugins/registry';
@@ -125,7 +126,7 @@ describe('RoomHeaderSlot', () => {
     render('!a:example.org');
     const { style } = (renderer!.toJSON() as ReactTestRendererJSON).props;
     expect(Object.keys(style).filter((name) => name.startsWith('background'))).toEqual([]);
-    expect(style.color).toEqual(expect.any(String));
+    expect(style.color).toBe(color.Surface.OnContainer);
   });
 
   it('shows nothing of a plugin that config.json turns off', () => {
