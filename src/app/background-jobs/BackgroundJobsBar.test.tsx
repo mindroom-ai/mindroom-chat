@@ -43,6 +43,7 @@ vi.mock('react-i18next', () => ({
 
 const job = (jobId: string, overrides: Partial<BackgroundJob> = {}): BackgroundJob => ({
   jobId,
+  agentId: '@mindroom_code:example.org',
   threadId: '$thread',
   kind: 'tool',
   tool: `tool_${jobId}`,
@@ -54,8 +55,11 @@ const job = (jobId: string, overrides: Partial<BackgroundJob> = {}): BackgroundJ
 const room = {
   roomId: '!room:example.org',
   getEventForTxnId: () => undefined,
-  // The agent's reply is not loaded, so the jobs' thread never reads as streaming.
+  // The agent's reply is not loaded, so it never reads as streaming.
   getThread: () => null,
+  getLiveTimeline: () => ({ getEvents: () => [] }),
+  on: () => undefined,
+  removeListener: () => undefined,
 } as unknown as Room;
 let container: HTMLDivElement;
 let root: Root;

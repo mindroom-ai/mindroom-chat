@@ -9,10 +9,11 @@ import {
   type SetStateAction,
 } from 'react';
 import type { MatrixEvent } from 'matrix-js-sdk';
-import type {
-  RetryPaginationOptions,
-  ScrollToElement,
-  ScrollToItem,
+import {
+  readScrollPadding,
+  type RetryPaginationOptions,
+  type ScrollToElement,
+  type ScrollToItem,
 } from './useVirtualPaginator';
 import { scrollToBottom } from '../lib/dom';
 import { isLatestAnchorInReach, scrollToLatestEnd } from './roomTimelineScroll';
@@ -42,6 +43,12 @@ export type RoomTimelineFocusItem = {
   index: number;
   scrollTo: boolean;
   highlight: boolean;
+  /**
+   * How far below the scroll area's top the row starts, to show a place the reader left (the
+   * scroll padding the bars over the rows keep is not taken off); without it, the row's place
+   * depends on its position in the rows (`getRoomFocusScrollOptions`).
+   */
+  offset?: number;
 };
 
 /** The shared bottom-pin request: a producer adds 1 to `count` to ask once; `smooth` animates it. */
@@ -287,7 +294,16 @@ const useRoomFocusJump = ({
     const focus = focusItem;
     const rows = threadFilteredEventsRef.current;
     const position = getFocusedRoomEventIndex(rows, focus.eventId, focus.index);
-    const rowPlacement = getRoomFocusScrollOptions(position, rows.length);
+    // `scrollToElement` aligns a row's start below the scroll padding, as it is at each call.
+    const { offset } = focus;
+    const rowPlacement = () =>
+      offset === undefined
+        ? getRoomFocusScrollOptions(position, rows.length)
+        : {
+            behavior: 'instant' as const,
+            align: 'start' as const,
+            offset: offset - (scrollRef.current ? readScrollPadding(scrollRef.current).top : 0),
+          };
 
     const finish = (resumePagination: boolean) => {
       if (memory.jumping === focus) memory.jumping = undefined;
@@ -297,7 +313,7 @@ const useRoomFocusJump = ({
 
     // Aims at the row, then again at every size change of it or the scroll area until they rest.
     const landOn = (row: HTMLElement) => {
-      scrollToElement(row, rowPlacement);
+      scrollToElement(row, rowPlacement());
       const scrollContainer = scrollRef.current;
       if (!scrollContainer) {
         finish(true);
@@ -308,7 +324,7 @@ const useRoomFocusJump = ({
         scrollContainer,
         target: row,
         onRecenter: () => {
-          scrollToElement(row, rowPlacement);
+          scrollToElement(row, rowPlacement());
         },
         onDone: () => {
           if (!cancelled) finish(true);
@@ -322,7 +338,12 @@ const useRoomFocusJump = ({
 
     memory.jumping = focus;
     suppressFocusPaginationRef.current = true;
-    scrollToItem(position, getRoomFocusScrollToItemOptions(position, rows.length));
+    scrollToItem(
+      position,
+      offset === undefined
+        ? getRoomFocusScrollToItemOptions(position, rows.length)
+        : { ...rowPlacement(), stopInView: false }
+    );
 
     const { eventId } = focus;
     const scrollArea = scrollRef.current;

@@ -13,11 +13,12 @@ import { createPrivateRoom, createThreadFixture, matrixFetch } from '../helpers/
 import { serveBuild } from '../helpers/staticBuildServer';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
-// served as a deployment serves it, against the disposable homeserver. The plugin's slash command,
-// `/greet`, shows in the composer's command menu after the app's own, with its description. Run
-// with a text, it sends the room the plugin's notice and no message of its own; without one it fails
-// as a built-in command fails: the text stays in the composer with the plugin's error above it, and
-// the composer still sends. Typed in a thread, it greets that thread.
+// served as a deployment serves it, against the disposable homeserver. The plugin's slash commands,
+// `/greet` and `/subroom`, show in the composer's command menu after the app's own, in the order the
+// plugin lists them, with their descriptions. Run with a text, `/greet` sends the room the plugin's
+// notice and no message of its own; without one it fails as a built-in command fails: the text stays
+// in the composer with the plugin's error above it, and the composer still sends. Typed in a thread,
+// it greets that thread.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const RUN = Date.now().toString(36);
 
@@ -66,7 +67,7 @@ const messages = async (accessToken: string, roomId: string) => {
     });
 };
 
-test("the example plugin's slash command shows in the command menu and runs in the room", async ({
+test("the example plugin's slash commands show in the command menu, and /greet runs in the room", async ({
   browser,
 }, testInfo) => {
   test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
@@ -92,7 +93,13 @@ test("the example plugin's slash command shows in the command menu and runs in t
     await expect(page.locator('[data-slash-command="greet"]')).toContainText(
       'Send the room a greeting. Example: /greet Hello'
     );
-    await expect(commands.last()).toHaveAttribute('data-slash-command', 'greet');
+    await expect(page.locator('[data-slash-command="subroom"]')).toContainText(
+      'Create a sub-room of this room. Example: /subroom Ideas'
+    );
+    const names = await commands.evaluateAll((rows) =>
+      rows.map((row) => row.getAttribute('data-slash-command'))
+    );
+    expect(names.slice(-2)).toEqual(['greet', 'subroom']);
     await shot('command-menu');
 
     // Tab takes the only command left and leaves room for the text.

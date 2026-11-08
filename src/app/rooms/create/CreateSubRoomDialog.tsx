@@ -6,10 +6,7 @@ import type { Room } from 'matrix-js-sdk';
 import { CreateDialogFrame } from '../../ui/CreateDialogFrame';
 import { ErrorDetail } from '../../ui/ErrorDetail';
 import { revealDirectionControls } from '../../ui/directional';
-import { createRoom } from '../../matrix/createRoom';
-import { CreateRoomAccess } from '../../matrix/createRoomTypes';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { useCapabilities } from '../../matrix/hooks/useCapabilities';
 import { useRoomName } from '../../matrix/hooks/useRoomMeta';
 import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
 import { waitForJoinedRoom } from '../../matrix/waitForJoinedRoom';
@@ -17,6 +14,7 @@ import { useClientConfig } from '../../config/useClientConfig';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { describeError } from '../../lib/describeError';
 import { useListRoomsRefusal } from './useListRoomsRefusal';
+import { createSubRoom } from './createSubRoom';
 import { getSpaceRoomPath } from '../../routes/pathUtils';
 
 type CreateSubRoomDialogProps = {
@@ -27,9 +25,8 @@ type CreateSubRoomDialogProps = {
 };
 
 /**
- * New Sub-room: a room listed under `parent` (`m.space.child` there, and the new room's canonical
- * `m.space.parent`) that only the members of `parent` may join (`restricted`). The agents in
- * `parent` join it on their own. It opens once sync has it.
+ * New Sub-room: asks for a name and creates the sub-room of `parent` that `createSubRoom`
+ * describes. The agents in `parent` join it on their own. It opens once sync has it.
  */
 export function CreateSubRoomDialog({ parent, spaceId, requestClose }: CreateSubRoomDialogProps) {
   const { t } = useTranslation();
@@ -38,7 +35,6 @@ export function CreateSubRoomDialog({ parent, spaceId, requestClose }: CreateSub
   const navigate = useNavigate();
   const { navigateRoom } = useRoomNavigate();
   const { createRoom: policy } = useClientConfig();
-  const version = useCapabilities()['m.room_versions']?.default;
   const parentName = revealDirectionControls(useRoomName(parent));
   // Who may no longer list rooms in the parent, since the menu offered this, gets the reason.
   const refusal = useListRoomsRefusal(parent);
@@ -65,15 +61,7 @@ export function CreateSubRoomDialog({ parent, spaceId, requestClose }: CreateSub
     setError(undefined);
     setCreating(true);
     try {
-      const roomId = await createRoom(client, {
-        name: trimmed,
-        parent,
-        access: CreateRoomAccess.Restricted,
-        knock: false,
-        encryption: policy?.defaultEncryption ?? true,
-        allowFederation: policy?.defaultFederation ?? true,
-        version,
-      });
+      const roomId = await createSubRoom(parent, trimmed, policy);
       requestClose();
       waitForJoinedRoom(client, roomId).then(
         () => open(roomId),
