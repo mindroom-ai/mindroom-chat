@@ -12,23 +12,29 @@ export type Step =
   | { type: 'scroll'; by: number };
 
 /**
- * One finger on the middle of `target`, driven through `steps`; `scroll` scrolls the nearest
- * scrolling ancestor, as the browser would under a moving finger. Answers whether the lift's
- * default was prevented and whether the engine built real TouchEvents.
+ * One finger on the middle of `target`, or 8 px into its start (`spot: 'start'`, on the element
+ * there), driven through `steps`; `scroll` scrolls the nearest scrolling ancestor, as the browser
+ * would under a moving finger. Answers whether the lift's default was prevented and whether the
+ * engine built real TouchEvents.
  */
-export const touch = async (target: Locator, steps: Step[]) => {
+export const touch = async (
+  target: Locator,
+  steps: Step[],
+  spot: 'middle' | 'start' = 'middle'
+) => {
   const box = await target.boundingBox();
   if (!box) throw new Error('nothing to touch');
   return target.evaluate(
-    async (element, { x, y, plan }) => {
+    async (element, { x, y, plan, start }) => {
       let real = true;
+      const hit = (start && document.elementFromPoint(x, y)) || element;
       const fire = (type: string, dx: number, dy: number, lifted: boolean) => {
         const point = { clientX: x + dx, clientY: y + dy };
         let event: Event;
         try {
           const finger = new Touch({
             identifier: 1,
-            target: element,
+            target: hit,
             ...point,
             pageX: point.clientX + window.scrollX,
             pageY: point.clientY + window.scrollY,
@@ -48,7 +54,7 @@ export const touch = async (target: Locator, steps: Step[]) => {
           // the point itself, where a drag library looks when the event is no TouchEvent.
           real = false;
           event = new Event(type, { bubbles: true, cancelable: true, composed: true });
-          const finger = { identifier: 1, target: element, ...point };
+          const finger = { identifier: 1, target: hit, ...point };
           const list = lifted ? [] : [finger];
           Object.defineProperties(event, {
             touches: { value: list },
@@ -58,7 +64,7 @@ export const touch = async (target: Locator, steps: Step[]) => {
             clientY: { value: point.clientY },
           });
         }
-        return element.dispatchEvent(event);
+        return hit.dispatchEvent(event);
       };
       let liftAllowed = true;
       let at = { dx: 0, dy: 0 };
@@ -88,6 +94,11 @@ export const touch = async (target: Locator, steps: Step[]) => {
       }
       return { liftAllowed, real };
     },
-    { x: box.x + box.width / 2, y: box.y + box.height / 2, plan: steps }
+    {
+      x: spot === 'start' ? box.x + 8 : box.x + box.width / 2,
+      y: box.y + box.height / 2,
+      plan: steps,
+      start: spot === 'start',
+    }
   );
 };
