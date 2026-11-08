@@ -21,6 +21,8 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // sidebar's rows, the room menu's entries, the Leave Room dialog and its header), and the menu and
 // the tooltip line up with the end of their button, its right edge in English and its left edge
 // in Arabic. Screenshots of each, beside the app's counterparts, in the light and the dark scheme.
+// The panel also says the app's theme kind and screen size as they change, without a reload, and
+// shows a PDF it holds as a blob in the browser's viewer, through the app's frame page.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const RUN = Date.now().toString(36);
 const LAYOUTS = {
@@ -199,3 +201,54 @@ for (const [layout, viewport] of Object.entries(LAYOUTS)) {
     }
   });
 }
+
+test("the example plugin's panel follows the app's theme kind and screen size, and shows its PDF in the browser's viewer", async ({
+  browser,
+}, testInfo) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+  test.setTimeout(10 * 60_000);
+  const person = await registerDisposableUser(`plugin_ui_surface_${RUN}`, 'plugin-ui-pass');
+  const roomId = await createPrivateRoom(HOMESERVER, person.accessToken, { name: 'Orchard' });
+  const server = await serveBuild(build!);
+  const context = await browser.newContext({ baseURL: server.origin, viewport: LAYOUTS.phone });
+  const page = await context.newPage();
+  const says = (text: string) => expect(panel(page).getByText(text, { exact: true })).toBeVisible();
+  try {
+    await page.emulateMedia({ colorScheme: 'light' });
+    await loginWithPassword(page, { homeserver: HOMESERVER, ...person });
+    await page.goto(`/home/${encodeURIComponent(roomId)}/`);
+    await expect(roomMoreOptions(page)).toBeVisible({ timeout: 60_000 });
+    await openExamplePanel(page);
+    // A mark on the window, which a reload would lose.
+    await page.evaluate(() => Object.assign(window, { exampleSurfaceMark: true }));
+
+    await says('Screen: Mobile');
+    await says('Theme: light');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect(page.locator('html')).toHaveAttribute('data-theme-kind', 'dark');
+    await says('Theme: dark');
+    await page.screenshot({ path: testInfo.outputPath('surface-phone-dark.png') });
+    await page.emulateMedia({ colorScheme: 'light' });
+    await says('Theme: light');
+
+    await page.setViewportSize(LAYOUTS.wide);
+    await says('Screen: Desktop');
+    expect(await page.evaluate(() => 'exampleSurfaceMark' in window)).toBe(true);
+
+    await panel(page).getByRole('button', { name: 'Show example PDF', exact: true }).click();
+    const frameElement = panel(page).locator('iframe[title="Example PDF"]');
+    await expect(frameElement).toBeVisible();
+    // The browser's viewer runs in a frame of its own inside the app's frame page.
+    const framePage = await (await frameElement.elementHandle())?.contentFrame();
+    if (!framePage) throw new Error('the frame has no page');
+    expect(new URL(framePage.url()).pathname).toBe('/pdf-frame.html');
+    await expect(framePage.locator('embed[type="application/pdf"]')).toBeAttached();
+    await expect
+      .poll(() => page.frames().some((frame) => frame.url().startsWith('chrome-extension://')))
+      .toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('surface-wide-pdf.png') });
+  } finally {
+    await context.close();
+    await server.close();
+  }
+});

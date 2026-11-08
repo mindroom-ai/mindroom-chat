@@ -52,6 +52,9 @@
 // beside the panel, as a mention pill opens one; under it, the panel shows the signed-in person's
 // card itself. It shows the greeting's text as the app renders an agent's reply, as Markdown whose
 // HTML the app sanitized, with the Matrix IDs of the room's members replaced by their names.
+// The panel also says the kind of the app's theme ("Theme: light" or "Theme: dark") and the screen
+// size the app lays out by ("Screen: Mobile", "Tablet" or "Desktop"), each as it changes, and "Show
+// example PDF" previews a one-page PDF it builds as a blob, in the browser's viewer in the panel.
 import { useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react';
 import FocusTrap from 'focus-trap-react';
 import {
@@ -110,8 +113,11 @@ import {
   NavItem,
   NavItemContent,
   PopOut,
+  pdfFrameUrl,
   replaceMatrixUserIdsWithDisplayNames,
   useMarkdownHtml,
+  useScreenSize,
+  useThemeKind,
 } from '@mindroom/client-sdk/ui';
 
 /** The drag type of the item its panel offers, which the room header takes. */
@@ -395,6 +401,55 @@ function FetchedGreeting({ roomId, eventId }: { roomId: string; eventId: string 
   );
 }
 
+/** A one-page PDF that says "Example PDF", with the cross-reference table a viewer reads. */
+const examplePdf = (): Blob => {
+  const text = 'BT /F1 24 Tf 24 40 Td (Example PDF) Tj ET';
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 240 100] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${text.length} >>\nstream\n${text}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = objects.map((body, index) => {
+    const offset = pdf.length;
+    pdf += `${index + 1} 0 obj\n${body}\nendobj\n`;
+    return `${String(offset).padStart(10, '0')} 00000 n \n`;
+  });
+  const size = objects.length + 1;
+  const xref = pdf.length;
+  pdf += `xref\n0 ${size}\n0000000000 65535 f \n${offsets.join('')}`;
+  pdf += `trailer\n<< /Size ${size} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new Blob([pdf], { type: 'application/pdf' });
+};
+
+/** Its PDF, built as a blob, in the browser's viewer through the app's frame page. */
+function ExamplePdf() {
+  const [objectUrl, setObjectUrl] = useState<string>();
+  useEffect(
+    () => () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    },
+    [objectUrl]
+  );
+  const frameUrl = objectUrl && pdfFrameUrl(objectUrl);
+  if (!frameUrl) {
+    return (
+      <button type="button" onClick={() => setObjectUrl(URL.createObjectURL(examplePdf()))}>
+        Show example PDF
+      </button>
+    );
+  }
+  return (
+    <iframe
+      title="Example PDF"
+      src={frameUrl}
+      style={{ width: '100%', height: 240, border: 'none' }}
+    />
+  );
+}
+
 const ROWS = ['First example row', 'Second example row'];
 
 /** Its menu's button, and the menu, which Escape and a click outside close, as the room menu's. */
@@ -469,10 +524,15 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
   const joined = members.filter(({ membership }) => membership === KnownMembership.Join);
   const [selected, setSelected] = useState<string>();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const themeKind = useThemeKind();
+  const screenSize = useScreenSize();
   return (
     <>
       {/* A room ID breaks anywhere, so it never widens the panel past its edge. */}
       <p style={{ overflowWrap: 'anywhere' }}>Example panel of {roomId}</p>
+      <p>Theme: {themeKind}</p>
+      <p>Screen: {screenSize}</p>
+      <ExamplePdf />
       <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
         <Text size="L400">Example rows</Text>
         <ExampleMenu

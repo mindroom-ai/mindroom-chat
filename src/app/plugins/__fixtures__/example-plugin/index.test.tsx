@@ -287,6 +287,45 @@ describe('example plugin', () => {
     expect(view.getAllByText('No MindRoom server')).toHaveLength(2);
   });
 
+  it("says in its panel the app's theme kind and screen size, and previews a PDF it builds", async () => {
+    const [panel] = plugin.sidePanels ?? [];
+    if (!panel) throw new Error('the example plugin has no side panel');
+    const objectUrl = 'blob:https://example.org/0b5e-4c1d';
+    const created: Blob[] = [];
+    const revoked: string[] = [];
+    // jsdom makes no object URLs.
+    vi.stubGlobal(
+      'URL',
+      class extends URL {
+        static override createObjectURL = (blob: Blob) => {
+          created.push(blob);
+          return objectUrl;
+        };
+
+        static override revokeObjectURL = (url: string) => {
+          revoked.push(url);
+        };
+      }
+    );
+    const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
+    const view = await renderPluginComponent(<panel.Component roomId="!lobby:example.org" />, {
+      id: 'example',
+      plugin,
+      client,
+    });
+    // Outside the app no theme is on the page and nothing lays out by size: light, and Desktop.
+    expect(view.getByText('Theme: light')).toBeTruthy();
+    expect(view.getByText('Screen: Desktop')).toBeTruthy();
+
+    fireEvent.click(view.getByRole('button', { name: 'Show example PDF' }));
+    expect(created.map(({ type }) => type)).toEqual(['application/pdf']);
+    expect(view.getByTitle('Example PDF').getAttribute('src')).toBe(
+      `/pdf-frame.html#${encodeURIComponent(objectUrl)}`
+    );
+    view.unmount();
+    expect(revoked).toEqual([objectUrl]);
+  });
+
   it("says in its panel whether the account may post in the room, from the room's levels", async () => {
     const [panel] = plugin.sidePanels ?? [];
     if (!panel) throw new Error('the example plugin has no side panel');

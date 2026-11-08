@@ -1,18 +1,31 @@
 // @vitest-environment jsdom
-import { cleanup, render, renderHook, waitFor } from '@testing-library/react';
+import { act, cleanup, render, renderHook, waitFor } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider } from '../app/config/useClientConfig';
+import {
+  ScreenSizeProvider,
+  useScreenSize as useAppScreenSize,
+} from '../app/lib/hooks/useScreenSize';
 import { withReasoning } from '../app/messages/agent-run/Reasoning';
 import { LIVE_REASONING_KEY } from '../app/messages/live/useLiveReplyContent';
+import { applyAppTheme } from '../app/theme/appliedTheme';
+import { DarkTheme, LightTheme } from '../app/theme/useTheme';
 import { Dialog, Header, IconButton, Menu } from '../app/ui/glass/GlassPrimitives';
 import { PopOut } from '../app/ui/directional';
 import { IconTooltip } from '../app/ui/IconTooltip';
 import { MenuEntry, MenuGroup } from '../app/ui/MenuEntry';
 import { NavButton, NavItem, NavItemContent } from '../app/ui/nav/NavItem';
 import * as ui from './ui';
-import { replaceMatrixUserIdsWithDisplayNames, sanitizeHtml, useMarkdownHtml } from './ui';
+import {
+  pdfFrameUrl,
+  replaceMatrixUserIdsWithDisplayNames,
+  sanitizeHtml,
+  useMarkdownHtml,
+  useScreenSize,
+  useThemeKind,
+} from './ui';
 
 // The test setup stands folds' plain components in for the glass ones; compare the real modules.
 vi.unmock('../app/ui/glass/GlassPrimitives');
@@ -35,8 +48,9 @@ describe('@mindroom/client-sdk/ui', () => {
       PopOut,
     };
     const text = ['replaceMatrixUserIdsWithDisplayNames', 'sanitizeHtml', 'useMarkdownHtml'];
+    const ownSurface = ['pdfFrameUrl', 'useScreenSize', 'useThemeKind'];
     // The SDK only grows: a name a plugin imports never goes.
-    expect(Object.keys(ui).sort()).toEqual([...Object.keys(app), ...text].sort());
+    expect(Object.keys(ui).sort()).toEqual([...Object.keys(app), ...text, ...ownSurface].sort());
     Object.entries(app).forEach(([name, component]) => {
       expect(ui[name as keyof typeof ui], name).toBe(component);
     });
@@ -162,4 +176,76 @@ describe('replaceMatrixUserIdsWithDisplayNames', () => {
     await waitFor(() => expect(result.current).toBeDefined());
     expect(elementsOf(result.current ?? '').textContent?.trim()).toBe(named);
   });
+});
+
+describe('useThemeKind', () => {
+  it('is light or dark as the app applies its theme, and follows a switch', () => {
+    act(() => applyAppTheme(LightTheme));
+    const { result } = renderHook(() => useThemeKind());
+    expect(result.current).toBe('light');
+
+    act(() => applyAppTheme(DarkTheme));
+    expect(result.current).toBe('dark');
+
+    act(() => applyAppTheme(LightTheme));
+    expect(result.current).toBe('light');
+  });
+});
+
+describe('useScreenSize', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** Measures the window as the app's root does, and provides it as the app does. */
+  function App({ children }: { children: ReactNode }) {
+    return <ScreenSizeProvider value={useAppScreenSize()}>{children}</ScreenSizeProvider>;
+  }
+
+  const resizeTo = (width: number) =>
+    act(() => {
+      vi.stubGlobal('innerWidth', width);
+      window.dispatchEvent(new Event('resize'));
+    });
+
+  it("is the size the app lays out by, under the app's provider, and follows a resize", () => {
+    vi.stubGlobal('innerWidth', 390);
+    const { result } = renderHook(() => useScreenSize(), { wrapper: App });
+    expect(result.current).toBe('Mobile');
+
+    resizeTo(900);
+    expect(result.current).toBe('Tablet');
+
+    resizeTo(1440);
+    expect(result.current).toBe('Desktop');
+  });
+
+  it('is what the app provides, not a measure of its own', () => {
+    vi.stubGlobal('innerWidth', 390);
+    const { result } = renderHook(() => useScreenSize(), {
+      wrapper: ({ children }) => <ScreenSizeProvider value="Tablet">{children}</ScreenSizeProvider>,
+    });
+    expect(result.current).toBe('Tablet');
+  });
+});
+
+describe('pdfFrameUrl', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("is the app's PDF frame page under its base path, with the encoded object URL after #", () => {
+    vi.stubGlobal('__APP_BASE_PATH__', '/mindroom/');
+    const objectUrl = 'blob:https://chat.example.org/0b5e-4c1d';
+    expect(pdfFrameUrl(objectUrl)).toBe(
+      `/mindroom/pdf-frame.html#${encodeURIComponent(objectUrl)}`
+    );
+  });
+
+  it.each(['https://chat.example.org/report.pdf', 'javascript:alert(1)'])(
+    'is undefined for %s, which the app shows no PDF from',
+    (url) => {
+      expect(pdfFrameUrl(url)).toBeUndefined();
+    }
+  );
 });
