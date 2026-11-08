@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { MINDROOM_AUTH_BRANDING, getAuthSsoRedirectUrl } from './authUi';
+import { getAuthSsoRedirectUrl, getDeviceDisplayName } from './authUi';
 
 vi.mock('@capacitor/browser', () => ({
   Browser: {
@@ -17,12 +17,6 @@ vi.mock('@capacitor/core', () => ({
 }));
 
 describe('authUi', () => {
-  it('exposes MindRoom Chat auth branding in one UI contract', () => {
-    expect(MINDROOM_AUTH_BRANDING.appName).toBe('MindRoom Chat');
-    expect(MINDROOM_AUTH_BRANDING.deviceDisplayName).toBe('MindRoom Chat Web');
-    expect(MINDROOM_AUTH_BRANDING.logoAlt).toBe('MindRoom Chat Logo');
-  });
-
   it('uses web SSO redirects outside native apps', () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
     vi.mocked(Capacitor.getPlatform).mockReturnValue('web');
@@ -47,6 +41,37 @@ describe('authUi', () => {
 
     expect(getAuthSsoRedirectUrl('https://chat.example/login?addAccount=1')).toBe(
       'mindroom://auth/login?addAccount=1'
+    );
+  });
+
+  describe('getDeviceDisplayName', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    const IPHONE_SAFARI =
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 26_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1';
+    const IPHONE_APP =
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 26_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148';
+    const ANDROID_APP =
+      'Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/140.0.0.0 Mobile Safari/537.36';
+    const MAC_APP =
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)';
+
+    it.each([
+      ['a browser, even on an iPhone', 'web', IPHONE_SAFARI, 'iPhone', 5, 'MindRoom Chat Web'],
+      ['the iOS app', 'ios', IPHONE_APP, 'iPhone', 5, 'MindRoom Chat iOS'],
+      ['the Android app', 'android', ANDROID_APP, 'Linux aarch64', 5, 'MindRoom Chat Android'],
+      ['the Mac app', 'ios', MAC_APP, 'MacIntel', 0, 'MindRoom Chat macOS'],
+    ])(
+      'names a session of %s by its platform',
+      (_, platform, userAgent, navPlatform, touch, name) => {
+        vi.mocked(Capacitor.isNativePlatform).mockReturnValue(platform !== 'web');
+        vi.mocked(Capacitor.getPlatform).mockReturnValue(platform);
+        vi.stubGlobal('navigator', { userAgent, platform: navPlatform, maxTouchPoints: touch });
+
+        expect(getDeviceDisplayName()).toBe(name);
+      }
     );
   });
 });
