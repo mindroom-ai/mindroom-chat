@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IOpenIDToken } from 'matrix-js-sdk';
 import { CallTranscriber, type TranscriberStatus } from './callTranscriber';
 import type { TranscriptCall, TranscriptLine } from './api';
-import type { SpeechCapture, SpeechStretch } from './speechCapture';
+import { startSpeechCapture, type SpeechCapture, type SpeechStretch } from './speechCapture';
 import type { LiveUpdate } from './transcriptionState';
 import { defined } from '../../../test/utils/defined';
 
@@ -88,7 +88,14 @@ const transcribers: CallTranscriber[] = [];
  * order, the requests to the call routes (`calls.join`, `speech <second>`, `pause <paused>`,
  * `leave`, `calls.live`) and the capture's steps (`listen <track>`, `stop <track>`).
  */
-const setup = ({ roomId = ROOM_ID }: { roomId?: string } = {}) => {
+const setup = ({
+  roomId = ROOM_ID,
+  listen,
+}: {
+  roomId?: string;
+  /** Listens with this in place of the fake capture. */
+  listen?: typeof startSpeechCapture;
+} = {}) => {
   const log: string[] = [];
   const server = {
     session: vi.fn((): Response | Promise<Response> =>
@@ -160,7 +167,7 @@ const setup = ({ roomId = ROOM_ID }: { roomId?: string } = {}) => {
     apiUrl: API_URL,
     getOpenIdToken: async () => TOKEN,
     request,
-    startCapture,
+    startCapture: listen ?? startCapture,
     onStatus: (status) => statuses.push(status),
     onUpdate: (update) => updates.push(update),
   });
@@ -1025,6 +1032,43 @@ describe('CallTranscriber ending', () => {
     await firstEnding;
     await advance();
     expect(second.log[0]).toBe('calls.join');
+  });
+
+  it('leaves, and lets the next join go, when the speech worklet never loads', async () => {
+    const contexts: Array<{ closed: boolean }> = [];
+    vi.stubGlobal(
+      'AudioContext',
+      class {
+        closed = false;
+
+        audioWorklet = { addModule: () => new Promise(() => undefined) };
+
+        constructor() {
+          contexts.push(this);
+        }
+
+        async close() {
+          this.closed = true;
+        }
+      }
+    );
+    try {
+      const first = setup({ listen: startSpeechCapture });
+      first.transcriber.setMicrophone(MIC_A);
+      first.transcriber.start();
+      await advance();
+      void first.transcriber.end();
+      await advance(10_000);
+      expect(first.steps()).toEqual(['calls.join', 'leave']);
+      expect(contexts.map(({ closed }) => closed)).toEqual([true]);
+
+      const second = setup();
+      second.transcriber.start();
+      await advance();
+      expect(second.joins()).toBe(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('gives a leave without an answer up after 15 seconds, and the next join goes', async () => {

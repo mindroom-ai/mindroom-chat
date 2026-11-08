@@ -5,6 +5,8 @@ import { appUrl } from '../../lib/basePath';
 const SAMPLE_RATE = 16000;
 /** How long `stop` waits for the worklet to hand on the stretch in progress. */
 const FLUSH_TIMEOUT_MS = 1000;
+/** A worklet not loaded after this long failed to load, so ending a call never waits on it. */
+const LOAD_TIMEOUT_MS = 10_000;
 /** What a person does that lets a page start sound (browsers' autoplay rules). */
 const USER_GESTURES = ['pointerdown', 'pointerup', 'click', 'keydown', 'touchend'] as const;
 
@@ -60,7 +62,8 @@ export const encodeWav = (samples: Int16Array): Blob => {
 
 /**
  * Listens to `track` (the microphone this device publishes to the call) and calls `onStretch`
- * with each stretch of speech found in it. Rejects when the worklet cannot be loaded.
+ * with each stretch of speech found in it. Rejects when the worklet cannot be loaded, or has not
+ * loaded after 10 seconds.
  */
 export const startSpeechCapture = async (
   track: MediaStreamTrack,
@@ -70,8 +73,17 @@ export const startSpeechCapture = async (
   // browsers; the worklet lowers it to 16 kHz.
   const context = new AudioContext();
   let node: AudioWorkletNode;
+  let loadTimer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await context.audioWorklet.addModule(workletUrl());
+    await Promise.race([
+      context.audioWorklet.addModule(workletUrl()),
+      new Promise<never>((_resolve, reject) => {
+        loadTimer = setTimeout(
+          () => reject(new Error('The speech worklet did not load in time.')),
+          LOAD_TIMEOUT_MS
+        );
+      }),
+    ]).finally(() => clearTimeout(loadTimer));
     node = new AudioWorkletNode(context, 'speech-finder', {
       outputChannelCount: [1],
       channelCount: 1,
