@@ -143,7 +143,11 @@ test("the example plugin's slash commands show in the command menu, and /greet r
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
     await composer.click();
-    await page.keyboard.type('/greet ');
+    await page.keyboard.type('/');
+    await expect(page.locator('[data-slash-command="greet"]')).toContainText(
+      'Dem Raum einen Gruß senden. Beispiel: /greet Hallo'
+    );
+    await page.keyboard.type('greet ');
     await page.keyboard.press('Enter');
     await expect(
       page.getByRole('alert').filter({
