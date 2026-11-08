@@ -10,6 +10,10 @@ import {
   serializeThreadFilterState,
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
+import { conversationBehindPanelAtom } from '../navigation/conversationCover';
+import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
+import { useEdgeSwipeForward } from '../navigation/useEdgeSwipeForward';
+import { lastExitedThreadAtom } from '../threads/lastExitedThread';
 import { useRoomViewThreadState, type RoomViewThreadState } from './useRoomViewThreadState';
 
 const USER_ID = '@alice:example.org';
@@ -64,9 +68,14 @@ const storeFilter = (filter: ThreadFilterState) =>
 /** Mounts the hook in its own store and hands back a reader for its latest result. */
 const mountThreadState = ({
   advancedFilters = false,
+  store = createStore(),
   ...options
-}: { hasMindroomAgents?: boolean; advancedFilters?: boolean } = {}) => {
-  const store = createStore();
+}: {
+  hasMindroomAgents?: boolean;
+  advancedFilters?: boolean;
+  threadId?: string;
+  store?: ReturnType<typeof createStore>;
+} = {}) => {
   if (advancedFilters) store.set(settingsAtom, { ...getSettings(), simpleThreadFilters: false });
   let latest: RoomViewThreadState | undefined;
   function Probe() {
@@ -84,6 +93,23 @@ const mountThreadState = ({
 };
 
 describe('useRoomViewThreadState', () => {
+  it("keeps its edge swipes off while a side panel takes the conversation's place", () => {
+    const enabled = (hook: typeof useEdgeSwipeBack | typeof useEdgeSwipeForward) =>
+      vi.mocked(hook).mock.lastCall?.[1];
+    const inThread = mountThreadState({ threadId: '$thread' });
+    expect(enabled(useEdgeSwipeBack)).toBe(true);
+    act(() => inThread.store.set(conversationBehindPanelAtom, true));
+    expect(enabled(useEdgeSwipeBack)).toBe(false);
+    act(() => renderer?.unmount());
+
+    const store = createStore();
+    store.set(lastExitedThreadAtom, { roomId: ROOM_ID, threadId: '$thread' });
+    mountThreadState({ store });
+    expect(enabled(useEdgeSwipeForward)).toBe(true);
+    act(() => store.set(conversationBehindPanelAtom, true));
+    expect(enabled(useEdgeSwipeForward)).toBe(false);
+  });
+
   it('applies the thread filter stored for the room', () => {
     storeFilter({ ...createDefaultThreadFilterState(), resolved: 'exclude' });
 

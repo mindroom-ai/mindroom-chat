@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasListEntry } from '../../canvas/canvasIndexStore';
 import { conversationBehindPanelAtom } from '../../navigation/conversationCover';
 import { runShortcut } from '../../shortcuts/useShortcut';
+import { useEdgeSwipeBack } from '../../navigation/useEdgeSwipeBack';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
 const { encryptionState, navigateSpy, permissionState, screenSizeState, membersState } = vi.hoisted(
@@ -394,6 +395,8 @@ afterEach(() => {
   permissionState.canKick = true;
 });
 
+vi.mock('../../navigation/useEdgeSwipeBack', () => ({ useEdgeSwipeBack: vi.fn() }));
+
 importBeforeTests(() => import('../RoomViewHeader'));
 
 describe('RoomViewHeader', () => {
@@ -468,6 +471,20 @@ describe('RoomViewHeader', () => {
       act(() => renderer.unmount());
     }
   );
+
+  it("leaves the room from a phone's edge swipe, but not while a side panel takes its place", async () => {
+    screenSizeState.value = 'Mobile';
+    let rendered: Awaited<ReturnType<typeof renderHeader>> | undefined;
+    await act(async () => {
+      rendered = await renderHeader();
+    });
+    const { renderer, store } = rendered!;
+    const enabled = () => vi.mocked(useEdgeSwipeBack).mock.lastCall?.[1];
+    expect(enabled()).toBe(true);
+    act(() => store.set(conversationBehindPanelAtom, true));
+    expect(enabled()).toBe(false);
+    act(() => renderer.unmount());
+  });
 
   it('toggles Members from its shortcut, but not while a side panel hides the conversation', async () => {
     const onPanelToggle = vi.fn();

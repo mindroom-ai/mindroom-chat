@@ -2,7 +2,6 @@ import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { conversationBehindPanelAtom } from './conversationCover';
 import { imageViewerOpenAtom } from './imageViewerState';
 import { phoneNavDrawerOpenAtom, phoneSheetOpenAtom } from './phoneNavDrawer';
 import { isIOSStandaloneWebApp, isNativeIOS } from '../native/nativeSso';
@@ -169,23 +168,6 @@ describe('useEdgeSwipeBack', () => {
             onBack,
           })
         )
-      );
-    });
-
-    const preventDefault = swipeFromLeftEdge();
-
-    expect(preventDefault).not.toHaveBeenCalled();
-    expect(onBack).not.toHaveBeenCalled();
-  });
-
-  it('does not call onBack while a side panel takes the place of the conversation it acts on', () => {
-    const onBack = vi.fn();
-    const store = createStore();
-    store.set(conversationBehindPanelAtom, true);
-
-    act(() => {
-      renderer = create(
-        React.createElement(Provider, { store }, React.createElement(HookHarness, { onBack }))
       );
     });
 
