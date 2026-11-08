@@ -22,7 +22,7 @@ export const getBundledThreadPreviews = (
   // Without the edits whose redaction the room took, also those of the events the summary bundles.
   const relations: unknown = stripRedactedRelationsFromRawEvent(
     { unsigned: root.getUnsigned?.() },
-    room.redactedBundledEdits
+    room.redactedBundledEdits ?? new Set()
   ).unsigned?.['m.relations'];
   const bundle = object(relations) ? relations['m.thread'] : undefined;
   if (!rootId || !object(bundle)) return {};

@@ -504,9 +504,10 @@ describe('cached copies of an edit redacted from a bundle', () => {
     const [cached] = [withEdit(message('$target'))].map(
       createPreferLiveEventMapper(live, client.getEventMapper())
     );
+    expect(cached).toBe(live.findEventById('$target'));
+    expect(cached!.getContent().body).toBe('original');
     hydrateCachedEvents({ room: live, events: [cached!] });
 
-    expect(cached).toBe(live.findEventById('$target'));
     expect(cached!.getContent().body).toBe('original');
   });
 

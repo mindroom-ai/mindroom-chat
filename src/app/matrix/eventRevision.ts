@@ -191,7 +191,8 @@ export const collectEmbeddedRelationEventIds = (
  * edit asks this, so none shows an edit after its redaction, whichever copy the redaction reached.
  */
 export const isKnownRedactedEventId = (room: Room, eventId: string): boolean =>
-  room.redactedBundledEdits.has(eventId) || room.findEventById(eventId)?.isRedacted() === true;
+  // Optional: room stand-ins in tests have no record.
+  !!room.redactedBundledEdits?.has(eventId) || room.findEventById(eventId)?.isRedacted() === true;
 
 /**
  * Union of every event id known to be redacted from the given raw batch: the

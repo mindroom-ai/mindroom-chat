@@ -62,14 +62,16 @@ describe('the edit that finished a reply', () => {
 
 describe('a redacted edit the client kept', () => {
   it('no longer says whether the reply still streams', () => {
-    // The room took a redaction of the edit, which the client knew only from its reply's bundle.
-    const room = { redactedBundledEdits: new Set(['$streaming']), findEventById: () => undefined };
+    const room = { redactedBundledEdits: new Set<string>(), findEventById: () => undefined };
     const mx = Object.assign(new EventEmitter(), {
       getRoom: () => room,
     }) as unknown as MatrixClient;
     keepSyncedEdits(mx);
-
     mx.emit(ClientEvent.Event, edit('$streaming', 2, 'streaming'));
+    expect(isStreamingByServer(reply)).toBe(true);
+
+    // The room takes a redaction of the edit, which it knew only from the reply's bundle.
+    room.redactedBundledEdits.add('$streaming');
 
     expect(getSyncedEdit('$reply')).toBeUndefined();
     expect(isStreamingByServer(reply)).toBeUndefined();
