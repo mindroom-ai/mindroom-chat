@@ -1,4 +1,5 @@
-import { useRef, useState, type PointerEvent, type ReactNode, type RefObject } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { PointerEvent, ReactNode, RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtom, useAtomValue } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
@@ -57,6 +58,9 @@ type DividerProps = {
 function Divider({ layout, share, boxRef, onDrag, onSet }: DividerProps) {
   const { t } = useTranslation();
   const drag = useRef<{ pointerId: number; share?: number }>();
+  // A drag the divider goes away during (the window turned short, the transcript hidden) ends
+  // with it, unsaved; its pointer capture went with the element.
+  useEffect(() => () => onDrag(undefined), [onDrag]);
   const follow = (event: PointerEvent<HTMLElement>) => {
     const box = boxRef.current;
     if (!box || drag.current?.pointerId !== event.pointerId) return;

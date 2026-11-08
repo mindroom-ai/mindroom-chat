@@ -317,6 +317,25 @@ describe('the live transcript in the floating window', () => {
     expect(divider()?.getAttribute('aria-valuenow')).toBe('50');
   });
 
+  it('drops a drag the divider goes away during, keeping the split it had', () => {
+    inCall();
+    showTranscript();
+    const { rerender } = render(windowWith({ width: 400, height: 480 }));
+    const split = document.querySelector<HTMLElement>('[data-call-transcript-layout]')!;
+    split.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 400, bottom: 300, width: 400, height: 300 } as DOMRect);
+    const pointer = { pointerId: 4, isPrimary: true, button: 0 };
+    fireEvent.pointerDown(divider()!, { ...pointer, clientY: 180 });
+    fireEvent.pointerMove(divider()!, { ...pointer, clientY: 90 });
+    expect(divider()?.getAttribute('aria-valuenow')).toBe('30');
+
+    // The window shrinks to the subtitle layout, which has no divider, and grows back.
+    rerender(windowWith({ width: 400, height: 300 }));
+    rerender(windowWith({ width: 400, height: 480 }));
+    expect(divider()?.getAttribute('aria-valuenow')).toBe('60');
+    expect(settings().transcriptSplit).toBeUndefined();
+  });
+
   it('gives the stage and the transcript their shares of the window body', () => {
     inCall();
     showTranscript(0.7);
