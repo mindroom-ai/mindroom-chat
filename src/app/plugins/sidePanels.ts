@@ -8,6 +8,9 @@ import { isPluginEnabled } from './pluginConfig';
 import { pluginNamespace } from './pluginTranslations';
 import type { RegisteredPlugin } from './registry';
 
+/** The placements a plugin may give a side panel's toggle: a header action's, and `row`. */
+const PANEL_PLACEMENTS: readonly unknown[] = [...PLACEMENTS, 'row'];
+
 /**
  * A panel a plugin adds beside a room. It is one of the room's side panels: one shows at a time,
  * and opening one closes the others (src/app/ui/panels/roomPanels.ts).
@@ -23,12 +26,12 @@ export type SidePanel = {
   /** Its toggle's icon, as folds draws one, such as `Icons.Star`; a bulb by default. */
   icon?: IconSrc;
   /**
-   * Where its toggle shows, as a header action's does: `auto` in the header's row, except on
-   * phones, where it goes in the room menu; `menu`, the default, always in the room menu. The
-   * toggle is pressed while the room shows the panel, not folded to its tab; folded, choosing it
-   * unfolds the panel.
+   * Where its toggle shows: `row` in the header's row on every screen, phones included; `auto` in
+   * the header's row, except on phones, where it goes in the room menu; `menu`, the default, always
+   * in the room menu. The toggle is pressed while the room shows the panel, not folded to its tab;
+   * folded, choosing it unfolds the panel.
    */
-  placement?: HeaderAction['placement'];
+  placement?: HeaderAction['placement'] | 'row';
   /**
    * What it shows, for the room it is open in. `request` is what the plugin's code asked it to show
    * when it last opened it ({@link useRoomSidePanel}), or undefined after its toggle opened it.
@@ -65,7 +68,7 @@ export const isSidePanel = (value: unknown): value is SidePanel =>
   typeof value.label === 'string' &&
   (typeof value.Component === 'function' || isRecord(value.Component)) &&
   (value.icon === undefined || typeof value.icon === 'function') &&
-  (value.placement === undefined || PLACEMENTS.includes(value.placement)) &&
+  (value.placement === undefined || PANEL_PLACEMENTS.includes(value.placement)) &&
   (value.opensOverMembers === undefined || value.opensOverMembers === true) &&
   (value.frame === undefined || value.frame === 'own');
 

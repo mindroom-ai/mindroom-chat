@@ -145,13 +145,16 @@ describe("a plugin's side panel's toggle in the room header", () => {
   });
 
   it.each(['Mobile', 'Desktop'])(
-    "is a button in the row on a %s screen with `row`, pressed only while the room shows it",
+    'is a button in the row on a %s screen with `row`, pressed only while the room shows it',
     (size) => {
       screen.size = size;
       const onPanelToggle = vi.fn();
       const panel = { ...BOARD, placement: 'row' } as const;
       renderHeader({ pluginPanels: [panel], onPanelToggle });
-      expect(rowButton('Board')?.props).toMatchObject({ 'aria-pressed': false, variant: 'Surface' });
+      expect(rowButton('Board')?.props).toMatchObject({
+        'aria-pressed': false,
+        variant: 'Surface',
+      });
       act(() => {
         rowButton('Board')?.props.onClick({});
       });
