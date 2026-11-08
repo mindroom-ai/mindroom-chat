@@ -688,22 +688,22 @@ const CARD_CSS = `[data-example-card-box] { display: flex; flex: none; width: ${
 @media (max-width: 750px) { [data-example-card-box], [data-example-card] { flex: 1 1 0; } }`;
 
 /**
- * The card's box, which moves in and out, when `moves`, as the room moves its panels: it registers
- * with the room's panel place, which then keeps the closing card until it calls `done`.
+ * Moves the card's box in and out, when `moves`, as the room moves its panels: it registers with the
+ * room's panel place, which then keeps the closing card until it calls `done`.
  */
-function useCardMotion(moves: boolean): RefObject<HTMLDivElement> {
-  const box = useRef<HTMLDivElement>(null);
+function useCardMotion(box: RefObject<HTMLElement>, moves: boolean) {
   const presence = usePanelPresence();
   const register = presence?.register;
   const lastWidth = presence?.lastWidth;
   useLayoutEffect(() => {
+    const element = box.current;
     const unregister = register?.();
     return () => {
       unregister?.();
       // A panel that takes the card's place moves on from its width.
-      if (lastWidth) lastWidth.current = box.current?.offsetWidth;
+      if (lastWidth) lastWidth.current = element?.offsetWidth;
     };
-  }, [lastWidth, register]);
+  }, [box, lastWidth, register]);
   const phase = presence?.phase ?? 'shown';
   const done = presence?.done;
   const phaseSeen = useRef<PanelPhase>('shown');
@@ -729,8 +729,7 @@ function useCardMotion(moves: boolean): RefObject<HTMLDivElement> {
     if (phase !== 'exit') return;
     if (motion.current) void motion.current.finished.then(done, () => undefined);
     else done?.();
-  }, [done, lastWidth, moves, phase]);
-  return box;
+  }, [box, done, lastWidth, moves, phase]);
 }
 
 /**
@@ -741,8 +740,9 @@ function ExampleCard() {
   const frame = usePanelFrame();
   const themeKind = useThemeKind();
   const screenSize = useScreenSize();
+  const box = useRef<HTMLDivElement>(null);
   // As the room's panels, it moves only beside the conversation, never filling the room or on a phone.
-  const box = useCardMotion(frame?.layout === 'beside' && screenSize !== 'Mobile');
+  useCardMotion(box, frame?.layout === 'beside' && screenSize !== 'Mobile');
   if (!frame) return null;
   const { layout, setLayout } = frame;
   const look = {
