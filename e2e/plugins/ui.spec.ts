@@ -21,6 +21,9 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // sidebar's rows, the room menu's entries, the Leave Room dialog and its header), and the menu and
 // the tooltip line up with the end of their button, its right edge in English and its left edge
 // in Arabic. Screenshots of each, beside the app's counterparts, in the light and the dark scheme.
+// Its card, which draws its own frame, says the app's theme kind and screen size as they change,
+// without a reload, and shows a PDF it holds as a blob in the browser's viewer, through the app's
+// frame page.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const RUN = Date.now().toString(36);
 const LAYOUTS = {
@@ -199,3 +202,82 @@ for (const [layout, viewport] of Object.entries(LAYOUTS)) {
     }
   });
 }
+
+/** The share of white pixels in a screenshot of `area`, where a PDF's white page shows. */
+const whiteShare = async (page: Page, area: Locator) =>
+  page.evaluate(async (base64) => {
+    const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+    const context = new OffscreenCanvas(bitmap.width, bitmap.height).getContext('2d')!;
+    context.drawImage(bitmap, 0, 0);
+    const { data } = context.getImageData(0, 0, bitmap.width, bitmap.height);
+    let white = 0;
+    for (let index = 0; index < data.length; index += 4) {
+      if (Math.min(data[index] ?? 0, data[index + 1] ?? 0, data[index + 2] ?? 0) > 245) white += 1;
+    }
+    return white / (bitmap.width * bitmap.height);
+  }, (await area.screenshot()).toString('base64'));
+
+test("the example plugin's own-frame card follows the app's theme kind and screen size, and shows its PDF in the browser's viewer", async ({
+  browser,
+}, testInfo) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+  test.setTimeout(10 * 60_000);
+  const person = await registerDisposableUser(`plugin_ui_surface_${RUN}`, 'plugin-ui-pass');
+  const roomId = await createPrivateRoom(HOMESERVER, person.accessToken, {
+    name: 'Orchard',
+    topic: 'Where the example plugin draws its own surface',
+  });
+  const server = await serveBuild(build!);
+  const context = await browser.newContext({ baseURL: server.origin, viewport: LAYOUTS.phone });
+  const page = await context.newPage();
+  const card = page.getByRole('region', { name: 'Example card', exact: true });
+  const says = (text: string) => expect(card.getByText(text, { exact: true })).toBeVisible();
+  try {
+    await page.emulateMedia({ colorScheme: 'light' });
+    await loginWithPassword(page, { homeserver: HOMESERVER, ...person });
+    await page.goto(`/home/${encodeURIComponent(roomId)}/`);
+    await expect(roomMoreOptions(page)).toBeVisible({ timeout: 60_000 });
+    await roomMoreOptions(page).click();
+    await page.getByRole('menuitemcheckbox', { name: 'Example card', exact: true }).click();
+    await expect(card).toBeVisible();
+    // A mark on the window, which a reload would lose.
+    await page.evaluate(() => Object.assign(window, { exampleSurfaceMark: true }));
+
+    await says('Screen: Mobile');
+    await says('Theme: light');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect(page.locator('html')).toHaveAttribute('data-theme-kind', 'dark');
+    await says('Theme: dark');
+    await page.screenshot({ path: testInfo.outputPath('surface-phone-dark.png') });
+    await page.emulateMedia({ colorScheme: 'light' });
+    await says('Theme: light');
+
+    await page.setViewportSize(LAYOUTS.wide);
+    await says('Screen: Desktop');
+    expect(await page.evaluate(() => 'exampleSurfaceMark' in window)).toBe(true);
+
+    // In the dark scheme the card around the frame is dark: white there is the PDF's page.
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await says('Theme: dark');
+    await card.getByRole('button', { name: 'Show example PDF', exact: true }).click();
+    const frameElement = card.locator('iframe[title="Example PDF"]');
+    await expect(frameElement).toBeVisible();
+    // The browser's viewer runs in a frame of its own inside the app's frame page.
+    const framePage = await (await frameElement.elementHandle())?.contentFrame();
+    if (!framePage) throw new Error('the frame has no page');
+    expect(new URL(framePage.url()).pathname).toBe('/pdf-frame.html');
+    await expect(framePage.locator('embed[type="application/pdf"]')).toBeAttached();
+    await expect
+      .poll(() => page.frames().some((frame) => frame.url().startsWith('chrome-extension://')))
+      .toBe(true);
+    // The viewer draws the page, white on its dark backdrop.
+    await expect
+      .poll(() => whiteShare(page, frameElement), { timeout: 20_000 })
+      .toBeGreaterThan(0.2);
+    await page.screenshot({ path: testInfo.outputPath('surface-wide-pdf.png') });
+  } finally {
+    await context.close();
+    await server.close();
+  }
+});

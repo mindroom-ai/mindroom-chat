@@ -4,9 +4,9 @@ import classNames from 'classnames';
 import { Box, Icon, Icons, Text, as } from 'folds';
 import { Chip, Header, IconButton } from '../../ui/glass/GlassPrimitives';
 import { saveFile } from '../../native/nativeFileSave';
-import { appUrl } from '../../lib/basePath';
 import { revealDirectionControls } from '../../ui/directional';
 import * as css from './PdfViewer.css';
+import { pdfFrameUrl } from './pdfFrame';
 
 type PdfViewerProps = {
   name: string;
@@ -15,15 +15,6 @@ type PdfViewerProps = {
   requestClose: () => void;
 };
 
-// The frame is not sandboxed (browsers do not run their PDF viewer in one), so only local
-// object URLs reach it: never a `javascript:` URL or a server response that could be HTML.
-const isBlobUrl = (src: string) => src.startsWith('blob:');
-
-// The app's frame-src policy (index.html) refuses blob: frames, so the PDF opens in the app's own
-// frame page, which hands the object URL named after its # sign to the browser's viewer.
-const pdfFrameUrl = (src: string): string =>
-  `${appUrl('pdf-frame.html')}#${encodeURIComponent(src)}`;
-
 /** Whether a save is running, and whether the last one failed. */
 type SaveProgress = { pending: boolean; failed: boolean };
 
@@ -31,7 +22,9 @@ export const PdfViewer = as<'div', PdfViewerProps>(
   ({ name, src, requestClose, className, ...props }, ref) => {
     const { t } = useTranslation();
     const [progress, setProgress] = useState<SaveProgress>({ pending: false, failed: false });
-    const savable = isBlobUrl(src);
+    // Only an object URL is shown, and only what is shown is saved.
+    const frameUrl = pdfFrameUrl(src);
+    const savable = frameUrl !== undefined;
     const { pending, failed } = progress;
     const shownName = revealDirectionControls(name);
 
@@ -78,7 +71,7 @@ export const PdfViewer = as<'div', PdfViewerProps>(
           </Chip>
         </Header>
         <Box className={css.PdfViewerContent} grow="Yes">
-          {savable ? <iframe src={pdfFrameUrl(src)} title={shownName} style={frameStyle} /> : null}
+          {frameUrl ? <iframe src={frameUrl} title={shownName} style={frameStyle} /> : null}
         </Box>
       </Box>
     );

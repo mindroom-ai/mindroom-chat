@@ -1,20 +1,37 @@
 // `@mindroom/client-sdk/ui`, the client SDK's subpath for plugins whose menus, dialogs, pop-outs,
 // rows and text should look like the app's (docs/architecture.md "Client plugins"): the app's own
-// components, with the app's props, which keep the app's theme, glass and reading direction, and
-// text as the app renders it. Like `/core` it only grows, and each addition raises
+// components, with the app's props, which keep the app's theme, glass and reading direction, text
+// as the app renders it, and for a surface a plugin draws itself the app's theme kind, its screen
+// size and its PDF frame. Like `/core` it only grows, and each addition raises
 // CLIENT_PLUGIN_API_VERSION in scripts/client-plugins.mjs.
-import { useMemo } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { useOptionalClientConfig } from '../app/config/useClientConfig';
 import { replaceMatrixUserIdsWithDisplayNames as replaceInApp } from '../app/event-store/threads/threadMessagePreview';
 import { renderLiveMarkdown, useLiveMarkdownReady } from '../app/messages/live/liveMarkdown';
 import { sanitizeCustomHtml } from '../app/rich-text/sanitize';
+import { subscribeAppliedTheme } from '../app/theme/appliedTheme';
+import { ThemeKind } from '../app/theme/useTheme';
 
 export { Dialog, Header, IconButton, Menu } from '../app/ui/glass/GlassPrimitives';
 export { PopOut } from '../app/ui/directional';
 export { IconTooltip } from '../app/ui/IconTooltip';
 export { MenuEntry, MenuGroup } from '../app/ui/MenuEntry';
 export { NavButton, NavItem, NavItemContent } from '../app/ui/nav/NavItem';
+// The app's `Mobile`, `Tablet` or `Desktop`, as it lays out, rendered again when that changes.
+export { useScreenSizeContext as useScreenSize } from '../app/lib/hooks/useScreenSize';
+export { pdfFrameUrl } from '../app/messages/viewers/pdfFrame';
+
+// The kind of the theme on the page, which the app marks on the root element as it applies one.
+const appliedThemeKind = (): ThemeKind =>
+  document.documentElement.dataset.themeKind === ThemeKind.Dark ? ThemeKind.Dark : ThemeKind.Light;
+
+/**
+ * `light` or `dark`, as the app applies its theme, the person's choice or the system's, rendered
+ * again once another kind is on the page.
+ */
+export const useThemeKind = (): ThemeKind =>
+  useSyncExternalStore(subscribeAppliedTheme, appliedThemeKind);
 
 /** `html` with only what the app keeps of a message's HTML, under the app's default policy. */
 export const sanitizeHtml = (html: string): string => sanitizeCustomHtml(html);
