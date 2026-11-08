@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IOpenIDToken } from 'matrix-js-sdk';
+import { ClientSessions } from '../../computer/clientSessions';
 import { CallTranscriber, type TranscriberStatus } from './callTranscriber';
 import type { TranscriptCall, TranscriptLine } from './api';
 import { startSpeechCapture, type SpeechCapture, type SpeechStretch } from './speechCapture';
@@ -119,6 +120,10 @@ const setup = ({
   const urls: string[] = [];
   const request = vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const url = String(input);
+    if (url === `${API_URL}/api/client-sessions` && init.method === 'DELETE') {
+      log.push('revoke');
+      return new Response(null, { status: 204 });
+    }
     if (url === `${API_URL}/api/client-sessions`) return server.session();
     urls.push(url);
     const route = url.slice(url.lastIndexOf('/') + 1).replace(/\?.*/, '');
@@ -162,11 +167,14 @@ const setup = ({
   );
   const statuses: TranscriberStatus[] = [];
   const updates: LiveUpdate[] = [];
-  const transcriber = new CallTranscriber({
-    roomId,
+  const sessions = new ClientSessions({
     apiUrl: API_URL,
     getOpenIdToken: async () => TOKEN,
     request,
+  });
+  const transcriber = new CallTranscriber({
+    roomId,
+    sessions,
     startCapture: listen ?? startCapture,
     onStatus: (status) => statuses.push(status),
     onUpdate: (update) => updates.push(update),
@@ -181,6 +189,7 @@ const setup = ({
   const pauses = () => log.filter((entry) => entry.startsWith('pause'));
   return {
     transcriber,
+    sessions,
     server,
     log,
     urls,
@@ -936,7 +945,7 @@ describe('CallTranscriber ending', () => {
     t.capture().inProgress = stretch(3);
     await advance();
 
-    t.transcriber.leaveNow();
+    void t.transcriber.leaveNow();
     expect(t.steps()).toEqual(['calls.join', 'listen mic-a', 'speech 1', 'leave', 'stop mic-a']);
     const init = defined(t.server.leave.mock.calls[0], 'the leave')[0];
     expect(init.keepalive).toBe(true);
@@ -948,6 +957,75 @@ describe('CallTranscriber ending', () => {
     await t.transcriber.end();
     await advance(60_000);
     expect(t.steps()).toEqual(['calls.join', 'listen mic-a', 'speech 1', 'leave', 'stop mic-a']);
+  });
+
+  it('finishes its uploads and leaves before sign-out ends the session, once ending', async () => {
+    const t = setup();
+    t.transcriber.setMicrophone(MIC_A);
+    t.transcriber.start();
+    await advance();
+    const upload = pending<Response>();
+    t.server.speech.mockImplementationOnce(() => upload.promise);
+    t.capture().onStretch(stretch(1));
+    t.capture().inProgress = stretch(2);
+    await advance();
+
+    // The call was hung up, and its uploads are still going out as the person signs out.
+    const ending = t.transcriber.end();
+    const revoked = t.sessions.revoke();
+    await advance(1_000);
+    upload.resolve(json({ line: LINE }));
+    await ending;
+    await revoked;
+    expect(t.steps()).toEqual([
+      'calls.join',
+      'listen mic-a',
+      'speech 1',
+      'stop mic-a',
+      'speech 2',
+      'leave',
+      'revoke',
+    ]);
+  });
+
+  it('takes its sign-out leave back once its ending settled', async () => {
+    const sessions = new ClientSessions({ apiUrl: API_URL, getOpenIdToken: async () => TOKEN });
+    const takeBack = vi.fn();
+    vi.spyOn(sessions, 'beforeRevoke').mockReturnValue(takeBack);
+    const transcriber = new CallTranscriber({
+      roomId: OTHER_ROOM_ID,
+      sessions,
+      onStatus: () => undefined,
+      onUpdate: () => undefined,
+    });
+
+    const ending = transcriber.end();
+    expect(takeBack).not.toHaveBeenCalled();
+    await ending;
+    expect(takeBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves with its session before sign-out ends it, and not once the call ended', async () => {
+    const t = setup();
+    t.transcriber.setMicrophone(MIC_A);
+    t.transcriber.start();
+    await advance();
+    const left = pending<Response>();
+    t.server.leave.mockImplementationOnce(() => left.promise);
+
+    const revoked = t.sessions.revoke();
+    await advance();
+    expect(t.steps()).toEqual(['calls.join', 'listen mic-a', 'leave', 'stop mic-a']);
+    left.resolve(json({}));
+    await revoked;
+    expect(t.steps()).toEqual(['calls.join', 'listen mic-a', 'leave', 'stop mic-a', 'revoke']);
+
+    const ended = setup({ roomId: OTHER_ROOM_ID });
+    ended.transcriber.start();
+    await advance();
+    await ended.transcriber.end();
+    await ended.sessions.revoke();
+    expect(ended.steps()).toEqual(['calls.join', 'leave', 'revoke']);
   });
 
   it('stops listening at once, before a check-in on its way answers', async () => {
