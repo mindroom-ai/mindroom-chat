@@ -79,6 +79,11 @@ const withPanelRoom = async (browser: Browser, check: (page: Page) => Promise<vo
   const server = await serveBuild(build!);
   const context = await browser.newContext({ baseURL: server.origin });
   const page = await context.newPage();
+  // A new account is asked to set up a recovery password; this spec has no use for one.
+  await page.addLocatorHandler(
+    page.getByRole('dialog').filter({ hasText: 'Set up your recovery password' }),
+    (dialog) => dialog.getByRole('button', { name: 'Not now', exact: true }).click()
+  );
   try {
     await openPanelRoom(context, page);
     await check(page);
