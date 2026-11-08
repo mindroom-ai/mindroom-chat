@@ -461,7 +461,8 @@
         "float": "ভাসমান করুন",
         "speakerView": "স্পিকার ভিউ",
         "openConversation": "কথোপকথনে যান",
-        "label": "কল উইন্ডো"
+        "label": "কল উইন্ডো",
+        "resizeTranscript": "ট্রান্সক্রিপ্টের আকার বদলান"
       }
     },
     "room": {

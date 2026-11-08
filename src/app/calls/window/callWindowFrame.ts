@@ -27,3 +27,14 @@ export const CallWindowFrameContext = createContext<CallWindowFrame | undefined>
 /** The floating frame around the call view; undefined in the docked panel and on phones. */
 export const useCallWindowFrame = (): CallWindowFrame | undefined =>
   useContext(CallWindowFrameContext);
+
+/** The floating window's size (px) as it stands, a drag's included. */
+export type CallWindowSize = { width: number; height: number };
+
+// Apart from the frame: moving the window renders nothing of the call view, and resizing it
+// renders only what lays itself out by its size (the live transcript).
+export const CallWindowSizeContext = createContext<CallWindowSize | undefined>(undefined);
+
+/** The floating window's size; undefined in the docked panel and on phones. */
+export const useCallWindowSize = (): CallWindowSize | undefined =>
+  useContext(CallWindowSizeContext);

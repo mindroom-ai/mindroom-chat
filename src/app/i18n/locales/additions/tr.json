@@ -461,7 +461,8 @@
         "float": "Yüzdür",
         "speakerView": "Konuşmacı görünümü",
         "openConversation": "Sohbete git",
-        "label": "Arama penceresi"
+        "label": "Arama penceresi",
+        "resizeTranscript": "Konuşma metnini yeniden boyutlandır"
       }
     },
     "room": {

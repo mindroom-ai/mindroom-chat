@@ -452,7 +452,8 @@
         "float": "浮動",
         "speakerView": "發言者檢視",
         "openConversation": "前往對話",
-        "label": "通話視窗"
+        "label": "通話視窗",
+        "resizeTranscript": "調整逐字稿大小"
       }
     },
     "room": {

@@ -461,7 +461,8 @@
         "float": "Float",
         "speakerView": "Speaker view",
         "openConversation": "Go to the conversation",
-        "label": "Call window"
+        "label": "Call window",
+        "resizeTranscript": "Resize the transcript"
       }
     },
     "room": {

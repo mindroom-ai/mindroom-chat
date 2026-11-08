@@ -6,7 +6,8 @@ import { clampToViewport, defaultRect, fitToViewport, isBar, keyStep } from './c
 import { moveRect, resizeRect, snapToCorner } from './callWindowGeometry';
 import type { ResizeEdge, ViewportSize, WindowRect } from './callWindowGeometry';
 import { expandedSettings, minimizedSettings, useCallWindowSettings } from './callWindowState';
-import { CallWindowFrameContext, type CallWindowFrame } from './callWindowFrame';
+import { CallWindowFrameContext, CallWindowSizeContext } from './callWindowFrame';
+import type { CallWindowFrame } from './callWindowFrame';
 import * as css from './FloatingCallWindow.css';
 
 const EDGES: readonly ResizeEdge[] = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'];
@@ -134,6 +135,8 @@ export function FloatingCallWindow(props: { children: ReactNode; frameRef?: Ref<
     }),
     [bar, expand, minimize, moveLabel, onKeyDown]
   );
+  const { width, height } = rect;
+  const size = useMemo(() => ({ width, height }), [width, height]);
 
   const startDrag = (event: PointerEvent<HTMLElement>) => {
     if (event.button !== 0 || !event.isPrimary || dragRef.current) return;
@@ -191,7 +194,9 @@ export function FloatingCallWindow(props: { children: ReactNode; frameRef?: Ref<
         onPointerCancel={(event) => endDrag(event, false)}
         onLostPointerCapture={(event) => endDrag(event, false)}
       >
-        <div className={css.Box}>{children}</div>
+        <div className={css.Box}>
+          <CallWindowSizeContext.Provider value={size}>{children}</CallWindowSizeContext.Provider>
+        </div>
         {EDGES.map((edge) => (
           <span key={edge} className={css.Edge[edge]} data-call-window-edge={edge} aria-hidden />
         ))}

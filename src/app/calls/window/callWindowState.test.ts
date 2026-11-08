@@ -6,6 +6,8 @@ import {
   clearCallWindowStore,
   expandedSettings,
   getCallWindowSettingsAtom,
+  getCallWindowSplitAtom,
+  getCallWindowTranscriptAtom,
   minimizedSettings,
   normalizeCallWindowSettings,
 } from './callWindowState';
@@ -46,6 +48,59 @@ describe('normalizeCallWindowSettings', () => {
     expect(normalizeCallWindowSettings({ mode: 'floating', expandedHeight: 100 })).toEqual({
       mode: 'floating',
     });
+  });
+
+  it('keeps whether the transcript shows and a split between a quarter and four fifths', () => {
+    expect(
+      normalizeCallWindowSettings({ mode: 'floating', transcript: true, transcriptSplit: 0.25 })
+    ).toEqual({ mode: 'floating', transcript: true, transcriptSplit: 0.25 });
+    expect(normalizeCallWindowSettings({ mode: 'docked', transcriptSplit: 0.8 })).toEqual({
+      mode: 'docked',
+      transcriptSplit: 0.8,
+    });
+  });
+
+  it.each([
+    [{ transcript: 'yes' }],
+    [{ transcriptSplit: 0.2 }],
+    [{ transcriptSplit: 0.81 }],
+    [{ transcriptSplit: '0.5' }],
+    [{ transcriptSplit: Number.NaN }],
+  ])('drops a transcript setting that is junk (%o)', (junk) => {
+    expect(normalizeCallWindowSettings({ mode: 'floating', ...junk })).toEqual({
+      mode: 'floating',
+    });
+  });
+});
+
+describe('the window transcript settings', () => {
+  it('are off with the stage at 60 percent until set', () => {
+    const store = createStore();
+    expect(store.get(getCallWindowTranscriptAtom(USER))).toBe(false);
+    expect(store.get(getCallWindowSplitAtom(USER))).toBe(0.6);
+  });
+
+  it('show the transcript, and expand a bar to show it', () => {
+    const store = createStore();
+    const bar = minimizedSettings({ mode: 'floating', rect }, rect);
+    store.set(getCallWindowSettingsAtom(USER), bar);
+
+    store.set(getCallWindowTranscriptAtom(USER), true);
+    const shown = store.get(getCallWindowSettingsAtom(USER));
+    expect(shown.transcript).toBe(true);
+    expect(shown.rect?.height).toBe(480);
+    expect(store.get(getCallWindowTranscriptAtom(USER))).toBe(true);
+
+    store.set(getCallWindowTranscriptAtom(USER), false);
+    expect(store.get(getCallWindowSettingsAtom(USER))).toEqual({ ...shown, transcript: false });
+  });
+
+  it('keep the split the divider sets, within its bounds', () => {
+    const store = createStore();
+    store.set(getCallWindowSplitAtom(USER), 0.7);
+    expect(store.get(getCallWindowSettingsAtom(USER)).transcriptSplit).toBe(0.7);
+    store.set(getCallWindowSplitAtom(USER), 0.95);
+    expect(store.get(getCallWindowSplitAtom(USER))).toBe(0.8);
   });
 });
 

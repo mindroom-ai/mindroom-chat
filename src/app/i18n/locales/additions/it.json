@@ -470,7 +470,8 @@
         "float": "Rendi mobile",
         "speakerView": "Vista relatore",
         "openConversation": "Vai alla conversazione",
-        "label": "Finestra della chiamata"
+        "label": "Finestra della chiamata",
+        "resizeTranscript": "Ridimensiona la trascrizione"
       }
     },
     "room": {

@@ -452,7 +452,8 @@
         "float": "Melayang",
         "speakerView": "Tampilan pembicara",
         "openConversation": "Buka percakapan",
-        "label": "Jendela panggilan"
+        "label": "Jendela panggilan",
+        "resizeTranscript": "Ubah ukuran transkrip"
       }
     },
     "room": {

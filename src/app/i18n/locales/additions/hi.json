@@ -461,7 +461,8 @@
         "float": "फ़्लोट करें",
         "speakerView": "स्पीकर व्यू",
         "openConversation": "बातचीत पर जाएं",
-        "label": "कॉल विंडो"
+        "label": "कॉल विंडो",
+        "resizeTranscript": "ट्रांसक्रिप्ट का आकार बदलें"
       }
     },
     "room": {

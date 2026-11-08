@@ -6,7 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import type { WindowRect } from './callWindowGeometry';
 import { callWindowStorageKey, clearCallWindowStore } from './callWindowState';
-import { useCallWindowFrame, type CallWindowFrame } from './callWindowFrame';
+import {
+  useCallWindowFrame,
+  useCallWindowSize,
+  type CallWindowFrame,
+  type CallWindowSize,
+} from './callWindowFrame';
 import { FloatingCallWindow } from './FloatingCallWindow';
 
 const USER = '@me:window.test';
@@ -28,11 +33,13 @@ const CAPTURE = ['setPointerCapture', 'hasPointerCapture', 'releasePointerCaptur
 const setPointerCapture = vi.fn();
 
 let frame: CallWindowFrame | undefined;
+let size: CallWindowSize | undefined;
 const pressed = vi.fn();
 
 /** Stands in for the call view's title bar, which takes the handle's props from the frame. */
 function TitleBar() {
   frame = useCallWindowFrame();
+  size = useCallWindowSize();
   return (
     <header {...frame?.handleProps}>
       <span>Call in Lobby</span>
@@ -95,6 +102,7 @@ beforeEach(() => {
   setViewport(1440, 900);
   document.dir = '';
   frame = undefined;
+  size = undefined;
   vi.stubGlobal('PointerEvent', TestPointerEvent);
   Object.assign(HTMLElement.prototype, {
     setPointerCapture,
@@ -125,6 +133,21 @@ describe('FloatingCallWindow', () => {
     // A group, so screen readers read the handle's name ("Move call window") on focus.
     expect(handle().getAttribute('role')).toBe('group');
     expect(handle().getAttribute('aria-label')).toBe('Move call window');
+  });
+
+  it('tells the call view its size as placed, and as a resize drag goes', () => {
+    renderWindow();
+    expect(size).toEqual({ width: 400, height: 480 });
+    const before = size;
+    // Moved, it keeps its size, and the call view hears of no change.
+    drag(handle(), -100, -50);
+    expect(size).toBe(before);
+
+    press(edge('nw'));
+    moveTo(400, 300);
+    expect(size).toEqual({ width: 500, height: 680 });
+    releaseAt(400, 300);
+    expect(size).toEqual({ width: 500, height: 680 });
   });
 
   it('names the handle for the bar while minimized and tells its keys in both states', () => {

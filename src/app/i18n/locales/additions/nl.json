@@ -461,7 +461,8 @@
         "float": "Zwevend maken",
         "speakerView": "Sprekersweergave",
         "openConversation": "Ga naar de conversatie",
-        "label": "Oproepvenster"
+        "label": "Oproepvenster",
+        "resizeTranscript": "Grootte van het transcript wijzigen"
       }
     },
     "room": {

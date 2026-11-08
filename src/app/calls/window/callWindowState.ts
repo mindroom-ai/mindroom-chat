@@ -17,12 +17,17 @@ import {
   type ViewportSize,
   type WindowRect,
 } from './callWindowGeometry';
+import { DEFAULT_TRANSCRIPT_SPLIT, clampSplit, isTranscriptSplit } from './transcriptLayout';
 
 export type CallWindowMode = 'floating' | 'docked';
 export type CallWindowSettings = {
   mode: CallWindowMode;
   rect?: WindowRect;
   expandedHeight?: number;
+  /** The live transcript shows inside the window (in calls MindRoom transcribes). */
+  transcript?: boolean;
+  /** The stage's share of the window body beside the transcript, 0.25 to 0.8. */
+  transcriptSplit?: number;
 };
 
 const DEFAULT_SETTINGS: CallWindowSettings = { mode: 'floating' };
@@ -54,6 +59,8 @@ export const normalizeCallWindowSettings = (value: unknown): CallWindowSettings 
   if (typeof height === 'number' && Number.isFinite(height) && height >= MIN_HEIGHT) {
     settings.expandedHeight = height;
   }
+  if (typeof stored.transcript === 'boolean') settings.transcript = stored.transcript;
+  if (isTranscriptSplit(stored.transcriptSplit)) settings.transcriptSplit = stored.transcriptSplit;
   return settings;
 };
 
@@ -98,7 +105,11 @@ type SettingsViews = {
   mode: WritableAtom<CallWindowMode, [CallWindowMode], void>;
   minimized: Atom<boolean>;
   expand: WritableAtom<null, [], boolean>;
+  transcript: WritableAtom<boolean, [boolean], void>;
+  split: WritableAtom<number, [number], void>;
 };
+
+const readViewport = () => ({ width: window.innerWidth, height: window.innerHeight });
 
 const views = new WeakMap<CallWindowSettingsAtom, SettingsViews>();
 
@@ -117,10 +128,23 @@ const viewsOf = (settingsAtom: CallWindowSettingsAtom): SettingsViews => {
     expand: atom(null, (get, set) => {
       const settings = get(settingsAtom);
       if (!settings.rect || !isBar(settings.rect)) return false;
-      const viewport = { width: window.innerWidth, height: window.innerHeight };
-      set(settingsAtom, expandedSettings(settings, settings.rect, viewport));
+      set(settingsAtom, expandedSettings(settings, settings.rect, readViewport()));
       return true;
     }),
+    // The bar shows no transcript, so showing it gives a minimized window its height back.
+    transcript: atom(
+      (get) => get(settingsAtom).transcript === true,
+      (get, set, shown: boolean) => {
+        const settings = { ...get(settingsAtom), transcript: shown };
+        const bar = shown && settings.rect && isBar(settings.rect) ? settings.rect : undefined;
+        set(settingsAtom, bar ? expandedSettings(settings, bar, readViewport()) : settings);
+      }
+    ),
+    split: atom(
+      (get) => get(settingsAtom).transcriptSplit ?? DEFAULT_TRANSCRIPT_SPLIT,
+      (get, set, split: number) =>
+        set(settingsAtom, { ...get(settingsAtom), transcriptSplit: clampSplit(split) })
+    ),
   };
   views.set(settingsAtom, made);
   return made;
@@ -155,6 +179,17 @@ export const useCallWindowMinimized = (): boolean => useAtomValue(useSettingsVie
 
 /** Gives a window minimized to its bar its height back; answers whether it was a bar. */
 export const useExpandCallWindow = (): (() => boolean) => useSetAtom(useSettingsViews().expand);
+
+/**
+ * Whether the account's floating window shows the live transcript; set true, it also expands a
+ * window minimized to its bar.
+ */
+export const getCallWindowTranscriptAtom = (userId: string) =>
+  viewsOf(getCallWindowSettingsAtom(userId)).transcript;
+
+/** The stage's share of the window body beside the live transcript (60 percent until moved). */
+export const getCallWindowSplitAtom = (userId: string) =>
+  viewsOf(getCallWindowSettingsAtom(userId)).split;
 
 /** The bar keeps the window's bottom edge, and the old height is remembered for the way back. */
 export const minimizedSettings = (

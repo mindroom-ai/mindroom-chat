@@ -470,7 +470,8 @@
         "float": "Détacher",
         "speakerView": "Vue intervenant",
         "openConversation": "Aller à la conversation",
-        "label": "Fenêtre d’appel"
+        "label": "Fenêtre d’appel",
+        "resizeTranscript": "Redimensionner la transcription"
       }
     },
     "room": {

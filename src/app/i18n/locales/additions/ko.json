@@ -452,7 +452,8 @@
         "float": "플로팅",
         "speakerView": "발언자 보기",
         "openConversation": "대화로 이동",
-        "label": "통화 창"
+        "label": "통화 창",
+        "resizeTranscript": "대화 기록 크기 조정"
       }
     },
     "room": {

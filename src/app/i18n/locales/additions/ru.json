@@ -479,7 +479,8 @@
         "float": "Открепить",
         "speakerView": "Режим докладчика",
         "openConversation": "Перейти к беседе",
-        "label": "Окно звонка"
+        "label": "Окно звонка",
+        "resizeTranscript": "Изменить размер расшифровки"
       }
     },
     "room": {

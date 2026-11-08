@@ -461,7 +461,8 @@
         "float": "Schweben lassen",
         "speakerView": "Sprecheransicht",
         "openConversation": "Zur Unterhaltung",
-        "label": "Anruffenster"
+        "label": "Anruffenster",
+        "resizeTranscript": "Größe des Transkripts ändern"
       }
     },
     "room": {

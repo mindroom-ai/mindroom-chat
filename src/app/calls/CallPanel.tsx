@@ -41,6 +41,7 @@ import { hasVideo } from './stageLayout';
 import { useCallWindowFrame } from './window/callWindowFrame';
 import { focusHandOffAtom, useCallWindowMode } from './window/callWindowState';
 import { DockIcon, FloatIcon } from './window/windowIcons';
+import { WindowTranscript } from './window/WindowTranscript';
 import { TranscriptionControls, TranscriptionStatus } from './transcription/TranscriptionControls';
 import * as css from './CallPanel.css';
 import { revealDirectionControls } from '../ui/directional';
@@ -421,6 +422,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
   const { visibleFailure, dismissFailure } = useCallFailureDismissal(joined, failure);
   const finished = state.phase === 'failed' || state.phase === 'ended';
   const agentCall = active.kind === 'agent';
+  const inWindow = !!useCallWindowFrame();
   const access = useCallAccess(mx, call.room, !agentCall && !finished);
   // The called agent shows from the start, waiting until it joins: a call in which nobody seems
   // to be coming gets ended before the agent arrives.
@@ -531,6 +533,23 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
       {active.origin && <ConversationButton origin={active.origin} onClose={onClose} />}
     </>
   );
+  const stage = !finished && (
+    <CallStage
+      room={call.room}
+      participants={state.participants}
+      awaited={awaitedAgent}
+      speakerView={speakerView}
+      microphone={state.microphone}
+      onForcedChange={setSpeakerForced}
+    />
+  );
+  // In the floating window the live transcript can show with the stage; agent calls have none.
+  const transcribable = stage && inWindow && !agentCall;
+  const stageArea = transcribable ? (
+    <WindowTranscript room={call.room}>{stage}</WindowTranscript>
+  ) : (
+    stage
+  );
   const bar: BarContent = {
     faces: (
       <ul className={css.BarFaces} aria-label={t('featureUi.calls.panel.participants')}>
@@ -619,16 +638,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
         </Notice>
       )}
       {access.canLetMembersIn && <MembersCannotCallNotice room={call.room} />}
-      {!finished && (
-        <CallStage
-          room={call.room}
-          participants={state.participants}
-          awaited={awaitedAgent}
-          speakerView={speakerView}
-          microphone={state.microphone}
-          onForcedChange={setSpeakerForced}
-        />
-      )}
+      {stageArea}
     </PanelShell>
   );
 }
