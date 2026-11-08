@@ -20,8 +20,8 @@ Rules (spec: docs/provenance.md, "upstream overlap check"):
 
 Output lists only paths and line ranges in this repository, never upstream text.
 Without --paths it checks every tracked text file at HEAD; with --history it checks every blob
-that any commit of this repository contains and prints "<blob> <path>:<start>-<end>", leaving out the
-findings in old blobs that reviewed-history.tsv beside this script lists as reviewed (blob and line range).
+that any commit of this repository contains and prints "<blob> <path> <start>-<end> <kind>", leaving out
+the findings that reviewed-history.tsv beside this script lists as reviewed (blob and line range).
 With --pre-push (the pre-push hook, scripts/git-hooks/pre-push) it reads the hook's input from the
 current repository and checks every commit the push adds: each text file the commit adds or
 modifies, as that commit has it, whether reviewed-history.tsv lists the blob or not. It prints

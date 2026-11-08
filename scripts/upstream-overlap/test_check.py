@@ -360,10 +360,12 @@ class ReviewedHistoryTests(Fixture):
         shutil.copy(HERE / "check.py", self.script)
         # An old version with two copied runs (lines 1-3 and 11-13), replaced by the next commit, and a file whose
         # copied run has the same range in another blob.
-        self.old = commit(self.repo, {"src/app/old.ts": COPIED + OWN_CODE + COPIED, "src/app/other.ts": COPIED}, "copies")
+        old = commit(self.repo, {"src/app/old.ts": COPIED + OWN_CODE + COPIED, "src/app/other.ts": COPIED}, "copies")
         self.replaced = commit(self.repo, {"src/app/old.ts": CLEAN, "src/app/other.ts": None}, "replace the copies")
-        self.blob = git(self.repo, "rev-parse", f"{self.old}:src/app/old.ts")
-        self.other = git(self.repo, "rev-parse", f"{self.old}:src/app/other.ts")
+        self.blob = git(self.repo, "rev-parse", f"{old}:src/app/old.ts")
+        self.other = git(self.repo, "rev-parse", f"{old}:src/app/other.ts")
+        self.every_finding = ((self.blob, "src/app/old.ts", "1-3"), (self.blob, "src/app/old.ts", "11-13"),
+                              (self.other, "src/app/other.ts", "1-3"))
 
     def review(self, *rows: tuple[str, str, str]) -> None:
         (self.script.parent / "reviewed-history.tsv").write_text(
@@ -375,7 +377,7 @@ class ReviewedHistoryTests(Fixture):
                    **kwargs)
 
     def test_history_leaves_out_only_the_listed_blob_and_range(self) -> None:
-        self.review((self.blob, "src/app/old.ts", "1-3"))
+        self.review(self.every_finding[0])
         result = self.checker("--history")
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertNotIn(f"{self.blob}\tsrc/app/old.ts\t1-3\t", result.stdout)
@@ -384,16 +386,14 @@ class ReviewedHistoryTests(Fixture):
             self.assertIn(f"{self.other}\tsrc/app/other.ts\t1-3\t{kind}", result.stdout)
         self.assertIn("4 findings in 2 files", result.stdout)
         self.assertIn("2 left out as reviewed in reviewed-history.tsv", result.stdout)
-        self.review((self.blob, "src/app/old.ts", "1-3"), (self.blob, "src/app/old.ts", "11-13"),
-                    (self.other, "src/app/other.ts", "1-3"))
+        self.review(*self.every_finding)
         result = self.checker("--history")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("0 findings in 0 files", result.stdout)
         self.assertIn("6 left out as reviewed in reviewed-history.tsv", result.stdout)
 
     def test_the_pre_push_check_refuses_a_listed_blob_in_a_new_commit(self) -> None:
-        self.review((self.blob, "src/app/old.ts", "1-3"), (self.blob, "src/app/old.ts", "11-13"),
-                    (self.other, "src/app/other.ts", "1-3"))
+        self.review(*self.every_finding)
         self.assertEqual(self.checker("--history").returncode, 0)
         again = commit(self.repo, {"src/app/again.ts": COPIED + OWN_CODE + COPIED}, "the same copies again")
         self.assertEqual(git(self.repo, "rev-parse", f"{again}:src/app/again.ts"), self.blob)
