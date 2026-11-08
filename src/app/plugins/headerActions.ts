@@ -6,7 +6,7 @@ import { isPluginEnabled } from './pluginConfig';
 import { getPluginTranslation, pluginNamespace } from './pluginTranslations';
 import type { RegisteredPlugin } from './registry';
 
-/** The placements a plugin may give what it adds to the room header. */
+/** The placements a plugin may give a header action. */
 export const PLACEMENTS: readonly unknown[] = ['auto', 'menu'];
 
 /** The open room, and the thread open in it, that an action runs in. */
