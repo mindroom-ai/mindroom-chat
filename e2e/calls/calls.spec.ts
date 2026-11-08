@@ -489,6 +489,24 @@ test.describe('calls', () => {
     await expect(
       callPanel(alicePage).locator(`[data-call-screen="${alice.userId}"]`)
     ).toBeVisible();
+    // Alice's own screen never takes her stage: it shows in her grid, over both tiles. Bob's stage
+    // puts it in focus, and his speaker switch, free, takes him to the grid and back.
+    await expect(callPanel(alicePage).locator('[data-call-stage]')).not.toHaveAttribute(
+      'data-speaker-view'
+    );
+    await expect(callPanel(alicePage).locator('[data-call-tile]')).toHaveCount(2);
+    const bobStage = callPanel(bobPage).locator('[data-call-stage]');
+    const speakerSwitch = callPanel(bobPage).getByRole('button', { name: 'Speaker view' });
+    await expect(bobStage).toHaveAttribute('data-speaker-view', '');
+    await expect(speakerSwitch).toHaveAttribute('aria-pressed', 'true');
+    await expect(speakerSwitch).not.toHaveAttribute('aria-disabled');
+    await speakerSwitch.click();
+    await expect(bobStage).not.toHaveAttribute('data-speaker-view');
+    await expect(speakerSwitch).toHaveAttribute('aria-pressed', 'false');
+    await expect(shared).toBeVisible();
+    await expect(callPanel(bobPage).locator('[data-call-tile]')).toHaveCount(2);
+    await speakerSwitch.click();
+    await expect(bobStage).toHaveAttribute('data-speaker-view', '');
     await callPanel(alicePage).getByRole('button', { name: 'Stop Screenshare' }).click();
     await expect(shared).toHaveCount(0, { timeout: 30_000 });
 
