@@ -314,17 +314,6 @@ describe('getVisibleThreadMessageCount', () => {
       pages.forEach((page) => fetchRelations.mockResolvedValueOnce(page as never));
       const room = new Room(roomId, mx, '@alice:example.org', { timelineSupport: true });
       mx.store.storeRoom(room);
-      // A redaction counts only from a member who may make it.
-      room.currentState.setStateEvents([
-        mx.getEventMapper()({
-          type: 'm.room.member',
-          state_key: '@agent:example.org',
-          sender: '@agent:example.org',
-          room_id: roomId,
-          event_id: '$member',
-          content: { membership: 'join' },
-        }),
-      ]);
       room.processThreadRoots([mx.getEventMapper()(root)], true);
       return { mx, room, thread: room.getThread('$root')! };
     };

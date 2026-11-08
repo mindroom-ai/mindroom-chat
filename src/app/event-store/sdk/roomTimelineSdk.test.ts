@@ -15,17 +15,6 @@ const makeRoom = () => {
   const room = new Room('!room:example.org', mx, '@alice:example.org', {
     timelineSupport: true,
   });
-  // A redaction counts only from a member who may make it.
-  room.currentState.setStateEvents([
-    new MatrixEvent({
-      type: 'm.room.member',
-      state_key: '@alice:example.org',
-      sender: '@alice:example.org',
-      room_id: '!room:example.org',
-      event_id: '$member',
-      content: { membership: 'join' },
-    }),
-  ]);
   return { mx, room };
 };
 

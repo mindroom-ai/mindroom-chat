@@ -138,17 +138,6 @@ const roomFor = (client: MatrixClient) => {
   vi.spyOn(client, 'supportsThreads').mockReturnValue(true);
   const room = new Room(roomId, client, userId, { timelineSupport: true });
   room.setMaxListeners(0);
-  // A redaction counts only from a member who may make it.
-  room.currentState.setStateEvents([
-    client.getEventMapper()({
-      type: 'm.room.member',
-      state_key: userId,
-      sender: userId,
-      room_id: roomId,
-      event_id: '$member',
-      content: { membership: 'join' },
-    }),
-  ]);
   client.store.storeRoom(room);
   return room;
 };
