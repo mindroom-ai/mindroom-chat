@@ -41,7 +41,6 @@ const PHONE: BrowserContextOptions = {
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
 
 const CONTROL = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/;
-const RESIZE_LOOP = /^ResizeObserver loop completed with undelivered notifications\.$/;
 
 // matrix-js-sdk drops U+202E from a member's name; the U+202C after it stays.
 const MEMBER_NAME = 'Quinn \u202erelyat\u202c';
@@ -218,12 +217,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
     try {
       const page = await context.newPage();
       const pageErrors: string[] = [];
-      page.on('pageerror', (error) => {
-        // WebKit on a phone reports a ResizeObserver loop once the message editor closes and the
-        // composer takes focus, on main too; any other uncaught error fails the run.
-        if (engine === 'webkit' && RESIZE_LOOP.test(error.message)) return;
-        pageErrors.push(`${error.name}: ${error.message}`);
-      });
+      page.on('pageerror', (error) => pageErrors.push(`${error.name}: ${error.message}`));
       await loginWithPassword(page, {
         homeserver: HOMESERVER,
         username: world.reader.username,
