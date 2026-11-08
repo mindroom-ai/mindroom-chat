@@ -12,18 +12,13 @@ import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 const screen = vi.hoisted(() => ({ size: 'Desktop' }));
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
-// The room menu renders in place of folds' portal while it has an anchor, without a focus trap.
+// The room menu renders in place of folds' portal while it has an anchor.
 vi.mock('folds', async (importOriginal) => ({
   ...(await importOriginal<typeof import('folds')>()),
   PopOut: ({ anchor, content }: { anchor?: unknown; content: React.ReactNode }) =>
     anchor ? content : null,
 }));
-vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: React.ReactNode }) => children,
-}));
 // The room menu's own rows, which need the app's providers, stay out of it.
-vi.mock('../notifications/MarkRoomReadMenuItem', () => ({ MarkRoomReadMenuItem: () => null }));
-vi.mock('../rooms/archive/ArchiveRoomMenuItem', () => ({ ArchiveRoomMenuItem: () => null }));
 vi.mock('../notifications/RoomNotificationSwitcher', () => ({
   RoomNotificationModeSwitcher: () => null,
 }));
@@ -32,10 +27,6 @@ vi.mock('../matrix/hooks/useRoomsNotificationPreferences', () => ({
   getRoomNotificationModeIcon: () => undefined,
   useRoomsNotificationPreferencesContext: () => ({}),
 }));
-vi.mock('../ui/page/Page', () => ({
-  PageHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}));
-vi.mock('../avatars/RoomAvatar', () => ({ RoomAvatar: () => null, RoomIcon: () => null }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org', getRoom: () => null }),
 }));
@@ -48,8 +39,6 @@ vi.mock('../matrix/hooks/useRoom', () => ({
   }),
   useIsDirectRoom: () => false,
 }));
-vi.mock('../matrix/hooks/useSpace', () => ({ useSpaceOptionally: () => undefined }));
-vi.mock('../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
 vi.mock('../matrix/hooks/useRoomMeta', () => ({
   useRoomAvatar: () => undefined,
   useRoomName: () => 'General',
@@ -68,7 +57,6 @@ vi.mock('../event-store/threads/useThreadPinning', () => ({ usePinnedEventIds: (
 vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoomThread: vi.fn() }),
 }));
-vi.mock('../navigation/useRoomSettingsState', () => ({ useOpenRoomSettings: () => vi.fn() }));
 vi.mock('../lib/hooks/useScreenSize', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/hooks/useScreenSize')>()),
   useScreenSizeContext: () => screen.size,
