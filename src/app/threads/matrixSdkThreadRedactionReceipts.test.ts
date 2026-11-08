@@ -36,6 +36,10 @@ const fixture = async () => {
   const client = createClient({ baseUrl: 'https://example.org', userId: READER });
   const room = new Room(ROOM, client, READER, { timelineSupport: true });
   client.store.storeRoom(room);
+  // A redaction counts only from a member who may make it.
+  room.currentState.setStateEvents([
+    event('$member', 'm.room.member', { membership: 'join' }, { state_key: AGENT }),
+  ]);
   vi.spyOn(client, 'supportsThreads').mockReturnValue(true);
   const root = event('$root', 'm.room.message', { msgtype: 'm.text', body: 'A question' });
   const reply = event('$reply', 'm.room.message', {

@@ -138,6 +138,17 @@ const roomFor = (client: MatrixClient) => {
   vi.spyOn(client, 'supportsThreads').mockReturnValue(true);
   const room = new Room(roomId, client, userId, { timelineSupport: true });
   room.setMaxListeners(0);
+  // A redaction counts only from a member who may make it.
+  room.currentState.setStateEvents([
+    client.getEventMapper()({
+      type: 'm.room.member',
+      state_key: userId,
+      sender: userId,
+      room_id: roomId,
+      event_id: '$member',
+      content: { membership: 'join' },
+    }),
+  ]);
   client.store.storeRoom(room);
   return room;
 };
@@ -347,6 +358,10 @@ describe('SDK thread bootstrap requests', () => {
       expect(thread.initialEventsFetched).toBe(true);
       expect(reactionCount()).toBe(0);
       expect(thread.findEventById(replyId)!.getContent().body).toBe(replyId);
+      // Nor does either come back as an event of the opened thread.
+      const ids = thread.timeline.map((event) => event.getId());
+      expect(ids).not.toContain('$reaction');
+      expect(ids).not.toContain('$edit-12');
     }
   );
 

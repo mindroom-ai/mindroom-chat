@@ -53,10 +53,10 @@ const state = (
   });
 
 /**
- * A room where the moderator alone may redact other members' events, and how a sync batch reaches
- * it: after the state that follows it (MSC4222 state_after), as the client syncs.
+ * A room where the moderator alone may redact other members' events, with `initial` in it, and
+ * how a sync batch reaches it: after the state that follows it (MSC4222 state_after).
  */
-const moderatedRoom = async (...stateAfter: MatrixEvent[]) => {
+const moderatedRoom = async (initial = message()) => {
   const room = new Room(ROOM, client, AUTHOR, { timelineSupport: true });
   room.currentState.setStateEvents([
     state('m.room.create', '', { creator: AUTHOR, room_version: '10' }),
@@ -65,9 +65,9 @@ const moderatedRoom = async (...stateAfter: MatrixEvent[]) => {
     ),
     state('m.room.power_levels', '', POWER_LEVELS),
   ]);
-  await room.addLiveEvents([message()], { addToState: false });
+  await room.addLiveEvents([initial], { addToState: false });
   const add = async (...batch: MatrixEvent[]) => {
-    room.currentState.setStateEvents([...stateAfter, ...batch].filter((e) => e.isState()));
+    room.currentState.setStateEvents(batch.filter((e) => e.isState()));
     await room.addLiveEvents(batch, { addToState: false });
   };
   const shown = () => room.findEventById('$message')!;
@@ -100,6 +100,16 @@ describe('SDK redactions by someone who may not redact the event', () => {
 
     expect(shown().isRedacted()).toBe(true);
     expect(accepted.getAssociatedId()).toBe('$message');
+  });
+
+  it('keeps the target of a second redaction of a removed message', async () => {
+    const { add } = await moderatedRoom();
+    await add(redaction('$message', AUTHOR));
+    const second = redaction('$message', MODERATOR);
+
+    await add(second);
+
+    expect(second.getAssociatedId()).toBe('$message');
   });
 
   it('keeps the message a member redacts before being given the right', async () => {
@@ -139,40 +149,60 @@ describe('SDK redactions by someone who may not redact the event', () => {
     expect(shown().isRedacted()).toBe(false);
   });
 
-  it('keeps a bundled edit another member without the right redacts, and the redaction loses it', async () => {
-    const room = new Room(ROOM, client, AUTHOR, { timelineSupport: true });
-    const edited = client.getEventMapper()({
-      ...message().event,
-      unsigned: {
-        'm.relations': {
-          'm.replace': {
-            event_id: '$edit',
-            room_id: ROOM,
-            sender: AUTHOR,
-            origin_server_ts: 2,
-            type: 'm.room.message',
-            content: {
-              msgtype: 'm.text',
-              body: '* The forklift is back.',
-              'm.new_content': { msgtype: 'm.text', body: 'The forklift is back.' },
-              'm.relates_to': { rel_type: 'm.replace', event_id: '$message' },
+  describe('of an edit known only from the message’s bundle', () => {
+    const edited = () =>
+      client.getEventMapper()({
+        ...message().event,
+        unsigned: {
+          'm.relations': {
+            'm.replace': {
+              event_id: '$edit',
+              room_id: ROOM,
+              sender: AUTHOR,
+              origin_server_ts: 2,
+              type: 'm.room.message',
+              content: {
+                msgtype: 'm.text',
+                body: '* The forklift is back.',
+                'm.new_content': { msgtype: 'm.text', body: 'The forklift is back.' },
+                'm.relates_to': { rel_type: 'm.replace', event_id: '$message' },
+              },
             },
           },
         },
-      },
+      });
+
+    it('keeps the edit another member without the right redacts, and the redaction loses it', async () => {
+      const { room, add, shown } = await moderatedRoom(edited());
+      const rejected = redaction('$edit', OTHER);
+
+      await add(rejected);
+
+      expect(shown().getContent().body).toBe('The forklift is back.');
+      expect(room.redactedBundledEdits.has('$edit')).toBe(false);
+      expect(rejected.getAssociatedId()).toBeUndefined();
     });
-    room.currentState.setStateEvents([
-      state('m.room.create', '', { creator: AUTHOR, room_version: '10' }),
-      ...[AUTHOR, OTHER].map((userId) => state('m.room.member', userId, { membership: 'join' })),
-      state('m.room.power_levels', '', POWER_LEVELS),
-    ]);
-    await room.addLiveEvents([edited], { addToState: false });
-    const rejected = redaction('$edit', OTHER);
 
-    await room.addLiveEvents([rejected], { addToState: false });
+    it('keeps the target of a redaction of the edit of a removed message', async () => {
+      const { add } = await moderatedRoom(edited());
+      await add(redaction('$message', MODERATOR));
+      const ofEdit = redaction('$edit', AUTHOR);
 
-    expect(edited.getContent().body).toBe('The forklift is back.');
-    expect(room.redactedBundledEdits.has('$edit')).toBe(false);
-    expect(rejected.getAssociatedId()).toBeUndefined();
+      await add(ofEdit);
+
+      expect(ofEdit.getAssociatedId()).toBe('$edit');
+    });
+
+    it('drops the edit a moderator redacts before leaving, in the same batch', async () => {
+      const { room, add, shown } = await moderatedRoom(edited());
+
+      await add(
+        redaction('$edit', MODERATOR),
+        state('m.room.member', MODERATOR, { membership: 'leave' }, { membership: 'join' })
+      );
+
+      expect(shown().getContent().body).toBe('The forklift is charged.');
+      expect(room.redactedBundledEdits.has('$edit')).toBe(true);
+    });
   });
 });

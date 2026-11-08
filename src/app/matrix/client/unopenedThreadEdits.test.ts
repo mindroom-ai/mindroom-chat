@@ -359,6 +359,18 @@ describe('edits of unopened threads', () => {
     expect(f.card()).toEqual({ preview: 'Thinking about it', streaming: true });
   });
 
+  it('keeps a streamed edit another member redacts, also for the first page', async () => {
+    const f = await streamingThread();
+    await f.deliver([edit('The build passed.', 150)]);
+
+    // Only the reply's sender or a moderator may redact the edit.
+    await f.deliver([{ ...redaction('$edit-150', 160), sender: otherId }]);
+
+    expect(f.card().preview).toBe('The build passed.');
+    expect(f.thread().replayEvents?.map((event) => event.getId())).toContain('$edit-150');
+    expect(f.loadedThread()).toBe(false);
+  });
+
   it('shows the reply as sent once its bundled edit is redacted after a title notice', async () => {
     const leaked = edit('Leaked a secret', 151, 'completed');
     const bundled = (): IEvent => ({
