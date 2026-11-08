@@ -6,26 +6,35 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { unthreadedReceiptReadTs } from '../../matrix/receiptReadTs';
+import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 import { isVisibleThreadReplyEvent } from './threadUtils';
 import { getThreadEventReadUpTo } from './threadEventReadUpTo';
 import { getFinishingEdit, threadReceiptNamesEvent } from './streamFinish';
 import { createThreadListRetry, type ThreadListRetry } from './threadListRetry';
 
-/** A thread that has not loaded its latest page knows its newest reply from the root's summary. */
-export const getLatestVisibleReply = (thread: Thread): MatrixEvent | undefined => {
-  const events = thread.events ?? [];
-  let loaded: MatrixEvent | undefined;
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index];
-    if (isVisibleThreadReplyEvent(event)) {
-      loaded = event;
-      break;
-    }
-  }
+/**
+ * The newest reply of the thread that `matches`. A thread that has not loaded its latest page
+ * knows its newest reply from the root's summary.
+ */
+const getLatestReply = (
+  thread: Thread,
+  matches: (event: MatrixEvent) => boolean
+): MatrixEvent | undefined => {
+  const loaded = (thread.events ?? []).findLast(matches);
   const summary = thread.replyToEvent;
-  if (!summary || !isVisibleThreadReplyEvent(summary)) return loaded;
+  if (!summary || !matches(summary)) return loaded;
   return loaded && loaded.getTs() >= summary.getTs() ? loaded : summary;
 };
+
+export const getLatestVisibleReply = (thread: Thread): MatrixEvent | undefined =>
+  getLatestReply(thread, isVisibleThreadReplyEvent);
+
+/**
+ * A reply that can leave its thread unread: not an agent's title notice, which never counts
+ * (design decision #17), as the server never counts one in a room it can read (Tuwunel #149).
+ */
+const isUnreadWorthyReply = (event: MatrixEvent): boolean =>
+  isVisibleThreadReplyEvent(event) && !isThreadSummaryEvent(event);
 
 const findThreadReceiptEvent = (thread: Thread, eventId: string): MatrixEvent | undefined => {
   const timelineEvent = thread.events?.find((event) => event.getId() === eventId);
@@ -72,12 +81,13 @@ export const getThreadLastActivityTs = (thread: Thread): number =>
   getLatestVisibleReply(thread)?.getTs() ?? thread.rootEvent?.getTs() ?? 0;
 
 /**
- * A thread is unread when its latest reply is from another user and newer than
- * the user's thread or unthreaded receipt; a main-timeline receipt reads no replies.
- * A streamed reply is as new as the edit that finished it, which a receipt naming it reads.
+ * A thread is unread when its latest reply, not counting title notices (`isUnreadWorthyReply`), is
+ * from another user and newer than the user's thread or unthreaded receipt; a main-timeline receipt
+ * reads no replies. A streamed reply is as new as the edit that finished it, which a receipt naming
+ * it reads.
  */
 export const getThreadUnread = (thread: Thread, userId: string): boolean => {
-  const latestReply = getLatestVisibleReply(thread);
+  const latestReply = getLatestReply(thread, isUnreadWorthyReply);
   if (!latestReply || latestReply.getSender() === userId) return false;
   const finish = getFinishingEdit(latestReply, thread);
   const finishId = finish?.getId();
