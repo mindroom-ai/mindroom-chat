@@ -12,6 +12,7 @@ const entries = vi.hoisted(() => {
   const command = { name: 'greet', description: 'greet', run };
   const roomAction = { id: 'about', label: 'about', icon, run };
   const spacesAction = { ...roomAction, id: 'spaces', shows: () => true };
+  const criticalAction = { ...roomAction, id: 'remove', critical: true };
   const banner = (): null => null;
   const headerSlot = [banner];
   const cover = { covers: () => false, subscribe: () => () => undefined, Component };
@@ -24,7 +25,7 @@ const entries = vi.hoisted(() => {
     panel,
     actions: [action, autoAction],
     command,
-    roomActions: [roomAction, spacesAction],
+    roomActions: [roomAction, spacesAction, criticalAction],
     banner,
     headerSlot,
     cover,
@@ -86,7 +87,10 @@ const entries = vi.hoisted(() => {
             { ...roomAction, icon: 'Info' },
             { ...roomAction, run: undefined },
             { ...roomAction, shows: true },
+            { ...roomAction, critical: 'yes' },
+            { ...roomAction, critical: false },
             spacesAction,
+            criticalAction,
           ],
           roomHeaderSlot: headerSlot,
           conversationCovers: [
