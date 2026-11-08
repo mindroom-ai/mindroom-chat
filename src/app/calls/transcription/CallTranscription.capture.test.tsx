@@ -38,8 +38,8 @@ vi.mock('./speechCapture', () => ({
     };
   },
 }));
-vi.mock('./useTranscriptionServer', () => ({
-  useTranscriptionServer: () => ({ apiUrl: 'https://mindroom.example.org', discovered: true }),
+vi.mock('../../computer/useRoomMindroomServer', () => ({
+  useRoomMindroomServer: () => ({ apiUrl: 'https://mindroom.example.org', discovered: true }),
 }));
 const mx = vi.hoisted(() => ({}));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));

@@ -5,7 +5,7 @@ import { createRef } from 'react';
 import { fireEvent } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
 import plugin from './index';
@@ -32,6 +32,15 @@ const greeting: PluginEvent = {
 };
 
 describe('example plugin', () => {
+  // Its panel asks the client's homeserver through `fetch` whether it binds sign-in tokens; the
+  // stub keeps that off the network, and its answer counts as no.
+  beforeEach(() => {
+    vi.stubGlobal('fetch', async () => new Response('{}'));
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   const [renderer] = plugin.messageRenderers ?? [];
   const [Banner] = plugin.roomHeaderSlot ?? [];
 
@@ -221,6 +230,8 @@ describe('example plugin', () => {
     );
     expect(view.getByText('Members: 2, with a MindRoom agent')).toBeTruthy();
     expect(view.getByText('Members: 3, without a MindRoom agent')).toBeTruthy();
+    // Neither room has a MindRoom server: none published, and none in config.json.
+    expect(view.getAllByText('No MindRoom server')).toHaveLength(2);
   });
 
   it("says in its panel whether the account may post in the room, from the room's levels", async () => {

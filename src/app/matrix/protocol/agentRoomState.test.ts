@@ -1,6 +1,8 @@
+// @vitest-environment jsdom
+import { renderHook } from '@testing-library/react';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { selectAgentSelfState } from './agentRoomState';
+import { selectAgentSelfState, useAgentRoomState } from './agentRoomState';
 
 const viewer = '@alice:example.org';
 const agent = '@mindroom_code:example.org';
@@ -33,5 +35,12 @@ describe('agent self-described room state', () => {
 
   it('ignores state from an agent that left the room', () => {
     expect(selectAgentSelfState([stateEvent(agent)], viewer, () => false)).toEqual([]);
+  });
+});
+
+describe('useAgentRoomState', () => {
+  it('reads no state of a room the client does not know', () => {
+    const { result } = renderHook(() => useAgentRoomState(null, TYPE, (events) => events.length));
+    expect(result.current).toBe(0);
   });
 });
