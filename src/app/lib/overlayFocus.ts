@@ -109,6 +109,10 @@ export const firstTabbable = (layer: Element): HTMLElement | undefined =>
 const canTakeFocus = (element: HTMLElement): boolean =>
   isShown(element) && !(element as HTMLButtonElement).disabled;
 
+/** The controls in `element` that Tab reaches, in order. */
+export const tabbablesOf = (element: Element): HTMLElement[] =>
+  Array.from(element.querySelectorAll<HTMLElement>(TABBABLE_SELECTOR)).filter(canTakeFocus);
+
 /** The dialog a layer is or holds. */
 const dialogOf = (layer: Element): HTMLElement | undefined => {
   const dialog = layer.matches(DIALOG_SELECTOR) ? layer : layer.querySelector(DIALOG_SELECTOR);
@@ -199,9 +203,7 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
       const to = layerOf(doc, active);
       if (!from.isConnected || (to && openedFrom(to, from))) return;
       const dialog = dialogOf(from);
-      const tabbables = dialog
-        ? Array.from(dialog.querySelectorAll<HTMLElement>(TABBABLE_SELECTOR)).filter(canTakeFocus)
-        : [];
+      const tabbables = dialog ? tabbablesOf(dialog) : [];
       // From the end Tab went past, the first control that takes the focus: a browser may refuse
       // one that looks tabbable (WebKit, a scroll region).
       const fromEdge = event.shiftKey ? tabbables.reverse() : tabbables;

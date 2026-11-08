@@ -12,10 +12,11 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { cornersOf, pageCardRadius } from '../helpers/cardCorners';
 
 // On a phone a top bar stays above every page: a menu button, a search field that opens the
-// command palette and names its shortcut, and the account. The menu button slides a drawer in from
-// the start edge over the page, with the icon rail and the section's room list side by side; a
-// room picked there closes it, a space picked there keeps it out with that space's list, and the
-// scrim, Escape, the menu button and a sideways swipe put it away. A room's back chevron and edge
+// command palette and names its shortcut, and the account. The menu button, or a swipe from the
+// left edge of a page that takes no such swipe itself, slides a drawer in from the start edge over
+// the page, with the icon rail and the section's room list side by side; a room picked there
+// closes it, a space picked there keeps it out with that space's list, and the scrim, Escape, the
+// menu button and a sideways swipe put it away. A room's back chevron and edge
 // swipe still return to the list, which the drawer then holds out. The drawer rounds only its
 // corner over the page, as the page's card does where it floats, and no line rules the top bar off
 // from the page. 390 by 844 (and 744 by 1133 for the corner and the bar) with touch, in
@@ -272,6 +273,12 @@ for (const engine of ENGINES) {
         await roomBanner(page).getByRole('button', { name: 'Back', exact: true }).tap();
         await expectAt(page, { path: '/home/', room: null }, 'Back returns to Home');
         await expectDrawer(page, true, 'Home shows its list again');
+        // Put away over Home's own page, the drawer comes back out with a swipe from the left edge.
+        await menuButton(page).tap();
+        await expectDrawer(page, false, 'the menu button puts the drawer away over Home');
+        await edgeSwipe(page, engine);
+        await expectAt(page, { path: '/home/', room: null }, 'the edge swipe stays on Home');
+        await expectDrawer(page, true, 'a swipe from the left edge brings the drawer out');
         await pickRoom(page, 'Garden Club', garden);
 
         // The browser's back (Android's back button) returns to Home with its list out, and

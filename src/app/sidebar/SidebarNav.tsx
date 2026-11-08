@@ -37,7 +37,8 @@ type SidebarNavProps = {
  * in, the command palette, device and Local MindRoom notices when they apply, the Inbox, the
  * account, and the footer. Threads, Canvases, Explore, Create Space, the command palette and
  * Local MindRoom show where the deployment offers them and the person has not hidden them in
- * Settings (`useRailButtons`). On phones the top bar holds the command palette and the account.
+ * Settings (`useRailButtons`). On phones the top bar holds the command palette, and the account
+ * shows there too; the rail keeps its account button, as on wider screens.
  */
 export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
   const { t } = useTranslation();
@@ -79,7 +80,7 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
               <UnverifiedTab />
               {shown.localMindroom && <LocalMindroomTab />}
               <InboxTab />
-              {!phone && <SettingsTab />}
+              <SettingsTab />
             </SidebarStack>
             {footer && (
               <>

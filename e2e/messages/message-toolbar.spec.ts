@@ -5,7 +5,7 @@ import {
   getPrimaryCredentials,
   hasPrimaryCredentials,
 } from '../env';
-import { activeAccountButtonNamePattern } from '../helpers/auth';
+import { activeAccountButton } from '../helpers/auth';
 import { createPrivateRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
 
 // The hover toolbar of a message is a glass pill of quiet icon buttons: every button 32 px
@@ -130,7 +130,7 @@ const signIn = async (page: Page, homeserver: string, username: string, password
   await page.locator('input[name="usernameInput"]').fill(username);
   await page.locator('input[name="passwordInput"]').fill(password);
   await page.getByRole('button', { name: 'Login' }).click();
-  await expect(page.getByRole('button', { name: activeAccountButtonNamePattern })).toBeVisible({
+  await expect(activeAccountButton(page)).toBeVisible({
     timeout: 120_000,
   });
 };

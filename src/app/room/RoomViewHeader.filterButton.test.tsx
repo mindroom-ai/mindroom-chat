@@ -47,7 +47,12 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org', getRoom: () => null }),
 }));
 vi.mock('../matrix/hooks/useRoom', () => ({
-  useRoom: () => ({ roomId: '!room:example.org', getJoinRule: () => undefined }),
+  useRoom: () => ({
+    roomId: '!room:example.org',
+    name: 'General',
+    getJoinRule: () => undefined,
+    isSpaceRoom: () => false,
+  }),
   useIsDirectRoom: () => false,
 }));
 vi.mock('../matrix/hooks/useSpace', () => ({ useSpaceOptionally: () => undefined }));
@@ -64,7 +69,7 @@ vi.mock('../matrix/hooks/usePowerLevels', () => ({
 }));
 vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
 vi.mock('../matrix/hooks/useRoomPermissions', () => ({
-  useRoomPermissions: () => ({ action: () => false, event: () => false }),
+  useRoomPermissions: () => ({ action: () => false, event: () => false, stateEvent: () => false }),
 }));
 vi.mock('../event-store/threads/useThreadPinning', () => ({ usePinnedEventIds: () => pins.ids }));
 vi.mock('../messages/pins/RoomPinMenu', () => ({ RoomPinMenu: () => <div data-pin-list="" /> }));

@@ -442,6 +442,12 @@
     "phoneNav": {
       "search": "Zoeken",
       "navigation": "Navigatie"
+    },
+    "subRooms": {
+      "newSubRoom": "Nieuwe subkamer",
+      "description": "Leden van {{name}} kunnen erin, en de agents in {{name}} komen er vanzelf bij.",
+      "noPermission": "Je kunt de kamers onder {{name}} niet wijzigen",
+      "takeOff": "Verwijderen uit {{name}}"
     }
   },
   "mindroomUi": {

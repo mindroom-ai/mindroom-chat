@@ -5,11 +5,7 @@ import {
   type BrowserContextOptions,
   type Page,
 } from '@playwright/test';
-import {
-  activeAccountButtonNamePattern,
-  chooseFromAccountMenu,
-  loginWithPassword,
-} from '../helpers/auth';
+import { activeAccountButton, chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import {
   CHROMIUM_WITH_SCROLLBARS,
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -220,7 +216,7 @@ const signIn = async (page: Page, user: DisposableUser) => {
     username: user.username,
     password: PASSWORD,
   });
-  await expect(page.getByRole('button', { name: activeAccountButtonNamePattern })).toBeVisible({
+  await expect(activeAccountButton(page)).toBeVisible({
     timeout: 120_000,
   });
   await openHome(page);
@@ -270,7 +266,7 @@ const checkFreshAccount = async (page: Page, layout: Layout, user: Seeded) => {
     page.getByTestId('thread-nav-list').getByText(FIRST_THREAD, { exact: true })
   ).toBeVisible({ timeout: 60_000 });
   await page.reload();
-  await expect(page.getByRole('button', { name: activeAccountButtonNamePattern })).toBeVisible({
+  await expect(activeAccountButton(page)).toBeVisible({
     timeout: 120_000,
   });
   await expect(threadsCategory(page)).toHaveAttribute('aria-expanded', 'true', {

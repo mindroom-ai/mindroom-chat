@@ -9,6 +9,8 @@ import {
   phoneNavSlotAtom,
   phoneSheetSlotAtom,
 } from '../navigation/phoneNavDrawer';
+import { useEdgeSwipe } from '../navigation/useEdgeSwipe';
+import { edgeSwipeBackCountAtom } from '../navigation/useEdgeSwipeBack';
 import { useSwipeAway } from '../navigation/useSwipeAway';
 import { hasOpenOverlay } from '../lib/openOverlay';
 import { observeLayerHost } from '../lib/overlayFocus';
@@ -47,8 +49,9 @@ const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean
 
 /**
  * A phone's navigation drawer: the icon rail and, beside it, the section's list, sliding in from
- * the start edge below the top bar over a dimmed page. The menu button, the scrim, Escape and a
- * swipe toward the edge put it away; following a link in it does too.
+ * the start edge below the top bar over a dimmed page. The menu button or a swipe from the screen's
+ * left edge brings it out. The menu button, the scrim, Escape and a swipe toward the edge put it
+ * away; following a link in it does too.
  */
 export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
   const [open, setOpen] = useAtom(phoneNavDrawerOpenAtom);
@@ -138,6 +141,12 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [open, setOpen]);
+
+  // A swipe from the screen's left edge brings it out, on a page whose own back swipe (a room's,
+  // a thread's) does not take it.
+  const backSwipeOn = useAtomValue(edgeSwipeBackCountAtom) > 0;
+  const openDrawer = useCallback(() => setOpen(true), [setOpen]);
+  useEdgeSwipe({ direction: 'back', enabled: !backSwipeOn, onSwipe: openDrawer });
 
   // The section's list is portaled in, so React's events from it bubble through the page, not
   // the drawer: the drawer listens on its own element. Following a link puts it away, also a link
