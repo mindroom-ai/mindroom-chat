@@ -204,7 +204,8 @@ describe('MindroomServer.send', () => {
     expect(image.headers.get('Content-Type')).toBe('image/png');
     expect(new Uint8Array(await image.arrayBuffer())).toEqual(png);
     expect(answers.last()?.init).toMatchObject({ credentials: 'omit', cache: 'no-store' });
-    expect((await send('/api/plugins/notes/rooms/x/gone')).status).toBe(404);
+    expect((await send('/api/plugins/notes/rooms/x/gone', { method: 'DELETE' })).status).toBe(404);
+    expect(answers.last()?.init.method).toBe('DELETE');
     expect(answers.bearers()).toEqual(['Bearer session-1', 'Bearer session-1']);
   });
 
