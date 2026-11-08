@@ -24,7 +24,7 @@ export {
 } from '../app/plugins/pluginPages';
 export { usePluginStorage, type PluginStorage } from '../app/plugins/pluginStorage';
 export { useRoomSidePanel, type RoomSidePanelControl } from '../app/plugins/sidePanels';
-export { usePanelFrame, type PanelFrame } from '../app/ui/panels/PanelFrame';
+export { usePanelFrame, type PanelFrame } from '../app/ui/panels/panelFrameContext';
 export { usePluginTranslation } from '../app/plugins/pluginTranslations';
 
 /**

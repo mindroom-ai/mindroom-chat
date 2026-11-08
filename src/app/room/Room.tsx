@@ -34,7 +34,7 @@ import { ResizableMembersPanel } from '../members/ResizableMembersPanel';
 import { PanelRow, useMembersOverlay } from '../members/PanelRow';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
 import { usePanelSlot } from '../ui/panels/panelPresence';
-import { type PanelFrame, PanelFrameProvider } from '../ui/panels/PanelFrame';
+import { type PanelFrame, PanelFrameProvider } from '../ui/panels/panelFrameContext';
 import { type RoomPanel, useRoomPanels } from '../ui/panels/roomPanels';
 import { registeredPlugins } from '../plugins/registry';
 import {

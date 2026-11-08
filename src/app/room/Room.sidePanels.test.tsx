@@ -17,7 +17,7 @@ import * as membersDrawer from '../members/useMembersDrawer';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { putSession } from '../matrix/session/sessions';
 import { type RoomSidePanelControl, useRoomSidePanel } from '../plugins/sidePanels';
-import { type PanelFrame, usePanelFrame } from '../ui/panels/PanelFrame';
+import { type PanelFrame, usePanelFrame } from '../ui/panels/panelFrameContext';
 import type { RoomViewProps } from './RoomView';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
 import { makeUiEvent } from '../ui-actions/testUtils';
