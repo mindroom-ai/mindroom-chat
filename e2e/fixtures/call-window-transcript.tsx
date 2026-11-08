@@ -109,7 +109,8 @@ const POWER_LEVELS = {
 };
 
 // Each line names its number, so a spec can tell which ones show; every third one, the last among
-// them, runs over several lines of text, more than the subtitle's two in the widest window.
+// them, runs over several lines of text: more than the subtitle's two in a window up to 560 px
+// wide, exactly two in a 900 px wide one.
 const LINE_COUNT = 40;
 const LONG_TEXT =
   'the release notes still need the migration steps, the screenshots and the list of fixed ' +

@@ -144,7 +144,8 @@ test.describe('the layout by the window size', () => {
               parseFloat(getComputedStyle(element).paddingBlockEnd)
           );
         const subtitleBox = await boxOf(subtitle);
-        // The latest line is a long one: the subtitle takes its whole room, two lines.
+        // The latest line is a long one: the subtitle is at least two lines tall, and its room is
+        // checked against them.
         const lineHeight = await subtitle.evaluate((element) =>
           parseFloat(getComputedStyle(element).lineHeight)
         );
@@ -160,7 +161,7 @@ test.describe('the layout by the window size', () => {
 
       await expect(subtitle).toHaveCount(0);
       const dividerBox = await boxOf(divider);
-      // The transcript shows a line or more of its own, scrolled to the newest.
+      // The transcript has a pane of its own, over 30 px tall, scrolled to its newest line.
       expect(paneBox.height).toBeGreaterThan(30);
       await expect(log.getByText(/^Line 40: /)).toBeInViewport();
       await expect(divider).toHaveAttribute('aria-valuenow', '60');
