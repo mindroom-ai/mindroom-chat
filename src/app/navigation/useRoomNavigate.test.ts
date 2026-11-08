@@ -33,7 +33,6 @@ vi.stubGlobal('window', {
   history: {
     state: mocks.historyState,
   },
-  location: mocks.location,
 } as unknown as Window & typeof globalThis);
 
 vi.mock('react-router-dom', async (importOriginal) => {
@@ -41,6 +40,7 @@ vi.mock('react-router-dom', async (importOriginal) => {
   return {
     ...actual,
     useNavigate: () => mocks.navigate,
+    useLocation: () => mocks.location,
   };
 });
 

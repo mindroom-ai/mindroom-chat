@@ -20,7 +20,7 @@ export type RoomThreadNavigationOptions = {
   eventId?: string;
   opts?: NavigateOptions;
   navigateRoomThreadDirect: NavigateRoomThreadDirect;
-  getLocation?: () => LocationPathParts;
+  getLocation: () => LocationPathParts;
   getHistoryState?: () => unknown;
   schedule?: (callback: () => void) => void;
   isNativeIOSDevice?: () => boolean;
@@ -43,7 +43,7 @@ export const navigateToRoomThread = ({
   eventId,
   opts,
   navigateRoomThreadDirect,
-  getLocation = () => window.location,
+  getLocation,
   getHistoryState = () => window.history.state,
   schedule = afterNextPaint,
   isNativeIOSDevice = isNativeIOS,

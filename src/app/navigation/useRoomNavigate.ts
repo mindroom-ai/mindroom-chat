@@ -1,5 +1,5 @@
-import { useCallback, useMemo } from 'react';
-import { NavigateOptions, useNavigate } from 'react-router-dom';
+import { useCallback, useMemo, useRef } from 'react';
+import { NavigateOptions, useLocation, useNavigate } from 'react-router-dom';
 import { useAtomValue } from 'jotai';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -112,10 +112,23 @@ export const useRoomNavigate = () => {
     [navigate, roomPath]
   );
 
+  // The page on screen as the router has it, inside the base path or after `#`, which a thread
+  // records as the place its back button returns to. A ref, so the callback keeps its identity.
+  const routerLocation = useLocation();
+  const threadOpenedFrom = useRef(routerLocation);
+  threadOpenedFrom.current = routerLocation;
+
   /** Opens a thread and records the current page as the place its back button returns to. */
   const navigateRoomThread = useCallback(
     (roomId: string, threadId: string, eventId?: string, opts?: NavigateOptions) =>
-      navigateToRoomThread({ navigateRoomThreadDirect, roomId, threadId, eventId, opts }),
+      navigateToRoomThread({
+        navigateRoomThreadDirect,
+        roomId,
+        threadId,
+        eventId,
+        opts,
+        getLocation: () => threadOpenedFrom.current,
+      }),
     [navigateRoomThreadDirect]
   );
 

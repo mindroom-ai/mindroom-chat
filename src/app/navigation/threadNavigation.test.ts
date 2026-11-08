@@ -127,6 +127,7 @@ describe('navigateToRoomThread', () => {
       threadId: '$thread',
       opts,
       navigateRoomThreadDirect,
+      getLocation: () => ({ pathname: '/home/!room:example.org', search: '', hash: '' }),
       schedule,
     });
 
