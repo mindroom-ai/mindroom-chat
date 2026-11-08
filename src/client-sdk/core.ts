@@ -25,7 +25,7 @@ export {
 export { usePluginStorage, type PluginStorage } from '../app/plugins/pluginStorage';
 export { useRoomSidePanel, type RoomSidePanelControl } from '../app/plugins/sidePanels';
 export { usePanelFrame, type PanelFrame } from '../app/ui/panels/panelFrameContext';
-export { usePluginTranslation } from '../app/plugins/pluginTranslations';
+export { getPluginTranslation, usePluginTranslation } from '../app/plugins/pluginTranslations';
 
 /**
  * The URL of the files the plugin `id` ships in its public/ directory, which the build puts under
