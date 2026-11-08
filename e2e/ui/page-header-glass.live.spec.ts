@@ -110,7 +110,8 @@ for (const [themeId, width] of [
         );
       }, themeId);
       await loginWithPassword(page, { homeserver, ...credentials });
-      // A phone's navigation drawer keeps the space's room list after the page, out of view.
+      // A phone's navigation drawer comes after the page and holds the space's room list while it
+      // slides away, so the page's rooms are looked up in the main landmark.
       const main = page.getByRole('main');
 
       const navigate = (path: string) =>

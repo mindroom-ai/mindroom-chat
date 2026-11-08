@@ -150,19 +150,21 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
       await drawer.screenshot({ path: testInfo.outputPath('members-invited-hover.png') });
       await page.mouse.move(500, 600);
       const controls = header.locator('button');
-      // No control paints a fill at rest. Hovered and pressed, the icon buttons take their flat
-      // fill as the room header's do (members-header-hover.spec.ts), but never a raised material.
+      // No control paints a fill at rest, and the Invited link never does. Hovered and pressed, the
+      // icon buttons (labelled by aria-label) take their flat fill as the room header's do
+      // (e2e/members/members-header-hover.spec.ts), but no control takes a raised material.
       const expectFlatControl = async (index: number, state: 'rest' | 'hover' | 'press') => {
         const material = await controls.nth(index).evaluate((element) => {
           const css = getComputedStyle(element);
           return {
+            iconButton: element.hasAttribute('aria-label'),
             background: css.backgroundColor,
             image: css.backgroundImage,
             shadow: css.boxShadow,
           };
         });
         expect(material, `control ${index} at ${state}`).toMatchObject({
-          ...(state === 'rest' && { background: 'rgba(0, 0, 0, 0)' }),
+          ...((state === 'rest' || !material.iconButton) && { background: 'rgba(0, 0, 0, 0)' }),
           image: 'none',
           shadow: 'none',
         });
