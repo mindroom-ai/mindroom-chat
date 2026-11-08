@@ -18,7 +18,11 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import type { Virtualizer } from '@tanstack/react-virtual';
-import { useVirtualPaginator, type ItemRange } from './useVirtualPaginator';
+import {
+  useVirtualPaginator,
+  type ItemRange,
+  type RetryPaginationOptions,
+} from './useVirtualPaginator';
 import { useLiveEventRemove } from '../event-store/timeline/roomLiveEventArrive';
 import {
   getRangeWithoutRow,
@@ -366,18 +370,20 @@ export const useRoomWindowPaginator = ({
 
 /**
  * A back page that added no rows, or that went to a chain the room no longer shows, asks the
- * paginator again; one with rows moved the window.
+ * paginator again. One that added rows asks it too, up to a screen beyond the visible band: most
+ * of a page's events can be thread replies and edits the view hides, and a page of a few rows is
+ * followed by the next until a screen of rows lies ahead of the reader.
  */
 export const useRetryAfterEmptyBackPage = (
   roomBackPage: { rowsBefore: number; chainReplaced: boolean } | undefined,
   roomRowsRef: MutableRefObject<MatrixEvent[]>,
-  retryPagination: () => void
+  retryPagination: (opts?: RetryPaginationOptions) => void
 ) => {
   useLayoutEffect(() => {
     if (!roomBackPage) return;
-    // A page that added rows moved the window, and the paginator carries on from there.
     if (roomBackPage.chainReplaced || roomRowsRef.current.length === roomBackPage.rowsBefore)
       retryPagination();
+    else retryPagination({ ahead: true });
   }, [retryPagination, roomBackPage, roomRowsRef]);
 };
 

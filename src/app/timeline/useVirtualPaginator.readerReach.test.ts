@@ -37,77 +37,101 @@ const setUp = (sentinelTop: () => number) => {
   return { root, sentinel };
 };
 
-type Harness = { setRange?: (range: ItemRange) => void };
+type Harness = {
+  paginator?: ReturnType<typeof useVirtualPaginator>;
+  setRange?: (range: ItemRange) => void;
+};
 
 function PaginatorHarness({
   root,
+  initialRange,
+  onRange,
   onEnd,
   harness,
 }: {
   root: HTMLElement;
+  initialRange: ItemRange;
+  onRange: (range: ItemRange) => void;
   onEnd: (back: boolean) => void;
   harness: Harness;
 }) {
-  const [range, setRange] = React.useState<ItemRange>({ start: 0, end: 20 });
+  const [range, setRange] = React.useState<ItemRange>(initialRange);
   const paginator = useVirtualPaginator({
     count: 100,
     limit: 20,
     range,
-    onRangeChange: setRange,
+    onRangeChange: (next) => {
+      onRange(next);
+      setRange(next);
+    },
     getScrollElement: () => root,
     getItemElement: () => undefined,
     onEnd,
   });
-  Object.assign(harness, { setRange });
+  Object.assign(harness, { paginator, setRange });
   return React.createElement('span', { ref: paginator.observeBackAnchor });
 }
 
-const render = (root: HTMLElement, sentinel: HTMLElement, onEnd: (back: boolean) => void) => {
+const render = (root: HTMLElement, sentinel: HTMLElement, initialRange: ItemRange) => {
   const harness: Harness = {};
+  const onRange = vi.fn();
+  const onEnd = vi.fn();
   act(() => {
-    create(React.createElement(PaginatorHarness, { root, onEnd, harness }), {
+    create(React.createElement(PaginatorHarness, { root, initialRange, onRange, onEnd, harness }), {
       createNodeMock: () => sentinel,
     });
   });
-  return harness;
+  return { harness, onRange, onEnd };
 };
 
-describe('useVirtualPaginator pages on a screen beyond the reader', () => {
+describe('useVirtualPaginator pages a screen ahead once paging runs', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     document.body.replaceChildren();
   });
 
-  it('keeps paging while the pages add less than a screen of rows', () => {
+  it('keeps widening the window while each step adds less than a screen of rows', () => {
     let top = 100;
     const { root, sentinel } = setUp(() => top);
-    const onEnd = vi.fn();
-    const harness = render(root, sentinel, onEnd);
-    // The reader sees the sentinel: history loads.
+    const { onRange } = render(root, sentinel, { start: 60, end: 80 });
+    // The step's rows will leave the sentinel out of view, but within a screen.
     act(() => {
+      top = -300;
       observerState.report?.([
         { target: sentinel, isIntersecting: true } as unknown as IntersectionObserverEntry,
       ]);
     });
-    expect(onEnd).toHaveBeenCalledTimes(1);
-
-    // The page lands with a few rows: the sentinel is out of view, but within a screen, so the next
-    // page loads without the reader scrolling.
-    top = -300;
-    act(() => harness.setRange?.({ start: 0, end: 25 }));
-    expect(onEnd).toHaveBeenCalledTimes(2);
-
-    // That page lands with more than a screen of rows: paging waits for the reader.
-    top = -700;
-    act(() => harness.setRange?.({ start: 0, end: 60 }));
-    expect(onEnd).toHaveBeenCalledTimes(2);
+    // Two steps: the reader saw the sentinel, then the first step left it within a screen.
+    expect(onRange.mock.calls).toEqual([[{ start: 40, end: 80 }], [{ start: 20, end: 80 }]]);
   });
 
-  it('pages only on what the reader sees when rows change by themselves', () => {
+  it('stops once a step leaves the sentinel more than a screen away', () => {
+    let top = 100;
+    const { root, sentinel } = setUp(() => top);
+    const { onRange } = render(root, sentinel, { start: 60, end: 80 });
+    act(() => {
+      top = -700;
+      observerState.report?.([
+        { target: sentinel, isIntersecting: true } as unknown as IntersectionObserverEntry,
+      ]);
+    });
+    expect(onRange.mock.calls).toEqual([[{ start: 40, end: 80 }]]);
+  });
+
+  it('looks at the visible band only after a window it did not plan', () => {
     const { root, sentinel } = setUp(() => -300);
-    const onEnd = vi.fn();
-    const harness = render(root, sentinel, onEnd);
-    act(() => harness.setRange?.({ start: 0, end: 21 }));
+    const { harness, onRange, onEnd } = render(root, sentinel, { start: 60, end: 80 });
+    act(() => harness.setRange?.({ start: 50, end: 80 }));
+    expect(onRange).not.toHaveBeenCalled();
     expect(onEnd).not.toHaveBeenCalled();
+  });
+
+  it('asked to look ahead after a page with rows, loads the next page', () => {
+    const { root, sentinel } = setUp(() => -300);
+    const { harness, onEnd } = render(root, sentinel, { start: 0, end: 20 });
+    act(() => harness.paginator?.retryPagination());
+    expect(onEnd).not.toHaveBeenCalled();
+    act(() => harness.paginator?.retryPagination({ ahead: true }));
+    expect(onEnd.mock.calls).toEqual([[true]]);
   });
 });

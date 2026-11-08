@@ -31,8 +31,12 @@ export type ScrollToElement = ScrollAction<HTMLElement>;
 /** Scrolls to the item at an index, moving the window there first when it is outside it. */
 export type ScrollToItem = ScrollAction<number>;
 
-/** `preserveAnchorIndex` keeps that item at its place on screen while the window changes. */
-export type RetryPaginationOptions = { preserveAnchorIndex?: number };
+/**
+ * `preserveAnchorIndex` keeps that item at its place on screen while the window changes; `ahead`
+ * also counts a sentinel up to a screen beyond the visible band, as after a page that added less
+ * than a screen of rows.
+ */
+export type RetryPaginationOptions = { preserveAnchorIndex?: number; ahead?: boolean };
 
 /** How the paginator finds the scroll container and the items inside it. */
 type PaginatorDom = {
@@ -167,11 +171,11 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
   const pendingScrollRef = useRef<{ index: number; opts?: ScrollToOptions }>();
   const previousRangeRef = useRef(range);
   const anchorsRef = useRef<{ back?: HTMLElement; front?: HTMLElement }>({});
-  // The window moved, or the source was asked for more, because the paginator paged: the next look
-  // at the sentinels reaches a screen beyond the visible band, so pages that add less than a
-  // screen of rows (most of a page's events can be thread replies and edits the view hides) follow
-  // one another until a screen of rows lies ahead of the reader. A jump looks at the band only.
-  const pagedRef = useRef(false);
+  // The window a pagination step widened to: once it renders, the next look at the sentinels
+  // reaches a screen beyond the visible band, so steps that add less than a screen of rows follow
+  // one another until a screen of rows lies ahead of the reader. Any other window looks at the
+  // band only.
+  const pagedRangeRef = useRef<ItemRange>();
 
   const scrollToElement: ScrollToElement = useCallback((element, opts = {}) => {
     const scrollElement = optionsRef.current.getScrollElement();
@@ -284,7 +288,6 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
     (back: boolean, opts?: RetryPaginationOptions): boolean => {
       const { range: currentRange, count, limit, onEnd } = optionsRef.current;
       const preserveAnchorIndex = opts?.preserveAnchorIndex;
-      pagedRef.current = true;
 
       if (back) {
         if (currentRange.start <= 0) {
@@ -297,6 +300,7 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
           preserveAnchorIndex === undefined ? 0 : preserveAnchorIndex + 1
         );
         const end = Math.max(start, Math.min(currentRange.end, keepUntil + 1));
+        pagedRangeRef.current = { start, end };
         changeRange({ start, end }, preserveAnchorIndex);
         return true;
       }
@@ -311,6 +315,7 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
         preserveAnchorIndex ?? Number.POSITIVE_INFINITY
       );
       const start = Math.min(end, Math.max(currentRange.start, keepFrom - 1));
+      pagedRangeRef.current = { start, end };
       changeRange({ start, end }, preserveAnchorIndex);
       return true;
     },
@@ -374,7 +379,8 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
 
   const retryPagination = useCallback(
     (opts?: RetryPaginationOptions) => {
-      paginateVisibleAnchor(opts);
+      const root = opts?.ahead ? optionsRef.current.getScrollElement() : null;
+      paginateVisibleAnchor(opts, root?.clientHeight ?? 0);
     },
     [paginateVisibleAnchor]
   );
@@ -507,7 +513,6 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
         onRangeChange,
       } = optionsRef.current;
       if (index < 0 || index >= count) return false;
-      pagedRef.current = false;
       if (index >= currentRange.start && index < currentRange.end) {
         const element = getItemElement(index);
         if (element) {
@@ -556,11 +561,11 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
       return;
     }
 
-    const paged = pagedRef.current;
-    pagedRef.current = false;
+    const paged = pagedRangeRef.current;
+    pagedRangeRef.current = undefined;
+    const ahead = paged?.start === range.start && paged.end === range.end;
     runAutomatic(() => {
-      // A screen beyond the band (its height) when paging moved the window.
-      paginateVisibleAnchor(undefined, paged ? scrollElement?.clientHeight ?? 0 : 0);
+      paginateVisibleAnchor(undefined, ahead ? scrollElement?.clientHeight ?? 0 : 0);
     });
   }, [range, runAutomatic, paginateVisibleAnchor, scrollToElement]);
 
