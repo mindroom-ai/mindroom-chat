@@ -364,10 +364,11 @@ function FetchedGreeting({ roomId, eventId }: { roomId: string; eventId: string 
   }, [client, eventId, roomId]);
   const { text, sender } = greeting;
   if (text === undefined) return null;
+  const room = client.getRoom(roomId);
   return (
     <>
       <div data-example-plugin-greeting>
-        Greeting: <GreetingText room={client.getRoom(roomId)} text={text} />
+        Greeting: <GreetingText room={room} text={text} />
       </div>
       {sender && (
         <p>
@@ -378,7 +379,7 @@ function FetchedGreeting({ roomId, eventId }: { roomId: string; eventId: string 
               openUserProfile(roomId, sender, event.currentTarget.getBoundingClientRect(), 'Left')
             }
           >
-            {client.getRoom(roomId)?.getMember(sender)?.name ?? sender}
+            {room?.getMember(sender)?.name ?? sender}
           </button>
         </p>
       )}

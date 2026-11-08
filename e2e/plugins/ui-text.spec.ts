@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -33,7 +33,6 @@ const ALICE = 'Alice Example';
 
 let build: string | undefined;
 let alice: DisposableUser;
-let agent: MatrixSession;
 let threadPath = '';
 
 const setDisplayName = ({ userId, accessToken }: MatrixSession, displayname: string) =>
@@ -59,7 +58,7 @@ test.beforeAll(async () => {
   }
 
   alice = await registerDisposableUser(`text_alice_${RUN}`, PASSWORD);
-  agent = await registerAgentAccount(HOMESERVER, 'writer');
+  const agent = await registerAgentAccount(HOMESERVER, 'writer');
   await setDisplayName(alice, ALICE);
   const roomId = await createRoom(HOMESERVER, alice.accessToken, {
     name: `Agent text ${RUN}`,
@@ -95,11 +94,6 @@ test.afterAll(() => {
 test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
-
-const shot = async (page: Page, name: string) => {
-  const directory = process.env.PLUGIN_SHOTS;
-  if (directory) await page.screenshot({ path: `${directory}/${name}.png` });
-};
 
 test("the example panel shows an agent's Markdown as the app renders it, without script, with names", async ({
   browser,
@@ -145,7 +139,8 @@ test("the example panel shows an agent's Markdown as the app renders it, without
       .toBe(true);
     expect(await page.evaluate(() => 'exampleScriptRan' in window)).toBe(false);
     await greeting.scrollIntoViewIfNeeded();
-    await shot(page, 'agent-text');
+    const shots = process.env.PLUGIN_SHOTS;
+    if (shots) await page.screenshot({ path: `${shots}/agent-text.png` });
   } finally {
     await context.close();
     await server.close();

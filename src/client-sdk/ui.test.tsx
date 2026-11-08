@@ -5,7 +5,6 @@ import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider } from '../app/config/useClientConfig';
 import { withReasoning } from '../app/messages/agent-run/Reasoning';
-import { Body as ReasoningBody } from '../app/messages/agent-run/Reasoning.css';
 import { LIVE_REASONING_KEY } from '../app/messages/live/useLiveReplyContent';
 import { Dialog, Header, IconButton, Menu } from '../app/ui/glass/GlassPrimitives';
 import { PopOut } from '../app/ui/directional';
@@ -71,12 +70,12 @@ const expectSafe = (html: string) => {
 describe('useMarkdownHtml', () => {
   const MARKDOWN = '# Plan\n\n- one\n- `two`\n\nSee [the docs](https://example.org/docs).';
 
+  // First in this file: the renderer loads once per test file, and stays.
   it("is undefined until the renderer has loaded, then the HTML the app's reasoning shows", async () => {
     const { result } = renderHook(() => useMarkdownHtml(MARKDOWN));
     expect(result.current).toBeUndefined();
     await waitFor(() => expect(result.current).toBeDefined());
-    const html = result.current ?? '';
-    const shown = elementsOf(html);
+    const shown = elementsOf(result.current ?? '');
     expect(shown.querySelector('h1')?.textContent).toBe('Plan');
     expect([...shown.querySelectorAll('li')].map((item) => item.textContent)).toEqual([
       'one',
@@ -86,11 +85,11 @@ describe('useMarkdownHtml', () => {
     expect(shown.querySelector('a')?.getAttribute('href')).toBe('https://example.org/docs');
 
     // The app's reasoning, open while it streams, shows the same elements for the same Markdown.
-    const { container } = render(
+    const { findByRole } = render(
       <>{withReasoning({ [LIVE_REASONING_KEY]: MARKDOWN }, null, {})}</>
     );
-    await waitFor(() => expect(container.querySelector(`.${ReasoningBody} h1`)).not.toBeNull());
-    expect(container.querySelector(`.${ReasoningBody} > div`)?.innerHTML).toBe(shown.innerHTML);
+    const heading = await findByRole('heading', { level: 1, name: 'Plan' });
+    expect(heading.parentElement?.innerHTML).toBe(shown.innerHTML);
   });
 
   it('drops scripts, event handlers and script links', async () => {
