@@ -288,7 +288,7 @@ describe('SDK edits older than the sender’s bundled edit', () => {
 // gap, so the client holds no event for a redaction of that edit to apply to. The SDK patch drops
 // the bundled edit from the message once someone allowed to redact it does.
 describe('SDK redactions of an edit the client knows only from its bundle', () => {
-  const MODERATOR = '@moderator:example.org';
+  const MODERATOR = '@moderator:elsewhere.org';
 
   const state = (type: string, stateKey: string, content: Record<string, unknown>) =>
     new MatrixEvent({

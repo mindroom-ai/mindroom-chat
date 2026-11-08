@@ -578,7 +578,7 @@ describe('dropRedactedContent', () => {
 // only from a message's bundle. A reload replays the saved sync against the room's state after
 // it, where the sender may no longer be a member.
 describe('an edit redacted from a bundle, after a reload', () => {
-  const MODERATOR = '@moderator:example.org';
+  const MODERATOR = '@moderator:elsewhere.org';
   const sdk = createClient({ baseUrl: 'https://example.org', userId: ME });
   const map = (event: object) => sdk.getEventMapper()({ ...event, room_id: ROOM } as IEvent);
   const stateEvent = (
@@ -655,9 +655,14 @@ describe('a redacted message, after a reload', () => {
   const sdk = createClient({ baseUrl: 'https://example.org', userId: ME });
   const map = (event: object) => sdk.getEventMapper()(event as IEvent);
   const withRoom = (event: object) => ({ ...event, room_id: ROOM });
-  const stateEvent = (type: string, stateKey: string, content: object, prevContent?: object) =>
+  const stateEvent = (
+    type: string,
+    stateKey: string,
+    content: Record<string, unknown>,
+    prevContent?: object
+  ) =>
     withRoom(
-      raw(`$${type}-${stateKey}-${ts}`, content as Record<string, unknown>, {
+      raw(`$${type}-${stateKey}-${ts}`, content, {
         type,
         state_key: stateKey,
         sender: stateKey || MODERATOR,

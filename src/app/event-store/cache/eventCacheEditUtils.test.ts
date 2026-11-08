@@ -66,14 +66,19 @@ const makeEditEvent = (
     type: 'm.room.message',
   });
 
-const makeRedactionEvent = (eventId: string, ts: number, targetEventId: string) =>
+const makeRedactionEvent = (
+  eventId: string,
+  ts: number,
+  targetEventId: string,
+  sender = '@alice:example.org'
+) =>
   new MatrixEvent({
     content: {},
     event_id: eventId,
     origin_server_ts: ts,
     redacts: targetEventId,
     room_id: '!room:example.org',
-    sender: '@alice:example.org',
+    sender,
     type: 'm.room.redaction',
   });
 
@@ -484,16 +489,6 @@ describe('cached copies of an edit redacted from a bundle', () => {
   });
   const liveRoom = () => {
     const live = new Room(ROOM, client, ALICE, { timelineSupport: true });
-    live.currentState.setStateEvents([
-      new MatrixEvent({
-        type: 'm.room.member',
-        state_key: ALICE,
-        sender: ALICE,
-        room_id: ROOM,
-        event_id: '$member',
-        content: { membership: 'join' },
-      }),
-    ]);
     const redactEdit = () =>
       live.addLiveEvents([makeRedactionEvent('$redaction', 3000, '$edit')], { addToState: false });
     return { live, redactEdit };
@@ -656,10 +651,7 @@ describe('a page with a redaction by someone who may not redact the event', () =
   // The page's own copies of the message and of a redaction of it.
   const target = () => makeMessageEvent('$target', 1000, ALICE, 'visible');
   const redactionBy = (sender: string) =>
-    new MatrixEvent({
-      ...makeRedactionEvent(`$redaction-${sender}`, 2000, '$target').event,
-      sender,
-    });
+    makeRedactionEvent(`$redaction-${sender}`, 2000, '$target', sender);
 
   it('keeps the message another member without the right redacted', () => {
     const { live } = moderatedRoom();
