@@ -16,8 +16,8 @@
 // Its page at /p/example/ keeps the app's rail and links to its page at /p/example/window, which
 // fills the window and links back. Its page at /p/example/rooms/<room ID>/<thread ID> links to that
 // room and that thread, opens either, and reloads the page into a new version.
-// Its slash command, `/greet <text>`, sends the notice "Example greeting: <text>" to the room through
-// the room's client, and fails without a text.
+// Its slash command, `/greet <text>`, sends the notice "Example greeting: <text>" to the room, or in a
+// thread's composer to that thread, through the room's client, and fails without a text.
 // Every room's menu but a space's lists its entry "Example room info" ("Beispiel-Rauminfo" in
 // German), whose dialog says "Example dialog of <room name>" until its Close button closes it.
 import { useEffect } from 'react';
@@ -254,9 +254,9 @@ const plugin: ClientPlugin = {
     {
       name: 'greet',
       description: 'greet',
-      run: async ({ room, args }) => {
+      run: async ({ room, args, threadId }) => {
         if (!args.trim()) throw new Error('Type a greeting after /greet.');
-        await room.client.sendNotice(room.roomId, `Example greeting: ${args}`);
+        await room.client.sendNotice(room.roomId, threadId ?? null, `Example greeting: ${args}`);
       },
     },
   ],
