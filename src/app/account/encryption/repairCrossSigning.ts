@@ -1,6 +1,10 @@
 import type { MatrixClient, UIAuthCallback } from 'matrix-js-sdk';
 import { storePrivateKey } from '../../matrix/client/secretStorageKeys';
-import { CRYPTO_NOT_FOUND, refreshOwnIdentity } from './unlockWithRecoveryKey';
+import {
+  CRYPTO_NOT_FOUND,
+  loadBackupKeyFromSecretStorage,
+  refreshOwnIdentity,
+} from './unlockWithRecoveryKey';
 
 /**
  * How the Rust crypto stack words an import of cross-signing keys from secret storage whose
@@ -34,7 +38,7 @@ export async function repairCrossSigning(
   if (!crypto) throw new Error(CRYPTO_NOT_FOUND);
   storePrivateKey(keyId, secretStorageKey);
   // An account without a backup, or a backup key that no longer matches, has none to keep.
-  await crypto.loadSessionBackupPrivateKeyFromSecretStorage().catch(() => undefined);
+  await loadBackupKeyFromSecretStorage(crypto);
   // The new keys are written under the cached secret storage key, then published. A publish that
   // fails leaves this session holding them, so the server's identity is asked for again.
   try {

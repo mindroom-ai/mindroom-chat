@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   createRecoveryKeyFromPassphrase: vi.fn(),
   getCrossSigningStatus: vi.fn(),
   loadSessionBackupPrivateKeyFromSecretStorage: vi.fn(),
+  checkKeyBackupAndEnable: vi.fn(),
   storePrivateKey: vi.fn(),
 }));
 
@@ -43,6 +44,7 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
       getCrossSigningStatus: mocks.getCrossSigningStatus,
       loadSessionBackupPrivateKeyFromSecretStorage:
         mocks.loadSessionBackupPrivateKeyFromSecretStorage,
+      checkKeyBackupAndEnable: mocks.checkKeyBackupAndEnable,
     }),
   }),
 }));
@@ -96,6 +98,7 @@ beforeEach(() => {
   store.mockResolvedValue(undefined);
   mocks.createRecoveryKeyFromPassphrase.mockResolvedValue(NEW_KEY);
   mocks.loadSessionBackupPrivateKeyFromSecretStorage.mockResolvedValue(undefined);
+  mocks.checkKeyBackupAndEnable.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -141,9 +144,13 @@ describe('ChangeRecoveryPassword', () => {
     expect(screen.getByLabelText('Confirm recovery password')).toBeTruthy();
     cleanup();
 
-    // A backup key cached here may be stale; the one in secret storage replaces it.
+    // A backup key cached here may be stale; the one in secret storage replaces it, loaded
+    // against backup info asked of the server again (a backup turned on elsewhere meanwhile).
     expect(mocks.loadSessionBackupPrivateKeyFromSecretStorage).toHaveBeenCalledTimes(1);
     expect(mocks.storePrivateKey.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.checkKeyBackupAndEnable.mock.invocationCallOrder[0] as number
+    );
+    expect(mocks.checkKeyBackupAndEnable.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.loadSessionBackupPrivateKeyFromSecretStorage.mock.invocationCallOrder[0] as number
     );
     mocks.loadSessionBackupPrivateKeyFromSecretStorage.mockRejectedValue(new Error('no backup'));

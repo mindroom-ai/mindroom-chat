@@ -72,9 +72,10 @@ function OpenRecoveryDialog({ dialog, onChange }: OpenDialogProps) {
   }, [dialog, setUpElsewhere, resetConfirmed, keepOpen, onChange]);
 
   // Unlocking moves the state from locked to ready, and a read can fall back to unknown, so the
-  // key is kept from the first state that carries one.
+  // last key a state carried is kept; a key replaced on another device (a changed password)
+  // takes its place, or the new password would be checked against the old key.
   const stateKey = keyOf(state);
-  if (!secretStorageKey && stateKey) setSecretStorageKey(stateKey);
+  if (stateKey && stateKey.keyId !== secretStorageKey?.keyId) setSecretStorageKey(stateKey);
 
   // Continue asks the server again unless the person has just confirmed replacing the setup.
   const setup = (

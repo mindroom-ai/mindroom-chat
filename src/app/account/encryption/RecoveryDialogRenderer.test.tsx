@@ -288,6 +288,20 @@ describe('RecoveryDialogRenderer', () => {
     expect(screen.getByText(/unlock-dialog key1/)).toBeTruthy();
   });
 
+  it('follows a key that replaced the old one on another device, as after a changed password', async () => {
+    const { rerender, store } = await renderRenderer('unlock');
+    expect(screen.getByText(/unlock-dialog key1/)).toBeTruthy();
+    recoveryState.mockReturnValue({ kind: 'locked', key: { ...KEY, keyId: 'key2' } });
+    await act(async () =>
+      rerender(
+        <Provider store={store}>
+          <RecoveryDialogRenderer />
+        </Provider>
+      )
+    );
+    expect(screen.getByText(/unlock-dialog key2/)).toBeTruthy();
+  });
+
   it('keeps the same unlock dialog mounted when the state moves to ready or unknown', async () => {
     const { rerender, store } = await renderRenderer('unlock');
     const dialog = screen.getByTestId('unlock-dialog');

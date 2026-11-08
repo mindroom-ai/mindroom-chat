@@ -1,4 +1,5 @@
 import type { MatrixClient } from 'matrix-js-sdk';
+import type { CryptoApi } from 'matrix-js-sdk/lib/crypto-api';
 import { storePrivateKey } from '../../matrix/client/secretStorageKeys';
 import { fetchKeyBackupVersion } from './keyBackupVersion';
 
@@ -21,6 +22,17 @@ export const refreshOwnIdentity = async (client: IdentityClient): Promise<void> 
   } catch {
     // Callers go on with what they know; after a failure, the original error matters more.
   }
+};
+
+/**
+ * Loads the backup key from secret storage (whose key must be cached) into this session. The SDK
+ * checks it against its own copy of the backup info, which predates a backup turned on elsewhere
+ * since this session last looked, so that copy is brought up to date first. Secret storage may
+ * hold no backup key, or one that no longer fits the backup; then nothing is loaded.
+ */
+export const loadBackupKeyFromSecretStorage = async (crypto: CryptoApi): Promise<void> => {
+  await crypto.checkKeyBackupAndEnable();
+  await crypto.loadSessionBackupPrivateKeyFromSecretStorage().catch(() => undefined);
 };
 
 /**
@@ -50,13 +62,7 @@ export async function unlockWithRecoveryKey(
   // never got the backup key.
   const backup = await fetchKeyBackupVersion(client);
   storePrivateKey(keyId, recoveryKey);
-  if (backup) {
-    // The key is loaded against the SDK's own copy of the backup info, which predates a backup
-    // turned on elsewhere since this session last looked; asking again brings it up to date.
-    await crypto.checkKeyBackupAndEnable();
-    // Secret storage may hold no backup key, or one that no longer fits the backup.
-    await crypto.loadSessionBackupPrivateKeyFromSecretStorage().catch(() => undefined);
-  }
+  if (backup) await loadBackupKeyFromSecretStorage(crypto);
   await crypto.bootstrapCrossSigning({});
   await crypto.checkKeyBackupAndEnable();
 }

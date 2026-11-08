@@ -19,7 +19,7 @@ import {
   storeSecretsUnderNewKey,
 } from './recoveryPassword';
 import type { DefaultSecretStorageKey } from './recoveryState';
-import { unlockWithRecoveryKey } from './unlockWithRecoveryKey';
+import { loadBackupKeyFromSecretStorage, unlockWithRecoveryKey } from './unlockWithRecoveryKey';
 import { NewRecoveryPasswordFields, readNewRecoveryPassword } from './NewRecoveryPasswordFields';
 import { RecoverySavedStep } from './RecoverySavedStep';
 import { useRecoveryFailureText } from './useRecoveryFailureText';
@@ -77,7 +77,7 @@ function CurrentStep({
           storePrivateKey(keyId, key);
           // The backup key cached here may be stale or missing (another session may have replaced
           // the backup); the one in secret storage is current. Without one the change refuses.
-          await crypto.loadSessionBackupPrivateKeyFromSecretStorage().catch(() => undefined);
+          await loadBackupKeyFromSecretStorage(crypto);
         } else {
           await unlockWithRecoveryKey(client, keyId, key);
         }

@@ -55,12 +55,16 @@ describe('repairCrossSigning', () => {
       setupNewCrossSigning: true,
       authUploadDeviceSigningKeys: auth,
     });
+    // The backup info is asked for again before the key loads against it, and the backup is
+    // enabled once the new identity can trust it.
+    const [refresh, enable] = crypto.checkKeyBackupAndEnable.mock.invocationCallOrder;
     const order = [
-      mocks.storePrivateKey,
-      crypto.loadSessionBackupPrivateKeyFromSecretStorage,
-      crypto.bootstrapCrossSigning,
-      crypto.checkKeyBackupAndEnable,
-    ].map((fn) => fn.mock.invocationCallOrder[0] as number);
+      mocks.storePrivateKey.mock.invocationCallOrder[0],
+      refresh,
+      crypto.loadSessionBackupPrivateKeyFromSecretStorage.mock.invocationCallOrder[0],
+      crypto.bootstrapCrossSigning.mock.invocationCallOrder[0],
+      enable,
+    ] as number[];
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     // The password, the secret storage key and the backup stay as they are.
     expect(crypto.bootstrapSecretStorage).not.toHaveBeenCalled();
@@ -75,7 +79,7 @@ describe('repairCrossSigning', () => {
     await repairCrossSigning(clientWith(crypto), 'key1', KEY, auth);
 
     expect(crypto.bootstrapCrossSigning).toHaveBeenCalledTimes(1);
-    expect(crypto.checkKeyBackupAndEnable).toHaveBeenCalledTimes(1);
+    expect(crypto.checkKeyBackupAndEnable).toHaveBeenCalledTimes(2);
   });
 
   it('fails when publishing the new identity fails', async () => {
@@ -85,7 +89,8 @@ describe('repairCrossSigning', () => {
     await expect(repairCrossSigning(clientWith(crypto), 'key1', KEY, auth)).rejects.toThrow(
       'Authentication cancelled'
     );
-    expect(crypto.checkKeyBackupAndEnable).not.toHaveBeenCalled();
+    // Only the refresh before the key load; the backup is not enabled for an unpublished identity.
+    expect(crypto.checkKeyBackupAndEnable).toHaveBeenCalledTimes(1);
     // The unpublished keys this session now holds give way to the server's identity.
     expect(crypto.userHasCrossSigningKeys).toHaveBeenCalledWith('@me:example.org', true);
   });
