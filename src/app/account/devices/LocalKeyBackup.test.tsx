@@ -56,6 +56,8 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getCrypto: () => crypto }),
 }));
 vi.mock('file-saver', () => ({ default: { saveAs: vi.fn() } }));
+const saveFile = vi.hoisted(() => vi.fn());
+vi.mock('../../native/nativeFileSave', () => ({ saveFile }));
 
 let renderer: ReactTestRenderer | undefined;
 
@@ -135,5 +137,54 @@ describe('LocalKeyBackup failures', () => {
       detail: 'M_LIMIT_EXCEEDED: Slow down',
     });
     // Encrypting and decrypting the file derive a key twice, slowly by design.
+  }, 30_000);
+});
+
+describe('LocalKeyBackup export', () => {
+  const exportWith = async (password: string) => {
+    crypto.exportRoomKeysAsJson.mockResolvedValue('[]');
+    const root = render();
+    act(() => {
+      expandButton(root, 'Export Messages Data').props.onClick();
+    });
+    const [form] = root.findAllByType('form').slice(0, 1);
+    if (!form) throw new Error('no export form');
+    act(() => {
+      form.findByProps({ name: 'exportPassword' }).props.onChange({ target: { value: password } });
+    });
+    act(() => {
+      form
+        .findByProps({ name: 'exportPasswordConfirmation' })
+        .props.onChange({ target: { value: password } });
+    });
+    // The form found before the typing still holds the empty password; take the current one.
+    const [current] = root.findAllByType('form').slice(0, 1);
+    act(() => {
+      current?.props.onSubmit({ preventDefault: vi.fn() });
+    });
+    // The form starts the export without returning it; encrypting the file takes a moment.
+    await act(async () => {
+      await vi.waitFor(() => expect(saveFile).toHaveBeenCalled(), { timeout: 20_000 });
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    return root;
+  };
+
+  it("saves the file through the platform's save, which is the save sheet in the iOS app", async () => {
+    saveFile.mockResolvedValue(true);
+    const root = await exportWith('a long enough password');
+
+    expect(saveFile).toHaveBeenCalledWith(expect.any(Blob), 'mindroom-room-keys.txt');
+    expect(root.findAllByProps({ role: 'status' }).length).toBeGreaterThan(0);
+  }, 30_000);
+
+  it('says nothing was exported when the person closes the save sheet', async () => {
+    saveFile.mockResolvedValue(false);
+    const root = await exportWith('a long enough password');
+
+    expect(saveFile).toHaveBeenCalledTimes(1);
+    expect(root.findAllByProps({ role: 'status' })).toHaveLength(0);
   }, 30_000);
 });

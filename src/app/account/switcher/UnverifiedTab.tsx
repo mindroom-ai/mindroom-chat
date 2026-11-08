@@ -10,7 +10,8 @@ import { SettingsPages } from '../../navigation/settingsPages';
  * The shield in the rail. It shows while this session is not verified against the account's
  * cross-signing keys, and on a verified session while another of the account's sessions is not;
  * either way it opens the device settings. An account without cross-signing has nothing to
- * verify against, so the shield stays away and the welcome page offers to set up backup instead.
+ * verify against, so the shield stays away and the welcome page offers to set up a recovery
+ * password instead.
  */
 export function UnverifiedTab() {
   const { t } = useTranslation();

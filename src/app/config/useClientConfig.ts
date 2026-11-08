@@ -153,6 +153,11 @@ export type ClientConfig = {
     defaultFederation?: boolean;
   };
 
+  encryptionRecovery?: {
+    /** `false` stops the app from opening the recovery password Set up or Unlock dialog at start. */
+    promptAtStart?: boolean;
+  };
+
   /** Messages the loading screen rotates through while the client starts. */
   splash?: {
     loadingMessages?: string[];

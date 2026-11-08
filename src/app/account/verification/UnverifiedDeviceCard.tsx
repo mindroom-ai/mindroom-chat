@@ -5,6 +5,8 @@ import { useOwnDeviceTrust } from './useOwnDeviceTrust';
 import { settingsModalAtom } from '../../navigation/settingsModal';
 import { SettingsPages } from '../../navigation/settingsPages';
 import { WelcomeCardStyle } from '../onboarding/welcomeCard';
+import { recoveryDialogAtom } from '../encryption/recoveryDialog';
+import { useRecoveryState } from '../encryption/recoveryState';
 
 /**
  * The welcome page's banner for a new sign-in on an account with cross-signing: until another
@@ -15,8 +17,11 @@ export function UnverifiedDeviceCard() {
   const { t } = useTranslation();
   const trust = useOwnDeviceTrust();
   const openSettings = useSetAtom(settingsModalAtom);
+  const setRecoveryDialog = useSetAtom(recoveryDialogAtom);
+  const recovery = useRecoveryState();
 
   if (!trust?.crossSigning || trust.thisDeviceVerified) return null;
+  const locked = recovery.kind === 'locked';
 
   return (
     <Box
@@ -42,10 +47,16 @@ export function UnverifiedDeviceCard() {
         outlined
         before={<Icon size="200" src={Icons.ShieldUser} />}
         style={{ justifyContent: 'flex-start' }}
-        onClick={() => openSettings({ initialPage: SettingsPages.PrivacyPage })}
+        onClick={() =>
+          locked
+            ? setRecoveryDialog('unlock')
+            : openSettings({ initialPage: SettingsPages.PrivacyPage })
+        }
       >
         <Text as="span" size="B300">
-          {t('featureUi.settings.devices.verification.verify')}
+          {locked
+            ? t('sharedUi.recoveryPassword.unlockWithPassword')
+            : t('featureUi.settings.devices.verification.verify')}
         </Text>
       </Button>
     </Box>

@@ -1,66 +1,44 @@
 import { useTranslation } from 'react-i18next';
-import React, { useState } from 'react';
-import { Box, Button, Icon, IconButton, Icons, Text, color } from 'folds';
+import { Box, Button, Icon, Icons, Text, color } from 'folds';
 import { useSetAtom } from 'jotai';
 import { useClientConfig } from '../../config/useClientConfig';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { settingsModalAtom } from '../../navigation/settingsModal';
-import { SettingsPages } from '../../navigation/settingsPages';
-import { dismissKeyBackupNudge, readKeyBackupNudgeDismissed } from './keyBackupNudgeDismissal';
-import { useKeyBackupPresence } from './useKeyBackupPresence';
+import { recoveryDialogAtom } from '../encryption/recoveryDialog';
+import { useRecoveryState } from '../encryption/recoveryState';
 import { WelcomeCardStyle } from './welcomeCard';
+
+const KEY = 'sharedUi.recoveryPassword';
 
 function KeyBackupNudgeCard() {
   const { t } = useTranslation();
-  const client = useMatrixClient();
-  const userId = client.getSafeUserId();
-  const setSettingsModal = useSetAtom(settingsModalAtom);
-  const [dismissed, setDismissed] = useState(() => readKeyBackupNudgeDismissed(userId));
-  const presence = useKeyBackupPresence();
+  const setRecoveryDialog = useSetAtom(recoveryDialogAtom);
+  const state = useRecoveryState();
 
-  // Only nudge once the server has definitively answered that there is no
-  // backup. `unknown` (initial state or transient failure) keeps the nudge
-  // hidden — otherwise a network hiccup at mount would nag a user who already
-  // has backup, and their dismissal would permanently suppress it.
-  if (dismissed || presence !== 'absent') return null;
-
-  const openSecuritySettings = () => setSettingsModal({ initialPage: SettingsPages.PrivacyPage });
-  const onDismiss = () => {
-    dismissKeyBackupNudge(userId);
-    setDismissed(true);
-  };
+  // Only an account with nothing set up is nudged; while a fact is still being read the state is
+  // `unknown`, so a network hiccup at mount never nags an account that is already protected.
+  if (state.kind !== 'none') return null;
 
   return (
     <Box direction="Column" gap="200" style={WelcomeCardStyle}>
       <Box alignItems="Center" gap="200">
         <Icon size="100" src={Icons.ShieldLock} style={{ color: color.Success.Main }} />
         <Text as="span" size="L400">
-          {t('mindroomUi.onboarding.keyBackupNudge.backUpYourEncryptedHistory')}
+          {t(`${KEY}.nudgeTitle`)}
         </Text>
-        <Box grow="Yes" />
-        <IconButton
-          size="300"
-          variant="Background"
-          aria-label={t('mindroomUi.onboarding.keyBackupNudge.dismissBackupReminder')}
-          onClick={onDismiss}
-        >
-          <Icon size="100" src={Icons.Cross} />
-        </IconButton>
       </Box>
       <Text as="span" size="T200" priority="300">
-        {t('mindroomUi.onboarding.keyBackupNudge.setUpSecureBackupSoYouCanStillReadYour')}
+        {t(`${KEY}.nudgeBody`)}
       </Text>
       <Button
-        aria-label={t('mindroomUi.onboarding.keyBackupNudge.setUpSecureKeyBackup')}
         fill="Soft"
-        onClick={openSecuritySettings}
+        onClick={() => setRecoveryDialog('setup')}
         before={<Icon size="200" src={Icons.ShieldLock} />}
         style={{ justifyContent: 'flex-start' }}
         outlined
         radii="300"
       >
         <Text as="span" size="B300">
-          {t('mindroomUi.onboarding.keyBackupNudge.setUpBackup')}
+          {t(`${KEY}.nudgeButton`)}
         </Text>
       </Button>
     </Box>
@@ -68,11 +46,9 @@ function KeyBackupNudgeCard() {
 }
 
 /**
- * First-run onboarding nudge that steers a user into secure key backup so a new
- * device login can still read their encrypted agent history. Renders nothing
- * when room encryption is disabled by policy, without crypto, until the server
- * confirms no backup exists, when a backup already exists, or after the user
- * dismisses it.
+ * First-run onboarding nudge that steers a user into a recovery password so a new device login
+ * can still read their encrypted history. Renders nothing when room encryption is disabled by
+ * policy, without crypto, or once the account has any recovery set up.
  */
 export function KeyBackupNudge() {
   const mx = useMatrixClient();
@@ -83,7 +59,5 @@ export function KeyBackupNudge() {
 
   if (encryptionDisabled || !crypto) return null;
 
-  // Key by user id so the per-account dismissal state (read once on mount) is
-  // re-evaluated if the active session changes without a full unmount.
-  return <KeyBackupNudgeCard key={mx.getSafeUserId()} />;
+  return <KeyBackupNudgeCard />;
 }

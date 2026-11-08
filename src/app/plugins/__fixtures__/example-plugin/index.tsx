@@ -35,6 +35,9 @@
 // In a room with a MindRoom server, its panel also talks to the routes of e2e's sample MindRoom
 // plugin (e2e/fixtures/sample-plugin/routes.py) as the signed-in user: "Say hello" asks for the
 // backend's hello, and a websocket echoes what "Echo" sends, opened again unless the user left.
+// Its panel names the sender of the greeting it shows, and their name opens their profile card
+// beside the panel, as a mention pill opens one; under it, the panel shows the signed-in person's
+// card itself.
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Box, Button, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text, color } from 'folds';
 import { KnownMembership, type Room } from 'matrix-js-sdk';
@@ -59,7 +62,13 @@ import {
   useRoomMembers,
   useRoomPermissions,
 } from '@mindroom/client-sdk/matrix';
-import { createSubRoom, useRoomHref, useRoomNavigate } from '@mindroom/client-sdk/room';
+import {
+  createSubRoom,
+  UserProfileCard,
+  useOpenUserProfile,
+  useRoomHref,
+  useRoomNavigate,
+} from '@mindroom/client-sdk/room';
 import { MindroomServerError, useMindroomServer } from '@mindroom/client-sdk/server';
 
 /** The drag type of the item its panel offers, which the room header takes. */
@@ -288,25 +297,45 @@ function ServerGreeting({ roomId }: { roomId: string }) {
 }
 
 /**
- * The greeting of the message `eventId` in the room, as the homeserver has it: the tests' greetings
- * are not encrypted.
+ * The greeting of the message `eventId` in the room, as the homeserver has it (the tests' greetings
+ * are not encrypted), and its sender's name, which opens their profile card beside the panel.
  */
 function FetchedGreeting({ roomId, eventId }: { roomId: string; eventId: string }) {
   const client = useMatrixClient();
-  const [text, setText] = useState<string>();
+  const openUserProfile = useOpenUserProfile();
+  const [greeting, setGreeting] = useState<{ text?: string; sender?: string }>({});
   useEffect(() => {
     let current = true;
     client
       .fetchRoomEvent(roomId, eventId)
       .then((event) => {
-        if (current) setText(greetingText(event.content ?? {}));
+        if (current) setGreeting({ text: greetingText(event.content ?? {}), sender: event.sender });
       })
       .catch(() => undefined);
     return () => {
       current = false;
     };
   }, [client, eventId, roomId]);
-  return text === undefined ? null : <p>Greeting: {text}</p>;
+  const { text, sender } = greeting;
+  if (text === undefined) return null;
+  return (
+    <>
+      <p>Greeting: {text}</p>
+      {sender && (
+        <p>
+          From{' '}
+          <button
+            type="button"
+            onClick={(event) =>
+              openUserProfile(roomId, sender, event.currentTarget.getBoundingClientRect(), 'Left')
+            }
+          >
+            {client.getRoom(roomId)?.getMember(sender)?.name ?? sender}
+          </button>
+        </p>
+      )}
+    </>
+  );
 }
 
 function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }) {
@@ -329,6 +358,11 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
         Example item
       </p>
       <ServerGreeting roomId={roomId} />
+      {room && (
+        <div data-example-plugin-own-card>
+          <UserProfileCard room={room} userId={client.getSafeUserId()} onDone={() => undefined} />
+        </div>
+      )}
     </>
   );
 }
