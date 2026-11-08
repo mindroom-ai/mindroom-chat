@@ -21,6 +21,7 @@ import {
   liveTranscriptAtom,
 } from '../../src/app/calls/transcription/transcriptionState';
 import { FloatingCallWindow } from '../../src/app/calls/window/FloatingCallWindow';
+import { callWindowStorageKey } from '../../src/app/calls/window/callWindowState';
 
 // The call this device is in, joined in the floating call window with the live transcript shown
 // inside it: the window, the call view and the transcript are the app's own, as the call window
@@ -141,9 +142,9 @@ store.set(liveTranscriptAtom, {
 });
 
 // The account's window, floating at the size asked for with the transcript switched on, as the
-// window stored it (src/app/calls/window/callWindowState.ts).
+// window stores it.
 localStorage.setItem(
-  `mindroom.callWindow:${ME}`,
+  callWindowStorageKey(ME),
   JSON.stringify({
     mode: 'floating',
     rect: {

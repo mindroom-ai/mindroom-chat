@@ -7,8 +7,9 @@ import { defined } from '../../src/test/utils/defined';
 // narrower than 560 px). The divider between the stage and the transcript follows the pointer,
 // also off the window, and the arrow keys, and keeps where it was left; the transcript keeps its
 // newest line in view through a resize of the window, a divider move and a resize to the subtitle
-// and back, and keeps the place someone scrolled up to. The fixture is the app's own window and call view around a
-// stand-in call with 40 transcript lines: no homeserver, call service or MindRoom.
+// and back, and keeps the place someone scrolled up to. The fixture is the app's own window and
+// call view around a stand-in call with 40 transcript lines: no homeserver, call service or
+// MindRoom.
 
 test.use({ viewport: { width: 1280, height: 800 } });
 
@@ -27,7 +28,7 @@ const openWindow = async (page: Page, width: number, height: number) => {
   return {
     callWindow,
     split,
-    stage: split.locator(':scope > div').first(),
+    stage: split.locator(':scope > div', { has: page.locator('[data-call-stage]') }),
     pane,
     // The box the transcript scrolls in.
     log: pane.locator(':scope > div'),
@@ -81,14 +82,18 @@ const pressAndMove = async (page: Page, from: Locator, to: { x: number; y: numbe
   await page.mouse.move(to.x, to.y, { steps: 4 });
 };
 
-/** Drags the window's bottom edge by `dy` px: a resize, as a person makes it. */
-const resizeBy = async (page: Page, { callWindow }: CallWindow, dy: number) => {
-  const grip = callWindow.locator('[data-call-window-edge="s"]');
+/** Drags the window's bottom (`s`) or right (`e`) edge by `by` px, as a person resizes it. */
+const resizeBy = async (page: Page, { callWindow }: CallWindow, edge: 's' | 'e', by: number) => {
+  const grip = callWindow.locator(`[data-call-window-edge="${edge}"]`);
   const { x, y, width, height } = await boxOf(grip);
-  const before = (await boxOf(callWindow)).height;
-  await pressAndMove(page, grip, { x: x + width / 2, y: y + height / 2 + dy });
+  const size = edge === 's' ? 'height' : 'width';
+  const before = (await boxOf(callWindow))[size];
+  const to = { x: x + width / 2, y: y + height / 2 };
+  if (edge === 's') to.y += by;
+  else to.x += by;
+  await pressAndMove(page, grip, to);
   await page.mouse.up();
-  await expect.poll(async () => (await boxOf(callWindow)).height).toBe(before + dy);
+  await expect.poll(async () => (await boxOf(callWindow))[size]).toBe(before + by);
 };
 
 test.describe('the layout by the window size', () => {
@@ -122,11 +127,23 @@ test.describe('the layout by the window size', () => {
         expect(paneBox.width).toBeLessThanOrEqual(1);
         expect(paneBox.height).toBeLessThanOrEqual(1);
         await expect(subtitle).toHaveText('Avery Quinn Line 40: noted.');
+        await expect(subtitle).toBeInViewport({ ratio: 1 });
+        // The stage keeps the subtitle's room free at its end, its faces laid out above it, and
+        // the subtitle sits in that room, inside the stage from side to side.
+        const stageContentEnd = await callWindow
+          .locator('[data-call-stage]')
+          .evaluate(
+            (element) =>
+              element.getBoundingClientRect().bottom -
+              parseFloat(getComputedStyle(element).paddingBlockEnd)
+          );
         const subtitleBox = await boxOf(subtitle);
-        expect(subtitleBox.y).toBeGreaterThanOrEqual(stageBox.y);
+        expect(subtitleBox.y).toBeGreaterThanOrEqual(stageContentEnd);
         expect(subtitleBox.y + subtitleBox.height).toBeLessThanOrEqual(
           stageBox.y + stageBox.height
         );
+        expect(subtitleBox.x).toBeGreaterThanOrEqual(stageBox.x);
+        expect(subtitleBox.x + subtitleBox.width).toBeLessThanOrEqual(stageBox.x + stageBox.width);
         return;
       }
 
@@ -195,20 +212,25 @@ test('the divider follows the pointer, also off the window, and keeps where it w
   await twoFrames(page);
   await expect(divider).toHaveAttribute('aria-valuenow', '70');
 
-  // The split stays through a resize to the subtitle and back, and beside the stage.
-  await resizeBy(page, parts, -320);
+  // The split stays through a resize to the subtitle and back, and into the side layout, where
+  // the pointer moves it across, also from below the window.
+  await resizeBy(page, parts, 's', -320);
   await expect(split).toHaveAttribute('data-call-transcript-layout', 'subtitle');
-  await resizeBy(page, parts, 320);
+  await resizeBy(page, parts, 's', 320);
+  await expect(divider).toHaveAttribute('aria-valuenow', '70');
+  expect(await stageShare(parts)).toBeCloseTo(0.7, 2);
+  await resizeBy(page, parts, 'e', 300);
+  await expect(split).toHaveAttribute('data-call-transcript-layout', 'side');
   await expect(divider).toHaveAttribute('aria-valuenow', '70');
   expect(await stageShare(parts)).toBeCloseTo(0.7, 2);
 
-  const side = await openWindow(page, 700, 480);
-  const sideBox = await boxOf(side.split);
-  const belowWindow = (await boxOf(side.callWindow)).y + 480 + 100;
-  await pressAndMove(page, side.divider, { x: sideBox.x + 0.45 * sideBox.width, y: belowWindow });
+  const sideBox = await boxOf(split);
+  const belowWindow = windowBox.y + windowBox.height + 100;
+  await pressAndMove(page, divider, { x: sideBox.x + 0.45 * sideBox.width, y: belowWindow });
   await page.mouse.up();
-  await expect(side.divider).toHaveAttribute('aria-valuenow', '45');
-  expect(await stageShare(side)).toBeCloseTo(0.45, 2);
+  await expect(divider).toHaveAttribute('aria-valuenow', '45');
+  expect(await stageShare(parts)).toBeCloseTo(0.45, 2);
+  expect(await storedSplit(page)).toBe(0.45);
 });
 
 test('the arrow keys move the focused divider the way they point, and each step stays', async ({
@@ -234,6 +256,8 @@ test('the arrow keys move the focused divider the way they point, and each step 
   const side = await openWindow(page, 700, 480);
   await side.divider.focus();
   await page.keyboard.press('ArrowDown');
+  await expect(side.divider).toHaveAttribute('aria-valuenow', '60');
+  await page.keyboard.press('ArrowUp');
   await expect(side.divider).toHaveAttribute('aria-valuenow', '60');
   await page.keyboard.press('ArrowRight');
   await expect(side.divider).toHaveAttribute('aria-valuenow', '65');
@@ -269,13 +293,13 @@ test('the transcript keeps its newest line in view through layout changes, unles
 
   // The window made smaller by its edge, and to the subtitle, where the transcript is out of
   // sight, and back.
-  await resizeBy(page, parts, -280);
+  await resizeBy(page, parts, 's', -280);
   await expect(split).toHaveAttribute('data-call-transcript-layout', 'stacked');
   await atEnd();
   const subtitleAndBack = async () => {
-    await resizeBy(page, parts, -40);
+    await resizeBy(page, parts, 's', -40);
     await expect(split).toHaveAttribute('data-call-transcript-layout', 'subtitle');
-    await resizeBy(page, parts, 40);
+    await resizeBy(page, parts, 's', 40);
     await expect(split).toHaveAttribute('data-call-transcript-layout', 'stacked');
   };
   await subtitleAndBack();
