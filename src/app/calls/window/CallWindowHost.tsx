@@ -34,9 +34,9 @@ function FloatingCall({ room, onClose, frameRef }: FloatingCallProps) {
 }
 
 /**
- * Where the focus goes when the window closes with its call and takes the focus with it (it was on
- * End, or on Close after the call failed): the call button of the room on the page, which opens the
- * call view again, else the page itself, where the skip link lands.
+ * Where the focus goes when the window closes and takes the focus with it (it was on End, or on
+ * Close): the call button of the room on the page, which opens the call view again, else the page
+ * itself, where the skip link lands.
  */
 const focusAfterCall = (doc: Document) => {
   const callButtons = Array.from(doc.querySelectorAll<HTMLElement>('[data-room-call-button]'));
@@ -90,18 +90,20 @@ export function CallWindowHost() {
   // it shows ends here (left, or dismissed after it failed), the window closes: over every page,
   // the room's call to join again would stay in the way. The side panel stays on it in its room.
   // The focus the closing window had (or the End button that went with the call before it) goes
-  // to the page rather than to nothing; focus the person put on the page stays there. An agent
-  // call's view closes with its call in the call store, so the window may be gone already.
+  // to the page rather than to nothing, as it does when the window closes with the call going on
+  // (Close); focus the person put on the page stays there. An agent call's view closes with its
+  // call in the call store, so the window may be gone already. Dock hands the focus on itself.
   const frameRef = useRef<HTMLElement>(null);
   const seen = useRef({ panelRoomId, active, floats });
   useLayoutEffect(() => {
     const before = seen.current;
     seen.current = { panelRoomId, active, floats };
     const callGone = !!before.active && active !== before.active;
-    if (callGone && before.floats && before.panelRoomId) {
+    if (before.floats && before.panelRoomId) {
+      const endedHere = callGone && isActiveCallShownIn(before.active, before.panelRoomId);
       const focused = document.activeElement;
       const lost = !focused || focused === document.body || frameRef.current?.contains(focused);
-      if (lost && isActiveCallShownIn(before.active, before.panelRoomId)) focusAfterCall(document);
+      if (lost && (endedHere || !panelRoomId)) focusAfterCall(document);
     }
     if (!floats || !panelRoomId) return;
     const ended = callGone && isActiveCallShownIn(before.active, panelRoomId);

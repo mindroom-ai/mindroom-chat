@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
@@ -45,13 +45,15 @@ vi.mock('../../matrix/hooks/usePowerLevels', () => ({
 }));
 // The call view itself; the host only places it.
 vi.mock('../CallPanel', () => ({
-  CallPanel: ({ room }: { room: Room }) => {
+  CallPanel: ({ room, onClose }: { room: Room; onClose: () => void }) => {
     if (loading.until) throw loading.until;
     panelRenders.count += 1;
     return (
       <>
         <p data-testid="call-panel">{room.roomId}</p>
-        <button type="button">Close call view</button>
+        <button type="button" onClick={onClose}>
+          Close call view
+        </button>
       </>
     );
   },
@@ -385,15 +387,25 @@ describe('CallWindowHost', () => {
       expect(document.activeElement).toBe(message);
     });
 
-    it('stays put when the window only closes, the call going on', async () => {
+    it("goes to the room's call button when Close closes the window, the call going on", async () => {
       const store = createStore();
       store.set(activeCallAtom, callIn(LOBBY));
       store.set(callPanelRoomAtom, LOBBY);
       renderHost(store, 'Desktop', page(true));
       await screen.findByTestId('call-panel');
       inWindow().focus();
+      fireEvent.click(inWindow());
+      expect(callWindow()).toBeNull();
+      expect(store.get(activeCallAtom)).toBeDefined();
+      expect(document.activeElement).toBe(callButton());
+
+      // Focus the person put on the page stays there when the window closes.
+      act(() => store.set(callPanelRoomAtom, LOBBY));
+      await screen.findByTestId('call-panel');
+      const message = screen.getByRole('textbox', { name: 'Message' });
+      message.focus();
       act(() => store.set(callPanelRoomAtom, undefined));
-      expect(document.activeElement).toBe(document.body);
+      expect(document.activeElement).toBe(message);
     });
   });
 
