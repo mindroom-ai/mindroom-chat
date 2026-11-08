@@ -159,6 +159,14 @@ describe('storeSecretsUnderNewKey', () => {
     expect(crypto.bootstrapCrossSigning).not.toHaveBeenCalled();
   });
 
+  it('storeSecretsUnderNewKey says so when the server cannot be asked about the identity', async () => {
+    const { crypto } = makeCrypto();
+    crypto.userHasCrossSigningKeys.mockRejectedValue(new Error('offline'));
+
+    await expect(storeSecretsUnderNewKey(client(crypto), GENERATED)).rejects.toThrow('offline');
+    expect(crypto.bootstrapSecretStorage).not.toHaveBeenCalled();
+  });
+
   // Also an identity replaced on another device that this session has not heard of yet: the
   // fresh answer from the server leaves its old keys unmatched.
   it("storeSecretsUnderNewKey refuses when this session does not hold the server's identity", async () => {

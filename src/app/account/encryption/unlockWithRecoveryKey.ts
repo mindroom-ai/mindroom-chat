@@ -1,5 +1,6 @@
 import type { MatrixClient } from 'matrix-js-sdk';
 import { storePrivateKey } from '../../matrix/client/secretStorageKeys';
+import { fetchKeyBackupVersion } from './keyBackupVersion';
 
 // Thrown in English and translated when shown, so a retained error follows language changes.
 export const CRYPTO_NOT_FOUND = 'Unexpected Error! Crypto object not found.';
@@ -12,30 +13,13 @@ type IdentityClient = Pick<MatrixClient, 'getCrypto' | 'getSafeUserId'>;
  * Asks the server for the account's own cross-signing identity again. A publish that failed leaves
  * this session holding new keys the server never got, and a session can lag behind a reset made
  * elsewhere; the fresh answer replaces both views (the SDK drops local private keys that do not
- * match the published identity). Resolves to whether the server answered; a failed request leaves
- * things as they were.
+ * match the published identity). A failed request leaves things as they were.
  */
-export const refreshOwnIdentity = async (client: IdentityClient): Promise<boolean> => {
+export const refreshOwnIdentity = async (client: IdentityClient): Promise<void> => {
   try {
     await client.getCrypto()?.userHasCrossSigningKeys(client.getSafeUserId(), true);
-    return true;
   } catch {
     // Callers go on with what they know; after a failure, the original error matters more.
-    return false;
-  }
-};
-
-/**
- * Whether this session holds the private keys of the identity the server publishes now (the SDK
- * gives the master key's id only when its private keys match the public ones). False when the
- * server cannot be asked, since a stale view proves nothing.
- */
-export const holdsPublishedIdentity = async (client: IdentityClient): Promise<boolean> => {
-  if (!(await refreshOwnIdentity(client))) return false;
-  try {
-    return ((await client.getCrypto()?.getCrossSigningKeyId()) ?? null) !== null;
-  } catch {
-    return false;
   }
 };
 
@@ -49,7 +33,7 @@ export const holdsPublishedIdentity = async (client: IdentityClient): Promise<bo
  * recovery key would stop verifying every other session.
  */
 export async function unlockWithRecoveryKey(
-  client: IdentityClient,
+  client: IdentityClient & Pick<MatrixClient, 'http'>,
   keyId: string,
   recoveryKey: Uint8Array
 ): Promise<void> {
@@ -61,8 +45,13 @@ export async function unlockWithRecoveryKey(
   await crypto.userHasCrossSigningKeys(client.getSafeUserId(), true);
   const { privateKeysInSecretStorage } = await crypto.getCrossSigningStatus();
   if (!privateKeysInSecretStorage) throw new Error(NO_CROSS_SIGNING_KEYS_IN_SECRET_STORAGE);
+  // The backup is asked for before this device is verified, so a server that cannot answer fails
+  // the unlock as a whole and it can be tried again, rather than leaving a verified device that
+  // never got the backup key.
+  const backup = await fetchKeyBackupVersion(client);
   storePrivateKey(keyId, recoveryKey);
+  // Secret storage may hold no backup key, or one that no longer fits the backup.
+  if (backup) await crypto.loadSessionBackupPrivateKeyFromSecretStorage().catch(() => undefined);
   await crypto.bootstrapCrossSigning({});
-  await crypto.loadSessionBackupPrivateKeyFromSecretStorage().catch(() => undefined);
   await crypto.checkKeyBackupAndEnable();
 }

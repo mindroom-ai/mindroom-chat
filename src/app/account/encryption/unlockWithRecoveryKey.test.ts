@@ -1,13 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { storePrivateKey } from '../../matrix/client/secretStorageKeys';
+import { fetchKeyBackupVersion } from './keyBackupVersion';
 import {
   CRYPTO_NOT_FOUND,
   NO_CROSS_SIGNING_KEYS_IN_SECRET_STORAGE,
-  holdsPublishedIdentity,
   unlockWithRecoveryKey,
 } from './unlockWithRecoveryKey';
 
 vi.mock('../../matrix/client/secretStorageKeys', () => ({ storePrivateKey: vi.fn() }));
+vi.mock('./keyBackupVersion', () => ({ fetchKeyBackupVersion: vi.fn() }));
 
 const KEY = new Uint8Array([1, 2, 3]);
 
@@ -19,18 +20,23 @@ const cryptoWith = (privateKeysInSecretStorage: boolean) => ({
   checkKeyBackupAndEnable: vi.fn(async () => null),
 });
 
+const client = (crypto: unknown) =>
+  ({ getCrypto: () => crypto, getSafeUserId: () => '@me:example.org', http: {} } as never);
+
+beforeEach(() => {
+  vi.mocked(storePrivateKey).mockClear();
+  vi.mocked(fetchKeyBackupVersion).mockReset();
+  vi.mocked(fetchKeyBackupVersion).mockResolvedValue({ version: '1' } as never);
+});
+
 describe('unlockWithRecoveryKey', () => {
   it('never bootstraps cross-signing when secret storage holds no cross-signing keys', async () => {
     vi.mocked(storePrivateKey).mockClear();
     const crypto = cryptoWith(false);
 
-    await expect(
-      unlockWithRecoveryKey(
-        { getCrypto: () => crypto, getSafeUserId: () => '@me:example.org' } as never,
-        'KEY_ID',
-        KEY
-      )
-    ).rejects.toThrow(NO_CROSS_SIGNING_KEYS_IN_SECRET_STORAGE);
+    await expect(unlockWithRecoveryKey(client(crypto), 'KEY_ID', KEY)).rejects.toThrow(
+      NO_CROSS_SIGNING_KEYS_IN_SECRET_STORAGE
+    );
 
     // The SDK would have created new keys and written them over secret storage.
     expect(crypto.bootstrapCrossSigning).not.toHaveBeenCalled();
@@ -42,11 +48,7 @@ describe('unlockWithRecoveryKey', () => {
     vi.mocked(storePrivateKey).mockClear();
     const crypto = cryptoWith(true);
 
-    await unlockWithRecoveryKey(
-      { getCrypto: () => crypto, getSafeUserId: () => '@me:example.org' } as never,
-      'KEY_ID',
-      KEY
-    );
+    await unlockWithRecoveryKey(client(crypto), 'KEY_ID', KEY);
 
     expect(storePrivateKey).toHaveBeenCalledWith('KEY_ID', KEY);
     // The server's identity is asked for first, so stale keys of this session cannot pass.
@@ -66,46 +68,36 @@ describe('unlockWithRecoveryKey', () => {
     const crypto = cryptoWith(true);
     crypto.userHasCrossSigningKeys.mockRejectedValue(new Error('M_LIMIT_EXCEEDED'));
 
-    await expect(
-      unlockWithRecoveryKey(
-        { getCrypto: () => crypto, getSafeUserId: () => '@me:example.org' } as never,
-        'KEY_ID',
-        KEY
-      )
-    ).rejects.toThrow('M_LIMIT_EXCEEDED');
+    await expect(unlockWithRecoveryKey(client(crypto), 'KEY_ID', KEY)).rejects.toThrow(
+      'M_LIMIT_EXCEEDED'
+    );
     expect(storePrivateKey).not.toHaveBeenCalled();
     expect(crypto.bootstrapCrossSigning).not.toHaveBeenCalled();
+  });
+
+  it('fails before verifying anything when the server cannot say whether there is a backup', async () => {
+    vi.mocked(fetchKeyBackupVersion).mockRejectedValue(new Error('M_UNKNOWN 502'));
+    const crypto = cryptoWith(true);
+
+    await expect(unlockWithRecoveryKey(client(crypto), 'KEY_ID', KEY)).rejects.toThrow(
+      'M_UNKNOWN 502'
+    );
+    expect(crypto.bootstrapCrossSigning).not.toHaveBeenCalled();
+    expect(crypto.loadSessionBackupPrivateKeyFromSecretStorage).not.toHaveBeenCalled();
+  });
+
+  it('loads no backup key for an account without a backup', async () => {
+    vi.mocked(fetchKeyBackupVersion).mockResolvedValue(null);
+    const crypto = cryptoWith(true);
+
+    await unlockWithRecoveryKey(client(crypto), 'KEY_ID', KEY);
+    expect(crypto.loadSessionBackupPrivateKeyFromSecretStorage).not.toHaveBeenCalled();
+    expect(crypto.bootstrapCrossSigning).toHaveBeenCalledWith({});
   });
 
   it('fails without crypto', async () => {
     await expect(
       unlockWithRecoveryKey({ getCrypto: () => undefined } as never, 'KEY_ID', KEY)
     ).rejects.toThrow(CRYPTO_NOT_FOUND);
-  });
-});
-
-describe('holdsPublishedIdentity', () => {
-  const clientWith = (refresh: () => Promise<boolean>, keyId: string | null) =>
-    ({
-      getCrypto: () => ({
-        userHasCrossSigningKeys: vi.fn(refresh),
-        getCrossSigningKeyId: vi.fn(async () => keyId),
-      }),
-      getSafeUserId: () => '@me:example.org',
-    } as never);
-
-  it('is true when the keys held here match the identity the server publishes', async () => {
-    await expect(holdsPublishedIdentity(clientWith(async () => true, 'MASTER'))).resolves.toBe(
-      true
-    );
-  });
-
-  it('is false when they do not', async () => {
-    await expect(holdsPublishedIdentity(clientWith(async () => true, null))).resolves.toBe(false);
-  });
-
-  it('is false when the server cannot be asked, whatever this session holds', async () => {
-    const offline = clientWith(() => Promise.reject(new Error('offline')), 'MASTER');
-    await expect(holdsPublishedIdentity(offline)).resolves.toBe(false);
   });
 });

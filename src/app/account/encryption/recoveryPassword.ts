@@ -6,7 +6,7 @@ import type {
 } from 'matrix-js-sdk/lib/crypto-api';
 import { clearSecretStorageKeys } from '../../matrix/client/secretStorageKeys';
 import { fetchKeyBackupVersion } from './keyBackupVersion';
-import { holdsPublishedIdentity, refreshOwnIdentity } from './unlockWithRecoveryKey';
+import { refreshOwnIdentity } from './unlockWithRecoveryKey';
 
 // Thrown in English and translated when shown, so a retained error follows language changes.
 export const CRYPTO_NOT_FOUND = 'Unexpected Error! Crypto module not found!';
@@ -113,7 +113,11 @@ export const storeSecretsUnderNewKey = async (
   const crypto = client.getCrypto();
   if (!crypto) throw new Error(CRYPTO_NOT_FOUND);
 
-  if (!(await holdsPublishedIdentity(client)) || !(await holdsBackupKey(client, crypto))) {
+  // Asked of the server, so a stale view cannot pass; a server that cannot answer fails as such.
+  await crypto.userHasCrossSigningKeys(client.getSafeUserId(), true);
+  // The SDK gives the master key's id only when the private keys here match the published ones.
+  const holdsIdentity = (await crypto.getCrossSigningKeyId()) !== null;
+  if (!holdsIdentity || !(await holdsBackupKey(client, crypto))) {
     throw new Error(RECOVERY_SECRETS_NOT_CACHED);
   }
 
