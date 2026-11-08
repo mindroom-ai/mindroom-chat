@@ -12,7 +12,6 @@ import {
   TERMINAL_STREAM_STATUSES,
 } from '../protocol/aiRun';
 import { isRecord } from '../../lib/isRecord';
-import { isKnownRedactedEventId } from '../eventRevision';
 
 // The SDK puts an edit on its message, and among the message's relations, only once it decrypted
 // the edit, and never one it cannot decrypt. So a device without the key of an edit never learned
@@ -31,11 +30,13 @@ const newestEdits = new Map<string, MatrixEvent>();
 const finishingEdits = new Map<string, MatrixEvent>();
 let client: MatrixClient | undefined;
 
-/** Whether the room of `edit` took a redaction of it, whichever way the redaction came. */
+/**
+ * Whether the room of `edit` took a redaction of it while it knew the edit only from its message's
+ * bundle (eventRevision.ts), whichever way the redaction came: synced or paginated back.
+ */
 const isRedactedEdit = (edit: MatrixEvent): boolean => {
-  const room = client?.getRoom(edit.getRoomId());
   const editId = edit.getId();
-  return !!room && !!editId && isKnownRedactedEventId(room, editId);
+  return !!editId && !!client?.getRoom(edit.getRoomId())?.redactedBundledEdits.has(editId);
 };
 
 /** The newest edit of the message `eventId` the sync brought, unless it was redacted. */

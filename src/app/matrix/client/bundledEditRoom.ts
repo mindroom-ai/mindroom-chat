@@ -32,8 +32,8 @@ export const keepBundledEditsInTheirRoom = (mx: MatrixClient): void => {
   mx.getEventMapper = (options) => {
     const map = getEventMapper(options);
     return (raw) => {
-      // A copy of a message, or of the thread events its summary bundles, keeps no edit whose
-      // redaction the room took: the SDK maps a thread's latest reply again from its root's summary.
+      // A copy from elsewhere, such as the cache, keeps no edit whose redaction the room took, also
+      // with an event its thread summary bundles (eventRevision.ts).
       const redacted = raw.room_id ? mx.getRoom(raw.room_id)?.redactedBundledEdits : undefined;
       return map(
         withBundledEditRoom(redacted ? stripRedactedRelationsFromRawEvent(raw, redacted) : raw)

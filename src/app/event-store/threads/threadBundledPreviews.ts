@@ -19,7 +19,8 @@ export const getBundledThreadPreviews = (
   if (!root || root.getType?.() === 'm.room.encrypted' || room.hasEncryptionStateEvent?.())
     return {};
   const rootId = root.getId();
-  // Without the edits whose redaction the room took, also those of the events the summary bundles.
+  // A root the room does not hold, such as a copy from the cache, may still bundle an edit whose
+  // redaction the room took, also with an event its summary bundles (eventRevision.ts).
   const relations: unknown = stripRedactedRelationsFromRawEvent(
     { unsigned: root.getUnsigned?.() },
     room.redactedBundledEdits ?? new Set()

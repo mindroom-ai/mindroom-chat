@@ -379,6 +379,8 @@ describe('bundled thread previews of a redacted edit', () => {
       // The thread as the thread list brings it, unopened.
       room.processThreadRoots([root], false);
       expect(presentation(room, root).latestReplyPreviewText).toBe('Final answer with dates');
+      // A copy of the root read from the cache before it stored the redaction.
+      const cached = new MatrixEvent(JSON.parse(JSON.stringify(root.event)) as IEvent);
 
       await room.addLiveEvents(
         [
@@ -396,6 +398,7 @@ describe('bundled thread previews of a redacted edit', () => {
       );
 
       expect(presentation(room, root).latestReplyPreviewText).toBe('Draft answer');
+      expect(presentation(room, cached).latestReplyPreviewText).toBe('Draft answer');
     }
   );
 });
