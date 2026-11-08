@@ -108,9 +108,22 @@ const openSecurity = async (page: Page): Promise<void> => {
   await expect(page.getByText('Security', { exact: true })).toBeVisible();
 };
 
-/** How many Megolm sessions of the room the account's key backup holds. */
-const backedUpSessions = async (stack: AgentStack, roomId: string): Promise<number> => {
+/** How many of the Megolm sessions the helper's events in the room use the key backup lacks. */
+const sessionsNotBackedUp = async (stack: AgentStack, roomId: string): Promise<number> => {
   const auth = { accessToken: stack.tester.accessToken };
+  type Raw = { sender: string; content: { session_id?: string } };
+  const { chunk } = await matrixFetch<{ chunk: Raw[] }>(
+    stack.homeserver,
+    `/rooms/${encodeURIComponent(roomId)}/messages?dir=b&limit=200`,
+    auth
+  );
+  const used = new Set(
+    chunk.flatMap((event) =>
+      event.sender === stack.agents.helper && event.content.session_id
+        ? [event.content.session_id]
+        : []
+    )
+  );
   const { version } = await matrixFetch<{ version: string }>(
     stack.homeserver,
     '/room_keys/version',
@@ -121,7 +134,7 @@ const backedUpSessions = async (stack: AgentStack, roomId: string): Promise<numb
     `/room_keys/keys/${encodeURIComponent(roomId)}?version=${encodeURIComponent(version)}`,
     auth
   ).catch(() => ({ sessions: {} }));
-  return Object.keys(keys.sessions ?? {}).length;
+  return used.size === 0 ? 1 : [...used].filter((id) => !(id in (keys.sessions ?? {}))).length;
 };
 
 test('after a sync gap every device shows the messages the server counts, also after a reload', async ({
@@ -268,14 +281,13 @@ test('a new session whose keys come late from the key backup shows an unread fin
         }
       )
       .toBeGreaterThanOrEqual(2);
-    // The desk's own session, the router's and the helper's.
     await expect
-      .poll(() => backedUpSessions(stack, roomId), {
+      .poll(() => sessionsNotBackedUp(stack, roomId), {
         timeout: 90_000,
         intervals: [2000],
-        message: "the key backup holds the room's sessions",
+        message: "the key backup holds the keys of the helper's events",
       })
-      .toBeGreaterThanOrEqual(3);
+      .toBe(0);
     // The server counts the title notice, whose push rules it cannot read; the devices do not.
     await expectDevices([['desk', desk]], stack, roomId, log, 'desk', (server) => server - 1);
     // A reload starts from the saved sync (P3-lane5-F002: 0 after a reload).
