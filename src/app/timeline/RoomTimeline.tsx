@@ -447,6 +447,11 @@ export function RoomTimeline(props: RoomTimelineProps) {
     ) => void,
   });
 
+  // Compact shows the room's threads as cards (a link to a message outside them shows the room's
+  // timeline instead). It reads no message of the room's main timeline by being open, also while
+  // a room without a thread shows its timeline under the bar until a first message makes a card.
+  const compactCards = compactViewRequested && !threadIndex.focusedRoomOverviewBypass;
+
   const threadRecordMapRef = useLatestRef(threadIndex.threadRecordMap);
   // The Threads view under the bar's Last Reply sort, newest first, lists the newest thread first:
   // the top is its latest end, where it opens, where a new message lands and where it follows.
@@ -1048,6 +1053,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     hideActivity,
     mx,
     readUptoEventIdRef,
+    readsMainTimeline: !compactCards,
     room,
     setAtBottom,
     classicRows,
@@ -1277,6 +1283,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     atLiveEndRef,
     effectiveThreadFilterState: threadIndex.effectiveThreadFilterState,
     hideActivity,
+    readsMainTimeline: !compactCards,
     hideMembershipEvents,
     hideNickAvatarEvents,
     ignoredUsersSet,
@@ -1367,7 +1374,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
     [toggleExpandAll]
   );
 
-  const compactCards = compactViewRequested && !threadIndex.focusedRoomOverviewBypass;
   // Older roots without replies are in older history: it loads as the reader nears the cards' end.
   const compactHostRef = useRef<HTMLDivElement>(null);
   useCompactHistoryAtEnd({
