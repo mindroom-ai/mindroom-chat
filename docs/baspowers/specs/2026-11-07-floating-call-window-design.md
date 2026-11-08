@@ -21,7 +21,7 @@ In:
 
 Out, with reasons:
 
-- **Live transcript.** The mockups showed one; nothing can feed it today. MindRoom's voice agent starts its LiveKit session with `text_output=False` and keeps the transcript private until it posts the transcript card after the call (`src/mindroom/matrix_rtc/voice_agent.py`, `call_writeback.py`). Publishing it over LiveKit's `lk.transcription` text streams would hand the words to the call service outside Matrix encryption, so the channel is a backend decision (a Matrix event in the call room keeps encryption). Follow-up: agree the channel, then add the panel (under the stage, beside it once wide, a subtitle when short, as mocked).
+- **Live transcript in agent calls.** MindRoom's voice agents keep their transcript private until the transcript card after the call (`text_output=False`), and main's call transcription (#42) covers calls between people only. Agent calls show no live transcript here either.
 - **Pop out** (Document Picture-in-Picture). Chromium only; folds draws menus and tooltips into the main document, and the styles would have to be copied into the new one. Follow-up.
 - Dragging a docked panel out to float it. The docked panel gets a Float button instead.
 - A level meter driven by audio levels. The call state carries `speaking` only; the voice stage animates while someone speaks.
@@ -66,6 +66,16 @@ The joined call's body is a stage over the control bar, with the notices above t
 - **Title bar buttons:** speaker or grid (video stage only), open conversation (agent calls with an origin), dock or float (desktop), minimize (floating), close. A title bar narrower than its buttons drops the speaker switch first.
 - Prescreen (before Join): unchanged content in the same frame; the bar shows only the title, Expand and Close.
 - A failed chunk load shows the existing "This couldn't load" view with End and Close, in the window as in the panel.
+
+### Live transcript in the window
+
+Main transcribes calls between people in rooms with MindRoom's router (#42, `docs/baspowers/specs/2026-11-07-call-transcription-design.md`). There, Transcript (in the call controls and on the call row) opens the live transcript as the room's side panel in place of the call panel, clearing `callPanelRoomAtom`; on desktop in floating mode that would close the window. So, while the call view floats:
+
+- **Transcript toggles the live transcript inside the window** instead of the side panel: a pressed state (`aria-pressed`) on the controls' Transcript button, remembered per account in the window settings (`transcript: boolean`, default off).
+- **Layout.** The transcript sits under the stage, and beside it (at the end side) once the window is at least 560 px wide and 240 px tall. A divider between them moves with the pointer and with the arrow keys when focused (`role="separator"`, `aria-valuenow` as the stage's percentage, 25 to 80, default 60), remembered per account (`transcriptSplit`). A window under 340 px tall (while under 560 px wide), or under 240 px tall, shows only the latest line as a two-line subtitle over the bottom of the stage.
+- **Content.** The same lines, gaps, paused notice and "transcribed" line as the side panel, from the same hooks (`useLiveTranscript`) and line rendering, shared rather than copied; newest at the bottom, kept scrolled to the end unless the person scrolled up. Pause stays in the controls.
+- **The call row's Transcript** opens the window's transcript (and expands a bar) when the row's call is this device's call and its view floats; any other call opens the side panel as on main.
+- **The bar** shows no transcript. Docked panels and phones keep main's side panel unchanged. Agent calls have no Transcript button (main).
 
 ## Architecture
 
