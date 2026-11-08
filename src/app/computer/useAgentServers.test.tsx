@@ -234,7 +234,7 @@ it('reads the servers of all rooms once for a sync batch of agent member events'
   expect(seen.at(-1)).toEqual([]);
 });
 
-it('asks the homeserver again after a check that could not reach it', async () => {
+it('asks the homeserver again after a check that could not reach it, and starts later mounts from its answer', async () => {
   const mx = createClient({ baseUrl: 'https://example.org', userId: viewer });
   const versions = vi
     .fn()
@@ -267,11 +267,11 @@ it('asks the homeserver again after a check that could not reach it', async () =
     });
     act(() => renderer?.unmount());
     renderer = undefined;
-    return seen.at(-1);
+    return [seen[0], seen.at(-1)];
   };
-  expect(await mountBinding()).toBe(false);
-  expect(await mountBinding()).toBe(true);
-  expect(await mountBinding()).toBe(true);
+  expect(await mountBinding()).toEqual([false, false]);
+  expect(await mountBinding()).toEqual([false, true]);
+  expect(await mountBinding()).toEqual([true, true]);
   expect(versions).toHaveBeenCalledTimes(2);
 });
 
