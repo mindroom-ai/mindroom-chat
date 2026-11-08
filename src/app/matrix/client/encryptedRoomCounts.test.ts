@@ -101,6 +101,15 @@ const pushRules = {
   global: {
     override: [
       {
+        rule_id: '.m.rule.suppress_edits',
+        default: true,
+        enabled: true,
+        conditions: [
+          { kind: 'event_property_is', key: 'content.m\\.relates_to.rel_type', value: 'm.replace' },
+        ],
+        actions: [],
+      },
+      {
         rule_id: '.m.rule.suppress_notices',
         default: true,
         enabled: true,
@@ -785,5 +794,32 @@ describe('unread counts of an encrypted room', () => {
       await reloaded.decrypt(reloaded.find(event.event_id), contentOf(event.event_id));
     }
     expect(reloaded.totalCount()).toBe(1);
+  });
+
+  // Regression (P3-e2ee-F001, a new session that holds the whole room): the terminal edit of an
+  // unopened thread's reply waits in the thread's buffer, where the session never decrypts it, also
+  // once the keys came. Push rules read on its ciphertext take it as an edit and count nothing, so
+  // the finished reply counted 0 while the server counted it.
+  it('count a finished reply whose terminal edit the session never decrypts', async () => {
+    const f = await fixture(true);
+    const window = [
+      { ...member(ME), origin_server_ts: 1 } as IEvent,
+      encrypted(ROOT, ME, 10),
+      streamedReply(REPLY, 11),
+      ...replyWindow(),
+    ];
+    await f.deliver(window, [], { counts: replyCounts });
+    // Without keys: the server's count, the title notice included.
+    for (const event of window.filter((e) => e.type === 'm.room.encrypted')) {
+      if (event.event_id !== '$done') await f.decrypt(f.find(event.event_id), undefined);
+    }
+    expect(f.totalCount()).toBe(2);
+    // The keys come; the terminal edit stays as it came.
+    for (const event of window.filter((e) => e.type === 'm.room.encrypted')) {
+      const id = event.event_id;
+      if (id === '$done') continue;
+      await f.decrypt(f.find(id), id === ROOT ? clear[ROOT] : id === REPLY ? clear[REPLY] : contentOf(id));
+    }
+    expect([f.totalCount(), f.threadCount()]).toEqual([1, 1]);
   });
 });
