@@ -50,9 +50,9 @@ type Account = { username: string; userId: string; accessToken: string };
 type ShortRoom = { roomId: string; newest: string; topic: string };
 type Fixture = {
   viewer: Account;
-  /** Creation, settings, a member who joins, two messages, the newest the reader's own. */
+  /** Creation, settings, a member who joins, eight messages, the newest the reader's own. */
   readRoom: ShortRoom;
-  /** Per test: the same, but the member's three messages are new to the reader. */
+  /** Per test: the same, but the member's eight messages are new to the reader. */
   unreadRooms: Map<string, ShortRoom>;
   /** Creation and settings only: a room without any thread. */
   emptyRoom: { roomId: string; topic: string };
@@ -110,7 +110,9 @@ const seed = async (): Promise<Fixture> => {
     )
   );
 
-  // The newest message is the reader's own (read), or the member wrote all three (unread).
+  // Ten events of settings and membership, then eight messages: taller than a screen, and all
+  // in the first sync. The last two are the reader's own (read), or the member wrote all eight
+  // (unread).
   const shortRoom = async (name: string, topic: string, unread: boolean): Promise<ShortRoom> => {
     const roomId = await createPrivateRoom(homeserver, viewer.accessToken, {
       name,
@@ -118,10 +120,12 @@ const seed = async (): Promise<Fixture> => {
       invite: [member.userId],
     });
     await joinRoom(homeserver, member.accessToken, roomId);
-    const later = unread ? member : viewer;
-    await sendRoomMessage(homeserver, member.accessToken, roomId, note(1));
-    await sendRoomMessage(homeserver, later.accessToken, roomId, note(2));
-    const newest = await sendRoomMessage(homeserver, later.accessToken, roomId, note(3));
+    let newest = '';
+    for (let index = 0; index < 8; index += 1) {
+      const sender = index < 6 || unread ? member : viewer;
+      // eslint-disable-next-line no-await-in-loop
+      newest = await sendRoomMessage(homeserver, sender.accessToken, roomId, note(index));
+    }
     return { roomId, newest, topic };
   };
   const readRoom = await shortRoom('Quarter close', 'Where we keep the close checklist', false);
@@ -225,9 +229,9 @@ const INTRO = '[data-room-intro]';
 const NO_THREADS = '[data-compact-room-without-threads]';
 
 /**
- * Scrolls up like a reader until the start block is in the visible band, or until three flicks
- * in a row found the reader at the top with nothing new above, or for `flicks` flicks; then waits
- * up to `settleMs` for it with the reader at the top.
+ * Scrolls up like a reader until the start block is in the visible band, or until ten flicks in
+ * a row found the reader at the top with nothing new above, or for `flicks` flicks; then waits up
+ * to `settleMs` for it with the reader at the top.
  */
 const readUpToStart = async (
   page: Page,
@@ -242,7 +246,7 @@ const readUpToStart = async (
     await page.mouse.move(box.x + box.width / 2, Math.max(box.y, 200) + 40);
   let atTop = 0;
   let height = 0;
-  for (let flick = 0; flick < flicks && atTop < 3; flick += 1) {
+  for (let flick = 0; flick < flicks && atTop < 10; flick += 1) {
     // eslint-disable-next-line no-await-in-loop
     const now = await readStart(page, selector);
     if (now.inBand) break;
@@ -324,6 +328,14 @@ test.describe("a room's timeline begins with its start", () => {
         const label = `${mode}-${engine}-${device}`;
         try {
           const page = await context.newPage();
+          // Rooms the page asked the server for older history of (a page from a token).
+          const paged = new Set<string>();
+          page.on('request', (request) => {
+            const url = new URL(request.url());
+            const room = /\/rooms\/([^/]+)\/messages$/.exec(url.pathname)?.[1];
+            if (room && url.searchParams.has('from') && url.searchParams.get('dir') === 'b')
+              paged.add(decodeURIComponent(room));
+          });
           await loginWithPassword(page, {
             homeserver,
             username: fixture.viewer.username,
@@ -352,10 +364,14 @@ test.describe("a room's timeline begins with its start", () => {
             await expect(page.locator(`[data-message-id="${room.newest}"]`)).toBeAttached({
               timeout: 60_000,
             });
+            // Its start came with the sync: it is there before the reader scrolls.
             // eslint-disable-next-line no-await-in-loop
-            await readUpToStart(page, device, INTRO, `${label}-${kind}`, 6);
+            await expect(page.locator(INTRO), `${label}-${kind}: start at open`).toBeAttached();
+            // eslint-disable-next-line no-await-in-loop
+            await readUpToStart(page, device, INTRO, `${label}-${kind}`, 20);
             // eslint-disable-next-line no-await-in-loop
             await expect(page.locator(INTRO)).toContainText(room.topic);
+            expect(paged.has(room.roomId), `${label}-${kind}: no older page asked for`).toBe(false);
           }
 
           // The long room: no start while its creation is not loaded, then the start once the
@@ -371,6 +387,9 @@ test.describe("a room's timeline begins with its start", () => {
           ).toHaveCount(0);
           await readUpToStart(page, device, INTRO, `${label}-long`, 150);
           await expect(page.locator(INTRO)).toContainText(fixture.longRoom.topic);
+          expect(paged.has(fixture.longRoom.roomId), `${label}-long: paged to the start`).toBe(
+            true
+          );
           if (mode === 'classic') {
             const intro = await page.locator(INTRO).boundingBox();
             const first = await page
