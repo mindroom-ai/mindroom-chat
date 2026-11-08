@@ -40,8 +40,8 @@ const swipeFromLeftEdge = () => {
   });
 };
 
-/** A room on the page, whose swipe from the left edge goes back. */
-function RoomWithBackSwipe({ onBack }: { onBack: () => void }) {
+/** A thread on the page, whose swipe from the left edge goes back. */
+function ThreadWithBackSwipe({ onBack }: { onBack: () => void }) {
   useEdgeSwipeBack(onBack);
   return null;
 }
@@ -239,15 +239,15 @@ describe('PhoneNavDrawer', () => {
     act(() => renderer?.unmount());
   });
 
-  it('leaves the swipe from the left edge to a room, which goes back with it', () => {
+  it('leaves the swipe from the left edge to a thread, which goes back with it', () => {
     const store = createStore();
     const onBack = vi.fn();
-    // The shell's drawer listens before any room, as in the app.
-    const page = (room: boolean) => (
+    // The shell's drawer listens before any thread, as in the app.
+    const page = (thread: boolean) => (
       <Provider store={store}>
         <MemoryRouter initialEntries={['/home/']}>
           <PhoneNavDrawer nav={null} />
-          {room && <RoomWithBackSwipe onBack={onBack} />}
+          {thread && <ThreadWithBackSwipe onBack={onBack} />}
         </MemoryRouter>
       </Provider>
     );
@@ -258,7 +258,7 @@ describe('PhoneNavDrawer', () => {
     swipeFromLeftEdge();
     expect(onBack).toHaveBeenCalledTimes(1);
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
-    // Gone with the room, its swipe brings the drawer out again.
+    // With the thread gone, the swipe brings the drawer out again.
     act(() => renderer?.update(page(false)));
     swipeFromLeftEdge();
     expect(onBack).toHaveBeenCalledTimes(1);
