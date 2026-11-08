@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { act, create, ReactTestRenderer, ReactTestRendererJSON } from 'react-test-renderer';
+import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { ClientEvent, MatrixClient, SyncState } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SyncStatus } from './SyncStatus';
@@ -9,22 +9,15 @@ import {
   SYNC_STALL_MARGIN_MS,
 } from '../matrix/client/syncStall';
 
-vi.mock('../ui/styles/ContainerColor.css', () => ({
-  ContainerColor: () => 'container-color',
-}));
-
 vi.mock('../native/cloudflareAccess', () => ({
   useCloudflareAccessSignInRequired: () => false,
 }));
 
 const SYNC_URL = 'https://matrix.example/_matrix/client/v3/sync?timeout=30000&since=s1';
 
-const textOf = (node: ReactTestRendererJSON | ReactTestRendererJSON[] | string | null): string => {
-  if (node === null) return '';
-  if (typeof node === 'string') return node;
-  if (Array.isArray(node)) return node.map(textOf).join('');
-  return (node.children ?? []).map(textOf).join('');
-};
+/** What the status region reads out. */
+const announced = (renderer: ReactTestRenderer): string =>
+  renderer.root.findByProps({ 'data-sync-status-announcement': true }).children.join('');
 
 describe('SyncStatus with a /sync that gets no answer', () => {
   let renderer: ReactTestRenderer | undefined;
@@ -51,7 +44,7 @@ describe('SyncStatus with a /sync that gets no answer', () => {
     act(() => {
       renderer = create(<SyncStatus mx={mx} />);
     });
-    const text = () => textOf(renderer!.toJSON());
+    const text = () => announced(renderer!);
     act(() => {
       mx.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Syncing, {});
     });

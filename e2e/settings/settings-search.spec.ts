@@ -220,7 +220,7 @@ test('screenshots of the regrouped Settings', async ({ page }) => {
     await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 60_000 });
     const dialog = await openSettings(page);
     await show(dialog);
-    // The sync banner can come back while the dialog opens; the picture waits for it to go.
+    // The sync pill can come back while the dialog opens; the picture waits for it to go.
     await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 60_000 });
     await page.mouse.move(0, 0);
     await page.screenshot({ path: `${SHOTS}/${file}` });
