@@ -376,12 +376,12 @@ describe("plugins' entries", () => {
     });
   };
 
-  /** The menu's groups, as the names of their rows, and the lines between them as `—`. */
+  /** The menu's groups, as the names of their rows, and the lines between them as `line`. */
   const layout = () => {
     const first = screen.getByRole('menuitem', { name: 'Mark as Read' }).parentElement;
     return Array.from(first?.parentElement?.children ?? []).map((part) => {
       const rows = Array.from(part.querySelectorAll('[role^="menuitem"]'));
-      return rows.length > 0 ? rows.map((row) => row.textContent?.trim() ?? '') : '—';
+      return rows.length > 0 ? rows.map((row) => row.textContent?.trim() ?? '') : 'line';
     });
   };
 
@@ -427,7 +427,7 @@ describe("plugins' entries", () => {
     buildWith(entry(), entry({ id: 'other', label: 'other' }));
     const plugins = ['About this room', 'Other entry'];
     render(<Harness />);
-    expect(layout()).toEqual([SHARED.slice(0, -2), '—', plugins, '—', SHARED.slice(-2)]);
+    expect(layout()).toEqual([SHARED.slice(0, -2), 'line', plugins, 'line', SHARED.slice(-2)]);
     cleanup();
 
     render(
@@ -437,11 +437,11 @@ describe("plugins' entries", () => {
     );
     expect(layout()).toEqual([
       ['Show Members'],
-      '—',
+      'line',
       SHARED.slice(0, -2),
-      '—',
+      'line',
       plugins,
-      '—',
+      'line',
       SHARED.slice(-2),
     ]);
   });
@@ -449,7 +449,7 @@ describe("plugins' entries", () => {
   it('draws no group for plugins when no entry shows for the room', () => {
     buildWith(entry({ shows: (shown) => shown.isSpaceRoom() }));
     render(<Harness />);
-    expect(layout()).toEqual([SHARED.slice(0, -2), '—', SHARED.slice(-2)]);
+    expect(layout()).toEqual([SHARED.slice(0, -2), 'line', SHARED.slice(-2)]);
   });
 
   it("closes the menu, then runs the entry on the menu's room; its dialog stays after the menu has gone, until it closes", async () => {

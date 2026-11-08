@@ -22,8 +22,10 @@ type RoomActionsMenuProps = RoomActionProps & {
 
 const menuStyle = { minWidth: toRem(200), maxWidth: toRem(280) } as const;
 
+type PluginDialogProps = { dialog: PluginRoomDialog; close: () => void };
+
 // Calls the plugin's function inside the boundary around it, so a throw there is caught too.
-function PluginDialogContent({ dialog, close }: { dialog: PluginRoomDialog; close: () => void }) {
+function PluginDialogContent({ dialog, close }: PluginDialogProps) {
   return <>{dialog(close)}</>;
 }
 
@@ -31,15 +33,7 @@ function PluginDialogContent({ dialog, close }: { dialog: PluginRoomDialog; clos
  * A plugin's dialog. One that throws is logged and reported with the plugin's tag, and closes, so
  * the next dialog of the menu starts afresh.
  */
-function PluginDialog({
-  tag,
-  dialog,
-  close,
-}: {
-  tag: string;
-  dialog: PluginRoomDialog;
-  close: () => void;
-}) {
+function PluginDialog({ tag, dialog, close }: PluginDialogProps & { tag: string }) {
   return (
     <ErrorBoundary
       fallback={null}

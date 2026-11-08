@@ -45,7 +45,7 @@ export const isPluginRoomAction = (value: unknown): value is PluginRoomAction =>
   (value.shows === undefined || typeof value.shows === 'function');
 
 /** A plugin's entry in one room's menu. */
-export type PluginRoomEntry = {
+type PluginRoomEntry = {
   /** `<plugin id>/<action id>`. */
   id: string;
   /** Its plugin's tag, which names it in logs and error reports. */

@@ -74,9 +74,9 @@ const expectEntry = async (page: Page, entry: string, before: string, after: str
 const chooseEntry = async (page: Page, entry: string, roomName: string) => {
   await roomMenu(page).getByRole('menuitem', { name: entry, exact: true }).click();
   await expect(roomMenu(page)).toHaveCount(0);
-  const dialog = page.getByRole('dialog', { name: 'Example dialog' });
-  await expect(dialog).toContainText(`Example dialog of ${roomName}`);
-  return dialog;
+  await expect(page.getByRole('dialog', { name: 'Example dialog' })).toContainText(
+    `Example dialog of ${roomName}`
+  );
 };
 
 const closeDialog = async (page: Page) => {
@@ -88,10 +88,10 @@ const sidebarLink = (page: Page, roomId: string) =>
   page.locator(`a[href*="${encodeURIComponent(roomId)}"]`).first();
 
 /** The sidebar row of the link: the closest element that also holds its More Options button. */
-const rowOptions = (link: Locator, name: string) =>
+const rowOptions = (link: Locator) =>
   link
-    .locator(`xpath=ancestor::*[.//button[@aria-label="${name}"]][1]`)
-    .getByRole('button', { name, exact: true });
+    .locator('xpath=ancestor::*[.//button[@aria-label="More Options"]][1]')
+    .getByRole('button', { name: 'More Options', exact: true });
 
 const seed = async (label: string) => {
   const person = await registerDisposableUser(`plugin_room_${label}_${RUN}`, 'plugin-room-pass');
@@ -133,7 +133,7 @@ test("every room menu lists the example plugin's entry, which acts on the menu's
     // room stays open.
     const gardenLink = sidebarLink(page, garden);
     await gardenLink.hover();
-    await rowOptions(gardenLink, 'More Options').click();
+    await rowOptions(gardenLink).click();
     await expectEntry(page, 'Example room info', 'Jump to Time', 'Archive Room');
     await shot('row-menu');
     await chooseEntry(page, 'Example room info', 'Garden');
@@ -155,7 +155,7 @@ test("every room menu lists the example plugin's entry, which acts on the menu's
     await shot('header-menu-german');
     await chooseEntry(page, 'Beispiel-Rauminfo', 'Orchard');
     await closeDialog(page);
-    await sidebarLink(page, garden).click({ button: 'right' });
+    await gardenLink.click({ button: 'right' });
     await expectEntry(page, 'Beispiel-Rauminfo', 'Zu Zeitpunkt springen', 'Raum archivieren');
     await shot('row-menu-german');
     await chooseEntry(page, 'Beispiel-Rauminfo', 'Garden');
