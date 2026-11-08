@@ -95,7 +95,9 @@ function ServerPackSection({ room, onViewPack }: ServerPackSectionProps) {
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{sectionTitle}</Text>
+      <Text size="L400" data-settings-heading="">
+        {sectionTitle}
+      </Text>
       <SequenceCard
         variant="SurfaceVariant"
         className={SequenceCardStyle}

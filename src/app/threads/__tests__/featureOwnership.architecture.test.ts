@@ -171,8 +171,6 @@ describe('feature ownership architecture', () => {
           { name: 'initialEventsFetched', kind: 'read' },
           { name: 'initialEventsFetched', kind: 'read' },
           { name: 'replayEvents', kind: 'read' },
-          { name: 'initialEventsFetched', kind: 'read' },
-          { name: 'replayEvents', kind: 'read' },
         ],
       },
     ]);

@@ -60,7 +60,7 @@ export const availableAccessChoices = (
 
 type AllowCondition = { type: string; room_id?: string };
 
-const readAllow = (content: Record<string, unknown> | undefined): AllowCondition[] => {
+export const readAllow = (content: Record<string, unknown> | undefined): AllowCondition[] => {
   const allow = content?.allow;
   if (!Array.isArray(allow)) return [];
   return allow.filter(

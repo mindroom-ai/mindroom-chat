@@ -18,7 +18,7 @@ import { normalizePath, searchForWorkspaceRoot } from 'vite';
  * `apiVersion`, the one it needs. Version 1 had no SDK; each later addition to the SDK (an export,
  * or a contribution kind in `ClientPlugin`) raises it.
  */
-const CLIENT_PLUGIN_API_VERSION = 10;
+const CLIENT_PLUGIN_API_VERSION = 11;
 
 /** The SDK's subpaths a build resolves, which plugins import, and the modules they are. */
 export const CLIENT_SDK_ALIAS = {
@@ -61,6 +61,12 @@ export const SHARED_PACKAGES = [
   'dayjs',
   'react-aria',
 ];
+
+/** The package the app shares that `source` imports, such as `react-aria` for `react-aria/x`. */
+const sharedPackage = (/** @type {string} */ source) => {
+  const name = source.split('/', source.startsWith('@') ? 2 : 1).join('/');
+  return SHARED_PACKAGES.includes(name) ? name : undefined;
+};
 
 /** @typedef {{ id: string, version: string, dir: string, entry: string }} ClientPluginInfo */
 
@@ -209,14 +215,34 @@ const entriesModule = (plugins) => {
 export const clientPlugins = (env = process.env) => {
   const plugins = readClientPlugins(env.MINDROOM_CLIENT_PLUGINS);
   const ownerOf = pluginOwner(plugins);
-  // The dev server pre-bundles a plugin's installed packages without plugin hooks, so only builds
-  // redirect: a plugin and its packages then always resolve the same copy.
-  let building = false;
   return {
     name: 'mindroom-client-plugins',
     enforce: 'pre',
     config: () => ({
       resolve: { alias: CLIENT_SDK_ALIAS },
+      // The dev server pre-bundles the packages a plugin installed with esbuild, without plugin
+      // hooks: there their imports and requires of the packages the app shares resolve as the app
+      // imports them, to the module the app's own pre-bundle has.
+      optimizeDeps: {
+        esbuildOptions: {
+          plugins: [
+            {
+              name: 'mindroom-client-plugins',
+              setup: (build) => {
+                build.onResolve({ filter: /^[\w@]/ }, ({ path: source, importer }) =>
+                  sharedPackage(source) && ownerOf(importer)
+                    ? build.resolve(source, {
+                        kind: 'import-statement',
+                        importer: ENTRIES_MODULE,
+                        resolveDir: path.dirname(ENTRIES_MODULE),
+                      })
+                    : undefined
+                );
+              },
+            },
+          ],
+        },
+      },
       // The dev server serves files outside the workspace only from directories it allows, and a
       // list of them replaces its default, the workspace root.
       server:
@@ -228,14 +254,11 @@ export const clientPlugins = (env = process.env) => {
             }
           : undefined,
     }),
-    configResolved: ({ command }) => {
-      building = command === 'build';
-    },
-    // In a build, a plugin's imports of the packages the app shares resolve as the app's own do.
+    // A plugin's imports of the packages the app shares resolve as the app's own do.
     async resolveId(source, importer, options) {
-      if (!building || !importer) return null;
-      const name = source.split('/', source.startsWith('@') ? 2 : 1).join('/');
-      if (!SHARED_PACKAGES.includes(name)) return null;
+      if (!importer) return null;
+      const name = sharedPackage(source);
+      if (!name) return null;
       const owner = ownerOf(importer);
       if (!owner) return null;
       const resolved = await this.resolve(source, ENTRIES_MODULE, { ...options, skipSelf: true });

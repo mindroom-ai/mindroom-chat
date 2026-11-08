@@ -292,7 +292,7 @@ describe('fresh-device bundled thread presentation', () => {
   });
 
   it('reads titles and replies as the server sorts them, whoever sent the title', () => {
-    // Any member's m.notice with an object marker is a title; every other thread event is a reply.
+    // Any member's m.notice with a truthy marker is a title; every other thread event is a reply.
     const shape = summaryShape();
     const titler = '@reviewer:example.org';
     shape['io.mindroom.title'] = {
@@ -340,6 +340,28 @@ describe('fresh-device bundled thread presentation', () => {
     const other = fixture(odd);
     expect(presentation(other.room, other.root).summaryText).toBeUndefined();
     expect(presentation(other.room, other.root).latestReplyPreviewText).toBeUndefined();
+  });
+
+  it('reads a notice with any truthy marker as the bundled title, as the server sorts it', () => {
+    // The server (mindroom-tuwunel #149) bundles a notice as the title when its marker is truthy.
+    const titled = (marker: unknown) => {
+      const shape = summaryShape();
+      const title = reply('$title', 'Older style title', 3000);
+      title.content = {
+        ...title.content,
+        msgtype: 'm.notice',
+        'io.mindroom.thread_summary': marker,
+      };
+      shape['io.mindroom.title'] = title;
+      const { room, root } = fixture(shape);
+      return presentation(room, root).summaryText;
+    };
+    for (const marker of [true, 'yes', 1, ['summary']]) {
+      expect(titled(marker)).toBe('Older style title');
+    }
+    for (const marker of [false, 0, '', null]) {
+      expect(titled(marker)).toBeUndefined();
+    }
   });
 
   it('ignores a title-shaped reply and an event for a different root', () => {

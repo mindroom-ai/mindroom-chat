@@ -36,7 +36,7 @@ import { EmojiBoard } from '../emoji/board/LazyEmojiBoard';
 import { useMemberEventParser } from './useMemberEventParser';
 import { describeRoomStateChange, RoomStateSentence } from './roomStateChange';
 import { Time } from './Time';
-import { useLongPress } from '../lib/hooks/useLongPress';
+import { LONG_PRESS_SLOP, useLongPress } from '../lib/hooks/useLongPress';
 import {
   AvatarBase,
   BubbleLayout,
@@ -52,7 +52,7 @@ import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { MessageLayout, type MessageSpacing } from '../preferences/settings';
 import { canEditEvent, getMemberAvatarMxc, getMemberDisplayName } from '../matrix/room';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../matrix/matrix';
-import { copyToClipboard } from '../lib/dom';
+import { copyToClipboard, selectableTextNear } from '../lib/dom';
 import { getMatrixToRoomEvent } from '../matrix/matrix-to';
 import { getViaServers } from '../matrix/via-servers';
 import { MessageEditor } from './edit/MessageEditor';
@@ -653,8 +653,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     const noteRowFocus = (evt: FocusEvent<HTMLDivElement>) => {
       const pointer = pressedPointer.current;
       pressedPointer.current = undefined;
-      const tapped =
-        evt.target === evt.currentTarget || !!toolbarRef.current?.contains(evt.target);
+      const tapped = evt.target === evt.currentTarget || !!toolbarRef.current?.contains(evt.target);
       setFocusInside(
         isKeyboardFocus(evt.target) || pointer === undefined || (pointer !== 'mouse' && tapped)
       );
@@ -702,11 +701,21 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     };
     // A long press opens it where the finger rests, on touch screens whose browser fires no
     // contextmenu for one (iOS Safari). Touches inside the row's own pop-outs, which React passes
-    // up through their portals, are not the row's.
+    // up through their portals, are not the row's. A long press on the message's text is the
+    // platform's: it selects the word under the finger, with its handles and Copy bar. A tap
+    // shows the toolbar, whose More Options opens the menu there too. Text selected before does
+    // not hold a press off the text back; the menu clears it when it opens.
     const longPress = useLongPress(
       (x, y) => setMenuAnchor(pointRect(x, y)),
-      (evt) =>
-        !edit && evt.currentTarget.contains(evt.target as Node) && !wantsBrowserMenu(evt.target)
+      (evt) => {
+        const touch = evt.touches[0];
+        return (
+          !edit &&
+          evt.currentTarget.contains(evt.target as Node) &&
+          !wantsBrowserMenu(evt.target, false) &&
+          !(touch && selectableTextNear(evt.target, touch.clientX, touch.clientY, LONG_PRESS_SLOP))
+        );
+      }
     );
 
     const senderDisplayName =

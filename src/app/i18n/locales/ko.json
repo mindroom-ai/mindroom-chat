@@ -1276,7 +1276,7 @@
       "matchingUsers_other": "일치하는 사용자 {{count}}명"
     },
     "mindRoomSplashScreen": {
-      "loading": "MindRoom Chat 불러오는 중"
+      "loading": "{{appName}} 불러오는 중"
     },
     "commands": {
       "CommandMe": "동작 메시지 보내기",

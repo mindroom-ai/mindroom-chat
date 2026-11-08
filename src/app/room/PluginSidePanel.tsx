@@ -8,16 +8,18 @@ import type { RoomSidePanel } from '../plugins/sidePanels';
 import { Header, Panel } from '../ui/panels/SidePanel.css';
 
 /**
- * A plugin's side panel: its title and Close above what the plugin shows. A plugin that fails says
- * so in the panel, which can still be closed.
+ * A plugin's side panel: its title and Close above what the plugin shows, for `request`. A plugin
+ * that fails says so in the panel, which can still be closed, until another request comes.
  */
 export function PluginSidePanel({
   panel: { label, tag, Component },
   roomId,
+  request,
   onClose,
 }: {
   panel: RoomSidePanel;
   roomId: string;
+  request: unknown;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
@@ -44,7 +46,7 @@ export function PluginSidePanel({
               {t('mindroomUi.plugins.sidePanel.failed')}
             </Text>
           }
-          resetKeys={[Component, roomId]}
+          resetKeys={[Component, roomId, request]}
           onError={(thrown: unknown, info) => {
             // eslint-disable-next-line no-console
             console.error(`[plugin ${tag}] its side panel failed`, thrown);
@@ -53,7 +55,7 @@ export function PluginSidePanel({
         >
           {/* A component that loads its code waits here, not in place of the page. */}
           <Suspense fallback={null}>
-            <Component roomId={roomId} />
+            <Component roomId={roomId} request={request} />
           </Suspense>
         </ErrorBoundary>
       </Box>

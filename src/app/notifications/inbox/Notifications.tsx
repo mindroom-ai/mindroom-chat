@@ -55,8 +55,8 @@ import {
   getDirectRoomAvatarUrl,
   getRoomAvatarUrl,
   getSenderName,
-  splitUserIdSuffix,
 } from '../../matrix/room';
+import { NameWithUserId } from '../../matrix/NameWithUserId';
 import { useLoadedRoomMembers } from '../../matrix/hooks/useLoadedRoomMembers';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
@@ -291,7 +291,6 @@ const NotificationRow = memo(function NotificationRow({
   useLoadedRoomMembers(client, [room.roomId]);
   const sender = event.getSender() ?? '';
   const senderName = getSenderName(room, sender);
-  const [shownName, userIdSuffix] = splitUserIdSuffix(senderName, sender);
   const eventId = event.getId() ?? notification.event.event_id;
   const content = event.getContent();
   const highlighted = isHighlightNotification(notification);
@@ -345,28 +344,15 @@ const NotificationRow = memo(function NotificationRow({
               style={unreadDotStyle}
             />
           )}
-          {/* An ellipsis may cut the display name short, never the user ID after it, which tells a
-              copied name apart: on a narrow row the ID wraps onto the next line, and a very long
-              one breaks across lines. Both parts take the bold weight from around them. */}
+          {/* The display name and the user ID that may follow it are items of this row, so the ID
+              wraps onto the next line rather than being cut. Both take the bold weight. */}
           <b style={{ display: 'contents' }}>
-            <Text
-              as="span"
+            <NameWithUserId
+              name={senderName}
+              userId={sender}
               size="T300"
-              truncate
-              {...ownDirectionLine}
               style={{ fontWeight: 'inherit' }}
-            >
-              {shownName}
-            </Text>
-            {userIdSuffix && (
-              <Text
-                as="span"
-                size="T300"
-                style={{ minWidth: 0, overflowWrap: 'anywhere', fontWeight: 'inherit' }}
-              >
-                {userIdSuffix}
-              </Text>
-            )}
+            />
           </b>
           <Text size="T200" priority="300" style={{ flexShrink: 0 }}>
             {timeMonthDayHourMinute(notification.ts, hour24Clock, i18n.language)}
