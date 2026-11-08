@@ -82,7 +82,9 @@ describe("the agent's stop reaction on a reply this device cannot decrypt", () =
     );
 
   it('is the Stop button while its newest edit says it streams, and gone once one ends it', () => {
-    const mx = new EventEmitter() as unknown as MatrixClient;
+    const mx = Object.assign(new EventEmitter(), {
+      getRoom: () => null,
+    }) as unknown as MatrixClient;
     keepSyncedEdits(mx);
     const target = encrypted('$reply');
     expect(getRenderableAnnotationsByKey(relationsWithStop(), target)).toEqual([]);

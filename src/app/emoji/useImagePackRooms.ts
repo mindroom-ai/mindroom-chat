@@ -17,7 +17,7 @@ export const useImagePackRooms = (
   const serverEmojiRoom = useServerEmojiRoom();
 
   return useMemo(() => {
-    // The room, then every space above it, nearest first.
+    // The room, then the Spaces and chat rooms above it, nearest first.
     const ids = [roomId, ...getAncestorSpaceIds(parentsByRoom, roomId)];
     if (serverEmojiRoom && !ids.includes(serverEmojiRoom.roomId)) ids.push(serverEmojiRoom.roomId);
     return ids
