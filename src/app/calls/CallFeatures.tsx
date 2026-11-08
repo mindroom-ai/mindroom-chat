@@ -16,6 +16,7 @@ import {
 import { AgentCallFailureNotice } from './agent/AgentCallFailureNotice';
 import { IncomingCalls } from './IncomingCalls';
 import * as css from './IncomingCalls.css';
+import { CallWindowHost } from './window/CallWindowHost';
 
 /**
  * Ends the call with the signed-in session: when the account signs out or switches (the shell
@@ -116,13 +117,15 @@ function CallResume() {
 
 /**
  * Account-wide call features: incoming rings, why an agent call did not start, resuming after a
- * reload, and the call's lifetime.
+ * reload, the call's lifetime, and the floating call window.
  */
 export function CallFeatures() {
   return (
     <>
       <CallLifetime />
       <CallResume />
+      {/* Beside the rings, not inside their fixed corner: the window places itself in the viewport. */}
+      <CallWindowHost />
       <div className={css.Host}>
         <IncomingCalls />
         <AgentCallFailureNotice />

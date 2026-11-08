@@ -1,9 +1,6 @@
-import { keyframes, style, type StyleRule } from '@vanilla-extract/css';
+import { createContainer, keyframes, style, type StyleRule } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
-import {
-  Header as SidePanelHeader,
-  Panel as SidePanelPanel,
-} from '../ui/panels/SidePanel.css';
+import { Header as SidePanelHeader, Panel as SidePanelPanel } from '../ui/panels/SidePanel.css';
 
 const { space, radii, borderWidth } = config;
 
@@ -27,9 +24,51 @@ const hairline = `${borderWidth.B300} solid ${color.Background.ContainerLine}`;
 // It fills its column, and the room's width on phones, where it covers the conversation.
 export const Panel = style([SidePanelPanel, { flexGrow: 1, containerType: 'inline-size' }]);
 
-export const Header = style([SidePanelHeader]);
+// The floating window draws the edge around the call view; the side column's start line would
+// double it.
+export const InWindow = style({ borderInlineStart: 'none' });
 
-export const HeaderTitle = style(lined('column', '0', { minWidth: 0 }));
+// The title bar answers its own width: one too narrow for a readable title beside all five buttons
+// (176 px with their gaps) drops the speaker switch first.
+const titleBar = createContainer();
+const TITLE_BAR_CROWDED = `${titleBar} (max-width: 280px)`;
+
+export const Header = style([
+  SidePanelHeader,
+  { containerType: 'inline-size', containerName: titleBar },
+]);
+
+// The window's resize grips reach 10 px in from its corners; the end button keeps clear of them.
+export const WindowHeader = style({ paddingInlineEnd: space.S300 });
+
+export const HeaderTitle = style(lined('column', '0', { minWidth: 0, flex: '1 1 auto' }));
+
+export const HeaderButtons = style(
+  lined('row', space.S100, { flexShrink: 0, alignItems: 'center' })
+);
+
+export const SpeakerSwitch = style({ '@container': { [TITLE_BAR_CROWDED]: { display: 'none' } } });
+
+// The minimized window: the others' faces, the title and status, the microphone, leave and
+// Expand on one line that moves the window as the title bar does. Its ends keep clear of the
+// window's resize grips, as the title bar's do.
+export const Bar = style([
+  lined('row', space.S200, { alignItems: 'center', paddingInline: space.S300 }),
+  { flex: '1 1 auto', minWidth: 0 },
+]);
+
+export const BarFaces = style(
+  lined('row', space.S100, { flexShrink: 0, margin: 0, padding: 0, listStyle: 'none' })
+);
+
+// Round like the avatar it holds, and ringed in the call's green while its person talks, as on
+// the stage.
+const talking = { boxShadow: `0 0 0 ${toRem(2)} ${color.Success.Main}` };
+export const BarFace = style({
+  display: 'flex',
+  selectors: { '&[data-speaking="true"]': talking },
+  borderRadius: '50%',
+});
 
 export const Body = style(
   lined('column', space.S300, {

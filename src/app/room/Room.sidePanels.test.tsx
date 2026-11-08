@@ -4,6 +4,11 @@ import { getDefaultStore, type PrimitiveAtom } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
 import { callPanelRoomAtom } from '../calls/callStore';
+import {
+  clearCallWindowStore,
+  getCallWindowSettingsAtom,
+  type CallWindowMode,
+} from '../calls/window/callWindowState';
 import type { AgentServer } from '../computer/agentServer';
 import { computerServicePreferenceAtom } from '../computer/computerServiceSettings';
 import * as membersDrawer from '../members/useMembersDrawer';
@@ -170,6 +175,10 @@ vi.mock('../plugins/pluginEntries', () => ({
 importBeforeTests(() => import('./Room'));
 
 const store = getDefaultStore();
+const ALICE = '@alice:example.org';
+/** Where the call view shows on desktop: the floating window, or this side panel. */
+const setCallMode = (mode: CallWindowMode) =>
+  act(async () => store.set(getCallWindowSettingsAtom(ALICE), { mode }));
 const { membersOpenAtom } = membersDrawer as unknown as { membersOpenAtom: PrimitiveAtom<boolean> };
 
 const PANELS = ['computer', 'canvas', 'call', 'members'] as const;
@@ -242,6 +251,8 @@ describe('the side panels of a room', () => {
       },
     };
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    // The rule between the panels holds for the call docked beside the conversation.
+    store.set(getCallWindowSettingsAtom(ALICE), { mode: 'docked' });
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -256,6 +267,7 @@ describe('the side panels of a room', () => {
     store.set(callPanelRoomAtom, undefined);
     store.set(membersOpenAtom, false);
     store.set(computerServicePreferenceAtom, null);
+    clearCallWindowStore(ALICE);
     state.servers = [];
     state.bindsOpenIdTokens = false;
     state.view = undefined;
@@ -288,6 +300,35 @@ describe('the side panels of a room', () => {
     } else {
       expect(isOpen(first)).toBe(false);
     }
+  });
+
+  it('leaves the call to the floating window on desktop, and shows it on phones and docked', async () => {
+    await setCallMode('floating');
+    await renderRoom();
+    await open('canvas');
+    await open('call');
+    expect(isOpen('canvas')).toBe(true);
+    expect(shown()).toEqual(['canvas']);
+
+    // Docking the window shows the call here, in place of the canvas; floating again gives the
+    // side panel back to the conversation.
+    await setCallMode('docked');
+    expect(shown()).toEqual(['call']);
+    expect(isOpen('canvas')).toBe(false);
+    await setCallMode('floating');
+    expect(shown()).toEqual([]);
+    cleanup();
+
+    await renderRoom(ScreenSize.Mobile);
+    expect(shown()).toEqual(['call']);
+  });
+
+  it('keeps the members beside the conversation while the call floats', async () => {
+    await setCallMode('floating');
+    await renderRoom(ScreenSize.Tablet);
+    await open('members');
+    await open('call');
+    expect(shown()).toEqual(['members']);
   });
 
   it.each(['canvas', 'call', 'members'] as const)(

@@ -419,7 +419,14 @@
         "muted": "You are muted"
       },
       "window": {
-        "move": "Move call window"
+        "move": "Move call window",
+        "minimize": "Minimize",
+        "expand": "Expand",
+        "dock": "Dock to the side",
+        "float": "Float",
+        "speakerView": "Speaker view",
+        "gridView": "Grid view",
+        "openConversation": "Go to the conversation"
       }
     },
     "room": {
