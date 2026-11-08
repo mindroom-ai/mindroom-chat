@@ -43,6 +43,32 @@ export const fitTiles = (count: number, width: number, height: number, gap: numb
 export const hasVideo = (participants: CallParticipant[]): boolean =>
   participants.some((participant) => !!participant.video || !!participant.screen);
 
+/**
+ * One entry per person, in the order each first joined, for the places that show people rather
+ * than devices (the voice stage, speaker view's faces, the window's bar): someone on a phone and a
+ * laptop shows once, speaking, connected and heard while any of their devices is, and as this
+ * device's person when one of the devices is this one.
+ */
+export const byPerson = (participants: CallParticipant[]): CallParticipant[] => {
+  const people = new Map<string, CallParticipant>();
+  participants.forEach((device) => {
+    const known = people.get(device.userId);
+    people.set(
+      device.userId,
+      known
+        ? {
+            ...known,
+            local: known.local || device.local,
+            connected: known.connected || device.connected,
+            speaking: known.speaking || device.speaking,
+            microphone: known.microphone || device.microphone,
+          }
+        : device
+    );
+  });
+  return [...people.values()];
+};
+
 /** The tile key of the screen a participant shares, beside the key of their camera tile. */
 export const screenKey = (participant: CallParticipant): string => `${participant.key}:screen`;
 

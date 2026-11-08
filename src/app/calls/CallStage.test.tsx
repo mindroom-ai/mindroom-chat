@@ -66,6 +66,14 @@ const me = person('me', { local: true });
 const mind = person('mind');
 const ada = person('ada');
 const tom = person('tom');
+/** `who` in the call on a second device, a phone. */
+const onPhone = (who: CallParticipant, rest: Partial<CallParticipant> = {}): CallParticipant => ({
+  ...who,
+  key: `${who.userId}:PHONE`,
+  deviceId: 'PHONE',
+  local: false,
+  ...rest,
+});
 // A MindRoom agent, by its user name.
 const helper = person('mindroom_helper');
 
@@ -195,6 +203,40 @@ describe('CallStage without video', () => {
     const face = tileOf(container, mind.userId);
     expect(face.dataset.connected).toBe('false');
     expect(face.textContent).toContain('Waiting for Mind');
+  });
+
+  it('shows someone on two devices once, speaking while either speaks', () => {
+    const { container } = showStage({
+      participants: [me, ada, onPhone(ada, { speaking: true, microphone: false })],
+    });
+
+    expect(container.querySelectorAll(`[data-call-tile="${ada.userId}"]`)).toHaveLength(1);
+    // One other person: one 64 px face without a name, heard on the device with its microphone on.
+    expect(withStyle(container, css.VoiceAvatar.solo)).toHaveLength(1);
+    expect(withStyle(container, css.VoiceAvatar.group)).toHaveLength(0);
+    expect(within(stageOf(container)).queryByText('Ada')).toBeNull();
+    const face = tileOf(container, ada.userId);
+    expect(face.dataset.speaking).toBe('true');
+    expect(within(face).queryByRole('img', { name: 'Microphone off' })).toBeNull();
+    expect(within(container).getByText('Ada is speaking')).toBeTruthy();
+  });
+
+  it("names the others once each, and counts this person's other device as them", () => {
+    const { container } = showStage({
+      participants: [me, mind, onPhone(mind), ada, onPhone(me)],
+    });
+
+    expect(withStyle(container, css.VoiceAvatar.group)).toHaveLength(2);
+    expect(
+      Array.from(container.querySelectorAll<HTMLElement>('[data-call-tile]'), (tile) => {
+        return tile.dataset.callTile;
+      })
+    ).toEqual([me.userId, mind.userId, ada.userId]);
+    expect(tileOf(container, me.userId).className).toContain(css.OffStage);
+    cleanup();
+
+    const alone = showStage({ participants: [me, onPhone(me)] });
+    expect(within(alone.container).getByText('Waiting for others to join')).toBeTruthy();
   });
 
   it('says an agent listens only once the agent the call waits for is connected', () => {
@@ -351,6 +393,31 @@ describe('CallStage with video', () => {
     const { container } = showStage({ participants: [{ ...mind, screen: track() }, ...crowd] });
     expect(container.querySelectorAll('[data-call-tile]')).toHaveLength(5);
     expect(within(container).queryByText(/^\+/)).toBeNull();
+  });
+
+  it("shows someone on two devices once among speaker view's faces, and not beside their tile", () => {
+    const screenShared = showStage({
+      participants: [{ ...mind, screen: track() }, ada, onPhone(ada), tom],
+    });
+    const faces = () =>
+      Array.from(
+        withStyle(screenShared.container, css.SpeakerFace),
+        (face) => (face as HTMLElement).dataset.callTile
+      );
+    expect(faces()).toEqual([mind.userId, ada.userId, tom.userId]);
+    cleanup();
+
+    const { container } = showStage({
+      participants: [me, { ...ada, speaking: true, video: track() }, onPhone(ada), tom],
+      speakerView: true,
+    });
+    expect(tileOf(container, ada.userId).querySelector('video')).not.toBeNull();
+    expect(container.querySelectorAll(`[data-call-tile="${ada.userId}"]`)).toHaveLength(1);
+    expect(
+      Array.from(withStyle(container, css.SpeakerFace), (face) => {
+        return (face as HTMLElement).dataset.callTile;
+      })
+    ).toEqual([me.userId, tom.userId]);
   });
 
   it('switches to speaker view when grid tiles would be under 100 px wide', () => {

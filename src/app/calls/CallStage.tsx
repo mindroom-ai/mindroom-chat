@@ -11,6 +11,7 @@ import {
   SPEAKER_VIEW_MIN_TILE,
   STAGE_PADDING,
   TILE_GAP,
+  byPerson,
   fitTiles,
   hasVideo,
   pickFocus,
@@ -117,11 +118,12 @@ function SpeakingLine({ room, userId }: { room: Room; userId: string }) {
 type VoiceStageProps = { room: Room; people: CallParticipant[]; microphone: boolean };
 
 /**
- * Nobody shows video: the others' faces, bars that move while anyone talks, and who does. Alone in
- * the call, a line that waits for the others instead.
+ * Nobody shows video: the others' faces, one per person whatever their devices, bars that move
+ * while anyone talks, and who does. Alone in the call, a line that waits for the others instead.
  */
-function VoiceStage({ room, people, microphone }: VoiceStageProps) {
+function VoiceStage({ room, people: devices, microphone }: VoiceStageProps) {
   const { t } = useTranslation();
+  const people = byPerson(devices);
   const others = people.filter((participant) => !participant.local);
   const speaker = others.find((participant) => participant.speaking);
   const anyoneSpeaks = people.some((participant) => participant.speaking);
@@ -139,10 +141,10 @@ function VoiceStage({ room, people, microphone }: VoiceStageProps) {
       <ul className={css.VoiceFaces} aria-label={t('featureUi.calls.panel.participants')}>
         {people.map((participant) =>
           participant.local ? (
-            <OffStageEntry key={participant.key} room={room} participant={participant} />
+            <OffStageEntry key={participant.userId} room={room} participant={participant} />
           ) : (
             <VoiceFace
-              key={participant.key}
+              key={participant.userId}
               room={room}
               participant={participant}
               named={others.length > 1}
@@ -293,9 +295,9 @@ export function CallStage(props: CallStageProps) {
     const screenInFocus = !!focused && screenKey(focused) === focus;
     const own = people.find((participant) => participant.local && participant.video);
     const inset = own && (screenInFocus || own !== focused) ? own : undefined;
-    const faces = people.filter(
-      (participant) => participant !== inset && (screenInFocus || participant !== focused)
-    );
+    // One face per person, and none for whoever the tile in focus or the inset shows already.
+    const shown = new Set([inset?.userId, screenInFocus ? undefined : focused?.userId]);
+    const faces = byPerson(people).filter(({ userId }) => !shown.has(userId));
     // A row longer than the tile can hold ends with a count in place of its last faces.
     const shownFaces = faces.length > SPEAKER_FACES ? faces.slice(0, SPEAKER_FACES - 1) : faces;
     const facesFrom = STAGE_PADDING + (screenInFocus ? SCREEN_CONTROL_ROOM : 0);
@@ -310,7 +312,7 @@ export function CallStage(props: CallStageProps) {
             ))}
           {shownFaces.map((participant, place) => (
             <SpeakerFace
-              key={participant.key}
+              key={participant.userId}
               room={room}
               participant={participant}
               inlineEnd={facesFrom + place * SPEAKER_FACE_STEP}

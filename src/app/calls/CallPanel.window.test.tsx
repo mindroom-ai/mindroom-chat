@@ -569,6 +569,26 @@ describe('the minimized bar', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it("shows someone on two devices once, and this person's other device not at all", () => {
+    const phone = { key: 'PHONE', deviceId: 'PHONE' };
+    roomCall([
+      me,
+      person('@ana:panel.test'),
+      person('@ana:panel.test', { ...phone, speaking: true }),
+      person(USER, phone),
+      person('@bo:panel.test'),
+    ]);
+    renderPanel({ frame: frame(true) });
+
+    const bar = screen.getByRole('group', { name: 'Move minimized call window' });
+    const faces = [...bar.querySelectorAll('[data-avatar]')];
+    expect(faces.map((face) => face.getAttribute('data-avatar'))).toEqual([
+      '@ana:panel.test',
+      '@bo:panel.test',
+    ]);
+    expect(faces[0]?.closest('[data-speaking]')?.getAttribute('data-speaking')).toBe('true');
+  });
+
   it.each([
     ['failed', 'connection', "The call's connection was lost."],
     ['ended', undefined, 'The call ended.'],

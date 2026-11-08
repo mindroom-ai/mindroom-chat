@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { CallParticipant, CallVideoTrack } from './RoomCall';
-import { SPEAKER_VIEW_MIN_TILE, fitTiles, hasVideo, pickFocus, sharedScreens } from './stageLayout';
+import {
+  SPEAKER_VIEW_MIN_TILE,
+  byPerson,
+  fitTiles,
+  hasVideo,
+  pickFocus,
+  sharedScreens,
+} from './stageLayout';
 
 const track = {} as CallVideoTrack;
 
@@ -82,6 +89,34 @@ describe('hasVideo', () => {
     expect(hasVideo([me, mind])).toBe(false);
     expect(hasVideo([me, { ...mind, video: track }])).toBe(true);
     expect(hasVideo([{ ...me, screen: track }, mind])).toBe(true);
+  });
+});
+
+describe('byPerson', () => {
+  const phone = (who: CallParticipant, rest: Partial<CallParticipant> = {}): CallParticipant => ({
+    ...who,
+    key: `${who.userId}:PHONE`,
+    deviceId: 'PHONE',
+    local: false,
+    ...rest,
+  });
+
+  it("gives one entry per person, in the order they joined, with their devices' states", () => {
+    const quietLaptop = { ...ada, connected: false, microphone: false };
+    const people = byPerson([quietLaptop, mind, phone(ada, { speaking: true }), phone(mind)]);
+    expect(people.map(({ userId }) => userId)).toEqual([ada.userId, mind.userId]);
+    expect(people[0]).toMatchObject({
+      key: ada.key,
+      connected: true,
+      speaking: true,
+      microphone: true,
+      local: false,
+    });
+    expect(people[1]).toEqual(mind);
+  });
+
+  it("counts this person's other device as this device's person", () => {
+    expect(byPerson([phone(me), mind, me])).toEqual([{ ...phone(me), local: true }, mind]);
   });
 });
 

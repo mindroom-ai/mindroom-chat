@@ -39,7 +39,7 @@ import { allowMembersToCall, readCallAccess, type CallAccess } from './callAcces
 import { CallControl, DeviceControl } from './CallControls';
 import { CallMemberAvatar, useCallMemberProfile } from './CallTile';
 import { CallStage } from './CallStage';
-import { hasVideo, showsScreenRows } from './stageLayout';
+import { byPerson, hasVideo, showsScreenRows } from './stageLayout';
 import { useCallWindowFrame } from './window/callWindowFrame';
 import { focusHandOffAtom, useCallWindowMode } from './window/callWindowState';
 import { DockIcon, FloatIcon } from './window/windowIcons';
@@ -341,14 +341,14 @@ function BarFace({ room, userId, speaking }: { room: Room; userId: string; speak
   );
 }
 
-/** The first few others in the call, one face per person whatever their devices. */
-const barFaces = (participants: CallParticipant[]) => {
-  const speaking = new Map<string, boolean>();
-  participants.forEach(({ local, userId, speaking: talks }) => {
-    if (!local) speaking.set(userId, (speaking.get(userId) ?? false) || talks);
-  });
-  return [...speaking].slice(0, BAR_FACES).map(([userId, talks]) => ({ userId, talks }));
-};
+/**
+ * The first few others in the call, one face per person whatever their devices (this person's
+ * other devices are not others).
+ */
+const barFaces = (participants: CallParticipant[]) =>
+  byPerson(participants)
+    .filter(({ local }) => !local)
+    .slice(0, BAR_FACES);
 
 /**
  * For those who may change it: members of the room cannot join its calls (rooms made with the
@@ -561,8 +561,8 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
   const bar: BarContent = {
     faces: (
       <ul className={css.BarFaces} aria-label={t('featureUi.calls.panel.participants')}>
-        {barFaces(state.participants).map(({ userId, talks }) => (
-          <BarFace key={userId} room={call.room} userId={userId} speaking={talks} />
+        {barFaces(state.participants).map(({ userId, speaking }) => (
+          <BarFace key={userId} room={call.room} userId={userId} speaking={speaking} />
         ))}
       </ul>
     ),
