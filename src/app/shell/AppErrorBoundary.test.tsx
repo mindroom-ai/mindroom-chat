@@ -33,7 +33,6 @@ vi.mock('../ui/glass/GlassPrimitives', () => ({
 vi.mock('../ui/splash/SplashScreen', () => ({
   SplashScreen: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
-vi.mock('../notifications/notices/NoticeBanners.css', () => ({}));
 
 function Broken(): ReactNode {
   throw new TypeError("Cannot read properties of undefined (reading 'ComputerScreen')");

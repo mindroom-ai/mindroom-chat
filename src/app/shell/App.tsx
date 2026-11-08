@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useLayoutEffect, useState } from 'react';
 import { Provider as JotaiProvider } from 'jotai';
 import { RouterProvider } from 'react-router-dom';
+import { ErrorBoundary } from 'react-error-boundary';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ClientConfigLoader } from '../config/ClientConfigLoader';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
@@ -77,10 +78,13 @@ function App() {
           {/* One particle renderer for the sign-in pages and every splash in turn: a new one per
               screen would start black each time and restart its animation. */}
           <PersistentParticleBackgroundProvider>
-            {/* After a deployment, above every screen: a new version is available. */}
-            <NewVersionNotice />
             {/* Operator notices sit above every screen, sign-in and config loading included. */}
             <NoticeLayout>
+              {/* After a deployment, over every screen: a new version is available. A broken notice
+                  must never take the app down with it. */}
+              <ErrorBoundary fallback={null}>
+                <NewVersionNotice />
+              </ErrorBoundary>
               {/* A screen that fails to render shows what happened and Reload, never a blank page. */}
               <AppErrorBoundary>
                 <ClientConfigLoader

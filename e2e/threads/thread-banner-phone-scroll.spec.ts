@@ -229,7 +229,7 @@ const openThread = async (page: Page, world: World, threadId: string, lastText: 
   }, `/home/${encodeURIComponent(world.roomId)}?threadId=${encodeURIComponent(threadId)}`);
   await expect(banner(page)).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText(lastText).first()).toBeVisible({ timeout: 60_000 });
-  // The "Catching up" bar above the room comes and goes with syncs and would move the scroller.
+  // The "Catching up" pill over the room comes and goes with syncs; hide it from the checks.
   await page.addStyleTag({
     content: '[data-testid="client-sync-status"] { display: none !important; }',
   });

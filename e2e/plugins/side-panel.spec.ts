@@ -22,6 +22,8 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // of the room's side panels: opening it takes the side panel from the computer, a canvas, the call
 // or the members, opening any of them takes it back, and neither comes back when the other closes.
 // Its Close button and its room menu entry close it.
+// It counts the room's members, the viewer and an agent, which it reads through the client SDK's
+// `matrix` subpath.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 
 test.use({ viewport: { width: 1600, height: 1000 }, video: 'off' });
@@ -58,6 +60,7 @@ const openExamplePanel = async (page: Page, room: PanelRoom) => {
   const panel = page.getByRole('region', { name: 'Example panel', exact: true });
   await expect(panel).toBeVisible();
   await expect(panel).toContainText(`Example panel of ${room.roomId}`);
+  await expect(panel).toContainText('Members: 2, with a MindRoom agent');
 };
 
 const closeExamplePanel = async (page: Page) => {

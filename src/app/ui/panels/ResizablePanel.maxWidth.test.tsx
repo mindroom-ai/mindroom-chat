@@ -73,3 +73,16 @@ describe('ResizablePanel width bounds', () => {
     expect(container.querySelector('[role="separator"]')).toBeNull();
   });
 });
+
+describe('ResizablePanel overlay', () => {
+  it('renders after the content and before the splitter, with the content width', () => {
+    render({ side: 'start', overlay: <i data-overlay /> });
+    const parts = [...panel().children] as HTMLElement[];
+    const overlay = parts.findIndex((part) => part.querySelector('[data-overlay]'));
+    const splitter = parts.findIndex((part) => part.getAttribute('role') === 'separator');
+
+    expect(overlay).toBe(1);
+    expect(splitter).toBe(2);
+    expect(parts[overlay]?.style.getPropertyValue('--mr-panel-content-width')).toMatch(/px$/);
+  });
+});

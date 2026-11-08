@@ -1,9 +1,10 @@
 // A client plugin for the tests (docs/architecture.md "Client plugins"): a message that carries
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
-// A side panel, "Example panel", names the room it is open in and the greeting a card asked it to
-// show: in a room, each greeting has "Show in panel", and "Close panel" while the panel shows. The
-// panel stays open in its room across reloads (`remember`).
+// A side panel, "Example panel", names the room it is open in, counts its joined members and says
+// whether a MindRoom agent has joined or is invited, through the account's client. It also shows
+// the greeting a card asked it to show: in a room, each greeting has "Show in panel", and "Close
+// panel" while the panel shows. The panel stays open in its room across reloads (`remember`).
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg), and a button, "Show example cover", that covers the room's conversation with
 // "Example cover of <room name>" until its Close button or Escape closes it. Like a plugin outside
@@ -16,7 +17,7 @@
 // fills the window and links back.
 import { useEffect } from 'react';
 import { Icons } from 'folds';
-import type { Room } from 'matrix-js-sdk';
+import { KnownMembership, type Room } from 'matrix-js-sdk';
 import {
   pluginPublicUrl,
   usePluginConfig,
@@ -27,6 +28,11 @@ import {
   type ClientPlugin,
   type PluginEvent,
 } from '@mindroom/client-sdk/core';
+import {
+  hasActiveMindroomAgent,
+  useMatrixClient,
+  useRoomMembers,
+} from '@mindroom/client-sdk/matrix';
 
 /** This page load; what the plugin stored in it does not count as seen before. */
 const pageLoad = `${Date.now()}-${Math.random()}`;
@@ -114,9 +120,15 @@ function WindowPage() {
 }
 
 function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }) {
+  const members = useRoomMembers(useMatrixClient(), roomId);
+  const joined = members.filter(({ membership }) => membership === KnownMembership.Join);
   return (
     <>
       <p>Example panel of {roomId}</p>
+      <p>
+        Members: {joined.length}, {hasActiveMindroomAgent(members) ? 'with' : 'without'} a MindRoom
+        agent
+      </p>
       {typeof request === 'string' && <p>Greeting: {request}</p>}
     </>
   );
