@@ -1,11 +1,14 @@
 // `@mindroom/client-sdk/room`, the client SDK's subpath for rooms and threads (docs/architecture.md
-// "Client plugins"): it opens them, links to them, and creates sub-rooms. Like `/core` it only
-// grows, and each addition raises CLIENT_PLUGIN_API_VERSION in scripts/client-plugins.mjs.
-import { useMemo } from 'react';
+// "Client plugins"): it opens them, links to them, creates sub-rooms, and shows a person's profile
+// card in a room. Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in
+// scripts/client-plugins.mjs.
+import { useCallback, useMemo } from 'react';
 import { useHref } from 'react-router-dom';
+import type { Position, RectCords } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { getClientConfig } from '../app/config/useClientConfig';
 import { useRoomNavigate as useAppRoomNavigate } from '../app/navigation/useRoomNavigate';
+import { useOpenUserRoomProfile } from '../app/navigation/useUserRoomProfileState';
 import { withSearchParam } from '../app/routes/pathUtils';
 import { createSubRoom as createAppSubRoom } from '../app/rooms/create/createSubRoom';
 
@@ -81,3 +84,23 @@ export const createSubRoom = async (parent: Room, { name }: { name: string }): P
   if (!config) throw new Error('createSubRoom ran before the app provided its configuration');
   return createAppSubRoom(parent, name, config.createRoom);
 };
+
+/**
+ * Opens the profile card of the person `userId` in the room `roomId`, floating at `anchor` (an
+ * element's `getBoundingClientRect()`) on its `side`, below it unless given, as a mention pill opens
+ * it. Escape or a click outside closes it; in a room the client does not have, nothing opens.
+ */
+export const useOpenUserProfile = () => {
+  const open = useOpenUserRoomProfile();
+  return useCallback(
+    (roomId: string, userId: string, anchor: RectCords, side?: Position) =>
+      open(roomId, undefined, userId, anchor, side),
+    [open]
+  );
+};
+
+/**
+ * The profile card of the person `userId` in `room`, as the floating card shows it, for a plugin's
+ * own surface; `onDone` runs when the card has done its job, such as before it opens the direct chat.
+ */
+export { UserRoomProfile as UserProfileCard } from '../app/members/profile/UserRoomProfile';
