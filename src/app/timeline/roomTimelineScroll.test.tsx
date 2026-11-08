@@ -586,6 +586,14 @@ describe('useTimelineRowJumps', () => {
     };
     const element = (index: number) =>
       ({ getBoundingClientRect: () => box(state.rowTop.get(index) ?? 0) } as HTMLElement);
+    // The scroll it still reconciles stands in virtual-core's private `scrollState`.
+    const virtualList: { scrollState: unknown; scrollToIndex: (index: number) => void } = {
+      scrollState: null,
+      scrollToIndex: (index) => {
+        virtualList.scrollState = { index };
+        steps.push(`virtual list row ${index}`);
+      },
+    };
     let jumps: ReturnType<typeof useTimelineRowJumps> | undefined;
     function Jumps() {
       jumps = useTimelineRowJumps({
@@ -601,13 +609,7 @@ describe('useTimelineRowJumps', () => {
           return true;
         },
         activeRangeRef: { current: { start: 0, end: 44 } },
-        virtualizerRef: {
-          current: {
-            scrollToIndex: (index: number) => steps.push(`virtual list row ${index}`),
-            // The list places row n at n * 100.
-            getOffsetForIndex: (index: number) => [index * 100, 'center'] as const,
-          },
-        },
+        virtualizerRef: { current: virtualList },
         threadEventIndexMapRef: { current: new Map([['$reply', 3]]) },
         onJump: () => steps.push('ledger'),
         rows: {
@@ -622,7 +624,7 @@ describe('useTimelineRowJumps', () => {
       create(createElement(Jumps));
     });
     const runFrame = () => frames.splice(0).forEach((callback) => callback());
-    return { steps, state, scroller, runFrame, jumps: () => jumps! };
+    return { steps, state, scroller, runFrame, virtualList, jumps: () => jumps! };
   };
 
   it('scrolls a row near the view with the paginator, smooth when asked', () => {
@@ -658,18 +660,17 @@ describe('useTimelineRowJumps', () => {
     vi.unstubAllGlobals();
   });
 
-  it('takes a far row to its place in the list, then aligns it until it keeps its place', () => {
-    const { steps, state, scroller, runFrame, jumps } = setup();
-    scroller.scrollTop = 2400;
-    expect(jumps().scrollToItem(7, { behavior: 'smooth', align: 'center' })).toBe(true);
-    // Not through the list's scrollToIndex, which would scroll there again later.
-    expect(steps).toEqual(['ledger', 'ledger']);
-    expect(scroller.scrollTop).toBe(700);
+  it('takes a far row through the virtual list, then aligns it until it keeps its place', () => {
+    const { steps, state, scroller, runFrame, virtualList, jumps } = setup();
+    expect(jumps().scrollToItem(0, { behavior: 'smooth', align: 'center' })).toBe(true);
+    expect(steps).toEqual(['ledger', 'ledger', 'virtual list row 0']);
     steps.length = 0;
     // The row mounts and moves twice while the rows around it measure, then holds still.
     for (const top of [180, 240, 280, 280, 280, 280]) {
-      state.rowTop.set(7, top);
+      state.rowTop.set(0, top);
       runFrame();
+      // Once the row is aligned, the virtual list no longer scrolls to its own place for it.
+      expect(virtualList.scrollState).toBeNull();
     }
     expect(steps.filter((step) => step.startsWith('align'))).toEqual([
       'align row at 180 instant',
@@ -707,13 +708,24 @@ describe('useTimelineRowJumps', () => {
       ...state.rows.current,
     ];
     runFrame();
-    expect(steps).toEqual(['ledger']);
-    expect(scroller.scrollTop).toBe(400);
+    expect(steps).toEqual(['ledger', 'virtual list row 4']);
     scroller.fire('wheel');
     steps.length = 0;
     runFrame();
     expect(steps).toEqual([]);
     expect(scroller.listenerCount()).toBe(0);
+    vi.unstubAllGlobals();
+  });
+
+  it("ends the scroll the virtual list still reconciles, such as a bottom pin's, at a jump", () => {
+    const { state, virtualList, jumps } = setup();
+    virtualList.scrollState = { index: 43 };
+    jumps().scrollToElement({ getBoundingClientRect: () => box(5) } as HTMLElement);
+    expect(virtualList.scrollState).toBeNull();
+    virtualList.scrollState = { index: 43 };
+    state.rowTop.set(40, 700);
+    jumps().scrollToItem(40, { behavior: 'smooth' });
+    expect(virtualList.scrollState).toBeNull();
     vi.unstubAllGlobals();
   });
 

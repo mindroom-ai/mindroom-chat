@@ -461,13 +461,16 @@ type RoomRowLookup = {
  * Jumps to a row. The paginator scrolls to mounted rows near the view and moves the window; the
  * virtual list scrolls to the rows of the window it has not mounted. A row far from the view is
  * reached without animation: its heights are estimates until it mounts, so a smooth scroll stops
- * short. The view goes to where the virtual list places the row, so that it mounts, and then,
- * frame by frame, the row is aligned again where the jump asked (its alignment and offset) as it
- * and its neighbours mount and measure, until it keeps its place, the reader scrolls, or another
- * jump starts. Not through the list's `scrollToIndex`: for 5 s it scrolls back to its own place
- * for the row whenever a measurement moves it, a place without the offset ledger's shift, and so
- * undid the alignment once it was done. A thread's rows are all in the list.
- * `onJump` runs before each jump, so the offset ledger knows the move is the timeline's own.
+ * short. The virtual list goes to its index, and then, frame by frame, the row is aligned again
+ * where the jump asked (its alignment and offset) as it and its neighbours mount and measure, until
+ * it keeps its place, the reader scrolls, or another jump starts. A thread's rows are all in the
+ * list.
+ * `onJump` runs before each jump, so the offset ledger knows the move is the timeline's own. Each
+ * jump also ends the scroll the virtual list still reconciles (`endVirtualListScroll`): a bottom
+ * pin's, or its own `scrollToIndex` that brought a far row in, whose place for the row leaves out
+ * the offset ledger's shift. Left running, it scrolled there again when a row measured after the
+ * jump had aligned its row (Jump to Unread left the "New messages" line under the composer, or
+ * back at the newest row).
  */
 export const useTimelineRowJumps = ({
   paginatorScrollToItem,
@@ -481,21 +484,23 @@ export const useTimelineRowJumps = ({
   paginatorScrollToItem: ScrollToItem;
   paginatorScrollToElement: ScrollToElement;
   activeRangeRef: MutableRefObject<ItemRange>;
-  virtualizerRef: MutableRefObject<
-    Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex' | 'getOffsetForIndex'>
-  >;
+  virtualizerRef: MutableRefObject<Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex'>>;
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
   onJump: () => void;
   rows: RoomRowLookup;
 }) => {
   const jumpCountRef = useRef(0);
   const rowsRef = useLatestRef(rows);
+  const jumped = useCallback(() => {
+    endVirtualListScroll(virtualizerRef.current);
+    onJump();
+  }, [onJump, virtualizerRef]);
   const scrollToElement = useCallback<ScrollToElement>(
     (element, opts) => {
-      onJump();
+      jumped();
       return paginatorScrollToElement(element, opts);
     },
-    [onJump, paginatorScrollToElement]
+    [jumped, paginatorScrollToElement]
   );
 
   /**
@@ -561,7 +566,7 @@ export const useTimelineRowJumps = ({
         const { start, end: stop } = activeRangeRef.current;
         if (index >= start && index < stop) {
           const row = getRowElement(index);
-          onJump();
+          jumped();
           if (row) {
             paginatorScrollToElement(row, { align, offset, behavior: 'instant' });
             const top = row.getBoundingClientRect().top;
@@ -573,8 +578,7 @@ export const useTimelineRowJumps = ({
               return;
             }
           } else {
-            const place = virtualizerRef.current.getOffsetForIndex(index - start, align);
-            if (place) scrollElement.scrollTop = place[0];
+            virtualizerRef.current.scrollToIndex(index - start, { align, behavior: 'auto' });
           }
         }
         requestAnimationFrame(step);
@@ -582,12 +586,12 @@ export const useTimelineRowJumps = ({
       if (afterSmoothScroll) requestAnimationFrame(step);
       else step();
     },
-    [activeRangeRef, onJump, paginatorScrollToElement, rowsRef, virtualizerRef]
+    [activeRangeRef, jumped, paginatorScrollToElement, rowsRef, virtualizerRef]
   );
 
   const scrollToItem = useCallback<ScrollToItem>(
     (index, opts) => {
-      onJump();
+      jumped();
       const { getScrollElement, getRowElement, roomRowsRef } = rowsRef.current;
       const scrollElement = getScrollElement();
       const mounted = getRowElement(index);
@@ -615,17 +619,17 @@ export const useTimelineRowJumps = ({
       followFarRow(eventId, index, opts?.align ?? 'center', false, opts?.offset);
       return true;
     },
-    [activeRangeRef, followFarRow, onJump, paginatorScrollToItem, rowsRef, virtualizerRef]
+    [activeRangeRef, followFarRow, jumped, paginatorScrollToItem, rowsRef, virtualizerRef]
   );
   const scrollThreadEventIntoView = useCallback(
     (targetEventId: string) => {
       const index = threadEventIndexMapRef.current.get(targetEventId);
       if (index === undefined) return false;
-      onJump();
+      jumped();
       virtualizerRef.current.scrollToIndex(index, { align: 'center' });
       return true;
     },
-    [onJump, threadEventIndexMapRef, virtualizerRef]
+    [jumped, threadEventIndexMapRef, virtualizerRef]
   );
   return { scrollToElement, scrollToItem, scrollThreadEventIntoView };
 };
