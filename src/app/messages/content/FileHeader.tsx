@@ -3,6 +3,7 @@ import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { Icon, IconButton, Icons, Spinner } from 'folds';
 import type { EventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
 import { useAttachmentSave } from './attachmentDownload';
+import { revealDirectionControls } from '../../ui/directional';
 
 type FileDownloadButtonProps = {
   filename: string;
@@ -31,7 +32,9 @@ export function FileDownloadButton({
   const { t } = useTranslation();
   const [status, download] = useAttachmentSave({ owner, url, mimeType, encInfo }, filename);
   const buttonProps = {
-    'aria-label': t('sharedUi.fileHeader.downloadValue1', { value1: filename }),
+    'aria-label': t('sharedUi.fileHeader.downloadValue1', {
+      value1: revealDirectionControls(filename),
+    }),
     disabled: status === 'loading',
     onClick: () => {
       download().catch(() => undefined);
