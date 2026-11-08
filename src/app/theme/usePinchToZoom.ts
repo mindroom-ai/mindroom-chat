@@ -162,6 +162,7 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
         window.cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = undefined;
       }
+      pendingZoomRef.current = null;
       resetGestureState();
       window.removeEventListener('wheel', handleWheel);
       window.removeEventListener('touchstart', handleTouchStart);
