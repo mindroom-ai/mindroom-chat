@@ -215,9 +215,27 @@ export class ClientSessions {
       const session = await this.currentSession(init.signal ?? undefined);
       const response = await this.fetch(url, { ...init, headers: bearer(init, session) });
       if (response.status !== 401 || attempt > 0) return response;
-      this.issued.delete(session);
-      if (this.session === session) this.session = undefined;
+      this.forget(session);
     }
+  }
+
+  /** Drops a session the server refused or ended, so the next request signs in again. */
+  private forget(session: ClientSession): void {
+    this.issued.delete(session);
+    if (this.session === session) this.session = undefined;
+  }
+
+  /**
+   * The session's token, for a request `send` cannot make, signing in when there is none or it is
+   * about to run out. `refused`: a token the server answered 401, which is dropped first if still
+   * held, so a new sign-in replaces it. Rejects as `send` does when the sign-in fails.
+   */
+  async token({
+    signal,
+    refused,
+  }: { signal?: AbortSignal; refused?: string } = {}): Promise<string> {
+    if (this.session && this.session.token === refused) this.forget(this.session);
+    return (await this.currentSession(signal)).token;
   }
 
   /**
@@ -290,10 +308,8 @@ export class ClientSessions {
       opened = true;
     });
     socket.addEventListener('close', ({ code }) => {
-      if (code === SESSION_ENDED) this.issued.delete(session);
-      if (this.session !== session) return;
-      if (code === SESSION_ENDED) this.session = undefined;
-      else if (!opened) this.unverified = session;
+      if (code === SESSION_ENDED) this.forget(session);
+      else if (!opened && this.session === session) this.unverified = session;
     });
     return socket;
   }
