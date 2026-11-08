@@ -135,6 +135,10 @@ const rowsOf = (tree: ReactTestRenderer) =>
     (node) => typeof node.type === 'string' && node.props['data-call-row-stub'] !== undefined
   );
 
+/** The rows shown, by their event, so a failure prints them rather than the whole tree. */
+const rowIdsOf = (tree: ReactTestRenderer) =>
+  rowsOf(tree).map((node) => node.props['data-call-row-stub'] as string);
+
 const insideButton = (node: ReactTestInstance) => {
   for (let parent = node.parent; parent; parent = parent.parent) {
     if (parent.type === 'button') return true;
@@ -163,7 +167,7 @@ afterEach(() => {
 });
 
 describe('a call row in the compact thread list', () => {
-  it("shows the row in its card, beside the button that opens the row's thread, and follows its edits", async () => {
+  it("shows a live call's row in its card, beside the button that opens the row's thread, and drops it when the call ends", async () => {
     const row = message('$row', ROUTER, LIVE);
     const tree = await renderList([row]);
 
@@ -183,11 +187,17 @@ describe('a call row in the compact thread list', () => {
       'm.relates_to': { rel_type: 'm.replace', event_id: '$row' },
     });
     await act(async () => row.makeReplaced(edit));
-    expect(rowsOf(tree)[0]?.children.join('')).toContain('ended 720');
+    // The ended call's card is a thread like any other: its title, its notes and its replies.
+    expect(rowIdsOf(tree)).toEqual([]);
+  });
+
+  it('shows no row for a call that had ended before the list opened', async () => {
+    const tree = await renderList([message('$row', ROUTER, ENDED)]);
+    expect(rowIdsOf(tree)).toEqual([]);
   });
 
   it("shows no row for a person's message that carries the key", async () => {
     const tree = await renderList([message('$person', PERSON, LIVE)]);
-    expect(rowsOf(tree)).toEqual([]);
+    expect(rowIdsOf(tree)).toEqual([]);
   });
 });
