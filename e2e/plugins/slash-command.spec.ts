@@ -20,9 +20,9 @@ import { roomHeader, roomMoreOptions } from '../helpers/roomMenu';
 import { serveBuild } from '../helpers/staticBuildServer';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
-// served as a deployment serves it, against the disposable homeserver. The plugin's slash commands,
-// `/greet` and `/subroom`, show in the composer's command menu after the app's own, in the order the
-// plugin lists them, with their descriptions. Run with a text, `/greet` sends the room the plugin's
+// served as a deployment serves it, against the disposable homeserver. The plugin's slash commands
+// end with `/greet` and `/subroom`, which show in the composer's command menu after the app's own, in
+// the order the plugin lists them, with their descriptions. Run with a text, `/greet` sends the room the plugin's
 // notice and no message of its own; without one it fails as a built-in command fails: the text stays
 // in the composer with the plugin's error above it, and the composer still sends. Typed in a thread,
 // it greets that thread. `/subroom` refuses in a direct chat, where the room menu offers no New
