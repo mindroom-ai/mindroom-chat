@@ -215,6 +215,78 @@ describe('example plugin', () => {
     expect(view.getByText('Members: 3, without a MindRoom agent')).toBeTruthy();
   });
 
+  it("says in its panel whether the account may post in the room, from the room's levels", async () => {
+    const [panel] = plugin.sidePanels ?? [];
+    if (!panel) throw new Error('the example plugin has no side panel');
+    const userId = '@ada:example.org';
+    const client = createClient({ baseUrl: 'https://example.org', userId });
+    // An open room, and one where only moderators post.
+    const addRoom = (roomId: string, messageLevel: number) => {
+      const room = new Room(roomId, client, userId);
+      room.currentState.setStateEvents([
+        new MatrixEvent({
+          type: 'm.room.power_levels',
+          room_id: roomId,
+          sender: '@moderator:example.org',
+          state_key: '',
+          content: {
+            users: { '@moderator:example.org': 50 },
+            events: { 'm.room.message': messageLevel },
+          },
+        }),
+      ]);
+      client.store.storeRoom(room);
+    };
+    addRoom('!open:example.org', 0);
+    addRoom('!announcements:example.org', 50);
+    const view = await renderPluginComponent(
+      <>
+        <panel.Component roomId="!open:example.org" />
+        <panel.Component roomId="!announcements:example.org" />
+      </>,
+      { id: 'example', plugin, client }
+    );
+    expect(view.getByText('You may post here')).toBeTruthy();
+    expect(view.getByText('You may not post here')).toBeTruthy();
+  });
+
+  it("shows a greeting's sender with their avatar in the room, marked when they are an agent", async () => {
+    if (!renderer) throw new Error('the example plugin has no message renderer');
+    const userId = '@ada:example.org';
+    const client = createClient({ baseUrl: 'https://example.org', userId });
+    const room = new Room('!lobby:example.org', client, userId);
+    room.currentState.setStateEvents(
+      [
+        [greeting.sender, { avatar_url: 'mxc://example.org/helper' }],
+        ['@bob:example.org', {}],
+      ].map(
+        ([member, content]) =>
+          new MatrixEvent({
+            type: 'm.room.member',
+            room_id: room.roomId,
+            sender: member,
+            state_key: member,
+            content: { membership: KnownMembership.Join, ...content },
+          })
+      )
+    );
+    client.store.storeRoom(room);
+    const inRoom = { ...greeting, roomId: room.roomId };
+    const view = await renderPluginComponent(
+      <>
+        <renderer.Component event={inRoom} />
+        <renderer.Component event={{ ...inRoom, sender: '@bob:example.org' }} />
+      </>,
+      { id: 'example', plugin, client }
+    );
+    const agent = view.getByText('From @mindroom_helper:example.org, a MindRoom agent');
+    // Without a service worker that adds the access token, the app asks for media without it.
+    expect(agent.querySelector('img')?.getAttribute('src')).toBe(
+      'https://example.org/_matrix/media/v3/thumbnail/example.org/helper?width=32&height=32&method=crop'
+    );
+    expect(view.getByText('From @bob:example.org').querySelector('img')).toBeNull();
+  });
+
   it('greets the room or the thread with the text typed after /greet, and asks for some without it', async () => {
     const [greet] = plugin.slashCommands ?? [];
     if (!greet) throw new Error('the example plugin has no slash command');
