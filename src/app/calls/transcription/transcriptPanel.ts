@@ -15,14 +15,15 @@ export type TranscriptPanel = { roomId: string; replacedCall: boolean };
 export const transcriptPanelAtom = atom<TranscriptPanel | undefined>(undefined);
 
 /**
- * Shows the room's live transcript in its side panel, in place of its call panel if that is open.
- * Opened again while it shows, it still brings back the call panel it replaced.
+ * Shows the room's live transcript in its side panel, in place of its call panel if that is open
+ * there; a call view that floats (`callFloats`) is no side panel, and stays. Opened again while it
+ * shows, it still brings back the call panel it replaced.
  */
-export const openTranscriptPanel = (store: Store, roomId: string): void => {
+export const openTranscriptPanel = (store: Store, roomId: string, callFloats = false): void => {
   const shown = store.get(transcriptPanelAtom);
-  const replacedCall =
-    store.get(callPanelRoomAtom) === roomId || (shown?.roomId === roomId && shown.replacedCall);
-  if (replacedCall) store.set(callPanelRoomAtom, undefined);
+  const replacesCall = !callFloats && store.get(callPanelRoomAtom) === roomId;
+  if (replacesCall) store.set(callPanelRoomAtom, undefined);
+  const replacedCall = replacesCall || (shown?.roomId === roomId && shown.replacedCall);
   store.set(transcriptPanelAtom, { roomId, replacedCall });
 };
 
@@ -48,25 +49,34 @@ export const useTranscriptPanel = (roomId: string) => {
   return { open, close, dismiss };
 };
 
+/** Where the call view is: floating or not, and whether its window shows the room's call. */
+type CallTranscriptPlace = {
+  callFloats: boolean;
+  /** The window shows this device's call in the room, for the account `userId`. */
+  inWindow?: { userId: string; toggle: boolean };
+};
+
 /**
  * Where Transcript (in the call's controls or on its row) shows the room's live transcript. While
- * the call view floats and shows this device's call in the room (`inWindow`, for the account
- * `userId`), the transcript shows inside the window, whose call view opens: the controls toggle
- * it (`toggle`), the row opens it. Anywhere else it opens in the room's side panel, as it always
- * did.
+ * the call view floats and shows this device's call in the room (`inWindow`), the transcript
+ * shows inside the window, whose call view opens: the controls toggle it (`toggle`), the row
+ * opens it, and the room's side transcript closes, so one shows it. Anywhere else it opens in the
+ * room's side panel, as it always did, beside a floating call view.
  */
 export const openCallTranscript = (
   store: Store,
   roomId: string,
-  inWindow?: { userId: string; toggle: boolean }
+  { callFloats, inWindow }: CallTranscriptPlace
 ): void => {
   if (!inWindow) {
-    openTranscriptPanel(store, roomId);
+    openTranscriptPanel(store, roomId, callFloats);
     return;
   }
   const shown = getCallWindowTranscriptAtom(inWindow.userId);
-  store.set(shown, inWindow.toggle ? !store.get(shown) : true);
+  const show = inWindow.toggle ? !store.get(shown) : true;
+  store.set(shown, show);
   store.set(callPanelRoomAtom, roomId);
+  if (show) dismissTranscriptPanel(store, roomId);
 };
 
 /**
@@ -83,8 +93,11 @@ export const useCallTranscript = (roomId: string) => {
   const shown = useAtomValue(getCallWindowTranscriptAtom(userId));
   const open = useCallback(
     (toggle: boolean) =>
-      openCallTranscript(store, roomId, inWindow ? { userId, toggle } : undefined),
-    [inWindow, roomId, store, userId]
+      openCallTranscript(store, roomId, {
+        callFloats: floats,
+        inWindow: inWindow ? { userId, toggle } : undefined,
+      }),
+    [floats, inWindow, roomId, store, userId]
   );
   return { inWindow, shownInWindow: inWindow && shown, open };
 };

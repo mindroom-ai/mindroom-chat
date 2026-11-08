@@ -114,8 +114,10 @@ describe('the call controls for transcripts', () => {
     expect(status()).toBe('Paused by Bob');
   });
 
-  it("open the live transcript in the call panel's place, and pressed again keep it open", () => {
-    const store = render('transcribing');
+  it("open the live transcript in the docked call panel's place, and pressed again keep it open", () => {
+    const store = createStore();
+    store.set(settings(), { mode: 'docked' });
+    render('transcribing', store);
     store.set(callPanelRoomAtom, ROOM_ID);
     const transcript = () =>
       container.querySelector<HTMLButtonElement>('[aria-label="Live transcript"]');
@@ -148,6 +150,30 @@ describe('the call controls for transcripts', () => {
     expect(store.get(settings()).transcript).toBe(false);
     expect(transcript()?.getAttribute('aria-pressed')).toBe('false');
     expect(store.get(transcriptPanelAtom)).toBeUndefined();
+  });
+
+  it("close the room's side transcript when they show it in the floating window", () => {
+    // Opened from the call's row before this device joined, the side panel stayed beside the
+    // window: one transcript is enough.
+    const store = inOwnCall();
+    store.set(transcriptPanelAtom, { roomId: ROOM_ID, replacedCall: false });
+    render('transcribing', store);
+
+    act(() => transcript()?.click());
+    expect(store.get(settings()).transcript).toBe(true);
+    expect(store.get(transcriptPanelAtom)).toBeUndefined();
+    expect(store.get(callPanelRoomAtom)).toBe(ROOM_ID);
+  });
+
+  it("leave another room's side transcript open when they show this call's in the window", () => {
+    const store = inOwnCall();
+    const other = { roomId: '!other:example.org', replacedCall: false };
+    store.set(transcriptPanelAtom, other);
+    render('transcribing', store);
+
+    act(() => transcript()?.click());
+    expect(store.get(settings()).transcript).toBe(true);
+    expect(store.get(transcriptPanelAtom)).toEqual(other);
   });
 
   it("keep the window's Transcript switch, without Pause, while transcripts are unavailable", () => {

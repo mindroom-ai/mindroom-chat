@@ -386,6 +386,24 @@ describe('CallRow', () => {
     expect(store.get(settings()).transcript).toBeUndefined();
   });
 
+  it.each([
+    ['floats', 'floating', ROOM_ID, false],
+    ['is docked', 'docked', undefined, true],
+  ] as const)(
+    'opens the side transcript of a call to join while its view %s, leaving the floating one',
+    (_case, mode, callView, replacedCall) => {
+      const store = createStore();
+      store.set(settings(), { mode });
+      render(LIVE, store);
+
+      act(() => button('Join')?.click());
+      act(() => button('Transcript')?.click());
+      // The floating window's prescreen stays; the docked panel gives the transcript its place.
+      expect(store.get(transcriptPanelAtom)).toEqual({ roomId: ROOM_ID, replacedCall });
+      expect(store.get(callPanelRoomAtom)).toBe(callView);
+    }
+  );
+
   it('says how long the call lasted once the router edited it for the end', () => {
     render(ENDED);
 
