@@ -28,7 +28,8 @@ const ME = '@me:example.org';
 const makeClient = ({
   sdkWantsSave = false,
   room,
-}: { sdkWantsSave?: boolean; room?: Room } = {}) => {
+  rooms = room ? [room] : [],
+}: { sdkWantsSave?: boolean; room?: Room; rooms?: Room[] } = {}) => {
   const pending: Deferred[] = [];
   const store = {
     wantsSave: vi.fn<() => boolean>(() => sdkWantsSave),
@@ -44,7 +45,7 @@ const makeClient = ({
     store,
     getUserId: () => ME,
     getRoom: () => room ?? null,
-    getRooms: () => (room ? [room] : []),
+    getRooms: () => rooms,
   }) as unknown as MatrixClient;
   const finishSaves = async () => {
     pending.splice(0).forEach(({ resolve }) => resolve());
@@ -83,15 +84,24 @@ describe('keepRedactionsInSavedSync', () => {
     vi.useRealTimers();
   });
 
-  it('saves the sync store after a redaction the room took without a synced event', () => {
-    // A redaction that came with thread events paginated back, of an edit known only from a bundle.
-    const room = { redactedBundledEdits: new Set<string>() } as unknown as Room;
-    const { mx, emitter, store } = makeClient({ room });
+  it('saves the sync store after a redaction a room took without a synced event', async () => {
+    const roomWith = (...editIds: string[]) =>
+      ({ redactedBundledEdits: new Set(editIds) } as unknown as Room);
+    const forgotten = roomWith('$old-edit');
+    const room = roomWith();
+    const rooms = [forgotten, room];
+    const { mx, emitter, store, finishSaves } = makeClient({ rooms });
     keepRedactionsInSavedSync(mx);
     batch(emitter, [synced('m.room.message', '$reply')]);
+    await finishSaves();
+    store.save.mockClear();
 
+    // A redaction that came with thread events paginated back, of an edit known only from a
+    // bundle, while the account forgot another room.
     room.redactedBundledEdits.add('$edit');
+    rooms.splice(0, 1);
     batch(emitter, []);
+    await waitForGap();
 
     expect(store.save).toHaveBeenCalledTimes(1);
   });

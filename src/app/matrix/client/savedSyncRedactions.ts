@@ -6,6 +6,7 @@ import {
   SyncState,
   type MatrixClient,
   type MatrixEvent,
+  type Room,
 } from 'matrix-js-sdk';
 import { isRecord } from '../../lib/isRecord';
 import { matchesEnum } from '../../lib/matchesEnum';
@@ -256,14 +257,16 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
   };
 
   // The SDK reports SYNCING once it has processed a batch, just before it decides to save.
-  // A redaction the room takes without a synced event, such as one that comes with thread events
-  // paginated back, only grows the rooms' records of redacted bundled edits (eventRevision.ts).
-  let takenEdits = 0;
+  // A redaction a room takes without a synced event, such as one that comes with thread events
+  // paginated back, only grows its record of redacted bundled edits (eventRevision.ts).
+  const takenEdits = new WeakMap<Room, number>();
   const onSync = (state: SyncBatchState) => {
     if (state !== SyncState.Syncing) return;
-    const taken = mx.getRooms().reduce((count, room) => count + room.redactedBundledEdits.size, 0);
-    if (taken > takenEdits) redactionSinceSave = true;
-    takenEdits = taken;
+    mx.getRooms().forEach((room) => {
+      const taken = room.redactedBundledEdits.size;
+      if (taken > (takenEdits.get(room) ?? 0)) redactionSinceSave = true;
+      takenEdits.set(room, taken);
+    });
     // The session's first batch and the first after five minutes are saved by the SDK, with
     // every batch before them.
     if (mx.store.wantsSave()) {
