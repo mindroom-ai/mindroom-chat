@@ -77,9 +77,11 @@ export const useRoomHref = (roomId: string, threadId?: string): string =>
  * to its room ID: listed under `parent`, open only to its members, and encrypted and federated as
  * the deployment's config.json (`createRoom`) says when it is called. It refuses, creating nothing,
  * a blank name, a parent where the signed-in user may not list rooms, and a call while the app
- * provides no configuration. Unlike the room menu, which offers New Sub-room in chat rooms only, it
- * takes spaces and direct chats too. It resolves once the server has created the room, before sync
- * has it, and does not open it; `useRoomNavigate` does.
+ * provides no configuration. When the homeserver then refuses to list the new room under
+ * `parent`, it leaves and forgets the room, if the homeserver lets it, and rejects with that
+ * refusal. Unlike the room menu, which offers New Sub-room in chat rooms only, it takes spaces and
+ * direct chats too. It resolves once the server has created the room, before sync has it, and
+ * does not open it; `useRoomNavigate` does.
  */
 export const createSubRoom = async (parent: Room, { name }: { name: string }): Promise<string> => {
   const config = getClientConfig();
