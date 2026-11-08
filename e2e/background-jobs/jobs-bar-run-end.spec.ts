@@ -8,14 +8,14 @@ import {
   registerDisposableUser,
   type DisposableUser,
 } from '../helpers/disposableAccounts';
+import { jobsBarChanges, watchJobsBar } from '../helpers/jobsBar';
 import { joinRoom, matrixFetch, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 import { onWebKitPage } from '../helpers/webkit';
 
-// The jobs bar keeps an agent's last tool call for a moment after it ends, since the agent's next
-// call usually follows. Once the agent's reply has finished, no call follows: the bar went only
-// when that moment ran out, showing "Running" and a Stop button for a finished run for about
-// 1.6 s (live-test finding P2-lane4-F010). It now goes as soon as the reply finishes, and still
-// stays between two calls. Runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
+// The jobs bar keeps an agent's tool call after it ends while the agent's reply streams, since the
+// agent's next call may follow however long it thinks, and shows it as finished, without Stop. It
+// goes 2 s after the reply ends. With a fixed 2 s hold the bar left during a longer pause and came
+// back with the next call. Runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
 // Playwright's WebKit, in WebKit, against the disposable homeserver of `just hs-up` (or a slot of
 // scripts/e2e-slot.sh). Set JOBS_RUN_END_SHOTS=<directory> for screenshots.
 const PASSWORD = 'jobs-bar-run-end-spec-password';
@@ -30,7 +30,7 @@ test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
-const barGoesWithTheReply = async (page: Page, label: string) => {
+const barHoldsForTheReply = async (page: Page, label: string) => {
   const viewer = await registerDisposableUser(`jre_viewer_${label}_${RUN}`, PASSWORD);
   const agent = await registerDisposableUser(`mindroom_coder_${label}_${RUN}`, PASSWORD);
   const roomId = await createRoom(HOMESERVER, viewer.accessToken, {
@@ -86,21 +86,27 @@ const barGoesWithTheReply = async (page: Page, label: string) => {
     timeout: 30_000,
   });
   const bar = page.getByRole('region').filter({ hasText: 'run_shell_command' });
+  const height = async () => (await bar.boundingBox())?.height;
+  await watchJobsBar(page);
 
-  // Between two calls the bar stays.
+  // Between two calls the bar stays, however long the agent thinks, and shows the call as finished.
   await publish(agent, [job('job_1')]);
-  await expect(bar).toBeVisible({ timeout: 15_000 });
+  await expect(bar).toHaveAccessibleName('Running: run_shell_command', { timeout: 15_000 });
+  const runningHeight = await height();
   await publish(agent, []);
-  await page.waitForTimeout(600);
-  await expect(bar, 'the bar between two calls').toBeVisible();
+  await expect(bar).toHaveAccessibleName('Finished: run_shell_command');
+  await expect(bar.getByRole('button')).toHaveCount(0);
+  expect(await height(), 'the bar’s height once its call finished').toBe(runningHeight);
+  await page.waitForTimeout(3_000);
+  await expect(bar, 'the bar after a pause longer than 2 s').toBeVisible();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/jobs-run-end-${label}-between.png` });
   await publish(agent, [job('job_2')]);
-  await expect(bar).toBeVisible();
+  await expect(bar).toHaveAccessibleName('Running: run_shell_command');
 
-  // The last call ends, then the reply finishes: the bar goes with the reply.
-  const lastCallEnded = Date.now();
+  // The last call ends, then the reply finishes: the bar goes 2 s after the reply.
   await publish(agent, []);
-  await page.waitForTimeout(300);
-  await expect(bar, 'the bar after the last call, while the reply streams').toBeVisible();
+  await expect(bar).toHaveAccessibleName('Finished: run_shell_command');
+  const finishSent = Date.now();
   await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
     msgtype: 'm.text',
     body: '* All release checks passed.',
@@ -113,22 +119,38 @@ const barGoesWithTheReply = async (page: Page, label: string) => {
   });
   await expect(page.getByText('All release checks passed.').first()).toBeVisible();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/jobs-run-end-${label}-finished.png` });
-  await expect(bar, 'the bar after the reply finished').toBeHidden({ timeout: 5_000 });
-  // Well before the 2 s hold after the last call would run out.
-  expect(Date.now() - lastCallEnded, 'ms from the last call’s end until the bar went').toBeLessThan(
-    1_700
-  );
+  await expect(bar, 'the bar after the reply finished').toBeHidden({ timeout: 10_000 });
+  const changes = await jobsBarChanges(page);
+  expect(
+    changes.map((change) => change.label),
+    'the bar never left before the reply finished'
+  ).toEqual([
+    null,
+    'Running: run_shell_command',
+    'Finished: run_shell_command',
+    'Running: run_shell_command',
+    'Finished: run_shell_command',
+    null,
+  ]);
+  expect(
+    (changes.at(-1)?.at ?? NaN) - finishSent,
+    'ms from the reply’s end until the bar went'
+  ).toBeGreaterThanOrEqual(1_900);
 };
 
-test('the jobs bar goes when the agent’s reply finishes (Chromium)', async ({ page }) => {
+test('the jobs bar stays while the agent’s reply streams, and goes 2 s after it (Chromium)', async ({
+  page,
+}) => {
   test.setTimeout(180_000);
-  await barGoesWithTheReply(page, 'chromium');
+  await barHoldsForTheReply(page, 'chromium');
 });
 
-test('the jobs bar goes when the agent’s reply finishes (WebKit)', async ({ baseURL }) => {
+test('the jobs bar stays while the agent’s reply streams, and goes 2 s after it (WebKit)', async ({
+  baseURL,
+}) => {
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
   await onWebKitPage({ viewport: { width: 1280, height: 800 }, baseURL }, (page) =>
-    barGoesWithTheReply(page, 'webkit')
+    barHoldsForTheReply(page, 'webkit')
   );
 });

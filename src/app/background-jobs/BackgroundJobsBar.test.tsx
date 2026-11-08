@@ -124,6 +124,28 @@ it('names one job in the title, with Stop and no list', () => {
   expect(button(cancelA)?.textContent).toBe('mindroomUi.backgroundJobs.stop');
 });
 
+it('keeps the jobs it showed for a moment after they end, as finished and without Stop', () => {
+  vi.useFakeTimers();
+  try {
+    state.jobs = [job('a')];
+    render();
+    state.jobs = [];
+    render();
+    expect(title()).toBe('mindroomUi.backgroundJobs.finished{"tool":"tool_a"}');
+    expect(button(cancelA)).toBeUndefined();
+    state.jobs = [job('a'), job('b')];
+    render();
+    state.jobs = [];
+    render();
+    expect(title()).toBe('mindroomUi.backgroundJobs.jobCountFinished{"count":2}');
+    expect(button('mindroomUi.backgroundJobs.stopAll')).toBeUndefined();
+    act(() => vi.advanceTimersByTime(2_000));
+    expect(container.innerHTML).toBe('');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it('shows several jobs on one line, and lists them while the title is pressed', async () => {
   state.jobs = [job('a'), job('b')];
   render();

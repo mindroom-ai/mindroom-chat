@@ -9,6 +9,8 @@ export type BackgroundJobsBarItem = {
   waiting: boolean;
   // Its cancel was sent from this client, or requested anywhere else.
   stopping: boolean;
+  // It ended, and the bar keeps it while the agent's reply goes on; nothing is left to stop.
+  finished: boolean;
 };
 
 export type BackgroundJobsBarModel = {
@@ -20,6 +22,9 @@ const jobName = (job: BackgroundJob, t: TFunction): string =>
   job.kind === 'subagent' ? t('mindroomUi.backgroundJobs.subagent', { tool: job.tool }) : job.tool;
 
 const awaitingApproval = (job: BackgroundJob): boolean => job.status === 'awaiting_approval';
+
+/** The status the bar gives the jobs it keeps after they ended; agents list only live jobs. */
+export const FINISHED_JOB_STATUS = 'finished';
 
 /** The jobs bar for a view's background jobs, or nothing when it has none. */
 export const presentBackgroundJobs = (
@@ -33,12 +38,23 @@ export const presentBackgroundJobs = (
   const [first] = jobs;
   if (!first) return null;
   const several = jobs.length > 1;
-  const items = jobs.map((job) => ({
-    jobId: job.jobId,
-    name: jobName(job, t),
-    waiting: several && awaitingApproval(job),
-    stopping: job.status === 'cancel_requested' || cancelSent(job.jobId),
-  }));
+  const items = jobs.map((job) => {
+    const finished = job.status === FINISHED_JOB_STATUS;
+    return {
+      jobId: job.jobId,
+      name: jobName(job, t),
+      waiting: !finished && several && awaitingApproval(job),
+      stopping: !finished && (job.status === 'cancel_requested' || cancelSent(job.jobId)),
+      finished,
+    };
+  });
+  const finished = items.every((item) => item.finished);
+  if (several && finished) {
+    return {
+      title: t('mindroomUi.backgroundJobs.jobCountFinished', { count: jobs.length }),
+      items,
+    };
+  }
   if (several) {
     const title =
       total > jobs.length
@@ -47,6 +63,7 @@ export const presentBackgroundJobs = (
     return { title, items };
   }
   const tool = items[0].name;
+  if (finished) return { title: t('mindroomUi.backgroundJobs.finished', { tool }), items };
   if (items[0].stopping)
     return { title: t('mindroomUi.backgroundJobs.stoppingJob', { tool }), items };
   if (awaitingApproval(first))
