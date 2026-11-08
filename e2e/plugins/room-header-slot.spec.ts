@@ -13,7 +13,7 @@ import {
 import { createRoom } from '../helpers/createRoom';
 import { dropFile } from '../helpers/fileDrop';
 import { sendRoomMessage } from '../helpers/matrix';
-import { roomHeader, roomMoreOptions } from '../helpers/roomMenu';
+import { roomHeader } from '../helpers/roomMenu';
 import { serveBuild } from '../helpers/staticBuildServer';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
@@ -207,8 +207,7 @@ test("the example panel's item dropped on the room's name shows in the banner; a
   onBuild(browser, {}, async (page, data) => {
     await page.goto(roomPath(data));
     await roomShown(page);
-    await roomMoreOptions(page).click();
-    await page.getByRole('menuitemcheckbox', { name: 'Example panel', exact: true }).click();
+    await roomHeader(page).getByRole('button', { name: 'Example panel', exact: true }).click();
     const panel = page.getByRole('region', { name: 'Example panel', exact: true });
     const item = panel.getByText('Example item', { exact: true });
     const name = roomHeader(page).locator('h1');
