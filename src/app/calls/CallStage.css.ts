@@ -1,5 +1,7 @@
 import {
   createContainer,
+  createVar,
+  fallbackVar,
   globalStyle,
   keyframes,
   style,
@@ -53,6 +55,14 @@ const centredFlow = (flexFlow: string, gap: string): StyleRule => ({
 /** A ring around a round element, drawn outside it. */
 const ring = (width: number, ringColor: string) => `0 0 0 ${toRem(width)} ${ringColor}`;
 
+/**
+ * Room the stage keeps at its end for what lies over it there (the floating window's subtitle):
+ * its tiles, its voice stage and the own camera's inset sit above it, and its container queries
+ * see only the height left.
+ */
+export const stageEndRoom = createVar();
+const endRoom = fallbackVar(stageEndRoom, '0px');
+
 export const Stage = style({
   containerType: 'size',
   containerName: stage,
@@ -60,6 +70,7 @@ export const Stage = style({
   flex: '1 1 0',
   minHeight: STAGE_MIN_HEIGHT,
   padding: toRem(STAGE_PADDING),
+  paddingBlockEnd: `calc(${toRem(STAGE_PADDING)} + ${endRoom})`,
   overflow: 'hidden',
 });
 
@@ -113,7 +124,7 @@ export const Inset = style({
   ...bareList,
   position: 'absolute',
   insetInlineEnd: INSET_EDGE,
-  insetBlockEnd: INSET_EDGE,
+  insetBlockEnd: `calc(${INSET_EDGE} + ${endRoom})`,
   zIndex: 2,
   width: '26%',
   minWidth: INSET_MIN_WIDTH,
