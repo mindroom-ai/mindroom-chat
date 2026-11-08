@@ -112,7 +112,12 @@ describe('moveSpaceLinks', () => {
       }),
       '!elsewhere': fakeStateRoom({
         'm.space.parent': parent,
-        'm.room.join_rules': { '': { join_rule: 'restricted', allow: [member('!team')] } },
+        'm.room.join_rules': {
+          '': {
+            join_rule: 'restricted',
+            allow: [member('!team'), { type: 'org.example.other', room_id: '!old' }],
+          },
+        },
       }),
       '!invite': fakeStateRoom({
         'm.space.parent': parent,

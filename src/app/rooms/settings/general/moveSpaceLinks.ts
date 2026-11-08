@@ -13,8 +13,7 @@ const hasVia = (
 
 /**
  * A restricted room's `m.room.join_rules` content that also admits the members of `newRoomId`,
- * when it admits those of `oldRoomId` (Matrix spec, "Restricted rooms"); `undefined` when there is
- * nothing to add.
+ * when it admits those of `oldRoomId` (Matrix spec, "Restricted rooms"); `undefined` otherwise.
  */
 const admitAlso = (
   content: Record<string, unknown> | undefined,
@@ -24,9 +23,10 @@ const admitAlso = (
   const rule = content?.join_rule;
   if (rule !== JoinRule.Restricted && rule !== JoinRule.KnockRestricted) return undefined;
   const allow = readAllow(content);
-  const admits = (roomId: string) =>
-    allow.some(({ type, room_id: id }) => type === 'm.room_membership' && id === roomId);
-  if (!admits(oldRoomId) || admits(newRoomId)) return undefined;
+  const admitsOld = allow.some(
+    ({ type, room_id: roomId }) => type === 'm.room_membership' && roomId === oldRoomId
+  );
+  if (!admitsOld) return undefined;
   return { ...content, allow: [...allow, { type: 'm.room_membership', room_id: newRoomId }] };
 };
 
