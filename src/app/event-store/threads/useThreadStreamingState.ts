@@ -16,7 +16,7 @@ import { getEditedEvent, getEventReactions, getLatestMessageContent } from '../.
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../../matrix/thread';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 import { isStreamingReplyCurrent } from '../../matrix/client/streamingReplies';
-import { getFinishingEdit } from '../../matrix/client/syncedEdits';
+import { getFinishingEdit, hasStreamEnded } from '../../matrix/client/syncedEdits';
 
 type ThreadStreamingSnapshot = {
   isStreaming: boolean;
@@ -109,11 +109,13 @@ export const isEventStreaming = (
   // stream statuses; the local check only adds the record-form fallback.
   // Diverging here wedges a permanent spinner while the stop chip (gated on
   // the shared helper) is hidden.
-  // A device without the room's keys reads the finishing edit's status in the clear.
+  // A device without the room's keys reads the finishing edit's status in the clear, and a
+  // redacted finishing edit still ended the stream.
   const terminalMetadata =
     hasTerminalStreamMetadata(content) ||
     (streamStatus && TERMINAL_STREAM_STATUSES.has(streamStatus)) ||
-    !!getFinishingEdit(mEvent);
+    !!getFinishingEdit(mEvent) ||
+    hasStreamEnded(mEvent);
 
   if (hasStopReaction(relations) && !terminalMetadata) {
     return true;
