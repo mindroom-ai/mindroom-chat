@@ -220,7 +220,7 @@ describe('example plugin', () => {
     if (!panel) throw new Error('the example plugin has no side panel');
     const userId = '@ada:example.org';
     const client = createClient({ baseUrl: 'https://example.org', userId });
-    // An open room, and one where only moderators post.
+    // An open room, and one where only moderators post; in both, only moderators change its state.
     const addRoom = (roomId: string, messageLevel: number) => {
       const room = new Room(roomId, client, userId);
       room.currentState.setStateEvents([
@@ -231,7 +231,8 @@ describe('example plugin', () => {
           state_key: '',
           content: {
             users: { '@moderator:example.org': 50 },
-            events: { 'm.room.message': messageLevel },
+            events_default: messageLevel,
+            state_default: 50,
           },
         }),
       ]);
