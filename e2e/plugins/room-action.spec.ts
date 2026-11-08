@@ -20,7 +20,9 @@ import { touch } from '../helpers/touch';
 // and Leave: the open room header's menu, and a sidebar row's (its More Options button, a
 // right-click, a phone's long press), also for a room that is not open. Choosing it closes the
 // menu and shows the plugin's dialog, which names the menu's room. Once the app's language is
-// German the entry is "Beispiel-Rauminfo".
+// German the entry is "Beispiel-Rauminfo". Its critical entry, "Example removal"
+// ("Beispiel-Entfernung"), comes right after Leave, in Leave's group and color, and says in an
+// alert which room it ran in.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const RUN = Date.now().toString(36);
 const WIDE = { width: 1440, height: 900 };
@@ -70,9 +72,41 @@ const expectEntry = async (page: Page, entry: string, before: string, after: str
   expect(entries.indexOf(after)).toBe(entries.indexOf(entry) + 1);
 };
 
+/** The open room menu's entry named `name`. */
+const menuItem = (page: Page, name: string) =>
+  roomMenu(page).getByRole('menuitem', { name, exact: true });
+
+/** Expects the critical entry right after Leave, in Leave's group and color, not the ordinary's. */
+const expectCriticalEntry = async (page: Page, entry: string, leave: string, ordinary: string) => {
+  await expect(roomMenu(page)).toBeVisible();
+  expect((await menuEntries(page)).slice(-2)).toEqual([leave, entry]);
+  const previous = await menuItem(page, entry).evaluate((critical) =>
+    critical.previousElementSibling?.textContent?.trim()
+  );
+  expect(previous).toBe(leave);
+  const color = (name: string) =>
+    menuItem(page, name).evaluate((element) => getComputedStyle(element).color);
+  const critical = await color(entry);
+  expect(critical).toBe(await color(leave));
+  expect(critical).not.toBe(await color(ordinary));
+};
+
+/** Takes `shot` of the page in the light and the dark scheme, as `<name>-<scheme>`. */
+const shotBothSchemes = async (
+  page: Page,
+  shot: (name: string) => Promise<unknown>,
+  name: string
+) => {
+  for (const scheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await shot(`${name}-${scheme}`);
+  }
+  await page.emulateMedia({ colorScheme: 'light' });
+};
+
 /** Chooses the entry: the menu closes and the plugin's dialog names `roomName`. */
 const chooseEntry = async (page: Page, entry: string, roomName: string) => {
-  await roomMenu(page).getByRole('menuitem', { name: entry, exact: true }).click();
+  await menuItem(page, entry).click();
   await expect(roomMenu(page)).toHaveCount(0);
   await expect(page.getByRole('dialog', { name: 'Example dialog' })).toContainText(
     `Example dialog of ${roomName}`
@@ -106,7 +140,7 @@ const seed = async (label: string) => {
   return { person, orchard, garden };
 };
 
-test("every room menu lists the example plugin's entry, which acts on the menu's room, in the app's language", async ({
+test("every room menu lists the example plugin's entries, which act on the menu's room, in the app's language", async ({
   browser,
 }, testInfo) => {
   test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
@@ -124,7 +158,8 @@ test("every room menu lists the example plugin's entry, which acts on the menu's
     // The open room's header menu.
     await roomMoreOptions(page).click();
     await expectEntry(page, 'Example room info', 'Jump to Time', 'Archive Room');
-    await shot('header-menu');
+    await expectCriticalEntry(page, 'Example removal', 'Leave Room', 'Example room info');
+    await shotBothSchemes(page, shot, 'header-menu');
     await chooseEntry(page, 'Example room info', 'Orchard');
     await shot('header-dialog');
     await closeDialog(page);
@@ -135,7 +170,8 @@ test("every room menu lists the example plugin's entry, which acts on the menu's
     await gardenLink.hover();
     await rowOptions(gardenLink).click();
     await expectEntry(page, 'Example room info', 'Jump to Time', 'Archive Room');
-    await shot('row-menu');
+    await expectCriticalEntry(page, 'Example removal', 'Leave Room', 'Example room info');
+    await shotBothSchemes(page, shot, 'row-menu');
     await chooseEntry(page, 'Example room info', 'Garden');
     await expect(roomHeader(page).locator('h1')).toHaveText('Orchard');
     await shot('row-dialog');
@@ -147,11 +183,23 @@ test("every room menu lists the example plugin's entry, which acts on the menu's
     await chooseEntry(page, 'Example room info', 'Garden');
     await closeDialog(page);
 
+    // The critical entry runs on the row's room too.
+    await gardenLink.click({ button: 'right' });
+    const alert = page.waitForEvent('dialog').then(async (dialog) => {
+      const message = dialog.message();
+      await dialog.dismiss();
+      return message;
+    });
+    await menuItem(page, 'Example removal').click();
+    expect(await alert).toBe(`Example removal in ${garden}`);
+    await expect(roomMenu(page)).toHaveCount(0);
+
     await page.evaluate(() => localStorage.setItem('i18nextLng', 'de'));
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
     await roomHeader(page).getByRole('button', { name: 'Weitere Optionen', exact: true }).click();
     await expectEntry(page, 'Beispiel-Rauminfo', 'Zu Zeitpunkt springen', 'Raum archivieren');
+    await expectCriticalEntry(page, 'Beispiel-Entfernung', 'Raum verlassen', 'Beispiel-Rauminfo');
     await shot('header-menu-german');
     await chooseEntry(page, 'Beispiel-Rauminfo', 'Orchard');
     await closeDialog(page);
@@ -168,7 +216,7 @@ test("every room menu lists the example plugin's entry, which acts on the menu's
   }
 });
 
-test("a phone's long press on a room row lists the example plugin's entry for that room", async ({
+test("a phone's long press on a room row lists the example plugin's entries for that room", async ({
   browser,
 }, testInfo) => {
   test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
@@ -189,7 +237,8 @@ test("a phone's long press on a room row lists the example plugin's entry for th
     // Longer than the 500 ms long press.
     await touch(gardenLink, [{ type: 'start' }, { type: 'wait', ms: 700 }, { type: 'end' }]);
     await expectEntry(page, 'Example room info', 'Jump to Time', 'Archive Room');
-    await shot('phone-row-menu');
+    await expectCriticalEntry(page, 'Example removal', 'Leave Room', 'Example room info');
+    await shotBothSchemes(page, shot, 'phone-row-menu');
     await chooseEntry(page, 'Example room info', 'Garden');
     await shot('phone-row-dialog');
     await closeDialog(page);

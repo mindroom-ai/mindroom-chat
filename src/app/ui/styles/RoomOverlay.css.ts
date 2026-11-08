@@ -1,6 +1,7 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { config } from 'folds';
 import { Viewport } from '../InsetScrollbar.css';
+import { glassFlat, glassFloating, glassSurface } from './Glass.css';
 import { shortViewport } from './shortViewport';
 
 // Measured once per layout change, shared by scroll padding and floating controls.
@@ -10,7 +11,14 @@ export const overviewInset = 'var(--room-overview-height, 0px)';
 export const topInset = `calc(${headerInset} + ${overviewInset})`;
 export const controlsTopInset = `calc(${topInset} + var(--room-thread-header-height, 0px))`;
 
-export const Header = style({ position: 'absolute', inset: '0 0 auto', zIndex: 6 });
+// The header's row and what plugins show under it share one surface: the frosted flat chrome the
+// conversation scrolls under.
+export const Header = style([
+  glassSurface({ level: 'panel', variant: 'Surface' }),
+  glassFlat,
+  glassFloating,
+  { position: 'absolute', inset: '0 0 auto', zIndex: 6 },
+]);
 // The thread banner already offers the way back, so on short screens it is the
 // only bar; the room header returns once the thread closes.
 export const HeaderInThread = style({ '@media': { [shortViewport]: { display: 'none' } } });

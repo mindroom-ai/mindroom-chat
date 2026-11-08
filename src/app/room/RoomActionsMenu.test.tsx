@@ -177,6 +177,9 @@ const SHARED = [
   'Leave Room',
 ];
 
+/** What the open room's header adds before the room actions. */
+const showMembers = <MenuEntry label="Show Members" icon={Icons.User} onSelect={vi.fn()} />;
+
 afterEach(() => {
   cleanup();
   state.canInvite = true;
@@ -237,11 +240,7 @@ describe('the shared room actions', () => {
   });
 
   it('puts what only the open room offers in a section before the room actions', () => {
-    render(
-      <Harness
-        roomEntries={<MenuEntry label="Show Members" icon={Icons.User} onSelect={vi.fn()} />}
-      />
-    );
+    render(<Harness roomEntries={showMembers} />);
     expect(rows()).toEqual(['Show Members', ...SHARED]);
   });
 
@@ -350,7 +349,9 @@ describe('the shared room actions', () => {
 });
 
 describe("plugins' entries", () => {
-  registerPluginTranslations('example', { en: { about: 'About this room', other: 'Other entry' } });
+  registerPluginTranslations('example', {
+    en: { about: 'About this room', other: 'Other entry', remove: 'Remove example data' },
+  });
 
   const entry = (fields: Partial<PluginRoomAction> = {}): PluginRoomAction => ({
     id: 'about',
@@ -430,11 +431,7 @@ describe("plugins' entries", () => {
     expect(layout()).toEqual([SHARED.slice(0, -2), 'line', plugins, 'line', SHARED.slice(-2)]);
     cleanup();
 
-    render(
-      <Harness
-        roomEntries={<MenuEntry label="Show Members" icon={Icons.User} onSelect={vi.fn()} />}
-      />
-    );
+    render(<Harness roomEntries={showMembers} />);
     expect(layout()).toEqual([
       ['Show Members'],
       'line',
@@ -443,6 +440,41 @@ describe("plugins' entries", () => {
       plugins,
       'line',
       SHARED.slice(-2),
+    ]);
+  });
+
+  it("lists a critical entry at the end of the menu's last group, drawn as Leave is, in a row menu and in the room header menu; the ordinary ones keep their group", () => {
+    buildWith(
+      entry({ id: 'remove', label: 'remove', icon: Icons.Delete, critical: true }),
+      entry(),
+      entry({ id: 'other', label: 'other' })
+    );
+    const last = [...SHARED.slice(-2), 'Remove example data'];
+    render(<Harness />);
+    expect(layout()).toEqual([
+      SHARED.slice(0, -2),
+      'line',
+      ['About this room', 'Other entry'],
+      'line',
+      last,
+    ]);
+    const style = (name: string) => screen.getByRole('menuitem', { name }).className;
+    expect(style('Leave Room')).not.toBe(style('Archive Room'));
+    expect(style('Remove example data')).toBe(style('Leave Room'));
+    expect(style('About this room')).toBe(style('Archive Room'));
+    cleanup();
+
+    render(<Harness roomEntries={showMembers} />);
+    expect(layout().at(-1)).toEqual(last);
+  });
+
+  it('draws no group of their own when every entry is critical', () => {
+    buildWith(entry({ critical: true }));
+    render(<Harness />);
+    expect(layout()).toEqual([
+      SHARED.slice(0, -2),
+      'line',
+      [...SHARED.slice(-2), 'About this room'],
     ]);
   });
 

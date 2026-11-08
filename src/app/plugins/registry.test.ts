@@ -13,6 +13,7 @@ const entries = vi.hoisted(() => {
   const command = { name: 'greet', description: 'greet', run };
   const roomAction = { id: 'about', label: 'about', icon, run };
   const spacesAction = { ...roomAction, id: 'spaces', shows: () => true };
+  const criticalAction = { ...roomAction, id: 'remove', critical: true };
   const banner = (): null => null;
   const headerSlot = [banner];
   const cover = { covers: () => false, subscribe: () => () => undefined, Component };
@@ -25,7 +26,7 @@ const entries = vi.hoisted(() => {
     panels: [panel, autoPanel],
     actions: [action, autoAction],
     command,
-    roomActions: [roomAction, spacesAction],
+    roomActions: [roomAction, spacesAction, criticalAction],
     banner,
     headerSlot,
     cover,
@@ -91,7 +92,10 @@ const entries = vi.hoisted(() => {
             { ...roomAction, icon: 'Info' },
             { ...roomAction, run: undefined },
             { ...roomAction, shows: true },
+            { ...roomAction, critical: 'yes' },
+            { ...roomAction, critical: false },
             spacesAction,
+            criticalAction,
           ],
           roomHeaderSlot: headerSlot,
           conversationCovers: [
@@ -145,7 +149,8 @@ describe('registeredPlugins', () => {
     // A slash command needs a name of letters a to z, a description and a run.
     expect(plugins[0]?.slashCommands).toEqual([]);
     expect(plugins[1]?.slashCommands).toEqual([entries.command]);
-    // A room action needs an id, a label, an icon and a run, and its shows is a function.
+    // A room action needs an id, a label, an icon and a run, its shows is a function, and its
+    // critical is `true` or absent.
     expect(plugins[0]?.roomActions).toEqual([]);
     expect(plugins[1]?.roomActions).toEqual(entries.roomActions);
     expect(plugins[0]?.roomHeaderSlot).toEqual([]);
