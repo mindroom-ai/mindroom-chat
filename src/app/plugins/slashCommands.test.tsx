@@ -93,9 +93,11 @@ describe('usePluginSlashCommands', () => {
     expect(result.current.map(({ name }) => name)).toEqual(['solo']);
     expect(warned.mock.calls).toEqual([
       [
-        '[plugins one@1.0.0, two@1.0.0] add the slash command /greet more than once, so it does not run',
+        '[plugins one@1.0.0, two@1.0.0] add the slash command /greet more than once, so it is left out of their commands',
       ],
-      ['[plugins three@1.0.0] add the slash command /twice more than once, so it does not run'],
+      [
+        '[plugins three@1.0.0] add the slash command /twice more than once, so it is left out of their commands',
+      ],
     ]);
   });
 

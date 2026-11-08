@@ -65,7 +65,7 @@ export const usePluginSlashCommands = (
       const who = [...new Set(tags)].join(', ');
       // eslint-disable-next-line no-console
       console.warn(
-        `[plugins ${who}] add the slash command /${name} more than once, so it does not run`
+        `[plugins ${who}] add the slash command /${name} more than once, so it is left out of their commands`
       );
     });
     return enabled.flatMap(({ id, slashCommands }) =>
