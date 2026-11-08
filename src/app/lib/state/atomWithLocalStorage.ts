@@ -27,8 +27,9 @@ export const setLocalStorageItem = <T>(key: string, value: T): boolean => {
 /**
  * An atom backed by one localStorage key. `getItem` reads (and sanitizes) the stored value when the
  * atom is created; every write goes through `setItem`. While mounted, the atom follows `storage`
- * events for its key, so other tabs' writes show up here, and when it mounts again it reads anew
- * if the stored text changed while it was not (another account showed in this tab, say).
+ * events for its key, so other tabs' writes show up here. When it mounts, it reads the key again
+ * if the stored text is not the one it last read or wrote: another tab wrote while it was not
+ * mounted (this tab was on Add Account, say).
  */
 export const atomWithLocalStorage = <T>(
   key: string,
