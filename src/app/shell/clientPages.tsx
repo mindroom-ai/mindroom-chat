@@ -26,7 +26,7 @@ import { useMarkPhoneSectionRoot } from '../navigation/phoneNavDrawer';
 import { Space } from '../sidebar/space/Space';
 import { PhoneTopBar } from '../sidebar/PhoneTopBar';
 import { PhoneNavDrawer } from '../sidebar/PhoneNavDrawer';
-import { usePluginPage } from '../plugins/pluginPages';
+import { usePluginPage } from '../plugins/PluginPageRoute';
 import { MembersOverlayFollowsNavigation } from '../members/useMembersDrawer';
 
 // The signed-in pages. Router.tsx loads this module on its own, so the sign-in pages start
@@ -51,7 +51,7 @@ export { Invites } from '../notifications/inbox/Invites';
 export { InboxNav } from '../notifications/inbox/InboxNav';
 export { ExploreNav } from '../rooms/explore/ExploreNav';
 export { Notifications } from '../notifications/inbox/Notifications';
-export { PluginPageRoute } from '../plugins/pluginPages';
+export { PluginPageRoute } from '../plugins/PluginPageRoute';
 
 /**
  * The rail beside the page, but none beside a plugin page that fills the window. It reads the

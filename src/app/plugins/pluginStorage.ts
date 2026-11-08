@@ -8,7 +8,6 @@ import {
 } from '../lib/safeLocalStorage';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { listSessions, readSnapshot } from '../matrix/session/sessions';
-import { registeredPlugins } from './registry';
 
 /** Strings a plugin keeps by key for the signed-in account, in this browser's localStorage. */
 export type PluginStorage = {
@@ -25,9 +24,10 @@ export type PluginStorage = {
 const PLUGIN_KEYS = 'mindroom.plugin:';
 
 /** The start of the localStorage key of every plugin value kept for `userId`. */
-const accountPrefix = (userId: string): string => `${PLUGIN_KEYS}${encodeURIComponent(userId)}/`;
+export const accountPrefix = (userId: string): string =>
+  `${PLUGIN_KEYS}${encodeURIComponent(userId)}/`;
 
-const deleteKeys = (doomed: (key: string) => boolean): void => {
+export const deleteKeys = (doomed: (key: string) => boolean): void => {
   const storage = getSafeLocalStorage();
   getStorageKeysSafe(storage)
     .filter(doomed)
@@ -36,7 +36,7 @@ const deleteKeys = (doomed: (key: string) => boolean): void => {
 
 /**
  * The storage of plugin `pluginId` for the signed-in account. The app deletes it with the rest of
- * the account's local data ({@link forgetAccountInPlugins}).
+ * the account's local data (`forgetAccountInPlugins.ts`).
  */
 export const usePluginStorage = (pluginId: string): PluginStorage => {
   const userId = useMatrixClient().getSafeUserId();
@@ -54,34 +54,6 @@ export const usePluginStorage = (pluginId: string): PluginStorage => {
       },
     };
   }, [pluginId, userId]);
-};
-
-/** How long forgetting an account waits for the plugins before the app goes on (and reloads). */
-const FORGET_WAIT_MS = 5_000;
-
-/**
- * Deletes every plugin's storage for `userId`, then asks each plugin to forget the account
- * (`forgetAccount`) and waits for them, five seconds at most. The app calls it when this browser
- * deletes the account's local data: on sign-out and account removal, once no other login of the
- * account stays.
- */
-export const forgetAccountInPlugins = async (userId: string): Promise<void> => {
-  const prefix = accountPrefix(userId);
-  deleteKeys((key) => key.startsWith(prefix));
-  const forgetting = registeredPlugins.map(async ({ tag, forgetAccount }) => {
-    try {
-      await forgetAccount?.(userId);
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error(`[plugin ${tag}] forgetting an account failed`, error);
-    }
-  });
-  await Promise.race([
-    Promise.all(forgetting),
-    new Promise((resolve) => {
-      setTimeout(resolve, FORGET_WAIT_MS);
-    }),
-  ]);
 };
 
 /**
