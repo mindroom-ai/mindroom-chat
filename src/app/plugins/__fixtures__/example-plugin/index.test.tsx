@@ -5,7 +5,7 @@ import { createRef } from 'react';
 import { fireEvent } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
 import plugin from './index';
@@ -32,6 +32,15 @@ const greeting: PluginEvent = {
 };
 
 describe('example plugin', () => {
+  // Its panel asks the client's homeserver through `fetch` whether it binds sign-in tokens; the
+  // stub keeps that off the network, and its answer counts as no.
+  beforeEach(() => {
+    vi.stubGlobal('fetch', async () => new Response('{}'));
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   const [renderer] = plugin.messageRenderers ?? [];
   const [Banner] = plugin.roomHeaderSlot ?? [];
 
@@ -98,16 +107,24 @@ describe('example plugin', () => {
     expect(view.getByText('Fill the window').getAttribute('href')).toBe('/p/example/window');
   });
 
-  it('shows the greeting a card asked its panel to show; outside a room a card offers none', async () => {
+  it('shows the greeting of the message a card asked its panel to show, which it reads itself; outside a room a card offers none', async () => {
     const [panel] = plugin.sidePanels ?? [];
     if (!panel) throw new Error('the example plugin has no side panel');
-    // The panel reads the room's members through the account's client.
+    // The panel reads the room's members and the greeting's message through the account's client.
     const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
+    const fetched = vi.spyOn(client, 'fetchRoomEvent').mockResolvedValue({
+      event_id: '$greeting',
+      room_id: '!lobby:example.org',
+      type: 'm.room.message',
+      sender: greeting.sender,
+      content: { ...greeting.content },
+    });
     const view = await renderPluginComponent(
-      <panel.Component roomId="!lobby:example.org" request="Hello" />,
+      <panel.Component roomId="!lobby:example.org" request="$greeting" />,
       { id: 'example', plugin, client }
     );
-    expect(view.getByText('Greeting: Hello')).toBeTruthy();
+    expect(await view.findByText('Greeting: Hello')).toBeTruthy();
+    expect(fetched).toHaveBeenCalledWith('!lobby:example.org', '$greeting');
     expect((await renderGreeting()).queryByRole('button', { name: 'Show in panel' })).toBeNull();
   });
 
@@ -213,6 +230,8 @@ describe('example plugin', () => {
     );
     expect(view.getByText('Members: 2, with a MindRoom agent')).toBeTruthy();
     expect(view.getByText('Members: 3, without a MindRoom agent')).toBeTruthy();
+    // Neither room has a MindRoom server: none published, and none in config.json.
+    expect(view.getAllByText('No MindRoom server')).toHaveLength(2);
   });
 
   it('greets the room or the thread with the text typed after /greet, and asks for some without it', async () => {

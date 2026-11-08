@@ -2,11 +2,11 @@
 import type { ReactNode } from 'react';
 import { renderHook } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
+import type { MatrixClient } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ClientConfigProvider } from '../../config/useClientConfig';
-import { computerServicePreferenceAtom } from '../../computer/computerServiceSettings';
-import { useTranscriptionServer } from './useTranscriptionServer';
+import { ClientConfigProvider } from '../config/useClientConfig';
+import { computerServicePreferenceAtom } from './computerServiceSettings';
+import { useRoomMindroomServer } from './useRoomMindroomServer';
 
 const PUBLISHED = 'https://published.example.org';
 const DEPLOYMENT = 'https://deployment.example.org';
@@ -17,11 +17,14 @@ const state = vi.hoisted(() => ({
   members: [] as { userId: string; membership: string }[],
 }));
 
-vi.mock('../../computer/useAgentServers', () => ({
+const ROOM = vi.hoisted(() => ({ roomId: '!room:example.org' }));
+
+vi.mock('./useAgentServers', () => ({
   useBindsOpenIdTokens: () => state.bindsTokens,
-  useRoomAgentServers: () => (state.published ? [{ apiUrl: state.published }] : []),
+  useRoomAgentServers: (room: unknown) =>
+    room === ROOM && state.published ? [{ apiUrl: state.published }] : [],
 }));
-vi.mock('../../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => state.members }));
+vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => state.members }));
 
 const server = (preference: string | null, deploymentUrl?: string) => {
   const store = createStore();
@@ -33,9 +36,10 @@ const server = (preference: string | null, deploymentUrl?: string) => {
       </ClientConfigProvider>
     </Provider>
   );
-  const room = { roomId: '!room:example.org' } as Room;
-  return renderHook(() => useTranscriptionServer({} as MatrixClient, room), { wrapper }).result
-    .current;
+  const mx = {
+    getRoom: (roomId: string) => (roomId === ROOM.roomId ? ROOM : null),
+  } as unknown as MatrixClient;
+  return renderHook(() => useRoomMindroomServer(mx, ROOM.roomId), { wrapper }).result.current;
 };
 
 beforeEach(() => {
@@ -45,9 +49,9 @@ beforeEach(() => {
   state.members = [{ userId: '@mindroom_router:example.org', membership: 'join' }];
 });
 
-describe('useTranscriptionServer', () => {
+describe('useRoomMindroomServer', () => {
   // This device's choice of server for agents' computers, or computers turned off, never counts:
-  // transcription needs the MindRoom whose router is in the room.
+  // call transcripts and plugin routes need the MindRoom whose router is in the room.
   describe.each([null, 'https://other.example.org', ''])('with the preference %j', (preference) => {
     it("is the room's published server while the homeserver binds tokens to it", () => {
       state.published = PUBLISHED;
