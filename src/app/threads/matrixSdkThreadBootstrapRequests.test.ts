@@ -15,6 +15,8 @@ import type { ISavedSync } from 'matrix-js-sdk/lib/store';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadRoomThreads } from '../event-store/threads/roomThreadList';
 import { restoreCachedRoomThreads } from '../event-store/sdk/roomTimelineSdk';
+import { resolveThreadPresentationSnapshot } from '../event-store/threads/threadPresentation';
+import { keepUnopenedThreadEditsShown } from '../matrix/client/unopenedThreadEdits';
 
 const roomId = '!room:example.org';
 const userId = '@alice:example.org';
@@ -666,6 +668,104 @@ describe('SDK thread bootstrap requests', () => {
     await room.addLiveEvents([new MatrixEvent(reply(rootId, 3, 13))], { addToState: false });
     await settle();
     expect(thread.length).toBe(3);
+  });
+
+  // Regression (P3-webkit-cards-F001, F002): on slow clients thread cards showed a reply at its
+  // first tool call long after its finishing edit, or the person's question instead of the reply.
+  // Showing a thread emptied its timeline until its first page arrived, and for good when the page
+  // failed; meanwhile its card fell back to the root's summary of that moment, or to the root.
+  describe.each(['loads', 'fails'])('while a shown thread first page %s', (outcome) => {
+    const preview = (room: Room, rootId: string) =>
+      resolveThreadPresentationSnapshot({
+        room,
+        threadRootId: rootId,
+        thread: room.getThread(rootId),
+        rootEvent: room.getThread(rootId)?.rootEvent,
+      }).latestReplyPreviewText;
+    /** Shows `thread` as a card does, with the page held; returns what releases the page. */
+    const show = async (f: ReturnType<typeof server>, thread: Thread) => {
+      let release!: () => void;
+      f.network.relationsHeld = new Promise((resolve) => {
+        release = resolve;
+      });
+      f.network.relationsDown = outcome === 'fails';
+      const opening = thread.initialize();
+      await vi.waitFor(() => expect(f.relationPages()).toBe(1));
+      return async () => {
+        release();
+        await opening;
+        await settle();
+      };
+    };
+
+    it('keeps a reply on its newest edit', async () => {
+      const rootId = rootIdAt(1);
+      const replyId = `${rootId}-reply-2`;
+      const firstTool = edit(replyId, '🔧 1 tool', 20);
+      // The root as the server returns it mid-stream: its summary bundles the first tool call.
+      const midStream = summarizedRoot(rootId, 2);
+      const latest = {
+        ...reply(rootId, 2, 10),
+        unsigned: { 'm.relations': { 'm.replace': firstTool.event } },
+      };
+      Object.assign((midStream.unsigned!['m.relations'] as Record<string, object>)['m.thread'], {
+        latest_event: latest,
+        'io.mindroom.latest_reply': latest,
+      });
+      const f = server({ roots: [midStream] });
+      f.client.canSupport.set(Feature.RelationsRecursion, ServerSupport.Stable);
+      const room = roomFor(f.client);
+      const stopWatching = keepUnopenedThreadEditsShown(f.client);
+      room.processThreadRoots([f.client.getEventMapper()(summarizedRoot(rootId, 1))], true);
+      await room.addLiveEvents([new MatrixEvent(reply(rootId, 2, 10))], { addToState: false });
+      await room.addLiveEvents([firstTool], { addToState: false });
+      await settle();
+      expect(preview(room, rootId)).toBe('🔧 1 tool');
+
+      const finish = await show(f, room.getThread(rootId)!);
+      await room.addLiveEvents([edit(replyId, '🔧 2 tools', 21)], { addToState: false });
+      await room.addLiveEvents([edit(replyId, '🔧 3 tools · Finished', 22)], { addToState: false });
+      await settle();
+      expect(preview(room, rootId)).toBe('🔧 3 tools · Finished');
+
+      await finish();
+      expect(preview(room, rootId)).toBe('🔧 3 tools · Finished');
+      stopWatching();
+    });
+
+    it('keeps a finished reply, not the question, after its title notice', async () => {
+      const rootId = rootIdAt(1);
+      const title = message(`${rootId}-reply-2`, 12, {
+        msgtype: 'm.notice',
+        body: 'Thread title',
+        'io.mindroom.thread_summary': { summary: 'Thread title' },
+        'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+      });
+      const titled = summarizedRoot(rootId, 2);
+      (titled.unsigned!['m.relations'] as Record<string, { latest_event: IEvent }>)[
+        'm.thread'
+      ].latest_event = title;
+      const f = server({ roots: [titled] });
+      f.client.canSupport.set(Feature.RelationsRecursion, ServerSupport.Stable);
+      const room = roomFor(f.client);
+      await room.addLiveEvents([new MatrixEvent(message(rootId, 1))], { addToState: false });
+      const answer = message(`${rootId}-reply-1`, 11, {
+        body: 'The answer',
+        'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+      });
+      await room.addLiveEvents([new MatrixEvent(answer), new MatrixEvent(title)], {
+        addToState: false,
+      });
+      await settle();
+      expect(preview(room, rootId)).toBe('The answer');
+
+      const finish = await show(f, room.getThread(rootId)!);
+      expect(preview(room, rootId)).toBe('The answer');
+      if (outcome === 'fails') {
+        await finish();
+        expect(preview(room, rootId)).toBe('The answer');
+      }
+    });
   });
 
   it('records room sync gaps on 200 unopened threads without allocating timelines', async () => {
