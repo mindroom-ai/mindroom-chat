@@ -10,6 +10,7 @@ import {
 } from '../app/lib/hooks/useScreenSize';
 import { withReasoning } from '../app/messages/agent-run/Reasoning';
 import { LIVE_REASONING_KEY } from '../app/messages/live/useLiveReplyContent';
+import { pdfFrameUrl as appPdfFrameUrl } from '../app/messages/viewers/pdfFrame';
 import { applyAppTheme } from '../app/theme/appliedTheme';
 import { DarkTheme, LightTheme } from '../app/theme/useTheme';
 import { Dialog, Header, IconButton, Menu } from '../app/ui/glass/GlassPrimitives';
@@ -240,6 +241,10 @@ describe('pdfFrameUrl', () => {
     expect(pdfFrameUrl(objectUrl)).toBe(
       `/mindroom/pdf-frame.html#${encodeURIComponent(objectUrl)}`
     );
+  });
+
+  it("is the app's own, which its PDF viewer frames with", () => {
+    expect(pdfFrameUrl).toBe(appPdfFrameUrl);
   });
 
   it.each(['https://chat.example.org/report.pdf', 'javascript:alert(1)'])(
