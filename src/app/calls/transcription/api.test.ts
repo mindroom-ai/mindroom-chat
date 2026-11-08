@@ -244,14 +244,14 @@ describe('TranscriptionClient routes', () => {
     await api.join(ROOM_ID);
 
     vi.setSystemTime(NOW + 119_000);
-    api.leaveNow('call-1');
+    void api.leaveNow('call-1');
     const leave = server.calls()[1];
     expect(leave?.url).toBe(`${API_URL}/api/call-transcripts/v1/calls/call-1/leave`);
     expect(leave?.init.keepalive).toBe(true);
     expect(leave && bearer(leave)).toBe('Bearer session-1');
 
     vi.setSystemTime(NOW + 120_000);
-    api.leaveNow('call-1');
+    void api.leaveNow('call-1');
     expect(server.calls()).toHaveLength(2);
   });
 

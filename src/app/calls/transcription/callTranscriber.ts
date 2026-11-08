@@ -143,8 +143,9 @@ export class CallTranscriber {
     this.options = options;
     this.client = new TranscriptionClient(options.sessions);
     this.startCapture = options.startCapture ?? startSpeechCapture;
-    // Sign-out ends the session only once this device left the call with it.
-    this.stopLeavingAtSignOut = options.sessions.beforeRevoke(() => this.leaveNow());
+    // Sign-out ends the session only once this device left the call with it, after the uploads
+    // of a call already ending.
+    this.stopLeavingAtSignOut = options.sessions.beforeRevoke(() => this.ended ?? this.leaveNow());
   }
 
   /** Joins once the room's last leave is done, then checks in every 20 seconds. */
@@ -205,7 +206,6 @@ export class CallTranscriber {
     if (this.ended) return this.ended;
     const { roomId } = this.options;
     this.ending = true;
-    this.stopLeavingAtSignOut();
     clearInterval(this.heartbeatTimer);
     clearTimeout(this.retryTimer);
     this.stopReading.abort();
@@ -228,6 +228,7 @@ export class CallTranscriber {
     leaves.set(roomId, ended);
     void ended.finally(() => {
       if (leaves.get(roomId) === ended) leaves.delete(roomId);
+      this.stopLeavingAtSignOut();
     });
     return ended;
   }

@@ -6,14 +6,17 @@ const SESSIONS_PATH = '/api/client-sessions';
 const SESSION_RENEW_MARGIN_MS = 60_000;
 /** Signing in (the token and the exchange) gives up after this long; the next request tries again. */
 const SIGN_IN_TIMEOUT_MS = 15_000;
-/** Sign-out waits this long at most for the requests that must reach the server before it ends the session. */
+/** Sign-out waits this long at most for what must reach the server before it ends the session. */
 const LAST_REQUESTS_WAIT_MS = 3_000;
 /** A websocket offers this subprotocol, and this one followed by `.<session token>`. */
 const SESSION_PROTOCOL = 'mindroom-session';
 /** A websocket closes with this code once its session ends. */
 const SESSION_ENDED = 4401;
 
-/** A request to a MindRoom server that it refused (`status`, with its parsed `body`), or that got no answer (status 0). */
+/**
+ * A request to a MindRoom server that it refused (`status`, with its parsed `body`), or that got no
+ * answer (status 0).
+ */
 export class MindroomServerError extends Error {
   readonly status: number;
 
@@ -99,7 +102,7 @@ export class ClientSessions {
     this.request = request ?? ((input, init) => fetch(input, init));
   }
 
-  /** `path` on this server; a path that leads to another origin throws, so the session never leaves it. */
+  /** `path` on this server; one that leads to another origin throws, so the session never leaves. */
   private url(path: string): URL {
     const url = new URL(path, this.apiUrl);
     if (url.origin !== this.apiUrl) {
@@ -213,7 +216,10 @@ export class ClientSessions {
     );
   }
 
-  /** Has sign-out run `send` before it ends the session, which `send` then still has; the function returned takes it back. */
+  /**
+   * Has sign-out run `send` before it ends the session, which `send` then still has; the function
+   * returned takes it back.
+   */
   beforeRevoke(send: () => Promise<unknown>): () => void {
     this.lastRequests.add(send);
     return () => {
@@ -268,7 +274,7 @@ export class ClientSessions {
   }
 }
 
-/** Each account's sessions, by server; one for every caller, so the page holds one of the user's eight there. */
+/** Each account's sessions by server, one for every caller: the page holds one of the user's eight. */
 const shared = new WeakMap<MatrixClient, Map<string, ClientSessions>>();
 
 /**
