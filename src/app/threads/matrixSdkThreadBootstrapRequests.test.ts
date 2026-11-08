@@ -347,6 +347,10 @@ describe('SDK thread bootstrap requests', () => {
       expect(thread.initialEventsFetched).toBe(true);
       expect(reactionCount()).toBe(0);
       expect(thread.findEventById(replyId)!.getContent().body).toBe(replyId);
+      // Nor does either come back as an event of the opened thread.
+      const ids = thread.timeline.map((event) => event.getId());
+      expect(ids).not.toContain('$reaction');
+      expect(ids).not.toContain('$edit-12');
     }
   );
 
