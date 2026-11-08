@@ -26,6 +26,7 @@ import {
   loadLatestRoomCacheHydrationSnapshot,
   shouldHydrateLatestRoomCache,
 } from '../event-store/cache/eventRepository';
+import type { RoomTimelineFocusItem } from './roomFocusScrollController';
 
 type ScrollToBottomState = {
   count: number;
@@ -36,6 +37,7 @@ export const useRoomCacheHydrationController = ({
   alive,
   buildInitialTimeline,
   eventId,
+  focusItemRef,
   mx,
   recalibrateFilterOptsRef,
   room,
@@ -44,6 +46,7 @@ export const useRoomCacheHydrationController = ({
   scrollToBottomRef,
   sessionId,
   setAtBottom,
+  setFocusItem,
   setRoomInitialCacheHydratedKey,
   setTimeline,
   threadId,
@@ -52,6 +55,8 @@ export const useRoomCacheHydrationController = ({
   alive: () => boolean;
   buildInitialTimeline: () => Timeline;
   eventId?: string;
+  /** The jump to an event the timeline last made, if any. */
+  focusItemRef: MutableRefObject<RoomTimelineFocusItem | undefined>;
   mx: MatrixClient;
   recalibrateFilterOptsRef: RefObject<RecalibrateFilterOpts | undefined>;
   room: Room;
@@ -60,6 +65,7 @@ export const useRoomCacheHydrationController = ({
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   sessionId: string;
   setAtBottom: Dispatch<SetStateAction<boolean>>;
+  setFocusItem: Dispatch<SetStateAction<RoomTimelineFocusItem | undefined>>;
   setRoomInitialCacheHydratedKey: Dispatch<SetStateAction<string | undefined>>;
   setTimeline: Dispatch<SetStateAction<Timeline>>;
   threadId: string | undefined;
@@ -70,6 +76,7 @@ export const useRoomCacheHydrationController = ({
 
     let cancelled = false;
     const hydrateRoomFromCache = async () => {
+      const jumpAtOpen = focusItemRef.current?.eventId;
       markCacheHydrateStart('room');
       logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-start', {
         limit: ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
@@ -191,9 +198,17 @@ export const useRoomCacheHydrationController = ({
 
       if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
       setTimeline(buildInitialTimeline());
-      setAtBottom(true);
-      scrollToBottomRef.current.count++;
-      scrollToBottomRef.current.smooth = false;
+      // A jump made while the cache was read (Jump to Unread right after the room opened) owns the
+      // position: it goes to its row again in the rebuilt rows. Otherwise the room still opens at
+      // its newest row.
+      const jump = focusItemRef.current;
+      if (jump?.eventId && jump.eventId !== jumpAtOpen) {
+        setFocusItem({ ...jump, scrollTo: true });
+      } else {
+        setAtBottom(true);
+        scrollToBottomRef.current.count++;
+        scrollToBottomRef.current.smooth = false;
+      }
       markCacheHydrateEnd('room');
       logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-complete', {
         hydratedCount: eventsToInsert.length + prependEvents.length,
