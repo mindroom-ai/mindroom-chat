@@ -121,9 +121,9 @@ const apart = async (one: Locator, other: Locator) => {
   );
 };
 
-for (const [screen, viewport] of [
-  ['a wide screen', { width: 1600, height: 1000 }],
-  ['a phone', { width: 390, height: 844 }],
+for (const [screen, tag, viewport] of [
+  ['a wide screen', 'wide', { width: 1600, height: 1000 }],
+  ['a phone', 'phone', { width: 390, height: 844 }],
 ] as const) {
   test(`on ${screen}, the example panel opens the greeting sender's profile card and shows the account's own`, async ({
     browser,
@@ -132,7 +132,6 @@ for (const [screen, viewport] of [
     const server = await serveBuild(build!);
     const context = await browser.newContext({ baseURL: server.origin, viewport });
     const page = await context.newPage();
-    const tag = screen === 'a phone' ? 'phone' : 'wide';
     try {
       await loginWithPassword(page, { homeserver: HOMESERVER, ...alice });
       await page.goto(threadPath);
@@ -186,7 +185,6 @@ for (const [screen, viewport] of [
       await expect(card).toHaveCount(0);
       await shot(page, `${tag}-direct-chat`);
     } finally {
-      await context.unrouteAll({ behavior: 'ignoreErrors' });
       await context.close();
       await server.close();
     }

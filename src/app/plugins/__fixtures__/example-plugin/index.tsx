@@ -303,7 +303,7 @@ function ServerGreeting({ roomId }: { roomId: string }) {
 function FetchedGreeting({ roomId, eventId }: { roomId: string; eventId: string }) {
   const client = useMatrixClient();
   const openUserProfile = useOpenUserProfile();
-  const [greeting, setGreeting] = useState<{ text?: string; sender?: string }>();
+  const [greeting, setGreeting] = useState<{ text?: string; sender?: string }>({});
   useEffect(() => {
     let current = true;
     client
@@ -316,7 +316,7 @@ function FetchedGreeting({ roomId, eventId }: { roomId: string; eventId: string 
       current = false;
     };
   }, [client, eventId, roomId]);
-  const { text, sender } = greeting ?? {};
+  const { text, sender } = greeting;
   if (text === undefined) return null;
   return (
     <>
