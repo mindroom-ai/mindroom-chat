@@ -2,7 +2,7 @@ import { MatrixClient, MatrixError, MemoryStore, Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { RoomType } from './types/room';
 import { CreateRoomAccess } from './createRoomTypes';
-import { createRoom } from './createRoom';
+import { createRoom, type CreateRoomData } from './createRoom';
 
 describe('createRoom', () => {
   it.each([
@@ -42,62 +42,94 @@ describe('createRoom', () => {
     }
   );
 
+  const NEW_ROOM = '!new:mindroom.test';
+
   /**
-   * A space whose server creates `!new:mindroom.test` and refuses to list it there; `leave` and
-   * `forget` succeed unless `leaveFails`.
+   * A space whose server creates `NEW_ROOM` and fails to list it there with `failure`, then answers
+   * whether it lists it with `lookup`: the event's content, or the error it fails with (by default,
+   * that it has none). `leave` and `forget` succeed unless `leaveFails`.
    */
-  const refusingSpace = (leaveFails = false) => {
+  const linkFailing = ({
+    failure = new MatrixError({ errcode: 'M_FORBIDDEN', error: 'Not allowed' }, 403) as Error,
+    lookup = new MatrixError({ errcode: 'M_NOT_FOUND', error: 'Event not found' }, 404) as
+      | Error
+      | Record<string, unknown>,
+    leaveFails = false,
+  } = {}) => {
     const mx = new MatrixClient({
       baseUrl: 'https://mindroom.test',
       userId: '@me:mindroom.test',
       store: new MemoryStore(),
     });
-    const refusal = new MatrixError({ errcode: 'M_FORBIDDEN', error: 'Not allowed' }, 403);
-    vi.spyOn(mx, 'createRoom').mockResolvedValue({ room_id: '!new:mindroom.test' });
-    vi.spyOn(mx, 'sendStateEvent').mockRejectedValue(refusal);
+    vi.spyOn(mx, 'createRoom').mockResolvedValue({ room_id: NEW_ROOM });
+    vi.spyOn(mx, 'sendStateEvent').mockRejectedValue(failure);
+    vi.spyOn(mx, 'getStateEvent').mockImplementation(async () => {
+      if (lookup instanceof Error) throw lookup;
+      return lookup;
+    });
     const leave = vi.spyOn(mx, 'leave');
     if (leaveFails) leave.mockRejectedValue(new Error('offline'));
     else leave.mockResolvedValue({});
     const forget = vi.spyOn(mx, 'forget').mockResolvedValue({});
     const space = new Room('!space:mindroom.test', mx, '@me:mindroom.test');
-    const create = (type?: RoomType) =>
+    const create = (data: Partial<CreateRoomData> = {}) =>
       createRoom(mx, {
-        type,
         name: 'Plans',
         parent: space,
         access: CreateRoomAccess.Restricted,
         knock: false,
         allowFederation: true,
+        ...data,
       });
-    return { refusal, leave, forget, create };
+    return { failure, leave, forget, create };
   };
 
   it.each([
     ['a room, as Create Room makes in a space,', undefined],
     ['a space, as Create Space makes in a space,', RoomType.Space],
   ])(
-    'leaves and forgets %s that the space does not list, and says it was not created',
+    'leaves and forgets %s that the space does not list, and rejects with the failure',
     async (_, type) => {
-      const { refusal, leave, forget, create } = refusingSpace();
+      const { failure, leave, forget, create } = linkFailing();
 
-      const created = create(type);
+      await expect(create({ type })).rejects.toBe(failure);
 
-      await expect(created).rejects.toThrow(
-        '"Plans" was not created, because it could not be listed under its parent: Not allowed'
-      );
-      await expect(created).rejects.toMatchObject({ cause: refusal });
-      expect(leave).toHaveBeenCalledWith('!new:mindroom.test');
-      expect(forget).toHaveBeenCalledWith('!new:mindroom.test');
+      expect(leave).toHaveBeenCalledWith(NEW_ROOM);
+      expect(forget).toHaveBeenCalledWith(NEW_ROOM);
       expect(forget.mock.invocationCallOrder[0]).toBeGreaterThan(
         leave.mock.invocationCallOrder[0]!
       );
     }
   );
 
-  it("keeps the link's error when it cannot leave the room it could not list either", async () => {
-    const { refusal, forget, create } = refusingSpace(true);
+  it('keeps a room the space lists, although the answer to listing it was lost', async () => {
+    const { leave, create } = linkFailing({
+      failure: new Error('Failed to fetch'),
+      lookup: { via: ['mindroom.test'] },
+    });
 
-    await expect(create()).rejects.toBe(refusal);
+    await expect(create()).resolves.toBe(NEW_ROOM);
+    expect(leave).not.toHaveBeenCalled();
+  });
+
+  it.each<[string, Parameters<typeof linkFailing>[0], Partial<CreateRoomData>]>([
+    ['the server cannot say whether the space lists it', { lookup: new Error('offline') }, {}],
+    [
+      'it is public, where anyone finds it and its address would stay taken',
+      {},
+      { access: CreateRoomAccess.Public, aliasLocalPart: 'plans' },
+    ],
+  ])('keeps the room, and rejects with the failure, when %s', async (_, server, data) => {
+    const { failure, leave, create } = linkFailing(server);
+
+    await expect(create(data)).rejects.toBe(failure);
+    expect(leave).not.toHaveBeenCalled();
+  });
+
+  it('rejects with the failure, forgetting nothing, when it cannot leave the room either', async () => {
+    const { failure, forget, create } = linkFailing({ leaveFails: true });
+
+    await expect(create()).rejects.toBe(failure);
     expect(forget).not.toHaveBeenCalled();
   });
 });

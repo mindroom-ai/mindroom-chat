@@ -268,6 +268,10 @@ describe('createSubRoom, when the parent does not list the new room', () => {
       listed.push(String(stateKey));
       return { event_id: '$child' };
     }) as never);
+    vi.spyOn(mx, 'getStateEvent').mockImplementation(async (_roomId, _type, stateKey) => {
+      if (listed.includes(stateKey)) return { via: ['example.org'] };
+      throw new MatrixError({ errcode: 'M_NOT_FOUND', error: 'Event not found' }, 404);
+    });
     vi.spyOn(mx, 'leave').mockImplementation(async (roomId) => {
       left.push(roomId);
       return {};
@@ -284,9 +288,7 @@ describe('createSubRoom, when the parent does not list the new room', () => {
   it('leaves no room behind when the link fails once, and trying again makes one listed room', async () => {
     const { parent, listed, hidden } = refusingLinks(1);
 
-    await expect(createAppSubRoom(parent, 'Ideas', undefined)).rejects.toThrow(
-      '"Ideas" was not created'
-    );
+    await expect(createAppSubRoom(parent, 'Ideas', undefined)).rejects.toThrow('Too many requests');
     expect(hidden()).toEqual([]);
     await expect(createAppSubRoom(parent, 'Ideas', undefined)).resolves.toBe('!new2:example.org');
 
@@ -294,15 +296,13 @@ describe('createSubRoom, when the parent does not list the new room', () => {
     expect(hidden()).toEqual([]);
   });
 
-  it('leaves no room behind, and says it was not created and why, when the link keeps failing', async () => {
+  it('leaves no room behind, and rejects with the failure, when the link keeps failing', async () => {
     const { parent, listed, hidden } = refusingLinks(Infinity);
 
-    const failure = createAppSubRoom(parent, 'Ideas', undefined);
-
-    await expect(failure).rejects.toThrow(
-      '"Ideas" was not created, because it could not be listed under its parent: Too many requests'
-    );
-    await expect(failure).rejects.toMatchObject({ cause: { errcode: 'M_LIMIT_EXCEEDED' } });
+    await expect(createAppSubRoom(parent, 'Ideas', undefined)).rejects.toMatchObject({
+      errcode: 'M_LIMIT_EXCEEDED',
+      httpStatus: 429,
+    });
     expect(listed).toEqual([]);
     expect(hidden()).toEqual([]);
   });
