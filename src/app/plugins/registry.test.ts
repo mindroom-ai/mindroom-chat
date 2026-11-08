@@ -71,6 +71,7 @@ const entries = vi.hoisted(() => {
             { id: 'unnamed', label: 1, Component },
             { id: 'empty', label: 'Empty' },
             { id: 'plain', label: 'Plain', Component, icon: 'Bulb' },
+            { id: 'top', label: 'Top', Component, placement: 'top' },
             rowPanel,
             { id: 'over', label: 'Over', Component, opensOverMembers: 'yes' },
             autoPanel,
@@ -84,7 +85,7 @@ const entries = vi.hoisted(() => {
             { id: 'unnamed', label: 1, icon, run },
             { id: 'plain', label: 'plain', icon: 'Smile', run },
             { id: 'idle', label: 'idle', icon },
-            // Only a side panel's toggle stays in the header's row on phones.
+            // Header actions take `auto` and `menu` only.
             { id: 'row', label: 'row', icon, run, placement: 'row' },
             autoAction,
           ],
