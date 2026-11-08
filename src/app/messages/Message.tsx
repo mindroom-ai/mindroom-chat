@@ -689,11 +689,18 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     const startEdit = () => onEditId?.(eventId);
     const dismissMenu = () => setMenuAnchor(undefined);
     // A right click opens the message's menu where the pointer is. A menu key has no press before
-    // it, so text selected then is the reader's.
+    // it, so text selected then is the reader's. Right clicks inside the row's own pop-outs and
+    // the dialogs their entries open, which React passes up through their portals, are not the
+    // row's: they keep the browser's menu.
     const openMenuAtPointer = (evt: MouseEvent<HTMLDivElement>) => {
       const selectedBefore = selectedAtMenuPress.current ?? true;
       selectedAtMenuPress.current = undefined;
-      if (edit || wantsBrowserMenu(evt.target, selectedBefore && hasSelectedText())) return;
+      if (
+        edit ||
+        !evt.currentTarget.contains(evt.target as Node) ||
+        wantsBrowserMenu(evt.target, selectedBefore && hasSelectedText())
+      )
+        return;
       evt.preventDefault();
       // The word the click selected would stay highlighted under the menu.
       if (hasSelectedText()) document.getSelection()?.removeAllRanges();
