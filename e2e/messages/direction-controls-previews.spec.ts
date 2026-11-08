@@ -9,6 +9,7 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
+import { openMessageMenu } from '../helpers/messageMenu';
 import {
   createDefaultThreadFilterState,
   joinRoom,
@@ -241,15 +242,9 @@ const shownNotifications = (page: Page) =>
 const messageRow = (page: Page, eventId: string): Locator =>
   page.locator(`[data-message-id="${eventId}"]`).first();
 
-/** Opens a message's menu from its row and starts a reply to it. */
-const replyTo = async (page: Page, target: Locator) => {
-  await target.scrollIntoViewIfNeeded();
-  const box = await target.boundingBox();
-  await target.dispatchEvent('contextmenu', {
-    button: 2,
-    clientX: (box?.x ?? 0) + 8,
-    clientY: (box?.y ?? 0) + 8,
-  });
+/** Opens a message's menu at `word` of its row and starts a reply to it. */
+const replyTo = async (page: Page, row: Locator, word: string, phone: boolean) => {
+  await openMessageMenu(page, row, word, phone);
   await page.getByRole('menuitem', { name: 'Reply', exact: true }).click({ timeout: 30_000 });
 };
 
@@ -328,12 +323,13 @@ const check = async (page: Page, world: World, label: string) => {
 
   // The composer's reply bar, for the message and for the file.
   const replyBar = page.getByRole('button', { name: 'Cancel reply' }).locator('xpath=..');
-  await replyTo(page, messageRow(page, rootId).getByText(/^Rename the report/));
+  const phone = label.endsWith('phone');
+  await replyTo(page, messageRow(page, rootId), 'Rename', phone);
   await expectShown(replyBar, PLAIN_SHOWN);
   await shot(page, `${label}-composer-reply-message`);
   await page.getByRole('button', { name: 'Cancel reply' }).click();
   await expect(replyBar).toBeHidden();
-  await replyTo(page, messageRow(page, fileId).getByText(FILE_NAME_SHOWN).first());
+  await replyTo(page, messageRow(page, fileId), 'quarterly', phone);
   await expectShown(replyBar, FILE_NAME_SHOWN);
   await shot(page, `${label}-composer-reply-file`);
   await page.getByRole('button', { name: 'Cancel reply' }).click();

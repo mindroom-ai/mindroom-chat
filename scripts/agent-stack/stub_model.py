@@ -12,6 +12,7 @@ The person's latest message picks a scenario by hashtag:
   #markdown    a table, a code block and a list
   #error       the provider answers 500
   #shell       one shell call         #multi   three shell calls
+  #pause       two shell calls, with 3.5 s of thinking before the second
   #approve     a shell call that needs approval (the backend's approval script looks for needs-approval)
   #bidi        the same, its command holding a right-to-left override (U+202E ... U+202C)
   #title       set_thread_summary      #tag     tag_thread      #resolve   resolve_thread (needs approval)
@@ -60,12 +61,20 @@ CANVAS_PAGE = (
     " window.mindroom.submit({color: id});</script></body></html>"
 )
 
+# A tool step's arguments may hold this key: how long, in seconds, the model thinks before the call. It is not sent.
+THINK_SECONDS = "_think_seconds"
+
 TOOL_SCENARIOS: dict[str, list[tuple[str, dict]]] = {
     "#shell": [("run_shell_command", {"args": "echo hello from the stub"})],
     "#multi": [
         ("run_shell_command", {"args": "echo step one"}),
         ("run_shell_command", {"args": "sleep 10; echo step two"}),
         ("run_shell_command", {"args": "echo step three"}),
+    ],
+    # Longer between the calls than the client's jobs bar holds a finished call.
+    "#pause": [
+        ("run_shell_command", {"args": "sleep 1; echo first step"}),
+        ("run_shell_command", {"args": "sleep 1; echo second step", THINK_SECONDS: 3.5}),
     ],
     "#approve": [("run_shell_command", {"args": "echo needs-approval: deploy the stub"})],
     "#bidi": [("run_shell_command", {"args": "echo needs-approval hello \u202e; echo pwned-by-bidi #\u202c done"})],
@@ -332,10 +341,16 @@ class Stub:
                 step = ("text", f"The stub could not read its scenarios: {error}")
             else:
                 step = plan(body, scenarios)
+        think = 0.0
+        if step[0] == "tool" and THINK_SECONDS in step[2]:
+            think = float(step[2][THINK_SECONDS])
+            step = ("tool", step[1], {key: value for key, value in step[2].items() if key != THINK_SECONDS})
         entry["plan"] = (
             list(step[:3]) if step[0] == "tool" else [step[0], str(step[1])[:200] if len(step) > 1 else ""]
         )
         self.record(entry)
+        if think:
+            await asyncio.sleep(think)
 
         if step[0] == "error":
             return web.json_response(

@@ -18,6 +18,7 @@ import {
 } from '@tanstack/react-virtual';
 import { threadScrollRange } from './threadScrollRange';
 import { useClampedCorrectionFinish } from './clampedScrollCorrection';
+import { listShrinkAfterResize } from './useListEndClamp';
 import { countCacheProbe } from '../event-store/cache/cacheProbe';
 import { createBatchedMeasurementRef, createScrollMountMeasurement } from './batchedMeasurementRef';
 import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
@@ -621,9 +622,11 @@ export const useTimelineScrollLedgerController = ({
   // correction for a frame. Render them in a microtask, before the paint, and
   // until then let the hook judge rows in the layout React rendered.
   const unrenderedCorrectionPxRef = useRef(0);
+  // The part of those that kept the reader at the list's end, which moved no row.
+  const unrenderedEndCorrectionPxRef = useRef(0);
   const measurementCorrectionPxRef = useRef(0);
   const noteAppliedCorrection = useClampedCorrectionFinish(getScrollElement);
-  const handleAppliedCorrection = useCallback((deltaPx: number) => {
+  const handleAppliedCorrection = useCallback((deltaPx: number, atEnd: boolean) => {
     noteAppliedCorrection(deltaPx);
     // virtual-core writes this correction itself, so the view moves without the compositor: a
     // move back toward the pre-settle offset is no discarded settle any more (a row above that
@@ -639,8 +642,10 @@ export const useTimelineScrollLedgerController = ({
       });
     }
     unrenderedCorrectionPxRef.current += deltaPx;
+    if (atEnd) unrenderedEndCorrectionPxRef.current += deltaPx;
   }, [noteAppliedCorrection]);
   const unrenderedCorrectionPx = useCallback(() => unrenderedCorrectionPxRef.current, []);
+  const unrenderedEndCorrectionPx = useCallback(() => unrenderedEndCorrectionPxRef.current, []);
   const readMeasurementCorrectionPx = useCallback(() => measurementCorrectionPxRef.current, []);
   // A row that changes size where the reader sees it moves the rows after it, which virtual-core
   // also renders in React's next task: for a frame the next row is drawn over a growing row, or
@@ -657,6 +662,7 @@ export const useTimelineScrollLedgerController = ({
   const unrenderedRowMove = useCallback(() => unrenderedRowMoveRef.current, []);
   useInsertionEffect(() => {
     unrenderedCorrectionPxRef.current = 0;
+    unrenderedEndCorrectionPxRef.current = 0;
     unrenderedRowMoveRef.current = false;
   });
 
@@ -815,6 +821,15 @@ export const useTimelineScrollLedgerController = ({
       viewportTopOffset: readerTopOffset,
       onAppliedCorrection: handleAppliedCorrection,
       unrenderedCorrectionPx,
+      unrenderedEndCorrectionPx,
+      listEndShrinkPx: (index, deltaPx) =>
+        listShrinkAfterResize(
+          virtualInnerRef.current,
+          virtualizer.measurementsCache,
+          rowFoldPxRef.current,
+          index,
+          deltaPx
+        ),
     });
     return (...args: Parameters<typeof decide>): boolean => {
       dropped = false;
@@ -835,6 +850,8 @@ export const useTimelineScrollLedgerController = ({
     readerTopOffset,
     renderRowMoveBeforePaint,
     unrenderedCorrectionPx,
+    unrenderedEndCorrectionPx,
+    virtualizer,
   ]);
 
   useLayoutEffect(() => {

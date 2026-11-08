@@ -424,7 +424,8 @@ export function MLocation({ content }: { content: MessageContent }) {
   const body = readString(content.body);
   return (
     <Box direction="Column" alignItems="Start" gap="100">
-      {body && <Text size="T400">{body}</Text>}
+      {/* The description shows its direction controls, as message text does. */}
+      {body && <Text size="T400">{revealDirectionControls(body)}</Text>}
       <Text
         size="T300"
         as="a"
