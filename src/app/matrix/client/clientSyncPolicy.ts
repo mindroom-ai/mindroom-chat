@@ -1,6 +1,7 @@
 import { Filter, MatrixClient, type IStartClientOpts } from 'matrix-js-sdk';
 import { buildFeatureSupportMap, Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { readCachedSpecVersions } from '../cachedSpecVersions';
+import { keepUnthreadedReceiptEvents } from '../receiptReadTs';
 import { getSafeLocalStorage, removeStorageItemSafe } from '../../lib/safeLocalStorage';
 import { dropRoomsForgottenElsewhere } from './roomsForgottenElsewhere';
 import { keepBundledEditsInTheirRoom } from './bundledEditRoom';
@@ -98,6 +99,7 @@ export const startClient = async (
     keepRedactionsInSavedSync(mx);
     dropRoomsForgottenElsewhere(mx);
     keepSyncedEdits(mx);
+    keepUnthreadedReceiptEvents(mx);
     keepEncryptedRoomCounts(mx);
     keepUnsentMessages(mx);
   }
