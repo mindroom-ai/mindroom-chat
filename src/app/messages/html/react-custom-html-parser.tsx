@@ -149,13 +149,15 @@ const roomName = (mx: MatrixClient, roomIdOrAlias: string): string => {
     ? getCanonicalAliasRoomId(mx, roomIdOrAlias)
     : roomIdOrAlias;
   const room = roomId ? mx.getRoom(roomId) : undefined;
-  return room?.name ? `#${revealDirectionControls(room.name)}` : roomIdOrAlias;
+  return revealDirectionControls(room?.name ? `#${room.name}` : roomIdOrAlias);
 };
 
 /**
  * The name of a mentioned user, as `@display name` once the room knows them, else their ID. A room
  * that loads its members lazily may not know them yet (an agent that has not spoken): the name then
- * follows as soon as the members arrive.
+ * follows as soon as the members arrive. The name is the one the room shows for their messages
+ * (`getMemberDisplayName`: without direction controls, with the ID after a name that held some);
+ * an ID comes from the link, which can name any ID, so it shows its controls as code points.
  */
 function UserMentionName({
   client,
@@ -167,7 +169,7 @@ function UserMentionName({
   userId: string;
 }) {
   const name = useMemberDisplayName(client, room, userId);
-  return <>{name ? `@${name}` : userId}</>;
+  return <>{name ? `@${name}` : revealDirectionControls(userId)}</>;
 }
 
 /**
@@ -191,7 +193,7 @@ function MessageLinkLabel({
   const place = room?.name
     ? `#${revealDirectionControls(room.name)}`
     : isAlias
-    ? roomIdOrAlias
+    ? revealDirectionControls(roomIdOrAlias)
     : undefined;
   if (!place) return <>{t('sharedUi.messageLink.messageElsewhere')}</>;
   const inThread = !!room?.getThread(eventId) || !!room?.findEventById(eventId)?.threadRootId;
