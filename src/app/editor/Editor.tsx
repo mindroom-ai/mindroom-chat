@@ -31,6 +31,7 @@ import { mxcUrlToHttp } from '../matrix/mediaUrl';
 import { findShortcut, usesCommandKey } from '../shortcuts/shortcuts';
 import { openOverlay } from '../shortcuts/shortcutDom';
 import { hasShortcutHandler } from '../shortcuts/useShortcut';
+import { revealDirectionControls } from '../ui/directional';
 
 const emptyDocument: Descendant[] = [createParagraphElement()];
 
@@ -101,7 +102,8 @@ function InlineAtom({
   let label: string;
   let highlight = false;
   if (element.type === BlockType.Mention) {
-    label = element.name;
+    // The label is text the message sends, such as one an edited message already holds.
+    label = revealDirectionControls(element.name);
     highlight = element.highlight;
   } else if (element.type === BlockType.PasteMarker) {
     label = element.fileName;
