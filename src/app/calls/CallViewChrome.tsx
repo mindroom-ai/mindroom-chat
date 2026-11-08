@@ -195,22 +195,20 @@ export function CallViewChrome(props: CallViewChromeProps) {
       )}
     </div>
   );
-  const panelClass = classNames(css.Panel, frame && css.InWindow);
   // The docked panel is a landmark named by the call; in the floating window, which is one and
   // takes its name from the title, the frame is none.
   const Shell = frame ? 'div' : 'section';
-  const shellLabel = frame ? undefined : title;
 
   // Minimize and Expand go with the line they are on; the focus they had moves to the handle that
   // takes their place rather than to the page.
-  const sectionRef = useRef<HTMLDivElement>(null);
+  const handleRef = useRef<HTMLDivElement>(null);
   const inBar = !!frame?.bar;
   const wasBar = useRef(inBar);
   useEffect(() => {
     if (wasBar.current === inBar) return;
     wasBar.current = inBar;
     if (document.activeElement && document.activeElement !== document.body) return;
-    sectionRef.current?.querySelector<HTMLElement>('[data-call-window-handle]')?.focus();
+    handleRef.current?.focus();
   }, [inBar]);
 
   // The view Dock, Float or the rail's call button asked for takes the focus their button had,
@@ -222,22 +220,17 @@ export function CallViewChrome(props: CallViewChromeProps) {
     setHandOff(undefined);
     const focused = document.activeElement;
     if (focused && focused !== document.body && focused !== handOff.from) return;
-    const target =
-      place === 'window'
-        ? sectionRef.current?.querySelector<HTMLElement>('[data-call-window-handle]')
-        : titleRef.current;
-    target?.focus();
+    (place === 'window' ? handleRef : titleRef).current?.focus();
   }, [handOff, place, setHandOff]);
 
-  if (frame?.bar) {
-    return (
-      <Shell
-        ref={sectionRef}
-        className={panelClass}
-        aria-label={shellLabel}
-        data-testid="call-panel"
-      >
-        <div className={css.Bar} {...frame.handleProps}>
+  return (
+    <Shell
+      className={classNames(css.Panel, frame && css.InWindow)}
+      aria-label={frame ? undefined : title}
+      data-testid="call-panel"
+    >
+      {frame?.bar ? (
+        <div ref={handleRef} className={css.Bar} {...frame.handleProps}>
           {bar?.faces}
           {heading}
           {bar?.controls}
@@ -256,33 +249,36 @@ export function CallViewChrome(props: CallViewChromeProps) {
             />
           )}
         </div>
-      </Shell>
-    );
-  }
-  return (
-    <Shell ref={sectionRef} className={panelClass} aria-label={shellLabel} data-testid="call-panel">
-      <header className={classNames(css.Header, frame && css.WindowHeader)} {...frame?.handleProps}>
-        {heading}
-        <div className={css.HeaderButtons}>
-          {actions}
-          {/* Phones show the call view in the room's side panel only. */}
-          {!phone && (frame ? <DockButton home={home} /> : <FloatButton />)}
-          {frame && (
-            <TitleButton
-              label={t('featureUi.calls.window.minimize')}
-              icon={Icons.Minus}
-              onClick={frame.minimize}
-            />
-          )}
-          <TitleButton
-            label={t('featureUi.calls.panel.close')}
-            icon={Icons.Cross}
-            onClick={onClose}
-          />
-        </div>
-      </header>
-      <div className={css.Body}>{children}</div>
-      {footer}
+      ) : (
+        <>
+          <header
+            ref={handleRef}
+            className={classNames(css.Header, frame && css.WindowHeader)}
+            {...frame?.handleProps}
+          >
+            {heading}
+            <div className={css.HeaderButtons}>
+              {actions}
+              {/* Phones show the call view in the room's side panel only. */}
+              {!phone && (frame ? <DockButton home={home} /> : <FloatButton />)}
+              {frame && (
+                <TitleButton
+                  label={t('featureUi.calls.window.minimize')}
+                  icon={Icons.Minus}
+                  onClick={frame.minimize}
+                />
+              )}
+              <TitleButton
+                label={t('featureUi.calls.panel.close')}
+                icon={Icons.Cross}
+                onClick={onClose}
+              />
+            </div>
+          </header>
+          <div className={css.Body}>{children}</div>
+          {footer}
+        </>
+      )}
     </Shell>
   );
 }
