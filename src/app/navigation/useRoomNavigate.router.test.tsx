@@ -16,8 +16,8 @@ afterEach(cleanup);
 
 /**
  * Goes to a plugin's page, opens the thread from there, and leaves it for the address it recorded,
- * as a thread's Back does where it cannot step back in history: in the iOS app, or once a reload
- * has forgotten what came before.
+ * as a thread's Back does when it neither steps back in history nor knows the page before: in the
+ * iOS app or an iOS home-screen web app, after a reload.
  */
 function Thread() {
   const { pathname, search } = useLocation();
