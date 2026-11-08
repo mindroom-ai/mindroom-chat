@@ -5,19 +5,20 @@ import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../ui/sidebar/Si
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useRoomName } from '../matrix/hooks/useRoomMeta';
 import { callHomeRoomId, callPanelRoomAtom, useCallState, type ActiveCall } from './callStore';
-import { useCallViewFloats, useExpandCallWindow } from './window/callWindowState';
+import { focusHandOffAtom, useCallViewFloats, useExpandCallWindow } from './window/callWindowState';
 import * as css from './CallTab.css';
 import { revealDirectionControls } from '../ui/directional';
 
 /**
  * The rail's green call button: the call view, open. On desktop the floating window shows over
- * the page the person is on, out of its bar; docked, and on phones, the button goes back to the
- * call's conversation with its panel open.
+ * the page the person is on, out of its bar, and the button's focus goes to the window's handle;
+ * docked, and on phones, the button goes back to the call's conversation with its panel open.
  */
 export function ActiveCallTab({ active }: { active: ActiveCall }) {
   const { t } = useTranslation();
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const setPanelRoom = useSetAtom(callPanelRoomAtom);
+  const setFocusHandOff = useSetAtom(focusHandOffAtom);
   const floats = useCallViewFloats();
   const expandWindow = useExpandCallWindow();
   const state = useCallState(active.call);
@@ -29,6 +30,7 @@ export function ActiveCallTab({ active }: { active: ActiveCall }) {
   const open = () => {
     setPanelRoom(homeRoomId);
     if (floats) {
+      setFocusHandOff({ to: 'window', from: document.activeElement });
       expandWindow();
       return;
     }

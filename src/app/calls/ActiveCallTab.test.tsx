@@ -8,6 +8,7 @@ import { callPanelRoomAtom, type ActiveCall } from './callStore';
 import type { CallState } from './RoomCall';
 import {
   clearCallWindowStore,
+  focusHandOffAtom,
   getCallWindowSettingsAtom,
   type CallWindowSettings,
 } from './window/callWindowState';
@@ -86,6 +87,28 @@ describe("the rail's call button", () => {
     openCall();
     expect(settings().rect).toEqual(rect);
     expect(navigation.navigateRoomThread).not.toHaveBeenCalled();
+  });
+
+  it("hands its focus to the floating window's handle, and only there", () => {
+    store.set(getCallWindowSettingsAtom(USER), { mode: 'floating', rect: bar });
+    renderTab();
+    const button = screen.getByRole('button', { name: 'Return to the call in Call with Helper' });
+    button.focus();
+    openCall();
+    expect(store.get(focusHandOffAtom)).toEqual({ to: 'window', from: button });
+    cleanup();
+
+    for (const [mode, size] of [
+      ['docked', 'Desktop'],
+      ['floating', 'Mobile'],
+    ] as const) {
+      store = createStore();
+      store.set(getCallWindowSettingsAtom(USER), { mode, rect: bar });
+      renderTab(size);
+      openCall();
+      expect(store.get(focusHandOffAtom)).toBeUndefined();
+      cleanup();
+    }
   });
 
   it('goes back to the conversation while docked, and on phones', () => {

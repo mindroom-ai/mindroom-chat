@@ -40,7 +40,7 @@ Out, with reasons:
 
 - The header call buttons, a ring's Answer, a started call and the rail's call button set `callPanelRoomAtom` as today, so they open the window in floating mode.
 - Close (X, "Close call view") clears `callPanelRoomAtom` as today: the call goes on, the rail's call button brings the window back. The focus Close had goes to the room's call button on the page, else to the page's main content, as after End.
-- The rail's call button in floating mode opens the window and expands it when minimized; it does not navigate. In docked mode it navigates as today.
+- The rail's call button in floating mode opens the window and expands it when minimized; it does not navigate. Its focus goes to the window's handle once the window shows, as Float's does. In docked mode it navigates as today.
 - Dock (in the window) sets `docked` and navigates to the call view's room (and the agent call's origin thread) when another route is open, so the docked panel is seen. Float (in the docked panel) sets `floating`; the window opens at its remembered place.
 - A room that is gone (`mx.getRoom` answers null) shows no window.
 

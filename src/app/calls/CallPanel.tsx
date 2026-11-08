@@ -261,14 +261,13 @@ function PanelShell(props: PanelShellProps) {
     sectionRef.current?.querySelector<HTMLElement>('[data-call-window-handle]')?.focus();
   }, [inBar]);
 
-  // The view Dock or Float asked for takes the focus their button had, unless something else
-  // took it meanwhile.
-  const store = useStore();
+  // The view Dock, Float or the rail's call button asked for takes the focus their button had,
+  // unless something else took it meanwhile: when it mounts, or at once when it shows already.
+  const [handOff, setHandOff] = useAtom(focusHandOffAtom);
   const place = frame ? 'window' : 'panel';
   useEffect(() => {
-    const handOff = store.get(focusHandOffAtom);
     if (handOff?.to !== place) return;
-    store.set(focusHandOffAtom, undefined);
+    setHandOff(undefined);
     const focused = document.activeElement;
     if (focused && focused !== document.body && focused !== handOff.from) return;
     const target =
@@ -276,7 +275,7 @@ function PanelShell(props: PanelShellProps) {
         ? sectionRef.current?.querySelector<HTMLElement>('[data-call-window-handle]')
         : titleRef.current;
     target?.focus();
-  }, [place, store]);
+  }, [handOff, place, setHandOff]);
 
   if (frame?.bar) {
     return (

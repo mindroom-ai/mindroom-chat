@@ -9,6 +9,8 @@ import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { callPanelRoomAtom, type ActiveCall } from './callStore';
 import type { CallDeviceKind, CallDevices, CallParticipant, CallState } from './RoomCall';
 import { CallPanel } from './CallPanel';
+import { ActiveCallTab } from './ActiveCallTab';
+import { FloatingCallWindow } from './window/FloatingCallWindow';
 import {
   CallWindowFrameContext,
   CallWindowSizeContext,
@@ -588,6 +590,64 @@ describe('the focus after Dock and Float', () => {
     renderPanel();
     expect(document.activeElement).toBe(elsewhere);
     elsewhere.remove();
+  });
+});
+
+describe("the focus after the rail's call button", () => {
+  const handle = () => screen.getByRole('group', { name: 'Move call window' });
+  const rail = () => screen.getByRole('button', { name: 'Return to the call in Standup' });
+  const pressRail = () => {
+    rail().focus();
+    fireEvent.click(rail());
+  };
+  const renderRail = () =>
+    render(
+      <Provider store={store}>
+        <ScreenSizeProvider value="Desktop">
+          <ActiveCallTab active={calls.active!} />
+        </ScreenSizeProvider>
+      </Provider>
+    );
+
+  it("goes to the window's handle when the button opens the window", () => {
+    roomCall([me, person('@ana:panel.test')]);
+    renderRail();
+    pressRail();
+    // The window opens with the call view in it.
+    render(panel({ frame: frame() }));
+    expect(document.activeElement).toBe(handle());
+  });
+
+  it('goes to the handle of a window that shows already', () => {
+    roomCall([me, person('@ana:panel.test')]);
+    renderRail();
+    renderPanel({ frame: frame() });
+    pressRail();
+    expect(document.activeElement).toBe(handle());
+  });
+
+  it('goes to the handle of a window the button expands from its bar', () => {
+    roomCall([me, person('@ana:panel.test')]);
+    const bar = { x: 600, y: 704, width: 400, height: 56 };
+    store.set(getCallWindowSettingsAtom(USER), { mode: 'floating', rect: bar });
+    renderRail();
+    render(
+      <Provider store={store}>
+        <ScreenSizeProvider value="Desktop">
+          <MemoryRouter>
+            <FloatingCallWindow>
+              <CallPanel room={room} onClose={onClose} />
+            </FloatingCallWindow>
+          </MemoryRouter>
+        </ScreenSizeProvider>
+      </Provider>
+    );
+    const callWindow = screen.getByTestId('call-window');
+    expect(callWindow.hasAttribute('data-bar')).toBe(true);
+
+    pressRail();
+    expect(callWindow.hasAttribute('data-bar')).toBe(false);
+    expect(document.activeElement).toBe(handle());
   });
 });
 

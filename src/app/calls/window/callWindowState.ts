@@ -186,9 +186,10 @@ export const useCallViewFloats = (): boolean => {
 };
 
 /**
- * Dock and Float move the call view to the other place, where it mounts anew: the focus their
- * button had goes to the title bar there (`to`) rather than to the page. `from` is that button,
- * which may stay a moment while the docked panel it was in moves out.
+ * Dock and Float move the call view to the other place, where it mounts anew, and the rail's call
+ * button opens the floating window or brings it out of its bar: the focus their button had goes
+ * to the title bar there (`to`) rather than to the page or staying on the rail. `from` is that
+ * button, which may stay a moment while the docked panel it was in moves out.
  */
 export type FocusHandOff = { to: 'window' | 'panel'; from: Element | null };
 export const focusHandOffAtom = atom<FocusHandOff | undefined>(undefined);
