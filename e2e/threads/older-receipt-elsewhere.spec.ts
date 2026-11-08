@@ -147,13 +147,19 @@ const cards = (page: Page, world: World) =>
     })
   );
 
-/** The overview's cards and the server's counts in one line, so a failure shows both. */
+/**
+ * The overview's cards, the client's count in the page title and the server's counts in one line,
+ * so a failure shows all of them. The title's count comes with the sync that brought the receipt,
+ * so the cards cannot pass before the client knows of it.
+ */
 const overviewState = async (page: Page, world: World) => {
-  const [[question, catering, travel], counts] = await Promise.all([
+  const [[question, catering, travel], counts, title] = await Promise.all([
     cards(page, world),
     serverCounts(world),
+    page.title(),
   ]);
-  return `question ${question}, catering ${catering}, travel ${travel}; server main ${counts.main}, thread ${counts.thread}`;
+  const client = /^\((\d+)\)/.exec(title)?.[1] ?? '0';
+  return `question ${question}, catering ${catering}, travel ${travel}; client ${client}; server main ${counts.main}, thread ${counts.thread}`;
 };
 
 /** The number on the room's badge in the room list, or 0 without one. */
@@ -206,19 +212,19 @@ const check = async (
     await openOverview(page, world);
     await expect
       .poll(() => overviewState(page, world), { timeout: 30_000 })
-      .toBe('question unread, catering unread, travel unread; server main 3, thread 3');
+      .toBe('question unread, catering unread, travel unread; client 6; server main 3, thread 3');
 
     // Another device read the room up to the question's first answer, after every later event.
     await readElsewhere(world, world.firstAnswerId);
     await expect
       .poll(() => overviewState(page, world), { timeout: 30_000 })
-      .toBe('question unread, catering unread, travel unread; server main 2, thread 2');
+      .toBe('question unread, catering unread, travel unread; client 4; server main 2, thread 2');
 
     // Then the main timeline up to the caterers' message, before the travel message.
     await readElsewhere(world, world.cateringId, 'main');
     await expect
       .poll(() => overviewState(page, world), { timeout: 30_000 })
-      .toBe('question unread, catering read, travel unread; server main 1, thread 2');
+      .toBe('question unread, catering read, travel unread; client 3; server main 1, thread 2');
     await expectRoomListCount(page, world, phone, 3);
 
     // A reload knows the receipts only from the saved sync and the server.
@@ -227,7 +233,7 @@ const check = async (
     if (phone) await openOverview(page, world);
     await expect
       .poll(() => overviewState(page, world), { timeout: 30_000 })
-      .toBe('question unread, catering read, travel unread; server main 1, thread 2');
+      .toBe('question unread, catering read, travel unread; client 3; server main 1, thread 2');
   } finally {
     await context.close();
   }
