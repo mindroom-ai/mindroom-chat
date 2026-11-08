@@ -47,8 +47,10 @@ IMPORTS = re.compile(
 )
 MIN_LEN, MIN_RUN = 8, 3
 SNAPSHOT_TAGS = ["v1.8.2", "v2.2.6", "v3.2.0", "v4.0.0", "v4.10.2", "v4.12.8"]
-# The user's cache directory, the same from every shell (nix develop gives each shell its own TMPDIR).
-CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "upstream-overlap"
+# The user's cache directory, the same from every shell (nix develop gives each shell its own TMPDIR). A relative
+# XDG_CACHE_HOME is ignored, as the XDG Base Directory specification says; it would put upstream lines in the checkout.
+XDG_CACHE = Path(os.environ.get("XDG_CACHE_HOME", ""))
+CACHE = (XDG_CACHE if XDG_CACHE.is_absolute() else Path.home() / ".cache") / "upstream-overlap"
 
 
 def git(repo, *args, text=True):
