@@ -23,14 +23,10 @@ vi.mock('folds', () => ({
     React.forwardRef(render),
   color: {
     Critical: { Main: '#f00' },
-    Warning: { Main: '#fc0' },
   },
   config: {
     opacity: {
       P300: '0.6',
-    },
-    space: {
-      S200: '8px',
     },
   },
 }));
@@ -105,10 +101,6 @@ vi.mock('../renderAgentMessageContent', () => ({
 
 vi.mock('../../../ui/PendingSendIndicator.css', () => ({
   Container: 'PendingSendIndicator',
-}));
-
-vi.mock('../../../matrix/protocol/longText', () => ({
-  getLongTextSource: () => undefined,
 }));
 
 vi.mock('../../../matrix/hooks/useMatrixClient', () => ({
