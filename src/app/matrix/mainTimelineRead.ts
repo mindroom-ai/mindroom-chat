@@ -2,16 +2,17 @@ import { ReceiptType, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { isSeenThreadRoot } from './seenThreadRoots';
 import { isUnmarkedNotice } from './protocol/conversationNotice';
 import { hasActiveMindroomAgent } from './protocol/agentIdentity';
-import { receiptReadTs, unthreadedReceiptReadTs } from './receiptReadTs';
+import { contextReceiptReadTs, receiptReadTs } from './receiptReadTs';
 
 /**
  * When the user last read the room's main timeline: the newest of the events their main and
- * unthreaded receipts, public or private, name (`receiptReadTs`). The server reads the main
- * timeline up to that event, wherever it is: an unthreaded receipt often names a thread reply,
- * which the main timeline does not hold.
+ * unthreaded receipts, public or private, name (`contextReceiptReadTs`), and the receipts the SDK
+ * keeps for it, its own local echoes included. The server reads the main timeline up to that
+ * event, wherever it is: an unthreaded receipt often names a thread reply, which the main timeline
+ * does not hold.
  */
 export const getMainTimelineReadTs = (room: Room, userId: string): number => {
-  let readTs = unthreadedReceiptReadTs(room, userId) ?? Number.NEGATIVE_INFINITY;
+  let readTs = contextReceiptReadTs(room, userId) ?? Number.NEGATIVE_INFINITY;
   [ReceiptType.Read, ReceiptType.ReadPrivate].forEach((type) => {
     [false, true].forEach((ignoreSynthesized) => {
       // Optional call: room stand-ins in tests often have no receipts.

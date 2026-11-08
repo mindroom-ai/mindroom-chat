@@ -592,6 +592,34 @@ describe('unread counts of an encrypted room', () => {
     expect([f.room().getRoomUnreadNotificationCount(), f.threadCount()]).toEqual([2, 2]);
   });
 
+  // P3-lane2-F001: the SDK keeps one receipt for the main timeline, so a stale device's older
+  // unthreaded receipt, on a reply in a thread and taken later, replaced a newer main receipt
+  // and the messages between came back as unread. The server keeps both and only lowers counts.
+  it('keep the main timeline read up to a main receipt when an older unthreaded one comes later', async () => {
+    const reply = (eventId: string, ts: number) =>
+      plain(eventId, OTHER, ts, { rel_type: 'm.thread', event_id: ROOT });
+    const f = await fixture(true);
+    await f.deliver(
+      [
+        plain(ROOT, OTHER, 10),
+        reply('$a1', 11),
+        plain('$m1', OTHER, 12),
+        reply('$a2', 13),
+        plain('$m2', OTHER, 14),
+      ],
+      [otherThreadReceipt]
+    );
+    expect([f.room().getRoomUnreadNotificationCount(), f.threadCount()]).toEqual([3, 2]);
+
+    const readMain = { $m2: { 'm.read': { [ME]: { ts: 20, thread_id: 'main' } } } };
+    await f.deliver([], [{ type: 'm.receipt', content: readMain }]);
+    expect([f.room().getRoomUnreadNotificationCount(), f.threadCount()]).toEqual([0, 2]);
+
+    const readFirstAnswer = { $a1: { 'm.read': { [ME]: { ts: 21 } } } };
+    await f.deliver([], [{ type: 'm.receipt', content: readFirstAnswer }]);
+    expect([f.room().getRoomUnreadNotificationCount(), f.threadCount()]).toEqual([0, 1]);
+  });
+
   it('do not count streaming edits a new session cannot decrypt', async () => {
     const f = await fixture(true);
     // A reply in the room's main timeline (a room in room mode), read at its start.
