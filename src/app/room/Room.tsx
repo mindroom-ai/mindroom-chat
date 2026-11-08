@@ -1,10 +1,13 @@
 import {
   type ComponentProps,
+  type CSSProperties,
   type ReactNode,
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
@@ -17,11 +20,13 @@ import { useRoom } from '../matrix/hooks/useRoom';
 import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
 import { usePowerLevels, PowerLevelsContextProvider } from '../matrix/hooks/usePowerLevels';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
+import { useInert } from '../lib/hooks/useInert';
 import { useClientConfig } from '../config/useClientConfig';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
 import { settingsModalAtom } from '../navigation/settingsModal';
+import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { MembersDrawer } from '../members/MembersDrawer';
 import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import { useMembersDrawer } from '../members/useMembersDrawer';
@@ -134,6 +139,17 @@ const HeaderCallMenuEntries = lazyPart(() =>
 /** The call panel fits two tiles side by side; wider, it fits more. A plugin's panel opens as wide. */
 const CALL_DEFAULT_WIDTH = 400;
 const CALL_MAX_WIDTH = 1200;
+
+const CONVERSATION_STYLE: CSSProperties = { minWidth: 0 };
+// Behind a side panel in its place, the conversation takes no room in the row but stays as it was
+// laid out, its scroll position too (`content-visibility`); a browser without that lays it out with
+// no width, clipped.
+const HIDDEN_CONVERSATION_STYLE: CSSProperties = {
+  ...CONVERSATION_STYLE,
+  flex: '0 0 0',
+  overflow: 'hidden',
+  contentVisibility: 'hidden',
+};
 
 /** A canvas on screen and the conversation it was opened in. */
 type ShownCanvas = { event: MatrixEvent; conversation: string };
@@ -545,7 +561,22 @@ function RoomContent() {
   useCanvasOpenRequest(client, room, canvasEnabled, openRequestedCanvas);
 
   // On phones a panel covers the conversation; filling the room, it takes the conversation's place.
-  const conversationHidden = !!shown?.covers || layout === 'filled';
+  // The conversation stays mounted under it, with its draft and a recording in progress, out of
+  // reach and out of sight (conversationBehindPanelAtom), as under a plugin's cover.
+  const behindPanel = !!shown?.covers || layout === 'filled';
+  const conversationRef = useRef<HTMLDivElement>(null);
+  useInert(conversationRef, behindPanel);
+  const setBehindPanel = useSetAtom(conversationBehindPanelAtom);
+  useLayoutEffect(() => {
+    if (!behindPanel) return undefined;
+    setBehindPanel(true);
+    // Focus left in it, as in the composer when a click on Fill does not take the focus (Safari),
+    // goes: a browser need not move it off an element that turns inert, and keys would reach it.
+    const box = conversationRef.current;
+    const focused = box?.ownerDocument.activeElement;
+    if (focused && box?.contains(focused)) (focused as HTMLElement).blur();
+    return () => setBehindPanel(false);
+  }, [behindPanel, setBehindPanel]);
 
   const onThreadLoadError = useRoomThreadRouteGuards({
     eventId,
@@ -553,7 +584,7 @@ function RoomContent() {
     threadId: routedThreadId,
     viewMode,
   });
-  useRoomEscapeReadReceipts({ conversationHidden, hideActivity, roomId, threadId });
+  useRoomEscapeReadReceipts({ hideActivity, roomId, threadId });
 
   const powerLevels = usePowerLevels(room);
   // The header's side panel controls, whose state the room owns, and the plugins' actions.
@@ -594,21 +625,24 @@ function RoomContent() {
   return (
     <PowerLevelsContextProvider value={powerLevels}>
       <ChatUiActionContext.Provider value={uiActions}>
-        {!conversationHidden && (
-          <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
-            <RoomMessageAnnouncer room={room} threadId={routedThreadId} myUserId={ownUserId} />
-            <RoomView
-              room={room}
-              eventId={eventId}
-              threadId={routedThreadId}
-              focusEventInRoom={focusEventInRoom}
-              hasMindroomAgents={hasMindroomAgents}
-              joinRequestCount={joinRequestCount}
-              onThreadLoadError={onThreadLoadError}
-              {...headerPanels}
-            />
-          </Box>
-        )}
+        <Box
+          ref={conversationRef}
+          grow="Yes"
+          direction="Column"
+          style={behindPanel ? HIDDEN_CONVERSATION_STYLE : CONVERSATION_STYLE}
+        >
+          <RoomMessageAnnouncer room={room} threadId={routedThreadId} myUserId={ownUserId} />
+          <RoomView
+            room={room}
+            eventId={eventId}
+            threadId={routedThreadId}
+            focusEventInRoom={focusEventInRoom}
+            hasMindroomAgents={hasMindroomAgents}
+            joinRequestCount={joinRequestCount}
+            onThreadLoadError={onThreadLoadError}
+            {...headerPanels}
+          />
+        </Box>
         {sidePanel}
       </ChatUiActionContext.Provider>
     </PowerLevelsContextProvider>

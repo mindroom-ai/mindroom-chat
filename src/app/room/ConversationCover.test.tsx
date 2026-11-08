@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { getDefaultStore } from 'jotai';
+import { getDefaultStore, useAtomValue } from 'jotai';
 import { createClient, Room } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Editable, Slate } from 'slate-react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
-import { conversationCoveredAtom } from '../navigation/conversationCover';
+import { conversationCoveredAtom, conversationHiddenAtom } from '../navigation/conversationCover';
 import { runShortcut } from '../shortcuts/useShortcut';
 import { RoomView } from './RoomView';
 
@@ -50,8 +50,9 @@ vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) 
 // Plugins as a build lists them: `broken`, with a cover that throws once open, one whose condition
 // throws, one whose subscription throws, one whose subscription's stop throws and one whose
 // condition throws later; `example`, with a cover Escape closes; `other`, with a cover
-// Escape leaves, one that puts the focus in its own field and one with a portaled popover; and
-// `faulty`, whose close throws.
+// Escape leaves, one that puts the focus in its own field, one with a portaled popover, one whose
+// portaled dialog focuses its own field and one with a text editor at either end; and `faulty`,
+// whose close throws.
 vi.mock('../plugins/pluginEntries', () => ({
   pluginEntries: [
     {
@@ -119,6 +120,27 @@ vi.mock('../plugins/pluginEntries', () => ({
             Component: () => createPortal(<input aria-label="popover field" />, document.body),
             close: () => mocks.set('portal', false),
           }),
+          // A cover whose dialog, portaled into the page's body, focuses its own field as it mounts.
+          mocks.cover('dialog', {
+            Component: () => {
+              const fieldRef = useRef<HTMLInputElement>(null);
+              useEffect(() => fieldRef.current?.focus(), []);
+              return createPortal(
+                <input ref={fieldRef} aria-label="dialog field" />,
+                document.body
+              );
+            },
+          }),
+          // A cover with a text editor at either end of it.
+          mocks.cover('editors', {
+            Component: () => (
+              <div>
+                <div contentEditable suppressContentEditableWarning aria-label="first editor" />
+                <button type="button">editors button</button>
+                <div contentEditable suppressContentEditableWarning aria-label="last editor" />
+              </div>
+            ),
+          }),
         ],
       },
     },
@@ -181,10 +203,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const renderRoom = (config: ClientConfig = {}) =>
+const renderRoom = (config: ClientConfig = {}, beside?: ReactNode) =>
   render(
     <ClientConfigProvider value={config}>
       <RoomView room={room} />
+      {beside}
     </ClientConfigProvider>
   );
 
@@ -194,6 +217,26 @@ const composer = () => screen.getByRole('textbox', { name: 'Message', hidden: tr
 /** The part of the room the cover hides: the timeline, the dock and the composer. */
 const conversation = () => composer().closest<HTMLElement>('[style*="contents"]')!;
 const covered = () => getDefaultStore().get(conversationCoveredAtom);
+
+/**
+ * A composer popover portaled into the body, as the emoji board is: while open it takes the focus
+ * back from anywhere else, as its focus trap does, and it closes as the conversation hides.
+ */
+function TrappingPopover() {
+  const hidden = useAtomValue(conversationHiddenAtom);
+  const fieldRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (hidden) return undefined;
+    const takeBack = (event: FocusEvent) => {
+      if (event.target !== fieldRef.current) fieldRef.current?.focus();
+    };
+    document.addEventListener('focusin', takeBack);
+    return () => document.removeEventListener('focusin', takeBack);
+  }, [hidden]);
+  return hidden
+    ? null
+    : createPortal(<input ref={fieldRef} aria-label="board search" />, document.body);
+}
 
 describe('a conversation cover', () => {
   it('shows nothing while no condition holds, and leaves the conversation as it is', () => {
@@ -250,6 +293,22 @@ describe('a conversation cover', () => {
     expect(fireEvent.keyDown(field, { key: 'Tab' })).toBe(false);
     expect(document.activeElement).toBe(field);
     button.tabIndex = 0;
+  });
+
+  it('counts a text editor at either end of the cover as a control Tab reaches', () => {
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([{}] as never);
+    renderRoom();
+    show('editors');
+    const button = screen.getByRole('button', { name: 'editors button' });
+    // Between the editors, the browser moves the focus on to either.
+    button.focus();
+    expect(fireEvent.keyDown(button, { key: 'Tab' })).toBe(true);
+    expect(fireEvent.keyDown(button, { key: 'Tab', shiftKey: true })).toBe(true);
+    // From the last editor, Tab goes round to the first.
+    const last = screen.getByLabelText('last editor');
+    last.focus();
+    expect(fireEvent.keyDown(last, { key: 'Tab' })).toBe(false);
+    expect(document.activeElement).toBe(screen.getByLabelText('first editor'));
   });
 
   it("leaves Tab and Escape in a popover the cover's component portals elsewhere to the popover", () => {
@@ -336,6 +395,21 @@ describe('a conversation cover', () => {
     expect(conversation().hasAttribute('aria-hidden')).toBe(false);
     expect(covered()).toBe(false);
     expect(document.activeElement).toBe(composer());
+  });
+
+  it('takes the focus from a composer popover that held it, once that closed as the cover showed', async () => {
+    renderRoom({}, <TrappingPopover />);
+    screen.getByRole('textbox', { name: 'board search' }).focus();
+    await act(async () => mocks.set('fixed', true));
+    expect(screen.queryByRole('textbox', { name: 'board search' })).toBeNull();
+    expect(layer()!.contains(document.activeElement)).toBe(true);
+  });
+
+  it('leaves the focus in a field its component portals elsewhere and focuses as it mounts', async () => {
+    renderRoom();
+    composer().focus();
+    await act(async () => mocks.set('dialog', true));
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'dialog field' }));
   });
 
   it('gives the composer back its caret with the focus', () => {

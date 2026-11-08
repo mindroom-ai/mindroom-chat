@@ -10,6 +10,10 @@ import {
   serializeThreadFilterState,
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
+import { conversationBehindPanelAtom } from '../navigation/conversationCover';
+import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
+import { useEdgeSwipeForward } from '../navigation/useEdgeSwipeForward';
+import { lastExitedThreadAtom } from '../threads/lastExitedThread';
 import { useRoomViewThreadState, type RoomViewThreadState } from './useRoomViewThreadState';
 
 const USER_ID = '@alice:example.org';
@@ -65,7 +69,7 @@ const storeFilter = (filter: ThreadFilterState) =>
 const mountThreadState = ({
   advancedFilters = false,
   ...options
-}: { hasMindroomAgents?: boolean; advancedFilters?: boolean } = {}) => {
+}: { hasMindroomAgents?: boolean; advancedFilters?: boolean; threadId?: string } = {}) => {
   const store = createStore();
   if (advancedFilters) store.set(settingsAtom, { ...getSettings(), simpleThreadFilters: false });
   let latest: RoomViewThreadState | undefined;
@@ -84,6 +88,24 @@ const mountThreadState = ({
 };
 
 describe('useRoomViewThreadState', () => {
+  const enabled = (hook: typeof useEdgeSwipeBack | typeof useEdgeSwipeForward) =>
+    vi.mocked(hook).mock.lastCall?.[1];
+
+  it("keeps the swipe out of a thread off while a side panel takes the conversation's place", () => {
+    const { store } = mountThreadState({ threadId: '$thread' });
+    expect(enabled(useEdgeSwipeBack)).toBe(true);
+    act(() => store.set(conversationBehindPanelAtom, true));
+    expect(enabled(useEdgeSwipeBack)).toBe(false);
+  });
+
+  it("keeps the swipe back into a thread off while a side panel takes the conversation's place", () => {
+    const { store } = mountThreadState();
+    act(() => store.set(lastExitedThreadAtom, { roomId: ROOM_ID, threadId: '$thread' }));
+    expect(enabled(useEdgeSwipeForward)).toBe(true);
+    act(() => store.set(conversationBehindPanelAtom, true));
+    expect(enabled(useEdgeSwipeForward)).toBe(false);
+  });
+
   it('applies the thread filter stored for the room', () => {
     storeFilter({ ...createDefaultThreadFilterState(), resolved: 'exclude' });
 

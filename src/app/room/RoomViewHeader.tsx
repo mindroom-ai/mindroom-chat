@@ -2,6 +2,7 @@ import { Fragment, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
+import { useAtomValue } from 'jotai';
 import classNames from 'classnames';
 import type { Room } from 'matrix-js-sdk';
 import { Avatar, Badge, Box, Icons, Text, toRem, type RectCords } from 'folds';
@@ -22,6 +23,7 @@ import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { usePinnedEventIds as useRoomPinnedEvents } from '../event-store/threads/useThreadPinning';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
+import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
 import { getCanonicalAliasOrRoomId, mxcUrlToHttp } from '../matrix/matrix';
@@ -205,6 +207,9 @@ export function RoomViewHeader({
   const spacePathId = space ? getCanonicalAliasOrRoomId(mx, space.roomId) : undefined;
   const direct = useIsDirectRoom();
   const sectionPath = sectionPathOf(spacePathId, direct);
+  // Not while a side panel in the conversation's place hides this header: its swipe and its
+  // Members shortcut wait.
+  const behindPanel = useAtomValue(conversationBehindPanelAtom);
   // A phone's back leaves the room for the page it was opened from (the list, a lobby, search
   // results, the room a notification opened over, a thread with a link), passing over the room's
   // own pages: its threads and the messages it was opened at. Opened from outside the app, the
@@ -218,7 +223,7 @@ export function RoomViewHeader({
   // A swipe from the screen's left edge does the same, in the iOS app too, whose web view has no
   // back gesture of its own. A thread open in the room takes the swipe itself
   // (useRoomViewThreadState).
-  useEdgeSwipeBack(leaveRoom, mobile && !threadId);
+  useEdgeSwipeBack(leaveRoom, mobile && !threadId && !behindPanel);
 
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [pinAnchor, setPinAnchor] = useState<RectCords>();
@@ -244,6 +249,7 @@ export function RoomViewHeader({
   const membersVisible = shownPanel === 'members';
   const toggleMembers = () => onPanelToggle?.('members');
   useShortcut('members', () => {
+    if (behindPanel) return false;
     toggleMembers();
     return true;
   });

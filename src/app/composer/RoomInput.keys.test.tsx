@@ -3,6 +3,9 @@ import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
+import { UserMentionAutocomplete } from '../editor/autocomplete/UserMentionAutocomplete';
+import { ThreadModelPicker } from '../models/ModelPicker';
+import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import type { SlashCommand } from './commands/useCommands';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
 
@@ -52,9 +55,9 @@ vi.mock('../editor/output', () => ({
   trimCustomHtml: (value: string) => value,
 }));
 vi.mock('../editor/Editor', () => ({
-  CustomEditor: (props: EditorProps) => {
+  CustomEditor: (props: EditorProps & { top?: React.ReactNode }) => {
     state.editorProps = props;
-    return null;
+    return <>{props.top}</>;
   },
 }));
 vi.mock('../editor/autocomplete/autocompleteQuery', async (importOriginal) => {
@@ -159,13 +162,13 @@ afterEach(() => {
   state.commands = {};
 });
 
-/** Mounts the composer holding `document` and presses Enter; resolves with whether it sent. */
-const pressEnterAfterMention = async (document: unknown[] = []): Promise<boolean> => {
+/** Mounts the composer holding `document` in `store`, and lets it read the query a key left. */
+const mountComposer = async (document: unknown[] = [], store = createStore()) => {
   const { RoomInput } = await import('./RoomInput');
   const room = { roomId: '!room:example.org', name: 'Room' } as unknown as Room;
   act(() => {
     renderer = create(
-      <Provider store={createStore()}>
+      <Provider store={store}>
         <RoomInput
           editor={{ children: document } as never}
           fileDropContainerRef={createRef()}
@@ -176,6 +179,11 @@ const pressEnterAfterMention = async (document: unknown[] = []): Promise<boolean
     );
   });
   act(() => state.editorProps?.onKeyUp?.());
+};
+
+/** Mounts the composer holding `document` and presses Enter; resolves with whether it sent. */
+const pressEnterAfterMention = async (document: unknown[] = []): Promise<boolean> => {
+  await mountComposer(document);
   await act(async () => {
     state.editorProps?.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
   });
@@ -190,6 +198,20 @@ describe('composer', () => {
     await pressEnterAfterMention();
     expect(state.editorProps?.editableName).toBe('RoomInput');
     expect(state.editorProps?.placeholder).toBeTruthy();
+  });
+
+  it('closes the mention menu and the model picker as a side panel hides the conversation', async () => {
+    const store = createStore();
+    await mountComposer([], store);
+    const mentionMenus = () => renderer!.root.findAllByType(UserMentionAutocomplete).length;
+    const pickerHidden = () =>
+      renderer!.root.findByType(ThreadModelPicker).props.conversationHidden;
+    expect(mentionMenus()).toBe(1);
+    expect(pickerHidden()).toBe(false);
+    act(() => store.set(conversationBehindPanelAtom, true));
+    // Its Tab would pick a completion into the hidden draft.
+    expect(mentionMenus()).toBe(0);
+    expect(pickerHidden()).toBe(true);
   });
 
   it('leaves Enter to the mention menu while it shows suggestions', async () => {

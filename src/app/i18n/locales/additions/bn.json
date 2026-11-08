@@ -220,6 +220,11 @@
       },
       "developerTools": {
         "invalidJson": "ইভেন্টের একটি ধরন দিন এবং বিষয়বস্তু হিসেবে একটি JSON অবজেক্ট দিন।"
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "আপগ্রেডের সাথে এই রুমগুলো সরানো যায়নি: {{rooms}}"
+        }
       }
     },
     "settings": {
