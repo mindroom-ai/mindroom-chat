@@ -339,9 +339,67 @@ function RoomChainWindow({ chain, rows, paginateRoom, handles }: ChainProps) {
     deferAutomaticPagination: () => false,
   });
   useRetryAfterEmptyBackPage(roomBackPage, roomRowsRef, paginator.retryPagination);
+  handles.setTimeline = setTimeline;
   handles.paginator = paginator;
   return null;
 }
+
+describe('a back page whose rows show before it settles', () => {
+  it('asks again once it settles while the sentinel is still in view', async () => {
+    const chain = fakeTimeline('token-2');
+    // Back pages run one at a time, as the room's pagination command runs them: a page asked for
+    // while one runs joins that one.
+    let asked = 0;
+    const started: (string | null)[] = [];
+    const pending: (() => void)[] = [];
+    let running: Promise<void> | undefined;
+    const paginateRoom = () => {
+      asked += 1;
+      if (!running) {
+        started.push(chain.getPaginationToken(Direction.Backward));
+        running = new Promise<void>((resolve) => {
+          pending.push(resolve);
+        }).finally(() => {
+          running = undefined;
+        });
+      }
+      return running;
+    };
+    const handles: Handles = {};
+    const element = (rowCount: number) =>
+      createElement(RoomChainWindow, {
+        chain: [chain as unknown as EventTimeline],
+        rows: makeRows(rowCount),
+        paginateRoom,
+        handles,
+      });
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(element(5));
+    });
+    act(() => handles.paginator?.retryPagination());
+    expect(started).toEqual(['token-2']);
+
+    // The page brings one row, which shows while the page still finishes (it saves the page and
+    // looks for cached thread replies). The window grows by it, the sentinel is still in view and
+    // asks for the next page, and that request joins the page still out.
+    chain.setBackToken('token-1');
+    act(() => {
+      renderer?.update(element(6));
+      handles.setTimeline?.((current) => ({ ...current, range: { start: 0, end: 6 } }));
+    });
+    expect(asked).toBe(2);
+    expect(started).toEqual(['token-2']);
+
+    // The page settles with the sentinel still in view: the next page loads.
+    await act(async () => {
+      pending.shift()?.();
+      await running;
+    });
+    expect(started).toEqual(['token-2', 'token-1']);
+    act(() => renderer?.unmount());
+  });
+});
 
 describe('a back page while a limited sync replaces the room chain', () => {
   it.each([true, false])(
