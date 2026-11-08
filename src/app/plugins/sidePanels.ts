@@ -68,11 +68,11 @@ export type RoomSidePanelControl = {
   /**
    * Opens it as the room menu does, taking the side panel from any other, or keeps it open, and
    * hands its `Component` `request`. A panel that `remember`s keeps the request as JSON in this
-   * browser until it closes in that room or the browser deletes the account's local data, so the
-   * request should hold only what the panel needs to open again, never secrets or message text. It
-   * keeps its identity while the room shows. Call it in answer to something the person does, such
-   * as a click, never as a component mounts: the conversation's components mount again whenever it
-   * shows another thread or view.
+   * browser until it closes in that room or the account's last login leaves the browser, so the
+   * request should hold only what the panel needs to open again, never secrets or message text.
+   * `open` keeps its identity while the room shows. Call it in answer to something the person does,
+   * such as a click, never as a component mounts: the conversation's components mount again
+   * whenever it shows another thread or view.
    */
   open: (request?: unknown) => void;
   /** Closes it, if the room shows it; it keeps its identity as `open` does. */
