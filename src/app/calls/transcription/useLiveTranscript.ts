@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import { useAtomValue } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { requestAudienceOpenIdToken } from '../../matrix/openidAudience';
+import { clientSessions, type ClientSessions } from '../../computer/clientSessions';
+import { useRoomMindroomServer } from '../../computer/useRoomMindroomServer';
 import { useActiveCall } from '../callStore';
 import { TranscriptionClient } from './api';
 import { pollLiveCall } from './liveCallPoll';
@@ -12,7 +13,6 @@ import {
   liveTranscriptAtom,
   type LiveTranscript,
 } from './transcriptionState';
-import { useTranscriptionServer } from './useTranscriptionServer';
 
 /**
  * `loading` until MindRoom first tells the room's live call; `live`; `unavailable` while MindRoom
@@ -35,20 +35,16 @@ type ReadView = Pick<LiveTranscriptView, 'state' | 'live'>;
 /** The server and room reads come from, and the last line they read there. */
 type LastRead = { client: TranscriptionClient; roomId: string; lineId?: string };
 
-/** One client per Matrix client and server, so rows, panels and remounts share its sign-in. */
-const clients = new WeakMap<MatrixClient, Map<string, TranscriptionClient>>();
+/**
+ * One client per account and server, so rows, panels and remounts share it, and reads on the
+ * server they left go on after its last line when it comes back.
+ */
+const clients = new WeakMap<ClientSessions, TranscriptionClient>();
 
 const sharedClient = (mx: MatrixClient, apiUrl: string, discovered: boolean) => {
-  const servers = clients.get(mx) ?? new Map<string, TranscriptionClient>();
-  clients.set(mx, servers);
-  const key = `${discovered ? 'discovered' : 'configured'} ${apiUrl}`;
-  const client =
-    servers.get(key) ??
-    new TranscriptionClient({
-      apiUrl,
-      getOpenIdToken: () => requestAudienceOpenIdToken(mx, apiUrl, { requireBinding: discovered }),
-    });
-  servers.set(key, client);
+  const sessions = clientSessions(mx, apiUrl, discovered);
+  const client = clients.get(sessions) ?? new TranscriptionClient(sessions);
+  clients.set(sessions, client);
   return client;
 };
 
@@ -73,7 +69,7 @@ const useLiveCallReads = (
   const mx = useMatrixClient();
   const reading = usePageShown() && wanted;
   const { roomId } = room;
-  const { apiUrl, discovered } = useTranscriptionServer(mx, room);
+  const { apiUrl, discovered } = useRoomMindroomServer(mx, roomId);
   const client = useMemo(
     () => (apiUrl ? sharedClient(mx, apiUrl, discovered) : undefined),
     [apiUrl, discovered, mx]

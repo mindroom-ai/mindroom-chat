@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConnectionError, HTTPError, type IOpenIDToken } from 'matrix-js-sdk';
+import { ClientSessions } from '../../computer/clientSessions';
 import {
   TranscriptionApiError,
   TranscriptionClient,
@@ -84,7 +85,9 @@ const client = (
   getOpenIdToken = vi.fn(async (): Promise<IOpenIDToken> => TOKEN)
 ) => ({
   getOpenIdToken,
-  api: new TranscriptionClient({ apiUrl: API_URL, getOpenIdToken, request: server.request }),
+  api: new TranscriptionClient(
+    new ClientSessions({ apiUrl: API_URL, getOpenIdToken, request: server.request })
+  ),
 });
 
 beforeEach(() => {
@@ -241,13 +244,14 @@ describe('TranscriptionClient routes', () => {
     await api.join(ROOM_ID);
 
     vi.setSystemTime(NOW + 119_000);
-    api.leaveNow('call-1');
+    void api.leaveNow('call-1');
     const leave = server.calls()[1];
+    expect(leave?.url).toBe(`${API_URL}/api/call-transcripts/v1/calls/call-1/leave`);
     expect(leave?.init.keepalive).toBe(true);
     expect(leave && bearer(leave)).toBe('Bearer session-1');
 
     vi.setSystemTime(NOW + 120_000);
-    api.leaveNow('call-1');
+    void api.leaveNow('call-1');
     expect(server.calls()).toHaveLength(2);
   });
 
@@ -268,6 +272,29 @@ describe('TranscriptionClient routes', () => {
     const audio = form.get('audio') as File;
     expect(audio.type).toBe('audio/wav');
     expect(audio.size).toBe(44);
+  });
+
+  it('cancels each route with the signal it was given', async () => {
+    const server = fakeServer();
+    server.route.mockImplementation((url) =>
+      url.includes('calls.live') ? json({ call: null, lines: [], names: {} }) : json({ call: CALL })
+    );
+    const { api } = client(server);
+    const { signal } = new AbortController();
+
+    await api.join(ROOM_ID, signal);
+    await api.leave('call-1', signal);
+    await api.pause('call-1', true, signal);
+    await api.speech('call-1', { wav: new Blob([]), startedAt: new Date(NOW) }, signal);
+    await api.live(ROOM_ID, undefined, signal);
+
+    expect(server.calls().map(({ init }) => init.signal)).toEqual([
+      signal,
+      signal,
+      signal,
+      signal,
+      signal,
+    ]);
   });
 
   it('pauses and resumes the call, and reads the live call after a line', async () => {
@@ -333,6 +360,17 @@ describe('TranscriptionClient refusals', () => {
     const { api } = client(server);
 
     await expect(api.join(ROOM_ID)).rejects.toMatchObject({ retryAfterMs: 7000 });
+  });
+
+  it('counts an answer that is not JSON as unavailable', async () => {
+    const server = fakeServer();
+    server.route.mockImplementation(() => new Response('<html>', { status: 200 }));
+    const { api } = client(server);
+
+    const error = await api.join(ROOM_ID).catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(TranscriptionApiError);
+    expect(isUnavailable(error)).toBe(true);
   });
 
   it('counts no answer and server errors as unavailable, 403 and 404 as no transcripts', async () => {

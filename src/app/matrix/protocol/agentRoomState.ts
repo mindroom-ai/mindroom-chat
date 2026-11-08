@@ -45,12 +45,15 @@ export const agentRoomState = (room: Room, eventType: string): MatrixEvent[] =>
 const sameEvents = (a: MatrixEvent[], b: MatrixEvent[]): boolean =>
   a.length === b.length && a.every((event, index) => event === b[index]);
 
-/** The room's agent state of this type, read again when it, an agent's membership, or the live state changes. */
-const useAgentRoomStateEvents = (room: Room, eventType: string): MatrixEvent[] => {
+/**
+ * The room's agent state of this type, read again when it, an agent's membership, or the live state
+ * changes. A room the client does not know (null) has none.
+ */
+const useAgentRoomStateEvents = (room: Room | null, eventType: string): MatrixEvent[] => {
   const [version, refresh] = useForceUpdate();
   const events = useMemo(() => {
     void version;
-    return agentRoomState(room, eventType);
+    return room ? agentRoomState(room, eventType) : [];
   }, [room, eventType, version]);
   const renderedEvents = useRef(events);
   // Synchronously with the commit, so an event that lands before passive effects compares with what is shown.
@@ -58,6 +61,7 @@ const useAgentRoomStateEvents = (room: Room, eventType: string): MatrixEvent[] =
     renderedEvents.current = events;
   }, [events]);
   useEffect(() => {
+    if (!room) return undefined;
     const onState = (event: MatrixEvent) => {
       if (event.getType() === eventType) refresh();
     };
@@ -81,7 +85,7 @@ const useAgentRoomStateEvents = (room: Room, eventType: string): MatrixEvent[] =
 
 /** What `select` makes of the room's agent state of this type, read again only when that state could have changed. */
 export const useAgentRoomState = <T>(
-  room: Room,
+  room: Room | null,
   eventType: string,
   select: (events: MatrixEvent[]) => T
 ): T => {
