@@ -46,13 +46,11 @@ describe('createRoom', () => {
 
   /**
    * A space whose server creates `NEW_ROOM` and fails to list it there with `failure`, by default a
-   * refusal. `leave` and `forget` succeed unless `leaveFails` or `forgetFails`.
+   * refusal; leaving and forgetting the room succeed.
    */
-  const linkFailing = ({
-    failure = new MatrixError({ errcode: 'M_FORBIDDEN', error: 'Not allowed' }, 403) as Error,
-    leaveFails = false,
-    forgetFails = false,
-  } = {}) => {
+  const linkFailing = (
+    failure: Error = new MatrixError({ errcode: 'M_FORBIDDEN', error: 'Not allowed' }, 403)
+  ) => {
     const mx = new MatrixClient({
       baseUrl: 'https://mindroom.test',
       userId: '@me:mindroom.test',
@@ -60,12 +58,8 @@ describe('createRoom', () => {
     });
     vi.spyOn(mx, 'createRoom').mockResolvedValue({ room_id: NEW_ROOM });
     vi.spyOn(mx, 'sendStateEvent').mockRejectedValue(failure);
-    const leave = vi.spyOn(mx, 'leave');
-    if (leaveFails) leave.mockRejectedValue(new Error('offline'));
-    else leave.mockResolvedValue({});
-    const forget = vi.spyOn(mx, 'forget');
-    if (forgetFails) forget.mockRejectedValue(new Error('offline'));
-    else forget.mockResolvedValue({});
+    const leave = vi.spyOn(mx, 'leave').mockResolvedValue({});
+    const forget = vi.spyOn(mx, 'forget').mockResolvedValue({});
     const space = new Room('!space:mindroom.test', mx, '@me:mindroom.test');
     const create = (data: Partial<CreateRoomData> = {}) =>
       createRoom(mx, {
@@ -97,40 +91,38 @@ describe('createRoom', () => {
     }
   );
 
-  it.each<[string, Parameters<typeof linkFailing>[0], Partial<CreateRoomData>]>([
-    // The server may still list the room after either.
-    ['no answer came', { failure: new Error('Failed to fetch') }, {}],
-    [
-      'the error has no status',
-      { failure: new MatrixError({ errcode: 'M_UNKNOWN', error: 'Unknown' }) },
-      {},
-    ],
+  it.each<[string, Error | undefined, Partial<CreateRoomData>]>([
+    // After any of the first three, the server may still list the room.
+    ['no answer came', new Error('Failed to fetch'), {}],
+    ['the error has no status', new MatrixError({ errcode: 'M_UNKNOWN', error: 'Unknown' }), {}],
     [
       'the server failed',
-      { failure: new MatrixError({ errcode: 'M_UNKNOWN', error: 'Gateway timeout' }, 504) },
+      new MatrixError({ errcode: 'M_UNKNOWN', error: 'Gateway timeout' }, 504),
       {},
     ],
     [
       'it is public, where anyone finds it and its address would stay taken',
-      {},
+      undefined,
       { access: CreateRoomAccess.Public, aliasLocalPart: 'plans' },
     ],
-  ])('keeps the room, and rejects with the failure, when %s', async (_, server, data) => {
-    const { failure, leave, create } = linkFailing(server);
+  ])('keeps the room, and rejects with the failure, when %s', async (_, linkFailure, data) => {
+    const { failure, leave, create } = linkFailing(linkFailure);
 
     await expect(create(data)).rejects.toBe(failure);
     expect(leave).not.toHaveBeenCalled();
   });
 
   it('rejects with the failure, forgetting nothing, when it cannot leave the room either', async () => {
-    const { failure, forget, create } = linkFailing({ leaveFails: true });
+    const { failure, leave, forget, create } = linkFailing();
+    leave.mockRejectedValue(new Error('offline'));
 
     await expect(create()).rejects.toBe(failure);
     expect(forget).not.toHaveBeenCalled();
   });
 
   it('rejects with the failure when it cannot forget the room it left', async () => {
-    const { failure, forget, create } = linkFailing({ forgetFails: true });
+    const { failure, forget, create } = linkFailing();
+    forget.mockRejectedValue(new Error('offline'));
 
     await expect(create()).rejects.toBe(failure);
     expect(forget).toHaveBeenCalledWith(NEW_ROOM);
