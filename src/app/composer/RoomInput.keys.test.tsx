@@ -3,6 +3,8 @@ import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
+import { UserMentionAutocomplete } from '../editor/autocomplete/UserMentionAutocomplete';
+import { ThreadModelPicker } from '../models/ModelPicker';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import type { SlashCommand } from './commands/useCommands';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
@@ -17,8 +19,6 @@ type EditorProps = {
 const state = vi.hoisted(() => ({
   editorProps: undefined as EditorProps | undefined,
   mentionHasSuggestions: true,
-  mentionShown: false,
-  modelPickerHidden: undefined as boolean | undefined,
   startSendSession: vi.fn(async () => undefined),
   commands: {} as Record<string, SlashCommand>,
   resetEditor: vi.fn(),
@@ -78,12 +78,6 @@ vi.mock('../editor/autocomplete/UserMentionAutocomplete', () => ({
     onSuggestionsChange?: (hasSuggestions: boolean) => void;
   }) => {
     useEffect(() => onSuggestionsChange?.(state.mentionHasSuggestions), [onSuggestionsChange]);
-    useEffect(() => {
-      state.mentionShown = true;
-      return () => {
-        state.mentionShown = false;
-      };
-    }, []);
     return null;
   },
 }));
@@ -114,12 +108,7 @@ vi.mock('../lib/user-agent', () => ({ mobileOrTablet: () => false }));
 vi.mock('../matrix/protocol/pasteAttachmentMarker', () => ({
   withPasteAttachmentMetadata: (content: unknown) => content,
 }));
-vi.mock('../models/ModelPicker', () => ({
-  ThreadModelPicker: ({ conversationHidden }: { conversationHidden?: boolean }) => {
-    state.modelPickerHidden = conversationHidden;
-    return null;
-  },
-}));
+vi.mock('../models/ModelPicker', () => ({ ThreadModelPicker: () => null }));
 vi.mock('../ui/IconTooltip', () => ({ IconTooltip: () => null }));
 vi.mock('./commands/agentCommandQuery', () => ({ getAgentCommandQuery: () => undefined }));
 vi.mock('./RoomInputExtensions', () => ({
@@ -173,13 +162,13 @@ afterEach(() => {
   state.commands = {};
 });
 
-/** Mounts the composer holding `document` and presses Enter; resolves with whether it sent. */
-const pressEnterAfterMention = async (document: unknown[] = []): Promise<boolean> => {
+/** Mounts the composer holding `document` in `store`, and lets it read the query a key left. */
+const mountComposer = async (document: unknown[] = [], store = createStore()) => {
   const { RoomInput } = await import('./RoomInput');
   const room = { roomId: '!room:example.org', name: 'Room' } as unknown as Room;
   act(() => {
     renderer = create(
-      <Provider store={createStore()}>
+      <Provider store={store}>
         <RoomInput
           editor={{ children: document } as never}
           fileDropContainerRef={createRef()}
@@ -190,6 +179,11 @@ const pressEnterAfterMention = async (document: unknown[] = []): Promise<boolean
     );
   });
   act(() => state.editorProps?.onKeyUp?.());
+};
+
+/** Mounts the composer holding `document` and presses Enter; resolves with whether it sent. */
+const pressEnterAfterMention = async (document: unknown[] = []): Promise<boolean> => {
+  await mountComposer(document);
   await act(async () => {
     state.editorProps?.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
   });
@@ -207,29 +201,17 @@ describe('composer', () => {
   });
 
   it('closes the mention menu and the model picker as a side panel hides the conversation', async () => {
-    state.mentionHasSuggestions = true;
-    const { RoomInput } = await import('./RoomInput');
-    const room = { roomId: '!room:example.org', name: 'Room' } as unknown as Room;
     const store = createStore();
-    act(() => {
-      renderer = create(
-        <Provider store={store}>
-          <RoomInput
-            editor={{ children: [] } as never}
-            fileDropContainerRef={createRef()}
-            roomId={room.roomId}
-            room={room}
-          />
-        </Provider>
-      );
-    });
-    act(() => state.editorProps?.onKeyUp?.());
-    expect(state.mentionShown).toBe(true);
-    expect(state.modelPickerHidden).toBe(false);
+    await mountComposer([], store);
+    const mentionMenus = () => renderer!.root.findAllByType(UserMentionAutocomplete).length;
+    const pickerHidden = () =>
+      renderer!.root.findByType(ThreadModelPicker).props.conversationHidden;
+    expect(mentionMenus()).toBe(1);
+    expect(pickerHidden()).toBe(false);
     act(() => store.set(conversationBehindPanelAtom, true));
     // Its Tab would pick a completion into the hidden draft.
-    expect(state.mentionShown).toBe(false);
-    expect(state.modelPickerHidden).toBe(true);
+    expect(mentionMenus()).toBe(0);
+    expect(pickerHidden()).toBe(true);
   });
 
   it('leaves Enter to the mention menu while it shows suggestions', async () => {

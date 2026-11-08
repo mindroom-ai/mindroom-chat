@@ -46,6 +46,7 @@ vi.mock('../composer/RoomInput', () => ({
 afterEach(() => {
   cleanup();
   document.body.replaceChildren();
+  getDefaultStore().set(conversationBehindPanelAtom, false);
 });
 
 /** A focused element outside the room view, as a region of the page would hold it. */
@@ -100,12 +101,8 @@ it('leaves a letter whose keydown another handler cancelled where it was typed',
 
 it("leaves a letter, and Escape, alone while a side panel takes the conversation's place", () => {
   getDefaultStore().set(conversationBehindPanelAtom, true);
-  try {
-    render(<RoomView room={room} />);
-    pressA(document.body);
-    expect(pressEscape()).toBe(false);
-    expect(document.activeElement).toBe(document.body);
-  } finally {
-    getDefaultStore().set(conversationBehindPanelAtom, false);
-  }
+  render(<RoomView room={room} />);
+  pressA(document.body);
+  expect(pressEscape()).toBe(false);
+  expect(document.activeElement).toBe(document.body);
 });

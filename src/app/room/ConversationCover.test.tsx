@@ -50,8 +50,9 @@ vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) 
 // Plugins as a build lists them: `broken`, with a cover that throws once open, one whose condition
 // throws, one whose subscription throws, one whose subscription's stop throws and one whose
 // condition throws later; `example`, with a cover Escape closes; `other`, with a cover
-// Escape leaves, one that puts the focus in its own field and one with a portaled popover; and
-// `faulty`, whose close throws.
+// Escape leaves, one that puts the focus in its own field, one with a portaled popover, one whose
+// portaled dialog focuses its own field and one with a text editor at either end; and `faulty`,
+// whose close throws.
 vi.mock('../plugins/pluginEntries', () => ({
   pluginEntries: [
     {
@@ -202,10 +203,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const renderRoom = (config: ClientConfig = {}) =>
+const renderRoom = (config: ClientConfig = {}, beside?: ReactNode) =>
   render(
     <ClientConfigProvider value={config}>
       <RoomView room={room} />
+      {beside}
     </ClientConfigProvider>
   );
 
@@ -396,12 +398,7 @@ describe('a conversation cover', () => {
   });
 
   it('takes the focus from a composer popover that held it, once that closed as the cover showed', async () => {
-    render(
-      <ClientConfigProvider value={{}}>
-        <RoomView room={room} />
-        <TrappingPopover />
-      </ClientConfigProvider>
-    );
+    renderRoom({}, <TrappingPopover />);
     screen.getByRole('textbox', { name: 'board search' }).focus();
     await act(async () => mocks.set('fixed', true));
     expect(screen.queryByRole('textbox', { name: 'board search' })).toBeNull();
