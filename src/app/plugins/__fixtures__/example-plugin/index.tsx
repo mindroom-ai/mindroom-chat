@@ -20,7 +20,9 @@
 // room and that thread, opens either, opens the room at the thread's root, opens the room in place
 // of itself, and reloads the page into a new version.
 // Its slash command, `/greet <text>`, sends the notice "Example greeting: <text>" to the room, or in a
-// thread's composer to that thread, through the room's client, and fails without a text.
+// thread's composer to that thread, through the room's client, and fails without a text. Its slash
+// command `/subroom <name>` creates a sub-room of the room called <name>, as New Sub-room does, and
+// fails without a name.
 // Every room's menu but a space's lists its entry "Example room info" ("Beispiel-Rauminfo" in
 // German), whose dialog says "Example dialog of <room name>" until its Close button closes it.
 import { useEffect, useState, type RefObject } from 'react';
@@ -43,7 +45,7 @@ import {
   useMatrixClient,
   useRoomMembers,
 } from '@mindroom/client-sdk/matrix';
-import { useRoomHref, useRoomNavigate } from '@mindroom/client-sdk/room';
+import { createSubRoom, useRoomHref, useRoomNavigate } from '@mindroom/client-sdk/room';
 
 /** The drag type of the item its panel offers, which the room header takes. */
 const ITEM_TYPE = 'application/x-example-item';
@@ -290,6 +292,14 @@ const plugin: ClientPlugin = {
         await room.client.sendNotice(room.roomId, threadId ?? null, `Example greeting: ${args}`);
       },
     },
+    {
+      name: 'subroom',
+      description: 'subroom',
+      run: async ({ room, args }) => {
+        if (!args.trim()) throw new Error('Type a name after /subroom.');
+        await createSubRoom(room, { name: args });
+      },
+    },
   ],
   roomActions: [
     {
@@ -306,6 +316,7 @@ const plugin: ClientPlugin = {
       label: 'Example plugin',
       wave: 'Wave',
       greet: 'Send the room a greeting. Example: /greet Hello',
+      subroom: 'Create a sub-room of this room. Example: /subroom Ideas',
       roomInfo: 'Example room info',
     },
     load: async (language) =>

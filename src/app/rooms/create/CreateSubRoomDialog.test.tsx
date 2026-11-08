@@ -3,7 +3,8 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { MatrixClient, MatrixEvent, MemoryStore, Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
-import { ClientConfigProvider } from '../../config/useClientConfig';
+import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
+import { createSubRoom } from '../../../client-sdk/room';
 import { CreateSubRoomDialog } from './CreateSubRoomDialog';
 
 const navigation = vi.hoisted(() => ({ navigate: vi.fn(), navigateRoom: vi.fn() }));
@@ -68,7 +69,36 @@ const setup = (myLevel = 100) => {
   mx.store.storeRoom(new Room(NEW_ROOM, mx, ME));
   const createRoom = vi.spyOn(mx, 'createRoom').mockResolvedValue({ room_id: NEW_ROOM });
   const sendStateEvent = vi.spyOn(mx, 'sendStateEvent').mockResolvedValue({ event_id: '$child' });
+  // The homeserver creates rooms in version 12 unless asked for another.
+  vi.spyOn(mx, 'getCachedCapabilities').mockReturnValue({
+    'm.room_versions': { default: '12', available: { '11': 'stable', '12': 'stable' } },
+  });
   return { mx, parent, createRoom, sendStateEvent };
+};
+
+/** Renders New Sub-room for `parent` under `config`, and submits it with the name `name`. */
+const submitDialog = async (
+  mx: MatrixClient,
+  parent: Room,
+  config: ClientConfig,
+  name: string
+): Promise<ReactTestRenderer> => {
+  let renderer: ReactTestRenderer | undefined;
+  act(() => {
+    renderer = create(
+      <ClientConfigProvider value={config}>
+        <MatrixClientProvider value={mx}>
+          <CreateSubRoomDialog parent={parent} requestClose={vi.fn()} />
+        </MatrixClientProvider>
+      </ClientConfigProvider>
+    );
+  });
+  const root = renderer!.root;
+  act(() => {
+    root.findByType('input').props.onChange({ currentTarget: { value: name } });
+  });
+  await act(async () => root.findByType('form').props.onSubmit({ preventDefault: vi.fn() }));
+  return renderer!;
 };
 
 describe('CreateSubRoomDialog', () => {
@@ -154,5 +184,100 @@ describe('CreateSubRoomDialog', () => {
     expect(JSON.stringify(renderer!.toJSON())).toContain(
       "You can't change the rooms listed under !parent:example.org"
     );
+  });
+});
+
+describe("the client SDK's createSubRoom", () => {
+  let renderer: ReactTestRenderer | undefined;
+
+  afterEach(() => {
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    vi.clearAllMocks();
+  });
+
+  it.each<[string, ClientConfig, { encrypted: boolean; creationContent: object }]>([
+    [
+      'a policy that turns encryption and federation off',
+      { createRoom: { defaultEncryption: false, defaultFederation: false } },
+      { encrypted: false, creationContent: { 'm.federate': false } },
+    ],
+    ['no policy', {}, { encrypted: true, creationContent: {} }],
+  ])('creates the room New Sub-room creates, for %s', async (_, config, expected) => {
+    const { mx, parent, createRoom, sendStateEvent } = setup();
+    renderer = await submitDialog(mx, parent, config, ' Ideas ');
+
+    await expect(createSubRoom(parent, { name: ' Ideas ' })).resolves.toBe(NEW_ROOM);
+
+    expect(createRoom).toHaveBeenCalledTimes(2);
+    expect(createRoom.mock.calls[1]).toEqual(createRoom.mock.calls[0]);
+    expect(sendStateEvent).toHaveBeenCalledTimes(2);
+    expect(sendStateEvent.mock.calls[1]).toEqual(sendStateEvent.mock.calls[0]);
+    const request = createRoom.mock.calls[0]?.[0];
+    expect(request).toMatchObject({ name: 'Ideas', room_version: '12' });
+    expect(request?.creation_content).toEqual(expected.creationContent);
+    expect(request?.initial_state?.some(({ type }) => type === 'm.room.encryption')).toBe(
+      expected.encrypted
+    );
+    expect(request?.initial_state).toContainEqual({
+      type: 'm.room.join_rules',
+      state_key: '',
+      content: { join_rule: 'restricted', allow: [{ type: 'm.room_membership', room_id: PARENT }] },
+    });
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      PARENT,
+      'm.space.child',
+      expect.anything(),
+      NEW_ROOM
+    );
+  });
+
+  it('reads the policy of the configuration the app provides as it is called', async () => {
+    const { mx, parent, createRoom } = setup();
+    const provide = (config: ClientConfig) => (
+      <ClientConfigProvider value={config}>
+        <MatrixClientProvider value={mx} />
+      </ClientConfigProvider>
+    );
+    act(() => {
+      renderer = create(provide({}));
+    });
+    await createSubRoom(parent, { name: 'Ideas' });
+    act(() => renderer!.update(provide({ createRoom: { defaultFederation: false } })));
+    await createSubRoom(parent, { name: 'Ideas' });
+
+    expect(createRoom.mock.calls.map(([request]) => request.creation_content)).toEqual([
+      {},
+      { 'm.federate': false },
+    ]);
+  });
+
+  it('refuses, creating nothing, a parent where the user may not list rooms, and a blank name', async () => {
+    act(() => {
+      renderer = create(<ClientConfigProvider value={{}} />);
+    });
+    const refused = setup(0);
+    await expect(createSubRoom(refused.parent, { name: 'Ideas' })).rejects.toThrow(
+      "You can't change the rooms listed under !parent:example.org"
+    );
+    const allowed = setup();
+    await expect(createSubRoom(allowed.parent, { name: '  ' })).rejects.toThrow(
+      'A sub-room needs a name.'
+    );
+
+    [refused, allowed].forEach(({ createRoom, sendStateEvent }) => {
+      expect(createRoom).not.toHaveBeenCalled();
+      expect(sendStateEvent).not.toHaveBeenCalled();
+    });
+  });
+
+  it('refuses, creating nothing, while the app provides no configuration', async () => {
+    const { parent, createRoom } = setup();
+
+    await expect(createSubRoom(parent, { name: 'Ideas' })).rejects.toThrow(
+      'createSubRoom ran before the app provided its configuration'
+    );
+
+    expect(createRoom).not.toHaveBeenCalled();
   });
 });

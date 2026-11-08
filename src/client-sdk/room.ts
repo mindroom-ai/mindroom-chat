@@ -1,10 +1,13 @@
-// `@mindroom/client-sdk/room`, the client SDK's subpath for taking the user to rooms and threads
-// (docs/architecture.md "Client plugins"): it opens them and links to them. Like `/core` it only
+// `@mindroom/client-sdk/room`, the client SDK's subpath for rooms and threads (docs/architecture.md
+// "Client plugins"): it opens them, links to them, and creates sub-rooms. Like `/core` it only
 // grows, and each addition raises CLIENT_PLUGIN_API_VERSION in scripts/client-plugins.mjs.
 import { useMemo } from 'react';
 import { useHref } from 'react-router-dom';
+import type { Room } from 'matrix-js-sdk';
+import { getClientConfig } from '../app/config/useClientConfig';
 import { useRoomNavigate as useAppRoomNavigate } from '../app/navigation/useRoomNavigate';
 import { withSearchParam } from '../app/routes/pathUtils';
+import { createSubRoom as createAppSubRoom } from '../app/rooms/create/createSubRoom';
 
 /** Where in the room `navigateRoom` and `navigateRoomThread` open it, and how. */
 type RoomNavigateOptions = {
@@ -63,3 +66,16 @@ export const useRoomNavigate = (): RoomNavigate => {
  */
 export const useRoomHref = (roomId: string, threadId?: string): string =>
   useHref(withSearchParam(useAppRoomNavigate().roomPath(roomId), { threadId }));
+
+/**
+ * Creates a sub-room of `parent` called `name`, as the room menu's New Sub-room does, and resolves
+ * to its room ID: listed under `parent`, open only to its members, and encrypted and federated as
+ * the deployment's config.json (`createRoom`) says when it is called. It refuses, creating nothing,
+ * a blank name, a parent where the signed-in user may not list rooms, and a call before the app has
+ * its configuration. It does not open the room; `useRoomNavigate` does.
+ */
+export const createSubRoom = async (parent: Room, { name }: { name: string }): Promise<string> => {
+  const config = getClientConfig();
+  if (!config) throw new Error('createSubRoom ran before the app provided its configuration');
+  return createAppSubRoom(parent, name, config.createRoom);
+};

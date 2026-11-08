@@ -240,6 +240,32 @@ describe('example plugin', () => {
     expect(sent).toHaveBeenCalledTimes(2);
   });
 
+  it('creates a sub-room of the room called the name typed after /subroom, and asks for one without it', async () => {
+    const [, subroom] = plugin.slashCommands ?? [];
+    if (!subroom) throw new Error('the example plugin has no /subroom');
+    const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
+    const created = vi
+      .spyOn(client, 'createRoom')
+      .mockResolvedValue({ room_id: '!ideas:example.org' });
+    const listed = vi.spyOn(client, 'sendStateEvent').mockResolvedValue({ event_id: '$child' });
+    const room = new Room('!lobby:example.org', client, '@ada:example.org');
+    // The app provides its configuration to what it renders, and to createSubRoom.
+    await renderPluginComponent(<></>, { id: 'example', plugin, client });
+
+    await subroom.run({ room, args: 'Ideas' });
+    expect(created).toHaveBeenCalledWith(expect.objectContaining({ name: 'Ideas' }));
+    expect(listed).toHaveBeenCalledWith(
+      '!lobby:example.org',
+      'm.space.child',
+      expect.anything(),
+      '!ideas:example.org'
+    );
+    await expect(async () => subroom.run({ room, args: '  ' })).rejects.toThrow(
+      'Type a name after /subroom.'
+    );
+    expect(created).toHaveBeenCalledTimes(1);
+  });
+
   it("lists its room entry in every room's menu but a space's, and its dialog names the room", async () => {
     const [info] = plugin.roomActions ?? [];
     if (!info) throw new Error('the example plugin has no room action');

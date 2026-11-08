@@ -1,10 +1,49 @@
-import { createContext, useContext } from 'react';
+import { createContext, createElement, useContext, useEffect, type ReactNode } from 'react';
 
 const configContext = createContext<ClientConfig | undefined>(undefined);
 configContext.displayName = 'ClientConfig';
+/** How many `ClientConfigProvider`s are above, so the innermost one's configuration counts. */
+const depthContext = createContext(0);
 
-/** Supplies the loaded `config.json` to everything rendered below it. */
-export const ClientConfigProvider = configContext.Provider;
+/** What each mounted `ClientConfigProvider` supplies, at its depth, in the order they mounted. */
+const mounted: { config: ClientConfig; depth: number }[] = [];
+
+/**
+ * Supplies the loaded `config.json` to everything rendered below it, and to `getClientConfig()`
+ * while it is mounted.
+ */
+export function ClientConfigProvider({
+  value,
+  children,
+}: {
+  value: ClientConfig;
+  children?: ReactNode;
+}) {
+  const depth = useContext(depthContext) + 1;
+  useEffect(() => {
+    const entry = { config: value, depth };
+    mounted.push(entry);
+    return () => {
+      mounted.splice(mounted.indexOf(entry), 1);
+    };
+  }, [value, depth]);
+  return createElement(
+    depthContext.Provider,
+    { value: depth },
+    createElement(configContext.Provider, { value }, children)
+  );
+}
+
+/**
+ * The configuration of the innermost mounted `ClientConfigProvider` (of several as deep, the last
+ * to mount or change), for code that runs outside components, such as a plugin command's `run`;
+ * undefined while none is mounted.
+ */
+export const getClientConfig = (): ClientConfig | undefined =>
+  mounted.reduce<(typeof mounted)[number] | undefined>(
+    (innermost, entry) => (!innermost || entry.depth >= innermost.depth ? entry : innermost),
+    undefined
+  )?.config;
 
 /** The deployment's configuration; throws when no `ClientConfigProvider` is above the caller. */
 export const useClientConfig = (): ClientConfig => {
