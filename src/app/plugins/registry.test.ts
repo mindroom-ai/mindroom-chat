@@ -18,6 +18,7 @@ const entries = vi.hoisted(() => {
     opensOverMembers: true,
   };
   const ownPanel = { id: 'board', label: 'Board', Component, frame: 'own' };
+  const rowPanel = { id: 'row', label: 'Row', Component, placement: 'row' };
   const run = () => undefined;
   const action = { id: 'wave', label: 'wave', icon, run };
   const autoAction = { id: 'auto', label: 'auto', icon, run, placement: 'auto' };
@@ -34,7 +35,7 @@ const entries = vi.hoisted(() => {
     renderer,
     page,
     forgotten,
-    panels: [panel, autoPanel, ownPanel],
+    panels: [panel, rowPanel, autoPanel, ownPanel],
     actions: [action, autoAction],
     command,
     roomActions: [roomAction, spacesAction, criticalAction],
@@ -70,8 +71,8 @@ const entries = vi.hoisted(() => {
             { id: 'unnamed', label: 1, Component },
             { id: 'empty', label: 'Empty' },
             { id: 'plain', label: 'Plain', Component, icon: 'Bulb' },
-            // Its toggle, like a plugin's header action, stays off a phone's header row.
-            { id: 'row', label: 'Row', Component, placement: 'row' },
+            { id: 'top', label: 'Top', Component, placement: 'top' },
+            rowPanel,
             { id: 'over', label: 'Over', Component, opensOverMembers: 'yes' },
             autoPanel,
             { id: 'framed', label: 'Framed', Component, frame: 'yes' },
@@ -84,7 +85,7 @@ const entries = vi.hoisted(() => {
             { id: 'unnamed', label: 1, icon, run },
             { id: 'plain', label: 'plain', icon: 'Smile', run },
             { id: 'idle', label: 'idle', icon },
-            // A phone's header keeps its row to Back, the name and the room menu.
+            // Header actions take `auto` and `menu` only.
             { id: 'row', label: 'row', icon, run, placement: 'row' },
             autoAction,
           ],
@@ -156,7 +157,7 @@ describe('registeredPlugins', () => {
     expect(plugins[0]?.pages).toEqual([]);
     expect(plugins[1]?.pages).toEqual([entries.page]);
     // A side panel needs an id, a label, a component, no icon or one folds draws, no placement,
-    // `auto` or `menu`, no opensOverMembers or `true`, and no frame or `own`.
+    // `auto`, `menu` or `row`, no opensOverMembers or `true`, and no frame or `own`.
     expect(plugins[0]?.sidePanels).toEqual([]);
     expect(plugins[1]?.sidePanels).toEqual(entries.panels);
     // A header action needs an id, a label, an icon, a run, and no placement, `auto` or `menu`.
