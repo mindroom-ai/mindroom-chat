@@ -27,6 +27,7 @@ const plugin = (id: string, slashCommands: PluginSlashCommand[]): RegisteredPlug
   sidePanels: [],
   headerActions: [],
   slashCommands,
+  roomActions: [],
 });
 
 const room = { roomId: '!room:example.org' } as Room;
