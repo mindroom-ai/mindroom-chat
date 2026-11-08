@@ -5,7 +5,8 @@ import {
   type AutocompleteQuery,
 } from '../editor/autocomplete/autocompleteQuery';
 import { BlockType } from '../editor/types';
-import type { CommandRefusal, SlashCommand } from './commands/useCommands';
+import type { CommandRefusal } from './commands/commandRefusal';
+import type { SlashCommand } from './commands/useCommands';
 import { readableReason } from '../lib/errorReason';
 
 type CommandPrefix = typeof AutocompletePrefix.Command;

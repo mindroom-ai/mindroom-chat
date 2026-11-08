@@ -35,7 +35,6 @@ vi.mock('react-router-dom', async (importOriginal) => ({
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     getSafeUserId: () => '@me:example.org',
-    getRoom: (roomId: string) => state.rooms[roomId] ?? null,
     sendStateEvent: state.sendStateEvent,
   }),
 }));
@@ -125,6 +124,7 @@ const room = {
   roomId: '!room:example.org',
   name: 'Orchard',
   isSpaceRoom: () => false,
+  client: { getRoom: (roomId: string) => state.rooms[roomId] ?? null },
 } as unknown as Room;
 
 /** A room menu as an entry point shows it, with its dialog beside it as the entry points do. */

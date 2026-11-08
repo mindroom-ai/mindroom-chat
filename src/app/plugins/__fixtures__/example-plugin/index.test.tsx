@@ -6,7 +6,7 @@ import { fireEvent, waitFor } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
+import { commandUsage, usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
 import plugin from './index';
 
@@ -399,7 +399,7 @@ describe('example plugin', () => {
     expect(view.getByText('From @bob:example.org').querySelector('img')).toBeNull();
   });
 
-  it('greets the room or the thread with the text typed after /greet, and asks for some without it', async () => {
+  it('greets the room or the thread with the text typed after /greet, and refuses with its usage without it', async () => {
     const greet = plugin.slashCommands?.find(({ name }) => name === 'greet');
     if (!greet) throw new Error('the example plugin has no /greet');
     const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
@@ -418,13 +418,11 @@ describe('example plugin', () => {
       '$root:example.org',
       'Example greeting: Hello thread'
     );
-    await expect(async () => greet.run({ room, args: '  ' })).rejects.toThrow(
-      'Type a greeting after /greet.'
-    );
+    await expect(async () => greet.run({ room, args: '  ' })).rejects.toStrictEqual(commandUsage());
     expect(sent).toHaveBeenCalledTimes(2);
   });
 
-  it('creates a sub-room of the room called the name typed after /subroom, and asks for one without it', async () => {
+  it('creates a sub-room of the room called the name typed after /subroom, and refuses with its usage without it', async () => {
     const subroom = plugin.slashCommands?.find(({ name }) => name === 'subroom');
     if (!subroom) throw new Error('the example plugin has no /subroom');
     const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
@@ -444,10 +442,34 @@ describe('example plugin', () => {
       expect.anything(),
       '!ideas:example.org'
     );
-    await expect(async () => subroom.run({ room, args: '  ' })).rejects.toThrow(
-      'Type a name after /subroom.'
+    await expect(async () => subroom.run({ room, args: '  ' })).rejects.toStrictEqual(
+      commandUsage()
     );
     expect(created).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses /subroom in a space, where the room menu offers no New Sub-room, and creates nothing', async () => {
+    const subroom = plugin.slashCommands?.find(({ name }) => name === 'subroom');
+    if (!subroom) throw new Error('the example plugin has no /subroom');
+    const userId = '@ada:example.org';
+    const client = createClient({ baseUrl: 'https://example.org', userId });
+    const created = vi.spyOn(client, 'createRoom');
+    const space = new Room('!estate:example.org', client, userId);
+    space.currentState.setStateEvents([
+      new MatrixEvent({
+        type: 'm.room.create',
+        room_id: space.roomId,
+        sender: userId,
+        state_key: '',
+        content: { type: 'm.space' },
+      }),
+    ]);
+    await renderPluginComponent(<></>, { id: 'example', plugin });
+
+    await expect(async () => subroom.run({ room: space, args: 'Ideas' })).rejects.toThrow(
+      'Sub-rooms go in chat rooms, not in spaces or direct chats.'
+    );
+    expect(created).not.toHaveBeenCalled();
   });
 
   it("sets the room's topic to the text typed after /topic once the room's levels let the account, and refuses before", async () => {
