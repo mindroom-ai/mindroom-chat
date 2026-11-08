@@ -17,6 +17,7 @@ import * as membersDrawer from '../members/useMembersDrawer';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { putSession } from '../matrix/session/sessions';
 import { type RoomSidePanelControl, useRoomSidePanel } from '../plugins/sidePanels';
+import { usePanelFrame } from '../ui/panels/PanelFrame';
 import type { RoomViewProps } from './RoomView';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
 import { makeUiEvent } from '../ui-actions/testUtils';
@@ -143,9 +144,32 @@ vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoom: () => undefined, navigateRoomThread: () => undefined }),
 }));
 const { neverLoads } = vi.hoisted(() => ({ neverLoads: new Promise<never>(() => undefined) }));
-// Two plugins of the build: one whose panels name their room and request, the second of which
-// remembers it is open, and one whose panels fail or wait for their code (a lazy component that
-// never loads).
+/** A plugin's panel that draws its own frame: a card with its own Fill and Hide. */
+function Sketch({ roomId }: { roomId: string }) {
+  // As the client SDK gives it.
+  const frame = usePanelFrame();
+  const layout = frame?.layout;
+  return (
+    <div data-testid="sketch">
+      <p>
+        Sketch of {roomId}, {layout ?? 'no layout'}
+      </p>
+      <button
+        type="button"
+        onClick={() => frame?.setLayout(layout === 'filled' ? 'beside' : 'filled')}
+      >
+        Fill the room with the sketch
+      </button>
+      <button type="button" onClick={() => frame?.setLayout('folded')}>
+        Hide the sketch
+      </button>
+    </div>
+  );
+}
+
+// Two plugins of the build: one whose panels name their room and request and say what they see of
+// their frame, the second of which remembers it is open and the third of which draws its own
+// frame, and one whose panels fail or wait for their code (a lazy component that never loads).
 vi.mock('../plugins/pluginEntries', () => ({
   pluginEntries: [
     {
@@ -157,10 +181,12 @@ vi.mock('../plugins/pluginEntries', () => ({
             id: 'panel',
             label: 'Notes',
             Component: ({ roomId, request }: { roomId: string; request?: unknown }) => {
+              const layout = usePanelFrame()?.layout;
               if (request === 'missing note') throw new Error('no such note');
               return (
                 <>
                   <p>Notes of {roomId}</p>
+                  <p>Notes frame {layout ?? 'none'}</p>
                   {request !== undefined && <p>Notes request {JSON.stringify(request)}</p>}
                 </>
               );
@@ -177,6 +203,7 @@ vi.mock('../plugins/pluginEntries', () => ({
               </>
             ),
           },
+          { id: 'sketch', label: 'Sketch', frame: 'own', Component: Sketch },
         ],
         headerActions: [{ id: 'add', label: 'Add a note', icon: () => null, run: () => undefined }],
       },
@@ -206,6 +233,14 @@ vi.mock('../plugins/pluginEntries', () => ({
             label: 'Waiting',
             Component: () => {
               throw neverLoads;
+            },
+          },
+          {
+            id: 'own',
+            label: 'Broken sketch',
+            frame: 'own',
+            Component: () => {
+              throw new Error('no sketch today');
             },
           },
         ],
@@ -811,6 +846,89 @@ describe('the side panels of a room', () => {
     }
   );
 
+  it("gives a framed panel's component its frame beside the conversation, and none on phones", async () => {
+    await renderRoom();
+    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
+    expect(notes()?.textContent).toContain('Notes frame beside');
+    expect(screen.queryByRole('separator', { name: 'Resize Notes' })).not.toBeNull();
+    await act(async () => frameButton('Fill the room with Notes')?.click());
+    expect(notes()?.textContent).toContain('Notes frame filled');
+    cleanup();
+
+    await renderRoom(ScreenSize.Mobile);
+    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
+    expect(notes()?.textContent).toContain('Notes frame none');
+  });
+
+  const sketch = () => screen.queryByTestId('sketch');
+  const sketchButton = (name: string) => screen.getByRole('button', { name });
+
+  it.each([ScreenSize.Desktop, ScreenSize.Mobile])(
+    'draws no frame, title, Close or splitter around a panel that draws its own (%s)',
+    async (size) => {
+      await renderRoom(size);
+      await act(async () => state.view?.onPanelToggle?.('notes/sketch'));
+      expect(sketch()?.textContent).toContain(`Sketch of ${room.roomId}, beside`);
+      expect(state.view?.shownPanel).toBe('notes/sketch');
+      expect(screen.queryByRole('region', { name: 'Sketch' })).toBeNull();
+      expect(screen.queryByRole('heading', { name: 'Sketch' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Close Sketch' })).toBeNull();
+      expect(screen.queryByRole('separator')).toBeNull();
+      expect(frameButton('Fill the room with Sketch')).toBeNull();
+      expect(frameButton('Fold Sketch to the edge')).toBeNull();
+      expect(screen.queryByTestId('resizable-plugin-panel')).toBeNull();
+    }
+  );
+
+  it.each([ScreenSize.Desktop, ScreenSize.Mobile])(
+    'gives a panel that draws its own frame its layout (%s): it fills the room, and folded it covers nothing',
+    async (size) => {
+      const phone = size === ScreenSize.Mobile;
+      const showRoom = await renderRoom(size);
+      await act(async () => state.view?.onPanelToggle?.('notes/sketch'));
+      // Beside the conversation, or over it on phones.
+      expect(hidden()).toBe(phone);
+
+      await act(async () => sketchButton('Fill the room with the sketch').click());
+      expect(sketch()?.textContent).toContain('filled');
+      expect(hidden()).toBe(true);
+      expect(state.view?.shownPanel).toBe('notes/sketch');
+      await act(async () => sketchButton('Fill the room with the sketch').click());
+      expect(sketch()?.textContent).toContain('beside');
+      expect(hidden()).toBe(phone);
+
+      // Folded to the tab it draws, the conversation lays out as with no panel; the header's toggle
+      // marks it as not showing, and unfolds it.
+      await act(async () => sketchButton('Hide the sketch').click());
+      expect(sketch()?.textContent).toContain('folded');
+      expect(hidden()).toBe(false);
+      expect(state.view?.shownPanel).toBeUndefined();
+      // Each room keeps its own layout.
+      await showRoom('!other:example.org');
+      expect(sketch()).toBeNull();
+      await showRoom(room.roomId);
+      expect(sketch()?.textContent).toContain('folded');
+      expect(hidden()).toBe(false);
+      await act(async () => state.view?.onPanelToggle?.('notes/sketch'));
+      expect(sketch()?.textContent).toContain('beside');
+      expect(hidden()).toBe(phone);
+    }
+  );
+
+  it.each([ScreenSize.Desktop, ScreenSize.Mobile])(
+    'frames a failed panel that draws its own, which says so and can still be closed (%s)',
+    async (size) => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      await renderRoom(size);
+      await act(async () => state.view?.onPanelToggle?.('broken/own'));
+      const panel = screen.getByRole('region', { name: 'Broken sketch' });
+      expect(panel.textContent).toContain('This panel stopped working.');
+      await act(async () => screen.getByRole('button', { name: 'Close Broken sketch' }).click());
+      expect(screen.queryByRole('region', { name: 'Broken sketch' })).toBeNull();
+      expect(hidden()).toBe(false);
+    }
+  );
+
   it('unfolds the live transcript when Transcript is pressed again, which still brings back the call on close', async () => {
     await renderRoom();
     await open('call');
@@ -901,9 +1019,11 @@ describe('the side panels of a room', () => {
     expect(state.view?.pluginPanels?.map(({ id, label }) => [id, label])).toEqual([
       ['notes/panel', 'Notes'],
       ['notes/board', 'Board'],
+      ['notes/sketch', 'Sketch'],
       ['broken/panel', 'Broken'],
       ['broken/opaque', 'Opaque'],
       ['broken/waiting', 'Waiting'],
+      ['broken/own', 'Broken sketch'],
     ]);
     expect(state.view?.pluginActions?.map(({ id, label }) => [id, label])).toEqual([
       ['notes/add', 'Add a note'],
@@ -916,6 +1036,7 @@ describe('the side panels of a room', () => {
       'broken/panel',
       'broken/opaque',
       'broken/waiting',
+      'broken/own',
     ]);
     expect(state.view?.pluginActions).toEqual([]);
   });
