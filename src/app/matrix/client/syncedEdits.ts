@@ -104,10 +104,18 @@ export const keepSyncedEdits = (mx: MatrixClient): (() => void) => {
     if (!isRedactedEdit(event)) keepNewer(newestEdits, relation.event_id, event);
     if (isFinishingEdit(event)) keepNewer(finishingEdits, relation.event_id, event);
   };
+  // A room the account forgets goes with its record of redacted edits, so its kept edits go too.
+  const forgetRoom = (roomId: string) => {
+    newestEdits.forEach((edit, messageId) => {
+      if (edit.getRoomId() === roomId) newestEdits.delete(messageId);
+    });
+  };
   mx.on(ClientEvent.Event, remember);
   mx.on(MatrixEventEvent.Decrypted, remember);
+  mx.on(ClientEvent.DeleteRoom, forgetRoom);
   return () => {
     mx.removeListener(ClientEvent.Event, remember);
     mx.removeListener(MatrixEventEvent.Decrypted, remember);
+    mx.removeListener(ClientEvent.DeleteRoom, forgetRoom);
   };
 };
