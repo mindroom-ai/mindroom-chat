@@ -1,12 +1,7 @@
 // @vitest-environment jsdom
-import { renderHook } from '@testing-library/react';
-import type { MatrixClient } from 'matrix-js-sdk';
-import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
-import { putSession } from '../matrix/session/sessions';
 import { forgetAccountInPlugins } from './forgetAccountInPlugins';
-import { usePluginStorage } from './pluginStorage';
+import { ALICE, BOB, LOOKALIKE, signIn, storageOf } from './test-utils/pluginStorage';
 
 // Two plugins whose `forgetAccount` the tests set.
 const forget = vi.hoisted(() => vi.fn<(pluginId: string, userId: string) => unknown>());
@@ -17,29 +12,6 @@ vi.mock('./pluginEntries', () => ({
     plugin: { forgetAccount: (userId: string) => forget(id, userId) },
   })),
 }));
-
-const ALICE = '@alice:example.org';
-const BOB = '@bob:example.org';
-// A user ID that starts with Alice's names another account.
-const LOOKALIKE = `${ALICE}.other`;
-
-const signIn = (userId: string) =>
-  putSession({
-    baseUrl: 'https://matrix.example.org',
-    userId,
-    deviceId: 'DEVICE',
-    accessToken: 'token',
-  });
-
-/** `pluginId`'s storage, as a component of it sees it while `userId` is signed in. */
-const storageOf = (pluginId: string, userId: string) => {
-  const client = { getSafeUserId: () => userId } as unknown as MatrixClient;
-  return renderHook(() => usePluginStorage(pluginId), {
-    wrapper: ({ children }: { children: ReactNode }) => (
-      <MatrixClientProvider value={client}>{children}</MatrixClientProvider>
-    ),
-  }).result.current;
-};
 
 beforeEach(() => {
   [ALICE, BOB, LOOKALIKE].forEach(signIn);
