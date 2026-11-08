@@ -53,7 +53,7 @@ Out, with reasons:
 - **Minimize** (title bar button) turns it into the bar in place, keeping the height to return to. The bar shows up to three avatars of the others (the speaking one ringed), the title and status, while joined the microphone and leave buttons, then Expand (which gives the height back) and Close (X, "Close call view"). Once the call failed or ended, the status says why (the problem, or that the call ended) and Close, the expanded view's Dismiss, takes the place of the microphone and leave buttons, so a failed call can be dropped from the bar; that bar has Close and Expand only, no X. A moved bar drops into the nearest corner on release. When the call shown in a floating window ends on this device, the window closes; the focus it had (or the End button's, gone with the call) goes to the room's call button on the page, else to the page's main content where the skip link lands.
 - **Keyboard:** the title bar takes focus ("Move call window"); arrows move it 16 px, Shift+arrows resize it 16 px.
 - **Viewport changes:** the window keeps its distance to the nearer horizontal and vertical edges, shrinks to fit when the viewport is smaller than it, and stays 8 px inside.
-- **Remembered** per account in `localStorage` key `mindroom.callWindow:<user id>`: mode, position, size and the height to expand to. A stored rectangle is fitted to the viewport when read.
+- **Remembered** per account in `localStorage` key `mindroom.callWindow:<user id>`: mode, position, size, the viewport they were placed in (`placedIn`) and the height to expand to. A stored rectangle is fitted from the viewport it was placed in to the one it shows in, also after a reload or Dock and Float, so it opens where it showed; one stored without `placedIn` counts as placed in the viewport that reads it. Expand from outside the window (the rail's call button, a call view that opens or a call that starts in it, the transcript switch) grows the bar from where it shows, not from where it was stored.
 - Physical `left` and `top` place the window (it is positioned by coordinates, not by a side); everything inside follows the logical-side rules.
 
 ### Inside the call view
@@ -85,7 +85,7 @@ New and changed files (all in `src/app/calls/` unless named):
 | File | Role |
 |---|---|
 | `window/callWindowGeometry.ts` (+ test) | Pure rectangle math: move with margin and edge stick, resize from an edge or corner with minimums, bar threshold, corner snap, keyboard steps, fit to a new viewport, default rectangle. |
-| `window/callWindowState.ts` (+ test) | Per-account atom of `{ mode, rect, expandedHeight }` in `localStorage` (`atomWithLocalStorage`, as `ResizablePanel` does), with `setMode`, `expand` and `minimize` helpers. |
+| `window/callWindowState.ts` (+ test) | Per-account atom of `{ mode, rect, placedIn, expandedHeight }` in `localStorage` (`atomWithLocalStorage`, as `ResizablePanel` does), with `setMode`, `expand` and `minimize` helpers. |
 | `window/FloatingCallWindow.tsx`, `.css.ts` (+ test) | The frame: fixed position, pointer drag and resize (pointer capture), the 8 handles, bar mode, keyboard, viewport fitting, persistence. Renders the call view as its child. |
 | `window/CallWindowHost.tsx` (+ test) | Mounted in `CallFeatures`: on desktop in floating mode with `callPanelRoomAtom` set and its room known, renders the window with the lazy call view inside `PowerLevelsContextProvider`. |
 | `CallPanelPart.tsx` | The lazy `CallPanel` part and its `CallPanelUnavailable` fallback, moved out of `room/Room.tsx` so the room and the window share them. |
@@ -121,9 +121,9 @@ Layers: everything new is in `calls` (layer 6); it imports `navigation`, `matrix
 Unit (vitest; DOM tests with `// @vitest-environment jsdom`, a `PointerEvent` stub and `setPointerCapture` stubs):
 
 - geometry: move clamp and edge stick, every edge and corner resize with minimums, bar threshold, corner snap, viewport fit, keyboard steps;
-- state: defaults, junk in storage, mode switch, minimize then expand returns the height;
+- state: defaults, junk in storage, mode switch, minimize then expand returns the height, an expand from outside after the viewport changed grows the bar where it shows;
 - `fitTiles`: one to six tiles in wide, tall and tiny stages, the speaker-view threshold;
-- `FloatingCallWindow`: drag moves and saves, resize, minimize and expand, keyboard, viewport resize;
+- `FloatingCallWindow`: drag moves and saves, resize, minimize and expand, keyboard, viewport resize, an expand from outside and a window that comes back (Dock, then Float) after the viewport changed;
 - `CallWindowHost`: shows on desktop in floating mode, not on phones or when docked, stays when the route changes;
 - `CallStage`: voice stage without video, grid with a camera on, speaker view with a screen share and the inset, every screen while two or more are shared, the speaker switch;
 - `CallPanel`: agent calls show camera and screen share; title bar buttons per mode;

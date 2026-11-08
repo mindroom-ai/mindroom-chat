@@ -358,7 +358,13 @@ describe('CallRow', () => {
     const store = inCall();
     // The window was closed, and minimized to its bar before that.
     const rect = { x: 600, y: 200, width: 400, height: 480 };
-    store.set(settings(), minimizedSettings({ mode: 'floating', rect }, rect));
+    store.set(
+      settings(),
+      minimizedSettings({ mode: 'floating', rect }, rect, {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      })
+    );
     render(LIVE, store);
 
     act(() => button('Transcript')?.click());

@@ -13,6 +13,7 @@ import {
   DEFAULT_HEIGHT,
   MIN_HEIGHT,
   clampToViewport,
+  fitToViewport,
   isBar,
   type ViewportSize,
   type WindowRect,
@@ -23,6 +24,12 @@ export type CallWindowMode = 'floating' | 'docked';
 export type CallWindowSettings = {
   mode: CallWindowMode;
   rect?: WindowRect;
+  /**
+   * The viewport `rect` was placed in, which it is fitted from to the viewport it shows in. Kept
+   * since rectangles fit that way also after a reload, Dock and Float, or an expand from outside
+   * the window; one stored without it counts as placed in the viewport that reads it.
+   */
+  placedIn?: ViewportSize;
   expandedHeight?: number;
   /** The live transcript shows inside the window (in calls MindRoom transcribes). */
   transcript?: boolean;
@@ -47,6 +54,12 @@ const normalizeRect = (value: unknown): WindowRect | undefined => {
   return { x, y, width, height };
 };
 
+const normalizeViewport = (value: unknown): ViewportSize | undefined => {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const { width, height } = value as Record<string, unknown>;
+  return isPositive(width) && isPositive(height) ? { width, height } : undefined;
+};
+
 /** Anything malformed gives the defaults; a bad rectangle or height is dropped on its own. */
 export const normalizeCallWindowSettings = (value: unknown): CallWindowSettings => {
   if (typeof value !== 'object' || value === null) return { ...DEFAULT_SETTINGS };
@@ -55,6 +68,8 @@ export const normalizeCallWindowSettings = (value: unknown): CallWindowSettings 
   const settings: CallWindowSettings = { mode: stored.mode };
   const rect = normalizeRect(stored.rect);
   if (rect) settings.rect = rect;
+  const placedIn = rect && normalizeViewport(stored.placedIn);
+  if (placedIn) settings.placedIn = placedIn;
   const height = stored.expandedHeight;
   if (typeof height === 'number' && Number.isFinite(height) && height >= MIN_HEIGHT) {
     settings.expandedHeight = height;
@@ -127,8 +142,10 @@ const viewsOf = (settingsAtom: CallWindowSettingsAtom): SettingsViews => {
     }),
     expand: atom(null, (get, set) => {
       const settings = get(settingsAtom);
-      if (!settings.rect || !isBar(settings.rect)) return false;
-      set(settingsAtom, expandedSettings(settings, settings.rect, readViewport()));
+      const viewport = readViewport();
+      const bar = shownRect(settings, viewport);
+      if (!bar || !isBar(bar)) return false;
+      set(settingsAtom, expandedSettings(settings, bar, viewport));
       return true;
     }),
     // The bar shows no transcript, so showing it gives a minimized window its height back.
@@ -136,8 +153,10 @@ const viewsOf = (settingsAtom: CallWindowSettingsAtom): SettingsViews => {
       (get) => get(settingsAtom).transcript === true,
       (get, set, shown: boolean) => {
         const settings = { ...get(settingsAtom), transcript: shown };
-        const bar = shown && settings.rect && isBar(settings.rect) ? settings.rect : undefined;
-        set(settingsAtom, bar ? expandedSettings(settings, bar, readViewport()) : settings);
+        const viewport = readViewport();
+        const rect = shownRect(settings, viewport);
+        const bar = shown && rect && isBar(rect) ? rect : undefined;
+        set(settingsAtom, bar ? expandedSettings(settings, bar, viewport) : settings);
       }
     ),
     split: atom(
@@ -191,17 +210,35 @@ export const getCallWindowTranscriptAtom = (userId: string) =>
 export const getCallWindowSplitAtom = (userId: string) =>
   viewsOf(getCallWindowSettingsAtom(userId)).split;
 
-/** The bar keeps the window's bottom edge, and the old height is remembered for the way back. */
+/**
+ * Where the stored rectangle shows in `viewport`: fitted from the viewport it was placed in, so it
+ * keeps its distance to the nearer edges.
+ */
+export const shownRect = (
+  settings: CallWindowSettings,
+  viewport: ViewportSize
+): WindowRect | undefined =>
+  settings.rect && fitToViewport(settings.rect, settings.placedIn ?? viewport, viewport);
+
+/**
+ * The bar keeps the bottom edge of the window as it shows (`rect`, in `viewport`), and the old
+ * height is remembered for the way back.
+ */
 export const minimizedSettings = (
   settings: CallWindowSettings,
-  rect: WindowRect
+  rect: WindowRect,
+  viewport: ViewportSize
 ): CallWindowSettings => ({
   ...settings,
   rect: { ...rect, y: rect.y + rect.height - BAR_HEIGHT, height: BAR_HEIGHT },
+  placedIn: viewport,
   expandedHeight: isBar(rect) ? settings.expandedHeight : rect.height,
 });
 
-/** Grows upward from the bar's bottom edge to the remembered height, then fits the viewport. */
+/**
+ * Grows upward from the bottom edge of the bar as it shows (`rect`, in `viewport`) to the
+ * remembered height, then fits the viewport.
+ */
 export const expandedSettings = (
   settings: CallWindowSettings,
   rect: WindowRect,
@@ -209,5 +246,5 @@ export const expandedSettings = (
 ): CallWindowSettings => {
   const height = settings.expandedHeight ?? DEFAULT_HEIGHT;
   const grown = { ...rect, y: rect.y + rect.height - height, height };
-  return { ...settings, rect: clampToViewport(grown, viewport) };
+  return { ...settings, rect: clampToViewport(grown, viewport), placedIn: viewport };
 };

@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
+import type { ReactNode } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { Provider } from 'jotai';
+import { Provider, createStore } from 'jotai';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import type { WindowRect } from './callWindowGeometry';
-import { callWindowStorageKey, clearCallWindowStore } from './callWindowState';
+import { callWindowStorageKey, clearCallWindowStore, useExpandCallWindow } from './callWindowState';
 import {
   useCallWindowFrame,
   useCallWindowSize,
@@ -50,17 +51,28 @@ function TitleBar() {
   );
 }
 
-const renderWindow = () =>
+let expandFromOutside: (() => boolean) | undefined;
+/** Stands in for what expands the window from outside it: the rail's call button, a call view that opens. */
+function RailCallButton() {
+  expandFromOutside = useExpandCallWindow();
+  return null;
+}
+
+/** `jotai`: the store the window keeps its settings in, the same one again after Dock and Float. */
+const renderWindow = (jotai?: ReturnType<typeof createStore>, beside?: ReactNode) =>
   render(
     <MatrixClientProvider value={client}>
-      <Provider>
+      <Provider store={jotai}>
         <FloatingCallWindow>
           <TitleBar />
         </FloatingCallWindow>
+        {beside}
       </Provider>
     </MatrixClientProvider>
   );
 
+/** The viewport the tests start in; the window stores it with the rectangles placed there. */
+const LAPTOP = { width: 1440, height: 900 };
 const setViewport = (width: number, height: number) => {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
   Object.defineProperty(window, 'innerHeight', { configurable: true, value: height });
@@ -99,9 +111,10 @@ const drag = (target: Element, dx: number, dy: number) => {
 
 beforeEach(() => {
   localStorage.clear();
-  setViewport(1440, 900);
+  setViewport(LAPTOP.width, LAPTOP.height);
   document.dir = '';
   frame = undefined;
+  expandFromOutside = undefined;
   size = undefined;
   vi.stubGlobal('PointerEvent', TestPointerEvent);
   Object.assign(HTMLElement.prototype, {
@@ -185,6 +198,7 @@ describe('FloatingCallWindow', () => {
     expect(stored()).toEqual({
       mode: 'floating',
       rect: { x: 724, y: 204, width: 400, height: 480 },
+      placedIn: LAPTOP,
     });
   });
 
@@ -214,6 +228,7 @@ describe('FloatingCallWindow', () => {
     expect(stored()).toEqual({
       mode: 'floating',
       rect: { x: 1024, y: 404, width: 340, height: 440 },
+      placedIn: LAPTOP,
     });
 
     drag(edge('s'), 0, -400);
@@ -249,6 +264,7 @@ describe('FloatingCallWindow', () => {
     expect(stored()).toEqual({
       mode: 'floating',
       rect: { x: 1024, y: 828, width: 400, height: 56 },
+      placedIn: LAPTOP,
       expandedHeight: 480,
     });
 
@@ -356,6 +372,47 @@ describe('FloatingCallWindow', () => {
     });
   });
 
+  // A window stored in a 1440 by 900 viewport as a bar 340 px from the end edge and 16 px from
+  // the bottom; in 1000 by 700 it shows 340 px from the end edge and 16 px from the bottom too.
+  const barIn1440 = { x: 700, y: 828, width: 400, height: 56 };
+  const barIn1000 = { x: 260, y: 628, width: 400, height: 56 };
+  const minimizedAt700 = (jotai?: ReturnType<typeof createStore>) => {
+    store({ mode: 'floating', rect: { x: 700, y: 404, width: 400, height: 480 } });
+    renderWindow(jotai, <RailCallButton />);
+    act(() => frame?.minimize());
+    expect(placed()).toEqual(barIn1440);
+  };
+  const resizeViewport = (width: number, height: number) => {
+    setViewport(width, height);
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+  };
+
+  it('expands from outside the window from where it shows after the viewport changed', () => {
+    minimizedAt700();
+    resizeViewport(1000, 700);
+    expect(placed()).toEqual(barIn1000);
+
+    act(() => {
+      expect(expandFromOutside?.()).toBe(true);
+    });
+    expect(placed()).toEqual({ x: 260, y: 204, width: 400, height: 480 });
+  });
+
+  it('opens where it showed when it comes back after the viewport changed (Dock, then Float)', () => {
+    const jotai = createStore();
+    minimizedAt700(jotai);
+    cleanup();
+
+    setViewport(1000, 700);
+    renderWindow(jotai);
+    expect(placed()).toEqual(barIn1000);
+    // Placed in the bigger viewport, it gets its place there back.
+    resizeViewport(1440, 900);
+    expect(placed()).toEqual(barIn1440);
+  });
+
   it.each(['pointerCancel', 'lostPointerCapture'] as const)(
     'stores the rectangle where it stands when %s ends a drag',
     (end) => {
@@ -367,6 +424,7 @@ describe('FloatingCallWindow', () => {
       expect(stored()).toEqual({
         mode: 'floating',
         rect: { x: 924, y: 354, width: 400, height: 480 },
+        placedIn: LAPTOP,
       });
       // The drag is over: a later move does nothing.
       moveTo(100, 100);

@@ -16,8 +16,17 @@ const USER = '@a:x';
 const rect = { x: 100, y: 200, width: 400, height: 480 };
 const viewport = { width: 1280, height: 800 };
 
+const jsdomViewport = { width: window.innerWidth, height: window.innerHeight };
+const setViewport = ({ width, height }: { width: number; height: number }) => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+  Object.defineProperty(window, 'innerHeight', { configurable: true, value: height });
+};
+
 beforeEach(() => localStorage.clear());
-afterEach(() => clearCallWindowStore(USER));
+afterEach(() => {
+  clearCallWindowStore(USER);
+  setViewport(jsdomViewport);
+});
 
 describe('normalizeCallWindowSettings', () => {
   it('gives the defaults for junk', () => {
@@ -48,6 +57,21 @@ describe('normalizeCallWindowSettings', () => {
     expect(normalizeCallWindowSettings({ mode: 'floating', expandedHeight: 100 })).toEqual({
       mode: 'floating',
     });
+  });
+
+  it('keeps the viewport a rectangle was placed in, and only with the rectangle', () => {
+    const placedIn = { width: 1440, height: 900 };
+    expect(normalizeCallWindowSettings({ mode: 'floating', rect, placedIn })).toEqual({
+      mode: 'floating',
+      rect,
+      placedIn,
+    });
+    expect(normalizeCallWindowSettings({ mode: 'floating', placedIn })).toEqual({
+      mode: 'floating',
+    });
+    expect(
+      normalizeCallWindowSettings({ mode: 'floating', rect, placedIn: { width: 0, height: 900 } })
+    ).toEqual({ mode: 'floating', rect });
   });
 
   it('keeps whether the transcript shows and a split between a quarter and four fifths', () => {
@@ -82,7 +106,7 @@ describe('the window transcript settings', () => {
 
   it('show the transcript, and expand a bar to show it', () => {
     const store = createStore();
-    const bar = minimizedSettings({ mode: 'floating', rect }, rect);
+    const bar = minimizedSettings({ mode: 'floating', rect }, rect, viewport);
     store.set(getCallWindowSettingsAtom(USER), bar);
 
     store.set(getCallWindowTranscriptAtom(USER), true);
@@ -93,6 +117,26 @@ describe('the window transcript settings', () => {
 
     store.set(getCallWindowTranscriptAtom(USER), false);
     expect(store.get(getCallWindowSettingsAtom(USER))).toEqual({ ...shown, transcript: false });
+  });
+
+  it('expand a bar from where it shows after the viewport changed', () => {
+    const store = createStore();
+    // A bar placed in 1440 by 900, 340 px from the end edge; the viewport is 1000 by 700 now.
+    const placedIn = { width: 1440, height: 900 };
+    const bar = { x: 700, y: 828, width: 400, height: 56 };
+    store.set(getCallWindowSettingsAtom(USER), {
+      mode: 'floating',
+      rect: bar,
+      placedIn,
+      expandedHeight: 480,
+    });
+    setViewport({ width: 1000, height: 700 });
+
+    store.set(getCallWindowTranscriptAtom(USER), true);
+    expect(store.get(getCallWindowSettingsAtom(USER))).toMatchObject({
+      rect: { x: 260, y: 204, width: 400, height: 480 },
+      placedIn: { width: 1000, height: 700 },
+    });
   });
 
   it('keep the split the divider sets, within its bounds', () => {
@@ -135,7 +179,7 @@ describe('getCallWindowSettingsAtom', () => {
 
 describe('minimize and expand', () => {
   it('returns the old height and keeps the bottom edge', () => {
-    const bar = minimizedSettings({ mode: 'floating', rect }, rect);
+    const bar = minimizedSettings({ mode: 'floating', rect }, rect, viewport);
     expect(bar.rect).toEqual({ x: 100, y: 624, width: 400, height: 56 });
     expect(bar.expandedHeight).toBe(480);
     const back = expandedSettings(bar, bar.rect!, viewport);

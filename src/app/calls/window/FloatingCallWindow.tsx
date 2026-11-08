@@ -57,10 +57,11 @@ export function FloatingCallWindow(props: { children: ReactNode; frameRef?: Ref<
   const stored = settings.rect;
   // A stored box is fitted from the viewport it was placed in, so it keeps its distance to the
   // nearer edges as the viewport changes and gets its size back when the viewport grows again.
-  // Nothing is written meanwhile; a box that arrives from elsewhere counts as placed in this one.
+  // Nothing is written meanwhile. A box stored without its viewport counts as placed in the one
+  // it arrives in.
   const [placed, setPlaced] = useState({ rect: stored, viewport });
   if (placed.rect !== stored) setPlaced({ rect: stored, viewport });
-  const placedIn = placed.rect === stored ? placed.viewport : viewport;
+  const placedIn = settings.placedIn ?? (placed.rect === stored ? placed.viewport : viewport);
   const settled = stored
     ? fitToViewport(stored, placedIn, viewport)
     : clampToViewport(defaultRect(viewport, document.dir === 'rtl'), viewport);
@@ -87,7 +88,8 @@ export function FloatingCallWindow(props: { children: ReactNode; frameRef?: Ref<
   const save = (next: WindowRect, from: WindowRect) => {
     if (sameRect(next, from)) return;
     const entersBar = isBar(next) && !isBar(from);
-    setSettings({ ...(entersBar ? minimizedSettings(settings, from) : settings), rect: next });
+    const kept = entersBar ? minimizedSettings(settings, from, viewport) : settings;
+    setSettings({ ...kept, rect: next, placedIn: viewport });
   };
 
   // The call view reads the frame from context; these keep their identity across pointer moves so
@@ -95,7 +97,9 @@ export function FloatingCallWindow(props: { children: ReactNode; frameRef?: Ref<
   const latest = useLatestRef({ settings, rect, viewport, save });
   const minimize = useCallback(() => {
     const current = latest.current;
-    if (!isBar(current.rect)) setSettings(minimizedSettings(current.settings, current.rect));
+    if (!isBar(current.rect)) {
+      setSettings(minimizedSettings(current.settings, current.rect, current.viewport));
+    }
   }, [latest, setSettings]);
   const expand = useCallback(() => {
     const current = latest.current;

@@ -136,7 +136,13 @@ describe('the call controls for transcripts', () => {
     const store = inOwnCall();
     // Minimized to its bar, the window gets its height back to show the transcript.
     const rect = { x: 600, y: 200, width: 400, height: 480 };
-    store.set(settings(), minimizedSettings({ mode: 'floating', rect }, rect));
+    store.set(
+      settings(),
+      minimizedSettings({ mode: 'floating', rect }, rect, {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      })
+    );
     render('transcribing', store);
 
     act(() => transcript()?.click());
