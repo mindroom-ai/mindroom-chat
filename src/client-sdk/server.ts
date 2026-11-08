@@ -113,6 +113,5 @@ export const useMindroomServerStatus = (
 ): { server: MindroomServer | undefined; pending: boolean } => {
   const mx = useMatrixClient();
   const { apiUrl, discovered, pending } = useRoomMindroomServer(mx, roomId);
-  const server = useServer(mx, pending ? undefined : apiUrl, discovered);
-  return useMemo(() => ({ server, pending }), [server, pending]);
+  return { server: useServer(mx, pending ? undefined : apiUrl, discovered), pending };
 };

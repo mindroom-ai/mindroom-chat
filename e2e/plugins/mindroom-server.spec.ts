@@ -189,6 +189,7 @@ test("a plugin's panel waits for the room's server: the published one, never the
   const published = `MindRoom server: ${stack.apiUrl}`;
   const empty = await createPrivateRoom(stack.homeserver, stack.tester.accessToken, {
     name: uniqueWord('noagent'),
+    topic: 'A room without an agent',
   });
 
   // The panel stays open in the lobby, so it opens again at the start of a load there, before the

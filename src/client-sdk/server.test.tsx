@@ -204,18 +204,18 @@ describe('useMindroomServerStatus', () => {
     return seen;
   };
 
-  /** A room whose member list, lazy-loaded, is still out until the test settles it. */
-  const loadingMembers = () => {
+  const rooms = new Map<string, unknown>();
+  beforeEach(() => rooms.clear());
+
+  /** Makes `roomId` a room whose member list, lazy-loaded, is still out until the test settles it. */
+  const loadingMembers = (roomId = ROOM_ID) => {
     let settle: (loaded: boolean) => void = () => undefined;
     const load = new Promise<boolean>((resolve, reject) => {
       settle = (loaded) => (loaded ? resolve(true) : reject(new Error('offline')));
     });
     let loaded = false;
-    const room = {
-      membersLoaded: () => loaded,
-      loadMembersIfNeeded: () => load,
-    };
-    mx.getRoom = () => room as unknown as ReturnType<MatrixClient['getRoom']>;
+    rooms.set(roomId, { membersLoaded: () => loaded, loadMembersIfNeeded: () => load });
+    mx.getRoom = (id: string) => (rooms.get(id) ?? null) as ReturnType<MatrixClient['getRoom']>;
     return (ok: boolean) =>
       act(async () => {
         loaded = ok;
@@ -245,6 +245,28 @@ describe('useMindroomServerStatus', () => {
       expect(seen.filter(({ origin: shown }) => shown)).toHaveLength(origin ? 1 : 0);
     }
   );
+
+  it('is pending again, with no server, on a switch to a room whose member list is still out', async () => {
+    fakeFetch();
+    state.published = PUBLISHED;
+    const settleFirst = loadingMembers(ROOM_ID);
+    const settleOther = loadingMembers('!other:example.org');
+    const seen: { origin?: string; pending: boolean }[] = [];
+    const { rerender } = renderHook(
+      ({ roomId }) => {
+        const { server: found, pending } = useMindroomServerStatus(roomId);
+        seen.push({ origin: found?.origin, pending });
+      },
+      { wrapper: signedIn(DEPLOYMENT), initialProps: { roomId: ROOM_ID } }
+    );
+    await settleFirst(true);
+    expect(seen.at(-1)).toEqual({ origin: PUBLISHED, pending: false });
+
+    rerender({ roomId: '!other:example.org' });
+    expect(seen.at(-1)).toEqual({ origin: undefined, pending: true });
+    await settleOther(true);
+    expect(seen.at(-1)).toEqual({ origin: PUBLISHED, pending: false });
+  });
 
   it('is pending, with no server, until the homeserver answers on binding tokens, then signs in at the published server only', async () => {
     const answers = fakeFetch();
