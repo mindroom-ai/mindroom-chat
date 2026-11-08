@@ -657,11 +657,11 @@ export type ThreadRootReadAction = 'receipt' | 'seen';
 
 /**
  * How to mark a thread's root read when the user opens the thread. The root belongs to the main
- * timeline, and the server reads all of it on any main receipt, the messages after the one the
- * receipt names included. So `receipt`, a main receipt, only once nothing else there is unread
- * (`isMainTimelineMessageUnread`, which counts the roots seen before as read), and until then
- * `seen`: the root counts as read on this device (`rememberSeenThreadRoot`). Undefined when the
- * root is read already.
+ * timeline, and the main receipt this client sends names its newest event
+ * (`markMainTimelineAsRead`), so it reads all of it. So `receipt`, a main receipt, only once
+ * nothing else there is unread (`isMainTimelineMessageUnread`, which counts the roots seen before
+ * as read), and until then `seen`: the root counts as read on this device
+ * (`rememberSeenThreadRoot`). Undefined when the root is read already.
  *
  * The walk goes back from the newest loaded event to the user's read position or own last
  * message. When it runs out of loaded events first, the server's count of unread main-timeline
