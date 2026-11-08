@@ -50,8 +50,13 @@ export async function unlockWithRecoveryKey(
   // never got the backup key.
   const backup = await fetchKeyBackupVersion(client);
   storePrivateKey(keyId, recoveryKey);
-  // Secret storage may hold no backup key, or one that no longer fits the backup.
-  if (backup) await crypto.loadSessionBackupPrivateKeyFromSecretStorage().catch(() => undefined);
+  if (backup) {
+    // The key is loaded against the SDK's own copy of the backup info, which predates a backup
+    // turned on elsewhere since this session last looked; asking again brings it up to date.
+    await crypto.checkKeyBackupAndEnable();
+    // Secret storage may hold no backup key, or one that no longer fits the backup.
+    await crypto.loadSessionBackupPrivateKeyFromSecretStorage().catch(() => undefined);
+  }
   await crypto.bootstrapCrossSigning({});
   await crypto.checkKeyBackupAndEnable();
 }

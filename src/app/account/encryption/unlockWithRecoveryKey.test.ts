@@ -86,6 +86,15 @@ describe('unlockWithRecoveryKey', () => {
     expect(crypto.loadSessionBackupPrivateKeyFromSecretStorage).not.toHaveBeenCalled();
   });
 
+  it("brings the SDK's copy of the backup info up to date before it loads the backup key", async () => {
+    const crypto = cryptoWith(true);
+
+    await unlockWithRecoveryKey(client(crypto), 'KEY_ID', KEY);
+    expect(crypto.checkKeyBackupAndEnable.mock.invocationCallOrder[0]).toBeLessThan(
+      crypto.loadSessionBackupPrivateKeyFromSecretStorage.mock.invocationCallOrder[0] as number
+    );
+  });
+
   it('loads no backup key for an account without a backup', async () => {
     vi.mocked(fetchKeyBackupVersion).mockResolvedValue(null);
     const crypto = cryptoWith(true);
