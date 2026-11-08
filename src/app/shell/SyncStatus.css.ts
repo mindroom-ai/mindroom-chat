@@ -17,24 +17,22 @@ export const Announcement = style({
 });
 
 // A one-line pill in the page's notice place, under a new version notice there. It says how the
-// connection is and offers nothing, so clicks pass through it to what it covers.
-export const Pill = style({
-  ...noticeMotionFromAbove,
-  // Below a new version notice in the same place: the pill, which takes no taps, is the one that
+// connection is and offers nothing; its place takes no clicks, so they pass through it to what it
+// covers. The place is a grid that centres it and keeps its height (ui/noticeSlots.css.ts).
+export const Pill = style([
+  noticeMotionFromAbove,
+  // After a new version notice in the same place: the pill, which takes no taps, is the one that
   // moves when the other comes or goes.
-  order: 1,
-  // A phone's place has no height of its own: the pill keeps the height of its text, also wrapped.
-  flexShrink: 0,
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: config.space.S200,
-  alignSelf: 'center',
-  maxInlineSize: '100%',
-  minBlockSize: toRem(32),
-  paddingBlock: config.space.S100,
-  paddingInline: config.space.S300,
-  borderRadius: config.radii.Pill,
-  pointerEvents: 'none',
-});
+  { order: 1 },
+  // The status icon and its words side by side, centred on each other.
+  { display: 'flex', alignItems: 'center', gap: config.space.S200 },
+  // At least 32 px high, and never wider than its place: its words wrap there instead.
+  {
+    minBlockSize: toRem(32),
+    maxInlineSize: '100%',
+    padding: `${config.space.S100} ${config.space.S300}`,
+    borderRadius: config.radii.Pill,
+  },
+]);
 
 export const PillText = style({ minInlineSize: 0, overflowWrap: 'anywhere' });
