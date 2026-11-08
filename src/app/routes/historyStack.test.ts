@@ -77,6 +77,19 @@ describe('findHistoryOrigin', () => {
     expect(inRoom(page('a', '/home/!garden:example.org/'))).toBe(false);
   });
 
+  it("counts a space's own pages as the space", () => {
+    expect(inRoom(page('a', `/${encodeURIComponent(room)}/lobby/`))).toBe(true);
+  });
+
+  it('stops at a page of another kind whose path only carries the room, such as a plugin page', () => {
+    const plugin = `/p/example/rooms/${encodeURIComponent(room)}/%24root`;
+    const history = stack(page('a', plugin), page('b', `/home/${encodeURIComponent(room)}/`));
+    expect(findHistoryOrigin(history, (candidate) => !inRoom(candidate))).toEqual({
+      steps: 1,
+      path: plugin,
+    });
+  });
+
   it('tells a thread of the room from the room itself', () => {
     const thread = (candidate: { pathname: string; search: string }) =>
       showsRoom(candidate, [room], ['$root']);

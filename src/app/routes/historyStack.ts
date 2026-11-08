@@ -83,9 +83,15 @@ const decodeSegment = (segment: string): string => {
 };
 
 /**
- * Whether a page shows the room: its path names it by one of `addresses` (its ID or an alias), as a
- * room's own page, an event in it and its threads do. `threadIds` narrows it to those threads.
+ * Whether a page shows the room: its route names it by one of `addresses` (its ID or an alias), as a
+ * room's own page, an event in it, its threads and a space's own pages do. `threadIds` narrows it
+ * to those threads. The app's routes name a space in their first segment and a room in their second
+ * (`/home/<room>`, `/<space>/<room>`); a later segment belongs to another page, such as a plugin's
+ * page about the room (`/p/<plugin>/rooms/<room>`).
  */
 export const showsRoom = (page: HistoryPage, addresses: string[], threadIds?: string[]): boolean =>
-  page.pathname.split('/').some((segment) => addresses.includes(decodeSegment(segment))) &&
+  page.pathname
+    .split('/')
+    .slice(1, 3)
+    .some((segment) => addresses.includes(decodeSegment(segment))) &&
   (!threadIds || threadIds.includes(new URLSearchParams(page.search).get('threadId') ?? ''));
