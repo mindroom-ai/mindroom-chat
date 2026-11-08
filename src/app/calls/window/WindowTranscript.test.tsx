@@ -217,7 +217,7 @@ describe('the live transcript in the floating window', () => {
     expect(layout()).toBeUndefined();
   });
 
-  it('takes no focus when it shows on its own, only the focus a row hands it', () => {
+  it('takes no focus when it shows on its own, only the focus a row hands it, once it shows', () => {
     inCall();
     render(windowWith({ width: 400, height: 480 }));
     const stage = document.querySelector<HTMLElement>('[data-stage]')!;
@@ -226,7 +226,11 @@ describe('the live transcript in the floating window', () => {
     expect(layout()).toBe('stacked');
     expect(document.activeElement).toBe(stage);
 
+    // Handed while the transcript does not show, the focus waits for it.
+    act(() => store.set(getCallWindowSettingsAtom(USER), { mode: 'floating', transcript: false }));
     act(() => store.set(windowTranscriptFocusAtom, { from: stage }));
+    expect(document.activeElement).toBe(stage);
+    act(() => showTranscript());
     expect(document.activeElement).toBe(screen.getByRole('region', { name: 'Live transcript' }));
     expect(store.get(windowTranscriptFocusAtom)).toBeUndefined();
   });
