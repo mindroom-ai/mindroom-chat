@@ -28,6 +28,7 @@ import { revokeBlobUrl, useBlobUrlCleanup } from '../../lib/hooks/useBlobUrlClea
 import { downloadCachedAttachment } from '../../event-store/cache/attachmentRepository';
 import { canUseServerThumbnail, loadServerScaledPicture } from './serverThumbnail';
 import { imageViewerOpenAtom } from '../../navigation/imageViewerState';
+import { revealDirectionControls } from '../../ui/directional';
 import { getBlobSafeMimeType, FALLBACK_MIMETYPE } from '../../lib/mimeTypes';
 import { stopPropagation } from '../../lib/keyboard';
 import * as css from './style.css';
@@ -285,7 +286,10 @@ export const ImageContent = as<'div', ImageContentProps>(
     const viewerSrc = scaledInTimeline ? original : src;
     const blurHash = getInfoBlurHash(info);
     const aspectRatio = info?.w && info?.h ? `${info.w} / ${info.h}` : undefined;
-    const caption = { alt: body, title: body };
+    // The name shows its direction controls, so `scan<U+202E>gpj.exe` cannot pass for a JPEG; the
+    // viewer gets it as it is, to show it the same way and save the file under it.
+    const shownName = revealDirectionControls(body);
+    const caption = { alt: shownName, title: shownName };
     const showViewer = () => setViewerOpen(true);
     const showViewerOnEnter = (evt: React.KeyboardEvent<HTMLElement>) => {
       if (evt.key !== 'Enter') return;
@@ -315,7 +319,7 @@ export const ImageContent = as<'div', ImageContentProps>(
                 <Modal
                   role="dialog"
                   aria-modal="true"
-                  aria-label={body}
+                  aria-label={shownName}
                   style={viewerFrame.modalStyle}
                   size="500"
                   onContextMenu={(evt: React.MouseEvent) => evt.stopPropagation()}
