@@ -71,8 +71,9 @@ export const useRoomHref = (roomId: string, threadId?: string): string =>
  * Creates a sub-room of `parent` called `name`, as the room menu's New Sub-room does, and resolves
  * to its room ID: listed under `parent`, open only to its members, and encrypted and federated as
  * the deployment's config.json (`createRoom`) says when it is called. It refuses, creating nothing,
- * a blank name, a parent where the signed-in user may not list rooms, and a call before the app has
- * its configuration. It does not open the room; `useRoomNavigate` does.
+ * a blank name, a parent where the signed-in user may not list rooms, and a call while the app
+ * provides no configuration. It resolves once the server has created the room, before sync has it,
+ * and does not open it; `useRoomNavigate` does.
  */
 export const createSubRoom = async (parent: Room, { name }: { name: string }): Promise<string> => {
   const config = getClientConfig();
