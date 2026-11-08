@@ -192,9 +192,10 @@ globalStyle(`${SETTINGS_CARD} > *`, {
   paddingInline: config.space.S400,
 });
 
-// A section's heading is whatever stands right before its card, the card's own title included;
-// it starts where the rows' text does.
-globalStyle(`${SETTINGS_PAGE} :not([data-sequence-card]):has(+ [data-sequence-card])`, {
+// A section's heading, which its component marks with data-settings-heading, starts where the
+// rows' text does. Only the mark makes a heading: the section in front of a card that is still
+// loading stays as it is.
+globalStyle(`${SETTINGS_PAGE} [data-settings-heading]`, {
   fontSize: toRem(15),
   lineHeight: toRem(22),
   fontWeight: config.fontWeight.W600,

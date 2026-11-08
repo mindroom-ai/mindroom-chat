@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Box, Spinner, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { MINDROOM_AUTH_BRANDING } from '../authUi';
+import { getDeviceDisplayName } from '../authUi';
 import { FieldError } from '../FiledError';
 import {
   CustomLoginResponse,
@@ -51,7 +51,7 @@ export function TokenLogin({ baseUrl, token, onFailure }: TokenLoginProps) {
     login(baseUrl, {
       type: 'm.login.token',
       token,
-      initial_device_display_name: MINDROOM_AUTH_BRANDING.deviceDisplayName,
+      initial_device_display_name: getDeviceDisplayName(),
     } as never)
       .then((response) => {
         if (!cancelled) setResult(response);

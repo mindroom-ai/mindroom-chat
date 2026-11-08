@@ -24,7 +24,9 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // row or a Compact thread card that took a tap (or the start of a scroll) kept its hover tint
 // after the finger lifted, and read as selected. On a phone and a tablet with touch, in Chromium
 // and (when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit) WebKit, a row and a card under
-// the pointer keep the fill of their untouched neighbours; a desktop mouse still tints both.
+// the pointer keep the fill of their untouched neighbours; a desktop mouse still tints both. A
+// card's "..." button that opened and closed its menu with two taps keeps its neighbours' fill
+// too, and so does its card.
 // Set HOVER_TINT_SHOTS=<directory> to save the row and the card under the pointer.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'touch-hover-tint-spec-password';
@@ -182,6 +184,50 @@ const check = async (
       expect(card.hovered, `${engine} ${device}: a touched card keeps its fill`).toBe(card.rest);
     } else {
       expect(card.hovered, `${engine} ${device}: a hovered card is tinted`).not.toBe(card.rest);
+      // The keyboard's focus tints a card too, wherever the pointer is.
+      await page.mouse.move(0, 0);
+      await cards.nth(1).focus();
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Tab');
+      await expect(cards.nth(1)).toBeFocused();
+      await page.waitForTimeout(400);
+      expect(await fill(cards.nth(1)), `${engine} ${device}: a focused card is tinted`).not.toBe(
+        await fill(cards.nth(2))
+      );
+    }
+
+    if (touch) {
+      // A card's "..." button opened and closed its menu with two taps (p2-safari-touch F010):
+      // once the menu is gone, the button keeps the fill of the other cards' buttons.
+      const options = page.getByRole('button', { name: 'Thread options', exact: true });
+      const tapCenter = async (target: Locator) => {
+        const box = await target.boundingBox();
+        if (!box) throw new Error('nothing to tap');
+        await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+      };
+      await options.nth(1).scrollIntoViewIfNeeded();
+      await tapCenter(options.nth(1));
+      await expect(page.getByRole('menu')).toBeVisible();
+      await tapCenter(options.nth(1));
+      await expect(page.getByRole('menu')).toHaveCount(0);
+      await page.waitForTimeout(400);
+      const state = await options.nth(1).evaluate((element) => ({
+        hover: element.matches(':hover'),
+        focus: element.matches(':focus'),
+        focusVisible: element.matches(':focus-visible'),
+      }));
+      const button = { tapped: await fill(options.nth(1)), rest: await fill(options.nth(2)) };
+      console.log(`${engine} ${device} options: ${JSON.stringify({ ...button, ...state })}`);
+      if (SHOTS) {
+        await page.screenshot({ path: path.join(SHOTS, `tapped-options-${engine}-${device}.png`) });
+      }
+      expect(button.tapped, `${engine} ${device}: a tapped options button keeps its fill`).toBe(
+        button.rest
+      );
+      // The menu hands focus back to the button, which is no reason to tint its card on touch.
+      expect(await fill(cards.nth(1)), `${engine} ${device}: its card keeps its fill`).toBe(
+        await fill(cards.nth(2))
+      );
     }
   } finally {
     await context.close();

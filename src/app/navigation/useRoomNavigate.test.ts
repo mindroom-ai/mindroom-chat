@@ -22,6 +22,10 @@ const mocks = vi.hoisted(() => ({
   spaces: new Set<string>(),
   developerTools: false,
   selectedSpace: undefined as string | undefined,
+  // The route's `:roomIdOrAlias` segment, and whether the route is in the Direct section.
+  routeRoom: undefined as string | undefined,
+  directSelected: false,
+  aliases: new Map<string, string>(),
   mx: {
     getRoom: (roomId: string) => ({ isSpaceRoom: () => mocks.spaces.has(roomId) }),
   },
@@ -40,6 +44,7 @@ vi.mock('react-router-dom', async (importOriginal) => {
   return {
     ...actual,
     useNavigate: () => mocks.navigate,
+    useParams: () => ({ roomIdOrAlias: mocks.routeRoom }),
   };
 });
 
@@ -68,6 +73,10 @@ vi.mock('./useSelectedSpace', () => ({
   useSelectedSpace: () => mocks.selectedSpace,
 }));
 
+vi.mock('../routes/useDirectSelected', () => ({
+  useDirectSelected: () => mocks.directSelected,
+}));
+
 vi.mock('../preferences/settings', () => ({
   settingsAtom: mocks.settingsAtom,
 }));
@@ -86,6 +95,8 @@ vi.mock('../matrix/state/mDirectList', () => ({
 
 vi.mock('../matrix/matrix', () => ({
   getCanonicalAliasOrRoomId: (_mx: unknown, roomId: string) => roomId,
+  getCanonicalAliasRoomId: (_mx: unknown, alias: string) => mocks.aliases.get(alias),
+  isRoomAlias: (id: string) => id.startsWith('#'),
 }));
 
 vi.mock('../matrix/room', async (importOriginal) => ({
@@ -144,6 +155,9 @@ describe('useRoomNavigate', () => {
     mocks.spaces.clear();
     mocks.developerTools = false;
     mocks.selectedSpace = undefined;
+    mocks.routeRoom = undefined;
+    mocks.directSelected = false;
+    mocks.aliases.clear();
     mocks.historyState = { idx: 1, key: 'room-entry' };
     Object.assign(window.history, { state: mocks.historyState });
     mocks.location.pathname = '/home/!room:example.org';
@@ -325,10 +339,15 @@ describe('useRoomNavigate', () => {
     renderer.unmount();
   });
 
-  it('keeps normal mode space-room navigation scoped to the parent space', () => {
+  // A space's room opens in its space when navigation comes from another page. The room the page
+  // already shows keeps its address instead (the next block); this test used to run with the route
+  // at that room's own Home address and expect the move to the space's address, which mounted the
+  // room view again and closed a phone's keyboard when a thread opened.
+  it("opens a space's room in its space from a page that shows another room", () => {
     const roomId = '!room:example.org';
     const spaceId = '!space:example.org';
     const threadId = '$thread';
+    mocks.routeRoom = '!other:example.org';
     mocks.roomToParents.set(roomId, new Set([spaceId]));
     mocks.spaces.add(spaceId);
     const { getSnapshot, renderer } = renderHookHarness();
@@ -343,6 +362,101 @@ describe('useRoomNavigate', () => {
     );
 
     renderer.unmount();
+  });
+
+  describe('the room the route shows', () => {
+    // A space's room open at its Home address, where a link to the room opens it. Another section
+    // is another page, so the room keeps the address it was opened at: its thread, an event in it
+    // or the room itself opens there, and the room view stays mounted.
+    const roomId = '!room:example.org';
+    const spaceId = '!space:example.org';
+    const inSpace = () => {
+      mocks.roomToParents.set(roomId, new Set([spaceId]));
+      mocks.spaces.add(spaceId);
+    };
+
+    it.each(['navigateRoomThreadDirect', 'navigateRoomThread'] as const)(
+      'keeps %s on Home',
+      (method) => {
+        inSpace();
+        mocks.routeRoom = roomId;
+        const { getSnapshot, renderer } = renderHookHarness();
+
+        act(() => {
+          getSnapshot()[method](roomId, '$thread', '$reply');
+        });
+
+        expect(mocks.navigate.mock.calls[0][0]).toBe(
+          withSearchParam(getHomeRoomPath(roomId, '$reply'), { threadId: '$thread' })
+        );
+        renderer.unmount();
+      }
+    );
+
+    it('keeps room and focused-event navigation on Home', () => {
+      inSpace();
+      mocks.routeRoom = roomId;
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      act(() => {
+        getSnapshot().navigateRoom(roomId, '$reply');
+        getSnapshot().navigateRoomFocusEvent(roomId, '$reply');
+      });
+
+      expect(mocks.navigate.mock.calls[0][0]).toBe(getHomeRoomPath(roomId, '$reply'));
+      expect(mocks.navigate.mock.calls[1][0]).toBe(
+        withSearchParam(getHomeRoomPath(roomId, '$reply'), { focusEvent: '1' })
+      );
+      renderer.unmount();
+    });
+
+    it('knows the room by an alias in the route', () => {
+      inSpace();
+      mocks.aliases.set('#room:example.org', roomId);
+      mocks.routeRoom = encodeURIComponent('#room:example.org');
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      act(() => {
+        getSnapshot().navigateRoomThreadDirect(roomId, '$thread');
+      });
+
+      expect(mocks.navigate.mock.calls[0][0]).toBe(
+        withSearchParam(getHomeRoomPath(roomId), { threadId: '$thread' })
+      );
+      renderer.unmount();
+    });
+
+    it('keeps a room shown on Direct there', () => {
+      inSpace();
+      mocks.routeRoom = roomId;
+      mocks.directSelected = true;
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      act(() => {
+        getSnapshot().navigateRoomThreadDirect(roomId, '$thread');
+      });
+
+      expect(mocks.navigate.mock.calls[0][0]).toBe(
+        withSearchParam(getDirectRoomPath(roomId), { threadId: '$thread' })
+      );
+      renderer.unmount();
+    });
+
+    it('keeps a room shown in a space that does not hold it in that space', () => {
+      inSpace();
+      mocks.routeRoom = roomId;
+      mocks.selectedSpace = '!elsewhere:example.org';
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      act(() => {
+        getSnapshot().navigateRoomThreadDirect(roomId, '$thread');
+      });
+
+      expect(mocks.navigate.mock.calls[0][0]).toBe(
+        withSearchParam(getSpaceRoomPath('!elsewhere:example.org', roomId), { threadId: '$thread' })
+      );
+      renderer.unmount();
+    });
   });
 
   it('opens a sub-room of a room outside spaces on Home', () => {

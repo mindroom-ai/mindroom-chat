@@ -84,7 +84,9 @@ function RoomPackGroup({
   const name = revealDirectionControls(useRoomName(room));
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{name}</Text>
+      <Text size="L400" data-settings-heading="">
+        {name}
+      </Text>
       <SettingsCard>
         {packs.map((pack) => {
           const id = packId(room.roomId, pack.address?.stateKey ?? '');
@@ -256,7 +258,9 @@ export function GlobalPacks({ onViewPack }: { onViewPack: (pack: ImagePack) => v
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t(`${GLOBAL}.favoritePacks`)}</Text>
+      <Text size="L400" data-settings-heading="">
+        {t(`${GLOBAL}.favoritePacks`)}
+      </Text>
       <SettingsCard>
         <SettingTile
           focusId="favoritePacks"

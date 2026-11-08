@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { SplashScreen } from './SplashScreen';
 
@@ -20,8 +20,30 @@ vi.mock('../particle-background/PersistentParticleBackground', () => ({
   usePersistentParticleBackground: () => false,
 }));
 
+/** This browser's copy of the last configuration it loaded (ClientConfigLoader's cache). */
+const cacheConfig = (config: unknown) =>
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => (key.endsWith('/config.json') ? JSON.stringify(config) : null),
+  });
+
 describe('SplashScreen branding', () => {
-  it('names the app MindRoom Chat before the configuration is known', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('names no app before any configuration is known, as it may name another', () => {
+    cacheConfig(null);
+    const markup = renderToStaticMarkup(<SplashScreen />);
+    expect(markup).not.toContain('data-name');
+    expect(markup).not.toContain('MindRoom Chat');
+  });
+
+  it('names the deployment of the last configuration this browser loaded until one loads', () => {
+    cacheConfig({ branding: { title: 'Example Co' } });
+    expect(renderToStaticMarkup(<SplashScreen />)).toContain(
+      '<span data-name="true">Example Co</span>'
+    );
+    cacheConfig({});
     expect(renderToStaticMarkup(<SplashScreen />)).toContain(
       '<span data-name="true">MindRoom Chat</span>'
     );

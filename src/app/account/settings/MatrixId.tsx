@@ -34,7 +34,9 @@ export function MatrixId() {
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t('featureUi.settings.account.matrixId.matrixId')}</Text>
+      <Text size="L400" data-settings-heading="">
+        {t('featureUi.settings.account.matrixId.matrixId')}
+      </Text>
       <SequenceCard {...CARD_PROPS}>
         {/* A Matrix ID reads left to right, with its @ at the start, in any language. */}
         <SettingTile title={<bdi>{userId}</bdi>} after={copyChip} />

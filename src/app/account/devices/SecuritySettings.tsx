@@ -102,7 +102,9 @@ export function SecuritySettings({ trust }: { trust: OwnDeviceTrust }) {
   const { t } = useTranslation();
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t('featureUi.settings.devices.security')}</Text>
+      <Text size="L400" data-settings-heading="">
+        {t('featureUi.settings.devices.security')}
+      </Text>
       <SettingsCard>
         <DeviceVerificationTile crossSigning={trust.crossSigning} />
         {trust.crossSigning && <KeyBackupTile />}

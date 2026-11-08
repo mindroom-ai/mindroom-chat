@@ -250,7 +250,9 @@ export function Profile() {
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t('featureUi.settings.account.profile.profile')}</Text>
+      <Text size="L400" data-settings-heading="">
+        {t('featureUi.settings.account.profile.profile')}
+      </Text>
       <SequenceCard
         className={SequenceCardStyle}
         variant="SurfaceVariant"

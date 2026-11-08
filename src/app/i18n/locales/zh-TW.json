@@ -1272,7 +1272,7 @@
       "matchingUsers_other": "{{count}} 個符合使用者"
     },
     "mindRoomSplashScreen": {
-      "loading": "正在載入 MindRoom Chat"
+      "loading": "正在載入 {{appName}}"
     },
     "commands": {
       "CommandMe": "傳送操作訊息",
