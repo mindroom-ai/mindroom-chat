@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The example plugin's test, written as a plugin outside this repository writes one: it imports the
 // app only through the client SDK, `/testing` included, and runs in the app's vitest.
-import { createRef } from 'react';
+import { createRef, type ReactNode } from 'react';
 import { fireEvent } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MemoryRouter } from 'react-router-dom';
@@ -9,6 +9,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
 import plugin from './index';
+
+// jsdom lays nothing out, so a focus trap finds nothing it could focus and throws; its menu's trap
+// runs in the browser (e2e/plugins/ui.spec.ts).
+vi.mock('focus-trap-react', () => ({
+  default: ({ children }: { children: ReactNode }) => children,
+}));
 
 /**
  * A drag event as the browser fires it, carrying `data` (format to text), which a drag start fills
@@ -397,6 +403,48 @@ describe('example plugin', () => {
       'Type a name after /subroom.'
     );
     expect(created).toHaveBeenCalledTimes(1);
+  });
+
+  it("draws its panel's rows, menu and dialog with the app's own pieces from the ui subpath", async () => {
+    const [panel] = plugin.sidePanels ?? [];
+    if (!panel) throw new Error('the example plugin has no side panel');
+    const userId = '@ada:example.org';
+    const client = createClient({ baseUrl: 'https://example.org', userId });
+    const room = new Room('!lobby:example.org', client, userId);
+    room.name = 'Lobby';
+    client.store.storeRoom(room);
+    const view = await renderPluginComponent(
+      <MemoryRouter>
+        <panel.Component roomId={room.roomId} />
+      </MemoryRouter>,
+      { id: 'example', plugin, client }
+    );
+    // Its rows mark the chosen one as the sidebar marks the open room.
+    const row = view.getByRole('button', { name: 'Second example row' });
+    fireEvent.click(row);
+    expect(row.getAttribute('aria-current')).toBe('true');
+    expect(
+      view.getByRole('button', { name: 'First example row' }).getAttribute('aria-current')
+    ).toBe(null);
+
+    // The app's test setup draws the glass menu as folds' plain one, without the `menu` and
+    // `menuitem` roles the browser shows (e2e/plugins/ui.spec.ts), so the entries go by their text.
+    const menuButton = view.getByRole('button', { name: 'Example menu' });
+    expect(view.queryByText('Show example dialog')).toBeNull();
+    fireEvent.click(menuButton);
+    expect(menuButton.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(view.getByText('Clear example selection'));
+    expect(view.queryByText('Show example dialog')).toBeNull();
+    expect(row.getAttribute('aria-current')).toBe(null);
+
+    fireEvent.click(menuButton);
+    fireEvent.click(view.getByText('Show example dialog'));
+    expect(view.queryByText('Clear example selection')).toBeNull();
+    expect(view.getByRole('dialog', { name: 'Example dialog' }).textContent).toContain(
+      'Example dialog of Lobby'
+    );
+    fireEvent.click(view.getByRole('button', { name: 'Close example dialog' }));
+    expect(view.queryByRole('dialog')).toBeNull();
   });
 
   it("lists its room entry in every room's menu but a space's, and its dialog names the room", async () => {

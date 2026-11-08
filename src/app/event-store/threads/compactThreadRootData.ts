@@ -270,6 +270,27 @@ export const pickPreferredThreadRootPreviewText = ({
   return preferredPreviewText ?? fallbackPreviewText;
 };
 
+/**
+ * The room's listed threads that have replies and whose root is no reply itself, with their roots,
+ * in the list's order; the roots in `known` stay out.
+ */
+export const listedThreadRoots = (
+  room: Pick<Room, 'getThread' | 'getUnfilteredTimelineSet'>,
+  threads: Thread[],
+  known: ReadonlySet<string>
+): { id: string; rootEvent: MatrixEvent | undefined }[] => {
+  const seen = new Set(known);
+  return threads.flatMap((thread) => {
+    if (!thread.id || seen.has(thread.id) || !hasRawThreadActivity(thread)) return [];
+    const rootEvent = findThreadRootEvent(room, thread.id) ?? thread.rootEvent;
+    if (!hasCompactThreadActivity(thread, rootEvent) || isNestedThreadReplyEvent(rootEvent)) {
+      return [];
+    }
+    seen.add(thread.id);
+    return [{ id: thread.id, rootEvent }];
+  });
+};
+
 export const buildCompactThreadRootData = ({
   room,
   visibleIds,
@@ -289,27 +310,18 @@ export const buildCompactThreadRootData = ({
   const indexMap = new Map(visibleIndexMap);
   const bodyMap = new Map(visibleBodyMap);
   const sourceTsMap = new Map(visibleSourceTsMap);
-  const seen = new Set(ids);
   let nextIndex =
     visibleIndexMap.size > 0 ? Math.max(...Array.from(visibleIndexMap.values())) + 1 : 0;
 
-  threads.forEach((thread) => {
-    if (!thread.id || seen.has(thread.id) || !hasRawThreadActivity(thread)) return;
-    const rootEvent = findThreadRootEvent(room, thread.id) ?? thread.rootEvent;
-    if (!hasCompactThreadActivity(thread, rootEvent) || isNestedThreadReplyEvent(rootEvent)) return;
-
-    seen.add(thread.id);
-    ids.push(thread.id);
-    indexMap.set(thread.id, nextIndex);
+  listedThreadRoots(room, threads, new Set(ids)).forEach(({ id, rootEvent }) => {
+    ids.push(id);
+    indexMap.set(id, nextIndex);
     nextIndex += 1;
 
-    const previewInfo = getCompactThreadRootPreviewInfo(rootEvent, {
-      eventId: thread.id,
-      room,
-    });
+    const previewInfo = getCompactThreadRootPreviewInfo(rootEvent, { eventId: id, room });
     if (previewInfo) {
-      bodyMap.set(thread.id, previewInfo.previewText);
-      sourceTsMap.set(thread.id, previewInfo.sourceTs);
+      bodyMap.set(id, previewInfo.previewText);
+      sourceTsMap.set(id, previewInfo.sourceTs);
     }
   });
 
