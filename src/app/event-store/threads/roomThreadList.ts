@@ -5,6 +5,7 @@ import { ReceiptType } from 'matrix-js-sdk/lib/@types/read_receipts';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { Thread } from 'matrix-js-sdk/lib/models/thread';
+import { unthreadedReceiptReadTs } from '../../matrix/receiptReadTs';
 import { isVisibleThreadReplyEvent } from './threadUtils';
 import { getThreadEventReadUpTo } from './threadEventReadUpTo';
 import { getFinishingEdit, threadReceiptNamesEvent } from './streamFinish';
@@ -51,7 +52,7 @@ export const getThreadReadState = (
       if (receipt && receipt.data.thread_id === thread.id) readEventIds.add(receipt.eventId);
     }
   }
-  let readUpToTs = thread.getLastUnthreadedReceiptFor(userId)?.ts;
+  let readUpToTs = unthreadedReceiptReadTs(thread.room, userId, thread);
   const validReadEventIds = new Set<string>();
   for (const eventId of readEventIds) {
     if (!eventId) continue;

@@ -10,10 +10,9 @@ import { getThreadRootReadAction, roomHaveUnread } from '../room';
 import { isMainTimelineMessageUnread } from '../mainTimelineRead';
 import { clearSeenThreadRoots, rememberSeenThreadRoot } from '../seenThreadRoots';
 
-// Opening a thread reads its root, which lives in the main timeline. The server reads the whole
-// main timeline on any main receipt (measured on Tuwunel: a receipt on the oldest of three unread
-// roots clears all three), so the receipt goes out only when nothing else there is unread; until
-// then the root counts as read on this device only.
+// Opening a thread reads its root, which lives in the main timeline. The main receipt this client
+// sends names the main timeline's newest event, so it reads all of it: the receipt goes out only
+// when nothing else there is unread; until then the root counts as read on this device only.
 const ME = '@me:example.org';
 const ALICE = '@alice:example.org';
 
@@ -47,14 +46,21 @@ const makeRoom = ({
   mainCount = 0,
 }: {
   main: MatrixEvent[];
-  /** When the reader sent their main-timeline receipt, on the first event of `main`. */
+  /**
+   * When the reader sent their main-timeline receipt, on the newest event of `main` at that time;
+   * it reads up to that event.
+   */
   receiptTs?: number;
   /** Older events the client has not loaded. */
   olderHistory?: boolean;
   /** The server's count of unread main-timeline notifications. */
   mainCount?: number;
-}): Room =>
-  ({
+}): Room => {
+  const receiptEventId =
+    receiptTs === undefined
+      ? undefined
+      : main.findLast((event) => event.getTs() <= receiptTs)?.getId();
+  return {
     roomId: '!room:example.org',
     getLiveTimeline: () => ({
       getEvents: () => main,
@@ -62,15 +68,16 @@ const makeRoom = ({
       getNeighbouringTimeline: () => null,
     }),
     findEventById: (eventId: string) => main.find((event) => event.getId() === eventId),
-    getEventReadUpTo: () => (receiptTs === undefined ? null : main[0]?.getId() ?? null),
+    getEventReadUpTo: () => receiptEventId ?? null,
     getReadReceiptForUserId: (_userId: string, _ignore: boolean, type: ReceiptType) =>
-      receiptTs !== undefined && type === ReceiptType.Read
-        ? { eventId: main[0]?.getId(), data: { ts: receiptTs, thread_id: 'main' } }
+      receiptEventId && receiptTs !== undefined && type === ReceiptType.Read
+        ? { eventId: receiptEventId, data: { ts: receiptTs, thread_id: 'main' } }
         : null,
     getLastUnthreadedReceiptFor: () => undefined,
     getThread: () => null,
     getRoomUnreadNotificationCount: () => mainCount,
-  } as unknown as Room);
+  } as unknown as Room;
+};
 
 const client = (notifies = true) =>
   ({
