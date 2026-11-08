@@ -7,8 +7,10 @@
 // panel" while the panel shows. The panel stays open in its room across reloads (`remember`).
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg), and a button, "Show example cover", that covers the room's conversation with
-// "Example cover of <room name>" until its Close button or Escape closes it. Like a plugin outside
-// this repository, it imports the app only through the client SDK.
+// "Example cover of <room name>" until its Close button or Escape closes it. Its panel also offers
+// "Example item" to drag, in a drag type of its own, and the banner shows "Dropped: <text>" when
+// one lands anywhere on the room header. Like a plugin outside this repository, it imports the app
+// only through the client SDK.
 // A header action, "Wave" ("Winken" in German), shows in the room header's row, except on phones,
 // where it goes in the room menu, and says where it ran in an alert.
 // Its storage notes each greeting the signed-in account saw, when it shows and when it goes, and a
@@ -18,7 +20,7 @@
 // room and that thread, opens either, and reloads the page into a new version.
 // Its slash command, `/greet <text>`, sends the notice "Example greeting: <text>" to the room through
 // the room's client, and fails without a text.
-import { useEffect } from 'react';
+import { useEffect, useState, type RefObject } from 'react';
 import { Icons } from 'folds';
 import { KnownMembership, type Room } from 'matrix-js-sdk';
 import {
@@ -39,6 +41,9 @@ import {
   useRoomMembers,
 } from '@mindroom/client-sdk/matrix';
 import { useRoomHref, useRoomNavigate } from '@mindroom/client-sdk/room';
+
+/** The drag type of the item its panel offers, which the room header takes. */
+const ITEM_TYPE = 'application/x-example-item';
 
 /** This page load; what the plugin stored in it does not count as seen before. */
 const pageLoad = `${Date.now()}-${Math.random()}`;
@@ -92,7 +97,30 @@ function Greeting({ event }: { event: PluginEvent }) {
   );
 }
 
-function RoomBanner({ room }: { room: Room }) {
+function RoomBanner({ room, headerRef }: { room: Room; headerRef: RefObject<HTMLElement> }) {
+  const [dropped, setDropped] = useState<string>();
+  // The header's element is set by the time effects run; a drag of its item may drop anywhere on it.
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return undefined;
+    const carriesItem = (event: DragEvent) => !!event.dataTransfer?.types.includes(ITEM_TYPE);
+    const allowDrop = (event: DragEvent) => {
+      if (carriesItem(event)) event.preventDefault();
+    };
+    const drop = (event: DragEvent) => {
+      if (!carriesItem(event)) return;
+      event.preventDefault();
+      setDropped(event.dataTransfer?.getData(ITEM_TYPE));
+    };
+    header.addEventListener('dragenter', allowDrop);
+    header.addEventListener('dragover', allowDrop);
+    header.addEventListener('drop', drop);
+    return () => {
+      header.removeEventListener('dragenter', allowDrop);
+      header.removeEventListener('dragover', allowDrop);
+      header.removeEventListener('drop', drop);
+    };
+  }, [headerRef]);
   return (
     <div data-example-plugin-banner style={{ paddingBlock: 8, paddingInline: 16 }}>
       <img
@@ -103,6 +131,7 @@ function RoomBanner({ room }: { room: Room }) {
         style={{ marginInlineEnd: 8, verticalAlign: 'middle' }}
       />
       Example banner in {room.name}
+      {dropped !== undefined && <div data-example-plugin-dropped>Dropped: {dropped}</div>}
     </div>
   );
 }
@@ -155,6 +184,9 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
         agent
       </p>
       {typeof request === 'string' && <p>Greeting: {request}</p>}
+      <p draggable onDragStart={(event) => event.dataTransfer.setData(ITEM_TYPE, 'Example item')}>
+        Example item
+      </p>
     </>
   );
 }

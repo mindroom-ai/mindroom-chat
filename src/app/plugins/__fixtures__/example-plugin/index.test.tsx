@@ -1,12 +1,27 @@
 // @vitest-environment jsdom
 // The example plugin's test, written as a plugin outside this repository writes one: it imports the
 // app only through the client SDK, `/testing` included, and runs in the app's vitest.
+import { useRef } from 'react';
+import { fireEvent } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
 import plugin from './index';
+
+/** A drag event as the browser fires it, carrying `data` (format to text), which a drag start fills. */
+const dragEvent = (type: string, data: Map<string, string>): Event => {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'dataTransfer', {
+    value: {
+      types: [...data.keys()],
+      getData: (format: string) => data.get(format) ?? '',
+      setData: (format: string, text: string) => data.set(format, text),
+    },
+  });
+  return event;
+};
 
 const greeting: PluginEvent = {
   sender: '@mindroom_helper:example.org',
@@ -113,8 +128,41 @@ describe('example plugin', () => {
   it('names the open room under the header', async () => {
     if (!Banner) throw new Error('the example plugin has nothing under the room header');
     const room = { roomId: '!lobby:example.org', name: 'Lobby' } as Room;
-    const view = await renderPluginComponent(<Banner room={room} />, { id: 'example', plugin });
+    const view = await renderPluginComponent(<Banner room={room} headerRef={{ current: null }} />, {
+      id: 'example',
+      plugin,
+    });
     expect(view.getByText('Example banner in Lobby')).toBeTruthy();
+  });
+
+  it("shows in its banner its panel's item dropped on the room's name, and lets a file drag pass", async () => {
+    const [panel] = plugin.sidePanels ?? [];
+    if (!Banner || !panel) throw new Error('the example plugin has no banner or no side panel');
+    const room = { roomId: '!lobby:example.org', name: 'Lobby' } as Room;
+    // The room's page as the app draws it: the header's row and its slot, and the side panel.
+    function RoomPage() {
+      const headerRef = useRef<HTMLDivElement>(null);
+      return (
+        <>
+          <div ref={headerRef}>
+            <h1>Lobby</h1>
+            <Banner room={room} headerRef={headerRef} />
+          </div>
+          <panel.Component roomId={room.roomId} />
+        </>
+      );
+    }
+    const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
+    const view = await renderPluginComponent(<RoomPage />, { id: 'example', plugin, client });
+    const name = view.getByRole('heading', { name: 'Lobby' });
+
+    expect(fireEvent(name, dragEvent('dragover', new Map([['Files', '']])))).toBe(true);
+    const carried = new Map<string, string>();
+    fireEvent(view.getByText('Example item'), dragEvent('dragstart', carried));
+    expect(fireEvent(name, dragEvent('dragenter', carried))).toBe(false);
+    expect(fireEvent(name, dragEvent('dragover', carried))).toBe(false);
+    expect(fireEvent(name, dragEvent('drop', carried))).toBe(false);
+    expect(view.getByText('Dropped: Example item')).toBeTruthy();
   });
 
   it("counts its panel's room members and tells whether a MindRoom agent is one", async () => {

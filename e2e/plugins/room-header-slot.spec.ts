@@ -12,6 +12,7 @@ import {
 } from '../helpers/disposableAccounts';
 import { createRoom } from '../helpers/createRoom';
 import { sendRoomMessage } from '../helpers/matrix';
+import { roomMoreOptions } from '../helpers/roomMenu';
 import { serveBuild } from '../helpers/staticBuildServer';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
@@ -19,14 +20,16 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // throws, served as a deployment serves it, against the disposable homeserver. The banner shows
 // under the room header, across the conversation column and above the conversation; the broken
 // component shows nothing and the room keeps working; `?plugins=off` and
-// `plugins.example.enabled: false` leave the banner out. Set PLUGIN_SHOTS=<directory> to save
-// screenshots.
+// `plugins.example.enabled: false` leave the banner out. The example's panel item, dragged onto the
+// room's name, shows in the banner through the header element its slot gets, while a file dropped
+// there still goes to the composer. Set PLUGIN_SHOTS=<directory> to save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'room-header-slot-password';
 const RUN = Date.now().toString(36);
 const ROOM_NAME = 'Slot room';
 const BANNER = `Example banner in ${ROOM_NAME}`;
 const SEEDED = 'The first message of the slot room';
+const DROPPED_FILE = 'header-drop.txt';
 
 test.use({ viewport: { width: 1280, height: 800 } });
 test.describe.configure({ mode: 'serial' });
@@ -144,6 +147,18 @@ const box = async (locator: Locator) => {
   return found!;
 };
 
+/** Drags a file over `target` and drops it there, as the system's file manager would. */
+const dropFile = (target: Locator) =>
+  target.evaluate((element, name) => {
+    const data = new DataTransfer();
+    data.items.add(new File(['dropped'], name, { type: 'text/plain' }));
+    for (const type of ['dragenter', 'dragover', 'drop']) {
+      element.dispatchEvent(
+        new DragEvent(type, { dataTransfer: data, bubbles: true, cancelable: true })
+      );
+    }
+  }, DROPPED_FILE);
+
 test("shows the plugin's banner under the room header, across the conversation, above it", ({
   browser,
 }) =>
@@ -196,4 +211,31 @@ test('plugins.example.enabled: false leaves the banner out', ({ browser }) =>
     await roomShown(page);
     await expect(banner(page)).toHaveCount(0);
     await shot(page, 'room-header-slot-disabled');
+  }));
+
+test("the example panel's item dropped on the room's name shows in the banner; a file dropped there goes to the composer", ({
+  browser,
+}) =>
+  onBuild(browser, {}, async (page, data) => {
+    await page.goto(roomPath(data));
+    await roomShown(page);
+    await roomMoreOptions(page).click();
+    await page.getByRole('menuitemcheckbox', { name: 'Example panel', exact: true }).click();
+    const panel = page.getByRole('region', { name: 'Example panel', exact: true });
+    const name = roomHeader(page).locator('h1');
+    const footer = page.locator('[data-room-footer]');
+
+    await panel.getByText('Example item', { exact: true }).dragTo(name);
+    await expect(banner(page).locator('[data-example-plugin-dropped]')).toHaveText(
+      'Dropped: Example item'
+    );
+    await expect(footer).not.toContainText('Example item');
+    await shot(page, 'room-header-slot-item-dropped');
+
+    await dropFile(name);
+    await expect(footer.getByText(DROPPED_FILE)).toBeVisible();
+    await expect(banner(page).locator('[data-example-plugin-dropped]')).toHaveText(
+      'Dropped: Example item'
+    );
+    await shot(page, 'room-header-slot-file-dropped');
   }));
