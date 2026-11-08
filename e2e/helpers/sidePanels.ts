@@ -156,7 +156,7 @@ export const closePanel = async (page: Page, panel: CorePanel) => {
   const names: Record<CorePanel, string> = {
     computer: 'Close computer',
     canvas: 'Close canvas',
-    call: 'Close call',
+    call: 'Close call view',
     members: 'Hide Members',
   };
   const scope = panel === 'members' ? roomHeader(page) : panelLocator(page, panel);

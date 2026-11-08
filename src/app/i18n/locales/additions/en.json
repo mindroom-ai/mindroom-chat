@@ -358,7 +358,7 @@
     "calls": {
       "panel": {
         "title": "Call",
-        "close": "Close call",
+        "close": "Close call view",
         "participants": "People in the call",
         "connecting": "Connecting…",
         "reconnecting": "Reconnecting…",

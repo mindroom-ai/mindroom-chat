@@ -114,7 +114,7 @@ test('the call window moves, resizes, minimizes, docks and stays put', async ({
   await expect(callWindow).toHaveAttribute('data-bar', 'true');
   await expectWindowAt(callWindow, { ...box, y: box.y + box.height - 56, height: 56 });
   const bar = callWindow.getByRole('group', { name: 'Move minimized call window' });
-  await expect(bar.getByRole('button', { name: 'Close call', exact: true })).toBeVisible();
+  await expect(bar.getByRole('button', { name: 'Close call view', exact: true })).toBeVisible();
   await callView.getByRole('button', { name: 'Expand', exact: true }).click();
   await expect(callWindow).not.toHaveAttribute('data-bar');
   await expectWindowAt(callWindow, box);

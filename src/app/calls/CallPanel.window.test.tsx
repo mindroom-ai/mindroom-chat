@@ -312,7 +312,7 @@ describe('the call view title bar', () => {
     expect(button('Dock to the side')).toBeNull();
     expect(button('Float')).toBeNull();
     expect(button('Minimize')).toBeNull();
-    expect(button('Close call')).not.toBeNull();
+    expect(button('Close call view')).not.toBeNull();
   });
 
   it('minimizes the window from the title bar, and closes as before', () => {
@@ -322,7 +322,7 @@ describe('the call view title bar', () => {
 
     press('Minimize');
     expect(inFrame.minimize).toHaveBeenCalledOnce();
-    press('Close call');
+    press('Close call view');
     expect(onClose).toHaveBeenCalledOnce();
   });
 
@@ -452,7 +452,7 @@ describe('the minimized bar', () => {
     const names = within(bar)
       .getAllByRole('button')
       .map((each) => each.getAttribute('aria-label'));
-    expect(names).toEqual(['Turn Off Microphone', 'End', 'Expand', 'Close call']);
+    expect(names).toEqual(['Turn Off Microphone', 'End', 'Expand', 'Close call view']);
 
     fireEvent.click(within(bar).getByRole('button', { name: 'Turn Off Microphone' }));
     expect(setMicrophone).toHaveBeenCalledWith(false);
@@ -460,7 +460,7 @@ describe('the minimized bar', () => {
     expect(leave).toHaveBeenCalledOnce();
     fireEvent.click(within(bar).getByRole('button', { name: 'Expand' }));
     expect(inFrame.expand).toHaveBeenCalledOnce();
-    fireEvent.click(within(bar).getByRole('button', { name: 'Close call' }));
+    fireEvent.click(within(bar).getByRole('button', { name: 'Close call view' }));
     expect(onClose).toHaveBeenCalledOnce();
   });
 
@@ -479,7 +479,7 @@ describe('the minimized bar', () => {
       const names = within(bar)
         .getAllByRole('button')
         .map((each) => each.textContent || each.getAttribute('aria-label'));
-      expect(names).toEqual(['Close', 'Expand', 'Close call']);
+      expect(names).toEqual(['Close', 'Expand', 'Close call view']);
       // Close drops the finished call, as the expanded view's Close does, so new calls can start.
       fireEvent.click(within(bar).getByRole('button', { name: 'Close' }));
       expect(dismiss).toHaveBeenCalledOnce();
@@ -497,9 +497,9 @@ describe('the minimized bar', () => {
       within(bar)
         .getAllByRole('button')
         .map((each) => each.getAttribute('aria-label'))
-    ).toEqual(['Expand', 'Close call']);
+    ).toEqual(['Expand', 'Close call view']);
     expect(button('Join')).toBeNull();
-    fireEvent.click(within(bar).getByRole('button', { name: 'Close call' }));
+    fireEvent.click(within(bar).getByRole('button', { name: 'Close call view' }));
     expect(onClose).toHaveBeenCalledOnce();
   });
 
