@@ -569,6 +569,17 @@ describe('the minimized bar', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it('shows the agent an agent call waits for, as the stage does', () => {
+    agentCall({ roomId: room.roomId });
+    calls.state = { ...joined([me]), phase: 'connecting' };
+    renderPanel({ frame: frame(true) });
+
+    const bar = screen.getByRole('group', { name: 'Move minimized call window' });
+    expect(
+      [...bar.querySelectorAll('[data-avatar]')].map((face) => face.getAttribute('data-avatar'))
+    ).toEqual(['@mindroom_helper:panel.test']);
+  });
+
   it("shows someone on two devices once, and this person's other device not at all", () => {
     const phone = { key: 'PHONE', deviceId: 'PHONE' };
     roomCall([

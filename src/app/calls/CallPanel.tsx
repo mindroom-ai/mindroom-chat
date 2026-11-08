@@ -445,6 +445,8 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
           microphone: true,
         }
       : undefined;
+  // Who the bar's faces show: everyone in the call and, as on the stage, the agent it waits for.
+  const shownPeople = awaitedAgent ? [...state.participants, awaitedAgent] : state.participants;
   // The person's pick; one shared screen or tiles too small for the grid show speaker view anyway,
   // and the stage says when, so the switch shows it on and holds it there. Two or more shared
   // screens hold it off: the stage shows each of them instead.
@@ -561,7 +563,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
   const bar: BarContent = {
     faces: (
       <ul className={css.BarFaces} aria-label={t('featureUi.calls.panel.participants')}>
-        {barFaces(state.participants).map(({ userId, speaking }) => (
+        {barFaces(shownPeople).map(({ userId, speaking }) => (
           <BarFace key={userId} room={call.room} userId={userId} speaking={speaking} />
         ))}
       </ul>
