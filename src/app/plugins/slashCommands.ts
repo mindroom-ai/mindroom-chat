@@ -15,10 +15,12 @@ export type PluginSlashCommand = {
   description: string;
   /**
    * Runs it in the room whose composer sent it, with the text typed after the name and `threadId`,
-   * the root of the thread a message from that composer would go to.
+   * the root of the thread whose composer sent it (none in the main timeline or in Classic).
    */
   run: (command: { room: Room; args: string; threadId?: string }) => void | Promise<void>;
 };
+
+type SlashCommandInput = Parameters<PluginSlashCommand['run']>[0];
 
 /** Whether a plugin's contribution is a slash command; the build does not type-check plugins. */
 export const isPluginSlashCommand = (value: unknown): value is PluginSlashCommand =>
@@ -32,7 +34,7 @@ export const isPluginSlashCommand = (value: unknown): value is PluginSlashComman
 export type EnabledSlashCommand = {
   name: string;
   description: string;
-  run: (room: Room, args: string, threadId: string | undefined) => Promise<void>;
+  run: (input: SlashCommandInput) => Promise<void>;
 };
 
 /** The names claimed more than once, each warned about once. */
@@ -77,8 +79,7 @@ export const usePluginSlashCommands = (
         .map((command) => ({
           name: command.name,
           description: translate(command.description, { ns: pluginNamespace(id) }),
-          run: async (room: Room, args: string, threadId: string | undefined) =>
-            command.run({ room, args, threadId }),
+          run: async (input: SlashCommandInput) => command.run(input),
         }))
     );
   }, [enabled, translate]);

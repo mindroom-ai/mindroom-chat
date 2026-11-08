@@ -168,7 +168,12 @@ afterEach(() => {
   state.commandThread = undefined;
 });
 
-type ComposerProps = { room?: Room; threadId?: string; threadingEnabled?: boolean };
+type ComposerProps = {
+  store?: ReturnType<typeof createStore>;
+  room?: Room;
+  threadId?: string;
+  threadingEnabled?: boolean;
+};
 
 /**
  * Mounts the composer holding `document` in `store`, or renders it again with new props, and lets
@@ -176,8 +181,8 @@ type ComposerProps = { room?: Room; threadId?: string; threadingEnabled?: boolea
  */
 const mountComposer = async (
   document: unknown[] = [],
-  store = createStore(),
   {
+    store = createStore(),
     room = { roomId: '!room:example.org', name: 'Room' } as unknown as Room,
     ...props
   }: ComposerProps = {}
@@ -227,7 +232,7 @@ describe('composer', () => {
 
   it('closes the mention menu and the model picker as a side panel hides the conversation', async () => {
     const store = createStore();
-    await mountComposer([], store);
+    await mountComposer([], { store });
     const mentionMenus = () => renderer!.root.findAllByType(UserMentionAutocomplete).length;
     const pickerHidden = () =>
       renderer!.root.findByType(ThreadModelPicker).props.conversationHidden;
@@ -290,16 +295,18 @@ describe('composer', () => {
       const LOCAL_ROOT = '~!room:example.org:txn-root';
       /** The threads `/greet` ran in, as the composer's commands knew them when it ran. */
       let ranIn: Array<string | undefined>;
+      const invite = vi.fn(async () => undefined);
       beforeEach(() => {
         ranIn = [];
+        invite.mockClear();
         state.mentionHasSuggestions = false;
-        const run = vi.fn(async () => {
+        const greet = async () => {
           ranIn.push(state.commandThread);
-        });
+        };
         state.commands = {
-          greet: { name: 'greet', description: 'Greets.', run, inThread: true },
-          invite: { name: 'invite', description: 'Invite user to room.', run },
-        } as Record<string, SlashCommand>;
+          greet: { name: 'greet', description: 'Greets.', run: greet, inThread: true },
+          invite: { name: 'invite', description: 'Invite user to room.', run: invite },
+        };
       });
       /** A room whose message `LOCAL_ROOT` waits for the server, which gives it `$root`. */
       const roomWithPendingRoot = () => {
@@ -317,12 +324,9 @@ describe('composer', () => {
       };
 
       it('runs in the thread the composer writes to, and outside it in a classic timeline', async () => {
-        await mountComposer(greeting, createStore(), { threadId: '$root:example.org' });
+        await mountComposer(greeting, { threadId: '$root:example.org' });
         await pressEnter();
-        await mountComposer(greeting, createStore(), {
-          threadId: '$root:example.org',
-          threadingEnabled: false,
-        });
+        await mountComposer(greeting, { threadId: '$root:example.org', threadingEnabled: false });
         await pressEnter();
         expect(ranIn).toEqual(['$root:example.org', undefined]);
         expect(state.startSendSession).not.toHaveBeenCalled();
@@ -331,7 +335,7 @@ describe('composer', () => {
       it("waits for a root the server has not confirmed, then runs once in the root's own ID", async () => {
         const { room, confirm } = roomWithPendingRoot();
         const store = createStore();
-        await mountComposer(greeting, store, { room, threadId: LOCAL_ROOT });
+        await mountComposer(greeting, { store, room, threadId: LOCAL_ROOT });
         await pressEnter();
         await pressEnter();
         expect(ranIn).toEqual([]);
@@ -339,16 +343,16 @@ describe('composer', () => {
         expect(state.resetEditor).not.toHaveBeenCalled();
 
         confirm();
-        await mountComposer(greeting, store, { room, threadId: '$root:example.org' });
+        await mountComposer(greeting, { store, room, threadId: '$root:example.org' });
         expect(ranIn).toEqual(['$root:example.org']);
       });
 
       it('leaves a built-in command that acts to run at once there', async () => {
         const { room } = roomWithPendingRoot();
-        const invite = [{ type: 'paragraph', children: [{ text: '/invite @bob:example.org' }] }];
-        await mountComposer(invite, createStore(), { room, threadId: LOCAL_ROOT });
+        const typed = [{ type: 'paragraph', children: [{ text: '/invite @bob:example.org' }] }];
+        await mountComposer(typed, { room, threadId: LOCAL_ROOT });
         await pressEnter();
-        expect(ranIn).toEqual([LOCAL_ROOT]);
+        expect(invite).toHaveBeenCalledWith('@bob:example.org');
       });
     });
   });

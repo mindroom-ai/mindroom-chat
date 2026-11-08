@@ -419,7 +419,7 @@ export const useCommands = (room: Room, threadId?: string): Record<string, Slash
         commands[name] = {
           name,
           description,
-          run: (args) => run(room, args, threadId),
+          run: (args) => run({ room, args, threadId }),
           inThread: true,
         };
       }
