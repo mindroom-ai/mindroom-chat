@@ -88,7 +88,7 @@ export const createSubRoom = async (parent: Room, { name }: { name: string }): P
 /**
  * Opens the profile card of the person `userId` in the room `roomId`, floating at `anchor` (an
  * element's `getBoundingClientRect()`) on its `side`, below it unless given, as a mention pill opens
- * it. Escape or a click outside closes it; in a room the client does not have, nothing opens.
+ * it. Escape or a click outside closes it; for a room the client does not have, nothing shows.
  */
 export const useOpenUserProfile = () => {
   const open = useOpenUserRoomProfile();
