@@ -8,9 +8,7 @@ import {
   Room,
   Visibility,
 } from 'matrix-js-sdk';
-import i18n from '../i18n/i18n';
-import { describeError } from '../lib/describeError';
-import { revealDirectionControls } from '../ui/directional';
+import { readableReason } from '../lib/errorReason';
 import { JoinRule, RoomType, StateEvent } from './types/room';
 import type { MDirectContent } from './types/accountData';
 import { getViaServers } from './via-servers';
@@ -200,12 +198,8 @@ export const createRoom = async (client: MatrixClient, data: CreateRoomData): Pr
         throw cause;
       }
       await client.forget(roomId).catch(() => undefined);
-      const reason = describeError(i18n.t, cause);
-      const parentName = revealDirectionControls(parent.name);
-      throw new Error(
-        i18n.t('featureUi.subRooms.notListed', { name: data.name, parent: parentName, reason }),
-        { cause }
-      );
+      const failure = `"${data.name}" was not created, because it could not be listed under its parent`;
+      throw new Error(`${failure}: ${readableReason(cause)}`, { cause });
     }
   }
   return roomId;

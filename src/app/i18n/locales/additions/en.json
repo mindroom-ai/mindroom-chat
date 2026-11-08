@@ -478,8 +478,7 @@
       "newSubRoom": "New Sub-room",
       "description": "Members of {{name}} can join it, and the agents in {{name}} join it on their own.",
       "noPermission": "You can't change the rooms listed under {{name}}",
-      "takeOff": "Remove from {{name}}",
-      "notListed": "{{name}} was not created, because it couldn't be listed under {{parent}}. {{reason}}"
+      "takeOff": "Remove from {{name}}"
     }
   },
   "mindroomUi": {

@@ -285,7 +285,7 @@ describe('createSubRoom, when the parent does not list the new room', () => {
     const { parent, listed, hidden } = refusingLinks(1);
 
     await expect(createAppSubRoom(parent, 'Ideas', undefined)).rejects.toThrow(
-      'Ideas was not created'
+      '"Ideas" was not created'
     );
     expect(hidden()).toEqual([]);
     await expect(createAppSubRoom(parent, 'Ideas', undefined)).resolves.toBe('!new2:example.org');
@@ -300,7 +300,7 @@ describe('createSubRoom, when the parent does not list the new room', () => {
     const failure = createAppSubRoom(parent, 'Ideas', undefined);
 
     await expect(failure).rejects.toThrow(
-      "Ideas was not created, because it couldn't be listed under !parent:example.org. Too many requests."
+      '"Ideas" was not created, because it could not be listed under its parent: Too many requests'
     );
     await expect(failure).rejects.toMatchObject({ cause: { errcode: 'M_LIMIT_EXCEEDED' } });
     expect(listed).toEqual([]);
