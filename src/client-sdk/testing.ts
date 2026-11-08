@@ -1,6 +1,8 @@
 // `@mindroom/client-sdk/testing`, the client SDK's subpath for a plugin's unit tests, which run in
 // the app's vitest (docs/architecture.md "Client plugins"). Only tests import it, never code that
-// ships. Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION.
+// ships. Like `/core` it only grows, and each addition to what it exports raises
+// CLIENT_PLUGIN_API_VERSION; the stand-in client below is not exported, so what it learns raises
+// nothing.
 import { cleanup, render } from '@testing-library/react';
 import { getHttpUriForMxc, type MatrixClient } from 'matrix-js-sdk';
 import { createElement, type ReactElement, type ReactNode } from 'react';
