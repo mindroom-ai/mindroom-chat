@@ -60,6 +60,7 @@ const makeThreadReplyEvent = (
   getSender: () => sender,
   getTs: () => ts,
   getType: () => type,
+  getContent: () => ({ msgtype: 'm.text', body: eventId }),
   getRelation: () => ({ event_id: '$root', rel_type: 'm.thread' }),
   isRedacted: () => false,
   isRedaction: () => false,
