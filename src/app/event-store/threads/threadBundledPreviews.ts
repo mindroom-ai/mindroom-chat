@@ -1,5 +1,6 @@
 import { MatrixEvent, type IEvent, type Room } from 'matrix-js-sdk';
 import { getSameSenderBundledEdit } from '../../matrix/editEvent';
+import { stripRedactedRelationsFromRawEvent } from '../../matrix/eventRevision';
 import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -18,7 +19,11 @@ export const getBundledThreadPreviews = (
   if (!root || root.getType?.() === 'm.room.encrypted' || room.hasEncryptionStateEvent?.())
     return {};
   const rootId = root.getId();
-  const relations: unknown = root.getUnsigned?.()?.['m.relations'];
+  // Without the edits whose redaction the room took, also those of the events the summary bundles.
+  const relations: unknown = stripRedactedRelationsFromRawEvent(
+    { unsigned: root.getUnsigned?.() },
+    room.redactedBundledEdits
+  ).unsigned?.['m.relations'];
   const bundle = object(relations) ? relations['m.thread'] : undefined;
   if (!rootId || !object(bundle)) return {};
 

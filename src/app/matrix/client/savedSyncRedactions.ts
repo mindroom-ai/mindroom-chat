@@ -4,6 +4,7 @@ import {
   ReceiptType,
   RoomEvent,
   SyncState,
+  type IEvent,
   type MatrixClient,
   type MatrixEvent,
 } from 'matrix-js-sdk';
@@ -31,7 +32,8 @@ import { withoutRedactedThreadPreviews } from '../threadSummaryPreviews';
 // The saved sync keeps each event as the server sent it, so a deleted message kept its text there,
 // with its edits, for as long as the saved timeline held it. Before each save, the text of every
 // message a redaction in the saved timeline removes is dropped (`dropRedactedContent`), also from
-// the copies that thread roots carry beside their summary (`threadSummaryPreviews.ts`).
+// the copies that thread roots carry beside their summary (`threadSummaryPreviews.ts`), and so is
+// every bundled edit whose redaction the room took (`eventRevision.ts`).
 
 /** The least time between the end of one save and the start of the next, for a redaction. */
 export const REDACTION_SAVE_GAP_MS = 2_000;
@@ -121,17 +123,23 @@ const withLatestReplyWithoutText = (event: SavedEvent, redacted: Set<string>): S
  * but its relation, the edit the server bundled with it (also as a thread's latest reply), its
  * copies beside a thread's summary, and its edits. The redaction itself is kept and is replayed as
  * before. State events are left alone. Events are replaced rather than changed: the SDK's own
- * events may share their objects.
+ * events may share their objects. Every bundled edit in `takenEdits` of its room, which the room
+ * took a redaction of as it arrived, is dropped too: the replay decides who may redact it with the
+ * room's state after the saved timeline, in which the redaction's sender may have left.
  */
-export const dropRedactedContent = (sync: SavedSync): void => {
-  Object.values(sync.joinRooms ?? {}).forEach((room) => {
+export const dropRedactedContent = (
+  sync: SavedSync,
+  takenEdits: (roomId: string) => ReadonlySet<string> = () => new Set()
+): void => {
+  Object.entries(sync.joinRooms ?? {}).forEach(([roomId, room]) => {
     const timeline = room._timeline ?? [];
     const redacted = new Set<string>();
     timeline.forEach(({ event }) => {
       const target = event.redacts ?? event.content?.redacts;
       if (event.type === 'm.room.redaction' && typeof target === 'string') redacted.add(target);
     });
-    if (redacted.size === 0) return;
+    const taken = takenEdits(roomId);
+    if (redacted.size === 0 && taken.size === 0) return;
     // An edit of a redacted message is dropped; the next event kept takes its pagination token.
     let token: string | null = null;
     room._timeline = timeline.flatMap((entry) => {
@@ -144,17 +152,26 @@ export const dropRedactedContent = (sync: SavedSync): void => {
         return [];
       }
       const isRedacted = redacted.has(event.event_id ?? '') && event.state_key === undefined;
-      const kept = withoutRedactedThreadPreviews(
-        withLatestReplyWithoutText(isRedacted ? withoutText(event) : event, redacted),
-        redacted,
-        stripRedactedRelationsFromRawEvent
-      );
+      const kept = stripRedactedRelationsFromRawEvent(
+        withoutRedactedThreadPreviews(
+          withLatestReplyWithoutText(isRedacted ? withoutText(event) : event, redacted),
+          redacted,
+          stripRedactedRelationsFromRawEvent
+        ) as Partial<IEvent>,
+        taken
+      ) as SavedEvent;
       const next = kept === event && !token ? entry : { event: kept, token: entry.token ?? token };
       token = null;
       return [next];
     });
   });
 };
+
+/** The edits each room took a redaction of as it arrived (eventRevision.ts). */
+const takenEditsOf =
+  (mx: MatrixClient) =>
+  (roomId: string): ReadonlySet<string> =>
+    mx.getRoom(roomId)?.redactedBundledEdits ?? new Set();
 
 /** The sync the client's store saves; only the IndexedDB store has one. */
 const savedSyncOf = (mx: MatrixClient): SavedSync | undefined =>
@@ -207,7 +224,7 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
     dropWaitingSave();
     saving = true;
     const sync = savedSyncOf(mx);
-    if (sync) dropRedactedContent(sync);
+    if (sync) dropRedactedContent(sync, takenEditsOf(mx));
     mx.store
       .save(true)
       .catch((error: unknown) => {
@@ -246,7 +263,7 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
     // every batch before them.
     if (mx.store.wantsSave()) {
       const sync = savedSyncOf(mx);
-      if (sync) dropRedactedContent(sync);
+      if (sync) dropRedactedContent(sync, takenEditsOf(mx));
       redactionSinceSave = false;
       changeSinceSave = false;
       dropWaitingSave();

@@ -147,7 +147,7 @@ index ac723cf..0d0c558 100644
    findThreadForEvent(event) {
      if (!event) return null;
      var _this$eventShouldLive = this.eventShouldLiveIn(event),
-@@ -2279,6 +2330,39 @@ export class Room extends ReadReceipt {
+@@ -2279,6 +2330,48 @@ export class Room extends ReadReceipt {
        this.redactVisibilityChangeEvent(redactionEvent);
      }
    }
@@ -163,7 +163,16 @@ index ac723cf..0d0c558 100644
 +    var threads = this.getThreads();
 +    var timelines = [this.getUnfilteredTimelineSet(), ...threads.map(thread => thread.timelineSet)].flatMap(timelineSet => timelineSet.getTimelines());
 +    var events = [...timelines.flatMap(timeline => timeline.getEvents()), ...threads.flatMap(thread => [thread.rootEvent, thread.replyToEvent])];
-+    for (const event of events) {
++    // A thread's summary bundles its latest event, and MindRoom's previews of its latest reply and title, each
++    // with its edit: the only copy of a reply the room may have. Each such copy stands in for itself.
++    var summarized = events.flatMap(event => {
++      var _event$getServerAggre;
++      return Object.values((_event$getServerAggre = event === null || event === void 0 ? void 0 : event.getServerAggregatedRelation(THREAD_RELATION_TYPE.name)) !== null && _event$getServerAggre !== void 0 ? _event$getServerAggre : {}).filter(raw => {
++        var _raw$unsigned;
++        return (raw === null || raw === void 0 || (_raw$unsigned = raw.unsigned) === null || _raw$unsigned === void 0 || (_raw$unsigned = _raw$unsigned["m.relations"]) === null || _raw$unsigned === void 0 || (_raw$unsigned = _raw$unsigned[RelationType.Replace]) === null || _raw$unsigned === void 0 ? void 0 : _raw$unsigned.event_id) === editId;
++      }).map(raw => new MatrixEvent(raw));
++    });
++    for (const event of [...events, ...summarized]) {
 +      if (!event) continue;
 +      var bundled = event.getServerAggregatedRelation(RelationType.Replace);
 +      if ((bundled === null || bundled === void 0 ? void 0 : bundled.event_id) !== editId) continue;
@@ -187,7 +196,7 @@ index ac723cf..0d0c558 100644
    processLiveEvent(event) {
      this.tryApplyRedaction(event);
  
-@@ -2346,7 +2430,8 @@ export class Room extends ReadReceipt {
+@@ -2346,7 +2439,8 @@ export class Room extends ReadReceipt {
      // Done after adding the event because otherwise the app would get a read receipt
      // pointing to an event that wasn't yet in the timeline
      // Don't synthesize RR for m.room.redaction as this causes the RR to go missing.
@@ -197,7 +206,7 @@ index ac723cf..0d0c558 100644
        this.addReceipt(synthesizeReceipt(event.sender.userId, event, ReceiptType.Read), true);
  
        // Any live events from a user could be taken as implicit
-@@ -2692,7 +2777,9 @@ export class Room extends ReadReceipt {
+@@ -2692,7 +2786,9 @@ export class Room extends ReadReceipt {
            shouldLiveInThread = _this15$eventShouldLi.shouldLiveInThread,
            _this15$eventShouldLi2 = _this15$eventShouldLi.threadId,
            threadId = _this15$eventShouldLi2 === void 0 ? "" : _this15$eventShouldLi2;
@@ -208,7 +217,7 @@ index ac723cf..0d0c558 100644
            try {
              var parentEvent = new MatrixEvent(yield _this15.client.fetchRoomEvent(_this15.roomId, event.relationEventId));
              neighbouringEvents.push(parentEvent);
-@@ -3553,4 +3640,3 @@ function memberNamesToRoomName(names, count) {
+@@ -3553,4 +3649,3 @@ function memberNamesToRoomName(names, count) {
      }
    }
  }
@@ -362,7 +371,7 @@ index f288f9d..a5e26ff 100644
      public findThreadForEvent(event?: MatrixEvent): Thread | null {
          if (!event) return null;
  
-@@ -2620,6 +2670,43 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
+@@ -2620,6 +2670,50 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
          }
      }
  
@@ -382,7 +391,14 @@ index f288f9d..a5e26ff 100644
 +            ...timelines.flatMap((timeline) => timeline.getEvents()),
 +            ...threads.flatMap((thread) => [thread.rootEvent, thread.replyToEvent]),
 +        ];
-+        for (const event of events) {
++        // A thread's summary bundles its latest event, and MindRoom's previews of its latest reply and title, each
++        // with its edit: the only copy of a reply the room may have. Each such copy stands in for itself.
++        const summarized = events.flatMap((event) =>
++            Object.values(event?.getServerAggregatedRelation<Record<string, Partial<IEvent>>>(THREAD_RELATION_TYPE.name) ?? {})
++                .filter((raw) => raw?.unsigned?.["m.relations"]?.[RelationType.Replace]?.event_id === editId)
++                .map((raw) => new MatrixEvent(raw)),
++        );
++        for (const event of [...events, ...summarized]) {
 +            if (!event) continue;
 +            const bundled = event.getServerAggregatedRelation<IAggregatedRelation>(RelationType.Replace);
 +            if (bundled?.event_id !== editId) continue;
@@ -406,7 +422,7 @@ index f288f9d..a5e26ff 100644
      private tryApplyRedaction = (event: MatrixEvent): void => {
          // FIXME: apply redactions to notification list
  
-@@ -2631,7 +2718,9 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
+@@ -2631,7 +2725,9 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
              const redactId = event.event.redacts;
  
              // if we know about this event, redact its contents now.
@@ -417,7 +433,7 @@ index f288f9d..a5e26ff 100644
              if (redactId) {
                  try {
                      this.stickyEvents.handleRedaction(redactedEvent || redactId);
-@@ -2642,6 +2731,8 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
+@@ -2642,6 +2738,8 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
              }
              if (redactedEvent) {
                  this.applyEventAsRedaction(event, redactedEvent);
@@ -426,7 +442,7 @@ index f288f9d..a5e26ff 100644
              }
          } else if (event.getType() === EventType.RoomMember) {
              const membership = event.getContent()["membership"];
-@@ -2743,7 +2834,8 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
+@@ -2743,7 +2841,8 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
          // Done after adding the event because otherwise the app would get a read receipt
          // pointing to an event that wasn't yet in the timeline
          // Don't synthesize RR for m.room.redaction as this causes the RR to go missing.
@@ -436,7 +452,7 @@ index f288f9d..a5e26ff 100644
              this.addReceipt(synthesizeReceipt(event.sender.userId, event, ReceiptType.Read), true);
  
              // Any live events from a user could be taken as implicit
-@@ -3117,7 +3209,9 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
+@@ -3117,7 +3216,9 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
                  threadId = "",
              } = this.eventShouldLiveIn(event, neighbouringEvents, threadRoots);
  

@@ -1,5 +1,6 @@
 import type { IEvent, MatrixClient } from 'matrix-js-sdk';
 import { isRecord } from '../../lib/isRecord';
+import { stripRedactedRelationsFromRawEvent } from '../eventRevision';
 
 // A server bundles an event's newest edit in `unsigned['m.relations']['m.replace']`, formatted as
 // the response formats its events, so the bundle of a /sync timeline event has no room ID either.
@@ -30,6 +31,13 @@ export const keepBundledEditsInTheirRoom = (mx: MatrixClient): void => {
   const getEventMapper = mx.getEventMapper.bind(mx);
   mx.getEventMapper = (options) => {
     const map = getEventMapper(options);
-    return (raw) => map(withBundledEditRoom(raw));
+    return (raw) => {
+      // A copy of a message, or of the thread events its summary bundles, keeps no edit whose
+      // redaction the room took: the SDK maps a thread's latest reply again from its root's summary.
+      const redacted = raw.room_id ? mx.getRoom(raw.room_id)?.redactedBundledEdits : undefined;
+      return map(
+        withBundledEditRoom(redacted ? stripRedactedRelationsFromRawEvent(raw, redacted) : raw)
+      );
+    };
   };
 };

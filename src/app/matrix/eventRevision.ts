@@ -185,6 +185,15 @@ export const collectEmbeddedRelationEventIds = (
 };
 
 /**
+ * Whether `room` took a redaction of the event `eventId`: it holds the event redacted, or the SDK
+ * patch dropped it as an edit bundled with a message (`Room.redactedBundledEdits`) once someone
+ * who may redact it did, as the redaction arrived. Every copy of a message that shows a bundled
+ * edit asks this, so none shows an edit after its redaction, whichever copy the redaction reached.
+ */
+export const isKnownRedactedEventId = (room: Room, eventId: string): boolean =>
+  room.redactedBundledEdits.has(eventId) || room.findEventById(eventId)?.isRedacted() === true;
+
+/**
  * Union of every event id known to be redacted from the given raw batch: the
  * batch's own explicit redactions (from `unsigned.redacted_because` or
  * `m.room.redaction` records, including `content.redacts` for room-v11) plus
@@ -199,7 +208,7 @@ export const collectKnownRedactedEventIds = (
 ): Set<string> => {
   const knownRedactedIds = collectExplicitRedactedEventIds(rawEvents);
   collectEmbeddedRelationEventIds(rawEvents).forEach((eventId) => {
-    if (room.findEventById(eventId)?.isRedacted()) knownRedactedIds.add(eventId);
+    if (isKnownRedactedEventId(room, eventId)) knownRedactedIds.add(eventId);
   });
   return knownRedactedIds;
 };
@@ -216,10 +225,7 @@ export const createIsKnownRedacted =
   (event) => {
     if (event.isRedacted()) return true;
     const eventId = event.getId();
-    return (
-      !!eventId &&
-      (knownRedactedIds.has(eventId) || room.findEventById(eventId)?.isRedacted() === true)
-    );
+    return !!eventId && (knownRedactedIds.has(eventId) || isKnownRedactedEventId(room, eventId));
   };
 
 const getNonReplacementRelations = (rawEvent: Partial<IEvent>): Record<string, unknown> => {
