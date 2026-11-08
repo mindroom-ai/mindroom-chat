@@ -449,6 +449,25 @@ describe('CallRow', () => {
     }
   );
 
+  it.each([
+    ['brings the floating window out of its bar', 'Desktop', 480],
+    ['leaves the stored bar on a phone', 'Mobile', undefined],
+  ] as const)("Join on this room's prescreen %s", (_case, size, height) => {
+    const store = createStore();
+    const rect = { x: 600, y: 200, width: 400, height: 480 };
+    const bar = minimizedSettings({ mode: 'floating', rect }, rect, {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
+    store.set(settings(), bar);
+    store.set(callPanelRoomAtom, ROOM_ID);
+    render(LIVE, store, size);
+
+    act(() => button('Join')?.click());
+    expect(store.get(callPanelRoomAtom)).toBe(ROOM_ID);
+    expect(store.get(settings()).rect?.height).toBe(height ?? bar.rect?.height);
+  });
+
   it('says how long the call lasted once the router edited it for the end', () => {
     render(ENDED);
 

@@ -608,8 +608,9 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
       </ul>
     ),
     // A finished call stays until it is closed: a failed one answers every new start busy till
-    // then. The bar says why it stopped, as the expanded view's notice does, and closes it.
-    status: state.problem && state.phase === 'failed' ? t(PROBLEM_KEYS[state.problem]) : undefined,
+    // then. The bar says what went wrong as the expanded view's notice does: why the call stopped,
+    // or why the microphone it just turned on stays off.
+    status: state.problem ? t(PROBLEM_KEYS[state.problem]) : undefined,
     closes: finished,
     controls: finished ? (
       <Button size="300" radii="300" variant="Secondary" fill="Soft" onClick={dismissCall}>

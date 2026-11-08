@@ -893,6 +893,20 @@ describe('the minimized bar', () => {
     }
   );
 
+  it('says in the bar why the microphone it turned on stays off, keeping the controls', () => {
+    roomCall([me, person('@ana:panel.test')]);
+    calls.state = {
+      ...joined([me, person('@ana:panel.test')]),
+      microphone: false,
+      problem: 'device',
+    };
+    renderPanel({ frame: frame(true) });
+
+    const bar = screen.getByRole('group', { name: 'Move minimized call window' });
+    expect(within(bar).getByText('Your microphone or camera could not be used.')).toBeTruthy();
+    expect(within(bar).getByRole('button', { name: 'Turn On Microphone' })).toBeTruthy();
+  });
+
   it('shows only the title, Expand and Close before the call is joined', () => {
     calls.members = [{ userId: '@ana:panel.test' }];
     renderPanel({ frame: frame(true) });
