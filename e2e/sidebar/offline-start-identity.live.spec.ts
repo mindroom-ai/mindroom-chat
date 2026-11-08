@@ -388,7 +388,9 @@ test.describe('with the service worker', () => {
 
     await context.setOffline(true);
     await page.reload();
-    await expect(page.getByText('Connection Lost!').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('client-sync-status')).toHaveText('Connection Lost!', {
+      timeout: 20_000,
+    });
     await expect.poll(() => imageLoaded(page, spaceImage), { timeout: 15_000 }).toBe(true);
   });
 });

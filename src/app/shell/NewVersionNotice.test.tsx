@@ -3,8 +3,8 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { getDefaultStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PHONE_SLIDE_OUT_MS, phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
-import { listNoticeSlotAtom, pageNoticeSlotAtom } from '../ui/noticeSlots';
-import { LEAVE_MS, NewVersionNotice } from './NewVersionNotice';
+import { listNoticeSlotAtom, NOTICE_LEAVE_MS, pageNoticeSlotAtom } from '../ui/noticeSlots';
+import { NewVersionNotice } from './NewVersionNotice';
 
 const update = vi.hoisted(() => {
   const listeners = new Set<() => void>();
@@ -78,7 +78,7 @@ describe('NewVersionNotice', () => {
     // Still there while it leaves.
     expect(container.querySelector('[data-new-version-card][data-leaving]')).toBeTruthy();
     act(() => {
-      vi.advanceTimersByTime(LEAVE_MS);
+      vi.advanceTimersByTime(NOTICE_LEAVE_MS);
     });
     expect(liveRegion(container).textContent).toBe('');
 
@@ -152,7 +152,7 @@ describe('NewVersionNotice', () => {
     expect(page.textContent).toBe('');
 
     act(() => {
-      vi.advanceTimersByTime(LEAVE_MS);
+      vi.advanceTimersByTime(NOTICE_LEAVE_MS);
     });
     expect(list.textContent).toBe('');
     expect(page.textContent).toBe('');
