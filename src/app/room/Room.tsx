@@ -26,7 +26,7 @@ import { MembersDrawer } from '../members/MembersDrawer';
 import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import { useMembersDrawer } from '../members/useMembersDrawer';
 import { ResizableMembersPanel } from '../members/ResizableMembersPanel';
-import { PanelRow } from '../members/PanelRow';
+import { PanelRow, useMembersOverlay } from '../members/PanelRow';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
 import { usePanelSlot } from '../ui/panels/panelPresence';
 import { type PanelFrame, PanelFrameProvider } from '../ui/panels/PanelFrame';
@@ -295,12 +295,18 @@ function RoomContent() {
     [clientConfig]
   );
   const pluginActions = usePluginHeaderActions(registeredPlugins, clientConfig);
-  // A plugin's panel belongs to the room it opened in.
+  // A plugin's panel belongs to the room it opened in. Over the page the members go away with the
+  // navigation that shows a room, so they keep no remembered panel from opening again there.
+  const membersOverPage = useMembersOverlay() || mobile;
   const {
     here: pluginPanel,
     show: showPluginPanel,
     close: closePluginPanel,
-  } = usePluginPanel(roomId, pluginPanels, computerOpen || !!canvas || callOpen || membersOpen);
+  } = usePluginPanel(
+    roomId,
+    pluginPanels,
+    computerOpen || !!canvas || callOpen || (membersOpen && !membersOverPage)
+  );
 
   const closeCall = () => setCallOpen(false);
   const closeMembers = () => setMembersOpen(false);
