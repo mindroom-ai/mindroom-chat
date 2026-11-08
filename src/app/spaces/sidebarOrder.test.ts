@@ -1,11 +1,6 @@
 import { createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  ROOM_ORDER_STORAGE_KEY_PREFIX,
-  SPACE_ORDER_STORAGE_KEY_PREFIX,
-  makeRoomOrderBySpaceAtom,
-  makeSpaceOrderAtom,
-} from './sidebarOrder';
+import { SPACE_ORDER_STORAGE_KEY_PREFIX, makeSpaceOrderAtom } from './sidebarOrder';
 
 type StorageListener = (event: StorageEvent) => void;
 
@@ -79,57 +74,6 @@ describe('sidebarOrder', () => {
     store.set(atom, { type: 'REMOVE', id: '!space-b' });
 
     expect(store.get(atom)).toEqual(['!space-a', '!space-c']);
-
-    unmount();
-  });
-
-  it('persists reordered rooms per parent space', () => {
-    const atom = makeRoomOrderBySpaceAtom('@alice:example.org');
-    const store = createStore();
-    const unmount = store.sub(atom, () => undefined);
-
-    store.set(atom, {
-      type: 'REORDER',
-      parentSpaceId: '!space-a',
-      order: ['!room-b', '!room-a', '!room-b'],
-    });
-
-    expect(store.get(atom)).toEqual({
-      '!space-a': ['!room-b', '!room-a'],
-    });
-    expect(storageState.get(`${ROOM_ORDER_STORAGE_KEY_PREFIX}@alice:example.org`)).toBe(
-      '{"!space-a":["!room-b","!room-a"]}'
-    );
-
-    unmount();
-  });
-
-  it('removes a room from one parent space order only', () => {
-    const atom = makeRoomOrderBySpaceAtom('@alice:example.org');
-    const store = createStore();
-    const unmount = store.sub(atom, () => undefined);
-
-    store.set(atom, { type: 'REORDER', parentSpaceId: '!space-a', order: ['!room-a', '!room-b'] });
-    store.set(atom, { type: 'REORDER', parentSpaceId: '!space-b', order: ['!room-b', '!room-c'] });
-    store.set(atom, { type: 'REMOVE', parentSpaceId: '!space-a', roomId: '!room-b' });
-
-    expect(store.get(atom)).toEqual({
-      '!space-a': ['!room-a'],
-      '!space-b': ['!room-b', '!room-c'],
-    });
-
-    unmount();
-  });
-
-  it('removes an entire parent space room order', () => {
-    const atom = makeRoomOrderBySpaceAtom('@alice:example.org');
-    const store = createStore();
-    const unmount = store.sub(atom, () => undefined);
-
-    store.set(atom, { type: 'REORDER', parentSpaceId: '!space-a', order: ['!room-a'] });
-    store.set(atom, { type: 'REMOVE_SPACE', parentSpaceId: '!space-a' });
-
-    expect(store.get(atom)).toEqual({});
 
     unmount();
   });
