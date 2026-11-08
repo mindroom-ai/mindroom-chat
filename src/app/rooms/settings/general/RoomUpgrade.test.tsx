@@ -4,6 +4,7 @@ import React from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, expect, it, vi } from 'vitest';
+import { fakeStateRoom } from '../../test-utils/fakeStateRoom';
 import { RoomUpgrade } from './RoomUpgrade';
 
 // After an upgrade the new room opens, unless rooms listed under the old one did not come along:
@@ -13,18 +14,7 @@ type Content = Record<string, unknown>;
 
 const fakeRoom = (name: string, state: Record<string, Record<string, Content>>) => ({
   name,
-  getMyMembership: () => 'join',
-  isSpaceRoom: () => false,
-  getLiveTimeline: () => ({
-    getState: () => ({
-      getStateEvents: (type: string, stateKey?: string) => {
-        const byKey = state[type] ?? {};
-        const event = (key: string) => ({ getContent: () => byKey[key], getStateKey: () => key });
-        if (stateKey === undefined) return Object.keys(byKey).map(event);
-        return byKey[stateKey] ? event(stateKey) : null;
-      },
-    }),
-  }),
+  ...fakeStateRoom(state),
 });
 
 const rooms: Record<string, ReturnType<typeof fakeRoom>> = {};
