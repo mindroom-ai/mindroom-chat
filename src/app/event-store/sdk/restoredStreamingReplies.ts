@@ -54,11 +54,13 @@ const relatedId = (event: SavedEvent, relType: string): string | undefined => {
 };
 
 /**
- * The replies of the saved sync that no revision it holds (the reply, an edit bundled with it, or
- * an edit in its room's saved timeline) shows finished, while one shows them streaming.
+ * The replies of the saved sync that no revision it holds (the reply, or an edit by its sender
+ * bundled with it or in its room's saved timeline) shows finished, while one shows them streaming.
  */
 export const findSavedStreamingReplies = (sync: SavedSync | undefined): SavedReply[] =>
   Object.entries(sync?.joinRooms ?? {}).flatMap(([roomId, room]) => {
+    const timeline = (room._timeline ?? []).map(({ event }) => event);
+    const senders = new Map(timeline.map((event) => [event.event_id, event.sender]));
     const replies = new Map<string, string | undefined>();
     const streaming = new Set<string>();
     const finished = new Set<string>();
@@ -66,10 +68,10 @@ export const findSavedStreamingReplies = (sync: SavedSync | undefined): SavedRep
       if (status && ACTIVE_STREAM_STATUSES.has(status)) streaming.add(eventId);
       if (status && TERMINAL_STREAM_STATUSES.has(status)) finished.add(eventId);
     };
-    (room._timeline ?? []).forEach(({ event }) => {
+    timeline.forEach((event) => {
       const target = relatedId(event, RelationType.Replace);
       if (target) {
-        note(target, streamStatusOf(event.content));
+        if (senders.get(target) === event.sender) note(target, streamStatusOf(event.content));
         return;
       }
       const eventId = event.event_id;

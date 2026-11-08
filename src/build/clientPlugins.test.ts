@@ -113,8 +113,8 @@ describe('readClientPlugins', () => {
     ],
     [
       'a plugin that needs a newer client SDK',
-      () => pluginDir(declaring({ apiVersion: 9 })),
-      /plugin "some-plugin" needs client SDK apiVersion 9; this client provides 8/,
+      () => pluginDir(declaring({ apiVersion: 10 })),
+      /plugin "some-plugin" needs client SDK apiVersion 10; this client provides 9/,
     ],
     [
       'an apiVersion that is not a number',
@@ -175,31 +175,22 @@ describe('clientPlugins', () => {
   });
 
   it('resolves the client SDK for a plugin outside this repository', async () => {
-    const dir = pluginDir(declaring({ apiVersion: 2 }), { entry: false });
+    const dir = pluginDir(declaring({ apiVersion: 9 }), { entry: false });
     writeFileSync(
       path.join(dir, 'index.js'),
       "import { usePluginConfig } from '@mindroom/client-sdk/core';\n" +
-        'export default { messageRenderers: [], usePluginConfig };\n'
+        "import { useRoomMembers } from '@mindroom/client-sdk/matrix';\n" +
+        'export default { messageRenderers: [], usePluginConfig, useRoomMembers };\n'
     );
-    const output = (await build({
-      configFile: false,
-      root: ROOT,
-      publicDir: false,
-      logLevel: 'silent',
-      plugins: [clientPlugins({ MINDROOM_CLIENT_PLUGINS: dir })],
-      build: {
-        write: false,
-        rollupOptions: {
-          input: path.join(ROOT, 'src/app/plugins/pluginEntries.ts'),
-          preserveEntrySignatures: 'strict',
-        },
-      },
-    })) as Rollup.RollupOutput;
-    const modules = output.output.flatMap((file) =>
-      file.type === 'chunk' ? Object.keys(file.modules) : []
+    const chunks = await buildEntries(
+      { MINDROOM_CLIENT_PLUGINS: dir },
+      // Packages, such as the Matrix SDK the `matrix` subpath imports, stay out; the SDK stays in.
+      { external: (id) => packages(id) && !id.startsWith('@mindroom/client-sdk/') }
     );
-    // The SDK's export is the app's own module, not a copy or a stand-in.
+    const modules = chunks.flatMap((chunk) => Object.keys(chunk.modules));
+    // The SDK's exports are the app's own modules, not copies or stand-ins.
     expect(modules).toContain(path.join(ROOT, 'src/app/plugins/pluginConfig.ts'));
+    expect(modules).toContain(path.join(ROOT, 'src/app/matrix/hooks/useRoomMembers.ts'));
   });
 
   it('ships no plugin code without plugins', async () => {

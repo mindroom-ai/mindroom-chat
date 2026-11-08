@@ -1,18 +1,15 @@
 import { EventEmitter } from 'events';
 import React from 'react';
-import { act, create, ReactTestRenderer, ReactTestRendererJSON } from 'react-test-renderer';
+import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { ClientEvent, MatrixClient, SyncState } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SyncStatus } from './SyncStatus';
+import { NOTICE_LEAVE_MS } from '../ui/noticeSlots';
 import {
   bindHomeserverReachability,
   createHomeserverReachability,
   HOMESERVER_CHECK_TIMEOUT_MS,
 } from '../matrix/client/homeserverReachability';
-
-vi.mock('../ui/styles/ContainerColor.css', () => ({
-  ContainerColor: () => 'container-color',
-}));
 
 const access = vi.hoisted(() => ({ signInRequired: false }));
 
@@ -24,12 +21,9 @@ vi.mock('../native/cloudflareAccess', () => ({
     access.signInRequired && baseUrl === 'https://matrix.example',
 }));
 
-const textOf = (node: ReactTestRendererJSON | ReactTestRendererJSON[] | string | null): string => {
-  if (node === null) return '';
-  if (typeof node === 'string') return node;
-  if (Array.isArray(node)) return node.map(textOf).join('');
-  return (node.children ?? []).map(textOf).join('');
-};
+/** What the status region reads out. */
+const announced = (renderer: ReactTestRenderer): string =>
+  renderer.root.findByProps({ 'data-sync-status-announcement': true }).children.join('');
 
 const createClient = () => {
   const mx = Object.assign(new EventEmitter(), {
@@ -73,7 +67,7 @@ describe('SyncStatus', () => {
     act(() => {
       renderer = create(<SyncStatus mx={mx} />);
     });
-    return () => textOf(renderer!.toJSON());
+    return () => announced(renderer!);
   };
 
   it('shows that the connection is lost when a request cannot reach the homeserver before /sync fails', async () => {
@@ -166,5 +160,46 @@ describe('SyncStatus', () => {
 
     await request({ reachable: false });
     expect(text()).toBe('Connection Lost! Reconnecting...');
+  });
+
+  it('reads catching up out before the sync loop has reported, whatever else it knows', async () => {
+    const { mx, request } = createClient();
+    act(() => {
+      renderer = create(<SyncStatus mx={mx} reported={false} />);
+    });
+    await request({ reachable: false });
+    expect(announced(renderer!)).toBe('Catching up...');
+  });
+
+  it('shows the status as a pill, critical for a lost connection, which leaves once all is well', async () => {
+    const { mx, request } = createClient();
+    render(mx);
+    const pill = () =>
+      renderer!.root.findAll(
+        (node) =>
+          typeof node.type === 'string' && node.props['data-testid'] === 'client-sync-status'
+      );
+    expect(pill()).toHaveLength(0);
+
+    await request({ reachable: false });
+    expect(pill()).toHaveLength(1);
+    expect(pill()[0]?.props['aria-hidden']).toBe(true);
+    // The critical look: a critical surface, where catching up has the plain one.
+    expect(
+      renderer!.root.findAll(
+        (node) =>
+          node.props['data-testid'] === 'client-sync-status' && node.props.variant === 'Critical'
+      ).length
+    ).toBeGreaterThan(0);
+    expect(pill()[0]?.props['data-leaving']).toBeUndefined();
+
+    await request({ reachable: true });
+    expect(announced(renderer!)).toBe('');
+    // It plays its way out with what it said, then goes.
+    expect(pill()[0]?.props['data-leaving']).toBe(true);
+    act(() => {
+      vi.advanceTimersByTime(NOTICE_LEAVE_MS);
+    });
+    expect(pill()).toHaveLength(0);
   });
 });

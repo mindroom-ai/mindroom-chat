@@ -133,7 +133,7 @@ for (const theme of ['silver', 'dark']) {
     for (const width of [390, 900]) {
       await page.setViewportSize({ width, height: 620 });
       await page.goto(`/e2e/fixtures/glass-surfaces.html?menus&theme=${theme}`);
-      await page.getByRole('button', { name: 'Choose model', exact: true }).click();
+      await page.getByRole('button', { name: /^Choose model / }).click();
       const dialog = page.getByRole('dialog', { name: 'Model for this thread' });
       const title = dialog.locator('[data-glass-flat="true"]').first();
       const scroll = await expectFloatingNavHeader(title, { inheritsPanelTint: true });
@@ -167,7 +167,7 @@ for (const theme of ['silver', 'dark']) {
       await page.keyboard.press('Enter');
       await expect(page.locator('output')).toHaveText('model-24');
       await dialog.getByRole('button', { name: 'Close model picker' }).click();
-      await expect(page.getByRole('button', { name: 'Choose model', exact: true })).toBeFocused();
+      await expect(page.getByRole('button', { name: /^Choose model / })).toBeFocused();
     }
 
     await page.setViewportSize({ width: 390, height: 480 });
