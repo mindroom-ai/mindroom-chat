@@ -7,11 +7,8 @@ import { isPluginEnabled } from '../plugins/pluginConfig';
 import { pluginFailure } from '../plugins/pluginFailure';
 import { registeredPlugins, type RoomHeaderSlotComponent } from '../plugins/registry';
 
-// The conversation scrolls under the header, and under the slot with it.
-const SLOT_STYLE: CSSProperties = {
-  background: color.Surface.Container,
-  color: color.Surface.OnContainer,
-};
+// The slot shows the header element's surface, the one the conversation scrolls under.
+const SLOT_STYLE: CSSProperties = { color: color.Surface.OnContainer };
 
 const reportFailure = (tag: string, thrown: unknown, componentStack?: string | null) => {
   // eslint-disable-next-line no-console

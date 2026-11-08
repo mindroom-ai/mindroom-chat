@@ -121,6 +121,13 @@ describe('RoomHeaderSlot', () => {
     ]);
   });
 
+  it("paints no background of its own, so the header's surface shows behind it, in the header's text colour", () => {
+    render('!a:example.org');
+    const { style } = (renderer!.toJSON() as ReactTestRendererJSON).props;
+    expect(Object.keys(style).filter((name) => name.startsWith('background'))).toEqual([]);
+    expect(style.color).toEqual(expect.any(String));
+  });
+
   it('shows nothing of a plugin that config.json turns off', () => {
     const config = { plugins: { example: { enabled: false } } } as unknown as ClientConfig;
     const shown = render('!a:example.org', config);
