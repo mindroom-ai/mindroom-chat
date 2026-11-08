@@ -515,7 +515,7 @@ describe('the side panels of a room', () => {
     await act(async () => controls.panel?.close());
     expect(notes()).toBeNull();
     expect(controls.panel?.isOpen).toBe(false);
-    // The room menu opens it with no request.
+    // Its toggle opens it with no request.
     await act(async () => state.view?.onPanelToggle?.('notes/panel'));
     expect(screen.getByText(`Notes of ${room.roomId}`)).toBeTruthy();
     expect(screen.queryByText(/^Notes request/)).toBeNull();
@@ -757,11 +757,11 @@ describe('the side panels of a room', () => {
   };
   const frameButton = (name: string) => screen.queryByRole('button', { name });
 
-  /** Opens or closes a panel with a frame as its users do: the call from the call store. */
-  const toggleFramed = (id: string) =>
+  /** Opens a panel with a frame as its users do: the call from the call store. */
+  const openFramed = (id: string) =>
     act(async () => {
       if (id !== 'call') state.view?.onPanelToggle?.(id);
-      else store.set(callPanelRoomAtom, isOpen('call') ? undefined : room.roomId);
+      else store.set(callPanelRoomAtom, room.roomId);
     });
 
   it.each([
@@ -774,7 +774,7 @@ describe('the side panels of a room', () => {
       const fold = `Fold ${label} to the edge`;
       const unfold = `Unfold ${label}`;
       const showRoom = await renderRoom();
-      await toggleFramed(id);
+      await openFramed(id);
       expect(frameButton(fill)?.getAttribute('aria-pressed')).toBe('false');
 
       // Filling the room, the panel takes the conversation's place until Fill is pressed again;
@@ -806,7 +806,7 @@ describe('the side panels of a room', () => {
       // beside the conversation.
       await act(async () => frameButton(fold)?.click());
       await act(async () => state.view?.onPanelToggle?.('members'));
-      await toggleFramed(id);
+      await openFramed(id);
       expect(frameButton(fill)).not.toBeNull();
     }
   );

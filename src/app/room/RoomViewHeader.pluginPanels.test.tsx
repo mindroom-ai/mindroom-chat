@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { createStore, Provider } from 'jotai';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
-import { Icons } from 'folds';
+import { Icon, IconButton, Icons } from 'folds';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MenuEntry } from '../ui/MenuEntry';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 
 // A plugin's side panel's toggle in the room header: a button in its row or an entry of its room
@@ -96,20 +97,13 @@ const openMenu = () => {
   });
 };
 
-/** The row's button named `label`, as the header draws it (folds' `IconButton`). */
+/** The row's button named `label`. */
 const rowButton = (label: string): ReactTestInstance | undefined =>
-  renderer?.root.findAll(
-    (node) =>
-      typeof node.type !== 'string' && node.props['aria-label'] === label && 'variant' in node.props
-  )[0];
-/** The room menu's entry named `label` (`MenuEntry`). */
+  renderer?.root.findAllByType(IconButton).find((node) => node.props['aria-label'] === label);
+/** The room menu's entry named `label`. */
 const menuEntry = (label: string): ReactTestInstance | undefined =>
-  renderer?.root.findAll(
-    (node) =>
-      typeof node.type !== 'string' && node.props.label === label && 'onSelect' in node.props
-  )[0];
-const iconOf = (button: ReactTestInstance | undefined) =>
-  button?.find((node) => typeof node.type !== 'string' && 'src' in node.props).props.src;
+  renderer?.root.findAllByType(MenuEntry).find((node) => node.props.label === label);
+const iconOf = (button: ReactTestInstance | undefined) => button?.findByType(Icon).props.src;
 
 const BOARD = { id: 'notes/board', label: 'Board', icon: Icons.Star, placement: 'auto' } as const;
 

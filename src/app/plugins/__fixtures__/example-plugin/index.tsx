@@ -45,7 +45,7 @@ import { useRoomHref, useRoomNavigate } from '@mindroom/client-sdk/room';
 /** This page load; what the plugin stored in it does not count as seen before. */
 const pageLoad = `${Date.now()}-${Math.random()}`;
 
-const greetingText = ({ content }: Pick<PluginEvent, 'content'>): string | undefined => {
+const greetingText = (content: PluginEvent['content']): string | undefined => {
   const greeting = content['com.example.greeting'];
   if (typeof greeting !== 'object' || greeting === null || !('text' in greeting)) return undefined;
   return typeof greeting.text === 'string' ? greeting.text : undefined;
@@ -66,7 +66,7 @@ function Greeting({ event }: { event: PluginEvent }) {
   }, [storage, seenKey]);
   const t = usePluginTranslation('example');
   const panel = useRoomSidePanel('example', 'panel');
-  const text = greetingText(event);
+  const text = greetingText(event.content);
   const label =
     typeof config === 'object' &&
     config !== null &&
@@ -158,7 +158,7 @@ function FetchedGreeting({ roomId, eventId }: { roomId: string; eventId: string 
     client
       .fetchRoomEvent(roomId, eventId)
       .then((event) => {
-        if (current) setText(greetingText({ content: event.content ?? {} }));
+        if (current) setText(greetingText(event.content ?? {}));
       })
       .catch(() => undefined);
     return () => {
@@ -228,7 +228,9 @@ const plugin: ClientPlugin = {
       close: (room) => setCovered(room.roomId, false),
     },
   ],
-  messageRenderers: [{ match: (event) => greetingText(event) !== undefined, Component: Greeting }],
+  messageRenderers: [
+    { match: (event) => greetingText(event.content) !== undefined, Component: Greeting },
+  ],
   pages: [
     { path: '', Component: ExamplePage },
     { path: 'window', Component: WindowPage, fillsWindow: true },
