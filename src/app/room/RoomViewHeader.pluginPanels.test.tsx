@@ -7,7 +7,8 @@ import { MenuEntry } from '../ui/MenuEntry';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 
 // A plugin's side panel's toggle in the room header: a button in its row or an entry of its room
-// menu, by the panel's placement, with the panel's icon, pressed while the room shows the panel.
+// menu, by the panel's placement and the screen, with the panel's icon, pressed while the room
+// shows the panel.
 // The room (Room.tsx) names no panel shown while the panel is folded to its tab.
 
 const screen = vi.hoisted(() => ({ size: 'Desktop' }));
@@ -141,6 +142,33 @@ describe("a plugin's side panel's toggle in the room header", () => {
       menuEntry('Board')?.props.onSelect();
     });
     expect(onPanelToggle).toHaveBeenCalledWith('notes/board');
+  });
+
+  it.each(['Mobile', 'Desktop'])(
+    "is a button in the row on a %s screen with `row`, pressed only while the room shows it",
+    (size) => {
+      screen.size = size;
+      const onPanelToggle = vi.fn();
+      const panel = { ...BOARD, placement: 'row' } as const;
+      renderHeader({ pluginPanels: [panel], onPanelToggle });
+      expect(rowButton('Board')?.props).toMatchObject({ 'aria-pressed': false, variant: 'Surface' });
+      act(() => {
+        rowButton('Board')?.props.onClick({});
+      });
+      expect(onPanelToggle).toHaveBeenCalledWith('notes/board');
+      openMenu();
+      expect(menuEntry('Board')).toBeUndefined();
+
+      renderHeader({ pluginPanels: [panel], shownPanel: 'notes/board', onPanelToggle });
+      expect(rowButton('Board')?.props).toMatchObject({ 'aria-pressed': true, variant: 'Primary' });
+    }
+  );
+
+  it('is an entry of the room menu with `menu` on a wide screen', () => {
+    renderHeader({ pluginPanels: [{ ...BOARD, placement: 'menu' }], onPanelToggle: vi.fn() });
+    expect(rowButton('Board')).toBeUndefined();
+    openMenu();
+    expect(menuEntry('Board')?.props).toMatchObject({ 'aria-checked': false, icon: Icons.Star });
   });
 
   it('is an entry of the room menu under a bulb for a panel with no icon or placement', () => {
