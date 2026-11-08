@@ -25,24 +25,36 @@ export const setLocalStorageItem = <T>(key: string, value: T): boolean => {
 };
 
 /**
- * An atom backed by one localStorage key. `getItem` reads (and sanitizes) the stored value once,
- * when the atom is created; every write goes through `setItem`. While mounted, the atom follows
- * `storage` events for its key, so other tabs' writes show up here.
+ * An atom backed by one localStorage key. `getItem` reads (and sanitizes) the stored value when the
+ * atom is created; every write goes through `setItem`. While mounted, the atom follows `storage`
+ * events for its key, so other tabs' writes show up here. When it mounts, it reads the key again
+ * if the stored text is not the one it last read or wrote: another tab wrote while it was not
+ * mounted (this tab was on Add Account, say).
  */
 export const atomWithLocalStorage = <T>(
   key: string,
   getItem: (key: string) => T,
   setItem: (key: string, value: T) => void
 ): WritableAtom<T, [T], void> => {
-  const valueAtom = atom<T>(getItem(key));
+  const readStored = () => getStorageItemSafe(getSafeLocalStorage(), key);
+  // The stored text the value was last read from or written as. A value storage refused, or keeps
+  // less of, stays as it is until the text changes.
+  let seen: string | null = null;
+  const read = (): T => {
+    const value = getItem(key);
+    seen = readStored();
+    return value;
+  };
+  const valueAtom = atom<T>(read());
 
   valueAtom.onMount = (setValue) => {
+    if (readStored() !== seen) setValue(read());
     if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') {
       return undefined;
     }
     const handleStorage = (event: StorageEvent) => {
       if (event.key !== null && event.key !== key) return;
-      setValue(getItem(key));
+      setValue(read());
     };
     window.addEventListener('storage', handleStorage);
     return () => {
@@ -57,6 +69,7 @@ export const atomWithLocalStorage = <T>(
     (_get, set, value) => {
       set(valueAtom, value);
       setItem(key, value);
+      seen = readStored();
     }
   );
 };
