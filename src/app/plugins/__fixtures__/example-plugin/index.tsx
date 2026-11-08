@@ -12,24 +12,28 @@
 // Its storage notes each greeting the signed-in account saw, when it shows and when it goes, and a
 // greeting the account saw in an earlier page load also shows "Seen before".
 // Its page at /p/example/ keeps the app's rail and links to its page at /p/example/window, which
-// fills the window and links back.
+// fills the window and links back. Its page at /p/example/rooms/<room ID>/<thread ID> links to that
+// room and that thread, opens either, and reloads the page into a new version.
 import { useEffect } from 'react';
 import { Icons } from 'folds';
 import { KnownMembership, type Room } from 'matrix-js-sdk';
 import {
   pluginPublicUrl,
+  reloadForNewVersion,
   usePluginConfig,
   usePluginRouteHref,
   usePluginStorage,
   usePluginTranslation,
   type ClientPlugin,
   type PluginEvent,
+  type PluginPageProps,
 } from '@mindroom/client-sdk/core';
 import {
   hasActiveMindroomAgent,
   useMatrixClient,
   useRoomMembers,
 } from '@mindroom/client-sdk/matrix';
+import { useRoomHref, useRoomNavigate } from '@mindroom/client-sdk/room';
 
 /** This page load; what the plugin stored in it does not count as seen before. */
 const pageLoad = `${Date.now()}-${Math.random()}`;
@@ -104,6 +108,25 @@ function WindowPage() {
   );
 }
 
+function RoomPage({ params: { roomId = '', threadId = '' } }: PluginPageProps) {
+  const { navigateRoom, navigateRoomThread } = useRoomNavigate();
+  return (
+    <div data-example-room-page>
+      <a href={useRoomHref(roomId)}>Link to the room</a>
+      <a href={useRoomHref(roomId, threadId)}>Link to the thread</a>
+      <button type="button" onClick={() => navigateRoom(roomId)}>
+        Open the room
+      </button>
+      <button type="button" onClick={() => navigateRoomThread(roomId, threadId)}>
+        Open the thread
+      </button>
+      <button type="button" onClick={() => void reloadForNewVersion()}>
+        Reload into the new version
+      </button>
+    </div>
+  );
+}
+
 function ExamplePanel({ roomId }: { roomId: string }) {
   const members = useRoomMembers(useMatrixClient(), roomId);
   const joined = members.filter(({ membership }) => membership === KnownMembership.Join);
@@ -165,6 +188,7 @@ const plugin: ClientPlugin = {
   pages: [
     { path: '', Component: ExamplePage },
     { path: 'window', Component: WindowPage, fillsWindow: true },
+    { path: 'rooms/:roomId/:threadId', Component: RoomPage },
   ],
   // It keeps nothing outside its storage, which the app deletes itself; for the tests, it notes the
   // account it was asked to forget in this tab.
