@@ -11,8 +11,9 @@ import {
   type DisposableUser,
 } from '../helpers/disposableAccounts';
 import { createRoom } from '../helpers/createRoom';
+import { dropFile } from '../helpers/fileDrop';
 import { sendRoomMessage } from '../helpers/matrix';
-import { roomMoreOptions } from '../helpers/roomMenu';
+import { roomHeader, roomMoreOptions } from '../helpers/roomMenu';
 import { serveBuild } from '../helpers/staticBuildServer';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
@@ -120,7 +121,6 @@ const shot = async (page: Page, name: string) => {
   if (directory) await page.screenshot({ path: `${directory}/${name}.png` });
 };
 
-const roomHeader = (page: Page) => page.getByRole('banner').filter({ has: page.locator('h1') });
 const banner = (page: Page) => page.locator('[data-example-plugin-banner]');
 
 /** Waits for the open room: its header and its first message. */
@@ -146,18 +146,6 @@ const box = async (locator: Locator) => {
   expect(found).not.toBeNull();
   return found!;
 };
-
-/** Drags a file over `target` and drops it there, as the system's file manager would. */
-const dropFile = (target: Locator) =>
-  target.evaluate((element, name) => {
-    const data = new DataTransfer();
-    data.items.add(new File(['dropped'], name, { type: 'text/plain' }));
-    for (const type of ['dragenter', 'dragover', 'drop']) {
-      element.dispatchEvent(
-        new DragEvent(type, { dataTransfer: data, bubbles: true, cancelable: true })
-      );
-    }
-  }, DROPPED_FILE);
 
 test("shows the plugin's banner under the room header, across the conversation, above it", ({
   browser,
@@ -235,7 +223,7 @@ test("the example panel's item dropped on the room's name shows in the banner; a
     await expect(footer).not.toContainText('Example item');
     await shot(page, 'room-header-slot-item-dropped');
 
-    await dropFile(name);
+    await dropFile(name, DROPPED_FILE);
     await expect(footer.getByText(DROPPED_FILE)).toBeVisible();
     await expect(dropped).toHaveText('Dropped: Example item');
     await shot(page, 'room-header-slot-file-dropped');
