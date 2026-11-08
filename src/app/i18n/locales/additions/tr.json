@@ -416,7 +416,33 @@
         "title": "Sesli arama",
         "transcript": "Konuşma metni",
         "turns_one": "{{count}} konuşma",
-        "turns_other": "{{count}} konuşma"
+        "turns_other": "{{count}} konuşma",
+        "moreTurns_one": "{{count}} konuşma daha gösterilmiyor",
+        "moreTurns_other": "{{count}} konuşma daha gösterilmiyor",
+        "callTitle": "Arama"
+      },
+      "transcription": {
+        "unavailable": "Transkriptler kullanılamıyor",
+        "pause": "Konuşma metnini duraklat",
+        "pausedBy": "{{name}} tarafından duraklatıldı",
+        "liveTranscript": "Canlı konuşma metni",
+        "close": "Canlı konuşma metnini kapat",
+        "resize": "Canlı konuşma metnini yeniden boyutlandır",
+        "transcribed": "Bu arama metne dökülüyor.",
+        "inCall": "Aramada",
+        "lines": "Şimdiye kadarki konuşma metni",
+        "noCall": "Bu odada süren bir arama yok.",
+        "notTranscribed": "Bu odadaki aramalar metne dökülmüyor.",
+        "nothingYet": "Henüz bir şey söylenmedi.",
+        "gap": {
+          "paused": "Duraklatıldı",
+          "notTranscribed": "Metne dökülmedi"
+        }
+      },
+      "row": {
+        "live": "Arama sürüyor",
+        "ended": "Arama sona erdi",
+        "notes": "Notlar ve konuşma metni"
       }
     },
     "room": {

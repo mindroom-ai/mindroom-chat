@@ -5,6 +5,8 @@ import {
   Room as MediaRoom,
   RoomEvent,
   Track,
+  TrackEvent,
+  type LocalTrackPublication,
   type LocalVideoTrack,
   type Participant,
   type RemoteTrack,
@@ -76,6 +78,11 @@ export type CallState = {
   audioBlocked: boolean;
   devices: CallDevices;
   participants: CallParticipant[];
+  /**
+   * The microphone this device publishes to the call, while it is on. A switched microphone (or
+   * one opened again) is a new track.
+   */
+  microphoneTrack?: MediaStreamTrack;
 };
 
 export type RoomCallOptions = {
@@ -222,14 +229,33 @@ export class RoomCall {
       !!media && media.state === ConnectionState.Connected && !media.canPlaybackAudio;
     // Sharing also ends from the browser's own "Stop sharing" control.
     const screenShare = !!media?.localParticipant.isScreenShareEnabled;
+    const microphoneTrack = this.readMicrophoneTrack();
     if (
       sameParticipants(participants, this.state.participants) &&
       audioBlocked === this.state.audioBlocked &&
-      screenShare === this.state.screenShare
+      screenShare === this.state.screenShare &&
+      microphoneTrack === this.state.microphoneTrack
     ) {
       return;
     }
-    this.update({ participants, audioBlocked, screenShare });
+    this.update({ participants, audioBlocked, screenShare, microphoneTrack });
+  };
+
+  /** The media track of the microphone this device publishes, unless it is muted. */
+  private readMicrophoneTrack(): MediaStreamTrack | undefined {
+    const publication = this.media?.localParticipant.getTrackPublication(Track.Source.Microphone);
+    return publication && !publication.isMuted ? publication.track?.mediaStreamTrack : undefined;
+  }
+
+  /** LiveKit opens a microphone again in the same track when it ended, with a new media track. */
+  private onLocalTrackPublished = (publication: LocalTrackPublication) => {
+    publication.track?.on(TrackEvent.Restarted, this.refresh);
+    this.refresh();
+  };
+
+  private onLocalTrackUnpublished = (publication: LocalTrackPublication) => {
+    publication.track?.off(TrackEvent.Restarted, this.refresh);
+    this.refresh();
   };
 
   private mediaParticipant(identity: string): Participant | undefined {
@@ -306,8 +332,8 @@ export class RoomCall {
       .on(RoomEvent.ParticipantDisconnected, this.refresh)
       .on(RoomEvent.TrackMuted, this.refresh)
       .on(RoomEvent.TrackUnmuted, this.refresh)
-      .on(RoomEvent.LocalTrackPublished, this.refresh)
-      .on(RoomEvent.LocalTrackUnpublished, this.refresh)
+      .on(RoomEvent.LocalTrackPublished, this.onLocalTrackPublished)
+      .on(RoomEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
       .on(RoomEvent.ActiveSpeakersChanged, this.refresh)
       .on(RoomEvent.AudioPlaybackStatusChanged, this.refresh)
       .on(RoomEvent.Reconnecting, () => this.update({ phase: 'reconnecting' }))
@@ -317,6 +343,8 @@ export class RoomCall {
       .on(RoomEvent.Disconnected, () => this.fail('connection'))
       .on(RoomEvent.ActiveDeviceChanged, (kind, deviceId) => {
         this.update({ devices: { ...this.state.devices, [kind]: deviceId } });
+        // A switched microphone is a new media track.
+        this.refresh();
       });
   }
 
@@ -608,6 +636,7 @@ export class RoomCall {
     await this.media?.switchActiveDevice(kind, deviceId).catch(() => {
       this.update({ problem: 'device' });
     });
+    this.refresh();
   }
 
   /** Plays the others after the browser blocked autoplay; must run inside a click. */
@@ -622,6 +651,10 @@ export class RoomCall {
     this.session.off(MatrixRTCSessionEvent.MembershipManagerError, this.onMembershipError);
     const media = this.media;
     this.media = undefined;
+    media?.localParticipant.trackPublications.forEach((publication) => {
+      publication.track?.off(TrackEvent.Restarted, this.refresh);
+    });
+    if (this.state.microphoneTrack) this.update({ microphoneTrack: undefined });
     this.audioHost?.remove();
     this.audioHost = undefined;
     try {

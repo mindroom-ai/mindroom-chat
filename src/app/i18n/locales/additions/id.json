@@ -408,7 +408,32 @@
       "transcript": {
         "title": "Panggilan suara",
         "transcript": "Transkrip",
-        "turns_other": "{{count}} giliran bicara"
+        "turns_other": "{{count}} giliran bicara",
+        "moreTurns_other": "{{count}} giliran bicara lagi tidak ditampilkan",
+        "callTitle": "Panggilan"
+      },
+      "transcription": {
+        "unavailable": "Transkrip tidak tersedia",
+        "pause": "Jeda transkripsi",
+        "pausedBy": "Dijeda oleh {{name}}",
+        "liveTranscript": "Transkrip langsung",
+        "close": "Tutup transkrip langsung",
+        "resize": "Ubah ukuran transkrip langsung",
+        "transcribed": "Panggilan ini ditranskripsikan.",
+        "inCall": "Dalam panggilan",
+        "lines": "Transkrip sejauh ini",
+        "noCall": "Tidak ada panggilan di ruangan ini.",
+        "notTranscribed": "Panggilan di ruangan ini tidak ditranskripsikan.",
+        "nothingYet": "Belum ada yang diucapkan.",
+        "gap": {
+          "paused": "Dijeda",
+          "notTranscribed": "Tidak ditranskripsikan"
+        }
+      },
+      "row": {
+        "live": "Panggilan berlangsung",
+        "ended": "Panggilan berakhir",
+        "notes": "Catatan dan transkrip"
       }
     },
     "room": {

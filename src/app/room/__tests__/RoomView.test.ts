@@ -423,6 +423,7 @@ const makeRoom = (roomId: string) => ({
   roomId,
   getThread: () => undefined,
   findEventById: () => undefined,
+  getUnfilteredTimelineSet: () => ({ findEventById: () => undefined }),
   on: vi.fn(),
   removeListener: vi.fn(),
 });

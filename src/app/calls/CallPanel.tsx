@@ -27,6 +27,7 @@ import { browserSharesScreens, browserSupportsCalls, useCallSupport } from './ca
 import { allowMembersToCall, readCallAccess, type CallAccess } from './callAccess';
 import { CallControl, DeviceControl } from './CallControls';
 import { CallMemberAvatar, CallTile, ScreenTile } from './CallTile';
+import { TranscriptionControls, TranscriptionStatus } from './transcription/TranscriptionControls';
 import * as css from './CallPanel.css';
 import { revealDirectionControls } from '../ui/directional';
 
@@ -209,69 +210,76 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
       : undefined;
 
   const controls = finished ? (
-    <div className={css.Controls}>
-      <Button size="400" radii="Pill" variant="Secondary" fill="Soft" onClick={dismissCall}>
-        <Text size="B400">{t('featureUi.calls.panel.dismiss')}</Text>
-      </Button>
+    <div className={css.ControlBar}>
+      <div className={css.Controls}>
+        <Button size="400" radii="Pill" variant="Secondary" fill="Soft" onClick={dismissCall}>
+          <Text size="B400">{t('featureUi.calls.panel.dismiss')}</Text>
+        </Button>
+      </div>
     </div>
   ) : (
-    <div className={css.Controls} role="toolbar" aria-label={title}>
-      <CallControl
-        label={
-          state.microphone
-            ? t('featureUi.call.controls.turnOffMicrophone')
-            : t('featureUi.call.controls.turnOnMicrophone')
-        }
-        icon={state.microphone ? Icons.Mic : Icons.MicMute}
-        off={!state.microphone}
-        onClick={() => void call.setMicrophone(!state.microphone)}
-      />
-      {!agentCall && (
+    <div className={css.ControlBar}>
+      {/* Who paused the transcript, or that transcripts are unavailable (the call goes on). */}
+      {!agentCall && <TranscriptionStatus room={call.room} />}
+      <div className={css.Controls} role="toolbar" aria-label={title}>
         <CallControl
           label={
-            state.camera
-              ? t('featureUi.call.controls.stopCamera')
-              : t('featureUi.call.controls.startCamera')
+            state.microphone
+              ? t('featureUi.call.controls.turnOffMicrophone')
+              : t('featureUi.call.controls.turnOnMicrophone')
           }
-          icon={state.camera ? Icons.VideoCamera : Icons.VideoCameraMute}
-          onClick={() => void call.setCamera(!state.camera)}
+          icon={state.microphone ? Icons.Mic : Icons.MicMute}
+          off={!state.microphone}
+          onClick={() => void call.setMicrophone(!state.microphone)}
         />
-      )}
-      {!agentCall && browserSharesScreens() && (
+        {!agentCall && (
+          <CallControl
+            label={
+              state.camera
+                ? t('featureUi.call.controls.stopCamera')
+                : t('featureUi.call.controls.startCamera')
+            }
+            icon={state.camera ? Icons.VideoCamera : Icons.VideoCameraMute}
+            onClick={() => void call.setCamera(!state.camera)}
+          />
+        )}
+        {!agentCall && browserSharesScreens() && (
+          <CallControl
+            label={
+              state.screenShare
+                ? t('featureUi.call.controls.stopScreenshare')
+                : t('featureUi.call.controls.startScreenshare')
+            }
+            icon={Icons.ScreenShare}
+            pressed={state.screenShare}
+            onClick={() => void call.setScreenShare(!state.screenShare)}
+          />
+        )}
         <CallControl
           label={
-            state.screenShare
-              ? t('featureUi.call.controls.stopScreenshare')
-              : t('featureUi.call.controls.startScreenshare')
+            state.sound
+              ? t('featureUi.call.controls.turnOffSound')
+              : t('featureUi.call.controls.turnOnSound')
           }
-          icon={Icons.ScreenShare}
-          pressed={state.screenShare}
-          onClick={() => void call.setScreenShare(!state.screenShare)}
+          icon={state.sound ? Icons.Headphone : Icons.HeadphoneMute}
+          off={!state.sound}
+          onClick={() => call.setSound(!state.sound)}
         />
-      )}
-      <CallControl
-        label={
-          state.sound
-            ? t('featureUi.call.controls.turnOffSound')
-            : t('featureUi.call.controls.turnOnSound')
-        }
-        icon={state.sound ? Icons.Headphone : Icons.HeadphoneMute}
-        off={!state.sound}
-        onClick={() => call.setSound(!state.sound)}
-      />
-      <DeviceControl
-        chosen={state.devices}
-        onChoose={(kind, id) => void call.setDevice(kind, id)}
-      />
-      <CallControl
-        label={t('featureUi.call.callControls.end')}
-        icon={Icons.PhoneDown}
-        critical
-        onClick={() => {
-          // The call is over for this device either way; a failed leave leaves nothing to do.
-          endCall().catch(() => undefined);
-        }}
-      />
+        {!agentCall && <TranscriptionControls room={call.room} />}
+        <DeviceControl
+          chosen={state.devices}
+          onChoose={(kind, id) => void call.setDevice(kind, id)}
+        />
+        <CallControl
+          label={t('featureUi.call.callControls.end')}
+          icon={Icons.PhoneDown}
+          critical
+          onClick={() => {
+            // The call is over for this device either way; a failed leave leaves nothing to do.
+            endCall().catch(() => undefined);
+          }}
+        />
+      </div>
     </div>
   );
 

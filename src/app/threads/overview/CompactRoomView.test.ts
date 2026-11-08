@@ -175,10 +175,13 @@ vi.mock('./CompactCardSwipe.css', () => ({
   SwipeTrackSettling: 'SwipeTrackSettling',
 }));
 
+// A room whose thread roots are not loaded: no card holds a call's row.
 const makeRoom = () =>
   ({
     roomId: '!room:server',
-  } as Room);
+    getUnfilteredTimelineSet: () => ({ findEventById: () => undefined }),
+    getThread: () => null,
+  } as unknown as Room);
 
 describe('CompactRoomView', () => {
   it('opens thread actions on right click and navigates only after Open thread is chosen', async () => {

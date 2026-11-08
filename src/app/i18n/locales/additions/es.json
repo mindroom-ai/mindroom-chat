@@ -424,7 +424,34 @@
         "transcript": "Transcripción",
         "turns_one": "{{count}} intervención",
         "turns_many": "{{count}} de intervenciones",
-        "turns_other": "{{count}} intervenciones"
+        "turns_other": "{{count}} intervenciones",
+        "moreTurns_one": "{{count}} intervención más sin mostrar",
+        "moreTurns_many": "{{count}} de intervenciones más sin mostrar",
+        "moreTurns_other": "{{count}} intervenciones más sin mostrar",
+        "callTitle": "Llamada"
+      },
+      "transcription": {
+        "unavailable": "Las transcripciones no están disponibles",
+        "pause": "Pausar la transcripción",
+        "pausedBy": "Pausada por {{name}}",
+        "liveTranscript": "Transcripción en directo",
+        "close": "Cerrar la transcripción en directo",
+        "resize": "Cambiar el tamaño de la transcripción en directo",
+        "transcribed": "Esta llamada se está transcribiendo.",
+        "inCall": "En la llamada",
+        "lines": "Transcripción hasta ahora",
+        "noCall": "No hay ninguna llamada en esta sala.",
+        "notTranscribed": "Las llamadas de esta sala no se transcriben.",
+        "nothingYet": "Todavía no se ha dicho nada.",
+        "gap": {
+          "paused": "En pausa",
+          "notTranscribed": "Sin transcribir"
+        }
+      },
+      "row": {
+        "live": "Llamada en curso",
+        "ended": "Llamada finalizada",
+        "notes": "Notas y transcripción"
       }
     },
     "room": {

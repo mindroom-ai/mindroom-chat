@@ -28,6 +28,8 @@ import { IconTooltip } from '../../ui/IconTooltip';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
 import { useStagedCardIds } from './useStagedCardIds';
+import { useThreadRootCallRow } from './useThreadRootCallRow';
+import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 
 const ThreadActionsMenu = lazy(() =>
   import('../ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -50,7 +52,7 @@ type ThreadActionsMenuState = {
 };
 
 type CompactThreadCardRowProps = {
-  roomId: string;
+  room: Room;
   scrollRootRef: RefObject<HTMLDivElement>;
   viewModel: CompactThreadCardViewModel;
   pinned: boolean;
@@ -71,7 +73,7 @@ type CompactThreadCardRowProps = {
 
 const CompactThreadCardRow = React.memo(
   ({
-    roomId,
+    room,
     scrollRootRef,
     viewModel,
     pinned,
@@ -89,8 +91,11 @@ const CompactThreadCardRow = React.memo(
     onPin,
     onOpenMenu,
   }: CompactThreadCardRowProps) => {
+    const { roomId } = room;
     const rootId = viewModel.id.threadRootId;
     const shownRef = useInitializeShownThread(roomId, rootId, scrollRootRef);
+    // A call's row shows in its card as in the timeline: who is in the call, Join and Transcript.
+    const callRow = useThreadRootCallRow(room, rootId);
 
     return (
       <div
@@ -130,7 +135,13 @@ const CompactThreadCardRow = React.memo(
           onSwipe={(wasResolved) => onSetResolved(rootId, !wasResolved)}
         >
           <MessageRowBoundary
-            render={() => <CompactThreadCard viewModel={viewModel} onClick={onThreadClick} />}
+            render={() => (
+              <CompactThreadCard
+                viewModel={viewModel}
+                onClick={onThreadClick}
+                attachment={callRow && <LazyCallRow {...callRow} />}
+              />
+            )}
           />
           <div className={css.CardAction}>
             {showResolveAction && (
@@ -339,7 +350,7 @@ export function CompactRoomView({
     return (
       <CompactThreadCardRow
         key={rootId}
-        roomId={room.roomId}
+        room={room}
         scrollRootRef={viewRef}
         viewModel={viewModel}
         pinned={pinned}
