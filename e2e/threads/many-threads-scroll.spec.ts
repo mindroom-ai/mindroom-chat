@@ -155,7 +155,10 @@ const seedAccount = async (): Promise<Fixture> => {
     for (let round = 0; round < rounds; round += 1) {
       if (round > 0) {
         // eslint-disable-next-line no-await-in-loop
-        previous = await send(token, roomId, { ...note('Follow-up'), ...inThread(rootId, previous) });
+        previous = await send(token, roomId, {
+          ...note('Follow-up'),
+          ...inThread(rootId, previous),
+        });
         events += 1;
       }
       const final = answer();
@@ -170,7 +173,10 @@ const seedAccount = async (): Promise<Fixture> => {
         const partial =
           edit === STREAM_EDITS - 1
             ? final
-            : { msgtype: 'm.text', body: final.body.slice(0, ((edit + 1) * final.body.length) / STREAM_EDITS) };
+            : {
+                msgtype: 'm.text',
+                body: final.body.slice(0, ((edit + 1) * final.body.length) / STREAM_EDITS),
+              };
         // eslint-disable-next-line no-await-in-loop
         await send(agent.accessToken, roomId, editOf(replyId, partial));
         events += 1;
@@ -236,7 +242,7 @@ type Scroller = Awaited<ReturnType<typeof findScroller>>;
  * How many of `roots` the Threads view holds now: its list read top to bottom in half screens while
  * the room's history pages wait, so only rows it held already show. The view returns to its top.
  */
-const countHeldRoots = async (page: Page, roots: string[]): Promise<number> => {
+const countHeldRoots = async (page: Page, roots: string[], label: string): Promise<number> => {
   const waiting: (() => void)[] = [];
   const isHistoryPage = (url: URL) => url.pathname.endsWith('/messages');
   await page.route(isHistoryPage, (route) => {
@@ -244,7 +250,7 @@ const countHeldRoots = async (page: Page, roots: string[]): Promise<number> => {
   });
   try {
     const scroller = await findScroller(page);
-    return await scroller.evaluate(async (view, rootIds) => {
+    const held = await scroller.evaluate(async (view, rootIds) => {
       const wanted = new Set(rootIds);
       const seen = new Set<string>();
       const frame = () =>
@@ -261,10 +267,20 @@ const countHeldRoots = async (page: Page, roots: string[]): Promise<number> => {
         });
         if (view.scrollTop + view.clientHeight >= view.scrollHeight - 1) break;
       }
-      view.scrollTop = 0;
-      await frame();
       return seen.size;
     }, roots);
+    // The end of what the view holds: the oldest thread, or the edge where history loads.
+    if (SHOTS) {
+      mkdirSync(SHOTS, { recursive: true });
+      await page.screenshot({ path: `${SHOTS}/${label}-held-end.png` });
+    }
+    await scroller.evaluate(async (view) => {
+      view.scrollTop = 0;
+      await new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      });
+    });
+    return held;
   } finally {
     await page.unroute(isHistoryPage);
     waiting.forEach((release) => release());
@@ -438,9 +454,7 @@ const readToOldest = async (
     // eslint-disable-next-line no-await-in-loop
     reached = await inView(scroller, target);
     // eslint-disable-next-line no-await-in-loop
-    const now = await page.evaluate(
-      () => (window as WatchWindow).manyThreadsWatch?.seen.size ?? 0
-    );
+    const now = await page.evaluate(() => (window as WatchWindow).manyThreadsWatch?.seen.size ?? 0);
     steps.push({
       requests: diff(requests, stepBefore),
       rows: now - seen,
@@ -490,8 +504,41 @@ const report = (reading: Reading, heldRoots?: number) => {
   }
 };
 
-const login = async (page: Page, fixture: Fixture, viewMode: 'compact' | 'threaded' | 'classic') => {
-  await page.addInitScript(() => localStorage.setItem('mindroom.debug.timeline', '1'));
+let fixture: Fixture;
+
+/** Rows on screen move no more than subpixel rounding while rows load around them. */
+const MAX_DRIFT_PX = 2;
+/**
+ * Flicks that show no new row before the oldest thread is in view: the reader scrolled into the
+ * end of the loaded rows and waited. A few at the end, where history the view no longer needs
+ * still pages in, are allowed.
+ */
+const MAX_WAITS = 3;
+
+/** Reports the reading and checks it; `held` is the Threads view's count of held threads. */
+const check = (reading: Reading, held?: number) => {
+  report(reading, held);
+  const { label } = reading;
+  expect(reading.reached, `${label}: the oldest thread came into view`).toBe(true);
+  if (held !== undefined)
+    expect(held, `${label}: threads the Threads view holds without a page`).toBe(THREADS);
+  const waits = reading.steps.slice(0, -1).filter((step) => step.rows === 0).length;
+  expect(waits, `${label}: flicks that showed no new row`).toBeLessThanOrEqual(MAX_WAITS);
+  expect(
+    reading.maxDrift,
+    `${label}: px the rows on screen moved as rows loaded`
+  ).toBeLessThanOrEqual(MAX_DRIFT_PX);
+  // Each history page holds 200 events; the read takes each at most once.
+  expect(reading.requests.messages, `${label}: history pages`).toBeLessThanOrEqual(
+    Math.ceil(fixture.events / 200) + 2
+  );
+};
+
+const login = async (
+  page: Page,
+  fixture: Fixture,
+  viewMode: 'compact' | 'threaded' | 'classic'
+) => {
   await loginWithPassword(page, { homeserver, username: fixture.username, password: PASSWORD });
   await seedRoomOverviewState({
     page,
@@ -555,8 +602,6 @@ const openIn = async (
   return requests;
 };
 
-let fixture: Fixture;
-
 test.use({
   launchOptions: {
     // The other launch options repeat playwright.config.ts.
@@ -615,7 +660,7 @@ test.describe('a room with 245 threads', () => {
         const page = await context.newPage();
         const label = `${prefix}-switch`;
         const requests = await switchFromCompact(page, fixture, label);
-        const held = await countHeldRoots(page, fixture.roots);
+        const held = await countHeldRoots(page, fixture.roots, label);
         await page.waitForTimeout(1_000);
         const reading = await readToOldest(
           page,
@@ -625,7 +670,7 @@ test.describe('a room with 245 threads', () => {
           requests,
           label
         );
-        report(reading, held);
+        check(reading, held);
       });
     });
 
@@ -636,14 +681,8 @@ test.describe('a room with 245 threads', () => {
         await withContext(browser, baseURL, engine, device, async (context) => {
           const page = await context.newPage();
           const label = `${prefix}-threads-${cache}`;
-          const requests = await openIn(
-            page,
-            fixture,
-            'threaded',
-            label,
-            cache === 'warm'
-          );
-          const held = await countHeldRoots(page, fixture.roots);
+          const requests = await openIn(page, fixture, 'threaded', label, cache === 'warm');
+          const held = await countHeldRoots(page, fixture.roots, label);
           await page.waitForTimeout(1_000);
           const reading = await readToOldest(
             page,
@@ -653,7 +692,7 @@ test.describe('a room with 245 threads', () => {
             requests,
             label
           );
-          report(reading, held);
+          check(reading, held);
         });
       });
 
@@ -663,13 +702,7 @@ test.describe('a room with 245 threads', () => {
         await withContext(browser, baseURL, engine, device, async (context) => {
           const page = await context.newPage();
           const label = `${prefix}-classic-${cache}`;
-          const requests = await openIn(
-            page,
-            fixture,
-            'classic',
-            label,
-            cache === 'warm'
-          );
+          const requests = await openIn(page, fixture, 'classic', label, cache === 'warm');
           const reading = await readToOldest(
             page,
             device,
@@ -678,7 +711,7 @@ test.describe('a room with 245 threads', () => {
             requests,
             label
           );
-          report(reading);
+          check(reading);
         });
       });
     });

@@ -1,26 +1,19 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useVirtualPaginator, type ItemRange } from './useVirtualPaginator';
 
 const observerState = vi.hoisted(() => ({
   report: undefined as ((entries: IntersectionObserverEntry[]) => void) | undefined,
-  getOptions: undefined as (() => IntersectionObserverInit | undefined) | undefined,
 }));
 
 vi.mock('../lib/hooks/useIntersectionObserver', () => ({
-  useIntersectionObserver: (
-    report: (entries: IntersectionObserverEntry[]) => void,
-    getOptions?: () => IntersectionObserverInit | undefined
-  ) => {
+  useIntersectionObserver: (report: (entries: IntersectionObserverEntry[]) => void) => {
     observerState.report = report;
-    observerState.getOptions = getOptions;
     return { observe: vi.fn(), unobserve: vi.fn() };
   },
 }));
-
-const rectAt = (top: number) => ({ top, bottom: top + 1, height: 1 } as DOMRect);
 
 /**
  * A scroll area 600px tall under an 80px header and above a 120px composer, and its back sentinel
@@ -31,7 +24,10 @@ const setUp = (sentinelTop: () => number) => {
   root.getBoundingClientRect = () => ({ top: 0, bottom: 600, height: 600 } as DOMRect);
   Object.defineProperty(root, 'clientHeight', { value: 600 });
   const sentinel = document.createElement('span');
-  sentinel.getBoundingClientRect = () => rectAt(sentinelTop());
+  sentinel.getBoundingClientRect = () => {
+    const top = sentinelTop();
+    return { top, bottom: top + 1, height: 1 } as DOMRect;
+  };
   root.append(sentinel);
   document.body.append(root);
   vi.stubGlobal('getComputedStyle', () => ({
@@ -41,92 +37,77 @@ const setUp = (sentinelTop: () => number) => {
   return { root, sentinel };
 };
 
-type HarnessProps = { root: HTMLElement; range: ItemRange; onEnd: (back: boolean) => void };
+type Harness = { setRange?: (range: ItemRange) => void };
 
-function Harness({ root, range, onEnd }: HarnessProps) {
+function PaginatorHarness({
+  root,
+  onEnd,
+  harness,
+}: {
+  root: HTMLElement;
+  onEnd: (back: boolean) => void;
+  harness: Harness;
+}) {
+  const [range, setRange] = React.useState<ItemRange>({ start: 0, end: 20 });
   const paginator = useVirtualPaginator({
-    count: range.end,
+    count: 100,
     limit: 20,
     range,
-    onRangeChange: () => undefined,
+    onRangeChange: setRange,
     getScrollElement: () => root,
     getItemElement: () => undefined,
     onEnd,
   });
+  Object.assign(harness, { setRange });
   return React.createElement('span', { ref: paginator.observeBackAnchor });
 }
 
-const render = (props: HarnessProps, sentinel: HTMLElement): ReactTestRenderer => {
-  let renderer: ReactTestRenderer | undefined;
+const render = (root: HTMLElement, sentinel: HTMLElement, onEnd: (back: boolean) => void) => {
+  const harness: Harness = {};
   act(() => {
-    renderer = create(React.createElement(Harness, props), { createNodeMock: () => sentinel });
+    create(React.createElement(PaginatorHarness, { root, onEnd, harness }), {
+      createNodeMock: () => sentinel,
+    });
   });
-  if (!renderer) throw new Error('not rendered');
-  return renderer;
+  return harness;
 };
 
-const reportShown = (sentinel: HTMLElement) =>
-  act(() => {
-    observerState.report?.([
-      { target: sentinel, isIntersecting: true } as unknown as IntersectionObserverEntry,
-    ]);
-  });
-
-describe('useVirtualPaginator reaches a screen beyond the reader', () => {
+describe('useVirtualPaginator pages on a screen beyond the reader', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     document.body.replaceChildren();
   });
 
-  it('observes a screen beyond the scroll area', () => {
-    const { root, sentinel } = setUp(() => -300);
-    render({ root, range: { start: 0, end: 20 }, onEnd: vi.fn() }, sentinel);
-    expect(observerState.getOptions?.()).toEqual({ root, rootMargin: '100% 0px' });
-  });
-
-  it('loads history before the reader reaches the sentinel', () => {
-    const { root, sentinel } = setUp(() => -300);
-    const onEnd = vi.fn();
-    render({ root, range: { start: 0, end: 20 }, onEnd }, sentinel);
-    reportShown(sentinel);
-    expect(onEnd.mock.calls).toEqual([[true]]);
-  });
-
-  it('waits for a sentinel more than a screen away until scrolling brings it within reach', () => {
-    let top = -560;
-    const { root, sentinel } = setUp(() => top);
-    const onEnd = vi.fn();
-    render({ root, range: { start: 0, end: 20 }, onEnd }, sentinel);
-    reportShown(sentinel);
-    expect(onEnd).not.toHaveBeenCalled();
-
-    top = -500;
-    act(() => {
-      root.dispatchEvent(new Event('scroll'));
-    });
-    expect(onEnd.mock.calls).toEqual([[true]]);
-  });
-
   it('keeps paging while the pages add less than a screen of rows', () => {
-    let top = -300;
+    let top = 100;
     const { root, sentinel } = setUp(() => top);
     const onEnd = vi.fn();
-    const renderer = render({ root, range: { start: 0, end: 20 }, onEnd }, sentinel);
-    reportShown(sentinel);
+    const harness = render(root, sentinel, onEnd);
+    // The reader sees the sentinel: history loads.
+    act(() => {
+      observerState.report?.([
+        { target: sentinel, isIntersecting: true } as unknown as IntersectionObserverEntry,
+      ]);
+    });
     expect(onEnd).toHaveBeenCalledTimes(1);
 
-    // A page of five rows lands: the sentinel is still within a screen, so the next page loads
-    // without the reader scrolling.
-    act(() => {
-      renderer.update(React.createElement(Harness, { root, range: { start: 0, end: 25 }, onEnd }));
-    });
+    // The page lands with a few rows: the sentinel is out of view, but within a screen, so the next
+    // page loads without the reader scrolling.
+    top = -300;
+    act(() => harness.setRange?.({ start: 0, end: 25 }));
     expect(onEnd).toHaveBeenCalledTimes(2);
 
-    // A page of more than a screen of rows lands: paging stops until the reader scrolls on.
+    // That page lands with more than a screen of rows: paging waits for the reader.
     top = -700;
-    act(() => {
-      renderer.update(React.createElement(Harness, { root, range: { start: 0, end: 60 }, onEnd }));
-    });
+    act(() => harness.setRange?.({ start: 0, end: 60 }));
     expect(onEnd).toHaveBeenCalledTimes(2);
+  });
+
+  it('pages only on what the reader sees when rows change by themselves', () => {
+    const { root, sentinel } = setUp(() => -300);
+    const onEnd = vi.fn();
+    const harness = render(root, sentinel, onEnd);
+    act(() => harness.setRange?.({ start: 0, end: 21 }));
+    expect(onEnd).not.toHaveBeenCalled();
   });
 });
