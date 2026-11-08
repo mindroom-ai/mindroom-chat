@@ -97,7 +97,7 @@ const room = {
   roomId: '!room:example.org',
   findEventById: () => undefined,
   // The redactions these tests read come from members who may make them.
-  currentState: { maySendRedactionForEvent: () => true },
+  mayRedact: () => true,
 } as any;
 
 describe('applyCachedReplaceRelations', () => {
@@ -624,7 +624,7 @@ describe('a page with a redaction by someone who may not redact the event', () =
   const ROOM = '!room:example.org';
   const ALICE = '@alice:example.org';
   const OTHER = '@other:elsewhere.org';
-  const MODERATOR = '@moderator:example.org';
+  const MODERATOR = '@moderator:elsewhere.org';
   const POWER_LEVELS = { users: { [MODERATOR]: 50 }, redact: 50 };
   const client = createClient({ baseUrl: 'https://example.org', userId: ALICE });
   const state = (type: string, stateKey: string, content: object, prevContent?: object) =>

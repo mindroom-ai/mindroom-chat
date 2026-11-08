@@ -649,7 +649,7 @@ describe('an edit redacted from a bundle, after a reload', () => {
 // replay after a reload decides the same: it checks each redaction against the state at its place
 // in the saved timeline, not against the state after it.
 describe('a redacted message, after a reload', () => {
-  const MODERATOR = '@moderator:example.org';
+  const MODERATOR = '@moderator:elsewhere.org';
   const OTHER = '@other:elsewhere.org';
   const POWER_LEVELS = { users: { [MODERATOR]: 50 }, redact: 50 };
   const sdk = createClient({ baseUrl: 'https://example.org', userId: ME });

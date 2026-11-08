@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 const ROOM = '!room:example.org';
 const AUTHOR = '@author:example.org';
 const OTHER = '@other:elsewhere.org';
-const MODERATOR = '@moderator:example.org';
+const MODERATOR = '@moderator:elsewhere.org';
 const HELPER = '@helper:example.org';
 
 const client = createClient({ baseUrl: 'https://example.org', userId: AUTHOR });
@@ -196,8 +196,8 @@ describe('SDK redactions by someone who may not redact the event', () => {
 
     it('keeps the target of a redaction of the edit of a removed message', async () => {
       const { add } = await moderatedRoom(edited());
-      await add(redaction('$message', MODERATOR));
-      const ofEdit = redaction('$edit', AUTHOR);
+      await add(redaction('$message', AUTHOR));
+      const ofEdit = redaction('$edit', MODERATOR);
 
       await add(ofEdit);
 

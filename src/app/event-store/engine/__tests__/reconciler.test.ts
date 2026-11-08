@@ -172,7 +172,7 @@ const makeFakeRoom = (): Room =>
     findEventById: () => null,
     getThread: () => undefined,
     // The redactions these tests fetch come from members who may make them.
-    currentState: { maySendRedactionForEvent: () => true },
+    mayRedact: () => true,
   } as unknown as Room);
 
 const flushMicrotasks = async (): Promise<void> => {

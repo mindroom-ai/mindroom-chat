@@ -98,15 +98,10 @@ export const collectRedactedRelationTargetsFromLookup = (
   }, []);
 };
 
-/**
- * Whether `redaction` may remove `target`, by the SDK patch's rule: a redaction the room holds keeps
- * the room's decision, made where it is in the timeline (one it rejected names no target), and one
- * only in a page is checked against the room's current state, as the SDK checks a page.
- */
+/** Whether `redaction` may remove `target` (Room.mayRedact): a redaction the room holds keeps its decision. */
 const mayRedact = (room: Room, redaction: MatrixEvent, target: MatrixEvent): boolean => {
-  const held = room.findEventById(redaction.getId() ?? '');
-  if (held) return held.getAssociatedId() === target.getId();
-  return room.currentState.maySendRedactionForEvent(target, redaction.getSender() ?? '');
+  const held = room.findEventById(redaction.getId() ?? '') ?? redaction;
+  return held.getAssociatedId() === target.getId() && room.mayRedact(held, target, []);
 };
 
 export const applyCachedRedactions = (

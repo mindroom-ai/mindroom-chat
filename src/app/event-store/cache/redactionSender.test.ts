@@ -15,7 +15,7 @@ import { persistRoomEventCacheSnapshot } from './eventRepository';
 const ROOM = '!room:example.org';
 const AUTHOR = '@author:example.org';
 const OTHER = '@other:elsewhere.org';
-const MODERATOR = '@moderator:example.org';
+const MODERATOR = '@moderator:elsewhere.org';
 
 const raw = (extra: Partial<IEvent>): Partial<IEvent> => ({
   room_id: ROOM,
