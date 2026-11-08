@@ -108,11 +108,13 @@ const POWER_LEVELS = {
   users: { [ME]: 100 },
 };
 
-// Each line names its number, so a spec can tell which ones show; every third one runs over
-// several lines of text.
+// Each line names its number, so a spec can tell which ones show; every third one, the last among
+// them, runs over several lines of text, more than the subtitle's two in the widest window.
 const LINE_COUNT = 40;
 const LONG_TEXT =
-  'the release notes still need the migration steps, the screenshots and the list of fixed issues.';
+  'the release notes still need the migration steps, the screenshots and the list of fixed ' +
+  'issues, and someone has to check the changelog against the merged pull requests before the ' +
+  'release goes out on Friday.';
 const lines: TranscriptLine[] = Array.from({ length: LINE_COUNT }, (_, index) => ({
   id: `line-${index + 1}`,
   callId: 'call-1',
@@ -120,7 +122,7 @@ const lines: TranscriptLine[] = Array.from({ length: LINE_COUNT }, (_, index) =>
   saidAt: new Date(Date.UTC(2026, 10, 8, 9, 30, index)).toISOString(),
   seconds: 2,
   kind: 'speech',
-  text: `Line ${index + 1}: ${index % 3 === 2 ? LONG_TEXT : 'noted.'}`,
+  text: `Line ${index + 1}: ${index % 3 === 0 ? LONG_TEXT : 'noted.'}`,
 }));
 
 const store = createStore();

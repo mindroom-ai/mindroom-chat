@@ -67,8 +67,8 @@ const scrollOf = (log: Locator) =>
   }));
 
 /**
- * Waits two frames: the browser lays out what changed and tells its resize observers in the first,
- * and fires the scroll events that brought in the next.
+ * Waits two frames: in the first the browser lays out what changed and tells its resize observers,
+ * and in the second it fires the scroll events the first caused.
  */
 const twoFrames = (page: Page) =>
   page.evaluate(
@@ -131,7 +131,7 @@ test.describe('the layout by the window size', () => {
         // The transcript is out of sight; the latest line shows over the bottom of the stage.
         expect(paneBox.width).toBeLessThanOrEqual(1);
         expect(paneBox.height).toBeLessThanOrEqual(1);
-        await expect(subtitle).toHaveText('Avery Quinn Line 40: noted.');
+        await expect(subtitle).toHaveText(/^Avery Quinn Line 40: the release notes/);
         await expect(subtitle).toBeInViewport({ ratio: 1 });
         // The stage keeps the subtitle's room free at its end (its content box ends above it), and
         // the subtitle sits in that room, inside the stage from side to side. (A voice stage's
@@ -144,6 +144,11 @@ test.describe('the layout by the window size', () => {
               parseFloat(getComputedStyle(element).paddingBlockEnd)
           );
         const subtitleBox = await boxOf(subtitle);
+        // The latest line is a long one: the subtitle takes its whole room, two lines.
+        const lineHeight = await subtitle.evaluate((element) =>
+          parseFloat(getComputedStyle(element).lineHeight)
+        );
+        expect(subtitleBox.height).toBeGreaterThan(2 * lineHeight);
         expect(subtitleBox.y).toBeGreaterThanOrEqual(stageContentEnd);
         expect(subtitleBox.y + subtitleBox.height).toBeLessThanOrEqual(
           stageBox.y + stageBox.height
@@ -157,7 +162,7 @@ test.describe('the layout by the window size', () => {
       const dividerBox = await boxOf(divider);
       // The transcript shows a line or more of its own, scrolled to the newest.
       expect(paneBox.height).toBeGreaterThan(30);
-      await expect(log.getByText('Line 40: noted.')).toBeInViewport();
+      await expect(log.getByText(/^Line 40: /)).toBeInViewport();
       await expect(divider).toHaveAttribute('aria-valuenow', '60');
       if (layout === 'side') {
         // Stage, divider and transcript side by side, the transcript at the end.
