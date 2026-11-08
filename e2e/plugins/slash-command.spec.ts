@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -57,8 +57,6 @@ const messages = async (accessToken: string, roomId: string) => {
     .map(({ content }) => [content.msgtype, content.body]);
 };
 
-const composer = (page: Page) => page.locator('[data-editable-name="RoomInput"]');
-
 test("the example plugin's slash command shows in the command menu and runs in the room", async ({
   browser,
 }, testInfo) => {
@@ -72,13 +70,14 @@ test("the example plugin's slash command shows in the command menu and runs in t
   const server = await serveBuild(build!);
   const context = await browser.newContext({ baseURL: server.origin });
   const page = await context.newPage();
+  const composer = page.locator('[data-editable-name="RoomInput"]');
   const shot = (name: string) => page.screenshot({ path: testInfo.outputPath(`${name}.png`) });
   try {
     await loginWithPassword(page, { homeserver: HOMESERVER, ...person });
     await page.goto(`/home/${encodeURIComponent(roomId)}/`);
-    await expect(composer(page)).toBeVisible({ timeout: 60_000 });
+    await expect(composer).toBeVisible({ timeout: 60_000 });
 
-    await composer(page).click();
+    await composer.click();
     await page.keyboard.type('/');
     const commands = page.locator('[data-slash-command]');
     await expect(page.locator('[data-slash-command="greet"]')).toContainText(
@@ -91,14 +90,14 @@ test("the example plugin's slash command shows in the command menu and runs in t
     await page.keyboard.type('gr');
     await expect(commands).toHaveCount(1);
     await page.keyboard.press('Tab');
-    await expect(composer(page)).toContainText('/greet');
+    await expect(composer).toContainText('/greet');
     await page.keyboard.type('Hello there');
     await page.keyboard.press('Enter');
     await expect
       .poll(() => messages(person.accessToken, roomId), { timeout: 30_000 })
       .toEqual([['m.notice', 'Example greeting: Hello there']]);
     await expect(page.getByText('Example greeting: Hello there')).toBeVisible();
-    await expect(composer(page)).not.toContainText('/greet');
+    await expect(composer).not.toContainText('/greet');
     await shot('greeted');
 
     // The space ends the word, so no menu takes the Enter.
@@ -107,10 +106,10 @@ test("the example plugin's slash command shows in the command menu and runs in t
     await expect(
       page.getByRole('alert').filter({ hasText: '/greet failed: Type a greeting after /greet.' })
     ).toBeVisible();
-    await expect(composer(page)).toContainText('/greet');
+    await expect(composer).toContainText('/greet');
     await shot('failed');
 
-    await composer(page).click();
+    await composer.click();
     await page.keyboard.press('ControlOrMeta+a');
     await page.keyboard.type('Still sending');
     await page.keyboard.press('Enter');

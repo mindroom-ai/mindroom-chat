@@ -70,7 +70,7 @@ describe('usePluginSlashCommands', () => {
     expect(greet.run).toHaveBeenCalledWith({ room, args: 'hello  there' });
   });
 
-  it('refuses a name two plugins both claim, for both, and warns about it once', async () => {
+  it('refuses a name claimed more than once, by two plugins or by one, and warns about each once', async () => {
     const { usePluginSlashCommands } = await import('./slashCommands');
     const warned = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const first = command();
@@ -78,7 +78,11 @@ describe('usePluginSlashCommands', () => {
     const { result, rerender } = renderHook(
       ({ config }: { config?: ClientConfig }) =>
         usePluginSlashCommands(
-          [plugin('one', [first, command({ name: 'solo' })]), plugin('two', [second])],
+          [
+            plugin('one', [first, command({ name: 'solo' })]),
+            plugin('two', [second]),
+            plugin('three', [command({ name: 'twice' }), command({ name: 'twice' })]),
+          ],
           config
         ),
       { initialProps: {} }
@@ -87,10 +91,12 @@ describe('usePluginSlashCommands', () => {
 
     rerender({ config: { plugins: {} } as unknown as ClientConfig });
     expect(result.current.map(({ name }) => name)).toEqual(['solo']);
-    expect(warned).toHaveBeenCalledTimes(1);
-    expect(warned).toHaveBeenCalledWith(
-      '[plugins one@1.0.0, two@1.0.0] each add the slash command /greet, so none runs it'
-    );
+    expect(warned.mock.calls).toEqual([
+      [
+        '[plugins one@1.0.0, two@1.0.0] add the slash command /greet more than once, so it does not run',
+      ],
+      ['[plugins three@1.0.0] add the slash command /twice more than once, so it does not run'],
+    ]);
   });
 
   it('turns a command that throws into one that rejects, as the composer shows its error', async () => {

@@ -32,12 +32,12 @@ export type EnabledSlashCommand = {
   run: (room: Room, args: string) => Promise<void>;
 };
 
-/** The names two plugins both claim, each warned about once. */
+/** The names claimed more than once, each warned about once. */
 const warnedNames = new Set<string>();
 
 /**
- * The slash commands of the plugins config.json leaves on, in build order. A name more than one of
- * them claims is no command of any. It renders again when the language changes and once a plugin's
+ * The slash commands of the plugins config.json leaves on, in build order. A name claimed more than
+ * once, by one plugin or by several, is no command of any. It renders again when the language changes and once a plugin's
  * strings arrive; a `run` that throws rejects instead.
  */
 export const usePluginSlashCommands = (
@@ -59,19 +59,18 @@ export const usePluginSlashCommands = (
     enabled.forEach(({ tag, slashCommands }) =>
       slashCommands.forEach(({ name }) => claims.set(name, [...(claims.get(name) ?? []), tag]))
     );
+    claims.forEach((tags, name) => {
+      if (tags.length === 1 || warnedNames.has(name)) return;
+      warnedNames.add(name);
+      const who = [...new Set(tags)].join(', ');
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[plugins ${who}] add the slash command /${name} more than once, so it does not run`
+      );
+    });
     return enabled.flatMap(({ id, slashCommands }) =>
       slashCommands
-        .filter(({ name }) => {
-          const tags = claims.get(name) ?? [];
-          if (tags.length === 1) return true;
-          if (!warnedNames.has(name)) {
-            warnedNames.add(name);
-            const who = tags.join(', ');
-            // eslint-disable-next-line no-console
-            console.warn(`[plugins ${who}] each add the slash command /${name}, so none runs it`);
-          }
-          return false;
-        })
+        .filter(({ name }) => claims.get(name)?.length === 1)
         .map((command) => ({
           name: command.name,
           description: translate(command.description, { ns: pluginNamespace(id) }),
