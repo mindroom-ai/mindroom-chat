@@ -1,6 +1,8 @@
 import { type ComponentType, createContext, useContext, useMemo } from 'react';
+import type { IconSrc } from 'folds';
 import type { ClientConfig } from '../config/useClientConfig';
 import { isRecord } from '../lib/isRecord';
+import { PLACEMENTS, type HeaderAction } from './headerActions';
 import { isPluginEnabled } from './pluginConfig';
 import type { RegisteredPlugin } from './registry';
 
@@ -11,16 +13,25 @@ import type { RegisteredPlugin } from './registry';
 export type SidePanel = {
   /** Names it among its plugin's panels. */
   id: string;
-  /** Its title, and the room menu's entry that shows and hides it. */
+  /** Its title, and the name of its toggle in the room header, which shows and hides it. */
   label: string;
+  /** Its toggle's icon, as folds draws one, such as `Icons.Star`; a bulb by default. */
+  icon?: IconSrc;
+  /**
+   * Where its toggle shows, as a header action's does: `auto` in the header's row, except on
+   * phones, where it goes in the room menu; `menu`, the default, always in the room menu. The
+   * toggle is pressed while the room shows the panel, not folded to its tab; folded, choosing it
+   * unfolds the panel.
+   */
+  placement?: HeaderAction['placement'];
   /**
    * What it shows, for the room it is open in. `request` is what the plugin's code asked it to show
-   * when it last opened it ({@link useRoomSidePanel}), or undefined after the room menu opened it.
+   * when it last opened it ({@link useRoomSidePanel}), or undefined after its toggle opened it.
    */
   Component: ComponentType<{ roomId: string; request?: unknown }>;
   /**
    * Whether the signed-in account keeps it open, with its request, in each room it opened in,
-   * across reloads and room switches, until it closes there (its Close, the room menu, another
+   * across reloads and room switches, until it closes there (its Close, its toggle, another
    * panel) or the account's last login leaves this browser.
    */
   remember?: boolean;
@@ -32,7 +43,9 @@ export const isSidePanel = (value: unknown): value is SidePanel =>
   typeof value.id === 'string' &&
   value.id !== '' &&
   typeof value.label === 'string' &&
-  (typeof value.Component === 'function' || isRecord(value.Component));
+  (typeof value.Component === 'function' || isRecord(value.Component)) &&
+  (value.icon === undefined || typeof value.icon === 'function') &&
+  (value.placement === undefined || PLACEMENTS.includes(value.placement));
 
 /** A plugin's side panel in a room: `id` is `<plugin id>/<panel id>`, `tag` names its plugin. */
 export type RoomSidePanel = SidePanel & { tag: string };
@@ -66,7 +79,7 @@ export type RoomSidePanelControl = {
   /** Whether the room shows it (beside the conversation, across the room or folded to a tab). */
   isOpen: boolean;
   /**
-   * Opens it as the room menu does, taking the side panel from any other, or keeps it open, and
+   * Opens it as its toggle does, taking the side panel from any other, or keeps it open, and
    * hands its `Component` `request`. A panel that `remember`s keeps the request as JSON in this
    * browser, so the request should hold only what the panel needs to open again, never secrets or
    * message text. `open` keeps its identity while the room shows. Call it in answer to something

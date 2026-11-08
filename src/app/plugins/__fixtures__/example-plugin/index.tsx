@@ -4,9 +4,11 @@
 // and "From <sender>" after the sender's avatar in the room, with ", a MindRoom agent" for an agent.
 // A side panel, "Example panel", names the room it is open in, counts its joined members and says
 // whether a MindRoom agent has joined or is invited, through the account's client, and whether the
-// account may post there, which it says again when the room's levels change. It also shows
-// the greeting a card asked it to show: in a room, each greeting has "Show in panel", and "Close
-// panel" while the panel shows. The panel stays open in its room across reloads (`remember`).
+// account may post there, which it says again when the room's levels change. Its toggle, under
+// a leaf icon, shows in the room header's row, except on phones, where it goes in the room menu. It
+// also shows the greeting a card asked it to show: in a room, each greeting has "Show in panel",
+// and "Close panel" while the panel shows. The panel stays open in its room across reloads
+// (`remember`), so the card hands it only the greeting's event ID, and it reads the greeting itself.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg), and a button, "Show example cover", that covers the room's conversation with
 // "Example cover of <room name>" until its Close button or Escape closes it. Its panel also offers
@@ -58,8 +60,8 @@ const ITEM_DRAG_EVENTS = ['dragenter', 'dragover', 'drop'] as const;
 /** This page load; what the plugin stored in it does not count as seen before. */
 const pageLoad = `${Date.now()}-${Math.random()}`;
 
-const greetingText = (event: PluginEvent): string | undefined => {
-  const greeting = event.content['com.example.greeting'];
+const greetingText = (content: PluginEvent['content']): string | undefined => {
+  const greeting = content['com.example.greeting'];
   if (typeof greeting !== 'object' || greeting === null || !('text' in greeting)) return undefined;
   return typeof greeting.text === 'string' ? greeting.text : undefined;
 };
@@ -83,7 +85,7 @@ function Greeting({ event }: { event: PluginEvent }) {
   const authenticated = useMediaAuthentication();
   const avatarMxc = client.getRoom(event.roomId)?.getMember(event.sender)?.getMxcAvatarUrl();
   const avatar = avatarMxc && mxcUrlToHttp(client, avatarMxc, authenticated, 32, 32, 'crop');
-  const text = greetingText(event);
+  const text = greetingText(event.content);
   const label =
     typeof config === 'object' &&
     config !== null &&
@@ -103,7 +105,7 @@ function Greeting({ event }: { event: PluginEvent }) {
       </div>
       {seenIn !== null && seenIn !== pageLoad && <div data-example-plugin-seen>Seen before</div>}
       {panel && (
-        <button type="button" onClick={() => panel.open(text)}>
+        <button type="button" onClick={() => panel.open(event.eventId)}>
           Show in panel
         </button>
       )}
@@ -194,6 +196,28 @@ function PostingRight({ room }: { room: Room }) {
   return <p>{mayPost ? 'You may post here' : 'You may not post here'}</p>;
 }
 
+/**
+ * The greeting of the message `eventId` in the room, as the homeserver has it: the tests' greetings
+ * are not encrypted.
+ */
+function FetchedGreeting({ roomId, eventId }: { roomId: string; eventId: string }) {
+  const client = useMatrixClient();
+  const [text, setText] = useState<string>();
+  useEffect(() => {
+    let current = true;
+    client
+      .fetchRoomEvent(roomId, eventId)
+      .then((event) => {
+        if (current) setText(greetingText(event.content ?? {}));
+      })
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, [client, eventId, roomId]);
+  return text === undefined ? null : <p>Greeting: {text}</p>;
+}
+
 function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }) {
   const client = useMatrixClient();
   const members = useRoomMembers(client, roomId);
@@ -207,7 +231,9 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
         agent
       </p>
       {room && <PostingRight room={room} />}
-      {typeof request === 'string' && <p>Greeting: {request}</p>}
+      {typeof request === 'string' && (
+        <FetchedGreeting key={request} roomId={roomId} eventId={request} />
+      )}
       <p draggable onDragStart={(event) => event.dataTransfer.setData(ITEM_TYPE, 'Example item')}>
         Example item
       </p>
@@ -279,7 +305,9 @@ const plugin: ClientPlugin = {
       close: (room) => setCovered(room.roomId, false),
     },
   ],
-  messageRenderers: [{ match: (event) => greetingText(event) !== undefined, Component: Greeting }],
+  messageRenderers: [
+    { match: (event) => greetingText(event.content) !== undefined, Component: Greeting },
+  ],
   pages: [
     { path: '', Component: ExamplePage },
     { path: 'window', Component: WindowPage, fillsWindow: true },
@@ -291,7 +319,16 @@ const plugin: ClientPlugin = {
     sessionStorage.setItem('example-plugin.forgot', userId);
   },
   roomHeaderSlot: [RoomBanner, CoverButton],
-  sidePanels: [{ id: 'panel', label: 'Example panel', Component: ExamplePanel, remember: true }],
+  sidePanels: [
+    {
+      id: 'panel',
+      label: 'Example panel',
+      icon: Icons.Leaf,
+      placement: 'auto',
+      Component: ExamplePanel,
+      remember: true,
+    },
+  ],
   headerActions: [
     {
       id: 'wave',
