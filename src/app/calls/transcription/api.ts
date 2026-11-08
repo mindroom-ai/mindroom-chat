@@ -43,7 +43,7 @@ export type RefusalCode =
   | 'unavailable'
   | 'too-large';
 
-/** A call route MindRoom refused (`status`), or one that got no answer (status 0). */
+/** A call route MindRoom refused (`status`), or answered with something not JSON (status 0). */
 export class TranscriptionApiError extends MindroomServerError {
   readonly code?: RefusalCode;
 
@@ -103,8 +103,8 @@ export class TranscriptionClient {
   }
 
   /** Sends a call route with the session for its JSON. */
-  private async sendJson<T>(path: string, init: RequestInit, signal?: AbortSignal): Promise<T> {
-    const response = await this.sessions.send(`${API_PATH}${path}`, { ...init, signal });
+  private async sendJson<T>(path: string, init: RequestInit): Promise<T> {
+    const response = await this.sessions.send(`${API_PATH}${path}`, init);
     if (!response.ok) throw await refusal(response);
     try {
       return (await response.json()) as T;
@@ -117,21 +117,16 @@ export class TranscriptionClient {
   async join(roomId: string, signal?: AbortSignal): Promise<TranscriptCall> {
     const { call } = await this.sendJson<{ call: TranscriptCall }>(
       `/rooms/${encodeURIComponent(roomId)}/calls.join`,
-      { method: 'POST' },
-      signal
+      { method: 'POST', signal }
     );
     return call;
   }
 
   async leave(callId: string, signal?: AbortSignal): Promise<void> {
-    await this.sendJson(`/calls/${encodeURIComponent(callId)}/leave`, { method: 'POST' }, signal);
+    await this.sendJson(`/calls/${encodeURIComponent(callId)}/leave`, { method: 'POST', signal });
   }
 
-  /**
-   * Leaves at once with the session already held, for a page that goes away: the request outlives
-   * the page. Without a session, or once it has run out, nothing is sent, as there is no time to
-   * sign in.
-   */
+  /** Leaves at once with the session held, as the page goes or signs out (`sendNow`). */
   leaveNow(callId: string): Promise<void> {
     return this.sessions.sendNow(`${API_PATH}/calls/${encodeURIComponent(callId)}/leave`, {
       method: 'POST',
@@ -146,8 +141,8 @@ export class TranscriptionClient {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paused }),
-      },
-      signal
+        signal,
+      }
     );
     return call;
   }
@@ -166,8 +161,7 @@ export class TranscriptionClient {
     form.append('startedAt', startedAt.toISOString());
     const { line } = await this.sendJson<{ line: TranscriptLine | null }>(
       `/calls/${encodeURIComponent(callId)}/speech`,
-      { method: 'POST', body: form },
-      signal
+      { method: 'POST', body: form, signal }
     );
     return line;
   }
@@ -175,10 +169,9 @@ export class TranscriptionClient {
   /** The room's live call, with its lines after the line `after` (all of them without it). */
   live(roomId: string, after?: string, signal?: AbortSignal): Promise<LiveCall> {
     const query = after === undefined ? '' : `?after=${encodeURIComponent(after)}`;
-    return this.sendJson<LiveCall>(
-      `/rooms/${encodeURIComponent(roomId)}/calls.live${query}`,
-      { method: 'GET' },
-      signal
-    );
+    return this.sendJson<LiveCall>(`/rooms/${encodeURIComponent(roomId)}/calls.live${query}`, {
+      method: 'GET',
+      signal,
+    });
   }
 }

@@ -988,6 +988,23 @@ describe('CallTranscriber ending', () => {
     ]);
   });
 
+  it('takes its sign-out leave back once its ending settled', async () => {
+    const sessions = new ClientSessions({ apiUrl: API_URL, getOpenIdToken: async () => TOKEN });
+    const takeBack = vi.fn();
+    vi.spyOn(sessions, 'beforeRevoke').mockReturnValue(takeBack);
+    const transcriber = new CallTranscriber({
+      roomId: OTHER_ROOM_ID,
+      sessions,
+      onStatus: () => undefined,
+      onUpdate: () => undefined,
+    });
+
+    const ending = transcriber.end();
+    expect(takeBack).not.toHaveBeenCalled();
+    await ending;
+    expect(takeBack).toHaveBeenCalledTimes(1);
+  });
+
   it('leaves with its session before sign-out ends it, and not once the call ended', async () => {
     const t = setup();
     t.transcriber.setMicrophone(MIC_A);
@@ -1007,9 +1024,7 @@ describe('CallTranscriber ending', () => {
     ended.transcriber.start();
     await advance();
     await ended.transcriber.end();
-    const leaveNow = vi.spyOn(ended.transcriber, 'leaveNow');
     await ended.sessions.revoke();
-    expect(leaveNow).not.toHaveBeenCalled();
     expect(ended.steps()).toEqual(['calls.join', 'leave', 'revoke']);
   });
 

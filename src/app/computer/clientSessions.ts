@@ -66,7 +66,15 @@ const tokenError = (error: unknown): MindroomServerError => {
 
 type ClientSession = { token: string; expiresAt: number };
 
-export type ClientSessionsOptions = {
+/** `init`'s headers with the session as bearer, asking for JSON unless they ask for other. */
+const bearer = (init: RequestInit, session: ClientSession): Headers => {
+  const headers = new Headers(init.headers);
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json');
+  headers.set('Authorization', `Bearer ${session.token}`);
+  return headers;
+};
+
+type ClientSessionsOptions = {
   /** The MindRoom server's origin. */
   apiUrl: string;
   /** A Matrix OpenID token bound to `apiUrl`. */
@@ -183,17 +191,14 @@ export class ClientSessions {
   /**
    * Sends `path`, such as `/api/plugins`, with the session as bearer and resolves with the answer.
    * A refused session signs in again and sends once more. Rejects with `MindroomServerError` when
-   * there is no answer or the sign-in fails, and before sending anything when `path` leads to
-   * another origin.
+   * there is no answer or the sign-in fails, and with a `TypeError` before sending anything when
+   * `path` leads to another origin.
    */
   async send(path: string, init: RequestInit = {}): Promise<Response> {
     const url = this.url(path).href;
     for (let attempt = 0; ; attempt += 1) {
       const session = await this.currentSession(init.signal ?? undefined);
-      const headers = new Headers(init.headers);
-      if (!headers.has('Accept')) headers.set('Accept', 'application/json');
-      headers.set('Authorization', `Bearer ${session.token}`);
-      const response = await this.fetch(url, { ...init, headers });
+      const response = await this.fetch(url, { ...init, headers: bearer(init, session) });
       if (response.status !== 401 || attempt > 0) return response;
       if (this.session === session) this.session = undefined;
     }
@@ -207,9 +212,7 @@ export class ClientSessions {
   sendNow(path: string, init: RequestInit): Promise<void> {
     const { session } = this;
     if (!session || session.expiresAt <= Date.now()) return Promise.resolve();
-    const headers = new Headers(init.headers);
-    headers.set('Accept', 'application/json');
-    headers.set('Authorization', `Bearer ${session.token}`);
+    const headers = bearer(init, session);
     return this.fetch(this.url(path).href, { ...init, keepalive: true, headers }).then(
       () => undefined,
       () => undefined
@@ -234,7 +237,8 @@ export class ClientSessions {
   async revoke(): Promise<void> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([
-      Promise.allSettled([...this.lastRequests].map(async (send) => send())),
+      // A sign-in on its way gives the session to end.
+      Promise.allSettled([this.signingIn, ...[...this.lastRequests].map(async (send) => send())]),
       new Promise((resolve) => {
         timer = setTimeout(resolve, LAST_REQUESTS_WAIT_MS);
       }),

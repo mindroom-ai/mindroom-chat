@@ -5,7 +5,7 @@ import { clientSessions } from '../../computer/clientSessions';
 import { putSession } from '../../matrix/session/sessions';
 import { removeCurrentClientSessionAndReload } from './sessionLifecycle';
 
-// What happened, in order: each request (`<method> <url> <bearer>`) and the reload.
+// What happened, in order: each request (`<method> <url> <bearer>`), a call's leave and the reload.
 const steps = vi.hoisted(() => [] as string[]);
 vi.mock('../../routes/pathUtils', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../routes/pathUtils')>()),

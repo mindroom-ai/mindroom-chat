@@ -43,7 +43,6 @@ vi.mock('./liveCallPoll', () => ({
       state.polls.push({ roomId, everyMs, signal, onLive, onFailure, finish });
     }),
 }));
-vi.mock('../../matrix/openidAudience', () => ({ requestAudienceOpenIdToken: vi.fn() }));
 const mx = vi.hoisted(() => ({
   getSafeUserId: () => '@ann:example.org',
   getUserId: () => '@ann:example.org',

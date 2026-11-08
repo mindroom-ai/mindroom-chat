@@ -38,12 +38,11 @@ export type MindroomServer = {
 const request = async <T>(sessions: ClientSessions, path: string, init?: RequestInit) => {
   const response = await sessions.send(path, init);
   let body: unknown;
-  let json = true;
   try {
     const text = await response.text();
     body = text ? JSON.parse(text) : undefined;
   } catch {
-    json = false;
+    if (response.ok) throw new MindroomServerError(`MindRoom answered ${path} without JSON.`, 0);
   }
   if (!response.ok) {
     throw new MindroomServerError(
@@ -52,7 +51,6 @@ const request = async <T>(sessions: ClientSessions, path: string, init?: Request
       body
     );
   }
-  if (!json) throw new MindroomServerError(`MindRoom answered ${path} without JSON.`, 0);
   return body as T;
 };
 

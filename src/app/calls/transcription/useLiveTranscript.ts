@@ -35,7 +35,10 @@ type ReadView = Pick<LiveTranscriptView, 'state' | 'live'>;
 /** The server and room reads come from, and the last line they read there. */
 type LastRead = { client: TranscriptionClient; roomId: string; lineId?: string };
 
-/** One client per account and server, so rows, panels and remounts share its sign-in. */
+/**
+ * One client per account and server, so rows, panels and remounts share it, and reads on the
+ * server they left go on after its last line when it comes back.
+ */
 const clients = new WeakMap<ClientSessions, TranscriptionClient>();
 
 const sharedClient = (mx: MatrixClient, apiUrl: string, discovered: boolean) => {

@@ -240,11 +240,11 @@ export class CallTranscriber {
    */
   leaveNow(): Promise<void> {
     const { callId } = this;
-    const left = callId && this.status !== 'off' ? this.client.leaveNow(callId) : undefined;
+    const left = callId && this.status !== 'off' ? this.client.leaveNow(callId) : Promise.resolve();
     this.status = 'off';
     this.uploadGeneration += 1;
     void this.end();
-    return left ?? Promise.resolve();
+    return left;
   }
 
   /**

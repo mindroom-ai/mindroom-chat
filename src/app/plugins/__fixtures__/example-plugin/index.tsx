@@ -25,7 +25,7 @@
 // German), whose dialog says "Example dialog of <room name>" until its Close button closes it.
 // In a room with a MindRoom server, its panel also talks to the routes of e2e's sample MindRoom
 // plugin (e2e/fixtures/sample-plugin/routes.py) as the signed-in user: "Say hello" asks for the
-// backend's hello, and a websocket echoes what "Echo" sends, opened again whenever it closes.
+// backend's hello, and a websocket echoes what "Echo" sends, opened again unless the user left.
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Box, Button, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text, color } from 'folds';
 import { KnownMembership, type Room } from 'matrix-js-sdk';
@@ -191,8 +191,8 @@ function ServerGreeting({ roomId }: { roomId: string }) {
     if (!server) return undefined;
     let mounted = true;
     let retry: ReturnType<typeof setTimeout> | undefined;
-    // The plugin reconnects itself: after its session ended (4401), a plugin reload (1012), or a
-    // refused handshake, but not once the user left the room (1008).
+    // The plugin reconnects itself, a second after a failed open or any close but 1008 (the user
+    // left the room): after its session ended (4401), a plugin reload (1012), a refused handshake.
     const open = () => {
       server.openSocket(`${routes}/echo`).then(
         (opened) => {
@@ -204,9 +204,11 @@ function ServerGreeting({ roomId }: { roomId: string }) {
           opened.addEventListener('open', () => setSocketOpen(true));
           opened.addEventListener('message', ({ data }) => setEcho(String(data)));
           opened.addEventListener('close', ({ code }) => {
+            // A socket this effect no longer owns, closing late, leaves the next one's state alone.
+            if (!mounted) return;
             setSocketOpen(false);
             setLastClose(code);
-            if (mounted && code !== 1008) retry = setTimeout(open, 1000);
+            if (code !== 1008) retry = setTimeout(open, 1000);
           });
         },
         () => {

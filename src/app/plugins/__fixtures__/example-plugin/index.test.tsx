@@ -32,8 +32,8 @@ const greeting: PluginEvent = {
 };
 
 describe('example plugin', () => {
-  // Its panel asks the client's homeserver whether it binds sign-in tokens to the room's MindRoom
-  // server; these rooms have none, so the answer is no.
+  // Its panel asks the client's homeserver through `fetch` whether it binds sign-in tokens; the
+  // stub keeps that off the network, and its answer counts as no.
   beforeEach(() => {
     vi.stubGlobal('fetch', async () => new Response('{}'));
   });

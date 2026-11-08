@@ -28,18 +28,21 @@ type Sent = { url: string; init: RequestInit };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
+const isSignIn = ({ url, init }: Sent) =>
+  url.endsWith('/api/client-sessions') && init.method === 'POST';
+
 /** MindRoom servers: client sessions, numbered across servers, and the answers a test sets. */
 const fakeServer = () => {
   const sent: Sent[] = [];
   let sessions = 0;
-  const route = vi.fn((_url: string, _init: RequestInit): Response => json({}));
+  const route = vi.fn((): Response => json({}));
   return {
     sent,
     route,
     request: vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
       const url = String(input);
       sent.push({ url, init });
-      if (url.endsWith('/api/client-sessions') && init.method === 'POST') {
+      if (isSignIn({ url, init })) {
         sessions += 1;
         return json({
           session_token: `session-${sessions}`,
@@ -47,17 +50,13 @@ const fakeServer = () => {
           expires_at: Math.floor(Date.now() / 1000) + 3600,
         });
       }
-      return route(url, init);
+      return route();
     }),
-    signIns: () =>
-      sent.filter(({ url, init }) => url.endsWith('/api/client-sessions') && init.method === 'POST')
-        .length,
+    signIns: () => sent.filter(isSignIn).length,
     /** Each request after the sign-ins, as `<method> <url> <bearer>`. */
     routes: () =>
       sent
-        .filter(
-          ({ url, init }) => !(url.endsWith('/api/client-sessions') && init.method === 'POST')
-        )
+        .filter((request) => !isSignIn(request))
         .map(
           ({ url, init }) =>
             `${init.method ?? 'GET'} ${url} ${new Headers(init.headers).get('Authorization')}`
@@ -201,6 +200,26 @@ describe('ClientSessions.revoke', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(done).toBe(true);
     expect(server.routes()).toEqual([`DELETE ${API_URL}/api/client-sessions Bearer session-2`]);
+  });
+
+  it('ends a session whose sign-in was on its way', async () => {
+    const server = fakeServer();
+    const token = pending();
+    const store = new ClientSessions({
+      apiUrl: API_URL,
+      getOpenIdToken: async () => {
+        await token.promise;
+        return TOKEN;
+      },
+      request: server.request,
+    });
+    const sent = store.send('/api/plugins');
+
+    const revoked = store.revoke();
+    token.resolve();
+    await Promise.all([sent, revoked]);
+
+    expect(server.routes()).toContain(`DELETE ${API_URL}/api/client-sessions Bearer session-1`);
   });
 });
 

@@ -37,12 +37,12 @@ const json = (body: unknown, status = 200) =>
 
 /** The servers' answers: client sessions, numbered, and what `route` answers for the rest. */
 const fakeFetch = () => {
-  const sent: { url: string; init: RequestInit }[] = [];
+  const urls: string[] = [];
   let sessions = 0;
   const route = vi.fn((_url: string): Response => json({}));
-  const request = vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
+  const request = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
-    sent.push({ url, init });
+    urls.push(url);
     if (url.endsWith('/api/client-sessions')) {
       sessions += 1;
       return json({ session_token: `session-${sessions}`, expires_at: Date.now() / 1000 + 3600 });
@@ -53,9 +53,8 @@ const fakeFetch = () => {
   return {
     route,
     request,
-    signIns: () => sent.filter(({ url }) => url.endsWith('/api/client-sessions')).length,
-    routes: () =>
-      sent.filter(({ url }) => !url.endsWith('/api/client-sessions')).map(({ url }) => url),
+    signIns: () => sessions,
+    routes: () => urls.filter((url) => !url.endsWith('/api/client-sessions')),
   };
 };
 

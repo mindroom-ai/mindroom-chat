@@ -53,7 +53,6 @@ vi.mock('./liveCallPoll', () => ({
       state.polls.push({ client, everyMs, signal, onLive, finish, after });
     }),
 }));
-vi.mock('../../matrix/openidAudience', () => ({ requestAudienceOpenIdToken: vi.fn() }));
 vi.mock('../../navigation/useSelectedRoom', () => ({
   useSelectedRoom: () => state.selectedRoom,
 }));
