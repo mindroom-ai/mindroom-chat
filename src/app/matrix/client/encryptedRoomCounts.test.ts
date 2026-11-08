@@ -666,7 +666,7 @@ describe('unread counts of an encrypted room', () => {
     await f.deliver(colleagueMessages(6, 20), [], { limited: true, counts: { room: 25 } });
     expect(f.totalCount()).toBe(25);
     // A sync that leaves the count out (the server sends only changed counts) keeps it.
-    await f.deliver([], [readMain('$elsewhere', 1)]);
+    await f.deliver([], [{ type: 'm.typing', content: { user_ids: [OTHER] } }]);
     expect(f.totalCount()).toBe(25);
     clients.splice(0).forEach((mx) => mx.stopClient());
 
