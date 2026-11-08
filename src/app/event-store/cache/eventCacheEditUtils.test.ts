@@ -6,7 +6,10 @@ import {
   Thread,
   type IEvent,
 } from 'matrix-js-sdk';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
+import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
+import { installEventContentGuard } from '../../matrix/protocol/untrustedContent';
 import { createPreferLiveEventMapper } from './eventRepository';
 import { insertCachedRoomTimeline } from '../sdk/roomTimelineSdk';
 import {
@@ -557,5 +560,54 @@ describe('cached copies of an edit redacted from a bundle', () => {
     expect(cached.getContent().body).toBe('original');
     expect(JSON.stringify(cached.event)).not.toContain('secret');
     expect(JSON.stringify(savedRoot)).not.toContain('secret');
+  });
+});
+
+// The app hides an edit it could not decrypt yet from replacingEvent(), as in every client it
+// starts. Installed for the tests below only: it stays installed for the rest of the file.
+describe('a cached copy whose edit the room took a redaction of while it could not decrypt it', () => {
+  beforeAll(() => {
+    installEventContentGuard();
+  });
+
+  it('shows its original text once the edit decrypts', async () => {
+    const ALICE = '@alice:example.org';
+    const client = createClient({ baseUrl: 'https://example.org', userId: ALICE });
+    const room = new Room('!room:example.org', client, ALICE, { timelineSupport: true });
+    const edit = new MatrixEvent({
+      event_id: '$edit',
+      room_id: '!room:example.org',
+      sender: ALICE,
+      origin_server_ts: 2000,
+      type: 'm.room.encrypted',
+      content: {
+        algorithm: 'm.megolm.v1.aes-sha2',
+        ciphertext: 'ciphertext',
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$target' },
+      },
+    });
+    const crypto = {
+      decryptEvent: vi
+        .fn()
+        .mockRejectedValueOnce(
+          new DecryptionError(DecryptionFailureCode.MEGOLM_UNKNOWN_INBOUND_SESSION_ID, 'no key')
+        )
+        .mockResolvedValueOnce({
+          clearEvent: {
+            type: 'm.room.message',
+            content: makeEditEvent('$edit', 2000, '$target', ALICE, 'secret').getContent(),
+          },
+        }),
+    };
+    await edit.attemptDecryption(crypto as never);
+    // A copy read from the cache with the edit, before the cache stored its redaction.
+    const cached = makeMessageEvent('$target', 1000);
+    cached.makeReplaced(edit);
+    room.redactedBundledEdits.add('$edit');
+
+    hydrateCachedEvents({ room, events: [cached] });
+    await edit.attemptDecryption(crypto as never);
+
+    expect(cached.getContent().body).toBe('original');
   });
 });

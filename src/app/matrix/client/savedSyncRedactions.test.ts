@@ -644,3 +644,109 @@ describe('an edit redacted from a bundle, after a reload', () => {
     expect(JSON.stringify(saved.timeline)).not.toContain('message v2');
   });
 });
+
+// Only a redaction its sender may make, where it is in the timeline, removes a message, and the
+// replay after a reload decides the same: it checks each redaction against the state at its place
+// in the saved timeline, not against the state after it.
+describe('a redacted message, after a reload', () => {
+  const MODERATOR = '@moderator:example.org';
+  const OTHER = '@other:example.org';
+  const POWER_LEVELS = { users: { [MODERATOR]: 50 }, redact: 50 };
+  const sdk = createClient({ baseUrl: 'https://example.org', userId: ME });
+  const map = (event: object) => sdk.getEventMapper()(event as IEvent);
+  const withRoom = (event: object) => ({ ...event, room_id: ROOM });
+  const stateEvent = (type: string, stateKey: string, content: object, prevContent?: object) =>
+    withRoom(
+      raw(`$${type}-${stateKey}-${ts}`, content as Record<string, unknown>, {
+        type,
+        state_key: stateKey,
+        sender: stateKey || MODERATOR,
+        unsigned: prevContent ? { prev_content: prevContent } : {},
+      })
+    );
+  const body = (room: Room) => room.findEventById('$message')?.getContent().body as unknown;
+
+  /**
+   * The room takes each batch as it arrives, after the state that follows it (MSC4222
+   * state_after), and the SDK then saves it; the saved sync is scrubbed, then replayed after an
+   * offline reload.
+   */
+  const liveAndReloaded = async (batches: object[][]) => {
+    const roomState = [
+      stateEvent('m.room.create', '', { creator: ALICE, room_version: '10' }),
+      ...[ALICE, MODERATOR, OTHER].map((userId) =>
+        stateEvent('m.room.member', userId, { membership: 'join' })
+      ),
+      stateEvent('m.room.power_levels', '', POWER_LEVELS),
+    ];
+    const live = new Room(ROOM, sdk, ME, { timelineSupport: true });
+    live.currentState.setStateEvents(roomState.map(map));
+    const accumulator = new SyncAccumulator({ maxTimelineEntries: 500 });
+    for (const [index, events] of batches.entries()) {
+      // The room and the saved sync share each event, as in the SDK's sync.
+      const raws = events.map(withRoom);
+      const mapped = raws.map(map);
+      live.currentState.setStateEvents(mapped.filter((event) => event.isState()));
+      await live.addLiveEvents(mapped, { addToState: false });
+      accumulator.accumulate(
+        syncOf(raws, `token-${index}`, `b${index}`, index === 0 ? roomState : [])
+      );
+    }
+    const { mx, emitter, store } = makeClient({ room: live });
+    Object.assign(store, { backend: { syncAccumulator: accumulator } });
+    keepRedactionsInSavedSync(mx);
+    batch(emitter, [synced('m.room.redaction', '$redaction')]);
+
+    const saved = accumulator.getJSON(true).roomsData.join[ROOM]!;
+    const reloaded = new Room(ROOM, sdk, ME, { timelineSupport: true });
+    reloaded
+      .getLiveTimeline()
+      .initialiseState(saved['org.matrix.msc4222.state_after']!.events.map(map));
+    await reloaded.addLiveEvents(saved.timeline.events.map(map), {
+      addToState: false,
+      fromCache: true,
+    });
+    return { live: body(live), reloaded: body(reloaded), saved: JSON.stringify(saved.timeline) };
+  };
+
+  const message = () => raw('$message', text('message v1'));
+  const redactionBy = (sender: string) => ({ ...redaction('$redaction', '$message'), sender });
+
+  it('stays when another member without the right redacted it', async () => {
+    const result = await liveAndReloaded([[message()], [redactionBy(OTHER)]]);
+
+    expect(result).toEqual({
+      live: 'message v1',
+      reloaded: 'message v1',
+      saved: expect.stringContaining('message v1'),
+    });
+  });
+
+  it('stays when a member redacted it before being given the right', async () => {
+    const promoted = { ...POWER_LEVELS, users: { ...POWER_LEVELS.users, [OTHER]: 50 } };
+    const result = await liveAndReloaded([
+      [message()],
+      [redactionBy(OTHER), stateEvent('m.room.power_levels', '', promoted, POWER_LEVELS)],
+    ]);
+
+    expect(result).toEqual({
+      live: 'message v1',
+      reloaded: 'message v1',
+      saved: expect.stringContaining('message v1'),
+    });
+  });
+
+  it('stays gone once the moderator who redacted it left the room', async () => {
+    const leave = stateEvent(
+      'm.room.member',
+      MODERATOR,
+      { membership: 'leave' },
+      { membership: 'join' }
+    );
+    const result = await liveAndReloaded([[message()], [redactionBy(MODERATOR)], [leave]]);
+
+    expect(result.live).toBeUndefined();
+    expect(result.reloaded).toBeUndefined();
+    expect(result.saved).not.toContain('message v1');
+  });
+});
