@@ -551,9 +551,9 @@ function RoomContent() {
   const openPluginPanelBesideThread = useCallback<PluginPanelControls['openBesideThread']>(
     (id, besideThread, panelRequest) => {
       const { shownId: shownNow, threadId: threadNow, mobile: phone } = now.current;
-      // A thread's ID names it in one room only, so a call from a room no longer shown does nothing.
       if (
         !alive() ||
+        now.current.roomId !== roomId ||
         threadNow !== besideThread ||
         calledBeside.current === besideThread ||
         !pluginPanels.some((panel) => panel.id === id)
@@ -566,7 +566,7 @@ function RoomContent() {
       if (shownNow === id) showPluginPanel(id, panelRequest);
       else if (shownNow === undefined) request(id, () => showPluginPanel(id, panelRequest));
     },
-    [alive, now, pluginPanels, request, showPluginPanel]
+    [alive, now, pluginPanels, request, roomId, showPluginPanel]
   );
   const closeShownPluginPanel = useCallback<PluginPanelControls['close']>(
     (id) => {

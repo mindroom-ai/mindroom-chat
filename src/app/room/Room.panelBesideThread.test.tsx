@@ -33,7 +33,8 @@ const { mx, room, state } = vi.hoisted(() => {
           canvas: { enabled: true },
         },
       } as ClientConfig,
-      /** The thread the room's URL names. */
+      /** The room the URL names, and the thread it names. */
+      roomId: '!room:example.org',
       thread: undefined as string | undefined,
       view: undefined as RoomViewProps | undefined,
       /** The plugin's renderer of the root message of the thread shown, if the plugin renders it. */
@@ -99,7 +100,10 @@ vi.mock('../canvas/canvasIndex', async (importOriginal) => ({
   useConversationCanvases: () => [],
   useComputerShown: () => false,
 }));
-vi.mock('../matrix/hooks/useRoom', () => ({ useRoom: () => room }));
+// The room the route shows: `room`, or the same room under another id.
+vi.mock('../matrix/hooks/useRoom', () => ({
+  useRoom: () => (state.roomId === room.roomId ? room : { ...room, roomId: state.roomId }),
+}));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
 vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => state.members }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({
@@ -219,6 +223,7 @@ describe("a plugin's side panel beside the thread shown", () => {
     state.view = undefined;
     state.inView = undefined;
     state.viewMount = 0;
+    state.roomId = room.roomId;
     localStorage.clear();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -270,20 +275,24 @@ describe("a plugin's side panel beside the thread shown", () => {
     expect(notesRequest()).toBe('Notes request "beside $a"');
   });
 
-  it("does nothing for a plugin's late call after the room's page has gone", async () => {
+  /** What the room remembers open, which needs Alice's login in this browser. */
+  const remembered = () => Object.keys(localStorage).filter((key) => key.includes(':side-panel/'));
+  const signIn = () =>
     putSession({
       baseUrl: 'https://example.org',
       userId: '@alice:example.org',
       deviceId: 'ROOMTEST',
       accessToken: 'room-test',
     });
-    const remembered = () =>
-      Object.keys(localStorage).filter((key) => key.includes(':side-panel/'));
-    let late: RoomSidePanelControl['openBesideThread'] | undefined;
-    function Holds() {
-      late = useRoomSidePanel('notes', 'panel')?.openBesideThread;
-      return null;
-    }
+  /** The call a plugin's code got last, which it may make later. */
+  let late: RoomSidePanelControl['openBesideThread'] | undefined;
+  function Holds() {
+    late = useRoomSidePanel('notes', 'panel')?.openBesideThread;
+    return null;
+  }
+
+  it("does nothing for a plugin's late call after the room's page has gone", async () => {
+    signIn();
     state.Root = undefined;
     state.inView = <Holds />;
     await renderRoom('$a');
@@ -295,6 +304,22 @@ describe("a plugin's side panel beside the thread shown", () => {
     await act(async () => late?.('$a', 'now'));
     expect(notesRequest()).toBe('Notes request "now"');
     expect(remembered()).toHaveLength(1);
+  });
+
+  it("does nothing for a late call from a room no longer shown, though the next one's route names its thread", async () => {
+    signIn();
+    state.Root = undefined;
+    state.inView = <Holds />;
+    await renderRoom('$a');
+    const fromFirst = late;
+    state.roomId = '!other:example.org';
+    await rerenderRoom?.();
+    await act(async () => fromFirst?.('$a', 'late'));
+    expect(remembered()).toEqual([]);
+    expect(notes()).toBeNull();
+    // The call of the room shown opens it there.
+    await act(async () => late?.('$a', 'here'));
+    expect(notesRequest()).toBe('Notes request "here"');
   });
 
   it('stays closed while the thread shows once the person closed it', async () => {
