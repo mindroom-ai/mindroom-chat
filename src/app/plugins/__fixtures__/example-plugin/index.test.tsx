@@ -6,7 +6,7 @@ import { fireEvent, waitFor } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
+import { commandUsage, usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
 import plugin from './index';
 
@@ -358,7 +358,7 @@ describe('example plugin', () => {
     expect(view.getByText('From @bob:example.org').querySelector('img')).toBeNull();
   });
 
-  it('greets the room or the thread with the text typed after /greet, and asks for some without it', async () => {
+  it('greets the room or the thread with the text typed after /greet, and refuses with its usage without it', async () => {
     const [greet] = plugin.slashCommands ?? [];
     if (!greet) throw new Error('the example plugin has no slash command');
     const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
@@ -377,13 +377,11 @@ describe('example plugin', () => {
       '$root:example.org',
       'Example greeting: Hello thread'
     );
-    await expect(async () => greet.run({ room, args: '  ' })).rejects.toThrow(
-      'Type a greeting after /greet.'
-    );
+    await expect(async () => greet.run({ room, args: '  ' })).rejects.toStrictEqual(commandUsage());
     expect(sent).toHaveBeenCalledTimes(2);
   });
 
-  it('creates a sub-room of the room called the name typed after /subroom, and asks for one without it', async () => {
+  it('creates a sub-room of the room called the name typed after /subroom, and refuses with its usage without it', async () => {
     const [, subroom] = plugin.slashCommands ?? [];
     if (!subroom) throw new Error('the example plugin has no /subroom');
     const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
@@ -403,8 +401,8 @@ describe('example plugin', () => {
       expect.anything(),
       '!ideas:example.org'
     );
-    await expect(async () => subroom.run({ room, args: '  ' })).rejects.toThrow(
-      'Type a name after /subroom.'
+    await expect(async () => subroom.run({ room, args: '  ' })).rejects.toStrictEqual(
+      commandUsage()
     );
     expect(created).toHaveBeenCalledTimes(1);
   });
