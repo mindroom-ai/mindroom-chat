@@ -114,6 +114,28 @@ describe('EncryptionRecoveryPrompt', () => {
     expect(hasServerEncryptionSetup).not.toHaveBeenCalled();
   });
 
+  it('encryption off by policy prompts nothing; only one of the two settings off still prompts', async () => {
+    const off = { createRoom: { showEncryptionOption: false, defaultEncryption: false } };
+    const locked = setup(LOCKED, off);
+    await act(async () => {});
+    expect(locked.store.get(recoveryDialogAtom)).toBeUndefined();
+    cleanup();
+    const none = setup(NONE, off);
+    await act(async () => {});
+    expect(none.store.get(recoveryDialogAtom)).toBeUndefined();
+    expect(hasServerEncryptionSetup).not.toHaveBeenCalled();
+    for (const createRoom of [
+      { showEncryptionOption: false, defaultEncryption: true },
+      { showEncryptionOption: true, defaultEncryption: false },
+    ]) {
+      cleanup();
+      resetPromptedAccountsForTests();
+      const oneOff = setup(LOCKED, { createRoom });
+      await act(async () => {});
+      expect(oneOff.store.get(recoveryDialogAtom)).toBe('unlock');
+    }
+  });
+
   it('does nothing without crypto', async () => {
     useAccount('@alice:example.org', null);
     const { store } = setup(LOCKED);
