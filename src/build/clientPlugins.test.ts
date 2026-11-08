@@ -18,6 +18,7 @@ import {
   createServer,
   optimizeDeps,
   resolveConfig,
+  type Plugin,
   type Rollup,
   type ServerOptions,
   type UserConfig,
@@ -111,7 +112,13 @@ describe('readClientPlugins', () => {
     // builds.
     const other = pluginDir(declaring());
     expect(readClientPlugins(` ${EXAMPLE} ,${other},`)).toEqual([
-      { id: 'example', version: '1.0.0', dir: EXAMPLE, entry: path.join(EXAMPLE, 'index.tsx') },
+      {
+        id: 'example',
+        version: '1.0.0',
+        dir: EXAMPLE,
+        entry: path.join(EXAMPLE, 'index.tsx'),
+        build: path.join(EXAMPLE, 'build.mjs'),
+      },
       { id: 'some-plugin', version: '2.0.0', dir: other, entry: path.join(other, 'index.js') },
     ]);
   });
@@ -136,8 +143,8 @@ describe('readClientPlugins', () => {
     ],
     [
       'a plugin that needs a newer client SDK',
-      () => pluginDir(declaring({ apiVersion: 22 })),
-      /plugin "some-plugin" needs client SDK apiVersion 22; this client provides 21/,
+      () => pluginDir(declaring({ apiVersion: 23 })),
+      /plugin "some-plugin" needs client SDK apiVersion 23; this client provides 22/,
     ],
     [
       'an apiVersion that is not a number',
@@ -153,6 +160,20 @@ describe('readClientPlugins', () => {
       'an entry that does not exist',
       () => pluginDir(declaring(), { entry: false }),
       /entry "\.\/index\.js" does not exist/,
+    ],
+    [
+      'a build module that does not exist',
+      () => pluginDir(declaring({ build: './build.mjs' })),
+      /build "\.\/build\.mjs" does not exist/,
+    ],
+    [
+      'a build module outside its directory',
+      () => {
+        const elsewhere = path.join(emptyDir(), 'build.mjs');
+        writeFileSync(elsewhere, 'export default [];\n');
+        return pluginDir(declaring({ build: elsewhere }));
+      },
+      /build ".+\/build\.mjs" is outside the plugin's directory/,
     ],
     [
       'a package the app shares under dependencies',
@@ -188,11 +209,16 @@ describe('clientPlugins', () => {
     const code = await bundleEntries({ MINDROOM_CLIENT_PLUGINS: EXAMPLE });
     expect(code).toContain('com.example.greeting');
     expect(code).toMatch(/id: "example",\s*version: "1\.0\.0"/);
+    // Its build module (build.mjs) writes its banner's words in place of their marker.
+    expect(code).toContain('Example banner in');
+    expect(code).not.toContain('__EXAMPLE_BANNER__');
   });
 
   it('lets the dev server serve the plugin directories besides the workspace', () => {
-    const config = (plugins: string | undefined) =>
-      (clientPlugins({ MINDROOM_CLIENT_PLUGINS: plugins }).config as () => UserConfig)();
+    const config = (plugins: string | undefined) => {
+      const [, app] = clientPlugins({ MINDROOM_CLIENT_PLUGINS: plugins }) as [unknown, Plugin];
+      return (app.config as () => UserConfig)();
+    };
     expect(config(EXAMPLE).server?.fs?.allow).toEqual([path.resolve(ROOT), EXAMPLE]);
     expect(config(undefined).server).toBeUndefined();
   });
@@ -452,6 +478,26 @@ describe('packages the app shares with plugins', () => {
     }
   });
 
+  it("lets a plugin's build module put a module of its own in place of one, whose import of it gets the app's", async () => {
+    const dir = realpathSync(pluginDir(declaring({ build: './build.mjs' }), { entry: false }));
+    importing(dir, ['bundle']);
+    // An installed bundle that reads jotai's names, and the plugin's own jotai, for its tests.
+    installStandIn(dir, 'bundle', "import * as jotai from 'jotai';\nexport const names = jotai;\n");
+    installStandIn(dir, 'jotai');
+    const substitute = path.join(dir, 'jotai-atom.js');
+    writeFileSync(substitute, "export { atom } from 'jotai';\n");
+    writeFileSync(
+      path.join(dir, 'build.mjs'),
+      `const substitute = ${JSON.stringify(substitute)};\n` +
+        "export default { name: 'jotai-atom', enforce: 'pre', resolveId: (source, importer) =>\n" +
+        "  source === 'jotai' && importer !== substitute ? substitute : null };\n"
+    );
+    const modules = await bundlePlugin(dir);
+    expect(modules).toContain(substitute);
+    expect(modules.some((id) => id.startsWith(appCopy('jotai')))).toBe(true);
+    expect(modules.filter((id) => id.startsWith(`${dir}/node_modules/jotai/`))).toEqual([]);
+  });
+
   it('leaves the imports of files outside the plugins as they were', async () => {
     const plugin = pluginDir(declaring());
     const outside = realpathSync(emptyDir());
@@ -527,6 +573,134 @@ describe('packages the app shares with plugins', () => {
     } finally {
       await server.close();
     }
+  });
+});
+
+describe("a plugin's build module", () => {
+  /** A new plugin directory with id `id`, an index.js entry, and these files (path in it to text). */
+  const withFiles = (id: string, files: Record<string, string>) => {
+    const dir = realpathSync(pluginDir(declaring({ id, build: './build.mjs' })));
+    for (const [name, text] of Object.entries(files)) writeFileSync(path.join(dir, name), text);
+    return dir;
+  };
+
+  /** The code of an index.js whose default export imports ./helper.js. */
+  const IMPORTS_HELPER =
+    "import * as helper from './helper.js';\nexport default { messageRenderers: [], helper };\n";
+
+  it("transforms the plugin's own modules, not an app module or another plugin's with the same text", async () => {
+    // `QueryClient` stands for any text: the app module src/build/__fixtures__/appImports.ts has it.
+    const own = withFiles('own', {
+      'build.mjs':
+        "export default { name: 'rename', transform: { order: 'pre', handler: (code) => code.replaceAll('QueryClient', 'Renamed') } };\n",
+      'index.js': "export default { messageRenderers: [], ownText: 'QueryClient' };\n",
+    });
+    const other = withFiles('other', {
+      'build.mjs': 'export default [];\n',
+      'index.js': "export default { messageRenderers: [], otherText: 'QueryClient' };\n",
+    });
+    const chunks = await buildEntries(
+      { MINDROOM_CLIENT_PLUGINS: `${own},${other}` },
+      { inputs: [path.join(ROOT, 'src/build/__fixtures__/appImports.ts')], external: packages }
+    );
+    const code = chunks.map((chunk) => chunk.code).join('\n');
+    expect(code).toMatch(/ownText: "Renamed"/);
+    expect(code).toMatch(/otherText: "QueryClient"/);
+    expect(code).toMatch(/import \{ QueryClient \} from "@tanstack\/react-query"/);
+  });
+
+  it("loads only the plugin's own modules", async () => {
+    const own = withFiles('own', {
+      'build.mjs':
+        "export default { name: 'stand-in', load: () => 'export default { messageRenderers: [], loaded: true };' };\n",
+    });
+    const other = withFiles('other', {
+      'build.mjs': 'export default [];\n',
+      'index.js': "export default { messageRenderers: [], otherText: 'kept' };\n",
+    });
+    const chunks = await buildEntries(
+      { MINDROOM_CLIENT_PLUGINS: `${own},${other}` },
+      { inputs: [path.join(ROOT, 'src/build/__fixtures__/appImports.ts')], external: packages }
+    );
+    const code = chunks.map((chunk) => chunk.code).join('\n');
+    expect(code).toMatch(/loaded: true/);
+    expect(code).toMatch(/otherText: "kept"/);
+    expect(code).toMatch(/import \{ QueryClient \} from "@tanstack\/react-query"/);
+  });
+
+  it("resolves only the imports in the plugin's own modules", async () => {
+    const helper = 'export const helper = true;\n';
+    const own = withFiles('own', {
+      'build.mjs':
+        "import { fileURLToPath } from 'node:url';\n" +
+        "const swapped = fileURLToPath(new URL('./swapped.js', import.meta.url));\n" +
+        "export default { name: 'swap', enforce: 'pre', resolveId: (source) => source === './helper.js' ? swapped : null };\n",
+      'index.js': IMPORTS_HELPER,
+      'helper.js': helper,
+      'swapped.js': 'export const swapped = true;\n',
+    });
+    const other = withFiles('other', {
+      'build.mjs': 'export default [];\n',
+      'index.js': IMPORTS_HELPER,
+      'helper.js': helper,
+    });
+    const outside = realpathSync(emptyDir());
+    writeFileSync(path.join(outside, 'index.js'), "export * from './helper.js';\n");
+    writeFileSync(path.join(outside, 'helper.js'), helper);
+    const chunks = await buildEntries(
+      { MINDROOM_CLIENT_PLUGINS: `${own},${other}` },
+      { inputs: [path.join(outside, 'index.js')] }
+    );
+    const modules = chunks.flatMap((chunk) => Object.keys(chunk.modules));
+    expect(modules).toContain(path.join(own, 'swapped.js'));
+    expect(modules).not.toContain(path.join(own, 'helper.js'));
+    expect(modules).toContain(path.join(other, 'helper.js'));
+    expect(modules).toContain(path.join(outside, 'helper.js'));
+  });
+
+  it('fails the build for a hook other than resolveId, load and transform, naming the plugin and the hook', async () => {
+    const dir = withFiles('some-plugin', {
+      // A hook left undefined, as `load` here, is none.
+      'build.mjs':
+        "export default [{ name: 'fine', load: undefined }, [{ name: 'notes', generateBundle() {} }]];\n",
+    });
+    await expect(
+      buildEntries({ MINDROOM_CLIENT_PLUGINS: dir }, { external: packages })
+    ).rejects.toThrow(
+      `MINDROOM_CLIENT_PLUGINS: ${dir}: the Vite plugin "notes" of plugin "some-plugin" has the hook generateBundle`
+    );
+  });
+
+  it('fails the build for a default export that is not a Vite plugin, naming the module', async () => {
+    const dir = withFiles('some-plugin', {
+      'build.mjs': "export default () => ({ name: 'made-by-a-call' });\n",
+    });
+    await expect(
+      buildEntries({ MINDROOM_CLIENT_PLUGINS: dir }, { external: packages })
+    ).rejects.toThrow(
+      `MINDROOM_CLIENT_PLUGINS: ${dir}: the default export of ${dir}/build.mjs is not a Vite plugin or an array of them`
+    );
+  });
+
+  it("keeps a Vite plugin with apply: 'build' out of the dev server", async () => {
+    const dir = withFiles('some-plugin', {
+      'build.mjs':
+        "export default { name: 'build-only', apply: 'build', transform: () => null };\n",
+    });
+    const names = async (command: 'build' | 'serve') =>
+      (
+        await resolveConfig(
+          {
+            configFile: false,
+            root: ROOT,
+            logLevel: 'silent',
+            plugins: [clientPlugins({ MINDROOM_CLIENT_PLUGINS: dir })],
+          },
+          command
+        )
+      ).plugins.map(({ name }) => name);
+    expect(await names('build')).toContain('build-only');
+    expect(await names('serve')).not.toContain('build-only');
   });
 });
 
