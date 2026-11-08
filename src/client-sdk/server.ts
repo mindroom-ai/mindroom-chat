@@ -30,7 +30,8 @@ export type MindroomServer = {
    * in as MindRoom's plugin websockets take it. Reconnecting is the plugin's: the server closes
    * with 4401 once the session ends, after which the next `openSocket` signs in again, and with
    * 1012 when the plugin reloads, 1008 once the user left the room, or 1013 while membership is
-   * unavailable. A socket the server refused closes before it opens.
+   * unavailable. A socket the server refused closes before it opens. Rejects as `request` does
+   * when the sign-in fails, and for a path that leads to another origin.
    */
   openSocket: (path: string) => Promise<WebSocket>;
 };

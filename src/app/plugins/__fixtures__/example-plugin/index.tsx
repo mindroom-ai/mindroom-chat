@@ -221,6 +221,7 @@ function ServerGreeting({ roomId }: { roomId: string }) {
       mounted = false;
       clearTimeout(retry);
       socket.current?.close();
+      setSocketOpen(false);
     };
   }, [server, routes]);
   if (!server) return <p>No MindRoom server</p>;
