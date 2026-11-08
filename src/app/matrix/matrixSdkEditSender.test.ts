@@ -13,7 +13,6 @@ import {
   type MatrixClient,
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { keepBundledEditsInTheirRoom } from './client/bundledEditRoom';
 import { getSyncedEdit, keepSyncedEdits } from './client/syncedEdits';
 import { getEditedEvent, getLatestMessageContent } from './room';
 
@@ -627,9 +626,8 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
     });
 
     it('keeps the original text of the latest reply once opening the thread maps it again from its root', async () => {
-      // A client set up as the app's: its event mappers read the room's redactions.
+      // A client of its own, whose requests go offline below.
       const mx = createClient({ baseUrl: 'https://example.org', userId: AUTHOR });
-      keepBundledEditsInTheirRoom(mx);
       vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
       const { room, add, thread } = await listedThread(mx);
       mx.store.storeRoom(room);
