@@ -6,22 +6,52 @@ import { useHref } from 'react-router-dom';
 import { useRoomNavigate as useAppRoomNavigate } from '../app/navigation/useRoomNavigate';
 import { withSearchParam } from '../app/routes/pathUtils';
 
-/** What `useRoomNavigate` gives. */
+/** Where in the room `navigateRoom` and `navigateRoomThread` open it, and how. */
+type RoomNavigateOptions = {
+  /** The event to open it at, scrolled to and marked, as the app's own message links open one. */
+  eventId?: string;
+  /** Replaces the current history entry instead of adding one, so Back skips the page it leaves. */
+  replace?: boolean;
+};
+
+/**
+ * What `useRoomNavigate` gives. Each function also has a call without options, so it fits a callback
+ * type that passes more arguments.
+ */
 export type RoomNavigate = {
   /** Opens the room `roomId` where the app opens it: in its space, in Direct, or in Home. */
-  navigateRoom: (roomId: string) => void;
-  /** Opens the thread `threadId` (its root's event ID) of the room; its back button returns here. */
-  navigateRoomThread: (roomId: string, threadId: string) => void;
+  navigateRoom: {
+    (roomId: string): void;
+    (roomId: string, options?: RoomNavigateOptions): void;
+  };
+  /**
+   * Opens the thread `threadId` (its root's event ID) of the room; its back button returns here,
+   * unless it replaced this page: then it leads to the page before, or to the room.
+   */
+  navigateRoomThread: {
+    (roomId: string, threadId: string): void;
+    (roomId: string, threadId: string, options?: RoomNavigateOptions): void;
+  };
+};
+
+/**
+ * The app's event ID and router options for `options`. Only an `eventId` and `replace: true` count,
+ * so a callback's extra arguments (an index, a name, a click event) still open the room itself.
+ */
+const appArguments = (options: RoomNavigateOptions | undefined) => {
+  const { eventId, replace } = options ?? {};
+  return [eventId, { replace: replace === true }] as const;
 };
 
 /** Opens rooms and threads, as the app's own room list and thread links do. */
 export const useRoomNavigate = (): RoomNavigate => {
   const { navigateRoom, navigateRoomThread } = useAppRoomNavigate();
-  // Each passes on only its own arguments, also when it is a callback that gets called with more.
   return useMemo(
     () => ({
-      navigateRoom: (roomId) => navigateRoom(roomId),
-      navigateRoomThread: (roomId, threadId) => navigateRoomThread(roomId, threadId),
+      navigateRoom: (roomId: string, options?: RoomNavigateOptions) =>
+        navigateRoom(roomId, ...appArguments(options)),
+      navigateRoomThread: (roomId: string, threadId: string, options?: RoomNavigateOptions) =>
+        navigateRoomThread(roomId, threadId, ...appArguments(options)),
     }),
     [navigateRoom, navigateRoomThread]
   );
