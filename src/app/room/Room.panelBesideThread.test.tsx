@@ -58,12 +58,10 @@ const { mx, room, state } = vi.hoisted(() => {
       getMember: (userId: string) => members.find((member) => member.userId === userId),
       getThread: () => undefined,
       // The thread of an agent's requests (makeUiEvent), whose root the room has, and a reply in it.
-      findEventById: (eventId: string) => {
-        if (eventId === '$thread') return { getId: () => '$thread', isSending: () => false };
-        return eventId === '$reply'
-          ? { getId: () => '$reply', threadRootId: '$thread', isSending: () => false }
-          : undefined;
-      },
+      findEventById: (eventId: string) =>
+        eventId === '$thread' || eventId === '$reply'
+          ? { getId: () => eventId, threadRootId: '$thread', isSending: () => false }
+          : undefined,
       on: () => undefined,
       removeListener: () => undefined,
     },
@@ -440,13 +438,15 @@ describe("a plugin's side panel beside the thread shown", () => {
 });
 
 describe('the thread shown, as a plugin component in the room reads it (useShownThread)', () => {
-  /** A plugin's component in the conversation, such as its slot under the room header. */
+  /** What a plugin's component in the conversation, such as its slot under the room header, read. */
+  let shown: string | undefined;
   function Shown() {
-    return <output>{useShownThread() ?? 'none'}</output>;
+    shown = useShownThread();
+    return null;
   }
-  const shown = () => screen.getByRole('status').textContent;
 
   beforeEach(() => {
+    shown = 'not rendered';
     state.Root = undefined;
     state.inView = <Shown />;
     vi.stubGlobal(
@@ -467,12 +467,12 @@ describe('the thread shown, as a plugin component in the room reads it (useShown
 
   it("is undefined in the room's own timeline", async () => {
     await renderRoom();
-    expect(shown()).toBe('none');
+    expect(shown).toBeUndefined();
   });
 
   it("is the root a thread's address names", async () => {
     await renderRoom('$thread');
-    expect(shown()).toBe('$thread');
+    expect(shown).toBe('$thread');
   });
 
   it("is the thread's root when the address names a reply in it, the thread openBesideThread takes", async () => {
@@ -483,16 +483,16 @@ describe('the thread shown, as a plugin component in the room reads it (useShown
       </>
     );
     await renderRoom('$reply');
-    expect(shown()).toBe('$thread');
+    expect(shown).toBe('$thread');
     expect(notesRequest()).toBe('Notes request "beside $thread"');
   });
 
   it('changes as the room shows another thread, and its own timeline', async () => {
     await renderRoom('$a');
-    expect(shown()).toBe('$a');
+    expect(shown).toBe('$a');
     await showThread('$b');
-    expect(shown()).toBe('$b');
+    expect(shown).toBe('$b');
     await showThread(undefined);
-    expect(shown()).toBe('none');
+    expect(shown).toBeUndefined();
   });
 });

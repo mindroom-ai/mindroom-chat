@@ -495,10 +495,12 @@ describe('useParentRooms, getParentRooms and offersSubRooms', () => {
 // In a room's page, src/app/room/Room.panelBesideThread.test.tsx reads it through the room.
 describe('useShownThread', () => {
   it("is undefined outside a room's page", () => {
+    let shown: string | undefined = 'not rendered';
     function Shown() {
-      return <output>{useShownThread() ?? 'none'}</output>;
+      shown = useShownThread();
+      return null;
     }
     render(<Shown />);
-    expect(screen.getByRole('status').textContent).toBe('none');
+    expect(shown).toBeUndefined();
   });
 });
