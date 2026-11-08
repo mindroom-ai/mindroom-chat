@@ -66,12 +66,15 @@ const serverCounts = new WeakMap<MatrixClient, Map<string, ServerCounts>>();
 /** Per client that keeps its counts, the recount to schedule for a room. */
 const recounts = new WeakMap<MatrixClient, (roomId: string) => void>();
 
-const countsOf = (value: unknown): Counts | undefined => {
-  if (!isRecord(value)) return undefined;
-  const { notification_count: total, highlight_count: highlight } = value;
+/**
+ * The counts a sync gives. The server leaves out a count that did not change (mindroom-tuwunel
+ * sends a 0 only after a read), so a count left out keeps `previous`.
+ */
+const countsOf = (value: unknown, previous: Counts = { total: 0, highlight: 0 }): Counts => {
+  const { notification_count: total, highlight_count: highlight } = isRecord(value) ? value : {};
   return {
-    total: typeof total === 'number' ? total : 0,
-    highlight: typeof highlight === 'number' ? highlight : 0,
+    total: typeof total === 'number' ? total : previous.total,
+    highlight: typeof highlight === 'number' ? highlight : previous.highlight,
   };
 };
 
@@ -90,14 +93,18 @@ const keepServerCounts = (mx: MatrixClient, response: unknown): string[] => {
   Object.entries(rooms).forEach(([roomId, joined]) => {
     if (!isRecord(joined)) return;
     const threads = UNREAD_THREAD_NOTIFICATIONS.findIn<unknown>(joined);
+    const previous = kept.get(roomId)?.room;
     kept.set(roomId, {
-      room: countsOf(joined.unread_notifications) ?? kept.get(roomId)?.room,
-      // As the SDK takes it: a room without thread counts has no thread with notifications.
+      room:
+        isRecord(joined.unread_notifications) || previous
+          ? countsOf(joined.unread_notifications, previous)
+          : undefined,
+      // Every thread with notifications, as the SDK takes it: one left out has none.
       threads: new Map(
-        Object.entries(isRecord(threads) ? threads : {}).flatMap(([threadId, counts]) => {
-          const parsed = countsOf(counts);
-          return parsed ? [[threadId, parsed] as const] : [];
-        })
+        Object.entries(isRecord(threads) ? threads : {}).map(([threadId, counts]) => [
+          threadId,
+          countsOf(counts),
+        ])
       ),
     });
   });

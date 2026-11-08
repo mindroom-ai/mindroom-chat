@@ -665,6 +665,9 @@ describe('unread counts of an encrypted room', () => {
     f.serverHolds(colleagueMessages(1, 5));
     await f.deliver(colleagueMessages(6, 20), [], { limited: true, counts: { room: 25 } });
     expect(f.totalCount()).toBe(25);
+    // A sync that leaves the count out (the server sends only changed counts) keeps it.
+    await f.deliver([], [readMain('$elsewhere', 1)]);
+    expect(f.totalCount()).toBe(25);
     clients.splice(0).forEach((mx) => mx.stopClient());
 
     // A reload: the saved sync starts after the gap, with the receipt but not the event it names.
