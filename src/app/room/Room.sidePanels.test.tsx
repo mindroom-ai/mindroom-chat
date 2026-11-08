@@ -491,7 +491,7 @@ describe('the side panels of a room', () => {
     expect(board()).not.toBeNull();
   });
 
-  /** A plugin's code that opens its panel as soon as it shows in a room. */
+  /** A plugin's code that opens its panel from a layout effect, before the room's own effects run. */
   function OpensAtOnce() {
     const open = useRoomSidePanel('notes', 'panel')?.open;
     useLayoutEffect(() => open?.('at once'), [open]);
