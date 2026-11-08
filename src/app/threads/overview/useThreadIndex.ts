@@ -131,6 +131,26 @@ export type ResolveThreadIndexSnapshotOptions = {
   focusedRoomOverviewRootId: string | undefined;
 };
 
+/**
+ * The overview's rows (`entries`) and before them the roots of the room's listed threads they lack
+ * that `isShown` takes: older than the loaded history, so first, oldest first.
+ */
+export const withListedThreadRoots = (
+  entries: TimelineEventEntry[],
+  room: Room,
+  threads: Thread[],
+  isShown: (rootEvent: MatrixEvent) => boolean
+): TimelineEventEntry[] => {
+  const known = new Set(entries.map(({ event }) => event.getId() ?? ''));
+  const listed = listedThreadRoots(room, threads, known)
+    .flatMap(({ rootEvent }) => (rootEvent && isShown(rootEvent) ? [rootEvent] : []))
+    .sort((a, b) => a.getTs() - b.getTs());
+  return [
+    ...listed.map((event, index) => ({ event, absoluteIndex: index - listed.length })),
+    ...entries,
+  ];
+};
+
 export const buildThreadRootEventMap = (
   roomSurfaceEventEntries: TimelineEventEntry[],
   indexMap: ReadonlyMap<string, number>
@@ -385,28 +405,17 @@ export const useThreadIndex = ({
       threadResolutionMap,
     });
     if (!threadsViewListed) return entries;
-    // Roots the loaded history lacks are older than it: they come first, oldest first.
-    const known = new Set(entries.map(({ event }) => event.getId() ?? ''));
-    const listed = listedThreadRoots(room, roomThreadListThreads, known)
-      .flatMap(({ rootEvent }) =>
-        rootEvent &&
-        isRenderableEvent(
-          rootEvent,
-          room,
-          undefined,
-          ignoredUsersSet,
-          showHiddenEvents,
-          hideMembershipEvents,
-          hideNickAvatarEvents
-        )
-          ? [rootEvent]
-          : []
+    return withListedThreadRoots(entries, room, roomThreadListThreads, (rootEvent) =>
+      isRenderableEvent(
+        rootEvent,
+        room,
+        undefined,
+        ignoredUsersSet,
+        showHiddenEvents,
+        hideMembershipEvents,
+        hideNickAvatarEvents
       )
-      .sort((a, b) => a.getTs() - b.getTs());
-    return [
-      ...listed.map((event, index) => ({ event, absoluteIndex: index - listed.length })),
-      ...entries,
-    ];
+    );
   }, [
     threadId,
     renderableEventEntries,
