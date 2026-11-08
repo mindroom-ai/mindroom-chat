@@ -102,17 +102,21 @@ const add = (counts: Counts, actions: ReturnType<MatrixClient['getPushActionsFor
   if (actions?.tweaks?.highlight) counts.highlight += 1;
 };
 
-/** How the push rules take a finished reply: by its final content, once that is readable. */
+/**
+ * How the push rules take a finished reply: by its final content, once that is readable. The server
+ * counts the terminal edit as a message, so one the client cannot read counts as one too (its
+ * ciphertext's clear relation would make the push rules take it as an edit, which counts nothing).
+ */
 const finishedReplyActions = (
   mx: MatrixClient,
   room: Room,
   reply: MatrixEvent,
   edit: MatrixEvent
-) => {
+): ReturnType<MatrixClient['getPushActionsForEvent']> => {
   const finished: unknown = edit.isDecryptionFailure()
     ? undefined
     : edit.getContent()['m.new_content'];
-  if (!isRecord(finished)) return mx.getPushActionsForEvent(edit);
+  if (!isRecord(finished)) return { notify: true, tweaks: {} };
   const content = { ...finished };
   delete content['m.relates_to'];
   return mx.getPushActionsForEvent(
