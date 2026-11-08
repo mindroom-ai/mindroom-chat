@@ -246,6 +246,7 @@ describe('TranscriptionClient routes', () => {
     vi.setSystemTime(NOW + 119_000);
     api.leaveNow('call-1');
     const leave = server.calls()[1];
+    expect(leave?.url).toBe(`${API_URL}/api/call-transcripts/v1/calls/call-1/leave`);
     expect(leave?.init.keepalive).toBe(true);
     expect(leave && bearer(leave)).toBe('Bearer session-1');
 
@@ -336,6 +337,17 @@ describe('TranscriptionClient refusals', () => {
     const { api } = client(server);
 
     await expect(api.join(ROOM_ID)).rejects.toMatchObject({ retryAfterMs: 7000 });
+  });
+
+  it('counts an answer that is not JSON as unavailable', async () => {
+    const server = fakeServer();
+    server.route.mockImplementation(() => new Response('<html>', { status: 200 }));
+    const { api } = client(server);
+
+    const error = await api.join(ROOM_ID).catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(TranscriptionApiError);
+    expect(isUnavailable(error)).toBe(true);
   });
 
   it('counts no answer and server errors as unavailable, 403 and 404 as no transcripts', async () => {

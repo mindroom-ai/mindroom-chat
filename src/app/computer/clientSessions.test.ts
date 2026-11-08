@@ -203,6 +203,14 @@ describe('ClientSessions.send', () => {
     expect(FakeSocket.made).toEqual([]);
   });
 
+  it('rejects with status 0 when the sign-in answers without a session', async () => {
+    const server = fakeServer();
+    server.request.mockImplementationOnce(async () => json({ user_id: '@ann:example.org' }));
+
+    await expect(sessions(server).send('/api/plugins')).rejects.toMatchObject({ status: 0 });
+    expect(server.routes()).toEqual([]);
+  });
+
   it('rejects with the refused sign-in, its status and body', async () => {
     const server = fakeServer();
     server.request.mockImplementationOnce(async () =>
