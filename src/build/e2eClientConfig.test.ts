@@ -33,12 +33,16 @@ describe('e2e client config', () => {
     expect(next).not.toHaveBeenCalled();
     const served = JSON.parse(res.end.mock.calls[0][0]);
     expect(served.sidebar.mindRoomProvisioningUrl).toBe('http://127.0.0.1:4173');
+    // The start prompt is off for the specs, which ask for it where they test it.
+    expect(served.encryptionRecovery.promptAtStart).toBe(false);
     expect({
       ...served,
       sidebar: { ...served.sidebar, mindRoomProvisioningUrl: undefined },
+      encryptionRecovery: undefined,
     }).toEqual({
       ...hosted,
       sidebar: { ...hosted.sidebar, mindRoomProvisioningUrl: undefined },
+      encryptionRecovery: undefined,
     });
   });
 

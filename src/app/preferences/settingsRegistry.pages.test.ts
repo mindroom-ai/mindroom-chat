@@ -26,6 +26,7 @@ const PAGE_FILES: Record<Exclude<SettingsPageId, 'sidebar'>, string[]> = {
     'account/settings/BlockedUsers.tsx',
     'account/devices/Devices.tsx',
     'account/devices/SecuritySettings.tsx',
+    'account/devices/RecoveryPasswordTile.tsx',
     'account/devices/KeyBackupTile.tsx',
     'account/devices/LocalKeyBackup.tsx',
   ],

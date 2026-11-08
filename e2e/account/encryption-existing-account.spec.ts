@@ -2,6 +2,7 @@ import { expect, test, type Browser, type Page, type Route } from '@playwright/t
 import { loginWithPassword } from '../helpers/auth';
 import { openSettingsFromAccountRail } from '../helpers/accounts';
 import { buildLoginPath } from '../env';
+import { setUpRecoveryPassword } from '../helpers/recovery';
 
 // A second, fresh session of an account that already has cross-signing, secret storage and a
 // key backup, against the disposable homeserver of `just hs-up`. Neither "Enable" nor the
@@ -12,6 +13,7 @@ import { buildLoginPath } from '../env';
 //   not create new keys and write them into secret storage.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'existing-account-spec-password';
+const RECOVERY_PASSWORD = 'e2e recovery password 1';
 
 const homeserverIsUp = async (): Promise<boolean> => {
   try {
@@ -125,11 +127,7 @@ test('a second session never replaces an account that already has its encryption
   const first = await signIn(browser, username);
   await openDevices(first);
   await first.getByRole('button', { name: 'Enable' }).click();
-  await first.getByRole('button', { name: 'Continue' }).click();
-  const keyText = first.getByRole('dialog').locator('code');
-  await expect(keyText).toHaveText(/^E\w{3}( \w{4}){11}$/, { timeout: 60_000 });
-  const recoveryKey = (await keyText.textContent()) ?? '';
-  await first.getByRole('button', { name: 'Okay' }).click();
+  const recoveryKey = await setUpRecoveryPassword(first, RECOVERY_PASSWORD);
   await expect(first.getByText(/Connected · Version: \S+ · Keys: \d+/)).toBeVisible({
     timeout: 30_000,
   });
@@ -180,9 +178,9 @@ test('a second session never replaces an account that already has its encryption
   // Session C tries the recovery key: it stops with an error and changes nothing.
   const third = await signIn(browser, username);
   await openDevices(third);
-  await third.getByRole('button', { name: 'Verify Manually' }).click({ timeout: 30_000 });
-  await third.locator('input[name="recoveryKeyInput"]').fill(recoveryKey);
-  await third.getByRole('button', { name: 'Verify', exact: true }).last().click();
+  await third.getByRole('button', { name: 'Use recovery password' }).click({ timeout: 30_000 });
+  await third.locator('input[name="recoveryInput"]').fill(recoveryKey);
+  await third.getByRole('button', { name: 'Unlock', exact: true }).click();
   await expect(
     third.getByText(
       "Your secret storage holds no cross-signing keys, so the recovery key can't verify this session. Verify it from one of your other sessions."

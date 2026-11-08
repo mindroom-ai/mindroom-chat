@@ -49,10 +49,9 @@ const PASSWORD = 'phone-a11y-spec-password';
 
 /**
  * Findings in ported (Lane P) code that stay: a control whose label summarizes more than its
- * visible text (the key backup nudge, each Compact card).
+ * visible text (each Compact card).
  */
 const KNOWN = [
-  /^label-content-name-mismatch: <button [^>]*aria-label="Set up secure key backup"/,
   /^label-content-name-mismatch: <button [^>]*data-thread-root-id="[^"]*"(?:[^>]*aria-label="Open thread:| [^>]*\.\.\.>$)/,
 ];
 

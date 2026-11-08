@@ -45,6 +45,7 @@ export const e2eClientConfig = (provisioningUrl) => {
         JSON.stringify({
           ...config,
           sidebar: { ...config.sidebar, mindRoomProvisioningUrl: provisioningUrl },
+          encryptionRecovery: { ...config.encryptionRecovery, promptAtStart: false },
         })
       );
     });
