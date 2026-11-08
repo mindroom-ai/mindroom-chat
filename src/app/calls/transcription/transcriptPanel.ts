@@ -3,6 +3,7 @@ import { atom, useAtomValue, useStore } from 'jotai';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { callPanelRoomAtom, useActiveCall, useInCall } from '../callStore';
 import { getCallWindowTranscriptAtom, useCallViewFloats } from '../window/callWindowState';
+import { callTranscriptionAtom } from './transcriptionState';
 
 type Store = ReturnType<typeof useStore>;
 
@@ -81,10 +82,12 @@ export const openCallTranscript = (
 
 /**
  * Transcript for the call in `roomId`: whether it shows inside the floating window (the call is
- * this device's and still on here, and its view floats), whether it shows there now, and `open`,
- * which shows it where it belongs (toggling it in the window when `toggle`). A call that failed or
- * ended here shows its finished view in the window, without a transcript, while the others may
- * still talk: the side panel shows that.
+ * this device's and still on here, this device transcribes it, and its view floats), whether it
+ * shows there now, and `open`, which shows it where it belongs (toggling it in the window when
+ * `toggle`). The window shows only what this device's transcriber reads, so anywhere else the
+ * side panel, which reads the call itself, shows it: a call that failed or ended here (its
+ * finished view has no transcript, while the others may still talk), and one whose transcriber
+ * did not load or MindRoom has not answered yet.
  */
 export const useCallTranscript = (roomId: string) => {
   const store = useStore();
@@ -92,7 +95,10 @@ export const useCallTranscript = (roomId: string) => {
   const active = useActiveCall();
   const live = useInCall();
   const floats = useCallViewFloats();
-  const inWindow = floats && live && active?.kind === 'room' && active.call.room.roomId === roomId;
+  const transcription = useAtomValue(callTranscriptionAtom);
+  const transcribed = transcription?.roomId === roomId && transcription.status !== 'joining';
+  const inWindow =
+    floats && live && transcribed && active?.kind === 'room' && active.call.room.roomId === roomId;
   const shown = useAtomValue(getCallWindowTranscriptAtom(userId));
   const open = useCallback(
     (toggle: boolean) =>

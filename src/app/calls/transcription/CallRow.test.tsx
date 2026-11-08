@@ -399,6 +399,25 @@ describe('CallRow', () => {
   );
 
   it.each([
+    ['did not load', undefined],
+    ['waits for MindRoom', 'joining'],
+  ] as const)(
+    "opens the side panel beside the window while this device's transcriber %s",
+    (_case, status) => {
+      // The window shows only what this device's transcriber reads; the side panel reads the call.
+      const store = inCall();
+      store.set(callTranscriptionAtom, status && { roomId: ROOM_ID, status });
+      store.set(callPanelRoomAtom, ROOM_ID);
+      render(LIVE, store);
+
+      act(() => button('Transcript')?.click());
+      expect(store.get(transcriptPanelAtom)).toEqual({ roomId: ROOM_ID, replacedCall: false });
+      expect(store.get(callPanelRoomAtom)).toBe(ROOM_ID);
+      expect(store.get(settings()).transcript).toBeUndefined();
+    }
+  );
+
+  it.each([
     ["another room's call", '!other:example.org', 'floating', 'Desktop'],
     ['a docked call view', ROOM_ID, 'docked', 'Desktop'],
     ['a phone', ROOM_ID, 'floating', 'Mobile'],
