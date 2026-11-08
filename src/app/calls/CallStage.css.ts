@@ -90,7 +90,7 @@ export const Grid = style({
 // A grid cell sets the tile's shape, between square and 16:9, in place of its own 4:3.
 globalStyle(`${Grid} > li`, { aspectRatio: 'auto', minWidth: 0 });
 
-// Two or more shared screens: each fills a row (a screen tile spans the columns), everyone's tiles
+// The grid while screens are shared: each fills a row (a screen tile spans the columns), everyone's tiles
 // follow at their 4:3 under them, and the list scrolls from its first row once they outgrow it.
 export const Screens = style({
   ...bareList,

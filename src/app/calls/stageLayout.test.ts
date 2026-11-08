@@ -6,7 +6,9 @@ import {
   fitTiles,
   hasVideo,
   pickFocus,
+  pickScope,
   sharedScreens,
+  stageView,
 } from './stageLayout';
 
 const track = {} as CallVideoTrack;
@@ -130,13 +132,19 @@ describe('sharedScreens', () => {
 });
 
 describe('pickFocus', () => {
-  it('puts a shared screen in focus, before any speaker', () => {
+  it("puts someone else's shared screen in focus, before any speaker", () => {
     const speaking = { ...mind, speaking: true };
 
-    expect(pickFocus([{ ...me, screen: track }, speaking], undefined)).toBe(`${me.key}:screen`);
     expect(pickFocus([me, speaking, { ...ada, screen: track }], mind.key)).toBe(
       `${ada.key}:screen`
     );
+  });
+
+  it("never puts this device's own screen in focus", () => {
+    const speaking = { ...mind, speaking: true };
+
+    expect(pickFocus([{ ...me, screen: track }, speaking], undefined)).toBe(mind.key);
+    expect(pickFocus([{ ...me, screen: track }], undefined)).toBe(me.key);
   });
 
   it("puts someone else's screen in focus over this device's own", () => {
@@ -173,5 +181,64 @@ describe('pickFocus', () => {
 
   it('has nothing to focus in an empty call', () => {
     expect(pickFocus([], undefined)).toBeUndefined();
+  });
+});
+
+describe('pickScope', () => {
+  it("is the screens shared while someone else shares one, else none (the call's own pick)", () => {
+    expect(pickScope([me, mind])).toBe('');
+    expect(pickScope([{ ...me, screen: track }, mind])).toBe('');
+    expect(
+      pickScope([
+        { ...me, screen: track },
+        { ...mind, screen: track },
+      ])
+    ).toBe(`${mind.key}:screen ${me.key}:screen`);
+  });
+});
+
+describe('stageView', () => {
+  const ownScreen = { ...me, screen: track };
+  const theirScreen = { ...mind, screen: track };
+
+  it("shows speaker view by default for someone else's one screen, the grid otherwise", () => {
+    expect(stageView([me, theirScreen, ada], false, undefined)).toEqual({
+      speaker: true,
+      held: false,
+    });
+    expect(stageView([ownScreen, mind], false, undefined)).toEqual({
+      speaker: false,
+      held: false,
+    });
+    expect(stageView([ownScreen, theirScreen], false, undefined)).toEqual({
+      speaker: false,
+      held: false,
+    });
+    expect(stageView([me, { ...mind, video: track }], false, undefined)).toEqual({
+      speaker: false,
+      held: false,
+    });
+  });
+
+  it("follows the person's pick, with or without shared screens", () => {
+    for (const participants of [
+      [me, theirScreen],
+      [ownScreen, mind],
+      [ownScreen, theirScreen],
+    ]) {
+      expect(stageView(participants, false, false)).toEqual({ speaker: false, held: false });
+      expect(stageView(participants, false, true)).toEqual({ speaker: true, held: false });
+    }
+  });
+
+  it('holds speaker view while grid tiles would be too small, the rows of two or more screens', () => {
+    for (const pick of [undefined, false, true]) {
+      expect(stageView([me, theirScreen, ada], true, pick)).toEqual({ speaker: true, held: true });
+      expect(stageView([ownScreen, mind], true, pick)).toEqual({ speaker: true, held: true });
+      expect(stageView([ownScreen, theirScreen], true, pick)).toEqual({
+        speaker: false,
+        held: true,
+      });
+    }
   });
 });

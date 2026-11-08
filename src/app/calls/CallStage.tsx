@@ -18,7 +18,8 @@ import {
   pickFocus,
   screenKey,
   sharedScreens,
-  showsScreenRows,
+  stageView,
+  type StageView,
 } from './stageLayout';
 import * as css from './CallStage.css';
 
@@ -238,37 +239,38 @@ type CallStageProps = {
   participants: CallParticipant[];
   /** The agent an agent call waits for, shown waiting until it joins. */
   awaited?: CallParticipant;
-  /** The person picked speaker view; one shared screen or a small stage shows it as well. */
-  speakerView: boolean;
+  /**
+   * The person's pick of speaker view (true) or the grid (false); none for the screens shared now
+   * leaves the stage at its default (`stageView`).
+   */
+  speakerView?: boolean;
   /** This device's microphone is on. */
   microphone: boolean;
-  /**
-   * Hears whether the stage overrides the pick: one shared screen or tiles too small for the grid
-   * show speaker view anyway, two or more shared screens show all of them.
-   */
-  onForcedChange?: (forced: boolean) => void;
+  /** Hears what the video stage shows, and whether tiles too small for the grid hold it there. */
+  onViewChange?: (view: StageView) => void;
 };
 
 /**
  * The joined call's stage. While anyone shows a camera or a screen: everyone's tiles in a grid,
- * or speaker view, with one tile filling the stage, the others as faces and the own camera as an
- * inset; while two or more screens are shared, each of them as wide as the stage and everyone's
- * tiles after them. While nobody does: the voice stage.
+ * the shared screens each as wide as the stage over them, or speaker view, with one tile (someone
+ * else's screen first) filling the stage, the others as faces and the own camera as an inset.
+ * While nobody does: the voice stage.
  */
 export function CallStage(props: CallStageProps) {
-  const { room, participants, awaited, speakerView, microphone, onForcedChange } = props;
+  const { room, participants, awaited, speakerView, microphone, onViewChange } = props;
   const { t } = useTranslation();
   const [stageRef, size] = useStageSize();
   const people = awaited ? [...participants, awaited] : participants;
   const video = hasVideo(people);
   const fit = size && fitTiles(people.length, size.width, size.height, TILE_GAP);
   const screens = sharedScreens(people);
-  const screenRows = showsScreenRows(people);
-  const forced = video && (screens.length > 0 || (!!fit && fit.size < SPEAKER_VIEW_MIN_TILE));
-  const speaker = video && !screenRows && (speakerView || forced);
+  const tiny = !!fit && fit.size < SPEAKER_VIEW_MIN_TILE;
+  const view = stageView(people, tiny, speakerView);
+  const speaker = video && view.speaker;
+  const held = video && view.held;
   useEffect(() => {
-    onForcedChange?.(forced);
-  }, [forced, onForcedChange]);
+    onViewChange?.({ speaker, held });
+  }, [speaker, held, onViewChange]);
 
   // The remote in focus stays there while nobody talks, rather than jumping back to the first.
   const lastFocus = useRef<string>();
@@ -281,7 +283,7 @@ export function CallStage(props: CallStageProps) {
   let body;
   if (!video) {
     body = <VoiceStage room={room} people={people} microphone={microphone} />;
-  } else if (screenRows) {
+  } else if (!speaker && screens.length > 0) {
     body = (
       <ul className={css.Screens} aria-label={participantsLabel}>
         {screens.map((participant) => (

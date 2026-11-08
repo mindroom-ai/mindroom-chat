@@ -39,7 +39,7 @@ import { allowMembersToCall, readCallAccess, type CallAccess } from './callAcces
 import { CallControl, DeviceControl } from './CallControls';
 import { CallMemberAvatar, useCallMemberProfile } from './CallTile';
 import { CallStage } from './CallStage';
-import { byPerson, hasVideo, showsScreenRows } from './stageLayout';
+import { byPerson, hasVideo, pickScope, type StageView } from './stageLayout';
 import { useCallWindowFrame } from './window/callWindowFrame';
 import { focusHandOffAtom, useCallWindowMode } from './window/callWindowState';
 import { DockIcon, FloatIcon } from './window/windowIcons';
@@ -456,13 +456,22 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
       : undefined;
   // Who the bar's faces show: everyone in the call and, as on the stage, the agent it waits for.
   const shownPeople = awaitedAgent ? [...state.participants, awaitedAgent] : state.participants;
-  // The person's pick; one shared screen or tiles too small for the grid show speaker view anyway,
-  // and the stage says when, so the switch shows it on and holds it there. Two or more shared
-  // screens hold it off: the stage shows each of them instead.
-  const [speakerView, setSpeakerView] = useState(false);
-  const [speakerForced, setSpeakerForced] = useState(false);
+  // The person's pick of speaker view or the grid, for the call and, while someone else shares a
+  // screen, for the screens shared then: new shares open at the stage's default (speaker view for
+  // someone else's one screen) until picked again. The stage says what it shows, which the switch
+  // shows, and holds it there while tiles would be too small for the grid.
+  const [callPick, setCallPick] = useState(false);
+  const [screensPick, setScreensPick] = useState<{ scope: string; speaker: boolean }>();
+  const scope = pickScope(state.participants);
+  if (screensPick && screensPick.scope !== scope) setScreensPick(undefined);
+  const speakerView = scope ? screensPick?.speaker : callPick;
+  const [stageView, setStageView] = useState<StageView>({ speaker: false, held: false });
+  const toggleSpeakerView = () => {
+    const speaker = !stageView.speaker;
+    if (scope) setScreensPick({ scope, speaker });
+    else setCallPick(speaker);
+  };
   const video = !finished && hasVideo(state.participants);
-  const speakerShown = (speakerView || speakerForced) && !showsScreenRows(state.participants);
 
   const microphoneLabel = state.microphone
     ? t('featureUi.call.controls.turnOffMicrophone')
@@ -544,9 +553,9 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
           className={css.SpeakerSwitch}
           label={t('featureUi.calls.window.speakerView')}
           icon={Icons.User}
-          pressed={speakerShown}
-          held={speakerForced}
-          onClick={() => setSpeakerView((picked) => !picked)}
+          pressed={stageView.speaker}
+          held={stageView.held}
+          onClick={toggleSpeakerView}
         />
       )}
       {active.origin && <ConversationButton origin={active.origin} onClose={onClose} />}
@@ -559,7 +568,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
       awaited={awaitedAgent}
       speakerView={speakerView}
       microphone={state.microphone}
-      onForcedChange={setSpeakerForced}
+      onViewChange={setStageView}
     />
   );
   // In the floating window the live transcript can show with the stage; agent calls have none.

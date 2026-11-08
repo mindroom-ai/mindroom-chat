@@ -199,6 +199,18 @@ const button = (name: string) => screen.queryByRole('button', { name });
 // fireEvent runs in act already.
 const press = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
 const settings = (): CallWindowSettings => store.get(getCallWindowSettingsAtom(USER));
+const speakerSwitch = () => screen.getByRole('button', { name: 'Speaker view' });
+const speakerView = () =>
+  document.querySelector('[data-call-stage]')?.hasAttribute('data-speaker-view');
+/** Whose screens and whose tiles the stage shows, in its order. */
+const screensShown = () =>
+  Array.from(document.querySelectorAll<HTMLElement>('[data-call-screen]'), ({ dataset }) => {
+    return dataset.callScreen;
+  });
+const tilesShown = () =>
+  Array.from(document.querySelectorAll<HTMLElement>('[data-call-tile]'), ({ dataset }) => {
+    return dataset.callTile;
+  });
 
 beforeEach(() => {
   localStorage.clear();
@@ -248,7 +260,6 @@ describe('the call view title bar', () => {
     roomCall([me, person('@ana:panel.test', { video: camera })]);
     renderPanel({ frame: frame() });
     const stage = () => document.querySelector('[data-call-stage]');
-    const speakerSwitch = () => screen.getByRole('button', { name: 'Speaker view' });
     expect(stage()?.getAttribute('data-call-stage')).toBe('video');
     expect(stage()?.hasAttribute('data-speaker-view')).toBe(false);
     expect(speakerSwitch().getAttribute('aria-pressed')).toBe('false');
@@ -261,45 +272,112 @@ describe('the call view title bar', () => {
     expect(speakerSwitch().getAttribute('aria-pressed')).toBe('false');
   });
 
-  it('holds the speaker switch on, still named, while a shared screen keeps speaker view', () => {
-    roomCall([me, person('@ana:panel.test', { video: camera, screen: camera })]);
+  it("opens speaker view for someone else's screen, and the switch leaves it for the grid and back", () => {
+    const ana = person('@ana:panel.test', { video: camera });
+    const bo = person('@bo:panel.test', { video: camera });
+    roomCall([me, { ...ana, screen: camera }, bo]);
     const inFrame = frame();
     const { rerender } = renderPanel({ frame: inFrame });
-    const speakerSwitch = () => screen.getByRole('button', { name: 'Speaker view' });
-    const speakerView = () =>
-      document.querySelector('[data-call-stage]')?.hasAttribute('data-speaker-view');
     expect(speakerView()).toBe(true);
+    expect(screensShown()).toEqual([ana.userId]);
     expect(speakerSwitch().getAttribute('aria-pressed')).toBe('true');
-    expect(speakerSwitch().getAttribute('aria-disabled')).toBe('true');
+    expect(speakerSwitch().hasAttribute('aria-disabled')).toBe(false);
 
-    // Held on, a press picks nothing: when the share ends, the grid comes back.
+    // The grid: the screen as a row over every camera.
     press('Speaker view');
-    roomCall([me, person('@ana:panel.test', { video: camera })]);
+    expect(speakerView()).toBe(false);
+    expect(screensShown()).toEqual([ana.userId]);
+    expect(tilesShown()).toEqual([USER, ana.userId, bo.userId]);
+    expect(speakerSwitch().getAttribute('aria-pressed')).toBe('false');
+    press('Speaker view');
+    expect(speakerView()).toBe(true);
+    press('Speaker view');
+    expect(speakerView()).toBe(false);
+
+    // The share ends: the call's own pick, the grid. A new share opens speaker view again.
+    roomCall([me, ana, bo]);
     rerender(panel({ frame: inFrame }));
     expect(speakerView()).toBe(false);
     expect(speakerSwitch().getAttribute('aria-pressed')).toBe('false');
-    expect(speakerSwitch().hasAttribute('aria-disabled')).toBe(false);
+    roomCall([me, ana, { ...bo, screen: camera }]);
+    rerender(panel({ frame: inFrame }));
+    expect(speakerView()).toBe(true);
+    expect(screensShown()).toEqual([bo.userId]);
   });
 
-  it('holds the speaker switch off while two or more shared screens all show', () => {
+  it('shows a lone own screen in the grid with every camera, the switch free', () => {
+    const ana = person('@ana:panel.test', { video: camera });
+    roomCall([{ ...me, video: camera, screen: camera }, ana]);
+    renderPanel({ frame: frame() });
+    expect(speakerView()).toBe(false);
+    expect(screensShown()).toEqual([USER]);
+    expect(tilesShown()).toEqual([USER, ana.userId]);
+    expect(speakerSwitch().getAttribute('aria-pressed')).toBe('false');
+    expect(speakerSwitch().hasAttribute('aria-disabled')).toBe(false);
+
+    // Speaker view puts the other person in focus, not the own screen.
+    press('Speaker view');
+    expect(speakerView()).toBe(true);
+    expect(screensShown()).toEqual([]);
+    expect(speakerSwitch().getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('shows two or more shared screens in rows, the switch free to speaker view and back', () => {
     const ana = person('@ana:panel.test', { screen: camera });
     roomCall([me, ana, person('@bo:panel.test', { screen: camera })]);
     const inFrame = frame();
     const { rerender } = renderPanel({ frame: inFrame });
-    const speakerSwitch = () => screen.getByRole('button', { name: 'Speaker view' });
-    const speakerView = () =>
-      document.querySelector('[data-call-stage]')?.hasAttribute('data-speaker-view');
-    expect(document.querySelectorAll('[data-call-screen]')).toHaveLength(2);
+    expect(screensShown()).toEqual([ana.userId, '@bo:panel.test']);
     expect(speakerView()).toBe(false);
     expect(speakerSwitch().getAttribute('aria-pressed')).toBe('false');
-    expect(speakerSwitch().getAttribute('aria-disabled')).toBe('true');
+    expect(speakerSwitch().hasAttribute('aria-disabled')).toBe(false);
+
+    press('Speaker view');
+    expect(speakerView()).toBe(true);
+    expect(screensShown()).toEqual([ana.userId]);
+    expect(speakerSwitch().getAttribute('aria-pressed')).toBe('true');
+    press('Speaker view');
+    expect(speakerView()).toBe(false);
 
     // One screen left: speaker view shows it, and the switch says so.
     roomCall([me, ana, person('@bo:panel.test')]);
     rerender(panel({ frame: inFrame }));
     expect(speakerView()).toBe(true);
     expect(speakerSwitch().getAttribute('aria-pressed')).toBe('true');
+    expect(speakerSwitch().hasAttribute('aria-disabled')).toBe(false);
+  });
+
+  it('holds the switch on speaker view while grid tiles would be too small', () => {
+    // The stage hears it is 300 by 120 px: four tiles would be under 100 px wide.
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(private readonly callback: ResizeObserverCallback) {}
+
+        observe(target: Element) {
+          const contentRect = { width: 300, height: 120 } as DOMRectReadOnly;
+          this.callback(
+            [{ target, contentRect } as ResizeObserverEntry],
+            this as unknown as ResizeObserver
+          );
+        }
+
+        disconnect() {}
+      }
+    );
+    const others = ['@ana:panel.test', '@bo:panel.test', '@cy:panel.test'].map((userId) =>
+      person(userId, { video: camera })
+    );
+    roomCall([me, ...others]);
+    renderPanel({ frame: frame() });
+    expect(speakerView()).toBe(true);
+    expect(speakerSwitch().getAttribute('aria-pressed')).toBe('true');
     expect(speakerSwitch().getAttribute('aria-disabled')).toBe('true');
+
+    // Held, a press picks nothing.
+    press('Speaker view');
+    expect(speakerView()).toBe(true);
+    expect(speakerSwitch().getAttribute('aria-pressed')).toBe('true');
   });
 
   it('docks from the window and takes the person to the call room', () => {

@@ -89,7 +89,7 @@ const samuel = person('samuel');
 type StageProps = React.ComponentProps<typeof CallStage>;
 
 const showStage = (props: Partial<StageProps> & Pick<StageProps, 'participants'>) =>
-  render(<CallStage room={room} speakerView={false} microphone {...props} />);
+  render(<CallStage room={room} microphone {...props} />);
 
 const stageOf = (container: HTMLElement) => {
   const stage = container.querySelector<HTMLElement>('[data-call-stage]');
@@ -313,7 +313,7 @@ describe('CallStage with video', () => {
     expect(tileOf(container, mind.userId).querySelector('video')).not.toBeNull();
   });
 
-  it('puts a shared screen in focus, the others in a row and the own camera in the inset', () => {
+  it("puts someone else's screen in focus, the others in a row and the own camera in the inset", () => {
     const { container } = showStage({
       participants: [{ ...me, video: track() }, { ...mind, screen: track() }, ada],
     });
@@ -353,26 +353,75 @@ describe('CallStage with video', () => {
     expect(list?.firstElementChild?.getAttribute('data-call-screen')).toBe(mind.userId);
   });
 
-  it('shows every screen over a picked speaker view and a stage too small for the grid', () => {
+  it('keeps every screen in rows on a stage too small for the grid, whatever the pick', () => {
     stageSize.width = 300;
     stageSize.height = 120;
-    const onForcedChange = vi.fn();
+    const onViewChange = vi.fn();
     const { container } = showStage({
       participants: [me, { ...mind, screen: track() }, { ...ada, screen: track() }, tom],
       speakerView: true,
-      onForcedChange,
+      onViewChange,
     });
 
     expect(stageOf(container).hasAttribute('data-speaker-view')).toBe(false);
     expect(screensShown(container)).toEqual([mind.userId, ada.userId]);
     expect(container.querySelectorAll('[data-call-tile]')).toHaveLength(4);
-    expect(onForcedChange).toHaveBeenLastCalledWith(true);
+    expect(onViewChange).toHaveBeenLastCalledWith({ speaker: false, held: true });
+  });
+
+  it('shows a lone own screen in the grid, as a row over every camera, never in focus', () => {
+    const onViewChange = vi.fn();
+    const sharing = { ...me, video: track(), screen: track() };
+    const { container } = showStage({
+      participants: [sharing, { ...mind, video: track() }, ada],
+      onViewChange,
+    });
+
+    expect(stageOf(container).hasAttribute('data-speaker-view')).toBe(false);
+    expect(screensShown(container)).toEqual([me.userId]);
+    const tiles = container.querySelectorAll<HTMLElement>('[data-call-tile]');
+    expect(Array.from(tiles, (tile) => tile.dataset.callTile)).toEqual(
+      [me, mind, ada].map(({ userId }) => userId)
+    );
+    expect(tileOf(container, mind.userId).querySelector('video')).not.toBeNull();
+    expect(onViewChange).toHaveBeenLastCalledWith({ speaker: false, held: false });
+    cleanup();
+
+    // Picked, speaker view puts someone else in focus: the sharer has their screen before them.
+    const picked = showStage({
+      participants: [sharing, { ...mind, video: track(), speaking: true }, ada],
+      speakerView: true,
+    });
+    expect(stageOf(picked.container).hasAttribute('data-speaker-view')).toBe(true);
+    expect(screensShown(picked.container)).toEqual([]);
+    expect(tileOf(picked.container, mind.userId).querySelector('video')).not.toBeNull();
+    expect(picked.container.querySelector('[data-call-inset]')).not.toBeNull();
+  });
+
+  it("shows someone else's screen in the grid, as a row over every camera, when the grid is picked", () => {
+    const { container } = showStage({
+      participants: [
+        { ...me, video: track() },
+        { ...mind, screen: track() },
+        { ...ada, video: track() },
+      ],
+      speakerView: false,
+    });
+
+    expect(stageOf(container).hasAttribute('data-speaker-view')).toBe(false);
+    expect(screensShown(container)).toEqual([mind.userId]);
+    expect(container.querySelector('[data-call-inset]')).toBeNull();
+    const tiles = container.querySelectorAll<HTMLElement>('[data-call-tile]');
+    expect(Array.from(tiles, (tile) => tile.dataset.callTile)).toEqual(
+      [me, mind, ada].map(({ userId }) => userId)
+    );
+    expect(tileOf(container, ada.userId).querySelector('video')).not.toBeNull();
   });
 
   it('goes back to speaker view with the one screen left once a second share stops', () => {
     const sharing = { ...mind, screen: track() };
     const stage = (participants: CallParticipant[]) => (
-      <CallStage room={room} speakerView={false} microphone participants={participants} />
+      <CallStage room={room} microphone participants={participants} />
     );
     const { container, rerender } = render(stage([{ ...me, screen: track() }, sharing, ada]));
     expect(screensShown(container)).toEqual([mind.userId, me.userId]);
@@ -480,39 +529,35 @@ describe('CallStage with video', () => {
     expect(container.querySelectorAll('[data-call-tile]')).toHaveLength(4);
   });
 
-  it('tells whether a screen or small tiles force speaker view, whatever the pick', () => {
-    const onForcedChange = vi.fn();
+  it('tells what it shows, and whether tiles too small for the grid hold speaker view', () => {
+    const onViewChange = vi.fn();
     const camera = { ...mind, video: track() };
-    const { rerender } = showStage({ participants: [me, camera], onForcedChange });
-    expect(onForcedChange).toHaveBeenLastCalledWith(false);
-
-    rerender(
+    const stage = (participants: CallParticipant[], speakerView?: boolean) => (
       <CallStage
         room={room}
-        speakerView={false}
+        speakerView={speakerView}
         microphone
-        participants={[me, { ...camera, screen: track() }]}
-        onForcedChange={onForcedChange}
+        participants={participants}
+        onViewChange={onViewChange}
       />
     );
-    expect(onForcedChange).toHaveBeenLastCalledWith(true);
+    const { rerender } = render(stage([me, camera]));
+    expect(onViewChange).toHaveBeenLastCalledWith({ speaker: false, held: false });
 
-    rerender(
-      <CallStage
-        room={room}
-        speakerView={false}
-        microphone
-        participants={[me, camera]}
-        onForcedChange={onForcedChange}
-      />
-    );
-    expect(onForcedChange).toHaveBeenLastCalledWith(false);
+    rerender(stage([me, { ...camera, screen: track() }]));
+    expect(onViewChange).toHaveBeenLastCalledWith({ speaker: true, held: false });
+
+    rerender(stage([me, { ...camera, screen: track() }], false));
+    expect(onViewChange).toHaveBeenLastCalledWith({ speaker: false, held: false });
+
+    rerender(stage([me, camera], true));
+    expect(onViewChange).toHaveBeenLastCalledWith({ speaker: true, held: false });
     cleanup();
 
     stageSize.width = 300;
     stageSize.height = 120;
     const small = vi.fn();
-    showStage({ participants: [me, camera, ada, tom], speakerView: true, onForcedChange: small });
-    expect(small).toHaveBeenLastCalledWith(true);
+    showStage({ participants: [me, camera, ada, tom], speakerView: false, onViewChange: small });
+    expect(small).toHaveBeenLastCalledWith({ speaker: true, held: true });
   });
 });
