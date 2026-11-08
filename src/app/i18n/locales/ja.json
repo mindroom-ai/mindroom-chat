@@ -1272,7 +1272,7 @@
       "matchingUsers_other": "{{count}} 人の一致ユーザー"
     },
     "mindRoomSplashScreen": {
-      "loading": "MindRoom Chatを読み込んでいます"
+      "loading": "{{appName}}を読み込んでいます"
     },
     "commands": {
       "CommandMe": "アクションメッセージを送信する",

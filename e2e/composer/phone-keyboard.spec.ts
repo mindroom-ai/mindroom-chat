@@ -2,19 +2,20 @@ import {
   expect,
   test,
   type Browser,
-  type BrowserContext,
   type BrowserContextOptions,
   type Page,
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
+  addRoomToSpace,
   createDefaultThreadFilterState,
   loginToMatrix,
   seedRoomOverviewState,
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
+import { standInVisualViewport } from '../helpers/keyboardViewport';
 import { touch } from '../helpers/touch';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
@@ -24,9 +25,11 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // both when the browser keeps the page full height and shrinks only the visual viewport (Safari on
 // iOS, played here by a stand-in visualViewport) and when it shrinks the page itself (the iOS
 // app's web view, Chrome on Android). Tapping Send keeps the text box focused, so the keyboard
-// stays up for the next message, also when the send opens a thread from the Compact cards. Checked
-// in a room with an address and 40 messages among 25 rooms, on a phone (390 by 844, touch), in
-// Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
+// stays up for the next message, also when the send opens a thread from the Compact cards, and also
+// in a space's room opened at its Home address, where the thread opens at that address and the room
+// view stays mounted. Checked in a room with an address and 40 messages among 25 rooms, on a phone
+// (390 by 844, touch), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit,
+// in WebKit.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'phone-keyboard-spec-password';
 const RUN = Date.now().toString(36);
@@ -44,6 +47,7 @@ const LANDSCAPE_KEYBOARD_VISIBLE = 98;
 // The home indicator's inset at the bottom of an iPhone without a browser toolbar (the iOS app).
 const HOME_INDICATOR = 34;
 const ROOM = 'Release checklist';
+const SPACE = 'Launch team';
 const TOPICS = [
   'the load test',
   'the security review',
@@ -54,17 +58,6 @@ const TOPICS = [
   'the onboarding emails',
   'the mobile release notes',
 ];
-
-declare global {
-  interface Window {
-    __setKeyboardViewport?: (
-      height: number,
-      offsetTop: number,
-      eventName: string,
-      width?: number
-    ) => void;
-  }
-}
 
 test.use({
   launchOptions: {
@@ -109,11 +102,14 @@ const message = (index: number) =>
       : 'still open; I will post again once the last two items are checked'
   }.`;
 
+/** Whether the room belongs to a space. */
+type SeedOptions = { inSpace?: boolean };
+
 /**
  * 25 other rooms, and one room with 40 messages, more than a phone shows at once. The room has an
  * address, as a space's lobby does, so the app's links to it name its alias.
  */
-const seed = async (name: string) => {
+const seed = async (name: string, { inSpace = false }: SeedOptions = {}) => {
   const reader = await registerAndLogin(name);
   await Promise.all(
     Array.from({ length: 25 }, (_, index) =>
@@ -131,53 +127,14 @@ const seed = async (name: string) => {
       body: message(index),
     });
   }
+  if (inSpace) {
+    const spaceId = await createRoom(HOMESERVER, reader.accessToken, { name: SPACE, space: true });
+    await addRoomToSpace(HOMESERVER, reader.accessToken, spaceId, roomId);
+  }
   return { reader, roomId };
 };
 
 type World = Awaited<ReturnType<typeof seed>>;
-
-/** A visualViewport whose size the test sets, as Safari's keyboard changes it. */
-const standInVisualViewport = (context: BrowserContext) =>
-  context.addInitScript(() => {
-    let height: number | undefined;
-    let width: number | undefined;
-    let offsetTop = 0;
-    const events = new EventTarget();
-    Object.defineProperty(window, 'visualViewport', {
-      configurable: true,
-      value: {
-        addEventListener: events.addEventListener.bind(events),
-        removeEventListener: events.removeEventListener.bind(events),
-        get width() {
-          return width ?? window.innerWidth;
-        },
-        get height() {
-          return height ?? window.innerHeight;
-        },
-        get offsetLeft() {
-          return 0;
-        },
-        get offsetTop() {
-          return offsetTop;
-        },
-        get pageLeft() {
-          return 0;
-        },
-        get pageTop() {
-          return offsetTop;
-        },
-        get scale() {
-          return 1;
-        },
-      },
-    });
-    window.__setKeyboardViewport = (nextHeight, nextOffsetTop, eventName, nextWidth) => {
-      height = nextHeight;
-      width = nextWidth;
-      offsetTop = nextOffsetTop;
-      events.dispatchEvent(new Event(eventName));
-    };
-  });
 
 const textBox = (page: Page) => page.locator('[data-editable-name="RoomInput"]');
 const jumpToLatest = (page: Page) => page.getByRole('button', { name: 'Jump to Latest' });
@@ -329,6 +286,54 @@ const checkCompactSendKeepsFocus = async (page: Page, world: World, engine: stri
     textBox(page),
     `${engine}: the opened thread's text box keeps the focus`
   ).toBeFocused();
+};
+
+/**
+ * A space's room opened from a link to it, which opens a room on Home. A send from the Compact
+ * cards opens its thread at that Home address: the room view stays mounted (the space's address
+ * is another page, which would mount it again), so the text box keeps the focus and the keyboard
+ * stays up.
+ */
+const checkSpaceRoomOnHomeKeepsView = async (page: Page, world: World, engine: string) => {
+  await seedRoomOverviewState({
+    page,
+    roomId: world.roomId,
+    userId: world.reader.userId,
+    viewMode: 'compact',
+    filterState: createDefaultThreadFilterState(),
+  });
+  await page.evaluate((to) => {
+    window.history.pushState(null, '', to);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, `/${encodeURIComponent(world.roomId)}`);
+  await expect(page.locator('[data-compact-room-view="true"]')).toBeVisible({ timeout: 60_000 });
+  expect(new URL(page.url()).pathname, `${engine}: the link opens the room on Home`).toMatch(
+    /^\/home\//
+  );
+  // A mark on this room view's footer, which a room view mounted again would not carry.
+  await page.locator('[data-room-footer]').evaluate((footer) => {
+    footer.setAttribute('data-e2e-opened-view', 'true');
+  });
+  await textBox(page).tap();
+  await expect(textBox(page)).toBeFocused();
+  const text = `A new thread in the space's room from the ${engine} cards`;
+  await page.keyboard.type(text);
+  await page.getByRole('button', { name: 'Send message' }).tap();
+  await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(text, { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => new URL(page.url()).searchParams.get('threadId')).toMatch(/^\$/);
+  await expect(textBox(page)).not.toContainText(text);
+  await expect(
+    textBox(page),
+    `${engine}: the opened thread's text box keeps the focus`
+  ).toBeFocused();
+  await expect(
+    page.locator('[data-room-footer][data-e2e-opened-view="true"]'),
+    `${engine}: the room view stays mounted`
+  ).toHaveCount(1);
+  expect(new URL(page.url()).pathname, `${engine}: the thread opens on Home`).toMatch(
+    /^\/home\//
+  );
 };
 
 const appHeight = (page: Page) =>
@@ -486,9 +491,15 @@ type Check = (page: Page, world: World, engine: string) => Promise<void>;
 
 let accounts = 0;
 
-const run = async (browser: Browser, baseURL: string | undefined, engine: string, check: Check) => {
+const run = async (
+  browser: Browser,
+  baseURL: string | undefined,
+  engine: string,
+  check: Check,
+  options?: SeedOptions
+) => {
   accounts += 1;
-  const world = await seed(`reader${accounts}_${engine}`);
+  const world = await seed(`reader${accounts}_${engine}`, options);
   const { context, page } = await newPhonePage(browser, {
     baseURL,
     ...(engine === 'webkit' ? { userAgent: IPHONE_SAFARI } : {}),
@@ -506,7 +517,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
   }
 };
 
-const CHECKS: [string, Check][] = [
+const CHECKS: [string, Check, SeedOptions?][] = [
   ['the newest message stays above the composer when Safari’s keyboard opens', checkSafariKeyboard],
   [
     'the newest message stays above the composer when the keyboard shrinks the page',
@@ -516,6 +527,11 @@ const CHECKS: [string, Check][] = [
   ['the whole composer shows in the band a sideways keyboard leaves', checkLandscapeKeyboard],
   ['turning the phone with the keyboard up never leaves a blank page', checkRotationWithKeyboard],
   ['a send from the Compact cards keeps the keyboard up', checkCompactSendKeepsFocus],
+  [
+    "a thread opened in a space's room on Home keeps the room view and the keyboard",
+    checkSpaceRoomOnHomeKeepsView,
+    { inSpace: true },
+  ],
 ];
 
 test.beforeEach(async () => {
@@ -530,10 +546,10 @@ test('the home indicator inset stays outside the composer box (Chromium)', async
   await run(browser, baseURL, 'chromium', checkHomeIndicatorInset);
 });
 
-for (const [name, check] of CHECKS) {
+for (const [name, check, options] of CHECKS) {
   test(`${name} (Chromium)`, async ({ browser, baseURL }) => {
     test.setTimeout(240_000);
-    await run(browser, baseURL, 'chromium', check);
+    await run(browser, baseURL, 'chromium', check, options);
   });
 
   test(`${name} (WebKit)`, async ({ baseURL }) => {
@@ -541,7 +557,7 @@ for (const [name, check] of CHECKS) {
     test.setTimeout(240_000);
     const browser = await launchWebKit();
     try {
-      await run(browser, baseURL, 'webkit', check);
+      await run(browser, baseURL, 'webkit', check, options);
     } finally {
       await browser.close();
     }

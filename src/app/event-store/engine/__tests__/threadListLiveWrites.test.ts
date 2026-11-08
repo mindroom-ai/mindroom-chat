@@ -3,6 +3,7 @@ import {
   createClient,
   EventStatus,
   MatrixEvent,
+  RelationType,
   SyncState,
   ThreadEvent,
   type IEvent,
@@ -13,7 +14,7 @@ import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { _createAndReEmitRoom } from 'matrix-js-sdk/lib/sync';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSyncEngine } from '../syncEngine';
-import type { EngineWriteThrough } from '../engineWriteThrough';
+import { createEngineWriteThrough, type EngineWriteThrough } from '../engineWriteThrough';
 import type { EngineGapTracker } from '../engineGapTracker';
 import { loadRoomThreads } from '../../threads/roomThreadList';
 
@@ -34,6 +35,13 @@ const reply = (rootId: string, index: number, ts: number): IEvent =>
   message(`${rootId}-reply-${index}`, ts, {
     'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
   });
+const edit = (eventId: string, targetId: string, ts: number) =>
+  new MatrixEvent(
+    message(eventId, ts, {
+      'm.new_content': { msgtype: 'm.text', body: 'word1 word2' },
+      'm.relates_to': { rel_type: 'm.replace', event_id: targetId },
+    })
+  );
 /** A root as listed by /threads: its unsigned bundle is the server's thread summary. */
 const listedRoot = (index: number): IEvent => {
   const rootId = `$root-${String(index).padStart(3, '0')}`;
@@ -116,8 +124,10 @@ describe('engine live writes and the SDK thread lists', () => {
     vi.restoreAllMocks();
   });
 
-  const startEngine = (client: MatrixClient) => {
-    const writeThrough: EngineWriteThrough = { handleLiveEvent: vi.fn(), flush: vi.fn() };
+  const startEngine = (
+    client: MatrixClient,
+    writeThrough: EngineWriteThrough = { handleLiveEvent: vi.fn(), flush: vi.fn() }
+  ) => {
     const gapTracker = {
       handleTimelineReset: vi.fn(),
       handleSyncPrepared: vi.fn().mockResolvedValue(undefined),
@@ -191,13 +201,6 @@ describe('engine live writes and the SDK thread lists', () => {
     const { engine, writeThrough } = startEngine(client);
     const streamed = new MatrixEvent(reply('$root-001', 3, 1_000));
     await room.addLiveEvents([streamed], { addToState: false });
-    const edit = (eventId: string, targetId: string, ts: number) =>
-      new MatrixEvent(
-        message(eventId, ts, {
-          'm.new_content': { msgtype: 'm.text', body: 'word1 word2' },
-          'm.relates_to': { rel_type: 'm.replace', event_id: targetId },
-        })
-      );
     const unplaced = edit('$edit-reply', streamed.getId()!, 1_001);
     await room.addLiveEvents([unplaced], { addToState: false });
     client.emit(ClientEvent.Event, unplaced);
@@ -215,6 +218,38 @@ describe('engine live writes and the SDK thread lists', () => {
     expect(persisted.filter((id) => id === '$edit-reply')).toHaveLength(1);
     expect(persisted.filter((id) => id === '$edit-plain')).toHaveLength(1);
     engine.stop();
+  });
+
+  it("saves the newest edit of a summarized reply to its unfetched thread's cache once edits pause", async () => {
+    // A Compact card reads a reply from its thread's cache once a newer event (an agent's title
+    // notice) takes the reply's place in the thread's summary, so the reply's newest edit must be
+    // there. The summarized reply is in no timeline and its edits wait for the thread to open.
+    const { client, room } = roomWithListedThreads(3);
+    await loadRoomThreads(room);
+    await settle();
+    const persist = vi.fn();
+    const { engine } = startEngine(client, createEngineWriteThrough({ sessionId: 's', persist }));
+    const summarized = '$root-001-reply-2';
+    expect(room.getThread('$root-001')!.initialEventsFetched).toBe(false);
+    expect(room.findEventById(summarized)).toBeUndefined();
+    const deliver = async (event: MatrixEvent) => {
+      await room.addLiveEvents([event], { addToState: false });
+      client.emit(ClientEvent.Event, event);
+      await settle();
+    };
+    const savedEdits = () =>
+      persist.mock.calls.flatMap(([, events, , threadId]) =>
+        (events as MatrixEvent[])
+          .filter((event) => event.isRelation(RelationType.Replace))
+          .map((event) => [threadId, event.getId()])
+      );
+
+    await deliver(edit('$step', summarized, 1_000));
+    await deliver(edit('$final', summarized, 1_001));
+    await deliver(new MatrixEvent(reply('$root-001', 3, 1_002)));
+    expect(savedEdits()).toEqual([]);
+    engine.stop();
+    expect(savedEdits()).toEqual([['$root-001', '$final']]);
   });
 
   it('persists a redaction that the SDK keeps off every timeline because it does not hold the event', async () => {

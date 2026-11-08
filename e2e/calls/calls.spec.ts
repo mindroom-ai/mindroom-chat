@@ -286,15 +286,11 @@ test.describe('calls', () => {
       await expect(ring).toBeVisible({ timeout: 60_000 });
       await expect(ring).toContainText('Alice Call is calling');
       // Bob's window is in the background: the ring also rings and shows a system notification.
-      // It shows at once, before Bob's client loads the room's member list, so Alice's user ID
-      // follows her name there.
+      // It waits for Bob's client to load the room's member list, so Alice, a real member with a
+      // name nobody else uses, is named without her user ID.
       await expect.poll(async () => (await ringAlerts(bobPage)).notes).toBeGreaterThan(0);
       expect((await ringAlerts(bobPage)).notifications).toEqual([
-        {
-          title: 'Incoming Call',
-          body: `Alice Call (\u2066${alice.userId}\u2069) is calling`,
-          closed: false,
-        },
+        { title: 'Incoming Call', body: 'Alice Call is calling', closed: false },
       ]);
       await ring.getByRole('button', { name: 'Answer' }).click();
       await expect
