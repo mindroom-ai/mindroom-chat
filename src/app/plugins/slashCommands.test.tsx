@@ -50,7 +50,7 @@ describe('usePluginSlashCommands', () => {
     vi.restoreAllMocks();
   });
 
-  it('lists the commands of the plugins config.json leaves on, each run with the room and the text after its name', async () => {
+  it('lists the commands of the plugins config.json leaves on, each run with the room, the text after its name and the thread', async () => {
     const { usePluginSlashCommands } = await import('./slashCommands');
     const greet = command();
     const config = { plugins: { off: { enabled: false } } } as unknown as ClientConfig;
@@ -66,8 +66,9 @@ describe('usePluginSlashCommands', () => {
     );
     expect(result.current.map(({ name }) => name)).toEqual(['greet', 'wave']);
 
-    await result.current[0]?.run(room, 'hello  there');
-    expect(greet.run).toHaveBeenCalledWith({ room, args: 'hello  there' });
+    const input = { room, args: 'hello  there', threadId: '$root:example.org' };
+    await result.current[0]?.run(input);
+    expect(greet.run).toHaveBeenCalledWith(input);
   });
 
   it('refuses a name claimed more than once, by two plugins or by one, and warns about each once', async () => {
@@ -112,7 +113,7 @@ describe('usePluginSlashCommands', () => {
     const { result } = renderHook(() =>
       usePluginSlashCommands([plugin('demo', [throwing])], undefined)
     );
-    await expect(result.current[0]?.run(room, '')).rejects.toBe(failure);
+    await expect(result.current[0]?.run({ room, args: '' })).rejects.toBe(failure);
   });
 
   it("describes the commands in the app's language, also with strings that arrive later", async () => {

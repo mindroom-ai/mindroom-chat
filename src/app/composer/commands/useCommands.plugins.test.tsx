@@ -40,7 +40,22 @@ describe('useCommands with plugin commands', () => {
       expect.objectContaining({ name: 'greet', description: 'Plugin greet' }),
     ]);
     await result.current.greet?.run?.('hello there');
-    expect(greet.run).toHaveBeenCalledWith(room, 'hello there');
+    expect(greet.run).toHaveBeenCalledWith({ room, args: 'hello there', threadId: undefined });
+  });
+
+  it("runs a plugin's command in the composer's thread, which the built-in commands ignore", async () => {
+    const greet = pluginCommand('greet');
+    plugins.commands = [greet];
+    const { result } = renderHook(() => useCommands(room, '$root:example.org'));
+
+    await result.current.greet?.run?.('hello thread');
+    expect(greet.run).toHaveBeenCalledWith({
+      room,
+      args: 'hello thread',
+      threadId: '$root:example.org',
+    });
+    expect(result.current.greet?.inThread).toBe(true);
+    expect(result.current.invite?.inThread).toBeUndefined();
   });
 
   it("keeps a built-in command when a plugin's command has its name", () => {

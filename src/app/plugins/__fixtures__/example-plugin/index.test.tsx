@@ -214,7 +214,7 @@ describe('example plugin', () => {
     expect(view.getByText('Members: 3, without a MindRoom agent')).toBeTruthy();
   });
 
-  it('greets the room with the text typed after /greet, and asks for some without it', async () => {
+  it('greets the room or the thread with the text typed after /greet, and asks for some without it', async () => {
     const [greet] = plugin.slashCommands ?? [];
     if (!greet) throw new Error('the example plugin has no slash command');
     const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
@@ -222,10 +222,20 @@ describe('example plugin', () => {
     const room = new Room('!lobby:example.org', client, '@ada:example.org');
 
     await greet.run({ room, args: 'Hello there' });
-    expect(sent).toHaveBeenCalledWith('!lobby:example.org', 'Example greeting: Hello there');
+    expect(sent).toHaveBeenLastCalledWith(
+      '!lobby:example.org',
+      null,
+      'Example greeting: Hello there'
+    );
+    await greet.run({ room, args: 'Hello thread', threadId: '$root:example.org' });
+    expect(sent).toHaveBeenLastCalledWith(
+      '!lobby:example.org',
+      '$root:example.org',
+      'Example greeting: Hello thread'
+    );
     await expect(async () => greet.run({ room, args: '  ' })).rejects.toThrow(
       'Type a greeting after /greet.'
     );
-    expect(sent).toHaveBeenCalledTimes(1);
+    expect(sent).toHaveBeenCalledTimes(2);
   });
 });
