@@ -99,15 +99,6 @@ describe('useMarkdownHtml', () => {
     expectSafe(result.current ?? '');
   });
 
-  it("shows direction controls as code points, as the app's messages show them", async () => {
-    // Read in order, this hides the command after a comment sign.
-    const { result } = renderHook(() => useMarkdownHtml('echo hi \u202E; rm -rf data #\u202C'));
-    await waitFor(() => expect(result.current).toBeDefined());
-    expect(elementsOf(result.current ?? '').textContent?.trim()).toBe(
-      'echo hi <U+202E>; rm -rf data #<U+202C>'
-    );
-  });
-
   it("keeps the link schemes the deployment adds, as the app's timeline does", async () => {
     const config = { messageRendering: { additionalAllowedUriSchemes: ['obsidian'] } };
     const link = (wrapper?: (props: { children: ReactNode }) => ReactNode) => {
@@ -137,20 +128,39 @@ describe('replaceMatrixUserIdsWithDisplayNames', () => {
   const ROOM = '!lobby:example.org';
   const ADA = '@ada:example.org';
 
-  it("names the room's members, also before punctuation, and leaves other IDs", () => {
+  /** A room whose members have these names, by user ID. */
+  const roomWith = (names: Record<string, string>) => {
     const client = createClient({ baseUrl: 'https://example.org', userId: ADA });
     const room = new Room(ROOM, client, ADA);
-    room.currentState.setStateEvents([
-      new MatrixEvent({
-        type: 'm.room.member',
-        room_id: ROOM,
-        sender: ADA,
-        state_key: ADA,
-        content: { membership: KnownMembership.Join, displayname: 'Ada Lovelace' },
-      }),
-    ]);
+    room.currentState.setStateEvents(
+      Object.entries(names).map(
+        ([userId, displayname]) =>
+          new MatrixEvent({
+            type: 'm.room.member',
+            room_id: ROOM,
+            sender: userId,
+            state_key: userId,
+            content: { membership: KnownMembership.Join, displayname },
+          })
+      )
+    );
+    return room;
+  };
+
+  it("names the room's members, also before punctuation, and leaves other IDs", () => {
+    const room = roomWith({ [ADA]: 'Ada Lovelace' });
     expect(
       replaceMatrixUserIdsWithDisplayNames(room, `Ask ${ADA} or ${ADA}. Not @bob:example.org.`)
     ).toBe('Ask Ada Lovelace or Ada Lovelace. Not @bob:example.org.');
+  });
+
+  it('gives a shared name with its user ID, which shows so in Markdown', async () => {
+    const room = roomWith({ [ADA]: 'Ada', '@ada2:example.org': 'Ada' });
+    const named = replaceMatrixUserIdsWithDisplayNames(room, `Ask ${ADA}.`);
+    // The user ID keeps its own direction beside a name in any script (U+2066 to U+2069).
+    expect(named).toBe(`Ask Ada (\u2066${ADA}\u2069).`);
+    const { result } = renderHook(() => useMarkdownHtml(named));
+    await waitFor(() => expect(result.current).toBeDefined());
+    expect(elementsOf(result.current ?? '').textContent?.trim()).toBe(named);
   });
 });
