@@ -470,13 +470,10 @@
     },
     "deviceVerificationSetup": {
       "recoveryKey": "Chave de recuperação",
-      "passphraseOptional": "Frase-passe (opcional)",
       "continue": "Continuar",
       "authenticationStepsToPerformThisActionAreNotSupportedByClient": "Os passos de autenticação necessários para realizar esta ação não são suportados pelo cliente.",
-      "storeTheRecoveryKeyInASafePlaceForFutureUseAs": "Guarde a chave de recuperação num local seguro para utilização futura, pois precisará dela para verificar a sua identidade se não tiver acesso a outros dispositivos.",
       "copy": "Copiar",
       "download": "Transferir",
-      "setupDeviceVerification": "Configurar a verificação do dispositivo",
       "resetDeviceVerification": "Repor a verificação do dispositivo",
       "resettingDeviceVerificationIsPermanent": "A reposição da verificação do dispositivo é permanente.",
       "recoveryPassphrase": "Frase-passe de recuperação",
@@ -484,7 +481,6 @@
       "unexpectedError": "Erro inesperado!",
       "hide": "Ocultar",
       "show": "Mostrar",
-      "recoveryDescription": "Gere uma <b>chave de recuperação</b> para verificar a sua identidade se não tiver acesso a outros dispositivos. Configure também uma frase-passe como alternativa fácil de memorizar.",
       "resetWarning": "Todas as pessoas que verificou verão alertas de segurança e a sua cópia de segurança da encriptação será perdida. É quase certo que não pretende fazer isto, a menos que tenha perdido a <b>chave de recuperação</b> ou a <b>frase-passe de recuperação</b> e todos os dispositivos a partir dos quais pode fazer a verificação."
     },
     "hexColorPickerPopOut": {
@@ -500,14 +496,6 @@
       "cancel": "Cancelar",
       "logoutFailed": "Falha ao terminar sessão! {{error}}"
     },
-    "manualVerification": {
-      "recoveryPassphrase": "Frase-passe de recuperação",
-      "recoveryKey": "Chave de recuperação",
-      "verifyManually": "Verificar manualmente",
-      "deviceVerified": "Dispositivo verificado!",
-      "selectAVerificationMethod": "Selecione um método de verificação.",
-      "provideRecoveryKey": "Introduza a chave de recuperação."
-    },
     "pdfViewer": {
       "zoomOut": "Reduzir zoom",
       "zoomIn": "Ampliar zoom",
@@ -520,13 +508,6 @@
       "saving": "A guardar...",
       "retryDownload": "Tentar transferir novamente",
       "download": "Transferir"
-    },
-    "secretStorage": {
-      "recoveryPassphrase": "Frase-passe de recuperação",
-      "verify": "Verificar",
-      "recoveryKey": "Chave de recuperação",
-      "invalidRecoveryPassphrase": "Frase de recuperação inválida.",
-      "invalidRecoveryKey": "Chave de recuperação inválida."
     },
     "uIAFlowOverlay": {
       "exit": "Sair",
@@ -2080,12 +2061,9 @@
           "logoutSelectedDevices_many": "Terminar sessão nos dispositivos selecionados. ({{count}} selecionados)"
         },
         "verification": {
-          "currentDeviceHelpLess": "Inicie a verificação noutro dispositivo ou verifique manualmente. <toggle><strong>Ver menos</strong></toggle>",
-          "currentDeviceHelpMore": "Inicie a verificação noutro dispositivo ou verifique manualmente. <toggle><strong>Saber mais</strong></toggle>",
           "enable": "Ativar",
           "findDevice": "Encontre este dispositivo na secção <section>Dispositivos/Sessões</section>.",
           "initiateVerification": "Inicie a verificação.",
-          "manualVerificationHint": "Se não tiver nenhum dispositivo verificado, prima o botão <action>“Verificar manualmente”</action>.",
           "openSettings": "Abra as <settings>Definições</settings>.",
           "openVerifiedDevice": "Abra o outro dispositivo verificado.",
           "reset": "Repor",
@@ -2096,7 +2074,6 @@
           "verified": "Verificado",
           "verify": "Verificar",
           "verifyDeviceDescription": "Verifique a identidade do dispositivo e conceda acesso às mensagens encriptadas.",
-          "verifyManually": "Verificar manualmente",
           "unverifiedCount_many": "{{count}} não verificados"
         }
       },
@@ -2868,15 +2845,6 @@
       },
       "mindroomMarkRoomsReadMenuItem": {
         "markAsRead": "Marcar como lida"
-      }
-    },
-    "onboarding": {
-      "keyBackupNudge": {
-        "backUpYourEncryptedHistory": "Faça uma cópia de segurança do seu histórico encriptado",
-        "dismissBackupReminder": "Fechar lembrete de cópia de segurança",
-        "setUpSecureBackupSoYouCanStillReadYour": "Configure uma cópia de segurança segura para continuar a ler as conversas encriptadas com agentes depois de iniciar sessão num novo dispositivo.",
-        "setUpSecureKeyBackup": "Configurar cópia de segurança segura das chaves",
-        "setUpBackup": "Configurar cópia de segurança"
       }
     },
     "sidebar": {

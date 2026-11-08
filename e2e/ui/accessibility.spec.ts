@@ -159,12 +159,6 @@ const openRoom = async (page: Page) => {
  * language, so any other finding still fails.
  */
 const knownPortedFindings = (code: string) => [
-  // KeyBackupNudge: its "Set up backup" button reads as "Set up secure key backup".
-  new RegExp(
-    `^label-content-name-mismatch: <button [^>]*aria-label="${escapeRegExp(
-      label(code, 'mindroomUi.onboarding.keyBackupNudge.setUpSecureKeyBackup')
-    )}"`
-  ),
   // CompactThreadCard: a thread card's label summarizes the thread instead of repeating its text.
   // Matched by its attributes: production builds shorten the class names the dev server spells out,
   // and axe-core cuts a long element short, sometimes before the label (an Arabic label with a

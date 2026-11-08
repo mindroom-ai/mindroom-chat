@@ -479,13 +479,10 @@
     },
     "deviceVerificationSetup": {
       "recoveryKey": "مفتاح الاسترداد",
-      "passphraseOptional": "عبارة المرور (اختيارية)",
       "continue": "متابعة",
       "authenticationStepsToPerformThisActionAreNotSupportedByClient": "لا يدعم العميل خطوات المصادقة المطلوبة لتنفيذ هذا الإجراء.",
-      "storeTheRecoveryKeyInASafePlaceForFutureUseAs": "احفظ مفتاح الاسترداد في مكان آمن لاستخدامه مستقبلًا، إذ ستحتاج إليه للتحقق من هويتك إذا لم تتمكن من الوصول إلى أجهزتك الأخرى.",
       "copy": "نسخ",
       "download": "تنزيل",
-      "setupDeviceVerification": "إعداد التحقق من الجهاز",
       "resetDeviceVerification": "إعادة ضبط التحقق من الجهاز",
       "resettingDeviceVerificationIsPermanent": "لا يمكن التراجع عن إعادة ضبط التحقق من الجهاز.",
       "recoveryPassphrase": "عبارة مرور الاسترداد",
@@ -493,7 +490,6 @@
       "unexpectedError": "خطأ غير متوقع!",
       "hide": "إخفاء",
       "show": "إظهار",
-      "recoveryDescription": "أنشئ <b>مفتاح استرداد</b> للتحقق من هويتك إذا تعذر الوصول إلى أجهزتك الأخرى. ويمكنك أيضًا إعداد عبارة مرور سهلة التذكر كخيار بديل.",
       "resetWarning": "سيرى كل من تحققت معه تنبيهات أمان، وستفقد نسخة التشفير الاحتياطية. يكاد يكون مؤكدًا أنك لا تريد فعل ذلك إلا إذا فقدت <b>مفتاح الاسترداد</b> أو <b>عبارة مرور الاسترداد</b> وكل جهاز يمكنك التحقق منه."
     },
     "hexColorPickerPopOut": {
@@ -509,14 +505,6 @@
       "cancel": "إلغاء",
       "logoutFailed": "فشل تسجيل الخروج! ⁨{{error}}⁩"
     },
-    "manualVerification": {
-      "recoveryPassphrase": "عبارة مرور الاسترداد",
-      "recoveryKey": "مفتاح الاسترداد",
-      "verifyManually": "التحقق يدويًا",
-      "deviceVerified": "تم التحقق من الجهاز!",
-      "selectAVerificationMethod": "اختر طريقة للتحقق.",
-      "provideRecoveryKey": "أدخل مفتاح الاسترداد."
-    },
     "pdfViewer": {
       "zoomOut": "تصغير",
       "zoomIn": "تكبير",
@@ -529,13 +517,6 @@
       "saving": "جارٍ الحفظ...",
       "retryDownload": "إعادة محاولة التنزيل",
       "download": "تنزيل"
-    },
-    "secretStorage": {
-      "recoveryPassphrase": "عبارة مرور الاسترداد",
-      "verify": "تحقق",
-      "recoveryKey": "مفتاح الاسترداد",
-      "invalidRecoveryPassphrase": "عبارة مرور الاسترداد غير صالحة.",
-      "invalidRecoveryKey": "مفتاح الاسترداد غير صالح."
     },
     "uIAFlowOverlay": {
       "exit": "خروج",
@@ -2161,12 +2142,9 @@
           "logoutSelectedDevices_zero": "تسجيل الخروج من الأجهزة المحددة. (تم تحديد ⁨{{count}}⁩)"
         },
         "verification": {
-          "currentDeviceHelpLess": "ابدأ التحقق من جهاز آخر أو تحقّق يدويًا. <toggle><strong>عرض أقل</strong></toggle>",
-          "currentDeviceHelpMore": "ابدأ التحقق من جهاز آخر أو تحقّق يدويًا. <toggle><strong>معرفة المزيد</strong></toggle>",
           "enable": "تفعيل",
           "findDevice": "ابحث عن هذا الجهاز ضمن قسم <section>الأجهزة/الجلسات</section>.",
           "initiateVerification": "ابدأ التحقق.",
-          "manualVerificationHint": "إذا لم يكن لديك جهاز تم التحقق منه، فاضغط على زر <action>«التحقق يدويًا»</action>.",
           "openSettings": "افتح <settings>الإعدادات</settings>.",
           "openVerifiedDevice": "افتح جهازك الآخر الذي تم التحقق منه.",
           "reset": "إعادة ضبط",
@@ -2177,7 +2155,6 @@
           "verified": "تم التحقق منه",
           "verify": "تحقق",
           "verifyDeviceDescription": "تحقق من هوية الجهاز وامنحه حق الوصول إلى الرسائل المشفرة.",
-          "verifyManually": "التحقق يدويًا",
           "unverifiedCount_few": "⁨{{count}}⁩ لم يتم التحقق منه",
           "unverifiedCount_many": "⁨{{count}}⁩ لم يتم التحقق منه",
           "unverifiedCount_two": "⁨{{count}}⁩ لم يتم التحقق منه",
@@ -3042,15 +3019,6 @@
       },
       "mindroomMarkRoomsReadMenuItem": {
         "markAsRead": "تعليم كمقروء"
-      }
-    },
-    "onboarding": {
-      "keyBackupNudge": {
-        "backUpYourEncryptedHistory": "أنشئ نسخة احتياطية من سجلك المشفر",
-        "dismissBackupReminder": "إخفاء تذكير النسخ الاحتياطي",
-        "setUpSecureBackupSoYouCanStillReadYour": "أعدّ نسخة احتياطية آمنة لتتمكن من قراءة دردشات الوكلاء المشفرة بعد تسجيل الدخول على جهاز جديد.",
-        "setUpSecureKeyBackup": "إعداد نسخة مفاتيح احتياطية آمنة",
-        "setUpBackup": "إعداد النسخ الاحتياطي"
       }
     },
     "sidebar": {

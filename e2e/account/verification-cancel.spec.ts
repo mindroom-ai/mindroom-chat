@@ -2,6 +2,7 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { openSettingsFromAccountRail } from '../helpers/accounts';
 import { buildLoginPath } from '../env';
+import { setUpRecoveryPassword } from '../helpers/recovery';
 import { matrixFetch } from '../helpers/matrix';
 
 // An emoji verification between two sessions of one account that does not finish: one session
@@ -10,6 +11,7 @@ import { matrixFetch } from '../helpers/matrix';
 // machine's one minute of inactivity has passed. Against the slot's Tuwunel, with fresh accounts.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'verification-cancel-spec-password';
+const RECOVERY_PASSWORD = 'e2e recovery password 1';
 const CANCELLED = 'Verification has been canceled.';
 
 const homeserverIsUp = async (): Promise<boolean> => {
@@ -55,11 +57,7 @@ const startEmojiComparison = async (browser: Browser, name: string) => {
   const first = await signIn(browser, username);
   await openDevices(first);
   await first.getByRole('button', { name: 'Enable' }).click();
-  await first.getByRole('button', { name: 'Continue' }).click();
-  await expect(first.getByRole('dialog').locator('code')).toHaveText(/^E\w{3}( \w{4}){11}$/, {
-    timeout: 60_000,
-  });
-  await first.getByRole('button', { name: 'Okay' }).click();
+  await setUpRecoveryPassword(first, RECOVERY_PASSWORD);
   await expect(first.getByText('Verified', { exact: true })).toBeVisible({ timeout: 30_000 });
   await first.keyboard.press('Escape');
 
