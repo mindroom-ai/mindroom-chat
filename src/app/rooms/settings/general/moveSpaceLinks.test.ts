@@ -77,7 +77,7 @@ describe('moveSpaceLinks', () => {
   });
 
   // The new parent link names this account's server, the one surely in the new room.
-  it("lists the old room's children in the new room, and moves the sub-rooms' parent to it", async () => {
+  it("lists the old room's children in the new room, and moves sub-rooms' parent to it", async () => {
     const { client, sendStateEvent } = fakeClient({
       '!old': fakeRoom({
         'm.space.child': {

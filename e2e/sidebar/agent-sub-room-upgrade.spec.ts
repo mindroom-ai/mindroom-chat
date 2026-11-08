@@ -48,7 +48,10 @@ const invite = (stack: AgentStack, roomId: string, userId: string) =>
     body: JSON.stringify({ user_id: userId }),
   });
 
-/** A sub-room of `parentId` as New Sub-room makes it: listed there, naming it back, restricted to its members. */
+/**
+ * A sub-room of `parentId` as New Sub-room makes it: listed there, naming it back, and restricted
+ * to its members.
+ */
 const createSubRoom = async (stack: AgentStack, parentId: string, name: string) => {
   const via = [stack.tester.userId.split(':').slice(1).join(':')];
   const { room_id: subId } = await matrixFetch<{ room_id: string }>(
