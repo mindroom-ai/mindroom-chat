@@ -10,7 +10,9 @@ import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
+import { useLocation } from 'react-router-dom';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
+import { getViewedPlace } from '../navigation/viewedPlace';
 import { IconTooltip } from '../ui/IconTooltip';
 import { ExpandIcon } from '../ui/panels/panelIcons';
 import { useCallFailureNotice } from './agent/useCallFailureNotice';
@@ -37,7 +39,7 @@ import { CallMemberAvatar, useCallMemberProfile } from './CallTile';
 import { CallStage } from './CallStage';
 import { hasVideo } from './stageLayout';
 import { useCallWindowFrame } from './window/callWindowFrame';
-import { useCallWindowSettings } from './window/callWindowState';
+import { useCallWindowMode } from './window/callWindowState';
 import { DockIcon, FloatIcon } from './window/windowIcons';
 import * as css from './CallPanel.css';
 import { revealDirectionControls } from '../ui/directional';
@@ -97,11 +99,16 @@ type TitleButtonProps = {
   className?: string;
   /** The window's line sits low on the screen by default, so its names show above it. */
   above?: boolean;
+  /** A switch: whether it is on. */
+  pressed?: boolean;
+  /** Shown but not working; it keeps its focus and name, so its state is still read. */
+  held?: boolean;
 };
 
 /** A small icon button of the title bar or the window's line, named in a tooltip. */
 function TitleButton(props: TitleButtonProps) {
   const { label, icon, onClick, variant = 'Surface', directional, className, above } = props;
+  const { pressed, held } = props;
   return (
     <IconTooltip label={label} position={above ? 'Top' : 'Bottom'}>
       {(tipAnchor) => (
@@ -112,7 +119,9 @@ function TitleButton(props: TitleButtonProps) {
           radii="300"
           variant={variant}
           aria-label={label}
-          onClick={onClick}
+          aria-pressed={pressed}
+          aria-disabled={held || undefined}
+          onClick={held ? undefined : onClick}
         >
           <Icon size="200" src={icon} data-directional={directional || undefined} />
         </IconButton>
@@ -123,17 +132,22 @@ function TitleButton(props: TitleButtonProps) {
 
 /**
  * Dock, in the floating window: the call view moves into the side panel of the room it belongs to
- * (`home`), and the person goes there (to an agent call's thread) so the docked panel is seen.
+ * (`home`). A person elsewhere goes there (to an agent call's thread) so the docked panel is seen;
+ * one in that room (and thread) already stays where they are.
  */
 function DockButton({ home }: { home: CallOrigin }) {
   const { t } = useTranslation();
-  const [settings, setSettings] = useCallWindowSettings();
+  const [, setMode] = useCallWindowMode();
+  const mx = useMatrixClient();
+  const location = useLocation();
   const setPanelRoom = useSetAtom(callPanelRoomAtom);
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const dock = () => {
-    setSettings({ ...settings, mode: 'docked' });
+    setMode('docked');
     // The docked panel shows in the room whose call view is open.
     setPanelRoom(home.roomId);
+    const here = getViewedPlace(mx, location);
+    if (here.roomId === home.roomId && (!home.threadId || here.threadId === home.threadId)) return;
     if (home.threadId) navigateRoomThread(home.roomId, home.threadId);
     else navigateRoom(home.roomId);
   };
@@ -144,10 +158,11 @@ function DockButton({ home }: { home: CallOrigin }) {
 /** Float, in the docked panel: the call view goes back to the floating window, where it was. */
 function FloatButton() {
   const { t } = useTranslation();
-  const [settings, setSettings] = useCallWindowSettings();
-  const float = () => setSettings({ ...settings, mode: 'floating' });
+  const [, setMode] = useCallWindowMode();
   const label = t('featureUi.calls.window.float');
-  return <TitleButton label={label} icon={FloatIcon} directional onClick={float} />;
+  return (
+    <TitleButton label={label} icon={FloatIcon} directional onClick={() => setMode('floating')} />
+  );
 }
 
 /**
@@ -384,8 +399,10 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
           microphone: true,
         }
       : undefined;
-  // The person's pick; a shared screen or tiles too small for the grid show speaker view anyway.
+  // The person's pick; a shared screen or tiles too small for the grid show speaker view anyway,
+  // and the stage says when, so the switch shows it on and holds it there.
   const [speakerView, setSpeakerView] = useState(false);
+  const [speakerForced, setSpeakerForced] = useState(false);
   const video = !finished && hasVideo(state.participants);
 
   const microphoneLabel = state.microphone
@@ -457,12 +474,10 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
       {video && (
         <TitleButton
           className={css.SpeakerSwitch}
-          label={
-            speakerView
-              ? t('featureUi.calls.window.gridView')
-              : t('featureUi.calls.window.speakerView')
-          }
-          icon={speakerView ? Icons.Category : Icons.User}
+          label={t('featureUi.calls.window.speakerView')}
+          icon={Icons.User}
+          pressed={speakerView || speakerForced}
+          held={speakerForced}
           onClick={() => setSpeakerView((picked) => !picked)}
         />
       )}
@@ -555,6 +570,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
           awaited={awaitedAgent}
           speakerView={speakerView}
           microphone={state.microphone}
+          onForcedChange={setSpeakerForced}
         />
       )}
     </PanelShell>

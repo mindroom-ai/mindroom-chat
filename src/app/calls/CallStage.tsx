@@ -181,6 +181,8 @@ type CallStageProps = {
   speakerView: boolean;
   /** This device's microphone is on. */
   microphone: boolean;
+  /** Hears whether a shared screen or tiles too small for the grid show speaker view anyway. */
+  onForcedChange?: (forced: boolean) => void;
 };
 
 /**
@@ -189,17 +191,20 @@ type CallStageProps = {
  * inset. While nobody does: the voice stage.
  */
 export function CallStage(props: CallStageProps) {
-  const { room, participants, awaited, speakerView, microphone } = props;
+  const { room, participants, awaited, speakerView, microphone, onForcedChange } = props;
   const { t } = useTranslation();
   const [stageRef, size] = useStageSize();
   const people = awaited ? [...participants, awaited] : participants;
   const video = hasVideo(people);
   const fit = size && fitTiles(people.length, size.width, size.height, TILE_GAP);
-  const speaker =
+  const forced =
     video &&
-    (speakerView ||
-      people.some((participant) => participant.screen) ||
+    (people.some((participant) => participant.screen) ||
       (!!fit && fit.size < SPEAKER_VIEW_MIN_TILE));
+  const speaker = video && (speakerView || forced);
+  useEffect(() => {
+    onForcedChange?.(forced);
+  }, [forced, onForcedChange]);
 
   // The remote in focus stays there while nobody talks, rather than jumping back to the first.
   const lastFocus = useRef<string>();

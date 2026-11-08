@@ -5,7 +5,7 @@ import type { Room } from 'matrix-js-sdk';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
-import { callPanelRoomAtom } from '../callStore';
+import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from '../callStore';
 import {
   callWindowStorageKey,
   clearCallWindowStore,
@@ -18,11 +18,22 @@ const USER = '@me:host.test';
 const LOBBY = '!lobby:host.test';
 const DESK = '!desk:host.test';
 
-const rooms = vi.hoisted(() => new Map<string, unknown>());
+const { rooms, listeners, panelRenders } = vi.hoisted(() => ({
+  rooms: new Map<string, unknown>(),
+  // What the client tells its listeners: a room it forgot, a membership of the person's own.
+  listeners: new Map<string, Set<(...args: unknown[]) => void>>(),
+  panelRenders: { count: 0 },
+}));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     getSafeUserId: () => '@me:host.test',
     getRoom: (roomId: string) => rooms.get(roomId) ?? null,
+    on: (name: string, listener: (...args: unknown[]) => void) => {
+      listeners.set(name, (listeners.get(name) ?? new Set()).add(listener));
+    },
+    off: (name: string, listener: (...args: unknown[]) => void) => {
+      listeners.get(name)?.delete(listener);
+    },
   }),
 }));
 vi.mock('../../matrix/hooks/usePowerLevels', () => ({
@@ -34,8 +45,15 @@ vi.mock('../../matrix/hooks/useRoomMeta', () => ({
 }));
 // The call view itself; the host only places it.
 vi.mock('../CallPanel', () => ({
-  CallPanel: ({ room }: { room: Room }) => <p data-testid="call-panel">{room.roomId}</p>,
+  CallPanel: ({ room }: { room: Room }) => {
+    panelRenders.count += 1;
+    return <p data-testid="call-panel">{room.roomId}</p>;
+  },
 }));
+
+/** The client tells its listeners `name`, as sync does. */
+const emit = (name: string, ...args: unknown[]) =>
+  act(() => listeners.get(name)?.forEach((listener) => listener(...args)));
 
 const fakeRoom = (roomId: string, name: string) => ({ roomId, name } as unknown as Room);
 
@@ -80,6 +98,8 @@ afterEach(() => {
   cleanup();
   clearCallWindowStore(USER);
   rooms.clear();
+  listeners.clear();
+  panelRenders.count = 0;
 });
 
 describe('CallWindowHost', () => {
@@ -182,5 +202,77 @@ describe('CallWindowHost', () => {
     renderHost(phone, 'Mobile');
     act(() => phone.set(callPanelRoomAtom, LOBBY));
     expect(stored().rect).toEqual(bar);
+  });
+
+  it('goes when its room is forgotten or left, and stays for other rooms', () => {
+    const store = createStore();
+    store.set(callPanelRoomAtom, LOBBY);
+    renderHost(store);
+
+    emit('deleteRoom', DESK);
+    emit('Room.myMembership', rooms.get(DESK), 'leave', 'join');
+    emit('Room.myMembership', rooms.get(LOBBY), 'join', 'invite');
+    expect(store.get(callPanelRoomAtom)).toBe(LOBBY);
+    expect(callWindow()).not.toBeNull();
+
+    emit('deleteRoom', LOBBY);
+    expect(store.get(callPanelRoomAtom)).toBeUndefined();
+    expect(callWindow()).toBeNull();
+
+    act(() => store.set(callPanelRoomAtom, DESK));
+    expect(callWindow()).not.toBeNull();
+    emit('Room.myMembership', rooms.get(DESK), 'leave', 'join');
+    expect(store.get(callPanelRoomAtom)).toBeUndefined();
+    expect(callWindow()).toBeNull();
+
+    act(() => store.set(callPanelRoomAtom, LOBBY));
+    emit('Room.myMembership', rooms.get(LOBBY), 'ban', 'join');
+    expect(store.get(callPanelRoomAtom)).toBeUndefined();
+  });
+
+  const callIn = (roomId: string) =>
+    ({ call: { room: { roomId } }, kind: 'room' } as unknown as ActiveCall);
+
+  it('expands a stored bar when a call starts in the room it shows, and only there', () => {
+    const store = createStore();
+    settle(store, { mode: 'floating', rect: bar, expandedHeight: 300 });
+    store.set(callPanelRoomAtom, LOBBY);
+    renderHost(store);
+    // Left from the bar, the room's call view stays open on the call to join, as the bar.
+    settle(store, { mode: 'floating', rect: bar, expandedHeight: 300 });
+    expect(callWindow()?.hasAttribute('data-bar')).toBe(true);
+
+    act(() => store.set(activeCallAtom, callIn(DESK)));
+    expect(stored().rect).toEqual(bar);
+
+    act(() => store.set(activeCallAtom, undefined));
+    act(() => store.set(activeCallAtom, callIn(LOBBY)));
+    expect(stored().rect).toEqual(expanded);
+    expect(callWindow()?.hasAttribute('data-bar')).toBe(false);
+  });
+
+  it('expands for an agent call started from the room it shows', () => {
+    const store = createStore();
+    settle(store, { mode: 'floating', rect: bar, expandedHeight: 300 });
+    store.set(callPanelRoomAtom, LOBBY);
+    renderHost(store);
+    settle(store, { mode: 'floating', rect: bar, expandedHeight: 300 });
+
+    const agentCall = { ...callIn('!agent:host.test'), kind: 'agent', origin: { roomId: LOBBY } };
+    act(() => store.set(activeCallAtom, agentCall as ActiveCall));
+    expect(stored().rect).toEqual(expanded);
+  });
+
+  it('leaves the call view alone when the window only moves or resizes', async () => {
+    const store = createStore();
+    store.set(callPanelRoomAtom, LOBBY);
+    renderHost(store);
+    await screen.findByTestId('call-panel');
+    const before = panelRenders.count;
+
+    settle(store, { mode: 'floating', rect: { x: 100, y: 100, width: 500, height: 400 } });
+    settle(store, { mode: 'floating', rect: { x: 116, y: 100, width: 500, height: 400 } });
+    expect(callWindow()?.style.left).toBe('116px');
+    expect(panelRenders.count).toBe(before);
   });
 });

@@ -425,7 +425,6 @@
         "dock": "Dock to the side",
         "float": "Float",
         "speakerView": "Speaker view",
-        "gridView": "Grid view",
         "openConversation": "Go to the conversation"
       }
     },

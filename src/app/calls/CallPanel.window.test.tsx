@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import type { ActiveCall } from './callStore';
@@ -126,18 +127,28 @@ const frame = (bar = false): CallWindowFrame => ({
   },
 });
 
-type Place = { frame?: CallWindowFrame; size?: ScreenSize; panelRoom?: Room };
+/** The route the person is on: Home unless a test opens a room (and a thread). */
+type Place = { frame?: CallWindowFrame; size?: ScreenSize; panelRoom?: Room; route?: string };
 let store = createStore();
 const onClose = vi.fn();
-const panel = ({ frame: inFrame, size = 'Desktop', panelRoom = room }: Place = {}) => (
-  <Provider store={store}>
-    <ScreenSizeProvider value={size}>
-      <CallWindowFrameContext.Provider value={inFrame}>
-        <CallPanel room={panelRoom} onClose={onClose} />
-      </CallWindowFrameContext.Provider>
-    </ScreenSizeProvider>
-  </Provider>
-);
+const panel = (place: Place = {}) => {
+  const { frame: inFrame, size = 'Desktop', panelRoom = room, route = '/home/' } = place;
+  return (
+    <Provider store={store}>
+      <ScreenSizeProvider value={size}>
+        <MemoryRouter initialEntries={[route]}>
+          <CallWindowFrameContext.Provider value={inFrame}>
+            <CallPanel room={panelRoom} onClose={onClose} />
+          </CallWindowFrameContext.Provider>
+        </MemoryRouter>
+      </ScreenSizeProvider>
+    </Provider>
+  );
+};
+const roomRoute = (roomId: string, threadId?: string) =>
+  `/home/${encodeURIComponent(roomId)}/${
+    threadId ? `?threadId=${encodeURIComponent(threadId)}` : ''
+  }`;
 const renderPanel = (place: Place = {}) => render(panel(place));
 
 const button = (name: string) => screen.queryByRole('button', { name });
@@ -187,20 +198,42 @@ describe('the call view title bar', () => {
     roomCall([me, person('@ana:panel.test')]);
     renderPanel({ frame: frame() });
     expect(button('Speaker view')).toBeNull();
-    expect(button('Grid view')).toBeNull();
     cleanup();
 
     roomCall([me, person('@ana:panel.test', { video: camera })]);
     renderPanel({ frame: frame() });
     const stage = () => document.querySelector('[data-call-stage]');
+    const speakerSwitch = () => screen.getByRole('button', { name: 'Speaker view' });
     expect(stage()?.getAttribute('data-call-stage')).toBe('video');
     expect(stage()?.hasAttribute('data-speaker-view')).toBe(false);
+    expect(speakerSwitch().getAttribute('aria-pressed')).toBe('false');
 
     press('Speaker view');
     expect(stage()?.hasAttribute('data-speaker-view')).toBe(true);
-    press('Grid view');
+    expect(speakerSwitch().getAttribute('aria-pressed')).toBe('true');
+    press('Speaker view');
     expect(stage()?.hasAttribute('data-speaker-view')).toBe(false);
-    expect(button('Speaker view')).not.toBeNull();
+    expect(speakerSwitch().getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('holds the speaker switch on, still named, while a shared screen keeps speaker view', () => {
+    roomCall([me, person('@ana:panel.test', { video: camera, screen: camera })]);
+    const inFrame = frame();
+    const { rerender } = renderPanel({ frame: inFrame });
+    const speakerSwitch = () => screen.getByRole('button', { name: 'Speaker view' });
+    const speakerView = () =>
+      document.querySelector('[data-call-stage]')?.hasAttribute('data-speaker-view');
+    expect(speakerView()).toBe(true);
+    expect(speakerSwitch().getAttribute('aria-pressed')).toBe('true');
+    expect(speakerSwitch().getAttribute('aria-disabled')).toBe('true');
+
+    // Held on, a press picks nothing: when the share ends, the grid comes back.
+    press('Speaker view');
+    roomCall([me, person('@ana:panel.test', { video: camera })]);
+    rerender(panel({ frame: inFrame }));
+    expect(speakerView()).toBe(false);
+    expect(speakerSwitch().getAttribute('aria-pressed')).toBe('false');
+    expect(speakerSwitch().hasAttribute('aria-disabled')).toBe(false);
   });
 
   it('docks from the window and takes the person to the call room', () => {
@@ -232,6 +265,26 @@ describe('the call view title bar', () => {
     press('Dock to the side');
     expect(settings().mode).toBe('docked');
     expect(navigation.navigateRoom).toHaveBeenCalledWith(room.roomId);
+  });
+
+  it('docks without moving the person who is in the room (and thread) already', () => {
+    roomCall([me, person('@ana:panel.test')]);
+    renderPanel({ frame: frame(), route: roomRoute(room.roomId, '$other') });
+    press('Dock to the side');
+    expect(settings().mode).toBe('docked');
+    expect(navigation.navigateRoom).not.toHaveBeenCalled();
+    cleanup();
+
+    agentCall({ roomId: room.roomId, threadId: '$plan' });
+    renderPanel({ frame: frame(), route: roomRoute(room.roomId, '$plan') });
+    press('Dock to the side');
+    expect(navigation.navigateRoomThread).not.toHaveBeenCalled();
+    cleanup();
+
+    // In the room but not in the agent call's thread, Dock opens that thread.
+    renderPanel({ frame: frame(), route: roomRoute(room.roomId) });
+    press('Dock to the side');
+    expect(navigation.navigateRoomThread).toHaveBeenCalledWith(room.roomId, '$plan');
   });
 
   it('floats again from the docked panel on desktop, without moving the person', () => {
@@ -311,7 +364,6 @@ describe('the minimized bar', () => {
     expect(document.activeElement).toBe(handle());
     expect(handle().tagName).toBe('HEADER');
   });
-
 
   it('shows three of the others, the speaking one marked, the title, the status, the microphone and leave', () => {
     roomCall([

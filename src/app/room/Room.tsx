@@ -51,7 +51,7 @@ import { useInitializeOpenThread } from '../threads/useInitializeOpenThread';
 import { RoomMessageAnnouncer } from '../timeline/RoomMessageAnnouncer';
 import { useCallPanel, useInCall } from '../calls/callStore';
 import { CallPanelPart } from '../calls/CallPanelPart';
-import { useCallWindowSettings } from '../calls/window/callWindowState';
+import { useCallWindowMode } from '../calls/window/callWindowState';
 import { lazyPart } from '../lib/lazyPart';
 import { PluginSidePanel } from './PluginSidePanel';
 
@@ -219,8 +219,9 @@ function RoomContent() {
   // A canvas does not open while this device is in a call (PANEL-09).
   const [callOpen, setCallOpen] = useCallPanel(roomId);
   const inCall = useInCall();
-  // On desktop the call view floats over every page unless the person docked it here.
-  const [{ mode: callMode }] = useCallWindowSettings();
+  // On desktop the call view floats over every page unless the person docked it here. The mode
+  // alone: the room does not render again when the floating window moves.
+  const [callMode] = useCallWindowMode();
   const callInSidePanel = mobile || callMode === 'docked';
 
   const pluginPanels = useMemo(

@@ -237,4 +237,29 @@ describe('CallStage with video', () => {
     expect(stageOf(container).hasAttribute('data-speaker-view')).toBe(true);
     expect(container.querySelectorAll('[data-call-tile]')).toHaveLength(4);
   });
+
+  it('tells whether a screen or small tiles force speaker view, whatever the pick', () => {
+    const onForcedChange = vi.fn();
+    const camera = { ...mind, video: track() };
+    const { rerender } = showStage({ participants: [me, camera], onForcedChange });
+    expect(onForcedChange).toHaveBeenLastCalledWith(false);
+
+    rerender(
+      <CallStage
+        room={room}
+        speakerView={false}
+        microphone
+        participants={[me, { ...camera, screen: track() }]}
+        onForcedChange={onForcedChange}
+      />
+    );
+    expect(onForcedChange).toHaveBeenLastCalledWith(true);
+    cleanup();
+
+    stageSize.width = 300;
+    stageSize.height = 120;
+    const small = vi.fn();
+    showStage({ participants: [me, camera, ada, tom], speakerView: true, onForcedChange: small });
+    expect(small).toHaveBeenLastCalledWith(true);
+  });
 });

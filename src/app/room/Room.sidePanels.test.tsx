@@ -42,6 +42,7 @@ const { mx, room, state } = vi.hoisted(() => {
       servers: [] as AgentServer[],
       bindsOpenIdTokens: false,
       view: undefined as RoomViewProps | undefined,
+      viewRenders: 0,
       computer: undefined as { expanded?: boolean; onToggleExpanded?: () => void } | undefined,
       canvas: undefined as { expanded?: boolean; onToggleExpanded?: () => void } | undefined,
       roomId: '!room:example.org',
@@ -72,6 +73,7 @@ vi.mock('react-router-dom', () => ({
 vi.mock('./RoomView', () => ({
   RoomView: (props: RoomViewProps) => {
     state.view = props;
+    state.viewRenders += 1;
     return <div data-testid="room-view" />;
   },
 }));
@@ -321,6 +323,18 @@ describe('the side panels of a room', () => {
 
     await renderRoom(ScreenSize.Mobile);
     expect(shown()).toEqual(['call']);
+  });
+
+  it('renders again when the call docks or floats, not when the floating window moves', async () => {
+    await setCallMode('floating');
+    await renderRoom();
+    await open('call');
+    const before = state.viewRenders;
+    const rect = { x: 100, y: 100, width: 400, height: 480 };
+    await act(async () => store.set(getCallWindowSettingsAtom(ALICE), { mode: 'floating', rect }));
+    expect(state.viewRenders).toBe(before);
+    await setCallMode('docked');
+    expect(state.viewRenders).toBeGreaterThan(before);
   });
 
   it('keeps the members beside the conversation while the call floats', async () => {

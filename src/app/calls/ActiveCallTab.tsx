@@ -6,8 +6,7 @@ import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useRoomName } from '../matrix/hooks/useRoomMeta';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { callHomeRoomId, callPanelRoomAtom, useCallState, type ActiveCall } from './callStore';
-import { isBar } from './window/callWindowGeometry';
-import { expandedSettings, useCallWindowSettings } from './window/callWindowState';
+import { useCallWindowMode, useExpandCallWindow } from './window/callWindowState';
 import * as css from './CallTab.css';
 import { revealDirectionControls } from '../ui/directional';
 
@@ -21,7 +20,8 @@ export function ActiveCallTab({ active }: { active: ActiveCall }) {
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const setPanelRoom = useSetAtom(callPanelRoomAtom);
   const desktop = useScreenSizeContext() !== ScreenSize.Mobile;
-  const [windowSettings, setWindowSettings] = useCallWindowSettings();
+  const [windowMode] = useCallWindowMode();
+  const expandWindow = useExpandCallWindow();
   const state = useCallState(active.call);
   const homeRoomId = callHomeRoomId(active);
   const name = revealDirectionControls(useRoomName(active.call.room));
@@ -30,10 +30,8 @@ export function ActiveCallTab({ active }: { active: ActiveCall }) {
 
   const open = () => {
     setPanelRoom(homeRoomId);
-    if (desktop && windowSettings.mode === 'floating') {
-      const { rect } = windowSettings;
-      const viewport = { width: window.innerWidth, height: window.innerHeight };
-      if (rect && isBar(rect)) setWindowSettings(expandedSettings(windowSettings, rect, viewport));
+    if (desktop && windowMode === 'floating') {
+      expandWindow();
       return;
     }
     const threadId = active.origin?.threadId;

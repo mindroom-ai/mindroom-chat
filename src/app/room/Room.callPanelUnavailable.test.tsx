@@ -18,7 +18,7 @@ vi.mock('../calls/CallPanel', () => {
 });
 
 const { mx, room } = vi.hoisted(() => {
-  const listeners = { on: () => undefined, removeListener: () => undefined };
+  const listeners = { on: () => undefined, off: () => undefined, removeListener: () => undefined };
   const room = { roomId: '!room:example.org', name: 'Standup', ...listeners };
   return {
     mx: {
