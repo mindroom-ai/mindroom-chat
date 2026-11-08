@@ -150,6 +150,21 @@ describe('the call controls for transcripts', () => {
     expect(store.get(transcriptPanelAtom)).toBeUndefined();
   });
 
+  it("keep the window's Transcript switch, without Pause, while transcripts are unavailable", () => {
+    const store = inOwnCall();
+    render('transcribing', store);
+    act(() => transcript()?.click());
+
+    // MindRoom went away: the window still shows what it read, and the switch still hides it.
+    act(() => store.set(callTranscriptionAtom, { roomId: ROOM_ID, status: 'unavailable' }));
+    expect(labels()).toEqual(['Live transcript']);
+    expect(transcript()?.getAttribute('aria-pressed')).toBe('true');
+    act(() => transcript()?.click());
+    expect(store.get(settings()).transcript).toBe(false);
+    expect(transcript()?.getAttribute('aria-pressed')).toBe('false');
+    expect(status()).toBe('Transcripts are unavailable');
+  });
+
   it.each([
     ['docked', ScreenSize.Desktop],
     ['floating', ScreenSize.Mobile],

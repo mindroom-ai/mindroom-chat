@@ -19,16 +19,18 @@ const useRoomTranscription = (room: Room) => {
 /**
  * Pause and Transcript in the call's controls, while MindRoom transcribes the call. In the
  * floating window Transcript is a switch that shows the transcript inside it; elsewhere it opens
- * the room's side panel.
+ * the room's side panel. While MindRoom cannot be reached the window keeps showing what it read,
+ * so its switch stays to hide it; there is nothing to pause then.
  */
 export function TranscriptionControls({ room }: { room: Room }) {
   const { t } = useTranslation();
   const transcript = useCallTranscript(room.roomId);
   const status = useRoomTranscription(room);
-  if (status !== 'transcribing') return null;
+  const transcribing = status === 'transcribing';
+  if (!transcribing && !(status === 'unavailable' && transcript.inWindow)) return null;
   return (
     <>
-      <PauseControl room={room} />
+      {transcribing && <PauseControl room={room} />}
       <CallControl
         label={t('featureUi.calls.transcription.liveTranscript')}
         icon={Icons.Message}
