@@ -36,7 +36,7 @@ const TARGET = 'The warehouse crew moves the pallets to dock four before the ins
 const ENTRIES: Array<[string, (page: Page) => Locator]> = [
   ['View Reactions', (page) => page.getByText(/^Reacted with /)],
   ['Read Receipts', (page) => page.getByText('Seen by', { exact: true })],
-  ['View Source', (page) => page.getByRole('dialog').getByText(/"origin_server_ts"/)],
+  ['View Source', (page) => page.getByText(/"event_id": "\$/)],
   [
     'Report Message',
     (page) =>
