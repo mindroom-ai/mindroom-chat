@@ -2,6 +2,7 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import { ReceiptType } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { ReadReceipt } from 'matrix-js-sdk/lib/models/read-receipt';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
+import { unthreadedReceiptReadTs } from '../../matrix/receiptReadTs';
 
 /**
  * The loaded reply that the reader's thread receipt reads through an edit of it. A streamed reply
@@ -25,14 +26,16 @@ const replyEditedByReceipt = (thread: Thread, userId: string): string | null => 
 };
 
 /**
- * `Thread.getEventReadUpTo` without the SDK's rule for accounts from before thread receipts. For
- * the signed-in user, that rule reads a thread up to its last event whenever the event is older
- * than their oldest thread receipt in the room, so with no thread receipt there yet every thread
- * counts as read, and the first one read makes every thread with older activity read too. The
- * server keeps counting those replies. Where the rule would decide, this answers what the SDK
- * (41.7) answers past it: the thread's own receipt, from `ReadReceipt`, unless the walk back from
- * the newest event first reaches one older than a newer unthreaded receipt. When the receipt names
- * no loaded event, a receipt on an edit of a loaded reply reads that reply (`replyEditedByReceipt`).
+ * `Thread.getEventReadUpTo` without two of the SDK's rules. For the signed-in user, the first reads
+ * a thread up to its last event whenever the event is older than their oldest thread receipt in
+ * the room, so with no thread receipt there yet every thread counts as read, and the first one
+ * read makes every thread with older activity read too. The second reads the thread up to when the
+ * server took the user's newer unthreaded receipt; the server reads it only up to the event it
+ * names (`unthreadedReceiptReadTs`). The server keeps counting the replies both rules read. Where
+ * either would decide, this answers the thread's own receipt, from `ReadReceipt`, unless the walk
+ * back from the newest event first reaches one the unthreaded receipt reads. When the receipt
+ * names no loaded event, a receipt on an edit of a loaded reply reads that reply
+ * (`replyEditedByReceipt`).
  */
 export const getThreadEventReadUpTo = (thread: Thread, userId: string): string | null =>
   getReceiptEventReadUpTo(thread, userId) ?? replyEditedByReceipt(thread, userId);
@@ -46,13 +49,13 @@ const getReceiptEventReadUpTo = (thread: Thread, userId: string): string | null 
     oldestThreadReceiptTs !== undefined &&
     lastEvent.getTs() < oldestThreadReceiptTs &&
     userId === thread.client?.getUserId?.();
-  if (!readByLegacyRule) return thread.getEventReadUpTo(userId);
+  const unthreadedTs = unthreadedReceiptReadTs(thread.room, userId, thread);
+  if (!readByLegacyRule && unthreadedTs === undefined) return thread.getEventReadUpTo(userId);
 
   const receiptEventId = ReadReceipt.prototype.getEventReadUpTo.call(thread, userId);
-  const unthreadedTs = thread.room.getLastUnthreadedReceiptFor(userId)?.ts;
   if (unthreadedTs === undefined) return receiptEventId;
   const reached = thread.events.findLast(
-    (event) => event.getId() === receiptEventId || event.getTs() < unthreadedTs
+    (event) => event.getId() === receiptEventId || event.getTs() <= unthreadedTs
   );
   return reached?.getId() ?? receiptEventId;
 };

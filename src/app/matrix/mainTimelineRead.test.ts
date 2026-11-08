@@ -1,13 +1,16 @@
 import {
+  createClient,
   MatrixEvent,
   ReceiptType,
   RelationType,
+  Room,
+  RoomEvent,
   type MatrixClient,
-  type Room,
 } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import { roomHaveUnread } from './room';
 import { isMainTimelineMessageUnread } from './mainTimelineRead';
+import { keepUnthreadedReceiptEvents } from './receiptReadTs';
 
 // The room list's dot and the unread thread filter answer one question for a message in the main
 // timeline, usually a thread root: has the reader seen it?
@@ -121,5 +124,39 @@ describe('main timeline read state', () => {
     const room = makeRoom({ main: [], receipt: { eventId: '$gone', ts: 2000 } });
 
     expect(isMainTimelineMessageUnread(room, root, ME)).toBe(true);
+  });
+
+  it('leaves the messages after the event an older receipt names unread', () => {
+    // Tuwunel v1.9.4-mindroom.31 on: a receipt reads up to the event it names, not to when the
+    // server took it.
+    const mx = createClient({ baseUrl: 'https://example.org', userId: ME });
+    keepUnthreadedReceiptEvents(mx);
+    const room = new Room('!room:example.org', mx, ME);
+    mx.reEmitter.reEmit(room, [RoomEvent.Receipt]);
+    const [first, second, third] = [1, 2, 3].map((n) => message(`$m${n}`, n * 1000, AGENT));
+    [first, second, third].forEach((event) =>
+      room.getUnfilteredTimelineSet().addLiveEvent(event, { addToState: false })
+    );
+    const read = (eventId: string, ts: number, threadId?: string) =>
+      room.addReceipt(
+        new MatrixEvent({
+          type: 'm.receipt',
+          room_id: room.roomId,
+          content: {
+            [eventId]: {
+              [ReceiptType.Read]: { [ME]: { ts, ...(threadId && { thread_id: threadId }) } },
+            },
+          },
+        })
+      );
+
+    // Another device read up to the first message after the others arrived.
+    read('$m1', 5000);
+    expect(roomHaveUnread(mx, room)).toBe(true);
+    expect(isMainTimelineMessageUnread(room, second, ME)).toBe(true);
+
+    read('$m2', 6000, 'main');
+    expect(isMainTimelineMessageUnread(room, second, ME)).toBe(false);
+    expect(isMainTimelineMessageUnread(room, third, ME)).toBe(true);
   });
 });
