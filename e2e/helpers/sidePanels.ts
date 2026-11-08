@@ -93,6 +93,13 @@ export const openPanelRoom = async (context: BrowserContext, page: Page): Promis
     });
   });
   await loginWithPassword(page, { homeserver: HOMESERVER, ...room.viewer });
+  // The viewer docked the call view into the room's side column, where it is one of the side
+  // panels; on desktop it otherwise floats in its own window (e2e/calls/call-window.spec.ts). The
+  // room's page load below reads the setting.
+  await page.evaluate(
+    (key) => localStorage.setItem(key, JSON.stringify({ mode: 'docked' })),
+    `mindroom.callWindow:${room.viewer.userId}`
+  );
   const liveSync = page.waitForRequest((request) => {
     const url = new URL(request.url());
     return url.pathname.endsWith('/sync') && url.searchParams.get('timeout') === '30000';
