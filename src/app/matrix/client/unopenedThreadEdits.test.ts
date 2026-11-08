@@ -25,6 +25,7 @@ import { defined } from '../../../test/utils/defined';
 const roomId = '!room:example.org';
 const agentId = '@agent:example.org';
 const otherId = '@other:example.org';
+const guestId = '@guest:elsewhere.org';
 const rootId = '$root';
 
 const message = (
@@ -168,7 +169,7 @@ const fixture = (serverThread: () => IEvent[]) => {
       rooms: {
         join: {
           [roomId]: {
-            state: { events: [membership(agentId), membership(otherId)] },
+            state: { events: [membership(agentId), membership(otherId), membership(guestId)] },
             timeline: { events, prev_batch: 'before', limited: false },
             ephemeral: { events: [] },
             account_data: { events: [] },
@@ -363,8 +364,8 @@ describe('edits of unopened threads', () => {
     const f = await streamingThread();
     await f.deliver([edit('The build passed.', 150)]);
 
-    // Only the reply's sender or a moderator may redact the edit.
-    await f.deliver([{ ...redaction('$edit-150', 160), sender: otherId }]);
+    // Only the reply's sender, its server or a moderator may redact the edit.
+    await f.deliver([{ ...redaction('$edit-150', 160), sender: guestId }]);
 
     expect(f.card().preview).toBe('The build passed.');
     expect(f.thread().replayEvents?.map((event) => event.getId())).toContain('$edit-150');

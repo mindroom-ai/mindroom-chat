@@ -650,7 +650,7 @@ describe('an edit redacted from a bundle, after a reload', () => {
 // in the saved timeline, not against the state after it.
 describe('a redacted message, after a reload', () => {
   const MODERATOR = '@moderator:example.org';
-  const OTHER = '@other:example.org';
+  const OTHER = '@other:elsewhere.org';
   const POWER_LEVELS = { users: { [MODERATOR]: 50 }, redact: 50 };
   const sdk = createClient({ baseUrl: 'https://example.org', userId: ME });
   const map = (event: object) => sdk.getEventMapper()(event as IEvent);

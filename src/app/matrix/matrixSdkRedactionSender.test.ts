@@ -8,8 +8,9 @@ import { describe, expect, it } from 'vitest';
 
 const ROOM = '!room:example.org';
 const AUTHOR = '@author:example.org';
-const OTHER = '@other:example.org';
+const OTHER = '@other:elsewhere.org';
 const MODERATOR = '@moderator:example.org';
+const HELPER = '@helper:example.org';
 
 const client = createClient({ baseUrl: 'https://example.org', userId: AUTHOR });
 
@@ -100,6 +101,16 @@ describe('SDK redactions by someone who may not redact the event', () => {
 
     expect(shown().isRedacted()).toBe(true);
     expect(accepted.getAssociatedId()).toBe('$message');
+  });
+
+  it('removes the message a member on its sender’s server redacts', async () => {
+    // The server applies a redaction from the original sender's own server too.
+    const { room, add, shown } = await moderatedRoom();
+    room.currentState.setStateEvents([state('m.room.member', HELPER, { membership: 'join' })]);
+
+    await add(redaction('$message', HELPER));
+
+    expect(shown().isRedacted()).toBe(true);
   });
 
   it('keeps the target of a second redaction of a removed message', async () => {
