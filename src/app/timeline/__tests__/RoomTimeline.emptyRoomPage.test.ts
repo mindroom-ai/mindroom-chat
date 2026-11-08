@@ -120,3 +120,25 @@ describe('RoomTimeline room pages without rows', () => {
     act(() => renderer.unmount());
   });
 });
+
+describe('RoomTimeline room start', () => {
+  it('shows the start of a room whose timeline begins with its creation, without a page', async () => {
+    // The first sync brought the room from its creation on, with a token to page further back.
+    const liveTimeline = makeTimeline(
+      [
+        makeEvent('$create', { type: 'm.room.create', stateKey: '', ts: 1 }),
+        makeEvent('$latest', { ts: 10 }),
+      ],
+      { backwardToken: 'sync-prev-batch' }
+    );
+    loadCachedRoomPaginationTokenMock.mockResolvedValue(undefined);
+    matrixClientMock.paginateEventTimeline.mockClear();
+
+    const renderer = await renderRoom(liveTimeline);
+
+    expect(liveTimeline.getPaginationToken(Direction.Backward)).toBeNull();
+    expect(renderer.root.findAll((node) => node.type === roomIntroType)).toHaveLength(1);
+    expect(matrixClientMock.paginateEventTimeline).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+});

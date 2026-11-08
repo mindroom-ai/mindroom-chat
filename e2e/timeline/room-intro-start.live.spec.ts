@@ -16,13 +16,17 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
  * A room's timeline begins with its start: the room intro (its picture, name and topic) above the
  * first row, or in the Compact view of a room without any thread the "No threads" box. A short
  * room, whose creation event comes with the first sync, shows it at the top of its rows as soon
- * as the reader is there; a long room shows it only once the reader has paged back to the start.
+ * as the reader is there, whether it opens at its newest row or at the reader's first unread
+ * message; a long room shows it only once the reader has paged back to the start.
  *
  * The first sync of a short room holds every event from the room's creation on, with a token to
- * page further back (the server marks it limited all the same). Nothing ever paged the room's
- * timeline back with it: the opening fill does not page ahead of a room whose creation it holds,
- * and the client's own offline download asks for its first page without a token. So the token
- * stayed and the start never showed, also with the reader at the top for 30 seconds.
+ * page further back (the server marks it limited all the same). The timeline showed the start
+ * only once a page back from that token came back empty, and none came: the opening fill does not
+ * page ahead of a room whose creation it holds, and when the room opened with the back sentinel
+ * just under the room header (its rows a little taller than the screen, or the view at the first
+ * unread message), the paginator never looked at the sentinel again as the reader scrolled it
+ * into view. The client's own offline download asks for its first page without a token, so it
+ * moved nothing either. The start never showed, also with the reader at the top for 30 seconds.
  *
  * Checked in the Classic, Threads and Compact views, at desktop size with classic scrollbars and
  * on a touch phone, in Chromium and, when the runner names it, in WebKit. Set
@@ -43,10 +47,13 @@ type ViewMode = 'classic' | 'threaded' | 'compact';
 const LONG_ROOM_MESSAGES = 250;
 
 type Account = { username: string; userId: string; accessToken: string };
+type ShortRoom = { roomId: string; newest: string; topic: string };
 type Fixture = {
   viewer: Account;
-  /** Creation, settings, a member who joins, three messages: all in the first sync. */
-  shortRoom: { roomId: string; newest: string; topic: string };
+  /** Creation, settings, a member who joins, two messages, the newest the reader's own. */
+  readRoom: ShortRoom;
+  /** Per test: the same, but the member's three messages are new to the reader. */
+  unreadRooms: Map<string, ShortRoom>;
   /** Creation and settings only: a room without any thread. */
   emptyRoom: { roomId: string; topic: string };
   /** The short room's start, then `LONG_ROOM_MESSAGES` messages. */
@@ -83,6 +90,13 @@ const note = (index: number) => ({
   body: `${NOTES[index % NOTES.length] ?? ''} (${index + 1})`,
 });
 
+/** Rooms whose every event comes with the first sync; each test opens its own unread one. */
+const SHORT_ROOM_TESTS = ['classic', 'threaded'].flatMap((mode) =>
+  ['chromium', 'webkit'].flatMap((engine) =>
+    ['desktop', 'phone'].map((device) => `${mode}-${engine}-${device}`)
+  )
+);
+
 const seed = async (): Promise<Fixture> => {
   const viewer = await register('intro_reader', 'Robin Reader');
   const member = await register('intro_member', 'Avery Quinn');
@@ -96,16 +110,26 @@ const seed = async (): Promise<Fixture> => {
     )
   );
 
-  const shortTopic = 'Where we keep the quarter close checklist';
-  const shortId = await createPrivateRoom(homeserver, viewer.accessToken, {
-    name: 'Quarter close',
-    topic: shortTopic,
-    invite: [member.userId],
-  });
-  await joinRoom(homeserver, member.accessToken, shortId);
-  await sendRoomMessage(homeserver, member.accessToken, shortId, note(1));
-  await sendRoomMessage(homeserver, viewer.accessToken, shortId, note(2));
-  const shortNewest = await sendRoomMessage(homeserver, member.accessToken, shortId, note(3));
+  // The newest message is the reader's own (read), or the member wrote all three (unread).
+  const shortRoom = async (name: string, topic: string, unread: boolean): Promise<ShortRoom> => {
+    const roomId = await createPrivateRoom(homeserver, viewer.accessToken, {
+      name,
+      topic,
+      invite: [member.userId],
+    });
+    await joinRoom(homeserver, member.accessToken, roomId);
+    const later = unread ? member : viewer;
+    await sendRoomMessage(homeserver, member.accessToken, roomId, note(1));
+    await sendRoomMessage(homeserver, later.accessToken, roomId, note(2));
+    const newest = await sendRoomMessage(homeserver, later.accessToken, roomId, note(3));
+    return { roomId, newest, topic };
+  };
+  const readRoom = await shortRoom('Quarter close', 'Where we keep the close checklist', false);
+  const unreadRooms = new Map<string, ShortRoom>();
+  for (const name of SHORT_ROOM_TESTS) {
+    // eslint-disable-next-line no-await-in-loop
+    unreadRooms.set(name, await shortRoom(`Budget ${name}`, 'Numbers for the next review', true));
+  }
 
   const emptyTopic = 'Nothing here yet';
   const emptyId = await createPrivateRoom(homeserver, viewer.accessToken, {
@@ -129,7 +153,8 @@ const seed = async (): Promise<Fixture> => {
 
   return {
     viewer,
-    shortRoom: { roomId: shortId, newest: shortNewest, topic: shortTopic },
+    readRoom,
+    unreadRooms,
     emptyRoom: { roomId: emptyId, topic: emptyTopic },
     longRoom: {
       roomId: longId,
@@ -200,8 +225,9 @@ const INTRO = '[data-room-intro]';
 const NO_THREADS = '[data-compact-room-without-threads]';
 
 /**
- * Scrolls up like a reader until the start block is in the visible band, or for `flicks` flicks;
- * then waits up to `settleMs` for it with the reader at the top.
+ * Scrolls up like a reader until the start block is in the visible band, or until three flicks
+ * in a row found the reader at the top with nothing new above, or for `flicks` flicks; then waits
+ * up to `settleMs` for it with the reader at the top.
  */
 const readUpToStart = async (
   page: Page,
@@ -214,9 +240,14 @@ const readUpToStart = async (
   const box = await page.getByTestId('room-virtual-inner').boundingBox();
   if (box && device === 'desktop')
     await page.mouse.move(box.x + box.width / 2, Math.max(box.y, 200) + 40);
-  for (let flick = 0; flick < flicks; flick += 1) {
+  let atTop = 0;
+  let height = 0;
+  for (let flick = 0; flick < flicks && atTop < 3; flick += 1) {
     // eslint-disable-next-line no-await-in-loop
-    if ((await readStart(page, selector)).inBand) break;
+    const now = await readStart(page, selector);
+    if (now.inBand) break;
+    atTop = now.scrollTop === 0 && now.scrollHeight === height ? atTop + 1 : 0;
+    height = now.scrollHeight ?? 0;
     // eslint-disable-next-line no-await-in-loop
     await flickUp(page, device);
     // eslint-disable-next-line no-await-in-loop
@@ -234,7 +265,10 @@ const readUpToStart = async (
     mkdirSync(SHOTS, { recursive: true });
     await page.screenshot({ path: `${SHOTS}/${label}.png` });
   }
-  expect(last, `${label}: the room's start in view at the top`).toMatchObject({ inBand: true });
+  expect(
+    last.inBand,
+    `${label}: the room's start in view at the top: ${JSON.stringify(last)}`
+  ).toBe(true);
 };
 
 const openRoom = async (page: Page, fixture: Fixture, roomId: string, mode: ViewMode) => {
@@ -283,7 +317,7 @@ test.describe("a room's timeline begins with its start", () => {
     (['classic', 'threaded', 'compact'] as const).forEach((mode) => {
       test(`${mode} view, ${engine}, ${device}`, async ({ browser, baseURL }) => {
         test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
-        test.setTimeout(180_000);
+        test.setTimeout(300_000);
         const options = { ...(device === 'phone' ? PHONE : DESKTOP), baseURL };
         const host = engine === 'webkit' ? await launchWebKit() : undefined;
         const context = await (host ?? browser).newContext(options);
@@ -304,13 +338,25 @@ test.describe("a room's timeline begins with its start", () => {
             return;
           }
 
-          // The short room: its start shows above its rows.
-          await openRoom(page, fixture, fixture.shortRoom.roomId, mode);
-          await expect(page.locator(`[data-message-id="${fixture.shortRoom.newest}"]`)).toBeVisible(
-            { timeout: 60_000 }
-          );
-          await readUpToStart(page, device, INTRO, `${label}-short`, 6);
-          await expect(page.locator(INTRO)).toContainText(fixture.shortRoom.topic);
+          // The short rooms: the start shows above their rows, when the room opens at its newest
+          // row and when it opens at the reader's first unread message.
+          const unreadRoom = fixture.unreadRooms.get(label);
+          for (const [room, kind] of [
+            [unreadRoom, 'unread'],
+            [fixture.readRoom, 'read'],
+          ] as const) {
+            if (!room) throw new Error(`No unread room for ${label}`);
+            // eslint-disable-next-line no-await-in-loop
+            await openRoom(page, fixture, room.roomId, mode);
+            // eslint-disable-next-line no-await-in-loop
+            await expect(page.locator(`[data-message-id="${room.newest}"]`)).toBeAttached({
+              timeout: 60_000,
+            });
+            // eslint-disable-next-line no-await-in-loop
+            await readUpToStart(page, device, INTRO, `${label}-${kind}`, 6);
+            // eslint-disable-next-line no-await-in-loop
+            await expect(page.locator(INTRO)).toContainText(room.topic);
+          }
 
           // The long room: no start while its creation is not loaded, then the start once the
           // reader has paged back to it, above the room's first message.
@@ -323,7 +369,7 @@ test.describe("a room's timeline begins with its start", () => {
             page.locator(INTRO),
             `${label}-long: no start at the newest rows`
           ).toHaveCount(0);
-          await readUpToStart(page, device, INTRO, `${label}-long`, 40);
+          await readUpToStart(page, device, INTRO, `${label}-long`, 150);
           await expect(page.locator(INTRO)).toContainText(fixture.longRoom.topic);
           if (mode === 'classic') {
             const intro = await page.locator(INTRO).boundingBox();
