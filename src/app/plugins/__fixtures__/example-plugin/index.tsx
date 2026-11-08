@@ -26,7 +26,10 @@
 // thread's composer to that thread, through the room's client, and fails without a text.
 // Every room's menu but a space's lists its entry "Example room info" ("Beispiel-Rauminfo" in
 // German), whose dialog says "Example dialog of <room name>" until its Close button closes it.
-import { useEffect, useState, type RefObject } from 'react';
+// In a room with a MindRoom server, its panel also talks to the routes of e2e's sample MindRoom
+// plugin (e2e/fixtures/sample-plugin/routes.py) as the signed-in user: "Say hello" asks for the
+// backend's hello, and a websocket echoes what "Echo" sends, opened again unless the user left.
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Box, Button, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text, color } from 'folds';
 import { KnownMembership, type Room } from 'matrix-js-sdk';
 import {
@@ -47,6 +50,7 @@ import {
   useRoomMembers,
 } from '@mindroom/client-sdk/matrix';
 import { useRoomHref, useRoomNavigate } from '@mindroom/client-sdk/room';
+import { MindroomServerError, useMindroomServer } from '@mindroom/client-sdk/server';
 
 /** The drag type of the item its panel offers, which the room header takes. */
 const ITEM_TYPE = 'application/x-example-item';
@@ -183,6 +187,82 @@ function RoomPage({ params: { roomId = '', threadId = '' } }: PluginPageProps) {
   );
 }
 
+function ServerGreeting({ roomId }: { roomId: string }) {
+  const server = useMindroomServer(roomId);
+  const routes = `/api/plugins/e2e-sample/rooms/${encodeURIComponent(roomId)}`;
+  const [hello, setHello] = useState<string>();
+  const [socketOpen, setSocketOpen] = useState(false);
+  const [lastClose, setLastClose] = useState<number>();
+  const [echo, setEcho] = useState<string>();
+  const [text, setText] = useState('');
+  const socket = useRef<WebSocket>();
+  useEffect(() => {
+    if (!server) return undefined;
+    let mounted = true;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    // The plugin reconnects itself, a second after a failed open or any close but 1008 (the user
+    // left the room): after its session ended (4401), a plugin reload (1012), a refused handshake.
+    const open = () => {
+      server.openSocket(`${routes}/echo`).then(
+        (opened) => {
+          if (!mounted) {
+            opened.close();
+            return;
+          }
+          socket.current = opened;
+          opened.addEventListener('open', () => setSocketOpen(true));
+          opened.addEventListener('message', ({ data }) => setEcho(String(data)));
+          opened.addEventListener('close', ({ code }) => {
+            // A socket this effect no longer owns, closing late, leaves the next one's state alone.
+            if (!mounted) return;
+            setSocketOpen(false);
+            setLastClose(code);
+            if (code !== 1008) retry = setTimeout(open, 1000);
+          });
+        },
+        () => {
+          if (mounted) retry = setTimeout(open, 1000);
+        }
+      );
+    };
+    open();
+    return () => {
+      mounted = false;
+      clearTimeout(retry);
+      socket.current?.close();
+      setSocketOpen(false);
+    };
+  }, [server, routes]);
+  if (!server) return <p>No MindRoom server</p>;
+  const sayHello = () => {
+    server.request<{ hello: string }>(`${routes}/hello`).then(
+      (answer) => setHello(answer.hello),
+      (error: unknown) =>
+        setHello(`failed (${error instanceof MindroomServerError ? error.status : 'error'})`)
+    );
+  };
+  return (
+    <>
+      <p>MindRoom server: {server.origin}</p>
+      <button type="button" onClick={sayHello}>
+        Say hello
+      </button>
+      {hello !== undefined && <p>Hello: {hello}</p>}
+      <p>Socket: {socketOpen ? 'open' : 'closed'}</p>
+      {lastClose !== undefined && <p>Last close: {lastClose}</p>}
+      <input
+        aria-label="Echo text"
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+      />
+      <button type="button" disabled={!socketOpen} onClick={() => socket.current?.send(text)}>
+        Echo
+      </button>
+      {echo !== undefined && <p>Echo: {echo}</p>}
+    </>
+  );
+}
+
 /**
  * The greeting of the message `eventId` in the room, as the homeserver has it: the tests' greetings
  * are not encrypted.
@@ -221,6 +301,7 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
       <p draggable onDragStart={(event) => event.dataTransfer.setData(ITEM_TYPE, 'Example item')}>
         Example item
       </p>
+      <ServerGreeting roomId={roomId} />
     </>
   );
 }

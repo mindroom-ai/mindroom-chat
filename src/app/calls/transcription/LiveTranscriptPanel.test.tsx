@@ -27,8 +27,8 @@ const state = vi.hoisted(() => ({
   }>,
 }));
 
-vi.mock('./useTranscriptionServer', () => ({
-  useTranscriptionServer: () => ({ apiUrl: state.apiUrl, discovered: true }),
+vi.mock('../../computer/useRoomMindroomServer', () => ({
+  useRoomMindroomServer: () => ({ apiUrl: state.apiUrl, discovered: true }),
 }));
 vi.mock('./liveCallPoll', () => ({
   pollLiveCall: (
@@ -43,7 +43,6 @@ vi.mock('./liveCallPoll', () => ({
       state.polls.push({ roomId, everyMs, signal, onLive, onFailure, finish });
     }),
 }));
-vi.mock('../../matrix/openidAudience', () => ({ requestAudienceOpenIdToken: vi.fn() }));
 const mx = vi.hoisted(() => ({
   getSafeUserId: () => '@ann:example.org',
   getUserId: () => '@ann:example.org',
