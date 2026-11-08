@@ -1196,8 +1196,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // After the follow above and every other observer of the timeline (it is created last).
   useListEndClamp(scrollElement, contentRef, footerProbeRef, pendingListShrinkPx);
 
-  // The compact overview: older history until zero-reply roots show up, root edits it lacks,
-  // and a refresh of its threads when the page comes back.
+  // The compact overview: older history until zero-reply roots show up, root edits it lacks (the
+  // Threads view's too, which lists the same roots), and a refresh of its threads when the page
+  // comes back.
   const loadedRoomEventCount = useMemo(
     () => timeline.linkedTimelines.reduce((total, part) => total + part.getEvents().length, 0),
     [timeline]
@@ -1212,7 +1213,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     paginateBack: paginateRoom,
   });
   useCompactRootEditBackfillController({
-    enabled: compactViewRequested,
+    enabled: compactViewRequested || threadIndex.roomThreadFilterActive,
     mx,
     overviewThreadRootIds: threadIndex.overviewThreadRootIds,
     beginRoomCacheWrite,

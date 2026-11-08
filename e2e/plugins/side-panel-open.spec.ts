@@ -37,6 +37,7 @@ test.use({ viewport: { width: 1600, height: 1000 } });
 let build: string | undefined;
 let alice: DisposableUser;
 let bob: DisposableUser;
+let roomId = '';
 let threadPath = '';
 const greetings: { id: string; text: string }[] = [];
 
@@ -58,7 +59,7 @@ test.beforeAll(async () => {
   alice = await registerDisposableUser(`panel_alice_${RUN}`, PASSWORD);
   bob = await registerDisposableUser(`panel_bob_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, 'greeter');
-  const roomId = await createRoom(HOMESERVER, alice.accessToken, {
+  roomId = await createRoom(HOMESERVER, alice.accessToken, {
     name: ROOM,
     invite: [agent.userId, bob.userId],
   });
@@ -168,6 +169,12 @@ test("a card opens the plugin's panel with its request, which stays open in its 
     await toggle(page).click();
     await expect(panel(page)).toBeVisible();
     await expect(panel(page)).not.toContainText('Greeting:');
+    // Meanwhile a new message there shows a count in the first room's row.
+    await sendRoomMessage(HOMESERVER, bob.accessToken, roomId, {
+      msgtype: 'm.text',
+      body: 'Still there?',
+    });
+    await expect(page.getByRole('link', { name: ROOM })).toHaveAccessibleName(`${ROOM} 1`);
     await showRoom(page, ROOM);
     await expect(panel(page)).toContainText('Greeting: Good evening');
     await shot(page, 'back-in-its-room');

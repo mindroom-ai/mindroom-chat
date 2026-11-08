@@ -136,8 +136,8 @@ describe('readClientPlugins', () => {
     ],
     [
       'a plugin that needs a newer client SDK',
-      () => pluginDir(declaring({ apiVersion: 25 })),
-      /plugin "some-plugin" needs client SDK apiVersion 25; this client provides 24/,
+      () => pluginDir(declaring({ apiVersion: 26 })),
+      /plugin "some-plugin" needs client SDK apiVersion 26; this client provides 25/,
     ],
     [
       'an apiVersion that is not a number',
@@ -198,12 +198,13 @@ describe('clientPlugins', () => {
   });
 
   it('resolves the client SDK for a plugin outside this repository', async () => {
-    const dir = pluginDir(declaring({ apiVersion: 9 }), { entry: false });
+    const dir = pluginDir(declaring({ apiVersion: 24 }), { entry: false });
     writeFileSync(
       path.join(dir, 'index.js'),
       "import { usePluginConfig } from '@mindroom/client-sdk/core';\n" +
         "import { useRoomMembers } from '@mindroom/client-sdk/matrix';\n" +
-        'export default { messageRenderers: [], usePluginConfig, useRoomMembers };\n'
+        "import { MenuEntry } from '@mindroom/client-sdk/ui';\n" +
+        'export default { messageRenderers: [], usePluginConfig, useRoomMembers, MenuEntry };\n'
     );
     const chunks = await buildEntries(
       { MINDROOM_CLIENT_PLUGINS: dir },
@@ -214,6 +215,7 @@ describe('clientPlugins', () => {
     // The SDK's exports are the app's own modules, not copies or stand-ins.
     expect(modules).toContain(path.join(ROOT, 'src/app/plugins/pluginConfig.ts'));
     expect(modules).toContain(path.join(ROOT, 'src/app/matrix/hooks/useRoomMembers.ts'));
+    expect(modules).toContain(path.join(ROOT, 'src/app/ui/MenuEntry.tsx'));
   });
 
   it('ships no plugin code without plugins', async () => {
