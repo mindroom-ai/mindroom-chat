@@ -21,10 +21,10 @@ import {
 import { serveBuild } from '../helpers/staticBuildServer';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
-// served as a deployment serves it, against the disposable homeserver. An agent's greeting holds
-// Markdown, a raw image whose error handler would run script, and Alice's Matrix ID; the plugin's
-// side panel shows it through the client SDK's `ui` subpath as the app renders an agent's reply:
-// formatted, with the handler gone, and Alice by her name in the room.
+// served as a deployment serves it, against the disposable homeserver. An agent's greeting in a
+// thread holds Markdown, a raw image whose error handler would run script, and Alice's Matrix ID;
+// the plugin's side panel shows it through the client SDK's `ui` subpath as the app renders an
+// agent's reply: formatted, with the handler gone, and Alice by her name in the room.
 // Set PLUGIN_SHOTS=<directory> to save a screenshot.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'plugin-text-password';
@@ -34,7 +34,7 @@ const ALICE = 'Alice Example';
 let build: string | undefined;
 let alice: DisposableUser;
 let agent: MatrixSession;
-let roomPath = '';
+let threadPath = '';
 
 const setDisplayName = ({ userId, accessToken }: MatrixSession, displayname: string) =>
   matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(userId)}/displayname`, {
@@ -66,6 +66,10 @@ test.beforeAll(async () => {
     invite: [agent.userId],
   });
   await joinRoom(HOMESERVER, agent.accessToken, roomId);
+  const rootId = await sendRoomMessage(HOMESERVER, alice.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: 'Write me a plan, please.',
+  });
   const text = [
     `## Plan for ${alice.userId}.`,
     '',
@@ -79,8 +83,9 @@ test.beforeAll(async () => {
     msgtype: 'm.text',
     body: text,
     'com.example.greeting': { text },
+    'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
   });
-  roomPath = `/home/${encodeURIComponent(roomId)}`;
+  threadPath = `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`;
 });
 
 test.afterAll(() => {
@@ -108,7 +113,7 @@ test("the example panel shows an agent's Markdown as the app renders it, without
   const page = await context.newPage();
   try {
     await loginWithPassword(page, { homeserver: HOMESERVER, ...alice });
-    await page.goto(roomPath);
+    await page.goto(threadPath);
     const card = page.locator('[data-message-id]').filter({
       has: page.locator('[data-example-plugin]'),
     });
