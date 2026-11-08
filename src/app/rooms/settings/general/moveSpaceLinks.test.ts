@@ -7,6 +7,9 @@ type Content = Record<string, unknown>;
 
 type FakeRoom = ReturnType<typeof fakeStateRoom>;
 
+/** A restricted room's allow condition for the members of `roomId`. */
+const member = (roomId: string) => ({ type: 'm.room_membership', room_id: roomId });
+
 const fakeClient = (
   rooms: Record<string, FakeRoom>,
   send: (
@@ -88,6 +91,90 @@ describe('moveSpaceLinks', () => {
     expect(sendStateEvent).toHaveBeenCalledTimes(4);
   });
 
+  it("admits the new room's members to a restricted sub-room, besides the old room's", async () => {
+    const parent = { '!old': { via: ['s'], canonical: true } };
+    const { client, sendStateEvent } = fakeClient({
+      '!old': fakeStateRoom({
+        'm.space.child': {
+          '!sub': { via: ['s'] },
+          '!knock': { via: ['s'] },
+          '!elsewhere': { via: ['s'] },
+          '!invite': { via: ['s'] },
+        },
+      }),
+      '!sub': fakeStateRoom({
+        'm.space.parent': parent,
+        'm.room.join_rules': { '': { join_rule: 'restricted', allow: [member('!old')] } },
+      }),
+      '!knock': fakeStateRoom({
+        'm.space.parent': parent,
+        'm.room.join_rules': {
+          '': { join_rule: 'knock_restricted', allow: [member('!team'), member('!old')] },
+        },
+      }),
+      '!elsewhere': fakeStateRoom({
+        'm.space.parent': parent,
+        'm.room.join_rules': {
+          '': {
+            join_rule: 'restricted',
+            allow: [member('!team'), { type: 'org.example.other', room_id: '!old' }],
+          },
+        },
+      }),
+      '!invite': fakeStateRoom({
+        'm.space.parent': parent,
+        'm.room.join_rules': { '': { join_rule: 'invite', allow: [member('!old')] } },
+      }),
+    });
+
+    await expect(moveSpaceLinks(client, '!old', '!new', [])).resolves.toEqual([]);
+
+    // Before it names the new parent.
+    expect(sendStateEvent.mock.calls.filter(([roomId]) => roomId === '!sub')).toEqual([
+      [
+        '!sub',
+        'm.room.join_rules',
+        { join_rule: 'restricted', allow: [member('!old'), member('!new')] },
+        '',
+      ],
+      ['!sub', 'm.space.parent', { via: ['home.example'], canonical: true }, '!new'],
+      ['!sub', 'm.space.parent', {}, '!old'],
+    ]);
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!knock',
+      'm.room.join_rules',
+      { join_rule: 'knock_restricted', allow: [member('!team'), member('!old'), member('!new')] },
+      ''
+    );
+    // A room that does not admit the old room's members, or admits no one by membership, keeps
+    // its rule.
+    expect(
+      sendStateEvent.mock.calls.filter(([, type]) => type === 'm.room.join_rules')
+    ).toHaveLength(2);
+  });
+
+  it('reports a sub-room that refused to admit the new room, which keeps only its old parent', async () => {
+    const { client, sendStateEvent } = fakeClient(
+      {
+        '!old': fakeStateRoom({ 'm.space.child': { '!sub': { via: ['s'] } } }),
+        '!sub': fakeStateRoom({
+          'm.space.parent': { '!old': { via: ['s'], canonical: true } },
+          'm.room.join_rules': { '': { join_rule: 'restricted', allow: [member('!old')] } },
+        }),
+      },
+      (_roomId, type) =>
+        type === 'm.room.join_rules'
+          ? Promise.reject(new Error('M_FORBIDDEN'))
+          : Promise.resolve({})
+    );
+
+    await expect(moveSpaceLinks(client, '!old', '!new', [])).resolves.toEqual(['!sub']);
+    // Nor does it name the new room, as when it refuses the new parent.
+    expect(sendStateEvent.mock.calls.filter(([roomId]) => roomId === '!sub')).toEqual([
+      ['!sub', 'm.room.join_rules', expect.anything(), ''],
+    ]);
+  });
+
   it('reports the children it could not point at the new room', async () => {
     const { client, sendStateEvent } = fakeClient(
       {
@@ -130,6 +217,7 @@ describe('moveSpaceLinks', () => {
               '!room': { via: ['s'] },
               '!theirs': { via: ['s'] },
               '!unjoined': { via: ['s'] },
+              '!locked': { via: ['s'] },
             },
           },
           'join',
@@ -137,9 +225,15 @@ describe('moveSpaceLinks', () => {
         ),
         '!room': fakeStateRoom({ 'm.space.parent': { '!old': { via: ['s'], canonical: true } } }),
         '!theirs': fakeStateRoom({ 'm.space.parent': { '!old': { via: ['s'] } } }),
+        '!locked': fakeStateRoom({
+          'm.space.parent': { '!old': { via: ['s'] } },
+          'm.room.join_rules': { '': { join_rule: 'restricted', allow: [member('!old')] } },
+        }),
       },
-      (roomId) =>
-        roomId === '!theirs' ? Promise.reject(new Error('M_FORBIDDEN')) : Promise.resolve({})
+      (roomId, type) =>
+        roomId === '!theirs' || type === 'm.room.join_rules'
+          ? Promise.reject(new Error('M_FORBIDDEN'))
+          : Promise.resolve({})
     );
 
     await expect(moveSpaceLinks(client, '!old', '!new', [])).resolves.toEqual([]);
@@ -152,6 +246,10 @@ describe('moveSpaceLinks', () => {
         ['!room', 'm.space.parent', { via: ['home.example'], canonical: true }, '!new'],
         ['!room', 'm.space.parent', {}, '!old'],
         ['!theirs', 'm.space.parent', { via: ['home.example'] }, '!new'],
+        // A room that refuses to admit the new Space's members still moves its links.
+        ['!locked', 'm.room.join_rules', expect.anything(), ''],
+        ['!locked', 'm.space.parent', { via: ['home.example'] }, '!new'],
+        ['!locked', 'm.space.parent', {}, '!old'],
       ])
     );
   });
