@@ -353,7 +353,7 @@
     "calls": {
       "panel": {
         "title": "通話",
-        "close": "關閉通話面板",
+        "close": "關閉通話檢視",
         "participants": "通話中的人",
         "connecting": "正在連線…",
         "reconnecting": "正在重新連線…",

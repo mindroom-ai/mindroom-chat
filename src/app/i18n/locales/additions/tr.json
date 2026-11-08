@@ -358,7 +358,7 @@
     "calls": {
       "panel": {
         "title": "Arama",
-        "close": "Arama panelini kapat",
+        "close": "Arama görünümünü kapat",
         "participants": "Aramadaki kişiler",
         "connecting": "Bağlanıyor…",
         "reconnecting": "Yeniden bağlanıyor…",

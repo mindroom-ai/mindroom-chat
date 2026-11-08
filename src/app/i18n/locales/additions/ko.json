@@ -353,7 +353,7 @@
     "calls": {
       "panel": {
         "title": "통화",
-        "close": "통화 패널 닫기",
+        "close": "통화 보기 닫기",
         "participants": "통화 참여자",
         "connecting": "연결 중…",
         "reconnecting": "다시 연결하는 중…",

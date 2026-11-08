@@ -358,7 +358,7 @@
     "calls": {
       "panel": {
         "title": "Oproep",
-        "close": "Oproepvenster sluiten",
+        "close": "Oproepweergave sluiten",
         "participants": "Mensen in de oproep",
         "connecting": "Verbinden…",
         "reconnecting": "Opnieuw verbinden…",

@@ -363,7 +363,7 @@
     "calls": {
       "panel": {
         "title": "Chiamata",
-        "close": "Chiudi il pannello della chiamata",
+        "close": "Chiudi la vista della chiamata",
         "participants": "Persone nella chiamata",
         "connecting": "Connessione in corso…",
         "reconnecting": "Riconnessione in corso…",

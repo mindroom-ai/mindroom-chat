@@ -353,7 +353,7 @@
     "calls": {
       "panel": {
         "title": "通話",
-        "close": "通話パネルを閉じる",
+        "close": "通話ビューを閉じる",
         "participants": "通話中の人",
         "connecting": "接続中…",
         "reconnecting": "再接続中…",
