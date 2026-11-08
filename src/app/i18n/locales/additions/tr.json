@@ -568,7 +568,9 @@
       }
     },
     "backgroundJobs": {
-      "jobCountShowing": "{{count}} arka plan işi ({{shown}} tanesi gösteriliyor)"
+      "jobCountShowing": "{{count}} arka plan işi ({{shown}} tanesi gösteriliyor)",
+      "finished": "Tamamlandı: {{tool}}",
+      "jobCountFinished": "{{count}} arka plan işi tamamlandı"
     }
   },
   "composer": {
