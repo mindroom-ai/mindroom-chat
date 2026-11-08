@@ -171,6 +171,8 @@ for (const [screen, viewport] of [
       await expect(card.getByRole('heading', { name: AGENT })).toBeVisible();
       await expect(card).toContainText(agent.userId);
       expect(await apart(card, name)).toBe(true);
+      // Where the side it asks for has no room, as on a phone, the card goes where it fits.
+      await expect(card).toBeInViewport({ ratio: 1 });
       await shot(page, `${tag}-floating-card`);
 
       await page.keyboard.press('Escape');
