@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { importBeforeTests } from '../test/utils/importBeforeTests';
 
 const precacheSpies = vi.hoisted(() => ({
   activate: vi.fn().mockResolvedValue(undefined),
@@ -145,6 +146,12 @@ const loadServiceWorker = async ({
     unregisterCatch,
   };
 };
+
+// The worker reads `self` as it loads, so the first load, with the transforms, goes through the
+// same stand-in scope; each case still loads a fresh copy.
+importBeforeTests(() =>
+  loadServiceWorker({ hasActiveWorker: false, supportsNonDisruptiveUpdates: false })
+);
 
 describe('service worker upgrade lifecycle', () => {
   afterEach(() => {

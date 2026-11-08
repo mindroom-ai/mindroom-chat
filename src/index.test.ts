@@ -75,6 +75,7 @@ vi.mock('./app/matrix/session/sessions', () => ({
 }));
 
 vi.mock('./sw/swSession', () => ({
+  answerServiceWorkerSessionRequests: vi.fn(),
   pushSessionToSW: vi.fn(),
   waitForServiceWorkerControl: mocks.waitForServiceWorkerControl,
 }));
@@ -119,6 +120,8 @@ importBeforeTests(() => import('./index'));
 
 describe('application bootstrap', () => {
   const originalServiceWorker = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker');
+  // A startup step that throws is only logged, so the service worker cases check that none did.
+  const warn = vi.spyOn(console, 'warn');
 
   beforeEach(() => {
     vi.resetModules();
@@ -242,6 +245,7 @@ describe('application bootstrap', () => {
     mocks.isServiceWorkerEnabled.mockReturnValue(true);
 
     await import('./index');
+    expect(warn).not.toHaveBeenCalled();
 
     await vi.waitFor(() => expect(mocks.createRoot).toHaveBeenCalledOnce());
     expect(serviceWorker.register).toHaveBeenCalledOnce();
@@ -296,6 +300,7 @@ describe('application bootstrap', () => {
 
       try {
         await import('./index');
+        expect(warn).not.toHaveBeenCalled();
         if (historyFails) {
           await vi.waitFor(() => expect(replaceState).toHaveBeenCalled());
           expect(navigationUrls).toHaveLength(0);
