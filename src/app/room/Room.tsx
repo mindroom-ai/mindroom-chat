@@ -526,7 +526,7 @@ function RoomContent() {
   // got these, once a save ends, say: they act on the room and the panel shown then, and not at all
   // once this page has gone.
   const shownId = shown?.id;
-  const now = useLatestRef({ roomId, shownId });
+  const now = useLatestRef({ roomId, shownId, threadId, mobile });
   const alive = useAlive();
   // `open` and `close` keep their identity while the room shows, so plugin code that depends on them
   // does not run again when another panel shows.
@@ -542,6 +542,35 @@ function RoomContent() {
     },
     [alive, now, pluginPanels, request, roomId, showPluginPanel]
   );
+  // The thread shown whose one call to open a plugin's panel beside it came; it gets another once
+  // another thread or the room's own timeline has shown.
+  const calledBeside = useRef<string>();
+  useEffect(() => {
+    if (calledBeside.current !== threadId) calledBeside.current = undefined;
+  }, [threadId]);
+  // It takes a new identity whenever the room shows another thread, so a renderer's effect that
+  // depends on it asks again, also in a card that stays mounted as its thread opens.
+  const openPluginPanelBesideThread = useCallback<PluginPanelControls['openBesideThread']>(
+    (id, besideThread, panelRequest) => {
+      const { shownId: shownNow, threadId: threadNow, mobile: phone } = now.current;
+      if (
+        !alive() ||
+        now.current.roomId !== roomId ||
+        threadNow !== threadId ||
+        besideThread !== threadId ||
+        calledBeside.current === besideThread ||
+        !pluginPanels.some((panel) => panel.id === id)
+      ) {
+        return;
+      }
+      calledBeside.current = besideThread;
+      if (phone) return;
+      // Shown already, folded or filling the room, it stays so.
+      if (shownNow === id) showPluginPanel(id, panelRequest);
+      else if (shownNow === undefined) request(id, () => showPluginPanel(id, panelRequest));
+    },
+    [alive, now, pluginPanels, request, roomId, showPluginPanel, threadId]
+  );
   const closeShownPluginPanel = useCallback<PluginPanelControls['close']>(
     (id) => {
       if (alive() && now.current.roomId === roomId && now.current.shownId === id) {
@@ -551,8 +580,13 @@ function RoomContent() {
     [alive, closePluginPanel, now, roomId]
   );
   const pluginPanelControls = useMemo<PluginPanelControls>(
-    () => ({ shown: shownId, open: openPluginPanel, close: closeShownPluginPanel }),
-    [closeShownPluginPanel, openPluginPanel, shownId]
+    () => ({
+      shown: shownId,
+      open: openPluginPanel,
+      openBesideThread: openPluginPanelBesideThread,
+      close: closeShownPluginPanel,
+    }),
+    [closeShownPluginPanel, openPluginPanel, openPluginPanelBesideThread, shownId]
   );
 
   const showCanvas = useCallback(

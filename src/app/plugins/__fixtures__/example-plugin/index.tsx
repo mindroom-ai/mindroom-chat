@@ -13,9 +13,9 @@
 // app's and mirror in right-to-left languages.
 // Its toggle, under a leaf icon, shows in the room header's row, except on phones, where it goes in
 // the room menu. It also shows the greeting a card asked it to show: in a room, each greeting has
-// "Show in panel", and "Close panel" while the panel shows. The panel stays open in its room across
-// reloads (`remember`), so the card hands it only the greeting's event ID, and it reads the
-// greeting itself.
+// "Show in panel", and "Close panel" while the panel shows. A greeting that begins a thread opens
+// the panel beside that thread as the thread shows. The panel stays open in its room across reloads
+// (`remember`), so a card hands it only the greeting's event ID, and it reads the greeting itself.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg), and a button, "Show example cover", that covers the room's conversation with
 // "Example cover of <room name>" until its Close button or Escape closes it. Its panel also offers
@@ -125,6 +125,12 @@ function Greeting({ event }: { event: PluginEvent }) {
   const authenticated = useMediaAuthentication();
   const avatarMxc = client.getRoom(event.roomId)?.getMember(event.sender)?.getMxcAvatarUrl();
   const avatar = avatarMxc && mxcUrlToHttp(client, avatarMxc, authenticated, 32, 32, 'crop');
+  const openBesideThread = panel?.openBesideThread;
+  const { eventId } = event;
+  // As the root of the thread the room shows, it opens the panel beside that thread.
+  useEffect(() => {
+    if (eventId) openBesideThread?.(eventId, eventId);
+  }, [eventId, openBesideThread]);
   const text = greetingText(event.content);
   const label =
     typeof config === 'object' &&
