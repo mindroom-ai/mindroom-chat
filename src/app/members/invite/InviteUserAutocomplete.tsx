@@ -22,6 +22,7 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import type { ServerUserDirectoryUser } from '../userDirectoryCache';
 import { getMxIdLocalPart, isUserId, mxcUrlToHttp } from '../../matrix/matrix';
+import { withoutNameDisguises } from '../../matrix/room';
 import { sanitizeInviteAutocompleteOptionId } from '../userDirectorySearch';
 import { onTabPress } from '../../lib/keyboard';
 import { UserAvatar } from '../../avatars/UserAvatar';
@@ -44,8 +45,11 @@ type InviteUserAutocompleteProps = {
 const getOptionId = (userId: string): string =>
   `invite-autocomplete-option-${sanitizeInviteAutocompleteOptionId(userId)}`;
 
+// The user ID shows beside the name, so the name goes without the characters that disguise it.
 const getDisplayName = (user: ServerUserDirectoryUser): string =>
-  user.displayName?.trim() || getMxIdLocalPart(user.userId) || user.userId;
+  withoutNameDisguises(user.displayName ?? '')?.trim() ||
+  getMxIdLocalPart(user.userId) ||
+  user.userId;
 
 const getOptionLabel = (displayName: string, userId: string): string =>
   displayName && displayName !== userId ? `${displayName}, ${userId}` : userId;

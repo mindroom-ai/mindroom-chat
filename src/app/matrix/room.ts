@@ -69,13 +69,21 @@ const NAME_DISGUISES =
 /** A name that could be a user ID's localpart (`sam` of `@sam:example.org`). */
 const LOCALPART_SHAPE = /^[a-z0-9._=\-/+]+$/;
 
+/**
+ * A name without the characters above, for a place that shows the user ID beside it; undefined
+ * when it shows nothing.
+ */
+export const withoutNameDisguises = (name: string): string | undefined => {
+  const shown = name.replace(NAME_DISGUISES, '');
+  return shown.trim() ? shown : undefined;
+};
+
 /** A member's display name without the characters above; undefined when it shows nothing. */
 const shownName = (member: RoomMember): string | undefined => {
   // The SDK's raw name lacks direction overrides, and is the user ID when it would show nothing.
   const raw = member.rawDisplayName;
   if (!raw || raw === member.userId) return undefined;
-  const name = raw.replace(NAME_DISGUISES, '');
-  return name.trim() ? name : undefined;
+  return withoutNameDisguises(raw);
 };
 
 /**
