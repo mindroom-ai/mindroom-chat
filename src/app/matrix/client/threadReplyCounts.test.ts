@@ -75,17 +75,17 @@ const membership: IEvent = {
   origin_server_ts: 0,
   content: { membership: 'join' },
 } as IEvent;
-const joinedRoom = (events: IEvent[]) => ({
-  state: { events: [membership] },
+const joinedRoom = (events: IEvent[], state: IEvent[] = []) => ({
+  state: { events: [membership, ...state] },
   timeline: { events, prev_batch: 'before', limited: false },
   ephemeral: { events: [] },
   account_data: { events: [] },
 });
-const savedSync = (events: IEvent[]): ISavedSync => ({
+const savedSync = (events: IEvent[], state: IEvent[] = []): ISavedSync => ({
   nextBatch: 'saved',
   accountData: [],
   roomsData: {
-    join: { [roomId]: joinedRoom(events) as never },
+    join: { [roomId]: joinedRoom(events, state) as never },
     invite: {},
     leave: {},
     knock: {},
@@ -287,6 +287,50 @@ describe('thread reply counts', () => {
       expect(f.room().findEventById('$reply-2')?.isRedacted()).toBe(true);
       expect(f.thread().length).toBe(2);
       expect(f.shownCount()).toBe(2);
+    });
+
+    it.each([
+      ['applies', 'a moderator who left after it', 50],
+      ['does not apply', 'a member without the right', 0],
+    ])('%s a saved redaction of a reply by %s', async (applies, _, power) => {
+      const moderator = '@moderator:elsewhere.org';
+      const state = (type: string, stateKey: string, content: object, extra = {}) =>
+        ({
+          type,
+          state_key: stateKey,
+          event_id: `$${type}-${stateKey}-${JSON.stringify(content)}`,
+          room_id: roomId,
+          sender: moderator,
+          origin_server_ts: 0,
+          content,
+          ...extra,
+        } as IEvent);
+      const leave = state(
+        'm.room.member',
+        moderator,
+        { membership: 'leave' },
+        { unsigned: { prev_content: { membership: 'join' } } }
+      );
+      const f = fixture({
+        replies: [defined(replies[0], 'reply 1'), defined(replies[2], 'reply 3')],
+        saved: savedSync(
+          [
+            summarizedRoot(replies.slice(0, 2)),
+            ...replies,
+            { ...redaction(2, 300), sender: moderator },
+            leave,
+          ],
+          [
+            state('m.room.create', '', { creator: userId, room_version: '10' }),
+            state('m.room.member', moderator, { membership: 'join' }),
+            state('m.room.power_levels', '', { users: { [moderator]: power }, redact: 50 }),
+          ]
+        ),
+      });
+      await f.start();
+
+      expect(f.room().findEventById('$reply-2')?.isRedacted()).toBe(applies === 'applies');
+      expect(f.thread().length).toBe(applies === 'applies' ? 2 : 3);
     });
 
     it('keeps the replies after the summary while server discovery is pending', async () => {
