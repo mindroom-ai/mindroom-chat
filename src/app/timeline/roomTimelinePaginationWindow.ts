@@ -297,17 +297,34 @@ export const useRoomWindowPaginator = ({
     rowsBefore: number;
     chainReplaced: boolean;
   }>();
+  // A back page shows its rows before it settles (it still saves them, and the Classic view
+  // looks for cached thread replies), and a request made meanwhile joins it. The page's own
+  // request answers for it: when one joined, the paginator looks at the sentinel again once the
+  // page settles, whatever the page added, since those rows can leave the sentinel in view.
+  const backPageRef = useRef<{ page: Promise<void>; joined: boolean }>();
   const handleRoomPaginationEnd = useCallback(
     (back: boolean) => {
       const edge = back ? firstRoomTimelineRef.current : undefined;
       const tokenBefore = edge?.getPaginationToken(Direction.Backward);
       const rowsBefore = roomRowsRef.current.length;
-      void paginateRoom(back).then(() => {
+      const page = paginateRoom(back);
+      if (back && backPageRef.current?.page === page) {
+        backPageRef.current.joined = true;
+        return;
+      }
+      const backPage = back ? { page, joined: false } : undefined;
+      if (backPage) backPageRef.current = backPage;
+      void page.then(() => {
         if (!edge || !alive()) return;
         const shown = firstRoomTimelineRef.current;
         const chainReplaced = !!shown && !getLinkedTimelines(shown).includes(edge);
-        if (!chainReplaced && edge.getPaginationToken(Direction.Backward) === tokenBefore) return;
-        setRoomBackPage({ rowsBefore, chainReplaced });
+        const joined = !!backPage?.joined;
+        const tokenMoved = edge.getPaginationToken(Direction.Backward) !== tokenBefore;
+        if (!chainReplaced && !tokenMoved && !joined) return;
+        setRoomBackPage({
+          rowsBefore: joined ? roomRowsRef.current.length : rowsBefore,
+          chainReplaced,
+        });
       });
     },
     [alive, firstRoomTimelineRef, paginateRoom, roomRowsRef]
@@ -316,9 +333,9 @@ export const useRoomWindowPaginator = ({
     () => suppressFocusPaginationRef.current,
     [suppressFocusPaginationRef]
   );
-  // The opening fill loads a screen of history above the reader. A short room, whose creation
-  // event came with the sync, has nothing older to load ahead: its start (the room intro) shows
-  // once the reader scrolls up to it.
+  // The opening fill loads a screen of history above the reader. A room whose creation is loaded
+  // has nothing older to load ahead: its rows above the reader, and its start, mount as the reader
+  // scrolls up to them.
   const automaticBackReach = useCallback(() => {
     const first = firstRoomTimelineRef.current?.getEvents()[0];
     if (first?.getType() === EventType.RoomCreate) return 0;

@@ -1,4 +1,6 @@
 {
   "name": "e2e-sample",
-  "tools_module": "tools.py"
+  "mindroom_plugin_api": "1.6",
+  "tools_module": "tools.py",
+  "routes_module": "routes.py"
 }

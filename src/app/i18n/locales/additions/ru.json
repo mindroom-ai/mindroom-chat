@@ -637,7 +637,9 @@
       }
     },
     "backgroundJobs": {
-      "jobCountShowing": "Фоновых задач: {{count}} (показано: {{shown}})"
+      "jobCountShowing": "Фоновых задач: {{count}} (показано: {{shown}})",
+      "finished": "Завершено: {{tool}}",
+      "jobCountFinished": "Завершено фоновых задач: {{count}}"
     }
   },
   "composer": {

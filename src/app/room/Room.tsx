@@ -476,6 +476,7 @@ function RoomContent() {
     !mobile && shown?.label !== undefined
       ? { label: shown.label, layout, setLayout: (next) => setLayout(shown.id, next) }
       : undefined;
+  const folded = layout === 'folded';
   function toggleFilled(id: string) {
     setLayout(id, layout === 'filled' ? 'beside' : 'filled');
   }
@@ -524,12 +525,16 @@ function RoomContent() {
     if (computer.open) toggleComputer();
     else request('computer', toggleComputer);
   }, [computer.open, request, toggleComputer]);
-  /** The header's toggle of a panel it opens by itself: the members, or a plugin's. */
+  /**
+   * The header's toggle of a panel it opens by itself, the members or a plugin's: folded, the
+   * panel unfolds as its tab unfolds it, with what it shows.
+   */
   const onPanelToggle = (id: string) => {
     const panel = panels.find((candidate) => candidate.id === id);
     if (!panel?.show) return;
-    if (shown?.id === id) panel.close();
-    else request(id, panel.show);
+    if (shown?.id !== id) request(id, panel.show);
+    else if (folded) setLayout(id, 'beside');
+    else panel.close();
   };
 
   // While the person controls a computer, agents may not take the view away from it.
@@ -660,7 +665,7 @@ function RoomContent() {
     openCanvasId,
     onCanvasOpen,
     onCanvasClose: closeCanvas,
-    shownPanel: shown?.id,
+    shownPanel: folded ? undefined : shown?.id,
     onPanelToggle,
     pluginPanels,
     pluginActions,

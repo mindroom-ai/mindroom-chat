@@ -604,7 +604,9 @@
       }
     },
     "backgroundJobs": {
-      "jobCountShowing": "{{count}} 个后台任务（显示 {{shown}} 个）"
+      "jobCountShowing": "{{count}} 个后台任务（显示 {{shown}} 个）",
+      "finished": "已完成：{{tool}}",
+      "jobCountFinished": "{{count}} 个后台任务已完成"
     }
   },
   "composer": {

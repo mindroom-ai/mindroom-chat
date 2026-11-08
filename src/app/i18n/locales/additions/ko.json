@@ -604,7 +604,9 @@
       }
     },
     "backgroundJobs": {
-      "jobCountShowing": "백그라운드 작업 {{count}}개 ({{shown}}개 표시)"
+      "jobCountShowing": "백그라운드 작업 {{count}}개 ({{shown}}개 표시)",
+      "finished": "완료됨: {{tool}}",
+      "jobCountFinished": "백그라운드 작업 {{count}}개 완료됨"
     }
   },
   "composer": {

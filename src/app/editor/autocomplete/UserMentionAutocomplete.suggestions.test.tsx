@@ -283,4 +283,14 @@ describe('UserMentionAutocomplete among MindRoom agents', () => {
 
     expect(pickWithTab()).toEqual([quill.userId, '@Quill']);
   });
+
+  it('shows and inserts a name without its direction controls, as the room names the member', () => {
+    // matrix-js-sdk drops U+202D and U+202E from display names; the other controls stay in them.
+    const quinn = member('@quinn:x', 'Quinn \u2067relyat\u2069\u200f');
+    members = [quinn];
+    render(picker('Qui'), { searched: true });
+
+    expect(shownNames()).toEqual(['Quinn relyat']);
+    expect(pickWithTab()).toEqual([quinn.userId, '@Quinn relyat']);
+  });
 });

@@ -58,7 +58,7 @@ export const useBindsOpenIdTokens = (): boolean => {
 };
 
 /** The servers of the room's agents, read again when one changes or an agent's membership does. */
-export const useRoomAgentServers = (room: Room): AgentServer[] =>
+export const useRoomAgentServers = (room: Room | null): AgentServer[] =>
   useAgentRoomState(room, MINDROOM_SERVER_EVENT, selectRoomServers);
 
 const joinedRoomServerUrls = (mx: MatrixClient): string[] =>

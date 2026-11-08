@@ -9,11 +9,12 @@ import {
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
-// On a phone, a swipe from the screen's left edge leaves a room the way the room's back chevron
-// does: to the list it was opened from, or to the room it was opened over. The iOS app's web view
-// has no back gesture of its own, so this swipe is the only one there. A thread open in the room
-// takes the swipe itself and steps back to the room only. 390 by 844 with touch, in Chromium with
-// real touches and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
+// On a phone, a swipe from the screen's left edge brings the navigation drawer out over a room, as
+// the top bar's menu button does, and the room stays: it no longer goes back to the list or the
+// room it was opened from, which the room's back chevron still does. A thread open in the room
+// takes the swipe itself and steps back to the room only, leaving the drawer away. 390 by 844
+// with touch, in Chromium with real touches and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
+// Playwright's WebKit, in WebKit.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'phone-room-edge-swipe-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -91,7 +92,6 @@ const place = (page: Page): Place => {
   return { path: url.pathname, room: room ?? null, thread: url.searchParams.get('threadId') };
 };
 
-const HOME: Partial<Place> = { path: '/home/', room: null, thread: null };
 const inRoom = (room: string): Partial<Place> => ({ room, thread: null });
 
 const expectAt = (page: Page, expected: Partial<Place>, step: string) =>
@@ -107,6 +107,13 @@ const shoot = (page: Page, testInfo: TestInfo, name: string) =>
   page.screenshot({ path: testInfo.outputPath(`${name}.png`) });
 
 const roomList = (page: Page) => page.getByTestId('resizable-page-nav');
+const drawer = (page: Page) => page.locator('#phone-nav-drawer');
+const menuButton = (page: Page) => page.locator('#phone-nav-menu-button');
+
+const expectDrawer = async (page: Page, open: boolean, step: string) => {
+  await expect(drawer(page), step).toBeVisible({ visible: open });
+  await expect(menuButton(page), step).toHaveAttribute('aria-expanded', String(open));
+};
 
 const openFromList = async (page: Page, name: string, room: string) => {
   await roomList(page).getByRole('link', { name }).tap();
@@ -172,7 +179,7 @@ test.beforeEach(async () => {
 });
 
 for (const engine of ENGINES) {
-  test(`${engine}: a swipe from the left edge leaves a room as its back chevron does`, async ({
+  test(`${engine}: a swipe from the left edge brings the drawer out over a room`, async ({
     browser,
   }, testInfo) => {
     test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
@@ -183,17 +190,22 @@ for (const engine of ENGINES) {
       const { garden, gardenRoot, harbor } = seeded;
       const { context, page } = await signIn(own, seeded);
       try {
-        // Opened from the list, the room goes back to the list.
+        // Opened from the list, the room stays, with the drawer out over it.
         await openFromList(page, 'Garden Club', garden);
         await shoot(page, testInfo, 'room-before-swipe');
         await edgeSwipeBack(page, engine);
-        await expectAt(page, HOME, 'the edge swipe returns to the list');
-        await expect(roomList(page).getByRole('link', { name: 'Garden Club' })).toBeVisible();
-        await shoot(page, testInfo, 'list-after-swipe');
-        await expectStillAt(page, HOME, 'the edge swipe went back one step only');
+        await expectDrawer(page, true, 'the edge swipe brings the drawer out');
+        await shoot(page, testInfo, 'drawer-after-swipe');
+        await expectStillAt(page, inRoom(garden), 'the edge swipe stays in the room');
+        await menuButton(page).tap();
+        await expectDrawer(page, false, 'the menu button puts the drawer away');
+        await expectStillAt(page, inRoom(garden), 'the room is still there');
 
-        // Opened over another room, it goes back to that room, then the list.
+        // Opened over another room, it stays too, rather than going back to that room.
+        await edgeSwipeBack(page, engine);
+        await expectDrawer(page, true, 'the edge swipe brings the drawer out again');
         await openFromList(page, 'Harbor Plans', harbor);
+        await expectDrawer(page, false, 'picking a room puts the drawer away');
         await pressPaletteShortcut(page);
         const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
         await palette.getByRole('combobox').fill('Garden Club');
@@ -203,18 +215,18 @@ for (const engine of ENGINES) {
           .tap();
         await expectAt(page, inRoom(garden), 'the palette opens the second room');
         await edgeSwipeBack(page, engine);
-        await expectAt(page, inRoom(harbor), 'the edge swipe returns to the first room');
-        await expectStillAt(page, inRoom(harbor), 'and stays there');
-        await edgeSwipeBack(page, engine);
-        await expectAt(page, HOME, 'a second swipe returns to the list');
+        await expectDrawer(page, true, 'the edge swipe brings the drawer out over the second room');
+        await expectStillAt(page, inRoom(garden), 'and stays in it');
+        await menuButton(page).tap();
+        await expectDrawer(page, false, 'the menu button puts the drawer away');
 
         // In a thread, the swipe leaves the thread for its room, one step only.
-        await openFromList(page, 'Garden Club', garden);
         await page.locator(`button[data-thread-root-id="${gardenRoot}"]`).first().tap();
         await expectAt(page, { room: garden, thread: gardenRoot }, 'the thread opens');
         await edgeSwipeBack(page, engine);
         await expectAt(page, inRoom(garden), 'the edge swipe leaves the thread for its room');
         await expectStillAt(page, inRoom(garden), 'and not the room too');
+        await expectDrawer(page, false, 'nor brings the drawer out');
       } finally {
         await shoot(page, testInfo, 'last');
         await context.close();

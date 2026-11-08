@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasListEntry } from '../../canvas/canvasIndexStore';
 import { conversationBehindPanelAtom } from '../../navigation/conversationCover';
 import { runShortcut } from '../../shortcuts/useShortcut';
-import { useEdgeSwipeBack } from '../../navigation/useEdgeSwipeBack';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
 const { encryptionState, navigateSpy, permissionState, screenSizeState, membersState } = vi.hoisted(
@@ -25,9 +24,10 @@ const { encryptionState, navigateSpy, permissionState, screenSizeState, membersS
   })
 );
 
-vi.mock('react-i18next', async () => {
+vi.mock('react-i18next', async (importOriginal) => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
   return {
+    ...(await importOriginal<typeof import('react-i18next')>()),
     useTranslation: () => ({ t: translateFromEn }),
   };
 });
@@ -322,7 +322,6 @@ vi.mock('../../matrix/hooks/useRoomPermissions', () => ({
     stateEvent: () => false,
   }),
 }));
-vi.mock('../../navigation/useEdgeSwipeBack', () => ({ useEdgeSwipeBack: vi.fn() }));
 
 const renderHeader = async (
   joinRequestCount = 0,
@@ -470,20 +469,6 @@ describe('RoomViewHeader', () => {
       act(() => renderer.unmount());
     }
   );
-
-  it("leaves the room from a phone's edge swipe, but not while a side panel takes its place", async () => {
-    screenSizeState.value = 'Mobile';
-    let rendered: Awaited<ReturnType<typeof renderHeader>> | undefined;
-    await act(async () => {
-      rendered = await renderHeader();
-    });
-    const { renderer, store } = rendered!;
-    const enabled = () => vi.mocked(useEdgeSwipeBack).mock.lastCall?.[1];
-    expect(enabled()).toBe(true);
-    act(() => store.set(conversationBehindPanelAtom, true));
-    expect(enabled()).toBe(false);
-    act(() => renderer.unmount());
-  });
 
   it('toggles Members from its shortcut, but not while a side panel hides the conversation', async () => {
     const onPanelToggle = vi.fn();

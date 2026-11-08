@@ -22,7 +22,6 @@ import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { usePinnedEventIds as useRoomPinnedEvents } from '../event-store/threads/useThreadPinning';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
-import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
@@ -41,6 +40,7 @@ import { CanvasHeaderButton, CanvasMenu } from '../canvas/CanvasHeaderButton';
 import { MenuEntry } from '../ui/MenuEntry';
 import type { CanvasListEntry } from '../canvas/canvasIndexStore';
 import type { PluginHeaderAction } from '../plugins/headerActions';
+import type { SidePanel } from '../plugins/sidePanels';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 import type { RoomViewMode } from '../navigation/roomViewMode';
@@ -80,12 +80,18 @@ export type RoomViewHeaderProps = {
   onCanvasClose?: () => void;
   /** The call controls, which the room provides (`HeaderCallButtons`) for where they go. */
   calls?: (placement: HeaderCallPlacement) => ReactNode;
-  /** The side panel beside the room, by id (src/app/ui/panels/roomPanels.ts). */
+  /**
+   * The side panel beside the room or across it, by id (src/app/ui/panels/roomPanels.ts); none
+   * while the one open is folded to its tab.
+   */
   shownPanel?: string;
-  /** Opens the members or a plugin's panel by the room's rule, or closes it while it shows. */
+  /**
+   * Opens the members or a plugin's panel by the room's rule, unfolds it while it is folded, or
+   * closes it while it shows.
+   */
   onPanelToggle?: (id: string) => void;
-  /** The plugins' side panels, which the room menu offers. */
-  pluginPanels?: readonly { id: string; label: string }[];
+  /** The plugins' side panels, each toggled from the row or the room menu by its placement. */
+  pluginPanels?: readonly Pick<SidePanel, 'id' | 'label' | 'icon' | 'placement'>[];
   /** The plugins' header actions, each in the row or the room menu by its placement. */
   pluginActions?: readonly PluginHeaderAction[];
 };
@@ -207,23 +213,21 @@ export function RoomViewHeader({
   const spacePathId = space ? getCanonicalAliasOrRoomId(mx, space.roomId) : undefined;
   const direct = useIsDirectRoom();
   const sectionPath = sectionPathOf(spacePathId, direct);
-  // Not while a side panel in the conversation's place hides this header: its swipe and its
-  // Members shortcut wait.
+  // Not while a side panel in the conversation's place hides this header: its Members shortcut
+  // waits.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
-  // A phone's back leaves the room for the page it was opened from (the list, a lobby, search
-  // results, the room a notification opened over, a thread with a link), passing over the room's
-  // own pages: its threads and the messages it was opened at. Opened from outside the app, the
-  // list takes the room's place.
+  // A phone's back chevron leaves the room for the page it was opened from (the list, a lobby,
+  // search results, the room a notification opened over, a thread with a link), passing over the
+  // room's own pages: its threads and the messages it was opened at. Opened from outside the app,
+  // the list takes the room's place. A swipe from the screen's left edge does not: it brings the
+  // navigation drawer out over the room (PhoneNavDrawer), unless a thread open in the room has
+  // its own back swipe on (useRoomViewThreadState).
   const leaveRoom = () => {
     const addresses = [room.roomId, getCanonicalAliasOrRoomId(mx, room.roomId)];
     const origin = previousHistoryOrigin((page) => !showsRoom(page, addresses));
     if (origin) navigate(-origin.steps);
     else navigate(sectionPath, { replace: true });
   };
-  // A swipe from the screen's left edge does the same, in the iOS app too, whose web view has no
-  // back gesture of its own. A thread open in the room takes the swipe itself
-  // (useRoomViewThreadState).
-  useEdgeSwipeBack(leaveRoom, mobile && !threadId && !behindPanel);
 
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [pinAnchor, setPinAnchor] = useState<RectCords>();
@@ -400,12 +404,13 @@ export function RoomViewHeader({
       run: toggleMembers,
     },
     ...pluginPanels.map(
-      ({ id, label }): RoomHeaderAction => ({
+      ({ id, label, icon = Icons.Bulb, placement = 'menu' }): RoomHeaderAction => ({
         id: `panel:${id}`,
         label,
-        icon: Icons.Bulb,
-        placement: 'menu',
+        icon,
+        placement,
         pressed: shownPanel === id,
+        active: shownPanel === id,
         run: () => onPanelToggle?.(id),
       })
     ),

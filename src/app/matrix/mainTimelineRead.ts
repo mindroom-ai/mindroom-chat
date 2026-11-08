@@ -2,20 +2,23 @@ import { ReceiptType, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { isSeenThreadRoot } from './seenThreadRoots';
 import { isUnmarkedNotice } from './protocol/conversationNotice';
 import { hasActiveMindroomAgent } from './protocol/agentIdentity';
+import { receiptReadTs, unthreadedReceiptReadTs } from './receiptReadTs';
 
 /**
- * When the user last read the room's main timeline: the newest of their main and unthreaded
- * receipts, public or private, was sent then. The server reads the main timeline up to that
- * moment, whichever event the receipt names: an unthreaded receipt often names a thread reply,
+ * When the user last read the room's main timeline: the newest of the events their main and
+ * unthreaded receipts, public or private, name (`receiptReadTs`). The server reads the main
+ * timeline up to that event, wherever it is: an unthreaded receipt often names a thread reply,
  * which the main timeline does not hold.
  */
 export const getMainTimelineReadTs = (room: Room, userId: string): number => {
-  // Optional calls: room stand-ins in tests often have no receipts or threads.
-  let readTs = room.getLastUnthreadedReceiptFor?.(userId)?.ts ?? Number.NEGATIVE_INFINITY;
+  let readTs = unthreadedReceiptReadTs(room, userId) ?? Number.NEGATIVE_INFINITY;
   [ReceiptType.Read, ReceiptType.ReadPrivate].forEach((type) => {
     [false, true].forEach((ignoreSynthesized) => {
-      const ts = room.getReadReceiptForUserId?.(userId, ignoreSynthesized, type)?.data.ts;
-      if (ts !== undefined && ts > readTs) readTs = ts;
+      // Optional call: room stand-ins in tests often have no receipts.
+      const receipt = room.getReadReceiptForUserId?.(userId, ignoreSynthesized, type);
+      if (receipt) {
+        readTs = Math.max(readTs, receiptReadTs(room, room, receipt.eventId, receipt.data.ts));
+      }
     });
   });
   return readTs;

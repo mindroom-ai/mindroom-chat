@@ -1,7 +1,12 @@
 import { ClientEvent, MatrixEvent, type MatrixClient } from 'matrix-js-sdk';
 import { EventEmitter } from 'events';
 import { describe, expect, it } from 'vitest';
-import { getFinishingEdit, getSyncedEdit, keepSyncedEdits } from './syncedEdits';
+import {
+  getFinishingEdit,
+  getSyncedEdit,
+  isStreamingByServer,
+  keepSyncedEdits,
+} from './syncedEdits';
 
 // Regression (P2-e2ee-F002): a device without the room's keys showed a stopped reply as streaming
 // for good. The SDK never puts an edit it cannot decrypt on its reply, but MindRoom keeps each
@@ -52,5 +57,52 @@ describe('the edit that finished a reply', () => {
     expect(getFinishingEdit(reply)?.getId()).toBe('$stopped');
     // The newest edit, whoever sent it; the rows keep to their sender's.
     expect(getSyncedEdit('$reply')?.getId()).toBe('$stopped');
+  });
+});
+
+describe('a redacted edit the client kept', () => {
+  it('no longer says whether the reply still streams', () => {
+    const room = { redactedBundledEdits: new Set<string>() };
+    const mx = Object.assign(new EventEmitter(), {
+      getRoom: () => room,
+    }) as unknown as MatrixClient;
+    keepSyncedEdits(mx);
+    mx.emit(ClientEvent.Event, edit('$streaming', 2, 'streaming'));
+    expect(isStreamingByServer(reply)).toBe(true);
+
+    // The room takes a redaction of the edit, which it knew only from the reply's bundle.
+    room.redactedBundledEdits.add('$streaming');
+
+    expect(getSyncedEdit('$reply')).toBeUndefined();
+    expect(isStreamingByServer(reply)).toBeUndefined();
+  });
+
+  it('stays forgotten once the account forgets the room and joins it again', () => {
+    let room = { redactedBundledEdits: new Set<string>() };
+    const mx = Object.assign(new EventEmitter(), {
+      getRoom: () => room,
+    }) as unknown as MatrixClient;
+    keepSyncedEdits(mx);
+    mx.emit(ClientEvent.Event, edit('$streaming', 2, 'streaming'));
+    // The redaction comes with the sync, and the room takes it.
+    room.redactedBundledEdits.add('$streaming');
+    mx.emit(
+      ClientEvent.Event,
+      new MatrixEvent({
+        type: 'm.room.redaction',
+        event_id: '$redaction',
+        room_id: '!room:example.org',
+        sender: AGENT,
+        origin_server_ts: 3,
+        redacts: '$streaming',
+        content: { redacts: '$streaming' },
+      })
+    );
+
+    // Forgetting the room drops it with its record; joining it again brings a new room.
+    mx.emit(ClientEvent.DeleteRoom, '!room:example.org');
+    room = { redactedBundledEdits: new Set<string>() };
+
+    expect(getSyncedEdit('$reply')).toBeUndefined();
   });
 });

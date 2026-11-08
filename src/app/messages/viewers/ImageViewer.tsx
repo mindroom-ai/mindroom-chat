@@ -62,6 +62,8 @@ export const ImageViewer = as<'div', ImageViewerProps>(
   ({ requestClose, alt, src, className, ...props }, ref) => {
     const { t } = useTranslation();
     const [downloadState, download] = useSaveMedia(src, alt);
+    // The name shows its direction controls; the download keeps it as it is.
+    const shownAlt = revealDirectionControls(alt);
     const { zoom, zoomIn, zoomOut, setZoom, zoomTargetRef, isZooming } = useZoom(ZOOM_STEP);
     const panning = usePan(zoom !== 1);
     const { pan, cursor, isPanning } = panning;
@@ -94,7 +96,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
           </IconButton>
           <Box grow="Yes" style={{ minWidth: 0 }}>
             <Text truncate size="T300">
-              {revealDirectionControls(alt)}
+              {shownAlt}
             </Text>
           </Box>
           <Box alignItems="Center" shrink="No" gap="200">
@@ -157,7 +159,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
             data-gesture={isZooming || isPanning}
             style={{ transform: imageTransform }}
             src={src}
-            alt={alt}
+            alt={shownAlt}
             draggable={false}
           />
         </Box>

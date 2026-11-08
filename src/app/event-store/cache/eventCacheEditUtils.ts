@@ -6,6 +6,7 @@ import {
   isSameSenderEditEvent,
 } from '../../matrix/editEvent';
 import { getLatestEdit, isEventOrderedAfter } from '../../matrix/room';
+import { getAppliedEdit } from '../../matrix/protocol/untrustedContent';
 import { countCacheProbe } from './cacheProbe';
 import {
   collectKnownRedactedEventIds,
@@ -97,6 +98,10 @@ export const collectRedactedRelationTargetsFromLookup = (
   }, []);
 };
 
+/** Whether `redaction` still names `target`: one the room rejected names none (Room.rejectRedaction, SDK patch). */
+const mayRedact = (room: Room, redaction: MatrixEvent, target: MatrixEvent): boolean =>
+  (room.findEventById(redaction.getId() ?? '') ?? redaction).getAssociatedId() === target.getId();
+
 export const applyCachedRedactions = (
   room: Room,
   events: MatrixEvent[]
@@ -141,7 +146,9 @@ export const applyCachedRedactions = (
     // hydration time can be more faithful.
     if (targetEvent.isRedacted()) return;
 
-    const latestRedaction = getLatestEvent(redactionEvents);
+    const latestRedaction = getLatestEvent(
+      redactionEvents.filter((redaction) => mayRedact(room, redaction, targetEvent))
+    );
     if (!latestRedaction) return;
 
     const relationTarget = getRedactedRelationTarget(targetEvent);
@@ -225,7 +232,9 @@ export const applySerializedCachedReplaceRelations = (
       ? serializedReplacementCandidate
       : undefined;
     let existingReplacement = targetEvent.replacingEvent() ?? undefined;
-    if (existingReplacement && isKnownRedacted(existingReplacement)) {
+    // Also an edit the app hides while it cannot decrypt it, which would show once it decrypts.
+    const appliedEdit = getAppliedEdit(targetEvent);
+    if (appliedEdit && isKnownRedacted(appliedEdit)) {
       targetEvent.makeReplaced();
       existingReplacement = undefined;
     }

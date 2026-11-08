@@ -11,15 +11,19 @@ import {
   type DisposableUser,
 } from '../helpers/disposableAccounts';
 import { createRoom } from '../helpers/createRoom';
+import { dropFile } from '../helpers/fileDrop';
 import { sendRoomMessage } from '../helpers/matrix';
+import { roomHeader } from '../helpers/roomMenu';
 import { serveBuild } from '../helpers/staticBuildServer';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
 // whose room header slot shows "Example banner in <room name>", and a plugin whose slot component
 // throws, served as a deployment serves it, against the disposable homeserver. The banner shows
-// under the room header, across the conversation column and above the conversation; the broken
-// component shows nothing and the room keeps working; `?plugins=off` and
-// `plugins.example.enabled: false` leave the banner out. Set PLUGIN_SHOTS=<directory> to save
+// under the room header, across the conversation column and above the conversation, on the header's
+// own frosted surface in light and dark; the broken component shows nothing and the room keeps
+// working; `?plugins=off` and `plugins.example.enabled: false` leave the banner out. The example's
+// panel item, dragged onto the room's name, shows in the banner through the header element its slot
+// gets, while a file dropped there still goes to the composer. Set PLUGIN_SHOTS=<directory> to save
 // screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'room-header-slot-password';
@@ -27,6 +31,7 @@ const RUN = Date.now().toString(36);
 const ROOM_NAME = 'Slot room';
 const BANNER = `Example banner in ${ROOM_NAME}`;
 const SEEDED = 'The first message of the slot room';
+const DROPPED_FILE = 'header-drop.txt';
 
 test.use({ viewport: { width: 1280, height: 800 } });
 test.describe.configure({ mode: 'serial' });
@@ -117,7 +122,6 @@ const shot = async (page: Page, name: string) => {
   if (directory) await page.screenshot({ path: `${directory}/${name}.png` });
 };
 
-const roomHeader = (page: Page) => page.getByRole('banner').filter({ has: page.locator('h1') });
 const banner = (page: Page) => page.locator('[data-example-plugin-banner]');
 
 /** Waits for the open room: its header and its first message. */
@@ -162,6 +166,47 @@ test("shows the plugin's banner under the room header, across the conversation, 
     await shot(page, 'room-header-slot');
   }));
 
+/** The background, backdrop filter and text colour of the header's element, row and slot box. */
+const surfaces = (page: Page) =>
+  banner(page).evaluate((shown) => {
+    const slot = shown.parentElement!;
+    const header = slot.parentElement!;
+    const paint = (element: Element) => {
+      const style = getComputedStyle(element);
+      return {
+        background: style.backgroundColor,
+        filter: style.backdropFilter,
+        color: style.color,
+      };
+    };
+    return {
+      header: paint(header),
+      row: paint(header.querySelector(':scope > header')!),
+      slot: paint(slot),
+    };
+  });
+
+test("the banner shows the header's own frosted surface and text colour, as the row does, in light and dark", ({
+  browser,
+}) =>
+  onBuild(browser, {}, async (page, data) => {
+    await page.goto(roomPath(data));
+    await roomShown(page);
+    await expect(banner(page)).toHaveText(BANNER);
+    const clear = { background: 'rgba(0, 0, 0, 0)', filter: 'none' };
+    for (const colorScheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme });
+      await expect(page.locator('body')).toHaveClass(new RegExp(`\\b${colorScheme}-theme\\b`));
+      const { header, row, slot } = await surfaces(page);
+      // One translucent, blurred surface behind the row and the slot together, in one text colour.
+      expect(header.background).toMatch(/\/ 0?\.\d+\)$/);
+      expect(header.filter).toContain('blur(');
+      expect(row).toEqual({ ...clear, color: header.color });
+      expect(slot).toEqual({ ...clear, color: header.color });
+      await shot(page, `room-header-slot-surface-${colorScheme}`);
+    }
+  }));
+
 test('a slot component that throws shows nothing, is reported, and leaves the room working', ({
   browser,
 }) =>
@@ -196,4 +241,31 @@ test('plugins.example.enabled: false leaves the banner out', ({ browser }) =>
     await roomShown(page);
     await expect(banner(page)).toHaveCount(0);
     await shot(page, 'room-header-slot-disabled');
+  }));
+
+test("the example panel's item dropped on the room's name shows in the banner; a file dropped there goes to the composer", ({
+  browser,
+}) =>
+  onBuild(browser, {}, async (page, data) => {
+    await page.goto(roomPath(data));
+    await roomShown(page);
+    await roomHeader(page).getByRole('button', { name: 'Example panel', exact: true }).click();
+    const panel = page.getByRole('region', { name: 'Example panel', exact: true });
+    const item = panel.getByText('Example item', { exact: true });
+    const name = roomHeader(page).locator('h1');
+    const dropped = banner(page).locator('[data-example-plugin-dropped]');
+    const footer = page.locator('[data-room-footer]');
+
+    // Only the header takes it: dropped on the conversation, it lands nowhere.
+    await item.dragTo(page.getByText(SEEDED));
+    await expect(dropped).toHaveCount(0);
+    await item.dragTo(name);
+    await expect(dropped).toHaveText('Dropped: Example item');
+    await expect(footer).not.toContainText('Example item');
+    await shot(page, 'room-header-slot-item-dropped');
+
+    await dropFile(name, DROPPED_FILE);
+    await expect(footer.getByText(DROPPED_FILE)).toBeVisible();
+    await expect(dropped).toHaveText('Dropped: Example item');
+    await shot(page, 'room-header-slot-file-dropped');
   }));

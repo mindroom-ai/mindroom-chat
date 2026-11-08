@@ -615,7 +615,9 @@
       }
     },
     "backgroundJobs": {
-      "jobCountShowing": "{{count}} बैकग्राउंड कार्य ({{shown}} दिखाए गए)"
+      "jobCountShowing": "{{count}} बैकग्राउंड कार्य ({{shown}} दिखाए गए)",
+      "finished": "पूरा हुआ: {{tool}}",
+      "jobCountFinished": "{{count}} बैकग्राउंड कार्य पूरे हुए"
     }
   },
   "composer": {

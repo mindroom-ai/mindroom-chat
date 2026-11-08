@@ -1,25 +1,39 @@
 // A client plugin for the tests (docs/architecture.md "Client plugins"): a message that carries
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
-// section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
+// section (`plugins.example.label`), else from its strings: English here, German in locales/de.json,
+// and "From <sender>" after the sender's avatar in the room, with ", a MindRoom agent" for an agent.
 // A side panel, "Example panel", names the room it is open in, counts its joined members and says
-// whether a MindRoom agent has joined or is invited, through the account's client. It also shows
-// the greeting a card asked it to show: in a room, each greeting has "Show in panel", and "Close
-// panel" while the panel shows. The panel stays open in its room across reloads (`remember`).
+// whether a MindRoom agent has joined or is invited, through the account's client, and whether the
+// account may post there, which it says again when the room's levels change. Its toggle, under
+// a leaf icon, shows in the room header's row, except on phones, where it goes in the room menu. It
+// also shows the greeting a card asked it to show: in a room, each greeting has "Show in panel",
+// and "Close panel" while the panel shows. The panel stays open in its room across reloads
+// (`remember`), so the card hands it only the greeting's event ID, and it reads the greeting itself.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg), and a button, "Show example cover", that covers the room's conversation with
-// "Example cover of <room name>" until its Close button or Escape closes it. Like a plugin outside
-// this repository, it imports the app only through the client SDK.
+// "Example cover of <room name>" until its Close button or Escape closes it. Its panel also offers
+// "Example item" to drag, in a drag type of its own, and the banner shows "Dropped: <text>" when
+// one lands anywhere on the room header. Like a plugin outside this repository, it imports the app
+// only through the client SDK.
 // A header action, "Wave" ("Winken" in German), shows in the room header's row, except on phones,
 // where it goes in the room menu, and says where it ran in an alert.
 // Its storage notes each greeting the signed-in account saw, when it shows and when it goes, and a
 // greeting the account saw in an earlier page load also shows "Seen before".
 // Its page at /p/example/ keeps the app's rail and links to its page at /p/example/window, which
 // fills the window and links back. Its page at /p/example/rooms/<room ID>/<thread ID> links to that
-// room and that thread, opens either, and reloads the page into a new version.
+// room and that thread, opens either, opens the room at the thread's root, opens the room in place
+// of itself, and reloads the page into a new version.
 // Its slash command, `/greet <text>`, sends the notice "Example greeting: <text>" to the room, or in a
 // thread's composer to that thread, through the room's client, and fails without a text.
-import { useEffect } from 'react';
-import { Icons } from 'folds';
+// Every room's menu but a space's lists its entry "Example room info" ("Beispiel-Rauminfo" in
+// German), whose dialog says "Example dialog of <room name>" until its Close button closes it.
+// Every room's menu also lists, after Leave and drawn as Leave is, its critical entry "Example
+// removal" ("Beispiel-Entfernung" in German), which says in an alert which room it ran in.
+// In a room with a MindRoom server, its panel also talks to the routes of e2e's sample MindRoom
+// plugin (e2e/fixtures/sample-plugin/routes.py) as the signed-in user: "Say hello" asks for the
+// backend's hello, and a websocket echoes what "Echo" sends, opened again unless the user left.
+import { useEffect, useRef, useState, type RefObject } from 'react';
+import { Box, Button, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text, color } from 'folds';
 import { KnownMembership, type Room } from 'matrix-js-sdk';
 import {
   pluginPublicUrl,
@@ -35,16 +49,25 @@ import {
 } from '@mindroom/client-sdk/core';
 import {
   hasActiveMindroomAgent,
+  isMindroomAgentUserId,
+  mxcUrlToHttp,
   useMatrixClient,
+  useMediaAuthentication,
   useRoomMembers,
+  useRoomPermissions,
 } from '@mindroom/client-sdk/matrix';
 import { useRoomHref, useRoomNavigate } from '@mindroom/client-sdk/room';
+import { MindroomServerError, useMindroomServer } from '@mindroom/client-sdk/server';
+
+/** The drag type of the item its panel offers, which the room header takes. */
+const ITEM_TYPE = 'application/x-example-item';
+const ITEM_DRAG_EVENTS = ['dragenter', 'dragover', 'drop'] as const;
 
 /** This page load; what the plugin stored in it does not count as seen before. */
 const pageLoad = `${Date.now()}-${Math.random()}`;
 
-const greetingText = (event: PluginEvent): string | undefined => {
-  const greeting = event.content['com.example.greeting'];
+const greetingText = (content: PluginEvent['content']): string | undefined => {
+  const greeting = content['com.example.greeting'];
   if (typeof greeting !== 'object' || greeting === null || !('text' in greeting)) return undefined;
   return typeof greeting.text === 'string' ? greeting.text : undefined;
 };
@@ -64,7 +87,11 @@ function Greeting({ event }: { event: PluginEvent }) {
   }, [storage, seenKey]);
   const t = usePluginTranslation('example');
   const panel = useRoomSidePanel('example', 'panel');
-  const text = greetingText(event);
+  const client = useMatrixClient();
+  const authenticated = useMediaAuthentication();
+  const avatarMxc = client.getRoom(event.roomId)?.getMember(event.sender)?.getMxcAvatarUrl();
+  const avatar = avatarMxc && mxcUrlToHttp(client, avatarMxc, authenticated, 32, 32, 'crop');
+  const text = greetingText(event.content);
   const label =
     typeof config === 'object' &&
     config !== null &&
@@ -77,9 +104,14 @@ function Greeting({ event }: { event: PluginEvent }) {
       <div data-example-plugin>
         {label}: {text}
       </div>
+      <div data-example-plugin-sender>
+        {avatar && <img src={avatar} alt="" width={16} height={16} />}
+        From {event.sender}
+        {isMindroomAgentUserId(event.sender) && ', a MindRoom agent'}
+      </div>
       {seenIn !== null && seenIn !== pageLoad && <div data-example-plugin-seen>Seen before</div>}
       {panel && (
-        <button type="button" onClick={() => panel.open(text)}>
+        <button type="button" onClick={() => panel.open(event.eventId)}>
           Show in panel
         </button>
       )}
@@ -92,7 +124,21 @@ function Greeting({ event }: { event: PluginEvent }) {
   );
 }
 
-function RoomBanner({ room }: { room: Room }) {
+function RoomBanner({ room, headerRef }: { room: Room; headerRef: RefObject<HTMLElement> }) {
+  const [dropped, setDropped] = useState<string>();
+  // The header's element is set by the time effects run; a drag of its item may drop anywhere on it.
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return undefined;
+    // Takes only its own item, so a drag of files goes on to the composer.
+    const take = (event: DragEvent) => {
+      if (!event.dataTransfer?.types.includes(ITEM_TYPE)) return;
+      event.preventDefault();
+      if (event.type === 'drop') setDropped(event.dataTransfer.getData(ITEM_TYPE));
+    };
+    ITEM_DRAG_EVENTS.forEach((type) => header.addEventListener(type, take));
+    return () => ITEM_DRAG_EVENTS.forEach((type) => header.removeEventListener(type, take));
+  }, [headerRef]);
   return (
     <div data-example-plugin-banner style={{ paddingBlock: 8, paddingInline: 16 }}>
       <img
@@ -103,6 +149,7 @@ function RoomBanner({ room }: { room: Room }) {
         style={{ marginInlineEnd: 8, verticalAlign: 'middle' }}
       />
       Example banner in {room.name}
+      {dropped !== undefined && <div data-example-plugin-dropped>Dropped: {dropped}</div>}
     </div>
   );
 }
@@ -137,6 +184,12 @@ function RoomPage({ params: { roomId = '', threadId = '' } }: PluginPageProps) {
       <button type="button" onClick={() => navigateRoomThread(roomId, threadId)}>
         Open the thread
       </button>
+      <button type="button" onClick={() => navigateRoom(roomId, { eventId: threadId })}>
+        Open the room at the thread root
+      </button>
+      <button type="button" onClick={() => navigateRoom(roomId, { replace: true })}>
+        Open the room in place of this page
+      </button>
       <button type="button" onClick={() => void reloadForNewVersion()}>
         Reload into the new version
       </button>
@@ -144,8 +197,113 @@ function RoomPage({ params: { roomId = '', threadId = '' } }: PluginPageProps) {
   );
 }
 
+function PostingRight({ room }: { room: Room }) {
+  const mayPost = useRoomPermissions(room).event('m.room.message', room.client.getSafeUserId());
+  return <p>{mayPost ? 'You may post here' : 'You may not post here'}</p>;
+}
+
+function ServerGreeting({ roomId }: { roomId: string }) {
+  const server = useMindroomServer(roomId);
+  const routes = `/api/plugins/e2e-sample/rooms/${encodeURIComponent(roomId)}`;
+  const [hello, setHello] = useState<string>();
+  const [socketOpen, setSocketOpen] = useState(false);
+  const [lastClose, setLastClose] = useState<number>();
+  const [echo, setEcho] = useState<string>();
+  const [text, setText] = useState('');
+  const socket = useRef<WebSocket>();
+  useEffect(() => {
+    if (!server) return undefined;
+    let mounted = true;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    // The plugin reconnects itself, a second after a failed open or any close but 1008 (the user
+    // left the room): after its session ended (4401), a plugin reload (1012), a refused handshake.
+    const open = () => {
+      server.openSocket(`${routes}/echo`).then(
+        (opened) => {
+          if (!mounted) {
+            opened.close();
+            return;
+          }
+          socket.current = opened;
+          opened.addEventListener('open', () => setSocketOpen(true));
+          opened.addEventListener('message', ({ data }) => setEcho(String(data)));
+          opened.addEventListener('close', ({ code }) => {
+            // A socket this effect no longer owns, closing late, leaves the next one's state alone.
+            if (!mounted) return;
+            setSocketOpen(false);
+            setLastClose(code);
+            if (code !== 1008) retry = setTimeout(open, 1000);
+          });
+        },
+        () => {
+          if (mounted) retry = setTimeout(open, 1000);
+        }
+      );
+    };
+    open();
+    return () => {
+      mounted = false;
+      clearTimeout(retry);
+      socket.current?.close();
+      setSocketOpen(false);
+    };
+  }, [server, routes]);
+  if (!server) return <p>No MindRoom server</p>;
+  const sayHello = () => {
+    server.request<{ hello: string }>(`${routes}/hello`).then(
+      (answer) => setHello(answer.hello),
+      (error: unknown) =>
+        setHello(`failed (${error instanceof MindroomServerError ? error.status : 'error'})`)
+    );
+  };
+  return (
+    <>
+      <p>MindRoom server: {server.origin}</p>
+      <button type="button" onClick={sayHello}>
+        Say hello
+      </button>
+      {hello !== undefined && <p>Hello: {hello}</p>}
+      <p>Socket: {socketOpen ? 'open' : 'closed'}</p>
+      {lastClose !== undefined && <p>Last close: {lastClose}</p>}
+      <input
+        aria-label="Echo text"
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+      />
+      <button type="button" disabled={!socketOpen} onClick={() => socket.current?.send(text)}>
+        Echo
+      </button>
+      {echo !== undefined && <p>Echo: {echo}</p>}
+    </>
+  );
+}
+
+/**
+ * The greeting of the message `eventId` in the room, as the homeserver has it: the tests' greetings
+ * are not encrypted.
+ */
+function FetchedGreeting({ roomId, eventId }: { roomId: string; eventId: string }) {
+  const client = useMatrixClient();
+  const [text, setText] = useState<string>();
+  useEffect(() => {
+    let current = true;
+    client
+      .fetchRoomEvent(roomId, eventId)
+      .then((event) => {
+        if (current) setText(greetingText(event.content ?? {}));
+      })
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, [client, eventId, roomId]);
+  return text === undefined ? null : <p>Greeting: {text}</p>;
+}
+
 function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }) {
-  const members = useRoomMembers(useMatrixClient(), roomId);
+  const client = useMatrixClient();
+  const members = useRoomMembers(client, roomId);
+  const room = client.getRoom(roomId);
   const joined = members.filter(({ membership }) => membership === KnownMembership.Join);
   return (
     <>
@@ -154,7 +312,14 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
         Members: {joined.length}, {hasActiveMindroomAgent(members) ? 'with' : 'without'} a MindRoom
         agent
       </p>
-      {typeof request === 'string' && <p>Greeting: {request}</p>}
+      {room && <PostingRight room={room} />}
+      {typeof request === 'string' && (
+        <FetchedGreeting key={request} roomId={roomId} eventId={request} />
+      )}
+      <p draggable onDragStart={(event) => event.dataTransfer.setData(ITEM_TYPE, 'Example item')}>
+        Example item
+      </p>
+      <ServerGreeting roomId={roomId} />
     </>
   );
 }
@@ -188,6 +353,27 @@ function ExampleCover({ room }: { room: Room }) {
   );
 }
 
+function RoomDialog({ room, close }: { room: Room; close: () => void }) {
+  return (
+    <Overlay open backdrop={<OverlayBackdrop />}>
+      <OverlayCenter>
+        <Box
+          role="dialog"
+          aria-label="Example dialog"
+          direction="Column"
+          gap="300"
+          style={{ padding: 16, borderRadius: 8, background: color.Surface.Container }}
+        >
+          <Text>Example dialog of {room.name}</Text>
+          <Button size="300" onClick={close}>
+            <Text size="B300">Close example dialog</Text>
+          </Button>
+        </Box>
+      </OverlayCenter>
+    </Overlay>
+  );
+}
+
 const plugin: ClientPlugin = {
   conversationCovers: [
     {
@@ -202,7 +388,9 @@ const plugin: ClientPlugin = {
       close: (room) => setCovered(room.roomId, false),
     },
   ],
-  messageRenderers: [{ match: (event) => greetingText(event) !== undefined, Component: Greeting }],
+  messageRenderers: [
+    { match: (event) => greetingText(event.content) !== undefined, Component: Greeting },
+  ],
   pages: [
     { path: '', Component: ExamplePage },
     { path: 'window', Component: WindowPage, fillsWindow: true },
@@ -214,7 +402,16 @@ const plugin: ClientPlugin = {
     sessionStorage.setItem('example-plugin.forgot', userId);
   },
   roomHeaderSlot: [RoomBanner, CoverButton],
-  sidePanels: [{ id: 'panel', label: 'Example panel', Component: ExamplePanel, remember: true }],
+  sidePanels: [
+    {
+      id: 'panel',
+      label: 'Example panel',
+      icon: Icons.Leaf,
+      placement: 'auto',
+      Component: ExamplePanel,
+      remember: true,
+    },
+  ],
   headerActions: [
     {
       id: 'wave',
@@ -237,11 +434,32 @@ const plugin: ClientPlugin = {
       },
     },
   ],
+  roomActions: [
+    {
+      id: 'info',
+      label: 'roomInfo',
+      icon: Icons.Info,
+      shows: (room) => !room.isSpaceRoom(),
+      run: ({ room, showDialog }) =>
+        showDialog((close) => <RoomDialog room={room} close={close} />),
+    },
+    {
+      id: 'removal',
+      label: 'roomRemoval',
+      icon: Icons.Delete,
+      critical: true,
+      run: ({ room }) => {
+        window.alert(`Example removal in ${room.roomId}`);
+      },
+    },
+  ],
   translations: {
     en: {
       label: 'Example plugin',
       wave: 'Wave',
       greet: 'Send the room a greeting. Example: /greet Hello',
+      roomInfo: 'Example room info',
+      roomRemoval: 'Example removal',
     },
     load: async (language) =>
       language === 'de' ? (await import('./locales/de.json')).default : undefined,

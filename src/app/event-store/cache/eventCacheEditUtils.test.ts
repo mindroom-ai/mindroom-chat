@@ -1,5 +1,17 @@
-import { MatrixEvent, type IEvent } from 'matrix-js-sdk';
-import { describe, expect, it, vi } from 'vitest';
+import {
+  createClient,
+  FeatureSupport,
+  MatrixEvent,
+  Room,
+  Thread,
+  type IEvent,
+} from 'matrix-js-sdk';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
+import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
+import { installEventContentGuard } from '../../matrix/protocol/untrustedContent';
+import { createPreferLiveEventMapper } from './eventRepository';
+import { insertCachedRoomTimeline } from '../sdk/roomTimelineSdk';
 import {
   aggregateCachedRelationEvents,
   applyCachedRedactions,
@@ -54,14 +66,19 @@ const makeEditEvent = (
     type: 'm.room.message',
   });
 
-const makeRedactionEvent = (eventId: string, ts: number, targetEventId: string) =>
+const makeRedactionEvent = (
+  eventId: string,
+  ts: number,
+  targetEventId: string,
+  sender = '@alice:example.org'
+) =>
   new MatrixEvent({
     content: {},
     event_id: eventId,
     origin_server_ts: ts,
     redacts: targetEventId,
     room_id: '!room:example.org',
-    sender: '@alice:example.org',
+    sender,
     type: 'm.room.redaction',
   });
 
@@ -81,7 +98,10 @@ const makeReactionEvent = (eventId: string, ts: number, targetEventId: string, k
     type: 'm.reaction',
   });
 
-const room = { roomId: '!room:example.org', findEventById: () => undefined } as any;
+const room = {
+  roomId: '!room:example.org',
+  findEventById: () => undefined,
+} as any;
 
 describe('applyCachedReplaceRelations', () => {
   it('applies the latest cached replacement event to the target message', () => {
@@ -437,5 +457,245 @@ describe('collectRedactedRelationTargetsFromLookup', () => {
         relationType: 'm.annotation',
       },
     ]);
+  });
+});
+
+// The SDK patch drops a redacted edit that the room knows only from a message's bundle at once,
+// and the cache scrubs its stored copies once it saves the redaction. A page read from the cache
+// before that, or a root saved for a thread meanwhile, still carries the edit.
+describe('cached copies of an edit redacted from a bundle', () => {
+  const ROOM = '!room:example.org';
+  const ALICE = '@alice:example.org';
+  const support = Thread.hasServerSideSupport;
+  afterEach(() => {
+    Thread.hasServerSideSupport = support;
+    vi.restoreAllMocks();
+  });
+
+  const client = createClient({ baseUrl: 'https://example.org', userId: ALICE });
+  const message = (eventId: string, extra: Partial<IEvent> = {}): Partial<IEvent> => ({
+    ...makeMessageEvent(eventId, 1000).event,
+    ...extra,
+  });
+  const withEdit = (raw: Partial<IEvent>): Partial<IEvent> => ({
+    ...raw,
+    unsigned: {
+      'm.relations': {
+        'm.replace': makeEditEvent('$edit', 2000, raw.event_id!, ALICE, 'secret').event,
+      },
+    },
+  });
+  const liveRoom = () => {
+    const live = new Room(ROOM, client, ALICE, { timelineSupport: true });
+    const redactEdit = () =>
+      live.addLiveEvents([makeRedactionEvent('$redaction', 3000, '$edit')], { addToState: false });
+    return { live, redactEdit };
+  };
+
+  it('keeps a message the room holds on its original text', async () => {
+    const { live, redactEdit } = liveRoom();
+    await live.addLiveEvents([client.getEventMapper()(withEdit(message('$target')))], {
+      addToState: false,
+    });
+    await redactEdit();
+
+    const cached = createPreferLiveEventMapper(
+      live,
+      client.getEventMapper()
+    )(withEdit(message('$target')));
+    expect(cached).toBe(live.findEventById('$target'));
+    expect(cached.getContent().body).toBe('original');
+    hydrateCachedEvents({ room: live, events: [cached] });
+
+    expect(cached.getContent().body).toBe('original');
+  });
+
+  it('does not let a cached copy of the edit itself put it back', async () => {
+    const { live, redactEdit } = liveRoom();
+    await live.addLiveEvents([client.getEventMapper()(withEdit(message('$target')))], {
+      addToState: false,
+    });
+    await redactEdit();
+
+    // The edit as a row of its own, as the cache keeps an edit saved apart from its message.
+    const mapEvent = createPreferLiveEventMapper(live, client.getEventMapper());
+    const events = [
+      message('$target'),
+      makeEditEvent('$edit', 2000, '$target', ALICE, 'secret').event,
+    ].map(mapEvent);
+    await insertCachedRoomTimeline({ mx: client, room: live, events });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(live.findEventById('$target')!.getContent().body).toBe('original');
+  });
+
+  it('drops the edit from the latest reply of an unopened thread and from its root', async () => {
+    vi.spyOn(client, 'supportsThreads').mockReturnValue(true);
+    Thread.hasServerSideSupport = FeatureSupport.Stable;
+    const { live, redactEdit } = liveRoom();
+    const inThread = { 'm.relates_to': { rel_type: 'm.thread', event_id: '$root' } };
+    const reply = () =>
+      withEdit(
+        message('$reply', { content: { msgtype: 'm.text', body: 'original', ...inThread } })
+      );
+    const root = client.getEventMapper()(
+      message('$root', {
+        unsigned: {
+          'm.relations': {
+            'm.thread': { count: 1, current_user_participated: true, latest_event: reply() },
+          },
+        },
+      })
+    );
+    live.processThreadRoots([root], false);
+    await redactEdit();
+
+    // The reply's page as the cache holds it, and the root saved with it.
+    const cached = createPreferLiveEventMapper(live, client.getEventMapper())(reply());
+    hydrateCachedEvents({ room: live, events: [cached] });
+    const [savedRoot] = serializeEventsForCache(live, [root]);
+
+    expect(cached.getContent().body).toBe('original');
+    expect(JSON.stringify(cached.event)).not.toContain('secret');
+    expect(JSON.stringify(savedRoot)).not.toContain('secret');
+  });
+});
+
+// The app hides an edit it could not decrypt yet from replacingEvent(), as in every client it
+// starts. Installed for the tests below only: it stays installed for the rest of the file.
+describe('a cached copy whose edit the room took a redaction of while it could not decrypt it', () => {
+  beforeAll(() => {
+    installEventContentGuard();
+  });
+
+  it('shows its original text once the edit decrypts', async () => {
+    const ALICE = '@alice:example.org';
+    const client = createClient({ baseUrl: 'https://example.org', userId: ALICE });
+    const room = new Room('!room:example.org', client, ALICE, { timelineSupport: true });
+    const edit = new MatrixEvent({
+      event_id: '$edit',
+      room_id: '!room:example.org',
+      sender: ALICE,
+      origin_server_ts: 2000,
+      type: 'm.room.encrypted',
+      content: {
+        algorithm: 'm.megolm.v1.aes-sha2',
+        ciphertext: 'ciphertext',
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$target' },
+      },
+    });
+    const crypto = {
+      decryptEvent: vi
+        .fn()
+        .mockRejectedValueOnce(
+          new DecryptionError(DecryptionFailureCode.MEGOLM_UNKNOWN_INBOUND_SESSION_ID, 'no key')
+        )
+        .mockResolvedValueOnce({
+          clearEvent: {
+            type: 'm.room.message',
+            content: makeEditEvent('$edit', 2000, '$target', ALICE, 'secret').getContent(),
+          },
+        }),
+    };
+    await edit.attemptDecryption(crypto as never);
+    // A copy read from the cache with the edit, before the cache stored its redaction.
+    const cached = makeMessageEvent('$target', 1000);
+    cached.makeReplaced(edit);
+    room.redactedBundledEdits.add('$edit');
+
+    hydrateCachedEvents({ room, events: [cached] });
+    await edit.attemptDecryption(crypto as never);
+
+    expect(cached.getContent().body).toBe('original');
+  });
+});
+
+// A page read from the cache or fetched from the server keeps the decision the room made for a
+// redaction it holds, where the redaction is in the timeline. A page has no state of its own, so a
+// redaction only in the page is not judged with today's state: it removes the message, as before.
+describe('a page with a redaction by someone who may not redact the event', () => {
+  const ROOM = '!room:example.org';
+  const ALICE = '@alice:example.org';
+  const OTHER = '@other:elsewhere.org';
+  const MODERATOR = '@moderator:elsewhere.org';
+  const POWER_LEVELS = { users: { [MODERATOR]: 50 }, redact: 50 };
+  const client = createClient({ baseUrl: 'https://example.org', userId: ALICE });
+  const state = (type: string, stateKey: string, content: object, prevContent?: object) =>
+    new MatrixEvent({
+      type,
+      state_key: stateKey,
+      sender: MODERATOR,
+      room_id: ROOM,
+      event_id: `$${type}-${stateKey}-${JSON.stringify(content)}`,
+      content,
+      unsigned: prevContent ? { prev_content: prevContent } : {},
+    });
+  const moderatedRoom = () => {
+    const live = new Room(ROOM, client, ALICE, { timelineSupport: true });
+    live.currentState.setStateEvents([
+      state('m.room.create', '', { creator: ALICE, room_version: '10' }),
+      ...[ALICE, OTHER, MODERATOR].map((userId) =>
+        state('m.room.member', userId, { membership: 'join' })
+      ),
+      state('m.room.power_levels', '', POWER_LEVELS),
+    ]);
+    /** A sync batch, added after the state that follows it (MSC4222 state_after). */
+    const add = (...batch: MatrixEvent[]) => {
+      live.currentState.setStateEvents(batch.filter((event) => event.isState()));
+      return live.addLiveEvents(batch, { addToState: false });
+    };
+    return { live, add };
+  };
+  // The page's own copies of the message and of a redaction of it.
+  const target = () => makeMessageEvent('$target', 1000, ALICE, 'visible');
+  const redactionBy = (sender: string) =>
+    makeRedactionEvent(`$redaction-${sender}`, 2000, '$target', sender);
+
+  it('takes a redaction only in the page, though its moderator has left since', async () => {
+    const { live, add } = moderatedRoom();
+    await add(state('m.room.member', MODERATOR, { membership: 'leave' }, { membership: 'join' }));
+    const copy = target();
+
+    applyCachedRedactions(live, [copy, redactionBy(MODERATOR)]);
+
+    expect(copy.isRedacted()).toBe(true);
+  });
+
+  it.each([
+    ['its sender', ALICE],
+    ['a moderator', MODERATOR],
+  ])('takes the redaction of %s', (_, sender) => {
+    const { live } = moderatedRoom();
+    const copy = target();
+
+    applyCachedRedactions(live, [copy, redactionBy(sender)]);
+
+    expect(copy.isRedacted()).toBe(true);
+  });
+
+  it('keeps the message the room kept, though its redactor was given the right later', async () => {
+    const { live, add } = moderatedRoom();
+    const promoted = { ...POWER_LEVELS, users: { ...POWER_LEVELS.users, [OTHER]: 50 } };
+    await add(
+      target(),
+      redactionBy(OTHER),
+      state('m.room.power_levels', '', promoted, POWER_LEVELS)
+    );
+    const copy = target();
+
+    applyCachedRedactions(live, [copy, redactionBy(OTHER)]);
+
+    expect(copy.isRedacted()).toBe(false);
+  });
+
+  it('takes the redaction the room took, though its moderator left later', async () => {
+    const { live, add } = moderatedRoom();
+    await add(target(), redactionBy(MODERATOR));
+    await add(state('m.room.member', MODERATOR, { membership: 'leave' }, { membership: 'join' }));
+    const copy = target();
+
+    applyCachedRedactions(live, [copy, redactionBy(MODERATOR)]);
+
+    expect(copy.isRedacted()).toBe(true);
   });
 });

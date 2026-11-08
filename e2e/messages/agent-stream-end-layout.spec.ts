@@ -318,8 +318,12 @@ const watchReplyFinish = async (
   expect(scenario.finished(String(reply.content.body))).toBe(true);
   const replyRow = messageRow(page, reply.event_id);
   await expect(replyRow).toBeVisible({ timeout: 30_000 });
-  // The finish settles: the typing line goes, then a while longer for anything that follows it.
+  // The finish settles: the typing line goes, the jobs bar 2 s after the reply, then a while longer
+  // for anything that follows them.
   await expect(page.locator('[data-room-footer] [role="status"]')).toHaveCount(0, {
+    timeout: 30_000,
+  });
+  await expect(page.getByRole('region', { name: /run_shell_command/ })).toHaveCount(0, {
     timeout: 30_000,
   });
   await page.waitForTimeout(1_500);

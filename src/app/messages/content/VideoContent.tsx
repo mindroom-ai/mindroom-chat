@@ -2,6 +2,7 @@ import { CSSProperties, ReactNode, useCallback, useEffect, useState } from 'reac
 import { useTranslation } from 'react-i18next';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { Box, Button, Chip, Icon, Icons, Spinner, Text } from 'folds';
+import { revealDirectionControls } from '../../ui/directional';
 import type { IVideoInfo } from '../../matrix/types/common';
 import type { EventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
 import { getBlobSafeMimeType } from '../../lib/mimeTypes';
@@ -77,7 +78,16 @@ export function VideoContent({
   const blurHash = getInfoBlurHash(info);
 
   if (src && revealed)
-    return <>{renderVideo({ src, title: body, autoPlay: playRequested, controls: true })}</>;
+    return (
+      <>
+        {renderVideo({
+          src,
+          title: revealDirectionControls(body),
+          autoPlay: playRequested,
+          controls: true,
+        })}
+      </>
+    );
 
   return (
     <Box

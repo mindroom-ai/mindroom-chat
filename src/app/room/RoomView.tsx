@@ -42,6 +42,7 @@ import { RoomHeaderSlot } from './RoomHeaderSlot';
 import { ConversationCover } from './ConversationCover';
 import { conversationHiddenAtom } from '../navigation/conversationCover';
 import * as overlay from '../ui/styles/RoomOverlay.css';
+import { SurfaceProvider } from '../ui/glass/SurfaceContext';
 import * as css from './RoomView.css';
 import { ThreadContextBanner } from '../threads/ThreadContextBanner';
 import { isConfirmedMatrixEventId, isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
@@ -312,21 +313,25 @@ export function RoomView({
   return (
     <Page>
       <div ref={areaRef} className={css.RoomArea} style={AREA_STYLE}>
+        {/* The element draws the header's surface; the row inside shows it and paints none. */}
         <div
           ref={headerRef}
+          data-glass-flat="true"
           className={classNames(
             overlay.Header,
             css.HeaderInShortArea,
             effectiveThreadId && overlay.HeaderInThread
           )}
         >
-          <RoomViewHeader
-            hasMindroomAgents={hasMindroomAgents}
-            threadId={effectiveThreadId}
-            threadFilterState={threadState.threadFilterState}
-            {...headerProps}
-          />
-          <RoomHeaderSlot room={room} />
+          <SurfaceProvider value>
+            <RoomViewHeader
+              hasMindroomAgents={hasMindroomAgents}
+              threadId={effectiveThreadId}
+              threadFilterState={threadState.threadFilterState}
+              {...headerProps}
+            />
+            <RoomHeaderSlot room={room} headerRef={headerRef} />
+          </SurfaceProvider>
         </div>
         <div ref={conversationRef} style={CONVERSATION_STYLE}>
           <ThreadApprovalProvider

@@ -142,8 +142,8 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [open, setOpen]);
 
-  // A swipe from the screen's left edge brings it out, on a page whose own back swipe (a room's,
-  // a thread's) does not take it.
+  // A swipe from the screen's left edge brings it out, a room's too, unless a back swipe (a
+  // thread's) takes it.
   const backSwipeOn = useAtomValue(edgeSwipeBackCountAtom) > 0;
   const openDrawer = useCallback(() => setOpen(true), [setOpen]);
   useEdgeSwipe({ direction: 'back', enabled: !backSwipeOn, onSwipe: openDrawer });
