@@ -10,7 +10,8 @@ const mountedProviders: { config: ClientConfig | undefined; depth: number }[] = 
 
 /**
  * Supplies the loaded `config.json` to everything rendered below it, and to `getClientConfig()`
- * while it is mounted: from before the mount effects of what it renders run.
+ * while it is mounted: from before the `useEffect` mount effects of what it renders run, though
+ * after their layout effects.
  */
 export function ClientConfigProvider({
   value,
