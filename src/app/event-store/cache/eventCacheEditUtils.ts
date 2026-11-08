@@ -6,6 +6,7 @@ import {
   isSameSenderEditEvent,
 } from '../../matrix/editEvent';
 import { getLatestEdit, isEventOrderedAfter } from '../../matrix/room';
+import { getAppliedEdit } from '../../matrix/protocol/untrustedContent';
 import { countCacheProbe } from './cacheProbe';
 import {
   collectKnownRedactedEventIds,
@@ -225,7 +226,9 @@ export const applySerializedCachedReplaceRelations = (
       ? serializedReplacementCandidate
       : undefined;
     let existingReplacement = targetEvent.replacingEvent() ?? undefined;
-    if (existingReplacement && isKnownRedacted(existingReplacement)) {
+    // Also an edit the app hides while it cannot decrypt it, which would show once it decrypts.
+    const appliedEdit = getAppliedEdit(targetEvent);
+    if (appliedEdit && isKnownRedacted(appliedEdit)) {
       targetEvent.makeReplaced();
       existingReplacement = undefined;
     }

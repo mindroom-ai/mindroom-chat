@@ -90,6 +90,17 @@ const redaction = (id: string, redacts: string, ts: number, sender = AUTHOR) =>
 /** A room, and how its events arrive: live, as the sync brings them. */
 const liveRoom = (mx = client) => {
   const room = new Room(ROOM, mx, AUTHOR, { timelineSupport: true });
+  // A redaction counts only from a member who may make it.
+  room.currentState.setStateEvents([
+    new MatrixEvent({
+      type: 'm.room.member',
+      state_key: AUTHOR,
+      sender: AUTHOR,
+      room_id: ROOM,
+      event_id: '$author-member',
+      content: { membership: 'join' },
+    }),
+  ]);
   const add = async (...events: MatrixEvent[]) => {
     await room.addLiveEvents(events, { addToState: false });
     await tick();
