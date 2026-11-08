@@ -262,7 +262,10 @@
       "repairIntro": "A sua palavra-passe de recuperação está correta, mas a identidade de cifragem guardada com ela não é a do seu servidor. A reparação mantém as suas mensagens e a sua palavra-passe de recuperação e dá uma nova identidade à sua conta. Os seus outros dispositivos terão de ser verificados novamente.",
       "repairButton": "Reparar a cifragem",
       "repaired": "Cifragem reparada. Verifique novamente os seus outros dispositivos.",
-      "repairCancelled": "A reparação precisa da confirmação da sua conta. Tente novamente."
+      "repairCancelled": "A reparação precisa da confirmação da sua conta. Tente novamente.",
+      "turnOnBackup": "Ativar cópia de segurança",
+      "turnOnIntro": "Introduza a sua palavra-passe de recuperação. As chaves das suas mensagens passam a ter cópia de segurança, cifrada com ela, para que um novo dispositivo ou um navegador limpo possa voltar a ler as suas mensagens.",
+      "backupExists": "Outro dispositivo ativou entretanto uma cópia de segurança. Está agora em uso."
     },
     "oauthStage": {
       "title": "Aprovar na página da sua conta",

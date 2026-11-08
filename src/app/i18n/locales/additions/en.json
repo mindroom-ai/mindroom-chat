@@ -258,7 +258,10 @@
       "repairIntro": "Your recovery password is right, but the encryption identity stored with it is not the one on your server. Repair keeps your messages and your recovery password and gives your account a new identity. Your other devices will need to verify again.",
       "repairButton": "Repair encryption",
       "repaired": "Encryption repaired. Verify your other devices again.",
-      "repairCancelled": "Repair needs your account confirmation. Try again."
+      "repairCancelled": "Repair needs your account confirmation. Try again.",
+      "turnOnBackup": "Turn on backup",
+      "turnOnIntro": "Enter your recovery password. Your message keys are then backed up, encrypted with it, so a new device or a cleared browser can read your messages again.",
+      "backupExists": "Another device turned on a backup in the meantime. It is in use now."
     },
     "oauthStage": {
       "title": "Approve on your account page",

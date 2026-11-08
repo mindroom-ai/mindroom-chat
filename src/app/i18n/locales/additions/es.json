@@ -262,7 +262,10 @@
       "repairIntro": "Tu contraseña de recuperación es correcta, pero la identidad de cifrado guardada con ella no es la de tu servidor. La reparación conserva tus mensajes y tu contraseña de recuperación y da a tu cuenta una identidad nueva. Tus otros dispositivos tendrán que verificarse de nuevo.",
       "repairButton": "Reparar el cifrado",
       "repaired": "Cifrado reparado. Vuelve a verificar tus otros dispositivos.",
-      "repairCancelled": "La reparación necesita la confirmación de tu cuenta. Vuelve a intentarlo."
+      "repairCancelled": "La reparación necesita la confirmación de tu cuenta. Vuelve a intentarlo.",
+      "turnOnBackup": "Activar copia de seguridad",
+      "turnOnIntro": "Introduce tu contraseña de recuperación. Las claves de tus mensajes se guardarán cifradas con ella, para que un dispositivo nuevo o un navegador borrado pueda volver a leer tus mensajes.",
+      "backupExists": "Otro dispositivo activó una copia de seguridad mientras tanto. Ya está en uso."
     },
     "oauthStage": {
       "title": "Aprobar en la página de tu cuenta",

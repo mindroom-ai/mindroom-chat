@@ -262,7 +262,10 @@
       "repairIntro": "La password di recupero è corretta, ma l'identità di cifratura salvata con essa non è quella sul tuo server. La riparazione conserva i tuoi messaggi e la password di recupero e dà al tuo account una nuova identità. Gli altri dispositivi dovranno essere verificati di nuovo.",
       "repairButton": "Ripara la cifratura",
       "repaired": "Cifratura riparata. Verifica di nuovo gli altri dispositivi.",
-      "repairCancelled": "La riparazione richiede la conferma del tuo account. Riprova."
+      "repairCancelled": "La riparazione richiede la conferma del tuo account. Riprova.",
+      "turnOnBackup": "Attiva il backup",
+      "turnOnIntro": "Inserisci la password di recupero. Le chiavi dei tuoi messaggi verranno salvate cifrate con essa, così un nuovo dispositivo o un browser svuotato potrà leggere di nuovo i tuoi messaggi.",
+      "backupExists": "Nel frattempo un altro dispositivo ha attivato un backup. Ora è in uso."
     },
     "oauthStage": {
       "title": "Approva nella pagina del tuo account",

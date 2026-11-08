@@ -283,3 +283,58 @@ test('repair gives an account whose stored identity is not the published one a n
   // The repaired secret storage unlocks a third browser the ordinary way.
   await readsHistoryAfterUnlock(browser, account, FIRST_PASSWORD);
 });
+
+test('an account without a key backup turns one on with its recovery password', async ({
+  browser,
+}) => {
+  const account = await createAccountWithEncryptedRoom();
+  const first = await firstSessionWithMessage(browser, account);
+
+  // The backup goes away (as a reset by another client can leave it): secret storage stays.
+  const { access_token: token } = await matrix<{ access_token: string }>('/login', {
+    body: {
+      type: 'm.login.password',
+      identifier: { type: 'm.id.user', user: account.username },
+      password: ACCOUNT_PASSWORD,
+    },
+  });
+  const { version } = await matrix<{ version: string }>('/room_keys/version', { token });
+  const deleted = await fetch(`${HOMESERVER}/_matrix/client/v3/room_keys/version/${version}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(deleted.ok, `DELETE room_keys/version answered ${deleted.status}`).toBe(true);
+  await matrix('/logout', { token, body: {} });
+
+  await first.reload();
+  await openSecurity(first);
+  await expect(first.getByText('No backup present on server!')).toBeVisible({ timeout: 60_000 });
+  await first.getByRole('button', { name: 'Turn on backup' }).click();
+  await first.locator('input[name="recoveryInput"]').fill(FIRST_PASSWORD);
+  await first.getByRole('button', { name: 'Turn on backup' }).click();
+  await expect(first.getByText(/Connected · Version: \S+/)).toBeVisible({ timeout: 60_000 });
+  // This session's room keys go into the new backup (asked of the server: the tile reads the count
+  // again only when an upload reports progress).
+  await expect
+    .poll(
+      async () => {
+        const session = await matrix<{ access_token: string }>('/login', {
+          body: {
+            type: 'm.login.password',
+            identifier: { type: 'm.id.user', user: account.username },
+            password: ACCOUNT_PASSWORD,
+          },
+        });
+        const backup = await matrix<{ count: number }>('/room_keys/version', {
+          token: session.access_token,
+        });
+        await matrix('/logout', { token: session.access_token, body: {} });
+        return backup.count;
+      },
+      { timeout: 60_000, intervals: [3_000] }
+    )
+    .toBeGreaterThan(0);
+
+  // A fresh browser gets the backup key from secret storage and the history from the backup.
+  await readsHistoryAfterUnlock(browser, account, FIRST_PASSWORD);
+});

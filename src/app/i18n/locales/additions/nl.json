@@ -258,7 +258,10 @@
       "repairIntro": "Je herstelwachtwoord klopt, maar de versleutelingsidentiteit die ermee is opgeslagen is niet die op je server. Herstellen behoudt je berichten en je herstelwachtwoord en geeft je account een nieuwe identiteit. Je andere apparaten moeten daarna opnieuw worden geverifieerd.",
       "repairButton": "Versleuteling herstellen",
       "repaired": "Versleuteling hersteld. Verifieer je andere apparaten opnieuw.",
-      "repairCancelled": "Herstellen vraagt om bevestiging van je account. Probeer het opnieuw."
+      "repairCancelled": "Herstellen vraagt om bevestiging van je account. Probeer het opnieuw.",
+      "turnOnBackup": "Back-up inschakelen",
+      "turnOnIntro": "Voer je herstelwachtwoord in. Je berichtsleutels worden dan versleuteld met dat wachtwoord geback-upt, zodat een nieuw apparaat of een gewiste browser je berichten weer kan lezen.",
+      "backupExists": "Een ander apparaat heeft intussen een back-up ingeschakeld. Die wordt nu gebruikt."
     },
     "oauthStage": {
       "title": "Goedkeuren op je accountpagina",

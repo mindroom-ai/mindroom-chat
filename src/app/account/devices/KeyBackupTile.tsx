@@ -13,6 +13,9 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { SettingTile } from '../../ui/SettingTile';
 import { fetchKeyBackupVersion } from '../encryption/keyBackupVersion';
+import { useDefaultSecretStorageKey } from '../encryption/useDefaultSecretStorageKey';
+import { describeKey } from '../encryption/recoveryState';
+import { TurnOnBackupForm } from '../encryption/TurnOnBackupForm';
 import { describeError } from '../../lib/describeError';
 import { ErrorDetail } from '../../ui/ErrorDetail';
 
@@ -142,6 +145,8 @@ export function KeyBackupTile() {
   const [showDetails, setShowDetails] = useState(false);
   const [restoring, setRestoring] = useState<ImportRoomKeyProgressData | 'starting'>();
   const [error, setError] = useState<{ failure: unknown }>();
+  const storageKey = useDefaultSecretStorageKey();
+  const [turningOn, setTurningOn] = useState(false);
 
   if (state === undefined) {
     return (
@@ -174,6 +179,8 @@ export function KeyBackupTile() {
 
   const { info } = state;
   if (!info) {
+    // With secret storage, a backup can be turned on without a reset: its key goes there.
+    const canTurnOn = !!storageKey;
     return (
       <SettingTile
         focusId="keyBackup"
@@ -181,7 +188,30 @@ export function KeyBackupTile() {
         description={
           <span style={{ color: color.Critical.Main }}>{t(`${KEY}.noBackupPresentOnServer`)}</span>
         }
-      />
+        after={
+          canTurnOn && !turningOn ? (
+            <Button
+              size="300"
+              radii="300"
+              variant="Primary"
+              fill="Solid"
+              onClick={() => setTurningOn(true)}
+            >
+              <Text size="B300">{t('sharedUi.recoveryPassword.turnOnBackup')}</Text>
+            </Button>
+          ) : undefined
+        }
+      >
+        {storageKey && turningOn && (
+          <TurnOnBackupForm
+            secretStorageKey={describeKey(storageKey)}
+            onDone={() => {
+              setTurningOn(false);
+              refresh();
+            }}
+          />
+        )}
+      </SettingTile>
     );
   }
 

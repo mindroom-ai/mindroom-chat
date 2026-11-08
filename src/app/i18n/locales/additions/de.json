@@ -258,7 +258,10 @@
       "repairIntro": "Dein Wiederherstellungspasswort ist richtig, aber die damit gespeicherte Verschlüsselungsidentität ist nicht die auf deinem Server. Die Reparatur behält deine Nachrichten und dein Wiederherstellungspasswort und gibt deinem Konto eine neue Identität. Deine anderen Geräte müssen danach erneut verifiziert werden.",
       "repairButton": "Verschlüsselung reparieren",
       "repaired": "Verschlüsselung repariert. Verifiziere deine anderen Geräte erneut.",
-      "repairCancelled": "Die Reparatur braucht die Bestätigung deines Kontos. Versuche es erneut."
+      "repairCancelled": "Die Reparatur braucht die Bestätigung deines Kontos. Versuche es erneut.",
+      "turnOnBackup": "Backup aktivieren",
+      "turnOnIntro": "Gib dein Wiederherstellungspasswort ein. Deine Nachrichtenschlüssel werden dann damit verschlüsselt gesichert, sodass ein neues Gerät oder ein geleerter Browser deine Nachrichten wieder lesen kann.",
+      "backupExists": "Ein anderes Gerät hat inzwischen ein Backup aktiviert. Es wird jetzt verwendet."
     },
     "oauthStage": {
       "title": "Auf deiner Kontoseite bestätigen",

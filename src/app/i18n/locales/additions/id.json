@@ -254,7 +254,10 @@
       "repairIntro": "Kata sandi pemulihan Anda benar, tetapi identitas enkripsi yang tersimpan bersamanya bukan identitas di server Anda. Perbaikan menyimpan pesan dan kata sandi pemulihan Anda serta memberi akun Anda identitas baru. Perangkat Anda yang lain perlu diverifikasi ulang.",
       "repairButton": "Perbaiki enkripsi",
       "repaired": "Enkripsi diperbaiki. Verifikasi ulang perangkat Anda yang lain.",
-      "repairCancelled": "Perbaikan memerlukan konfirmasi akun Anda. Coba lagi."
+      "repairCancelled": "Perbaikan memerlukan konfirmasi akun Anda. Coba lagi.",
+      "turnOnBackup": "Aktifkan cadangan",
+      "turnOnIntro": "Masukkan kata sandi pemulihan Anda. Kunci pesan Anda lalu dicadangkan, dienkripsi dengannya, sehingga perangkat baru atau browser yang dibersihkan dapat membaca pesan Anda lagi.",
+      "backupExists": "Perangkat lain sudah mengaktifkan cadangan sementara itu. Cadangan itu sekarang digunakan."
     },
     "oauthStage": {
       "title": "Setujui di halaman akun Anda",

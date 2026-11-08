@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { errorMessage } from '../../lib/errorMessage';
 import { describeKnownError } from '../../lib/describeError';
 import { INVALID_RECOVERY_INPUT } from './recoveryInput';
+import { BACKUP_ALREADY_EXISTS } from './turnOnKeyBackup';
 import {
   CRYPTO_NOT_FOUND as CRYPTO_MODULE_NOT_FOUND,
   RECOVERY_KEY_FAILED,
@@ -27,6 +28,7 @@ export const useRecoveryFailureText = () => {
     }
     if (message === RECOVERY_SECRETS_NOT_CACHED) return { text: t(`${KEY}.notCached`) };
     if (message === SECRET_STORAGE_INCOMPLETE) return { text: t(`${KEY}.incompleteError`) };
+    if (message === BACKUP_ALREADY_EXISTS) return { text: t(`${KEY}.backupExists`) };
     if (
       message === CRYPTO_NOT_FOUND ||
       message === CRYPTO_MODULE_NOT_FOUND ||

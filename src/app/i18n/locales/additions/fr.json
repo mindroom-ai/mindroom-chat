@@ -262,7 +262,10 @@
       "repairIntro": "Votre mot de passe de récupération est correct, mais l'identité de chiffrement enregistrée avec lui n'est pas celle de votre serveur. La réparation conserve vos messages et votre mot de passe de récupération, et donne une nouvelle identité à votre compte. Vos autres appareils devront être vérifiés à nouveau.",
       "repairButton": "Réparer le chiffrement",
       "repaired": "Chiffrement réparé. Vérifiez à nouveau vos autres appareils.",
-      "repairCancelled": "La réparation nécessite la confirmation de votre compte. Réessayez."
+      "repairCancelled": "La réparation nécessite la confirmation de votre compte. Réessayez.",
+      "turnOnBackup": "Activer la sauvegarde",
+      "turnOnIntro": "Saisissez votre mot de passe de récupération. Les clés de vos messages sont alors sauvegardées, chiffrées avec lui, pour qu'un nouvel appareil ou un navigateur effacé puisse relire vos messages.",
+      "backupExists": "Un autre appareil a activé une sauvegarde entre-temps. Elle est maintenant utilisée."
     },
     "oauthStage": {
       "title": "Approuver sur la page de votre compte",

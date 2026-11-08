@@ -258,7 +258,10 @@
       "repairIntro": "Kurtarma parolanız doğru, ancak onunla saklanan şifreleme kimliği sunucunuzdaki kimlik değil. Onarım mesajlarınızı ve kurtarma parolanızı korur ve hesabınıza yeni bir kimlik verir. Diğer cihazlarınızın yeniden doğrulanması gerekecek.",
       "repairButton": "Şifrelemeyi onar",
       "repaired": "Şifreleme onarıldı. Diğer cihazlarınızı yeniden doğrulayın.",
-      "repairCancelled": "Onarım için hesap onayınız gerekiyor. Yeniden deneyin."
+      "repairCancelled": "Onarım için hesap onayınız gerekiyor. Yeniden deneyin.",
+      "turnOnBackup": "Yedeklemeyi aç",
+      "turnOnIntro": "Kurtarma parolanızı girin. Mesaj anahtarlarınız onunla şifrelenerek yedeklenir; böylece yeni bir cihaz veya temizlenmiş bir tarayıcı mesajlarınızı yeniden okuyabilir.",
+      "backupExists": "Bu arada başka bir cihaz yedeklemeyi açtı. Şimdi o kullanılıyor."
     },
     "oauthStage": {
       "title": "Hesap sayfanızda onaylayın",
