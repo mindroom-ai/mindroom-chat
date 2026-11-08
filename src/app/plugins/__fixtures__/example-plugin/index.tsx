@@ -43,7 +43,8 @@
 // backend's hello, and a websocket echoes what "Echo" sends, opened again unless the user left.
 // Its panel names the sender of the greeting it shows, and their name opens their profile card
 // beside the panel, as a mention pill opens one; under it, the panel shows the signed-in person's
-// card itself.
+// card itself. It shows the greeting's text as the app renders an agent's reply, as Markdown whose
+// HTML the app sanitized, with the Matrix IDs of the room's members replaced by their names.
 import { useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react';
 import FocusTrap from 'focus-trap-react';
 import {
@@ -100,6 +101,8 @@ import {
   NavItem,
   NavItemContent,
   PopOut,
+  replaceMatrixUserIdsWithDisplayNames,
+  useMarkdownHtml,
 } from '@mindroom/client-sdk/ui';
 
 /** The drag type of the item its panel offers, which the room header takes. */
@@ -328,6 +331,17 @@ function ServerGreeting({ roomId }: { roomId: string }) {
 }
 
 /**
+ * A greeting's text as the app renders an agent's reply, Markdown with its HTML sanitized, and with
+ * the room's members by name; plain until the app's Markdown renderer has loaded.
+ */
+function GreetingText({ room, text }: { room: Room | null; text: string }) {
+  const named = room ? replaceMatrixUserIdsWithDisplayNames(room, text) : text;
+  const html = useMarkdownHtml(named);
+  if (html === undefined) return <p>{named}</p>;
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+/**
  * The greeting of the message `eventId` in the room, as the homeserver has it (the tests' greetings
  * are not encrypted), and its sender's name, which opens their profile card beside the panel.
  */
@@ -351,7 +365,9 @@ function FetchedGreeting({ roomId, eventId }: { roomId: string; eventId: string 
   if (text === undefined) return null;
   return (
     <>
-      <p>Greeting: {text}</p>
+      <div data-example-plugin-greeting>
+        Greeting: <GreetingText room={client.getRoom(roomId)} text={text} />
+      </div>
       {sender && (
         <p>
           From{' '}

@@ -2,7 +2,7 @@
 // The example plugin's test, written as a plugin outside this repository writes one: it imports the
 // app only through the client SDK, `/testing` included, and runs in the app's vitest.
 import { createRef, type ReactNode } from 'react';
-import { fireEvent } from '@testing-library/react';
+import { fireEvent, waitFor } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -132,7 +132,11 @@ describe('example plugin', () => {
       <panel.Component roomId="!lobby:example.org" request="$greeting" />,
       { id: 'example', plugin, client }
     );
-    expect(await view.findByText('Greeting: Hello')).toBeTruthy();
+    await waitFor(() =>
+      expect(
+        view.container.querySelector('[data-example-plugin-greeting]')?.textContent?.trim()
+      ).toBe('Greeting: Hello')
+    );
     expect(fetched).toHaveBeenCalledWith('!lobby:example.org', '$greeting');
     expect((await renderGreeting()).queryByRole('button', { name: 'Show in panel' })).toBeNull();
   });
