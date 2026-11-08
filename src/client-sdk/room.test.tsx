@@ -316,10 +316,17 @@ describe('useOpenUserProfile and UserProfileCard', () => {
     expect(screen.getByRole('dialog', { name: BOB }).parentElement?.style.right).toBe('932px');
   });
 
-  it('opens nothing for a room the client does not have', () => {
+  it('opens nothing for a room the client does not have, also once the room arrives', () => {
     const { account } = signedIn();
-    renderInApp(account, <BobButtons roomId="!unknown:example.org" />);
+    const LATER = '!later:example.org';
+    const ui = <BobButtons roomId={LATER} />;
+    const view = renderInApp(account, ui);
     fireEvent.click(screen.getByRole('button', { name: 'Bob' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    // Sync brings the room, and the app renders again: the click long past opens nothing then.
+    account.store.storeRoom(new Room(LATER, account, ME));
+    view.rerender(inApp(account, ui));
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
