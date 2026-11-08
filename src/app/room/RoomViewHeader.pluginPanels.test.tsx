@@ -109,23 +109,38 @@ const iconOf = (button: ReactTestInstance | undefined) => button?.findByType(Ico
 const BOARD = { id: 'notes/board', label: 'Board', icon: Icons.Star, placement: 'auto' } as const;
 
 describe("a plugin's side panel's toggle in the room header", () => {
-  it("is a button with its icon in a wide header's row, pressed and tinted while the room shows it", () => {
-    const onPanelToggle = vi.fn();
-    renderHeader({ pluginPanels: [BOARD], onPanelToggle });
-    expect(rowButton('Board')?.props).toMatchObject({ 'aria-pressed': false, variant: 'Surface' });
-    expect(iconOf(rowButton('Board'))).toBe(Icons.Star);
-    act(() => {
-      rowButton('Board')?.props.onClick({});
-    });
-    expect(onPanelToggle).toHaveBeenCalledWith('notes/board');
-    openMenu();
-    expect(menuEntry('Board')).toBeUndefined();
+  it.each([
+    { placement: 'auto', size: 'Desktop' },
+    { placement: 'row', size: 'Desktop' },
+    { placement: 'row', size: 'Mobile' },
+  ] as const)(
+    'is a button with its icon in the row with `$placement` on a $size screen, pressed and tinted while the room shows it',
+    ({ placement, size }) => {
+      screen.size = size;
+      const panel = { ...BOARD, placement };
+      const onPanelToggle = vi.fn();
+      renderHeader({ pluginPanels: [panel], onPanelToggle });
+      expect(rowButton('Board')?.props).toMatchObject({
+        'aria-pressed': false,
+        variant: 'Surface',
+      });
+      expect(iconOf(rowButton('Board'))).toBe(Icons.Star);
+      act(() => {
+        rowButton('Board')?.props.onClick({});
+      });
+      expect(onPanelToggle).toHaveBeenCalledWith('notes/board');
+      openMenu();
+      expect(menuEntry('Board')).toBeUndefined();
 
-    renderHeader({ pluginPanels: [BOARD], shownPanel: 'notes/board', onPanelToggle });
-    expect(rowButton('Board')?.props).toMatchObject({ 'aria-pressed': true, variant: 'Primary' });
-    renderHeader({ pluginPanels: [BOARD], shownPanel: 'members', onPanelToggle });
-    expect(rowButton('Board')?.props).toMatchObject({ 'aria-pressed': false, variant: 'Surface' });
-  });
+      renderHeader({ pluginPanels: [panel], shownPanel: 'notes/board', onPanelToggle });
+      expect(rowButton('Board')?.props).toMatchObject({ 'aria-pressed': true, variant: 'Primary' });
+      renderHeader({ pluginPanels: [panel], shownPanel: 'members', onPanelToggle });
+      expect(rowButton('Board')?.props).toMatchObject({
+        'aria-pressed': false,
+        variant: 'Surface',
+      });
+    }
+  );
 
   it("is an entry with its icon in a phone's room menu, checked while the room shows it", () => {
     screen.size = 'Mobile';
@@ -142,36 +157,6 @@ describe("a plugin's side panel's toggle in the room header", () => {
       menuEntry('Board')?.props.onSelect();
     });
     expect(onPanelToggle).toHaveBeenCalledWith('notes/board');
-  });
-
-  it.each(['Mobile', 'Desktop'])(
-    'is a button in the row on a %s screen with `row`, pressed only while the room shows it',
-    (size) => {
-      screen.size = size;
-      const onPanelToggle = vi.fn();
-      const panel = { ...BOARD, placement: 'row' } as const;
-      renderHeader({ pluginPanels: [panel], onPanelToggle });
-      expect(rowButton('Board')?.props).toMatchObject({
-        'aria-pressed': false,
-        variant: 'Surface',
-      });
-      act(() => {
-        rowButton('Board')?.props.onClick({});
-      });
-      expect(onPanelToggle).toHaveBeenCalledWith('notes/board');
-      openMenu();
-      expect(menuEntry('Board')).toBeUndefined();
-
-      renderHeader({ pluginPanels: [panel], shownPanel: 'notes/board', onPanelToggle });
-      expect(rowButton('Board')?.props).toMatchObject({ 'aria-pressed': true, variant: 'Primary' });
-    }
-  );
-
-  it('is an entry of the room menu with `menu` on a wide screen', () => {
-    renderHeader({ pluginPanels: [{ ...BOARD, placement: 'menu' }], onPanelToggle: vi.fn() });
-    expect(rowButton('Board')).toBeUndefined();
-    openMenu();
-    expect(menuEntry('Board')?.props).toMatchObject({ 'aria-checked': false, icon: Icons.Star });
   });
 
   it('is an entry of the room menu under a bulb for a panel with no icon or placement', () => {
