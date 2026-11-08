@@ -418,6 +418,23 @@ describe('ClientSessions.openSocket', () => {
     ]);
   });
 
+  it('still asks after a refused socket when one of a replaced session closes later', async () => {
+    const server = fakeServer();
+    const store = sessions(server);
+    const old = (await store.openSocket('/api/plugins/notes/live')) as unknown as FakeSocket;
+    // A 401 ends session-1; a socket with session-2 is then refused before session-1's closes.
+    server.route.mockImplementationOnce(() => json({}, 401));
+    await store.send('/api/plugins');
+    const refused = (await store.openSocket('/api/plugins/notes/live')) as unknown as FakeSocket;
+    refused.closeWith(1006);
+    old.closeWith(1006);
+    server.sent.length = 0;
+
+    await store.openSocket('/api/plugins/notes/live');
+
+    expect(server.routes()).toEqual([`GET ${API_URL}/api/plugins Bearer session-2`]);
+  });
+
   it('signs in again when the check after a socket that never opened says the session ended', async () => {
     const server = fakeServer();
     server.route.mockImplementationOnce(() => json({ detail: 'expired' }, 401));

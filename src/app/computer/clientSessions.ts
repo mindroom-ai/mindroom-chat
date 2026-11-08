@@ -219,7 +219,7 @@ export class ClientSessions {
     }
   }
 
-  /** Drops a session the server refused, so the next request signs in again. */
+  /** Drops a session the server refused or ended, so the next request signs in again. */
   private forget(session: ClientSession): void {
     this.issued.delete(session);
     if (this.session === session) this.session = undefined;
@@ -308,10 +308,8 @@ export class ClientSessions {
       opened = true;
     });
     socket.addEventListener('close', ({ code }) => {
-      if (code === SESSION_ENDED) this.issued.delete(session);
-      if (this.session !== session) return;
-      if (code === SESSION_ENDED) this.session = undefined;
-      else if (!opened) this.unverified = session;
+      if (code === SESSION_ENDED) this.forget(session);
+      else if (!opened && this.session === session) this.unverified = session;
     });
     return socket;
   }
