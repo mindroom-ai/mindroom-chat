@@ -199,10 +199,11 @@ test("a plugin's panel waits for the room's server: the published one, never the
   await expect(panel.getByText(published)).toBeVisible({ timeout: 60_000 });
   await page.reload();
   await expect(panel.getByText(published)).toBeVisible({ timeout: 90_000 });
-  expect(await greetingLines(page)).not.toContain('No MindRoom server');
-  expect((await greetingLines(page)).filter((line) => line.startsWith('MindRoom server:'))).toEqual(
-    [published]
-  );
+  // Soft, as the checks below, so a run on a client without the wait reports each difference.
+  expect.soft(await greetingLines(page)).not.toContain('No MindRoom server');
+  expect
+    .soft((await greetingLines(page)).filter((line) => line.startsWith('MindRoom server:')))
+    .toEqual([published]);
 
   // A load that starts in a room without an agent, then switches into the lobby, whose members it
   // has not loaded yet.
@@ -213,9 +214,10 @@ test("a plugin's panel waits for the room's server: the published one, never the
   const before = (await greetingLines(page)).length;
   await switchRoom(page, stack.rooms.lobby);
   await expect(panel.getByText(published)).toBeVisible({ timeout: 60_000 });
-  expect((await greetingLines(page)).slice(before)).not.toContain('No MindRoom server');
+  expect.soft((await greetingLines(page)).slice(before)).not.toContain('No MindRoom server');
 
-  // One sign-in for each of the three loads that showed the lobby's server, all at that server.
-  expect(await requests.signIns()).toBe(3);
+  // One sign-in for each of the three loads that showed the lobby's server, all at that server; the
+  // last one asks the homeserver for a token first.
+  await expect.poll(() => requests.signIns()).toBe(3);
   expect(configured).toEqual([]);
 });
