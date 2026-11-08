@@ -45,7 +45,7 @@ work; it describes what the software does and the contract between the two sides
 
 Speech-to-text uses MindRoom's existing voice-message settings (`voice.stt`: provider, model, host, credentials).
 Changes apply to the next request, without a restart. Turning `enabled` off stops all reading and posting in Matrix for
-calls at once; while it is off, stored calls keep only the one-day limit below (a call not heard from for a day ends
+calls at once (no request for calls starts after it; one already under way may complete); while it is off, stored calls keep only the one-day limit below (a call not heard from for a day ends
 and its message is given up). Turned back on, calls go on as before.
 
 ### A call
