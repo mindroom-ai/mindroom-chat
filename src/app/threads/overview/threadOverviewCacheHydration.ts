@@ -346,6 +346,37 @@ export const resolveCachedOverviewUpdate = ({
   };
 };
 
+/**
+ * The event mapper for one pass over cached pages. An encrypted room's cache holds ciphertext, and
+ * a mapped copy decrypts only after its card's preview was read from it, which no later pass
+ * reads again: after a reload, the cards of the threads the device had not loaded since showed the
+ * person's question (P3-webkit-cards-F010). So in an encrypted room each cached event is mapped
+ * once and decrypted before the pass reads any preview.
+ */
+export const mapCachedPagesForOverview = async (
+  mx: Pick<MatrixClient, 'getEventMapper' | 'decryptEventIfNeeded'>,
+  room: Room,
+  pages: CachedThreadEventPage[]
+): Promise<(rawEvent: IEvent) => MatrixEvent> => {
+  const sdkMapper = mx.getEventMapper();
+  if (!room.hasEncryptionStateEvent()) return sdkMapper;
+  const mapped = new Map<string, MatrixEvent>();
+  const mapper = (rawEvent: Partial<IEvent>): MatrixEvent => {
+    const known = rawEvent.event_id ? mapped.get(rawEvent.event_id) : undefined;
+    if (known) return known;
+    const event = sdkMapper(rawEvent);
+    if (rawEvent.event_id) mapped.set(rawEvent.event_id, event);
+    return event;
+  };
+  // The same wrappers the pass reads through, so the copies stay off the room's threads.
+  const readCopy = readOnlyEventMapper(room, createPreferLiveEventMapper(room, mapper));
+  const copies = pages.flatMap((page) =>
+    page.events.map((rawEvent) => readCopy(rawEvent as IEvent))
+  );
+  await Promise.allSettled(copies.map((event) => mx.decryptEventIfNeeded(event)));
+  return mapper;
+};
+
 export const useThreadOverviewCacheHydration = ({
   threadId,
   overviewThreadRootIds,
@@ -487,10 +518,16 @@ export const useThreadOverviewCacheHydration = ({
         }
         if (cancelled) return;
         if (!cachedPages) break;
-        const mapper = mx.getEventMapper();
+        const pages = cachedPages;
+        const mapper = await mapCachedPagesForOverview(
+          mx,
+          room,
+          batchIds.flatMap((rootId) => pages.get(rootId) ?? [])
+        );
+        if (cancelled) return;
         attemptedRootIds.push(...batchIds);
         batchIds.forEach((rootId) => {
-          const cachedPage = cachedPages.get(rootId);
+          const cachedPage = pages.get(rootId);
           if (!cachedPage) return;
           try {
             const currentRecord = (

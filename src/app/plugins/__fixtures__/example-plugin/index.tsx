@@ -7,8 +7,9 @@
 // account may post there, which it says again when the room's levels change. Its toggle, under
 // a leaf icon, shows in the room header's row, except on phones, where it goes in the room menu. It
 // also shows the greeting a card asked it to show: in a room, each greeting has "Show in panel",
-// and "Close panel" while the panel shows. The panel stays open in its room across reloads
-// (`remember`), so the card hands it only the greeting's event ID, and it reads the greeting itself.
+// and "Close panel" while the panel shows. A greeting that begins a thread opens the panel beside
+// that thread as the thread shows. The panel stays open in its room across reloads (`remember`), so
+// a card hands it only the greeting's event ID, and it reads the greeting itself.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg); its build module (build.mjs) writes "Example banner" in place of a marker, which
 // unit tests, where no build module runs, show as it is. The banner also has a button, "Show
@@ -94,6 +95,12 @@ function Greeting({ event }: { event: PluginEvent }) {
   const authenticated = useMediaAuthentication();
   const avatarMxc = client.getRoom(event.roomId)?.getMember(event.sender)?.getMxcAvatarUrl();
   const avatar = avatarMxc && mxcUrlToHttp(client, avatarMxc, authenticated, 32, 32, 'crop');
+  const openBesideThread = panel?.openBesideThread;
+  const { eventId } = event;
+  // As the root of the thread the room shows, it opens the panel beside that thread.
+  useEffect(() => {
+    if (eventId) openBesideThread?.(eventId, eventId);
+  }, [eventId, openBesideThread]);
   const text = greetingText(event.content);
   const label =
     typeof config === 'object' &&
