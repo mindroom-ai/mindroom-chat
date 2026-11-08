@@ -653,6 +653,17 @@ describe('the side panels of a room', () => {
     }
   );
 
+  it("opens a panel that remembers again over a phone's members, which the navigation puts away", async () => {
+    signIn();
+    withCards();
+    const showRoom = await renderRoom(ScreenSize.Mobile);
+    await act(async () => controls.board?.open('kept'));
+    await showRoom('!other:example.org');
+    await act(async () => store.set(membersOpenAtom, true));
+    await showRoom(room.roomId);
+    expect(screen.getByText('Board request "kept"')).toBeTruthy();
+  });
+
   it('remembers nothing for an account whose login this browser no longer has', async () => {
     withCards();
     await renderRoom();
