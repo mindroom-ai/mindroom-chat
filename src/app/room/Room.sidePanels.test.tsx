@@ -507,7 +507,7 @@ describe('the side panels of a room', () => {
     expect(notes()).toBeNull();
   });
 
-  it("opens a plugin's panel from the plugin's layout effect, as the room first shows and after a switch", async () => {
+  it("acts on the room shown for a plugin's call made before the room's own effects run", async () => {
     state.inView = <OpensAtOnce />;
     const showRoom = await renderRoom();
     expect(screen.getByText('Notes request "at once"')).toBeTruthy();
