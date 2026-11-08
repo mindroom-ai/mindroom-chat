@@ -10,6 +10,7 @@ import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthenticatio
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { useAvatarImage } from '../../avatars/useAvatarImage';
 import { ImageOverlay } from '../content/ImageOverlay';
+import { revealDirectionControls } from '../../ui/directional';
 
 const linkStyles = { color: color.Success.Main };
 
@@ -61,6 +62,8 @@ export const UrlPreviewCard = as<'div', UrlPreviewCardProps>(({ url, ts, ...card
     const title = preview['og:title'];
     const description = preview['og:description'];
     const imageAlt = typeof title === 'string' ? title : '';
+    // The page's words show their direction controls, as message text does; the viewer gets the
+    // title as it is, to save the picture under it.
     content = (
       <>
         {thumbnail.imageSrc && (
@@ -71,7 +74,7 @@ export const UrlPreviewCard = as<'div', UrlPreviewCardProps>(({ url, ts, ...card
           >
             <UrlPreviewImg
               src={thumbnail.imageSrc}
-              alt={imageAlt}
+              alt={revealDirectionControls(imageAlt)}
               title={url}
               onError={thumbnail.onImageError}
             />
@@ -95,13 +98,13 @@ export const UrlPreviewCard = as<'div', UrlPreviewCardProps>(({ url, ts, ...card
             size="T200"
             priority="300"
           >
-            {getSiteName(url, preview)}
+            {revealDirectionControls(getSiteName(url, preview))}
           </Text>
           <Text truncate priority="400">
-            <b>{typeof title === 'string' && title ? title : url}</b>
+            <b>{revealDirectionControls(typeof title === 'string' && title ? title : url)}</b>
           </Text>
           {typeof description === 'string' && description && (
-            <UrlPreviewDescription>{description}</UrlPreviewDescription>
+            <UrlPreviewDescription>{revealDirectionControls(description)}</UrlPreviewDescription>
           )}
         </UrlPreviewContent>
       </>
