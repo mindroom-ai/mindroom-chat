@@ -158,10 +158,12 @@ describe('clientSessions', () => {
       expect(init.keepalive).toBe(true);
       expect(init.credentials).toBe('omit');
     });
-    // The next request signs in again.
+    // The page is about to reload: nothing signs in again.
     server.sent.length = 0;
-    await clientSessions(ann, API_URL, true).send('/api/plugins');
-    expect(server.signIns()).toBe(1);
+    await expect(clientSessions(ann, API_URL, true).send('/api/plugins')).rejects.toMatchObject({
+      status: 0,
+    });
+    expect(server.sent).toEqual([]);
   });
 });
 
@@ -202,15 +204,16 @@ describe('ClientSessions.revoke', () => {
     expect(server.routes()).toEqual([`DELETE ${API_URL}/api/client-sessions Bearer session-2`]);
   });
 
-  it('ends a session whose sign-in was on its way', async () => {
+  it('ends a session whose sign-in was on its way, also one that arrives after the wait', async () => {
     const server = fakeServer();
     const token = pending();
+    const slowToken = async () => {
+      await token.promise;
+      return TOKEN;
+    };
     const store = new ClientSessions({
       apiUrl: API_URL,
-      getOpenIdToken: async () => {
-        await token.promise;
-        return TOKEN;
-      },
+      getOpenIdToken: slowToken,
       request: server.request,
     });
     const sent = store.send('/api/plugins');
@@ -218,8 +221,46 @@ describe('ClientSessions.revoke', () => {
     const revoked = store.revoke();
     token.resolve();
     await Promise.all([sent, revoked]);
-
     expect(server.routes()).toContain(`DELETE ${API_URL}/api/client-sessions Bearer session-1`);
+
+    // A sign-in that outlasts sign-out's 3 seconds is ended as it arrives, and its request fails.
+    const late = pending();
+    const lateStore = new ClientSessions({
+      apiUrl: API_URL,
+      getOpenIdToken: async () => {
+        await late.promise;
+        return TOKEN;
+      },
+      request: server.request,
+    });
+    const lateSend = lateStore.send('/api/plugins').catch((error: unknown) => error);
+    const lateRevoke = lateStore.revoke();
+    await vi.advanceTimersByTimeAsync(3_000);
+    await lateRevoke;
+    server.sent.length = 0;
+    late.resolve();
+    await expect(lateSend).resolves.toMatchObject({ status: 0 });
+    expect(server.routes()).toEqual([`DELETE ${API_URL}/api/client-sessions Bearer session-2`]);
+  });
+
+  it('ends the session a renewal replaced, which may still be live', async () => {
+    const server = fakeServer();
+    const store = sessions(server);
+    await store.send('/api/plugins');
+    vi.setSystemTime(NOW + 3_541_000);
+    await store.send('/api/plugins');
+    expect(server.signIns()).toBe(2);
+    server.sent.length = 0;
+
+    await store.revoke();
+
+    expect(server.routes()).toEqual([
+      `DELETE ${API_URL}/api/client-sessions Bearer session-1`,
+      `DELETE ${API_URL}/api/client-sessions Bearer session-2`,
+    ]);
+    // Nothing more goes out with them, not even as the page goes away.
+    await store.sendNow('/api/call-transcripts/v1/calls/call-1/leave', { method: 'POST' });
+    expect(server.routes()).toHaveLength(2);
   });
 });
 
@@ -236,6 +277,11 @@ describe('ClientSessions.send', () => {
       `GET ${API_URL}/api/plugins/notes/rooms/!room/hello Bearer session-1`,
       `GET ${API_URL}/api/plugins/notes/rooms/!room/hello Bearer session-2`,
     ]);
+
+    // The refused one is ended already: sign-out ends only the other.
+    server.sent.length = 0;
+    await store.revoke();
+    expect(server.routes()).toEqual([`DELETE ${API_URL}/api/client-sessions Bearer session-2`]);
   });
 
   it('asks for JSON with no cookies, unless the caller asks for something else', async () => {
@@ -333,6 +379,10 @@ describe('ClientSessions.openSocket', () => {
       'mindroom-session.session-2',
     ]);
     expect(server.routes()).toEqual([]);
+
+    // Sign-out ends only the session the server still accepts.
+    await store.revoke();
+    expect(server.routes()).toEqual([`DELETE ${API_URL}/api/client-sessions Bearer session-2`]);
   });
 
   it('asks whether the session lives after a socket that closed before it opened, and keeps a live one', async () => {

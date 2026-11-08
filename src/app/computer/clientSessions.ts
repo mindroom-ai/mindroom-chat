@@ -104,6 +104,12 @@ export class ClientSessions {
   /** What must reach the server with the session before sign-out ends it, such as a call's leave. */
   private readonly lastRequests = new Set<() => Promise<unknown>>();
 
+  /** The sessions it signed in for that the server may still accept, all of which sign-out ends. */
+  private readonly issued = new Set<ClientSession>();
+
+  /** Sign-out ended its sessions: it signs in no more, and ends one a sign-in still brings. */
+  private revoked = false;
+
   constructor({ apiUrl, getOpenIdToken, request }: ClientSessionsOptions) {
     this.apiUrl = apiUrl;
     this.getOpenIdToken = getOpenIdToken;
@@ -170,6 +176,7 @@ export class ClientSessions {
    * same time share one sign-in; a failed one is not kept, so the next request signs in again.
    */
   private currentSession(signal?: AbortSignal): Promise<ClientSession> {
+    if (this.revoked) return Promise.reject(noAnswer('Signed out of MindRoom.'));
     if (this.session && this.session.expiresAt - SESSION_RENEW_MARGIN_MS > Date.now()) {
       return Promise.resolve(this.session);
     }
@@ -177,6 +184,14 @@ export class ClientSessions {
     if (!this.signingIn) {
       const signingIn: Promise<ClientSession> = this.signIn()
         .then((session) => {
+          if (this.revoked) {
+            void this.sendNow(SESSIONS_PATH, { method: 'DELETE' }, session);
+            throw noAnswer('Signed out of MindRoom.');
+          }
+          this.issued.forEach((old) => {
+            if (old.expiresAt <= Date.now()) this.issued.delete(old);
+          });
+          this.issued.add(session);
           if (this.signingIn === signingIn) this.session = session;
           return session;
         })
@@ -200,17 +215,17 @@ export class ClientSessions {
       const session = await this.currentSession(init.signal ?? undefined);
       const response = await this.fetch(url, { ...init, headers: bearer(init, session) });
       if (response.status !== 401 || attempt > 0) return response;
+      this.issued.delete(session);
       if (this.session === session) this.session = undefined;
     }
   }
 
   /**
-   * Sends `path` at once with the session already held, for a page that goes away: the request
-   * outlives the page, and its failure is ignored. Without a session, or once it has run out,
-   * nothing is sent, as there is no time to sign in.
+   * Sends `path` at once with the session already held (or `session`), for a page that goes away:
+   * the request outlives the page, and its failure is ignored. Without a session, or once it has
+   * run out, nothing is sent, as there is no time to sign in.
    */
-  sendNow(path: string, init: RequestInit): Promise<void> {
-    const { session } = this;
+  sendNow(path: string, init: RequestInit, session = this.session): Promise<void> {
     if (!session || session.expiresAt <= Date.now()) return Promise.resolve();
     const headers = bearer(init, session);
     return this.fetch(this.url(path).href, { ...init, keepalive: true, headers }).then(
@@ -231,8 +246,9 @@ export class ClientSessions {
   }
 
   /**
-   * Ends the session held at once, as at sign-out, once what `beforeRevoke` asked for was answered
-   * (3 seconds at most): the server refuses its token from then on.
+   * Ends every session it signed in for that may still be live, as at sign-out, once what
+   * `beforeRevoke` asked for and a sign-in on its way were answered (3 seconds at most): the server
+   * refuses their tokens from then on.
    */
   async revoke(): Promise<void> {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -244,7 +260,11 @@ export class ClientSessions {
       }),
     ]);
     clearTimeout(timer);
-    void this.sendNow(SESSIONS_PATH, { method: 'DELETE' });
+    this.revoked = true;
+    this.issued.forEach((session) => {
+      void this.sendNow(SESSIONS_PATH, { method: 'DELETE' }, session);
+    });
+    this.issued.clear();
     this.session = undefined;
   }
 
@@ -270,6 +290,7 @@ export class ClientSessions {
       opened = true;
     });
     socket.addEventListener('close', ({ code }) => {
+      if (code === SESSION_ENDED) this.issued.delete(session);
       if (this.session !== session) return;
       if (code === SESSION_ENDED) this.session = undefined;
       else if (!opened) this.unverified = session;

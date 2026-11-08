@@ -274,6 +274,29 @@ describe('TranscriptionClient routes', () => {
     expect(audio.size).toBe(44);
   });
 
+  it('cancels each route with the signal it was given', async () => {
+    const server = fakeServer();
+    server.route.mockImplementation((url) =>
+      url.includes('calls.live') ? json({ call: null, lines: [], names: {} }) : json({ call: CALL })
+    );
+    const { api } = client(server);
+    const { signal } = new AbortController();
+
+    await api.join(ROOM_ID, signal);
+    await api.leave('call-1', signal);
+    await api.pause('call-1', true, signal);
+    await api.speech('call-1', { wav: new Blob([]), startedAt: new Date(NOW) }, signal);
+    await api.live(ROOM_ID, undefined, signal);
+
+    expect(server.calls().map(({ init }) => init.signal)).toEqual([
+      signal,
+      signal,
+      signal,
+      signal,
+      signal,
+    ]);
+  });
+
   it('pauses and resumes the call, and reads the live call after a line', async () => {
     const server = fakeServer();
     const live = { call: CALL, lines: [LINE], names: { '@ann:example.org': 'Ann' } };
