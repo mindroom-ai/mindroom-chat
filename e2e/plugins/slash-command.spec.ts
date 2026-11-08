@@ -13,13 +13,13 @@ import { createPrivateRoom, createThreadFixture, matrixFetch } from '../helpers/
 import { serveBuild } from '../helpers/staticBuildServer';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
-// served as a deployment serves it, against the disposable homeserver. The plugin's slash commands,
-// `/greet` and `/subroom`, show in the composer's command menu after the app's own, in the order the
-// plugin lists them, with their descriptions. Run with a text, `/greet` sends the room the plugin's
-// notice and no message of its own; without one it refuses with its usage as a built-in command
-// does: the text stays in the composer with the usage line above it, which names the command and
-// gives its description in the app's language, and the composer still sends. Typed in a thread, it
-// greets that thread.
+// served as a deployment serves it, against the disposable homeserver. The plugin's slash commands
+// end with `/greet` and `/subroom`, which show in the composer's command menu after the app's own, in
+// the order the plugin lists them, with their descriptions. Run with a text, `/greet` sends the room
+// the plugin's notice and no message of its own; without one it refuses with its usage as a built-in
+// command does: the text stays in the composer with the usage line above it, which names the command
+// and gives its description in the app's language, and the composer still sends. Typed in a thread,
+// it greets that thread.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const RUN = Date.now().toString(36);
 
