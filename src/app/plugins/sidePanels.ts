@@ -67,6 +67,8 @@ export type PluginPanelControls = {
   shown: string | undefined;
   /** Opens a plugin's panel by its rule and hands it `request`; nothing for an unknown panel. */
   open: (id: string, request: unknown) => void;
+  /** Opens a plugin's panel beside the thread `threadId`, as {@link RoomSidePanelControl} says. */
+  openBesideThread: (id: string, threadId: string, request: unknown) => void;
   /** Closes a plugin's panel if the room shows it. */
   close: (id: string) => void;
 };
@@ -84,9 +86,20 @@ export type RoomSidePanelControl = {
    * browser, so the request should hold only what the panel needs to open again, never secrets or
    * message text. `open` keeps its identity while the room shows. Call it in answer to something
    * the person does, such as a click, never as a component mounts: the conversation's components
-   * mount again whenever it shows another thread or view.
+   * mount again whenever it shows another thread or view. To open as one mounts, see
+   * `openBesideThread`.
    */
   open: (request?: unknown) => void;
+  /**
+   * Opens it beside the thread `threadId` with `request`, as a renderer of that thread's root
+   * message may ask as it mounts. Only the first call since the room began to show that thread
+   * counts, so a component that mounts again does not open a panel the person closed; once another
+   * thread or the room's own timeline has shown, the thread's next call counts again. That call
+   * opens it only while the room shows that thread on a wider screen than a phone's, with no other
+   * side panel; when the panel itself shows, it takes `request` and keeps its place (folded or
+   * filling the room). Otherwise it does nothing. It keeps its identity as `open` does.
+   */
+  openBesideThread: (threadId: string, request?: unknown) => void;
   /** Closes it, if the room shows it; it keeps its identity as `open` does. */
   close: () => void;
 };
@@ -103,15 +116,19 @@ export const useRoomSidePanel = (
   const controls = useContext(PluginPanelControlsContext);
   const id = `${pluginId}/${panelId}`;
   const roomOpen = controls?.open;
+  const roomOpenBeside = controls?.openBesideThread;
   const roomClose = controls?.close;
   const actions = useMemo(
     () =>
       roomOpen &&
+      roomOpenBeside &&
       roomClose && {
         open: (request?: unknown) => roomOpen(id, request),
+        openBesideThread: (threadId: string, request?: unknown) =>
+          roomOpenBeside(id, threadId, request),
         close: () => roomClose(id),
       },
-    [id, roomClose, roomOpen]
+    [id, roomClose, roomOpen, roomOpenBeside]
   );
   const isOpen = controls?.shown === id;
   return useMemo(() => actions && { ...actions, isOpen }, [actions, isOpen]);
