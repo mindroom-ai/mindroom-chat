@@ -2,5 +2,6 @@
   "label": "Beispiel-Plugin",
   "wave": "Winken",
   "greet": "Dem Raum einen Gruß senden. Beispiel: /greet Hallo",
-  "roomInfo": "Beispiel-Rauminfo"
+  "roomInfo": "Beispiel-Rauminfo",
+  "roomRemoval": "Beispiel-Entfernung"
 }

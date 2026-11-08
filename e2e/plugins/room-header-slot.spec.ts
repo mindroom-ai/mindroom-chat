@@ -19,11 +19,12 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
 // whose room header slot shows "Example banner in <room name>", and a plugin whose slot component
 // throws, served as a deployment serves it, against the disposable homeserver. The banner shows
-// under the room header, across the conversation column and above the conversation; the broken
-// component shows nothing and the room keeps working; `?plugins=off` and
-// `plugins.example.enabled: false` leave the banner out. The example's panel item, dragged onto the
-// room's name, shows in the banner through the header element its slot gets, while a file dropped
-// there still goes to the composer. Set PLUGIN_SHOTS=<directory> to save screenshots.
+// under the room header, across the conversation column and above the conversation, on the header's
+// own frosted surface in light and dark; the broken component shows nothing and the room keeps
+// working; `?plugins=off` and `plugins.example.enabled: false` leave the banner out. The example's
+// panel item, dragged onto the room's name, shows in the banner through the header element its slot
+// gets, while a file dropped there still goes to the composer. Set PLUGIN_SHOTS=<directory> to save
+// screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'room-header-slot-password';
 const RUN = Date.now().toString(36);
@@ -163,6 +164,47 @@ test("shows the plugin's banner under the room header, across the conversation, 
       .poll(() => conversationTop(page))
       .toBeGreaterThanOrEqual(shown.y + shown.height - 1);
     await shot(page, 'room-header-slot');
+  }));
+
+/** The background, backdrop filter and text colour of the header's element, row and slot box. */
+const surfaces = (page: Page) =>
+  banner(page).evaluate((shown) => {
+    const slot = shown.parentElement!;
+    const header = slot.parentElement!;
+    const paint = (element: Element) => {
+      const style = getComputedStyle(element);
+      return {
+        background: style.backgroundColor,
+        filter: style.backdropFilter,
+        color: style.color,
+      };
+    };
+    return {
+      header: paint(header),
+      row: paint(header.querySelector(':scope > header')!),
+      slot: paint(slot),
+    };
+  });
+
+test("the banner shows the header's own frosted surface and text colour, as the row does, in light and dark", ({
+  browser,
+}) =>
+  onBuild(browser, {}, async (page, data) => {
+    await page.goto(roomPath(data));
+    await roomShown(page);
+    await expect(banner(page)).toHaveText(BANNER);
+    const clear = { background: 'rgba(0, 0, 0, 0)', filter: 'none' };
+    for (const colorScheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme });
+      await expect(page.locator('body')).toHaveClass(new RegExp(`\\b${colorScheme}-theme\\b`));
+      const { header, row, slot } = await surfaces(page);
+      // One translucent, blurred surface behind the row and the slot together, in one text colour.
+      expect(header.background).toMatch(/\/ 0?\.\d+\)$/);
+      expect(header.filter).toContain('blur(');
+      expect(row).toEqual({ ...clear, color: header.color });
+      expect(slot).toEqual({ ...clear, color: header.color });
+      await shot(page, `room-header-slot-surface-${colorScheme}`);
+    }
   }));
 
 test('a slot component that throws shows nothing, is reported, and leaves the room working', ({
