@@ -147,14 +147,19 @@ describe('MindroomServer.request', () => {
 
   it('rejects with the status and body after the sign-in it tried again was refused too', async () => {
     const answers = fakeFetch();
-    answers.route.mockImplementation(() => json({ detail: 'Missing, invalid or expired client session.' }, 401));
+    answers.route.mockImplementation(() =>
+      json({ detail: 'Missing, invalid or expired client session.' }, 401)
+    );
 
     const error = await published()
       .request('/api/plugins/notes/rooms/x/hello')
       .catch((reason: unknown) => reason);
 
     expect(error).toBeInstanceOf(MindroomServerError);
-    expect(error).toMatchObject({ status: 401, body: { detail: 'Missing, invalid or expired client session.' } });
+    expect(error).toMatchObject({
+      status: 401,
+      body: { detail: 'Missing, invalid or expired client session.' },
+    });
     expect(answers.signIns()).toBe(2);
   });
 
