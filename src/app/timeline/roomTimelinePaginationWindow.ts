@@ -10,7 +10,6 @@ import {
 } from 'react';
 import {
   Direction,
-  EventType,
   ThreadEvent,
   type EventTimeline,
   type MatrixClient,
@@ -316,14 +315,8 @@ export const useRoomWindowPaginator = ({
     () => suppressFocusPaginationRef.current,
     [suppressFocusPaginationRef]
   );
-  // The opening fill loads a screen of history above the reader. A short room, whose creation
-  // event came with the sync, has nothing older to load ahead: its start (the room intro) shows
-  // once the reader scrolls up to it.
-  const automaticBackReach = useCallback(() => {
-    const first = firstRoomTimelineRef.current?.getEvents()[0];
-    if (first?.getType() === EventType.RoomCreate) return 0;
-    return scrollRef.current?.clientHeight ?? 0;
-  }, [firstRoomTimelineRef, scrollRef]);
+  // The opening fill loads a screen of history above the reader.
+  const automaticBackReach = useCallback(() => scrollRef.current?.clientHeight ?? 0, [scrollRef]);
   const paginator = useVirtualPaginator({
     count: roomRows.length,
     range: activeTimelineRange,
