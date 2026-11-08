@@ -25,8 +25,8 @@ const ROOM_ID = '!room:example.org';
 
 /** Each time something reads the live call on its own, which the window never does. */
 const polls = vi.hoisted(() => ({ count: 0 }));
-vi.mock('../transcription/useTranscriptionServer', () => ({
-  useTranscriptionServer: () => ({ apiUrl: 'https://mindroom.example.org', discovered: true }),
+vi.mock('../../computer/useRoomMindroomServer', () => ({
+  useRoomMindroomServer: () => ({ apiUrl: 'https://mindroom.example.org', discovered: true }),
 }));
 vi.mock('../transcription/liveCallPoll', () => ({
   pollLiveCall: () => {
@@ -34,7 +34,6 @@ vi.mock('../transcription/liveCallPoll', () => ({
     return new Promise(() => undefined);
   },
 }));
-vi.mock('../../matrix/openidAudience', () => ({ requestAudienceOpenIdToken: vi.fn() }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getSafeUserId: () => USER, getUserId: () => USER }),
 }));

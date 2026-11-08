@@ -48,8 +48,8 @@ vi.mock('./agent/useCallFailureNotice', () => ({ useCallFailureNotice: () => und
 vi.mock('./agent/useCallFailureDismissal', () => ({
   useCallFailureDismissal: () => ({ visibleFailure: undefined, dismissFailure: () => undefined }),
 }));
-vi.mock('./transcription/useTranscriptionServer', () => ({
-  useTranscriptionServer: () => ({ apiUrl: undefined, discovered: false }),
+vi.mock('../computer/useRoomMindroomServer', () => ({
+  useRoomMindroomServer: () => ({ apiUrl: undefined, discovered: false }),
 }));
 vi.mock('./callSupport', () => ({
   browserSharesScreens: () => true,
