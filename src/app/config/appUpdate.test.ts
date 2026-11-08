@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { importBeforeTests } from '../../test/utils/importBeforeTests';
 
 type AppUpdate = typeof import('./appUpdate');
 
@@ -10,6 +11,8 @@ const loadAppUpdate = async (): Promise<AppUpdate> => {
   vi.resetModules();
   return import('./appUpdate');
 };
+
+importBeforeTests(() => import('./appUpdate'));
 
 const publishes = (version: string | null) =>
   vi.fn(async () => new Response(JSON.stringify({ version }), { status: 200 }));

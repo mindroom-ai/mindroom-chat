@@ -1,6 +1,9 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as cache from './index';
+import { openCacheStore, resetCacheStoreForTesting } from './cacheStoreDb';
+import { registerEncryptedRoomCheck } from './cacheStoreEncryptedRooms';
 import { THREAD_SUMMARIES_STORE } from './cacheStoreSchema';
 
 // Regression (P2-e2ee-F011): the offline cache keeps an encrypted room's events as ciphertext, but
@@ -16,7 +19,6 @@ const PLAIN = '!plain:example.org';
 const TITLE = { summaryText: 'Quarterly budget review', generatedTs: 1, messageCount: 2 };
 
 const storedTitles = async (): Promise<Array<{ roomId: string; summaryText: string }>> => {
-  const { openCacheStore } = await import('./cacheStoreDb');
   const db = (await openCacheStore(SESSION_ID))!;
   return new Promise((resolve, reject) => {
     const request = db
@@ -30,17 +32,14 @@ const storedTitles = async (): Promise<Array<{ roomId: string; summaryText: stri
 
 describe('thread titles of encrypted rooms in the offline cache', () => {
   beforeEach(() => {
-    vi.resetModules();
     globalThis.indexedDB = new IDBFactory();
   });
 
-  afterEach(async () => {
-    (await import('./cacheStoreDb')).resetCacheStoreForTesting();
+  afterEach(() => {
+    resetCacheStoreForTesting();
   });
 
   it('keep the titles of an encrypted room off disk and delete what an older version kept', async () => {
-    const cache = await import('./index');
-    const { registerEncryptedRoomCheck } = await import('./cacheStoreEncryptedRooms');
     // An older version, which had no check, kept the title in the clear.
     await cache.saveCachedThreadSummary(SESSION_ID, SECURE, '$old', TITLE);
     expect((await storedTitles()).map((record) => record.roomId)).toEqual([SECURE]);

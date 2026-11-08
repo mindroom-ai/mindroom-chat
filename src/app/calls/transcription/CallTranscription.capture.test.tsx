@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
+import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 import { CallTranscription } from './CallTranscription';
 import { activeCallAtom, type ActiveCall } from '../callStore';
 import type { CallState } from '../RoomCall';
@@ -51,6 +52,9 @@ vi.mock('../../matrix/openidAudience', () => ({
     expires_in: 3600,
   }),
 }));
+
+// The component imports its transcriber when a call starts; load it before the test's timeout runs.
+importBeforeTests(() => import('./callTranscriber'));
 
 const json = (body: unknown) =>
   new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
