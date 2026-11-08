@@ -6,6 +6,8 @@ const SESSIONS_PATH = '/api/client-sessions';
 const SESSION_RENEW_MARGIN_MS = 60_000;
 /** Signing in (the token and the exchange) gives up after this long; the next request tries again. */
 const SIGN_IN_TIMEOUT_MS = 15_000;
+/** Sign-out waits this long at most for the requests that must reach the server before it ends the session. */
+const LAST_REQUESTS_WAIT_MS = 3_000;
 /** A websocket offers this subprotocol, and this one followed by `.<session token>`. */
 const SESSION_PROTOCOL = 'mindroom-session';
 /** A websocket closes with this code once its session ends. */
@@ -87,6 +89,9 @@ export class ClientSessions {
 
   /** The session a websocket offered and that closed before it opened, which may have ended. */
   private unverified?: ClientSession;
+
+  /** What must reach the server with the session before sign-out ends it, such as a call's leave. */
+  private readonly lastRequests = new Set<() => Promise<unknown>>();
 
   constructor({ apiUrl, getOpenIdToken, request }: ClientSessionsOptions) {
     this.apiUrl = apiUrl;
@@ -196,20 +201,40 @@ export class ClientSessions {
    * outlives the page, and its failure is ignored. Without a session, or once it has run out,
    * nothing is sent, as there is no time to sign in.
    */
-  sendNow(path: string, init: RequestInit): void {
+  sendNow(path: string, init: RequestInit): Promise<void> {
     const { session } = this;
-    if (!session || session.expiresAt <= Date.now()) return;
+    if (!session || session.expiresAt <= Date.now()) return Promise.resolve();
     const headers = new Headers(init.headers);
     headers.set('Accept', 'application/json');
     headers.set('Authorization', `Bearer ${session.token}`);
-    void this.fetch(this.url(path).href, { ...init, keepalive: true, headers }).catch(
+    return this.fetch(this.url(path).href, { ...init, keepalive: true, headers }).then(
+      () => undefined,
       () => undefined
     );
   }
 
-  /** Ends the session held at once, as at sign-out: the server refuses its token from then on. */
-  revoke(): void {
-    this.sendNow(SESSIONS_PATH, { method: 'DELETE' });
+  /** Has sign-out run `send` before it ends the session, which `send` then still has; the function returned takes it back. */
+  beforeRevoke(send: () => Promise<unknown>): () => void {
+    this.lastRequests.add(send);
+    return () => {
+      this.lastRequests.delete(send);
+    };
+  }
+
+  /**
+   * Ends the session held at once, as at sign-out, once what `beforeRevoke` asked for was answered
+   * (3 seconds at most): the server refuses its token from then on.
+   */
+  async revoke(): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      Promise.allSettled([...this.lastRequests].map(async (send) => send())),
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, LAST_REQUESTS_WAIT_MS);
+      }),
+    ]);
+    clearTimeout(timer);
+    void this.sendNow(SESSIONS_PATH, { method: 'DELETE' });
     this.session = undefined;
   }
 
@@ -270,6 +295,6 @@ export const clientSessions = (
 };
 
 /** Ends every client session the account holds, as at sign-out. */
-export const revokeClientSessions = (mx: MatrixClient): void => {
-  shared.get(mx)?.forEach((sessions) => sessions.revoke());
+export const revokeClientSessions = async (mx: MatrixClient): Promise<void> => {
+  await Promise.all([...(shared.get(mx)?.values() ?? [])].map((sessions) => sessions.revoke()));
 };

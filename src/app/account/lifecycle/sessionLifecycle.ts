@@ -198,7 +198,7 @@ export const removeCurrentClientSessionAndReload = async (
   const session = getMatrixClientSessionCleanupContext(mx, candidate);
   stopClientRuntime(mx);
   // MindRoom would otherwise accept the page's sessions until they run out.
-  revokeClientSessions(mx);
+  await revokeClientSessions(mx);
 
   // Signing the same account in again (for example through Add account)
   // replaces this record with a newer device. Its registry entry, sync store,

@@ -79,6 +79,8 @@ export class CallTranscriber {
 
   private readonly startCapture: typeof startSpeechCapture;
 
+  private readonly stopLeavingAtSignOut: () => void;
+
   private status: TranscriberStatus = 'joining';
 
   /** The call the last answered check-in named. */
@@ -141,6 +143,8 @@ export class CallTranscriber {
     this.options = options;
     this.client = new TranscriptionClient(options.sessions);
     this.startCapture = options.startCapture ?? startSpeechCapture;
+    // Sign-out ends the session only once this device left the call with it.
+    this.stopLeavingAtSignOut = options.sessions.beforeRevoke(() => this.leaveNow());
   }
 
   /** Joins once the room's last leave is done, then checks in every 20 seconds. */
@@ -201,6 +205,7 @@ export class CallTranscriber {
     if (this.ended) return this.ended;
     const { roomId } = this.options;
     this.ending = true;
+    this.stopLeavingAtSignOut();
     clearInterval(this.heartbeatTimer);
     clearTimeout(this.retryTimer);
     this.stopReading.abort();
@@ -228,15 +233,17 @@ export class CallTranscriber {
   }
 
   /**
-   * Leaves at once as the page goes away, without the stretches still queued: nothing more is
-   * captured or sent, and ending sends no second leave.
+   * Leaves at once as the page goes away or sign-out ends the session, without the stretches still
+   * queued: nothing more is captured or sent, and ending sends no second leave. Resolves once the
+   * leave was answered or failed.
    */
-  leaveNow(): void {
+  leaveNow(): Promise<void> {
     const { callId } = this;
-    if (callId && this.status !== 'off') this.client.leaveNow(callId);
+    const left = callId && this.status !== 'off' ? this.client.leaveNow(callId) : undefined;
     this.status = 'off';
     this.uploadGeneration += 1;
     void this.end();
+    return left ?? Promise.resolve();
   }
 
   /**

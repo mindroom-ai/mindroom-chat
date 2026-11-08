@@ -132,8 +132,8 @@ export class TranscriptionClient {
    * the page. Without a session, or once it has run out, nothing is sent, as there is no time to
    * sign in.
    */
-  leaveNow(callId: string): void {
-    this.sessions.sendNow(`${API_PATH}/calls/${encodeURIComponent(callId)}/leave`, {
+  leaveNow(callId: string): Promise<void> {
+    return this.sessions.sendNow(`${API_PATH}/calls/${encodeURIComponent(callId)}/leave`, {
       method: 'POST',
     });
   }

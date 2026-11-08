@@ -120,6 +120,10 @@ const setup = ({
   const urls: string[] = [];
   const request = vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const url = String(input);
+    if (url === `${API_URL}/api/client-sessions` && init.method === 'DELETE') {
+      log.push('revoke');
+      return new Response(null, { status: 204 });
+    }
     if (url === `${API_URL}/api/client-sessions`) return server.session();
     urls.push(url);
     const route = url.slice(url.lastIndexOf('/') + 1).replace(/\?.*/, '');
@@ -163,9 +167,14 @@ const setup = ({
   );
   const statuses: TranscriberStatus[] = [];
   const updates: LiveUpdate[] = [];
+  const sessions = new ClientSessions({
+    apiUrl: API_URL,
+    getOpenIdToken: async () => TOKEN,
+    request,
+  });
   const transcriber = new CallTranscriber({
     roomId,
-    sessions: new ClientSessions({ apiUrl: API_URL, getOpenIdToken: async () => TOKEN, request }),
+    sessions,
     startCapture: listen ?? startCapture,
     onStatus: (status) => statuses.push(status),
     onUpdate: (update) => updates.push(update),
@@ -180,6 +189,7 @@ const setup = ({
   const pauses = () => log.filter((entry) => entry.startsWith('pause'));
   return {
     transcriber,
+    sessions,
     server,
     log,
     urls,
@@ -947,6 +957,29 @@ describe('CallTranscriber ending', () => {
     await t.transcriber.end();
     await advance(60_000);
     expect(t.steps()).toEqual(['calls.join', 'listen mic-a', 'speech 1', 'leave', 'stop mic-a']);
+  });
+
+  it('leaves with its session before sign-out ends it, and not once the call ended', async () => {
+    const t = setup();
+    t.transcriber.setMicrophone(MIC_A);
+    t.transcriber.start();
+    await advance();
+    const left = pending<Response>();
+    t.server.leave.mockImplementationOnce(() => left.promise);
+
+    const revoked = t.sessions.revoke();
+    await advance();
+    expect(t.steps()).toEqual(['calls.join', 'listen mic-a', 'leave', 'stop mic-a']);
+    left.resolve(json({}));
+    await revoked;
+    expect(t.steps()).toEqual(['calls.join', 'listen mic-a', 'leave', 'stop mic-a', 'revoke']);
+
+    const ended = setup({ roomId: OTHER_ROOM_ID });
+    ended.transcriber.start();
+    await advance();
+    await ended.transcriber.end();
+    await ended.sessions.revoke();
+    expect(ended.steps()).toEqual(['calls.join', 'leave', 'revoke']);
   });
 
   it('stops listening at once, before a check-in on its way answers', async () => {

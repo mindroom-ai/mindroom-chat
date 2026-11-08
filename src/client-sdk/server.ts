@@ -22,7 +22,7 @@ export type MindroomServer = {
    * with the signed-in user's session as bearer and no cookies, and resolves with the answer's
    * JSON, or undefined for an empty answer. Rejects with `MindroomServerError`: `status` 0 for no
    * answer, else the refusal's status and its parsed `body`. A path that leads to another origin
-   * rejects before anything is sent.
+   * rejects with a `TypeError` before anything is sent.
    */
   request: <T = unknown>(path: string, init?: RequestInit) => Promise<T>;
   /**

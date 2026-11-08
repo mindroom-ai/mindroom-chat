@@ -89,6 +89,14 @@ class FakeSocket extends EventTarget {
   }
 }
 
+const pending = () => {
+  let resolve!: () => void;
+  const promise = new Promise<void>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+};
+
 const sessions = (server: ReturnType<typeof fakeServer>, apiUrl = API_URL) =>
   new ClientSessions({ apiUrl, getOpenIdToken: async () => TOKEN, request: server.request });
 
@@ -141,7 +149,7 @@ describe('clientSessions', () => {
     clientSessions(ann, 'https://unused.example.org', false);
     server.sent.length = 0;
 
-    revokeClientSessions(ann);
+    await revokeClientSessions(ann);
 
     expect(server.routes()).toEqual([
       `DELETE ${API_URL}/api/client-sessions Bearer session-1`,
@@ -155,6 +163,44 @@ describe('clientSessions', () => {
     server.sent.length = 0;
     await clientSessions(ann, API_URL, true).send('/api/plugins');
     expect(server.signIns()).toBe(1);
+  });
+});
+
+describe('ClientSessions.revoke', () => {
+  it('ends the session once the requests asked to go first were answered, waiting 3 seconds at most', async () => {
+    const server = fakeServer();
+    const store = sessions(server);
+    await store.send('/api/plugins');
+    const leave = pending();
+    const answered = vi.fn(() => leave.promise);
+    store.beforeRevoke(answered);
+    const takenBack = vi.fn(async () => undefined);
+    store.beforeRevoke(takenBack)();
+    server.sent.length = 0;
+
+    const revoked = store.revoke();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(server.routes()).toEqual([]);
+    leave.resolve();
+    await revoked;
+    expect(server.routes()).toEqual([`DELETE ${API_URL}/api/client-sessions Bearer session-1`]);
+    expect(answered).toHaveBeenCalledTimes(1);
+    expect(takenBack).not.toHaveBeenCalled();
+
+    // A request that never answers holds sign-out back no longer than 3 seconds.
+    const hanging = sessions(server);
+    await hanging.send('/api/plugins');
+    hanging.beforeRevoke(() => new Promise(() => undefined));
+    server.sent.length = 0;
+    let done = false;
+    void hanging.revoke().then(() => {
+      done = true;
+    });
+    await vi.advanceTimersByTimeAsync(2_999);
+    expect(done).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(done).toBe(true);
+    expect(server.routes()).toEqual([`DELETE ${API_URL}/api/client-sessions Bearer session-2`]);
   });
 });
 
