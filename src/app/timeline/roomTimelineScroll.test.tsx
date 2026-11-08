@@ -14,7 +14,9 @@ import {
   useLatestPinAsked,
   useLatestRowPin,
   useRowsGeneration,
+  useThreadReturnPlace,
   useTimelineRowJumps,
+  type RoomRowsPlace,
 } from './roomTimelineScroll';
 import type { ThreadTargetCommands } from '../threads/open/threadSessionTypes';
 
@@ -592,7 +594,10 @@ describe('useTimelineRowJumps', () => {
           return true;
         },
         paginatorScrollToElement: (row, opts) => {
-          steps.push(`align row at ${row.getBoundingClientRect().top} ${opts?.behavior ?? ''}`);
+          const offset = opts?.offset === undefined ? '' : ` offset ${opts.offset}`;
+          steps.push(
+            `align row at ${row.getBoundingClientRect().top} ${opts?.behavior ?? ''}${offset}`
+          );
           return true;
         },
         activeRangeRef: { current: { start: 0, end: 44 } },
@@ -673,6 +678,17 @@ describe('useTimelineRowJumps', () => {
     vi.unstubAllGlobals();
   });
 
+  it('aligns a far row at the offset the jump asks for', () => {
+    const { steps, state, runFrame, jumps } = setup();
+    jumps().scrollToItem(0, { align: 'start', offset: -72 });
+    state.rowTop.set(0, 180);
+    runFrame();
+    expect(steps.filter((step) => step.startsWith('align'))).toEqual([
+      'align row at 180 instant offset -72',
+    ]);
+    vi.unstubAllGlobals();
+  });
+
   it('follows the event when rows load above it, and stops when the reader scrolls', () => {
     const { steps, state, scroller, runFrame, jumps } = setup();
     jumps().scrollToItem(2);
@@ -726,6 +742,82 @@ describe('useRowsGeneration', () => {
     show([context]);
     show([context, live]);
     expect(counts).toEqual([0, 0, 1, 2, 2]);
+  });
+});
+
+describe('useThreadReturnPlace', () => {
+  /**
+   * The Threads view, newest first, scrolled down: a scroll area 600 px tall, 100 px below the
+   * window's top, with a row that ended above it, one that runs under its top edge and one below.
+   */
+  const scrolledRoomRows = (scrollTop = 900) => {
+    const row = (eventId: string, top: number) => ({
+      getAttribute: () => eventId,
+      getBoundingClientRect: () => ({ top, bottom: top + 80 }),
+    });
+    return {
+      scrollTop,
+      scrollHeight: 9000,
+      clientHeight: 600,
+      getBoundingClientRect: () => ({ top: 100 }),
+      querySelectorAll: () => [row('$second', 170), row('$above', 10), row('$first', 90)],
+    } as unknown as HTMLElement;
+  };
+  type View = { threadId?: string; eventId?: string; compact?: boolean };
+  /**
+   * Shows the views one after another. Each mounts the timeline anew, as the approvals provider's
+   * key does when a thread opens or closes; the room view's memory outlives them.
+   */
+  const showViews = (scroller: HTMLElement, views: View[]) => {
+    const memoryRef: { current: RoomRowsPlace | undefined } = { current: undefined };
+    const places: unknown[] = [];
+    function Room({ threadId, eventId, compact }: View) {
+      const scrollRef = useRef<HTMLElement | null>(scroller);
+      places.push(
+        useThreadReturnPlace({
+          memoryRef,
+          roomId: '!room',
+          threadId,
+          eventId,
+          roomRowsShown: !threadId && !compact,
+          latestAtTop: true,
+          scrollRef,
+        })
+      );
+      return null;
+    }
+    let renderer: ReactTestRenderer | undefined;
+    views.forEach((view, index) => {
+      const element = createElement(Room, { key: index, ...view });
+      act(() => {
+        if (renderer) renderer.update(element);
+        else renderer = create(element);
+      });
+    });
+    return { places, memoryRef };
+  };
+  const place = { roomId: '!room', eventId: '$first', offset: -10 };
+
+  it('brings the rows back to the row at the top of the view when the thread closes', () => {
+    const { places, memoryRef } = showViews(scrolledRoomRows(), [{}, { threadId: '$t' }, {}]);
+    expect(places).toEqual([undefined, undefined, place]);
+    expect(memoryRef.current).toBeUndefined();
+  });
+
+  it('keeps the place while the reader moves from thread to thread', () => {
+    const views = [{}, { threadId: '$t' }, { threadId: '$u' }, {}];
+    expect(showViews(scrolledRoomRows(), views).places[3]).toEqual(place);
+  });
+
+  it('keeps none for a reader at the latest end, a route to an event or Compact', () => {
+    expect(showViews(scrolledRoomRows(0), [{}, { threadId: '$t' }, {}]).places[2]).toBeUndefined();
+    const toEvent = [{}, { threadId: '$t' }, { eventId: '$t' }];
+    expect(showViews(scrolledRoomRows(), toEvent).places[2]).toBeUndefined();
+    const viaCompact = [{}, { threadId: '$t' }, { compact: true }, {}];
+    expect(showViews(scrolledRoomRows(), viaCompact).places.slice(2)).toEqual([
+      undefined,
+      undefined,
+    ]);
   });
 });
 

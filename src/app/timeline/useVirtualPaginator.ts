@@ -96,7 +96,7 @@ const FRONT_ANCHOR = 'F';
 
 const anchorSelector = (direction: string) => `[${PAGINATOR_ANCHOR_ATTRIBUTE}="${direction}"]`;
 
-const readScrollPadding = (scrollElement: HTMLElement): { top: number; bottom: number } => {
+export const readScrollPadding = (scrollElement: HTMLElement): { top: number; bottom: number } => {
   if (typeof getComputedStyle !== 'function') return { top: 0, bottom: 0 };
   const style = getComputedStyle(scrollElement);
   const toPixels = (value: string | undefined) => {
