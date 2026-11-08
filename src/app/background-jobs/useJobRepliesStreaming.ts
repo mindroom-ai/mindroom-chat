@@ -6,10 +6,15 @@ import {
   getThreadStreamingEvents,
   isEventStreaming,
 } from '../event-store/threads/useThreadStreamingState';
-import { isStreamingReplyCurrent } from '../matrix/client/streamingReplies';
+import {
+  isStreamingReplyCurrent,
+  newestRevisionTs,
+  STREAM_IDLE_LIMIT_MS,
+} from '../matrix/client/streamingReplies';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT } from '../matrix/thread';
 
-type Snapshot = { streaming: boolean; replies: MatrixEvent[] };
+/** `stallsAt`: when the first streaming reply stops counting without an edit, by `Date.now()`. */
+type Snapshot = { streaming: boolean; replies: MatrixEvent[]; stallsAt?: number };
 
 const NONE: Snapshot = { streaming: false, replies: [] };
 
@@ -39,20 +44,29 @@ const repliesOf = (room: Room, owners: string[]): MatrixEvent[] => {
 const read = (room: Room, owners: string[], vouched: Set<string>, live: boolean): Snapshot => {
   const replies = repliesOf(room, owners);
   let streaming = false;
+  let stallsAt: number | undefined;
   replies.forEach((event) => {
     const id = event.getId();
     const thread = event.threadRootId ? room.getThread(event.threadRootId) : undefined;
     const timelineSet = thread?.getUnfilteredTimelineSet() ?? room.getUnfilteredTimelineSet();
     if (!id || !isEventStreaming(event, undefined, timelineSet)) return;
+    // The client's stall rule: a reply without an edit for the idle limit no longer streams,
+    // whatever it says, so a reply whose agent died mid-stream lets the bar go too.
+    const stalls = newestRevisionTs(event) + STREAM_IDLE_LIMIT_MS + 1;
+    if (Date.now() >= stalls) return;
     if (live) vouched.add(id);
     // Asks the server about a reply the client cannot vouch for, so its copy gets the newest edit.
-    if (isStreamingReplyCurrent(room, event) || vouched.has(id)) streaming = true;
+    if (isStreamingReplyCurrent(room, event) || vouched.has(id)) {
+      streaming = true;
+      stallsAt = Math.min(stallsAt ?? stalls, stalls);
+    }
   });
-  return { streaming, replies };
+  return { streaming, replies, stallsAt };
 };
 
 const sameSnapshot = (a: Snapshot, b: Snapshot): boolean =>
   a.streaming === b.streaming &&
+  a.stallsAt === b.stallsAt &&
   a.replies.length === b.replies.length &&
   a.replies.every((event, index) => event === b.replies[index]);
 
@@ -62,7 +76,8 @@ const sameSnapshot = (a: Snapshot, b: Snapshot): boolean =>
  * replies in the same conversation do not count.
  * `live` says the jobs run now; a reply that says it streams while they do is taken at its word
  * until it says it finished, also when this client has not seen it stream yet (as after a
- * reload), because its agent is visibly working on it.
+ * reload), because its agent is visibly working on it. A reply without an edit for
+ * `STREAM_IDLE_LIMIT_MS` stops counting either way.
  */
 export const useJobRepliesStreaming = (
   room: Room | undefined,
@@ -98,6 +113,13 @@ export const useJobRepliesStreaming = (
       room.removeListener(ThreadEvent.NewReply, refresh);
     };
   }, [room, ownersKey, refresh]);
+
+  // A stalled reply sends nothing, so read again when the first one stalls.
+  useEffect(() => {
+    if (snapshot.stallsAt === undefined) return undefined;
+    const timer = window.setTimeout(refresh, Math.max(0, snapshot.stallsAt - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [refresh, snapshot.stallsAt]);
 
   // An edit of a reply (its finishing one too) arrives on the reply itself.
   useEffect(() => {
