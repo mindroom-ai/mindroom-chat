@@ -6,13 +6,20 @@ import { Dialog, Header } from '../../ui/glass/GlassPrimitives';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { matchesEnum } from '../../lib/matchesEnum';
 
+/** The unstable name of `m.oauth` (MSC4191), which servers built before spec v1.17 send. */
+const OAUTH_UNSTABLE = 'org.matrix.cross_signing_reset';
+
 const SUPPORTED_STAGES: ReadonlySet<string> = new Set([
   AuthType.Password,
   AuthType.Sso,
   AuthType.SsoUnstable,
   AuthType.Dummy,
   AuthType.OAuth,
+  OAUTH_UNSTABLE,
 ]);
+
+const isOAuthStage = (stage: string) =>
+  matchesEnum(stage, AuthType.OAuth) || stage === OAUTH_UNSTABLE;
 
 const isSsoStage = (stage: string) =>
   matchesEnum(stage, AuthType.Sso) || matchesEnum(stage, AuthType.SsoUnstable);
@@ -127,8 +134,8 @@ function SsoStage({ session, stage, action }: StageProps) {
  * The account page the server names for an `m.oauth` stage (spec: "OAuth authentication"), which
  * guards replacing the cross-signing keys of a session that signed in through OAuth.
  */
-const oauthApprovalUrl = (authData: IAuthData): string | undefined => {
-  const url: unknown = authData.params?.[AuthType.OAuth]?.url;
+const oauthApprovalUrl = (authData: IAuthData, stage: string): string | undefined => {
+  const url: unknown = authData.params?.[stage]?.url ?? authData.params?.[AuthType.OAuth]?.url;
   return typeof url === 'string' ? url : undefined;
 };
 
@@ -191,14 +198,14 @@ export function ActionUIA(props: ActionUIAProps) {
   } else if (stage && isSsoStage(stage)) {
     title = t('sharedUi.sSOStage.ssoLogin');
     body = <SsoStage stage={stage} session={session} action={action} />;
-  } else if (stage === AuthType.OAuth) {
+  } else if (stage && isOAuthStage(stage)) {
     title = t('sharedUi.oauthStage.title');
     body = (
       <OAuthStage
         stage={stage}
         session={session}
         action={action}
-        url={oauthApprovalUrl(authData)}
+        url={oauthApprovalUrl(authData, stage)}
       />
     );
   } else if (stage === AuthType.Dummy)

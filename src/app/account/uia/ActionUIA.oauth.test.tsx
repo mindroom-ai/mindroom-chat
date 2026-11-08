@@ -62,6 +62,40 @@ describe('m.oauth stage', () => {
     expect(action).toHaveBeenCalledWith({ session: 'oauth-session' });
   });
 
+  it('takes the unstable stage name and its params the same way', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const action = vi.fn();
+    const unstable: IAuthData = {
+      session: 'oauth-session',
+      flows: [{ stages: ['org.matrix.cross_signing_reset'] }],
+      params: { 'org.matrix.cross_signing_reset': { url: RESET_URL } },
+    };
+    const children = vi.fn(() => null);
+    render(
+      <ActionUIAFlowsLoader authData={unstable} unsupported={() => null}>
+        {children}
+      </ActionUIAFlowsLoader>
+    );
+    expect(children).toHaveBeenCalledWith({ stages: ['org.matrix.cross_signing_reset'] });
+    cleanup();
+    render(
+      <ActionUIA
+        authData={unstable}
+        ongoingFlow={{ stages: ['org.matrix.cross_signing_reset'] }}
+        action={action}
+        onCancel={vi.fn()}
+      />
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Open account page' }));
+    });
+    expect(open).toHaveBeenCalledWith(RESET_URL, '_blank', 'noopener');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    });
+    expect(action).toHaveBeenCalledWith({ session: 'oauth-session' });
+  });
+
   it('falls back to the fallback page when the server names no URL', async () => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
     render(
