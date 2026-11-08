@@ -93,7 +93,12 @@ export const moveSpaceLinks = async (
         oldRoomId,
         newRoomId
       );
-      if (rules) await send(childId, StateEvent.RoomJoinRules, rules, '');
+      // A Space's rooms move their links whether or not they admit its members.
+      if (rules) {
+        await send(childId, StateEvent.RoomJoinRules, rules, '').catch((error: unknown) => {
+          if (!space) throw error;
+        });
+      }
       const via = domain ? [domain] : parent.via;
       await send(childId, StateEvent.SpaceParent, { ...parent, via }, newRoomId);
       await send(childId, StateEvent.SpaceParent, {}, oldRoomId);
