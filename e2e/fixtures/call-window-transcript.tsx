@@ -13,7 +13,7 @@ import { MatrixClientProvider } from '../../src/app/matrix/hooks/useMatrixClient
 import { SpecVersionsProvider } from '../../src/app/matrix/hooks/useSpecVersions';
 import { PowerLevelsContextProvider } from '../../src/app/matrix/hooks/usePowerLevels';
 import { CallPanel } from '../../src/app/calls/CallPanel';
-import { activeCallAtom, type ActiveCall } from '../../src/app/calls/callStore';
+import { activeCallAtom } from '../../src/app/calls/callStore';
 import type { CallParticipant, CallState, RoomCall } from '../../src/app/calls/RoomCall';
 import type { TranscriptLine } from '../../src/app/calls/transcription/api';
 import {
@@ -124,7 +124,7 @@ const lines: TranscriptLine[] = Array.from({ length: LINE_COUNT }, (_, index) =>
 }));
 
 const store = createStore();
-store.set(activeCallAtom, { call, kind: 'room' } satisfies ActiveCall);
+store.set(activeCallAtom, { call, kind: 'room' });
 store.set(callTranscriptionAtom, { roomId: ROOM_ID, status: 'transcribing' });
 store.set(liveTranscriptAtom, {
   roomId: ROOM_ID,
@@ -158,27 +158,23 @@ localStorage.setItem(
   })
 );
 
-function Fixture() {
-  return (
-    <Provider store={store}>
-      <ClientConfigProvider value={{}}>
-        <MatrixClientProvider value={client}>
-          <SpecVersionsProvider value={{ versions: ['v1.10'] }}>
-            <MemoryRouter>
-              <PowerLevelsContextProvider value={POWER_LEVELS}>
-                <FloatingCallWindow>
-                  <CallPanel room={room} onClose={() => undefined} />
-                </FloatingCallWindow>
-              </PowerLevelsContextProvider>
-            </MemoryRouter>
-          </SpecVersionsProvider>
-        </MatrixClientProvider>
-      </ClientConfigProvider>
-    </Provider>
-  );
-}
-
-createRoot(document.getElementById('root')!).render(<Fixture />);
+createRoot(document.getElementById('root')!).render(
+  <Provider store={store}>
+    <ClientConfigProvider value={{}}>
+      <MatrixClientProvider value={client}>
+        <SpecVersionsProvider value={{ versions: ['v1.10'] }}>
+          <MemoryRouter>
+            <PowerLevelsContextProvider value={POWER_LEVELS}>
+              <FloatingCallWindow>
+                <CallPanel room={room} onClose={() => undefined} />
+              </FloatingCallWindow>
+            </PowerLevelsContextProvider>
+          </MemoryRouter>
+        </SpecVersionsProvider>
+      </MatrixClientProvider>
+    </ClientConfigProvider>
+  </Provider>
+);
 void document.fonts.ready.then(() => {
   document.body.dataset.fixtureReady = 'true';
 });
