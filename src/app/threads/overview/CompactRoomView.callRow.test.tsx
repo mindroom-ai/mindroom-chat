@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { MatrixEvent, type IContent, type IEvent, type Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -8,6 +9,7 @@ import {
   trustAgentsOfViewer,
 } from '../../matrix/protocol/untrustedContent';
 import { CompactRoomView } from './CompactRoomView';
+import { putSession } from '../../matrix/session/sessions';
 
 const ROOM_ID = '!room:example.org';
 const ROUTER = '@mindroom_router:example.org';
@@ -143,6 +145,16 @@ const insideButton = (node: ReactTestInstance) => {
 beforeAll(() => {
   installEventContentGuard();
   trustAgentsOfViewer('@reader:example.org');
+  // Rows count from the active account's agents.
+  putSession(
+    {
+      baseUrl: 'https://matrix.example',
+      userId: '@reader:example.org',
+      deviceId: 'DEVICE',
+      accessToken: 'token',
+    },
+    { setActive: true }
+  );
 });
 
 afterEach(() => {

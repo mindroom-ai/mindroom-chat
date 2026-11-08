@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { MatrixEvent, type IEvent } from 'matrix-js-sdk';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -8,6 +9,7 @@ import {
   installEventContentGuard,
   trustAgentsOfViewer,
 } from '../../matrix/protocol/untrustedContent';
+import { putSession } from '../../matrix/session/sessions';
 
 const ROUTER = '@mindroom_router:example.org';
 const PERSON = '@person:example.org';
@@ -32,6 +34,16 @@ const ROW = {
 beforeAll(() => {
   installEventContentGuard();
   trustAgentsOfViewer('@reader:example.org');
+  // Rows count from the active account's agents.
+  putSession(
+    {
+      baseUrl: 'https://matrix.example',
+      userId: '@reader:example.org',
+      deviceId: 'DEVICE',
+      accessToken: 'token',
+    },
+    { setActive: true }
+  );
 });
 
 describe("a call's row in the thread lists", () => {

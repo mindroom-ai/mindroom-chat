@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
@@ -5,6 +6,7 @@ import { MatrixEvent, type IEvent } from 'matrix-js-sdk';
 import { ThreadsViewRow } from '../ThreadsViewRow';
 import type { CrossRoomThreadIndexEntry } from '../../cross-room/crossRoomThreadIndex';
 import { trustAgentsOfViewer } from '../../../matrix/protocol/untrustedContent';
+import { putSession } from '../../../matrix/session/sessions';
 
 const { navigateRoomThreadMock, roots } = vi.hoisted(() => ({
   navigateRoomThreadMock: vi.fn(),
@@ -123,6 +125,16 @@ describe('ThreadsViewRow', () => {
 
   it("shows a call's row in its card, as the room's compact list does", async () => {
     trustAgentsOfViewer('@me:example.org');
+    // Rows count from the active account's agents.
+    putSession(
+      {
+        baseUrl: 'https://matrix.example',
+        userId: '@me:example.org',
+        deviceId: 'DEVICE',
+        accessToken: 'token',
+      },
+      { setActive: true }
+    );
     roots.set(
       '$root',
       new MatrixEvent({

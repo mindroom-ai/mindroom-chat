@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import { MatrixEvent, type IEvent } from 'matrix-js-sdk';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CALL_NOTES_KEY,
   CALL_ROW_KEY,
@@ -8,6 +9,7 @@ import {
   readCallRow,
 } from './callRow';
 import { installEventContentGuard, sanitizeContent, trustAgentsOfViewer } from './untrustedContent';
+import { putSession, setActiveSession } from '../session/sessions';
 
 const VIEWER = '@reader:example.org';
 const ROUTER = '@mindroom_router:example.org';
@@ -35,9 +37,20 @@ const notes = (callId: unknown) => ({
   [CALL_NOTES_KEY]: { call_id: callId },
 });
 
+const signIn = (userId: string, setActive = true) =>
+  putSession(
+    { baseUrl: 'https://matrix.example', userId, deviceId: 'DEVICE', accessToken: 'token' },
+    { setActive }
+  );
+
 beforeAll(() => {
   installEventContentGuard();
   trustAgentsOfViewer(VIEWER);
+});
+
+beforeEach(() => {
+  localStorage.clear();
+  signIn(VIEWER);
 });
 
 describe('readCallRow and readCallNotes', () => {
@@ -105,6 +118,21 @@ describe('isCallRowEvent', () => {
     expect(isCallRowEvent(event(ROUTER, { msgtype: 'm.notice', body: 'Call started' }))).toBe(
       false
     );
+  });
+
+  it("counts only the active account's agents, with another account signed in", () => {
+    // Both accounts' clients started on this page, so the content guard trusts both accounts'
+    // agents; only the active account's agents post rows it shows.
+    const OTHER_ACCOUNT = '@reader:second.example';
+    trustAgentsOfViewer(OTHER_ACCOUNT);
+    const other = signIn(OTHER_ACCOUNT, false);
+    const elsewhere = event('@mindroom_router:second.example', row('call-1'));
+    expect(isCallRowEvent(elsewhere)).toBe(false);
+    expect(isCallRowEvent(event(ROUTER, row('call-1')))).toBe(true);
+
+    setActiveSession(other.sessionId);
+    expect(isCallRowEvent(elsewhere)).toBe(true);
+    expect(isCallRowEvent(event(ROUTER, row('call-1')))).toBe(false);
   });
 
   it('never counts a redacted row', () => {

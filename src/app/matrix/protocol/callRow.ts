@@ -1,6 +1,7 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { isRecord } from '../../lib/isRecord';
-import { isTrustedAgentSender } from './untrustedContent';
+import { getActiveSession } from '../session/sessions';
+import { isMindroomAgentUserIdForViewer } from './agentIdentity';
 
 /**
  * The row MindRoom's router posts when a call between people starts in a room, a notice with
@@ -72,8 +73,11 @@ export const readCallNotes = (content: Record<string, unknown>): string | undefi
   return isRecord(value) ? readCallId(value) : undefined;
 };
 
-/** Whether `event` is a call's row: from a MindRoom agent, and not taken back. */
+/**
+ * Whether `event` is a call's row: from a MindRoom agent on the homeserver of the active account,
+ * as the timeline checks it, and not taken back. Without an active account no row counts.
+ */
 export const isCallRowEvent = (event: MatrixEvent): boolean =>
   readCallRow(event.getContent()) !== undefined &&
-  isTrustedAgentSender(event.getSender()) &&
+  isMindroomAgentUserIdForViewer(event.getSender(), getActiveSession()?.userId) &&
   !event.isRedacted();
