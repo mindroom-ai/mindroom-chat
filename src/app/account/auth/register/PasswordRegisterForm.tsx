@@ -3,7 +3,7 @@ import { Box, Button, Checkbox, Input, Spinner, Text } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
 import type { AuthDict, IAuthData, MatrixClient } from 'matrix-js-sdk';
 import { PasswordInput } from '../../../ui/PasswordInput';
-import { MINDROOM_AUTH_BRANDING } from '../authUi';
+import { getDeviceDisplayName } from '../authUi';
 import { createMatrixClient } from '../../../matrix/client/matrixClientFactory';
 import { FieldError } from '../FiledError';
 import {
@@ -284,7 +284,7 @@ export function PasswordRegisterForm(props: {
         {
           username: read('usernameInput').trim(),
           password,
-          initial_device_display_name: MINDROOM_AUTH_BRANDING.deviceDisplayName,
+          initial_device_display_name: getDeviceDisplayName(),
         },
         {
           token: read('tokenInput').trim() || undefined,
