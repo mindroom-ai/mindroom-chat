@@ -568,7 +568,9 @@
       }
     },
     "backgroundJobs": {
-      "jobCountShowing": "{{count}} achtergrondtaken ({{shown}} getoond)"
+      "jobCountShowing": "{{count}} achtergrondtaken ({{shown}} getoond)",
+      "finished": "Voltooid: {{tool}}",
+      "jobCountFinished": "{{count}} achtergrondtaken voltooid"
     }
   },
   "composer": {

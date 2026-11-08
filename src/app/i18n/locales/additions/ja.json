@@ -558,7 +558,9 @@
       }
     },
     "backgroundJobs": {
-      "jobCountShowing": "バックグラウンドジョブ {{count}} 件（{{shown}} 件を表示）"
+      "jobCountShowing": "バックグラウンドジョブ {{count}} 件（{{shown}} 件を表示）",
+      "finished": "完了: {{tool}}",
+      "jobCountFinished": "バックグラウンドジョブ {{count}} 件が完了"
     }
   },
   "composer": {
