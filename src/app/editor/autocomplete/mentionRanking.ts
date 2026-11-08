@@ -1,6 +1,7 @@
 import { EventType, type Room, type RoomMember } from 'matrix-js-sdk';
 import { normalizeSearchString } from '../../lib/hooks/useAsyncSearch';
 import { getMxIdLocalPart } from '../../matrix/matrix';
+import { withoutNameDisguises } from '../../matrix/room';
 
 /**
  * The user name prefix MindRoom gives every agent account (MindRoom's
@@ -19,9 +20,14 @@ const ROOM_MESSAGE: string = EventType.RoomMessage;
 
 type MentionCandidate = Pick<RoomMember, 'userId' | 'rawDisplayName' | 'name'>;
 
-/** The name a member is shown and mentioned by. */
+/**
+ * The name a member is shown and mentioned by, without the characters that disguise a name (the
+ * suggestion shows the user ID beside it), so a mention sends none of them.
+ */
 export const memberName = (member: MentionCandidate): string =>
-  member.rawDisplayName || member.name || getMxIdLocalPart(member.userId) || member.userId;
+  withoutNameDisguises(member.rawDisplayName || member.name || '') ||
+  getMxIdLocalPart(member.userId) ||
+  member.userId;
 
 const localpart = (userId: string): string =>
   normalizeSearchString(getMxIdLocalPart(userId) ?? userId);
