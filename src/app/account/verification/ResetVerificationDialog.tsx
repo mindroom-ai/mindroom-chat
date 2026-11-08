@@ -28,6 +28,9 @@ export function ResetVerificationDialog({ onReset, onCancel }: ResetVerification
       <Text as="p" size="T300" style={{ margin: 0 }}>
         <Trans i18nKey={`${KEY}.resetWarning`} components={EMPHASIS} />
       </Text>
+      <Text as="p" size="T300" style={{ margin: 0 }}>
+        {t('sharedUi.recoveryPassword.resetLoss')}
+      </Text>
       <Button onClick={onReset} fill="Solid" variant="Critical">
         <Text size="B400">{t(`${KEY}.reset`)}</Text>
       </Button>
