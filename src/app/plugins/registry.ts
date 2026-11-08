@@ -7,6 +7,7 @@ import type { MessageRenderer } from './messageRenderers';
 import type { PluginPage } from './pluginPages';
 import { pluginEntries, type PluginEntry } from './pluginEntries';
 import { isSidePanel, type SidePanel } from './sidePanels';
+import { isPluginRoomAction, type PluginRoomAction } from './roomActions';
 import { isPluginSlashCommand, type PluginSlashCommand } from './slashCommands';
 import { registerPluginTranslations, type PluginTranslations } from './pluginTranslations';
 
@@ -24,6 +25,7 @@ export type ClientPlugin = {
   sidePanels?: readonly SidePanel[];
   headerActions?: readonly HeaderAction[];
   slashCommands?: readonly PluginSlashCommand[];
+  roomActions?: readonly PluginRoomAction[];
   translations?: PluginTranslations;
 };
 
@@ -39,6 +41,7 @@ export type RegisteredPlugin = {
   readonly sidePanels: readonly SidePanel[];
   readonly headerActions: readonly HeaderAction[];
   readonly slashCommands: readonly PluginSlashCommand[];
+  readonly roomActions: readonly PluginRoomAction[];
 };
 
 const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
@@ -49,6 +52,7 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   const actions = isRecord(plugin) ? plugin.headerActions : undefined;
   const covers = isRecord(plugin) ? plugin.conversationCovers : undefined;
   const commands = isRecord(plugin) ? plugin.slashCommands : undefined;
+  const roomActions = isRecord(plugin) ? plugin.roomActions : undefined;
   registerPluginTranslations(id, isRecord(plugin) ? plugin.translations : undefined);
   return Object.freeze({
     id,
@@ -79,6 +83,9 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
     ),
     slashCommands: Object.freeze(
       Array.isArray(commands) ? commands.filter(isPluginSlashCommand) : []
+    ),
+    roomActions: Object.freeze(
+      Array.isArray(roomActions) ? roomActions.filter(isPluginRoomAction) : []
     ),
   });
 };

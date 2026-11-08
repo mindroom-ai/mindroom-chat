@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useState } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Icons } from 'folds';
 import type { Room } from 'matrix-js-sdk';
@@ -8,6 +9,10 @@ import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import { MenuEntry } from '../ui/MenuEntry';
 import { getSpaceSearchPath, withSearchParam } from '../routes/pathUtils';
+import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
+import { registerPluginTranslations } from '../plugins/pluginTranslations';
+import type { RegisteredPlugin } from '../plugins/registry';
+import type { PluginRoomAction } from '../plugins/roomActions';
 import { ROOM_ACTIONS } from './roomActions';
 import { RoomActionsMenu, useRoomActionDialog } from './RoomActionsMenu';
 
@@ -19,6 +24,8 @@ const state = vi.hoisted(() => ({
   openSettings: vi.fn(),
   sendStateEvent: vi.fn(() => Promise.resolve({})),
   rooms: {} as Record<string, unknown>,
+  plugins: [] as RegisteredPlugin[],
+  reportBoundaryError: vi.fn(),
 }));
 
 vi.mock('react-router-dom', async (importOriginal) => ({
@@ -105,6 +112,12 @@ vi.mock('../timeline/jump-to-time/JumpToTime', () => ({
   ),
 }));
 
+// The build's plugins, which each test lists itself.
+vi.mock('../plugins/registry', () => ({ registeredPlugins: state.plugins }));
+vi.mock('../bug-reports/error-reporting/errorReporting', () => ({
+  reportBoundaryError: state.reportBoundaryError,
+}));
+
 // The real menu and rows, with their roles.
 vi.unmock('../ui/glass/GlassPrimitives');
 
@@ -170,6 +183,7 @@ afterEach(() => {
   state.canListRooms = true;
   state.encrypted = false;
   state.rooms = {};
+  state.plugins.length = 0;
   getDefaultStore().set(roomToParentsAtom, { type: 'INITIALIZE', roomToParents: new Map() });
   getDefaultStore().set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
   vi.clearAllMocks();
@@ -332,5 +346,202 @@ describe('the shared room actions', () => {
     expect(rows()).toContain("Remove from Garden (You can't change the rooms listed under Garden)");
     fireEvent.click(screen.getByRole('menuitem', { name: 'Remove from Garden' }));
     expect(state.sendStateEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe("plugins' entries", () => {
+  registerPluginTranslations('example', { en: { about: 'About this room', other: 'Other entry' } });
+
+  const entry = (fields: Partial<PluginRoomAction> = {}): PluginRoomAction => ({
+    id: 'about',
+    label: 'about',
+    icon: Icons.Info,
+    run: vi.fn(),
+    ...fields,
+  });
+
+  /** Lists the example plugin with these room actions in the build. */
+  const buildWith = (...roomActions: PluginRoomAction[]) => {
+    state.plugins.push({
+      id: 'example',
+      tag: 'example@1.0.0',
+      conversationCovers: [],
+      messageRenderers: [],
+      pages: [],
+      roomHeaderSlot: [],
+      sidePanels: [],
+      headerActions: [],
+      slashCommands: [],
+      roomActions,
+    });
+  };
+
+  /** The rows of the menu, in their groups. */
+  const groups = () => {
+    const byGroup = new Map<Element | null, string[]>();
+    screen
+      .getByRole('menu')
+      .querySelectorAll('[role^="menuitem"]')
+      .forEach((row) => {
+        const group = byGroup.get(row.parentElement) ?? [];
+        byGroup.set(row.parentElement, [...group, row.textContent?.trim() ?? '']);
+      });
+    return [...byGroup.values()];
+  };
+
+  /**
+   * A menu that goes once an entry closes it, as the entry points' menus do, with a button that
+   * opens it again and the dialog beside it.
+   */
+  function ClosingHarness({ config, onClose }: { config?: ClientConfig; onClose?: () => void }) {
+    const [open, setOpen] = useState(true);
+    const { dialog, showDialog } = useRoomActionDialog();
+    const close = () => {
+      onClose?.();
+      setOpen(false);
+    };
+    return (
+      <ClientConfigProvider value={config}>
+        {open ? (
+          <RoomActionsMenu room={room} submenuSide="Right" close={close} showDialog={showDialog} />
+        ) : (
+          <button type="button" onClick={() => setOpen(true)}>
+            Open menu
+          </button>
+        )}
+        {dialog}
+      </ClientConfigProvider>
+    );
+  }
+
+  const choose = (name: string) => fireEvent.click(screen.getByRole('menuitem', { name }));
+
+  /** A dialog that names the room it was shown for. */
+  const exampleDialog = (named: Room) => (close: () => void) =>
+    (
+      <div role="dialog" aria-label="Example dialog">
+        <p>Example dialog of {named.name}</p>
+        <button type="button" onClick={close}>
+          Close example dialog
+        </button>
+      </div>
+    );
+
+  it('lists them in a group of their own, after the first group and before Remove from, Archive and Leave, in a row menu and in the room header menu', () => {
+    buildWith(entry(), entry({ id: 'other', label: 'other' }));
+    const plugins = ['About this room', 'Other entry'];
+    render(<Harness />);
+    expect(groups()).toEqual([SHARED.slice(0, -2), plugins, SHARED.slice(-2)]);
+    cleanup();
+
+    render(
+      <Harness
+        roomEntries={<MenuEntry label="Show Members" icon={Icons.User} onSelect={vi.fn()} />}
+      />
+    );
+    expect(groups()).toEqual([['Show Members'], SHARED.slice(0, -2), plugins, SHARED.slice(-2)]);
+  });
+
+  it('draws the menu as without plugins when no entry shows for the room', () => {
+    render(<Harness />);
+    const without = screen.getByRole('menu').innerHTML;
+    cleanup();
+
+    buildWith(entry({ shows: (shown) => shown.isSpaceRoom() }));
+    render(<Harness />);
+    expect(screen.getByRole('menu').innerHTML).toBe(without);
+  });
+
+  it("closes the menu, then runs the entry on the menu's room; its dialog stays after the menu has gone, until it closes", async () => {
+    const order: string[] = [];
+    const run = vi.fn<PluginRoomAction['run']>(({ room: chosen, showDialog }) => {
+      order.push('run');
+      showDialog(exampleDialog(chosen));
+    });
+    buildWith(entry({ run }));
+    render(<ClosingHarness onClose={() => order.push('close')} />);
+    choose('About this room');
+
+    expect(order).toEqual(['close', 'run']);
+    expect(run.mock.calls[0]?.[0].room).toBe(room);
+    expect(screen.queryByRole('menu')).toBeNull();
+    const dialog = await screen.findByRole('dialog', { name: 'Example dialog' });
+    expect(dialog.textContent).toContain('Example dialog of Orchard');
+    fireEvent.click(screen.getByRole('button', { name: 'Close example dialog' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  function BrokenDialog(): null {
+    throw new Error('broken dialog');
+  }
+
+  it.each([
+    ['whose component throws', () => <BrokenDialog />],
+    [
+      'that throws as it is drawn',
+      () => {
+        throw new Error('broken dialog');
+      },
+    ],
+  ])(
+    "logs and reports a dialog %s with the plugin's tag and takes it away; the entry's next dialog shows",
+    async (_, broken) => {
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      let shown = 0;
+      buildWith(
+        entry({
+          run: ({ room: chosen, showDialog }) => {
+            shown += 1;
+            showDialog(shown === 1 ? broken : exampleDialog(chosen));
+          },
+        })
+      );
+      render(<ClosingHarness />);
+      choose('About this room');
+
+      await vi.waitFor(() =>
+        expect(logged).toHaveBeenCalledWith(
+          "[plugin example@1.0.0] its room action's dialog failed",
+          new Error('broken dialog')
+        )
+      );
+      expect(state.reportBoundaryError).toHaveBeenCalledWith(
+        expect.objectContaining({ message: '[plugin example@1.0.0] broken dialog' }),
+        expect.any(String)
+      );
+      expect(screen.queryByRole('dialog')).toBeNull();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
+      choose('About this room');
+      expect(await screen.findByRole('dialog', { name: 'Example dialog' })).toBeTruthy();
+      logged.mockRestore();
+    }
+  );
+
+  it("logs a run that throws with the plugin's tag, and the menu keeps working", async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const failure = new Error('no');
+    buildWith(
+      entry({
+        run: () => {
+          throw failure;
+        },
+      })
+    );
+    render(<ClosingHarness />);
+    choose('About this room');
+    expect(logged).toHaveBeenCalledWith('[plugin example@1.0.0] its room action failed', failure);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
+    choose('Jump to Time');
+    expect(await screen.findByRole('dialog', { name: 'Jump to Time' })).toBeTruthy();
+    logged.mockRestore();
+  });
+
+  it('leaves out the entries of a plugin config.json turns off', () => {
+    buildWith(entry());
+    const config = { plugins: { example: { enabled: false } } } as unknown as ClientConfig;
+    render(<ClosingHarness config={config} />);
+    expect(rows()).toEqual(SHARED);
   });
 });

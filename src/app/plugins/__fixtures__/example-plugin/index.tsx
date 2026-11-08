@@ -18,8 +18,10 @@
 // room and that thread, opens either, and reloads the page into a new version.
 // Its slash command, `/greet <text>`, sends the notice "Example greeting: <text>" to the room through
 // the room's client, and fails without a text.
+// Every room's menu but a space's lists its entry "Example room info" ("Beispiel-Rauminfo" in
+// German), whose dialog says "Example dialog of <room name>" until its Close button closes it.
 import { useEffect } from 'react';
-import { Icons } from 'folds';
+import { Button, Dialog, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text } from 'folds';
 import { KnownMembership, type Room } from 'matrix-js-sdk';
 import {
   pluginPublicUrl,
@@ -188,6 +190,21 @@ function ExampleCover({ room }: { room: Room }) {
   );
 }
 
+function RoomDialog({ room, close }: { room: Room; close: () => void }) {
+  return (
+    <Overlay open backdrop={<OverlayBackdrop />}>
+      <OverlayCenter>
+        <Dialog role="dialog" aria-label="Example dialog" style={{ padding: 16 }}>
+          <p>Example dialog of {room.name}</p>
+          <Button size="300" onClick={close}>
+            <Text size="B300">Close example dialog</Text>
+          </Button>
+        </Dialog>
+      </OverlayCenter>
+    </Overlay>
+  );
+}
+
 const plugin: ClientPlugin = {
   conversationCovers: [
     {
@@ -237,11 +254,22 @@ const plugin: ClientPlugin = {
       },
     },
   ],
+  roomActions: [
+    {
+      id: 'info',
+      label: 'roomInfo',
+      icon: Icons.Info,
+      shows: (room) => !room.isSpaceRoom(),
+      run: ({ room, showDialog }) =>
+        showDialog((close) => <RoomDialog room={room} close={close} />),
+    },
+  ],
   translations: {
     en: {
       label: 'Example plugin',
       wave: 'Wave',
       greet: 'Send the room a greeting. Example: /greet Hello',
+      roomInfo: 'Example room info',
     },
     load: async (language) =>
       language === 'de' ? (await import('./locales/de.json')).default : undefined,

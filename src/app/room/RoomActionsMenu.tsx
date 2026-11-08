@@ -1,7 +1,13 @@
 import { Fragment, Suspense, forwardRef, useCallback, useState, type ReactNode } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 import { Line, toRem } from 'folds';
 import { Menu } from '../ui/glass/GlassPrimitives';
-import { MenuGroup } from '../ui/MenuEntry';
+import { MenuEntry, MenuGroup } from '../ui/MenuEntry';
+import { useOptionalClientConfig } from '../config/useClientConfig';
+import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
+import { pluginFailure } from '../plugins/pluginFailure';
+import { registeredPlugins } from '../plugins/registry';
+import { usePluginRoomActions, type PluginRoomDialog } from '../plugins/roomActions';
 import { ROOM_ACTIONS, type RoomActionDialog, type RoomActionProps } from './roomActions';
 import * as css from './RoomActionsMenu.css';
 
@@ -16,11 +22,70 @@ type RoomActionsMenuProps = RoomActionProps & {
 
 const menuStyle = { minWidth: toRem(200), maxWidth: toRem(280) } as const;
 
+// Calls the plugin's function inside the boundary around it, so a throw there is caught too.
+function PluginDialogContent({ dialog, close }: { dialog: PluginRoomDialog; close: () => void }) {
+  return <>{dialog(close)}</>;
+}
+
 /**
- * A room's menu, the same wherever it opens: the room's actions (`ROOM_ACTIONS`), after the
- * open room's own entries when the room header opens it. Rows are 44 px on touch screens. The
- * ref reaches the menu element, which the focus trap around it needs to close on Escape and
- * outside clicks.
+ * A plugin's dialog. One that throws is logged and reported with the plugin's tag, and closes, so
+ * the next dialog of the menu starts afresh.
+ */
+function PluginDialog({
+  tag,
+  dialog,
+  close,
+}: {
+  tag: string;
+  dialog: PluginRoomDialog;
+  close: () => void;
+}) {
+  return (
+    <ErrorBoundary
+      fallback={null}
+      onError={(thrown: unknown, info) => {
+        // eslint-disable-next-line no-console
+        console.error(`[plugin ${tag}] its room action's dialog failed`, thrown);
+        reportBoundaryError(pluginFailure(tag, thrown), info.componentStack);
+        close();
+      }}
+    >
+      <PluginDialogContent dialog={dialog} close={close} />
+    </ErrorBoundary>
+  );
+}
+
+/** The entries plugins add to the room's menu, in a group of their own; nothing without any. */
+function PluginRoomActions({ room, close, showDialog }: RoomActionProps) {
+  const entries = usePluginRoomActions(registeredPlugins, useOptionalClientConfig(), room);
+  if (entries.length === 0) return null;
+  return (
+    <>
+      <Line variant="Surface" size="300" />
+      <MenuGroup>
+        {entries.map(({ id, tag, label, icon, run }) => (
+          <MenuEntry
+            key={id}
+            icon={icon}
+            label={label}
+            onSelect={() => {
+              close();
+              run((dialog) =>
+                showDialog((done) => <PluginDialog tag={tag} dialog={dialog} close={done} />)
+              );
+            }}
+          />
+        ))}
+      </MenuGroup>
+    </>
+  );
+}
+
+/**
+ * A room's menu, the same wherever it opens: the room's actions (`ROOM_ACTIONS`), with the
+ * entries client plugins add after their first group, and after the open room's own entries when
+ * the room header opens it. Rows are 44 px on touch screens. The ref reaches the menu element,
+ * which the focus trap around it needs to close on Escape and outside clicks.
  */
 export const RoomActionsMenu = forwardRef<HTMLDivElement, RoomActionsMenuProps>(
   function RoomActionsMenu({ roomEntries, ...actionProps }, ref) {
@@ -40,6 +105,7 @@ export const RoomActionsMenu = forwardRef<HTMLDivElement, RoomActionsMenuProps>(
                 <Entry key={id} {...actionProps} />
               ))}
             </MenuGroup>
+            {index === 0 && <PluginRoomActions {...actionProps} />}
           </Fragment>
         ))}
       </Menu>
