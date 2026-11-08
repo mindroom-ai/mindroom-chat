@@ -9,6 +9,12 @@ import { useLiveTranscript, type LiveTranscriptView } from './useLiveTranscript'
 import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from '../callStore';
 import { callTranscriptionAtom, liveTranscriptAtom } from './transcriptionState';
 import { transcriptPanelAtom } from './transcriptPanel';
+import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
+import {
+  clearCallWindowStore,
+  getCallWindowSettingsAtom,
+  minimizedSettings,
+} from '../window/callWindowState';
 import type { CallRowContent } from '../../matrix/protocol/callRow';
 import type { LiveCall, TranscriptCall, TranscriptLine } from './api';
 
@@ -144,14 +150,27 @@ const faces = () =>
 let container: HTMLDivElement;
 let root: Root;
 
-const render = (row: CallRowContent, store = createStore()) => {
+const render = (row: CallRowContent, store = createStore(), size: ScreenSize = 'Desktop') => {
   act(() => {
     root.render(
       <Provider store={store}>
-        <CallRow mEvent={ROW} row={row} />
+        <ScreenSizeProvider value={size}>
+          <CallRow mEvent={ROW} row={row} />
+        </ScreenSizeProvider>
       </Provider>
     );
   });
+  return store;
+};
+
+// Read anew each time: the registry makes a new atom after each test clears it.
+const settings = () => getCallWindowSettingsAtom(VIEWER);
+
+/** This device is in a call, in `roomId`, transcribed. */
+const inCall = (roomId = ROOM_ID) => {
+  const store = createStore();
+  store.set(activeCallAtom, { kind: 'room', call: { room: { roomId } } } as unknown as ActiveCall);
+  store.set(callTranscriptionAtom, { roomId, status: 'transcribing' });
   return store;
 };
 
@@ -177,6 +196,7 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   vi.unstubAllGlobals();
+  clearCallWindowStore(VIEWER);
 });
 
 describe('CallRow', () => {
@@ -330,6 +350,40 @@ describe('CallRow', () => {
     render(LIVE, store);
     expect(button('Join')).toBeUndefined();
     expect(button('Transcript')).toBeDefined();
+  });
+
+  it("opens the live transcript of this device's call inside the floating window, from anywhere", () => {
+    state.selectedRoom = undefined;
+    const store = inCall();
+    // The window was closed, and minimized to its bar before that.
+    const rect = { x: 600, y: 200, width: 400, height: 480 };
+    store.set(settings(), minimizedSettings({ mode: 'floating', rect }, rect));
+    render(LIVE, store);
+
+    act(() => button('Transcript')?.click());
+    expect(store.get(settings())).toMatchObject({ transcript: true, rect });
+    expect(store.get(callPanelRoomAtom)).toBe(ROOM_ID);
+    expect(store.get(transcriptPanelAtom)).toBeUndefined();
+    // The window floats over every page, so the person stays where they are.
+    expect(state.navigateRoom).not.toHaveBeenCalled();
+
+    // Pressed again, it keeps the transcript open.
+    act(() => button('Transcript')?.click());
+    expect(store.get(settings()).transcript).toBe(true);
+  });
+
+  it.each([
+    ["another room's call", '!other:example.org', 'floating', 'Desktop'],
+    ['a docked call view', ROOM_ID, 'docked', 'Desktop'],
+    ['a phone', ROOM_ID, 'floating', 'Mobile'],
+  ] as const)('opens the side panel for %s, as before', (_case, callRoomId, mode, size) => {
+    const store = inCall(callRoomId);
+    store.set(settings(), { mode });
+    render(LIVE, store, size);
+
+    act(() => button('Transcript')?.click());
+    expect(store.get(transcriptPanelAtom)?.roomId).toBe(ROOM_ID);
+    expect(store.get(settings()).transcript).toBeUndefined();
   });
 
   it('says how long the call lasted once the router edited it for the end', () => {

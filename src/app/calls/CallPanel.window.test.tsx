@@ -9,7 +9,12 @@ import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { callPanelRoomAtom, type ActiveCall } from './callStore';
 import type { CallParticipant, CallState } from './RoomCall';
 import { CallPanel } from './CallPanel';
-import { CallWindowFrameContext, type CallWindowFrame } from './window/callWindowFrame';
+import {
+  CallWindowFrameContext,
+  CallWindowSizeContext,
+  type CallWindowFrame,
+} from './window/callWindowFrame';
+import { callTranscriptionAtom, liveTranscriptAtom } from './transcription/transcriptionState';
 import {
   clearCallWindowStore,
   getCallWindowSettingsAtom,
@@ -42,6 +47,9 @@ vi.mock('../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navigat
 vi.mock('./agent/useCallFailureNotice', () => ({ useCallFailureNotice: () => undefined }));
 vi.mock('./agent/useCallFailureDismissal', () => ({
   useCallFailureDismissal: () => ({ visibleFailure: undefined, dismissFailure: () => undefined }),
+}));
+vi.mock('./transcription/useTranscriptionServer', () => ({
+  useTranscriptionServer: () => ({ apiUrl: undefined, discovered: false }),
 }));
 vi.mock('./callSupport', () => ({
   browserSharesScreens: () => true,
@@ -142,7 +150,9 @@ const panel = (place: Place = {}) => {
       <ScreenSizeProvider value={size}>
         <MemoryRouter initialEntries={[route]}>
           <CallWindowFrameContext.Provider value={inFrame}>
-            <CallPanel room={panelRoom} onClose={onClose} />
+            <CallWindowSizeContext.Provider value={inFrame && { width: 400, height: 480 }}>
+              <CallPanel room={panelRoom} onClose={onClose} />
+            </CallWindowSizeContext.Provider>
           </CallWindowFrameContext.Provider>
         </MemoryRouter>
       </ScreenSizeProvider>
@@ -525,5 +535,61 @@ describe('the minimized bar', () => {
     expect(named('Turn Off Microphone')).toBe(iconButtonClass(size, 'Surface'));
     expect(named('End')).toBe(iconButtonClass(size, 'Critical'));
     expect(named('Expand')).toBe(iconButtonClass('300', 'Surface'));
+  });
+});
+
+describe('the live transcript in the window', () => {
+  /** MindRoom transcribes the room's call, nothing said yet, and the account shows the transcript. */
+  const transcribed = () => {
+    store.set(callTranscriptionAtom, { roomId: room.roomId, status: 'transcribing' });
+    store.set(liveTranscriptAtom, {
+      roomId: room.roomId,
+      call: {
+        id: 'call-1',
+        roomId: room.roomId,
+        rowEventId: '$row',
+        startedAt: '2026-11-07T09:29:00Z',
+        endedAt: null,
+        members: [USER, '@ana:panel.test'],
+        pausedBy: null,
+      },
+      lines: [],
+      names: {},
+    });
+    store.set(getCallWindowSettingsAtom(USER), { mode: 'floating', transcript: true });
+  };
+  const transcript = () => document.querySelector('[data-call-window-transcript]');
+
+  it('shows with the stage in the expanded window, its switch in the controls pressed', () => {
+    roomCall([me, person('@ana:panel.test')]);
+    transcribed();
+    renderPanel({ frame: frame() });
+    const split = document.querySelector('[data-call-transcript-layout]');
+    expect(split?.getAttribute('data-call-transcript-layout')).toBe('stacked');
+    expect(split?.querySelector('[data-call-stage]')).not.toBeNull();
+    expect(transcript()?.textContent).toContain('Nothing has been said yet.');
+    const toggle = screen.getByRole('button', { name: 'Live transcript' });
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+
+    press('Live transcript');
+    expect(settings().transcript).toBe(false);
+    expect(transcript()).toBeNull();
+    expect(document.querySelector('[data-call-stage]')).not.toBeNull();
+  });
+
+  it('shows neither in the bar nor in the docked panel', () => {
+    roomCall([me, person('@ana:panel.test')]);
+    transcribed();
+    renderPanel({ frame: frame(true) });
+    expect(transcript()).toBeNull();
+    cleanup();
+
+    store.set(getCallWindowSettingsAtom(USER), { mode: 'docked', transcript: true });
+    renderPanel();
+    expect(transcript()).toBeNull();
+    expect(document.querySelector('[data-call-transcript-layout]')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Live transcript' }).hasAttribute('aria-pressed')
+    ).toBe(false);
   });
 });

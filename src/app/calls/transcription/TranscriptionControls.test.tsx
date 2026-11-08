@@ -5,7 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { TranscriptionControls, TranscriptionStatus } from './TranscriptionControls';
-import { callPanelRoomAtom } from '../callStore';
+import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from '../callStore';
+import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
+import {
+  clearCallWindowStore,
+  getCallWindowSettingsAtom,
+  minimizedSettings,
+} from '../window/callWindowState';
 import {
   callTranscriptionAtom,
   liveTranscriptAtom,
@@ -28,16 +34,17 @@ const room = {
 let container: HTMLDivElement;
 let root: Root;
 
-const render = (status?: Status) => {
-  const store = createStore();
+const render = (status?: Status, store = createStore(), size: ScreenSize = ScreenSize.Desktop) => {
   if (status) store.set(callTranscriptionAtom, { roomId: ROOM_ID, status });
   act(() => {
     root.render(
       <Provider store={store}>
-        <TranscriptionStatus room={room} />
-        <div role="toolbar">
-          <TranscriptionControls room={room} />
-        </div>
+        <ScreenSizeProvider value={size}>
+          <TranscriptionStatus room={room} />
+          <div role="toolbar">
+            <TranscriptionControls room={room} />
+          </div>
+        </ScreenSizeProvider>
       </Provider>
     );
   });
@@ -60,6 +67,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  clearCallWindowStore('@ann:example.org');
 });
 
 describe('the call controls for transcripts', () => {
@@ -121,4 +129,54 @@ describe('the call controls for transcripts', () => {
     act(() => transcript()?.click());
     expect(store.get(transcriptPanelAtom)).toEqual({ roomId: ROOM_ID, replacedCall: true });
   });
+
+  it("toggle the live transcript inside the floating window that shows this device's call", () => {
+    const store = inOwnCall();
+    // Minimized to its bar, the window gets its height back to show the transcript.
+    const rect = { x: 600, y: 200, width: 400, height: 480 };
+    store.set(settings(), minimizedSettings({ mode: 'floating', rect }, rect));
+    render('transcribing', store);
+
+    act(() => transcript()?.click());
+    expect(store.get(settings())).toMatchObject({ transcript: true, rect });
+    expect(transcript()?.getAttribute('aria-pressed')).toBe('true');
+    // The window stays, and the side panel stays shut.
+    expect(store.get(callPanelRoomAtom)).toBe(ROOM_ID);
+    expect(store.get(transcriptPanelAtom)).toBeUndefined();
+
+    act(() => transcript()?.click());
+    expect(store.get(settings()).transcript).toBe(false);
+    expect(transcript()?.getAttribute('aria-pressed')).toBe('false');
+    expect(store.get(transcriptPanelAtom)).toBeUndefined();
+  });
+
+  it.each([
+    ['docked', ScreenSize.Desktop],
+    ['floating', ScreenSize.Mobile],
+  ] as const)('open the side panel while the call view is %s on %s, as before', (mode, size) => {
+    const store = inOwnCall();
+    store.set(settings(), { mode });
+    render('transcribing', store, size);
+
+    act(() => transcript()?.click());
+    expect(store.get(transcriptPanelAtom)).toEqual({ roomId: ROOM_ID, replacedCall: true });
+    expect(store.get(settings()).transcript).toBeUndefined();
+    expect(transcript()?.hasAttribute('aria-pressed')).toBe(false);
+  });
 });
+
+// Read anew each time: the registry makes a new atom after each test clears it.
+const settings = () => getCallWindowSettingsAtom('@ann:example.org');
+const transcript = () =>
+  container.querySelector<HTMLButtonElement>('[aria-label="Live transcript"]');
+
+/** This device is in the room's call, whose view is open. */
+const inOwnCall = () => {
+  const store = createStore();
+  store.set(activeCallAtom, {
+    kind: 'room',
+    call: { room: { roomId: ROOM_ID } },
+  } as unknown as ActiveCall);
+  store.set(callPanelRoomAtom, ROOM_ID);
+  return store;
+};
