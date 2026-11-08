@@ -12,6 +12,7 @@ import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { keepEncryptedRoomCounts } from './encryptedRoomCounts';
+import { keepUnthreadedReceiptEvents } from '../receiptReadTs';
 import { keepSyncedEdits } from './syncedEdits';
 
 // Regression (L5-F012): in an encrypted room the SDK counts unread messages itself as they decrypt.
@@ -178,6 +179,7 @@ const fixture = async (keep: boolean) => {
     Promise.resolve({ versions: ['v1.4'], unstable_features: {} });
   if (keep) {
     keepSyncedEdits(mx);
+    keepUnthreadedReceiptEvents(mx);
     keepEncryptedRoomCounts(mx);
   }
 
