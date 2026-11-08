@@ -208,7 +208,10 @@ test("the example plugin's panel follows the app's theme kind and screen size, a
   test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
   test.setTimeout(10 * 60_000);
   const person = await registerDisposableUser(`plugin_ui_surface_${RUN}`, 'plugin-ui-pass');
-  const roomId = await createPrivateRoom(HOMESERVER, person.accessToken, { name: 'Orchard' });
+  const roomId = await createPrivateRoom(HOMESERVER, person.accessToken, {
+    name: 'Orchard',
+    topic: 'Where the example plugin draws its own surface',
+  });
   const server = await serveBuild(build!);
   const context = await browser.newContext({ baseURL: server.origin, viewport: LAYOUTS.phone });
   const page = await context.newPage();
