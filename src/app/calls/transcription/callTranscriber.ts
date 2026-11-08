@@ -1,4 +1,4 @@
-import type { IOpenIDToken } from 'matrix-js-sdk';
+import type { ClientSessions } from '../../computer/clientSessions';
 import {
   TranscriptionApiError,
   TranscriptionClient,
@@ -35,17 +35,14 @@ export type TranscriberStatus = 'joining' | 'transcribing' | 'unavailable' | 'of
 
 export type CallTranscriberOptions = {
   roomId: string;
-  /** The room's MindRoom server. */
-  apiUrl: string;
-  /** A Matrix OpenID token bound to `apiUrl`. */
-  getOpenIdToken: () => Promise<IOpenIDToken>;
+  /** The client session with the room's MindRoom server. */
+  sessions: ClientSessions;
   onStatus: (status: TranscriberStatus, callId: string | undefined) => void;
   /**
    * Each read of the room's live call, the line MindRoom answers each upload with, and the call it
    * answers each Pause with.
    */
   onUpdate: (update: LiveUpdate) => void;
-  request?: typeof fetch;
   startCapture?: typeof startSpeechCapture;
 };
 
@@ -81,6 +78,8 @@ export class CallTranscriber {
   private readonly client: TranscriptionClient;
 
   private readonly startCapture: typeof startSpeechCapture;
+
+  private readonly stopLeavingAtSignOut: () => void;
 
   private status: TranscriberStatus = 'joining';
 
@@ -142,12 +141,11 @@ export class CallTranscriber {
 
   constructor(options: CallTranscriberOptions) {
     this.options = options;
-    this.client = new TranscriptionClient({
-      apiUrl: options.apiUrl,
-      getOpenIdToken: options.getOpenIdToken,
-      request: options.request,
-    });
+    this.client = new TranscriptionClient(options.sessions);
     this.startCapture = options.startCapture ?? startSpeechCapture;
+    // Sign-out ends the session only once this device left the call with it, after the uploads
+    // of a call already ending.
+    this.stopLeavingAtSignOut = options.sessions.beforeRevoke(() => this.ended ?? this.leaveNow());
   }
 
   /** Joins once the room's last leave is done, then checks in every 20 seconds. */
@@ -230,20 +228,23 @@ export class CallTranscriber {
     leaves.set(roomId, ended);
     void ended.finally(() => {
       if (leaves.get(roomId) === ended) leaves.delete(roomId);
+      this.stopLeavingAtSignOut();
     });
     return ended;
   }
 
   /**
-   * Leaves at once as the page goes away, without the stretches still queued: nothing more is
-   * captured or sent, and ending sends no second leave.
+   * Leaves at once as the page goes away or sign-out ends the session, without the stretches still
+   * queued: nothing more is captured or sent, and ending sends no second leave. Resolves once the
+   * leave was answered or failed.
    */
-  leaveNow(): void {
+  leaveNow(): Promise<void> {
     const { callId } = this;
-    if (callId && this.status !== 'off') this.client.leaveNow(callId);
+    const left = callId && this.status !== 'off' ? this.client.leaveNow(callId) : Promise.resolve();
     this.status = 'off';
     this.uploadGeneration += 1;
     void this.end();
+    return left;
   }
 
   /**

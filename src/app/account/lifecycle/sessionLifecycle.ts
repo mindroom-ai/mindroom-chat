@@ -31,6 +31,7 @@ import { stopSyncEngineForClient } from '../../event-store/engine/syncEngine';
 import { getCanvasStateDbName } from '../../canvas/canvasStateStore';
 import { getCanvasIndexDbName } from '../../canvas/canvasIndexStore';
 import { forgetAccountInPlugins } from '../../plugins/pluginStorage';
+import { revokeClientSessions } from '../../computer/clientSessions';
 import {
   SessionCleanupContext,
   clearAppScopedCacheStorage,
@@ -196,6 +197,8 @@ export const removeCurrentClientSessionAndReload = async (
 ): Promise<void> => {
   const session = getMatrixClientSessionCleanupContext(mx, candidate);
   stopClientRuntime(mx);
+  // MindRoom would otherwise accept the page's sessions until they run out.
+  await revokeClientSessions(mx);
 
   // Signing the same account in again (for example through Add account)
   // replaces this record with a newer device. Its registry entry, sync store,
