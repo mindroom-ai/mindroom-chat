@@ -307,7 +307,8 @@ export const useCallActions = (mx: MatrixClient) => {
       const engine = await loading;
       if (!engine || !mx.clientRunning) return giveUp('failed');
       // A room the person left meanwhile (the call's, or the conversation an agent call is about)
-      // has no call view to show the call in; from here on, its call ends with it (`CallWindowHost`).
+      // gets no call: its leave already passed, and only a leave from here on ends the call with
+      // its room (`CallWindowHost`).
       const left = [room.roomId, meta.origin?.roomId].some(
         (roomId) => roomId && mx.getRoom(roomId)?.getMyMembership() !== KnownMembership.Join
       );

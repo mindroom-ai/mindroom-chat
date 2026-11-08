@@ -56,10 +56,10 @@ const GONE: ReadonlySet<string> = new Set([KnownMembership.Leave, KnownMembershi
 /**
  * The open call view (`callPanelRoomAtom`) closes with its room, and the call shown in that room
  * (its own, or an agent call started there) ends with it, view open or not: when the client
- * forgets the room, or the person leaves it or is kicked or banned from it, on every screen. The
- * view goes with the room, and a call left running would hold this device's one call with no
- * place to end or dismiss it. A call already left is End's to forget, once what follows it ran
- * (which may leave its room).
+ * forgets the room, or the person leaves it or is kicked or banned from it, on every screen. Left
+ * running, the call would hold this device's one call after the person is gone from its room, and
+ * a forgotten room leaves no view to end it from. A call already left is End's to forget, once
+ * what follows it ran (which may leave its room).
  */
 const useCloseWithRoom = () => {
   const mx = useMatrixClient();
