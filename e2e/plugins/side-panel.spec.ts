@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { disposableHomeserverIsUp } from '../helpers/disposableAccounts';
-import { roomMoreOptions } from '../helpers/roomMenu';
+import { roomHeader, roomMoreOptions } from '../helpers/roomMenu';
 import {
   CORE_PANELS,
   checkPanelFrame,
@@ -18,13 +18,16 @@ import { serveBuild } from '../helpers/staticBuildServer';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
 // served as a deployment serves it, against the disposable homeserver. The plugin's side panel,
-// "Example panel", opens from the room menu, shows what the plugin draws for the room, and is one
-// of the room's side panels: opening it takes the side panel from the computer, a canvas, the call
-// or the members, opening any of them takes it back, and neither comes back when the other closes.
-// Its Close button and its room menu entry close it.
+// "Example panel", opens from its toggle, a button in the room header's row (placement `auto`),
+// shows what the plugin draws for the room, and is one of the room's side panels: opening it takes
+// the side panel from the computer, a canvas, the call or the members, opening any of them takes it
+// back, and neither comes back when the other closes. Its Close button and its toggle close it.
+// The toggle is pressed while the panel shows, but not while it is folded to its tab, when choosing
+// it unfolds the panel. On a phone the toggle is an entry of the room menu.
 // It counts the room's members, the viewer and an agent, which it reads through the client SDK's
 // `matrix` subpath.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
+const PHONE = { width: 390, height: 844 };
 
 test.use({ viewport: { width: 1600, height: 1000 }, video: 'off' });
 
@@ -52,13 +55,15 @@ test.afterAll(() => {
 
 const menuEntry = (page: Page) =>
   page.getByRole('menuitemcheckbox', { name: 'Example panel', exact: true });
+const toggle = (page: Page) =>
+  roomHeader(page).getByRole('button', { name: 'Example panel', exact: true });
 
 const openExamplePanel = async (page: Page, room: PanelRoom) => {
-  await roomMoreOptions(page).click();
-  await expect(menuEntry(page)).toHaveAttribute('aria-checked', 'false');
-  await menuEntry(page).click();
+  await expect(toggle(page)).toHaveAttribute('aria-pressed', 'false');
+  await toggle(page).click();
   const panel = page.getByRole('region', { name: 'Example panel', exact: true });
   await expect(panel).toBeVisible();
+  await expect(toggle(page)).toHaveAttribute('aria-pressed', 'true');
   await expect(panel).toContainText(`Example panel of ${room.roomId}`);
   await expect(panel).toContainText('Members: 2, with a MindRoom agent');
 };
@@ -109,12 +114,14 @@ test("the example plugin's side panel opens, yields and closes as the core panel
       });
     }
 
-    // The room menu marks the panel while it shows, and closes it when chosen again.
+    // The toggle closes the panel, and the room menu does not offer it on a wide screen.
     await openExamplePanel(page, room);
-    await roomMoreOptions(page).click();
-    await expect(menuEntry(page)).toHaveAttribute('aria-checked', 'true');
-    await menuEntry(page).click();
+    await toggle(page).click();
     await expect(panelLocator(page, 'plugin')).toHaveCount(0);
+    await expect(toggle(page)).toHaveAttribute('aria-pressed', 'false');
+    await roomMoreOptions(page).click();
+    await expect(page.getByRole('menuitem', { name: 'Mark as Read' })).toBeVisible();
+    await expect(menuEntry(page)).toHaveCount(0);
   });
 });
 
@@ -130,5 +137,39 @@ test("the example plugin's side panel fills the room and folds to a tab, per roo
       label: 'Example panel',
     });
     await expect(page.getByText(`Example panel of ${room.roomId}`)).toBeVisible();
+
+    // Folded, its toggle is not pressed, and choosing it unfolds the panel; choosing it then
+    // closes it.
+    const panel = panelLocator(page, 'plugin');
+    const fill = panel.getByRole('button', { name: 'Fill the room with Example panel' });
+    await panel.getByRole('button', { name: 'Fold Example panel to the edge' }).click();
+    await expect(panel.getByRole('button', { name: 'Unfold Example panel' })).toBeVisible();
+    await expect(toggle(page)).toHaveAttribute('aria-pressed', 'false');
+    await toggle(page).click();
+    await expect(fill).toHaveAttribute('aria-pressed', 'false');
+    await expect(toggle(page)).toHaveAttribute('aria-pressed', 'true');
+    await toggle(page).click();
+    await expect(panel).toHaveCount(0);
+  });
+});
+
+test("on a phone the example plugin's side panel toggles from the room menu", async ({
+  browser,
+}) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+  test.setTimeout(5 * 60_000);
+  await withPanelRoom(browser, async (page, room) => {
+    await page.setViewportSize(PHONE);
+    await page.goto(`/home/${encodeURIComponent(room.roomId)}`);
+    await expect(roomMoreOptions(page)).toBeVisible({ timeout: 60_000 });
+    await expect(toggle(page)).toHaveCount(0);
+    await roomMoreOptions(page).click();
+    await expect(menuEntry(page)).toHaveAttribute('aria-checked', 'false');
+    await menuEntry(page).click();
+    // Over the conversation, header and all, until its Close.
+    await expect(page.getByText(`Example panel of ${room.roomId}`)).toBeVisible();
+    await expect(roomMoreOptions(page)).toBeHidden();
+    await closeExamplePanel(page);
+    await expect(roomMoreOptions(page)).toBeVisible();
   });
 });

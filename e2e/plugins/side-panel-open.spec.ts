@@ -13,16 +13,18 @@ import {
 } from '../helpers/disposableAccounts';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
-import { roomMoreOptions } from '../helpers/roomMenu';
+import { roomHeader, roomMoreOptions } from '../helpers/roomMenu';
 import { showRoom } from '../helpers/sidePanels';
 import { serveBuild } from '../helpers/staticBuildServer';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
 // served as a deployment serves it, against the disposable homeserver. Each greeting card of the
-// plugin opens the plugin's side panel from the plugin's code with the greeting as its request,
-// which the panel shows; a second card's request replaces the first. The panel remembers it is
-// open: a reload and a switch to another room and back keep it open in its room, with its request,
-// and only there. Another account in the same browser never sees it, and signing out deletes it.
+// plugin opens the plugin's side panel from the plugin's code with the greeting's event ID as its
+// request, and the panel reads the greeting and shows it; a second card's request replaces the
+// first. Folded to its tab, the panel unfolds from its toggle in the room header with its request.
+// The panel remembers it is open: a reload and a switch to another room and back keep it open in
+// its room, with its request, which the browser keeps without the greeting's text, and only there.
+// Another account in the same browser never sees it, and signing out deletes it.
 // Set PLUGIN_SHOTS=<directory> to save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'plugin-panel-password';
@@ -94,6 +96,9 @@ const shot = async (page: Page, name: string) => {
 };
 
 const panel = (page: Page) => page.getByRole('region', { name: 'Example panel', exact: true });
+/** The panel's toggle, a button in the room header's row on a wide screen. */
+const toggle = (page: Page) =>
+  roomHeader(page).getByRole('button', { name: 'Example panel', exact: true });
 
 /** The greeting card of the agent's reply `index`, once the plugin renders it. */
 const card = async (page: Page, index: number) => {
@@ -135,17 +140,32 @@ test("a card opens the plugin's panel with its request, which stays open in its 
     await expect(panel(page)).not.toContainText('Good morning');
     await shot(page, 'second-request');
 
-    // A reload keeps it open, with its request.
+    // Folded, its toggle is not pressed; choosing it unfolds the panel, which still shows the
+    // greeting.
+    await expect(toggle(page)).toHaveAttribute('aria-pressed', 'true');
+    // The frame's strip, with Fold, is beside the panel's own region.
+    await page.getByRole('button', { name: 'Fold Example panel to the edge', exact: true }).click();
+    await expect(toggle(page)).toHaveAttribute('aria-pressed', 'false');
+    await shot(page, 'folded');
+    await toggle(page).click();
+    await expect(toggle(page)).toHaveAttribute('aria-pressed', 'true');
+    await expect(panel(page)).toContainText('Greeting: Good evening');
+    await shot(page, 'unfolded');
+
+    // A reload keeps it open, with its request: the greeting's event ID, not its text.
     await page.reload();
     await expect(panel(page)).toContainText('Greeting: Good evening', { timeout: 60_000 });
     await shot(page, 'after-reload');
+    const [remembered] = await panelKeysOf(page, alice.userId);
+    expect(await page.evaluate((key) => localStorage.getItem(key), remembered!)).toBe(
+      JSON.stringify({ id: 'example/panel', request: greetings[1]!.id })
+    );
 
-    // Another room shows without it. Opened there from the room menu, with no request, it takes
-    // the page's place, yet back in the first room the first panel opens again, request and all.
+    // Another room shows without it. Opened there from its toggle, with no request, it takes the
+    // page's place, yet back in the first room the first panel opens again, request and all.
     await showRoom(page, ELSEWHERE);
     await expect(panel(page)).toHaveCount(0);
-    await roomMoreOptions(page).click();
-    await page.getByRole('menuitemcheckbox', { name: 'Example panel', exact: true }).click();
+    await toggle(page).click();
     await expect(panel(page)).toBeVisible();
     await expect(panel(page)).not.toContainText('Greeting:');
     await showRoom(page, ROOM);
