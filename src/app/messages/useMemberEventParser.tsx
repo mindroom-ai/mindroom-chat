@@ -3,6 +3,7 @@ import { IconSrc, Icons } from 'folds';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Trans, useTranslation } from 'react-i18next';
 import { Membership } from '../matrix/types/room';
+import { revealDirectionControls } from '../ui/directional';
 import { getMxIdLocalPart } from '../matrix/matrix';
 import {
   getMemberDisplayName,
@@ -202,7 +203,8 @@ const describeMemberEvent = (event: MatrixEvent, room?: Room): MemberEventFacts 
           getRoomMemberName(event.sender, room) ??
             (room && senderId ? getMemberDisplayName(room, senderId) : undefined)
         ),
-    reason: current.reason ? `(${current.reason})` : '',
+    // The reason is the sender's own text: it shows its direction controls as code points.
+    reason: current.reason ? `(${revealDirectionControls(current.reason)})` : '',
   };
 };
 
