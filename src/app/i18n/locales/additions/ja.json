@@ -216,6 +216,11 @@
       },
       "developerTools": {
         "invalidJson": "イベントに種類を指定し、内容には JSON オブジェクトを入力してください。"
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "これらのルームはアップグレードと一緒に移動できませんでした: {{rooms}}"
+        }
       }
     },
     "settings": {

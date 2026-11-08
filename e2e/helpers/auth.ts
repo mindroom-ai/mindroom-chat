@@ -11,9 +11,16 @@ type LoginOptions = {
 export const activeAccountButtonNamePattern = /Open account menu for /;
 const failedStartAccountPattern = /Failed to start account/i;
 
-/** Opens the account menu of the rail's account button. */
+/**
+ * The active account's button. A phone has two while its drawer is out, the top bar's and the
+ * rail's, which open the same menu; this takes the first in the page, the top bar's on a phone.
+ */
+export const activeAccountButton = (page: Page) =>
+  page.getByRole('button', { name: activeAccountButtonNamePattern }).first();
+
+/** Opens the account menu of the active account's button. */
 export const openAccountMenu = async (page: Page) => {
-  await page.getByRole('button', { name: activeAccountButtonNamePattern }).click();
+  await activeAccountButton(page).click();
   await expect(page.getByRole('menuitem', { name: 'Settings', exact: true })).toBeVisible();
 };
 

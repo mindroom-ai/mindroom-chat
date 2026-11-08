@@ -224,6 +224,11 @@
       },
       "developerTools": {
         "invalidJson": "Dai all’evento un tipo e un contenuto che sia un oggetto JSON."
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "Queste stanze non sono state spostate con l'aggiornamento: {{rooms}}"
+        }
       }
     },
     "settings": {

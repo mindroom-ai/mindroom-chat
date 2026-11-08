@@ -1,6 +1,7 @@
 import { crc32, deflateSync } from 'node:zlib';
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
+import { activeAccountButton } from '../helpers/auth';
 import { matrixFetch } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 
@@ -288,7 +289,7 @@ const CASES: Case[] = [
     from: 'home',
     screens: ['desktop', 'phone'],
     open: async (page, screen) => {
-      const account = page.getByRole('button', { name: /Open account menu for / });
+      const account = activeAccountButton(page);
       await press(account, screen);
       await press(page.getByRole('menuitem', { name: 'Settings', exact: true }), screen);
       return account;

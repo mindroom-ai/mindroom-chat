@@ -1,16 +1,31 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { act, create } from 'react-test-renderer';
+import { getDefaultStore } from 'jotai';
+import { act, create, type ReactTestRendererJSON } from 'react-test-renderer';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientLayout } from './ClientLayout';
 import { resolveRootRouteRedirect } from '../navigation/routeSessionGuards';
 import { getActiveSession, putSession, updateSessionLastPath } from '../matrix/session/sessions';
+import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
+import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 
 vi.mock('folds', () => ({
   Box: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
 }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => ({}) }));
+// The notice places are tested in ui/noticeSlots.test.tsx; here, where the layout puts them.
+vi.mock('../ui/noticeSlots', () => ({
+  NoticeSlot: ({
+    place,
+    phone,
+    covered,
+  }: {
+    place: string;
+    phone?: boolean;
+    covered?: boolean;
+  }) => <i data-notice-slot={place} data-phone={phone} data-covered={covered} />,
+}));
 vi.mock('../matrix/session/useSessionStore', async () => {
   const sessions = await import('../matrix/session/sessions');
   return { useActiveSession: () => sessions.getActiveSession() };
@@ -128,4 +143,38 @@ describe('ClientLayout', () => {
       expect(resolveRootRouteRedirect('https://chat.example.org/').redirectTo).toBe(ROOM_PATH);
     }
   );
+
+  it('puts the notice place first wider than a phone, and under the top bar on a phone, inert under its drawer', async () => {
+    const layout = (screen: ScreenSize) => (
+      <ScreenSizeProvider value={screen}>
+        <MemoryRouter initialEntries={[ROOM_PATH]}>
+          <ClientLayout nav={<nav />} phoneTopBar={<header />}>
+            {null}
+          </ClientLayout>
+        </MemoryRouter>
+      </ScreenSizeProvider>
+    );
+    const parts = (renderer: ReturnType<typeof create>) =>
+      ((renderer.toJSON() as ReactTestRendererJSON).children ?? []) as ReactTestRendererJSON[];
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(layout(ScreenSize.Desktop));
+    });
+    expect(parts(renderer!).map((part) => part.type)).toEqual(['i', 'nav', 'div']);
+
+    await act(async () => {
+      renderer!.update(layout(ScreenSize.Mobile));
+    });
+    const [, slot] = parts(renderer!);
+    expect(parts(renderer!).map((part) => part.type)).toEqual(['header', 'i', 'div']);
+    expect(slot?.props).toMatchObject({ 'data-notice-slot': 'page', 'data-phone': true });
+    expect(slot?.props['data-covered']).toBe(false);
+
+    await act(async () => {
+      getDefaultStore().set(phoneNavDrawerOpenAtom, true);
+    });
+    expect(parts(renderer!)[1]?.props['data-covered']).toBe(true);
+    getDefaultStore().set(phoneNavDrawerOpenAtom, false);
+  });
 });

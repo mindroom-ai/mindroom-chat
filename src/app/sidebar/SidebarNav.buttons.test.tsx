@@ -186,11 +186,11 @@ describe('SidebarNav buttons a person can hide', () => {
     expect(renderedTabs({ sidebar: { showMindRoom: false } }).tabs).not.toContain('localMindroom');
   });
 
-  it('leaves the command palette and the account to the top bar on phones', () => {
+  it('leaves the command palette to the top bar on phones and keeps the account at the foot', () => {
     state.settings = ALL_ON;
     const { tabs } = renderedTabs(CANVASES, ScreenSize.Mobile);
     expect(tabs).not.toContain('search');
-    expect(tabs).not.toContain('settings');
     expect(tabs).toContain('inbox');
+    expect(tabs.at(-1)).toBe('settings');
   });
 });

@@ -20,10 +20,11 @@ vi.mock('jotai', async (importOriginal) => {
 });
 
 /**
- * Modules of device-wide settings, whose atoms all outlive an account, and why. A module that
- * holds anything else lists its kept atoms one by one in `keptAtoms` below. Lane C makes its
- * module-level atoms with jotai's `atom` alone (the lint rule bans the factories this recording
- * would miss); atoms made later by families and per-account factories are keyed and not followed.
+ * Modules whose atoms all outlive an account (device-wide settings, a count the mounted pages
+ * keep), and why. A module that holds anything else lists its kept atoms one by one in `keptAtoms`
+ * below. Lane C makes its module-level atoms with jotai's `atom` alone (the lint rule bans the
+ * factories this recording would miss); atoms made later by families and per-account factories
+ * are keyed and not followed.
  */
 const KEPT_MODULES: Record<string, string> = {
   'src/app/preferences/settings.ts': "this device's app settings, saved in localStorage",
@@ -34,6 +35,10 @@ const KEPT_MODULES: Record<string, string> = {
     "this device's voice message speed and volume, saved in localStorage",
   'src/app/computer/computerServiceSettings.ts':
     'the computer service chosen on this device, saved in localStorage',
+  // Not reset by the forget: it runs before the cleanups of the pages below the account's root,
+  // whose own -1s would then take the count below 0.
+  'src/app/navigation/useEdgeSwipeBack.ts':
+    'counts the back swipes of the pages shown, each taken back as its page goes',
 };
 
 // The importer of the app: every module under src/app/, keyed by its path from the root.

@@ -224,6 +224,11 @@
       },
       "developerTools": {
         "invalidJson": "Donnez à l’événement un type et un contenu qui soit un objet JSON."
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "Ces salons n'ont pas pu suivre la mise à niveau : {{rooms}}"
+        }
       }
     },
     "settings": {

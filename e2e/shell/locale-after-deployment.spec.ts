@@ -158,7 +158,7 @@ test('the new version notice reloads into the new build’s translations (Chromi
       deploy();
       // The first build's worker answers the reload with the first build, which offers the next.
       await page.reload();
-      const notice = page.locator('[data-new-version-notice]');
+      const notice = page.locator('[data-new-version-card]');
       await notice.getByRole('button', { name: 'Neu laden', exact: true }).click({
         timeout: 60_000,
       });

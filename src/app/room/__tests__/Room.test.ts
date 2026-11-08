@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, create } from 'react-test-renderer';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { Capacitor } from '@capacitor/core';
@@ -26,6 +26,18 @@ type MockRoomViewProps = {
   threadId?: string;
   onThreadLoadError?: (threadId: string) => void;
   onComputerToggle?: () => void;
+};
+
+/**
+ * Whether the conversation shows. Behind a side panel in its place (filling the room, or over it
+ * on a phone) it stays mounted, with no room of its own (Room.sidePanels.test.tsx checks that it
+ * is out of sight then).
+ */
+const conversationShownIn = (renderer: ReactTestRenderer): boolean => {
+  expect(renderer.root.findAllByType('mock-room-view')).toHaveLength(1);
+  return !renderer.root
+    .findAll((node) => node.type === 'div' && node.props.style?.contentVisibility === 'hidden')
+    .some((node) => node.findAllByType('mock-room-view').length === 1);
 };
 
 type MockComputerPanelProps = {
@@ -660,9 +672,9 @@ describe('Room', { timeout: 30_000 }, () => {
     expect(canvasOpen()).toBe(true);
     expect(roomState.canvasPanelProps?.event).toBe(request);
     expect(roomState.setPeopleDrawer).toHaveBeenCalledWith(false);
-    // Expanding gives the canvas the conversation's column; the conversation unmounts so it
-    // cannot mark messages read while out of view.
-    const conversationShown = () => JSON.stringify(renderer!.toJSON()).includes('mock-room-view');
+    // Expanding gives the canvas the conversation's column; the conversation stays under it, out
+    // of sight, so it marks nothing read meanwhile.
+    const conversationShown = () => conversationShownIn(renderer!);
     expect(roomState.canvasPanelProps?.expanded).toBe(false);
     expect(conversationShown()).toBe(true);
     await act(async () => roomState.canvasPanelProps?.onToggleExpanded());
@@ -737,7 +749,7 @@ describe('Room', { timeout: 30_000 }, () => {
     const view = () => JSON.stringify(renderer!.toJSON());
     return {
       canvasOpen: () => view().includes('mock-canvas-panel'),
-      conversationShown: () => view().includes('mock-room-view'),
+      conversationShown: () => conversationShownIn(renderer!),
       rerender: () => act(async () => renderer!.update(React.createElement(Room))),
       showCanvas: () =>
         act(async () => {
@@ -1022,7 +1034,7 @@ describe('Room', { timeout: 30_000 }, () => {
     await room.unmount();
   });
 
-  it('unmounts the conversation under a canvas on phones', async () => {
+  it('hides the conversation under a canvas on phones', async () => {
     roomState.screenSize = 'Mobile';
     const room = await renderCanvasRoom();
     expect(room.conversationShown()).toBe(true);
@@ -1207,7 +1219,7 @@ describe('Room', { timeout: 30_000 }, () => {
     await act(async () => {
       renderer = create(React.createElement(Room));
     });
-    const roomViewShown = () => renderer!.root.findAllByType('mock-room-view').length === 1;
+    const roomViewShown = () => conversationShownIn(renderer!);
     await act(async () => roomState.roomViewProps?.onComputerToggle?.());
     expect(roomState.computerPanelProps?.expanded).toBe(false);
     expect(roomViewShown()).toBe(true);
@@ -1246,7 +1258,7 @@ describe('Room', { timeout: 30_000 }, () => {
     await act(async () => renderer!.unmount());
   });
 
-  it("unmounts the conversation under the phone's full-screen computer without reconnecting", async () => {
+  it("hides the conversation under the phone's full-screen computer without reconnecting", async () => {
     roomState.clientConfig = {
       mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
     };
@@ -1258,7 +1270,7 @@ describe('Room', { timeout: 30_000 }, () => {
     await act(async () => {
       renderer = create(React.createElement(Room));
     });
-    const roomViewShown = () => renderer!.root.findAllByType('mock-room-view').length === 1;
+    const roomViewShown = () => conversationShownIn(renderer!);
     const pressEscape = () => {
       vi.mocked(isKeyHotkey).mockReturnValue(true);
       try {

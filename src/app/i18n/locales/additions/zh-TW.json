@@ -216,6 +216,11 @@
       },
       "developerTools": {
         "invalidJson": "請為事件指定型別，並提供一個 JSON 物件作為內容。"
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "以下房間未能隨升級一起移轉：{{rooms}}"
+        }
       }
     },
     "settings": {

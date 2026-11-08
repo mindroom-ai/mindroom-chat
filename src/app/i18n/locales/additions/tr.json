@@ -220,6 +220,11 @@
       },
       "developerTools": {
         "invalidJson": "Olaya bir tür ve JSON nesnesi olan bir içerik verin."
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "Bu odalar yükseltmeyle birlikte taşınamadı: {{rooms}}"
+        }
       }
     },
     "settings": {

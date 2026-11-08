@@ -134,10 +134,11 @@ export const ScreenInControl = style({
 
 // The software keyboard's textarea: focusable, so the keyboard opens, but neither seen nor in
 // the way of a touch. Inside the screen, where focusing it scrolls nothing away. At 16px, iOS
-// does not zoom in when it takes focus.
+// does not zoom in when it takes focus; important, so the touch fields' Page Zoom size
+// (index.css) does not shrink it: it shows no text to scale.
 export const KeyboardInput = style({
   caretColor: 'transparent',
-  fontSize: '16px',
+  fontSize: '16px !important',
   height: '1px',
   left: 0,
   margin: 0,

@@ -1,7 +1,10 @@
 // A client plugin for the tests (docs/architecture.md "Client plugins"): a message that carries
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
-// A side panel, "Example panel", names the room it is open in.
+// A side panel, "Example panel", names the room it is open in, counts its joined members and says
+// whether a MindRoom agent has joined or is invited, through the account's client. It also shows
+// the greeting a card asked it to show: in a room, each greeting has "Show in panel", and "Close
+// panel" while the panel shows. The panel stays open in its room across reloads (`remember`).
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg), and a button, "Show example cover", that covers the room's conversation with
 // "Example cover of <room name>" until its Close button or Escape closes it. Like a plugin outside
@@ -11,19 +14,29 @@
 // Its storage notes each greeting the signed-in account saw, when it shows and when it goes, and a
 // greeting the account saw in an earlier page load also shows "Seen before".
 // Its page at /p/example/ keeps the app's rail and links to its page at /p/example/window, which
-// fills the window and links back.
+// fills the window and links back. Its page at /p/example/rooms/<room ID>/<thread ID> links to that
+// room and that thread, opens either, and reloads the page into a new version.
 import { useEffect } from 'react';
 import { Icons } from 'folds';
-import type { Room } from 'matrix-js-sdk';
+import { KnownMembership, type Room } from 'matrix-js-sdk';
 import {
   pluginPublicUrl,
+  reloadForNewVersion,
   usePluginConfig,
   usePluginRouteHref,
   usePluginStorage,
   usePluginTranslation,
+  useRoomSidePanel,
   type ClientPlugin,
   type PluginEvent,
+  type PluginPageProps,
 } from '@mindroom/client-sdk/core';
+import {
+  hasActiveMindroomAgent,
+  useMatrixClient,
+  useRoomMembers,
+} from '@mindroom/client-sdk/matrix';
+import { useRoomHref, useRoomNavigate } from '@mindroom/client-sdk/room';
 
 /** This page load; what the plugin stored in it does not count as seen before. */
 const pageLoad = `${Date.now()}-${Math.random()}`;
@@ -48,6 +61,8 @@ function Greeting({ event }: { event: PluginEvent }) {
     return note;
   }, [storage, seenKey]);
   const t = usePluginTranslation('example');
+  const panel = useRoomSidePanel('example', 'panel');
+  const text = greetingText(event);
   const label =
     typeof config === 'object' &&
     config !== null &&
@@ -58,9 +73,19 @@ function Greeting({ event }: { event: PluginEvent }) {
   return (
     <>
       <div data-example-plugin>
-        {label}: {greetingText(event)}
+        {label}: {text}
       </div>
       {seenIn !== null && seenIn !== pageLoad && <div data-example-plugin-seen>Seen before</div>}
+      {panel && (
+        <button type="button" onClick={() => panel.open(text)}>
+          Show in panel
+        </button>
+      )}
+      {panel?.isOpen && (
+        <button type="button" onClick={panel.close}>
+          Close panel
+        </button>
+      )}
     </>
   );
 }
@@ -98,8 +123,38 @@ function WindowPage() {
   );
 }
 
-function ExamplePanel({ roomId }: { roomId: string }) {
-  return <p>Example panel of {roomId}</p>;
+function RoomPage({ params: { roomId = '', threadId = '' } }: PluginPageProps) {
+  const { navigateRoom, navigateRoomThread } = useRoomNavigate();
+  return (
+    <div data-example-room-page>
+      <a href={useRoomHref(roomId)}>Link to the room</a>
+      <a href={useRoomHref(roomId, threadId)}>Link to the thread</a>
+      <button type="button" onClick={() => navigateRoom(roomId)}>
+        Open the room
+      </button>
+      <button type="button" onClick={() => navigateRoomThread(roomId, threadId)}>
+        Open the thread
+      </button>
+      <button type="button" onClick={() => void reloadForNewVersion()}>
+        Reload into the new version
+      </button>
+    </div>
+  );
+}
+
+function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }) {
+  const members = useRoomMembers(useMatrixClient(), roomId);
+  const joined = members.filter(({ membership }) => membership === KnownMembership.Join);
+  return (
+    <>
+      <p>Example panel of {roomId}</p>
+      <p>
+        Members: {joined.length}, {hasActiveMindroomAgent(members) ? 'with' : 'without'} a MindRoom
+        agent
+      </p>
+      {typeof request === 'string' && <p>Greeting: {request}</p>}
+    </>
+  );
 }
 
 // The rooms whose cover is open, and who wants to hear when that changes.
@@ -149,6 +204,7 @@ const plugin: ClientPlugin = {
   pages: [
     { path: '', Component: ExamplePage },
     { path: 'window', Component: WindowPage, fillsWindow: true },
+    { path: 'rooms/:roomId/:threadId', Component: RoomPage },
   ],
   // It keeps nothing outside its storage, which the app deletes itself; for the tests, it notes the
   // account it was asked to forget in this tab.
@@ -156,7 +212,7 @@ const plugin: ClientPlugin = {
     sessionStorage.setItem('example-plugin.forgot', userId);
   },
   roomHeaderSlot: [RoomBanner, CoverButton],
-  sidePanels: [{ id: 'panel', label: 'Example panel', Component: ExamplePanel }],
+  sidePanels: [{ id: 'panel', label: 'Example panel', Component: ExamplePanel, remember: true }],
   headerActions: [
     {
       id: 'wave',

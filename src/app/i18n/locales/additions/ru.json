@@ -228,6 +228,11 @@
       },
       "developerTools": {
         "invalidJson": "Укажите тип события и содержимое в виде объекта JSON."
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "Эти комнаты не удалось перенести вместе с обновлением: {{rooms}}"
+        }
       }
     },
     "settings": {

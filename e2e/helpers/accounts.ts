@@ -1,9 +1,5 @@
 import { expect, Page } from '@playwright/test';
-import {
-  activeAccountButtonNamePattern,
-  chooseFromAccountMenu,
-  expectLoggedInShellStable,
-} from './auth';
+import { activeAccountButton, chooseFromAccountMenu, expectLoggedInShellStable } from './auth';
 
 type BrowserSessionStore = {
   activeSessionId?: string;
@@ -58,7 +54,7 @@ export const expectActiveStoredUsername = async (page: Page, username: string) =
 export const expectActiveAccountSwitcherForUsername = async (page: Page, username: string) => {
   await expectLoggedInShellStable(page);
   await expectActiveStoredUsername(page, username);
-  await expect(page.getByRole('button', { name: activeAccountButtonNamePattern })).toBeVisible();
+  await expect(activeAccountButton(page)).toBeVisible();
 };
 
 export const openAccountSwitcher = async (page: Page) => {

@@ -2,15 +2,15 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useAtomValue } from 'jotai';
 import { Method, type MatrixClient } from 'matrix-js-sdk';
 import { TYPING_TIMEOUT_MS } from '../matrix/state/typingMembers';
-import { conversationCoveredAtom } from '../navigation/conversationCover';
+import { conversationHiddenAtom } from '../navigation/conversationCover';
 
 /**
  * A function the composer calls with `true` while the user types and `false` when they stop.
  * Sends a typing notice when typing starts, a stop notice when it ends, and a stop notice when
  * the started one would expire, so other clients never show a stale indicator. With `hidden`
  * (the Hide Typing & Read Receipts setting) no typing notice goes out; one sent before the
- * setting was turned on still gets its stop. While a plugin's cover hides the conversation none
- * goes out either, and one already out stops as the cover shows.
+ * setting was turned on still gets its stop. While the conversation is hidden, under a plugin's
+ * cover or behind a side panel, none goes out either, and one already out stops as it hides.
  */
 export const useTypingStatusUpdater = (
   mx: MatrixClient,
@@ -40,10 +40,10 @@ export const useTypingStatusUpdater = (
     send(false);
   }, [clearExpiry, send]);
 
-  const covered = useAtomValue(conversationCoveredAtom);
+  const conversationHidden = useAtomValue(conversationHiddenAtom);
   useEffect(() => {
-    if (covered) stop();
-  }, [covered, stop]);
+    if (conversationHidden) stop();
+  }, [conversationHidden, stop]);
 
   // Leaving the room, or the account, while typing ends the notice there at once; otherwise
   // the others would see this person typing until it expires.
@@ -79,7 +79,7 @@ export const useTypingStatusUpdater = (
 
   return useCallback(
     (typing: boolean) => {
-      if (typing && !hidden && !covered) {
+      if (typing && !hidden && !conversationHidden) {
         if (typingRef.current) return;
         typingRef.current = true;
         send(true);
@@ -89,6 +89,6 @@ export const useTypingStatusUpdater = (
       }
       stop();
     },
-    [clearExpiry, covered, hidden, send, stop]
+    [clearExpiry, conversationHidden, hidden, send, stop]
   );
 };

@@ -5,6 +5,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useDesktopPageNav } from './desktopPageNavState';
 import { ResizablePanel } from '../ui/panels/ResizablePanel';
+import { NoticeSlot } from '../ui/noticeSlots';
 
 export function ResizablePageNav({
   children,
@@ -24,6 +25,7 @@ export function ResizablePageNav({
       collapseLabel={t('sharedUi.mindroomNavigation.collapseNavigationPanel')}
       onCollapse={onCollapse}
       testId="resizable-page-nav"
+      overlay={mobile ? undefined : <NoticeSlot place="list" />}
     >
       {children}
     </ResizablePanel>

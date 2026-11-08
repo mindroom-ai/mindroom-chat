@@ -216,6 +216,11 @@
       },
       "developerTools": {
         "invalidJson": "Beri peristiwa sebuah jenis dan konten berupa objek JSON."
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "Ruang ini tidak dapat dipindahkan bersama peningkatan: {{rooms}}"
+        }
       }
     },
     "settings": {

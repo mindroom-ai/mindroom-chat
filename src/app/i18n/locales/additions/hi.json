@@ -220,6 +220,11 @@
       },
       "developerTools": {
         "invalidJson": "इवेंट को एक प्रकार दें और ऐसी सामग्री दें जो JSON ऑब्जेक्ट हो।"
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "ये रूम अपग्रेड के साथ नहीं ले जाए जा सके: {{rooms}}"
+        }
       }
     },
     "settings": {

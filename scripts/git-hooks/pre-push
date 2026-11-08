@@ -49,8 +49,7 @@ blocked() {
 
 corpus=$(cat "$hooks/upstream-overlap/corpus" 2>/dev/null) ||
   blocked "No corpus recorded beside the hook: run scripts/git-hooks/install.sh --corpus <upstream clone>."
-# The checker caches the corpus under the temporary directory, which nix develop makes per shell.
-TMPDIR=/tmp python3 "$hooks/upstream-overlap/check.py" --corpus "$corpus" --pre-push "$2" <"$input" ||
+python3 "$hooks/upstream-overlap/check.py" --corpus "$corpus" --pre-push "$2" <"$input" ||
   blocked "The upstream overlap check reported findings or could not run (exit $?); see above." \
     'Each commit would reach the remote, so a later commit that deletes the lines does not help:' \
     'rewrite the listed commits without them (for example: reset to the base, commit again).'

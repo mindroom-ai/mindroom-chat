@@ -224,6 +224,11 @@
       },
       "developerTools": {
         "invalidJson": "Indica un tipo para el evento y un contenido que sea un objeto JSON."
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "Estas salas no se pudieron trasladar con la actualización: {{rooms}}"
+        }
       }
     },
     "settings": {
