@@ -116,6 +116,16 @@ describe('useLongPress', () => {
     });
     expect(onLongPress).not.toHaveBeenCalled();
     expect(pageSelect()).toBe('');
+
+    // Unmounted after the finger rested, it lets the page's text be selected again.
+    const rested = setup();
+    fireEvent.touchStart(rested.row, { touches: [finger(40, 60)] });
+    act(() => {
+      vi.advanceTimersByTime(SELECTION_HOLD_MS);
+    });
+    expect(pageSelect()).toBe('none');
+    rested.view.unmount();
+    expect(pageSelect()).toBe('');
   });
 
   it('holds the page unselectable from a resting finger to the lift, also for nested presses', () => {
