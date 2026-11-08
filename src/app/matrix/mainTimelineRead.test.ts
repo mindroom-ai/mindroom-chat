@@ -93,7 +93,9 @@ describe('main timeline read state', () => {
     expect(isMainTimelineMessageUnread(room, root, ME)).toBe(false);
   });
 
-  it("counts another member's root as read once the reader answered in its thread", () => {
+  it("keeps another member's root unread after the reader answered in its thread", () => {
+    // Tuwunel (mindroom-tuwunel #139): an own thread reply reads only its thread, so the server
+    // keeps counting the root in the main timeline until a main or unthreaded receipt reaches it.
     const root = message('$root', 1000, AGENT);
     const room = makeRoom({
       main: [root],
@@ -102,8 +104,8 @@ describe('main timeline read state', () => {
       },
     });
 
-    expect(roomHaveUnread(client, room)).toBe(false);
-    expect(isMainTimelineMessageUnread(room, root, ME)).toBe(false);
+    expect(roomHaveUnread(client, room)).toBe(true);
+    expect(isMainTimelineMessageUnread(room, root, ME)).toBe(true);
   });
 
   it("keeps another member's root unread when it came after the reader's receipt", () => {

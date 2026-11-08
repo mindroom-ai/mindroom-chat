@@ -1,7 +1,17 @@
 import { MatrixEvent, RelationType } from 'matrix-js-sdk';
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getOptimisticReceiptUnreadInfo, getRoomUnreadAction } from './roomToUnread';
+
+// Thread roots opened on this device (`isSeenThreadRoot`), by event ID.
+const seenRoots = new Set<string>();
+vi.mock('../seenThreadRoots', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../seenThreadRoots')>()),
+  isSeenThreadRoot: (_userId: string, _roomId: string, eventId: string | undefined) =>
+    !!eventId && seenRoots.has(eventId),
+}));
+
+afterEach(() => seenRoots.clear());
 
 const ROOM_ID = '!room:example.org';
 const THREAD_ID = '$thread-root';
@@ -158,15 +168,14 @@ describe('getRoomUnreadAction', () => {
   });
 });
 
-// A reply or a thread receipt reads only its thread on the server, so a root the user answered
-// from another client stays in the main-timeline count, though the client counts it as read.
-describe('getRoomUnreadAction for roots answered in their threads', () => {
-  it('leaves the room read when the main count is a root the user answered', () => {
-    const room = makeRoom({
-      answeredRoots: ['$root'],
-      events: [makeMessageEvent('$root')],
-      total: 1,
-    });
+// A thread receipt reads only its thread on the server, so a root opened on this device stays in
+// the main-timeline count, though the client counts it as read (seen thread roots).
+describe('getRoomUnreadAction for roots opened on this device', () => {
+  const seen = (...eventIds: string[]) => eventIds.forEach((eventId) => seenRoots.add(eventId));
+
+  it('leaves the room read when the main count is a root opened on this device', () => {
+    seen('$root');
+    const room = makeRoom({ events: [makeMessageEvent('$root')], total: 1 });
 
     expect(getRoomUnreadAction(makeClient() as never, room as never)).toEqual({
       type: 'DELETE',
@@ -174,9 +183,9 @@ describe('getRoomUnreadAction for roots answered in their threads', () => {
     });
   });
 
-  it('keeps the thread counts when the main count is a root the user answered', () => {
+  it('keeps the thread counts when the main count is a root opened on this device', () => {
+    seen('$root');
     const room = makeRoom({
-      answeredRoots: ['$root'],
       events: [makeMessageEvent('$root')],
       highlight: 1,
       roomHighlight: 1,
@@ -191,12 +200,9 @@ describe('getRoomUnreadAction for roots answered in their threads', () => {
     });
   });
 
-  it('keeps a main count larger than the answered roots it has loaded', () => {
-    const room = makeRoom({
-      answeredRoots: ['$root'],
-      events: [makeMessageEvent('$root')],
-      total: 2,
-    });
+  it('keeps a main count larger than the opened roots it has loaded', () => {
+    seen('$root');
+    const room = makeRoom({ events: [makeMessageEvent('$root')], total: 2 });
 
     expect(getRoomUnreadAction(makeClient() as never, room as never)).toEqual({
       type: 'PUT',
@@ -204,10 +210,25 @@ describe('getRoomUnreadAction for roots answered in their threads', () => {
     });
   });
 
-  it('keeps the main count when an unanswered root is newer than the answered one', () => {
+  it('keeps the main count when an unopened root is newer than the opened one', () => {
+    seen('$opened');
     const room = makeRoom({
-      answeredRoots: ['$answered'],
-      events: [makeMessageEvent('$answered'), makeMessageEvent('$new')],
+      events: [makeMessageEvent('$opened'), makeMessageEvent('$new')],
+      total: 1,
+    });
+
+    expect(getRoomUnreadAction(makeClient() as never, room as never)).toEqual({
+      type: 'PUT',
+      unreadInfo: { roomId: ROOM_ID, highlight: 0, total: 1 },
+    });
+  });
+
+  // A reply of the user's reads only its thread on the server (mindroom-tuwunel #139), which keeps
+  // counting the root, and so does the room list.
+  it('keeps the main count for a root the user answered in its thread', () => {
+    const room = makeRoom({
+      answeredRoots: ['$root'],
+      events: [makeMessageEvent('$root')],
       total: 1,
     });
 
