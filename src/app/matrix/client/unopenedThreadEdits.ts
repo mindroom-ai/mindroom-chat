@@ -8,7 +8,7 @@ import {
   type Thread,
 } from 'matrix-js-sdk';
 import { getLatestEdit } from '../room';
-import { isKnownRedactedEventId } from '../eventRevision';
+import { isKnownRedactedEventId, stripRedactedRelationsFromRawEvent } from '../eventRevision';
 import { isThreadSummaryEvent } from '../protocol/threadSummary';
 import { watchRoomThreads } from '../watchRoomThreads';
 
@@ -57,10 +57,15 @@ export const getThreadSummaryReply = (
   const summarized = thread.replyToEvent ?? undefined;
   if (isSummarizedReply(thread, summarized)) return summarized;
   const retained = summarizedReplies.get(thread);
-  // The SDK takes a redacted bundled edit off the copies it holds; it does not hold this one.
-  // The app hides an edit it cannot decrypt yet from replacingEvent(), not from this.
-  if (retained && isRedactedEdit(thread.room, retained.replacingEventId()))
+  // The SDK takes a redacted bundled edit off the copies it holds, from their bundle too; it does
+  // not hold this one. The app hides an edit it cannot decrypt yet from replacingEvent(), not
+  // from replacingEventId().
+  const editId = retained?.replacingEventId();
+  if (retained && editId && isRedactedEdit(thread.room, editId)) {
+    const { unsigned } = stripRedactedRelationsFromRawEvent(retained.event, new Set([editId]));
+    retained.setUnsigned(unsigned ?? {});
     showNewestEdit(thread, retained);
+  }
   return retained ?? summarized;
 };
 

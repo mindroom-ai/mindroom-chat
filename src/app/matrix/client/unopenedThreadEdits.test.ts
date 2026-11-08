@@ -18,7 +18,8 @@ import {
 import { MemoryStore } from 'matrix-js-sdk/lib/store/memory';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
-import { keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
+import { getFinishingEdit } from '../../event-store/threads/streamFinish';
+import { getThreadSummaryReply, keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
 import { defined } from '../../../test/utils/defined';
 
 const roomId = '!room:example.org';
@@ -373,6 +374,9 @@ describe('edits of unopened threads', () => {
 
     await f.deliver([redaction('$edit-151', 170)]);
     expect(f.card().preview).toBe('Thinking about it');
+    // Nor does the reply still name the edit as the one that finished its stream.
+    const kept = defined(getThreadSummaryReply(f.thread()), 'the reply the thread keeps');
+    expect(getFinishingEdit(kept, f.thread())).toBeUndefined();
     expect(f.loadedThread()).toBe(false);
   });
 
