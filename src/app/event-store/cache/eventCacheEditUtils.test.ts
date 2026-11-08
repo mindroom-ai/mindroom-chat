@@ -611,3 +611,95 @@ describe('a cached copy whose edit the room took a redaction of while it could n
     expect(cached.getContent().body).toBe('original');
   });
 });
+
+// A page read from the cache or fetched from the server takes only a redaction its sender may make:
+// one the room holds keeps the room's decision, made where it is in the timeline; one only in the
+// page is checked against the room's current state, as the SDK checks a page.
+describe('a page with a redaction by someone who may not redact the event', () => {
+  const ROOM = '!room:example.org';
+  const ALICE = '@alice:example.org';
+  const OTHER = '@other:example.org';
+  const MODERATOR = '@moderator:example.org';
+  const POWER_LEVELS = { users: { [MODERATOR]: 50 }, redact: 50 };
+  const client = createClient({ baseUrl: 'https://example.org', userId: ALICE });
+  const state = (type: string, stateKey: string, content: object, prevContent?: object) =>
+    new MatrixEvent({
+      type,
+      state_key: stateKey,
+      sender: MODERATOR,
+      room_id: ROOM,
+      event_id: `$${type}-${stateKey}-${JSON.stringify(content)}`,
+      content,
+      unsigned: prevContent ? { prev_content: prevContent } : {},
+    });
+  const moderatedRoom = () => {
+    const live = new Room(ROOM, client, ALICE, { timelineSupport: true });
+    live.currentState.setStateEvents([
+      state('m.room.create', '', { creator: ALICE, room_version: '10' }),
+      ...[ALICE, OTHER, MODERATOR].map((userId) =>
+        state('m.room.member', userId, { membership: 'join' })
+      ),
+      state('m.room.power_levels', '', POWER_LEVELS),
+    ]);
+    /** A sync batch, added after the state that follows it (MSC4222 state_after). */
+    const add = (...batch: MatrixEvent[]) => {
+      live.currentState.setStateEvents(batch.filter((event) => event.isState()));
+      return live.addLiveEvents(batch, { addToState: false });
+    };
+    return { live, add };
+  };
+  // The page's own copies of the message and of a redaction of it.
+  const target = () => makeMessageEvent('$target', 1000, ALICE, 'visible');
+  const redactionBy = (sender: string) =>
+    new MatrixEvent({
+      ...makeRedactionEvent(`$redaction-${sender}`, 2000, '$target').event,
+      sender,
+    });
+
+  it('keeps the message another member without the right redacted', () => {
+    const { live } = moderatedRoom();
+    const copy = target();
+
+    applyCachedRedactions(live, [copy, redactionBy(OTHER)]);
+
+    expect(copy.isRedacted()).toBe(false);
+  });
+
+  it.each([
+    ['its sender', ALICE],
+    ['a moderator', MODERATOR],
+  ])('takes the redaction of %s', (_, sender) => {
+    const { live } = moderatedRoom();
+    const copy = target();
+
+    applyCachedRedactions(live, [copy, redactionBy(sender)]);
+
+    expect(copy.isRedacted()).toBe(true);
+  });
+
+  it('keeps the message the room kept, though its redactor was given the right later', async () => {
+    const { live, add } = moderatedRoom();
+    const promoted = { ...POWER_LEVELS, users: { ...POWER_LEVELS.users, [OTHER]: 50 } };
+    await add(
+      target(),
+      redactionBy(OTHER),
+      state('m.room.power_levels', '', promoted, POWER_LEVELS)
+    );
+    const copy = target();
+
+    applyCachedRedactions(live, [copy, redactionBy(OTHER)]);
+
+    expect(copy.isRedacted()).toBe(false);
+  });
+
+  it('takes the redaction the room took, though its moderator left later', async () => {
+    const { live, add } = moderatedRoom();
+    await add(target(), redactionBy(MODERATOR));
+    await add(state('m.room.member', MODERATOR, { membership: 'leave' }, { membership: 'join' }));
+    const copy = target();
+
+    applyCachedRedactions(live, [copy, redactionBy(MODERATOR)]);
+
+    expect(copy.isRedacted()).toBe(true);
+  });
+});
