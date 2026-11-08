@@ -399,6 +399,22 @@ describe('the live transcript in the floating window', () => {
     expect(settings().transcriptSplit).toBe(0.75);
   });
 
+  it('leaves Alt, Ctrl and Meta with the keys to the browser, which moves back with Alt+Left', () => {
+    inCall();
+    showTranscript();
+    const { rerender } = render(windowWith({ width: 700, height: 480 }));
+    const key = (name: string, modifier: 'altKey' | 'ctrlKey' | 'metaKey') =>
+      fireEvent.keyDown(divider()!, { key: name, [modifier]: true });
+
+    expect(key('ArrowLeft', 'altKey')).toBe(true);
+    expect(key('ArrowRight', 'ctrlKey')).toBe(true);
+    expect(key('Home', 'metaKey')).toBe(true);
+    rerender(windowWith({ width: 400, height: 480 }));
+    expect(key('ArrowDown', 'ctrlKey')).toBe(true);
+    expect(divider()?.getAttribute('aria-valuenow')).toBe('60');
+    expect(settings().transcriptSplit).toBeUndefined();
+  });
+
   it('follows the pointer while dragged and keeps the split on release, not before', () => {
     inCall();
     showTranscript();

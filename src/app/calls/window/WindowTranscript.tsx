@@ -123,6 +123,8 @@ function Divider({ layout, share, boxRef, onDrag, onSet }: DividerProps) {
       onPointerCancel={end}
       onLostPointerCapture={end}
       onKeyDown={(event) => {
+        // With Alt, Ctrl or Meta the keys are the browser's and the system's (Alt+Left goes back).
+        if (event.altKey || event.ctrlKey || event.metaKey) return;
         const next = stepSplit(share, event.key, layout, rightToLeft(boxRef.current));
         if (next === undefined) return;
         event.preventDefault();
