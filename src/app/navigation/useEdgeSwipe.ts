@@ -1,6 +1,5 @@
 import { useAtomValue } from 'jotai';
 import { useEffect, useRef } from 'react';
-import { conversationBehindPanelAtom } from './conversationCover';
 import { imageViewerOpenAtom } from './imageViewerState';
 import { phoneLayerOpenAtom } from './phoneNavDrawer';
 import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
@@ -31,9 +30,6 @@ export const useEdgeSwipe = ({
   const onSwipeRef = useRef(onSwipe);
   const imageViewerOpen = useAtomValue(imageViewerOpenAtom);
   const phoneLayerOpen = useAtomValue(phoneLayerOpenAtom);
-  // The swipes act on the conversation (its thread, its room), which a side panel in its place
-  // hides with its header.
-  const behindPanel = useAtomValue(conversationBehindPanelAtom);
   const standaloneBlocked = blockStandaloneWebApp && isIOSStandaloneWebApp();
 
   useEffect(() => {
@@ -41,7 +37,7 @@ export const useEdgeSwipe = ({
   }, [onSwipe]);
 
   useEffect(() => {
-    if (!enabled || standaloneBlocked || imageViewerOpen || phoneLayerOpen || behindPanel) return;
+    if (!enabled || standaloneBlocked || imageViewerOpen || phoneLayerOpen) return;
     if (typeof window === 'undefined') return;
 
     let tracking = false;
@@ -117,5 +113,5 @@ export const useEdgeSwipe = ({
       window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('touchcancel', reset);
     };
-  }, [behindPanel, direction, enabled, imageViewerOpen, phoneLayerOpen, standaloneBlocked]);
+  }, [direction, enabled, imageViewerOpen, phoneLayerOpen, standaloneBlocked]);
 };

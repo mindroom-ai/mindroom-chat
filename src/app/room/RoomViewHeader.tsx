@@ -217,10 +217,13 @@ export function RoomViewHeader({
     if (origin) navigate(-origin.steps);
     else navigate(sectionPath, { replace: true });
   };
+  // Not while a side panel in the conversation's place hides this header: its swipe and its
+  // Members shortcut wait.
+  const behindPanel = useAtomValue(conversationBehindPanelAtom);
   // A swipe from the screen's left edge does the same, in the iOS app too, whose web view has no
   // back gesture of its own. A thread open in the room takes the swipe itself
   // (useRoomViewThreadState).
-  useEdgeSwipeBack(leaveRoom, mobile && !threadId);
+  useEdgeSwipeBack(leaveRoom, mobile && !threadId && !behindPanel);
 
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [pinAnchor, setPinAnchor] = useState<RectCords>();
@@ -245,8 +248,6 @@ export function RoomViewHeader({
 
   const membersVisible = shownPanel === 'members';
   const toggleMembers = () => onPanelToggle?.('members');
-  // Not while a side panel in the conversation's place hides this header.
-  const behindPanel = useAtomValue(conversationBehindPanelAtom);
   useShortcut('members', () => {
     if (behindPanel) return false;
     toggleMembers();

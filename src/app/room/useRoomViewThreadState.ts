@@ -19,6 +19,7 @@ import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import { isIOSStandaloneWebApp, isNativeIOS } from '../native/nativeSso';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useEdgeSwipeForward } from '../navigation/useEdgeSwipeForward';
+import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { bumpRecentThread } from '../event-store/threads/recentThreads';
 import { resolveRecentThreadSummaryText } from '../event-store/threads/recentThreadSummaryUtils';
 import { lastExitedThreadAtom } from '../threads/lastExitedThread';
@@ -217,10 +218,13 @@ export const useRoomViewThreadState = ({
     threadId,
   ]);
 
-  useEdgeSwipeBack(handleExitThread, effectiveViewMode !== 'classic' && !!threadId);
+  // A side panel in the conversation's place leaves the swipes to the page.
+  const behindPanel = useAtomValue(conversationBehindPanelAtom);
+  const swipes = effectiveViewMode !== 'classic' && !behindPanel;
+  useEdgeSwipeBack(handleExitThread, swipes && !!threadId);
   useEdgeSwipeForward(
     handleSwipeForwardToThread,
-    effectiveViewMode !== 'classic' && !threadId && lastExitedThread?.roomId === roomId
+    swipes && !threadId && lastExitedThread?.roomId === roomId
   );
 
   // Typed queries apply on a pause, not per keystroke: structured tokens
