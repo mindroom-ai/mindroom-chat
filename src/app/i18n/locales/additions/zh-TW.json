@@ -583,7 +583,9 @@
       }
     },
     "backgroundJobs": {
-      "jobCountShowing": "{{count}} 個背景工作（顯示 {{shown}} 個）"
+      "jobCountShowing": "{{count}} 個背景工作（顯示 {{shown}} 個）",
+      "finished": "已完成：{{tool}}",
+      "jobCountFinished": "{{count}} 個背景工作已完成"
     }
   },
   "composer": {

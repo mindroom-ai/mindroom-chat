@@ -15,6 +15,7 @@ import {
   Text,
 } from 'folds';
 import { Modal } from '../../ui/glass/GlassPrimitives';
+import { revealDirectionControls } from '../../ui/directional';
 import { useViewerFrame } from './viewerFrame';
 import type { EventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
 import { bytesToSize } from '../../lib/common';
@@ -125,7 +126,7 @@ export function ViewerOverlay({ label, onClose, children }: ViewerOverlayProps) 
           <Modal
             role="dialog"
             aria-modal="true"
-            aria-label={label}
+            aria-label={revealDirectionControls(label)}
             size="500"
             style={modalStyle}
             // The message under the viewer has its own context menu; keep right-clicks here.
@@ -174,7 +175,7 @@ function OpenButton({
         size="300"
         radii="300"
         variant={failed ? 'Critical' : 'SurfaceVariant'}
-        aria-label={t('sharedUi.fileContent.openValue1', { value1: body })}
+        aria-label={t('sharedUi.fileContent.openValue1', { value1: revealDirectionControls(body) })}
         disabled={busy}
         onClick={onOpen}
       >

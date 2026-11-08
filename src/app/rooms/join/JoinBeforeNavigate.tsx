@@ -99,6 +99,9 @@ const useMyMembership = (roomId: string): { room: Room | null; membership?: stri
   return { room, membership: room?.getMyMembership() };
 };
 
+// Escaped, a revealed `<U+202E>` and a name's `<` stay text instead of reading as tags.
+const ESCAPED = { interpolation: { escapeValue: true } };
+
 /** Who invited this account, above the way in, when the room's invite is pending. */
 function InvitedBy({ roomId }: { roomId: string }) {
   const client = useMatrixClient();
@@ -199,8 +202,9 @@ function RemovalLines({
   reason: unknown;
 }) {
   const bold = { b: <b /> };
-  const hasReason = typeof reason === 'string' && reason.trim() !== '';
-  if (!name && !hasReason) return null;
+  const shownReason =
+    typeof reason === 'string' && reason.trim() !== '' ? revealDirectionControls(reason) : '';
+  if (!name && !shownReason) return null;
   return (
     <Box direction="Column" gap="100">
       {name && (
@@ -209,12 +213,20 @@ function RemovalLines({
             i18nKey={`sharedUi.userModeration.${by}` as const}
             values={{ name }}
             components={bold}
+            tOptions={ESCAPED}
+            shouldUnescape
           />
         </Text>
       )}
-      {hasReason && (
+      {shownReason && (
         <Text size="T200">
-          <Trans i18nKey="sharedUi.userModeration.reason" values={{ reason }} components={bold} />
+          <Trans
+            i18nKey="sharedUi.userModeration.reason"
+            values={{ reason: shownReason }}
+            components={bold}
+            tOptions={ESCAPED}
+            shouldUnescape
+          />
         </Text>
       )}
     </Box>

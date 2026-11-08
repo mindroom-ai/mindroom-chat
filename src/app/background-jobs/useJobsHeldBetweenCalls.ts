@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
-import {
-  getThreadStreamingState,
-  useThreadStreamingState,
-} from '../event-store/threads/useThreadStreamingState';
+import { useThreadStreamingState } from '../event-store/threads/useThreadStreamingState';
+import { FINISHED_JOB_STATUS } from './backgroundJobsPresentation';
 
-/** How long the jobs bar keeps the jobs it last showed after they end, in ms. */
+/** How long the jobs bar keeps the jobs it last showed after they and their reply end, in ms. */
 export const JOBS_HOLD_MS = 2_000;
 
 type Held = { view: string | null; jobs: BackgroundJob[] };
@@ -18,16 +16,17 @@ const threadOf = (jobs: BackgroundJob[]): string | undefined => {
 };
 
 /**
- * The view's jobs, or, for a moment after the last of them ends, the jobs it showed last.
+ * The view's jobs, or, after the last of them ends, the jobs it showed last, as finished.
  *
  * An agent runs its tool calls one after the other, and each call's job ends before the next one
  * starts. Without the hold the bar would leave between two calls and come back for the next one,
  * and the timeline, which keeps its newest row above the bar, would move down and up again. A job
- * that starts within the hold takes the bar's place at once; when none does, the bar goes.
+ * that starts within the hold takes the bar's place at once.
+ * The agent calls its tools while its reply in the jobs' thread streams, however long it thinks
+ * between two calls, so the hold lasts while that reply streams and for `JOBS_HOLD_MS` after it
+ * ends (or after the jobs end, when this client does not see the reply stream); then the bar goes.
  * Jobs that were all being stopped are not held: the person stopped them and expects them gone.
- * The agent calls its tools while its reply in the jobs' thread streams, so once that reply has
- * finished no call follows and the bar goes at once. `view` names the view (its thread), so a held
- * bar never shows in another one.
+ * `view` names the view (its thread), so a held bar never shows in another one.
  */
 export const useJobsHeldBetweenCalls = (
   jobs: BackgroundJob[],
@@ -41,22 +40,16 @@ export const useJobsHeldBetweenCalls = (
   const holdable =
     shown && jobs.some((job) => job.status !== 'cancel_requested' && !cancelSent(job.jobId));
   useEffect(() => {
-    if (shown) setHeld({ view, jobs: holdable ? jobs : [] });
+    if (!shown) return;
+    const finished = holdable ? jobs.map((job) => ({ ...job, status: FINISHED_JOB_STATUS })) : [];
+    setHeld({ view, jobs: finished });
   }, [holdable, jobs, shown, view]);
-  // The reply that runs the jobs. Only one seen streaming while they ran ends the hold: a thread
-  // this client does not follow never reads as streaming.
-  const runThread = threadOf(shown ? jobs : held.jobs);
-  const replyStreams = useThreadStreamingState(room, runThread);
-  const [streamedThread, setStreamedThread] = useState<string>();
+  // The reply that runs the jobs; a thread this client does not follow never reads as streaming.
+  const replyStreams = useThreadStreamingState(room, threadOf(shown ? jobs : held.jobs));
+  // Only the view's jobs ending, or their reply ending after them, starts the release; changes
+  // elsewhere in the room do not extend it.
   useEffect(() => {
-    // Asked of the thread itself: the hook's answer can still be the previous thread's.
-    if (shown && runThread && getThreadStreamingState(room, runThread)) {
-      setStreamedThread(runThread);
-    }
-  }, [replyStreams, room, runThread, shown]);
-  // Only the view's jobs ending starts the hold; changes elsewhere in the room do not extend it.
-  useEffect(() => {
-    if (shown) return undefined;
+    if (shown || replyStreams) return undefined;
     const release = window.setTimeout(
       () =>
         setHeld((previous) =>
@@ -65,8 +58,7 @@ export const useJobsHeldBetweenCalls = (
       JOBS_HOLD_MS
     );
     return () => window.clearTimeout(release);
-  }, [shown, view]);
+  }, [replyStreams, shown, view]);
   if (shown || held.view !== view) return jobs;
-  if (runThread && streamedThread === runThread && !replyStreams) return [];
   return held.jobs;
 };

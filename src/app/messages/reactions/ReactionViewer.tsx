@@ -10,7 +10,7 @@ import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthenticatio
 import { useRelations } from '../../matrix/hooks/useRelations';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../matrix/room';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../matrix/matrix';
-import { ownDirectionLine } from '../../ui/directional';
+import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 
 type ReactionViewerProps = {
   room: Room;
@@ -65,8 +65,11 @@ export function ReactionViewer({ room, relations, requestClose }: ReactionViewer
   const [selectedKey, setSelectedKey] = useState<string>();
 
   const selected = groups.find(([key]) => key === selectedKey) ?? groups[0];
+  // A key or shortcode is any text its sender chose: it shows its direction controls.
   const selectedShortcode = selected
-    ? (selected[1][0]?.getContent().shortcode as string | undefined) ?? selected[0]
+    ? revealDirectionControls(
+        (selected[1][0]?.getContent().shortcode as string | undefined) ?? selected[0]
+      )
     : undefined;
   const senders = selected
     ? [...new Set(selected[1].map((event) => event.getSender()).filter((id): id is string => !!id))]
@@ -79,12 +82,12 @@ export function ReactionViewer({ room, relations, requestClose }: ReactionViewer
     return src ? (
       <img
         src={src}
-        alt={key}
+        alt={revealDirectionControls(key)}
         style={{ width: '1.25em', height: '1.25em', objectFit: 'contain' }}
       />
     ) : (
       <Text as="span" size="Inherit">
-        {key}
+        {revealDirectionControls(key)}
       </Text>
     );
   };

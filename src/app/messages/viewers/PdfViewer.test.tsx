@@ -69,12 +69,18 @@ describe('PdfViewer sources', () => {
     let renderer!: ReactTestRenderer;
     act(() => {
       renderer = create(
-        <PdfViewer name={'report\u202etxt.pdf'} src="blob:https://chat.example.org/1" requestClose={vi.fn()} />
+        <PdfViewer
+          name={'report\u202etxt.pdf'}
+          src="blob:https://chat.example.org/1"
+          requestClose={vi.fn()}
+        />
       );
     });
     expect(renderer.root.findAllByType('span').map((span) => span.children.join(''))).toContain(
       'report<U+202E>txt.pdf'
     );
+    // The frame's accessible name is the file's name as shown.
+    expect(renderer.root.findByType('iframe').props.title).toBe('report<U+202E>txt.pdf');
     await act(async () => {
       downloadChip(renderer)?.props.onClick();
     });

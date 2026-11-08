@@ -1,6 +1,42 @@
 import { type RefObject, useEffect } from 'react';
 
 /**
+ * `listShrinkNotRendered` before it drops below 0, with the newest row, the mounted rows, and how
+ * much more than its height on screen virtual-core counts for the newest row, which it measures
+ * in whole pixels.
+ */
+const listReach = (
+  inner: HTMLElement | null,
+  rows: readonly { index: number; size: number }[],
+  rowFoldPx: number
+) => {
+  // Test renderers hand over stand-in nodes without the DOM's queries.
+  if (typeof inner?.querySelectorAll !== 'function') return undefined;
+  const tiles = Array.from(inner.querySelectorAll<HTMLElement>(':scope > [data-index]'));
+  const indexOf = (tile: HTMLElement) => Number(tile.dataset.index);
+  const newest = tiles
+    .filter((tile) => tile.offsetHeight > 0)
+    .reduce<HTMLElement | undefined>(
+      (found, tile) => (!found || indexOf(tile) > indexOf(found) ? tile : found),
+      undefined
+    );
+  if (!newest) return undefined;
+  const mounted = new Set(tiles.map(indexOf));
+  const unmountedAfter = rows
+    .slice(indexOf(newest) + 1)
+    .reduce((room, row) => (mounted.has(row.index) ? room : room + row.size), 0);
+  const ledgerMargin = (parseFloat(inner.style.marginTop) || 0) + rowFoldPx;
+  const { bottom, height } = newest.getBoundingClientRect();
+  const reach = inner.getBoundingClientRect().bottom - bottom;
+  return {
+    px: reach - ledgerMargin - unmountedAfter,
+    newest: indexOf(newest),
+    mounted,
+    roundingPx: Math.round(height) - height,
+  };
+};
+
+/**
  * How far the list still reaches below its newest row: the height of rows that shrank since React
  * last rendered the list, which its next render takes off the scroll content. The rendered end of
  * the list tells: its newest mounted row with a height ends what the reader sees. Mounted rows
@@ -18,25 +54,26 @@ export const listShrinkNotRendered = (
   inner: HTMLElement | null,
   rows: readonly { index: number; size: number }[],
   rowFoldPx = 0
-): number => {
-  // Test renderers hand over stand-in nodes without the DOM's queries.
-  if (typeof inner?.querySelectorAll !== 'function') return 0;
-  const tiles = Array.from(inner.querySelectorAll<HTMLElement>(':scope > [data-index]'));
-  const indexOf = (tile: HTMLElement) => Number(tile.dataset.index);
-  const newest = tiles
-    .filter((tile) => tile.offsetHeight > 0)
-    .reduce<HTMLElement | undefined>(
-      (found, tile) => (!found || indexOf(tile) > indexOf(found) ? tile : found),
-      undefined
-    );
-  if (!newest) return 0;
-  const mounted = new Set(tiles.map(indexOf));
-  const unmountedAfter = rows
-    .slice(indexOf(newest) + 1)
-    .reduce((room, row) => (mounted.has(row.index) ? room : room + row.size), 0);
-  const ledgerMargin = (parseFloat(inner.style.marginTop) || 0) + rowFoldPx;
-  const reach = inner.getBoundingClientRect().bottom - newest.getBoundingClientRect().bottom;
-  return Math.max(0, reach - ledgerMargin - unmountedAfter);
+): number => Math.max(0, listReach(inner, rows, rowFoldPx)?.px ?? 0);
+
+/**
+ * `listShrinkNotRendered` as it reads once virtual-core takes a new size for the row at `index`,
+ * when the rendered rows already show that size: the row is mounted at or after the newest row
+ * with a height, or after it and not mounted, its old size still counted in `rows`. A row above
+ * the newest one moves the rows after it only when React renders them: undefined. The newest row
+ * counts at the whole pixels virtual-core gives it, so the list's next height matches.
+ */
+export const listShrinkAfterResize = (
+  inner: HTMLElement | null,
+  rows: readonly { index: number; size: number }[],
+  rowFoldPx: number,
+  index: number,
+  deltaPx: number
+): number | undefined => {
+  const reach = listReach(inner, rows, rowFoldPx);
+  if (!reach || index < reach.newest) return undefined;
+  const px = reach.px - reach.roundingPx;
+  return reach.mounted.has(index) ? px : px - deltaPx;
 };
 
 /**

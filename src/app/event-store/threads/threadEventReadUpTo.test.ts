@@ -1,7 +1,15 @@
-import { createClient, MatrixEvent, ReceiptType, RelationType, Room } from 'matrix-js-sdk';
+import {
+  createClient,
+  MatrixEvent,
+  ReceiptType,
+  RelationType,
+  Room,
+  RoomEvent,
+} from 'matrix-js-sdk';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getThreadUnread } from './roomThreadList';
+import { keepUnthreadedReceiptEvents } from '../../matrix/receiptReadTs';
+import { getThreadReadState, getThreadUnread } from './roomThreadList';
 import { getThreadEventReadUpTo } from './threadEventReadUpTo';
 
 const ROOM_ID = '!read-up-to:example.org';
@@ -40,8 +48,10 @@ const receipt = (userId: string, eventId: string, ts: number, threadId: string |
 const setupThread = async () => {
   const mx = createClient({ baseUrl: 'https://example.org', userId: USER_ID });
   vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
+  keepUnthreadedReceiptEvents(mx);
   const room = new Room(ROOM_ID, mx, USER_ID);
   mx.store.storeRoom(room);
+  mx.reEmitter.reEmit(room, [RoomEvent.Receipt]);
   const root = message('$root', 1000);
   room.getUnfilteredTimelineSet().addLiveEvent(root, { addToState: false });
   const thread = room.createThread('$root', root, [message('$reply', 2000, '$root')], false);
@@ -123,6 +133,34 @@ describe('getThreadEventReadUpTo', () => {
 
     expect(getThreadEventReadUpTo(thread, USER_ID)).toBe('$reply');
     expect(getThreadUnread(thread, USER_ID)).toBe(false);
+  });
+
+  // Tuwunel v1.9.4-mindroom.31 on: a receipt reads up to the event it names, not to when the
+  // server took it. Another device read up to the thread's first reply after later ones arrived.
+  const readFirstReplyLater = async (threadReceiptElsewhere: boolean) => {
+    const { room, thread } = await setupThread();
+    thread.addEvent(message('$second', 3000, '$root'), false);
+    thread.addEvent(message('$third', 4000, '$root'), false);
+    // An older thread receipt elsewhere in the room keeps the SDK's rule for older accounts out.
+    if (threadReceiptElsewhere) room.addReceipt(receipt(USER_ID, '$other', 1500, '$x'));
+    room.addReceipt(receipt(USER_ID, '$reply', 5000, undefined));
+    return thread;
+  };
+
+  it.each([true, false])(
+    'answers the event an older unthreaded receipt names (thread receipt elsewhere: %s)',
+    async (threadReceiptElsewhere) => {
+      const thread = await readFirstReplyLater(threadReceiptElsewhere);
+
+      expect(getThreadEventReadUpTo(thread, USER_ID)).toBe('$reply');
+    }
+  );
+
+  it('leaves the replies after the event an older unthreaded receipt names unread', async () => {
+    const thread = await readFirstReplyLater(true);
+
+    expect(getThreadReadState(thread, USER_ID)?.readUpToTs).toBe(2000);
+    expect(getThreadUnread(thread, USER_ID)).toBe(true);
   });
 
   it('reads nothing through a receipt on an event that edits no loaded reply', async () => {

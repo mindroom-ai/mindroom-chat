@@ -190,4 +190,21 @@ describe('membership rows name the member the client knows', () => {
     ]);
     act(() => renderer!.unmount());
   });
+
+  it("shows the direction controls of a removal's reason as code points", () => {
+    // Applied, the override would show the reason as `spam links`.
+    const kicked = member(
+      '$kick',
+      '@mod:example.org',
+      { membership: 'leave', reason: 'skn\u202eil maps\u202c' },
+      { membership: 'join', displayname: 'Guest Person' }
+    );
+    let renderer: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(<MembershipMessage event={kicked} />);
+    });
+    const text = JSON.stringify(renderer!.toJSON());
+    expect(text).toContain('(skn<U+202E>il maps<U+202C>)');
+    expect(text).not.toMatch(/[\u202a-\u202e]/);
+  });
 });

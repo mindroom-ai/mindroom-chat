@@ -33,6 +33,7 @@ export const PdfViewer = as<'div', PdfViewerProps>(
     const [progress, setProgress] = useState<SaveProgress>({ pending: false, failed: false });
     const savable = isBlobUrl(src);
     const { pending, failed } = progress;
+    const shownName = revealDirectionControls(name);
 
     // A failed attempt keeps its warning until the next attempt settles.
     const startSave = () => {
@@ -60,7 +61,7 @@ export const PdfViewer = as<'div', PdfViewerProps>(
           </IconButton>
           <Box grow="Yes" style={{ minWidth: 0 }}>
             <Text truncate size="T300">
-              {revealDirectionControls(name)}
+              {shownName}
             </Text>
           </Box>
           <Chip
@@ -77,7 +78,7 @@ export const PdfViewer = as<'div', PdfViewerProps>(
           </Chip>
         </Header>
         <Box className={css.PdfViewerContent} grow="Yes">
-          {savable ? <iframe src={pdfFrameUrl(src)} title={name} style={frameStyle} /> : null}
+          {savable ? <iframe src={pdfFrameUrl(src)} title={shownName} style={frameStyle} /> : null}
         </Box>
       </Box>
     );

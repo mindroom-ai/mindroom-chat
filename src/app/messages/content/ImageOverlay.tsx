@@ -2,6 +2,7 @@ import React from 'react';
 import FocusTrap from 'focus-trap-react';
 import { Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
 import { Modal } from '../../ui/glass/GlassPrimitives';
+import { revealDirectionControls } from '../../ui/directional';
 import { ImageViewer } from '../viewers/ImageViewer';
 import { useViewerFrame, viewerTrapOptions } from './viewerFrame';
 
@@ -16,7 +17,9 @@ const keepContextMenu = (event: React.MouseEvent) => event.stopPropagation();
 
 /**
  * The image viewer in a modal over the page, for pictures that are not message attachments
- * (link previews). Escape, a click outside or the viewer's back button close it.
+ * (link previews). Escape, a click outside or the viewer's back button close it. The dialog's
+ * name shows the direction controls of `alt`; the viewer gets it as it is, to save the picture
+ * under it.
  */
 export function ImageOverlay({ src, alt, requestClose }: ImageOverlayProps) {
   const { centerStyle, modalStyle } = useViewerFrame();
@@ -28,7 +31,7 @@ export function ImageOverlay({ src, alt, requestClose }: ImageOverlayProps) {
           <Modal
             role="dialog"
             aria-modal="true"
-            aria-label={alt}
+            aria-label={revealDirectionControls(alt)}
             size="500"
             style={modalStyle}
             onContextMenu={keepContextMenu}
