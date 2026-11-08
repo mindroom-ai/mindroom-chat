@@ -497,14 +497,15 @@ describe('cached copies of an edit redacted from a bundle', () => {
     });
     await redactEdit();
 
-    const [cached] = [withEdit(message('$target'))].map(
-      createPreferLiveEventMapper(live, client.getEventMapper())
-    );
+    const cached = createPreferLiveEventMapper(
+      live,
+      client.getEventMapper()
+    )(withEdit(message('$target')));
     expect(cached).toBe(live.findEventById('$target'));
-    expect(cached!.getContent().body).toBe('original');
-    hydrateCachedEvents({ room: live, events: [cached!] });
+    expect(cached.getContent().body).toBe('original');
+    hydrateCachedEvents({ room: live, events: [cached] });
 
-    expect(cached!.getContent().body).toBe('original');
+    expect(cached.getContent().body).toBe('original');
   });
 
   it('drops the edit from the latest reply of an unopened thread and from its root', async () => {
@@ -529,12 +530,12 @@ describe('cached copies of an edit redacted from a bundle', () => {
     await redactEdit();
 
     // The reply's page as the cache holds it, and the root saved with it.
-    const [cached] = [reply()].map(createPreferLiveEventMapper(live, client.getEventMapper()));
-    hydrateCachedEvents({ room: live, events: [cached!] });
+    const cached = createPreferLiveEventMapper(live, client.getEventMapper())(reply());
+    hydrateCachedEvents({ room: live, events: [cached] });
     const [savedRoot] = serializeEventsForCache(live, [root]);
 
-    expect(cached!.getContent().body).toBe('original');
-    expect(JSON.stringify(cached!.event)).not.toContain('secret');
+    expect(cached.getContent().body).toBe('original');
+    expect(JSON.stringify(cached.event)).not.toContain('secret');
     expect(JSON.stringify(savedRoot)).not.toContain('secret');
   });
 });

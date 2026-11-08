@@ -38,7 +38,7 @@ export const keepBundledEditsInTheirRoom = (mx: MatrixClient): void => {
     return (raw) => {
       // A copy from elsewhere, such as the cache, keeps no edit whose redaction the room took, also
       // with an event its thread summary bundles (eventRevision.ts).
-      const redacted = raw.room_id ? mx.getRoom(raw.room_id)?.redactedBundledEdits : undefined;
+      const redacted = mx.getRoom(raw.room_id)?.redactedBundledEdits;
       return map(
         withBundledEditRoom(redacted ? stripRedactedRelationsFromRawEvent(raw, redacted) : raw)
       );

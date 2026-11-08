@@ -57,16 +57,17 @@ export const getThreadSummaryReply = (
   const summarized = thread.replyToEvent ?? undefined;
   if (isSummarizedReply(thread, summarized)) return summarized;
   const retained = summarizedReplies.get(thread);
+  if (!retained) return summarized;
   // The SDK takes a redacted bundled edit off the copies it holds, from their bundle too; it does
   // not hold this one. The app hides an edit it cannot decrypt yet from replacingEvent(), not
   // from replacingEventId().
-  const editId = retained?.replacingEventId();
-  if (retained && editId && isKnownRedactedEdit(thread.room, editId)) {
+  const editId = retained.replacingEventId();
+  if (editId && isKnownRedactedEdit(thread.room, editId)) {
     const { unsigned } = stripRedactedRelationsFromRawEvent(retained.event, new Set([editId]));
     retained.setUnsigned(unsigned ?? {});
     showNewestEdit(thread, retained);
   }
-  return retained ?? summarized;
+  return retained;
 };
 
 const isValidEdit = (target: MatrixEvent, edit: MatrixEvent): boolean => {

@@ -4,7 +4,6 @@ import {
   ReceiptType,
   RoomEvent,
   SyncState,
-  type IEvent,
   type MatrixClient,
   type MatrixEvent,
 } from 'matrix-js-sdk';
@@ -157,9 +156,9 @@ export const dropRedactedContent = (
           withLatestReplyWithoutText(isRedacted ? withoutText(event) : event, redacted),
           redacted,
           stripRedactedRelationsFromRawEvent
-        ) as Partial<IEvent>,
+        ),
         taken
-      ) as SavedEvent;
+      );
       const next = kept === event && !token ? entry : { event: kept, token: entry.token ?? token };
       token = null;
       return [next];
@@ -167,15 +166,16 @@ export const dropRedactedContent = (
   });
 };
 
-/** The edits each room took a redaction of as it arrived (eventRevision.ts). */
-const takenEditsOf =
-  (mx: MatrixClient) =>
-  (roomId: string): ReadonlySet<string> =>
-    mx.getRoom(roomId)?.redactedBundledEdits ?? new Set();
-
-/** The sync the client's store saves; only the IndexedDB store has one. */
-const savedSyncOf = (mx: MatrixClient): SavedSync | undefined =>
-  (mx.store as unknown as { backend?: { syncAccumulator?: SavedSync } }).backend?.syncAccumulator;
+/**
+ * Drops the redacted content from the sync the client's store saves (only the IndexedDB store has
+ * one), with the edits each room took a redaction of as it arrived (eventRevision.ts).
+ */
+const dropRedactedContentFromSavedSync = (mx: MatrixClient): void => {
+  const sync = (mx.store as unknown as { backend?: { syncAccumulator?: SavedSync } }).backend
+    ?.syncAccumulator;
+  if (sync)
+    dropRedactedContent(sync, (roomId) => mx.getRoom(roomId)?.redactedBundledEdits ?? new Set());
+};
 
 /**
  * Saves the client's sync store after sync batches that brought a redaction, a state event,
@@ -223,8 +223,7 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
     }
     dropWaitingSave();
     saving = true;
-    const sync = savedSyncOf(mx);
-    if (sync) dropRedactedContent(sync, takenEditsOf(mx));
+    dropRedactedContentFromSavedSync(mx);
     mx.store
       .save(true)
       .catch((error: unknown) => {
@@ -262,8 +261,7 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
     // The session's first batch and the first after five minutes are saved by the SDK, with
     // every batch before them.
     if (mx.store.wantsSave()) {
-      const sync = savedSyncOf(mx);
-      if (sync) dropRedactedContent(sync, takenEditsOf(mx));
+      dropRedactedContentFromSavedSync(mx);
       redactionSinceSave = false;
       changeSinceSave = false;
       dropWaitingSave();

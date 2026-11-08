@@ -62,7 +62,7 @@ describe('the edit that finished a reply', () => {
 
 describe('a redacted edit the client kept', () => {
   it('no longer says whether the reply still streams', () => {
-    const room = { redactedBundledEdits: new Set<string>(), findEventById: () => undefined };
+    const room = { redactedBundledEdits: new Set<string>() };
     const mx = Object.assign(new EventEmitter(), {
       getRoom: () => room,
     }) as unknown as MatrixClient;
@@ -78,7 +78,7 @@ describe('a redacted edit the client kept', () => {
   });
 
   it('stays forgotten once the account forgets the room and joins it again', () => {
-    let room = { redactedBundledEdits: new Set<string>(), findEventById: () => undefined };
+    let room = { redactedBundledEdits: new Set<string>() };
     const mx = Object.assign(new EventEmitter(), {
       getRoom: () => room,
     }) as unknown as MatrixClient;
@@ -101,7 +101,7 @@ describe('a redacted edit the client kept', () => {
 
     // Forgetting the room drops it with its record; joining it again brings a new room.
     mx.emit(ClientEvent.DeleteRoom, '!room:example.org');
-    room = { redactedBundledEdits: new Set<string>(), findEventById: () => undefined };
+    room = { redactedBundledEdits: new Set<string>() };
 
     expect(getSyncedEdit('$reply')).toBeUndefined();
   });

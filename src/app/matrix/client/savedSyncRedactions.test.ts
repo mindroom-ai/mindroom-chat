@@ -557,8 +557,13 @@ describe('an edit redacted from a bundle, after a reload', () => {
   const MODERATOR = '@moderator:example.org';
   const sdk = createClient({ baseUrl: 'https://example.org', userId: ME });
   const map = (event: object) => sdk.getEventMapper()({ ...event, room_id: ROOM } as IEvent);
-  const stateEvent = (type: string, stateKey: string, content: object, extra: object = {}) =>
-    raw(`$${type}-${stateKey}-${ts}`, content as Record<string, unknown>, {
+  const stateEvent = (
+    type: string,
+    stateKey: string,
+    content: Record<string, unknown>,
+    extra: object = {}
+  ) =>
+    raw(`$${type}-${stateKey}-${ts}`, content, {
       type,
       state_key: stateKey,
       ...extra,
