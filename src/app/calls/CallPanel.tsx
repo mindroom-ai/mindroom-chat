@@ -428,8 +428,17 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
   const { visibleFailure, dismissFailure } = useCallFailureDismissal(joined, failure);
   const finished = state.phase === 'failed' || state.phase === 'ended';
   const agentCall = active.kind === 'agent';
-  const inWindow = !!useCallWindowFrame();
+  const frame = useCallWindowFrame();
+  const inWindow = !!frame;
   const access = useCallAccess(mx, call.room, !agentCall && !finished);
+  // The notices to act on show in the expanded view only, so a window minimized to its bar
+  // expands when one comes up: the agent cannot hear or speak, or the browser blocked the sound.
+  // Minimized again while it stands, the window stays a bar.
+  const expandWindow = frame?.expand;
+  const failureId = visibleFailure?.eventId;
+  useEffect(() => {
+    if (failureId || state.audioBlocked) expandWindow?.();
+  }, [expandWindow, failureId, state.audioBlocked]);
   // The called agent shows from the start, waiting until it joins: a call in which nobody seems
   // to be coming gets ended before the agent arrives.
   const { agentUserId } = active;

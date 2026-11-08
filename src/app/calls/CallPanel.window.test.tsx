@@ -46,8 +46,15 @@ vi.mock('../matrix/hooks/usePowerLevels', () => ({ usePowerLevelsContext: () => 
 vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => [] }));
 vi.mock('../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navigation }));
 vi.mock('./agent/useCallFailureNotice', () => ({ useCallFailureNotice: () => undefined }));
+// The notice an agent posts when it joined but cannot hear or speak, while a test shows one.
+const failures = vi.hoisted(() => ({
+  visible: undefined as { eventId: string; message: string } | undefined,
+}));
 vi.mock('./agent/useCallFailureDismissal', () => ({
-  useCallFailureDismissal: () => ({ visibleFailure: undefined, dismissFailure: () => undefined }),
+  useCallFailureDismissal: () => ({
+    visibleFailure: failures.visible,
+    dismissFailure: () => undefined,
+  }),
 }));
 vi.mock('../computer/useRoomMindroomServer', () => ({
   useRoomMindroomServer: () => ({ apiUrl: undefined, discovered: false }),
@@ -214,6 +221,7 @@ afterEach(() => {
   calls.active = undefined;
   calls.state = undefined;
   calls.members = [];
+  failures.visible = undefined;
 });
 
 describe('the call view title bar', () => {
@@ -578,6 +586,44 @@ describe('the minimized bar', () => {
     expect(
       [...bar.querySelectorAll('[data-avatar]')].map((face) => face.getAttribute('data-avatar'))
     ).toEqual(['@mindroom_helper:panel.test']);
+  });
+
+  it.each([
+    [
+      'the browser blocks the sound',
+      'Play sound',
+      () => {
+        calls.state = {
+          ...joined([me, person('@mindroom_helper:panel.test')]),
+          audioBlocked: true,
+        };
+      },
+    ],
+    [
+      'the agent posts that it cannot hear',
+      'Dismiss voice call error',
+      () => {
+        failures.visible = { eventId: '$deaf', message: 'Voice call error: no audio arrives' };
+      },
+    ],
+  ])('expands when %s, so the notice and its action show', (_problem, action, comesUp) => {
+    agentCall({ roomId: room.roomId });
+    // The window's Expand is one function, minimized or not.
+    const expand = vi.fn();
+    const asBar = { ...frame(true), expand };
+    const expanded = { ...frame(), expand };
+    const { rerender } = renderPanel({ frame: asBar });
+    expect(expand).not.toHaveBeenCalled();
+
+    comesUp();
+    rerender(panel({ frame: asBar }));
+    expect(expand).toHaveBeenCalledOnce();
+    rerender(panel({ frame: expanded }));
+    expect(screen.getByRole('button', { name: action })).toBeTruthy();
+
+    // Minimized again while the problem stands, it stays a bar.
+    rerender(panel({ frame: asBar }));
+    expect(expand).toHaveBeenCalledOnce();
   });
 
   it("shows someone on two devices once, and this person's other device not at all", () => {
