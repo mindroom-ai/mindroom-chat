@@ -154,42 +154,40 @@ describe('useRoomNavigate', () => {
     renderSignedIn(
       <BrowserRouter>
         <Buttons />
+        <Address />
       </BrowserRouter>
     );
-    for (const pick of ['Pick the second', 'Pick by name', 'Pick by click']) {
-      click('Thread');
+    for (const [from, pick, opened] of [
+      ['Thread', 'Pick the second', '/home/!lobby%3Aexample.org'],
+      ['Thread', 'Pick by name', '/home/!lobby%3Aexample.org'],
+      ['Thread', 'Pick by click', '/home/!lobby%3Aexample.org'],
+      ['Room', 'Pick the thread', '/home/!lobby%3Aexample.org?threadId=%24root%3Aexample.org'],
+    ] as const) {
+      click(from);
       const entries = window.history.length;
       click(pick);
-      expect(`${window.location.pathname}${window.location.search}`).toBe(
-        '/home/!lobby%3Aexample.org'
-      );
+      expect(address()).toBe(opened);
       expect(window.history.length).toBe(entries + 1);
     }
-    click('Room');
-    const entries = window.history.length;
-    click('Pick the thread');
-    expect(`${window.location.pathname}${window.location.search}`).toBe(
-      '/home/!lobby%3Aexample.org?threadId=%24root%3Aexample.org'
-    );
-    expect(window.history.length).toBe(entries + 1);
   });
 
-  for (const [name, Router, start, shown] of [
-    ['browser', BrowserRouter, '/p/example/', () => window.location.pathname],
-    ['hash', HashRouter, '/#/p/example/', () => window.location.hash],
+  for (const [name, Router, start] of [
+    ['browser', BrowserRouter, '/p/example/'],
+    ['hash', HashRouter, '/#/p/example/'],
   ] as const) {
     it(`replaces the page it leaves with the ${name} router, and adds one without replace`, () => {
       window.history.replaceState(null, '', start);
       renderSignedIn(
         <Router>
           <Buttons />
+          <Address />
         </Router>
       );
       const entries = window.history.length;
       click('Room in place');
-      expect(shown()).toContain('/home/!lobby%3Aexample.org');
+      expect(address()).toBe('/home/!lobby%3Aexample.org');
       click('Thread in place');
-      expect(window.location.search || window.location.hash).toContain('threadId=');
+      expect(address()).toBe('/home/!lobby%3Aexample.org?threadId=%24root%3Aexample.org');
       expect(window.history.length).toBe(entries);
       click('Room');
       expect(window.history.length).toBe(entries + 1);

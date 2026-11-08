@@ -15,8 +15,8 @@ type RoomNavigateOptions = {
 };
 
 /**
- * What `useRoomNavigate` gives. Each function also keeps its call without options, so it still fits
- * a callback type that passes more arguments, as it did before it took options.
+ * What `useRoomNavigate` gives. Each function also has a call without options, so it fits a callback
+ * type that passes more arguments.
  */
 export type RoomNavigate = {
   /** Opens the room `roomId` where the app opens it: in its space, in Direct, or in Home. */
