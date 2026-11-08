@@ -555,24 +555,18 @@ function RoomContent() {
     },
     [alive, closePluginPanel, now, roomId]
   );
+  // Known once the room has the event the address names, which may be a reply, and the server has
+  // confirmed the root, which a new thread's first message waits for.
+  const shownThread = routeReady && isConfirmedMatrixEventId(threadId) ? threadId : undefined;
   const pluginPanelControls = useMemo<PluginPanelControls>(
     () => ({
       shown: shownId,
-      // Known once the room has the event the address names, which may be a reply, and the server
-      // has confirmed the root, which a new thread's first message waits for.
-      thread: routeReady && isConfirmedMatrixEventId(threadId) ? threadId : undefined,
+      thread: shownThread,
       open: openPluginPanel,
       openBesideThread: openPluginPanelBesideThread,
       close: closeShownPluginPanel,
     }),
-    [
-      closeShownPluginPanel,
-      openPluginPanel,
-      openPluginPanelBesideThread,
-      routeReady,
-      shownId,
-      threadId,
-    ]
+    [closeShownPluginPanel, openPluginPanel, openPluginPanelBesideThread, shownId, shownThread]
   );
 
   const showCanvas = useCallback(

@@ -114,15 +114,11 @@ export const usePluginSidePanels = (
   }, [enabled, i18n, t]);
 };
 
-/** What the open room lets plugin code do with its plugins' panels. */
+/** What the open room lets plugin code do with its plugins' panels, and the thread it shows. */
 export type PluginPanelControls = {
   /** The id of the panel the room shows. */
   shown: string | undefined;
-  /**
-   * The root event ID of the thread the room shows, the one `openBesideThread` takes; undefined
-   * while it shows its own timeline, until it has the event its address names, and while the
-   * server has not confirmed the root.
-   */
+  /** The thread the room shows, as the client SDK's `useShownThread` gives it. */
   thread: string | undefined;
   /** Opens a plugin's panel by its rule and hands it `request`; nothing for an unknown panel. */
   open: (id: string, request: unknown) => void;
