@@ -332,6 +332,15 @@ test('a new session whose keys come late from the key backup shows an unread fin
     await goHome(desk, roomId);
     await expectDevices([['desk', desk]], stack, roomId, log, 'desk-reload', (s) => s - 1);
 
+    {
+      const filter = JSON.stringify({
+        room: { rooms: [roomId], timeline: { limit: 1, unread_thread_notifications: true }, ephemeral: { types: ['m.receipt'] } },
+      });
+      const sync = await matrixFetch<unknown>(stack.homeserver, `/sync?timeout=0&filter=${encodeURIComponent(filter)}`, { accessToken: stack.tester.accessToken });
+      const { chunk } = await matrixFetch<{ chunk: Array<{ event_id: string; type: string; sender: string; origin_server_ts: number; content: Record<string, unknown> }> }>(stack.homeserver, `/rooms/${encodeURIComponent(roomId)}/messages?dir=b&limit=100`, { accessToken: stack.tester.accessToken });
+      log.push(`DIAG sync ${JSON.stringify(sync).slice(0, 4000)}`);
+      chunk.reverse().forEach((e) => log.push(`DIAG ev ${e.origin_server_ts} ${e.event_id} ${e.type} ${e.sender.split(':')[0]} ${JSON.stringify(e.content['m.relates_to'] ?? null)} ${String(e.content['io.mindroom.stream_status'] ?? '')}`));
+    }
     // Two new sessions, a phone (Chromium) and a desktop (WebKit), sign in without the keys.
     const sessions: Array<[string, Page]> = [
       [
