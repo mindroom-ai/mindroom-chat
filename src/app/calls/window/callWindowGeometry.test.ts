@@ -146,6 +146,13 @@ describe('callWindowGeometry', () => {
     });
   });
 
+  it('keeps a dropped bar 8 px inside even when it is wider or taller than the viewport', () => {
+    const wide = { x: 100, y: 700, width: 1500, height: 56 };
+    expect(snapToCorner(wide, VP)).toEqual({ x: 8, y: 900 - 56 - 8, width: 1500, height: 56 });
+    const tall = { x: 900, y: 100, width: 400, height: 1000 };
+    expect(snapToCorner(tall, VP)).toEqual({ x: 1440 - 400 - 8, y: 8, width: 400, height: 1000 });
+  });
+
   it('fits a stored rectangle from a bigger screen inside the viewport', () => {
     expect(clampToViewport({ x: 2400, y: 1300, width: 3000, height: 2000 }, VP)).toEqual({
       x: 8,

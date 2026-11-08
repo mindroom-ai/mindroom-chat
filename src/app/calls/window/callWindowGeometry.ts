@@ -33,14 +33,24 @@ export function isBar(rect: WindowRect): boolean {
   return rect.height <= BAR_HEIGHT;
 }
 
+/**
+ * The farthest a box of `size` may sit from the viewport's top left corner and stay 8 px inside
+ * it; a box bigger than the viewport keeps to the top left margin.
+ */
+function boundsFor(size: ViewportSize, viewport: ViewportSize): { maxX: number; maxY: number } {
+  return {
+    maxX: Math.max(WINDOW_MARGIN, viewport.width - size.width - WINDOW_MARGIN),
+    maxY: Math.max(WINDOW_MARGIN, viewport.height - size.height - WINDOW_MARGIN),
+  };
+}
+
 export function moveRect(
   start: WindowRect,
   dx: number,
   dy: number,
   viewport: ViewportSize
 ): WindowRect {
-  const maxX = Math.max(WINDOW_MARGIN, viewport.width - start.width - WINDOW_MARGIN);
-  const maxY = Math.max(WINDOW_MARGIN, viewport.height - start.height - WINDOW_MARGIN);
+  const { maxX, maxY } = boundsFor(start, viewport);
   const x = stick(clamp(start.x + dx, WINDOW_MARGIN, maxX), WINDOW_MARGIN, maxX);
   const y = stick(clamp(start.y + dy, WINDOW_MARGIN, maxY), WINDOW_MARGIN, maxY);
   return { ...start, x, y };
@@ -94,11 +104,8 @@ export function resizeRect(
 export function snapToCorner(rect: WindowRect, viewport: ViewportSize): WindowRect {
   const nearLeft = rect.x + rect.width / 2 < viewport.width / 2;
   const nearTop = rect.y + rect.height / 2 < viewport.height / 2;
-  return {
-    ...rect,
-    x: nearLeft ? WINDOW_MARGIN : viewport.width - rect.width - WINDOW_MARGIN,
-    y: nearTop ? WINDOW_MARGIN : viewport.height - rect.height - WINDOW_MARGIN,
-  };
+  const { maxX, maxY } = boundsFor(rect, viewport);
+  return { ...rect, x: nearLeft ? WINDOW_MARGIN : maxX, y: nearTop ? WINDOW_MARGIN : maxY };
 }
 
 /**
@@ -111,16 +118,9 @@ export function clampToViewport(rect: WindowRect, viewport: ViewportSize): Windo
   const height = isBar(rect)
     ? BAR_HEIGHT
     : clamp(rect.height, shortest(viewport), tallest(viewport));
-  const x = clamp(
-    rect.x,
-    WINDOW_MARGIN,
-    Math.max(WINDOW_MARGIN, viewport.width - width - WINDOW_MARGIN)
-  );
-  const y = clamp(
-    rect.y,
-    WINDOW_MARGIN,
-    Math.max(WINDOW_MARGIN, viewport.height - height - WINDOW_MARGIN)
-  );
+  const { maxX, maxY } = boundsFor({ width, height }, viewport);
+  const x = clamp(rect.x, WINDOW_MARGIN, maxX);
+  const y = clamp(rect.y, WINDOW_MARGIN, maxY);
   return { x, y, width, height };
 }
 
