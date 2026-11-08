@@ -13,6 +13,8 @@
 // greeting the account saw in an earlier page load also shows "Seen before".
 // Its page at /p/example/ keeps the app's rail and links to its page at /p/example/window, which
 // fills the window and links back.
+// Its slash command, `/greet <text>`, sends the notice "Example greeting: <text>" to the room through
+// the room's client, and fails without a text.
 import { useEffect } from 'react';
 import { Icons } from 'folds';
 import { KnownMembership, type Room } from 'matrix-js-sdk';
@@ -185,8 +187,22 @@ const plugin: ClientPlugin = {
       },
     },
   ],
+  slashCommands: [
+    {
+      name: 'greet',
+      description: 'greet',
+      run: async ({ room, args }) => {
+        if (!args.trim()) throw new Error('Type a greeting after /greet.');
+        await room.client.sendNotice(room.roomId, `Example greeting: ${args}`);
+      },
+    },
+  ],
   translations: {
-    en: { label: 'Example plugin', wave: 'Wave' },
+    en: {
+      label: 'Example plugin',
+      wave: 'Wave',
+      greet: 'Send the room a greeting. Example: /greet Hello',
+    },
     load: async (language) =>
       language === 'de' ? (await import('./locales/de.json')).default : undefined,
   },

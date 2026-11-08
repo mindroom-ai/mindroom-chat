@@ -3,7 +3,7 @@
 // app only through the client SDK, `/testing` included, and runs in the app's vitest.
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
 import plugin from './index';
@@ -130,5 +130,20 @@ describe('example plugin', () => {
     );
     expect(view.getByText('Members: 2, with a MindRoom agent')).toBeTruthy();
     expect(view.getByText('Members: 3, without a MindRoom agent')).toBeTruthy();
+  });
+
+  it('greets the room with the text typed after /greet, and asks for some without it', async () => {
+    const [greet] = plugin.slashCommands ?? [];
+    if (!greet) throw new Error('the example plugin has no slash command');
+    const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
+    const sent = vi.spyOn(client, 'sendNotice').mockResolvedValue({ event_id: '$greeting' });
+    const room = new Room('!lobby:example.org', client, '@ada:example.org');
+
+    await greet.run({ room, args: 'Hello there' });
+    expect(sent).toHaveBeenCalledWith('!lobby:example.org', 'Example greeting: Hello there');
+    await expect(async () => greet.run({ room, args: '  ' })).rejects.toThrow(
+      'Type a greeting after /greet.'
+    );
+    expect(sent).toHaveBeenCalledTimes(1);
   });
 });

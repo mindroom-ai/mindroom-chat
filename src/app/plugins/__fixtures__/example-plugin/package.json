@@ -2,10 +2,10 @@
   "name": "example-client-plugin",
   "version": "1.0.0",
   "private": true,
-  "description": "A MindRoom client plugin for the tests: renders messages that carry com.example.greeting, adds a side panel and a room header action, shows a banner under the room header, and covers the conversation.",
+  "description": "A MindRoom client plugin for the tests: renders messages that carry com.example.greeting, adds a side panel, a room header action and a slash command, shows a banner under the room header, and covers the conversation.",
   "mindroomClientPlugin": {
     "id": "example",
-    "apiVersion": 9,
+    "apiVersion": 10,
     "entry": "./index.tsx"
   }
 }

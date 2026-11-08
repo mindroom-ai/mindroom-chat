@@ -27,6 +27,7 @@ const plugin = (id: string, headerActions: HeaderAction[]): RegisteredPlugin => 
   roomHeaderSlot: [],
   sidePanels: [],
   headerActions,
+  slashCommands: [],
 });
 
 describe('usePluginHeaderActions', () => {
