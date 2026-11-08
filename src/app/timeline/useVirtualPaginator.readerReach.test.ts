@@ -72,9 +72,15 @@ function PaginatorHarness({
   return React.createElement('span', { ref: paginator.observeBackAnchor });
 }
 
-const render = (root: HTMLElement, sentinel: HTMLElement, initialRange: ItemRange) => {
+/** `onStep` runs as the window moves, before it renders: it places the rows the step mounted. */
+const render = (
+  root: HTMLElement,
+  sentinel: HTMLElement,
+  initialRange: ItemRange,
+  onStep?: (range: ItemRange) => void
+) => {
   const harness: Harness = {};
-  const onRange = vi.fn();
+  const onRange = vi.fn(onStep);
   const onEnd = vi.fn();
   act(() => {
     create(React.createElement(PaginatorHarness, { root, initialRange, onRange, onEnd, harness }), {
@@ -93,10 +99,12 @@ describe('useVirtualPaginator pages a screen ahead once paging runs', () => {
   it('keeps widening the window while each step adds less than a screen of rows', () => {
     let top = 100;
     const { root, sentinel } = setUp(() => top);
-    const { onRange } = render(root, sentinel, { start: 60, end: 80 });
-    // The step's rows will leave the sentinel out of view, but within a screen.
+    // The first step's rows leave the sentinel out of view, but within a screen; the second's
+    // leave it more than a screen away.
+    const { onRange } = render(root, sentinel, { start: 60, end: 80 }, ({ start }) => {
+      top = start === 40 ? -300 : -700;
+    });
     act(() => {
-      top = -300;
       observerState.report?.([
         { target: sentinel, isIntersecting: true } as unknown as IntersectionObserverEntry,
       ]);
@@ -108,9 +116,10 @@ describe('useVirtualPaginator pages a screen ahead once paging runs', () => {
   it('stops once a step leaves the sentinel more than a screen away', () => {
     let top = 100;
     const { root, sentinel } = setUp(() => top);
-    const { onRange } = render(root, sentinel, { start: 60, end: 80 });
-    act(() => {
+    const { onRange } = render(root, sentinel, { start: 60, end: 80 }, () => {
       top = -700;
+    });
+    act(() => {
       observerState.report?.([
         { target: sentinel, isIntersecting: true } as unknown as IntersectionObserverEntry,
       ]);
