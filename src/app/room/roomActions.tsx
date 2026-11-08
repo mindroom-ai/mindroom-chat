@@ -1,4 +1,4 @@
-import { lazy, type ComponentType, type ReactNode } from 'react';
+import { lazy, useMemo, type ComponentType, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { Room } from 'matrix-js-sdk';
@@ -18,9 +18,10 @@ import { usePowerLevels } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
-import { StateEvent } from '../matrix/types/room';
+import { StateEvent, type RoomToParents } from '../matrix/types/room';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { mDirectAtom } from '../matrix/state/mDirectList';
+import { getImperativeJotaiStore } from '../lib/state/jotaiStore';
 import { useListRoomsRefusal } from '../rooms/create/useListRoomsRefusal';
 import { useOpenRoomSettings } from '../navigation/useRoomSettingsState';
 import { getCanonicalAliasOrRoomId, isRoomAlias } from '../matrix/matrix';
@@ -125,14 +126,44 @@ function InviteEntry({ room, close, showDialog }: RoomActionProps) {
 }
 
 /**
- * Opens New Sub-room for a chat room. A space lists its rooms in its lobby instead, and a direct
- * chat's partner would find no list to join its sub-rooms from.
+ * Whether New Sub-room is offered in `room`, a chat room: a space lists its rooms in its lobby
+ * instead, and the partner of a direct chat (one of `directRooms`) would find no list to join its
+ * sub-rooms from.
  */
+const takesSubRooms = (room: Room, directRooms: ReadonlySet<string>): boolean =>
+  !room.isSpaceRoom() && !directRooms.has(room.roomId);
+
+/**
+ * Whether the room menu offers New Sub-room in `room`: a chat room, neither a space nor a direct
+ * chat, read once.
+ */
+export const offersSubRooms = (room: Room): boolean =>
+  takesSubRooms(room, getImperativeJotaiStore().get(mDirectAtom));
+
+/** The chat rooms `room`'s client has that list `room` as a sub-room in `roomToParents`. */
+const chatRoomParents = (room: Room, roomToParents: RoomToParents): Room[] =>
+  [...(roomToParents.get(room.roomId) ?? [])]
+    .flatMap((roomId) => room.client.getRoom(roomId) ?? [])
+    .filter((parent) => !parent.isSpaceRoom());
+
+/**
+ * The chat rooms the client has that list `room` as a sub-room, spaces left out: the rooms its
+ * menu's Remove from takes it off. It renders again when a link to `room` changes.
+ */
+export const useParentRooms = (room: Room): Room[] => {
+  const roomToParents = useAtomValue(roomToParentsAtom);
+  return useMemo(() => chatRoomParents(room, roomToParents), [room, roomToParents]);
+};
+
+/** `useParentRooms(room)`, read once. */
+export const getParentRooms = (room: Room): Room[] =>
+  chatRoomParents(room, getImperativeJotaiStore().get(roomToParentsAtom));
+
 function NewSubRoomEntry({ room, spaceId, close, showDialog }: RoomActionProps) {
   const { t } = useTranslation();
   const refusal = useListRoomsRefusal(room);
-  const direct = useAtomValue(mDirectAtom).has(room.roomId);
-  if (room.isSpaceRoom() || direct) return null;
+  const directRooms = useAtomValue(mDirectAtom);
+  if (!takesSubRooms(room, directRooms)) return null;
   return (
     <MenuEntry
       icon={Icons.Plus}
@@ -185,17 +216,11 @@ function TakeOffParentEntry({
 
 /** Remove from, for each chat room the room is a sub-room of. */
 function TakeOffEntry({ room, close }: RoomActionProps) {
-  const client = useMatrixClient();
-  const parents = [...(useAtomValue(roomToParentsAtom).get(room.roomId) ?? [])].flatMap(
-    (roomId) => client.getRoom(roomId) ?? []
-  );
   return (
     <>
-      {parents
-        .filter((parent) => !parent.isSpaceRoom())
-        .map((parent) => (
-          <TakeOffParentEntry key={parent.roomId} room={room} parent={parent} close={close} />
-        ))}
+      {useParentRooms(room).map((parent) => (
+        <TakeOffParentEntry key={parent.roomId} room={room} parent={parent} close={close} />
+      ))}
     </>
   );
 }

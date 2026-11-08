@@ -40,7 +40,8 @@
 // Its slash command, `/greet <text>`, sends the notice "Example greeting: <text>" to the room, or in a
 // thread's composer to that thread, through the room's client, and fails without a text. Its slash
 // command `/subroom <name>` creates a sub-room of the room called <name>, as New Sub-room does, and
-// fails without a name.
+// fails without a name, and in a space or a direct chat, where the room menu offers no New Sub-room.
+// Its panel names the chat rooms its room is a sub-room of, as the room menu's Remove from does.
 // Every room's menu but a space's lists its entry "Example room info" ("Beispiel-Rauminfo" in
 // German), whose dialog says "Example dialog of <room name>" until its Close button closes it.
 // Every room's menu also lists, after Leave and drawn as Leave is, its critical entry "Example
@@ -92,8 +93,10 @@ import {
 } from '@mindroom/client-sdk/matrix';
 import {
   createSubRoom,
+  offersSubRooms,
   UserProfileCard,
   useOpenUserProfile,
+  useParentRooms,
   useRoomHref,
   useRoomNavigate,
 } from '@mindroom/client-sdk/room';
@@ -462,6 +465,13 @@ function ExampleMenu({ onShowDialog, onClear }: { onShowDialog: () => void; onCl
   );
 }
 
+/** The chat rooms `room` is a sub-room of, which it follows as their lists change. */
+function ParentRooms({ room }: { room: Room }) {
+  const parents = useParentRooms(room);
+  if (parents.length === 0) return null;
+  return <p>Sub-room of {parents.map(({ name }) => name).join(', ')}</p>;
+}
+
 function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }) {
   const client = useMatrixClient();
   const members = useRoomMembers(client, roomId);
@@ -502,6 +512,7 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
         agent
       </p>
       {room && <PostingRight room={room} />}
+      {room && <ParentRooms room={room} />}
       {typeof request === 'string' && (
         <FetchedGreeting key={request} roomId={roomId} eventId={request} />
       )}
@@ -683,6 +694,9 @@ const plugin: ClientPlugin = {
       name: 'subroom',
       description: 'subroom',
       run: async ({ room, args }) => {
+        if (!offersSubRooms(room)) {
+          throw new Error('Sub-rooms go in chat rooms, not in spaces or direct chats.');
+        }
         if (!args.trim()) throw new Error('Type a name after /subroom.');
         await createSubRoom(room, { name: args });
       },
