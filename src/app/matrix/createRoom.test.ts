@@ -47,7 +47,7 @@ describe('createRoom', () => {
   /**
    * A space whose server creates `NEW_ROOM` and fails to list it there with `failure`, then answers
    * whether it lists it with `lookup`: the event's content, or the error it fails with (by default,
-   * that it has none). `leave` and `forget` succeed unless `leaveFails`.
+   * that it has none). `leave` and `forget` succeed unless `leaveFails` or `forgetFails`.
    */
   const linkFailing = ({
     failure = new MatrixError({ errcode: 'M_FORBIDDEN', error: 'Not allowed' }, 403) as Error,
@@ -55,6 +55,7 @@ describe('createRoom', () => {
       | Error
       | Record<string, unknown>,
     leaveFails = false,
+    forgetFails = false,
   } = {}) => {
     const mx = new MatrixClient({
       baseUrl: 'https://mindroom.test',
@@ -70,7 +71,9 @@ describe('createRoom', () => {
     const leave = vi.spyOn(mx, 'leave');
     if (leaveFails) leave.mockRejectedValue(new Error('offline'));
     else leave.mockResolvedValue({});
-    const forget = vi.spyOn(mx, 'forget').mockResolvedValue({});
+    const forget = vi.spyOn(mx, 'forget');
+    if (forgetFails) forget.mockRejectedValue(new Error('offline'));
+    else forget.mockResolvedValue({});
     const space = new Room('!space:mindroom.test', mx, '@me:mindroom.test');
     const create = (data: Partial<CreateRoomData> = {}) =>
       createRoom(mx, {
@@ -131,5 +134,12 @@ describe('createRoom', () => {
 
     await expect(create()).rejects.toBe(failure);
     expect(forget).not.toHaveBeenCalled();
+  });
+
+  it('rejects with the failure when it cannot forget the room it left', async () => {
+    const { failure, forget, create } = linkFailing({ forgetFails: true });
+
+    await expect(create()).rejects.toBe(failure);
+    expect(forget).toHaveBeenCalledWith(NEW_ROOM);
   });
 });

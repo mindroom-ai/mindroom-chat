@@ -4,11 +4,11 @@ import {
   ICreateRoomStateEvent,
   KnownMembership,
   MatrixClient,
+  MatrixError,
   Preset,
   Room,
   Visibility,
 } from 'matrix-js-sdk';
-import { readableReason } from '../lib/errorReason';
 import { JoinRule, RoomType, StateEvent } from './types/room';
 import type { MDirectContent } from './types/accountData';
 import { getViaServers } from './via-servers';
@@ -145,8 +145,7 @@ export type CreateRoomData = RoomIdentity &
 
 /**
  * Creates a room (or space, or voice room) and returns its ID; adds it to `parent` if given. When
- * `parent` does not list it, it leaves and forgets the room and throws an error saying it was not
- * created, with the failure as its `cause`.
+ * `parent` does not list a room that is not public, it leaves and forgets it before it throws.
  */
 export const createRoom = async (client: MatrixClient, data: CreateRoomData): Promise<string> => {
   const { access, parent, type, version } = data;
@@ -188,18 +187,26 @@ export const createRoom = async (client: MatrixClient, data: CreateRoomData): Pr
         childContent as never,
         roomId
       );
-    } catch (cause) {
-      // Not listed under `parent`, the room would stay hidden from its members, and trying again
-      // would create another: leave and forget it, so that nothing was created. If even leaving
-      // fails, the room stays, and so does the link's error.
-      try {
-        await client.leave(roomId);
-      } catch {
-        throw cause;
+    } catch (failure) {
+      // The answer may have been lost after the parent listed the room, so ask. A room it does not
+      // list stays hidden from its members, and trying again would create another: leave and forget
+      // it, unless it is public, where anyone finds it and its address would stay taken. When the
+      // server can't say, or leaving fails, the room stays.
+      const listed = await client
+        .getStateEvent(parent.roomId, StateEvent.SpaceChild as never, roomId)
+        .then(
+          () => true,
+          (error: unknown) =>
+            error instanceof MatrixError && error.errcode === 'M_NOT_FOUND' ? false : undefined
+        );
+      if (listed) return roomId;
+      if (listed === false && !isPublic) {
+        await client.leave(roomId).then(
+          () => client.forget(roomId).catch(() => undefined),
+          () => undefined
+        );
       }
-      await client.forget(roomId).catch(() => undefined);
-      const failure = `"${data.name}" was not created, because it could not be listed under its parent`;
-      throw new Error(`${failure}: ${readableReason(cause)}`, { cause });
+      throw failure;
     }
   }
   return roomId;
