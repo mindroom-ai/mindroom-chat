@@ -364,6 +364,21 @@ describe('bundled thread previews of a redacted edit', () => {
     Thread.hasServerSideSupport = support;
     vi.restoreAllMocks();
   });
+  const redactEdit = (room: Room) =>
+    room.addLiveEvents(
+      [
+        new MatrixEvent({
+          event_id: '$redaction',
+          room_id: roomId,
+          sender: author,
+          type: 'm.room.redaction',
+          origin_server_ts: 5000,
+          redacts: '$edit',
+          content: { redacts: '$edit' },
+        }),
+      ],
+      { addToState: false }
+    );
 
   it.each([
     ['its title notice', 'title'],
@@ -382,23 +397,29 @@ describe('bundled thread previews of a redacted edit', () => {
       // A copy of the root read from the cache before it stored the redaction.
       const cached = new MatrixEvent(JSON.parse(JSON.stringify(root.event)) as IEvent);
 
-      await room.addLiveEvents(
-        [
-          new MatrixEvent({
-            event_id: '$redaction',
-            room_id: roomId,
-            sender: author,
-            type: 'm.room.redaction',
-            origin_server_ts: 5000,
-            redacts: '$edit',
-            content: { redacts: '$edit' },
-          }),
-        ],
-        { addToState: false }
-      );
+      await redactEdit(room);
 
       expect(presentation(room, root).latestReplyPreviewText).toBe('Draft answer');
       expect(presentation(room, cached).latestReplyPreviewText).toBe('Draft answer');
     }
   );
+
+  it('shows the reply as sent once its edit, an event the room holds, is redacted', async () => {
+    const { room, root, mx } = fixture();
+    vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
+    Thread.hasServerSideSupport = FeatureSupport.None;
+    // An open thread: the reply and its edit are events the room holds.
+    const { unsigned, ...latestReply } = summaryShape()['io.mindroom.latest_reply'];
+    room.createThread(rootId, root, [new MatrixEvent({ ...latestReply, room_id: roomId })], false);
+    const edit = unsigned['m.relations']!['m.replace'] as IEvent;
+    await room.addLiveEvents([new MatrixEvent({ ...edit, room_id: roomId })], {
+      addToState: false,
+    });
+    expect(presentation(room, root).latestReplyPreviewText).toBe('Final answer with dates');
+
+    await redactEdit(room);
+
+    expect(room.findEventById('$edit')?.isRedacted()).toBe(true);
+    expect(presentation(room, root).latestReplyPreviewText).toBe('Draft answer');
+  });
 });

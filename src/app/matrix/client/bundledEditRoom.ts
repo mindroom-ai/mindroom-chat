@@ -9,7 +9,8 @@ import { stripRedactedRelationsFromRawEvent } from '../eventRevision';
 // Rust crypto takes an encrypted event without a room ID for a to-device message ("to-device event
 // was not decrypted in preprocessToDeviceMessages") and never tries it again. The message then
 // showed nothing on that device until an unbundled copy of the edit came by. This module gives
-// every bundled edit the room ID of the event it belongs to before the mapper reads it.
+// every bundled edit the room ID of the event it belongs to before the mapper reads it, and leaves
+// out every bundled edit whose redaction the room took (eventRevision.ts).
 
 type RawEvent = Partial<IEvent>;
 
@@ -26,7 +27,10 @@ const withBundledEditRoom = (raw: RawEvent): RawEvent => {
   };
 };
 
-/** Makes the client's event mappers give bundled edits their event's room ID; call it once. */
+/**
+ * Makes the client's event mappers give bundled edits their event's room ID, and leave out those
+ * the room took a redaction of; call it once.
+ */
 export const keepBundledEditsInTheirRoom = (mx: MatrixClient): void => {
   const getEventMapper = mx.getEventMapper.bind(mx);
   mx.getEventMapper = (options) => {

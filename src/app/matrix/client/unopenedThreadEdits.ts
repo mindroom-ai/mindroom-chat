@@ -36,11 +36,9 @@ type SummarizedThread = {
   replayEvents?: MatrixEvent[] | null;
 };
 
-/** Whether `room` took a redaction of the edit `event` shows. */
-const showsRedactedEdit = (room: Room, event: MatrixEvent): boolean => {
-  const editId = event.replacingEventId();
-  return !!editId && isKnownRedactedEventId(room, editId);
-};
+/** Whether `room` took a redaction of the edit `editId`. */
+const isRedactedEdit = (room: Room | undefined, editId: string | undefined): boolean =>
+  !!room && !!editId && isKnownRedactedEventId(room, editId);
 
 /** A reply the thread's summary may name: not its root, nor its title notice. */
 const isSummarizedReply = (
@@ -60,7 +58,8 @@ export const getThreadSummaryReply = (
   if (isSummarizedReply(thread, summarized)) return summarized;
   const retained = summarizedReplies.get(thread);
   // The SDK takes a redacted bundled edit off the copies it holds; it does not hold this one.
-  if (retained && thread.room && showsRedactedEdit(thread.room, retained))
+  // The app hides an edit it cannot decrypt yet from replacingEvent(), not from this.
+  if (retained && isRedactedEdit(thread.room, retained.replacingEventId()))
     showNewestEdit(thread, retained);
   return retained ?? summarized;
 };
@@ -103,7 +102,7 @@ const showNewestEdit = (thread: SummarizedThread, target: MatrixEvent): boolean 
   if (!targetId || target.isRedacted() || target.isState()) return false;
   const shown = target.replacingEvent();
   const candidates = waitingEditsFor(thread, targetId).filter((edit) => isValidEdit(target, edit));
-  if (shown && !shown.isRedacted() && !(thread.room && showsRedactedEdit(thread.room, target)))
+  if (shown && !shown.isRedacted() && !isRedactedEdit(thread.room, shown.getId()))
     candidates.unshift(shown);
   const newest = getLatestEdit(target, candidates);
   if (newest === shown || (!newest && !shown)) return false;

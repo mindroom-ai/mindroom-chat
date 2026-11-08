@@ -187,8 +187,9 @@ export const collectEmbeddedRelationEventIds = (
 /**
  * Whether `room` took a redaction of the event `eventId`: it holds the event redacted, or the SDK
  * patch dropped it as an edit bundled with a message (`Room.redactedBundledEdits`) once someone
- * who may redact it did, as the redaction arrived. Every copy of a message that shows a bundled
- * edit asks this, so none shows an edit after its redaction, whichever copy the redaction reached.
+ * who may redact it did, as the redaction arrived. The copies of a message that show a bundled
+ * edit ask this, or drop the edits in that record from a raw copy with
+ * `stripRedactedRelationsFromRawEvent`, so none shows an edit after its redaction.
  */
 export const isKnownRedactedEventId = (room: Room, eventId: string): boolean =>
   // Optional: room stand-ins in tests have no record.

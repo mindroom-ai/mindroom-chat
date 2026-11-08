@@ -89,11 +89,7 @@ const makeReactionEvent = (eventId: string, ts: number, targetEventId: string, k
     type: 'm.reaction',
   });
 
-const room = {
-  roomId: '!room:example.org',
-  findEventById: () => undefined,
-  redactedBundledEdits: new Set(),
-} as any;
+const room = { roomId: '!room:example.org', findEventById: () => undefined } as any;
 
 describe('applyCachedReplaceRelations', () => {
   it('applies the latest cached replacement event to the target message', () => {
