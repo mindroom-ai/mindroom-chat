@@ -161,8 +161,11 @@ describe('useVirtualPaginator sentinels under floating bars', () => {
     let sentinelBox: Box = { top: 300, height: 1 };
     const sentinel = placeSentinel(root, () => sentinelBox);
     const onEnd = vi.fn();
+    // The fill holds pagination until its retry finds nothing more to load.
     let retry: (() => boolean) | undefined;
+    let fillOver = false;
     const defer = (next: () => boolean) => {
+      if (fillOver) return false;
       retry = next;
       return true;
     };
@@ -181,6 +184,7 @@ describe('useVirtualPaginator sentinels under floating bars', () => {
     let retried: boolean | undefined;
     act(() => {
       retried = retry?.();
+      fillOver = !retried;
     });
     expect(retried).toBe(false);
     expect(onEnd).not.toHaveBeenCalled();
