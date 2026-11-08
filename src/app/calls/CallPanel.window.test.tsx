@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { IconButton } from 'folds';
@@ -169,6 +169,7 @@ const frame = (bar = false): CallWindowFrame => ({
     role: 'group',
     onKeyDown: () => undefined,
   },
+  titleId: 'call-window-title',
 });
 
 /** The route the person is on: Home unless a test opens a room (and a thread). */
@@ -196,6 +197,19 @@ const roomRoute = (roomId: string, threadId?: string) =>
     threadId ? `?threadId=${encodeURIComponent(threadId)}` : ''
   }`;
 const renderPanel = (place: Place = {}) => render(panel(place));
+/** The call view in the floating window itself, rather than in a stand-in frame. */
+const renderInWindow = () =>
+  render(
+    <Provider store={store}>
+      <ScreenSizeProvider value="Desktop">
+        <MemoryRouter>
+          <FloatingCallWindow>
+            <CallPanel room={room} onClose={onClose} />
+          </FloatingCallWindow>
+        </MemoryRouter>
+      </ScreenSizeProvider>
+    </Provider>
+  );
 
 const button = (name: string) => screen.queryByRole('button', { name });
 // fireEvent runs in act already.
@@ -251,6 +265,32 @@ describe('the call view title bar', () => {
     renderPanel();
     expect(screen.queryByRole('group', { name: 'Move call window' })).toBeNull();
     expect(document.querySelector('[data-call-window-handle]')).toBeNull();
+  });
+
+  it('is no landmark of its own in the window, whose one landmark its title names', () => {
+    roomCall([me, person('@ana:panel.test')]);
+    renderInWindow();
+    const [region, ...more] = screen.getAllByRole('region');
+    expect(more).toHaveLength(0);
+    expect(region).toBe(screen.getByTestId('call-window'));
+    expect(screen.getByRole('region', { name: 'Standup' })).toBe(region);
+    expect(within(region!).getByTestId('call-panel').tagName).toBe('DIV');
+
+    // Minimized, the same.
+    act(() => {
+      store.set(getCallWindowSettingsAtom(USER), {
+        mode: 'floating',
+        rect: { x: 600, y: 704, width: 400, height: 56 },
+      });
+    });
+    expect(screen.getByTestId('call-window').hasAttribute('data-bar')).toBe(true);
+    expect(screen.getAllByRole('region')).toHaveLength(1);
+    expect(screen.getByRole('region', { name: 'Standup' })).toBe(region);
+    cleanup();
+
+    // The docked panel is the landmark, named by the call.
+    renderPanel();
+    expect(screen.getByRole('region', { name: 'Standup' })).toBe(screen.getByTestId('call-panel'));
   });
 
   it('switches between speaker view and the grid while video shows, and only then', () => {
@@ -631,17 +671,7 @@ describe("the focus after the rail's call button", () => {
     const bar = { x: 600, y: 704, width: 400, height: 56 };
     store.set(getCallWindowSettingsAtom(USER), { mode: 'floating', rect: bar });
     renderRail();
-    render(
-      <Provider store={store}>
-        <ScreenSizeProvider value="Desktop">
-          <MemoryRouter>
-            <FloatingCallWindow>
-              <CallPanel room={room} onClose={onClose} />
-            </FloatingCallWindow>
-          </MemoryRouter>
-        </ScreenSizeProvider>
-      </Provider>
-    );
+    renderInWindow();
     const callWindow = screen.getByTestId('call-window');
     expect(callWindow.hasAttribute('data-bar')).toBe(true);
 

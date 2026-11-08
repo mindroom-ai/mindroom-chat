@@ -47,6 +47,7 @@ Out, with reasons:
 ### The window
 
 - `position: fixed`, above the page, below modal dialogs and the incoming-call ring.
+- One landmark per window: the window's `section` is a region named by the call view's title ("Call window" until the call view shows, or when it could not load); the call view inside it is no region of its own. Docked, the call view's own `section` is the region, named by the call.
 - Default 400 by 480 px, 16 px from the bottom and end edges. Minimum 340 by 220 px expanded; the bar is 56 px tall.
 - **Move:** pointer drag on the title bar (not on its buttons). The window stays 8 px inside the viewport and sticks to an edge within 16 px of it.
 - **Resize:** pointer drag on any of 4 edges or 4 corners. Resizing below 120 px tall turns the window into the bar; dragging the bar's bottom edge down (or its top edge up) past 120 px expands it again. A bar against the bottom or top of the viewport (less than the 64 px that takes beyond that edge), where the pointer goes only a few px past the screen's edge, expands once that edge is pulled 4 px toward it, growing away from it to the minimum height.

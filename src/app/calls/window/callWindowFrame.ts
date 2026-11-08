@@ -18,6 +18,11 @@ export type CallWindowFrame = {
   minimize: () => void;
   expand: () => void;
   handleProps: CallWindowHandleProps;
+  /**
+   * The id the call view gives its title, which names the window: the window is the call's one
+   * landmark, so the call view inside it is none of its own.
+   */
+  titleId: string;
 };
 
 // The call view mounts after the frame (it loads lazily), so the frame hands it the handle's props

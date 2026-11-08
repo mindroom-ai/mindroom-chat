@@ -237,7 +237,14 @@ function PanelShell(props: PanelShellProps) {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const heading = (
     <div className={css.HeaderTitle}>
-      <Text as="h2" size="H4" truncate ref={titleRef} tabIndex={frame ? undefined : -1}>
+      <Text
+        as="h2"
+        id={frame?.titleId}
+        size="H4"
+        truncate
+        ref={titleRef}
+        tabIndex={frame ? undefined : -1}
+      >
         {title}
       </Text>
       {status && (
@@ -248,10 +255,14 @@ function PanelShell(props: PanelShellProps) {
     </div>
   );
   const panelClass = classNames(css.Panel, frame && css.InWindow);
+  // The docked panel is a landmark named by the call; in the floating window, which is one and
+  // takes its name from the title, the frame is none.
+  const Shell = frame ? 'div' : 'section';
+  const shellLabel = frame ? undefined : title;
 
   // Minimize and Expand go with the line they are on; the focus they had moves to the handle that
   // takes their place rather than to the page.
-  const sectionRef = useRef<HTMLElement>(null);
+  const sectionRef = useRef<HTMLDivElement>(null);
   const inBar = !!frame?.bar;
   const wasBar = useRef(inBar);
   useEffect(() => {
@@ -279,7 +290,12 @@ function PanelShell(props: PanelShellProps) {
 
   if (frame?.bar) {
     return (
-      <section ref={sectionRef} className={panelClass} aria-label={title} data-testid="call-panel">
+      <Shell
+        ref={sectionRef}
+        className={panelClass}
+        aria-label={shellLabel}
+        data-testid="call-panel"
+      >
         <div className={css.Bar} {...frame.handleProps}>
           {bar?.faces}
           {heading}
@@ -299,11 +315,11 @@ function PanelShell(props: PanelShellProps) {
             />
           )}
         </div>
-      </section>
+      </Shell>
     );
   }
   return (
-    <section ref={sectionRef} className={panelClass} aria-label={title} data-testid="call-panel">
+    <Shell ref={sectionRef} className={panelClass} aria-label={shellLabel} data-testid="call-panel">
       <header className={classNames(css.Header, frame && css.WindowHeader)} {...frame?.handleProps}>
         {heading}
         <div className={css.HeaderButtons}>
@@ -326,7 +342,7 @@ function PanelShell(props: PanelShellProps) {
       </header>
       <div className={css.Body}>{children}</div>
       {footer}
-    </section>
+    </Shell>
   );
 }
 

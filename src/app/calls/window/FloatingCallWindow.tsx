@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, PointerEvent, ReactNode, Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
@@ -47,7 +47,8 @@ const dragFrom = (target: EventTarget): { edge: ResizeEdge | undefined } | undef
 /**
  * The floating window on desktop: it places its children (the call view) at the account's stored
  * box, moves it by the title bar the call view marks with `handleProps`, resizes it from eight grips
- * and keeps it inside the viewport. It has a fixed name; the call view inside names the call.
+ * and keeps it inside the viewport. It is the call's one landmark, named by the title the call view
+ * marks with `titleId`, and by a fixed name until the call view shows.
  */
 export function FloatingCallWindow(props: { children: ReactNode; frameRef?: Ref<HTMLElement> }) {
   const { children, frameRef } = props;
@@ -123,6 +124,7 @@ export function FloatingCallWindow(props: { children: ReactNode; frameRef?: Ref<
   );
   // The handle names the state it moves, so Minimize and Expand are heard where the focus stays.
   const moveLabel = t(bar ? 'featureUi.calls.window.moveMinimized' : 'featureUi.calls.window.move');
+  const titleId = useId();
   const frame = useMemo<CallWindowFrame>(
     () => ({
       bar,
@@ -136,8 +138,9 @@ export function FloatingCallWindow(props: { children: ReactNode; frameRef?: Ref<
         'aria-keyshortcuts': HANDLE_KEYS,
         onKeyDown,
       },
+      titleId,
     }),
-    [bar, expand, minimize, moveLabel, onKeyDown]
+    [bar, expand, minimize, moveLabel, onKeyDown, titleId]
   );
   const { width, height } = rect;
   const size = useMemo(() => ({ width, height }), [width, height]);
@@ -181,6 +184,7 @@ export function FloatingCallWindow(props: { children: ReactNode; frameRef?: Ref<
       <section
         ref={frameRef}
         className={css.Frame}
+        aria-labelledby={titleId}
         aria-label={t('featureUi.calls.window.label')}
         data-testid="call-window"
         data-bar={bar || undefined}

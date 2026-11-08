@@ -43,7 +43,7 @@ function TitleBar() {
   size = useCallWindowSize();
   return (
     <header {...frame?.handleProps}>
-      <span>Call in Lobby</span>
+      <h2 id={frame?.titleId}>Call in Lobby</h2>
       <button type="button" onClick={pressed}>
         Minimize
       </button>
@@ -146,6 +146,27 @@ describe('FloatingCallWindow', () => {
     // A group, so screen readers read the handle's name ("Move call window") on focus.
     expect(handle().getAttribute('role')).toBe('group');
     expect(handle().getAttribute('aria-label')).toBe('Move call window');
+  });
+
+  it("is the call's one landmark, named by the call view's title once it shows", () => {
+    renderWindow();
+    const [region, ...more] = screen.getAllByRole('region');
+    expect(more).toHaveLength(0);
+    expect(region).toBe(section());
+    expect(screen.getByRole('region', { name: 'Call in Lobby' })).toBe(section());
+    cleanup();
+
+    // Until then (the call view loads, or could not load), its own name.
+    render(
+      <MatrixClientProvider value={client}>
+        <Provider>
+          <FloatingCallWindow>
+            <p>Loading</p>
+          </FloatingCallWindow>
+        </Provider>
+      </MatrixClientProvider>
+    );
+    expect(screen.getByRole('region', { name: 'Call window' })).toBe(section());
   });
 
   it('tells the call view its size as placed, and as a resize drag goes', () => {
