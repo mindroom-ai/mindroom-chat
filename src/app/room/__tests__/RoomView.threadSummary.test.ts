@@ -2,6 +2,7 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearThreadSummarySharedState } from '../../event-store/threads/threadSummaryState';
+import { RoomView } from '../RoomView';
 
 type MockThreadContextBannerProps = {
   onExitThread?: () => void;
@@ -230,7 +231,6 @@ describe('RoomView thread summary sharing', () => {
   });
 
   it('shows cached summary first and upgrades banner and room state when a newer live summary arrives', async () => {
-    const { RoomView } = await import('../RoomView');
     const room = {
       roomId: '!room:example.org',
       getThread: () => undefined,
