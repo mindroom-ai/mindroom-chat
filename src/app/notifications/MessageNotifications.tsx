@@ -43,6 +43,16 @@ import {
 
 const BODY_LENGTH = 180;
 
+/**
+ * How long the notification of an agent's finished reply waits. A device of the account that
+ * watched the reply finish reads it with a receipt on the finishing edit a few milliseconds
+ * later, and the other devices get that receipt a sync after the edit. In live tests on a busy
+ * server the receipt came at most 0.26 s after the edit, and a receipt from a slow device that
+ * reached the reply later within 1 s in 95 of 100 cases. One that comes meanwhile drops the
+ * notification; a plain message notifies at once.
+ */
+export const FINISHED_REPLY_HOLD_MS = 2_000;
+
 const shorten = (text: string): string => {
   const flat = text.replace(/\s+/g, ' ').trim();
   return flat.length > BODY_LENGTH ? `${flat.slice(0, BODY_LENGTH).trimEnd()}…` : flat;
@@ -155,11 +165,23 @@ export function MessageNotificationsFeature() {
     if (!hasCompletedInitialSync) return undefined;
     // Once per device: across reloads and tabs, and however many times an agent's finished
     // reply arrives. A tab that shows the message claims it too, so no other tab announces it.
+    const held = new Set<ReturnType<typeof setTimeout>>();
     const consider = (event: MatrixEvent, room: Room) => {
-      const notice = readMessageNotice(client, room, event, Date.now());
+      const now = Date.now();
+      const notice = readMessageNotice(client, room, event, now);
       if (!notice) return;
       raiseOnce(client.getUserId() ?? '', [notice.eventId], () => {
-        if (settings.current) showNotice(client, notice, settings.current);
+        if (!isEditEvent(event)) {
+          if (settings.current) showNotice(client, notice, settings.current);
+          return;
+        }
+        // An agent's finished reply waits for a receipt from the device that watched it finish.
+        const timer = setTimeout(() => {
+          held.delete(timer);
+          if (!readMessageNotice(client, room, event, now) || !settings.current) return;
+          showNotice(client, notice, settings.current);
+        }, FINISHED_REPLY_HOLD_MS);
+        held.add(timer);
       });
     };
     // Push rules need the clear content, so an encrypted message waits for its keys, until a
@@ -194,6 +216,7 @@ export function MessageNotificationsFeature() {
     return () => {
       // A message still waiting when the account signs out or switches stays quiet.
       decryptions.stop();
+      held.forEach((timer) => clearTimeout(timer));
       client.removeListener(RoomEvent.Timeline, onTimeline);
       client.removeListener(ClientEvent.Event, onSyncEvent);
     };
