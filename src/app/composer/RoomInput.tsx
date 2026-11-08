@@ -704,7 +704,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         )}
         {lostFileNames.length > 0 && (
           <LostNotice
-            text={t('composer.lostFiles', { files: lostFileNames.join(', ') })}
+            text={t('composer.lostFiles', {
+              files: lostFileNames.map(revealDirectionControls).join(', '),
+            })}
             dismissLabel={t('composer.dismissLostFiles')}
             onDismiss={dismissLostFiles}
           />

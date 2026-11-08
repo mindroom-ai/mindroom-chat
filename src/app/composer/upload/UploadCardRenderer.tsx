@@ -17,6 +17,7 @@ import {
 import { roomUploadAtomFamily } from '../roomInputDrafts';
 import { getMatrixUploadErrorMessage, toMatrixUploadError } from '../../matrix/matrix';
 import { bytesToSize } from '../../lib/common';
+import { revealDirectionControls } from '../../ui/directional';
 
 const MEDIA_UPLOAD_SIZE_KEY = 'm.upload.size';
 
@@ -155,7 +156,8 @@ export const UploadCardRenderer = ({
   );
   // Pictures and videos can be sent as spoilers (MSC4193); other files have no preview to hide.
   const canBeSpoiler = mimeType.startsWith('image/') || mimeType.startsWith('video/');
-  const name = fileNameOf(originalFile) || fileNameOf(file);
+  // Direction controls in the name show as code points; the upload keeps the name as it is.
+  const name = revealDirectionControls(fileNameOf(originalFile) || fileNameOf(file));
 
   return (
     <UploadCard
