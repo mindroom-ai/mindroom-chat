@@ -1066,6 +1066,30 @@ describe('RoomTimeline ledger lifecycle', () => {
       expect(await readDiscardProbe()).toBe(discardsBefore);
       expect(innerElement.style.marginTop).toBe('');
       expect(scrollWrites).toEqual([34412, 34412]);
+
+      await act(async () => {
+        // Third settle, then a turn of a mouse wheel moves the reader back about as far: the
+        // wheel accounts for the move, so it is the reader's, not a reassertion.
+        expect(hook!({ end: 100 }, 72, { scrollOffset: 5000, scrollDirection: 'forward' })).toBe(
+          false
+        );
+        await flushAsyncWork(3);
+        fireScroll(34340);
+        await flushAsyncWork(3);
+      });
+      expect(scrollWrites).toEqual([34412, 34412, 34412]);
+      const wheelListener = (
+        scrollElement.addEventListener as ReturnType<typeof vi.fn>
+      ).mock.calls.find((call) => call[0] === 'wheel')?.[1] as (event: Partial<WheelEvent>) => void;
+      expect(typeof wheelListener).toBe('function');
+      await act(async () => {
+        wheelListener({ deltaY: -72, deltaMode: 0 });
+        fireScroll(34340);
+        await flushAsyncWork(3);
+      });
+      expect(await readDiscardProbe()).toBe(discardsBefore);
+      expect(innerElement.style.marginTop).toBe('');
+      expect(scrollWrites).toEqual([34412, 34412, 34412]);
     } finally {
       mockIsIOSWebKit = false;
       renderer?.unmount();

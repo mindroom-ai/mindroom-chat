@@ -21,13 +21,16 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
  * Compact or opens the room in it (after a reload, or on a device that holds nothing yet), and a
  * reader who scrolls down reaches the oldest thread without waiting for each screen, while the
  * rows on screen hold still. A reader who scrolls up through the Classic view (newest last)
- * reaches it too, and neither view asks for a page of history twice. Desktop (1280 by 800) with
+ * reaches it too without ever running into the end of the loaded rows, while the rows on screen
+ * hold still, and neither view asks for a page of history twice. Desktop (1280 by 800) with
  * classic scrollbars and a touch phone (390 by 844), in Chromium and, when the runner names it, in
  * WebKit. Set MANY_THREADS_SHOTS=<directory> to save each view and the numbers of each flick.
  *
  * The Threads view listed only the threads whose roots the room's timeline held, and the timeline
  * pages 200 events at a time, most of them replies and edits the view hides: each page added a few
- * threads, and the next page waited until the reader scrolled to the end again.
+ * threads, and the next page waited until the reader scrolled to the end again. The Classic view
+ * asked for history only once the reader saw the end of its rows: every page or two the reader
+ * ran into it, and waited for the page.
  */
 
 const PASSWORD = 'many-threads-scroll-1';
@@ -390,7 +393,14 @@ const flick = async (page: Page, scroller: Scroller, device: Device, down: boole
     await scroller.evaluate((view) => view.dispatchEvent(new Event('touchend', { bubbles: true })));
 };
 
-type Step = { requests: Requests; rows: number; stalled: boolean; drift: number };
+type Step = {
+  requests: Requests;
+  rows: number;
+  stalled: boolean;
+  /** How far the flick moved the rows short of, or past, its own distance. */
+  off: number;
+  drift: number;
+};
 type Reading = {
   label: string;
   steps: Step[];
@@ -399,6 +409,7 @@ type Reading = {
   requests: Requests;
   maxDrift: number;
   stalls: number;
+  maxOff: number;
 };
 
 const diff = (after: Requests, before: Requests): Requests => ({
@@ -458,6 +469,10 @@ const readToOldest = async (
       rows: now - seen,
       // The flick ran into the end of the loaded rows: the rows moved less than half its distance.
       stalled: !reached && moved !== undefined && Math.abs(moved - from.top) < FLICK_PX / 2,
+      off:
+        reached || moved === undefined
+          ? 0
+          : Math.round(Math.abs(Math.abs(moved - from.top) - FLICK_PX)),
       drift: later === undefined ? 0 : Math.round(Math.abs(later - place.top)),
     });
     if (reached) break;
@@ -478,6 +493,7 @@ const readToOldest = async (
     requests: diff(requests, before),
     maxDrift: Math.max(0, ...steps.map((step) => step.drift)),
     stalls: steps.filter((step) => step.stalled).length,
+    maxOff: Math.max(0, ...steps.map((step) => step.off)),
   };
 };
 
@@ -491,8 +507,8 @@ const report = (reading: Reading, heldRoots?: number) => {
         `${step.rows}r/${step.requests.messages}m/${step.requests.threads}t/${
           step.requests.relations
         }rel/${step.requests.context}c${step.stalled ? '/stall' : ''}${
-          step.drift > 2 ? `/drift${step.drift}` : ''
-        }`
+          step.off > 2 ? `/off${step.off}` : ''
+        }${step.drift > 2 ? `/drift${step.drift}` : ''}`
     ),
   };
   // eslint-disable-next-line no-console
@@ -508,30 +524,29 @@ let fixture: Fixture;
 /** Rows on screen move no more than subpixel rounding while rows load around them. */
 const MAX_DRIFT_PX = 2;
 /**
- * Flicks in the Threads view that ran into the end of the loaded rows before the oldest thread was
- * in view: the reader waited for rows. The last one, where the view pages in the history below its
- * last thread, is allowed. The Classic view pages its history as the reader reaches the end of the
- * loaded rows, so its stops, and in WebKit how far its rows move as pages land above them, are
- * reported, not checked.
+ * Flicks that ran into the end of the loaded rows before the oldest thread was in view: the reader
+ * waited for rows. In the Threads view the last one, where the view pages in the history below its
+ * last thread, is allowed. The Classic view pages its history a screen ahead of the reader, so a
+ * reader never waits for it. How far each flick moved the rows short of or past its distance is
+ * reported (a mouse wheel's notches move by their own distance in some engines only).
  */
 const MAX_STALLS = 1;
+const MAX_CLASSIC_STALLS = 0;
 
 /** Reports the reading and checks it; `held` is the Threads view's count of held threads. */
 const check = (reading: Reading, held?: number) => {
   report(reading, held);
   const { label } = reading;
   expect(reading.reached, `${label}: the oldest thread came into view`).toBe(true);
-  if (held !== undefined) {
+  if (held !== undefined)
     expect(held, `${label}: threads the Threads view holds without a page`).toBe(THREADS);
-    expect(
-      reading.stalls,
-      `${label}: flicks that ran into the end of the rows`
-    ).toBeLessThanOrEqual(MAX_STALLS);
-    expect(
-      reading.maxDrift,
-      `${label}: px the rows on screen moved as rows loaded`
-    ).toBeLessThanOrEqual(MAX_DRIFT_PX);
-  }
+  expect(reading.stalls, `${label}: flicks that ran into the end of the rows`).toBeLessThanOrEqual(
+    held === undefined ? MAX_CLASSIC_STALLS : MAX_STALLS
+  );
+  expect(
+    reading.maxDrift,
+    `${label}: px the rows on screen moved as rows loaded`
+  ).toBeLessThanOrEqual(MAX_DRIFT_PX);
   // Each history page holds 200 events; the read takes each at most once.
   expect(reading.requests.messages, `${label}: history pages`).toBeLessThanOrEqual(
     Math.ceil(fixture.events / 200) + 2

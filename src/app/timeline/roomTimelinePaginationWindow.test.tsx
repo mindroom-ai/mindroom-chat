@@ -132,6 +132,7 @@ function RoomWindow({
     windowLimit,
     getScrollElement: () => scroller.element,
     deferAutomaticPagination: () => false,
+    readAhead: true,
   });
   handles.setTimeline = setTimeline;
   handles.paginator = paginator;
@@ -189,19 +190,20 @@ const mountRoomWindow = (
 };
 
 describe('the room window paginator', () => {
+  // The windows below are more than two screens tall: pagination reads a screen ahead of the view,
+  // so a sentinel within a screen of it would page as well.
   it('drops a page towards newer rows measured before the window was kept at the newest row', () => {
-    // A Full view window of rows 30 to 51 that reaches the newest row, the reader at the bottom.
-    const { commits, handles, renderWith } = mountRoomWindow(51, { start: 30, end: 51 });
+    // A Full view window of rows 10 to 51 that reaches the newest row, the reader at the bottom.
+    const { commits, handles, renderWith } = mountRoomWindow(51, { start: 10, end: 51 });
     // In one render, a thread's older reply joins the rows above the window and a live row
     // arrives: the live handler grows the window's end by one, which leaves it a row short.
     renderWith(53, () => handles.setTimeline?.(growByLiveRow));
-    // The window is kept at the newest row. The paginator's page from the short window keeps
-    // only its last row ([51, 53], half the view blank), and the back page that follows mounts
-    // the room's start ([0, 53]); neither may land.
+    // The window is kept at the newest row. The paginator's page from the short window, measured
+    // before, and the back page that follows (it mounts the room's start) may not land.
     expect(commits).toEqual([
-      [30, 51, 51],
-      [30, 52, 53],
-      [30, 53, 53],
+      [10, 51, 51],
+      [10, 52, 53],
+      [10, 53, 53],
     ]);
   });
 
@@ -210,7 +212,7 @@ describe('the room window paginator', () => {
     // sentinel in view.
     const { commits, handles, renderWith } = mountRoomWindow(
       60,
-      { start: 30, end: 50 },
+      { start: 10, end: 50 },
       { eventId: '$row40' }
     );
     renderWith(60, () => {
@@ -219,40 +221,42 @@ describe('the room window paginator', () => {
       handles.paginator?.retryPagination();
     });
     // The page lands: the next window reaches the newest row.
-    expect(commits[0]).toEqual([30, 50, 60]);
+    expect(commits[0]).toEqual([10, 50, 60]);
     expect(commits[1]?.slice(1)).toEqual([60, 60]);
   });
 
   it('keeps the rows on screen when it pages towards newer rows in a window it all mounted', () => {
     // The window stops short of the newest rows with every row mounted, the reader at its bottom:
-    // rows 30 and 31 are above the view, row 32 is the first one the reader sees.
+    // rows 10 to 31 are above the view, row 32 is the first one the reader sees.
     const { commits, handles, rowTop } = mountRoomWindow(
       60,
-      { start: 30, end: 50 },
+      { start: 10, end: 50 },
       { eventId: '$row40' }
     );
     expect(rowTop(32)).toBe(0);
     act(() => handles.paginator?.retryPagination());
-    // The page keeps the row above the reader's and everything after it, not only the window's
-    // last row, and the reader's row stays where it was.
+    // The page keeps the rows within a screen above the view (14 to 31), the row above them and
+    // everything after them, not only the window's last row, and the reader's row stays where it
+    // was.
     expect(commits).toEqual([
-      [30, 50, 60],
-      [31, 60, 60],
+      [10, 50, 60],
+      [13, 60, 60],
     ]);
     expect(rowTop(32)).toBe(0);
   });
 
-  it('keeps the rows on screen and one more when it pages towards older rows', () => {
-    // The reader at the top of a window it all mounted: rows 30 to 47 fill the view.
+  it('keeps the rows within a screen below the view and one more when it pages towards older rows', () => {
+    // The reader at the top of a window it all mounted: rows 30 to 47 fill the view, rows 48 to
+    // 65 are within a screen below it.
     const { commits, handles } = mountRoomWindow(
-      60,
-      { start: 30, end: 50 },
+      100,
+      { start: 30, end: 90 },
       { reader: 'top', eventId: '$row40' }
     );
     act(() => handles.paginator?.retryPagination());
     expect(commits).toEqual([
-      [30, 50, 60],
-      [0, 49, 60],
+      [30, 90, 100],
+      [0, 67, 100],
     ]);
   });
 
@@ -337,6 +341,7 @@ function RoomChainWindow({ chain, rows, paginateRoom, handles }: ChainProps) {
     windowLimit: 200,
     getScrollElement: () => scroller,
     deferAutomaticPagination: () => false,
+    readAhead: true,
   });
   useRetryAfterEmptyBackPage(roomBackPage, roomRowsRef, paginator.retryPagination);
   handles.setTimeline = setTimeline;

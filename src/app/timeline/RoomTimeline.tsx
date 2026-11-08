@@ -167,6 +167,7 @@ import {
   JumpToLatestAction,
   ThreadLoadingLines,
   footerProbeStyle,
+  listTopSentinelStyle,
   roomViewStyleUnder,
   threadBannerSlotStyle,
   threadViewStyle,
@@ -785,10 +786,23 @@ export function RoomTimeline(props: RoomTimelineProps) {
     windowLimit,
     getScrollElement,
     deferAutomaticPagination: automaticFill.defer,
+    // The Threads view, newest first, lists every thread from the room's thread list: history
+    // brings it only the messages without a thread, as the reader reaches them.
+    readAhead: !latestAtTop,
   });
 
   // The virtual list and its offset ledger.
   const itemCount = threadId ? threadEvents.length : roomWindowRows.length;
+  const showRoomIntro =
+    !threadId &&
+    liveTimelineLinked &&
+    activeTimelineRange.start === 0 &&
+    !canPaginateRoomBack &&
+    !roomHasMoreCachedBack;
+  const showRoomBackSentinel =
+    !threadId && (activeTimelineRange.start > 0 || canPaginateRoomBack || roomHasMoreCachedBack);
+  const showRoomFrontSentinel =
+    !threadId && (activeTimelineRange.end < roomRows.length || canPaginateRoomFront);
   const { estimateSize, getItemKey } = timelineRowSizing({
     threadId,
     compactLayout,
@@ -834,11 +848,15 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadEvents,
     threadId,
     threadInitialRenderMode,
-    threadLeadingKey: [
-      threadLoadError ? 'error' : '',
-      showThreadLoadOlder ? 'older' : '',
-      threadLoading ? 'loading' : '',
-    ].join('|'),
+    leadingKey: threadId
+      ? [
+          threadLoadError ? 'error' : '',
+          showThreadLoadOlder ? 'older' : '',
+          threadLoading ? 'loading' : '',
+        ].join('|')
+      : roomSurfaceShown && !latestAtTop
+      ? ['room', showRoomIntro ? 'intro' : '', itemCount > 0 ? 'toggle' : ''].join('|')
+      : '',
     automaticFill: roomSurfaceShown
       ? { isActive: automaticFill.isActive, geometryReader: automaticFill.geometryReader }
       : undefined,
@@ -1548,16 +1566,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
     ledgerPxAtRender: ledger.ledgerPxAtRender,
   });
 
-  const showRoomIntro =
-    !threadId &&
-    liveTimelineLinked &&
-    activeTimelineRange.start === 0 &&
-    !canPaginateRoomBack &&
-    !roomHasMoreCachedBack;
-  const showRoomBackSentinel =
-    !threadId && (activeTimelineRange.start > 0 || canPaginateRoomBack || roomHasMoreCachedBack);
-  const showRoomFrontSentinel =
-    !threadId && (activeTimelineRange.end < roomRows.length || canPaginateRoomFront);
   // Nothing to jump to without the line; the newest-first view opens at the unread rows anyway.
   const showJumpToUnread =
     !latestAtTop &&
@@ -1579,15 +1587,21 @@ export function RoomTimeline(props: RoomTimelineProps) {
   );
   // The room's start (its intro and the sentinel that loads older history) and newer history
   // (the front sentinel) sit at the ends where their rows are: with the newest row first, older
-  // history is at the bottom.
-  const roomStart = !threadId && (
-    <>
-      {showRoomIntro && (compactCards ? <CompactRoomWithoutThreads /> : <RoomIntro room={room} />)}
-      {showRoomBackSentinel && <div ref={paginator.observeBackAnchor} style={{ height: 1 }} />}
-    </>
+  // history is at the bottom. The sentinel above the rows sits inside the list, at its top, where
+  // its first row is: rows the offset ledger holds above the reader count as loaded.
+  const roomIntro =
+    showRoomIntro && (compactCards ? <CompactRoomWithoutThreads /> : <RoomIntro room={room} />);
+  const backSentinel = showRoomBackSentinel && (
+    <div
+      ref={paginator.observeBackAnchor}
+      style={latestAtTop ? { height: 1 } : listTopSentinelStyle}
+    />
   );
-  const roomNewer = showRoomFrontSentinel && (
-    <div ref={paginator.observeFrontAnchor} style={{ height: 1 }} />
+  const frontSentinel = showRoomFrontSentinel && (
+    <div
+      ref={paginator.observeFrontAnchor}
+      style={latestAtTop ? listTopSentinelStyle : { height: 1 }}
+    />
   );
   // Marks the rows' latest end for Jump to Latest and the read receipts.
   const latestEndAnchor = <span ref={atBottomAnchorRef} style={{ display: 'block', height: 0 }} />;
@@ -1625,7 +1639,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
                   <div style={threadBannerSlotStyle}>{threadHeader}</div>
                 </ThreadTimelineHeader>
               )}
-              <div ref={ledger.threadLeadingRef}>
+              <div ref={ledger.leadingRef}>
                 <ThreadLoadingLines
                   loadError={threadLoadError}
                   showLoadOlder={showThreadLoadOlder}
@@ -1637,10 +1651,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
               </div>
             </>
           ) : (
-            <>
-              {latestAtTop ? roomNewer : roomStart}
+            <div ref={ledger.leadingRef}>
+              {!latestAtTop && roomIntro}
               {expandAllToggle}
-            </>
+            </div>
           )}
           <ThreadConversationCostProvider value={threadConversationCost}>
             {feature.wrapExpansion(
@@ -1655,11 +1669,19 @@ export function RoomTimeline(props: RoomTimelineProps) {
                     automaticFill.hideInitialRows || hideOpeningThreadRows ? 'hidden' : undefined,
                 }}
               >
+                {latestAtTop ? frontSentinel : backSentinel}
                 {tiles}
               </div>
             )}
           </ThreadConversationCostProvider>
-          {latestAtTop ? roomStart : roomNewer}
+          {latestAtTop ? (
+            <>
+              {roomIntro}
+              {backSentinel}
+            </>
+          ) : (
+            frontSentinel
+          )}
         </Box>
         {/* After the content's padding, so "at the bottom" means the end of the scroll range,
             not the last row, which sits a composer's height higher, behind the footer. */}

@@ -35,6 +35,15 @@ export const roomViewStyleUnder = (barHeight: number | null): CSSProperties =>
     : ({ ...roomViewStyle, '--room-overview-height': `${barHeight}px` } as CSSProperties);
 export const threadViewStyle: CSSProperties = { minHeight: 0, position: 'relative' };
 
+/** A pagination sentinel at the top of the virtual list, where its first row is, taking no place. */
+export const listTopSentinelStyle: CSSProperties = {
+  position: 'absolute',
+  insetBlockStart: 0,
+  insetInline: 0,
+  height: 1,
+  pointerEvents: 'none',
+};
+
 /** As tall as the footer inset: a growing composer moves the newest row up with it. */
 export const footerProbeStyle: CSSProperties = {
   position: 'absolute',
