@@ -9,6 +9,7 @@ import { useRoomCacheHydrationController } from './roomCacheHydrationController'
 import { getInitialTimeline, type Timeline } from '../event-store/timeline/timelinePagination';
 import { getLinkedTimelines } from '../event-store/timeline/linkedTimelines';
 import * as eventRepository from '../event-store/cache/eventRepository';
+import type { RoomTimelineFocusItem } from './roomFocusScrollController';
 
 const SESSION_ID = 'room-hydration-session';
 const ROOM_ID = '!room:example.org';
@@ -38,7 +39,19 @@ describe('room cache hydration with a restored SDK tail', () => {
     vi.restoreAllMocks();
   });
 
-  const openRoom = async (room: Room, mx: MatrixClient, afterRead?: () => void) => {
+  /** What the room view holds: the jump it last made, the jumps it was asked for, its pins. */
+  const roomView = () => ({
+    focusItemRef: { current: undefined as RoomTimelineFocusItem | undefined },
+    focusItems: [] as (RoomTimelineFocusItem | undefined)[],
+    scrollToBottomRef: { current: { count: 0, smooth: false } },
+  });
+
+  const openRoom = async (
+    room: Room,
+    mx: MatrixClient,
+    afterRead?: () => void,
+    view = roomView()
+  ) => {
     const published: string[][] = [];
     let hydrated = false;
     if (afterRead) {
@@ -54,14 +67,18 @@ describe('room cache hydration with a restored SDK tail', () => {
     const props: Parameters<typeof useRoomCacheHydrationController>[0] = {
       alive: () => true,
       buildInitialTimeline: () => getInitialTimeline(room, 200),
+      focusItemRef: view.focusItemRef,
       mx,
       recalibrateFilterOptsRef: { current: undefined },
       room,
       roomDebugTraceId: 'cached-room-open',
       roomIdRef: { current: room.roomId },
-      scrollToBottomRef: { current: { count: 0, smooth: false } },
+      scrollToBottomRef: view.scrollToBottomRef,
       sessionId: SESSION_ID,
       setAtBottom: () => undefined,
+      setFocusItem: (item) => {
+        view.focusItems.push(item as RoomTimelineFocusItem | undefined);
+      },
       setRoomInitialCacheHydratedKey: () => {
         hydrated = true;
       },
@@ -110,6 +127,33 @@ describe('room cache hydration with a restored SDK tail', () => {
       ).toEqual(expected);
       expect(room.findEventById('$latest')).toBe(latest);
       expect(room.getLiveTimeline().getPaginationToken(Direction.Backward)).toBeNull();
+    }
+  );
+
+  it.each([false, true])(
+    'ends at the newest row, or at the row of a jump made during the cache read (jump: %s)',
+    async (jumped) => {
+      const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: USER_ID });
+      const room = new Room(ROOM_ID, mx, USER_ID, { timelineSupport: true });
+      await saveRoomEventsToCache(
+        SESSION_ID,
+        ROOM_ID,
+        [message('$older', 100), message('$latest', 300)],
+        null
+      );
+      await room.addLiveEvents([new MatrixEvent(message('$latest', 300))], {
+        fromCache: true,
+        addToState: false,
+      });
+      room.getLiveTimeline().setPaginationToken('sdk-before', Direction.Backward);
+      const view = roomView();
+      const jump = { eventId: '$older', index: 0, scrollTo: false, highlight: false };
+
+      // Jump to Unread while the cache is read.
+      await openRoom(room, mx, jumped ? () => (view.focusItemRef.current = jump) : undefined, view);
+
+      expect(view.scrollToBottomRef.current.count).toBe(jumped ? 0 : 1);
+      expect(view.focusItems).toEqual(jumped ? [{ ...jump, scrollTo: true }] : []);
     }
   );
 

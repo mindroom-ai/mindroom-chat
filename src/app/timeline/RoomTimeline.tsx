@@ -382,6 +382,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const [atBottom, setAtBottom] = useState(true);
   const atBottomRef = useLatestRef(atBottom);
   const [focusItem, setFocusItem] = useState<RoomTimelineFocusItem>();
+  const focusItemRef = useLatestRef(focusItem);
   const [unreadInfo, setUnreadInfo] = useRoomUnreadInfo(room, !!threadId || !!eventId);
   const readUptoEventIdRef = useLatestRef(unreadInfo?.readUptoEventId);
 
@@ -1086,6 +1087,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     alive,
     buildInitialTimeline,
     eventId,
+    focusItemRef,
     mx,
     recalibrateFilterOptsRef: filterOptsRef,
     room,
@@ -1094,6 +1096,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     scrollToBottomRef,
     sessionId,
     setAtBottom,
+    setFocusItem,
     setRoomInitialCacheHydratedKey,
     setTimeline,
     threadId,
