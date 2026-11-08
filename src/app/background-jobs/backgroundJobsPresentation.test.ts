@@ -15,6 +15,7 @@ beforeAll(async () => {
 
 const job = (jobId: string, overrides: Partial<BackgroundJob> = {}): BackgroundJob => ({
   jobId,
+  agentId: '@mindroom_code:example.org',
   threadId: '$thread',
   kind: 'tool',
   tool: 'run_tests',

@@ -1,19 +1,13 @@
 import { useEffect, useState } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
-import { useThreadStreamingState } from '../event-store/threads/useThreadStreamingState';
 import { FINISHED_JOB_STATUS } from './backgroundJobsPresentation';
+import { useJobRepliesStreaming } from './useJobRepliesStreaming';
 
 /** How long the jobs bar keeps the jobs it last showed after they and their reply end, in ms. */
 export const JOBS_HOLD_MS = 2_000;
 
 type Held = { view: string | null; jobs: BackgroundJob[] };
-
-/** The thread all the jobs run in, when they share one. */
-const threadOf = (jobs: BackgroundJob[]): string | undefined => {
-  const threadId = jobs[0]?.threadId;
-  return threadId && jobs.every((job) => job.threadId === threadId) ? threadId : undefined;
-};
 
 /**
  * The view's jobs, or, after the last of them ends, the jobs it showed last, as finished.
@@ -22,9 +16,11 @@ const threadOf = (jobs: BackgroundJob[]): string | undefined => {
  * starts. Without the hold the bar would leave between two calls and come back for the next one,
  * and the timeline, which keeps its newest row above the bar, would move down and up again. A job
  * that starts within the hold takes the bar's place at once.
- * The agent calls its tools while its reply in the jobs' thread streams, however long it thinks
- * between two calls, so the hold lasts while that reply streams and for `JOBS_HOLD_MS` after it
- * ends (or after the jobs end, when this client does not see the reply stream); then the bar goes.
+ * The agent calls its tools while its reply streams (in the jobs' thread, or in the main timeline
+ * of a room whose agents answer there), however long it thinks between two calls, so the hold
+ * lasts while that reply streams and for `JOBS_HOLD_MS` after it ends (or after the jobs end, when
+ * this client does not see the reply stream); then the bar goes. Another agent's reply in the same
+ * conversation does not hold it.
  * Jobs that were all being stopped are not held: the person stopped them and expects them gone.
  * `view` names the view (its thread), so a held bar never shows in another one.
  */
@@ -44,8 +40,7 @@ export const useJobsHeldBetweenCalls = (
     const finished = holdable ? jobs.map((job) => ({ ...job, status: FINISHED_JOB_STATUS })) : [];
     setHeld({ view, jobs: finished });
   }, [holdable, jobs, shown, view]);
-  // The reply that runs the jobs; a thread this client does not follow never reads as streaming.
-  const replyStreams = useThreadStreamingState(room, threadOf(shown ? jobs : held.jobs));
+  const replyStreams = useJobRepliesStreaming(room, shown ? jobs : held.jobs, shown);
   // Only the view's jobs ending, or their reply ending after them, starts the release; changes
   // elsewhere in the room do not extend it.
   useEffect(() => {

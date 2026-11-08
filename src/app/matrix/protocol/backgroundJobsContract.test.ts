@@ -43,6 +43,7 @@ describe('parseBackgroundJobsStateEvent', () => {
     expect(parseBackgroundJobsStateEvent(jobsEvent([job('job_1')]))).toEqual([
       {
         jobId: 'job_1',
+        agentId: AGENT,
         threadId: '$thread',
         kind: 'tool',
         tool: 'run_tests',
