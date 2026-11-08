@@ -68,8 +68,11 @@ const recounts = new WeakMap<MatrixClient, (roomId: string) => void>();
 
 const countsOf = (value: unknown): Counts | undefined => {
   if (!isRecord(value)) return undefined;
-  const number = (key: string) => (typeof value[key] === 'number' ? value[key] : 0);
-  return { total: number('notification_count'), highlight: number('highlight_count') };
+  const { notification_count: total, highlight_count: highlight } = value;
+  return {
+    total: typeof total === 'number' ? total : 0,
+    highlight: typeof highlight === 'number' ? highlight : 0,
+  };
 };
 
 /**
