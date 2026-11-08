@@ -5,7 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { hasServerEncryptionSetup } from '../devices/serverEncryptionSetup';
-import { EncryptionRecoveryPrompt, resetPromptedAccountsForTests } from './EncryptionRecoveryPrompt';
+import {
+  EncryptionRecoveryPrompt,
+  resetPromptedAccountsForTests,
+} from './EncryptionRecoveryPrompt';
 import { recoveryDialogAtom } from './recoveryDialog';
 import { useRecoveryState, type RecoveryState } from './recoveryState';
 
@@ -91,6 +94,12 @@ describe('EncryptionRecoveryPrompt', () => {
     await show({ kind: 'ready', key: KEY });
     expect(store.get(recoveryDialogAtom)).toBeUndefined();
     expect(hasServerEncryptionSetup).not.toHaveBeenCalled();
+  });
+
+  it('a session that was verified is not prompted when it turns locked, as during a reset', async () => {
+    const { store, show } = setup({ kind: 'ready', key: KEY });
+    await show(LOCKED);
+    expect(store.get(recoveryDialogAtom)).toBeUndefined();
   });
 
   it('promptAtStart false prompts nothing', async () => {

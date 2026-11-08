@@ -15,7 +15,8 @@ export const resetPromptedAccountsForTests = () => promptedAccounts.clear();
  * Opens the recovery password Set up dialog (an account with no encryption setup) or Unlock
  * dialog (a new session on an account with a recovery password) by itself, once per account per
  * app start. `encryptionRecovery.promptAtStart: false` turns it off, as does encryption being
- * off by policy. It never replaces a dialog that is already open. Renders nothing.
+ * off by policy. It never replaces a dialog that is already open, and a session that has been
+ * verified is never prompted. Renders nothing.
  */
 export function EncryptionRecoveryPrompt() {
   const mx = useMatrixClient();
@@ -30,6 +31,10 @@ export function EncryptionRecoveryPrompt() {
     !(createRoom?.showEncryptionOption === false && createRoom?.defaultEncryption === false);
 
   useEffect(() => {
+    // A verified session is past the start. It can look locked for a moment later on: a reset
+    // signs it with the new identity only once that is published, and opening Unlock then would
+    // put a second dialog over the account confirmation the reset is waiting for.
+    if (kind === 'ready') promptedAccounts.add(userId);
     if (!enabled || (kind !== 'locked' && kind !== 'none') || promptedAccounts.has(userId)) return;
     const open = (dialog: 'setup' | 'unlock') => {
       if (store.get(recoveryDialogAtom) === undefined) store.set(recoveryDialogAtom, dialog);
