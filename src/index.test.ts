@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { importBeforeTests } from './test/utils/importBeforeTests';
 
 const mocks = vi.hoisted(() => ({
   isNativeIOS: vi.fn(),
@@ -14,7 +15,6 @@ const mocks = vi.hoisted(() => ({
   createRoot: vi.fn(),
   getActiveSession: vi.fn(),
   waitForServiceWorkerControl: vi.fn(),
-  fetchPublishedAppVersion: vi.fn(),
 }));
 
 vi.mock('react-dom/client', () => ({
@@ -81,7 +81,6 @@ vi.mock('./sw/swSession', () => ({
 
 vi.mock('./app/config/appVersion', () => ({
   APP_BUILD_VERSION: 'test-build',
-  fetchPublishedAppVersion: mocks.fetchPublishedAppVersion,
   startAppVersionMonitor: vi.fn(),
 }));
 
@@ -115,9 +114,8 @@ vi.mock('./app/config/appUpdate', () => ({
   watchForNewVersion: vi.fn(),
 }));
 
-// Loaded once while the file is collected, so that no case pays for its first load. With every
-// startup step mocked and no root element yet, this start does nothing the cases see.
-import './index';
+// With every startup step mocked and no root element yet, this start does nothing the cases see.
+importBeforeTests(() => import('./index'));
 
 describe('application bootstrap', () => {
   const originalServiceWorker = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker');
@@ -289,7 +287,6 @@ describe('application bootstrap', () => {
       mocks.isServiceWorkerEnabled.mockReturnValue(true);
       mocks.getActiveSession.mockReturnValue({ baseUrl: 'https://matrix.example.com' });
       mocks.waitForServiceWorkerControl.mockResolvedValue(false);
-      mocks.fetchPublishedAppVersion.mockResolvedValue('new-build');
       const replaceState = vi.spyOn(browserWindow.history, 'replaceState');
       if (historyFails) {
         replaceState.mockImplementationOnce(() => {

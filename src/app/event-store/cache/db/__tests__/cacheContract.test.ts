@@ -5,10 +5,6 @@
  * shim flip); after P2.3 the legacy modules are gone, so the suite runs
  * only against `cacheStore`. The scenarios remain the observable contract
  * — future changes to the store must keep them passing.
- *
- * Environment: `fake-indexeddb/auto` installs IndexedDB, and beforeEach gives
- * each test a fresh factory and drops the store's memoized connections
- * (`resetCacheStoreForTesting`), so the fresh factory is picked up.
  */
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
@@ -249,17 +245,14 @@ const makeRawEvent = (eventId: string, ts: number, extras: RawEvent = {}): RawEv
   ...extras,
 });
 
-const runContract = (label: string, buildContract: () => CacheContract): void => {
+const runContract = (label: string, contract: CacheContract): void => {
   describe(`cache contract (${label})`, () => {
-    let contract: CacheContract;
-
     beforeEach(() => {
       // Fresh IDB per test to isolate DB state across scenarios.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (globalThis as any).indexedDB = new IDBFactory();
       // Drop the connections the store memoized for the previous factory.
       cacheStore.resetCacheStoreForTesting();
-      contract = buildContract();
     });
 
     afterEach(() => {
@@ -708,4 +701,4 @@ const runContract = (label: string, buildContract: () => CacheContract): void =>
 
 // ISSUE-207 P2.3: legacy parity net removed with the shim files. The
 // suite now runs only against the unified cacheStore.
-runContract('cacheStore', buildCacheStoreContract);
+runContract('cacheStore', buildCacheStoreContract());
