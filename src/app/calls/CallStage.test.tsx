@@ -7,8 +7,14 @@ import type { CallParticipant, CallVideoTrack } from './RoomCall';
 import { CallStage } from './CallStage';
 import * as css from './CallStage.css';
 
+/** A long name two people in the call share; the room puts each one's user ID after it. */
+const TWIN = 'Alexandra Montgomery-Wellington';
+const withId = (name: string, userId: string) => `${name} (\u2066${userId}\u2069)`;
+
 const NAMES: Record<string, string> = {
   '@me:stage.test': 'Me',
+  '@sam:stage.test': withId(TWIN, '@sam:stage.test'),
+  '@samuel:stage.test': withId(TWIN, '@samuel:stage.test'),
   '@mind:stage.test': 'Mind',
   '@ada:stage.test': 'Ada',
   '@tom:stage.test': 'Tom',
@@ -76,6 +82,9 @@ const onPhone = (who: CallParticipant, rest: Partial<CallParticipant> = {}): Cal
 });
 // A MindRoom agent, by its user name.
 const helper = person('mindroom_helper');
+// Two people with the same name.
+const sam = person('sam');
+const samuel = person('samuel');
 
 type StageProps = React.ComponentProps<typeof CallStage>;
 
@@ -96,6 +105,29 @@ const tileOf = (container: HTMLElement, userId: string) => {
   const tile = container.querySelector<HTMLElement>(`[data-call-tile="${userId}"]`);
   if (!tile) throw new Error(`no tile of ${userId}`);
   return tile;
+};
+
+/**
+ * The element that shows `text` whole: the smallest one that holds all of it, as a name and the
+ * user ID after it sit in elements of their own.
+ */
+const showing = (root: HTMLElement, text: string) =>
+  within(root).queryAllByText(
+    (_, element) =>
+      element?.textContent === text &&
+      !Array.from(element.children).some((child) => child.textContent === text)
+  );
+
+/**
+ * `root` shows the name of `userId` with the user ID the room put after it in an element of its
+ * own, which wraps rather than being cut short with the name.
+ */
+const keepsUserId = (root: HTMLElement, userId: string, before = '', after = '') => {
+  const suffix = ` (\u2066${userId}\u2069)${after}`;
+  const [id] = showing(root, suffix);
+  expect(id).toBeTruthy();
+  expect(id?.style.overflowWrap).toBe('anywhere');
+  expect(showing(root, `${before}${TWIN}`)).toHaveLength(1);
 };
 
 /** Whose shared screens the stage shows, in its order. */
@@ -237,6 +269,25 @@ describe('CallStage without video', () => {
 
     const alone = showStage({ participants: [me, onPhone(me)] });
     expect(within(alone.container).getByText('Waiting for others to join')).toBeTruthy();
+  });
+
+  it('keeps the user IDs of two people with the same long name, apart from the name it may cut', () => {
+    const { container } = showStage({
+      participants: [me, sam, { ...samuel, speaking: true }],
+    });
+
+    for (const twin of [sam, samuel]) {
+      const face = tileOf(container, twin.userId);
+      expect(face.getAttribute('aria-label')).toBe(NAMES[twin.userId]);
+      keepsUserId(face, twin.userId);
+    }
+    const status = withStyle(container, css.VoiceStatus)[0] as HTMLElement;
+    keepsUserId(status, samuel.userId, '', ' is speaking');
+    cleanup();
+
+    const awaited = { ...samuel, key: `awaited:${samuel.userId}`, deviceId: '', connected: false };
+    const waiting = showStage({ participants: [me, sam], awaited });
+    keepsUserId(tileOf(waiting.container, samuel.userId), samuel.userId, 'Waiting for ', '…');
   });
 
   it('says an agent listens only once the agent the call waits for is connected', () => {

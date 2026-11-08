@@ -34,6 +34,8 @@ const INSET_SHADOW = `0 ${toRem(4)} ${toRem(12)} ${color.Other.Shadow}`;
 const VOICE_FACES_GAP = toRem(20);
 /** A name under a face stops at this width, the waiting line wraps there. */
 const FACE_MAX_WIDTH = toRem(160);
+/** Stands for the space between a name and the user ID after it, which wraps under it. */
+const NAME_ID_GAP = toRem(4);
 /** Grid tiles before the stage was measured and tiles under shared screens: this wide at least. */
 const FLOW_TILE = toRem(160);
 const BADGE_OFFSET = toRem(-2);
@@ -197,7 +199,18 @@ export const VoiceMuted = style({
   color: color.Critical.Main,
 });
 
-export const VoiceName = style([{ maxWidth: '100%' }, hiddenWhen(HIDES_NAMES)]);
+// A name and the user ID after it (`NameWithUserId`) are two items of a wrapping row: on a narrow
+// line the ID moves under the name, which an ellipsis may cut, and stays whole.
+const nameLine: StyleRule = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  justifyContent: 'center',
+  columnGap: NAME_ID_GAP,
+  maxWidth: '100%',
+  textAlign: 'center',
+};
+
+export const VoiceName = style([nameLine, hiddenWhen(HIDES_NAMES)]);
 
 const barRise = keyframes({
   '0%, 100%': { transform: BAR_REST },
@@ -235,7 +248,7 @@ export const VoiceBar = style({
   },
 });
 
-export const VoiceStatus = style(hiddenWhen(HIDES_STATUS));
+export const VoiceStatus = style([nameLine, hiddenWhen(HIDES_STATUS)]);
 
 // This device's own entry in the people list: read out, not shown, as the stage shows the others.
 export const OffStage = style({

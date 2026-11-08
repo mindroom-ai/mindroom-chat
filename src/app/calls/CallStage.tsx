@@ -5,6 +5,7 @@ import type { Room } from 'matrix-js-sdk';
 import { Avatar, Icon, Icons, Text, toRem } from 'folds';
 import { useResizeObserver } from '../lib/hooks/useResizeObserver';
 import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
+import { NameWithUserId } from '../matrix/NameWithUserId';
 import type { CallParticipant } from './RoomCall';
 import { CallMemberAvatar, CallTile, ScreenTile, useCallMemberProfile } from './CallTile';
 import {
@@ -75,15 +76,22 @@ function VoiceFace({ room, participant, named }: FaceProps & { named: boolean })
           </span>
         )}
       </span>
+      {/* As on a tile, a long name may be cut short, never the user ID that tells it apart. */}
       {!participant.connected ? (
-        <Text as="span" className={css.VoiceName} size="T200" priority="300">
-          {t('featureUi.calls.panel.waitingFor', { name })}
-        </Text>
+        <span className={css.VoiceName}>
+          <NameWithUserId
+            name={name}
+            userId={participant.userId}
+            text={(shown) => t('featureUi.calls.panel.waitingFor', { name: shown })}
+            size="T200"
+            priority="300"
+          />
+        </span>
       ) : (
         named && (
-          <Text as="span" className={css.VoiceName} size="T200" truncate>
-            {name}
-          </Text>
+          <span className={css.VoiceName}>
+            <NameWithUserId name={name} userId={participant.userId} size="T200" />
+          </span>
         )
       )}
     </li>
@@ -112,7 +120,15 @@ function OffStageEntry({ room, participant }: FaceProps) {
 function SpeakingLine({ room, userId }: { room: Room; userId: string }) {
   const { t } = useTranslation();
   const { name } = useCallMemberProfile(room, userId);
-  return <>{t('featureUi.calls.stage.speaking', { name })}</>;
+  return (
+    <NameWithUserId
+      name={name}
+      userId={userId}
+      text={(shown) => t('featureUi.calls.stage.speaking', { name: shown })}
+      size="T200"
+      priority="300"
+    />
+  );
 }
 
 type VoiceStageProps = { room: Room; people: CallParticipant[]; microphone: boolean };
@@ -169,7 +185,7 @@ function VoiceStage({ room, people: devices, microphone }: VoiceStageProps) {
             <span className={css.VoiceBar} />
           </span>
           {status && (
-            <Text className={css.VoiceStatus} size="T200" priority="300">
+            <Text as="div" className={css.VoiceStatus} size="T200" priority="300">
               {status}
             </Text>
           )}
