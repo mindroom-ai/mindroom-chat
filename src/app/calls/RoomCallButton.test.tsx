@@ -87,4 +87,24 @@ describe('RoomCallButton with the floating window', () => {
     expect(store.get(callPanelRoomAtom)).toBeUndefined();
     expect(settings().rect).toEqual(bar);
   });
+
+  it('looks as it does with the call view closed while that view is minimized', () => {
+    // A room's call before this device joins: the button is tinted only while its view shows.
+    store.set(activeCallAtom, undefined);
+    store.set(callPanelRoomAtom, undefined);
+    renderButton();
+    const closed = callButton().className;
+    cleanup();
+
+    store.set(callPanelRoomAtom, room.roomId);
+    renderButton();
+    const shown = callButton().className;
+    expect(shown).not.toBe(closed);
+    cleanup();
+
+    store.set(getCallWindowSettingsAtom(USER), { mode: 'floating', rect: bar });
+    renderButton();
+    expect(callButton().getAttribute('aria-expanded')).toBe('false');
+    expect(callButton().className).toBe(closed);
+  });
 });

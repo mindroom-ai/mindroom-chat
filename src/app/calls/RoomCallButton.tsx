@@ -3,10 +3,13 @@ import type { Room } from 'matrix-js-sdk';
 import { Badge, Icon, IconButton, Icons, Text, Tooltip } from 'folds';
 import { TooltipProvider } from '../ui/directional';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { isActiveCallShownIn, useActiveCall, useCallPanel, useRoomCallMembers } from './callStore';
 import { callUserIds } from './callMemberships';
-import { useCallWindowMinimized, useExpandCallWindow } from './window/callWindowState';
+import {
+  useCallViewFloats,
+  useCallWindowMinimized,
+  useExpandCallWindow,
+} from './window/callWindowState';
 
 // On the button's top end corner, like the Members button's join requests.
 const countBadgeStyle = {
@@ -28,8 +31,8 @@ export function RoomCallButton({ room }: { room: Room }) {
   const [open, setOpen] = useCallPanel(room.roomId);
   const people = callUserIds(useRoomCallMembers(mx, room)).length;
   const inCall = isActiveCallShownIn(active, room.roomId);
-  const desktop = useScreenSizeContext() !== ScreenSize.Mobile;
-  const minimized = useCallWindowMinimized() && desktop;
+  const floats = useCallViewFloats();
+  const minimized = useCallWindowMinimized() && floats;
   const expand = useExpandCallWindow();
   const shown = open && !minimized;
   const toggle = () => {
@@ -61,7 +64,7 @@ export function RoomCallButton({ room }: { room: Room }) {
           size="400"
           radii="300"
           variant={live ? 'Success' : 'Surface'}
-          fill={live || open ? 'Soft' : 'None'}
+          fill={live || shown ? 'Soft' : 'None'}
           aria-label={label}
           aria-expanded={shown}
           data-room-call-button=""

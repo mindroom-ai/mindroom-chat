@@ -6,6 +6,7 @@ import {
   setLocalStorageItem,
 } from '../../lib/state/atomWithLocalStorage';
 import { createUserScopedAtomRegistry } from '../../lib/state/userScopedAtomRegistry';
+import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import {
   BAR_HEIGHT,
@@ -130,6 +131,16 @@ const useSettingsViews = (): SettingsViews =>
 
 /** Where the account's call view shows on desktop, and a way to change it. */
 export const useCallWindowMode = () => useAtom(useSettingsViews().mode);
+
+/**
+ * Whether the call view floats in its window here: on desktop (every screen but a phone's) while
+ * the account has not docked it. Otherwise it shows in its room's side panel.
+ */
+export const useCallViewFloats = (): boolean => {
+  const desktop = useScreenSizeContext() !== ScreenSize.Mobile;
+  const [mode] = useCallWindowMode();
+  return desktop && mode === 'floating';
+};
 
 /** Whether the account's floating window is minimized to its bar. */
 export const useCallWindowMinimized = (): boolean => useAtomValue(useSettingsViews().minimized);

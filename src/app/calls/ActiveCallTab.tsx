@@ -4,9 +4,8 @@ import { Icon, Icons } from 'folds';
 import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../ui/sidebar/SidebarItem';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useRoomName } from '../matrix/hooks/useRoomMeta';
-import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { callHomeRoomId, callPanelRoomAtom, useCallState, type ActiveCall } from './callStore';
-import { useCallWindowMode, useExpandCallWindow } from './window/callWindowState';
+import { useCallViewFloats, useExpandCallWindow } from './window/callWindowState';
 import * as css from './CallTab.css';
 import { revealDirectionControls } from '../ui/directional';
 
@@ -19,8 +18,7 @@ export function ActiveCallTab({ active }: { active: ActiveCall }) {
   const { t } = useTranslation();
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const setPanelRoom = useSetAtom(callPanelRoomAtom);
-  const desktop = useScreenSizeContext() !== ScreenSize.Mobile;
-  const [windowMode] = useCallWindowMode();
+  const floats = useCallViewFloats();
   const expandWindow = useExpandCallWindow();
   const state = useCallState(active.call);
   const homeRoomId = callHomeRoomId(active);
@@ -30,7 +28,7 @@ export function ActiveCallTab({ active }: { active: ActiveCall }) {
 
   const open = () => {
     setPanelRoom(homeRoomId);
-    if (desktop && windowMode === 'floating') {
+    if (floats) {
       expandWindow();
       return;
     }

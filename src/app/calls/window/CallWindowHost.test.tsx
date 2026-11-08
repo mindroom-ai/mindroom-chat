@@ -263,6 +263,55 @@ describe('CallWindowHost', () => {
     expect(stored().rect).toEqual(expanded);
   });
 
+  it('closes when the call it shows ends here, and only that call', () => {
+    const store = createStore();
+    store.set(activeCallAtom, callIn(LOBBY));
+    store.set(callPanelRoomAtom, LOBBY);
+    renderHost(store);
+    expect(callWindow()).not.toBeNull();
+
+    // This device left, or dismissed the call that failed: the window does not stay over every
+    // page on the room's call to join.
+    act(() => store.set(activeCallAtom, undefined));
+    expect(store.get(callPanelRoomAtom)).toBeUndefined();
+    expect(callWindow()).toBeNull();
+
+    // A call in another room ending leaves this room's call view open.
+    act(() => store.set(activeCallAtom, callIn(DESK)));
+    act(() => store.set(callPanelRoomAtom, LOBBY));
+    act(() => store.set(activeCallAtom, undefined));
+    expect(store.get(callPanelRoomAtom)).toBe(LOBBY);
+    expect(callWindow()).not.toBeNull();
+  });
+
+  it('closes when an agent call started from the room it shows ends', () => {
+    const store = createStore();
+    const agentCall = { ...callIn('!agent:host.test'), kind: 'agent', origin: { roomId: LOBBY } };
+    store.set(activeCallAtom, agentCall as ActiveCall);
+    store.set(callPanelRoomAtom, LOBBY);
+    renderHost(store);
+    act(() => store.set(activeCallAtom, undefined));
+    expect(store.get(callPanelRoomAtom)).toBeUndefined();
+  });
+
+  it('leaves the call view on the call to join again while docked or on phones', () => {
+    const docked = createStore();
+    settle(docked, { mode: 'docked' });
+    docked.set(activeCallAtom, callIn(LOBBY));
+    docked.set(callPanelRoomAtom, LOBBY);
+    renderHost(docked);
+    act(() => docked.set(activeCallAtom, undefined));
+    expect(docked.get(callPanelRoomAtom)).toBe(LOBBY);
+    cleanup();
+
+    const phone = createStore();
+    phone.set(activeCallAtom, callIn(LOBBY));
+    phone.set(callPanelRoomAtom, LOBBY);
+    renderHost(phone, 'Mobile');
+    act(() => phone.set(activeCallAtom, undefined));
+    expect(phone.get(callPanelRoomAtom)).toBe(LOBBY);
+  });
+
   it('leaves the call view alone when the window only moves or resizes', async () => {
     const store = createStore();
     store.set(callPanelRoomAtom, LOBBY);

@@ -389,6 +389,30 @@ describe('the side panels of a room', () => {
     expect(shown()).toEqual(['members']);
   });
 
+  it.each(['computer', 'canvas', 'members'] as const)(
+    'leaves the floating call window open while %s opens in its room',
+    async (other) => {
+      await setCallMode('floating');
+      await renderRoom();
+      await open('call');
+      await open(other);
+      expect(shown()).toEqual([other]);
+      expect(isOpen('call')).toBe(true);
+    }
+  );
+
+  it("leaves the floating call window open while a plugin's panel opens in its room, and while it closes", async () => {
+    await setCallMode('floating');
+    await renderRoom();
+    await open('call');
+    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
+    expect(notes()).not.toBeNull();
+    expect(isOpen('call')).toBe(true);
+    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
+    expect(notes()).toBeNull();
+    expect(isOpen('call')).toBe(true);
+  });
+
   it.each(['canvas', 'call', 'members'] as const)(
     "an agent's request for the computer takes the side panel from %s",
     async (first) => {
@@ -721,6 +745,19 @@ describe('the side panels of a room', () => {
       expect(board()).toBeNull();
     }
   );
+
+  it('opens a panel that remembers again while the call floats in its window', async () => {
+    signIn();
+    withCards();
+    await renderRoom();
+    await act(async () => controls.board?.open('kept'));
+    cleanup();
+    await setCallMode('floating');
+    store.set(callPanelRoomAtom, room.roomId);
+    await renderRoom();
+    expect(screen.getByText('Board request "kept"')).toBeTruthy();
+    expect(isOpen('call')).toBe(true);
+  });
 
   it("opens a panel that remembers again over a phone's members, which the navigation puts away", async () => {
     signIn();

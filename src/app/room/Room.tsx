@@ -67,7 +67,7 @@ import { useInitializeOpenThread } from '../threads/useInitializeOpenThread';
 import { RoomMessageAnnouncer } from '../timeline/RoomMessageAnnouncer';
 import { useCallPanel, useInCall } from '../calls/callStore';
 import { CallPanelPart } from '../calls/CallPanelPart';
-import { useCallWindowMode } from '../calls/window/callWindowState';
+import { useCallViewFloats } from '../calls/window/callWindowState';
 import { lazyPart } from '../lib/lazyPart';
 import { PluginSidePanel } from './PluginSidePanel';
 import { usePluginPanel } from './usePluginPanel';
@@ -251,8 +251,8 @@ function RoomContent() {
   const inCall = useInCall();
   // On desktop the call view floats over every page unless the person docked it here. The mode
   // alone: the room does not render again when the floating window moves.
-  const [callMode] = useCallWindowMode();
-  const callInSidePanel = mobile || callMode === 'docked';
+  const callFloats = useCallViewFloats();
+  const callInSidePanel = callOpen && !callFloats;
 
   const pluginPanels = useMemo(
     () => enabledSidePanels(registeredPlugins, clientConfig),
@@ -269,11 +269,41 @@ function RoomContent() {
   } = usePluginPanel(
     roomId,
     pluginPanels,
-    computerOpen || !!canvas || callOpen || (membersOpen && !membersOverPage)
+    computerOpen || !!canvas || callInSidePanel || (membersOpen && !membersOverPage)
   );
 
   const closeCall = () => setCallOpen(false);
   const closeMembers = () => setMembersOpen(false);
+
+  // The call side panel, while the call view does not float: a floating window is no side panel,
+  // so the others neither close it nor are closed by it.
+  const callPanel: PanelEntry = {
+    id: 'call',
+    open: callInSidePanel,
+    close: closeCall,
+    // The call buttons, a ring and a call started elsewhere open it in the call store.
+    opensElsewhere: true,
+    label: t('featureUi.calls.panel.title'),
+    covers: mobile,
+    render: () => (
+      <ResizablePanel
+        side="end"
+        storageKey={`mindroom.call.width:${ownUserId}`}
+        defaultWidth={CALL_DEFAULT_WIDTH}
+        minContentWidth={CONVERSATION_MIN_WIDTH}
+        maxPanelWidth={CALL_MAX_WIDTH}
+        passthrough={mobile}
+        resizeLabel={t('featureUi.calls.panel.resize')}
+        collapseLabel={t('featureUi.calls.panel.close')}
+        onCollapse={closeCall}
+        testId="resizable-call-panel"
+      >
+        <Suspense fallback={null}>
+          <CallPanelPart room={room} onClose={closeCall} />
+        </Suspense>
+      </ResizablePanel>
+    ),
+  };
 
   // One side panel at a time (useRoomPanels), the first open one of these. Opening one closes the
   // others, except that the members stay open behind the call and show again when it closes. The
@@ -334,33 +364,7 @@ function RoomContent() {
           />
         ),
     },
-    {
-      id: 'call',
-      open: callOpen && callInSidePanel,
-      close: closeCall,
-      // The call buttons, a ring and a call started elsewhere open it in the call store.
-      opensElsewhere: true,
-      label: t('featureUi.calls.panel.title'),
-      covers: mobile,
-      render: () => (
-        <ResizablePanel
-          side="end"
-          storageKey={`mindroom.call.width:${ownUserId}`}
-          defaultWidth={CALL_DEFAULT_WIDTH}
-          minContentWidth={CONVERSATION_MIN_WIDTH}
-          maxPanelWidth={CALL_MAX_WIDTH}
-          passthrough={mobile}
-          resizeLabel={t('featureUi.calls.panel.resize')}
-          collapseLabel={t('featureUi.calls.panel.close')}
-          onCollapse={closeCall}
-          testId="resizable-call-panel"
-        >
-          <Suspense fallback={null}>
-            <CallPanelPart room={room} onClose={closeCall} />
-          </Suspense>
-        </ResizablePanel>
-      ),
-    },
+    ...(callFloats ? [] : [callPanel]),
     ...pluginPanels.map(
       (panel): PanelEntry => ({
         id: panel.id,

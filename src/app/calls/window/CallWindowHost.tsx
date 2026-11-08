@@ -1,14 +1,13 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { useAtom, useSetAtom } from 'jotai';
 import { ClientEvent, KnownMembership, RoomEvent, type Room } from 'matrix-js-sdk';
-import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { PowerLevelsContextProvider, usePowerLevels } from '../../matrix/hooks/usePowerLevels';
 import { useRoomName } from '../../matrix/hooks/useRoomMeta';
 import { revealDirectionControls } from '../../ui/directional';
 import { callPanelRoomAtom, isActiveCallShownIn, useActiveCall } from '../callStore';
 import { CallPanelPart } from '../CallPanelPart';
-import { useCallWindowMode, useExpandCallWindow } from './callWindowState';
+import { useCallViewFloats, useExpandCallWindow } from './callWindowState';
 import { FloatingCallWindow } from './FloatingCallWindow';
 
 /** The call view of `room` in the floating window, with the room's power levels it reads. */
@@ -59,28 +58,36 @@ const useCloseWithRoom = () => {
  */
 export function CallWindowHost() {
   const mx = useMatrixClient();
-  const desktop = useScreenSizeContext() !== ScreenSize.Mobile;
-  const [mode] = useCallWindowMode();
   const expand = useExpandCallWindow();
   const [panelRoomId, setPanelRoomId] = useAtom(callPanelRoomAtom);
   const active = useActiveCall();
   const room = panelRoomId ? mx.getRoom(panelRoomId) : null;
-  const floats = desktop && mode === 'floating' && !!room;
+  const floats = useCallViewFloats() && !!room;
   useCloseWithRoom();
 
   // A call view shows the call rather than the bar it was minimized to when it opens (from none,
   // or another room's) and when a call starts in it (a ring answered in a room whose view stayed
-  // open on the call to join); before the first paint, so the bar does not flash.
+  // open on the call to join); before the first paint, so the bar does not flash. When the call
+  // it shows ends here (left, or dismissed after it failed), the window closes: over every page,
+  // the room's call to join again would stay in the way. The side panel stays on it in its room.
   const seen = useRef({ panelRoomId, active });
   useLayoutEffect(() => {
     const before = seen.current;
     seen.current = { panelRoomId, active };
     if (!floats || !panelRoomId) return;
+    const ended =
+      !!before.active &&
+      active !== before.active &&
+      isActiveCallShownIn(before.active, panelRoomId);
+    if (ended) {
+      setPanelRoomId((current) => (current === panelRoomId ? undefined : current));
+      return;
+    }
     const opened = panelRoomId !== before.panelRoomId;
     const started =
       !!active && active !== before.active && isActiveCallShownIn(active, panelRoomId);
     if (opened || started) expand();
-  }, [active, expand, floats, panelRoomId]);
+  }, [active, expand, floats, panelRoomId, setPanelRoomId]);
 
   const close = useCallback(() => setPanelRoomId(undefined), [setPanelRoomId]);
   if (!floats || !room) return null;
