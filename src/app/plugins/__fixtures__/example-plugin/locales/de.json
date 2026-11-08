@@ -1,5 +1,6 @@
 {
   "label": "Beispiel-Plugin",
+  "panel": "Beispielbereich",
   "wave": "Winken",
   "greet": "Dem Raum einen Gruß senden. Beispiel: /greet Hallo",
   "subroom": "Einen Unterraum dieses Raums erstellen. Beispiel: /subroom Ideen",

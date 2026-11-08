@@ -28,6 +28,9 @@ const TYPES: Record<string, string> = {
  * function, asked on every request, so a test can deploy another build in its place.
  * `immutable` picks the paths sent with a year-long `immutable` cache header (by default the hashed
  * files under assets/), so a test can serve a deployment that caches more than those.
+ * config.json goes out with the recovery password start prompt off, as the e2e dev and preview
+ * servers send it (scripts/e2e-client-config.mjs), so the prompt covers no fresh account's page; a
+ * spec that tests the prompt turns it on with a route of its own.
  */
 export const serveBuild = async (
   directory: string | (() => string),
@@ -60,7 +63,14 @@ export const serveBuild = async (
         }
         file = join(root, 'index.html');
       }
-      const body = await readFile(file);
+      let body: Buffer | string = await readFile(file);
+      if (file === join(root, 'config.json')) {
+        const config = JSON.parse(body.toString()) as { encryptionRecovery?: object };
+        body = JSON.stringify({
+          ...config,
+          encryptionRecovery: { ...config.encryptionRecovery, promptAtStart: false },
+        });
+      }
       response.writeHead(200, {
         'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
         'Cache-Control': immutable(path) ? 'public, max-age=31536000, immutable' : 'no-cache',

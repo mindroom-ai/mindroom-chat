@@ -8,7 +8,15 @@ const entries = vi.hoisted(() => {
   const renderer = { match: () => true, Component };
   const icon = () => null;
   const panel = { id: 'notes', label: 'Notes', Component };
-  const autoPanel = { id: 'tasks', label: 'Tasks', Component, icon, placement: 'auto' };
+  const autoPanel = {
+    id: 'tasks',
+    label: 'Tasks',
+    Component,
+    icon,
+    placement: 'auto',
+    remember: true,
+    opensOverMembers: true,
+  };
   const ownPanel = { id: 'board', label: 'Board', Component, frame: 'own' };
   const run = () => undefined;
   const action = { id: 'wave', label: 'wave', icon, run };
@@ -64,6 +72,7 @@ const entries = vi.hoisted(() => {
             { id: 'plain', label: 'Plain', Component, icon: 'Bulb' },
             // Its toggle, like a plugin's header action, stays off a phone's header row.
             { id: 'row', label: 'Row', Component, placement: 'row' },
+            { id: 'over', label: 'Over', Component, opensOverMembers: 'yes' },
             autoPanel,
             { id: 'framed', label: 'Framed', Component, frame: 'yes' },
             ownPanel,
@@ -146,8 +155,8 @@ describe('registeredPlugins', () => {
     // So does a page without a path or a component.
     expect(plugins[0]?.pages).toEqual([]);
     expect(plugins[1]?.pages).toEqual([entries.page]);
-    // A side panel needs an id, a label, a component, and no icon or one folds draws, no
-    // placement, `auto` or `menu`, and no frame or `own`.
+    // A side panel needs an id, a label, a component, no icon or one folds draws, no placement,
+    // `auto` or `menu`, no opensOverMembers or `true`, and no frame or `own`.
     expect(plugins[0]?.sidePanels).toEqual([]);
     expect(plugins[1]?.sidePanels).toEqual(entries.panels);
     // A header action needs an id, a label, an icon, a run, and no placement, `auto` or `menu`.

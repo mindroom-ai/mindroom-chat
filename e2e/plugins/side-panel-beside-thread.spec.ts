@@ -26,8 +26,8 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // begins a thread opens the plugin's panel beside the thread as the thread shows, from the room's
 // thread list, from the thread's badge in the Threads view or from a link, with the greeting as its
 // request. Closed, the panel stays closed while the thread shows, also as the thread's next message
-// arrives; once another thread has shown, the greeting's thread opens it again. It does not open
-// while the members show, nor on a phone.
+// arrives; once another thread has shown, the greeting's thread opens it again. It opens in the
+// place of the members, which close (the panel's `opensOverMembers`), but not on a phone.
 // Set PLUGIN_SHOTS=<directory> to save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'plugin-beside-password';
@@ -198,18 +198,17 @@ test("a greeting that begins a thread opens the plugin's panel beside the thread
     await expect(panel(page)).toContainText(`Greeting: ${GREETING}`, { timeout: 30_000 });
     await shot(page, 'opened-from-link');
 
-    // Not while the members show.
+    // In the place of the members, which close.
     await page.getByRole('button', { name: 'Close Example panel', exact: true }).click();
     await exitThread(page);
     await setMembers(page, true);
     await openFromList(page, greetingRoot);
-    await greetingShown(page);
-    await expect(panel(page)).toHaveCount(0);
-    await expect(membersButton(page, 'Hide Members')).toBeVisible();
-    await shot(page, 'members-shown');
+    await expect(panel(page)).toContainText(`Greeting: ${GREETING}`, { timeout: 30_000 });
+    await expect(membersButton(page, 'Show Members')).toBeVisible();
+    await shot(page, 'over-members');
 
-    // Nor on a phone.
-    await setMembers(page, false);
+    // Not on a phone.
+    await page.getByRole('button', { name: 'Close Example panel', exact: true }).click();
     await exitThread(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(threadPath(greetingRoot));

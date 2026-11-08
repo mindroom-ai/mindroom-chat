@@ -16,6 +16,8 @@
 // "Show in panel", and "Close panel" while the panel shows. A greeting that begins a thread opens
 // the panel beside that thread as the thread shows. The panel stays open in its room across reloads
 // (`remember`), so a card hands it only the greeting's event ID, and it reads the greeting itself.
+// Its name is a key of its strings ("Beispielbereich" in German). It may take the members list's
+// place (`opensOverMembers`): as it opens again in its room, and beside a thread.
 // A second side panel, "Example card", toggled from the room menu, draws its own frame: a plain
 // card, 320 px wide beside the conversation and as wide as the room when it fills it or on a phone,
 // with "Fill example card" ("Shrink example card" while it fills the room) and "Hide example card",
@@ -630,11 +632,12 @@ const plugin: ClientPlugin = {
   sidePanels: [
     {
       id: 'panel',
-      label: 'Example panel',
+      label: 'panel',
       icon: Icons.Leaf,
       placement: 'auto',
       Component: ExamplePanel,
       remember: true,
+      opensOverMembers: true,
     },
     { id: 'card', label: 'Example card', Component: ExampleCard, frame: 'own' },
   ],
@@ -690,6 +693,7 @@ const plugin: ClientPlugin = {
   translations: {
     en: {
       label: 'Example plugin',
+      panel: 'Example panel',
       wave: 'Wave',
       greet: 'Send the room a greeting. Example: /greet Hello',
       subroom: 'Create a sub-room of this room. Example: /subroom Ideas',

@@ -37,6 +37,8 @@ describe('new version after a failed part', () => {
 
     expect(getNewVersion()).toBeUndefined();
     failChunk();
+    // The failure asks at once, before the start's own question.
+    expect(fetchMock).toHaveBeenCalledOnce();
     await vi.waitFor(() => expect(getNewVersion()).toBe('build-2'));
     expect(listener).toHaveBeenCalledOnce();
 

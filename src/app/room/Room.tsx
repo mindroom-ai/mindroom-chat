@@ -40,7 +40,7 @@ import { registeredPlugins } from '../plugins/registry';
 import {
   type PluginPanelControls,
   PluginPanelControlsContext,
-  enabledSidePanels,
+  usePluginSidePanels,
 } from '../plugins/sidePanels';
 import { usePluginHeaderActions } from '../plugins/headerActions';
 import { ComputerPanel } from '../computer/ComputerPanel';
@@ -319,11 +319,10 @@ function RoomContent() {
   const inCall = useInCall();
   const transcript = useTranscriptPanel(roomId);
 
-  const pluginPanels = useMemo(
-    () => enabledSidePanels(registeredPlugins, clientConfig),
-    [clientConfig]
-  );
+  const pluginPanels = usePluginSidePanels(registeredPlugins, clientConfig);
   const pluginActions = usePluginHeaderActions(registeredPlugins, clientConfig);
+  const closeCall = () => setCallOpen(false);
+  const closeMembers = () => setMembersOpen(false);
   // A plugin's panel belongs to the room it opened in. Over the page the members go away with the
   // navigation that shows a room, so they keep no remembered panel from opening again there.
   const membersOverPage = useMembersOverlay() || mobile;
@@ -334,11 +333,9 @@ function RoomContent() {
   } = usePluginPanel(
     roomId,
     pluginPanels,
-    computerOpen || !!canvas || callOpen || transcript.open || (membersOpen && !membersOverPage)
+    computerOpen || !!canvas || callOpen || transcript.open,
+    { beside: membersOpen && !membersOverPage, close: closeMembers }
   );
-
-  const closeCall = () => setCallOpen(false);
-  const closeMembers = () => setMembersOpen(false);
 
   // One side panel at a time (useRoomPanels), the first open one of these. Opening one closes the
   // others, except that the members stay open behind the call or its live transcript and show
@@ -461,7 +458,7 @@ function RoomContent() {
         id: panel.id,
         open: pluginPanel?.id === panel.id,
         close: closePluginPanel,
-        show: () => showPluginPanel(panel.id),
+        show: () => showPluginPanel(panel),
         label: panel.label,
         covers: mobile,
         ownFrame: panel.frame === 'own',
@@ -529,7 +526,7 @@ function RoomContent() {
   // got these, once a save ends, say: they act on the room and the panel shown then, and not at all
   // once this page has gone.
   const shownId = shown?.id;
-  const now = useLatestRef({ roomId, shownId, threadId, mobile });
+  const now = useLatestRef({ roomId, shownId, threadId, mobile, pluginPanels });
   const alive = useAlive();
   // Beside the conversation the shown panel has a frame, which fills the room with it or folds it
   // to a tab at the room's edge. Phones show the panel over the conversation, with no frame; the
@@ -551,18 +548,15 @@ function RoomContent() {
     [frameLabel, layout, now, roomId, setLayout, shownId]
   );
   // `open` and `close` keep their identity while the room shows, so plugin code that depends on them
-  // does not run again when another panel shows.
+  // does not run again when another panel shows or the panels' labels change with the language.
   const openPluginPanel = useCallback<PluginPanelControls['open']>(
     (id, panelRequest) => {
-      if (
-        alive() &&
-        now.current.roomId === roomId &&
-        pluginPanels.some((panel) => panel.id === id)
-      ) {
-        request(id, () => showPluginPanel(id, panelRequest));
+      const panel = now.current.pluginPanels.find((candidate) => candidate.id === id);
+      if (alive() && now.current.roomId === roomId && panel) {
+        request(id, () => showPluginPanel(panel, panelRequest));
       }
     },
-    [alive, now, pluginPanels, request, roomId, showPluginPanel]
+    [alive, now, request, roomId, showPluginPanel]
   );
   // The thread shown whose one call to open a plugin's panel beside it came; it gets another once
   // another thread or the room's own timeline has shown.
@@ -575,23 +569,26 @@ function RoomContent() {
   const openPluginPanelBesideThread = useCallback<PluginPanelControls['openBesideThread']>(
     (id, besideThread, panelRequest) => {
       const { shownId: shownNow, threadId: threadNow, mobile: phone } = now.current;
+      const panel = now.current.pluginPanels.find((candidate) => candidate.id === id);
       if (
         !alive() ||
         now.current.roomId !== roomId ||
         threadNow !== threadId ||
         besideThread !== threadId ||
         calledBeside.current === besideThread ||
-        !pluginPanels.some((panel) => panel.id === id)
+        !panel
       ) {
         return;
       }
       calledBeside.current = besideThread;
       if (phone) return;
       // Shown already, folded or filling the room, it stays so.
-      if (shownNow === id) showPluginPanel(id, panelRequest);
-      else if (shownNow === undefined) request(id, () => showPluginPanel(id, panelRequest));
+      if (shownNow === id) showPluginPanel(panel, panelRequest);
+      else if (shownNow === undefined || (shownNow === 'members' && panel.opensOverMembers)) {
+        request(id, () => showPluginPanel(panel, panelRequest));
+      }
     },
-    [alive, now, pluginPanels, request, roomId, showPluginPanel, threadId]
+    [alive, now, request, roomId, showPluginPanel, threadId]
   );
   const closeShownPluginPanel = useCallback<PluginPanelControls['close']>(
     (id) => {
