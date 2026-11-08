@@ -1,0 +1,127 @@
+// @vitest-environment jsdom
+import { cleanup, render, renderHook, waitFor } from '@testing-library/react';
+import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { withReasoning } from '../app/messages/agent-run/Reasoning';
+import { Body as ReasoningBody } from '../app/messages/agent-run/Reasoning.css';
+import { LIVE_REASONING_KEY } from '../app/messages/live/useLiveReplyContent';
+import { Dialog, Header, IconButton, Menu } from '../app/ui/glass/GlassPrimitives';
+import { PopOut } from '../app/ui/directional';
+import { IconTooltip } from '../app/ui/IconTooltip';
+import { MenuEntry, MenuGroup } from '../app/ui/MenuEntry';
+import { NavButton, NavItem, NavItemContent } from '../app/ui/nav/NavItem';
+import * as ui from './ui';
+import { replaceMatrixUserIdsWithDisplayNames, sanitizeHtml, useMarkdownHtml } from './ui';
+
+// The test setup stands folds' plain components in for the glass ones; compare the real modules.
+vi.unmock('../app/ui/glass/GlassPrimitives');
+
+afterEach(cleanup);
+
+describe('@mindroom/client-sdk/ui', () => {
+  it("is the app's own components, not copies, so a plugin's menus, dialogs and rows look like the app's", () => {
+    const app = {
+      Dialog,
+      Header,
+      IconButton,
+      IconTooltip,
+      Menu,
+      MenuEntry,
+      MenuGroup,
+      NavButton,
+      NavItem,
+      NavItemContent,
+      PopOut,
+    };
+    const text = ['replaceMatrixUserIdsWithDisplayNames', 'sanitizeHtml', 'useMarkdownHtml'];
+    // The SDK only grows: a name a plugin imports never goes.
+    expect(Object.keys(ui).sort()).toEqual([...Object.keys(app), ...text].sort());
+    Object.entries(app).forEach(([name, component]) => {
+      expect(ui[name as keyof typeof ui], name).toBe(component);
+    });
+  });
+});
+
+/** The elements of `html`, as a plugin that sets it as an element's inner HTML gets them. */
+const elementsOf = (html: string) => {
+  const element = document.createElement('div');
+  element.innerHTML = html;
+  return element;
+};
+
+// Raw HTML inside a line, which the Markdown renderer passes on as it is.
+const UNSAFE =
+  'Hi <script>alert(1)</script><img src="mxc://example.org/cat" onerror="alert(2)">' +
+  ' <a href="javascript:alert(3)">open</a>';
+
+/** Whether `html` is free of the script, the handler and the script link of `UNSAFE`. */
+const expectSafe = (html: string) => {
+  const element = elementsOf(html);
+  expect(element.querySelector('script')).toBeNull();
+  expect(element.querySelector('[onerror]')).toBeNull();
+  expect(html).not.toMatch(/javascript:/i);
+  // What is safe stays: the text, the image and the link's text.
+  expect(element.textContent).toContain('Hi');
+  expect(element.querySelector('img')?.getAttribute('src')).toBe('mxc://example.org/cat');
+  expect(element.textContent).toContain('open');
+};
+
+describe('useMarkdownHtml', () => {
+  const MARKDOWN = '# Plan\n\n- one\n- `two`\n\nSee [the docs](https://example.org/docs).';
+
+  it("is undefined until the renderer has loaded, then the HTML the app's reasoning shows", async () => {
+    const { result } = renderHook(() => useMarkdownHtml(MARKDOWN));
+    expect(result.current).toBeUndefined();
+    await waitFor(() => expect(result.current).toBeDefined());
+    const html = result.current ?? '';
+    const shown = elementsOf(html);
+    expect(shown.querySelector('h1')?.textContent).toBe('Plan');
+    expect([...shown.querySelectorAll('li')].map((item) => item.textContent)).toEqual([
+      'one',
+      'two',
+    ]);
+    expect(shown.querySelector('li code')?.textContent).toBe('two');
+    expect(shown.querySelector('a')?.getAttribute('href')).toBe('https://example.org/docs');
+
+    // The app's reasoning, open while it streams, shows the same elements for the same Markdown.
+    const { container } = render(
+      <>{withReasoning({ [LIVE_REASONING_KEY]: MARKDOWN }, null, {})}</>
+    );
+    await waitFor(() => expect(container.querySelector(`.${ReasoningBody} h1`)).not.toBeNull());
+    expect(container.querySelector(`.${ReasoningBody} > div`)?.innerHTML).toBe(shown.innerHTML);
+  });
+
+  it('drops scripts, event handlers and script links', async () => {
+    const { result } = renderHook(() => useMarkdownHtml(UNSAFE));
+    await waitFor(() => expect(result.current).toBeDefined());
+    expectSafe(result.current ?? '');
+  });
+});
+
+describe('sanitizeHtml', () => {
+  it('drops scripts, event handlers and script links', () => {
+    expectSafe(sanitizeHtml(UNSAFE));
+  });
+});
+
+describe('replaceMatrixUserIdsWithDisplayNames', () => {
+  const ROOM = '!lobby:example.org';
+  const ADA = '@ada:example.org';
+
+  it("names the room's members, also before punctuation, and leaves other IDs", () => {
+    const client = createClient({ baseUrl: 'https://example.org', userId: ADA });
+    const room = new Room(ROOM, client, ADA);
+    room.currentState.setStateEvents([
+      new MatrixEvent({
+        type: 'm.room.member',
+        room_id: ROOM,
+        sender: ADA,
+        state_key: ADA,
+        content: { membership: KnownMembership.Join, displayname: 'Ada Lovelace' },
+      }),
+    ]);
+    expect(
+      replaceMatrixUserIdsWithDisplayNames(room, `Ask ${ADA} or ${ADA}. Not @bob:example.org.`)
+    ).toBe('Ask Ada Lovelace or Ada Lovelace. Not @bob:example.org.');
+  });
+});

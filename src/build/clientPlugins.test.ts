@@ -136,8 +136,8 @@ describe('readClientPlugins', () => {
     ],
     [
       'a plugin that needs a newer client SDK',
-      () => pluginDir(declaring({ apiVersion: 25 })),
-      /plugin "some-plugin" needs client SDK apiVersion 25; this client provides 24/,
+      () => pluginDir(declaring({ apiVersion: 26 })),
+      /plugin "some-plugin" needs client SDK apiVersion 26; this client provides 25/,
     ],
     [
       'an apiVersion that is not a number',
@@ -198,7 +198,7 @@ describe('clientPlugins', () => {
   });
 
   it('resolves the client SDK for a plugin outside this repository', async () => {
-    const dir = pluginDir(declaring({ apiVersion: 24 }), { entry: false });
+    const dir = pluginDir(declaring({ apiVersion: 25 }), { entry: false });
     writeFileSync(
       path.join(dir, 'index.js'),
       "import { usePluginConfig } from '@mindroom/client-sdk/core';\n" +
