@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PointerEvent, ReactNode, RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAtom, useAtomValue } from 'jotai';
+import { useAtom, useAtomValue, useStore } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { Text } from 'folds';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -10,6 +10,7 @@ import { textDirection } from '../../ui/directional';
 import type { TranscriptLine } from '../transcription/api';
 import { GAP_KEYS, LiveTranscriptBody } from '../transcription/LiveTranscriptBody';
 import { callTranscriptionAtom } from '../transcription/transcriptionState';
+import { dismissTranscriptPanel } from '../transcription/transcriptPanel';
 import { useLiveTranscript } from '../transcription/useLiveTranscript';
 import { useCallWindowSize } from './callWindowFrame';
 import { getCallWindowSplitAtom, getCallWindowTranscriptAtom } from './callWindowState';
@@ -188,6 +189,14 @@ function Transcript({ room, layout, grow }: TranscriptProps) {
 export function WindowTranscript({ room, children }: { room: Room; children: ReactNode }) {
   const userId = useMatrixClient().getSafeUserId();
   const layout = useTranscriptLayout(room);
+  // One transcript at a time: once it shows here (also when it was left on and MindRoom answers
+  // for a call just joined), the room's side transcript closes, so each line is read out once.
+  const store = useStore();
+  const { roomId } = room;
+  const shows = layout !== undefined;
+  useEffect(() => {
+    if (shows) dismissTranscriptPanel(store, roomId);
+  }, [roomId, shows, store]);
   const [split, setSplit] = useAtom(getCallWindowSplitAtom(userId));
   const [dragged, setDragged] = useState<number>();
   const boxRef = useRef<HTMLDivElement>(null);

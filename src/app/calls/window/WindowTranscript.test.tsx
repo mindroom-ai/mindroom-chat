@@ -10,6 +10,7 @@ import {
   liveTranscriptAtom,
   type TranscriptionStatus,
 } from '../transcription/transcriptionState';
+import { transcriptPanelAtom } from '../transcription/transcriptPanel';
 import { CallWindowSizeContext, type CallWindowSize } from './callWindowFrame';
 import { clearCallWindowStore, getCallWindowSettingsAtom } from './callWindowState';
 import { WindowTranscript } from './WindowTranscript';
@@ -215,6 +216,30 @@ describe('the live transcript in the floating window', () => {
     act(() => store.set(callTranscriptionAtom, { roomId: ROOM_ID, status: 'joining' }));
     rerender(windowWith({ width: 400, height: 480 }));
     expect(layout()).toBeUndefined();
+  });
+
+  it("closes the room's side transcript once it shows, so the lines show and are read out once", () => {
+    // Opened from the call's row before joining, with the window's transcript left on: it shows
+    // once MindRoom answers for the call.
+    inCall('joining');
+    store.set(transcriptPanelAtom, { roomId: ROOM_ID, replacedCall: false });
+    showTranscript();
+    render(windowWith({ width: 400, height: 480 }));
+    expect(store.get(transcriptPanelAtom)?.roomId).toBe(ROOM_ID);
+
+    act(() => store.set(callTranscriptionAtom, { roomId: ROOM_ID, status: 'transcribing' }));
+    expect(layout()).toBe('stacked');
+    expect(store.get(transcriptPanelAtom)).toBeUndefined();
+  });
+
+  it("leaves another room's side transcript open when it shows", () => {
+    inCall();
+    const other = { roomId: '!other:example.org', replacedCall: false };
+    store.set(transcriptPanelAtom, other);
+    showTranscript();
+    render(windowWith({ width: 400, height: 480 }));
+    expect(layout()).toBe('stacked');
+    expect(store.get(transcriptPanelAtom)).toEqual(other);
   });
 
   it("shows the side panel's transcript as the transcriber reads it, without reading on its own", () => {
