@@ -7,7 +7,8 @@ import { MenuEntry } from '../ui/MenuEntry';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 
 // A plugin's side panel's toggle in the room header: a button in its row or an entry of its room
-// menu, by the panel's placement, with the panel's icon, pressed while the room shows the panel.
+// menu, by the panel's placement and the screen, with the panel's icon, pressed while the room
+// shows the panel.
 // The room (Room.tsx) names no panel shown while the panel is folded to its tab.
 
 const screen = vi.hoisted(() => ({ size: 'Desktop' }));
@@ -108,23 +109,38 @@ const iconOf = (button: ReactTestInstance | undefined) => button?.findByType(Ico
 const BOARD = { id: 'notes/board', label: 'Board', icon: Icons.Star, placement: 'auto' } as const;
 
 describe("a plugin's side panel's toggle in the room header", () => {
-  it("is a button with its icon in a wide header's row, pressed and tinted while the room shows it", () => {
-    const onPanelToggle = vi.fn();
-    renderHeader({ pluginPanels: [BOARD], onPanelToggle });
-    expect(rowButton('Board')?.props).toMatchObject({ 'aria-pressed': false, variant: 'Surface' });
-    expect(iconOf(rowButton('Board'))).toBe(Icons.Star);
-    act(() => {
-      rowButton('Board')?.props.onClick({});
-    });
-    expect(onPanelToggle).toHaveBeenCalledWith('notes/board');
-    openMenu();
-    expect(menuEntry('Board')).toBeUndefined();
+  it.each([
+    { placement: 'auto', size: 'Desktop' },
+    { placement: 'row', size: 'Desktop' },
+    { placement: 'row', size: 'Mobile' },
+  ] as const)(
+    'is a button with its icon in the row with `$placement` on a $size screen, pressed and tinted while the room shows it',
+    ({ placement, size }) => {
+      screen.size = size;
+      const panel = { ...BOARD, placement };
+      const onPanelToggle = vi.fn();
+      renderHeader({ pluginPanels: [panel], onPanelToggle });
+      expect(rowButton('Board')?.props).toMatchObject({
+        'aria-pressed': false,
+        variant: 'Surface',
+      });
+      expect(iconOf(rowButton('Board'))).toBe(Icons.Star);
+      act(() => {
+        rowButton('Board')?.props.onClick({});
+      });
+      expect(onPanelToggle).toHaveBeenCalledWith('notes/board');
+      openMenu();
+      expect(menuEntry('Board')).toBeUndefined();
 
-    renderHeader({ pluginPanels: [BOARD], shownPanel: 'notes/board', onPanelToggle });
-    expect(rowButton('Board')?.props).toMatchObject({ 'aria-pressed': true, variant: 'Primary' });
-    renderHeader({ pluginPanels: [BOARD], shownPanel: 'members', onPanelToggle });
-    expect(rowButton('Board')?.props).toMatchObject({ 'aria-pressed': false, variant: 'Surface' });
-  });
+      renderHeader({ pluginPanels: [panel], shownPanel: 'notes/board', onPanelToggle });
+      expect(rowButton('Board')?.props).toMatchObject({ 'aria-pressed': true, variant: 'Primary' });
+      renderHeader({ pluginPanels: [panel], shownPanel: 'members', onPanelToggle });
+      expect(rowButton('Board')?.props).toMatchObject({
+        'aria-pressed': false,
+        variant: 'Surface',
+      });
+    }
+  );
 
   it("is an entry with its icon in a phone's room menu, checked while the room shows it", () => {
     screen.size = 'Mobile';
