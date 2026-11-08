@@ -173,6 +173,24 @@ describe('ClientSessions.send', () => {
     ]);
   });
 
+  it('asks for JSON with no cookies, unless the caller asks for something else', async () => {
+    const server = fakeServer();
+    const store = sessions(server);
+
+    await store.send('/api/plugins/notes/a');
+    await store.send('/api/plugins/notes/b', {
+      method: 'POST',
+      headers: { Accept: 'text/plain', 'Content-Type': 'text/plain' },
+      body: 'note',
+    });
+
+    const [, first, second] = server.sent;
+    expect(new Headers(first?.init.headers).get('Accept')).toBe('application/json');
+    expect(new Headers(second?.init.headers).get('Accept')).toBe('text/plain');
+    expect(new Headers(second?.init.headers).get('Content-Type')).toBe('text/plain');
+    expect(second?.init).toMatchObject({ body: 'note', credentials: 'omit', cache: 'no-store' });
+  });
+
   it('sends nothing to a path that leads to another origin', async () => {
     const server = fakeServer();
     const store = sessions(server);

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useAtomValue } from 'jotai';
-import type { Room } from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { clientSessions, type ClientSessions } from '../../computer/clientSessions';
 import { useRoomMindroomServer } from '../../computer/useRoomMindroomServer';
@@ -33,7 +33,17 @@ export type LiveTranscriptView = {
 type ReadView = Pick<LiveTranscriptView, 'state' | 'live'>;
 
 /** The server and room reads come from, and the last line they read there. */
-type LastRead = { sessions: ClientSessions; roomId: string; lineId?: string };
+type LastRead = { client: TranscriptionClient; roomId: string; lineId?: string };
+
+/** One client per account and server, so rows, panels and remounts share its sign-in. */
+const clients = new WeakMap<ClientSessions, TranscriptionClient>();
+
+const sharedClient = (mx: MatrixClient, apiUrl: string, discovered: boolean) => {
+  const sessions = clientSessions(mx, apiUrl, discovered);
+  const client = clients.get(sessions) ?? new TranscriptionClient(sessions);
+  clients.set(sessions, client);
+  return client;
+};
 
 const onVisibilityChange = (onChange: () => void) => {
   document.addEventListener('visibilitychange', onChange);
@@ -57,24 +67,26 @@ const useLiveCallReads = (
   const reading = usePageShown() && wanted;
   const { roomId } = room;
   const { apiUrl, discovered } = useRoomMindroomServer(mx, roomId);
-  // One per account and server, so rows, panels and remounts share its sign-in.
-  const sessions = apiUrl ? clientSessions(mx, apiUrl, discovered) : undefined;
+  const client = useMemo(
+    () => (apiUrl ? sharedClient(mx, apiUrl, discovered) : undefined),
+    [apiUrl, discovered, mx]
+  );
   const [view, setView] = useState<ReadView>({ state: 'loading' });
   const lastRead = useRef<LastRead>();
   useEffect(() => {
-    if (!sessions || !reading) return undefined;
+    if (!client || !reading) return undefined;
     // What was read of the room on this server stays while reading pauses, and reads that start
     // again go on after its last line; another room's or server's goes.
     const last = lastRead.current;
     const read: LastRead =
-      last?.sessions === sessions && last.roomId === roomId ? last : { sessions, roomId };
+      last?.client === client && last.roomId === roomId ? last : { client, roomId };
     lastRead.current = read;
     setView((shown) =>
       read === last && shown.live?.roomId === roomId ? shown : { state: 'loading' }
     );
     const stop = new AbortController();
     void pollLiveCall(
-      new TranscriptionClient(sessions),
+      client,
       roomId,
       everyMs,
       stop.signal,
@@ -93,10 +105,8 @@ const useLiveCallReads = (
       setView({ state: 'not-transcribed' });
     });
     return () => stop.abort();
-  }, [sessions, everyMs, reading, roomId]);
-  return sessions
-    ? { ...view, serverKnown: true }
-    : { state: 'not-transcribed', serverKnown: false };
+  }, [client, everyMs, reading, roomId]);
+  return client ? { ...view, serverKnown: true } : { state: 'not-transcribed', serverKnown: false };
 };
 
 /**

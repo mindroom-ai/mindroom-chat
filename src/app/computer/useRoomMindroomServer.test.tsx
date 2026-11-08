@@ -17,9 +17,12 @@ const state = vi.hoisted(() => ({
   members: [] as { userId: string; membership: string }[],
 }));
 
+const ROOM = vi.hoisted(() => ({ roomId: '!room:example.org' }));
+
 vi.mock('./useAgentServers', () => ({
   useBindsOpenIdTokens: () => state.bindsTokens,
-  useRoomAgentServers: () => (state.published ? [{ apiUrl: state.published }] : []),
+  useRoomAgentServers: (room: unknown) =>
+    room === ROOM && state.published ? [{ apiUrl: state.published }] : [],
 }));
 vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => state.members }));
 
@@ -33,9 +36,10 @@ const server = (preference: string | null, deploymentUrl?: string) => {
       </ClientConfigProvider>
     </Provider>
   );
-  const mx = { getRoom: () => null } as unknown as MatrixClient;
-  return renderHook(() => useRoomMindroomServer(mx, '!room:example.org'), { wrapper }).result
-    .current;
+  const mx = {
+    getRoom: (roomId: string) => (roomId === ROOM.roomId ? ROOM : null),
+  } as unknown as MatrixClient;
+  return renderHook(() => useRoomMindroomServer(mx, ROOM.roomId), { wrapper }).result.current;
 };
 
 beforeEach(() => {
