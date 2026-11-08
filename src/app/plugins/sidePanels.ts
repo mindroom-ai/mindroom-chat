@@ -114,10 +114,12 @@ export const usePluginSidePanels = (
   }, [enabled, i18n, t]);
 };
 
-/** What the open room lets plugin code do with its plugins' panels. */
+/** What the open room lets plugin code do with its plugins' panels, and the thread it shows. */
 export type PluginPanelControls = {
   /** The id of the panel the room shows. */
   shown: string | undefined;
+  /** The thread the room shows, as the client SDK's `useShownThread` gives it. */
+  thread: string | undefined;
   /** Opens a plugin's panel by its rule and hands it `request`; nothing for an unknown panel. */
   open: (id: string, request: unknown) => void;
   /** Opens a plugin's panel beside the thread `threadId`, as {@link RoomSidePanelControl} says. */

@@ -9,6 +9,7 @@ import { clearCallWindowStore, getCallWindowSettingsAtom } from '../calls/window
 import { openTranscriptPanel, transcriptPanelAtom } from '../calls/transcription/transcriptPanel';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { putSession } from '../matrix/session/sessions';
+import { useShownThread } from '../../client-sdk/room';
 import { type RoomSidePanelControl, useRoomSidePanel } from '../plugins/sidePanels';
 import type { RoomViewProps } from './RoomView';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
@@ -17,7 +18,9 @@ import { makeUiEvent } from '../ui-actions/testUtils';
 // A plugin's side panel that opens itself beside the thread the room shows (`openBesideThread` of
 // useRoomSidePanel), as the plugin's renderer of the thread's root message asks for it as it mounts.
 
-const { mx, room, state } = vi.hoisted(() => {
+const { mx, room, state, PENDING } = vi.hoisted(() => {
+  /** The local echo of a new thread's root, which the server has not confirmed yet. */
+  const PENDING = '~!room:example.org:m1';
   const listeners = new Map<string, (...args: unknown[]) => void>();
   const members = [
     { membership: 'join', userId: '@mindroom_helper:example.org', name: 'Helper' },
@@ -44,6 +47,8 @@ const { mx, room, state } = vi.hoisted(() => {
       inView: undefined as React.ReactNode,
       /** Bumped when the conversation's components mount again, as on a switch of view. */
       viewMount: 0,
+      /** An event below that the room has not loaded yet. */
+      unloaded: undefined as string | undefined,
     },
     mx: {
       getSafeUserId: () => '@alice:example.org',
@@ -56,12 +61,21 @@ const { mx, room, state } = vi.hoisted(() => {
       roomId: '!room:example.org',
       getMember: (userId: string) => members.find((member) => member.userId === userId),
       getThread: () => undefined,
-      // The thread of an agent's requests (makeUiEvent), whose root the room has.
+      // The thread of an agent's requests (makeUiEvent) and another, whose roots the room has, a
+      // reply in the first, and the root of a new thread, still sending.
       findEventById: (eventId: string) =>
-        eventId === '$thread' ? { getId: () => '$thread', isSending: () => false } : undefined,
+        ['$thread', '$other', '$reply', PENDING].includes(eventId) && eventId !== state.unloaded
+          ? {
+              getId: () => eventId,
+              threadRootId: eventId === '$reply' ? '$thread' : eventId,
+              isSending: () => eventId === PENDING,
+              getUnsigned: () => ({}),
+            }
+          : undefined,
       on: () => undefined,
       removeListener: () => undefined,
     },
+    PENDING,
   };
 });
 
@@ -221,17 +235,22 @@ const OTHERS = {
   "another plugin's panel": () => act(async () => state.view?.onPanelToggle?.('other/panel')),
 };
 
+beforeEach(() => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+    }
+  );
+});
+
+afterEach(() => vi.unstubAllGlobals());
+
 describe("a plugin's side panel beside the thread shown", () => {
   beforeEach(() => {
     state.Root = Card;
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe() {}
-        disconnect() {}
-      }
-    );
   });
 
   afterEach(() => {
@@ -244,7 +263,6 @@ describe("a plugin's side panel beside the thread shown", () => {
     state.viewMount = 0;
     state.roomId = room.roomId;
     localStorage.clear();
-    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
@@ -431,5 +449,73 @@ describe("a plugin's side panel beside the thread shown", () => {
     await showThread('$b');
     expect(notesRequest()).toBe('Notes request "beside $b"');
     expect(frameButton('Fill the room with Notes')?.getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+describe('the thread shown, as a plugin component in the room reads it (useShownThread)', () => {
+  /** What a plugin's component in the conversation, such as its slot under the room header, read. */
+  let shown: string | undefined;
+  function Shown() {
+    shown = useShownThread();
+    return null;
+  }
+
+  beforeEach(() => {
+    shown = 'not rendered';
+    state.Root = undefined;
+    state.inView = <Shown />;
+  });
+
+  afterEach(() => {
+    cleanup();
+    state.inView = undefined;
+    state.unloaded = undefined;
+    localStorage.clear();
+  });
+
+  it("is undefined in the room's own timeline", async () => {
+    await renderRoom();
+    expect(shown).toBeUndefined();
+  });
+
+  it("is the thread's root when the address names a reply in it, the thread openBesideThread takes", async () => {
+    state.inView = (
+      <>
+        <Shown />
+        <Card eventId="$thread" />
+      </>
+    );
+    await renderRoom('$reply');
+    expect(shown).toBe('$thread');
+    expect(notesRequest()).toBe('Notes request "beside $thread"');
+  });
+
+  it.each([
+    { named: 'a reply', address: '$reply', root: '$thread' },
+    { named: 'a root', address: '$other', root: '$other' },
+  ])(
+    "is undefined until the room has $named the address names, then the thread's root",
+    async ({ address, root }) => {
+      state.unloaded = address;
+      await renderRoom(address);
+      expect(shown).toBeUndefined();
+      state.unloaded = undefined;
+      await rerenderRoom?.();
+      expect(shown).toBe(root);
+    }
+  );
+
+  it("is undefined while the server has not confirmed the thread's root", async () => {
+    await renderRoom(PENDING);
+    expect(shown).toBeUndefined();
+  });
+
+  it("is the root a thread's address names, and changes as the room shows another thread or its own timeline", async () => {
+    await renderRoom('$thread');
+    expect(shown).toBe('$thread');
+    await showThread('$other');
+    expect(shown).toBe('$other');
+    await showThread(undefined);
+    expect(shown).toBeUndefined();
   });
 });
