@@ -1,7 +1,12 @@
 import { ClientEvent, MatrixEvent, type MatrixClient } from 'matrix-js-sdk';
 import { EventEmitter } from 'events';
 import { describe, expect, it } from 'vitest';
-import { getFinishingEdit, getSyncedEdit, keepSyncedEdits } from './syncedEdits';
+import {
+  getFinishingEdit,
+  getSyncedEdit,
+  isStreamingByServer,
+  keepSyncedEdits,
+} from './syncedEdits';
 
 // Regression (P2-e2ee-F002): a device without the room's keys showed a stopped reply as streaming
 // for good. The SDK never puts an edit it cannot decrypt on its reply, but MindRoom keeps each
@@ -52,5 +57,21 @@ describe('the edit that finished a reply', () => {
     expect(getFinishingEdit(reply)?.getId()).toBe('$stopped');
     // The newest edit, whoever sent it; the rows keep to their sender's.
     expect(getSyncedEdit('$reply')?.getId()).toBe('$stopped');
+  });
+});
+
+describe('a redacted edit the client kept', () => {
+  it('no longer says whether the reply still streams', () => {
+    // The room took a redaction of the edit, which the client knew only from its reply's bundle.
+    const room = { redactedBundledEdits: new Set(['$streaming']), findEventById: () => undefined };
+    const mx = Object.assign(new EventEmitter(), {
+      getRoom: () => room,
+    }) as unknown as MatrixClient;
+    keepSyncedEdits(mx);
+
+    mx.emit(ClientEvent.Event, edit('$streaming', 2, 'streaming'));
+
+    expect(getSyncedEdit('$reply')).toBeUndefined();
+    expect(isStreamingByServer(reply)).toBeUndefined();
   });
 });

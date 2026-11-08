@@ -440,7 +440,7 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
       );
       return {
         room,
-        decrypt: () => mx.emit(MatrixEventEvent.Decrypted, bundledEdit),
+        decrypt: (edit = bundledEdit) => mx.emit(MatrixEventEvent.Decrypted, edit),
         redact: async (...redactions: MatrixEvent[]) => {
           await add(...redactions);
           redactions.forEach((redacted) => mx.emit(ClientEvent.Event, redacted));
@@ -486,6 +486,23 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
         other: '$sold',
       });
     });
+
+    it.each([
+      ['decrypted before the redaction', 'before'],
+      ['decrypting after the previous one', 'after'],
+    ] as const)(
+      'keeps the sender’s previous edit once the bundled edit is redacted, %s',
+      async (_, decrypts) => {
+        const kept = await keptEdit();
+        const previous = new MatrixEvent(ownEdit());
+        if (decrypts === 'before') kept.decrypt();
+        await kept.redact(redaction('$redaction', '$newest-edit', 5));
+        kept.decrypt(previous);
+        if (decrypts === 'after') kept.decrypt();
+
+        expect(kept.result().kept).toBe('$own-edit');
+      }
+    );
 
     it('keeps the edit forgotten when another member redacts it again before it decrypts', async () => {
       expect(

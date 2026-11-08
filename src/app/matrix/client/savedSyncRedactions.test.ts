@@ -482,6 +482,42 @@ describe('dropRedactedContent', () => {
     });
   });
 
+  it('drops an edit the room took a redaction of that the saved timeline does not hold', () => {
+    const accumulator = new SyncAccumulator({ maxTimelineEntries: 500 });
+    const bundled = editOf('$edit', '$message', 'message v2');
+    accumulator.accumulate(
+      syncOf(
+        [
+          raw('$message', text('message v1'), {
+            unsigned: { 'm.relations': { 'm.replace': bundled } },
+          }),
+          raw('$root', text('root stays'), {
+            unsigned: {
+              'm.relations': {
+                'm.thread': {
+                  count: 1,
+                  latest_event: raw('$reply', text('reply v1', inThread), {
+                    unsigned: {
+                      'm.relations': { 'm.replace': editOf('$reply-edit', '$reply', 'reply v2') },
+                    },
+                  }),
+                },
+              },
+            },
+          }),
+        ],
+        'token-1',
+        'b1'
+      )
+    );
+
+    dropRedactedContent(accumulator as never, () => new Set(['$edit', '$reply-edit']));
+
+    const json = JSON.stringify(savedTimeline(accumulator));
+    ['message v2', 'reply v2'].forEach((dropped) => expect(json).not.toContain(dropped));
+    ['message v1', 'reply v1', 'root stays'].forEach((kept) => expect(json).toContain(kept));
+  });
+
   it('gives the next event the pagination token of a dropped edit', () => {
     const accumulator = new SyncAccumulator({ maxTimelineEntries: 500 });
     accumulator.accumulate(
