@@ -1,11 +1,17 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
-import { useAtom, useAtomValue, useSetAtom } from 'jotai';
+import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import { ClientEvent, KnownMembership, RoomEvent, type Room } from 'matrix-js-sdk';
 import { Box, Spinner } from 'folds';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { PowerLevelsContextProvider, usePowerLevels } from '../../matrix/hooks/usePowerLevels';
 import { mainContentFocusTarget } from '../../ui/page/mainContentFocus';
-import { callPanelRoomAtom, isActiveCallShownIn, useActiveCall } from '../callStore';
+import {
+  activeCallAtom,
+  callPanelRoomAtom,
+  dropActiveCall,
+  isActiveCallShownIn,
+  useActiveCall,
+} from '../callStore';
 import { CallPanelPart } from '../CallPanelPart';
 import { focusHandOffAtom, useCallViewFloats, useExpandCallWindow } from './callWindowState';
 import { FloatingCallWindow } from './FloatingCallWindow';
@@ -48,15 +54,22 @@ const focusAfterCall = (doc: Document) => {
 const GONE: ReadonlySet<string> = new Set([KnownMembership.Leave, KnownMembership.Ban]);
 
 /**
- * The open call view (`callPanelRoomAtom`) leaves with its room: when the client forgets the room,
- * or the person leaves it or is banned from it.
+ * The open call view (`callPanelRoomAtom`) and the call shown in it leave with their room: when
+ * the client forgets the room, or the person leaves it or is kicked or banned from it, on every
+ * screen. The call would otherwise go on, heard and hearing, with no view left to end it from. A
+ * call already left is End's to forget, once what follows it ran (which may leave its room).
  */
 const useCloseWithRoom = () => {
   const mx = useMatrixClient();
+  const store = useStore();
   const setPanelRoomId = useSetAtom(callPanelRoomAtom);
   useEffect(() => {
-    const close = (roomId: string) =>
+    const close = (roomId: string) => {
       setPanelRoomId((current) => (current === roomId ? undefined : current));
+      const active = store.get(activeCallAtom);
+      const live = active?.call.getState().phase !== 'ended';
+      if (live && isActiveCallShownIn(active, roomId)) dropActiveCall(store);
+    };
     const onMembership = (room: Room, membership: string) => {
       if (GONE.has(membership)) close(room.roomId);
     };
@@ -66,7 +79,7 @@ const useCloseWithRoom = () => {
       mx.off(ClientEvent.DeleteRoom, close);
       mx.off(RoomEvent.MyMembership, onMembership);
     };
-  }, [mx, setPanelRoomId]);
+  }, [mx, setPanelRoomId, store]);
 };
 
 /**

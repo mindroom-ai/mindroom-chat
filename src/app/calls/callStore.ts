@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { atom, useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
-import { RoomStateEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { KnownMembership, RoomStateEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { MatrixRTCSessionEvent } from 'matrix-js-sdk/lib/matrixrtc';
 import type { CallDevices, CallPhase, CallState, RoomCall } from './RoomCall';
 import { activeMemberships, type CallMember } from './callMemberships';
@@ -306,6 +306,12 @@ export const useCallActions = (mx: MatrixClient) => {
       await room.loadMembersIfNeeded().catch(() => undefined);
       const engine = await loading;
       if (!engine || !mx.clientRunning) return giveUp('failed');
+      // A room the person left meanwhile (the call's, or the conversation an agent call is about)
+      // has no call view to show the call in; from here on, its call ends with it (`CallWindowHost`).
+      const left = [room.roomId, meta.origin?.roomId].some(
+        (roomId) => roomId && mx.getRoom(roomId)?.getMyMembership() !== KnownMembership.Join
+      );
+      if (left) return giveUp('failed');
       const call = new engine.RoomCall({
         mx,
         room,
