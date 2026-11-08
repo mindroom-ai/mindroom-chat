@@ -1,11 +1,19 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { MatrixClient, MatrixEvent, MemoryStore, Room, RoomVersionStability } from 'matrix-js-sdk';
+import {
+  MatrixClient,
+  MatrixError,
+  MatrixEvent,
+  MemoryStore,
+  Room,
+  RoomVersionStability,
+} from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
 import { createSubRoom } from '../../../client-sdk/room';
 import { CreateSubRoomDialog } from './CreateSubRoomDialog';
+import { createSubRoom as createAppSubRoom } from './createSubRoom';
 
 const navigation = vi.hoisted(() => ({ navigate: vi.fn(), navigateRoom: vi.fn() }));
 
@@ -233,5 +241,32 @@ describe("the client SDK's createSubRoom", () => {
     );
 
     expect(createRoom).not.toHaveBeenCalled();
+  });
+});
+
+describe('createSubRoom, when the parent refuses to list the new room', () => {
+  it('leaves and forgets it, rejects with the refusal, and trying again makes one listed room', async () => {
+    const { mx, parent, createRoom, sendStateEvent } = setup();
+    const refusal = new MatrixError(
+      { errcode: 'M_LIMIT_EXCEEDED', error: 'Too many requests' },
+      429
+    );
+    createRoom.mockResolvedValueOnce({ room_id: '!hidden:example.org' });
+    sendStateEvent.mockRejectedValueOnce(refusal);
+    const leave = vi.spyOn(mx, 'leave').mockResolvedValue({});
+    const forget = vi.spyOn(mx, 'forget').mockResolvedValue({});
+
+    await expect(createAppSubRoom(parent, 'Ideas', undefined)).rejects.toBe(refusal);
+    expect(leave).toHaveBeenCalledWith('!hidden:example.org');
+    expect(forget).toHaveBeenCalledWith('!hidden:example.org');
+
+    await expect(createAppSubRoom(parent, 'Ideas', undefined)).resolves.toBe(NEW_ROOM);
+    expect(sendStateEvent).toHaveBeenLastCalledWith(
+      PARENT,
+      'm.space.child',
+      expect.anything(),
+      NEW_ROOM
+    );
+    expect(leave).toHaveBeenCalledTimes(1);
   });
 });

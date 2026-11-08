@@ -61,13 +61,24 @@ export const getSyncedEdit = (eventId: string): MatrixEvent | undefined => {
   return edit && !isRedactedBundledEdit(edit) ? edit : undefined;
 };
 
-/** The edit of `reply` by its sender that finished its stream, if the client has one. */
+/** Whether the client can read `edit`: sent in the clear, or decrypted. */
+const isReadable = (edit: MatrixEvent): boolean =>
+  !edit.isEncrypted?.() || (!!edit.getClearContent?.() && !edit.isDecryptionFailure?.());
+
+/**
+ * The edit of `reply` by its sender that finished its stream, if the client has one. Of two copies
+ * of one edit, the readable one: the server's copy bundled with the reply stays encrypted until the
+ * reply is shown, while the SDK decrypts the copy the sync brought.
+ */
 export const getFinishingEdit = (reply: MatrixEvent): MatrixEvent | undefined => {
   const replyId = reply.getId();
   const candidates = [reply.replacingEvent?.(), replyId ? finishingEdits.get(replyId) : undefined];
   return candidates.reduce<MatrixEvent | undefined>((newest, edit) => {
     if (!edit || edit.getSender() !== reply.getSender() || !isFinishingEdit(edit)) return newest;
-    return !newest || edit.getTs() > newest.getTs() ? edit : newest;
+    if (!newest || edit.getTs() > newest.getTs()) return edit;
+    return edit.getTs() === newest.getTs() && isReadable(edit) && !isReadable(newest)
+      ? edit
+      : newest;
   }, undefined);
 };
 
