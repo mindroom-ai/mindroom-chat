@@ -8,6 +8,9 @@ import {
   Room,
   Visibility,
 } from 'matrix-js-sdk';
+import i18n from '../i18n/i18n';
+import { describeError } from '../lib/describeError';
+import { revealDirectionControls } from '../ui/directional';
 import { JoinRule, RoomType, StateEvent } from './types/room';
 import type { MDirectContent } from './types/accountData';
 import { getViaServers } from './via-servers';
@@ -142,7 +145,11 @@ export type CreateRoomData = RoomIdentity &
     parent?: Room;
   };
 
-/** Creates a room (or space, or voice room) and returns its ID; adds it to `parent` if given. */
+/**
+ * Creates a room (or space, or voice room) and returns its ID; adds it to `parent` if given. When
+ * `parent` does not list it, it leaves and forgets the room and throws an error saying it was not
+ * created, with the failure as its `cause`.
+ */
 export const createRoom = async (client: MatrixClient, data: CreateRoomData): Promise<string> => {
   const { access, parent, type, version } = data;
   const isPublic = access === CreateRoomAccess.Public;
@@ -176,12 +183,30 @@ export const createRoom = async (client: MatrixClient, data: CreateRoomData): Pr
   const roomId = result.room_id;
   if (parent) {
     const childContent = { via: getViaServers(parent), suggested: false, auto_join: false };
-    await client.sendStateEvent(
-      parent.roomId,
-      StateEvent.SpaceChild as never,
-      childContent as never,
-      roomId
-    );
+    try {
+      await client.sendStateEvent(
+        parent.roomId,
+        StateEvent.SpaceChild as never,
+        childContent as never,
+        roomId
+      );
+    } catch (cause) {
+      // Not listed under `parent`, the room would stay hidden from its members, and trying again
+      // would create another: leave and forget it, so that nothing was created. If even leaving
+      // fails, the room stays, and so does the link's error.
+      try {
+        await client.leave(roomId);
+      } catch {
+        throw cause;
+      }
+      await client.forget(roomId).catch(() => undefined);
+      const reason = describeError(i18n.t, cause);
+      const parentName = revealDirectionControls(parent.name);
+      throw new Error(
+        i18n.t('featureUi.subRooms.notListed', { name: data.name, parent: parentName, reason }),
+        { cause }
+      );
+    }
   }
   return roomId;
 };
