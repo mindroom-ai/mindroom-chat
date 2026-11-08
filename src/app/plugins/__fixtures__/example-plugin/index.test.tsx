@@ -93,6 +93,23 @@ describe('example plugin', () => {
     expect((await renderGreeting()).queryByRole('button', { name: 'Show in panel' })).toBeNull();
   });
 
+  it('links its room page to the room and to its thread, also at a space address', async () => {
+    const page = plugin.pages?.find(({ path }) => path === 'rooms/:roomId/:threadId');
+    if (!page) throw new Error('the example plugin has no room page');
+    // A space's address by its alias, as a room's own components see, of a space the client lacks.
+    const view = await renderPluginComponent(
+      <MemoryRouter initialEntries={['/%23team%3Aexample.org/']}>
+        <page.Component params={{ roomId: '!lobby:example.org', threadId: '$root:example.org' }} />
+      </MemoryRouter>,
+      { id: 'example', plugin }
+    );
+    const href = (name: string) => view.getByRole('link', { name }).getAttribute('href');
+    expect(href('Link to the room')).toBe('/home/!lobby%3Aexample.org');
+    expect(href('Link to the thread')).toBe(
+      '/home/!lobby%3Aexample.org?threadId=%24root%3Aexample.org'
+    );
+  });
+
   it('names the open room under the header', async () => {
     if (!Banner) throw new Error('the example plugin has nothing under the room header');
     const room = { roomId: '!lobby:example.org', name: 'Lobby' } as Room;
