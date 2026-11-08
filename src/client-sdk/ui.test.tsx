@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, render, renderHook, waitFor } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
+import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ClientConfigProvider } from '../app/config/useClientConfig';
 import { withReasoning } from '../app/messages/agent-run/Reasoning';
 import { Body as ReasoningBody } from '../app/messages/agent-run/Reasoning.css';
 import { LIVE_REASONING_KEY } from '../app/messages/live/useLiveReplyContent';
@@ -95,6 +97,33 @@ describe('useMarkdownHtml', () => {
     const { result } = renderHook(() => useMarkdownHtml(UNSAFE));
     await waitFor(() => expect(result.current).toBeDefined());
     expectSafe(result.current ?? '');
+  });
+
+  it("shows direction controls as code points, as the app's messages show them", async () => {
+    // Read in order, this hides the command after a comment sign.
+    const { result } = renderHook(() => useMarkdownHtml('echo hi \u202E; rm -rf data #\u202C'));
+    await waitFor(() => expect(result.current).toBeDefined());
+    expect(elementsOf(result.current ?? '').textContent?.trim()).toBe(
+      'echo hi <U+202E>; rm -rf data #<U+202C>'
+    );
+  });
+
+  it("keeps the link schemes the deployment adds, as the app's timeline does", async () => {
+    const config = { messageRendering: { additionalAllowedUriSchemes: ['obsidian'] } };
+    const link = (wrapper?: (props: { children: ReactNode }) => ReactNode) => {
+      const { result } = renderHook(() => useMarkdownHtml('[note](obsidian://vault/x)'), {
+        wrapper,
+      });
+      return waitFor(() => {
+        expect(result.current).toBeDefined();
+        return elementsOf(result.current ?? '').querySelector('a');
+      });
+    };
+    expect((await link())?.hasAttribute('href')).toBe(false);
+    const configured = await link(({ children }) => (
+      <ClientConfigProvider value={config}>{children}</ClientConfigProvider>
+    ));
+    expect(configured?.getAttribute('href')).toBe('obsidian://vault/x');
   });
 });
 
