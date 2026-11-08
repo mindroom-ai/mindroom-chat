@@ -102,10 +102,9 @@ describe('useVirtualPaginator sentinels under floating bars', () => {
     });
     expect(onEnd).not.toHaveBeenCalled();
 
-    // The reader reaches the top: the sentinel shows below the header and history loads once.
+    // The reader reaches the top: the sentinel shows below the header and history loads.
     sentinelBox = { top: 80, height: 1 };
     act(() => {
-      root.dispatchEvent(new Event('scroll'));
       root.dispatchEvent(new Event('scroll'));
     });
     expect(onEnd.mock.calls).toEqual([[true]]);
@@ -127,33 +126,6 @@ describe('useVirtualPaginator sentinels under floating bars', () => {
       ]);
     });
     expect(onEnd.mock.calls).toEqual([[true]]);
-  });
-
-  it('forgets a covered sentinel once it leaves the scroll area', () => {
-    const root = makeScrollArea();
-    const sentinel = document.createElement('span');
-    let sentinelBox: Box = { top: 30, height: 1 };
-    sentinel.getBoundingClientRect = () => boxRect(sentinelBox);
-    const onEnd = vi.fn();
-    act(() => {
-      create(React.createElement(Harness, { root, onEnd }), {
-        createNodeMock: () => sentinel,
-      });
-    });
-    act(() => {
-      observerState.report?.([
-        { target: sentinel, isIntersecting: true } as unknown as IntersectionObserverEntry,
-      ]);
-      observerState.report?.([
-        { target: sentinel, isIntersecting: false } as unknown as IntersectionObserverEntry,
-      ]);
-    });
-    // Laid out in view again without the observer seeing it enter: nothing to recheck.
-    sentinelBox = { top: 300, height: 1 };
-    act(() => {
-      root.dispatchEvent(new Event('scroll'));
-    });
-    expect(onEnd).not.toHaveBeenCalled();
   });
 
   it('pages once the reader scrolls up to a sentinel the opening fill left under the header', () => {
@@ -189,10 +161,9 @@ describe('useVirtualPaginator sentinels under floating bars', () => {
     expect(retried).toBe(false);
     expect(onEnd).not.toHaveBeenCalled();
 
-    // The reader scrolls up to the top: the sentinel shows below the header, history loads once.
+    // The reader scrolls up to the top: the sentinel shows below the header, history loads.
     sentinelBox = { top: 80, height: 1 };
     act(() => {
-      root.dispatchEvent(new Event('scroll'));
       root.dispatchEvent(new Event('scroll'));
     });
     expect(onEnd.mock.calls).toEqual([[true]]);

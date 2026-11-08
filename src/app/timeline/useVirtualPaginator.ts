@@ -65,12 +65,8 @@ type VirtualPaginatorOptions = PaginatorDom &
      * and will call it once the layout settles; false to paginate now.
      */
     deferAutomaticPagination?: (retry: () => boolean) => boolean;
-    /**
-     * How many pixels above the visible band the back sentinel still counts as in view when the
-     * automatic fill phase retries: the opening fill loads history ahead of the reader that
-     * far. Pagination the reader's scrolling causes counts the visible band only.
-     */
-    automaticBackReach?: () => number;
+    /** Pages a screen ahead of the reader (`isAnchorVisible`), not once they see a sentinel. */
+    readAhead?: boolean;
     /**
      * The owner keeps the rows on screen in place when the window grows towards older items
      * (an offset ledger, say), so the paginator leaves the scroll position alone then.
@@ -107,24 +103,23 @@ export const readScrollPadding = (scrollElement: HTMLElement): { top: number; bo
 };
 
 /**
- * A sentinel is in view only where the reader can see it: the scroll padding is the band that
- * floating bars (a room header, the composer) cover, and a sentinel under them stays hidden.
+ * Pagination that reads ahead keeps a screen of items loaded beyond the scroll area on either side:
+ * a sentinel counts as in view up to the scroll area's height beyond its box, so the next page
+ * loads while the reader still has a screen to read, and pages that add few items follow one
+ * another until a screen lies ahead. The observer's margin reaches as far. Otherwise a sentinel
+ * counts only where the reader can see it: the scroll padding is the band that floating bars (a
+ * room header, the composer) cover.
  */
-const isAnchorVisible = (root: HTMLElement, anchor: Element | null, reachAbove = 0): boolean => {
+const READ_AHEAD_MARGIN = '100% 0px';
+
+const isAnchorVisible = (root: HTMLElement, anchor: Element | null, readAhead = false): boolean => {
   if (!anchor) return false;
   const view = root.getBoundingClientRect();
+  const rect = anchor.getBoundingClientRect();
+  if (readAhead)
+    return rect.bottom > view.top - view.height && rect.top < view.bottom + view.height;
   const padding = readScrollPadding(root);
-  const rect = anchor.getBoundingClientRect();
-  return (
-    rect.bottom > view.top + padding.top - reachAbove && rect.top < view.bottom - padding.bottom
-  );
-};
-
-/** The sentinel is inside the scroll area's box, under a floating bar or not. */
-const isAnchorInScrollArea = (root: HTMLElement, anchor: Element): boolean => {
-  const view = root.getBoundingClientRect();
-  const rect = anchor.getBoundingClientRect();
-  return rect.bottom > view.top && rect.top < view.bottom;
+  return rect.bottom > view.top + padding.top && rect.top < view.bottom - padding.bottom;
 };
 
 /**
@@ -218,35 +213,42 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
     return undefined;
   }, []);
 
-  /** Items before the first one still in or below view; `end` when all are above. */
+  /**
+   * Items before the first one still in or below view, or within the screen above it that reading
+   * ahead keeps (it would load them again); `end` when all are above.
+   */
   const firstNotAboveView = useCallback((itemRange: ItemRange): number => {
-    const { getScrollElement, getItemElement } = optionsRef.current;
+    const { getScrollElement, getItemElement, readAhead } = optionsRef.current;
     const scrollElement = getScrollElement();
     if (!scrollElement) return itemRange.start;
+    const reachTop = scrollElement.scrollTop - (readAhead ? scrollElement.offsetHeight : 0);
     for (let index = itemRange.start; index < itemRange.end; index += 1) {
       const element = getItemElement(index);
       if (!element) return index;
-      if (contentTop(scrollElement, element) + element.clientHeight > scrollElement.scrollTop) {
-        return index;
-      }
+      if (contentTop(scrollElement, element) + element.clientHeight > reachTop) return index;
     }
     return itemRange.end;
   }, []);
 
-  /** One past the last item still in or above view; `start` when all are below. */
+  /**
+   * One past the last item still in or above view, or within the screen below it that reading
+   * ahead keeps; `start` when all are below.
+   */
   const lastNotBelowView = useCallback((itemRange: ItemRange): number => {
-    const { getScrollElement, getItemElement } = optionsRef.current;
+    const { getScrollElement, getItemElement, readAhead } = optionsRef.current;
     const scrollElement = getScrollElement();
     if (!scrollElement) return itemRange.end;
-    const viewBottom = scrollElement.scrollTop + scrollElement.offsetHeight;
+    const reachBottom = scrollElement.scrollTop + (readAhead ? 2 : 1) * scrollElement.offsetHeight;
     for (let index = itemRange.end - 1; index >= itemRange.start; index -= 1) {
       const element = getItemElement(index);
       if (!element) return index + 1;
-      if (contentTop(scrollElement, element) < viewBottom) return index + 1;
+      if (contentTop(scrollElement, element) < reachBottom) return index + 1;
     }
     return itemRange.start;
   }, []);
 
+  // The window a pagination step widened, until the widened window renders.
+  const steppedFromRef = useRef<ItemRange>();
   const changeRange = useCallback(
     (nextRange: ItemRange, preserveAnchorIndex?: number) => {
       const {
@@ -256,6 +258,7 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
         externalBackwardScrollRestore,
       } = optionsRef.current;
       if (nextRange.start === currentRange.start && nextRange.end === currentRange.end) return;
+      steppedFromRef.current = { start: currentRange.start, end: currentRange.end };
       if (externalBackwardScrollRestore && nextRange.start < currentRange.start) {
         anchorRef.current = undefined;
         onRangeChange(nextRange, currentRange);
@@ -277,6 +280,15 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
     (back: boolean, opts?: RetryPaginationOptions): boolean => {
       const { range: currentRange, count, limit, onEnd } = optionsRef.current;
       const preserveAnchorIndex = opts?.preserveAnchorIndex;
+      // One step at a time: a step asked for since the last render widens a window that is not
+      // mounted yet, and asking again (a scroll, a turn of the wheel or a size change looks at the
+      // sentinels meanwhile) widened it over the same items once more. An owner that keeps the
+      // items on screen in place priced their height twice, and its settle then moved the reader
+      // past the end of the content or left nothing to scroll. The step's render looks again.
+      const stepped = steppedFromRef.current;
+      if (stepped && stepped.start === currentRange.start && stepped.end === currentRange.end) {
+        return true;
+      }
 
       if (back) {
         if (currentRange.start <= 0) {
@@ -309,46 +321,26 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
     [changeRange, firstNotAboveView, lastNotBelowView]
   );
 
-  // Sentinels inside the scroll area that sit under its padding, where the reader cannot see
-  // them. They count once a scroll or a size change brings them out from under it, which the
-  // observer does not report: it sees only the scroll area's box.
-  const coveredRef = useRef(new Set<string>());
-
-  /**
-   * Paginates towards the first visible sentinel, history first; false when none is visible.
-   * `backReach` extends the view above the visible band for the back sentinel.
-   */
+  /** Paginates towards the first sentinel in view, history first; false when none is. */
   const paginateVisibleAnchor = useCallback(
-    (opts?: RetryPaginationOptions, backReach = 0): boolean => {
-      const { getScrollElement, shouldSuppressPagination } = optionsRef.current;
+    (opts?: RetryPaginationOptions): boolean => {
+      const { getScrollElement, shouldSuppressPagination, readAhead } = optionsRef.current;
       if (shouldSuppressPagination?.()) return false;
       const root = getScrollElement();
       if (!root) return false;
-      const back = root.querySelector(anchorSelector(BACK_ANCHOR));
-      if (isAnchorVisible(root, back, backReach)) return paginate(true, opts);
-      const front = root.querySelector(anchorSelector(FRONT_ANCHOR));
-      if (isAnchorVisible(root, front)) return paginate(false, opts);
-      // The observer may have reported a sentinel in view while pagination was held (a focus
-      // jump, the opening fill) that has since moved under a floating bar. It reports nothing
-      // more while the sentinel stays inside the scroll area, so it counts as covered from here.
-      [
-        { direction: BACK_ANCHOR, anchor: back },
-        { direction: FRONT_ANCHOR, anchor: front },
-      ].forEach(({ direction, anchor }) => {
-        if (anchor && isAnchorInScrollArea(root, anchor)) coveredRef.current.add(direction);
-      });
+      if (isAnchorVisible(root, root.querySelector(anchorSelector(BACK_ANCHOR)), readAhead))
+        return paginate(true, opts);
+      if (isAnchorVisible(root, root.querySelector(anchorSelector(FRONT_ANCHOR)), readAhead))
+        return paginate(false, opts);
       return false;
     },
     [paginate]
   );
 
-  const retryAutomatic = useCallback(
-    () => paginateVisibleAnchor(undefined, optionsRef.current.automaticBackReach?.() ?? 0),
-    [paginateVisibleAnchor]
-  );
+  const retryAutomatic = useCallback(() => paginateVisibleAnchor(), [paginateVisibleAnchor]);
 
   // The automatic fill decides once the opening rows have settled, also when no sentinel ever
-  // reaches the scroll area (rows already reach above it, but not as far as it loads ahead).
+  // comes into view (rows already reach a screen beyond it).
   const { deferAutomaticPagination } = options;
   useLayoutEffect(() => {
     deferAutomaticPagination?.(retryAutomatic);
@@ -371,7 +363,7 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
     [paginateVisibleAnchor]
   );
 
-  /** Paginates towards the sentinels that came into view, history first. */
+  /** Paginates towards the sentinels in view, history first. */
   const paginateShown = useCallback(
     (directions: readonly (string | null)[]) => {
       if (optionsRef.current.shouldSuppressPagination?.()) return;
@@ -384,57 +376,60 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
     [paginate, runAutomatic]
   );
 
+  // The observer sees the scroll area's box: a sentinel under a floating bar waits for a scroll.
   const handleIntersection = useCallback(
     (entries: IntersectionObserverEntry[]) => {
-      const root = optionsRef.current.getScrollElement();
-      const covered = coveredRef.current;
-      const shown: (string | null)[] = [];
-      entries.forEach((entry) => {
-        const direction = entry.target.getAttribute(PAGINATOR_ANCHOR_ATTRIBUTE);
-        if (direction) covered.delete(direction);
-        if (!entry.isIntersecting) return;
-        if (direction && root && !isAnchorVisible(root, entry.target)) covered.add(direction);
-        else shown.push(direction);
-      });
-      paginateShown(shown);
+      const { getScrollElement, readAhead } = optionsRef.current;
+      const root = getScrollElement();
+      paginateShown(
+        entries
+          .filter(
+            (entry) =>
+              entry.isIntersecting && !!root && isAnchorVisible(root, entry.target, readAhead)
+          )
+          .map((entry) => entry.target.getAttribute(PAGINATOR_ANCHOR_ATTRIBUTE))
+      );
     },
     [paginateShown]
   );
 
-  /** Paginates towards the covered sentinels that the reader can see now. */
-  const recheckCovered = useCallback(() => {
-    const covered = coveredRef.current;
-    const root = optionsRef.current.getScrollElement();
-    if (covered.size === 0 || !root) return;
+  // The observer reports a sentinel only as it comes into view. One that stays in view after a
+  // report pagination did not act on (a focus jump held it, a page was already on its way) is
+  // looked at again as the reader scrolls (at the very top a turn of the wheel or a drag moves
+  // nothing and fires no scroll event, so those count too), and as the scroll area or the content
+  // holding a sentinel changes size.
+  const recheck = useCallback(() => {
+    const { getScrollElement, readAhead } = optionsRef.current;
+    const root = getScrollElement();
+    if (!root) return;
     const { back, front } = anchorsRef.current;
-    const shown = [
-      { direction: BACK_ANCHOR, element: back },
-      { direction: FRONT_ANCHOR, element: front },
-    ]
-      .filter(
-        ({ direction, element }) => covered.has(direction) && isAnchorVisible(root, element ?? null)
-      )
-      .map(({ direction }) => direction);
-    shown.forEach((direction) => covered.delete(direction));
-    paginateShown(shown);
+    paginateShown([
+      isAnchorVisible(root, back ?? null, readAhead) ? BACK_ANCHOR : null,
+      isAnchorVisible(root, front ?? null, readAhead) ? FRONT_ANCHOR : null,
+    ]);
   }, [paginateShown]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return undefined;
     const recheckOnScroll = (event: Event) => {
-      if (event.target === optionsRef.current.getScrollElement()) recheckCovered();
+      const root = optionsRef.current.getScrollElement();
+      if (root && event.target instanceof Node && root.contains(event.target)) recheck();
     };
     // Scroll events do not bubble; the capture phase sees the scroll area's whichever it is.
-    document.addEventListener('scroll', recheckOnScroll, { capture: true, passive: true });
-    return () => document.removeEventListener('scroll', recheckOnScroll, { capture: true });
-  }, [recheckCovered]);
+    const events = ['scroll', 'wheel', 'touchmove'] as const;
+    events.forEach((type) =>
+      document.addEventListener(type, recheckOnScroll, { capture: true, passive: true })
+    );
+    return () =>
+      events.forEach((type) =>
+        document.removeEventListener(type, recheckOnScroll, { capture: true })
+      );
+  }, [recheck]);
 
-  // A size change brings a covered sentinel into view without a scroll too: the scroll area's
-  // own, or that of the content holding a sentinel (rows before it measure smaller).
   const resizesRef = useRef<ResizeObserver>();
   useEffect(() => {
     if (typeof ResizeObserver === 'undefined') return undefined;
-    const resizes = new ResizeObserver(recheckCovered);
+    const resizes = new ResizeObserver(recheck);
     resizesRef.current = resizes;
     const root = optionsRef.current.getScrollElement();
     if (root) resizes.observe(root);
@@ -446,12 +441,16 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
       resizes.disconnect();
       resizesRef.current = undefined;
     };
-  }, [recheckCovered]);
+  }, [recheck]);
 
   // Read through the ref, so a new `getScrollElement` each render keeps the same observer.
+  const { readAhead } = options;
   const getObserverOptions = useCallback(
-    () => ({ root: optionsRef.current.getScrollElement() }),
-    []
+    () => ({
+      root: optionsRef.current.getScrollElement(),
+      rootMargin: readAhead ? READ_AHEAD_MARGIN : undefined,
+    }),
+    [readAhead]
   );
   const observer = useIntersectionObserver(handleIntersection, getObserverOptions);
 
@@ -470,7 +469,6 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
     (key: 'back' | 'front', direction: string, element: HTMLElement | null) => {
       const previous = anchorsRef.current[key];
       if (previous === element) return;
-      coveredRef.current.delete(direction);
       if (previous) observer?.unobserve(previous);
       anchorsRef.current[key] = element ?? undefined;
       if (!element) return;
@@ -526,6 +524,7 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
     const previous = previousRangeRef.current;
     if (previous.start === range.start && previous.end === range.end) return;
     previousRangeRef.current = range;
+    steppedFromRef.current = undefined;
     const { getScrollElement, getItemElement } = optionsRef.current;
 
     const anchor = anchorRef.current;

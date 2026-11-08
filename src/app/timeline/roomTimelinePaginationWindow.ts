@@ -10,7 +10,6 @@ import {
 } from 'react';
 import {
   Direction,
-  EventType,
   ThreadEvent,
   type EventTimeline,
   type MatrixClient,
@@ -229,6 +228,7 @@ export const useRoomWindowPaginator = ({
   windowLimit,
   getScrollElement,
   deferAutomaticPagination,
+  readAhead,
 }: {
   alive: () => boolean;
   roomRows: MatrixEvent[];
@@ -244,6 +244,8 @@ export const useRoomWindowPaginator = ({
   windowLimit: number;
   getScrollElement: () => HTMLElement | null;
   deferAutomaticPagination: (retry: () => boolean) => boolean;
+  /** Pages a screen ahead of the reader; see `useVirtualPaginator`. */
+  readAhead: boolean;
 }) => {
   const pendingRoomFoldPxRef = useRef(0);
   // The window the pending fold was priced against: a render that still shows it has not mounted
@@ -333,14 +335,6 @@ export const useRoomWindowPaginator = ({
     () => suppressFocusPaginationRef.current,
     [suppressFocusPaginationRef]
   );
-  // The opening fill loads a screen of history above the reader. A room whose creation is loaded
-  // has nothing older to load ahead: its rows above the reader, and its start, mount as the reader
-  // scrolls up to them.
-  const automaticBackReach = useCallback(() => {
-    const first = firstRoomTimelineRef.current?.getEvents()[0];
-    if (first?.getType() === EventType.RoomCreate) return 0;
-    return scrollRef.current?.clientHeight ?? 0;
-  }, [firstRoomTimelineRef, scrollRef]);
   const paginator = useVirtualPaginator({
     count: roomRows.length,
     range: activeTimelineRange,
@@ -351,7 +345,7 @@ export const useRoomWindowPaginator = ({
     onEnd: handleRoomPaginationEnd,
     shouldSuppressPagination,
     deferAutomaticPagination,
-    automaticBackReach,
+    readAhead,
     externalBackwardScrollRestore: true,
   });
   return {

@@ -27,6 +27,7 @@ it('keeps a room fold pending through a render that still shows the window it wa
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
   const scrollElement = { scrollTop: 0, addEventListener() {}, removeEventListener() {} };
   const pendingRoomFoldPxRef = { current: 0 };
+  let readRowFoldPx = () => 0;
   function Harness({ held }: { held: boolean }) {
     const controller = useTimelineScrollLedgerController({
       alive: () => true,
@@ -42,6 +43,7 @@ it('keeps a room fold pending through a render that still shows the window it wa
       threadEvents: [],
       threadInitialRenderMode: 'live',
     });
+    readRowFoldPx = controller.readRowFoldPx;
     return <div ref={controller.virtualInnerRef} />;
   }
   const container = document.createElement('div');
@@ -56,10 +58,13 @@ it('keeps a room fold pending through a render that still shows the window it wa
   expect(marginTop()).toBe('');
   expect(pendingRoomFoldPxRef.current).toBe(13_000);
 
-  // The render that mounts the rows takes the fold, once.
+  // The render that mounts the rows takes the fold, once. The rows brought their own height: the
+  // list will not end that much higher (`listShrinkNotRendered`), or the end clamp would throw a
+  // reader at the newest row to the top.
   flushSync(() => root.render(<Harness held={false} />));
   expect(marginTop()).toBe('-13000px');
   expect(pendingRoomFoldPxRef.current).toBe(0);
+  expect(readRowFoldPx()).toBe(13_000);
   flushSync(() => root.render(<Harness held={false} />));
   expect(marginTop()).toBe('-13000px');
   flushSync(() => root.unmount());

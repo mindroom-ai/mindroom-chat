@@ -76,8 +76,11 @@ export type TimelineScrollLedgerControllerOptions = {
   threadEvents: readonly ThreadLedgerEvent[];
   threadId?: string;
   threadInitialRenderMode: ThreadInitialRenderMode;
-  /** What the thread renders between its banner and its rows. */
-  threadLeadingKey?: string;
+  /**
+   * What the timeline renders above its rows: a thread's lines between its banner and its rows,
+   * or the room's start (the room intro) and the line above its rows.
+   */
+  leadingKey?: string;
   automaticFill?: {
     isActive: () => boolean;
     geometryReader: MutableRefObject<() => string | undefined>;
@@ -90,7 +93,7 @@ export type TimelineScrollLedgerController = {
   holdThreadBannerResize: (deltaPx: number, scrollTop: number) => void;
   ledgerPxAtRender: number;
   measureElement: (node: Element | null) => void;
-  threadLeadingRef: RefObject<HTMLDivElement>;
+  leadingRef: RefObject<HTMLDivElement>;
   /** The correction virtual-core applied that the rows do not show yet, in px. */
   unrenderedCorrectionPx: () => number;
   /** Applied upward measurement corrections, including those whose rows already rendered. */
@@ -192,7 +195,7 @@ export const useTimelineScrollLedgerController = ({
   threadEvents,
   threadId,
   threadInitialRenderMode,
-  threadLeadingKey = '',
+  leadingKey = '',
   automaticFill,
 }: TimelineScrollLedgerControllerOptions): TimelineScrollLedgerController => {
   const scrollCompensationPxRef = useRef(0);
@@ -213,9 +216,10 @@ export const useTimelineScrollLedgerController = ({
   // until the next settle: a thread's list holds all its rows, so their fold lifts the list without
   // changing the scroll content, and it is no room the list will give up (`listShrinkNotRendered`).
   // So do anchored room rows new to the list (`RoomLedgerFold.addedPx`): the Threads view's list
-  // holds all its rows too. Window folds and the content above a thread's rows are left out: a
-  // room's page can drop rows from the window below the reader, and the content above the rows is
-  // outside the list.
+  // holds all its rows too. So do the rows a room window's page mounts above the reader: rows it
+  // drops below the reader leave a list its render already ends higher, and counting the fold as
+  // shrink threw a reader at the newest row to the top when a page landed a screen above them.
+  // The content above a thread's rows is left out: it is outside the list.
   const rowFoldPxRef = useRef(0);
   // Fold pricing must use the previous committed cache. Reading the current
   // virtualizer during render would create a TDZ and couple planning to a
@@ -242,14 +246,20 @@ export const useTimelineScrollLedgerController = ({
   // the margin lands before anything can read layout and clamp the scroll;
   // each commit then measures what it shows and folds that before paint,
   // where it can only add height. A reader looking at that content (no
-  // anchor row) sees it change.
-  const threadLeadingRef = useRef<HTMLDivElement>(null);
-  const threadLeadingCommittedRef = useRef({ key: '', px: 0 });
-  const committedLeading = threadLeadingCommittedRef.current;
-  const threadLeadingPx = threadLeadingKey === committedLeading.key ? committedLeading.px : 0;
-  const threadLeadingHeld =
-    !resettingLedgerView && !!threadId && threadLedgerAnchorRef.current?.threadId === threadId;
-  const threadLeadingFoldPx = threadLeadingHeld ? threadLeadingPx - committedLeading.px : 0;
+  // anchor row) sees it change. The room's leading content (its start, the
+  // room intro, mounts once history reaches it, a screen ahead of the reader)
+  // is held the same way while it lies above the reader's view.
+  const leadingRef = useRef<HTMLDivElement>(null);
+  const leadingCommittedRef = useRef({ key: '', px: 0 });
+  const committedLeading = leadingCommittedRef.current;
+  const leadingRenderPx = leadingKey === committedLeading.key ? committedLeading.px : 0;
+  const roomLeadingAboveViewRef = useRef(false);
+  const leadingHeld =
+    !resettingLedgerView &&
+    (threadId
+      ? threadLedgerAnchorRef.current?.threadId === threadId
+      : !!leadingKey && roomLeadingAboveViewRef.current);
+  const leadingFoldPx = leadingHeld ? leadingRenderPx - committedLeading.px : 0;
   // Anchored room rows: rows a render puts above the reader's first visible row are folded,
   // whatever put them there (a new thread at the top, a page that widened the window).
   const roomLedgerAnchorRef = useRef<RoomLedgerAnchor>();
@@ -275,7 +285,7 @@ export const useTimelineScrollLedgerController = ({
     ? 0
     : scrollCompensationPxRef.current +
       threadLedgerRenderPlan.foldPx +
-      threadLeadingFoldPx +
+      leadingFoldPx +
       roomFoldPxAtRender +
       roomLedgerFoldPx;
 
@@ -283,12 +293,13 @@ export const useTimelineScrollLedgerController = ({
     if (resettingLedgerView) return;
 
     const foldPx =
-      threadLedgerRenderPlan.foldPx + threadLeadingFoldPx + roomFoldPxAtRender + roomLedgerFoldPx;
+      threadLedgerRenderPlan.foldPx + leadingFoldPx + roomFoldPxAtRender + roomLedgerFoldPx;
     if (foldPx !== 0) {
       // Preserve measurement corrections that arrived between render and
       // this effect; only add the render plan's delta.
       scrollCompensationPxRef.current += foldPx;
-      rowFoldPxRef.current += threadLedgerRenderPlan.foldPx + roomLedgerAddedPx;
+      rowFoldPxRef.current +=
+        threadLedgerRenderPlan.foldPx + roomLedgerAddedPx + roomFoldPxAtRender;
       ledgerSettleWantedRef.current = true;
     }
     if (anchoringRoomRows) pendingRoomFoldPxRef.current = 0;
@@ -302,7 +313,7 @@ export const useTimelineScrollLedgerController = ({
     roomFoldPxAtRender,
     roomLedgerAddedPx,
     roomLedgerFoldPx,
-    threadLeadingFoldPx,
+    leadingFoldPx,
     threadLedgerRenderPlan,
   ]);
 
@@ -377,7 +388,7 @@ export const useTimelineScrollLedgerController = ({
     // Rows measured in this commit are judged before the layout effect
     // re-reads the list's offset; the leading content it changed moves it.
     const view = threadLedgerViewRef.current;
-    if (view) view.listTop += threadLeadingPx - committedLeading.px;
+    if (view) view.listTop += leadingRenderPx - committedLeading.px;
   });
   const anchorThreadLedgerAt = useCallback(
     (scrollTop: number) => {
@@ -446,19 +457,32 @@ export const useTimelineScrollLedgerController = ({
     scrollElement.addEventListener('scroll', onScroll, { passive: true });
     return () => scrollElement.removeEventListener('scroll', onScroll);
   }, [anchorRoomLedgerAt, anchoringRoomRows, getScrollElement]);
+  // Whether the room's leading content lies above the reader's view (the scroll area below the
+  // bars over its top, its scroll padding), as of the last commit or scroll.
+  const noteRoomLeadingPlace = useCallback(() => {
+    const scrollElement = getScrollElement();
+    const leading = leadingRef.current;
+    roomLeadingAboveViewRef.current =
+      !!scrollElement &&
+      !!leading &&
+      leading.getBoundingClientRect().bottom <=
+        scrollElement.getBoundingClientRect().top +
+          (Number.parseFloat(getComputedStyle(scrollElement).scrollPaddingTop) || 0);
+  }, [getScrollElement]);
   useLayoutEffect(() => {
+    const leadingPx = leadingRef.current?.offsetHeight ?? 0;
+    leadingCommittedRef.current = { key: leadingKey, px: leadingPx };
+    if (leadingHeld && leadingPx !== leadingRenderPx) {
+      // Applied by a synchronous re-render, before this commit paints.
+      scrollCompensationPxRef.current += leadingPx - leadingRenderPx;
+      ledgerSettleWantedRef.current = true;
+      setLedgerCommitTick((tick) => tick + 1);
+    }
     if (!threadId) {
       threadLedgerViewRef.current = undefined;
       threadLedgerAnchorRef.current = undefined;
+      noteRoomLeadingPlace();
       return;
-    }
-    const leadingPx = threadLeadingRef.current?.offsetHeight ?? 0;
-    threadLeadingCommittedRef.current = { key: threadLeadingKey, px: leadingPx };
-    if (threadLeadingHeld && leadingPx !== threadLeadingPx) {
-      // Applied by a synchronous re-render, before this commit paints.
-      scrollCompensationPxRef.current += leadingPx - threadLeadingPx;
-      ledgerSettleWantedRef.current = true;
-      setLedgerCommitTick((tick) => tick + 1);
     }
     const scrollElement = getScrollElement();
     const inner = virtualInnerRef.current;
@@ -479,6 +503,13 @@ export const useTimelineScrollLedgerController = ({
     };
     anchorThreadLedgerAt(scrollElement.scrollTop);
   });
+  const roomLeadingShown = !threadId && !!leadingKey;
+  useEffect(() => {
+    const scrollElement = getScrollElement();
+    if (!scrollElement || !roomLeadingShown) return undefined;
+    scrollElement.addEventListener('scroll', noteRoomLeadingPlace, { passive: true });
+    return () => scrollElement.removeEventListener('scroll', noteRoomLeadingPlace);
+  }, [getScrollElement, noteRoomLeadingPlace, roomLeadingShown]);
   useEffect(() => {
     const scrollElement = getScrollElement();
     if (!scrollElement || !threadId) return undefined;
@@ -687,9 +718,24 @@ export const useTimelineScrollLedgerController = ({
       // gesture's, never a late reassertion of a pre-settle offset.
       settleDiscardWatchRef.current = undefined;
     };
+    // How far the reader's wheel asked to scroll since the last scroll event. A mouse wheel's
+    // notch moves about as far as a settle can: a move back toward the pre-settle offset that the
+    // wheel accounts for is the reader's, not the compositor reasserting it (a trackpad's momentum
+    // ticks are far shorter than such a reassertion). Lines and pages account for any move.
+    let wheelPx = 0;
+    const onLedgerBoundaryWheel = (event: WheelEvent) => {
+      wheelPx += event.deltaMode === 0 ? event.deltaY : Math.sign(event.deltaY) * Infinity;
+    };
     const onLedgerBoundaryScroll = () => {
       const currentScrollTop = scrollElement.scrollTop;
       const previousScrollTop = ledgerBoundaryScrollTopRef.current ?? currentScrollTop;
+      const wheeledPx = wheelPx;
+      wheelPx = 0;
+      const delta = currentScrollTop - previousScrollTop;
+      const wheeled =
+        delta !== 0 &&
+        Math.sign(wheeledPx) === Math.sign(delta) &&
+        Math.abs(wheeledPx) >= Math.abs(delta) - SETTLE_DISCARD_HELD_SLACK_PX;
       const scrollDirection =
         currentScrollTop > previousScrollTop
           ? 'forward'
@@ -705,6 +751,7 @@ export const useTimelineScrollLedgerController = ({
         if (Date.now() - watch.at > SETTLE_DISCARD_WINDOW_MS) {
           settleDiscardWatchRef.current = undefined;
         } else if (
+          !wheeled &&
           isDiscardedSettleWrite({
             px: watch.px,
             preSettleScrollTop: watch.preSettleScrollTop,
@@ -764,9 +811,11 @@ export const useTimelineScrollLedgerController = ({
       capture: true,
       passive: true,
     });
+    scrollElement.addEventListener('wheel', onLedgerBoundaryWheel, { passive: true });
     scrollElement.addEventListener('scroll', onLedgerBoundaryScroll, { passive: true });
     return () => {
       scrollElement.removeEventListener('touchstart', onLedgerBoundaryTouchStart, true);
+      scrollElement.removeEventListener('wheel', onLedgerBoundaryWheel);
       scrollElement.removeEventListener('scroll', onLedgerBoundaryScroll);
     };
   }, [
@@ -911,7 +960,7 @@ export const useTimelineScrollLedgerController = ({
     ledgerPxAtRender,
     measureElement,
     readRowFoldPx,
-    threadLeadingRef,
+    leadingRef,
     unrenderedCorrectionPx,
     unrenderedRowMove,
     virtualInnerRef,

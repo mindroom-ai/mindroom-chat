@@ -591,9 +591,9 @@ describe('useTimelineScrollLedgerController', () => {
         threadEvents: events,
         threadId: '$root',
         threadInitialRenderMode: 'live',
-        threadLeadingKey: leadingKey,
+        leadingKey: leadingKey,
       });
-      (controller.threadLeadingRef as { current: unknown }).current = leading;
+      (controller.leadingRef as { current: unknown }).current = leading;
       (controller.virtualInnerRef as { current: unknown }).current = inner;
       ledgerPxs.push(controller.ledgerPxAtRender);
       holdBanner = controller.holdThreadBannerResize;
@@ -725,5 +725,76 @@ describe('useTimelineScrollLedgerController', () => {
       // A reverted settle would restore its margin.
       expect(inner.style.marginTop).toBe('');
     });
+  });
+});
+
+describe("the room's start above its rows", () => {
+  // The room intro mounts once history reaches the room's start, which pagination loads a screen
+  // ahead of the reader.
+  const scroller = {
+    getBoundingClientRect: () => ({ top: 100 }),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    scrollTop: 0,
+  };
+  const leadingBox = { bottom: 0, offsetHeight: 30 };
+  const leading = {
+    get offsetHeight() {
+      return leadingBox.offsetHeight;
+    },
+    getBoundingClientRect: () => ({ bottom: leadingBox.bottom }),
+  };
+  const inner = { getBoundingClientRect: () => ({ top: 0 }), style: { marginTop: '' } };
+  let ledgerPx = 0;
+
+  const Harness = ({ leadingKey }: { leadingKey: string }) => {
+    const pendingRoomFoldPxRef = useRef(0);
+    const roomFoldPriceRef = useRef<(key: string | number | bigint, index: number) => number>(
+      () => 10
+    );
+    const controller = useTimelineScrollLedgerController({
+      alive: () => true,
+      estimateSize: () => 10,
+      getItemKey: (index) => index,
+      getScrollElement: () => scroller as unknown as HTMLDivElement,
+      itemCount: 3,
+      pendingRoomFoldPxRef,
+      roomFoldPriceRef,
+      roomId: '!room:example.org',
+      threadEventIndexMap: new Map(),
+      threadEvents: [],
+      threadInitialRenderMode: 'live',
+      leadingKey,
+    });
+    (controller.leadingRef as { current: unknown }).current = leading;
+    (controller.virtualInnerRef as { current: unknown }).current = inner;
+    ledgerPx = controller.ledgerPxAtRender;
+    return null;
+  };
+
+  const showIntro = (aboveView: boolean) => {
+    // The line above the rows ends above the reader's view (the scroll area's top, 100px), or
+    // in it.
+    leadingBox.bottom = aboveView ? 40 : 160;
+    leadingBox.offsetHeight = 30;
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(React.createElement(Harness, { leadingKey: 'room||toggle' }));
+    });
+    leadingBox.offsetHeight = 197;
+    act(() => {
+      renderer?.update(React.createElement(Harness, { leadingKey: 'room|intro|toggle' }));
+    });
+    renderer?.unmount();
+  };
+
+  it('holds a reader below it when the intro mounts', () => {
+    showIntro(true);
+    expect(ledgerPx).toBe(167);
+  });
+
+  it('lets a reader who sees it see the intro arrive', () => {
+    showIntro(false);
+    expect(ledgerPx).toBe(0);
   });
 });
