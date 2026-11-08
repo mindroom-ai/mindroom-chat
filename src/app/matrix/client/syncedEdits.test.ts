@@ -61,6 +61,36 @@ describe('the edit that finished a reply', () => {
   });
 });
 
+describe('the copy of a finishing edit the client counts by', () => {
+  const decrypted = async (event: MatrixEvent) => {
+    await event.attemptDecryption({
+      decryptEvent: async () => ({
+        clearEvent: { type: 'm.room.message', content: { msgtype: 'm.text', body: 'done' } },
+      }),
+    } as never);
+    return event;
+  };
+
+  it('is the newest edit, and of two copies of one edit the one the client can read', async () => {
+    const mx = Object.assign(new EventEmitter(), {
+      getRoom: () => null,
+    }) as unknown as MatrixClient;
+    keepSyncedEdits(mx);
+    const withBundle = new MatrixEvent({ ...reply.event });
+    // The server's copy bundled with the reply stays encrypted; the sync's copy decrypts.
+    withBundle.makeReplaced(edit('$done', 5, 'completed'));
+    const synced = edit('$done', 5, 'completed');
+    mx.emit(ClientEvent.Event, synced);
+    await decrypted(synced);
+    expect(getFinishingEdit(withBundle)).toBe(synced);
+
+    // A newer finishing edit wins, readable or not.
+    const later = edit('$later', 6, 'completed');
+    withBundle.makeReplaced(later);
+    expect(getFinishingEdit(withBundle)).toBe(later);
+  });
+});
+
 describe('a redacted edit the client kept', () => {
   it('no longer says whether the reply still streams', () => {
     const room = { redactedBundledEdits: new Set<string>() };
