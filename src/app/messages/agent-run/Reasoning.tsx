@@ -7,6 +7,7 @@ import { renderLiveMarkdown, useLiveMarkdownReady } from '../live/liveMarkdown';
 import { LIVE_ACTIVITY_KEY, LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 import { ACTIVE_STREAM_STATUSES, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
+import { revealDirectionControls } from '../../ui/directional';
 import * as css from './Reasoning.css';
 
 /** Final reasoning the runtime stores on a finished reply. */
@@ -44,7 +45,8 @@ function ReasoningText({ text, htmlReactParserOptions }: ReasoningTextProps) {
   );
 
   if (rendered === undefined) {
-    return <div style={{ whiteSpace: 'pre-wrap' }}>{text}</div>;
+    // As the Markdown renderer's text does, plain lines show direction controls as code points.
+    return <div style={{ whiteSpace: 'pre-wrap' }}>{revealDirectionControls(text)}</div>;
   }
   return <div style={{ whiteSpace: 'normal' }}>{rendered}</div>;
 }
@@ -91,16 +93,16 @@ const renderActivityLine = (line: string): ReactNode[] => {
   const parts: ReactNode[] = [];
   let lastIndex = 0;
   line.replace(ACTIVITY_CODE, (match, name: string, offset: number) => {
-    if (offset > lastIndex) parts.push(line.slice(lastIndex, offset));
+    if (offset > lastIndex) parts.push(revealDirectionControls(line.slice(lastIndex, offset)));
     parts.push(
       <code key={offset} className={css.ActivityCode}>
-        {name}
+        {revealDirectionControls(name)}
       </code>
     );
     lastIndex = offset + match.length;
     return match;
   });
-  if (lastIndex < line.length) parts.push(line.slice(lastIndex));
+  if (lastIndex < line.length) parts.push(revealDirectionControls(line.slice(lastIndex)));
   return parts;
 };
 
