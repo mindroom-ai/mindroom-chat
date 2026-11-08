@@ -44,6 +44,7 @@ const makeClient = ({
     store,
     getUserId: () => ME,
     getRoom: () => room ?? null,
+    getRooms: () => (room ? [room] : []),
   }) as unknown as MatrixClient;
   const finishSaves = async () => {
     pending.splice(0).forEach(({ resolve }) => resolve());
@@ -80,6 +81,19 @@ describe('keepRedactionsInSavedSync', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('saves the sync store after a redaction the room took without a synced event', () => {
+    // A redaction that came with thread events paginated back, of an edit known only from a bundle.
+    const room = { redactedBundledEdits: new Set<string>() } as unknown as Room;
+    const { mx, emitter, store } = makeClient({ room });
+    keepRedactionsInSavedSync(mx);
+    batch(emitter, [synced('m.room.message', '$reply')]);
+
+    room.redactedBundledEdits.add('$edit');
+    batch(emitter, []);
+
+    expect(store.save).toHaveBeenCalledTimes(1);
   });
 
   it('saves the sync store after a batch that brought a redaction', () => {
