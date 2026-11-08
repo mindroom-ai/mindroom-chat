@@ -4,6 +4,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { UrlPreviewCard } from './UrlPreviewCard';
 
 const loadPreview = vi.fn<() => Promise<unknown>>();
+const previewState = vi.hoisted(() => ({
+  current: { status: 'loading' } as { status: string; data?: unknown },
+}));
 
 vi.mock('folds', async () => {
   const reactModule = await import('react');
@@ -47,12 +50,7 @@ vi.mock('../../lib/hooks/useAsyncCallback', () => ({
     Success: 'success',
     Error: 'error',
   },
-  useAsyncCallback: () => [
-    {
-      status: 'loading',
-    },
-    loadPreview,
-  ],
+  useAsyncCallback: () => [previewState.current, loadPreview],
 }));
 
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
@@ -95,9 +93,18 @@ vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
 
+vi.mock('../../matrix/mediaUrl', () => ({
+  mxcUrlToHttp: (_mx: unknown, mxc: string) => mxc.replace('mxc://', 'https://media.example/'),
+}));
+
+vi.mock('../../avatars/useAvatarImage', () => ({
+  useAvatarImage: (src?: string) => ({ imageSrc: src, onImageError: () => undefined }),
+}));
+
 describe('UrlPreviewCard', () => {
   afterEach(() => {
     vi.clearAllMocks();
+    previewState.current = { status: 'loading' };
   });
 
   it('swallows preview load rejection triggered from the effect', async () => {
@@ -111,5 +118,31 @@ describe('UrlPreviewCard', () => {
     ).resolves.toBeUndefined();
 
     expect(loadPreview).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the direction controls of the page's site name, title and description as code points", async () => {
+    loadPreview.mockResolvedValue(undefined);
+    previewState.current = {
+      status: 'success',
+      data: {
+        'og:site_name': 'Ledger \u202eswen\u202c',
+        'og:title': 'Quarterly report\u202efdp.exe',
+        'og:description': 'Run step\u2067 cleanup\u2069 after the deploy\u200f.',
+        'og:image': 'mxc://example.org/picture',
+      },
+    };
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(UrlPreviewCard, { url: 'https://example.com', ts: 1 }));
+      await Promise.resolve();
+    });
+    const text = JSON.stringify(renderer.toJSON());
+    // The thumbnail's alt is the title too.
+    expect(renderer.root.findByType('img').props.alt).toBe('Quarterly report<U+202E>fdp.exe');
+    expect(text).toContain('Ledger <U+202E>swen<U+202C>');
+    expect(text).toContain('Quarterly report<U+202E>fdp.exe');
+    expect(text).toContain('Run step<U+2067> cleanup<U+2069> after the deploy<U+200F>.');
+    expect(text).not.toMatch(/[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/);
+    act(() => renderer.unmount());
   });
 });
