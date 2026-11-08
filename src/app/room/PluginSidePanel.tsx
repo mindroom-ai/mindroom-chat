@@ -9,8 +9,9 @@ import { Header, Panel } from '../ui/panels/SidePanel.css';
 
 /**
  * A plugin's side panel: its title and Close above what the plugin shows, for `request`, or only
- * what it shows for one that draws its own frame. A plugin that fails says so in the panel, with
- * its title and Close, so it can still be closed, until another request comes.
+ * what it shows for one that draws its own frame, which has them only while its code loads. A
+ * plugin that fails says so in the panel, with its title and Close, so it can still be closed,
+ * until another request comes.
  */
 export function PluginSidePanel({
   panel: { label, tag, Component, frame },
@@ -61,7 +62,7 @@ export function PluginSidePanel({
       }}
     >
       {/* A component that loads its code waits here, not in place of the page. */}
-      <Suspense fallback={null}>
+      <Suspense fallback={frame === 'own' ? framed(null) : null}>
         <Component roomId={roomId} request={request} />
       </Suspense>
     </ErrorBoundary>

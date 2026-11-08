@@ -152,6 +152,7 @@ test("on a phone the example plugin's own-frame card covers the conversation unt
   test.setTimeout(5 * 60_000);
   await withPanelRoom(browser, async (page) => {
     await page.setViewportSize(PHONE);
+    await page.reload();
     await expect(roomMoreOptions(page)).toBeVisible({ timeout: 60_000 });
     const conversationAlone = await widthOf(roomHeader(page));
     await toggleCard(page, false);

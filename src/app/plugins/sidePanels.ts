@@ -38,7 +38,9 @@ export type SidePanel = {
   /**
    * `own`: its `Component` draws its own frame, such as a card with its own Fill and Hide, and the
    * room draws none: no title, Close, splitter or frame strip. The component reads and sets its
-   * layout with `usePanelFrame`, on phones too; folded, it covers nothing, there either.
+   * layout with `usePanelFrame`, on phones too; folded, it covers nothing, there either. Over a
+   * phone's conversation it hides the room header and the panel's toggle with it, so the component
+   * offers a way out of its own, such as Hide.
    */
   frame?: 'own';
 };

@@ -521,14 +521,6 @@ function RoomContent() {
       }),
     [request, roomId, store]
   );
-  // Beside the conversation the shown panel has a frame, which fills the room with it or folds it
-  // to a tab at the room's edge. Phones show the panel over the conversation, with no frame; the
-  // members, a list their header button already shows and hides, have none either. A panel that
-  // draws its own frame gets its layout on phones too.
-  const frame: PanelFrame | undefined =
-    (!mobile || shown?.ownFrame) && shown?.label !== undefined
-      ? { label: shown.label, layout, setLayout: (next) => setLayout(shown.id, next) }
-      : undefined;
   const folded = layout === 'folded';
   function toggleFilled(id: string) {
     setLayout(id, layout === 'filled' ? 'beside' : 'filled');
@@ -539,6 +531,25 @@ function RoomContent() {
   const shownId = shown?.id;
   const now = useLatestRef({ roomId, shownId, threadId, mobile });
   const alive = useAlive();
+  // Beside the conversation the shown panel has a frame, which fills the room with it or folds it
+  // to a tab at the room's edge. Phones show the panel over the conversation, with no frame; the
+  // members, a list their header button already shows and hides, have none either. A panel that
+  // draws its own frame gets its layout on phones too. The frame keeps its identity while the
+  // layout stays, and acts only in the room it came from.
+  const frameLabel = !mobile || shown?.ownFrame ? shown?.label : undefined;
+  const frame = useMemo<PanelFrame | undefined>(
+    () =>
+      shownId === undefined || frameLabel === undefined
+        ? undefined
+        : {
+            label: frameLabel,
+            layout,
+            setLayout: (next) => {
+              if (now.current.roomId === roomId) setLayout(shownId, next);
+            },
+          },
+    [frameLabel, layout, now, roomId, setLayout, shownId]
+  );
   // `open` and `close` keep their identity while the room shows, so plugin code that depends on them
   // does not run again when another panel shows.
   const openPluginPanel = useCallback<PluginPanelControls['open']>(

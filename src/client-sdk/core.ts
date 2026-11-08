@@ -2,7 +2,8 @@
 // "Client plugins"): the plugin types, the hook that reads a plugin's config.json section, the one
 // that keeps its values for the signed-in account, the one that translates its strings, the one
 // that opens its side panels in the open room, the one that gives a side panel its layout, the URL
-// of its public/ files, and a reload into a newly deployed version. Plugins import the app only through the SDK; the app never imports it.
+// of its public/ files, and a reload into a newly deployed version. Plugins import the app only
+// through the SDK; the app never imports it.
 // The SDK only grows: each addition (an export, or a contribution kind in ClientPlugin) raises
 // CLIENT_PLUGIN_API_VERSION in scripts/client-plugins.mjs, so a plugin written for an older SDK
 // still builds.
