@@ -1,4 +1,4 @@
-import { globalStyle, style } from '@vanilla-extract/css';
+import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
 // Measured from the members panel of docs/design/reference/room-light.png (1x): the header is
@@ -33,13 +33,6 @@ export const MembersHeaderControl = style({
   paddingInline: `${config.space.S300} ${endInset}`,
 });
 
-// The header is flat chrome: its buttons never paint a fill, resting, hovered or pressed;
-// keyboard focus still shows its outline.
-globalStyle(
-  `${MembersHeaderControl} button, ${MembersHeaderControl} button:hover, ${MembersHeaderControl} button:active`,
-  { backgroundColor: 'transparent', backgroundImage: 'none', boxShadow: 'none' }
-);
-
 export const MembersHeaderCount = style({
   fontWeight: config.fontWeight.W600,
 });
@@ -49,6 +42,7 @@ export const MembersHeaderInvited = style({
   flexShrink: 0,
   padding: 0,
   border: 0,
+  background: 'none',
   color: color.Secondary.Main,
   font: 'inherit',
   cursor: 'pointer',
