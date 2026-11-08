@@ -412,6 +412,20 @@
         "transcript": "প্রতিলিপি",
         "turns_one": "{{count}}টি বক্তব্য",
         "turns_other": "{{count}}টি বক্তব্য"
+      },
+      "stage": {
+        "speaking": "{{name}} কথা বলছেন",
+        "listening": "শুনছে",
+        "muted": "আপনি মিউট আছেন"
+      },
+      "window": {
+        "move": "কল উইন্ডো সরান",
+        "minimize": "ছোট করুন",
+        "expand": "বড় করুন",
+        "dock": "পাশে ডক করুন",
+        "float": "ভাসমান করুন",
+        "speakerView": "স্পিকার ভিউ",
+        "openConversation": "কথোপকথনে যান"
       }
     },
     "room": {

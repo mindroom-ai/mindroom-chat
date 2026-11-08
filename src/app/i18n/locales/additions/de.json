@@ -412,6 +412,20 @@
         "transcript": "Transkript",
         "turns_one": "{{count}} Beitrag",
         "turns_other": "{{count}} Beiträge"
+      },
+      "stage": {
+        "speaking": "{{name}} spricht",
+        "listening": "Hört zu",
+        "muted": "Du bist stummgeschaltet"
+      },
+      "window": {
+        "move": "Anruffenster verschieben",
+        "minimize": "Minimieren",
+        "expand": "Erweitern",
+        "dock": "Seitlich andocken",
+        "float": "Schweben lassen",
+        "speakerView": "Sprecheransicht",
+        "openConversation": "Zur Unterhaltung"
       }
     },
     "room": {

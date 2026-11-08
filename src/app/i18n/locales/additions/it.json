@@ -420,6 +420,20 @@
         "turns_one": "{{count}} intervento",
         "turns_many": "{{count}} di interventi",
         "turns_other": "{{count}} interventi"
+      },
+      "stage": {
+        "speaking": "{{name}} sta parlando",
+        "listening": "In ascolto",
+        "muted": "Sei in muto"
+      },
+      "window": {
+        "move": "Sposta la finestra della chiamata",
+        "minimize": "Riduci a icona",
+        "expand": "Espandi",
+        "dock": "Aggancia al lato",
+        "float": "Rendi mobile",
+        "speakerView": "Vista relatore",
+        "openConversation": "Vai alla conversazione"
       }
     },
     "room": {

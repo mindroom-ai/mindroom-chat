@@ -428,6 +428,20 @@
         "turns_few": "{{count}} реплики",
         "turns_many": "{{count}} реплик",
         "turns_other": "{{count}} реплики"
+      },
+      "stage": {
+        "speaking": "{{name}} говорит",
+        "listening": "Слушает",
+        "muted": "Ваш микрофон выключен"
+      },
+      "window": {
+        "move": "Переместить окно звонка",
+        "minimize": "Свернуть",
+        "expand": "Развернуть",
+        "dock": "Закрепить сбоку",
+        "float": "Открепить",
+        "speakerView": "Режим докладчика",
+        "openConversation": "Перейти к беседе"
       }
     },
     "room": {

@@ -420,6 +420,20 @@
         "turns_one": "{{count}} prise de parole",
         "turns_many": "{{count}} de prises de parole",
         "turns_other": "{{count}} prises de parole"
+      },
+      "stage": {
+        "speaking": "{{name}} parle",
+        "listening": "À l’écoute",
+        "muted": "Vous êtes en sourdine"
+      },
+      "window": {
+        "move": "Déplacer la fenêtre d’appel",
+        "minimize": "Réduire",
+        "expand": "Agrandir",
+        "dock": "Ancrer sur le côté",
+        "float": "Détacher",
+        "speakerView": "Vue intervenant",
+        "openConversation": "Aller à la conversation"
       }
     },
     "room": {

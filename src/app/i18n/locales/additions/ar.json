@@ -444,6 +444,20 @@
         "turns_few": "⁨{{count}}⁩ مداخلات",
         "turns_many": "⁨{{count}}⁩ مداخلةً",
         "turns_other": "⁨{{count}}⁩ مداخلة"
+      },
+      "stage": {
+        "speaking": "⁨{{name}}⁩ يتحدث",
+        "listening": "يستمع",
+        "muted": "أنت مكتوم الصوت"
+      },
+      "window": {
+        "move": "نقل نافذة المكالمة",
+        "minimize": "تصغير",
+        "expand": "توسيع",
+        "dock": "تثبيت في الجانب",
+        "float": "تعويم",
+        "speakerView": "عرض المتحدث",
+        "openConversation": "الانتقال إلى المحادثة"
       }
     },
     "room": {

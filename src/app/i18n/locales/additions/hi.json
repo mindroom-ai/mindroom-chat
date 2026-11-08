@@ -412,6 +412,20 @@
         "transcript": "ट्रांसक्रिप्ट",
         "turns_one": "{{count}} कथन",
         "turns_other": "{{count}} कथन"
+      },
+      "stage": {
+        "speaking": "{{name}} बोल रहे हैं",
+        "listening": "सुन रहा है",
+        "muted": "आप म्यूट हैं"
+      },
+      "window": {
+        "move": "कॉल विंडो हिलाएं",
+        "minimize": "छोटा करें",
+        "expand": "बड़ा करें",
+        "dock": "किनारे डॉक करें",
+        "float": "फ़्लोट करें",
+        "speakerView": "स्पीकर व्यू",
+        "openConversation": "बातचीत पर जाएं"
       }
     },
     "room": {

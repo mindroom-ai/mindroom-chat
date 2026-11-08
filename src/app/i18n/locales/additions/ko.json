@@ -404,6 +404,20 @@
         "title": "음성 통화",
         "transcript": "대화 기록",
         "turns_other": "발언 {{count}}개"
+      },
+      "stage": {
+        "speaking": "{{name}} 님이 말하는 중",
+        "listening": "듣는 중",
+        "muted": "음소거되어 있습니다"
+      },
+      "window": {
+        "move": "통화 창 이동",
+        "minimize": "최소화",
+        "expand": "펼치기",
+        "dock": "옆에 고정",
+        "float": "플로팅",
+        "speakerView": "발언자 보기",
+        "openConversation": "대화로 이동"
       }
     },
     "room": {

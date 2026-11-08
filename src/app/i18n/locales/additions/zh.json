@@ -404,6 +404,20 @@
         "title": "语音通话",
         "transcript": "文字记录",
         "turns_other": "{{count}} 条发言"
+      },
+      "stage": {
+        "speaking": "{{name}} 正在发言",
+        "listening": "正在聆听",
+        "muted": "你已静音"
+      },
+      "window": {
+        "move": "移动通话窗口",
+        "minimize": "最小化",
+        "expand": "展开",
+        "dock": "停靠到侧边",
+        "float": "悬浮",
+        "speakerView": "发言人视图",
+        "openConversation": "前往对话"
       }
     },
     "room": {

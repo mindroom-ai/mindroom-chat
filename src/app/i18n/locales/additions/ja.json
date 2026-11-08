@@ -404,6 +404,20 @@
         "title": "音声通話",
         "transcript": "文字起こし",
         "turns_other": "{{count}} 件の発言"
+      },
+      "stage": {
+        "speaking": "{{name}}さんが話しています",
+        "listening": "聞いています",
+        "muted": "ミュート中です"
+      },
+      "window": {
+        "move": "通話ウィンドウを移動",
+        "minimize": "最小化",
+        "expand": "展開",
+        "dock": "横にドッキング",
+        "float": "フロート表示",
+        "speakerView": "スピーカービュー",
+        "openConversation": "会話に移動"
       }
     },
     "room": {

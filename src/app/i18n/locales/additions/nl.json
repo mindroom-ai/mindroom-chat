@@ -412,6 +412,20 @@
         "transcript": "Transcript",
         "turns_one": "{{count}} beurt",
         "turns_other": "{{count}} beurten"
+      },
+      "stage": {
+        "speaking": "{{name}} spreekt",
+        "listening": "Luistert",
+        "muted": "Je staat gedempt"
+      },
+      "window": {
+        "move": "Gespreksvenster verplaatsen",
+        "minimize": "Minimaliseren",
+        "expand": "Uitvouwen",
+        "dock": "Aan de zijkant vastzetten",
+        "float": "Zwevend maken",
+        "speakerView": "Sprekersweergave",
+        "openConversation": "Ga naar het gesprek"
       }
     },
     "room": {

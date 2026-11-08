@@ -404,6 +404,20 @@
         "title": "Panggilan suara",
         "transcript": "Transkrip",
         "turns_other": "{{count}} giliran bicara"
+      },
+      "stage": {
+        "speaking": "{{name}} sedang berbicara",
+        "listening": "Mendengarkan",
+        "muted": "Anda dibisukan"
+      },
+      "window": {
+        "move": "Pindahkan jendela panggilan",
+        "minimize": "Kecilkan",
+        "expand": "Perbesar",
+        "dock": "Sematkan ke samping",
+        "float": "Melayang",
+        "speakerView": "Tampilan pembicara",
+        "openConversation": "Buka percakapan"
       }
     },
     "room": {

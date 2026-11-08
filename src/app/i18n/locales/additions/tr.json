@@ -412,6 +412,20 @@
         "transcript": "Konuşma metni",
         "turns_one": "{{count}} konuşma",
         "turns_other": "{{count}} konuşma"
+      },
+      "stage": {
+        "speaking": "{{name}} konuşuyor",
+        "listening": "Dinliyor",
+        "muted": "Sesiniz kapalı"
+      },
+      "window": {
+        "move": "Arama penceresini taşı",
+        "minimize": "Küçült",
+        "expand": "Genişlet",
+        "dock": "Yana yerleştir",
+        "float": "Yüzdür",
+        "speakerView": "Konuşmacı görünümü",
+        "openConversation": "Sohbete git"
       }
     },
     "room": {

@@ -420,6 +420,20 @@
         "turns_one": "{{count}} fala",
         "turns_many": "{{count}} de falas",
         "turns_other": "{{count}} falas"
+      },
+      "stage": {
+        "speaking": "{{name}} está falando",
+        "listening": "Ouvindo",
+        "muted": "Você está no mudo"
+      },
+      "window": {
+        "move": "Mover janela da chamada",
+        "minimize": "Minimizar",
+        "expand": "Expandir",
+        "dock": "Acoplar ao lado",
+        "float": "Flutuar",
+        "speakerView": "Visão do orador",
+        "openConversation": "Ir para a conversa"
       }
     },
     "room": {

@@ -404,6 +404,20 @@
         "title": "語音通話",
         "transcript": "逐字稿",
         "turns_other": "{{count}} 則發言"
+      },
+      "stage": {
+        "speaking": "{{name}} 正在發言",
+        "listening": "正在聆聽",
+        "muted": "你已靜音"
+      },
+      "window": {
+        "move": "移動通話視窗",
+        "minimize": "最小化",
+        "expand": "展開",
+        "dock": "停靠到側邊",
+        "float": "浮動",
+        "speakerView": "發言者檢視",
+        "openConversation": "前往對話"
       }
     },
     "room": {
