@@ -66,9 +66,9 @@ type VirtualPaginatorOptions = PaginatorDom &
      */
     deferAutomaticPagination?: (retry: () => boolean) => boolean;
     /**
-     * How many pixels above the visible band the back sentinel still counts as in view when the
-     * automatic fill phase retries: the opening fill loads history ahead of the reader that
-     * far. Pagination the reader's scrolling causes counts the visible band only.
+     * How many pixels beyond the visible band a sentinel still counts as in view when the
+     * automatic fill phase retries: the opening fill loads history ahead of the reader that far.
+     * Pagination the reader's scrolling causes reaches a screen (`readerReach`).
      */
     automaticBackReach?: () => number;
     /**
@@ -107,24 +107,37 @@ export const readScrollPadding = (scrollElement: HTMLElement): { top: number; bo
 };
 
 /**
- * A sentinel is in view only where the reader can see it: the scroll padding is the band that
- * floating bars (a room header, the composer) cover, and a sentinel under them stays hidden.
+ * How far beyond the visible band the reader's scrolling pages: a screen. Rows load before the
+ * reader reaches the end of the loaded ones, and a page that adds less than a screen of rows (most
+ * of a page's events can be thread replies and edits the view hides) is followed by the next at
+ * once, rather than when the reader has scrolled to the end of the rows again.
  */
-const isAnchorVisible = (root: HTMLElement, anchor: Element | null, reachAbove = 0): boolean => {
+const readerReach = (root: HTMLElement): number => root.clientHeight || 0;
+
+/** The sentinel observer's margin: `readerReach` on each side of the scroll area. */
+const READER_REACH_MARGIN = '100% 0px';
+
+/**
+ * A sentinel is in view where the reader can see it, or within `reach` of that band: the scroll
+ * padding is the band that floating bars (a room header, the composer) cover, and a sentinel
+ * under them stays hidden.
+ */
+const isAnchorVisible = (root: HTMLElement, anchor: Element | null, reach = 0): boolean => {
   if (!anchor) return false;
   const view = root.getBoundingClientRect();
   const padding = readScrollPadding(root);
   const rect = anchor.getBoundingClientRect();
   return (
-    rect.bottom > view.top + padding.top - reachAbove && rect.top < view.bottom - padding.bottom
+    rect.bottom > view.top + padding.top - reach && rect.top < view.bottom - padding.bottom + reach
   );
 };
 
-/** The sentinel is inside the scroll area's box, under a floating bar or not. */
-const isAnchorInScrollArea = (root: HTMLElement, anchor: Element): boolean => {
+/** The sentinel is where the observer sees it: the scroll area's box and its margin. */
+const isAnchorObserved = (root: HTMLElement, anchor: Element): boolean => {
   const view = root.getBoundingClientRect();
   const rect = anchor.getBoundingClientRect();
-  return rect.bottom > view.top && rect.top < view.bottom;
+  const reach = readerReach(root);
+  return rect.bottom > view.top - reach && rect.top < view.bottom + reach;
 };
 
 /**
@@ -309,33 +322,34 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
     [changeRange, firstNotAboveView, lastNotBelowView]
   );
 
-  // Sentinels inside the scroll area that sit under its padding, where the reader cannot see
-  // them. They count once a scroll or a size change brings them out from under it, which the
-  // observer does not report: it sees only the scroll area's box.
+  // Sentinels the observer sees that are farther from the visible band than the reader's reach,
+  // under the scroll area's padding. They count once a scroll or a size change brings them
+  // within it, which the observer does not report: it sees only its own box.
   const coveredRef = useRef(new Set<string>());
 
   /**
-   * Paginates towards the first visible sentinel, history first; false when none is visible.
-   * `backReach` extends the view above the visible band for the back sentinel.
+   * Paginates towards the first sentinel within `reach` of the visible band (default
+   * `readerReach`), history first; false when none is.
    */
   const paginateVisibleAnchor = useCallback(
-    (opts?: RetryPaginationOptions, backReach = 0): boolean => {
+    (opts?: RetryPaginationOptions, reach?: number): boolean => {
       const { getScrollElement, shouldSuppressPagination } = optionsRef.current;
       if (shouldSuppressPagination?.()) return false;
       const root = getScrollElement();
       if (!root) return false;
+      const within = reach ?? readerReach(root);
       const back = root.querySelector(anchorSelector(BACK_ANCHOR));
-      if (isAnchorVisible(root, back, backReach)) return paginate(true, opts);
+      if (isAnchorVisible(root, back, within)) return paginate(true, opts);
       const front = root.querySelector(anchorSelector(FRONT_ANCHOR));
-      if (isAnchorVisible(root, front)) return paginate(false, opts);
-      // The observer may have reported a sentinel in view while pagination was held (a focus
-      // jump, the opening fill) that has since moved under a floating bar. It reports nothing
-      // more while the sentinel stays inside the scroll area, so it counts as covered from here.
+      if (isAnchorVisible(root, front, within)) return paginate(false, opts);
+      // The observer may have reported a sentinel while pagination was held (a focus jump, the
+      // opening fill) that has since moved out of reach. It reports nothing more while the
+      // sentinel stays where it observes, so it counts as covered from here.
       [
         { direction: BACK_ANCHOR, anchor: back },
         { direction: FRONT_ANCHOR, anchor: front },
       ].forEach(({ direction, anchor }) => {
-        if (anchor && isAnchorInScrollArea(root, anchor)) coveredRef.current.add(direction);
+        if (anchor && isAnchorObserved(root, anchor)) coveredRef.current.add(direction);
       });
       return false;
     },
@@ -393,7 +407,8 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
         const direction = entry.target.getAttribute(PAGINATOR_ANCHOR_ATTRIBUTE);
         if (direction) covered.delete(direction);
         if (!entry.isIntersecting) return;
-        if (direction && root && !isAnchorVisible(root, entry.target)) covered.add(direction);
+        if (direction && root && !isAnchorVisible(root, entry.target, readerReach(root)))
+          covered.add(direction);
         else shown.push(direction);
       });
       paginateShown(shown);
@@ -412,7 +427,8 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
       { direction: FRONT_ANCHOR, element: front },
     ]
       .filter(
-        ({ direction, element }) => covered.has(direction) && isAnchorVisible(root, element ?? null)
+        ({ direction, element }) =>
+          covered.has(direction) && isAnchorVisible(root, element ?? null, readerReach(root))
       )
       .map(({ direction }) => direction);
     shown.forEach((direction) => covered.delete(direction));
@@ -450,7 +466,7 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
 
   // Read through the ref, so a new `getScrollElement` each render keeps the same observer.
   const getObserverOptions = useCallback(
-    () => ({ root: optionsRef.current.getScrollElement() }),
+    () => ({ root: optionsRef.current.getScrollElement(), rootMargin: READER_REACH_MARGIN }),
     []
   );
   const observer = useIntersectionObserver(handleIntersection, getObserverOptions);

@@ -5,6 +5,7 @@ import { getRoomEventThreadOpenTarget } from '../../routes/roomDeepLink';
 import {
   buildRoomSurfaceEventEntries,
   getLinkedTimelineEvents,
+  isRenderableEvent,
   isVisibleThreadRootEvent,
   type TimelineEventEntry,
 } from '../../event-store/timeline/roomTimelineEvents';
@@ -38,6 +39,7 @@ import {
   buildCompactThreadRootData,
   buildCompactZeroReplyRootData,
   getCompactThreadRootPreviewInfo,
+  listedThreadRoots,
   mergeCompactThreadRootData,
 } from '../../event-store/threads/compactThreadRootData';
 import { useScheduledTaskEvents } from '../../schedules/useScheduledTaskEvents';
@@ -355,11 +357,23 @@ export const useThreadIndex = ({
     () => collectAvailableRoomTags(threadResolutionMap),
     [threadResolutionMap]
   );
+  // The Threads view lists the room's threads as Compact does: those of the room's thread list
+  // too, not only those whose roots the loaded history holds, which pages of history full of
+  // replies and edits brought in a few at a time.
+  const threadsViewListed =
+    !compactViewRequested && isRoomThreadOverviewActive(threadId, requestedThreadFilterState);
+  const {
+    threads: roomThreadListThreads,
+    loading: roomThreadListLoading,
+    loadedSuccessfully: roomThreadListLoadedSuccessfully,
+    fullyLoaded: roomThreadListFullyLoaded,
+    retry: refreshRoomThreadList,
+  } = useRoomThreadList(room, compactViewRequested || threadsViewListed);
   const roomSurfaceEventEntries = useMemo(() => {
     // Mutable SDK/event metadata can change without changing the timeline array identity.
     void overviewRefreshCounter;
     if (threadId) return renderableEventEntries;
-    return buildRoomSurfaceEventEntries({
+    const entries = buildRoomSurfaceEventEntries({
       renderableEventEntries,
       linkedTimelines,
       room,
@@ -370,6 +384,29 @@ export const useThreadIndex = ({
       threadReplyCountMap,
       threadResolutionMap,
     });
+    if (!threadsViewListed) return entries;
+    // Roots the loaded history lacks are older than it: they come first, oldest first.
+    const known = new Set(entries.map(({ event }) => event.getId() ?? ''));
+    const listed = listedThreadRoots(room, roomThreadListThreads, known)
+      .flatMap(({ rootEvent }) =>
+        rootEvent &&
+        isRenderableEvent(
+          rootEvent,
+          room,
+          undefined,
+          ignoredUsersSet,
+          showHiddenEvents,
+          hideMembershipEvents,
+          hideNickAvatarEvents
+        )
+          ? [rootEvent]
+          : []
+      )
+      .sort((a, b) => a.getTs() - b.getTs());
+    return [
+      ...listed.map((event, index) => ({ event, absoluteIndex: index - listed.length })),
+      ...entries,
+    ];
   }, [
     threadId,
     renderableEventEntries,
@@ -382,6 +419,8 @@ export const useThreadIndex = ({
     threadReplyCountMap,
     threadResolutionMap,
     overviewRefreshCounter,
+    threadsViewListed,
+    roomThreadListThreads,
   ]);
   const visibleThreadRootData = useMemo(() => {
     const ids: string[] = [];
@@ -406,13 +445,6 @@ export const useThreadIndex = ({
     });
     return { ids, indexMap, bodyMap, sourceTsMap };
   }, [roomSurfaceEventEntries, room, threadResolutionMap, threadReplyCountMap]);
-  const {
-    threads: roomThreadListThreads,
-    loading: roomThreadListLoading,
-    loadedSuccessfully: roomThreadListLoadedSuccessfully,
-    fullyLoaded: roomThreadListFullyLoaded,
-    retry: refreshRoomThreadList,
-  } = useRoomThreadList(room, compactViewRequested);
   const pinnedEventIds = usePinnedEventIds(room);
   const pinnedThreadEvents = usePinnedThreadEvents(
     room,
