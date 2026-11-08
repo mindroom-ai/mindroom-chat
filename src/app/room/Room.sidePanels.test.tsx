@@ -809,6 +809,24 @@ describe('the side panels of a room', () => {
     }
   );
 
+  it('unfolds the live transcript when Transcript is pressed again, which still brings back the call on close', async () => {
+    await renderRoom();
+    await open('call');
+    await open('transcript');
+    await act(async () => frameButton('Fold Live transcript to the edge')?.click());
+    expect(frameButton('Unfold Live transcript')).not.toBeNull();
+
+    await open('transcript');
+    expect(frameButton('Unfold Live transcript')).toBeNull();
+    expect(frameButton('Fill the room with Live transcript')?.getAttribute('aria-pressed')).toBe(
+      'false'
+    );
+    expect(shown()).toEqual(['transcript']);
+
+    await act(async () => closeTranscriptPanel(store, room.roomId));
+    expect(shown()).toEqual(['call']);
+  });
+
   it('takes the focus out of the conversation as a panel fills the room', async () => {
     await renderRoom();
     await open('computer');

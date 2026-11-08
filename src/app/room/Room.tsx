@@ -11,7 +11,7 @@ import {
   useState,
 } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { useSetAtom } from 'jotai';
+import { useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { Box, Button, Text } from 'folds';
@@ -74,7 +74,7 @@ import {
   useInCall,
 } from '../calls/callStore';
 import type { CallPanel as CallPanelComponent } from '../calls/CallPanel';
-import { useTranscriptPanel } from '../calls/transcription/transcriptPanel';
+import { transcriptPanelAtom, useTranscriptPanel } from '../calls/transcription/transcriptPanel';
 import { type PartLoadRetry, lazyPart } from '../lib/lazyPart';
 import { PartUnavailable } from '../ui/PartUnavailable';
 import { PluginSidePanel } from './PluginSidePanel';
@@ -500,6 +500,17 @@ function RoomContent() {
     },
   ];
   const { shown, layout, setLayout, request } = useRoomPanels(roomId, panels);
+  // Transcript, in the call's controls or on its row, asks for the panel as the room's own buttons
+  // ask for theirs, also while it shows: folded, it unfolds.
+  const store = useStore();
+  useEffect(
+    () =>
+      store.sub(transcriptPanelAtom, () => {
+        if (store.get(transcriptPanelAtom)?.roomId === roomId)
+          request('transcript', () => undefined);
+      }),
+    [request, roomId, store]
+  );
   // Beside the conversation the shown panel has a frame, which fills the room with it or folds it
   // to a tab at the room's edge. Phones show the panel over the conversation, with no frame; the
   // members, a list their header button already shows and hides, have none either.
