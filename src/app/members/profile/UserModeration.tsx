@@ -6,6 +6,7 @@ import { useAlive } from '../../lib/hooks/useAlive';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { Membership } from '../../matrix/types/room';
 import { getMemberDisplayName } from '../../matrix/room';
+import { revealDirectionControls } from '../../ui/directional';
 import type { ModerationAbilities } from './profileModeration';
 import * as css from './UserRoomProfile.css';
 import { describeError } from '../../lib/describeError';
@@ -16,6 +17,8 @@ const KEY = 'sharedUi.userModeration';
 type Action = 'kick' | 'ban' | 'unban' | 'invite';
 
 const BOLD = { b: <b /> };
+// Escaped, a revealed `<U+202E>` and a name's `<` stay text instead of reading as tags.
+const ESCAPED = { interpolation: { escapeValue: true } };
 
 type NoteKind = 'ban' | 'invite' | 'kick';
 type Note = { kind: NoteKind; senderName: string; reason?: string };
@@ -142,11 +145,19 @@ export function UserModeration({ room, userId, abilities }: UserModerationProps)
               i18nKey={`${KEY}.${NOTE_BY[note.kind]}` as const}
               values={{ name: note.senderName }}
               components={BOLD}
+              tOptions={ESCAPED}
+              shouldUnescape
             />
           </Text>
           <Text size="T200">
             {note.reason ? (
-              <Trans i18nKey={`${KEY}.reason`} values={{ reason: note.reason }} components={BOLD} />
+              <Trans
+                i18nKey={`${KEY}.reason`}
+                values={{ reason: revealDirectionControls(note.reason) }}
+                components={BOLD}
+                tOptions={ESCAPED}
+                shouldUnescape
+              />
             ) : (
               t(`${KEY}.noReasonProvided`)
             )}
