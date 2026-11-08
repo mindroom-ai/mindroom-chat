@@ -30,6 +30,8 @@ vi.mock('./useAgentServers', async (importOriginal) => {
   };
 });
 vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => state.members }));
+// The homeserver binds tokens when a test asks it.
+vi.mock('../matrix/openidAudience', () => ({ readOpenIdBinding: async () => true }));
 
 const server = (preference: string | null, deploymentUrl?: string) => {
   const store = createStore();
@@ -48,7 +50,6 @@ const server = (preference: string | null, deploymentUrl?: string) => {
 };
 
 beforeEach(() => {
-  vi.unstubAllGlobals();
   localStorage.clear();
   state.bindsTokens = true;
   state.published = undefined;
@@ -83,22 +84,8 @@ describe('useRoomMindroomServer', () => {
   it("is the room's published server from a later mount's first render once the homeserver answered", async () => {
     state.bindsTokens = undefined;
     state.published = PUBLISHED;
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(
-        async () =>
-          new Response(
-            JSON.stringify({
-              versions: ['v1.11'],
-              unstable_features: { 'io.mindroom.openid_audience': true },
-            }),
-            { status: 200 }
-          )
-      )
-    );
     const mx = {
       getRoom: (roomId: string) => (roomId === ROOM.roomId ? ROOM : null),
-      getHomeserverUrl: () => 'https://example.org',
     } as unknown as MatrixClient;
     const wrapper = ({ children }: { children: ReactNode }) => (
       <MatrixClientProvider value={mx}>
