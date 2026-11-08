@@ -140,7 +140,7 @@ describe('example plugin', () => {
     if (!Banner || !panel) throw new Error('the example plugin has no banner or no side panel');
     const room = { roomId: '!lobby:example.org', name: 'Lobby' } as Room;
     // The room's page as the app draws it: the header's row and its slot, and the side panel.
-    function RoomPage() {
+    const RoomPage = () => {
       const headerRef = useRef<HTMLDivElement>(null);
       return (
         <>
@@ -151,12 +151,16 @@ describe('example plugin', () => {
           <panel.Component roomId={room.roomId} />
         </>
       );
-    }
+    };
     const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
     const view = await renderPluginComponent(<RoomPage />, { id: 'example', plugin, client });
     const name = view.getByRole('heading', { name: 'Lobby' });
 
-    expect(fireEvent(name, dragEvent('dragover', new Map([['Files', '']])))).toBe(true);
+    // A drag of files passes untouched, for the composer.
+    const files = new Map([['Files', '']]);
+    expect(fireEvent(name, dragEvent('dragover', files))).toBe(true);
+    expect(fireEvent(name, dragEvent('drop', files))).toBe(true);
+    expect(view.queryByText(/^Dropped:/)).toBeNull();
     const carried = new Map<string, string>();
     fireEvent(view.getByText('Example item'), dragEvent('dragstart', carried));
     expect(fireEvent(name, dragEvent('dragenter', carried))).toBe(false);

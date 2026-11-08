@@ -222,20 +222,21 @@ test("the example panel's item dropped on the room's name shows in the banner; a
     await roomMoreOptions(page).click();
     await page.getByRole('menuitemcheckbox', { name: 'Example panel', exact: true }).click();
     const panel = page.getByRole('region', { name: 'Example panel', exact: true });
+    const item = panel.getByText('Example item', { exact: true });
     const name = roomHeader(page).locator('h1');
+    const dropped = banner(page).locator('[data-example-plugin-dropped]');
     const footer = page.locator('[data-room-footer]');
 
-    await panel.getByText('Example item', { exact: true }).dragTo(name);
-    await expect(banner(page).locator('[data-example-plugin-dropped]')).toHaveText(
-      'Dropped: Example item'
-    );
+    // Only the header takes it: dropped on the conversation, it lands nowhere.
+    await item.dragTo(page.getByText(SEEDED));
+    await expect(dropped).toHaveCount(0);
+    await item.dragTo(name);
+    await expect(dropped).toHaveText('Dropped: Example item');
     await expect(footer).not.toContainText('Example item');
     await shot(page, 'room-header-slot-item-dropped');
 
     await dropFile(name);
     await expect(footer.getByText(DROPPED_FILE)).toBeVisible();
-    await expect(banner(page).locator('[data-example-plugin-dropped]')).toHaveText(
-      'Dropped: Example item'
-    );
+    await expect(dropped).toHaveText('Dropped: Example item');
     await shot(page, 'room-header-slot-file-dropped');
   }));
