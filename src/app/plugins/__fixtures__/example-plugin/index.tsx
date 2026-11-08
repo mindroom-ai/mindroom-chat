@@ -26,6 +26,8 @@
 // thread's composer to that thread, through the room's client, and fails without a text.
 // Every room's menu but a space's lists its entry "Example room info" ("Beispiel-Rauminfo" in
 // German), whose dialog says "Example dialog of <room name>" until its Close button closes it.
+// Every room's menu also lists, after Leave and drawn as Leave is, its critical entry "Example
+// removal" ("Beispiel-Entfernung" in German), which says in an alert which room it ran in.
 // In a room with a MindRoom server, its panel also talks to the routes of e2e's sample MindRoom
 // plugin (e2e/fixtures/sample-plugin/routes.py) as the signed-in user: "Say hello" asks for the
 // backend's hello, and a websocket echoes what "Echo" sends, opened again unless the user left.
@@ -425,6 +427,15 @@ const plugin: ClientPlugin = {
       run: ({ room, showDialog }) =>
         showDialog((close) => <RoomDialog room={room} close={close} />),
     },
+    {
+      id: 'removal',
+      label: 'roomRemoval',
+      icon: Icons.Delete,
+      critical: true,
+      run: ({ room }) => {
+        window.alert(`Example removal in ${room.roomId}`);
+      },
+    },
   ],
   translations: {
     en: {
@@ -432,6 +443,7 @@ const plugin: ClientPlugin = {
       wave: 'Wave',
       greet: 'Send the room a greeting. Example: /greet Hello',
       roomInfo: 'Example room info',
+      roomRemoval: 'Example removal',
     },
     load: async (language) =>
       language === 'de' ? (await import('./locales/de.json')).default : undefined,

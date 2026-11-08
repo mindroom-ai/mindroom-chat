@@ -121,6 +121,11 @@ describe('RoomHeaderSlot', () => {
     ]);
   });
 
+  it("paints nothing of its own, so the header's surface and text colour show through", () => {
+    render('!a:example.org');
+    expect((renderer!.toJSON() as ReactTestRendererJSON).props).toEqual({});
+  });
+
   it('shows nothing of a plugin that config.json turns off', () => {
     const config = { plugins: { example: { enabled: false } } } as unknown as ClientConfig;
     const shown = render('!a:example.org', config);
