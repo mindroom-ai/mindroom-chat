@@ -411,7 +411,7 @@
     "calls": {
       "panel": {
         "title": "通話",
-        "close": "關閉通話面板",
+        "close": "關閉通話檢視",
         "participants": "通話中的人",
         "connecting": "正在連線…",
         "reconnecting": "正在重新連線…",
@@ -492,6 +492,27 @@
         "live": "通話進行中",
         "ended": "通話已結束",
         "notes": "筆記和逐字稿"
+      },
+      "stage": {
+        "speaking": "{{name}} 正在發言",
+        "listening": "正在聆聽",
+        "muted": "你已靜音",
+        "waiting": "正在等待其他人加入",
+        "more": "+{{count}}",
+        "moreLabel": "另外 {{count}} 人"
+      },
+      "window": {
+        "move": "移動通話視窗",
+        "moveMinimized": "移動已最小化的通話視窗",
+        "minimize": "最小化",
+        "expand": "展開",
+        "dock": "停靠到側邊",
+        "float": "浮動",
+        "speakerView": "發言者檢視",
+        "openConversation": "前往對話",
+        "label": "通話視窗",
+        "resizeTranscript": "調整逐字稿大小",
+        "transcriptSplit": "舞台 {{stage}}%，逐字稿 {{transcript}}%"
       }
     },
     "room": {

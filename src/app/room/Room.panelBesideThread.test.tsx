@@ -5,6 +5,7 @@ import { getDefaultStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
 import { callPanelRoomAtom } from '../calls/callStore';
+import { clearCallWindowStore, getCallWindowSettingsAtom } from '../calls/window/callWindowState';
 import { openTranscriptPanel, transcriptPanelAtom } from '../calls/transcription/transcriptPanel';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { putSession } from '../matrix/session/sessions';
@@ -210,7 +211,12 @@ const OTHERS = {
         { liveEvent: true }
       );
     }),
-  call: () => act(async () => store.set(callPanelRoomAtom, room.roomId)),
+  // The call as a side panel: docked (on desktop it floats by default, beside every panel).
+  call: () =>
+    act(async () => {
+      store.set(getCallWindowSettingsAtom('@alice:example.org'), { mode: 'docked' });
+      store.set(callPanelRoomAtom, room.roomId);
+    }),
   transcript: () => act(async () => openTranscriptPanel(store, room.roomId)),
   "another plugin's panel": () => act(async () => state.view?.onPanelToggle?.('other/panel')),
 };
@@ -231,6 +237,7 @@ describe("a plugin's side panel beside the thread shown", () => {
   afterEach(() => {
     cleanup();
     store.set(callPanelRoomAtom, undefined);
+    clearCallWindowStore('@alice:example.org');
     store.set(transcriptPanelAtom, undefined);
     state.view = undefined;
     state.inView = undefined;

@@ -17,6 +17,7 @@ import { AgentCallFailureNotice } from './agent/AgentCallFailureNotice';
 import { IncomingCalls } from './IncomingCalls';
 import { CallTranscription } from './transcription/CallTranscription';
 import * as css from './IncomingCalls.css';
+import { CallWindowHost } from './window/CallWindowHost';
 
 /**
  * Ends the call with the signed-in session: when the account signs out or switches (the shell
@@ -71,6 +72,7 @@ const resumeCall = async (
       agentUserId: record.agentUserId,
       origin: record.origin,
       microphone,
+      video: record.camera,
       devices,
     });
     return;
@@ -117,7 +119,8 @@ function CallResume() {
 
 /**
  * Account-wide call features: incoming rings, why an agent call did not start, resuming after a
- * reload, the call's lifetime, and transcribing this device's speech in it.
+ * reload, the call's lifetime, transcribing this device's speech in it, and the floating call
+ * window.
  */
 export function CallFeatures() {
   return (
@@ -125,6 +128,8 @@ export function CallFeatures() {
       <CallLifetime />
       <CallResume />
       <CallTranscription />
+      {/* Beside the rings, not inside their fixed corner: the window places itself in the viewport. */}
+      <CallWindowHost />
       <div className={css.Host}>
         <IncomingCalls />
         <AgentCallFailureNotice />

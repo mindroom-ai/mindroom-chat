@@ -18,11 +18,12 @@ import {
 // where MindRoom's router is a member, each browser's microphone playing a spoken recording
 // (e2e/fixtures/agent-call-question.wav, "What is the capital of France? Please answer in one
 // short sentence."). Each app finds the speech in the microphone it publishes and uploads it to
-// MindRoom, and the live transcript shows each line under its speaker's name. One pauses: the
-// other's controls say who paused, what the other says meanwhile is not transcribed, and once
-// resumed the live transcript shows a gap. Both leave: the router edits the call's row to ended
-// and posts the notes and the whole transcript in the row's thread, which shows as the transcript
-// card. All in the lobby's default view.
+// MindRoom, and the live transcript shows each line under its speaker's name, inside the floating
+// call window. One pauses: the other's controls say who paused, what the other says meanwhile is
+// not transcribed, and once resumed the live transcript shows a gap. Docked, the call's live
+// transcript opens in the room's side panel instead, with the same lines. Both leave: the router
+// edits the call's row to ended and posts the notes and the whole transcript in the row's thread,
+// which shows as the transcript card. All in the lobby's default view.
 //
 // With the stack's stand-in speech-to-text (scripts/agent-stack/stub_model.py) each line says how
 // long its stretch of speech was, and the stub model writes the notes. With
@@ -222,21 +223,26 @@ test("two people in a call are transcribed under their names, Pause leaves a gap
     await guestRow.getByRole('button', { name: 'Join', exact: true }).click();
     await joinCall(guest.page, guest.userId);
 
-    // For the tester the row has both in the call and no Join for the call this device is in; its
-    // Transcript opens the live transcript in the call panel's place.
+    // For the tester the row has both in the call and no Join for the call this device is in. The
+    // call view floats, so the row's Transcript shows the live transcript inside the call window,
+    // under the stage, and the window stays; the side panel stays shut.
     const { card: listed, row } = await listedRow(page);
     const rowId = await listed.getAttribute('data-scroll-anchor');
     await expect(row.locator('[data-call-row-member]')).toHaveCount(2, { timeout: 30_000 });
     await expect(row.getByRole('button', { name: 'Join', exact: true })).toHaveCount(0);
     await row.getByRole('button', { name: 'Transcript', exact: true }).click();
-    const panel = page.getByTestId('live-transcript-panel');
-    await expect(callPanel(page)).toHaveCount(0);
-    await expect(panel).toContainText('This call is transcribed.');
-    const members = panel.locator('[data-live-transcript-member]');
-    await expect(members).toHaveCount(2, { timeout: 30_000 });
-    await expect(members.filter({ hasText: TESTER_NAME })).toHaveCount(1);
-    await expect(members.filter({ hasText: GUEST_NAME })).toHaveCount(1);
-    const log = panel.getByRole('log');
+    const callWindow = page.getByTestId('call-window');
+    const inWindow = callWindow.locator('[data-call-window-transcript]');
+    await expect(inWindow).toContainText('This call is transcribed.');
+    await expect(callWindow.locator('[data-call-transcript-layout]')).toHaveAttribute(
+      'data-call-transcript-layout',
+      'stacked'
+    );
+    await expect(callWindow.locator('[data-call-stage]')).toBeVisible();
+    await expect(page.getByTestId('live-transcript-panel')).toHaveCount(0);
+    const transcriptSwitch = callWindow.getByRole('button', { name: 'Live transcript' });
+    await expect(transcriptSwitch).toHaveAttribute('aria-pressed', 'true');
+    const log = inWindow.getByRole('log');
 
     // Each one's speech appears under their own name.
     await speak(page);
@@ -247,7 +253,7 @@ test("two people in a call are transcribed under their names, Pause leaves a gap
     // The tester pauses: the guest's controls say so (from the guest's next read of the call), and
     // what the guest says meanwhile is not transcribed. Resuming leaves one gap in the live
     // transcript.
-    const pause = panel.getByRole('button', { name: 'Pause transcription' });
+    const pause = callWindow.getByRole('button', { name: 'Pause transcription' });
     await pause.click();
     await expect(pause).toHaveAttribute('aria-pressed', 'true');
     await expect(
@@ -264,6 +270,28 @@ test("two people in a call are transcribed under their names, Pause leaves a gap
     });
     await expect(callPanel(guest.page).getByRole('status')).not.toContainText('Paused by');
     await expect(log.locator('[data-live-transcript-text]')).toHaveCount(2);
+
+    // The switch hides the transcript again; the window and its call stay.
+    await transcriptSwitch.click();
+    await expect(transcriptSwitch).toHaveAttribute('aria-pressed', 'false');
+    await expect(inWindow).toHaveCount(0);
+    await expect(callWindow.locator('[data-call-stage]')).toBeVisible();
+
+    // Docked, the call view's Transcript opens the live transcript in the room's side panel in its
+    // place, with who is in the call and the same lines.
+    await callWindow.getByRole('button', { name: 'Dock to the side' }).click();
+    await expect(callWindow).toHaveCount(0);
+    await callPanel(page).getByRole('button', { name: 'Live transcript' }).click();
+    const panel = page.getByTestId('live-transcript-panel');
+    await expect(callPanel(page)).toHaveCount(0);
+    await expect(panel).toContainText('This call is transcribed.');
+    const members = panel.locator('[data-live-transcript-member]');
+    await expect(members).toHaveCount(2, { timeout: 30_000 });
+    await expect(members.filter({ hasText: TESTER_NAME })).toHaveCount(1);
+    await expect(members.filter({ hasText: GUEST_NAME })).toHaveCount(1);
+    const panelLog = panel.getByRole('log');
+    await expect(panelLog.locator('[data-live-transcript-text]')).toHaveText([spoken, spoken]);
+    await expect(panelLog.locator('[data-live-transcript-gap]')).toHaveText(['Paused']);
 
     // Both leave. Closing the live transcript brings the call panel back.
     await panel.getByRole('button', { name: 'Close the live transcript' }).click();

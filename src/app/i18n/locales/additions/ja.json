@@ -411,7 +411,7 @@
     "calls": {
       "panel": {
         "title": "通話",
-        "close": "通話パネルを閉じる",
+        "close": "通話ビューを閉じる",
         "participants": "通話中の人",
         "connecting": "接続中…",
         "reconnecting": "再接続中…",
@@ -492,6 +492,27 @@
         "live": "通話中",
         "ended": "通話終了",
         "notes": "メモと文字起こし"
+      },
+      "stage": {
+        "speaking": "{{name}}さんが話しています",
+        "listening": "聞いています",
+        "muted": "ミュート中です",
+        "waiting": "他の参加者を待っています",
+        "more": "+{{count}}",
+        "moreLabel": "ほか{{count}}人"
+      },
+      "window": {
+        "move": "通話ウィンドウを移動",
+        "moveMinimized": "最小化した通話ウィンドウを移動",
+        "minimize": "最小化",
+        "expand": "展開",
+        "dock": "横にドッキング",
+        "float": "フロート表示",
+        "speakerView": "スピーカービュー",
+        "openConversation": "会話に移動",
+        "label": "通話ウィンドウ",
+        "resizeTranscript": "文字起こしのサイズを変更",
+        "transcriptSplit": "ステージ {{stage}}%、文字起こし {{transcript}}%"
       }
     },
     "room": {

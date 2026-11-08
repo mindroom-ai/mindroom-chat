@@ -1,32 +1,49 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAtom, useAtomValue, useStore } from 'jotai';
+import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
-import { Box, Button, Icon, IconButton, Icons, Spinner, Text } from 'folds';
+import { Box, Button, Icon, IconButton, Icons, Spinner, Text, type IconSrc } from 'folds';
 import classNames from 'classnames';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomName } from '../matrix/hooks/useRoomMeta';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
 import { mDirectAtom } from '../matrix/state/mDirectList';
+import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
+import { useLocation } from 'react-router-dom';
+import { useRoomNavigate } from '../navigation/useRoomNavigate';
+import { getViewedPlace } from '../navigation/viewedPlace';
+import { IconTooltip } from '../ui/IconTooltip';
+import { ExpandIcon } from '../ui/panels/panelIcons';
 import { useCallFailureNotice } from './agent/useCallFailureNotice';
 import { useCallFailureDismissal } from './agent/useCallFailureDismissal';
-import type { CallDevices, CallParticipant, CallProblem, CallState } from './RoomCall';
+import type { CallParticipant, CallProblem, CallState } from './RoomCall';
 import {
+  callHomeRoomId,
+  callPanelRoomAtom,
   callStartProblemAtom,
   isActiveCallShownIn,
   noteCallStart,
   useActiveCall,
   useCallActions,
   useCallState,
+  useCallViewState,
   useRoomCallMembers,
   type ActiveCall,
+  type CallOrigin,
+  type PrescreenChoices,
 } from './callStore';
 import { callUserIds } from './callMemberships';
 import { browserSharesScreens, browserSupportsCalls, useCallSupport } from './callSupport';
 import { allowMembersToCall, readCallAccess, type CallAccess } from './callAccess';
 import { CallControl, DeviceControl } from './CallControls';
-import { CallMemberAvatar, CallTile, ScreenTile } from './CallTile';
+import { CallMemberAvatar, useCallMemberProfile } from './CallTile';
+import { CallStage } from './CallStage';
+import { byPerson, hasVideo, pickScope, type StageView } from './stageLayout';
+import { useCallWindowFrame } from './window/callWindowFrame';
+import { focusHandOffAtom, useCallWindowMode } from './window/callWindowState';
+import { DockIcon, FloatIcon } from './window/windowIcons';
+import { WindowTranscript } from './window/WindowTranscript';
 import { TranscriptionControls, TranscriptionStatus } from './transcription/TranscriptionControls';
 import * as css from './CallPanel.css';
 import { revealDirectionControls } from '../ui/directional';
@@ -73,46 +90,280 @@ function Notice({
   );
 }
 
-/** The panel's frame: a title with the call's status under it, the body, and a control bar. */
+/** How many of the others the minimized window's line shows. */
+const BAR_FACES = 3;
+
+/** Whether the primary pointer is a finger, which the bar's call controls are bigger for. */
+const coarsePointer = (): boolean => globalThis.matchMedia?.('(pointer: coarse)').matches ?? false;
+
+type TitleButtonProps = {
+  label: string;
+  icon: IconSrc;
+  onClick: () => void;
+  variant?: 'Surface' | 'Critical';
+  /** The icon points to an end of the line, so it mirrors in right-to-left languages. */
+  directional?: boolean;
+  className?: string;
+  /** The window's line sits low on the screen by default, so its names show above it. */
+  above?: boolean;
+  /** A switch: whether it is on. */
+  pressed?: boolean;
+  /** Shown but not working; it keeps its focus and name, so its state is still read. */
+  held?: boolean;
+  size?: '300' | '400';
+};
+
+/** A small icon button of the title bar or the window's line, named in a tooltip. */
+function TitleButton(props: TitleButtonProps) {
+  const { label, icon, onClick, variant = 'Surface', directional, className, above } = props;
+  const { pressed, held, size = '300' } = props;
+  return (
+    <IconTooltip label={label} position={above ? 'Top' : 'Bottom'}>
+      {(tipAnchor) => (
+        <IconButton
+          ref={tipAnchor}
+          className={className}
+          size={size}
+          radii="300"
+          variant={variant}
+          aria-label={label}
+          aria-pressed={pressed}
+          aria-disabled={held || undefined}
+          onClick={held ? undefined : onClick}
+        >
+          <Icon size="200" src={icon} data-directional={directional || undefined} />
+        </IconButton>
+      )}
+    </IconTooltip>
+  );
+}
+
+/**
+ * Dock, in the floating window: the call view moves into the side panel of the room it belongs to
+ * (`home`). A person elsewhere goes there (to an agent call's thread) so the docked panel is seen;
+ * one in that room (and thread) already stays where they are.
+ */
+function DockButton({ home }: { home: CallOrigin }) {
+  const { t } = useTranslation();
+  const [, setMode] = useCallWindowMode();
+  const mx = useMatrixClient();
+  const location = useLocation();
+  const setPanelRoom = useSetAtom(callPanelRoomAtom);
+  const setFocusHandOff = useSetAtom(focusHandOffAtom);
+  const { navigateRoom, navigateRoomThread } = useRoomNavigate();
+  const dock = () => {
+    setFocusHandOff({ to: 'panel', from: document.activeElement });
+    setMode('docked');
+    // The docked panel shows in the room whose call view is open.
+    setPanelRoom(home.roomId);
+    const here = getViewedPlace(mx, location);
+    if (here.roomId === home.roomId && (!home.threadId || here.threadId === home.threadId)) return;
+    if (home.threadId) navigateRoomThread(home.roomId, home.threadId);
+    else navigateRoom(home.roomId);
+  };
+  const label = t('featureUi.calls.window.dock');
+  return <TitleButton label={label} icon={DockIcon} directional onClick={dock} />;
+}
+
+/** Float, in the docked panel: the call view goes back to the floating window, where it was. */
+function FloatButton() {
+  const { t } = useTranslation();
+  const [, setMode] = useCallWindowMode();
+  const setFocusHandOff = useSetAtom(focusHandOffAtom);
+  const float = () => {
+    setFocusHandOff({ to: 'window', from: document.activeElement });
+    setMode('floating');
+  };
+  const label = t('featureUi.calls.window.float');
+  return <TitleButton label={label} icon={FloatIcon} directional onClick={float} />;
+}
+
+/**
+ * Back to the conversation an agent call started from. On phones the call view covers that
+ * conversation, so it closes there (the call goes on, and the rail's call button brings it back).
+ */
+function ConversationButton({ origin, onClose }: { origin: CallOrigin; onClose: () => void }) {
+  const { t } = useTranslation();
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  const { navigateRoom, navigateRoomThread } = useRoomNavigate();
+  const open = () => {
+    if (origin.threadId) navigateRoomThread(origin.roomId, origin.threadId);
+    else navigateRoom(origin.roomId);
+    if (phone) onClose();
+  };
+  return (
+    <TitleButton
+      label={t('featureUi.calls.window.openConversation')}
+      icon={Icons.Message}
+      onClick={open}
+    />
+  );
+}
+
+/**
+ * What the window's one-line bar shows: the faces before the title, its own status in place of the
+ * title bar's, and the controls between the title and Expand. `closes`: the controls close the
+ * call view themselves (Close of a finished call, which takes the window with the call), so the
+ * bar has no Close of its own.
+ */
+type BarContent = { faces?: ReactNode; status?: string; controls?: ReactNode; closes?: boolean };
+
+/**
+ * The panel's frame: a title with the call's status under it, the body, and a control bar. In the
+ * floating window its title bar moves the window, and minimized the window shows one line: the
+ * others' faces, the title and status, `bar.controls`, Expand and Close.
+ */
 type PanelShellProps = {
   title: string;
   subtitle?: string;
   footer?: ReactNode;
   children: ReactNode;
   onClose: () => void;
+  /** The room (and thread) the call view docks into. */
+  home: CallOrigin;
+  /** The title bar's buttons before the window's own: speaker view, the conversation. */
+  actions?: ReactNode;
+  bar?: BarContent;
 };
 
 function PanelShell(props: PanelShellProps) {
-  const { title, subtitle, footer, children, onClose } = props;
-  const closeLabel = useTranslation().t('featureUi.calls.panel.close');
-  return (
-    <section className={css.Panel} aria-label={title} data-testid="call-panel">
-      <header className={css.Header}>
-        <div className={css.HeaderTitle}>
-          <Text as="h2" size="H4" truncate>
-            {title}
-          </Text>
-          {subtitle && (
-            <Text size="T200" priority="300" truncate aria-live="polite">
-              {subtitle}
-            </Text>
+  const { title, subtitle, footer, children, onClose, home, actions, bar } = props;
+  const { t } = useTranslation();
+  const frame = useCallWindowFrame();
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  // A call not joined yet shows only its title, Expand and Close in the window's line.
+  const status = frame?.bar ? bar && (bar.status ?? subtitle) : subtitle;
+  // The docked panel's title takes the focus Dock hands it (the window's handle takes Float's).
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const heading = (
+    <div className={css.HeaderTitle}>
+      <Text
+        as="h2"
+        id={frame?.titleId}
+        size="H4"
+        truncate
+        ref={titleRef}
+        tabIndex={frame ? undefined : -1}
+      >
+        {title}
+      </Text>
+      {status && (
+        <Text size="T200" priority="300" truncate aria-live="polite">
+          {status}
+        </Text>
+      )}
+    </div>
+  );
+  const panelClass = classNames(css.Panel, frame && css.InWindow);
+  // The docked panel is a landmark named by the call; in the floating window, which is one and
+  // takes its name from the title, the frame is none.
+  const Shell = frame ? 'div' : 'section';
+  const shellLabel = frame ? undefined : title;
+
+  // Minimize and Expand go with the line they are on; the focus they had moves to the handle that
+  // takes their place rather than to the page.
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const inBar = !!frame?.bar;
+  const wasBar = useRef(inBar);
+  useEffect(() => {
+    if (wasBar.current === inBar) return;
+    wasBar.current = inBar;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    sectionRef.current?.querySelector<HTMLElement>('[data-call-window-handle]')?.focus();
+  }, [inBar]);
+
+  // The view Dock, Float or the rail's call button asked for takes the focus their button had,
+  // unless something else took it meanwhile: when it mounts, or at once when it shows already.
+  const [handOff, setHandOff] = useAtom(focusHandOffAtom);
+  const place = frame ? 'window' : 'panel';
+  useEffect(() => {
+    if (handOff?.to !== place) return;
+    setHandOff(undefined);
+    const focused = document.activeElement;
+    if (focused && focused !== document.body && focused !== handOff.from) return;
+    const target =
+      place === 'window'
+        ? sectionRef.current?.querySelector<HTMLElement>('[data-call-window-handle]')
+        : titleRef.current;
+    target?.focus();
+  }, [handOff, place, setHandOff]);
+
+  if (frame?.bar) {
+    return (
+      <Shell
+        ref={sectionRef}
+        className={panelClass}
+        aria-label={shellLabel}
+        data-testid="call-panel"
+      >
+        <div className={css.Bar} {...frame.handleProps}>
+          {bar?.faces}
+          {heading}
+          {bar?.controls}
+          <TitleButton
+            label={t('featureUi.calls.window.expand')}
+            icon={ExpandIcon}
+            onClick={frame.expand}
+            above
+          />
+          {!bar?.closes && (
+            <TitleButton
+              label={t('featureUi.calls.panel.close')}
+              icon={Icons.Cross}
+              onClick={onClose}
+              above
+            />
           )}
         </div>
-        <IconButton
-          size="300"
-          radii="300"
-          variant="Surface"
-          aria-label={closeLabel}
-          onClick={onClose}
-        >
-          <Icon size="200" src={Icons.Cross} />
-        </IconButton>
+      </Shell>
+    );
+  }
+  return (
+    <Shell ref={sectionRef} className={panelClass} aria-label={shellLabel} data-testid="call-panel">
+      <header className={classNames(css.Header, frame && css.WindowHeader)} {...frame?.handleProps}>
+        {heading}
+        <div className={css.HeaderButtons}>
+          {actions}
+          {/* Phones show the call view in the room's side panel only. */}
+          {!phone && (frame ? <DockButton home={home} /> : <FloatButton />)}
+          {frame && (
+            <TitleButton
+              label={t('featureUi.calls.window.minimize')}
+              icon={Icons.Minus}
+              onClick={frame.minimize}
+            />
+          )}
+          <TitleButton
+            label={t('featureUi.calls.panel.close')}
+            icon={Icons.Cross}
+            onClick={onClose}
+          />
+        </div>
       </header>
       <div className={css.Body}>{children}</div>
       {footer}
-    </section>
+    </Shell>
   );
 }
+
+/** One of the others in the window's line, ringed while they talk. */
+function BarFace({ room, userId, speaking }: { room: Room; userId: string; speaking: boolean }) {
+  const { name } = useCallMemberProfile(room, userId);
+  return (
+    <li className={css.BarFace} data-speaking={speaking} aria-label={name}>
+      <CallMemberAvatar room={room} userId={userId} size="200" />
+    </li>
+  );
+}
+
+/**
+ * The first few others in the call, one face per person whatever their devices (this person's
+ * other devices are not others).
+ */
+const barFaces = (participants: CallParticipant[]) =>
+  byPerson(participants)
+    .filter(({ local }) => !local)
+    .slice(0, BAR_FACES);
 
 /**
  * For those who may change it: members of the room cannot join its calls (rooms made with the
@@ -177,7 +428,7 @@ const usePhaseLabel = (state: CallState): string | undefined => {
   return t('featureUi.calls.panel.inCall', { count: people });
 };
 
-/** The call this device is in: everyone's tiles, notices, and the controls. */
+/** The call this device is in: notices, the stage, and the controls. */
 function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => void }) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -192,7 +443,17 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
   const { visibleFailure, dismissFailure } = useCallFailureDismissal(joined, failure);
   const finished = state.phase === 'failed' || state.phase === 'ended';
   const agentCall = active.kind === 'agent';
+  const frame = useCallWindowFrame();
+  const inWindow = !!frame;
   const access = useCallAccess(mx, call.room, !agentCall && !finished);
+  // The notices to act on show in the expanded view only, so a window minimized to its bar
+  // expands when one comes up: the agent cannot hear or speak, or the browser blocked the sound.
+  // Minimized again while it stands, the window stays a bar.
+  const expandWindow = frame?.expand;
+  const failureId = visibleFailure?.eventId;
+  useEffect(() => {
+    if (failureId || state.audioBlocked) expandWindow?.();
+  }, [expandWindow, failureId, state.audioBlocked]);
   // The called agent shows from the start, waiting until it joins: a call in which nobody seems
   // to be coming gets ended before the agent arrives.
   const { agentUserId } = active;
@@ -208,12 +469,48 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
           microphone: true,
         }
       : undefined;
+  // Who the bar's faces show: everyone in the call and, as on the stage, the agent it waits for.
+  const shownPeople = awaitedAgent ? [...state.participants, awaitedAgent] : state.participants;
+  // The person's pick of speaker view or the grid, for the call and, while someone else shares a
+  // screen, for the screens shared then: new shares open at the stage's default (speaker view for
+  // someone else's one screen) until picked again. Kept with the call, so it stays wherever the
+  // view moves. The stage says what it shows, which the switch shows, and holds it there while
+  // tiles would be too small for the grid.
+  const [picks, changePicks] = useCallViewState(callHomeRoomId(active));
+  const scope = pickScope(state.participants);
+  const screensPick = picks.screens?.scope === scope ? picks.screens.speaker : undefined;
+  const screensChanged = !!picks.screens && screensPick === undefined;
+  useEffect(() => {
+    if (screensChanged) changePicks((last) => ({ ...last, screens: undefined }));
+  }, [changePicks, screensChanged]);
+  const speakerView = scope ? screensPick : picks.speaker;
+  const [stageView, setStageView] = useState<StageView>({ speaker: false, held: false });
+  const toggleSpeakerView = () => {
+    const speaker = !stageView.speaker;
+    changePicks((last) =>
+      scope ? { ...last, screens: { scope, speaker } } : { ...last, speaker }
+    );
+  };
+  const video = !finished && hasVideo(state.participants);
 
+  const microphoneLabel = state.microphone
+    ? t('featureUi.call.controls.turnOffMicrophone')
+    : t('featureUi.call.controls.turnOnMicrophone');
+  const microphoneIcon = state.microphone ? Icons.Mic : Icons.MicMute;
+  const toggleMicrophone = () => void call.setMicrophone(!state.microphone);
+  const leaveLabel = t('featureUi.call.callControls.end');
+  const barControlSize = coarsePointer() ? '400' : '300';
+  const leave = () => {
+    // The call is over for this device either way; a failed leave leaves nothing to do.
+    endCall().catch(() => undefined);
+  };
+
+  const dismissLabel = t('featureUi.calls.panel.dismiss');
   const controls = finished ? (
     <div className={css.ControlBar}>
       <div className={css.Controls}>
         <Button size="400" radii="Pill" variant="Secondary" fill="Soft" onClick={dismissCall}>
-          <Text size="B400">{t('featureUi.calls.panel.dismiss')}</Text>
+          <Text size="B400">{dismissLabel}</Text>
         </Button>
       </div>
     </div>
@@ -223,27 +520,21 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
       {!agentCall && <TranscriptionStatus room={call.room} />}
       <div className={css.Controls} role="toolbar" aria-label={title}>
         <CallControl
-          label={
-            state.microphone
-              ? t('featureUi.call.controls.turnOffMicrophone')
-              : t('featureUi.call.controls.turnOnMicrophone')
-          }
-          icon={state.microphone ? Icons.Mic : Icons.MicMute}
+          label={microphoneLabel}
+          icon={microphoneIcon}
           off={!state.microphone}
-          onClick={() => void call.setMicrophone(!state.microphone)}
+          onClick={toggleMicrophone}
         />
-        {!agentCall && (
-          <CallControl
-            label={
-              state.camera
-                ? t('featureUi.call.controls.stopCamera')
-                : t('featureUi.call.controls.startCamera')
-            }
-            icon={state.camera ? Icons.VideoCamera : Icons.VideoCameraMute}
-            onClick={() => void call.setCamera(!state.camera)}
-          />
-        )}
-        {!agentCall && browserSharesScreens() && (
+        <CallControl
+          label={
+            state.camera
+              ? t('featureUi.call.controls.stopCamera')
+              : t('featureUi.call.controls.startCamera')
+          }
+          icon={state.camera ? Icons.VideoCamera : Icons.VideoCameraMute}
+          onClick={() => void call.setCamera(!state.camera)}
+        />
+        {browserSharesScreens() && (
           <CallControl
             label={
               state.screenShare
@@ -270,21 +561,93 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
           chosen={state.devices}
           onChoose={(kind, id) => void call.setDevice(kind, id)}
         />
-        <CallControl
-          label={t('featureUi.call.callControls.end')}
-          icon={Icons.PhoneDown}
-          critical
-          onClick={() => {
-            // The call is over for this device either way; a failed leave leaves nothing to do.
-            endCall().catch(() => undefined);
-          }}
-        />
+        <CallControl label={leaveLabel} icon={Icons.PhoneDown} critical onClick={leave} />
       </div>
     </div>
   );
 
+  const actions = (
+    <>
+      {video && (
+        <TitleButton
+          className={css.SpeakerSwitch}
+          label={t('featureUi.calls.window.speakerView')}
+          icon={Icons.User}
+          pressed={stageView.speaker}
+          held={stageView.held}
+          onClick={toggleSpeakerView}
+        />
+      )}
+      {active.origin && <ConversationButton origin={active.origin} onClose={onClose} />}
+    </>
+  );
+  const stage = !finished && (
+    <CallStage
+      room={call.room}
+      participants={state.participants}
+      awaited={awaitedAgent}
+      speakerView={speakerView}
+      microphone={state.microphone}
+      onViewChange={setStageView}
+    />
+  );
+  // In the floating window the live transcript can show with the stage; agent calls have none.
+  const transcribable = stage && inWindow && !agentCall;
+  const stageArea = transcribable ? (
+    <WindowTranscript room={call.room}>{stage}</WindowTranscript>
+  ) : (
+    stage
+  );
+  const faces = barFaces(shownPeople);
+  const bar: BarContent = {
+    faces: faces.length > 0 && (
+      <ul className={css.BarFaces} aria-label={t('featureUi.calls.panel.participants')}>
+        {faces.map(({ userId, speaking }) => (
+          <BarFace key={userId} room={call.room} userId={userId} speaking={speaking} />
+        ))}
+      </ul>
+    ),
+    // A finished call stays until it is closed: a failed one answers every new start busy till
+    // then. The bar says what went wrong as the expanded view's notice does: why the call stopped,
+    // or why the microphone it just turned on stays off.
+    status: state.problem ? t(PROBLEM_KEYS[state.problem]) : undefined,
+    closes: finished,
+    controls: finished ? (
+      <Button size="300" radii="300" variant="Secondary" fill="Soft" onClick={dismissCall}>
+        <Text size="B300">{dismissLabel}</Text>
+      </Button>
+    ) : (
+      <>
+        <TitleButton
+          label={microphoneLabel}
+          icon={microphoneIcon}
+          variant={state.microphone ? 'Surface' : 'Critical'}
+          onClick={toggleMicrophone}
+          size={barControlSize}
+          above
+        />
+        <TitleButton
+          label={leaveLabel}
+          icon={Icons.PhoneDown}
+          variant="Critical"
+          size={barControlSize}
+          onClick={leave}
+          above
+        />
+      </>
+    ),
+  };
+
   return (
-    <PanelShell title={title} subtitle={phaseLabel} onClose={onClose} footer={controls}>
+    <PanelShell
+      title={title}
+      subtitle={phaseLabel}
+      onClose={onClose}
+      footer={controls}
+      home={{ roomId: callHomeRoomId(active), threadId: active.origin?.threadId }}
+      actions={actions}
+      bar={bar}
+    >
       {state.problem && (
         <Notice critical={state.phase === 'failed'}>{t(PROBLEM_KEYS[state.problem])}</Notice>
       )}
@@ -326,28 +689,13 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
         </Notice>
       )}
       {access.canLetMembersIn && <MembersCannotCallNotice room={call.room} />}
-      {!finished && (
-        <ul className={css.Tiles} aria-label={t('featureUi.calls.panel.participants')}>
-          {state.participants
-            .filter((participant) => participant.screen)
-            .map((participant) => (
-              <ScreenTile
-                key={`${participant.key}:screen`}
-                room={call.room}
-                participant={participant}
-              />
-            ))}
-          {state.participants.map((participant) => (
-            <CallTile key={participant.key} room={call.room} participant={participant} />
-          ))}
-          {awaitedAgent && (
-            <CallTile key={awaitedAgent.key} room={call.room} participant={awaitedAgent} />
-          )}
-        </ul>
-      )}
+      {stageArea}
     </PanelShell>
   );
 }
+
+/** The prescreen's microphone, camera and devices until they are picked: the microphone on. */
+const FIRST_CHOICES: PrescreenChoices = { microphone: true, camera: false, devices: {} };
 
 /** A room's call before this device joins it: who is in it, and Join. */
 function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
@@ -362,18 +710,27 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
   const direct = useAtomValue(mDirectAtom).has(room.roomId);
   const store = useStore();
   const { startCall } = useCallActions(mx);
-  const [microphone, setMicrophone] = useState(true);
-  const [camera, setCamera] = useState(false);
-  const [devices, setDevices] = useState<CallDevices>({});
+  // Kept with the room's call view, so they stay as picked wherever the prescreen mounts anew.
+  const [view, changeView] = useCallViewState(room.roomId);
+  const { microphone, camera, devices } = view.prescreen ?? FIRST_CHOICES;
+  const choose = (change: (last: PrescreenChoices) => Partial<PrescreenChoices>) =>
+    changeView((last) => {
+      const from = last.prescreen ?? FIRST_CHOICES;
+      return { ...last, prescreen: { ...from, ...change(from) } };
+    });
   const [joining, setJoining] = useState(false);
   // Why the last Join (or Answer on a ring) did not start the call: this session's other tab is
   // in a call (it shares this device), or the call could not start at all.
   const [lastStart, setLastStart] = useAtom(callStartProblemAtom);
   const startProblem = lastStart?.roomId === room.roomId ? lastStart.result : undefined;
-  // It belongs to this opening of the panel: closed and opened again, the panel starts afresh.
+  // It belongs to this opening of the call view: closed and opened again, the view starts
+  // afresh. A prescreen that only moves (Dock, Float) unmounts with the view still open.
   useEffect(
-    () => () => setLastStart((last) => (last?.roomId === room.roomId ? undefined : last)),
-    [room.roomId, setLastStart]
+    () => () => {
+      if (store.get(callPanelRoomAtom) === room.roomId) return;
+      setLastStart((last) => (last?.roomId === room.roomId ? undefined : last));
+    },
+    [room.roomId, setLastStart, store]
   );
 
   let blocker: string | undefined;
@@ -411,6 +768,7 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
         people.length > 0 ? t('featureUi.calls.panel.inCall', { count: people.length }) : undefined
       }
       onClose={onClose}
+      home={{ roomId: room.roomId }}
     >
       <div className={css.Prescreen}>
         {people.length > 0 ? (
@@ -455,7 +813,7 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
                 icon={microphone ? Icons.Mic : Icons.MicMute}
                 off={!microphone}
                 pressed={microphone}
-                onClick={() => setMicrophone((on) => !on)}
+                onClick={() => choose((last) => ({ microphone: !last.microphone }))}
               />
               <CallControl
                 label={
@@ -465,11 +823,13 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
                 }
                 icon={camera ? Icons.VideoCamera : Icons.VideoCameraMute}
                 pressed={camera}
-                onClick={() => setCamera((on) => !on)}
+                onClick={() => choose((last) => ({ camera: !last.camera }))}
               />
               <DeviceControl
                 chosen={devices}
-                onChoose={(kind, id) => setDevices((chosen) => ({ ...chosen, [kind]: id }))}
+                onChoose={(kind, id) =>
+                  choose((last) => ({ devices: { ...last.devices, [kind]: id } }))
+                }
               />
             </Box>
             <Button

@@ -421,7 +421,7 @@
     "calls": {
       "panel": {
         "title": "Chamada",
-        "close": "Fechar o painel da chamada",
+        "close": "Fechar a visão da chamada",
         "participants": "Pessoas na chamada",
         "connecting": "A ligar…",
         "reconnecting": "A restabelecer a ligação…",
@@ -510,6 +510,27 @@
         "live": "Chamada em andamento",
         "ended": "Chamada encerrada",
         "notes": "Notas e transcrição"
+      },
+      "stage": {
+        "speaking": "{{name}} está falando",
+        "listening": "Ouvindo",
+        "muted": "Você está no mudo",
+        "waiting": "Aguardando outras pessoas entrarem",
+        "more": "+{{count}}",
+        "moreLabel": "mais {{count}}"
+      },
+      "window": {
+        "move": "Mover janela da chamada",
+        "moveMinimized": "Mover janela da chamada minimizada",
+        "minimize": "Minimizar",
+        "expand": "Expandir",
+        "dock": "Acoplar ao lado",
+        "float": "Flutuar",
+        "speakerView": "Visão do orador",
+        "openConversation": "Ir para a conversa",
+        "label": "Janela da chamada",
+        "resizeTranscript": "Redimensionar a transcrição",
+        "transcriptSplit": "Palco {{stage}} por cento, transcrição {{transcript}} por cento"
       }
     },
     "room": {

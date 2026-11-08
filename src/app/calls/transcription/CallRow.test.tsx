@@ -9,7 +9,14 @@ import { useLiveTranscript, type LiveTranscriptView } from './useLiveTranscript'
 import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from '../callStore';
 import { callTranscriptionAtom, liveTranscriptAtom } from './transcriptionState';
 import { transcriptPanelAtom } from './transcriptPanel';
+import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
+import {
+  clearCallWindowStore,
+  getCallWindowSettingsAtom,
+  minimizedSettings,
+} from '../window/callWindowState';
 import type { CallRowContent } from '../../matrix/protocol/callRow';
+import type { CallPhase } from '../RoomCall';
 import type { LiveCall, TranscriptCall, TranscriptLine } from './api';
 
 const ROOM_ID = '!room:example.org';
@@ -143,14 +150,34 @@ const faces = () =>
 let container: HTMLDivElement;
 let root: Root;
 
-const render = (row: CallRowContent, store = createStore()) => {
+const render = (row: CallRowContent, store = createStore(), size: ScreenSize = 'Desktop') => {
   act(() => {
     root.render(
       <Provider store={store}>
-        <CallRow mEvent={ROW} row={row} />
+        <ScreenSizeProvider value={size}>
+          <CallRow mEvent={ROW} row={row} />
+        </ScreenSizeProvider>
       </Provider>
     );
   });
+  return store;
+};
+
+// Read anew each time: the registry makes a new atom after each test clears it.
+const settings = () => getCallWindowSettingsAtom(VIEWER);
+
+/** This device's call in `roomId`, at `phase`. */
+const ownCall = (roomId = ROOM_ID, phase: CallPhase = 'connected') =>
+  ({
+    kind: 'room',
+    call: { room: { roomId }, subscribe: () => () => undefined, getState: () => ({ phase }) },
+  } as unknown as ActiveCall);
+
+/** This device is in a call, in `roomId`, transcribed. */
+const inCall = (roomId = ROOM_ID, phase: CallPhase = 'connected') => {
+  const store = createStore();
+  store.set(activeCallAtom, ownCall(roomId, phase));
+  store.set(callTranscriptionAtom, { roomId, status: 'transcribing' });
   return store;
 };
 
@@ -176,6 +203,7 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   vi.unstubAllGlobals();
+  clearCallWindowStore(VIEWER);
 });
 
 describe('CallRow', () => {
@@ -296,10 +324,7 @@ describe('CallRow', () => {
 
   it('shows who is in the call this device is in as its transcriber reads it', () => {
     const store = createStore();
-    store.set(activeCallAtom, {
-      kind: 'room',
-      call: { room: { roomId: ROOM_ID } },
-    } as unknown as ActiveCall);
+    store.set(activeCallAtom, ownCall());
     store.set(callTranscriptionAtom, { roomId: ROOM_ID, status: 'transcribing' });
     store.set(liveTranscriptAtom, {
       roomId: ROOM_ID,
@@ -322,13 +347,125 @@ describe('CallRow', () => {
 
   it('offers no Join for the call this device is in', () => {
     const store = createStore();
-    store.set(activeCallAtom, {
-      kind: 'room',
-      call: { room: { roomId: ROOM_ID } },
-    } as unknown as ActiveCall);
+    store.set(activeCallAtom, ownCall());
     render(LIVE, store);
     expect(button('Join')).toBeUndefined();
     expect(button('Transcript')).toBeDefined();
+  });
+
+  it("opens the live transcript of this device's call inside the floating window, from anywhere", () => {
+    state.selectedRoom = undefined;
+    const store = inCall();
+    // The window was closed, and minimized to its bar before that.
+    const rect = { x: 600, y: 200, width: 400, height: 480 };
+    store.set(
+      settings(),
+      minimizedSettings({ mode: 'floating', rect }, rect, {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      })
+    );
+    render(LIVE, store);
+
+    act(() => button('Transcript')?.click());
+    expect(store.get(settings())).toMatchObject({ transcript: true, rect });
+    expect(store.get(callPanelRoomAtom)).toBe(ROOM_ID);
+    expect(store.get(transcriptPanelAtom)).toBeUndefined();
+    // The window floats over every page, so the person stays where they are.
+    expect(state.navigateRoom).not.toHaveBeenCalled();
+
+    // Pressed again, it keeps the transcript open.
+    act(() => button('Transcript')?.click());
+    expect(store.get(settings()).transcript).toBe(true);
+  });
+
+  it.each([
+    ['connecting', true],
+    ['reconnecting', true],
+    ['failed', false],
+    ['ended', false],
+  ] as const)(
+    "opens the window's transcript only while this device's call is on (%s: %s)",
+    (phase, inWindow) => {
+      // A call that failed or ended here shows its finished view in the window, which has no
+      // transcript; the others may still be talking, which the side panel shows.
+      const store = inCall(ROOM_ID, phase);
+      render(LIVE, store);
+
+      act(() => button('Transcript')?.click());
+      expect(store.get(settings()).transcript).toBe(inWindow || undefined);
+      expect(store.get(transcriptPanelAtom)?.roomId).toBe(inWindow ? undefined : ROOM_ID);
+    }
+  );
+
+  it.each([
+    ['did not load', undefined],
+    ['waits for MindRoom', 'joining'],
+  ] as const)(
+    "opens the side panel beside the window while this device's transcriber %s",
+    (_case, status) => {
+      // The window shows only what this device's transcriber reads; the side panel reads the call.
+      const store = inCall();
+      store.set(callTranscriptionAtom, status && { roomId: ROOM_ID, status });
+      store.set(callPanelRoomAtom, ROOM_ID);
+      render(LIVE, store);
+
+      act(() => button('Transcript')?.click());
+      expect(store.get(transcriptPanelAtom)).toEqual({ roomId: ROOM_ID, replacedCall: false });
+      expect(store.get(callPanelRoomAtom)).toBe(ROOM_ID);
+      expect(store.get(settings()).transcript).toBeUndefined();
+    }
+  );
+
+  it.each([
+    ["another room's call", '!other:example.org', 'floating', 'Desktop'],
+    ['a docked call view', ROOM_ID, 'docked', 'Desktop'],
+    ['a phone', ROOM_ID, 'floating', 'Mobile'],
+  ] as const)('opens the side panel for %s, as before', (_case, callRoomId, mode, size) => {
+    const store = inCall(callRoomId);
+    store.set(settings(), { mode });
+    render(LIVE, store, size);
+
+    act(() => button('Transcript')?.click());
+    expect(store.get(transcriptPanelAtom)?.roomId).toBe(ROOM_ID);
+    expect(store.get(settings()).transcript).toBeUndefined();
+  });
+
+  it.each([
+    ['floats', 'floating', ROOM_ID, false],
+    ['is docked', 'docked', undefined, true],
+  ] as const)(
+    'opens the side transcript of a call to join while its view %s, leaving the floating one',
+    (_case, mode, callView, replacedCall) => {
+      const store = createStore();
+      store.set(settings(), { mode });
+      render(LIVE, store);
+
+      act(() => button('Join')?.click());
+      act(() => button('Transcript')?.click());
+      // The floating window's prescreen stays; the docked panel gives the transcript its place.
+      expect(store.get(transcriptPanelAtom)).toEqual({ roomId: ROOM_ID, replacedCall });
+      expect(store.get(callPanelRoomAtom)).toBe(callView);
+    }
+  );
+
+  it.each([
+    ['brings the floating window out of its bar', 'Desktop', 480],
+    ['leaves the stored bar on a phone', 'Mobile', undefined],
+  ] as const)("Join on this room's prescreen %s", (_case, size, height) => {
+    const store = createStore();
+    const rect = { x: 600, y: 200, width: 400, height: 480 };
+    const bar = minimizedSettings({ mode: 'floating', rect }, rect, {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
+    store.set(settings(), bar);
+    store.set(callPanelRoomAtom, ROOM_ID);
+    render(LIVE, store, size);
+
+    act(() => button('Join')?.click());
+    expect(store.get(callPanelRoomAtom)).toBe(ROOM_ID);
+    expect(store.get(settings()).rect?.height).toBe(height ?? bar.rect?.height);
   });
 
   it('says how long the call lasted once the router edited it for the end', () => {

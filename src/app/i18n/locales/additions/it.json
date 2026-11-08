@@ -421,7 +421,7 @@
     "calls": {
       "panel": {
         "title": "Chiamata",
-        "close": "Chiudi il pannello della chiamata",
+        "close": "Chiudi la vista della chiamata",
         "participants": "Persone nella chiamata",
         "connecting": "Connessione in corso…",
         "reconnecting": "Riconnessione in corso…",
@@ -510,6 +510,27 @@
         "live": "Chiamata in corso",
         "ended": "Chiamata terminata",
         "notes": "Note e trascrizione"
+      },
+      "stage": {
+        "speaking": "{{name}} sta parlando",
+        "listening": "In ascolto",
+        "muted": "Il tuo microfono è disattivato",
+        "waiting": "In attesa che altri si uniscano",
+        "more": "+{{count}}",
+        "moreLabel": "altri {{count}}"
+      },
+      "window": {
+        "move": "Sposta la finestra della chiamata",
+        "moveMinimized": "Sposta la finestra della chiamata ridotta",
+        "minimize": "Riduci",
+        "expand": "Espandi",
+        "dock": "Aggancia al lato",
+        "float": "Rendi mobile",
+        "speakerView": "Vista relatore",
+        "openConversation": "Vai alla conversazione",
+        "label": "Finestra della chiamata",
+        "resizeTranscript": "Ridimensiona la trascrizione",
+        "transcriptSplit": "Palco {{stage}} per cento, trascrizione {{transcript}} per cento"
       }
     },
     "room": {

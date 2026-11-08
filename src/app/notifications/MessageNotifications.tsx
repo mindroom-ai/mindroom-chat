@@ -17,6 +17,7 @@ import MessageSound from '../../../public/sound/notification.ogg';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { conversationOutOfSightAtom } from '../navigation/conversationCover';
+import { getViewedPlace } from '../navigation/viewedPlace';
 import { useServerSyncApplied } from '../matrix/hooks/useServerSyncApplied';
 import { useSetting } from '../preferences/useSetting';
 import { mDirectAtom } from '../matrix/state/mDirectList';
@@ -34,7 +35,6 @@ import { playChime } from './playChime';
 import { raiseOnce } from './notifiedOnce';
 import {
   MESSAGE_NOTIFY_MAX_AGE_MS,
-  getViewedPlace,
   isEditEvent,
   isNoticeOnScreen,
   readMessageNotice,

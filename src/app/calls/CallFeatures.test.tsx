@@ -6,6 +6,7 @@ import { ClientBindAtoms } from '../shell/ClientBindAtoms';
 import { CallFeatures } from './CallFeatures';
 import { activeCallAtom, type ActiveCall } from './callStore';
 import { CallTranscription } from './transcription/CallTranscription';
+import { startAgentCall } from './agent/agentCaller';
 
 // CallResume waits for a server sync before it reads the reload's call record; this client
 // syncs only in the tests that set `syncState`, so the others stay about the page and the panel.
@@ -174,6 +175,41 @@ describe('CallFeatures', () => {
 
     expect(room.loadMembersIfNeeded).not.toHaveBeenCalled();
     expect(store.get(activeCallAtom)).toBeUndefined();
+  });
+
+  it('takes an agent call up again with the camera it had', async () => {
+    const roomId = '!agentcall:calls.test';
+    client.rooms.set(roomId, {
+      roomId,
+      getMyMembership: () => 'join',
+      getLiveTimeline: () => ({ getState: () => undefined }),
+    });
+    client.syncState = 'SYNCING';
+    sessionStorage.setItem(
+      RESUME_KEY,
+      JSON.stringify({
+        userId: '@me:calls.test',
+        deviceId: 'TABDEVICE',
+        roomId,
+        kind: 'agent',
+        agentUserId: '@mindroom_helper:calls.test',
+        origin: { roomId: '!planning:calls.test' },
+        microphone: true,
+        camera: true,
+        devices: {},
+        savedAt: Date.now(),
+      })
+    );
+    const unmount = mount(createStore());
+
+    await vi.waitFor(() =>
+      expect(startAgentCall).toHaveBeenCalledWith(
+        client,
+        expect.any(Function),
+        expect.objectContaining({ agentUserId: '@mindroom_helper:calls.test', video: true })
+      )
+    );
+    unmount();
   });
 
   it("transcribes this device's speech in the call", () => {

@@ -10,6 +10,11 @@ import {
   openTranscriptPanel,
   transcriptPanelAtom,
 } from '../calls/transcription/transcriptPanel';
+import {
+  clearCallWindowStore,
+  getCallWindowSettingsAtom,
+  type CallWindowMode,
+} from '../calls/window/callWindowState';
 import { conversationOutOfSightAtom } from '../navigation/conversationCover';
 import type { AgentServer } from '../computer/agentServer';
 import { computerServicePreferenceAtom } from '../computer/computerServiceSettings';
@@ -49,6 +54,7 @@ const { mx, room, state } = vi.hoisted(() => {
       servers: [] as AgentServer[],
       bindsOpenIdTokens: false,
       view: undefined as RoomViewProps | undefined,
+      viewRenders: 0,
       // What the conversation shows besides the mock's own element, such as a plugin's cards.
       inView: undefined as React.ReactNode,
       userId: '@alice:example.org',
@@ -86,6 +92,7 @@ vi.mock('./RoomView', async () => {
   return {
     RoomView: (props: RoomViewProps) => {
       state.view = props;
+      state.viewRenders += 1;
       // Which mount of the conversation this is: one that stays keeps its draft and recording.
       const [mount] = useState(() => (state.mounts += 1));
       return (
@@ -273,6 +280,10 @@ vi.mock('../plugins/pluginEntries', () => ({
 importBeforeTests(() => import('./Room'));
 
 const store = getDefaultStore();
+const ALICE = '@alice:example.org';
+/** Where the call view shows on desktop: the floating window, or this side panel. */
+const setCallMode = (mode: CallWindowMode) =>
+  act(async () => store.set(getCallWindowSettingsAtom(ALICE), { mode }));
 const { membersOpenAtom } = membersDrawer as unknown as { membersOpenAtom: PrimitiveAtom<boolean> };
 
 const PANELS = ['computer', 'canvas', 'call', 'transcript', 'members'] as const;
@@ -351,6 +362,8 @@ describe('the side panels of a room', () => {
       },
     };
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    // The rule between the panels holds for the call docked beside the conversation.
+    store.set(getCallWindowSettingsAtom(ALICE), { mode: 'docked' });
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -366,6 +379,7 @@ describe('the side panels of a room', () => {
     store.set(transcriptPanelAtom, undefined);
     store.set(membersOpenAtom, false);
     store.set(computerServicePreferenceAtom, null);
+    clearCallWindowStore(ALICE);
     state.servers = [];
     state.bindsOpenIdTokens = false;
     state.view = undefined;
@@ -408,6 +422,71 @@ describe('the side panels of a room', () => {
     } else {
       expect(isOpen(first)).toBe(false);
     }
+  });
+
+  it('leaves the call to the floating window on desktop, and shows it on phones and docked', async () => {
+    await setCallMode('floating');
+    await renderRoom();
+    await open('canvas');
+    await open('call');
+    expect(isOpen('canvas')).toBe(true);
+    expect(shown()).toEqual(['canvas']);
+
+    // Docking the window shows the call here, in place of the canvas; floating again gives the
+    // side panel back to the conversation.
+    await setCallMode('docked');
+    expect(shown()).toEqual(['call']);
+    expect(isOpen('canvas')).toBe(false);
+    await setCallMode('floating');
+    expect(shown()).toEqual([]);
+    cleanup();
+
+    await renderRoom(ScreenSize.Mobile);
+    expect(shown()).toEqual(['call']);
+  });
+
+  it('renders again when the call docks or floats, not when the floating window moves', async () => {
+    await setCallMode('floating');
+    await renderRoom();
+    await open('call');
+    const before = state.viewRenders;
+    const rect = { x: 100, y: 100, width: 400, height: 480 };
+    await act(async () => store.set(getCallWindowSettingsAtom(ALICE), { mode: 'floating', rect }));
+    expect(state.viewRenders).toBe(before);
+    await setCallMode('docked');
+    expect(state.viewRenders).toBeGreaterThan(before);
+  });
+
+  it('keeps the members beside the conversation while the call floats', async () => {
+    await setCallMode('floating');
+    await renderRoom(ScreenSize.Tablet);
+    await open('members');
+    await open('call');
+    expect(shown()).toEqual(['members']);
+  });
+
+  it.each(['computer', 'canvas', 'members'] as const)(
+    'leaves the floating call window open while %s opens in its room',
+    async (other) => {
+      await setCallMode('floating');
+      await renderRoom();
+      await open('call');
+      await open(other);
+      expect(shown()).toEqual([other]);
+      expect(isOpen('call')).toBe(true);
+    }
+  );
+
+  it("leaves the floating call window open while a plugin's panel opens in its room, and while it closes", async () => {
+    await setCallMode('floating');
+    await renderRoom();
+    await open('call');
+    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
+    expect(notes()).not.toBeNull();
+    expect(isOpen('call')).toBe(true);
+    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
+    expect(notes()).toBeNull();
+    expect(isOpen('call')).toBe(true);
   });
 
   it.each(['canvas', 'call', 'transcript', 'members'] as const)(
@@ -766,6 +845,19 @@ describe('the side panels of a room', () => {
       expect(board()).toBeNull();
     }
   );
+
+  it('opens a panel that remembers again while the call floats in its window', async () => {
+    signIn();
+    withCards();
+    await renderRoom();
+    await act(async () => controls.board?.open('kept'));
+    cleanup();
+    await setCallMode('floating');
+    store.set(callPanelRoomAtom, room.roomId);
+    await renderRoom();
+    expect(screen.getByText('Board request "kept"')).toBeTruthy();
+    expect(isOpen('call')).toBe(true);
+  });
 
   it("opens a panel that remembers again over a phone's members, which the navigation puts away", async () => {
     signIn();

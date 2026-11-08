@@ -416,7 +416,7 @@
     "calls": {
       "panel": {
         "title": "Arama",
-        "close": "Arama panelini kapat",
+        "close": "Arama görünümünü kapat",
         "participants": "Aramadaki kişiler",
         "connecting": "Bağlanıyor…",
         "reconnecting": "Yeniden bağlanıyor…",
@@ -501,6 +501,27 @@
         "live": "Arama sürüyor",
         "ended": "Arama sona erdi",
         "notes": "Notlar ve konuşma metni"
+      },
+      "stage": {
+        "speaking": "{{name}} konuşuyor",
+        "listening": "Dinliyor",
+        "muted": "Sesiniz kapalı",
+        "waiting": "Başkalarının katılması bekleniyor",
+        "more": "+{{count}}",
+        "moreLabel": "{{count}} kişi daha"
+      },
+      "window": {
+        "move": "Arama penceresini taşı",
+        "moveMinimized": "Küçültülmüş arama penceresini taşı",
+        "minimize": "Küçült",
+        "expand": "Genişlet",
+        "dock": "Yana yerleştir",
+        "float": "Yüzdür",
+        "speakerView": "Konuşmacı görünümü",
+        "openConversation": "Sohbete git",
+        "label": "Arama penceresi",
+        "resizeTranscript": "Konuşma metnini yeniden boyutlandır",
+        "transcriptSplit": "Sahne yüzde {{stage}}, konuşma metni yüzde {{transcript}}"
       }
     },
     "room": {

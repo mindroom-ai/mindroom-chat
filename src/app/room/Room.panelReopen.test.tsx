@@ -4,6 +4,7 @@ import { getDefaultStore, type PrimitiveAtom } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
 import { callPanelRoomAtom } from '../calls/callStore';
+import { clearCallWindowStore, getCallWindowSettingsAtom } from '../calls/window/callWindowState';
 import { openTranscriptPanel, transcriptPanelAtom } from '../calls/transcription/transcriptPanel';
 import * as membersDrawer from '../members/useMembersDrawer';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
@@ -165,6 +166,7 @@ describe("a remembered plugin's side panel and the members list", () => {
   afterEach(() => {
     cleanup();
     store.set(callPanelRoomAtom, undefined);
+    clearCallWindowStore('@alice:example.org');
     store.set(transcriptPanelAtom, undefined);
     store.set(membersOpenAtom, false);
     state.view = undefined;
@@ -221,8 +223,11 @@ describe("a remembered plugin's side panel and the members list", () => {
     async (other) => {
       await rememberOpen('over');
       store.set(membersOpenAtom, true);
-      if (other === 'call') store.set(callPanelRoomAtom, room.roomId);
-      else openTranscriptPanel(store, room.roomId);
+      // The call as a side panel: docked (on desktop it floats by default, beside every panel).
+      if (other === 'call') {
+        store.set(getCallWindowSettingsAtom('@alice:example.org'), { mode: 'docked' });
+        store.set(callPanelRoomAtom, room.roomId);
+      } else openTranscriptPanel(store, room.roomId);
       await renderRoom();
       expect(region('Over')).toBeNull();
       expect(store.get(membersOpenAtom)).toBe(true);

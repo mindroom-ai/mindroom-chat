@@ -1,6 +1,9 @@
 import { useCallback } from 'react';
 import { atom, useAtomValue, useStore } from 'jotai';
-import { callPanelRoomAtom } from '../callStore';
+import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { callPanelRoomAtom, useActiveCall, useInCall } from '../callStore';
+import { getCallWindowTranscriptAtom, useCallViewFloats } from '../window/callWindowState';
+import { callTranscriptionAtom } from './transcriptionState';
 
 type Store = ReturnType<typeof useStore>;
 
@@ -13,14 +16,15 @@ export type TranscriptPanel = { roomId: string; replacedCall: boolean };
 export const transcriptPanelAtom = atom<TranscriptPanel | undefined>(undefined);
 
 /**
- * Shows the room's live transcript in its side panel, in place of its call panel if that is open.
- * Opened again while it shows, it still brings back the call panel it replaced.
+ * Shows the room's live transcript in its side panel, in place of its call panel if that is open
+ * there; a call view that floats (`callFloats`) is no side panel, and stays. Opened again while it
+ * shows, it still brings back the call panel it replaced.
  */
-export const openTranscriptPanel = (store: Store, roomId: string): void => {
+export const openTranscriptPanel = (store: Store, roomId: string, callFloats = false): void => {
   const shown = store.get(transcriptPanelAtom);
-  const replacedCall =
-    store.get(callPanelRoomAtom) === roomId || (shown?.roomId === roomId && shown.replacedCall);
-  if (replacedCall) store.set(callPanelRoomAtom, undefined);
+  const replacesCall = !callFloats && store.get(callPanelRoomAtom) === roomId;
+  if (replacesCall) store.set(callPanelRoomAtom, undefined);
+  const replacedCall = replacesCall || (shown?.roomId === roomId && shown.replacedCall);
   store.set(transcriptPanelAtom, { roomId, replacedCall });
 };
 
@@ -37,12 +41,72 @@ export const dismissTranscriptPanel = (store: Store, roomId: string): void => {
   if (store.get(transcriptPanelAtom)?.roomId === roomId) store.set(transcriptPanelAtom, undefined);
 };
 
-/** Whether the room shows its live transcript, and the ways to open, close or dismiss it. */
+/** Whether the room shows its live transcript, and the ways to close or dismiss it. */
 export const useTranscriptPanel = (roomId: string) => {
   const store = useStore();
   const open = useAtomValue(transcriptPanelAtom)?.roomId === roomId;
-  const show = useCallback(() => openTranscriptPanel(store, roomId), [roomId, store]);
   const close = useCallback(() => closeTranscriptPanel(store, roomId), [roomId, store]);
   const dismiss = useCallback(() => dismissTranscriptPanel(store, roomId), [roomId, store]);
-  return { open, show, close, dismiss };
+  return { open, close, dismiss };
+};
+
+/** Where the call view is: floating or not, and whether its window shows the room's call. */
+type CallTranscriptPlace = {
+  callFloats: boolean;
+  /** The window shows this device's call in the room, for the account `userId`. */
+  inWindow?: { userId: string; toggle: boolean };
+};
+
+/**
+ * Where Transcript (in the call's controls or on its row) shows the room's live transcript. While
+ * the call view floats and shows this device's call in the room (`inWindow`), the transcript
+ * shows inside the window, whose call view opens: the controls toggle it (`toggle`), the row
+ * opens it, and the room's side transcript closes, so one shows it. Anywhere else it opens in the
+ * room's side panel, as it always did, beside a floating call view.
+ */
+export const openCallTranscript = (
+  store: Store,
+  roomId: string,
+  { callFloats, inWindow }: CallTranscriptPlace
+): void => {
+  if (!inWindow) {
+    openTranscriptPanel(store, roomId, callFloats);
+    return;
+  }
+  const shown = getCallWindowTranscriptAtom(inWindow.userId);
+  const show = inWindow.toggle ? !store.get(shown) : true;
+  store.set(shown, show);
+  store.set(callPanelRoomAtom, roomId);
+  if (show) dismissTranscriptPanel(store, roomId);
+};
+
+/**
+ * Transcript for the call in `roomId`: whether it shows inside the floating window (the call is
+ * this device's and still on here, this device transcribes it, and its view floats), whether it
+ * shows there now, and `open`, which shows it where it belongs (toggling it in the window when
+ * `toggle`). The window shows only what this device's transcriber reads, so anywhere else the
+ * side panel, which reads the call itself, shows it: a call that failed or ended here (its
+ * finished view has no transcript, while the others may still talk), and one whose transcriber
+ * did not load or MindRoom has not answered yet.
+ */
+export const useCallTranscript = (roomId: string) => {
+  const store = useStore();
+  const userId = useMatrixClient().getSafeUserId();
+  const active = useActiveCall();
+  const live = useInCall();
+  const floats = useCallViewFloats();
+  const transcription = useAtomValue(callTranscriptionAtom);
+  const transcribed = transcription?.roomId === roomId && transcription.status !== 'joining';
+  const inWindow =
+    floats && live && transcribed && active?.kind === 'room' && active.call.room.roomId === roomId;
+  const shown = useAtomValue(getCallWindowTranscriptAtom(userId));
+  const open = useCallback(
+    (toggle: boolean) =>
+      openCallTranscript(store, roomId, {
+        callFloats: floats,
+        inWindow: inWindow ? { userId, toggle } : undefined,
+      }),
+    [floats, inWindow, roomId, store, userId]
+  );
+  return { inWindow, shownInWindow: inWindow && shown, open };
 };

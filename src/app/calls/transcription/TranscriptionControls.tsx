@@ -7,7 +7,7 @@ import { NameWithUserId } from '../../matrix/NameWithUserId';
 import { CallControl } from '../CallControls';
 import { callTranscriptionAtom } from './transcriptionState';
 import { PauseControl, usePausedBy } from './PauseControl';
-import { useTranscriptPanel } from './transcriptPanel';
+import { useCallTranscript } from './transcriptPanel';
 import * as css from '../CallPanel.css';
 
 /** How this device's call in `room` is transcribed; none in a call there that is not. */
@@ -16,19 +16,26 @@ const useRoomTranscription = (room: Room) => {
   return transcription?.roomId === room.roomId ? transcription.status : undefined;
 };
 
-/** Pause and Transcript in the call's controls, while MindRoom transcribes the call. */
+/**
+ * Pause and Transcript in the call's controls, while MindRoom transcribes the call. In the
+ * floating window Transcript is a switch that shows the transcript inside it; elsewhere it opens
+ * the room's side panel. While MindRoom cannot be reached the window keeps showing what it read,
+ * so its switch stays to hide it; there is nothing to pause then.
+ */
 export function TranscriptionControls({ room }: { room: Room }) {
   const { t } = useTranslation();
-  const panel = useTranscriptPanel(room.roomId);
+  const transcript = useCallTranscript(room.roomId);
   const status = useRoomTranscription(room);
-  if (status !== 'transcribing') return null;
+  const transcribing = status === 'transcribing';
+  if (!transcribing && !(status === 'unavailable' && transcript.inWindow)) return null;
   return (
     <>
-      <PauseControl room={room} />
+      {transcribing && <PauseControl room={room} />}
       <CallControl
         label={t('featureUi.calls.transcription.liveTranscript')}
         icon={Icons.Message}
-        onClick={panel.show}
+        pressed={transcript.inWindow ? transcript.shownInWindow : undefined}
+        onClick={() => transcript.open(true)}
       />
     </>
   );
