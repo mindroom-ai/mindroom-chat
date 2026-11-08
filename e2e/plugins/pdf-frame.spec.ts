@@ -11,43 +11,17 @@ import { expect, test, type Page } from '@playwright/test';
 const PDF_FRAME_MODULE = '/src/app/messages/viewers/pdfFrame.ts';
 const MARK = 'pdf-frame-spec-ran';
 
-/** Frames an object URL of `html`, typed `text/html`, at the URL `pdfFrameUrl` gives for it. */
-const frameHtml = (page: Page, html: string) =>
+/**
+ * Points the frame `#pdf-frame-spec`, made at first, at `pdfFrameUrl` of an object URL of `content`
+ * typed `type`.
+ */
+const frameBlob = (page: Page, content: string, type: string) =>
   page.evaluate(
-    async ({ path, markup }) => {
+    async ({ path, text, blobType }) => {
       const { pdfFrameUrl } = (await import(
         path
       )) as typeof import('../../src/app/messages/viewers/pdfFrame');
-      const objectUrl = URL.createObjectURL(new Blob([markup], { type: 'text/html' }));
-      const frame = document.createElement('iframe');
-      frame.src = pdfFrameUrl(objectUrl) ?? 'about:blank';
-      document.body.append(frame);
-    },
-    { path: PDF_FRAME_MODULE, markup: html }
-  );
-
-test('the PDF frame page shows an object URL as a PDF, whatever type its blob carries', async ({
-  page,
-}) => {
-  await page.goto('/');
-  await page.evaluate((mark) => localStorage.removeItem(mark), MARK);
-  await frameHtml(page, `<script>localStorage.setItem('${MARK}', 'yes')</script>`);
-
-  // The browser's PDF viewer takes the bytes, in a frame of its own.
-  await expect
-    .poll(() => page.frames().some((frame) => frame.url().startsWith('chrome-extension://')))
-    .toBe(true);
-  expect(await page.evaluate((mark) => localStorage.getItem(mark), MARK)).toBeNull();
-});
-
-/** Points the frame `#pdf-frame-spec`, made at first, at `pdfFrameUrl` of an object URL of `text`. */
-const frameText = (page: Page, text: string) =>
-  page.evaluate(
-    async ({ path, bytes }) => {
-      const { pdfFrameUrl } = (await import(
-        path
-      )) as typeof import('../../src/app/messages/viewers/pdfFrame');
-      const objectUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+      const objectUrl = URL.createObjectURL(new Blob([text], { type: blobType }));
       let frame = document.querySelector<HTMLIFrameElement>('#pdf-frame-spec');
       if (!frame) {
         frame = document.createElement('iframe');
@@ -56,8 +30,21 @@ const frameText = (page: Page, text: string) =>
       }
       frame.src = pdfFrameUrl(objectUrl) ?? 'about:blank';
     },
-    { path: PDF_FRAME_MODULE, bytes: text }
+    { path: PDF_FRAME_MODULE, text: content, blobType: type }
   );
+
+test('the PDF frame page shows an object URL as a PDF, whatever type its blob carries', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await frameBlob(page, `<script>localStorage.setItem('${MARK}', 'yes')</script>`, 'text/html');
+
+  // The browser's PDF viewer takes the bytes, in a frame of its own.
+  await expect
+    .poll(() => page.frames().some((frame) => frame.url().startsWith('chrome-extension://')))
+    .toBe(true);
+  expect(await page.evaluate((mark) => localStorage.getItem(mark), MARK)).toBeNull();
+});
 
 /** The bytes the frame page hands the browser's viewer, once it does. */
 const viewerBytes = (page: Page) =>
@@ -77,8 +64,8 @@ test("the PDF frame page shows the object URL its frame's URL names now, after t
 }) => {
   await page.goto('/');
   // A plugin's `<iframe src={pdfFrameUrl(url)}>` whose `url` changes: only the part after `#` does.
-  await frameText(page, '%PDF first');
+  await frameBlob(page, '%PDF first', 'application/pdf');
   await expect.poll(() => viewerBytes(page)).toBe('%PDF first');
-  await frameText(page, '%PDF second');
+  await frameBlob(page, '%PDF second', 'application/pdf');
   await expect.poll(() => viewerBytes(page)).toBe('%PDF second');
 });
