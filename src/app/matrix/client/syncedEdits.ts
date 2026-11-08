@@ -39,12 +39,6 @@ const isRedactedEdit = (edit: MatrixEvent): boolean => {
   return !!editId && !!client?.getRoom(edit.getRoomId())?.redactedBundledEdits.has(editId);
 };
 
-/** The newest edit of the message `eventId` the sync brought, unless it was redacted. */
-const newestEdit = (eventId: string): MatrixEvent | undefined => {
-  const edit = newestEdits.get(eventId);
-  return edit && !isRedactedEdit(edit) ? edit : undefined;
-};
-
 /** Whether `edit` ends its reply's stream, by the status in the clear or the decrypted content. */
 const isFinishingEdit = (edit: MatrixEvent): boolean => {
   // Optional calls: thread tests pass edit stand-ins without wire content or decryption state.
@@ -57,7 +51,10 @@ const isFinishingEdit = (edit: MatrixEvent): boolean => {
 };
 
 /** The newest edit of the message `eventId` the sync brought, readable or not, unless redacted. */
-export const getSyncedEdit = newestEdit;
+export const getSyncedEdit = (eventId: string): MatrixEvent | undefined => {
+  const edit = newestEdits.get(eventId);
+  return edit && !isRedactedEdit(edit) ? edit : undefined;
+};
 
 /** The edit of `reply` by its sender that finished its stream, if the client has one. */
 export const getFinishingEdit = (reply: MatrixEvent): MatrixEvent | undefined => {
@@ -78,7 +75,7 @@ export const getFinishingEdit = (reply: MatrixEvent): MatrixEvent | undefined =>
 export const isStreamingByServer = (reply: MatrixEvent): boolean | undefined => {
   if (getFinishingEdit(reply)) return false;
   const replyId = reply.getId();
-  const edit = replyId ? newestEdit(replyId) : undefined;
+  const edit = replyId ? getSyncedEdit(replyId) : undefined;
   const newest = edit && edit.getSender() === reply.getSender() ? edit : reply;
   const status = getStreamStatusFromContent(newest.getWireContent?.() ?? {});
   if (!status || TERMINAL_STREAM_STATUSES.has(status)) return status ? false : undefined;
