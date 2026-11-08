@@ -1,11 +1,10 @@
-import type { NavigateOptions } from 'react-router-dom';
+import type { NavigateOptions, Path } from 'react-router-dom';
 import { isNativeIOS } from '../native/nativeSso';
 import {
   setRoomThreadExitTargetForHistoryState,
   withRoomThreadExitTargetState,
 } from '../routes/roomNavigateState';
-
-type LocationPathParts = Pick<Location, 'pathname' | 'search' | 'hash'>;
+import { joinPathComponent } from '../routes/pathUtils';
 
 export type NavigateRoomThreadDirect = (
   roomId: string,
@@ -20,14 +19,11 @@ export type RoomThreadNavigationOptions = {
   eventId?: string;
   opts?: NavigateOptions;
   navigateRoomThreadDirect: NavigateRoomThreadDirect;
-  getLocation: () => LocationPathParts;
+  location: Path;
   getHistoryState?: () => unknown;
   schedule?: (callback: () => void) => void;
   isNativeIOSDevice?: () => boolean;
 };
-
-export const getCurrentRoutePath = (location: LocationPathParts): string =>
-  `${location.pathname}${location.search}${location.hash}`;
 
 const afterNextPaint = (callback: () => void) => {
   if (typeof requestAnimationFrame === 'function') {
@@ -43,7 +39,7 @@ export const navigateToRoomThread = ({
   eventId,
   opts,
   navigateRoomThreadDirect,
-  getLocation,
+  location,
   getHistoryState = () => window.history.state,
   schedule = afterNextPaint,
   isNativeIOSDevice = isNativeIOS,
@@ -51,7 +47,7 @@ export const navigateToRoomThread = ({
   const seededExitTarget = !opts?.replace;
   const exitTarget = seededExitTarget
     ? {
-        exitPath: getCurrentRoutePath(getLocation()),
+        exitPath: joinPathComponent(location),
         roomId,
         threadId,
         useHistoryBack: !isNativeIOSDevice(),

@@ -20,6 +20,7 @@ afterEach(cleanup);
  * has forgotten what came before.
  */
 function Thread() {
+  const { pathname, search } = useLocation();
   const { navigatePath, navigateRoomThread } = useRoomNavigate();
   const back = () => {
     const exitPath = getRoomThreadExitTargetFromHistoryState(window.history.state)?.exitPath;
@@ -36,13 +37,9 @@ function Thread() {
       <button type="button" onClick={back}>
         Back
       </button>
+      <output>{`${pathname}${search}`}</output>
     </>
   );
-}
-
-function Address() {
-  const { pathname, search } = useLocation();
-  return <output>{`${pathname}${search}`}</output>;
 }
 
 const openAndLeaveThread = () => {
@@ -63,7 +60,6 @@ describe("a thread's recorded return address", () => {
       <MatrixClientProvider value={client}>
         <BrowserRouter basename="/chat">
           <Thread />
-          <Address />
         </BrowserRouter>
       </MatrixClientProvider>
     );
@@ -77,7 +73,6 @@ describe("a thread's recorded return address", () => {
       <MatrixClientProvider value={client}>
         <HashRouter>
           <Thread />
-          <Address />
         </HashRouter>
       </MatrixClientProvider>
     );

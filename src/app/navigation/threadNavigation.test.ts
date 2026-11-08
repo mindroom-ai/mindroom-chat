@@ -17,11 +17,7 @@ describe('navigateToRoomThread', () => {
       threadId: '$thread',
       eventId: '$reply',
       navigateRoomThreadDirect,
-      getLocation: () => ({
-        pathname: '/home/!room:example.org',
-        search: '?filter=open',
-        hash: '#reply',
-      }),
+      location: { pathname: '/home/!room:example.org', search: '?filter=open', hash: '#reply' },
       getHistoryState: () => historyState,
       schedule: (callback) => {
         scheduled.push(callback);
@@ -65,7 +61,7 @@ describe('navigateToRoomThread', () => {
       threadId: '$thread',
       opts,
       navigateRoomThreadDirect,
-      getLocation: () => ({ pathname: '/home/!room:example.org', search: '', hash: '' }),
+      location: { pathname: '/home/!room:example.org', search: '', hash: '' },
       schedule: () => undefined,
       isNativeIOSDevice: () => false,
     });
@@ -95,7 +91,7 @@ describe('navigateToRoomThread', () => {
       roomId: '!room:example.org',
       threadId: '$thread',
       navigateRoomThreadDirect,
-      getLocation: () => ({ pathname: '/home/!room:example.org', search: '', hash: '' }),
+      location: { pathname: '/home/!room:example.org', search: '', hash: '' },
       schedule: () => undefined,
       isNativeIOSDevice: () => true,
     });
@@ -127,7 +123,7 @@ describe('navigateToRoomThread', () => {
       threadId: '$thread',
       opts,
       navigateRoomThreadDirect,
-      getLocation: () => ({ pathname: '/home/!room:example.org', search: '', hash: '' }),
+      location: { pathname: '/home/!room:example.org', search: '', hash: '' },
       schedule,
     });
 

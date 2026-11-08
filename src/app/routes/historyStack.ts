@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation, useNavigationType, type NavigationType } from 'react-router-dom';
+import { decodeRouteParam } from './pathUtils';
 
 /** A page of this tab's history: its path and its query. */
 export type HistoryPage = { pathname: string; search: string };
@@ -74,14 +75,6 @@ export const previousHistoryOrigin = (
   isElsewhere: (page: HistoryPage) => boolean
 ): HistoryOrigin | undefined => findHistoryOrigin(current, isElsewhere);
 
-const decodeSegment = (segment: string): string => {
-  try {
-    return decodeURIComponent(segment);
-  } catch {
-    return segment;
-  }
-};
-
 /**
  * Whether a page shows the room: its route names it by one of `addresses` (its ID or an alias), as a
  * room's own page, an event in it, its threads and a space's own pages do. `threadIds` narrows it
@@ -93,5 +86,5 @@ export const showsRoom = (page: HistoryPage, addresses: string[], threadIds?: st
   page.pathname
     .split('/')
     .slice(1, 3)
-    .some((segment) => addresses.includes(decodeSegment(segment))) &&
+    .some((segment) => addresses.includes(decodeRouteParam(segment))) &&
   (!threadIds || threadIds.includes(new URLSearchParams(page.search).get('threadId') ?? ''));
