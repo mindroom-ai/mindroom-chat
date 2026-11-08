@@ -40,7 +40,9 @@
 // Its slash command, `/greet <text>`, sends the notice "Example greeting: <text>" to the room, or in a
 // thread's composer to that thread, through the room's client, and fails without a text. Its slash
 // command `/subroom <name>` creates a sub-room of the room called <name>, as New Sub-room does, and
-// fails without a name.
+// fails without a name. Its slash command `/topic <text>` sets the room's topic to <text> (without a
+// text, clears it), and fails without sending anything where the room's levels, as they are when it
+// runs, do not let the account.
 // Every room's menu but a space's lists its entry "Example room info" ("Beispiel-Rauminfo" in
 // German), whose dialog says "Example dialog of <room name>" until its Close button closes it.
 // Every room's menu also lists, after Leave and drawn as Leave is, its critical entry "Example
@@ -48,7 +50,9 @@
 // In a room with a MindRoom server, its panel also talks to the routes of e2e's sample MindRoom
 // plugin (e2e/fixtures/sample-plugin/routes.py) as the signed-in user: "Say hello" asks for the
 // backend's hello, and a websocket echoes what "Echo" sends, opened again unless the user left.
-// Its panel names the sender of the greeting it shows, and their name opens their profile card
+// Its panel names the sender of the greeting it shows by the name the app shows for them, with their
+// user ID when another member shows the same name (by their user ID when they have no name), and
+// their name opens their profile card
 // beside the panel, as a mention pill opens one; under it, the panel shows the signed-in person's
 // card itself. It shows the greeting's text as the app renders an agent's reply, as Markdown whose
 // HTML the app sanitized, with the Matrix IDs of the room's members replaced by their names.
@@ -82,6 +86,8 @@ import {
   type PluginPageProps,
 } from '@mindroom/client-sdk/core';
 import {
+  getMemberDisplayName,
+  getRoomPermissions,
   hasActiveMindroomAgent,
   isMindroomAgentUserId,
   mxcUrlToHttp,
@@ -387,7 +393,7 @@ function FetchedGreeting({ roomId, eventId }: { roomId: string; eventId: string 
               openUserProfile(roomId, sender, event.currentTarget.getBoundingClientRect(), 'Left')
             }
           >
-            {room?.getMember(sender)?.name ?? sender}
+            {(room && getMemberDisplayName(room, sender)) ?? sender}
           </button>
         </p>
       )}
@@ -672,6 +678,16 @@ const plugin: ClientPlugin = {
   ],
   slashCommands: [
     {
+      name: 'topic',
+      description: 'topic',
+      run: async ({ room, args }) => {
+        if (!getRoomPermissions(room).stateEvent('m.room.topic', room.client.getSafeUserId())) {
+          throw new Error("You may not change this room's topic.");
+        }
+        await room.client.setRoomTopic(room.roomId, args.trim());
+      },
+    },
+    {
       name: 'greet',
       description: 'greet',
       run: async ({ room, args, threadId }) => {
@@ -714,6 +730,7 @@ const plugin: ClientPlugin = {
       wave: 'Wave',
       greet: 'Send the room a greeting. Example: /greet Hello',
       subroom: 'Create a sub-room of this room. Example: /subroom Ideas',
+      topic: "Set this room's topic, where you may. Example: /topic Plans for today",
       roomInfo: 'Example room info',
       roomRemoval: 'Example removal',
     },
