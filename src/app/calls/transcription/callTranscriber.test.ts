@@ -978,7 +978,9 @@ describe('CallTranscriber ending', () => {
     ended.transcriber.start();
     await advance();
     await ended.transcriber.end();
+    const leaveNow = vi.spyOn(ended.transcriber, 'leaveNow');
     await ended.sessions.revoke();
+    expect(leaveNow).not.toHaveBeenCalled();
     expect(ended.steps()).toEqual(['calls.join', 'leave', 'revoke']);
   });
 
