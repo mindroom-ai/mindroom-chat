@@ -13,7 +13,7 @@ import {
 } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
 import { MatrixClientProvider } from '../app/matrix/hooks/useMatrixClient';
-import { useRoomHref, useRoomNavigate } from './room';
+import { useRoomHref, useRoomNavigate, type RoomNavigate } from './room';
 
 const ROOM = '!lobby:example.org';
 const THREAD = '$root:example.org';
@@ -91,9 +91,11 @@ describe('useRoomNavigate', () => {
   }
   function Buttons() {
     const { navigateRoom, navigateRoomThread } = useRoomNavigate();
+    /** A plugin's own wrapper, typed by the SDK's parameters, so the options may be left out. */
+    const openRoom = (...args: Parameters<RoomNavigate['navigateRoom']>) => navigateRoom(...args);
     return (
       <>
-        <button type="button" onClick={() => navigateRoom(ROOM)}>
+        <button type="button" onClick={() => openRoom(ROOM)}>
           Room
         </button>
         <button type="button" onClick={() => navigateRoomThread(ROOM, THREAD)}>

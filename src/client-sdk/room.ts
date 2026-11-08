@@ -22,7 +22,7 @@ export type RoomNavigate = {
   /** Opens the room `roomId` where the app opens it: in its space, in Direct, or in Home. */
   navigateRoom: {
     (roomId: string): void;
-    (roomId: string, options: RoomNavigateOptions): void;
+    (roomId: string, options?: RoomNavigateOptions): void;
   };
   /**
    * Opens the thread `threadId` (its root's event ID) of the room; its back button returns here,
@@ -30,7 +30,7 @@ export type RoomNavigate = {
    */
   navigateRoomThread: {
     (roomId: string, threadId: string): void;
-    (roomId: string, threadId: string, options: RoomNavigateOptions): void;
+    (roomId: string, threadId: string, options?: RoomNavigateOptions): void;
   };
 };
 
