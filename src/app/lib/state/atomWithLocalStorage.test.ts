@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createStore } from 'jotai';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   atomWithLocalStorage,
   getLocalStorageItem,
@@ -53,15 +53,8 @@ describe('atomWithLocalStorage', () => {
 
   it('follows another tab while mounted, and reads no more when it mounts', () => {
     localStorage.setItem(KEY, JSON.stringify('stored'));
-    let reads = 0;
-    const valueAtom = atomWithLocalStorage<string>(
-      KEY,
-      (key) => {
-        reads += 1;
-        return getLocalStorageItem(key, 'default');
-      },
-      setLocalStorageItem
-    );
+    const getItem = vi.fn((key: string) => getLocalStorageItem(key, 'default'));
+    const valueAtom = atomWithLocalStorage<string>(KEY, getItem, setLocalStorageItem);
     const store = createStore();
     const unsubscribe = store.sub(valueAtom, () => undefined);
     localStorage.setItem(KEY, JSON.stringify('other tab'));
@@ -70,6 +63,6 @@ describe('atomWithLocalStorage', () => {
     unsubscribe();
 
     store.sub(valueAtom, () => undefined)();
-    expect(reads).toBe(2);
+    expect(getItem).toHaveBeenCalledTimes(2);
   });
 });

@@ -36,23 +36,24 @@ export const atomWithLocalStorage = <T>(
   setItem: (key: string, value: T) => void
 ): WritableAtom<T, [T], void> => {
   const readStored = () => getStorageItemSafe(getSafeLocalStorage(), key);
-  const valueAtom = atom<T>(getItem(key));
   // The stored text the value was last read from or written as. A value storage refused, or keeps
   // less of, stays as it is until the text changes.
-  let seen = readStored();
-  const read = (setValue: (value: T) => void) => {
+  let seen: string | null = null;
+  const read = (): T => {
+    const value = getItem(key);
     seen = readStored();
-    setValue(getItem(key));
+    return value;
   };
+  const valueAtom = atom<T>(read());
 
   valueAtom.onMount = (setValue) => {
-    if (readStored() !== seen) read(setValue);
+    if (readStored() !== seen) setValue(read());
     if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') {
       return undefined;
     }
     const handleStorage = (event: StorageEvent) => {
       if (event.key !== null && event.key !== key) return;
-      read(setValue);
+      setValue(read());
     };
     window.addEventListener('storage', handleStorage);
     return () => {
