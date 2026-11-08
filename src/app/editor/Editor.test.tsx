@@ -3,7 +3,10 @@ import React from 'react';
 import { act } from 'react-dom/test-utils';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Descendant } from 'slate';
 import { CustomEditor, useEditor } from './Editor';
+import { BlockType } from './types';
+import { createMentionElement } from './utils';
 
 vi.mock('./Editor.css', () =>
   Object.fromEntries(
@@ -42,7 +45,7 @@ afterEach(() => {
   container = undefined;
 });
 
-const textBox = (props: { ariaLabel?: string }) => {
+const textBox = (props: { ariaLabel?: string; initialValue?: Descendant[] }) => {
   function Harness() {
     const editor = useEditor();
     return (
@@ -72,5 +75,18 @@ describe('CustomEditor', () => {
 
   it('takes an explicit accessible name over the placeholder', () => {
     expect(textBox({ ariaLabel: 'Reply' }).getAttribute('aria-label')).toBe('Reply');
+  });
+
+  it('shows the direction controls of a mention label as code points, as the message sends it', () => {
+    // A message being edited keeps the label its HTML gave the mention.
+    const mention = createMentionElement('@ops\u202enimda:example.org', '@ops\u202enimda', false);
+    textBox({
+      initialValue: [
+        { type: BlockType.Paragraph, children: [{ text: '' }, mention, { text: '' }] },
+      ],
+    });
+    // Slate keeps a zero-width character (U+FEFF) after an inline element's label.
+    const chip = container!.querySelector('[data-editor-inline="mention"]');
+    expect(chip?.textContent?.replace(/\uFEFF/g, '')).toBe('@ops<U+202E>nimda');
   });
 });
