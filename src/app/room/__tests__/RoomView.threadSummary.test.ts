@@ -2,22 +2,9 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearThreadSummarySharedState } from '../../event-store/threads/threadSummaryState';
+import type { ThreadContextBannerProps } from '../../threads/ThreadContextBanner';
+import type { RoomTimelineProps } from '../../timeline/RoomTimeline';
 import { RoomView } from '../RoomView';
-
-type MockThreadContextBannerProps = {
-  onExitThread?: () => void;
-  summaryInfo?: { summaryText?: string; generatedTs?: number; messageCount?: number };
-};
-
-type MockRoomTimelineProps = {
-  threadHeader?: React.ReactNode;
-  hasMindroomAgents?: boolean;
-  summaryMap: Map<string, { summaryText?: string; generatedTs?: number; messageCount?: number }>;
-  onStoreThreadSummary: (
-    threadRootId: string,
-    info?: { summaryText?: string; generatedTs?: number; messageCount?: number }
-  ) => void;
-};
 
 const {
   passthrough,
@@ -28,10 +15,10 @@ const {
 } = vi.hoisted(() => ({
   passthrough: 'div',
   threadContextBannerState: {
-    props: undefined as MockThreadContextBannerProps | undefined,
+    props: undefined as ThreadContextBannerProps | undefined,
   },
   roomTimelineState: {
-    props: undefined as MockRoomTimelineProps | undefined,
+    props: undefined as RoomTimelineProps | undefined,
   },
   loadCachedThreadSummariesMock: vi.fn(async () => new Map()),
   saveCachedThreadSummaryMock: vi.fn(async () => undefined),
@@ -104,7 +91,7 @@ vi.mock('../../editor/Editor', () => ({
 }));
 
 vi.mock('../../timeline/RoomTimeline', () => ({
-  RoomTimeline: (props: MockRoomTimelineProps) => {
+  RoomTimeline: (props: RoomTimelineProps) => {
     const { threadHeader } = props;
     roomTimelineState.props = props;
     return React.createElement('div', null, threadHeader);
@@ -136,7 +123,7 @@ vi.mock('../RoomViewHeader', () => ({
 }));
 
 vi.mock('../../threads/ThreadContextBanner', () => ({
-  ThreadContextBanner: (props: MockThreadContextBannerProps) => {
+  ThreadContextBanner: (props: ThreadContextBannerProps) => {
     threadContextBannerState.props = props;
     return React.createElement('div');
   },
