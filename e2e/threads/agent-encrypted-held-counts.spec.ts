@@ -100,14 +100,18 @@ const newestEventId = async (stack: AgentStack, roomId: string): Promise<string>
   return newest.event_id;
 };
 
-/** Whether the router sent anything in the room. */
+/** Whether the router sent a message in the room (its join and state events aside). */
 const routerSpoke = async (stack: AgentStack, roomId: string): Promise<boolean> => {
-  const { chunk } = await matrixFetch<{ chunk: Array<{ sender: string }> }>(
+  const { chunk } = await matrixFetch<{ chunk: Array<{ sender: string; type: string }> }>(
     stack.homeserver,
     `/rooms/${encodeURIComponent(roomId)}/messages?dir=b&limit=50`,
     { accessToken: stack.tester.accessToken }
   );
-  return chunk.some((event) => event.sender === stack.agents.router);
+  return chunk.some(
+    (event) =>
+      event.sender === stack.agents.router &&
+      (event.type === 'm.room.message' || event.type === 'm.room.encrypted')
+  );
 };
 
 const openSecurity = async (page: Page): Promise<void> => {
