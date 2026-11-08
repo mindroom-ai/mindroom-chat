@@ -21,8 +21,9 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // The Threads view of a room with an agent lists the newest thread first, where it opens and
 // where the reader reads. A "New messages" line there would mark the newest row, not the place
 // where the reader stopped, so the view draws none and offers no Jump to Unread or Mark as Read
-// pills, as MindRoom Chat does; a room read oldest first still offers Jump to Unread, which leads
-// to the line where the unread messages start. Each room holds 30 read and 30 unread messages,
+// pills, as MindRoom Chat does; a room read oldest first (a room of people, and the agent's room in
+// Classic) still offers Jump to Unread, which brings the line where the unread messages start into
+// view, clear of the header and the composer. Each room holds 30 read and 30 unread messages,
 // among 25 rooms; desktop (1280 by 800, classic scrollbars) and phone (390 by 844, touch),
 // Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. The page
 // sends no read receipt, so the rooms stay unread. Set UNREAD_LINE_SHOTS=<directory> for
@@ -161,10 +162,11 @@ const scrollBy = (page: Page, by: number) =>
 /**
  * Where the "New Messages" line is once the view rests (its scroll position held for 30 frames):
  * 'in view' when all of it is inside the timeline's visible band, the scroll area less the bars
- * over its edges (its scroll padding); otherwise what was seen instead.
+ * over its edges (its scroll padding), at least `margin` px from either edge; otherwise what was
+ * seen instead.
  */
-const restingLinePlace = (page: Page) =>
-  page.evaluate(async () => {
+const restingLinePlace = (page: Page, margin = 16) =>
+  page.evaluate(async (margin) => {
     let scroller = document.querySelector<HTMLElement>(
       '[data-testid="room-virtual-inner"]'
     )?.parentElement;
@@ -194,11 +196,11 @@ const restingLinePlace = (page: Page) =>
     const top = view.top + (Number.parseFloat(style.scrollPaddingTop) || 0);
     const bottom = view.bottom - (Number.parseFloat(style.scrollPaddingBottom) || 0);
     const box = line.getBoundingClientRect();
-    if (box.top >= top && box.bottom <= bottom) return 'in view';
+    if (box.top >= top + margin && box.bottom <= bottom - margin) return 'in view';
     return `line at ${Math.round(box.top)} to ${Math.round(box.bottom)}, visible band ${Math.round(
       top
     )} to ${Math.round(bottom)}, ${at}`;
-  });
+  }, margin);
 
 const check = async (browser: Browser, label: string, options: BrowserContextOptions) => {
   const { reader, agentRoom, peopleRoom } = await seed(label);
@@ -268,6 +270,18 @@ const check = async (browser: Browser, label: string, options: BrowserContextOpt
     expect(lineBox!.y).toBeLessThan(firstUnread!.y);
     expect(lineBox!.y).toBeGreaterThan(lastRead!.y);
     await shots(page, `${label}-people-room`);
+
+    // The agent's room in Classic, oldest first as well: Jump to Unread brings its line into view.
+    await page.evaluate(
+      (id) => localStorage.setItem(`roomViewMode:${id}`, JSON.stringify('classic')),
+      agentRoom
+    );
+    await page.goto(`/home/${encodeURIComponent(agentRoom)}/`);
+    await expect(jump).toBeVisible({ timeout: 60_000 });
+    if (options.hasTouch) await jump.tap();
+    else await jump.click();
+    await expect.poll(() => restingLinePlace(page), { timeout: 15_000 }).toBe('in view');
+    await shots(page, `${label}-agent-room-classic`);
   } catch (error) {
     // A WebKit page is not the test's own, so Playwright keeps no screenshot of it.
     await page.screenshot({ path: test.info().outputPath(`${label}-failed.png`) }).catch(() => {});
