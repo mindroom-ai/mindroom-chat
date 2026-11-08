@@ -8,6 +8,7 @@ import {
   mentionHelper,
   openNewSession,
   readRouterWelcome,
+  routerToken,
   serverUnreadCounts,
   test,
   type AgentStack,
@@ -24,9 +25,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // first message, and showed 0 once the keys came, while the server counted the finished reply and
 // its title and every other device showed 1. Each device must show the server's count less the
 // title notices (design decision #17).
-//
-// The last test sets up secret storage and a key backup for the stack's test account, so it
-// comes last; other specs' new sessions of that account then start unverified.
 test.describe.configure({ timeout: 480_000 });
 test.use({ viewport: { width: 1440, height: 900 } });
 
@@ -100,6 +98,20 @@ const newestEventId = async (stack: AgentStack, roomId: string): Promise<string>
   const newest = chunk[0];
   if (!newest) throw new Error('The room has no events');
   return newest.event_id;
+};
+
+/** Whether the router sent a message in the room (its join and state events aside). */
+const routerSpoke = async (stack: AgentStack, roomId: string): Promise<boolean> => {
+  const { chunk } = await matrixFetch<{ chunk: Array<{ sender: string; type: string }> }>(
+    stack.homeserver,
+    `/rooms/${encodeURIComponent(roomId)}/messages?dir=b&limit=50`,
+    { accessToken: stack.tester.accessToken }
+  );
+  return chunk.some(
+    (event) =>
+      event.sender === stack.agents.router &&
+      (event.type === 'm.room.message' || event.type === 'm.room.encrypted')
+  );
 };
 
 const openSecurity = async (page: Page): Promise<void> => {
@@ -240,16 +252,39 @@ test('an unread fast agent reply stays counted after a reload', async ({ page: d
 });
 
 test('a new session whose keys come late from the key backup shows an unread finished reply', async ({
-  page: desk,
   browser,
-  stack,
+  stack: shared,
   baseURL,
 }) => {
   test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE names no WebKit');
   const log: string[] = [];
   const webkit = await launchWebKit();
   try {
+    // An account of its own: the secret storage and key backup it sets up stay on the account, so
+    // the stack's test account would offer no Enable on a later run. The agents answer the
+    // members of their lobby, where the router invites it.
+    const owner = await registerDisposableUser(
+      `latekeys${Date.now().toString(36)}`,
+      'secret-pass-1'
+    );
+    const lobby = encodeURIComponent(shared.rooms.lobby);
+    await matrixFetch(shared.homeserver, `/rooms/${lobby}/invite`, {
+      method: 'POST',
+      accessToken: routerToken(shared),
+      body: JSON.stringify({ user_id: owner.userId }),
+    });
+    await matrixFetch(shared.homeserver, `/join/${lobby}`, {
+      method: 'POST',
+      accessToken: owner.accessToken,
+      body: '{}',
+    });
+    const stack: AgentStack = { ...shared, tester: owner };
+
     // The desk sets up secret storage and the key backup, which then holds the room's keys.
+    const desk = await openNewSession(browser, stack, {
+      baseURL,
+      viewport: { width: 1440, height: 900 },
+    });
     await desk.goto('/home/', { timeout: 180_000 });
     await openSecurity(desk);
     await desk.getByRole('button', { name: 'Enable' }).click({ timeout: 30_000 });
@@ -265,11 +300,13 @@ test('a new session whose keys come late from the key backup shows an unread fin
 
     // The desk asks the helper and goes Home before the reply comes (30 words, then a title).
     const roomId = await createEncryptedAgentRoom(stack, 'Late keys');
-    await readRouterWelcome(stack, roomId);
     await desk.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
     await expect(composer(desk)).toBeVisible({ timeout: 90_000 });
     await mentionHelper(desk, stack, '#slow what changed in the release?');
     await goHome(desk, roomId);
+    // The router welcomes only an empty room, and not always one of an account outside the
+    // stack's: read its welcome, if it sent one, so the counts are the test's own.
+    if (await routerSpoke(stack, roomId)) await readRouterWelcome(stack, roomId);
     await expect
       .poll(
         async () =>
