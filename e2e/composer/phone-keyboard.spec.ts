@@ -387,7 +387,7 @@ const checkSpaceRoomOnHomeKeepsView = async (page: Page, world: World, engine: s
   ).toHaveCount(1);
   expect(new URL(page.url()).pathname, `${engine}: the thread opens on Home`).toMatch(
     /^\/home\//
-  );
+  );  await page.screenshot({ path: test.info().outputPath(`after-${engine}.png`) });
 };
 
 const appHeight = (page: Page) =>
