@@ -100,6 +100,16 @@ const newestEventId = async (stack: AgentStack, roomId: string): Promise<string>
   return newest.event_id;
 };
 
+/** Whether the router sent anything in the room. */
+const routerSpoke = async (stack: AgentStack, roomId: string): Promise<boolean> => {
+  const { chunk } = await matrixFetch<{ chunk: Array<{ sender: string }> }>(
+    stack.homeserver,
+    `/rooms/${encodeURIComponent(roomId)}/messages?dir=b&limit=50`,
+    { accessToken: stack.tester.accessToken }
+  );
+  return chunk.some((event) => event.sender === stack.agents.router);
+};
+
 const openSecurity = async (page: Page): Promise<void> => {
   await openSettingsFromAccountRail(page);
   await page.getByRole('button', { name: 'Privacy & security', exact: true }).click();
@@ -286,11 +296,13 @@ test('a new session whose keys come late from the key backup shows an unread fin
 
     // The desk asks the helper and goes Home before the reply comes (30 words, then a title).
     const roomId = await createEncryptedAgentRoom(stack, 'Late keys');
-    await readRouterWelcome(stack, roomId);
     await desk.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
     await expect(composer(desk)).toBeVisible({ timeout: 90_000 });
     await mentionHelper(desk, stack, '#slow what changed in the release?');
     await goHome(desk, roomId);
+    // The router welcomes only an empty room, and not always one of an account outside the
+    // stack's: read its welcome, if it sent one, so the counts are the test's own.
+    if (await routerSpoke(stack, roomId)) await readRouterWelcome(stack, roomId);
     await expect
       .poll(
         async () =>
