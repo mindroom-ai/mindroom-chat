@@ -1,5 +1,12 @@
-import { MatrixClient, MatrixEvent, Room, type IEvent } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
+import {
+  FeatureSupport,
+  MatrixClient,
+  MatrixEvent,
+  Room,
+  Thread,
+  type IEvent,
+} from 'matrix-js-sdk';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord } from './threadRecord';
 import { resolveThreadPresentationSnapshot } from './threadPresentation';
 import { getBundledThreadPreviews } from './threadBundledPreviews';
@@ -368,5 +375,73 @@ describe('fresh-device bundled thread presentation', () => {
     const { room, root } = fixture(shape);
     expect(presentation(room, root).summaryText).toBeUndefined();
     expect(presentation(room, root).latestReplyPreviewText).toBeUndefined();
+  });
+});
+
+// A redaction of a reply's edit that names an event the client does not hold reaches the copies of
+// the reply bundled with its thread's root through the room (eventRevision.ts).
+describe('bundled thread previews of a redacted edit', () => {
+  const support = Thread.hasServerSideSupport;
+  afterEach(() => {
+    Thread.hasServerSideSupport = support;
+    vi.restoreAllMocks();
+  });
+  const redactEdit = (room: Room) =>
+    room.addLiveEvents(
+      [
+        new MatrixEvent({
+          event_id: '$redaction',
+          room_id: roomId,
+          sender: author,
+          type: 'm.room.redaction',
+          origin_server_ts: 5000,
+          redacts: '$edit',
+          content: { redacts: '$edit' },
+        }),
+      ],
+      { addToState: false }
+    );
+
+  it.each([
+    ['its title notice', 'title'],
+    ['the reply', 'reply'],
+  ])(
+    'shows the reply as sent once its edit is redacted, with the summary naming %s last',
+    async (_, latest) => {
+      const shape = summaryShape();
+      if (latest === 'reply') shape.latest_event = shape['io.mindroom.latest_reply'];
+      const { room, root, mx } = fixture(shape);
+      vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
+      Thread.hasServerSideSupport = FeatureSupport.Stable;
+      // The thread as the thread list brings it, unopened.
+      room.processThreadRoots([root], false);
+      expect(presentation(room, root).latestReplyPreviewText).toBe('Final answer with dates');
+      // A copy of the root read from the cache before it stored the redaction.
+      const cached = new MatrixEvent(JSON.parse(JSON.stringify(root.event)) as IEvent);
+
+      await redactEdit(room);
+
+      expect(presentation(room, root).latestReplyPreviewText).toBe('Draft answer');
+      expect(presentation(room, cached).latestReplyPreviewText).toBe('Draft answer');
+    }
+  );
+
+  it('shows the reply as sent once its edit, an event the room holds, is redacted', async () => {
+    const { room, root, mx } = fixture();
+    vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
+    Thread.hasServerSideSupport = FeatureSupport.None;
+    // An open thread: the reply and its edit are events the room holds.
+    const { unsigned, ...latestReply } = summaryShape()['io.mindroom.latest_reply'];
+    room.createThread(rootId, root, [new MatrixEvent({ ...latestReply, room_id: roomId })], false);
+    const edit = unsigned['m.relations']!['m.replace'] as IEvent;
+    await room.addLiveEvents([new MatrixEvent({ ...edit, room_id: roomId })], {
+      addToState: false,
+    });
+    expect(presentation(room, root).latestReplyPreviewText).toBe('Final answer with dates');
+
+    await redactEdit(room);
+
+    expect(room.findEventById('$edit')?.isRedacted()).toBe(true);
+    expect(presentation(room, root).latestReplyPreviewText).toBe('Draft answer');
   });
 });

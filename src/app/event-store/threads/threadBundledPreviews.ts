@@ -1,5 +1,6 @@
 import { MatrixEvent, type IEvent, type Room } from 'matrix-js-sdk';
 import { getSameSenderBundledEdit } from '../../matrix/editEvent';
+import { isKnownRedactedEventId } from '../../matrix/eventRevision';
 import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -48,12 +49,16 @@ export const getBundledThreadPreviews = (
     const event = new MatrixEvent({ ...raw, room_id: room.roomId } as IEvent);
     if (event.isRedacted()) return undefined;
     const replacement: unknown = event.getUnsigned()['m.relations']?.['m.replace'];
+    // A root's summary keeps the edits of its events as the server sent them: the room may hold
+    // one as an event and have redacted it since, and a copy of the root the room does not hold
+    // keeps every edit (eventRevision.ts).
     if (object(replacement) && object(replacement.content)) {
       const target = replacement.content['m.relates_to'];
       if (
         replacement.sender === raw.sender &&
         replacement.type === raw.type &&
         typeof replacement.event_id === 'string' &&
+        !isKnownRedactedEventId(room, replacement.event_id) &&
         typeof replacement.origin_server_ts === 'number' &&
         Number.isFinite(replacement.origin_server_ts) &&
         object(replacement.content['m.new_content']) &&

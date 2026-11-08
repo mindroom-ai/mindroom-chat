@@ -1,4 +1,4 @@
-import { Direction, MatrixEvent } from 'matrix-js-sdk';
+import { createClient, Direction, MatrixEvent, Room, type IEvent } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildCompactZeroReplyRootData,
@@ -850,6 +850,50 @@ describe('buildCompactThreadRootData', () => {
 
     expect(preview).toEqual({ previewText: 'Edited root', sourceTs: 2 });
   });
+
+  it.each(['bundled with the root', 'a row of its own'])(
+    'leaves out an edit, %s, whose redaction the room took',
+    (where) => {
+      const edit = {
+        event_id: '$thread-a-edit',
+        origin_server_ts: 2,
+        sender: '@bot:mindroom.chat',
+        type: 'm.room.message',
+        content: {
+          body: '* Edited root',
+          msgtype: 'm.text',
+          'm.new_content': { body: 'Edited root', msgtype: 'm.text' },
+          'm.relates_to': { event_id: '$thread-a', rel_type: 'm.replace' },
+        },
+      } as IEvent;
+      const root = {
+        event_id: '$thread-a',
+        origin_server_ts: 1,
+        sender: '@bot:mindroom.chat',
+        type: 'm.room.message',
+        content: { body: 'Draft root', msgtype: 'm.text' },
+        ...(where === 'bundled with the root'
+          ? { unsigned: { 'm.relations': { 'm.replace': edit } } }
+          : {}),
+      } as IEvent;
+      const room = new Room(
+        '!room:example.org',
+        createClient({ baseUrl: 'https://example.org' }),
+        '@me:example.org'
+      );
+      // A page the cache read before it stored the redaction, which the room has taken.
+      room.redactedBundledEdits.add('$thread-a-edit');
+
+      const preview = getCompactCachedThreadRootPreviewInfo({
+        threadId: '$thread-a',
+        cachedPage: { rootEvent: root, events: where === 'a row of its own' ? [edit] : [] },
+        mapper: (rawEvent) => new MatrixEvent(rawEvent),
+        room,
+      });
+
+      expect(preview).toEqual({ previewText: 'Draft root', sourceTs: 1 });
+    }
+  );
 
   it('hydrates latest activity timestamps from cached thread pages', () => {
     const activityTs = getCompactCachedThreadActivityTs({
