@@ -324,12 +324,13 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
   ) : (
     stage
   );
+  const problem = state.problem && t(PROBLEM_KEYS[state.problem]);
   const bar: BarContent = {
     faces: <BarFaces room={call.room} people={shownPeople} />,
     // A finished call stays until it is closed: a failed one answers every new start busy till
     // then. The bar says what went wrong as the expanded view's notice does: why the call stopped,
     // or why the microphone it just turned on stays off.
-    status: state.problem ? t(PROBLEM_KEYS[state.problem]) : undefined,
+    status: problem,
     closes: finished,
     controls: finished ? (
       <Button size="300" radii="300" variant="Secondary" fill="Soft" onClick={dismissCall}>
@@ -367,9 +368,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
       actions={actions}
       bar={bar}
     >
-      {state.problem && (
-        <Notice critical={state.phase === 'failed'}>{t(PROBLEM_KEYS[state.problem])}</Notice>
-      )}
+      {problem && <Notice critical={state.phase === 'failed'}>{problem}</Notice>}
       {visibleFailure && (
         <Notice
           critical
