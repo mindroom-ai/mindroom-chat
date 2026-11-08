@@ -235,6 +235,36 @@ describe('the live transcript in the floating window', () => {
     expect(store.get(windowTranscriptFocusAtom)).toBeUndefined();
   });
 
+  it("hands the focus the transcript had to the window's handle when it goes out of sight or away", () => {
+    inCall();
+    showTranscript();
+    const { rerender } = render(windowWith({ width: 400, height: 480 }));
+    const handle = document.querySelector<HTMLElement>('[data-call-window-handle]');
+    const pane = () => screen.getByRole('region', { name: 'Live transcript' });
+
+    // The window turned too short for more than the subtitle.
+    act(() => pane().focus());
+    rerender(windowWith({ width: 400, height: 300 }));
+    expect(layout()).toBe('subtitle');
+    expect(document.activeElement).toBe(handle);
+
+    // MindRoom stopped transcribing the call.
+    rerender(windowWith({ width: 400, height: 480 }));
+    act(() => pane().focus());
+    act(() => store.set(callTranscriptionAtom, undefined));
+    expect(layout()).toBeUndefined();
+    expect(document.activeElement).toBe(handle);
+
+    // Focus elsewhere stays there.
+    act(() => store.set(callTranscriptionAtom, { roomId: ROOM_ID, status: 'transcribing' }));
+    const stage = document.querySelector<HTMLElement>('[data-stage]')!;
+    act(() => stage.focus());
+    rerender(windowWith({ width: 400, height: 300 }));
+    expect(document.activeElement).toBe(stage);
+    act(() => store.set(callTranscriptionAtom, undefined));
+    expect(document.activeElement).toBe(stage);
+  });
+
   it("closes the room's side transcript once it shows, so the lines show and are read out once", () => {
     // Opened from the call's row before joining, with the window's transcript left on: it shows
     // once MindRoom answers for the call.

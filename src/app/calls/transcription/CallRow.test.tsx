@@ -9,7 +9,7 @@ import { TranscriptionControls } from './TranscriptionControls';
 import { useLiveTranscript, type LiveTranscriptView } from './useLiveTranscript';
 import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from '../callStore';
 import { callTranscriptionAtom, liveTranscriptAtom } from './transcriptionState';
-import { transcriptPanelAtom } from './transcriptPanel';
+import { transcriptPanelAtom, windowTranscriptFocusAtom } from './transcriptPanel';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import {
   clearCallWindowStore,
@@ -443,6 +443,8 @@ describe('CallRow', () => {
     act(() => elsewhere.focus());
     renderBesideWindow(store, { width: 400, height: 480 });
     expect(document.activeElement).toBe(elsewhere);
+    // The press is done with: no transcript shown later takes the focus for it.
+    expect(store.get(windowTranscriptFocusAtom)).toBeUndefined();
     elsewhere.remove();
   });
 
@@ -458,7 +460,9 @@ describe('CallRow', () => {
     const store = inCall();
     renderBesideWindow(store, { width: 400, height: 480 });
 
-    const toggle = container.querySelector<HTMLButtonElement>('[aria-label="Live transcript"]');
+    const toggle = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Live transcript"]'
+    );
     press(toggle ?? undefined);
     expect(store.get(settings()).transcript).toBe(true);
     expect(document.activeElement).toBe(toggle);

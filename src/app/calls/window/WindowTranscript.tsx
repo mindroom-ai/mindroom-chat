@@ -29,6 +29,10 @@ const percent = (share: number): number => Math.round(share * 100);
 const rightToLeft = (element: Element | null): boolean =>
   !!element && getComputedStyle(element).direction === 'rtl';
 
+/** One floating window shows at a time, and the transcript and its divider are only ever in it. */
+const focusWindowHandle = () =>
+  document.querySelector<HTMLElement>('[data-call-window-handle]')?.focus();
+
 /**
  * Where the live transcript sits in the window now: by the window's size, while the account shows
  * it there and MindRoom has answered for the call (it may be unreachable since, which the
@@ -71,9 +75,7 @@ function Divider({ layout, share, boxRef, onDrag, onSet }: DividerProps) {
   useLayoutEffect(() => {
     const element = ref.current;
     return () => {
-      if (!element || element !== document.activeElement) return;
-      // One floating window shows at a time, and the divider is only ever in it.
-      document.querySelector<HTMLElement>('[data-call-window-handle]')?.focus();
+      if (element && element === document.activeElement) focusWindowHandle();
     };
   }, []);
   const stage = percent(share);
@@ -177,6 +179,18 @@ function Transcript({ room, layout, grow, paneRef }: TranscriptProps) {
   const view = useLiveTranscript(room, READ_MS, false);
   const lines = view.live?.lines ?? [];
   const subtitle = layout === 'subtitle';
+  // The focus the pane had goes to the window's handle, as the divider's does, when the pane goes
+  // out of sight (the subtitle layout), once React has put back the focus its commit kept...
+  useLayoutEffect(() => {
+    if (subtitle && paneRef.current === document.activeElement) focusWindowHandle();
+  }, [paneRef, subtitle]);
+  // ...and when it leaves the page, before it does, while it still has the focus.
+  useLayoutEffect(() => {
+    const pane = paneRef.current;
+    return () => {
+      if (pane && pane === document.activeElement) focusWindowHandle();
+    };
+  }, [paneRef]);
   return (
     <>
       <div
@@ -222,8 +236,8 @@ export function WindowTranscript({ room, children }: { room: Room; children: Rea
     setFocusRequest(undefined);
     const focused = document.activeElement;
     if (focused && focused !== document.body && focused !== focusRequest.from) return;
-    const handle = document.querySelector<HTMLElement>('[data-call-window-handle]');
-    (layout === 'subtitle' ? handle : paneRef.current)?.focus();
+    if (layout === 'subtitle') focusWindowHandle();
+    else paneRef.current?.focus();
   }, [focusRequest, layout, setFocusRequest]);
   const [split, setSplit] = useAtom(getCallWindowSplitAtom(userId));
   const [dragged, setDragged] = useState<number>();
