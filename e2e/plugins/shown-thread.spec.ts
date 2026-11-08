@@ -78,10 +78,12 @@ const slot = (page: Page) => page.locator('[data-example-plugin-banner]');
 const named = (page: Page) => page.locator('[data-example-plugin-thread]');
 const threadBanner = (page: Page) => page.locator('[data-thread-context-banner]');
 
-/** Leaves the thread by its Back, for the room's timeline. */
+/** Leaves the thread by its Back, for the room's timeline, where the slot names no thread. */
 const exitThread = async (page: Page) => {
   await threadBanner(page).getByRole('button').first().click();
   await expect(threadBanner(page)).toHaveCount(0);
+  await expect(slot(page)).toBeVisible();
+  await expect(named(page)).toHaveCount(0);
 };
 
 for (const { size, viewport } of [
@@ -112,8 +114,6 @@ for (const { size, viewport } of [
 
       // Back in the room's timeline, none.
       await exitThread(page);
-      await expect(slot(page)).toBeVisible();
-      await expect(named(page)).toHaveCount(0);
 
       // A link to a reply in the thread, opened as the page, names the thread's root.
       await page.goto(`${roomPath}?threadId=${encodeURIComponent(reply)}`);
@@ -123,8 +123,6 @@ for (const { size, viewport } of [
       await shot(page, `${size}-reply-link`);
 
       await exitThread(page);
-      await expect(slot(page)).toBeVisible();
-      await expect(named(page)).toHaveCount(0);
       await shot(page, `${size}-back`);
     } finally {
       await context.close();

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import type FocusTrap from 'focus-trap-react';
 import { getDefaultStore, Provider as StoreProvider } from 'jotai';
 import {
@@ -495,12 +495,6 @@ describe('useParentRooms, getParentRooms and offersSubRooms', () => {
 // In a room's page, src/app/room/Room.panelBesideThread.test.tsx reads it through the room.
 describe('useShownThread', () => {
   it("is undefined outside a room's page", () => {
-    let shown: string | undefined = 'not rendered';
-    function Shown() {
-      shown = useShownThread();
-      return null;
-    }
-    render(<Shown />);
-    expect(shown).toBeUndefined();
+    expect(renderHook(() => useShownThread()).result.current).toBeUndefined();
   });
 });
