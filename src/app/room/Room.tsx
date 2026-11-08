@@ -518,7 +518,7 @@ function RoomContent() {
     !mobile && shown?.label !== undefined
       ? { label: shown.label, layout, setLayout: (next) => setLayout(shown.id, next) }
       : undefined;
-  const folded = frame?.layout === 'folded';
+  const folded = layout === 'folded';
   function toggleFilled(id: string) {
     setLayout(id, layout === 'filled' ? 'beside' : 'filled');
   }
