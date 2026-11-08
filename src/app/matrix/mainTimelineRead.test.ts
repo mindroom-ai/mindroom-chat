@@ -7,7 +7,8 @@ import {
   RoomEvent,
   type MatrixClient,
 } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
+import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
+import { describe, expect, it, vi } from 'vitest';
 import { roomHaveUnread } from './room';
 import { isMainTimelineMessageUnread } from './mainTimelineRead';
 import { keepUnthreadedReceiptEvents } from './receiptReadTs';
@@ -161,4 +162,53 @@ describe('main timeline read state', () => {
     expect(isMainTimelineMessageUnread(room, second, ME)).toBe(false);
     expect(isMainTimelineMessageUnread(room, third, ME)).toBe(true);
   });
+  it('keeps the main timeline read up to a main receipt when an older unthreaded one arrives later', async () => {
+    // A stale device's Mark as Read names the newest event it holds, a reply in a thread, after
+    // another device read the main timeline further. The server keeps one receipt per context
+    // and only lowers counts; the SDK keeps one receipt for the main timeline, which the later
+    // unthreaded receipt replaces.
+    const previous = Thread.hasServerSideSupport;
+    Thread.hasServerSideSupport = FeatureSupport.Stable;
+    try {
+      const mx = createClient({ baseUrl: 'https://example.org', userId: ME });
+      vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
+      keepUnthreadedReceiptEvents(mx);
+      const room = new Room('!room:example.org', mx, ME);
+      mx.store.storeRoom(room);
+      mx.reEmitter.reEmit(room, [RoomEvent.Receipt]);
+      const question = message('$q', 1000, AGENT);
+      const m1 = message('$m1', 3000, AGENT);
+      const m2 = message('$m2', 5000, AGENT);
+      [question, m1, m2].forEach((event) =>
+        room.getUnfilteredTimelineSet().addLiveEvent(event, { addToState: false })
+      );
+      const thread = room.createThread(
+        '$q',
+        question,
+        [message('$a1', 2000, AGENT, '$q'), message('$a2', 4000, AGENT, '$q')],
+        false
+      );
+      await vi.waitFor(() => expect(thread.events.at(-1)?.getId()).toBe('$a2'));
+      const read = (eventId: string, ts: number, type: ReceiptType, threadId?: string) =>
+        room.addReceipt(
+          new MatrixEvent({
+            type: 'm.receipt',
+            room_id: room.roomId,
+            content: {
+              [eventId]: { [type]: { [ME]: { ts, ...(threadId && { thread_id: threadId }) } } },
+            },
+          })
+        );
+
+      read('$m2', 6000, ReceiptType.Read, 'main');
+      read('$a1', 7000, ReceiptType.Read);
+      expect(isMainTimelineMessageUnread(room, m1, ME)).toBe(false);
+      expect(isMainTimelineMessageUnread(room, m2, ME)).toBe(false);
+      expect(roomHaveUnread(mx, room)).toBe(false);
+    } finally {
+      Thread.hasServerSideSupport = previous;
+      vi.restoreAllMocks();
+    }
+  });
+
 });
