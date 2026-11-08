@@ -38,3 +38,46 @@ test('the PDF frame page shows an object URL as a PDF, whatever type its blob ca
     .toBe(true);
   expect(await page.evaluate((mark) => localStorage.getItem(mark), MARK)).toBeNull();
 });
+
+/** Points the frame `#pdf-frame-spec`, made at first, at `pdfFrameUrl` of an object URL of `text`. */
+const frameText = (page: Page, text: string) =>
+  page.evaluate(
+    async ({ path, bytes }) => {
+      const { pdfFrameUrl } = (await import(
+        path
+      )) as typeof import('../../src/app/messages/viewers/pdfFrame');
+      const objectUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+      let frame = document.querySelector<HTMLIFrameElement>('#pdf-frame-spec');
+      if (!frame) {
+        frame = document.createElement('iframe');
+        frame.id = 'pdf-frame-spec';
+        document.body.append(frame);
+      }
+      frame.src = pdfFrameUrl(objectUrl) ?? 'about:blank';
+    },
+    { path: PDF_FRAME_MODULE, bytes: text }
+  );
+
+/** The bytes the frame page hands the browser's viewer, once it does. */
+const viewerBytes = (page: Page) =>
+  page.evaluate(async () => {
+    const frame = document.querySelector<HTMLIFrameElement>('#pdf-frame-spec');
+    const embed = frame?.contentDocument?.querySelector('embed');
+    if (!embed) return undefined;
+    // A page on its way out takes its object URLs with it.
+    return fetch(embed.src).then(
+      (response) => response.text(),
+      () => undefined
+    );
+  });
+
+test("the PDF frame page shows the object URL its frame's URL names now, after the frame's URL changes", async ({
+  page,
+}) => {
+  await page.goto('/');
+  // A plugin's `<iframe src={pdfFrameUrl(url)}>` whose `url` changes: only the part after `#` does.
+  await frameText(page, '%PDF first');
+  await expect.poll(() => viewerBytes(page)).toBe('%PDF first');
+  await frameText(page, '%PDF second');
+  await expect.poll(() => viewerBytes(page)).toBe('%PDF second');
+});
