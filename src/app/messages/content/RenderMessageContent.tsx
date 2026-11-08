@@ -49,6 +49,7 @@ import {
 } from '../../plugins/messageRenderers';
 import { pluginFailure } from '../../plugins/pluginFailure';
 import { reportBoundaryError } from '../../bug-reports/error-reporting/errorReporting';
+import { revealDirectionControls } from '../../ui/directional';
 
 const MSG_TYPES: ReadonlySet<string> = new Set(Object.values(MsgType));
 
@@ -310,7 +311,9 @@ function CoreMessageContent({
                       <ThumbnailContent
                         info={video.info}
                         owner={owner}
-                        renderImage={(src) => <Image src={src} alt={video.body} />}
+                        renderImage={(src) => (
+                          <Image src={src} alt={revealDirectionControls(video.body)} />
+                        )}
                       />
                     )
                   : undefined
