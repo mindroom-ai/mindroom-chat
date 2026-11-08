@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { atom, useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
+import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { Box, Button, Icon, IconButton, Icons, Spinner, Text, type IconSrc } from 'folds';
 import classNames from 'classnames';
@@ -39,7 +39,7 @@ import { CallMemberAvatar, useCallMemberProfile } from './CallTile';
 import { CallStage } from './CallStage';
 import { hasVideo } from './stageLayout';
 import { useCallWindowFrame } from './window/callWindowFrame';
-import { useCallWindowMode } from './window/callWindowState';
+import { focusHandOffAtom, useCallWindowMode } from './window/callWindowState';
 import { DockIcon, FloatIcon } from './window/windowIcons';
 import * as css from './CallPanel.css';
 import { revealDirectionControls } from '../ui/directional';
@@ -91,14 +91,6 @@ const BAR_FACES = 3;
 
 /** Whether the primary pointer is a finger, which the bar's call controls are bigger for. */
 const coarsePointer = (): boolean => globalThis.matchMedia?.('(pointer: coarse)').matches ?? false;
-
-/**
- * Dock and Float move the call view to the other place, where it mounts anew: the focus their
- * button had goes to the title bar there (`to`) rather than to the page. `from` is that button,
- * which may stay a moment while the docked panel it was in moves out.
- */
-type FocusHandOff = { to: 'window' | 'panel'; from: Element | null };
-const focusHandOffAtom = atom<FocusHandOff | undefined>(undefined);
 
 type TitleButtonProps = {
   label: string;

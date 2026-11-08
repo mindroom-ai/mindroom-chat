@@ -142,6 +142,14 @@ export const useCallViewFloats = (): boolean => {
   return desktop && mode === 'floating';
 };
 
+/**
+ * Dock and Float move the call view to the other place, where it mounts anew: the focus their
+ * button had goes to the title bar there (`to`) rather than to the page. `from` is that button,
+ * which may stay a moment while the docked panel it was in moves out.
+ */
+export type FocusHandOff = { to: 'window' | 'panel'; from: Element | null };
+export const focusHandOffAtom = atom<FocusHandOff | undefined>(undefined);
+
 /** Whether the account's floating window is minimized to its bar. */
 export const useCallWindowMinimized = (): boolean => useAtomValue(useSettingsViews().minimized);
 
