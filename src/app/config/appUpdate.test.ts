@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+// Loaded once while the file is collected, so that no case pays for its first load: every case then
+// loads a fresh copy (loadAppUpdate) of a module that is already transformed.
+import './appUpdate';
 
 type AppUpdate = typeof import('./appUpdate');
 

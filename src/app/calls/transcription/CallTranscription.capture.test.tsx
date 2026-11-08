@@ -4,6 +4,8 @@ import { act } from 'react-dom/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
 import { CallTranscription } from './CallTranscription';
+// The component imports its transcriber when a call starts; loaded with the file, it is there then.
+import './callTranscriber';
 import { activeCallAtom, type ActiveCall } from '../callStore';
 import type { CallState } from '../RoomCall';
 import type { TranscriptCall } from './api';

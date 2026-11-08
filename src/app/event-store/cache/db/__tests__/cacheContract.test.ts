@@ -6,15 +6,15 @@
  * only against `cacheStore`. The scenarios remain the observable contract
  * — future changes to the store must keep them passing.
  *
- * Environment: `fake-indexeddb/auto` boots a fresh IndexedDB implementation
- * per test via `resetIndexedDb` (see beforeEach). The adapter's
- * `resetSingletons` hook drops any memoized `dbPromiseByName` entries so
- * the fresh factory is picked up.
+ * Environment: `fake-indexeddb/auto` installs IndexedDB, and beforeEach gives
+ * each test a fresh factory and drops the store's memoized connections
+ * (`resetCacheStoreForTesting`), so the fresh factory is picked up.
  */
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import type { IEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as cacheStore from '../index';
 
 type RawEvent = Partial<IEvent>;
 
@@ -62,7 +62,6 @@ type ThreadCursorAnchor = { eventId: string; ts: number } | undefined;
 
 type CacheContract = {
   name: string;
-  resetSingletons: () => void;
   saveRoomEvents: (input: SaveRoomInput) => Promise<void>;
   loadLatestRoom: (sessionId: string, roomId: string, limit: number) => Promise<LoadRoomPage>;
   loadRoomBefore: (
@@ -146,15 +145,8 @@ type CacheContract = {
 
 // ---------- CacheStore adapter ----------
 
-const buildCacheStoreContract = async (): Promise<CacheContract> => {
-  const cacheStoreModule = await import('../index');
-  return buildContractFromModules(
-    'cacheStore',
-    cacheStoreModule,
-    cacheStoreModule,
-    cacheStoreModule
-  );
-};
+const buildCacheStoreContract = (): CacheContract =>
+  buildContractFromModules('cacheStore', cacheStore, cacheStore, cacheStore);
 
 type RoomLike = {
   saveRoomEventsToCache: typeof import('../index')['saveRoomEventsToCache'];
@@ -187,10 +179,6 @@ const buildContractFromModules = (
 ): CacheContract => {
   return {
     name,
-    resetSingletons: () => {
-      // Force reload of the memoized dbPromiseByName Maps by clearing module cache.
-      vi.resetModules();
-    },
     saveRoomEvents: ({ sessionId, roomId, events, beforeTokenForEarliest }) =>
       roomModule.saveRoomEventsToCache(sessionId, roomId, events, beforeTokenForEarliest),
     loadLatestRoom: (sessionId, roomId, limit) =>
@@ -261,17 +249,17 @@ const makeRawEvent = (eventId: string, ts: number, extras: RawEvent = {}): RawEv
   ...extras,
 });
 
-const runContract = (label: string, buildContract: () => Promise<CacheContract>): void => {
+const runContract = (label: string, buildContract: () => CacheContract): void => {
   describe(`cache contract (${label})`, () => {
     let contract: CacheContract;
 
-    beforeEach(async () => {
+    beforeEach(() => {
       // Fresh IDB per test to isolate DB state across scenarios.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (globalThis as any).indexedDB = new IDBFactory();
-      // Rebuild the module graph so memoized dbPromiseByName entries reset.
-      vi.resetModules();
-      contract = await buildContract();
+      // Drop the connections the store memoized for the previous factory.
+      cacheStore.resetCacheStoreForTesting();
+      contract = buildContract();
     });
 
     afterEach(() => {

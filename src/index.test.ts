@@ -97,6 +97,28 @@ vi.mock('./app/i18n/i18n', () => ({}));
 
 vi.mock('./app/theme/Typography.css', () => ({}));
 
+// Every case imports index.tsx afresh, so a collaborator left real would load its modules inside
+// each case's time limit.
+vi.mock('./app/diagnostics/sdkDebugLogging', () => ({}));
+
+vi.mock('./app/plugins/registry', () => ({}));
+
+vi.mock('./app/plugins/pluginStorage', () => ({
+  deletePluginStorageOfRemovedAccounts: vi.fn(),
+}));
+
+vi.mock('./app/bug-reports/error-reporting/errorReporting', () => ({
+  installErrorCapture: vi.fn(),
+}));
+
+vi.mock('./app/config/appUpdate', () => ({
+  watchForNewVersion: vi.fn(),
+}));
+
+// Loaded once while the file is collected, so that no case pays for its first load. With every
+// startup step mocked and no root element yet, this start does nothing the cases see.
+import './index';
+
 describe('application bootstrap', () => {
   const originalServiceWorker = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker');
 
