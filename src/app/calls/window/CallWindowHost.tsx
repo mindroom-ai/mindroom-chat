@@ -54,21 +54,23 @@ const focusAfterCall = (doc: Document) => {
 const GONE: ReadonlySet<string> = new Set([KnownMembership.Leave, KnownMembership.Ban]);
 
 /**
- * The open call view (`callPanelRoomAtom`) and the call shown in it leave with their room: when
- * the client forgets the room, or the person leaves it or is kicked or banned from it, on every
- * screen. The call would otherwise go on, heard and hearing, with no view left to end it from. A
- * call already left is End's to forget, once what follows it ran (which may leave its room).
+ * The open call view (`callPanelRoomAtom`) closes with its room, and the call shown in that room
+ * (its own, or an agent call started there) ends with it, view open or not: when the client
+ * forgets the room, or the person leaves it or is kicked or banned from it, on every screen. The
+ * view goes with the room, and a call left running would hold this device's one call with no
+ * place to end or dismiss it. A call already left is End's to forget, once what follows it ran
+ * (which may leave its room).
  */
 const useCloseWithRoom = () => {
   const mx = useMatrixClient();
   const store = useStore();
-  const setPanelRoomId = useSetAtom(callPanelRoomAtom);
   useEffect(() => {
     const close = (roomId: string) => {
-      setPanelRoomId((current) => (current === roomId ? undefined : current));
+      store.set(callPanelRoomAtom, (current) => (current === roomId ? undefined : current));
       const active = store.get(activeCallAtom);
-      const live = active?.call.getState().phase !== 'ended';
-      if (live && isActiveCallShownIn(active, roomId)) dropActiveCall(store);
+      if (isActiveCallShownIn(active, roomId) && active?.call.getState().phase !== 'ended') {
+        dropActiveCall(store);
+      }
     };
     const onMembership = (room: Room, membership: string) => {
       if (GONE.has(membership)) close(room.roomId);
@@ -79,7 +81,7 @@ const useCloseWithRoom = () => {
       mx.off(ClientEvent.DeleteRoom, close);
       mx.off(RoomEvent.MyMembership, onMembership);
     };
-  }, [mx, setPanelRoomId, store]);
+  }, [mx, store]);
 };
 
 /**
