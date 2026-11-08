@@ -409,7 +409,7 @@ function MobileSurface({ state, requestClose, onCommand }: Omit<SurfaceProps, 'm
 
 export function ModelPicker({
   state,
-  conversationHidden = false,
+  conversationHidden,
 }: {
   state: ModelPickerState;
   /** The conversation it is in is hidden (a cover over it, a side panel in its place): it closes. */
@@ -428,17 +428,10 @@ export function ModelPicker({
     selectedModel?.display_name ?? state.override ?? t('mindroomUi.models.modelPicker.roomDefault');
 
   const close = () => {
-    commandStartedRef.current = false;
-    sawPendingRef.current = false;
     setOpen(false);
     triggerRef.current?.focus();
   };
-  useEffect(() => {
-    if (!conversationHidden) return;
-    commandStartedRef.current = false;
-    sawPendingRef.current = false;
-    setOpen(false);
-  }, [conversationHidden]);
+  if (conversationHidden && open) setOpen(false);
 
   useEffect(() => {
     if (!open || !commandStartedRef.current) return;
@@ -452,7 +445,10 @@ export function ModelPicker({
     if (!state.error) close();
   }, [open, state.pending, state.error]);
 
+  // A command of an earlier opening, which may have been closed while it waited, counts no more.
   const openPicker = () => {
+    commandStartedRef.current = false;
+    sawPendingRef.current = false;
     setOpen(true);
     state.refresh();
   };
