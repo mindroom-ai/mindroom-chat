@@ -38,9 +38,10 @@
 // room and that thread, opens either, opens the room at the thread's root, opens the room in place
 // of itself, and reloads the page into a new version.
 // Its slash command, `/greet <text>`, sends the notice "Example greeting: <text>" to the room, or in a
-// thread's composer to that thread, through the room's client, and fails without a text. Its slash
-// command `/subroom <name>` creates a sub-room of the room called <name>, as New Sub-room does, and
-// fails without a name.
+// thread's composer to that thread, through the room's client, and refuses with its usage without a
+// text, which the composer shows with its description. Its slash command `/subroom <name>` creates a
+// sub-room of the room called <name>, as New Sub-room does, and refuses with its usage without a
+// name.
 // Every room's menu but a space's lists its entry "Example room info" ("Beispiel-Rauminfo" in
 // German), whose dialog says "Example dialog of <room name>" until its Close button closes it.
 // Every room's menu also lists, after Leave and drawn as Leave is, its critical entry "Example
@@ -69,6 +70,7 @@ import {
 } from 'folds';
 import { KnownMembership, type Room } from 'matrix-js-sdk';
 import {
+  commandUsage,
   pluginPublicUrl,
   reloadForNewVersion,
   usePanelFrame,
@@ -675,7 +677,7 @@ const plugin: ClientPlugin = {
       name: 'greet',
       description: 'greet',
       run: async ({ room, args, threadId }) => {
-        if (!args.trim()) throw new Error('Type a greeting after /greet.');
+        if (!args.trim()) throw commandUsage();
         await room.client.sendNotice(room.roomId, threadId ?? null, `Example greeting: ${args}`);
       },
     },
@@ -683,7 +685,7 @@ const plugin: ClientPlugin = {
       name: 'subroom',
       description: 'subroom',
       run: async ({ room, args }) => {
-        if (!args.trim()) throw new Error('Type a name after /subroom.');
+        if (!args.trim()) throw commandUsage();
         await createSubRoom(room, { name: args });
       },
     },
