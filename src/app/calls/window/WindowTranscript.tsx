@@ -179,16 +179,17 @@ function Transcript({ room, layout, grow, paneRef }: TranscriptProps) {
   const view = useLiveTranscript(room, READ_MS, false);
   const lines = view.live?.lines ?? [];
   const subtitle = layout === 'subtitle';
-  // The focus the pane had goes to the window's handle, as the divider's does, when the pane goes
-  // out of sight (the subtitle layout), once React has put back the focus its commit kept...
+  // The focus the pane or its scroll box had goes to the window's handle, as the divider's does,
+  // when the pane goes out of sight (the subtitle layout), once React has put back the focus its
+  // commit kept...
   useLayoutEffect(() => {
-    if (subtitle && paneRef.current === document.activeElement) focusWindowHandle();
+    if (subtitle && paneRef.current?.contains(document.activeElement)) focusWindowHandle();
   }, [paneRef, subtitle]);
   // ...and when it leaves the page, before it does, while it still has the focus.
   useLayoutEffect(() => {
     const pane = paneRef.current;
     return () => {
-      if (pane && pane === document.activeElement) focusWindowHandle();
+      if (pane?.contains(document.activeElement)) focusWindowHandle();
     };
   }, [paneRef]);
   return (

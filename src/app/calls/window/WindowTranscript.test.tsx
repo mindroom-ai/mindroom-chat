@@ -241,16 +241,26 @@ describe('the live transcript in the floating window', () => {
     const { rerender } = render(windowWith({ width: 400, height: 480 }));
     const handle = document.querySelector<HTMLElement>('[data-call-window-handle]');
     const pane = () => screen.getByRole('region', { name: 'Live transcript' });
+    // The transcript's scroll box, which Chromium lets Tab reach from the pane.
+    const scroller = () => {
+      const box = pane().firstElementChild as HTMLElement;
+      box.tabIndex = -1;
+      return box;
+    };
 
     // The window turned too short for more than the subtitle.
     act(() => pane().focus());
     rerender(windowWith({ width: 400, height: 300 }));
     expect(layout()).toBe('subtitle');
     expect(document.activeElement).toBe(handle);
+    rerender(windowWith({ width: 400, height: 480 }));
+    act(() => scroller().focus());
+    rerender(windowWith({ width: 400, height: 300 }));
+    expect(document.activeElement).toBe(handle);
 
     // MindRoom stopped transcribing the call.
     rerender(windowWith({ width: 400, height: 480 }));
-    act(() => pane().focus());
+    act(() => scroller().focus());
     act(() => store.set(callTranscriptionAtom, undefined));
     expect(layout()).toBeUndefined();
     expect(document.activeElement).toBe(handle);
