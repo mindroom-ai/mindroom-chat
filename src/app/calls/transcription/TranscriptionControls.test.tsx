@@ -106,19 +106,19 @@ describe('the call controls for transcripts', () => {
     expect(status()).toBe('Paused by Bob');
   });
 
-  it("open the live transcript in the call panel's place, and close it again", () => {
+  it("open the live transcript in the call panel's place, and pressed again keep it open", () => {
     const store = render('transcribing');
     store.set(callPanelRoomAtom, ROOM_ID);
     const transcript = () =>
       container.querySelector<HTMLButtonElement>('[aria-label="Live transcript"]');
 
     act(() => transcript()?.click());
-    expect(store.get(transcriptPanelAtom)?.roomId).toBe(ROOM_ID);
+    expect(store.get(transcriptPanelAtom)).toEqual({ roomId: ROOM_ID, replacedCall: true });
     expect(store.get(callPanelRoomAtom)).toBeUndefined();
-    expect(transcript()?.getAttribute('aria-pressed')).toBe('true');
+    expect(transcript()?.hasAttribute('aria-pressed')).toBe(false);
 
+    // Pressed again it asks for the panel again, which unfolds it (Room.tsx), and closes nothing.
     act(() => transcript()?.click());
-    expect(store.get(transcriptPanelAtom)).toBeUndefined();
-    expect(store.get(callPanelRoomAtom)).toBe(ROOM_ID);
+    expect(store.get(transcriptPanelAtom)).toEqual({ roomId: ROOM_ID, replacedCall: true });
   });
 });

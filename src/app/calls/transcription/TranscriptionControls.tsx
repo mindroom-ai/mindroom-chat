@@ -28,8 +28,7 @@ export function TranscriptionControls({ room }: { room: Room }) {
       <CallControl
         label={t('featureUi.calls.transcription.liveTranscript')}
         icon={Icons.Message}
-        pressed={panel.open}
-        onClick={panel.open ? panel.close : panel.show}
+        onClick={panel.show}
       />
     </>
   );
