@@ -40,6 +40,7 @@ import { CanvasHeaderButton, CanvasMenu } from '../canvas/CanvasHeaderButton';
 import { MenuEntry } from '../ui/MenuEntry';
 import type { CanvasListEntry } from '../canvas/canvasIndexStore';
 import type { PluginHeaderAction } from '../plugins/headerActions';
+import type { SidePanel } from '../plugins/sidePanels';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 import type { RoomViewMode } from '../navigation/roomViewMode';
@@ -79,12 +80,18 @@ export type RoomViewHeaderProps = {
   onCanvasClose?: () => void;
   /** The call controls, which the room provides (`HeaderCallButtons`) for where they go. */
   calls?: (placement: HeaderCallPlacement) => ReactNode;
-  /** The side panel beside the room, by id (src/app/ui/panels/roomPanels.ts). */
+  /**
+   * The side panel beside the room or across it, by id (src/app/ui/panels/roomPanels.ts); none
+   * while the one open is folded to its tab.
+   */
   shownPanel?: string;
-  /** Opens the members or a plugin's panel by the room's rule, or closes it while it shows. */
+  /**
+   * Opens the members or a plugin's panel by the room's rule, unfolds it while it is folded, or
+   * closes it while it shows.
+   */
   onPanelToggle?: (id: string) => void;
-  /** The plugins' side panels, which the room menu offers. */
-  pluginPanels?: readonly { id: string; label: string }[];
+  /** The plugins' side panels, each toggled from the row or the room menu by its placement. */
+  pluginPanels?: readonly Pick<SidePanel, 'id' | 'label' | 'icon' | 'placement'>[];
   /** The plugins' header actions, each in the row or the room menu by its placement. */
   pluginActions?: readonly PluginHeaderAction[];
 };
@@ -397,12 +404,13 @@ export function RoomViewHeader({
       run: toggleMembers,
     },
     ...pluginPanels.map(
-      ({ id, label }): RoomHeaderAction => ({
+      ({ id, label, icon = Icons.Bulb, placement = 'menu' }): RoomHeaderAction => ({
         id: `panel:${id}`,
         label,
-        icon: Icons.Bulb,
-        placement: 'menu',
+        icon,
+        placement,
         pressed: shownPanel === id,
+        active: shownPanel === id,
         run: () => onPanelToggle?.(id),
       })
     ),
