@@ -2,7 +2,7 @@ import { type AnimationEvent, useEffect, useRef, useState, useSyncExternalStore 
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
-import { Button, Icon, IconButton, Icons, Text } from 'folds';
+import { Box, Button, Icon, IconButton, Icons, Text } from 'folds';
 import { getNewVersion, reloadForNewVersion, subscribeToNewVersion } from '../config/appUpdate';
 import { PHONE_SLIDE_OUT_MS, phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
 import { listNoticeSlotAtom, NOTICE_LEAVE_MS, pageNoticeSlotAtom } from '../ui/noticeSlots';
@@ -78,6 +78,28 @@ export function NewVersionNotice() {
     reloadForNewVersion().catch(() => setReloading(false));
   };
 
+  const textAndReload = (
+    <>
+      <Text as="div" size="T300" className={css.Text({ placement })}>
+        {t('sharedUi.appUpdate.available')}
+      </Text>
+      <Button
+        className={css.Action({ placement })}
+        size="300"
+        radii="300"
+        variant="Primary"
+        fill="Solid"
+        before={<Icon src={Icons.Reload} size="50" />}
+        disabled={reloading}
+        onClick={reload}
+      >
+        <Text as="span" size="B300">
+          {t('sharedUi.appUpdate.reload')}
+        </Text>
+      </Button>
+    </>
+  );
+
   const card = shown && (
     <Surface
       className={css.Card({ placement })}
@@ -88,30 +110,19 @@ export function NewVersionNotice() {
         if (event.target === event.currentTarget && !leaving) cameInAt.current = placement;
       }}
     >
-      <span className={css.Mark({ placement })} aria-hidden>
+      <span className={css.Mark} aria-hidden>
         <Icon src={Icons.Download} size="100" />
       </span>
-      <div className={css.Body({ placement })}>
-        <Text as="div" size="T300" className={css.Text({ placement })}>
-          {t('sharedUi.appUpdate.available')}
-        </Text>
-        <Button
-          className={css.Action({ placement })}
-          size="300"
-          radii="300"
-          variant="Primary"
-          fill="Solid"
-          before={<Icon src={Icons.Reload} size="50" />}
-          disabled={reloading}
-          onClick={reload}
-        >
-          <Text as="span" size="B300">
-            {t('sharedUi.appUpdate.reload')}
-          </Text>
-        </Button>
-      </div>
+      {/* The room list's card places the text and Reload in its own grid; the page's card keeps
+          them in a row of their own between the mark and the dismiss button, which wraps. */}
+      {placement === 'list' ? (
+        textAndReload
+      ) : (
+        <Box grow="Yes" wrap="Wrap" alignItems="Center" gap="200">
+          {textAndReload}
+        </Box>
+      )}
       <IconButton
-        className={css.Dismiss({ placement })}
         variant="Secondary"
         fill="None"
         size="300"
