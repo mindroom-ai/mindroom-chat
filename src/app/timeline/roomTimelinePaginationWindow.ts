@@ -297,16 +297,25 @@ export const useRoomWindowPaginator = ({
     rowsBefore: number;
     chainReplaced: boolean;
   }>();
+  // A back page shows its rows before it settles (it still saves them, and the Classic view
+  // looks for cached thread replies), and a request made meanwhile joins it. When those rows
+  // leave the sentinel in view, its request got no page of its own: it asks again once the page
+  // it joined settles.
+  const backPageRef = useRef<Promise<void>>();
   const handleRoomPaginationEnd = useCallback(
     (back: boolean) => {
       const edge = back ? firstRoomTimelineRef.current : undefined;
       const tokenBefore = edge?.getPaginationToken(Direction.Backward);
       const rowsBefore = roomRowsRef.current.length;
-      void paginateRoom(back).then(() => {
+      const page = paginateRoom(back);
+      const joined = back && page === backPageRef.current;
+      if (back) backPageRef.current = page;
+      void page.then(() => {
         if (!edge || !alive()) return;
         const shown = firstRoomTimelineRef.current;
         const chainReplaced = !!shown && !getLinkedTimelines(shown).includes(edge);
-        if (!chainReplaced && edge.getPaginationToken(Direction.Backward) === tokenBefore) return;
+        const tokenMoved = edge.getPaginationToken(Direction.Backward) !== tokenBefore;
+        if (!chainReplaced && !tokenMoved && !joined) return;
         setRoomBackPage({ rowsBefore, chainReplaced });
       });
     },
