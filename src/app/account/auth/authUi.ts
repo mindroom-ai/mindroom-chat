@@ -1,10 +1,5 @@
-import {
-  MINDROOM_APP_NAME,
-  MINDROOM_DEVICE_DISPLAY_NAME,
-  MINDROOM_LOGO_ALT,
-  MINDROOM_LOGO_SRC,
-  MINDROOM_SITE_URL,
-} from '../../ui/branding/branding';
+import { Capacitor } from '@capacitor/core';
+import { MINDROOM_DEVICE_DISPLAY_NAMES } from '../../ui/branding/branding';
 import {
   buildNativeSsoRedirectUrl,
   isNativeApp,
@@ -12,6 +7,7 @@ import {
   openNativeSsoBrowser,
   signInWithNativeApple,
 } from '../../native/nativeSso';
+import { isMacOS } from '../../lib/user-agent';
 import {
   isMindroomHomeserver,
   shouldDisablePasswordLogin,
@@ -19,16 +15,15 @@ import {
   shouldUseSsoOnlyRegistration,
 } from './authPolicy';
 
-export const MINDROOM_AUTH_BRANDING = {
-  appName: MINDROOM_APP_NAME,
-  deviceDisplayName: MINDROOM_DEVICE_DISPLAY_NAME,
-  logoAlt: MINDROOM_LOGO_ALT,
-  logoSrc: MINDROOM_LOGO_SRC,
-  poweredBy: [
-    { label: 'MindRoom', url: MINDROOM_SITE_URL },
-    { label: 'Matrix', url: 'https://matrix.org' },
-  ],
-} as const;
+/**
+ * The name of the session a sign-in creates, as the sessions list shows it: the app on this
+ * platform. The Mac app is the iOS app built for Mac, which loads as a desktop page.
+ */
+export const getDeviceDisplayName = (): string => {
+  if (!isNativeApp()) return MINDROOM_DEVICE_DISPLAY_NAMES.web;
+  if (Capacitor.getPlatform() === 'android') return MINDROOM_DEVICE_DISPLAY_NAMES.android;
+  return isMacOS() ? MINDROOM_DEVICE_DISPLAY_NAMES.macos : MINDROOM_DEVICE_DISPLAY_NAMES.ios;
+};
 
 export const getAuthSsoRedirectUrl = (webRedirectUrl: string): string =>
   isNativeApp() ? buildNativeSsoRedirectUrl(webRedirectUrl) : webRedirectUrl;

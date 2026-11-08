@@ -287,7 +287,9 @@ export function RoomPacksPage({ room, requestClose }: { room: Room; requestClose
         </SettingsCard>
       )}
       <Box direction="Column" gap="100">
-        <Text size="L400">{t(`${PACKS}.packs`)}</Text>
+        <Text size="L400" data-settings-heading="">
+          {t(`${PACKS}.packs`)}
+        </Text>
         <Box direction="Column" gap="200">
           {markedKeys.length > 0 && (
             <DeletePacksBar

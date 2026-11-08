@@ -84,7 +84,9 @@ export const CardButton = style([
   },
 ]);
 
-globalStyle(`${CardShell}:focus-within ${Card}`, {
+// The keyboard's focus on the card or its buttons tints it; a menu that hands focus back to its
+// button after a tap or a click does not.
+globalStyle(`${CardShell}:has(:focus-visible) ${Card}`, {
   backgroundColor: color.SurfaceVariant.ContainerHover,
 });
 
@@ -151,6 +153,13 @@ export const CardMenuButton = style({
     [touchActions]: {
       width: '2.5rem',
       height: '2.5rem',
+    },
+    // A touch screen keeps :hover on the button tapped last, so after its menu closes the button
+    // would stay tinted; there only the press itself and the keyboard's focus tint it.
+    '(hover: none)': {
+      selectors: {
+        '&:hover:not(:focus-visible, :active)': { backgroundColor: 'transparent' },
+      },
     },
   },
 });

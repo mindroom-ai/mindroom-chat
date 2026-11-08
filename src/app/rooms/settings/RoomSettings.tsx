@@ -58,7 +58,9 @@ type PageProps = {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{title}</Text>
+      <Text size="L400" data-settings-heading="">
+        {title}
+      </Text>
       <SettingsCard>{children}</SettingsCard>
     </Box>
   );

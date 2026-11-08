@@ -70,6 +70,44 @@ export const editableActiveElement = (): boolean => {
   );
 };
 
+/**
+ * Whether the reader can select text in `target`, the element under a viewport point, within
+ * `reach` CSS pixels of that point. All of the target's text counts, so a point beside a bold word
+ * or between two formatted ones, which lands on the enclosing block, finds them. The empty space
+ * beside a line's end, button labels (a hidden spoiler is a button too) and text styled
+ * unselectable do not count. WebKit and Blink inherit `user-select`, so a text's parent holds its
+ * ancestors' `none`.
+ */
+export const selectableTextNear = (
+  target: EventTarget,
+  x: number,
+  y: number,
+  reach: number
+): boolean => {
+  if (!(target instanceof Element)) return false;
+  const range = document.createRange();
+  const texts = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
+  for (let node = texts.nextNode(); node; node = texts.nextNode()) {
+    const parent = node.parentElement;
+    if (!parent || !node.textContent?.trim()) continue;
+    range.selectNodeContents(node);
+    const near = Array.from(range.getClientRects()).some(
+      (line) =>
+        x >= line.left - reach &&
+        x <= line.right + reach &&
+        y >= line.top - reach &&
+        y <= line.bottom + reach
+    );
+    if (near && !parent.closest('button, [role="button"]')) {
+      const style = getComputedStyle(parent);
+      const select =
+        style.getPropertyValue('-webkit-user-select') || style.getPropertyValue('user-select');
+      if (select !== 'none') return true;
+    }
+  }
+  return false;
+};
+
 /** Whether `child` is fully inside the visible part of `scrollElement`. */
 export const isInScrollView = (scrollElement: HTMLElement, child: HTMLElement): boolean => {
   const view = scrollElement.getBoundingClientRect();

@@ -2471,7 +2471,7 @@
       "ztoA": "Z से A"
     },
     "mindRoomSplashScreen": {
-      "loading": "MindRoom Chat लोड हो रहा है"
+      "loading": "{{appName}} लोड हो रहा है"
     },
     "msgTypeRenderers": {
       "audio": "ऑडियो",
