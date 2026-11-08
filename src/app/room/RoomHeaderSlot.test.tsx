@@ -6,7 +6,6 @@ import {
   type ReactTestRendererJSON,
 } from 'react-test-renderer';
 import type { Room } from 'matrix-js-sdk';
-import { color } from 'folds';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import type { RoomHeaderSlotComponent } from '../plugins/registry';
@@ -122,11 +121,9 @@ describe('RoomHeaderSlot', () => {
     ]);
   });
 
-  it("paints no background of its own, so the header's surface shows behind it, in the header's text colour", () => {
+  it("paints nothing of its own, so the header's surface and text colour show through", () => {
     render('!a:example.org');
-    const { style } = (renderer!.toJSON() as ReactTestRendererJSON).props;
-    expect(Object.keys(style).filter((name) => name.startsWith('background'))).toEqual([]);
-    expect(style.color).toBe(color.Surface.OnContainer);
+    expect((renderer!.toJSON() as ReactTestRendererJSON).props).toEqual({});
   });
 
   it('shows nothing of a plugin that config.json turns off', () => {

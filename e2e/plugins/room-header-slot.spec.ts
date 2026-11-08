@@ -166,14 +166,18 @@ test("shows the plugin's banner under the room header, across the conversation, 
     await shot(page, 'room-header-slot');
   }));
 
-/** The background and backdrop filter of the header's element, its row and the slot's box. */
+/** The background, backdrop filter and text colour of the header's element, row and slot box. */
 const surfaces = (page: Page) =>
   banner(page).evaluate((shown) => {
     const slot = shown.parentElement!;
     const header = slot.parentElement!;
     const paint = (element: Element) => {
       const style = getComputedStyle(element);
-      return { background: style.backgroundColor, filter: style.backdropFilter };
+      return {
+        background: style.backgroundColor,
+        filter: style.backdropFilter,
+        color: style.color,
+      };
     };
     return {
       header: paint(header),
@@ -182,7 +186,7 @@ const surfaces = (page: Page) =>
     };
   });
 
-test("the banner shows the header's own frosted surface, the same one as the row, in light and dark", ({
+test("the banner shows the header's own frosted surface and text colour, as the row does, in light and dark", ({
   browser,
 }) =>
   onBuild(browser, {}, async (page, data) => {
@@ -194,11 +198,11 @@ test("the banner shows the header's own frosted surface, the same one as the row
       await page.emulateMedia({ colorScheme });
       await expect(page.locator('body')).toHaveClass(new RegExp(`\\b${colorScheme}-theme\\b`));
       const { header, row, slot } = await surfaces(page);
-      // One translucent, blurred surface behind the row and the slot together.
+      // One translucent, blurred surface behind the row and the slot together, in one text colour.
       expect(header.background).toMatch(/\/ 0?\.\d+\)$/);
       expect(header.filter).toContain('blur(');
-      expect(row).toEqual(clear);
-      expect(slot).toEqual(clear);
+      expect(row).toEqual({ ...clear, color: header.color });
+      expect(slot).toEqual({ ...clear, color: header.color });
       await shot(page, `room-header-slot-surface-${colorScheme}`);
     }
   }));
