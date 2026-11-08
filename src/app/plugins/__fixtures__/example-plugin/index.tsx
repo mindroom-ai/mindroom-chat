@@ -416,8 +416,8 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
   const [dialogOpen, setDialogOpen] = useState(false);
   return (
     <>
-      <p>Example panel of {roomId}</p>
-      {/* Its own line: a long room ID above would push the button out of the panel. */}
+      {/* A room ID breaks anywhere, so it never widens the panel past its edge. */}
+      <p style={{ overflowWrap: 'anywhere' }}>Example panel of {roomId}</p>
       <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
         <Text size="L400">Example rows</Text>
         <ExampleMenu
