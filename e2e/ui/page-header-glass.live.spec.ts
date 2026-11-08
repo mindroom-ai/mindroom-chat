@@ -110,6 +110,8 @@ for (const [themeId, width] of [
         );
       }, themeId);
       await loginWithPassword(page, { homeserver, ...credentials });
+      // A phone's navigation drawer keeps the space's room list after the page, out of view.
+      const main = page.getByRole('main');
 
       const navigate = (path: string) =>
         page.evaluate((url) => {
@@ -174,7 +176,7 @@ for (const [themeId, width] of [
       const lobbyHeader = page
         .locator('header')
         .filter({ has: page.getByRole('button', { name: 'Members', exact: true }) });
-      const lobbyRoom = page.getByText('01 · Design studio', { exact: true }).last();
+      const lobbyRoom = main.getByText('01 · Design studio', { exact: true });
       await expect(lobbyRoom).toBeVisible();
       const lobbyContent = lobbyRoom.locator('xpath=ancestor::*[@data-y-scrollbar-width][1]');
       const hero = page.locator('h2').filter({ hasText: 'MindRoom' }).locator('..').locator('..');
@@ -194,7 +196,7 @@ for (const [themeId, width] of [
       // Pass an inner node so the same helper finds the actual viewport.
       await verifyHeader(lobbyHeader, lobbyRoom, 'lobby');
       await lobbyContent.getByRole('scrollbar').press('End');
-      await expect(page.getByText('24 · Garden plans', { exact: true }).last()).toBeVisible();
+      await expect(main.getByText('24 · Garden plans', { exact: true })).toBeVisible();
       const toTop = page.getByRole('button', { name: 'Scroll to Top', exact: true });
       await expect(toTop).toBeVisible();
       expect((await toTop.boundingBox())!.y).toBeGreaterThanOrEqual(
@@ -216,12 +218,12 @@ for (const [themeId, width] of [
 
       await navigate('/explore/example.org/');
       const serverHeader = page.locator('header').filter({ hasText: 'example.org' });
-      const roomCard = page.getByText('01 · Design studio', { exact: true }).last();
+      const roomCard = main.getByText('01 · Design studio', { exact: true });
       await expect(roomCard).toBeVisible();
       await verifyHeader(serverHeader, roomCard, 'explore');
 
       await navigate('/explore/featured/');
-      const featuredRoom = page.getByText('01 · Design studio', { exact: true }).last();
+      const featuredRoom = main.getByText('01 · Design studio', { exact: true });
       await expect(featuredRoom).toBeVisible();
       if (width === 390) {
         await verifyHeader(page.locator('header').last(), featuredRoom, 'featured');
