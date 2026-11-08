@@ -43,8 +43,10 @@ export const PaneBody = style({
   paddingInline: space.S100,
 });
 
-// The subtitle layout keeps the transcript for screen readers, out of sight.
+// The subtitle layout keeps the transcript for screen readers, out of sight. It stays a flex box
+// as the pane is, so the transcript keeps scrolling in a box of its own and keeps its place.
 export const PaneUnseen = style({
+  display: 'flex',
   position: 'absolute',
   inlineSize: UNSEEN,
   blockSize: UNSEEN,

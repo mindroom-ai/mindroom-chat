@@ -1,8 +1,9 @@
-import { useLayoutEffect, useMemo, useRef } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Icon, Icons, Text } from 'folds';
 import { textDirection } from '../../ui/directional';
+import { useResizeObserver } from '../../lib/hooks/useResizeObserver';
 import { getSenderName } from '../../matrix/room';
 import { NameWithUserId } from '../../matrix/NameWithUserId';
 import { CallMemberAvatar } from '../CallTile';
@@ -139,14 +140,23 @@ export function LiveTranscriptBody({ room, view, className, members = true }: Bo
   const { state, live } = view;
   const call = live?.call;
 
-  // New lines keep the end in view while the reader is there.
+  // The end stays in view while the reader is there: when new lines come, and when the box
+  // changes size (a divider moved, the window resized, another layout), which can hide the end
+  // without a scroll event.
   const bodyRef = useRef<HTMLDivElement>(null);
   const atEnd = useRef(true);
-  const lineCount = live?.lines.length ?? 0;
-  useLayoutEffect(() => {
+  /** Where the box was scrolled to keep the end in view, until the reader scrolls elsewhere. */
+  const pinnedTop = useRef<number>();
+  const keepEnd = useCallback(() => {
     const body = bodyRef.current;
-    if (body && atEnd.current) body.scrollTop = body.scrollHeight;
-  }, [lineCount]);
+    if (!body || !atEnd.current) return;
+    body.scrollTop = body.scrollHeight;
+    pinnedTop.current = body.scrollTop;
+  }, []);
+  const lineCount = live?.lines.length ?? 0;
+  useLayoutEffect(() => keepEnd(), [keepEnd, lineCount]);
+  const getBody = useCallback(() => bodyRef.current, []);
+  useResizeObserver(keepEnd, getBody);
 
   let content;
   if (state === 'unavailable' && !live) {
@@ -188,6 +198,10 @@ export function LiveTranscriptBody({ room, view, className, members = true }: Bo
       ref={bodyRef}
       className={className}
       onScroll={({ currentTarget: body }) => {
+        // The scroll that kept the end says nothing of the reader, and comes a frame late: a box
+        // that shrank since would no longer seem to be at its end.
+        if (body.scrollTop === pinnedTop.current) return;
+        pinnedTop.current = undefined;
         atEnd.current = body.scrollHeight - body.scrollTop - body.clientHeight < 32;
       }}
     >

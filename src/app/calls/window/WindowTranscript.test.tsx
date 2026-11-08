@@ -129,6 +129,54 @@ class TestPointerEvent extends MouseEvent {
 }
 const CAPTURE = ['setPointerCapture', 'hasPointerCapture', 'releasePointerCapture'] as const;
 
+// jsdom lays nothing out: a test sizes the transcript's scroll box itself and reports the change
+// as the browser's ResizeObserver would.
+const observed = new Map<Element, () => void>();
+class TestResizeObserver {
+  constructor(private readonly callback: ResizeObserverCallback) {}
+
+  observe(target: Element) {
+    const entry = { target } as ResizeObserverEntry;
+    observed.set(target, () => this.callback([entry], this as unknown as ResizeObserver));
+  }
+
+  unobserve(target: Element) {
+    observed.delete(target);
+  }
+
+  disconnect() {
+    observed.clear();
+  }
+}
+
+/**
+ * The transcript's scroll box, `content` px of lines in a box `height` px tall, scrolled to the
+ * end; its scroll position stays within them, as a browser's does.
+ */
+const scrollBox = (content: number, height: number) => {
+  const body = document.querySelector<HTMLElement>('[data-call-window-transcript] > div')!;
+  const box = { content, height, top: content - height };
+  const clamp = (top: number) => Math.max(0, Math.min(top, box.content - box.height));
+  Object.defineProperties(body, {
+    scrollHeight: { configurable: true, get: () => box.content },
+    clientHeight: { configurable: true, get: () => box.height },
+    scrollTop: {
+      configurable: true,
+      get: () => box.top,
+      set: (top: number) => {
+        box.top = clamp(top);
+      },
+    },
+  });
+  /** The box at a new size, which layout reports after it moved what it had to. */
+  const resize = (next: Partial<Pick<typeof box, 'content' | 'height'>>) => {
+    Object.assign(box, next);
+    box.top = clamp(box.top);
+    act(() => observed.get(body)?.());
+  };
+  return { body, box, resize };
+};
+
 beforeEach(() => {
   localStorage.clear();
   store = createStore();
@@ -144,6 +192,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   clearCallWindowStore(USER);
+  observed.clear();
   vi.unstubAllGlobals();
   for (const name of CAPTURE) Reflect.deleteProperty(HTMLElement.prototype, name);
 });
@@ -373,5 +422,53 @@ describe('the live transcript in the floating window', () => {
     act(() => inCall('transcribing', LINES));
     rerender(windowWith({ width: 400, height: 480 }));
     expect(top).toBe(100);
+  });
+
+  it('keeps the newest line in view when the layout changes or the divider moves', () => {
+    vi.stubGlobal('ResizeObserver', TestResizeObserver);
+    inCall();
+    showTranscript();
+    const { rerender } = render(windowWith({ width: 400, height: 480 }));
+    const { body, box, resize } = scrollBox(1204, 120);
+
+    // Shrunk to the subtitle, the transcript's box held all its lines (Chromium scrolled it to the
+    // top); grown back, it shows the end again.
+    rerender(windowWith({ width: 400, height: 300 }));
+    resize({ height: 1204 });
+    rerender(windowWith({ width: 400, height: 480 }));
+    resize({ height: 120 });
+    expect(box.top).toBe(1084);
+
+    // A larger stage leaves the transcript less room, which would hide its newest lines.
+    fireEvent.keyDown(divider()!, { key: 'ArrowDown' });
+    resize({ height: 80 });
+    expect(box.top).toBe(1124);
+
+    // The scroll event of that comes a frame late, after the next step shrank the box again: the
+    // person did not scroll, so the end still stays in view.
+    fireEvent.keyDown(divider()!, { key: 'ArrowDown' });
+    box.height = 40;
+    fireEvent.scroll(body);
+    resize({});
+    expect(box.top).toBe(1164);
+  });
+
+  it('keeps where the person scrolled up to when the layout changes or the divider moves', () => {
+    vi.stubGlobal('ResizeObserver', TestResizeObserver);
+    inCall();
+    showTranscript();
+    const { rerender } = render(windowWith({ width: 400, height: 480 }));
+    const { body, box, resize } = scrollBox(1204, 120);
+    box.top = 300;
+    fireEvent.scroll(body);
+
+    fireEvent.keyDown(divider()!, { key: 'ArrowDown' });
+    resize({ height: 80 });
+    expect(box.top).toBe(300);
+    rerender(windowWith({ width: 400, height: 300 }));
+    resize({ height: 16 });
+    rerender(windowWith({ width: 400, height: 480 }));
+    resize({ height: 80 });
+    expect(box.top).toBe(300);
   });
 });
