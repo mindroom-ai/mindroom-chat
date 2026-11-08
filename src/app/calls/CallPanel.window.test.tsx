@@ -791,6 +791,15 @@ describe('the minimized bar', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it('shows no list of faces to someone alone in the call', () => {
+    roomCall([me]);
+    renderPanel({ frame: frame(true) });
+
+    const bar = screen.getByRole('group', { name: 'Move minimized call window' });
+    expect(within(bar).queryByRole('list', { name: 'People in the call' })).toBeNull();
+    expect(within(bar).getByText('Standup')).toBeTruthy();
+  });
+
   it('shows the agent an agent call waits for, as the stage does', () => {
     agentCall({ roomId: room.roomId });
     calls.state = { ...joined([me]), phase: 'connecting' };

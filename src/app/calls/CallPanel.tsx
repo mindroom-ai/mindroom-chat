@@ -598,10 +598,11 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
   ) : (
     stage
   );
+  const faces = barFaces(shownPeople);
   const bar: BarContent = {
-    faces: (
+    faces: faces.length > 0 && (
       <ul className={css.BarFaces} aria-label={t('featureUi.calls.panel.participants')}>
-        {barFaces(shownPeople).map(({ userId, speaking }) => (
+        {faces.map(({ userId, speaking }) => (
           <BarFace key={userId} room={call.room} userId={userId} speaking={speaking} />
         ))}
       </ul>
