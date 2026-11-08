@@ -146,6 +146,15 @@ describe('SDK redactions by someone who may not redact the event', () => {
     expect(shown().isRedacted()).toBe(true);
   });
 
+  it('takes a redaction from a page, which has no state of its own, as before', async () => {
+    const { room, add, shown } = await moderatedRoom();
+    await add(state('m.room.member', MODERATOR, { membership: 'leave' }, { membership: 'join' }));
+
+    room.processThreadedEvents([redaction('$message', MODERATOR)], false);
+
+    expect(shown().isRedacted()).toBe(true);
+  });
+
   it('names as its target only the event it redacts, whatever relation its content claims', async () => {
     const { room, add, shown } = await moderatedRoom();
     await room.addLiveEvents([message('$own', OTHER)], { addToState: false });

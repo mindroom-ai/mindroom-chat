@@ -686,6 +686,8 @@ describe('a redacted message, after a reload', () => {
     ];
     const live = new Room(ROOM, sdk, ME, { timelineSupport: true });
     live.currentState.setStateEvents(roomState.map(map));
+    // The client's mapper reuses the events the room holds, as in the SDK's sync.
+    sdk.store.storeRoom(live);
     const accumulator = new SyncAccumulator({ maxTimelineEntries: 500 });
     for (const [index, events] of batches.entries()) {
       // The room and the saved sync share each event, as in the SDK's sync.
@@ -703,6 +705,7 @@ describe('a redacted message, after a reload', () => {
     batch(emitter, [synced('m.room.redaction', '$redaction')]);
 
     const saved = accumulator.getJSON(true).roomsData.join[ROOM]!;
+    sdk.store.removeRoom(ROOM);
     const reloaded = new Room(ROOM, sdk, ME, { timelineSupport: true });
     reloaded
       .getLiveTimeline()
@@ -719,6 +722,16 @@ describe('a redacted message, after a reload', () => {
 
   it('stays when another member without the right redacted it', async () => {
     const result = await liveAndReloaded([[message()], [redactionBy(OTHER)]]);
+
+    expect(result).toEqual({
+      live: 'message v1',
+      reloaded: 'message v1',
+      saved: expect.stringContaining('message v1'),
+    });
+  });
+
+  it('stays when the server sends again a redaction the room did not take', async () => {
+    const result = await liveAndReloaded([[message()], [redactionBy(OTHER)], [redactionBy(OTHER)]]);
 
     expect(result).toEqual({
       live: 'message v1',

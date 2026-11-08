@@ -612,9 +612,9 @@ describe('a cached copy whose edit the room took a redaction of while it could n
   });
 });
 
-// A page read from the cache or fetched from the server takes only a redaction its sender may make:
-// one the room holds keeps the room's decision, made where it is in the timeline; one only in the
-// page is checked against the room's current state, as the SDK checks a page.
+// A page read from the cache or fetched from the server keeps the decision the room made for a
+// redaction it holds, where the redaction is in the timeline. A page has no state of its own, so a
+// redaction only in the page is not judged with today's state: it removes the message, as before.
 describe('a page with a redaction by someone who may not redact the event', () => {
   const ROOM = '!room:example.org';
   const ALICE = '@alice:example.org';
@@ -653,13 +653,14 @@ describe('a page with a redaction by someone who may not redact the event', () =
   const redactionBy = (sender: string) =>
     makeRedactionEvent(`$redaction-${sender}`, 2000, '$target', sender);
 
-  it('keeps the message another member without the right redacted', () => {
-    const { live } = moderatedRoom();
+  it('takes a redaction only in the page, though its moderator has left since', async () => {
+    const { live, add } = moderatedRoom();
+    await add(state('m.room.member', MODERATOR, { membership: 'leave' }, { membership: 'join' }));
     const copy = target();
 
-    applyCachedRedactions(live, [copy, redactionBy(OTHER)]);
+    applyCachedRedactions(live, [copy, redactionBy(MODERATOR)]);
 
-    expect(copy.isRedacted()).toBe(false);
+    expect(copy.isRedacted()).toBe(true);
   });
 
   it.each([
