@@ -73,6 +73,18 @@ describe('getClientConfig', () => {
     expect(getClientConfig()).toBe(INNER);
   });
 
+  it('is the later of two providers as deep, and the earlier once the later one unmounts', () => {
+    render(<ClientConfigProvider value={OUTER} />);
+    let later: ReactTestRenderer | undefined;
+    act(() => {
+      later = create(<ClientConfigProvider value={INNER} />);
+    });
+    expect(getClientConfig()).toBe(INNER);
+
+    act(() => later?.unmount());
+    expect(getClientConfig()).toBe(OUTER);
+  });
+
   it('is none while no provider is mounted', () => {
     expect(getClientConfig()).toBeUndefined();
   });
