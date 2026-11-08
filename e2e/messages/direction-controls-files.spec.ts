@@ -146,12 +146,17 @@ const seed = async (engine: string): Promise<World> => {
     url: picture,
     info: { mimetype: 'image/png', w: 320, h: 240, size: PNG.length },
   });
-  const clip = Buffer.from('not a playable video, only bytes to load');
-  const videoId = await send({
+  const MODE = process.env.VIDEO_MODE ?? 'garbage';
+  const clip =
+    MODE === 'webm'
+      ? Buffer.from('GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAHVEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHGTbuMU6uEElTDZ1OsggEiTbuMU6uEHFO7a1OsggG/7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmoCrXsYMPQkBNgIRMYXZmV0GETGF2ZkSJiEBpAAAAAAAAFlSua9euAQAAAAAAAE7XgQFzxYgAAAAAAAAAAZyBACK1nIN1bmSIgQCGhVZfVlA4g4EBI+ODhAvrwgDgkLCBILqBGJqBAlWwhFW5gQFV7oEA7AEAAAAAAAACAAASVMNn0HNzzWPAi2PFiAAAAAAAAAABZ8iYRaOHRU5DT0RFUkSHi0xhdmMgbGlidnB4Z8ihRaOIRFVSQVRJT05Eh5MwMDowMDowMC4yMDAwMDAwMDAAH0O2dcPngQCjvoEAAIDQAgCdASogABgAAEcIhYWIhYSIAgICdaoD+AIIIQg9AP76eV//qdP6nT+p0/+p0//cgHsgHsgH79wAHFO7a5G7j7OBALeK94EB8YIBd/CBAw==', 'base64')
+      : Buffer.from('not a playable video, only bytes to load');
+  const type = MODE === 'webm' ? 'video/webm' : MODE === 'garbagewebm' ? 'video/webm' : 'video/mp4';
+  const videoId = MODE === 'none' ? '' : await send({
     msgtype: 'm.video',
     body: VIDEO_NAME,
-    url: await upload(member.accessToken, clip, 'video/mp4'),
-    info: { mimetype: 'video/mp4', w: 320, h: 240, size: clip.length },
+    url: await upload(member.accessToken, clip, type),
+    info: { mimetype: type, w: 320, h: 240, size: clip.length },
   });
   // The video's own file is gone; its thumbnail stays up, with the Retry button over it.
   const stillId = await send({
@@ -261,11 +266,13 @@ const check = async (page: Page, world: World, label: string) => {
   await expect(viewer).toBeHidden();
 
   // The video: its tooltip, once loaded (a phone may wait for Watch).
+  if (world.videoId) {
   const video = row(page, world.videoId);
   await video.scrollIntoViewIfNeeded();
   const watch = video.getByRole('button', { name: 'Watch' });
   if (await watch.isVisible()) await watch.click();
   await expectAttribute(video.locator('video').first(), 'title', VIDEO_NAME_SHOWN);
+  }
 
   // The video whose file is gone keeps its thumbnail, named after the video.
   const still = row(page, world.stillId);
