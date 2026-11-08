@@ -194,6 +194,18 @@ describe('CallStage with video', () => {
     expect(container.querySelectorAll('[data-call-tile]')).toHaveLength(3);
   });
 
+  it("shows someone else's screen while this device shares one too", () => {
+    const { container } = showStage({
+      participants: [
+        { ...me, screen: track() },
+        { ...mind, screen: track() },
+      ],
+    });
+
+    expect(container.querySelector(`[data-call-screen="${mind.userId}"]`)).not.toBeNull();
+    expect(container.querySelector(`[data-call-screen="${me.userId}"]`)).toBeNull();
+  });
+
   it('shows speaker view when the person picks it, with the remote speaker in focus', () => {
     const { container } = showStage({
       participants: [{ ...me, video: track() }, mind, { ...ada, speaking: true, video: track() }],

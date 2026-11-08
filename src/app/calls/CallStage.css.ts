@@ -108,9 +108,10 @@ export const Inset = style({
   boxShadow: INSET_SHADOW,
 });
 
+// Faces that do not fit scroll, from the first row (a plain centre would cut off the top).
 export const Voice = style([
   centredFlow('column nowrap', toRem(12)),
-  { height: '100%', justifyContent: 'center', textAlign: 'center' },
+  { height: '100%', justifyContent: 'safe center', overflowY: 'auto', textAlign: 'center' },
 ]);
 
 export const VoiceFaces = style({

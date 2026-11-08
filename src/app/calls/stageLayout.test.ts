@@ -58,19 +58,31 @@ describe('hasVideo', () => {
 });
 
 describe('pickFocus', () => {
-  it('puts the first shared screen in focus, before any speaker', () => {
-    const sharing = { ...me, screen: track };
+  it('puts a shared screen in focus, before any speaker', () => {
     const speaking = { ...mind, speaking: true };
 
-    expect(pickFocus([sharing, speaking, { ...ada, screen: track }], undefined)).toBe(
-      `${me.key}:screen`
+    expect(pickFocus([{ ...me, screen: track }, speaking], undefined)).toBe(`${me.key}:screen`);
+    expect(pickFocus([me, speaking, { ...ada, screen: track }], mind.key)).toBe(
+      `${ada.key}:screen`
     );
+  });
+
+  it("puts someone else's screen in focus over this device's own", () => {
+    const participants = [{ ...me, screen: track }, mind, { ...ada, screen: track }];
+
+    expect(pickFocus(participants, undefined)).toBe(`${ada.key}:screen`);
   });
 
   it('follows the first remote speaker, not this device', () => {
     const participants = [{ ...me, speaking: true }, mind, { ...ada, speaking: true }];
 
     expect(pickFocus(participants, mind.key)).toBe(ada.key);
+  });
+
+  it('keeps the remote in focus while it still speaks, though an earlier one speaks too', () => {
+    const participants = [me, { ...mind, speaking: true }, { ...ada, speaking: true }];
+
+    expect(pickFocus(participants, ada.key)).toBe(ada.key);
   });
 
   it('keeps the last remote in focus while nobody speaks', () => {

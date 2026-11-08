@@ -47,19 +47,23 @@ export const hasVideo = (participants: CallParticipant[]): boolean =>
 export const screenKey = (participant: CallParticipant): string => `${participant.key}:screen`;
 
 /**
- * The tile speaker view puts in focus: the first shared screen, else the first remote speaker,
- * else the remote in focus before (`previous`) while still in the call, else the first remote,
- * else whoever is there. This device's own camera is never chosen over someone else's.
+ * The tile speaker view puts in focus: a shared screen, someone else's before this device's own
+ * (which its sharer has in front of them anyway); else the remote in focus before (`previous`)
+ * while it still speaks, so a second speaker does not take the stage from it; else the first
+ * remote speaker; else `previous` while still in the call; else the first remote; else whoever
+ * is there. This device's own camera is never chosen over someone else's.
  */
 export const pickFocus = (
   participants: CallParticipant[],
   previous: string | undefined
 ): string | undefined => {
-  const sharing = participants.find((participant) => participant.screen);
+  const sharing =
+    participants.find((participant) => participant.screen && !participant.local) ??
+    participants.find((participant) => participant.screen);
   if (sharing) return screenKey(sharing);
   const remotes = participants.filter((participant) => !participant.local);
+  const last = remotes.find(({ key }) => key === previous);
+  if (last?.speaking) return last.key;
   const speaking = remotes.find((participant) => participant.speaking);
-  if (speaking) return speaking.key;
-  if (remotes.some(({ key }) => key === previous)) return previous;
-  return (remotes[0] ?? participants[0])?.key;
+  return (speaking ?? last ?? remotes[0] ?? participants[0])?.key;
 };
