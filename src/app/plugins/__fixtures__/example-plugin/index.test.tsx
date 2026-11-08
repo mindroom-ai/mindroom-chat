@@ -363,7 +363,7 @@ describe('example plugin', () => {
 
   it('greets the room or the thread with the text typed after /greet, and asks for some without it', async () => {
     const greet = plugin.slashCommands?.find(({ name }) => name === 'greet');
-    if (!greet) throw new Error('the example plugin has no slash command');
+    if (!greet) throw new Error('the example plugin has no /greet');
     const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
     const sent = vi.spyOn(client, 'sendNotice').mockResolvedValue({ event_id: '$greeting' });
     const room = new Room('!lobby:example.org', client, '@ada:example.org');

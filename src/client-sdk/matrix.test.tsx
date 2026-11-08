@@ -36,14 +36,14 @@ const roomWith = (roomVersion: string, powerLevels: Record<string, unknown>) => 
   return room;
 };
 
-describe('useRoomPermissions', () => {
-  const levels = {
-    users: { [MODERATOR]: 50 },
-    users_default: 0,
-    events: { 'm.room.message': 10 },
-    state_default: 50,
-  };
+const levels = {
+  users: { [MODERATOR]: 50 },
+  users_default: 0,
+  events: { 'm.room.message': 10, 'm.room.power_levels': 100 },
+  state_default: 50,
+};
 
+describe('useRoomPermissions', () => {
   it("answers for a user below and above the room's event and state levels", () => {
     const { result } = renderHook(() => useRoomPermissions(roomWith('11', levels)));
     expect(result.current.event('m.room.message', MEMBER)).toBe(false);
@@ -79,35 +79,26 @@ describe('useRoomPermissions', () => {
 });
 
 describe('getRoomPermissions', () => {
-  const levels = {
-    users: { [MODERATOR]: 50 },
-    users_default: 0,
-    events: { 'm.room.message': 10, 'm.room.power_levels': 100 },
-    state_default: 50,
-  };
-
-  /** Every kind of answer `permissions` gives for `userId`. */
-  const answers = (permissions: ReturnType<typeof getRoomPermissions>, userId: string) => [
-    permissions.event('m.room.message', userId),
-    permissions.stateEvent('m.room.topic', userId),
-    permissions.stateEvent('m.room.power_levels', userId),
-    permissions.action('ban', userId),
-    permissions.notification('room', userId),
-  ];
+  /** Each answer `permissions` gives, for a user below the levels, a moderator and the creator. */
+  const answers = (permissions: ReturnType<typeof getRoomPermissions>) =>
+    [MEMBER, MODERATOR, CREATOR].map((userId) => [
+      permissions.event('m.room.message', userId),
+      permissions.stateEvent('m.room.topic', userId),
+      permissions.stateEvent('m.room.power_levels', userId),
+      permissions.action('ban', userId),
+      permissions.notification('room', userId),
+    ]);
 
   it("gives, read once, the hook's answers for a user below the levels, a moderator and a version 12 room's creator", () => {
     const room = roomWith('12', levels);
     const { result } = renderHook(() => useRoomPermissions(room));
-    const permissions = getRoomPermissions(room);
-    const users = [MEMBER, MODERATOR, CREATOR];
-    expect(users.map((userId) => answers(permissions, userId))).toEqual([
+    const read = answers(getRoomPermissions(room));
+    expect(read).toEqual([
       [false, false, false, false, false],
       [true, true, false, true, true],
       [true, true, true, true, true],
     ]);
-    expect(users.map((userId) => answers(permissions, userId))).toEqual(
-      users.map((userId) => answers(result.current, userId))
-    );
+    expect(read).toEqual(answers(result.current));
   });
 
   it('has a change of power levels in the next read', () => {
