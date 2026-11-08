@@ -379,10 +379,16 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
 
   const retryPagination = useCallback(
     (opts?: RetryPaginationOptions) => {
-      const root = opts?.ahead ? optionsRef.current.getScrollElement() : null;
-      paginateVisibleAnchor(opts, root?.clientHeight ?? 0);
+      if (!opts?.ahead) {
+        paginateVisibleAnchor(opts);
+        return;
+      }
+      // Looking ahead is automatic pagination: the opening fill, while it runs, decides.
+      runAutomatic(() => {
+        paginateVisibleAnchor(opts, optionsRef.current.getScrollElement()?.clientHeight ?? 0);
+      });
     },
-    [paginateVisibleAnchor]
+    [paginateVisibleAnchor, runAutomatic]
   );
 
   /** Paginates towards the sentinels that came into view, history first. */
