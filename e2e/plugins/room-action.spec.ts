@@ -72,35 +72,41 @@ const expectEntry = async (page: Page, entry: string, before: string, after: str
   expect(entries.indexOf(after)).toBe(entries.indexOf(entry) + 1);
 };
 
+/** The open room menu's entry named `name`. */
+const menuItem = (page: Page, name: string) =>
+  roomMenu(page).getByRole('menuitem', { name, exact: true });
+
 /** Expects the critical entry right after Leave, in Leave's group and color, not the ordinary's. */
 const expectCriticalEntry = async (page: Page, entry: string, leave: string, ordinary: string) => {
   await expect(roomMenu(page)).toBeVisible();
   expect((await menuEntries(page)).slice(-2)).toEqual([leave, entry]);
-  const row = (name: string) => roomMenu(page).getByRole('menuitem', { name, exact: true });
-  const leaveRow = await row(leave).elementHandle();
-  expect(
-    await row(entry).evaluate(
-      (critical, other) => critical.previousElementSibling === other,
-      leaveRow
-    )
-  ).toBe(true);
-  const color = (name: string) => row(name).evaluate((element) => getComputedStyle(element).color);
-  expect(await color(entry)).toBe(await color(leave));
-  expect(await color(entry)).not.toBe(await color(ordinary));
+  const previous = await menuItem(page, entry).evaluate((critical) =>
+    critical.previousElementSibling?.textContent?.trim()
+  );
+  expect(previous).toBe(leave);
+  const color = (name: string) =>
+    menuItem(page, name).evaluate((element) => getComputedStyle(element).color);
+  const critical = await color(entry);
+  expect(critical).toBe(await color(leave));
+  expect(critical).not.toBe(await color(ordinary));
 };
 
-/** Takes a screenshot of the page in the light and the dark scheme. */
-const shotBothSchemes = async (page: Page, path: (scheme: string) => string) => {
+/** Takes `shot` of the page in the light and the dark scheme, as `<name>-<scheme>`. */
+const shotBothSchemes = async (
+  page: Page,
+  shot: (name: string) => Promise<unknown>,
+  name: string
+) => {
   for (const scheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: scheme });
-    await page.screenshot({ path: path(scheme) });
+    await shot(`${name}-${scheme}`);
   }
   await page.emulateMedia({ colorScheme: 'light' });
 };
 
 /** Chooses the entry: the menu closes and the plugin's dialog names `roomName`. */
 const chooseEntry = async (page: Page, entry: string, roomName: string) => {
-  await roomMenu(page).getByRole('menuitem', { name: entry, exact: true }).click();
+  await menuItem(page, entry).click();
   await expect(roomMenu(page)).toHaveCount(0);
   await expect(page.getByRole('dialog', { name: 'Example dialog' })).toContainText(
     `Example dialog of ${roomName}`
@@ -153,7 +159,7 @@ test("every room menu lists the example plugin's entries, which act on the menu'
     await roomMoreOptions(page).click();
     await expectEntry(page, 'Example room info', 'Jump to Time', 'Archive Room');
     await expectCriticalEntry(page, 'Example removal', 'Leave Room', 'Example room info');
-    await shotBothSchemes(page, (scheme) => testInfo.outputPath(`header-menu-${scheme}.png`));
+    await shotBothSchemes(page, shot, 'header-menu');
     await chooseEntry(page, 'Example room info', 'Orchard');
     await shot('header-dialog');
     await closeDialog(page);
@@ -165,7 +171,7 @@ test("every room menu lists the example plugin's entries, which act on the menu'
     await rowOptions(gardenLink).click();
     await expectEntry(page, 'Example room info', 'Jump to Time', 'Archive Room');
     await expectCriticalEntry(page, 'Example removal', 'Leave Room', 'Example room info');
-    await shotBothSchemes(page, (scheme) => testInfo.outputPath(`row-menu-${scheme}.png`));
+    await shotBothSchemes(page, shot, 'row-menu');
     await chooseEntry(page, 'Example room info', 'Garden');
     await expect(roomHeader(page).locator('h1')).toHaveText('Orchard');
     await shot('row-dialog');
@@ -184,7 +190,7 @@ test("every room menu lists the example plugin's entries, which act on the menu'
       await dialog.dismiss();
       return message;
     });
-    await roomMenu(page).getByRole('menuitem', { name: 'Example removal', exact: true }).click();
+    await menuItem(page, 'Example removal').click();
     expect(await alert).toBe(`Example removal in ${garden}`);
     await expect(roomMenu(page)).toHaveCount(0);
 
@@ -232,7 +238,7 @@ test("a phone's long press on a room row lists the example plugin's entries for 
     await touch(gardenLink, [{ type: 'start' }, { type: 'wait', ms: 700 }, { type: 'end' }]);
     await expectEntry(page, 'Example room info', 'Jump to Time', 'Archive Room');
     await expectCriticalEntry(page, 'Example removal', 'Leave Room', 'Example room info');
-    await shotBothSchemes(page, (scheme) => testInfo.outputPath(`phone-row-menu-${scheme}.png`));
+    await shotBothSchemes(page, shot, 'phone-row-menu');
     await chooseEntry(page, 'Example room info', 'Garden');
     await shot('phone-row-dialog');
     await closeDialog(page);

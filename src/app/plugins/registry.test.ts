@@ -143,7 +143,8 @@ describe('registeredPlugins', () => {
     // A slash command needs a name of letters a to z, a description and a run.
     expect(plugins[0]?.slashCommands).toEqual([]);
     expect(plugins[1]?.slashCommands).toEqual([entries.command]);
-    // A room action needs an id, a label, an icon and a run, and its shows is a function.
+    // A room action needs an id, a label, an icon and a run, its shows is a function, and its
+    // critical is `true` or absent.
     expect(plugins[0]?.roomActions).toEqual([]);
     expect(plugins[1]?.roomActions).toEqual(entries.roomActions);
     expect(plugins[0]?.roomHeaderSlot).toEqual([]);

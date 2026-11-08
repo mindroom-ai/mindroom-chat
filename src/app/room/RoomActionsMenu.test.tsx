@@ -177,6 +177,9 @@ const SHARED = [
   'Leave Room',
 ];
 
+/** What the open room's header adds before the room actions. */
+const showMembers = <MenuEntry label="Show Members" icon={Icons.User} onSelect={vi.fn()} />;
+
 afterEach(() => {
   cleanup();
   state.canInvite = true;
@@ -237,11 +240,7 @@ describe('the shared room actions', () => {
   });
 
   it('puts what only the open room offers in a section before the room actions', () => {
-    render(
-      <Harness
-        roomEntries={<MenuEntry label="Show Members" icon={Icons.User} onSelect={vi.fn()} />}
-      />
-    );
+    render(<Harness roomEntries={showMembers} />);
     expect(rows()).toEqual(['Show Members', ...SHARED]);
   });
 
@@ -432,11 +431,7 @@ describe("plugins' entries", () => {
     expect(layout()).toEqual([SHARED.slice(0, -2), 'line', plugins, 'line', SHARED.slice(-2)]);
     cleanup();
 
-    render(
-      <Harness
-        roomEntries={<MenuEntry label="Show Members" icon={Icons.User} onSelect={vi.fn()} />}
-      />
-    );
+    render(<Harness roomEntries={showMembers} />);
     expect(layout()).toEqual([
       ['Show Members'],
       'line',
@@ -469,11 +464,7 @@ describe("plugins' entries", () => {
     expect(style('About this room')).toBe(style('Archive Room'));
     cleanup();
 
-    render(
-      <Harness
-        roomEntries={<MenuEntry label="Show Members" icon={Icons.User} onSelect={vi.fn()} />}
-      />
-    );
+    render(<Harness roomEntries={showMembers} />);
     expect(layout().at(-1)).toEqual(last);
   });
 

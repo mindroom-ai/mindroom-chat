@@ -308,7 +308,6 @@ const plugin: ClientPlugin = {
       icon: Icons.Delete,
       critical: true,
       run: ({ room }) => {
-        // eslint-disable-next-line no-alert
         window.alert(`Example removal in ${room.roomId}`);
       },
     },

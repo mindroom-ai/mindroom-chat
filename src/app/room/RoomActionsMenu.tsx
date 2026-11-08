@@ -79,6 +79,7 @@ export const RoomActionsMenu = forwardRef<HTMLDivElement, RoomActionsMenuProps>(
           />
         ));
     const ordinaryRows = pluginRows(false);
+    const criticalRows = pluginRows(true);
     return (
       <Menu ref={ref} className={css.RoomMenu} style={menuStyle}>
         {roomEntries && (
@@ -94,7 +95,7 @@ export const RoomActionsMenu = forwardRef<HTMLDivElement, RoomActionsMenuProps>(
               {group.map(({ id, Entry }) => (
                 <Entry key={id} {...actionProps} />
               ))}
-              {index === ROOM_ACTIONS.length - 1 && pluginRows(true)}
+              {index === ROOM_ACTIONS.length - 1 && criticalRows}
             </MenuGroup>
             {index === 0 && ordinaryRows.length > 0 && (
               <>
