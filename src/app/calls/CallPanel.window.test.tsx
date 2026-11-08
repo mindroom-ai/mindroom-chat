@@ -58,17 +58,11 @@ vi.mock('../ui/IconTooltip', () => ({
   IconTooltip: ({ position = 'Bottom', children }: IconTooltipProps) =>
     children((anchor) => anchor?.setAttribute('data-tooltip', position)),
 }));
-vi.mock('./agent/useCallFailureNotice', () => ({ useCallFailureNotice: () => undefined }));
 // The notice an agent posts when it joined but cannot hear or speak, while a test shows one.
 const failures = vi.hoisted(() => ({
   visible: undefined as { eventId: string; message: string } | undefined,
 }));
-vi.mock('./agent/useCallFailureDismissal', () => ({
-  useCallFailureDismissal: () => ({
-    visibleFailure: failures.visible,
-    dismissFailure: () => undefined,
-  }),
-}));
+vi.mock('./agent/useCallFailureNotice', () => ({ useCallFailureNotice: () => failures.visible }));
 vi.mock('../computer/useRoomMindroomServer', () => ({
   useRoomMindroomServer: () => ({ apiUrl: undefined, discovered: false }),
 }));
@@ -80,9 +74,6 @@ vi.mock('./callSupport', () => ({
 vi.mock('./callAccess', () => ({
   readCallAccess: () => ({ canJoin: true, canLetMembersIn: false }),
   allowMembersToCall: async () => undefined,
-}));
-vi.mock('./callMemberships', () => ({
-  callUserIds: (members: { userId: string }[]) => members.map(({ userId }) => userId),
 }));
 vi.mock('./callStore', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./callStore')>()),
@@ -596,13 +587,8 @@ describe('the call view title bar', () => {
 
 describe('the control bar', () => {
   it('offers the camera and screen sharing in an agent call too', () => {
-    calls.active = {
-      call: { room: callRoom } as ActiveCall['call'],
-      kind: 'agent',
-      agentUserId: '@mindroom_helper:panel.test',
-    };
-    calls.state = joined([me]);
-    renderPanel({ panelRoom: callRoom });
+    agentCall({ roomId: room.roomId });
+    renderPanel();
 
     const controls = screen.getByRole('toolbar', { name: 'Standup' });
     expect(within(controls).getByRole('button', { name: 'Start Camera' })).toBeTruthy();
@@ -859,15 +845,11 @@ describe('the minimized bar', () => {
     expect(screen.queryByRole('toolbar')).toBeNull();
     expect(button('Minimize')).toBeNull();
 
-    const names = within(bar)
-      .getAllByRole('button')
-      .map((each) => each.getAttribute('aria-label'));
+    const buttons = within(bar).getAllByRole('button');
+    const names = buttons.map((each) => each.getAttribute('aria-label'));
     expect(names).toEqual(['Turn Off Microphone', 'End', 'Expand', 'Close call view']);
     // The line sits low on the screen, so its buttons are named above it.
-    const sides = within(bar)
-      .getAllByRole('button')
-      .map((each) => each.dataset.tooltip);
-    expect(sides).toEqual(['Top', 'Top', 'Top', 'Top']);
+    expect(buttons.map((each) => each.dataset.tooltip)).toEqual(['Top', 'Top', 'Top', 'Top']);
 
     fireEvent.click(within(bar).getByRole('button', { name: 'Turn Off Microphone' }));
     expect(setMicrophone).toHaveBeenCalledWith(false);
@@ -993,6 +975,12 @@ describe('the minimized bar', () => {
     const bar = screen.getByRole('group', { name: 'Move minimized call window' });
     expect(within(bar).getByText('Your microphone or camera could not be used.')).toBeTruthy();
     expect(within(bar).getByRole('button', { name: 'Turn On Microphone' })).toBeTruthy();
+    cleanup();
+
+    // Expanded, the notice over the stage says the same.
+    renderPanel({ frame: frame() });
+    const said = screen.getByText('Your microphone or camera could not be used.');
+    expect(said.closest('[role="status"]')).not.toBeNull();
   });
 
   it('shows only the title, Expand and Close before the call is joined', () => {
