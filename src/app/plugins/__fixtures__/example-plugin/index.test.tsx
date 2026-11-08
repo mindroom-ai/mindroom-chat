@@ -3,7 +3,7 @@
 // app only through the client SDK, `/testing` included, and runs in the app's vitest.
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
 import plugin from './index';
@@ -14,6 +14,15 @@ const greeting: PluginEvent = {
 };
 
 describe('example plugin', () => {
+  // Its panel asks the client's homeserver whether it binds sign-in tokens to the room's MindRoom
+  // server; these rooms have none, so the answer is no.
+  beforeEach(() => {
+    vi.stubGlobal('fetch', async () => new Response('{}'));
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   const [renderer] = plugin.messageRenderers ?? [];
   const [Banner] = plugin.roomHeaderSlot ?? [];
 
@@ -160,6 +169,8 @@ describe('example plugin', () => {
     );
     expect(view.getByText('Members: 2, with a MindRoom agent')).toBeTruthy();
     expect(view.getByText('Members: 3, without a MindRoom agent')).toBeTruthy();
+    // Neither room has a MindRoom server: none published, and none in config.json.
+    expect(view.getAllByText('No MindRoom server')).toHaveLength(2);
   });
 
   it('greets the room or the thread with the text typed after /greet, and asks for some without it', async () => {
