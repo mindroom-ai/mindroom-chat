@@ -69,12 +69,8 @@ vi.mock('folds', async (importOriginal) => {
   const actual = await importOriginal<typeof import('folds')>();
   return {
     ...actual,
-    Badge: passthrough,
     Box: passthrough,
     Chip: passthrough,
-    Icon: passthrough,
-    IconButton: passthrough,
-    Spinner: passthrough,
     Text: passthrough,
   };
 });
@@ -83,10 +79,6 @@ vi.mock('slate-react', () => ({
   ReactEditor: {
     focus: vi.fn(),
   },
-}));
-
-vi.mock('is-hotkey', () => ({
-  isKeyHotkey: () => false,
 }));
 
 vi.mock('../../matrix/hooks/useStateEvent', () => ({
@@ -133,7 +125,6 @@ vi.mock('../../composer/RoomInput', () => ({
 
 vi.mock('../../timeline/RoomViewFollowing', () => ({
   RoomViewFollowing: passthrough,
-  RoomViewFollowingPlaceholder: passthrough,
 }));
 
 vi.mock('../../ui/page/Page', () => ({
@@ -191,7 +182,6 @@ vi.mock('../../threads/useThreadRootEvent', () => ({
   useThreadRootEvent: (_room: unknown, threadId: string | undefined) => threadId,
 }));
 
-// ISSUE-207 P2.3: summary APIs consumed directly from `../cacheStore`.
 vi.mock('../../event-store/cache/db', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../event-store/cache/db')>();
   return {
