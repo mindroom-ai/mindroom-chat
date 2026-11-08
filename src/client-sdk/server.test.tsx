@@ -188,20 +188,23 @@ describe('useMindroomServer', () => {
 describe('useMindroomServerStatus', () => {
   const AGENT = { userId: '@mindroom_router:example.org', membership: 'join' };
 
-  /** Each status the hook gives, from a plugin that requests as soon as it has a server. */
+  /**
+   * Each status the hook gives, from a plugin that requests as soon as it has a server, and a
+   * switch of that plugin to another room.
+   */
   const statuses = (deploymentUrl?: string) => {
     const seen: { origin?: string; pending: boolean }[] = [];
-    renderHook(
-      () => {
-        const { server: found, pending } = useMindroomServerStatus(ROOM_ID);
+    const { rerender } = renderHook(
+      ({ roomId }) => {
+        const { server: found, pending } = useMindroomServerStatus(roomId);
         seen.push({ origin: found?.origin, pending });
         useEffect(() => {
           found?.request('/api/plugins/notes/hello').catch(() => undefined);
         }, [found]);
       },
-      { wrapper: signedIn(deploymentUrl) }
+      { wrapper: signedIn(deploymentUrl), initialProps: { roomId: ROOM_ID } }
     );
-    return seen;
+    return { seen, showRoom: (roomId: string) => rerender({ roomId }) };
   };
 
   const rooms = new Map<string, unknown>();
@@ -235,7 +238,7 @@ describe('useMindroomServerStatus', () => {
       // Before the list, the client knows no agent in the room.
       state.members = [];
       const settle = loadingMembers();
-      const seen = statuses(DEPLOYMENT);
+      const { seen } = statuses(DEPLOYMENT);
       expect(seen.at(-1)).toEqual({ origin: undefined, pending: true });
 
       if (loads) state.members = [AGENT];
@@ -251,18 +254,11 @@ describe('useMindroomServerStatus', () => {
     state.published = PUBLISHED;
     const settleFirst = loadingMembers(ROOM_ID);
     const settleOther = loadingMembers('!other:example.org');
-    const seen: { origin?: string; pending: boolean }[] = [];
-    const { rerender } = renderHook(
-      ({ roomId }) => {
-        const { server: found, pending } = useMindroomServerStatus(roomId);
-        seen.push({ origin: found?.origin, pending });
-      },
-      { wrapper: signedIn(DEPLOYMENT), initialProps: { roomId: ROOM_ID } }
-    );
+    const { seen, showRoom } = statuses(DEPLOYMENT);
     await settleFirst(true);
     expect(seen.at(-1)).toEqual({ origin: PUBLISHED, pending: false });
 
-    rerender({ roomId: '!other:example.org' });
+    showRoom('!other:example.org');
     expect(seen.at(-1)).toEqual({ origin: undefined, pending: true });
     await settleOther(true);
     expect(seen.at(-1)).toEqual({ origin: PUBLISHED, pending: false });
@@ -272,7 +268,7 @@ describe('useMindroomServerStatus', () => {
     const answers = fakeFetch();
     const answer = bindingAnswer();
     state.published = PUBLISHED;
-    const seen = statuses(DEPLOYMENT);
+    const { seen } = statuses(DEPLOYMENT);
     expect(seen).toEqual([{ origin: undefined, pending: true }]);
 
     await answer(true);
@@ -287,31 +283,35 @@ describe('useMindroomServerStatus', () => {
     fakeFetch();
     const answer = bindingAnswer();
     state.published = PUBLISHED;
-    const seen = statuses(DEPLOYMENT);
+    const { seen } = statuses(DEPLOYMENT);
 
     await answer(undefined);
 
     expect(seen.at(-1)).toEqual({ origin: DEPLOYMENT, pending: false });
   });
 
-  it('is no server, and not pending, once both are in: without either server, or without an agent', async () => {
-    const answer = bindingAnswer();
-    const neither = statuses();
-    state.published = PUBLISHED;
-    state.members = [{ userId: '@bob:example.org', membership: 'join' }];
-    const noAgent = statuses(DEPLOYMENT);
-    expect([neither.at(-1), noAgent.at(-1)]).toEqual([
-      { origin: undefined, pending: true },
-      { origin: undefined, pending: true },
-    ]);
+  it.each([
+    ['without either server', [AGENT], undefined, undefined],
+    [
+      'without an agent',
+      [{ userId: '@bob:example.org', membership: 'join' }],
+      PUBLISHED,
+      DEPLOYMENT,
+    ],
+  ])(
+    'is no server, and not pending, once both are in, %s',
+    async (_name, members, publishedUrl, deploymentUrl) => {
+      const answer = bindingAnswer();
+      state.members = members;
+      state.published = publishedUrl;
+      const { seen } = statuses(deploymentUrl);
+      expect(seen.at(-1)).toEqual({ origin: undefined, pending: true });
 
-    await answer(true);
+      await answer(true);
 
-    expect([neither.at(-1), noAgent.at(-1)]).toEqual([
-      { origin: undefined, pending: false },
-      { origin: undefined, pending: false },
-    ]);
-  });
+      expect(seen.at(-1)).toEqual({ origin: undefined, pending: false });
+    }
+  );
 });
 
 describe('MindroomServer.request', () => {
