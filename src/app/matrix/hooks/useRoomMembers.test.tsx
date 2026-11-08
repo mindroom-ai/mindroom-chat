@@ -120,6 +120,44 @@ describe('useRoomMembers', () => {
     expect(readOutputText(renderer as ReactTestRenderer)).toBe('Research Helper');
   });
 
+  it("never gives the previous room's members after a switch to another room", () => {
+    const rooms = new Map(
+      ['!a:example.org', '!b:example.org'].map((roomId) => [
+        roomId,
+        {
+          roomId,
+          getMembers: vi.fn(() => [createMember(`@member-of-${roomId.slice(1, 2)}:example.org`)]),
+          loadMembersIfNeeded: vi.fn(() => deferred<void>().promise),
+        } as unknown as Room,
+      ])
+    );
+    const mx = Object.assign(new EventEmitter(), {
+      getRoom: vi.fn((roomId: string) => rooms.get(roomId) ?? null),
+    }) as unknown as MatrixClient;
+    const seen: string[] = [];
+    function Probe({ roomId }: { roomId: string }) {
+      seen.push(
+        useRoomMembers(mx, roomId)
+          .map((member) => member.userId)
+          .join(',')
+      );
+      return null;
+    }
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(<Probe roomId="!a:example.org" />);
+    });
+    mountedRenderers.add(renderer as ReactTestRenderer);
+    seen.length = 0;
+
+    act(() => {
+      renderer?.update(<Probe roomId="!b:example.org" />);
+    });
+
+    expect(seen.length).toBeGreaterThan(0);
+    expect(new Set(seen)).toEqual(new Set(['@member-of-b:example.org']));
+  });
+
   it('publishes live membership updates while full member load is still pending', async () => {
     const roomId = '!room:example.org';
     const alice = createMember('@alice:example.org');
