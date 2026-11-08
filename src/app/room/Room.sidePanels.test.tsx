@@ -77,7 +77,14 @@ vi.mock('./RoomView', () => ({
     return <div data-testid="room-view">{state.inView}</div>;
   },
 }));
-vi.mock('../members/MembersDrawer', () => ({ MembersDrawer: () => <aside /> }));
+// On phones the members sheet traps focus, which needs something to focus.
+vi.mock('../members/MembersDrawer', () => ({
+  MembersDrawer: () => (
+    <aside>
+      <button type="button">A member</button>
+    </aside>
+  ),
+}));
 vi.mock('../members/useMembersDrawer', async () => {
   const { atom, useAtom } = await vi.importActual<typeof import('jotai')>('jotai');
   const membersOpenAtom = atom(false);
