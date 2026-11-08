@@ -8,7 +8,8 @@ import { callPanelRoomAtom } from '../calls/callStore';
 import { openTranscriptPanel, transcriptPanelAtom } from '../calls/transcription/transcriptPanel';
 import * as membersDrawer from '../members/useMembersDrawer';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
-import { useRoomSidePanel } from '../plugins/sidePanels';
+import { putSession } from '../matrix/session/sessions';
+import { type RoomSidePanelControl, useRoomSidePanel } from '../plugins/sidePanels';
 import type { RoomViewProps } from './RoomView';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
 import { makeUiEvent } from '../ui-actions/testUtils';
@@ -67,10 +68,10 @@ vi.mock('./RoomView', () => ({
     const { Root } = state;
     return (
       <div data-testid="room-view">
+        {state.inView}
         {Root && props.threadId && (
           <Root key={`${props.threadId} ${state.viewMount}`} eventId={props.threadId} />
         )}
-        {state.inView}
       </div>
     );
   },
@@ -112,11 +113,12 @@ vi.mock('../navigation/useRoomViewMode', () => ({
 vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoom: () => undefined, navigateRoomThread: () => undefined }),
 }));
-// Two plugins, each with a panel that names its request.
+// Two plugins, each with a panel that names its request and remembers it is open.
 vi.mock('../plugins/pluginEntries', () => {
   const panel = (label: string) => ({
     id: 'panel',
     label,
+    remember: true,
     Component: ({ request }: { request?: unknown }) => (
       <p>
         {label} request {JSON.stringify(request)}
@@ -137,8 +139,8 @@ const store = getDefaultStore();
 const { membersOpenAtom } = membersDrawer as unknown as { membersOpenAtom: PrimitiveAtom<boolean> };
 
 /** The renderer of a message of the plugin `notes`, which opens its panel beside the message's thread. */
-function Card({ eventId }: { eventId: string }) {
-  const openBesideThread = useRoomSidePanel('notes', 'panel')?.openBesideThread;
+function Card({ eventId, panel = 'panel' }: { eventId: string; panel?: string }) {
+  const openBesideThread = useRoomSidePanel('notes', panel)?.openBesideThread;
   useEffect(() => openBesideThread?.(eventId, `beside ${eventId}`), [eventId, openBesideThread]);
   return null;
 }
@@ -265,6 +267,39 @@ describe("a plugin's side panel beside the thread shown", () => {
     state.Root = Card;
     await mountAgain();
     expect(notesRequest()).toBe('Notes request "beside $a"');
+  });
+
+  it('leaves the thread its chance when the call names a panel the plugin lacks', async () => {
+    state.inView = <Card eventId="$a" panel="missing" />;
+    await renderRoom('$a');
+    expect(notesRequest()).toBe('Notes request "beside $a"');
+  });
+
+  it("does nothing for a plugin's late call after the room's page has gone", async () => {
+    putSession({
+      baseUrl: 'https://example.org',
+      userId: '@alice:example.org',
+      deviceId: 'ROOMTEST',
+      accessToken: 'room-test',
+    });
+    const remembered = () =>
+      Object.keys(localStorage).filter((key) => key.includes(':side-panel/'));
+    let late: RoomSidePanelControl['openBesideThread'] | undefined;
+    function Holds() {
+      late = useRoomSidePanel('notes', 'panel')?.openBesideThread;
+      return null;
+    }
+    state.Root = undefined;
+    state.inView = <Holds />;
+    await renderRoom('$a');
+    cleanup();
+    await act(async () => late?.('$a', 'late'));
+    expect(remembered()).toEqual([]);
+    // Called while the page shows, the panel opens and the room remembers it.
+    await renderRoom('$a');
+    await act(async () => late?.('$a', 'now'));
+    expect(notesRequest()).toBe('Notes request "now"');
+    expect(remembered()).toHaveLength(1);
   });
 
   it('stays closed while the thread shows once the person closed it', async () => {

@@ -11,17 +11,22 @@ import {
   type DisposableUser,
 } from '../helpers/disposableAccounts';
 import { createRoom } from '../helpers/createRoom';
-import { joinRoom, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
+import {
+  joinRoom,
+  registerAgentAccount,
+  sendRoomMessage,
+  type MatrixSession,
+} from '../helpers/matrix';
 import { roomHeader } from '../helpers/roomMenu';
-import { setRoomCompact, toggleRoomView } from '../helpers/roomViewSwitch';
+import { setRoomCompact } from '../helpers/roomViewSwitch';
 import { serveBuild } from '../helpers/staticBuildServer';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
 // served as a deployment serves it, against the disposable homeserver. An agent's greeting that
 // begins a thread opens the plugin's panel beside the thread as the thread shows, from the room's
 // thread list or from a link, with the greeting as its request. Closed, the panel stays closed while
-// the thread shows, also when its view switches; once another thread has shown, the greeting's
-// thread opens it again. It does not open while the members show, nor on a phone.
+// the thread shows, also as the thread's next message arrives; once another thread has shown, the
+// greeting's thread opens it again. It does not open while the members show, nor on a phone.
 // Set PLUGIN_SHOTS=<directory> to save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'plugin-beside-password';
@@ -33,6 +38,7 @@ test.use({ viewport: { width: 1600, height: 1000 } });
 
 let build: string | undefined;
 let alice: DisposableUser;
+let agent: MatrixSession;
 let roomId = '';
 /** The greeting that begins a thread, and a thread that begins with a plain message. */
 let greetingRoot = '';
@@ -54,7 +60,7 @@ test.beforeAll(async () => {
   }
 
   alice = await registerDisposableUser(`beside_alice_${RUN}`, PASSWORD);
-  const agent = await registerAgentAccount(HOMESERVER, 'greeter');
+  agent = await registerAgentAccount(HOMESERVER, 'greeter');
   roomId = await createRoom(HOMESERVER, alice.accessToken, { name: ROOM, invite: [agent.userId] });
   await joinRoom(HOMESERVER, agent.accessToken, roomId);
   plainRoot = await sendRoomMessage(HOMESERVER, alice.accessToken, roomId, {
@@ -146,22 +152,25 @@ test("a greeting that begins a thread opens the plugin's panel beside the thread
     await expect(panel(page)).toContainText(`Greeting: ${GREETING}`, { timeout: 30_000 });
     await shot(page, 'opened-from-list');
 
-    // Closed, it stays closed while the thread shows, also as its view switches and back.
+    // Closed, it stays closed while the thread shows, also as the thread's next message arrives.
     await page.getByRole('button', { name: 'Close Example panel', exact: true }).click();
     await expect(panel(page)).toHaveCount(0);
-    const switchView = async () => {
-      await toggleRoomView(page);
-      await greetingShown(page);
-      await expect(panel(page)).toHaveCount(0);
-    };
-    await switchView();
-    await switchView();
+    await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+      msgtype: 'm.text',
+      body: 'Have a good day',
+      'm.relates_to': { rel_type: 'm.thread', event_id: greetingRoot },
+    });
+    await expect(page.getByText('Have a good day', { exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
+    await greetingShown(page);
+    await expect(panel(page)).toHaveCount(0);
     await expect(banner(page)).toBeVisible();
     await shot(page, 'stays-closed');
 
     // Another thread shows without it; back in the greeting's thread it opens again.
-    await setRoomCompact(page, true);
     await exitThread(page);
+    await setRoomCompact(page, true);
     await openFromList(page, plainRoot);
     await page.waitForTimeout(1_000);
     await expect(panel(page)).toHaveCount(0);
