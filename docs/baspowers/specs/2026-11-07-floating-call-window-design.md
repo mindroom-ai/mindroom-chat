@@ -49,7 +49,7 @@ Out, with reasons:
 - Default 400 by 480 px, 16 px from the bottom and end edges. Minimum 340 by 220 px expanded; the bar is 56 px tall.
 - **Move:** pointer drag on the title bar (not on its buttons). The window stays 8 px inside the viewport and sticks to an edge within 16 px of it.
 - **Resize:** pointer drag on any of 4 edges or 4 corners. Resizing below 120 px tall turns the window into the bar; dragging the bar's bottom edge down expands it again.
-- **Minimize** (title bar button) turns it into the bar in place, keeping the height to return to. The bar shows up to three avatars of the others (the speaking one ringed), the title and status, and while joined the microphone and leave buttons; Expand gives the height back. A moved bar drops into the nearest corner on release.
+- **Minimize** (title bar button) turns it into the bar in place, keeping the height to return to. The bar shows up to three avatars of the others (the speaking one ringed), the title and status, while joined the microphone and leave buttons, then Expand (which gives the height back) and Close. A moved bar drops into the nearest corner on release. When the call shown in a floating window ends on this device, the window closes.
 - **Keyboard:** the title bar takes focus ("Move call window"); arrows move it 16 px, Shift+arrows resize it 16 px.
 - **Viewport changes:** the window keeps its distance to the nearer horizontal and vertical edges, shrinks to fit when the viewport is smaller than it, and stays 8 px inside.
 - **Remembered** per account in `localStorage` key `mindroom.callWindow:<user id>`: mode, position, size and the height to expand to. A stored rectangle is fitted to the viewport when read.
@@ -64,7 +64,7 @@ The joined call's body is a stage over the control bar, with the notices above t
 - The awaited agent of an agent call shows on the voice stage as it shows as a tile today, waiting until it joins.
 - **Controls** in every call: microphone, camera, screen share (where the browser shares screens), sound, devices, leave. Agent calls gain camera and screen share.
 - **Title bar buttons:** speaker or grid (video stage only), open conversation (agent calls with an origin), dock or float (desktop), minimize (floating), close. A title bar narrower than its buttons drops the speaker switch first.
-- Prescreen (before Join): unchanged content in the same frame; the bar shows only the title and Expand.
+- Prescreen (before Join): unchanged content in the same frame; the bar shows only the title, Expand and Close.
 - A failed chunk load shows the existing "This couldn't load" view with End and Close, in the window as in the panel.
 
 ## Architecture
