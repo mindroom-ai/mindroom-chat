@@ -8,12 +8,20 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { commandUsage, usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
+import type { PanelPresence } from '@mindroom/client-sdk/ui';
 import plugin from './index';
 
 // jsdom lays nothing out, so a focus trap finds nothing it could focus and throws; its menu's trap
 // runs in the browser (e2e/plugins/ui.spec.ts).
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: ReactNode }) => children,
+}));
+
+// The room's panel place around the card, which the room provides; outside it there is none.
+const place = vi.hoisted(() => ({ presence: undefined as PanelPresence | undefined }));
+vi.mock('@mindroom/client-sdk/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@mindroom/client-sdk/ui')>()),
+  usePanelPresence: () => place.presence,
 }));
 
 /**
@@ -326,6 +334,37 @@ describe('example plugin', () => {
     );
     view.unmount();
     expect(revoked).toEqual([objectUrl]);
+  });
+
+  it("registers its own-frame card with the room's panel place, and is done at once where nothing moves", async () => {
+    const card = plugin.sidePanels?.find(({ id }) => id === 'card');
+    if (!card) throw new Error('the example plugin has no card');
+    const unregister = vi.fn();
+    const presence: PanelPresence = {
+      phase: 'enter',
+      register: vi.fn(() => unregister),
+      done: vi.fn(),
+      lastWidth: { current: undefined },
+    };
+    place.presence = presence;
+    try {
+      const ui = () => <card.Component roomId="!lobby:example.org" />;
+      const view = await renderPluginComponent(ui(), {
+        id: 'example',
+        plugin,
+        frame: { label: 'Example card', layout: 'beside', setLayout: () => undefined },
+      });
+      expect(presence.register).toHaveBeenCalledTimes(1);
+      expect(presence.done).not.toHaveBeenCalled();
+      // Closing: jsdom has no Web Animations, so the card does not move and is done at once.
+      place.presence = { ...presence, phase: 'exit' };
+      view.rerender(ui());
+      expect(presence.done).toHaveBeenCalledTimes(1);
+      view.unmount();
+      expect(unregister).toHaveBeenCalledTimes(1);
+    } finally {
+      place.presence = undefined;
+    }
   });
 
   it("says in its panel whether the account may post in the room, from the room's levels", async () => {

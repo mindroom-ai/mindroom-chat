@@ -25,7 +25,10 @@ export type PanelPresence = {
   phase: PanelPhase;
   /** The closing panel has finished moving out (or does not move), so it may go. */
   done: () => void;
-  /** A moving panel announces itself while mounted; it then calls `done` when it has closed. */
+  /**
+   * A moving panel announces itself while mounted; it then calls `done` when it has closed. One
+   * that goes first while it closes (a failure took its place) lets the place end its exit.
+   */
   register: () => () => void;
   /** The width the last panel in this place had when it left, which a swapped-in panel starts from. */
   lastWidth: MutableRefObject<number | undefined>;

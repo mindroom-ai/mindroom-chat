@@ -24,7 +24,9 @@
 // which leaves only its tab, "Show example card", at the room's edge. The card says the kind of the
 // app's theme ("Theme: light" or "Theme: dark") and the screen size the app lays out by ("Screen:
 // Mobile", "Tablet" or "Desktop"), each as it changes, and "Show example PDF" previews a one-page
-// PDF it builds as a blob, in the browser's viewer in the card.
+// PDF it builds as a blob, in the browser's viewer in the card. Beside the conversation the card
+// slides in and out as the room's panels do, also from and to the width of a panel it takes the
+// place of; it opens and closes at once filling the room, folded, on a phone and under reduced motion.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg); its build module (build.mjs) writes "Example banner" in place of a marker, which
 // unit tests, where no build module runs, show as it is. The banner also has a button, "Show
@@ -63,7 +65,14 @@
 // beside the panel, as a mention pill opens one; under it, the panel shows the signed-in person's
 // card itself. It shows the greeting's text as the app renders an agent's reply, as Markdown whose
 // HTML the app sanitized, with the Matrix IDs of the room's members replaced by their names.
-import { useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type RefObject,
+} from 'react';
 import FocusTrap from 'focus-trap-react';
 import {
   Avatar,
@@ -115,6 +124,7 @@ import {
 } from '@mindroom/client-sdk/room';
 import { MindroomServerError, useMindroomServer } from '@mindroom/client-sdk/server';
 import {
+  animatePanel,
   Dialog,
   Header,
   IconButton,
@@ -129,8 +139,10 @@ import {
   pdfFrameUrl,
   replaceMatrixUserIdsWithDisplayNames,
   useMarkdownHtml,
+  usePanelPresence,
   useScreenSize,
   useThemeKind,
+  type PanelPhase,
 } from '@mindroom/client-sdk/ui';
 
 /** The drag type of the item its panel offers, which the room header takes. */
@@ -659,10 +671,49 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
   );
 }
 
-// The card's width: its own beside the conversation, the room's when it fills it or on a phone.
-const CARD_CSS = `[data-example-card] { flex: 0 0 320px; }
-[data-example-card][data-filled] { flex: 1 1 0; }
-@media (max-width: 750px) { [data-example-card] { flex: 1 1 0; } }`;
+// The card's width: its own beside the conversation, the room's when it fills it or on a phone. Its
+// box, the card and its margins, clips it: the box moves in and out, and the card keeps its width.
+const CARD_CSS = `[data-example-card-box] { display: flex; flex: none; width: 336px; overflow: clip; }
+[data-example-card] { flex: none; width: 320px; }
+[data-example-card-box][data-filled], [data-filled] > [data-example-card] { flex: 1 1 0; }
+@media (max-width: 750px) { [data-example-card-box], [data-example-card] { flex: 1 1 0; } }`;
+
+/**
+ * Moves the card's box in and out as the room moves its panels, when `moves`: it registers with the
+ * room's panel place, which then keeps the closing card until it calls `done`.
+ */
+function useCardMotion(box: RefObject<HTMLElement>, moves: boolean) {
+  const presence = usePanelPresence();
+  const register = presence?.register;
+  useLayoutEffect(() => register?.(), [register]);
+  const phase = presence?.phase ?? 'shown';
+  const done = presence?.done;
+  const lastWidth = presence?.lastWidth;
+  const phaseSeen = useRef<PanelPhase>('shown');
+  const motion = useRef<Animation>();
+  useLayoutEffect(() => {
+    if (phase === phaseSeen.current) return;
+    phaseSeen.current = phase;
+    const element = box.current;
+    // Turned around as it moves, it moves on from where it is.
+    const now = motion.current?.playState === 'running' ? element?.offsetWidth : undefined;
+    motion.current?.cancel();
+    motion.current = undefined;
+    if (moves && element) {
+      const width = element.offsetWidth;
+      const size = (pixels: number) => ({ width: pixels, gap: 0 });
+      // In from nothing, or from the width of the panel whose place it takes; out to nothing.
+      const from = phase === 'swap' ? lastWidth?.current ?? width : 0;
+      motion.current =
+        phase === 'exit'
+          ? animatePanel(element, size(now ?? width), size(0), true)
+          : animatePanel(element, size(now ?? from), size(width), false);
+    }
+    if (phase !== 'exit') return;
+    if (motion.current) void motion.current.finished.then(done, () => undefined);
+    else done?.();
+  }, [box, done, lastWidth, moves, phase]);
+}
 
 /**
  * The panel that draws its own frame: a card with Fill and Hide, the app's theme kind and screen
@@ -672,6 +723,8 @@ function ExampleCard() {
   const frame = usePanelFrame();
   const themeKind = useThemeKind();
   const screenSize = useScreenSize();
+  const box = useRef<HTMLDivElement>(null);
+  useCardMotion(box, frame?.layout === 'beside' && screenSize !== 'Mobile');
   if (!frame) return null;
   const { layout, setLayout } = frame;
   const look = {
@@ -695,24 +748,21 @@ function ExampleCard() {
   }
   const filled = layout === 'filled';
   return (
-    <section
-      aria-label="Example card"
-      data-example-card
-      data-filled={filled || undefined}
-      style={look}
-    >
+    <div ref={box} data-example-card-box data-filled={filled || undefined}>
       <style>{CARD_CSS}</style>
-      <h2>Example card</h2>
-      <button type="button" onClick={() => setLayout(filled ? 'beside' : 'filled')}>
-        {filled ? 'Shrink example card' : 'Fill example card'}
-      </button>
-      <button type="button" onClick={() => setLayout('folded')}>
-        Hide example card
-      </button>
-      <p>Theme: {themeKind}</p>
-      <p>Screen: {screenSize}</p>
-      <ExamplePdf />
-    </section>
+      <section aria-label="Example card" data-example-card style={look}>
+        <h2>Example card</h2>
+        <button type="button" onClick={() => setLayout(filled ? 'beside' : 'filled')}>
+          {filled ? 'Shrink example card' : 'Fill example card'}
+        </button>
+        <button type="button" onClick={() => setLayout('folded')}>
+          Hide example card
+        </button>
+        <p>Theme: {themeKind}</p>
+        <p>Screen: {screenSize}</p>
+        <ExamplePdf />
+      </section>
+    </div>
   );
 }
 
