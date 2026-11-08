@@ -68,14 +68,9 @@ const storeFilter = (filter: ThreadFilterState) =>
 /** Mounts the hook in its own store and hands back a reader for its latest result. */
 const mountThreadState = ({
   advancedFilters = false,
-  store = createStore(),
   ...options
-}: {
-  hasMindroomAgents?: boolean;
-  advancedFilters?: boolean;
-  threadId?: string;
-  store?: ReturnType<typeof createStore>;
-} = {}) => {
+}: { hasMindroomAgents?: boolean; advancedFilters?: boolean; threadId?: string } = {}) => {
+  const store = createStore();
   if (advancedFilters) store.set(settingsAtom, { ...getSettings(), simpleThreadFilters: false });
   let latest: RoomViewThreadState | undefined;
   function Probe() {
@@ -93,18 +88,19 @@ const mountThreadState = ({
 };
 
 describe('useRoomViewThreadState', () => {
-  it("keeps its edge swipes off while a side panel takes the conversation's place", () => {
-    const enabled = (hook: typeof useEdgeSwipeBack | typeof useEdgeSwipeForward) =>
-      vi.mocked(hook).mock.lastCall?.[1];
-    const inThread = mountThreadState({ threadId: '$thread' });
-    expect(enabled(useEdgeSwipeBack)).toBe(true);
-    act(() => inThread.store.set(conversationBehindPanelAtom, true));
-    expect(enabled(useEdgeSwipeBack)).toBe(false);
-    act(() => renderer?.unmount());
+  const enabled = (hook: typeof useEdgeSwipeBack | typeof useEdgeSwipeForward) =>
+    vi.mocked(hook).mock.lastCall?.[1];
 
-    const store = createStore();
-    store.set(lastExitedThreadAtom, { roomId: ROOM_ID, threadId: '$thread' });
-    mountThreadState({ store });
+  it("keeps the swipe out of a thread off while a side panel takes the conversation's place", () => {
+    const { store } = mountThreadState({ threadId: '$thread' });
+    expect(enabled(useEdgeSwipeBack)).toBe(true);
+    act(() => store.set(conversationBehindPanelAtom, true));
+    expect(enabled(useEdgeSwipeBack)).toBe(false);
+  });
+
+  it("keeps the swipe back into a thread off while a side panel takes the conversation's place", () => {
+    const { store } = mountThreadState();
+    act(() => store.set(lastExitedThreadAtom, { roomId: ROOM_ID, threadId: '$thread' }));
     expect(enabled(useEdgeSwipeForward)).toBe(true);
     act(() => store.set(conversationBehindPanelAtom, true));
     expect(enabled(useEdgeSwipeForward)).toBe(false);

@@ -4,7 +4,13 @@ import {
   disposableHomeserverIsUp,
 } from '../helpers/disposableAccounts';
 import { matrixFetch, sendRoomMessage } from '../helpers/matrix';
-import { openPanel, openPanelRoom, panelLocator, type PanelRoom } from '../helpers/sidePanels';
+import {
+  closePanel,
+  openPanel,
+  openPanelRoom,
+  panelLocator,
+  type PanelRoom,
+} from '../helpers/sidePanels';
 
 // A side panel that fills the room (the call's, from its frame's Fill) keeps the conversation under
 // it as it was, against the disposable homeserver: a voice message being recorded goes on and is
@@ -186,9 +192,7 @@ test('on a phone, a side panel over the conversation keeps the recording under i
     await openPanel(page, room, 'computer');
     await expect(discard).toBeHidden();
     await page.screenshot({ path: test.info().outputPath('phone-covered.png') });
-    await panelLocator(page, 'computer')
-      .getByRole('button', { name: 'Close computer', exact: true })
-      .click();
+    await closePanel(page, 'computer');
     await expect(discard).toBeVisible();
   } finally {
     // The page's live sync may still be in a route.

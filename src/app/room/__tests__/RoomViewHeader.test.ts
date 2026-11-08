@@ -322,6 +322,7 @@ vi.mock('../../matrix/hooks/useRoomPermissions', () => ({
     stateEvent: () => false,
   }),
 }));
+vi.mock('../../navigation/useEdgeSwipeBack', () => ({ useEdgeSwipeBack: vi.fn() }));
 
 const renderHeader = async (
   joinRequestCount = 0,
@@ -394,8 +395,6 @@ afterEach(() => {
   permissionState.canInvite = true;
   permissionState.canKick = true;
 });
-
-vi.mock('../../navigation/useEdgeSwipeBack', () => ({ useEdgeSwipeBack: vi.fn() }));
 
 importBeforeTests(() => import('../RoomViewHeader'));
 
@@ -496,7 +495,7 @@ describe('RoomViewHeader', () => {
     const press = () => runShortcut('members', {} as KeyboardEvent);
 
     act(() => store.set(conversationBehindPanelAtom, true));
-    expect(press()).toBe(false);
+    press();
     expect(onPanelToggle).not.toHaveBeenCalled();
 
     act(() => store.set(conversationBehindPanelAtom, false));

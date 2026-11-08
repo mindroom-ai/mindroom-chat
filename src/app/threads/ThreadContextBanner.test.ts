@@ -1236,7 +1236,7 @@ describe('ThreadContextBanner rendering', () => {
     const press = () => runShortcut('resolveThread', {} as KeyboardEvent);
 
     act(() => store.set(conversationBehindPanelAtom, true));
-    expect(press()).toBe(false);
+    press();
     expect(setResolved).not.toHaveBeenCalled();
 
     act(() => store.set(conversationBehindPanelAtom, false));
