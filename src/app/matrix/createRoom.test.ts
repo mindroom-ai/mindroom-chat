@@ -60,6 +60,8 @@ describe('createRoom', () => {
     else leave.mockResolvedValue({});
     const forget = vi.spyOn(mx, 'forget').mockResolvedValue({});
     const space = new Room('!space:mindroom.test', mx, '@me:mindroom.test');
+    // A name with a right-to-left override, which the message writes out.
+    space.name = 'Team\u202E';
     const create = (type?: RoomType) =>
       createRoom(mx, {
         type,
@@ -83,7 +85,7 @@ describe('createRoom', () => {
       const created = create(type);
 
       await expect(created).rejects.toThrow(
-        "Plans was not created, because it couldn't be listed under !space:mindroom.test. You don't have permission to do this."
+        "Plans was not created, because it couldn't be listed under Team<U+202E>. You don't have permission to do this."
       );
       await expect(created).rejects.toMatchObject({ cause: refusal });
       expect(leave).toHaveBeenCalledWith('!new:mindroom.test');
