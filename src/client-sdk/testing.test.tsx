@@ -78,18 +78,45 @@ describe('renderPluginComponent', () => {
   });
 
   it('gives a component the screen size and theme kind the test gives', async () => {
-    const view = await renderPluginComponent(<Layout />, {
+    const phone = await renderPluginComponent(<Layout />, {
       id: 'layout',
       plugin: {},
       screenSize: 'Mobile',
       themeKind: 'dark',
     });
-    expect(view.container.textContent).toBe('Mobile, dark');
+    expect(phone.container.textContent).toBe('Mobile, dark');
+    const tablet = await renderPluginComponent(<Layout />, {
+      id: 'layout',
+      plugin: {},
+      screenSize: 'Tablet',
+      themeKind: 'dark',
+    });
+    expect(tablet.container.textContent).toBe('Tablet, dark');
   });
 
-  // After the test above, so its dark theme kind must not outlive it.
+  // After the test above, whose theme kinds must not outlive it.
   it('gives a component Desktop and light unless the test gives others', async () => {
     const view = await renderPluginComponent(<Layout />, { id: 'layout', plugin: {} });
     expect(view.container.textContent).toBe('Desktop, light');
+  });
+
+  it('gives a component the theme kind the test gives over the one the document has', async () => {
+    document.documentElement.dataset.themeKind = 'dark';
+    const view = await renderPluginComponent(<Layout />, {
+      id: 'layout',
+      plugin: {},
+      themeKind: 'light',
+    });
+    expect(view.container.textContent).toBe('Desktop, light');
+  });
+
+  // After the test above, which marked the document dark itself.
+  it('gives a component the theme kind the document has unless the test gives one', async () => {
+    try {
+      const view = await renderPluginComponent(<Layout />, { id: 'layout', plugin: {} });
+      expect(view.container.textContent).toBe('Desktop, dark');
+    } finally {
+      delete document.documentElement.dataset.themeKind;
+    }
   });
 });

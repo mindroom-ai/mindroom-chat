@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { disposableHomeserverIsUp } from '../helpers/disposableAccounts';
 import { roomHeader, roomMoreOptions } from '../helpers/roomMenu';
 import {
@@ -58,14 +58,22 @@ const menuEntry = (page: Page) =>
 const toggle = (page: Page) =>
   roomHeader(page).getByRole('button', { name: 'Example panel', exact: true });
 
+const panelRegion = (page: Page) =>
+  page.getByRole('region', { name: 'Example panel', exact: true });
+
 const openExamplePanel = async (page: Page, room: PanelRoom) => {
   await expect(toggle(page)).toHaveAttribute('aria-pressed', 'false');
   await toggle(page).click();
-  const panel = page.getByRole('region', { name: 'Example panel', exact: true });
+  const panel = panelRegion(page);
   await expect(panel).toBeVisible();
   await expect(toggle(page)).toHaveAttribute('aria-pressed', 'true');
   await expect(panel).toContainText(`Example panel of ${room.roomId}`);
   await expect(panel).toContainText('Members: 2, with a MindRoom agent');
+};
+
+const bottomOf = async (locator: Locator) => {
+  const box = (await locator.boundingBox())!;
+  return box.y + box.height;
 };
 
 /** The heights of the panel's title row "Example rows" and of its two rows. */
@@ -203,6 +211,11 @@ test("the example plugin's side panel scrolls when it is taller than the room, i
         await expect(end).toBeInViewport();
         const heights = await rowHeights(page);
         expect(heights.every((rowHeight) => rowHeight >= 20)).toBe(true);
+        // What it shows is laid out in a column as tall as the panel, which a part could fill.
+        const column = page.getByText(`Example panel of ${room.roomId}`).locator('..');
+        await expect
+          .poll(async () => (await bottomOf(panelRegion(page))) - (await bottomOf(column)))
+          .toBeCloseTo(0, 0);
         await page.setViewportSize({ width, height });
         await expect(end).not.toBeInViewport();
         await expect.poll(() => rowHeights(page)).toEqual(heights);
