@@ -1,7 +1,7 @@
 // `@mindroom/client-sdk/room`, the client SDK's subpath for rooms and threads (docs/architecture.md
-// "Client plugins"): it opens them, links to them, creates sub-rooms, and shows a person's profile
-// card in a room. Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in
-// scripts/client-plugins.mjs.
+// "Client plugins"): it opens them, links to them, creates sub-rooms and names the rooms a room is
+// a sub-room of, and shows a person's profile card in a room. Like `/core` it only grows, and each
+// addition raises CLIENT_PLUGIN_API_VERSION in scripts/client-plugins.mjs.
 import { createElement, useCallback, useMemo } from 'react';
 import { useHref } from 'react-router-dom';
 import type { Position, RectCords } from 'folds';
@@ -13,6 +13,8 @@ import { UserRoomProfile } from '../app/members/profile/UserRoomProfile';
 import { useOpenUserRoomProfile } from '../app/navigation/useUserRoomProfileState';
 import { withSearchParam } from '../app/routes/pathUtils';
 import { createSubRoom as createAppSubRoom } from '../app/rooms/create/createSubRoom';
+
+export { getParentRooms, offersSubRooms, useParentRooms } from '../app/matrix/state/subRooms';
 
 /** Where in the room `navigateRoom` and `navigateRoomThread` open it, and how. */
 type RoomNavigateOptions = {
@@ -79,8 +81,8 @@ export const useRoomHref = (roomId: string, threadId?: string): string =>
  * a blank name, a parent where the signed-in user may not list rooms, and a call while the app
  * provides no configuration. When the homeserver then refuses to list the new room under
  * `parent`, it leaves and forgets the room, if the homeserver lets it, and rejects with that
- * refusal. Unlike the room menu, which offers New Sub-room in chat rooms only, it takes spaces and
- * direct chats too. It resolves once the server has created the room, before sync has it, and
+ * refusal. It takes spaces and direct chats too, where the room menu offers no New Sub-room
+ * (`offersSubRooms`). It resolves once the server has created the room, before sync has it, and
  * does not open it; `useRoomNavigate` does.
  */
 export const createSubRoom = async (parent: Room, { name }: { name: string }): Promise<string> => {

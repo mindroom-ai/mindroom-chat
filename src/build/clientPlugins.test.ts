@@ -162,8 +162,8 @@ describe('readClientPlugins', () => {
     ],
     [
       'a plugin that needs a newer client SDK',
-      () => pluginDir(declaring({ apiVersion: 34 })),
-      /plugin "some-plugin" needs client SDK apiVersion 34; this client provides 33/,
+      () => pluginDir(declaring({ apiVersion: 35 })),
+      /plugin "some-plugin" needs client SDK apiVersion 35; this client provides 34/,
     ],
     [
       'an apiVersion that is not a number',

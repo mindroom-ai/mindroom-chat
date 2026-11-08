@@ -410,6 +410,30 @@ describe('example plugin', () => {
     expect(created).toHaveBeenCalledTimes(1);
   });
 
+  it('refuses /subroom in a space, where the room menu offers no New Sub-room, and creates nothing', async () => {
+    const subroom = plugin.slashCommands?.find(({ name }) => name === 'subroom');
+    if (!subroom) throw new Error('the example plugin has no /subroom');
+    const userId = '@ada:example.org';
+    const client = createClient({ baseUrl: 'https://example.org', userId });
+    const created = vi.spyOn(client, 'createRoom');
+    const space = new Room('!estate:example.org', client, userId);
+    space.currentState.setStateEvents([
+      new MatrixEvent({
+        type: 'm.room.create',
+        room_id: space.roomId,
+        sender: userId,
+        state_key: '',
+        content: { type: 'm.space' },
+      }),
+    ]);
+    await renderPluginComponent(<></>, { id: 'example', plugin });
+
+    await expect(async () => subroom.run({ room: space, args: 'Ideas' })).rejects.toThrow(
+      'Sub-rooms go in chat rooms, not in spaces or direct chats.'
+    );
+    expect(created).not.toHaveBeenCalled();
+  });
+
   it("sets the room's topic to the text typed after /topic once the room's levels let the account, and refuses before", async () => {
     const topic = plugin.slashCommands?.find(({ name }) => name === 'topic');
     if (!topic) throw new Error('the example plugin has no /topic');
