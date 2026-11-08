@@ -86,6 +86,7 @@ describe('usePluginSidePanels', () => {
       plugin: {
         sidePanels: [
           panel('draft', 'Notes: draft'),
+          panel('namespaced', 'Notes:draft'),
           panel('version', 'v1.2 notes'),
           panel('board', 'Board'),
           panel('nested', 'names.panel'),
@@ -96,6 +97,7 @@ describe('usePluginSidePanels', () => {
     const { listed } = await renderPanels();
     expect(listed().map(([, label]) => label)).toEqual([
       'Notes: draft',
+      'Notes:draft',
       'v1.2 notes',
       'Board',
       'Nested notes',
