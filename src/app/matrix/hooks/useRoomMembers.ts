@@ -37,7 +37,8 @@ export const useRoomMembers = (mx: MatrixClient, roomId: string): RoomMember[] =
           logger.warn('[useRoomMembers] Failed to load room members', error);
         });
     };
-    // A room the client learns of later (a join or invite arriving by sync) is stored before Room.
+    // A room the client learns of later (a join or invite by sync) is in the store when Room fires,
+    // so refresh() reads its members.
     const handleRoom = (room: Room) => {
       if (room.roomId === roomId) loadMembers(room);
     };

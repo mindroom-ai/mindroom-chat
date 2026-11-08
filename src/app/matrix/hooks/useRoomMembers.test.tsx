@@ -176,7 +176,6 @@ describe('useRoomMembers', () => {
     } as unknown as Room;
     const otherRoom = {
       roomId: '!other:example.org',
-      getMembers: vi.fn(() => [bob]),
       loadMembersIfNeeded: vi.fn(() => deferred<void>().promise),
     } as unknown as Room;
     let knownRoom: Room | null = null;
