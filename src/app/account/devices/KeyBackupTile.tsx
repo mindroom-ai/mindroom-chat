@@ -13,6 +13,9 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { SettingTile } from '../../ui/SettingTile';
 import { fetchKeyBackupVersion } from '../encryption/keyBackupVersion';
+import { useDefaultSecretStorageKey } from '../encryption/useDefaultSecretStorageKey';
+import { describeKey } from '../encryption/recoveryState';
+import { TurnOnBackupForm } from '../encryption/TurnOnBackupForm';
 import { describeError } from '../../lib/describeError';
 import { ErrorDetail } from '../../ui/ErrorDetail';
 
@@ -109,7 +112,7 @@ const useBackupState = () => {
 };
 
 /** Restore progress in percent; `0` until the keys are downloaded and their count is known. */
-const progressPercent = (progress: ImportRoomKeyProgressData | undefined): number => {
+export const progressPercent = (progress: ImportRoomKeyProgressData | undefined): number => {
   if (!progress || progress.stage !== ImportRoomKeyStage.LoadKeys || progress.total <= 0) return 0;
   return Math.floor(((progress.successes + progress.failures) / progress.total) * 100);
 };
@@ -134,7 +137,7 @@ function TrustLine({ ok, children }: { ok: boolean; children: React.ReactNode })
  * how many keys it holds, whether this session trusts it, and a full restore of its keys into
  * this session.
  */
-export function KeyBackupTile() {
+export function KeyBackupTile({ canTurnOn = false }: { canTurnOn?: boolean }) {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const alive = useAlive();
@@ -142,6 +145,8 @@ export function KeyBackupTile() {
   const [showDetails, setShowDetails] = useState(false);
   const [restoring, setRestoring] = useState<ImportRoomKeyProgressData | 'starting'>();
   const [error, setError] = useState<{ failure: unknown }>();
+  const storageKey = useDefaultSecretStorageKey();
+  const [turningOn, setTurningOn] = useState(false);
 
   if (state === undefined) {
     return (
@@ -174,6 +179,9 @@ export function KeyBackupTile() {
 
   const { info } = state;
   if (!info) {
+    // With secret storage, a backup can be turned on without a reset: its key goes there. Only a
+    // verified session does it: a backup an unverified one signs is not trusted by the others.
+    const offerTurnOn = canTurnOn && !!storageKey;
     return (
       <SettingTile
         focusId="keyBackup"
@@ -181,7 +189,31 @@ export function KeyBackupTile() {
         description={
           <span style={{ color: color.Critical.Main }}>{t(`${KEY}.noBackupPresentOnServer`)}</span>
         }
-      />
+        after={
+          offerTurnOn && !turningOn ? (
+            <Button
+              size="300"
+              radii="300"
+              variant="Primary"
+              fill="Solid"
+              onClick={() => setTurningOn(true)}
+            >
+              <Text size="B300">{t('sharedUi.recoveryPassword.turnOnBackup')}</Text>
+            </Button>
+          ) : undefined
+        }
+      >
+        {storageKey && turningOn && (
+          <TurnOnBackupForm
+            secretStorageKey={describeKey(storageKey)}
+            onDone={() => {
+              setTurningOn(false);
+              refresh();
+            }}
+            onFailed={refresh}
+          />
+        )}
+      </SettingTile>
     );
   }
 

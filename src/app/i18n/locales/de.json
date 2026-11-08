@@ -467,13 +467,10 @@
     },
     "deviceVerificationSetup": {
       "recoveryKey": "Wiederherstellungsschlüssel",
-      "passphraseOptional": "Passphrase (optional)",
       "continue": "Weiter",
       "authenticationStepsToPerformThisActionAreNotSupportedByClient": "Die für diese Aktion erforderlichen Authentifizierungsschritte werden vom Client nicht unterstützt.",
-      "storeTheRecoveryKeyInASafePlaceForFutureUseAs": "Bewahre den Wiederherstellungsschlüssel für die spätere Verwendung an einem sicheren Ort auf. Du benötigst ihn, um deine Identität zu bestätigen, wenn du keinen Zugriff auf andere Geräte hast.",
       "copy": "Kopieren",
       "download": "Herunterladen",
-      "setupDeviceVerification": "Geräteverifizierung einrichten",
       "resetDeviceVerification": "Geräteverifizierung zurücksetzen",
       "resettingDeviceVerificationIsPermanent": "Das Zurücksetzen der Geräteverifizierung ist endgültig.",
       "recoveryPassphrase": "Wiederherstellungs-Passphrase",
@@ -481,7 +478,6 @@
       "unexpectedError": "Unerwarteter Fehler!",
       "hide": "Ausblenden",
       "show": "Anzeigen",
-      "recoveryDescription": "Erzeuge einen <b>Wiederherstellungsschlüssel</b>, um deine Identität zu bestätigen, wenn du keinen Zugriff auf andere Geräte hast. Richte zusätzlich eine Passphrase als leicht merkbare Alternative ein.",
       "resetWarning": "Alle Personen, die du verifiziert hast, sehen Sicherheitswarnungen und dein Verschlüsselungs-Backup geht verloren. Du möchtest dies mit großer Wahrscheinlichkeit nicht tun, außer du hast den <b>Wiederherstellungsschlüssel</b> oder die <b>Wiederherstellungs-Passphrase</b> und jedes Gerät verloren, von dem aus du dich verifizieren kannst."
     },
     "hexColorPickerPopOut": {
@@ -497,14 +493,6 @@
       "cancel": "Abbrechen",
       "logoutFailed": "Abmeldung fehlgeschlagen! {{error}}"
     },
-    "manualVerification": {
-      "recoveryPassphrase": "Wiederherstellungs-Passphrase",
-      "recoveryKey": "Wiederherstellungsschlüssel",
-      "verifyManually": "Manuell verifizieren",
-      "deviceVerified": "Gerät verifiziert!",
-      "selectAVerificationMethod": "Wähle eine Verifizierungsmethode.",
-      "provideRecoveryKey": "Gib den Wiederherstellungsschlüssel ein."
-    },
     "pdfViewer": {
       "zoomOut": "Verkleinern",
       "zoomIn": "Vergrößern",
@@ -517,13 +505,6 @@
       "saving": "Wird gespeichert...",
       "retryDownload": "Download erneut versuchen",
       "download": "Herunterladen"
-    },
-    "secretStorage": {
-      "recoveryPassphrase": "Wiederherstellungs-Passphrase",
-      "verify": "Verifizieren",
-      "recoveryKey": "Wiederherstellungsschlüssel",
-      "invalidRecoveryPassphrase": "Ungültige Wiederherstellungs-Passphrase.",
-      "invalidRecoveryKey": "Ungültiger Wiederherstellungsschlüssel."
     },
     "uIAFlowOverlay": {
       "exit": "Beenden",
@@ -2053,12 +2034,9 @@
           "logoutSelectedDevices_other": "Von ausgewählten Geräten abmelden. ({{count}} ausgewählt)"
         },
         "verification": {
-          "currentDeviceHelpLess": "Starte die Verifizierung auf einem anderen Gerät oder verifiziere manuell. <toggle><strong>Weniger anzeigen</strong></toggle>",
-          "currentDeviceHelpMore": "Starte die Verifizierung auf einem anderen Gerät oder verifiziere manuell. <toggle><strong>Mehr erfahren</strong></toggle>",
           "enable": "Aktivieren",
           "findDevice": "Suche dieses Gerät im Abschnitt <section>Geräte/Sitzungen</section>.",
           "initiateVerification": "Starte die Verifizierung.",
-          "manualVerificationHint": "Wenn du kein verifiziertes Gerät hast, drücke die Schaltfläche <action>„Manuell verifizieren“</action>.",
           "openSettings": "Öffne die <settings>Einstellungen</settings>.",
           "openVerifiedDevice": "Öffne dein anderes verifiziertes Gerät.",
           "reset": "Zurücksetzen",
@@ -2068,8 +2046,7 @@
           "unverifiedCount_other": "{{count}} nicht verifiziert",
           "verified": "Verifiziert",
           "verify": "Verifizieren",
-          "verifyDeviceDescription": "Verifiziere die Geräteidentität und gewähre Zugriff auf verschlüsselte Nachrichten.",
-          "verifyManually": "Manuell verifizieren"
+          "verifyDeviceDescription": "Verifiziere die Geräteidentität und gewähre Zugriff auf verschlüsselte Nachrichten."
         }
       },
       "emojisStickers": {
@@ -2810,15 +2787,6 @@
       },
       "mindroomMarkRoomsReadMenuItem": {
         "markAsRead": "Als gelesen markieren"
-      }
-    },
-    "onboarding": {
-      "keyBackupNudge": {
-        "backUpYourEncryptedHistory": "Verschlüsselten Verlauf sichern",
-        "dismissBackupReminder": "Sicherungserinnerung schließen",
-        "setUpSecureBackupSoYouCanStillReadYour": "Richte eine sichere Sicherung ein, damit du deine verschlüsselten Agentenchats auch nach der Anmeldung auf einem neuen Gerät lesen kannst.",
-        "setUpSecureKeyBackup": "Sichere Schlüsselsicherung einrichten",
-        "setUpBackup": "Sicherung einrichten"
       }
     },
     "sidebar": {

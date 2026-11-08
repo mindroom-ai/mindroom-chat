@@ -46,7 +46,9 @@ const webkitProject = webkitExecutable
  * Playwright runs the specs in e2e/ in the Chromium from `CHROMIUM_PATH` (exported by
  * `nix develop`) against the dev server, which Playwright starts when nothing listens yet.
  * An already running server is reused, so start it with `MINDROOM_E2E_PROVISIONING_URL`
- * set to its own origin, or stop it, when a spec needs the provisioning stub.
+ * set to its own origin, or stop it, when a spec needs the provisioning stub. The same variable
+ * makes the dev server's `/config.json` switch the recovery password start prompt off, so a
+ * reused server started without it opens that prompt over every fresh account.
  *
  * The specs read environment variables, listed in e2e/global-setup.ts. Without
  * `E2E_USERNAME`, global-setup.ts points them at the disposable homeserver of `just hs-up`.

@@ -143,6 +143,12 @@ Eight more preferences follow the account to every device: Markdown, Enter for a
 
 With `showEncryptionOption: false` and `defaultEncryption: false` together, the welcome page also stops asking people to set up key backup.
 
+### Encryption
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `encryptionRecovery.promptAtStart` | boolean | `true` | `false` stops the app from opening the recovery password Set up or Unlock dialog at start; the welcome page cards and Settings still offer them. |
+
 ### Copy and branding
 
 | Key | Type | Default | Effect |

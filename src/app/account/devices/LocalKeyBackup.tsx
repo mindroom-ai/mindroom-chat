@@ -1,7 +1,6 @@
 import { ChangeEvent, FormEvent, ReactNode, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Icon, Icons, Spinner, Text, color } from 'folds';
-import FileSaver from 'file-saver';
 import { ImportRoomKeyStage, type ImportRoomKeyProgressData } from 'matrix-js-sdk/lib/crypto-api';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useAlive } from '../../lib/hooks/useAlive';
@@ -13,9 +12,10 @@ import {
   encryptRoomKeyExport,
 } from '../encryption/roomKeyExport';
 import { SettingsCard } from '../../ui/settings/SettingsCard';
+import { saveFile } from '../../native/nativeFileSave';
 import { describeError } from '../../lib/describeError';
 import { ErrorDetail } from '../../ui/ErrorDetail';
-import { isExportPasswordLongEnough } from './exportPassword';
+import { isSecretPasswordLongEnough } from '../encryption/secretPassword';
 
 const KEY = 'featureUi.settings.devices.localBackup';
 const EXPORT_FILE_NAME = 'mindroom-room-keys.txt';
@@ -91,7 +91,7 @@ function ExportKeys() {
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>();
   const mismatch = confirmation.length > 0 && confirmation !== password;
-  const longEnough = isExportPasswordLongEnough(password);
+  const longEnough = isSecretPasswordLongEnough(password);
   const tooShort = password.length > 0 && !longEnough;
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -106,8 +106,12 @@ function ExportKeys() {
     setBusy(true);
     try {
       const file = await encryptRoomKeyExport(await crypto.exportRoomKeysAsJson(), password);
-      FileSaver.saveAs(new Blob([file], { type: 'text/plain;charset=us-ascii' }), EXPORT_FILE_NAME);
-      if (!alive()) return;
+      // The iOS app has no downloads; there the platform's save sheet asks where to put it.
+      const saved = await saveFile(
+        new Blob([file], { type: 'text/plain;charset=us-ascii' }),
+        EXPORT_FILE_NAME
+      );
+      if (!alive() || !saved) return;
       setPassword('');
       setConfirmation('');
       setOutcome({ ok: true, text: EXPORT_FILE_NAME });
