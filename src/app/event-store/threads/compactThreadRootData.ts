@@ -2,6 +2,7 @@ import { Direction, IEvent, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { getEditedEvent, getLatestEdit, getLatestMessageContent } from '../../matrix/room';
 import type { CachedThreadEventPage } from '../cache/eventRepository';
 import { applySerializedCachedReplaceRelations } from '../cache/eventCacheEditUtils';
+import { createIsKnownRedacted } from '../../matrix/eventRevision';
 import { getLinkedTimelines } from '../timeline/linkedTimelines';
 import { hasLoadedFirstThreadPage } from '../sdk/threadBootstrapSdk';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
@@ -181,10 +182,13 @@ export const getCompactCachedThreadRootPreviewInfo = ({
   threadId,
   cachedPage,
   mapper,
+  room,
 }: {
   threadId: string;
   cachedPage: Pick<CachedThreadEventPage, 'rootEvent' | 'events'>;
   mapper: (rawEvent: IEvent) => MatrixEvent;
+  /** The room, whose redactions leave out the edits a page read before the cache stored them. */
+  room?: Room;
 }): CompactThreadRootPreviewInfo | undefined => {
   const mappedRootEvent = cachedPage.rootEvent ? mapper(cachedPage.rootEvent as IEvent) : undefined;
   const mappedEvents = cachedPage.events.map((rawEvent) => mapper(rawEvent as IEvent));
@@ -192,14 +196,19 @@ export const getCompactCachedThreadRootPreviewInfo = ({
 
   if (allEvents.length === 0) return undefined;
 
-  applySerializedCachedReplaceRelations(allEvents);
+  const isKnownRedacted = room ? createIsKnownRedacted(room, new Set()) : undefined;
+  applySerializedCachedReplaceRelations(allEvents, isKnownRedacted);
 
   const targetEvent = mappedRootEvent ?? allEvents.find((event) => event.getId() === threadId);
   if (!targetEvent) return undefined;
 
   const relationEditEvents = mappedEvents.filter((event) => {
     const relation = event.getRelation();
-    return relation?.rel_type === 'm.replace' && relation.event_id === threadId;
+    return (
+      relation?.rel_type === 'm.replace' &&
+      relation.event_id === threadId &&
+      !isKnownRedacted?.(event)
+    );
   });
   const latestEdit = getLatestEdit(
     targetEvent,

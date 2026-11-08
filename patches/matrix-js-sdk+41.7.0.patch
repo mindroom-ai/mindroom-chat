@@ -147,7 +147,7 @@ index ac723cf..0d0c558 100644
    findThreadForEvent(event) {
      if (!event) return null;
      var _this$eventShouldLive = this.eventShouldLiveIn(event),
-@@ -2279,6 +2330,39 @@ export class Room extends ReadReceipt {
+@@ -2279,6 +2330,49 @@ export class Room extends ReadReceipt {
        this.redactVisibilityChangeEvent(redactionEvent);
      }
    }
@@ -163,7 +163,17 @@ index ac723cf..0d0c558 100644
 +    var threads = this.getThreads();
 +    var timelines = [this.getUnfilteredTimelineSet(), ...threads.map(thread => thread.timelineSet)].flatMap(timelineSet => timelineSet.getTimelines());
 +    var events = [...timelines.flatMap(timeline => timeline.getEvents()), ...threads.flatMap(thread => [thread.rootEvent, thread.replyToEvent])];
-+    for (const event of events) {
++    // A thread's summary bundles its latest event, and MindRoom's previews of its latest reply and title, each
++    // with its edit, and may hold the only copy of a reply. Each copy wraps the summary's own event, so dropping
++    // the edit from the copy drops it from the summary too.
++    var summarized = threads.flatMap(thread => {
++      var _thread$rootEvent$get, _thread$rootEvent;
++      return Object.values((_thread$rootEvent$get = (_thread$rootEvent = thread.rootEvent) === null || _thread$rootEvent === void 0 ? void 0 : _thread$rootEvent.getServerAggregatedRelation(THREAD_RELATION_TYPE.name)) !== null && _thread$rootEvent$get !== void 0 ? _thread$rootEvent$get : {}).filter(raw => {
++        var _raw$unsigned;
++        return (raw === null || raw === void 0 || (_raw$unsigned = raw.unsigned) === null || _raw$unsigned === void 0 || (_raw$unsigned = _raw$unsigned["m.relations"]) === null || _raw$unsigned === void 0 || (_raw$unsigned = _raw$unsigned[RelationType.Replace]) === null || _raw$unsigned === void 0 ? void 0 : _raw$unsigned.event_id) === editId;
++      }).map(raw => new MatrixEvent(raw));
++    });
++    for (const event of [...events, ...summarized]) {
 +      if (!event) continue;
 +      var bundled = event.getServerAggregatedRelation(RelationType.Replace);
 +      if ((bundled === null || bundled === void 0 ? void 0 : bundled.event_id) !== editId) continue;
@@ -187,7 +197,7 @@ index ac723cf..0d0c558 100644
    processLiveEvent(event) {
      this.tryApplyRedaction(event);
  
-@@ -2346,7 +2430,8 @@ export class Room extends ReadReceipt {
+@@ -2346,7 +2440,8 @@ export class Room extends ReadReceipt {
      // Done after adding the event because otherwise the app would get a read receipt
      // pointing to an event that wasn't yet in the timeline
      // Don't synthesize RR for m.room.redaction as this causes the RR to go missing.
@@ -197,7 +207,7 @@ index ac723cf..0d0c558 100644
        this.addReceipt(synthesizeReceipt(event.sender.userId, event, ReceiptType.Read), true);
  
        // Any live events from a user could be taken as implicit
-@@ -2692,7 +2777,9 @@ export class Room extends ReadReceipt {
+@@ -2692,7 +2787,9 @@ export class Room extends ReadReceipt {
            shouldLiveInThread = _this15$eventShouldLi.shouldLiveInThread,
            _this15$eventShouldLi2 = _this15$eventShouldLi.threadId,
            threadId = _this15$eventShouldLi2 === void 0 ? "" : _this15$eventShouldLi2;
@@ -208,7 +218,7 @@ index ac723cf..0d0c558 100644
            try {
              var parentEvent = new MatrixEvent(yield _this15.client.fetchRoomEvent(_this15.roomId, event.relationEventId));
              neighbouringEvents.push(parentEvent);
-@@ -3553,4 +3640,3 @@ function memberNamesToRoomName(names, count) {
+@@ -3553,4 +3650,3 @@ function memberNamesToRoomName(names, count) {
      }
    }
  }
@@ -362,7 +372,7 @@ index f288f9d..a5e26ff 100644
      public findThreadForEvent(event?: MatrixEvent): Thread | null {
          if (!event) return null;
  
-@@ -2620,6 +2670,43 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
+@@ -2620,6 +2670,54 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
          }
      }
  
@@ -382,7 +392,18 @@ index f288f9d..a5e26ff 100644
 +            ...timelines.flatMap((timeline) => timeline.getEvents()),
 +            ...threads.flatMap((thread) => [thread.rootEvent, thread.replyToEvent]),
 +        ];
-+        for (const event of events) {
++        // A thread's summary bundles its latest event, and MindRoom's previews of its latest reply and title, each
++        // with its edit, and may hold the only copy of a reply. Each copy wraps the summary's own event, so dropping
++        // the edit from the copy drops it from the summary too.
++        const summarized = threads.flatMap((thread) =>
++            Object.values(
++                thread.rootEvent?.getServerAggregatedRelation<Record<string, Partial<IEvent>>>(THREAD_RELATION_TYPE.name) ??
++                    {},
++            )
++                .filter((raw) => raw?.unsigned?.["m.relations"]?.[RelationType.Replace]?.event_id === editId)
++                .map((raw) => new MatrixEvent(raw)),
++        );
++        for (const event of [...events, ...summarized]) {
 +            if (!event) continue;
 +            const bundled = event.getServerAggregatedRelation<IAggregatedRelation>(RelationType.Replace);
 +            if (bundled?.event_id !== editId) continue;
@@ -406,7 +427,7 @@ index f288f9d..a5e26ff 100644
      private tryApplyRedaction = (event: MatrixEvent): void => {
          // FIXME: apply redactions to notification list
  
-@@ -2631,7 +2718,9 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
+@@ -2631,7 +2729,9 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
              const redactId = event.event.redacts;
  
              // if we know about this event, redact its contents now.
@@ -417,7 +438,7 @@ index f288f9d..a5e26ff 100644
              if (redactId) {
                  try {
                      this.stickyEvents.handleRedaction(redactedEvent || redactId);
-@@ -2642,6 +2731,8 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
+@@ -2642,6 +2742,8 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
              }
              if (redactedEvent) {
                  this.applyEventAsRedaction(event, redactedEvent);
@@ -426,7 +447,7 @@ index f288f9d..a5e26ff 100644
              }
          } else if (event.getType() === EventType.RoomMember) {
              const membership = event.getContent()["membership"];
-@@ -2743,7 +2834,8 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
+@@ -2743,7 +2845,8 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
          // Done after adding the event because otherwise the app would get a read receipt
          // pointing to an event that wasn't yet in the timeline
          // Don't synthesize RR for m.room.redaction as this causes the RR to go missing.
@@ -436,7 +457,7 @@ index f288f9d..a5e26ff 100644
              this.addReceipt(synthesizeReceipt(event.sender.userId, event, ReceiptType.Read), true);
  
              // Any live events from a user could be taken as implicit
-@@ -3117,7 +3209,9 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
+@@ -3117,7 +3220,9 @@ export class Room extends ReadReceipt<RoomEmittedEvents, RoomEventHandlerMap> {
                  threadId = "",
              } = this.eventShouldLiveIn(event, neighbouringEvents, threadRoots);
  
@@ -3782,3 +3803,38 @@ index 49c5a4d..d5012ae 100644
          const room = client.getRoom(plainOldJsObject.room_id);
  
          let event: MatrixEvent | undefined;
+diff --git a/node_modules/matrix-js-sdk/lib/models/relations-container.js b/node_modules/matrix-js-sdk/lib/models/relations-container.js
+index 8ccc053..f059f3e 100644
+--- a/node_modules/matrix-js-sdk/lib/models/relations-container.js
++++ b/node_modules/matrix-js-sdk/lib/models/relations-container.js
+@@ -80,7 +80,10 @@ export class RelationsContainer {
+    * @param timelineSet - The event timeline set within which to search for the related event if any.
+    */
+   aggregateChildEvent(event, timelineSet) {
+-    if (event.isRedacted() || event.status === EventStatus.CANCELLED) {
++    var _this$room;
++    // MindRoom: nor an edit whose redaction the room took while it knew the edit only from a message's bundle
++    // (Room.dropRedactedBundledEdit), such as a copy of the edit read from a cache.
++    if (event.isRedacted() || event.status === EventStatus.CANCELLED || (_this$room = this.room) !== null && _this$room !== void 0 && _this$room.redactedBundledEdits.has(event.getId())) {
+       return;
+     }
+     var relation = event.getRelation();
+diff --git a/node_modules/matrix-js-sdk/src/models/relations-container.ts b/node_modules/matrix-js-sdk/src/models/relations-container.ts
+index 8394bc6..84a65a4 100644
+--- a/node_modules/matrix-js-sdk/src/models/relations-container.ts
++++ b/node_modules/matrix-js-sdk/src/models/relations-container.ts
+@@ -90,7 +90,13 @@ export class RelationsContainer {
+      * @param timelineSet - The event timeline set within which to search for the related event if any.
+      */
+     public aggregateChildEvent(event: MatrixEvent, timelineSet?: EventTimelineSet): void {
+-        if (event.isRedacted() || event.status === EventStatus.CANCELLED) {
++        // MindRoom: nor an edit whose redaction the room took while it knew the edit only from a message's bundle
++        // (Room.dropRedactedBundledEdit), such as a copy of the edit read from a cache.
++        if (
++            event.isRedacted() ||
++            event.status === EventStatus.CANCELLED ||
++            this.room?.redactedBundledEdits.has(event.getId()!)
++        ) {
+             return;
+         }
+ 
