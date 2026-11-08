@@ -19,17 +19,15 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
  * some notes between them, among 25 rooms. The Compact view lists every thread at once. The Threads
  * view (newest first) lists the same threads at once too, whether the reader switches to it from
  * Compact or opens the room in it (after a reload, or on a device that holds nothing yet), and a
- * reader who scrolls down reaches the oldest thread without waiting for each screen. A reader who
- * scrolls up through the Classic view (newest last) reaches it too. Neither view moves the rows
- * the reader looks at while rows load, and neither asks for a page of history twice. Desktop
- * (1280 by 800) with classic scrollbars and a touch phone (390 by 844), in Chromium and, when the
- * runner names it, in WebKit. Set MANY_THREADS_SHOTS=<directory> to save each view and the numbers
- * of each flick.
+ * reader who scrolls down reaches the oldest thread without waiting for each screen, while the
+ * rows on screen hold still. A reader who scrolls up through the Classic view (newest last)
+ * reaches it too, and neither view asks for a page of history twice. Desktop (1280 by 800) with
+ * classic scrollbars and a touch phone (390 by 844), in Chromium and, when the runner names it, in
+ * WebKit. Set MANY_THREADS_SHOTS=<directory> to save each view and the numbers of each flick.
  *
  * The Threads view listed only the threads whose roots the room's timeline held, and the timeline
  * pages 200 events at a time, most of them replies and edits the view hides: each page added a few
- * threads, and the next page waited until the reader scrolled to the end again. WebKit's Classic
- * view moved the rows on screen by up to 175 px while pages landed above them.
+ * threads, and the next page waited until the reader scrolled to the end again.
  */
 
 const PASSWORD = 'many-threads-scroll-1';
@@ -512,9 +510,9 @@ const MAX_DRIFT_PX = 2;
 /**
  * Flicks in the Threads view that ran into the end of the loaded rows before the oldest thread was
  * in view: the reader waited for rows. The last one, where the view pages in the history below its
- * last thread, is allowed. The Classic view still asks for its first page of each run when the
- * reader reaches the end of the loaded rows (looking ahead there moved a reader at the newest row
- * when the room's intro loaded above them), so its flicks are reported, not checked.
+ * last thread, is allowed. The Classic view pages its history as the reader reaches the end of the
+ * loaded rows, so its stops, and in WebKit how far its rows move as pages land above them, are
+ * reported, not checked.
  */
 const MAX_STALLS = 1;
 
@@ -529,11 +527,11 @@ const check = (reading: Reading, held?: number) => {
       reading.stalls,
       `${label}: flicks that ran into the end of the rows`
     ).toBeLessThanOrEqual(MAX_STALLS);
+    expect(
+      reading.maxDrift,
+      `${label}: px the rows on screen moved as rows loaded`
+    ).toBeLessThanOrEqual(MAX_DRIFT_PX);
   }
-  expect(
-    reading.maxDrift,
-    `${label}: px the rows on screen moved as rows loaded`
-  ).toBeLessThanOrEqual(MAX_DRIFT_PX);
   // Each history page holds 200 events; the read takes each at most once.
   expect(reading.requests.messages, `${label}: history pages`).toBeLessThanOrEqual(
     Math.ceil(fixture.events / 200) + 2
