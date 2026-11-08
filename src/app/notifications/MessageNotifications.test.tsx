@@ -17,7 +17,7 @@ import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { conversationCoveredAtom } from '../navigation/conversationCover';
-import { MessageNotificationsFeature } from './MessageNotifications';
+import { FINISHED_REPLY_HOLD_MS, MessageNotificationsFeature } from './MessageNotifications';
 import { playChime } from './playChime';
 import { defined } from '../../test/utils/defined';
 
@@ -196,6 +196,7 @@ describe('MessageNotificationsFeature', () => {
   afterEach(() => {
     act(() => renderer?.unmount());
     renderer = undefined;
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     vi.mocked(playChime).mockClear();
@@ -368,6 +369,7 @@ describe('MessageNotificationsFeature', () => {
   });
 
   it('notifies once for an agent reply in an unopened thread, when the sync brings its last edit', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
     const agentMessage = (content: IContent) =>
       new MatrixEvent({
         type: 'm.room.message',
@@ -407,6 +409,11 @@ describe('MessageNotificationsFeature', () => {
 
     const finished = edit('completed', 'The notes are ready.');
     synced(finished);
+    // It waits for a receipt from a device that watched it finish (none comes here).
+    act(() => {
+      vi.advanceTimersByTime(FINISHED_REPLY_HOLD_MS);
+    });
+    vi.useRealTimers();
     const bodies = () => FakeNotification.shown.map((note) => note.options.body);
     expect(bodies()).toEqual(['mindroom_helper: The notes are ready.']);
     // An opened thread adds the same edit to its timeline too.
