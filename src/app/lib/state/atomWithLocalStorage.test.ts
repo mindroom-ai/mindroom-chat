@@ -9,7 +9,7 @@ import {
 
 const KEY = 'atomWithLocalStorage.test';
 
-const makeAtom = (setItem = setLocalStorageItem<string>) =>
+const makeAtom = (setItem: (key: string, value: string) => unknown = setLocalStorageItem) =>
   atomWithLocalStorage<string>(KEY, (key) => getLocalStorageItem(key, 'default'), setItem);
 
 beforeEach(() => localStorage.clear());
@@ -51,13 +51,25 @@ describe('atomWithLocalStorage', () => {
     unsubscribe();
   });
 
-  it('follows another tab while mounted', () => {
+  it('follows another tab while mounted, and reads no more when it mounts', () => {
+    localStorage.setItem(KEY, JSON.stringify('stored'));
+    let reads = 0;
+    const valueAtom = atomWithLocalStorage<string>(
+      KEY,
+      (key) => {
+        reads += 1;
+        return getLocalStorageItem(key, 'default');
+      },
+      setLocalStorageItem
+    );
     const store = createStore();
-    const valueAtom = makeAtom();
     const unsubscribe = store.sub(valueAtom, () => undefined);
     localStorage.setItem(KEY, JSON.stringify('other tab'));
     window.dispatchEvent(new StorageEvent('storage', { key: KEY }));
     expect(store.get(valueAtom)).toBe('other tab');
     unsubscribe();
+
+    store.sub(valueAtom, () => undefined)();
+    expect(reads).toBe(2);
   });
 });
