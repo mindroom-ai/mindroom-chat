@@ -202,6 +202,21 @@ for (const [layout, viewport] of Object.entries(LAYOUTS)) {
   });
 }
 
+/** The share of white pixels in a screenshot of `area`, where a PDF's white page shows. */
+const whiteShare = async (page: Page, area: Locator) =>
+  page.evaluate(async (base64) => {
+    const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+    const context = new OffscreenCanvas(bitmap.width, bitmap.height).getContext('2d')!;
+    context.drawImage(bitmap, 0, 0);
+    const { data } = context.getImageData(0, 0, bitmap.width, bitmap.height);
+    let white = 0;
+    for (let index = 0; index < data.length; index += 4) {
+      if (Math.min(data[index] ?? 0, data[index + 1] ?? 0, data[index + 2] ?? 0) > 245) white += 1;
+    }
+    return white / (bitmap.width * bitmap.height);
+  }, (await area.screenshot()).toString('base64'));
+
 test("the example plugin's panel follows the app's theme kind and screen size, and shows its PDF in the browser's viewer", async ({
   browser,
 }, testInfo) => {
@@ -249,6 +264,10 @@ test("the example plugin's panel follows the app's theme kind and screen size, a
     await expect
       .poll(() => page.frames().some((frame) => frame.url().startsWith('chrome-extension://')))
       .toBe(true);
+    // The viewer draws the page, white on its dark backdrop.
+    await expect
+      .poll(() => whiteShare(page, frameElement), { timeout: 20_000 })
+      .toBeGreaterThan(0.2);
     await page.screenshot({ path: testInfo.outputPath('surface-wide-pdf.png') });
   } finally {
     await context.close();

@@ -445,7 +445,7 @@ function ExamplePdf() {
     <iframe
       title="Example PDF"
       src={frameUrl}
-      style={{ width: '100%', height: 240, border: 'none' }}
+      style={{ flexShrink: 0, width: '100%', height: 240, border: 'none' }}
     />
   );
 }
