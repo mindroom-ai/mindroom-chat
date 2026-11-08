@@ -250,7 +250,11 @@
       "nudgeButton": "设置恢复密码",
       "unlockWithPassword": "使用恢复密码解锁",
       "resetLoss": "此设备目前无法读取的消息将保持无法读取。你的其他会话需要重新验证。",
-      "setupCheckFailed": "无法检查你的加密设置。"
+      "setupCheckFailed": "无法检查你的加密设置。",
+      "repairIntro": "您的恢复密码正确，但与其一起保存的加密身份与服务器上的不一致。修复会保留您的消息和恢复密码，并为您的账户创建新身份。您的其他设备需要重新验证。",
+      "repairButton": "修复加密",
+      "repaired": "加密已修复。请重新验证您的其他设备。",
+      "repairCancelled": "修复需要确认您的账户。请重试。"
     }
   },
   "featureUi": {

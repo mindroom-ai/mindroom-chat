@@ -258,7 +258,11 @@
       "nudgeButton": "Imposta la password di recupero",
       "unlockWithPassword": "Sblocca con la password di recupero",
       "resetLoss": "I messaggi che questo dispositivo non può leggere adesso resteranno illeggibili. Le tue altre sessioni dovranno essere verificate di nuovo.",
-      "setupCheckFailed": "Impossibile controllare la configurazione della cifratura."
+      "setupCheckFailed": "Impossibile controllare la configurazione della cifratura.",
+      "repairIntro": "La password di recupero è corretta, ma l'identità di cifratura salvata con essa non è quella sul tuo server. La riparazione conserva i tuoi messaggi e la password di recupero e dà al tuo account una nuova identità. Gli altri dispositivi dovranno essere verificati di nuovo.",
+      "repairButton": "Ripara la cifratura",
+      "repaired": "Cifratura riparata. Verifica di nuovo gli altri dispositivi.",
+      "repairCancelled": "La riparazione richiede la conferma del tuo account. Riprova."
     }
   },
   "featureUi": {

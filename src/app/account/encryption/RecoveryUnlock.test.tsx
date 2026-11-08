@@ -12,6 +12,7 @@ import {
 import type { DefaultSecretStorageKey } from './recoveryState';
 
 const mocks = vi.hoisted(() => ({
+  repairCrossSigning: vi.fn(),
   keyFromRecoveryInput: vi.fn(),
   restoreKeyBackup: vi.fn(),
   backupVersion: vi.fn(),
@@ -20,6 +21,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('./recoveryInput', async (importActual) => ({
   ...(await importActual<typeof import('./recoveryInput')>()),
   keyFromRecoveryInput: mocks.keyFromRecoveryInput,
+}));
+vi.mock('./repairCrossSigning', async (importActual) => ({
+  ...(await importActual<typeof import('./repairCrossSigning')>()),
+  repairCrossSigning: mocks.repairCrossSigning,
 }));
 vi.mock('./unlockWithRecoveryKey', async (importActual) => ({
   ...(await importActual<typeof import('./unlockWithRecoveryKey')>()),
@@ -49,7 +54,13 @@ const submit = async (text: string) => {
   });
 };
 
+/** What the Rust crypto stack throws when secret storage holds an identity never published. */
+const MISMATCH = new Error(
+  "Error while importing m.cross_signing.master: The public key of the imported private key doesn't match the public key that was uploaded to the server"
+);
+
 beforeEach(() => {
+  mocks.repairCrossSigning.mockResolvedValue(undefined);
   mocks.keyFromRecoveryInput.mockResolvedValue(DERIVED);
   mocks.restoreKeyBackup.mockResolvedValue(undefined);
   mocks.backupVersion.mockResolvedValue('1');
@@ -59,6 +70,59 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+});
+
+describe('RecoveryUnlock repair', () => {
+  it('offers a repair instead of the SDK error when the stored identity is not the account one', async () => {
+    unlock.mockRejectedValue(MISMATCH);
+    render(<RecoveryUnlock secretStorageKey={KEY} />);
+    await submit('my long password');
+
+    expect(screen.queryByText(/doesn't match the public key/)).toBeNull();
+    expect(screen.getByText(/gives your account a new identity/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Repair encryption' })).toBeTruthy();
+    expect(mocks.repairCrossSigning).not.toHaveBeenCalled();
+  });
+
+  it('repairs with the key the password gave, then restores the history', async () => {
+    unlock.mockRejectedValue(MISMATCH);
+    const onUnlocked = vi.fn();
+    render(<RecoveryUnlock secretStorageKey={KEY} onUnlocked={onUnlocked} />);
+    await submit('my long password');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Repair encryption' }));
+    });
+
+    expect(mocks.repairCrossSigning).toHaveBeenCalledWith(
+      expect.anything(),
+      'key1',
+      DERIVED,
+      expect.any(Function)
+    );
+    expect(onUnlocked).toHaveBeenCalledTimes(1);
+    expect(mocks.restoreKeyBackup).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('This device is verified.')).toBeTruthy();
+    expect(screen.getByText('Encryption repaired. Verify your other devices again.')).toBeTruthy();
+  });
+
+  it('says a closed account confirmation in words and lets the person try again', async () => {
+    const { AuthenticationCancelled } = await import('../uia/useAuthenticatedAction');
+    unlock.mockRejectedValue(MISMATCH);
+    mocks.repairCrossSigning.mockRejectedValueOnce(new AuthenticationCancelled());
+    render(<RecoveryUnlock secretStorageKey={KEY} />);
+    await submit('my long password');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Repair encryption' }));
+    });
+
+    expect(screen.getByText('Repair needs your account confirmation. Try again.')).toBeTruthy();
+    expect(mocks.restoreKeyBackup).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Repair encryption' }));
+    });
+    expect(mocks.repairCrossSigning).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('This device is verified.')).toBeTruthy();
+  });
 });
 
 describe('RecoveryUnlock', () => {

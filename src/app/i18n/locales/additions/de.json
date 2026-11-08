@@ -254,7 +254,11 @@
       "nudgeButton": "Wiederherstellungspasswort einrichten",
       "unlockWithPassword": "Mit Wiederherstellungspasswort entsperren",
       "resetLoss": "Nachrichten, die dieses Gerät jetzt nicht lesen kann, bleiben unlesbar. Deine anderen Sitzungen müssen erneut verifiziert werden.",
-      "setupCheckFailed": "Dein Verschlüsselungs-Setup konnte nicht geprüft werden."
+      "setupCheckFailed": "Dein Verschlüsselungs-Setup konnte nicht geprüft werden.",
+      "repairIntro": "Dein Wiederherstellungspasswort ist richtig, aber die damit gespeicherte Verschlüsselungsidentität ist nicht die auf deinem Server. Die Reparatur behält deine Nachrichten und dein Wiederherstellungspasswort und gibt deinem Konto eine neue Identität. Deine anderen Geräte müssen danach erneut verifiziert werden.",
+      "repairButton": "Verschlüsselung reparieren",
+      "repaired": "Verschlüsselung repariert. Verifiziere deine anderen Geräte erneut.",
+      "repairCancelled": "Die Reparatur braucht die Bestätigung deines Kontos. Versuche es erneut."
     }
   },
   "featureUi": {

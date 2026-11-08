@@ -254,7 +254,11 @@
       "nudgeButton": "Kurtarma parolası belirle",
       "unlockWithPassword": "Kurtarma parolasıyla kilidi aç",
       "resetLoss": "Bu cihazın şu an okuyamadığı mesajlar okunamaz kalır. Diğer oturumlarınızın yeniden doğrulanması gerekir.",
-      "setupCheckFailed": "Şifreleme kurulumunuz denetlenemedi."
+      "setupCheckFailed": "Şifreleme kurulumunuz denetlenemedi.",
+      "repairIntro": "Kurtarma parolanız doğru, ancak onunla saklanan şifreleme kimliği sunucunuzdaki kimlik değil. Onarım mesajlarınızı ve kurtarma parolanızı korur ve hesabınıza yeni bir kimlik verir. Diğer cihazlarınızın yeniden doğrulanması gerekecek.",
+      "repairButton": "Şifrelemeyi onar",
+      "repaired": "Şifreleme onarıldı. Diğer cihazlarınızı yeniden doğrulayın.",
+      "repairCancelled": "Onarım için hesap onayınız gerekiyor. Yeniden deneyin."
     }
   },
   "featureUi": {

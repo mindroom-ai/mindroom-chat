@@ -250,7 +250,11 @@
       "nudgeButton": "設定復原密碼",
       "unlockWithPassword": "使用復原密碼解鎖",
       "resetLoss": "此裝置目前無法讀取的訊息將維持無法讀取。你的其他工作階段需要重新驗證。",
-      "setupCheckFailed": "無法檢查你的加密設定。"
+      "setupCheckFailed": "無法檢查你的加密設定。",
+      "repairIntro": "您的復原密碼正確，但與其一起儲存的加密身分與伺服器上的不一致。修復會保留您的訊息和復原密碼，並為您的帳戶建立新身分。您的其他裝置需要重新驗證。",
+      "repairButton": "修復加密",
+      "repaired": "加密已修復。請重新驗證您的其他裝置。",
+      "repairCancelled": "修復需要確認您的帳戶。請重試。"
     }
   },
   "featureUi": {

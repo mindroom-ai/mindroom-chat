@@ -250,7 +250,11 @@
       "nudgeButton": "Siapkan kata sandi pemulihan",
       "unlockWithPassword": "Buka kunci dengan kata sandi pemulihan",
       "resetLoss": "Pesan yang tidak bisa dibaca perangkat ini sekarang akan tetap tidak terbaca. Sesi Anda yang lain perlu diverifikasi lagi.",
-      "setupCheckFailed": "Tidak dapat memeriksa pengaturan enkripsi Anda."
+      "setupCheckFailed": "Tidak dapat memeriksa pengaturan enkripsi Anda.",
+      "repairIntro": "Kata sandi pemulihan Anda benar, tetapi identitas enkripsi yang tersimpan bersamanya bukan identitas di server Anda. Perbaikan menyimpan pesan dan kata sandi pemulihan Anda serta memberi akun Anda identitas baru. Perangkat Anda yang lain perlu diverifikasi ulang.",
+      "repairButton": "Perbaiki enkripsi",
+      "repaired": "Enkripsi diperbaiki. Verifikasi ulang perangkat Anda yang lain.",
+      "repairCancelled": "Perbaikan memerlukan konfirmasi akun Anda. Coba lagi."
     }
   },
   "featureUi": {

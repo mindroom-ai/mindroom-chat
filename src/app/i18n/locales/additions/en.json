@@ -254,7 +254,11 @@
       "nudgeButton": "Set up recovery password",
       "unlockWithPassword": "Unlock with recovery password",
       "resetLoss": "Messages this device cannot read now stay unreadable. Your other sessions need to be verified again.",
-      "setupCheckFailed": "Couldn't check your encryption setup."
+      "setupCheckFailed": "Couldn't check your encryption setup.",
+      "repairIntro": "Your recovery password is right, but the encryption identity stored with it is not the one on your server. Repair keeps your messages and your recovery password and gives your account a new identity. Your other devices will need to verify again.",
+      "repairButton": "Repair encryption",
+      "repaired": "Encryption repaired. Verify your other devices again.",
+      "repairCancelled": "Repair needs your account confirmation. Try again."
     }
   },
   "featureUi": {

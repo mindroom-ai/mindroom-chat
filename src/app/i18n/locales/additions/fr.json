@@ -258,7 +258,11 @@
       "nudgeButton": "Configurer le mot de passe de récupération",
       "unlockWithPassword": "Déverrouiller avec le mot de passe de récupération",
       "resetLoss": "Les messages que cet appareil ne peut pas lire actuellement resteront illisibles. Vos autres sessions devront être vérifiées à nouveau.",
-      "setupCheckFailed": "Impossible de vérifier votre configuration du chiffrement."
+      "setupCheckFailed": "Impossible de vérifier votre configuration du chiffrement.",
+      "repairIntro": "Votre mot de passe de récupération est correct, mais l'identité de chiffrement enregistrée avec lui n'est pas celle de votre serveur. La réparation conserve vos messages et votre mot de passe de récupération, et donne une nouvelle identité à votre compte. Vos autres appareils devront être vérifiés à nouveau.",
+      "repairButton": "Réparer le chiffrement",
+      "repaired": "Chiffrement réparé. Vérifiez à nouveau vos autres appareils.",
+      "repairCancelled": "La réparation nécessite la confirmation de votre compte. Réessayez."
     }
   },
   "featureUi": {

@@ -254,7 +254,11 @@
       "nudgeButton": "Herstelwachtwoord instellen",
       "unlockWithPassword": "Ontgrendelen met herstelwachtwoord",
       "resetLoss": "Berichten die dit apparaat nu niet kan lezen, blijven onleesbaar. Je andere sessies moeten opnieuw worden geverifieerd.",
-      "setupCheckFailed": "Kon je versleutelingsinstelling niet controleren."
+      "setupCheckFailed": "Kon je versleutelingsinstelling niet controleren.",
+      "repairIntro": "Je herstelwachtwoord klopt, maar de versleutelingsidentiteit die ermee is opgeslagen is niet die op je server. Herstellen behoudt je berichten en je herstelwachtwoord en geeft je account een nieuwe identiteit. Je andere apparaten moeten daarna opnieuw worden geverifieerd.",
+      "repairButton": "Versleuteling herstellen",
+      "repaired": "Versleuteling hersteld. Verifieer je andere apparaten opnieuw.",
+      "repairCancelled": "Herstellen vraagt om bevestiging van je account. Probeer het opnieuw."
     }
   },
   "featureUi": {
