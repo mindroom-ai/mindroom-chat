@@ -152,7 +152,8 @@ describe('example plugin', () => {
       id: 'example',
       plugin,
     });
-    // Its build module, which writes "Example banner" in place of the marker, runs only in a build.
+    // Its build module, which writes "Example banner" in place of the marker, runs in a build and the
+    // dev server, never in unit tests.
     expect(view.getByText('EXAMPLE_BANNER in Lobby')).toBeTruthy();
   });
 

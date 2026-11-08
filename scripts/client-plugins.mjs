@@ -236,13 +236,13 @@ const BUILD_HOOKS = new Map([
  * The Vite plugins of the build modules (`build`) of `plugins`, in their order, with each hook kept
  * to its plugin's modules, the ones its `resolveId` makes up under its id included (Vite's virtual
  * modules, such as `\0my-plugin:settings`): `transform` and `load` run only for them, and `resolveId`
- * only for their imports. Any other hook or property fails the build, so that no hook works on the
- * app's build as a whole or on another plugin's modules.
+ * only for their imports, so that a plugin's hooks see none of the app's modules or another plugin's.
+ * Any other hook or property fails the build.
  * @param {ClientPluginInfo[]} plugins
+ * @param {ReturnType<typeof pluginOwner<ClientPluginInfo>>} ownerOf
  * @returns {Promise<import('vite').Plugin[]>}
  */
-const buildModulePlugins = async (plugins) => {
-  const ownerOf = pluginOwner(plugins);
+const buildModulePlugins = async (plugins, ownerOf) => {
   const builds = await Promise.all(
     plugins.map(async (plugin) => {
       if (!plugin.build) return [];
@@ -260,26 +260,27 @@ const buildModulePlugins = async (plugins) => {
         /** @type {any} */
         const scoped = {};
         for (const [key, hook] of Object.entries(vitePlugin)) {
-          const at = BUILD_HOOKS.get(key);
           // A hook left undefined is none, as Vite reads it.
           if (key === 'name' || key === 'enforce' || key === 'apply' || hook == null) {
             scoped[key] = hook;
-          } else if (at === undefined) {
+            continue;
+          }
+          const at = BUILD_HOOKS.get(key);
+          if (at === undefined) {
             fail(
               `the Vite plugin "${vitePlugin.name}" of plugin "${plugin.id}" has ${key}, but a plugin's build module may only have name, enforce, apply, resolveId, load and transform`
             );
-          } else {
-            const handler = typeof hook === 'function' ? hook : hook.handler;
-            /** @this {unknown} */
-            const own = function (/** @type {unknown[]} */ ...args) {
-              const file = args[at];
-              return typeof file === 'string' &&
-                (ownerOf(file)?.plugin === plugin || file.startsWith(madeUpPrefix))
-                ? handler.apply(this, args)
-                : null;
-            };
-            scoped[key] = typeof hook === 'function' ? own : { ...hook, handler: own };
           }
+          const handler = typeof hook === 'function' ? hook : hook.handler;
+          /** @this {unknown} */
+          const own = function (/** @type {unknown[]} */ ...args) {
+            const file = args[at];
+            return typeof file === 'string' &&
+              (ownerOf(file)?.plugin === plugin || file.startsWith(madeUpPrefix))
+              ? handler.apply(this, args)
+              : null;
+          };
+          scoped[key] = typeof hook === 'function' ? own : { ...hook, handler: own };
         }
         return scoped;
       });
@@ -398,7 +399,7 @@ export const clientPlugins = (env = process.env) => {
       });
     },
   };
-  // The plugins of their build modules come first, so that a plugin's resolveId sees its imports of
-  // the packages the app shares before `app` resolves them.
-  return [buildModulePlugins(plugins), app];
+  // The plugins of their build modules come first, so that the resolveId of one that is `pre` too sees
+  // its plugin's imports of the packages the app shares before `app` resolves them.
+  return [buildModulePlugins(plugins, ownerOf), app];
 };
