@@ -643,6 +643,31 @@ describe('SDK thread bootstrap requests', () => {
     expect(thread.length).toBe(2);
   });
 
+  // Regression (P3-webkit-cards-F008): cards of busy threads counted one reply too many on slow
+  // clients. A root fetched or listed while sync still carried the thread's newest events counts
+  // them, and their arrival through sync counted them again.
+  it('does not count again the replies its summary counted when sync brings them later', async () => {
+    const rootId = rootIdAt(2);
+    const f = server();
+    const room = roomFor(f.client);
+    const mapper = f.client.getEventMapper();
+    // The summary counts two events, the newest of them at 12.
+    room.processThreadRoots([mapper(summarizedRoot(rootId, 2, 10))], true);
+    const thread = room.getThread(rootId)!;
+    await settle();
+    expect(thread.length).toBe(2);
+
+    await room.addLiveEvents([new MatrixEvent(reply(rootId, 1, 11))], { addToState: false });
+    await room.addLiveEvents([new MatrixEvent(reply(rootId, 2, 12))], { addToState: false });
+    await settle();
+    expect(thread.length).toBe(2);
+
+    // A reply after the summary's newest counts.
+    await room.addLiveEvents([new MatrixEvent(reply(rootId, 3, 13))], { addToState: false });
+    await settle();
+    expect(thread.length).toBe(3);
+  });
+
   it('records room sync gaps on 200 unopened threads without allocating timelines', async () => {
     const f = server();
     const room = roomFor(f.client);
