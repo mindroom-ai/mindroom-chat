@@ -141,7 +141,7 @@ describe('example plugin', () => {
     expect((await renderGreeting()).queryByRole('button', { name: 'Show in panel' })).toBeNull();
   });
 
-  it("names its greeting's sender by their name in the room, and shows the account's own profile card", async () => {
+  it("names its greeting's sender as the app names them in the room, apart from a member of the same name, and shows the account's own profile card", async () => {
     const [panel] = plugin.sidePanels ?? [];
     if (!panel) throw new Error('the example plugin has no side panel');
     const userId = '@ada:example.org';
@@ -151,6 +151,7 @@ describe('example plugin', () => {
       [
         [userId, 'Ada Lovelace'],
         [greeting.sender, 'Helper'],
+        ['@helper:example.org', 'Helper'],
       ].map(
         ([member, displayname]) =>
           new MatrixEvent({
@@ -171,7 +172,9 @@ describe('example plugin', () => {
       { id: 'example', plugin, client }
     );
     // The name is a button, which opens the app's floating card of the sender.
-    expect(await view.findByRole('button', { name: 'Helper' })).toBeTruthy();
+    expect(
+      await view.findByRole('button', { name: `Helper (\u2066${greeting.sender}\u2069)` })
+    ).toBeTruthy();
     // The card the app shows for the account, in the panel itself.
     expect(view.getByRole('heading', { name: 'Ada Lovelace' })).toBeTruthy();
     expect(view.getByText(userId)).toBeTruthy();
@@ -359,8 +362,8 @@ describe('example plugin', () => {
   });
 
   it('greets the room or the thread with the text typed after /greet, and asks for some without it', async () => {
-    const [greet] = plugin.slashCommands ?? [];
-    if (!greet) throw new Error('the example plugin has no slash command');
+    const greet = plugin.slashCommands?.find(({ name }) => name === 'greet');
+    if (!greet) throw new Error('the example plugin has no /greet');
     const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
     const sent = vi.spyOn(client, 'sendNotice').mockResolvedValue({ event_id: '$greeting' });
     const room = new Room('!lobby:example.org', client, '@ada:example.org');
@@ -384,7 +387,7 @@ describe('example plugin', () => {
   });
 
   it('creates a sub-room of the room called the name typed after /subroom, and asks for one without it', async () => {
-    const [, subroom] = plugin.slashCommands ?? [];
+    const subroom = plugin.slashCommands?.find(({ name }) => name === 'subroom');
     if (!subroom) throw new Error('the example plugin has no /subroom');
     const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
     const created = vi
@@ -407,6 +410,33 @@ describe('example plugin', () => {
       'Type a name after /subroom.'
     );
     expect(created).toHaveBeenCalledTimes(1);
+  });
+
+  it("sets the room's topic to the text typed after /topic once the room's levels let the account, and refuses before", async () => {
+    const topic = plugin.slashCommands?.find(({ name }) => name === 'topic');
+    if (!topic) throw new Error('the example plugin has no /topic');
+    const userId = '@ada:example.org';
+    const client = createClient({ baseUrl: 'https://example.org', userId });
+    const set = vi.spyOn(client, 'setRoomTopic').mockResolvedValue({ event_id: '$topic' });
+    const room = new Room('!lobby:example.org', client, userId);
+    const levels = (level: number) =>
+      new MatrixEvent({
+        type: 'm.room.power_levels',
+        room_id: room.roomId,
+        sender: '@moderator:example.org',
+        state_key: '',
+        content: { users: { '@moderator:example.org': 50, [userId]: level }, state_default: 50 },
+      });
+
+    room.currentState.setStateEvents([levels(0)]);
+    await expect(async () => topic.run({ room, args: 'Plans' })).rejects.toThrow(
+      "You may not change this room's topic."
+    );
+    expect(set).not.toHaveBeenCalled();
+    // A moderator raised the account's level.
+    room.currentState.setStateEvents([levels(50)]);
+    await topic.run({ room, args: 'Plans' });
+    expect(set).toHaveBeenCalledWith('!lobby:example.org', 'Plans');
   });
 
   it("draws its panel's rows, menu and dialog with the app's own pieces from the ui subpath", async () => {

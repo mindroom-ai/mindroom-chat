@@ -2,7 +2,13 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { createClient, MatrixEvent, Room, RoomStateEvent } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it } from 'vitest';
-import { isMindroomAgentUserId, mxcUrlToHttp, useRoomPermissions } from './matrix';
+import {
+  getMemberDisplayName,
+  getRoomPermissions,
+  isMindroomAgentUserId,
+  mxcUrlToHttp,
+  useRoomPermissions,
+} from './matrix';
 
 const CREATOR = '@creator:example.org';
 const MODERATOR = '@moderator:example.org';
@@ -30,14 +36,14 @@ const roomWith = (roomVersion: string, powerLevels: Record<string, unknown>) => 
   return room;
 };
 
-describe('useRoomPermissions', () => {
-  const levels = {
-    users: { [MODERATOR]: 50 },
-    users_default: 0,
-    events: { 'm.room.message': 10 },
-    state_default: 50,
-  };
+const levels = {
+  users: { [MODERATOR]: 50 },
+  users_default: 0,
+  events: { 'm.room.message': 10, 'm.room.power_levels': 100 },
+  state_default: 50,
+};
 
+describe('useRoomPermissions', () => {
   it("answers for a user below and above the room's event and state levels", () => {
     const { result } = renderHook(() => useRoomPermissions(roomWith('11', levels)));
     expect(result.current.event('m.room.message', MEMBER)).toBe(false);
@@ -69,6 +75,78 @@ describe('useRoomPermissions', () => {
       room.client.emit(RoomStateEvent.Events, raised, room.currentState, null);
     });
     expect(result.current.event('m.room.message', MEMBER)).toBe(false);
+  });
+});
+
+describe('getRoomPermissions', () => {
+  /** Each answer `permissions` gives, for a user below the levels, a moderator and the creator. */
+  const answers = (permissions: ReturnType<typeof getRoomPermissions>) =>
+    [MEMBER, MODERATOR, CREATOR].map((userId) => [
+      permissions.event('m.room.message', userId),
+      permissions.stateEvent('m.room.topic', userId),
+      permissions.stateEvent('m.room.power_levels', userId),
+      permissions.action('ban', userId),
+      permissions.notification('room', userId),
+    ]);
+
+  it("gives, read once, the hook's answers for a user below the levels, a moderator and a version 12 room's creator", () => {
+    const room = roomWith('12', levels);
+    const { result } = renderHook(() => useRoomPermissions(room));
+    const read = answers(getRoomPermissions(room));
+    expect(read).toEqual([
+      [false, false, false, false, false],
+      [true, true, false, true, true],
+      [true, true, true, true, true],
+    ]);
+    expect(read).toEqual(answers(result.current));
+  });
+
+  it('has a change of power levels in the next read', () => {
+    const room = roomWith('11', { users_default: 0, events_default: 0 });
+    expect(getRoomPermissions(room).event('m.room.message', MEMBER)).toBe(true);
+    room.currentState.setStateEvents([
+      stateEvent('m.room.power_levels', { events_default: 0, events: { 'm.room.message': 50 } }),
+    ]);
+    expect(getRoomPermissions(room).event('m.room.message', MEMBER)).toBe(false);
+  });
+});
+
+describe('getMemberDisplayName', () => {
+  const memberEvent = (
+    userId: string,
+    membership: string,
+    displayname?: string,
+    previousName?: string
+  ) =>
+    new MatrixEvent({
+      type: 'm.room.member',
+      room_id: '!lobby:example.org',
+      sender: userId,
+      state_key: userId,
+      content: { membership, displayname },
+      unsigned: previousName
+        ? { prev_content: { membership: 'join', displayname: previousName } }
+        : undefined,
+    });
+
+  it('names a member as the app does: a unique name, a shared one with the user ID, and the last name of one who left', () => {
+    const client = createClient({ baseUrl: 'https://example.org', userId: MEMBER });
+    const room = new Room('!lobby:example.org', client, MEMBER);
+    room.currentState.setStateEvents([
+      memberEvent(MEMBER, 'join', 'Ada'),
+      memberEvent('@sam:example.org', 'join', 'Sam'),
+      memberEvent('@samuel:example.org', 'join', 'Sam'),
+      memberEvent('@grace:example.org', 'leave', undefined, 'Grace'),
+    ]);
+    expect(getMemberDisplayName(room, MEMBER)).toBe('Ada');
+    expect(getMemberDisplayName(room, '@sam:example.org')).toBe(
+      'Sam (\u2066@sam:example.org\u2069)'
+    );
+    expect(getMemberDisplayName(room, '@samuel:example.org')).toBe(
+      'Sam (\u2066@samuel:example.org\u2069)'
+    );
+    expect(getMemberDisplayName(room, '@grace:example.org')).toBe('Grace');
+    expect(getMemberDisplayName(room, '@stranger:example.org')).toBeUndefined();
   });
 });
 
