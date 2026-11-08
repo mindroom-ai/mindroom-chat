@@ -22,7 +22,7 @@
 // thread's composer to that thread, through the room's client, and fails without a text.
 import { useEffect, useState } from 'react';
 import { Icons } from 'folds';
-import { KnownMembership, MatrixEvent, type Room } from 'matrix-js-sdk';
+import { KnownMembership, type Room } from 'matrix-js-sdk';
 import {
   pluginPublicUrl,
   reloadForNewVersion,
@@ -146,18 +146,21 @@ function RoomPage({ params: { roomId = '', threadId = '' } }: PluginPageProps) {
   );
 }
 
-/** The greeting of the message `eventId` in the room, which it fetches and decrypts if need be. */
+/**
+ * The greeting of the message `eventId` in the room, as the homeserver has it: the tests' greetings
+ * are not encrypted.
+ */
 function FetchedGreeting({ roomId, eventId }: { roomId: string; eventId: string }) {
   const client = useMatrixClient();
   const [text, setText] = useState<string>();
   useEffect(() => {
     let current = true;
-    const read = async () => {
-      const event = new MatrixEvent(await client.fetchRoomEvent(roomId, eventId));
-      await client.decryptEventIfNeeded(event);
-      if (current) setText(greetingText({ content: event.getContent() }));
-    };
-    read().catch(() => undefined);
+    client
+      .fetchRoomEvent(roomId, eventId)
+      .then((event) => {
+        if (current) setText(greetingText({ content: event.content ?? {} }));
+      })
+      .catch(() => undefined);
     return () => {
       current = false;
     };
