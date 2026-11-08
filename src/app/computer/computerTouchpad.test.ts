@@ -472,6 +472,33 @@ describe('attachComputerTouchpad', () => {
     expect(types()).toEqual(['mousemove']);
   });
 
+  it("keeps iOS gesture events of the touchpad's fingers from the page", () => {
+    // WebKit on iOS reports two fingers as gesture events too, which the page's pinch to zoom
+    // follows: a two-finger scroll in control would change the app's zoom.
+    attach();
+    const page = vi.fn();
+    const gesture = (type: string, on: Element) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      on.dispatchEvent(event);
+      return event;
+    };
+    document.addEventListener('gesturechange', page);
+    try {
+      const inControl = gesture('gesturechange', canvas);
+      expect(inControl.defaultPrevented).toBe(true);
+      expect(page).not.toHaveBeenCalled();
+
+      // Watching, gestures stop where touches do: on the canvas, not on the letterbox.
+      controlling = false;
+      expect(gesture('gesturechange', canvas).defaultPrevented).toBe(true);
+      expect(page).not.toHaveBeenCalled();
+      expect(gesture('gesturechange', wrapper).defaultPrevented).toBe(false);
+      expect(page).toHaveBeenCalledOnce();
+    } finally {
+      document.removeEventListener('gesturechange', page);
+    }
+  });
+
   it('counts only the touches that began on the screen', () => {
     attach();
     const outside = document.createElement('button');
