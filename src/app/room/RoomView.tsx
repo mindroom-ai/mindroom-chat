@@ -36,6 +36,7 @@ import { ThreadApprovalQueue } from '../approvals/ThreadApprovalControls';
 import { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
 import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
+import type { RoomRowsPlace } from '../timeline/roomTimelineScroll';
 import { RoomTimeline, type RoomTimelineProps } from '../timeline/RoomTimeline';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 import { RoomHeaderSlot } from './RoomHeaderSlot';
@@ -215,6 +216,7 @@ export function RoomView({
   const dockRef = useRef<HTMLDivElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
   const compactRoomScrollStateRef = useRef<ScrollAnchorMemory>(new Map());
+  const threadReturnPlaceRef = useRef<RoomRowsPlace>();
 
   const myUserId = client.getSafeUserId();
   const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
@@ -291,6 +293,7 @@ export function RoomView({
     viewMode,
     onViewModeChange: threadState.handleViewModeChange,
     compactRoomScrollStateRef,
+    threadReturnPlaceRef,
     editor,
     onThreadLoadError,
   };

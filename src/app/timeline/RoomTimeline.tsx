@@ -134,9 +134,11 @@ import {
   useLatestPinAsked,
   useLatestRowPin,
   useRowsGeneration,
+  useThreadReturnPlace,
   useTimelineRowJumps,
   useTimelineScrollElement,
   useViewportAtBottomNow,
+  type RoomRowsPlace,
 } from './roomTimelineScroll';
 import {
   useRelinkKeepingRows,
@@ -202,6 +204,8 @@ export type RoomTimelineProps = {
   onViewModeChange?: (viewMode: RoomViewMode) => void;
   roomInputRef?: RefObject<HTMLElement>;
   compactRoomScrollStateRef?: MutableRefObject<ScrollAnchorMemory>;
+  /** Where the room's rows were when a thread opened over them (`useThreadReturnPlace`). */
+  threadReturnPlaceRef?: MutableRefObject<RoomRowsPlace | undefined>;
   editor: Editor;
   /** Called when the open thread's root cannot be loaded at all. */
   onThreadLoadError?: (threadId: string) => void;
@@ -284,6 +288,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const fallbackCompactScrollStateRef = useRef<ScrollAnchorMemory>(new Map());
   const compactRoomScrollStateRef =
     props.compactRoomScrollStateRef ?? fallbackCompactScrollStateRef;
+  const fallbackThreadReturnPlaceRef = useRef<RoomRowsPlace>();
 
   // Without agents, the threaded view is the room's conversation in the order it was sent, like
   // the Full view: no filter bar, so no filter or sort of the bar applies there. The Compact
@@ -709,6 +714,15 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // last row still while the rows above it measure, so a view whose newest row is its first
   // (which loads older history at its bottom sentinel) does without it.
   const roomSurfaceShown = !threadId && !compactViewRequested;
+  const threadReturnPlace = useThreadReturnPlace({
+    memoryRef: props.threadReturnPlaceRef ?? fallbackThreadReturnPlaceRef,
+    roomId: room.roomId,
+    threadId,
+    eventId,
+    roomRowsShown: roomSurfaceShown,
+    latestAtTop,
+    scrollRef,
+  });
   const automaticFill = useRoomAutomaticFill({
     viewKey,
     enabled: roomSurfaceShown && !eventId && !latestAtTop,
@@ -1326,6 +1340,25 @@ export function RoomTimeline(props: RoomTimelineProps) {
     paginateBack: threadPagination.paginateBack,
   });
 
+  // Back from a thread shows the room's rows where the reader left them: once their row is among
+  // the rows, it jumps there.
+  const returnRowIndex = threadReturnPlace
+    ? roomRows.findIndex((event) => event.getId() === threadReturnPlace.eventId)
+    : -1;
+  const returnedRef = useRef(false);
+  useLayoutEffect(() => {
+    if (!threadReturnPlace || returnRowIndex === -1 || returnedRef.current) return;
+    returnedRef.current = true;
+    const { eventId: placeEventId, offset } = threadReturnPlace;
+    setFocusItem({
+      eventId: placeEventId,
+      index: returnRowIndex,
+      scrollTo: true,
+      highlight: false,
+      offset,
+    });
+  }, [returnRowIndex, threadReturnPlace]);
+
   // The newest row of the room or the open thread, while a request for it holds.
   const threadRowsPinned = threadUserScrolled ? 'thread' : undefined;
   const roomRowsPinned = roomSurfaceShown ? 'room' : undefined;
@@ -1334,9 +1367,11 @@ export function RoomTimeline(props: RoomTimelineProps) {
     itemCount,
     virtualizer,
     // A room with unread rows opens at its unread marker instead (roomFocusScrollController),
-    // unless its newest row is first.
+    // unless its newest row is first; the way back from a thread at the place the reader left.
     opensAtLatest:
-      !eventId && (latestAtTop || !(unreadInfo?.scrollTo && unreadInfo.inLiveTimeline)),
+      !eventId &&
+      !threadReturnPlace &&
+      (latestAtTop || !(unreadInfo?.scrollTo && unreadInfo.inLiveTimeline)),
     latestAtTop,
     roomId: room.roomId,
     scrollElement,
