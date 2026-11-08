@@ -1,10 +1,50 @@
-import { createContext, useContext } from 'react';
+import { createContext, createElement, useContext, useLayoutEffect, type ReactNode } from 'react';
 
 const configContext = createContext<ClientConfig | undefined>(undefined);
 configContext.displayName = 'ClientConfig';
+/** How many `ClientConfigProvider`s are above, so the innermost one's configuration counts. */
+const depthContext = createContext(0);
 
-/** Supplies the loaded `config.json` to everything rendered below it. */
-export const ClientConfigProvider = configContext.Provider;
+/** What each mounted `ClientConfigProvider` supplies, at its depth, in the order they mounted. */
+const mountedProviders: { config: ClientConfig | undefined; depth: number }[] = [];
+
+/**
+ * Supplies the loaded `config.json` to everything rendered below it, and to `getClientConfig()`
+ * while it is mounted: from before the `useEffect` mount effects of what it renders run, though
+ * after their layout effects.
+ */
+export function ClientConfigProvider({
+  value,
+  children,
+}: {
+  value: ClientConfig | undefined;
+  children?: ReactNode;
+}) {
+  const depth = useContext(depthContext) + 1;
+  useLayoutEffect(() => {
+    const entry = { config: value, depth };
+    mountedProviders.push(entry);
+    return () => {
+      mountedProviders.splice(mountedProviders.indexOf(entry), 1);
+    };
+  }, [value, depth]);
+  return createElement(
+    depthContext.Provider,
+    { value: depth },
+    createElement(configContext.Provider, { value }, children)
+  );
+}
+
+/**
+ * The configuration of the innermost mounted `ClientConfigProvider`, as `useClientConfig` gives it
+ * below that provider (of several as deep, the last to mount or change), for code that runs
+ * outside components, such as a plugin command's `run`; undefined while none is mounted.
+ */
+export const getClientConfig = (): ClientConfig | undefined =>
+  mountedProviders.reduce<(typeof mountedProviders)[number] | undefined>(
+    (innermost, entry) => (!innermost || entry.depth >= innermost.depth ? entry : innermost),
+    undefined
+  )?.config;
 
 /** The deployment's configuration; throws when no `ClientConfigProvider` is above the caller. */
 export const useClientConfig = (): ClientConfig => {
