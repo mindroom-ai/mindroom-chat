@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { getDefaultStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { PHONE_SLIDE_OUT_MS, phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import { listNoticeSlotAtom, NOTICE_LEAVE_MS, pageNoticeSlotAtom } from '../ui/noticeSlots';
 import { NewVersionNotice } from './NewVersionNotice';
 
 const update = vi.hoisted(() => {
@@ -21,14 +24,6 @@ const update = vi.hoisted(() => {
   };
 });
 vi.mock('../config/appUpdate', () => update);
-vi.mock('../notifications/notices/NoticeBanners.css', () => ({
-  NoticeStack: 'notice-stack',
-  Notice: ({ level }: { level: string }) => `notice-${level}`,
-  NoticeIcon: 'notice-icon',
-  NoticeBody: 'notice-body',
-  NoticeText: 'notice-text',
-  NoticeAction: 'notice-action',
-}));
 
 /** The notice's live region, which the page has from the start. */
 const liveRegion = (container: HTMLElement): HTMLElement => {
@@ -39,9 +34,14 @@ const liveRegion = (container: HTMLElement): HTMLElement => {
 
 describe('NewVersionNotice', () => {
   afterEach(() => {
+    vi.useRealTimers();
     cleanup();
     update.state.version = undefined;
     update.reloadForNewVersion.mockClear();
+    getDefaultStore().set(listNoticeSlotAtom, null);
+    getDefaultStore().set(pageNoticeSlotAtom, null);
+    getDefaultStore().set(phoneNavDrawerOpenAtom, false);
+    document.body.innerHTML = '';
   });
 
   it('stays empty until a new version is known, in a live region that is already there', () => {
@@ -55,7 +55,8 @@ describe('NewVersionNotice', () => {
     act(() => update.publish('build-2'));
 
     expect(region.textContent).toContain('A new version of MindRoom is available.');
-    expect(region.querySelector('[data-notice-level="info"]')).toBeTruthy();
+    // Signed out, no place is offered: the card floats over the page from the region.
+    expect(region.querySelector('[data-new-version-card="page"]')).toBeTruthy();
   });
 
   it('reloads for the new version from its Reload action, once', () => {
@@ -68,14 +69,107 @@ describe('NewVersionNotice', () => {
     expect(update.reloadForNewVersion).toHaveBeenCalledOnce();
   });
 
-  it('goes away for the life of the page when dismissed', () => {
+  it('plays its way out when dismissed, then stays away for the life of the page', () => {
+    vi.useFakeTimers();
     update.state.version = 'build-2';
     const { container } = render(<NewVersionNotice />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    // Still there while it leaves.
+    expect(container.querySelector('[data-new-version-card][data-leaving]')).toBeTruthy();
+    act(() => {
+      vi.advanceTimersByTime(NOTICE_LEAVE_MS);
+    });
     expect(liveRegion(container).textContent).toBe('');
 
     act(() => update.publish('build-3'));
     expect(liveRegion(container).textContent).toBe('');
+  });
+
+  it("takes the room list's place while there is one, else the page's", () => {
+    update.state.version = 'build-2';
+    const list = document.body.appendChild(document.createElement('div'));
+    const page = document.body.appendChild(document.createElement('div'));
+    const store = getDefaultStore();
+    act(() => {
+      store.set(listNoticeSlotAtom, list);
+      store.set(pageNoticeSlotAtom, page);
+    });
+    const { container } = render(<NewVersionNotice />);
+
+    expect(list.querySelector('[data-new-version-card="list"]')).toBeTruthy();
+    expect(page.textContent).toBe('');
+    expect(liveRegion(container).textContent).toBe('');
+
+    act(() => store.set(listNoticeSlotAtom, null));
+    expect(list.textContent).toBe('');
+    expect(page.querySelector('[data-new-version-card="page"]')).toBeTruthy();
+
+    act(() => store.set(pageNoticeSlotAtom, null));
+    expect(liveRegion(container).querySelector('[data-new-version-card="page"]')).toBeTruthy();
+  });
+
+  it('comes in on a phone once the drawer has slid away, so it is read out, and then stays', () => {
+    vi.useFakeTimers();
+    update.state.version = 'build-2';
+    const page = document.body.appendChild(document.createElement('div'));
+    page.setAttribute('data-phone', '');
+    const store = getDefaultStore();
+    act(() => {
+      store.set(pageNoticeSlotAtom, page);
+      store.set(phoneNavDrawerOpenAtom, true);
+    });
+    render(<NewVersionNotice />);
+    expect(page.querySelector('[data-new-version-card]')).toBeNull();
+
+    act(() => store.set(phoneNavDrawerOpenAtom, false));
+    // Not as the place stops being hidden, which would not be read out.
+    expect(page.querySelector('[data-new-version-card]')).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(PHONE_SLIDE_OUT_MS);
+    });
+    expect(page.querySelector('[data-new-version-card="page"]')).toBeTruthy();
+
+    act(() => store.set(phoneNavDrawerOpenAtom, true));
+    expect(page.querySelector('[data-new-version-card="page"]')).toBeTruthy();
+  });
+
+  it('leaves from where it was dismissed, even if the list closes meanwhile', () => {
+    vi.useFakeTimers();
+    update.state.version = 'build-2';
+    const list = document.body.appendChild(document.createElement('div'));
+    const page = document.body.appendChild(document.createElement('div'));
+    const store = getDefaultStore();
+    act(() => {
+      store.set(listNoticeSlotAtom, list);
+      store.set(pageNoticeSlotAtom, page);
+    });
+    render(<NewVersionNotice />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    act(() => store.set(listNoticeSlotAtom, null));
+    expect(list.querySelector('[data-new-version-card="list"][data-leaving]')).toBeTruthy();
+    expect(page.textContent).toBe('');
+
+    act(() => {
+      vi.advanceTimersByTime(NOTICE_LEAVE_MS);
+    });
+    expect(list.textContent).toBe('');
+    expect(page.textContent).toBe('');
+  });
+
+  it('comes in once, and shows at once when rebuilt in another list', () => {
+    update.state.version = 'build-2';
+    const first = document.body.appendChild(document.createElement('div'));
+    const second = document.body.appendChild(document.createElement('div'));
+    const store = getDefaultStore();
+    act(() => store.set(listNoticeSlotAtom, first));
+    render(<NewVersionNotice />);
+    const arriving = first.querySelector<HTMLElement>('[data-new-version-card]');
+    expect(arriving?.hasAttribute('data-settled')).toBe(false);
+
+    fireEvent.animationEnd(arriving!);
+    act(() => store.set(listNoticeSlotAtom, second));
+    expect(second.querySelector('[data-new-version-card="list"][data-settled]')).toBeTruthy();
   });
 });

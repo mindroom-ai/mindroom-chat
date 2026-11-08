@@ -157,7 +157,8 @@ const captureScene = async (
       });
     })
     .catch(() => undefined);
-  await expect(page.getByText('Catching up...', { exact: true })).toBeHidden({ timeout: 10_000 });
+  // The screenshot styles hide the sync pill; what is read out says when catching up has ended.
+  await expect(page.locator('[data-sync-status-announcement]')).toBeEmpty({ timeout: 10_000 });
   await expect(page.getByText('Loading...', { exact: true }).first()).toBeHidden({
     timeout: 10_000,
   });

@@ -27,6 +27,7 @@ const page = (path: string): PluginPage => ({ path, Component: () => null });
 const plugin = (id: string, ...pages: PluginPage[]): RegisteredPlugin => ({
   id,
   tag: `${id}@1.0.0`,
+  conversationCovers: [],
   messageRenderers: [],
   pages,
   roomHeaderSlot: [],

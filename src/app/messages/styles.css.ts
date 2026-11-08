@@ -25,16 +25,15 @@ globalStyle(`${SenderLine} button`, {
 });
 
 /**
- * An agent's avatar with its model badge stacked underneath. The column keeps the avatar's width:
- * the badge starts at the avatar's leading edge, and one wider than the avatar runs into the gap
- * toward the text, never into the gutter before the avatar, where a thread's minimap draws its
- * strips.
+ * An agent's avatar with its model's name stacked underneath. The column keeps the avatar's width,
+ * so a name wider than the avatar hangs out evenly on both sides instead of pushing it aside; the
+ * gap keeps the name clear of the provider mark on the avatar's corner.
  */
 export const MessageAvatarWithModel = style({
   display: 'flex',
   flexDirection: 'column',
-  alignItems: 'flex-start',
-  rowGap: toRem(3),
+  alignItems: 'center',
+  rowGap: toRem(6),
   width: '100%',
 });
 

@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientLayout } from './ClientLayout';
 import { putSession } from '../matrix/session/sessions';
 
+// The notice places are tested in ui/noticeSlots.test.tsx.
+vi.mock('../ui/noticeSlots', () => ({ NoticeSlot: () => null }));
 vi.mock('folds', () => ({
   Box: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
 }));

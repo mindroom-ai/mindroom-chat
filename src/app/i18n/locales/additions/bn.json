@@ -442,6 +442,12 @@
     "phoneNav": {
       "search": "অনুসন্ধান",
       "navigation": "নেভিগেশন"
+    },
+    "subRooms": {
+      "newSubRoom": "নতুন সাব-রুম",
+      "description": "{{name}}-এর সদস্যরা এতে যোগ দিতে পারেন, আর {{name}}-এর এজেন্টরা নিজে থেকেই যোগ দেয়।",
+      "noPermission": "আপনি {{name}}-এর অধীনে তালিকাভুক্ত রুম বদলাতে পারবেন না",
+      "takeOff": "{{name}} থেকে সরান"
     }
   },
   "mindroomUi": {

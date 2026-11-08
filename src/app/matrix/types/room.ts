@@ -112,7 +112,7 @@ export type UnreadInfo = UnreadCounts & { roomId: string };
 /** Unread entry per room ID, including one aggregate entry per space. */
 export type RoomToUnread = Map<string, Unread>;
 
-/** Room ID to the IDs of the spaces whose `m.space.child` events list it. */
+/** Room ID to the IDs of the spaces, and chat rooms of a sub-room, whose `m.space.child` events list it. */
 export type RoomToParents = Map<string, Set<string>>;
 
 /** Lazily reads the (possibly edited) content of the event being rendered. */

@@ -240,7 +240,7 @@ test('saves the dialog in dark and light themes and at a phone width', async ({ 
     await page.locator('[data-home-room-action="join"]').click();
     const dialog = page.getByRole('dialog', { name: 'Join a Room' });
     for (const room of listed) await expect(rowOf(dialog, room.name)).toBeVisible();
-    // The sync banner can come back while the dialog opens; the picture waits for it to go.
+    // The sync pill can come back while the dialog opens; the picture waits for it to go.
     await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 60_000 });
     await page.mouse.move(0, 0);
     await page.screenshot({ path: `${SHOTS}/${file}` });

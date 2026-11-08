@@ -25,6 +25,8 @@ import {
   phoneSheetOpenAtom,
   phoneSheetSlotAtom,
 } from '../navigation/phoneNavDrawer';
+import { conversationCoveredAtom } from '../navigation/conversationCover';
+import { listNoticeSlotAtom, pageNoticeSlotAtom } from '../ui/noticeSlots';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import { allInvitesAtom } from '../matrix/state/inviteList';
 import { allRoomsAtom } from '../matrix/state/roomList';
@@ -95,6 +97,9 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(phoneNavSectionRootAtom),
   toInitial(phoneSheetSlotAtom),
   toInitial(phoneSheetOpenAtom),
+  toInitial(conversationCoveredAtom),
+  toInitial(listNoticeSlotAtom),
+  toInitial(pageNoticeSlotAtom),
 ];
 
 /** Forgets everything {@link ACCOUNT_STATE} lists. */

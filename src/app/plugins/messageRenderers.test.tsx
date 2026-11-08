@@ -18,6 +18,7 @@ const plugin = (id: string, ...messageRenderers: MessageRenderer[]): RegisteredP
   messageRenderers,
   pages: [],
   roomHeaderSlot: [],
+  conversationCovers: [],
   sidePanels: [],
   headerActions: [],
 });

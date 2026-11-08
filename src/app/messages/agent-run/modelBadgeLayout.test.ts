@@ -1,23 +1,16 @@
 import { config, toRem } from 'folds';
 import { describe, expect, it } from 'vitest';
-import {
-  MESSAGE_AVATAR_SIZE,
-  MESSAGE_AVATAR_WIDTH_PX,
-  MESSAGE_LAYOUT_GAP,
-  MESSAGE_LAYOUT_GAP_SPACE_KEY,
-} from '../layout/config';
+import { MESSAGE_AVATAR_SIZE, MESSAGE_AVATAR_WIDTH_PX } from '../layout/config';
 import { getModelBadgeMaxWidth } from './modelBadgeLayout';
 
 describe('Mindroom model badge avatar layout', () => {
-  it('derives the badge overflow from the same avatar and gap tokens as message layouts', () => {
+  it('lets the centred badge hang the same overhang past each side of the avatar', () => {
     const avatarWidth = toRem(MESSAGE_AVATAR_WIDTH_PX);
-    const messageLayoutGap = config.space[MESSAGE_LAYOUT_GAP_SPACE_KEY];
 
     expect(MESSAGE_AVATAR_SIZE).toBe('300');
     expect(MESSAGE_AVATAR_WIDTH_PX).toBe(36);
-    expect(MESSAGE_LAYOUT_GAP).toBe('300');
-    expect(getModelBadgeMaxWidth(avatarWidth, messageLayoutGap)).toBe(
-      `calc(${avatarWidth} + ${messageLayoutGap})`
+    expect(getModelBadgeMaxWidth(avatarWidth, config.space.S100)).toBe(
+      `calc(${avatarWidth} + 2 * ${config.space.S100})`
     );
   });
 });

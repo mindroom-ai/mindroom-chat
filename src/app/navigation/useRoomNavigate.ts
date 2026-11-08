@@ -20,13 +20,15 @@ import { navigateToRoomThread } from './threadNavigation';
 
 /**
  * The top-level space to open a room in: the first root space found walking up from the room,
- * where a root space is one no other space contains. Falls back to the room's first parent when
- * the tree has a cycle.
+ * where a root space is one no other space contains. Falls back to the nearest space above the
+ * room when the tree has a cycle. The chat rooms a sub-room sits under are no spaces.
  */
-const getRoomTopSpace = (roomToParents: RoomToParents, roomId: string): string | undefined =>
-  getAncestorSpaceIds(roomToParents, roomId).find(
-    (spaceId) => (roomToParents.get(spaceId)?.size ?? 0) === 0
-  ) ?? roomToParents.get(roomId)?.values().next().value;
+const getRoomTopSpace = (mx: MatrixClient, parentsByRoom: RoomToParents, roomId: string) => {
+  const spaceIds = getAncestorSpaceIds(parentsByRoom, roomId).filter(
+    (id) => mx.getRoom(id)?.isSpaceRoom() === true
+  );
+  return spaceIds.find((spaceId) => (parentsByRoom.get(spaceId)?.size ?? 0) === 0) ?? spaceIds[0];
+};
 
 const getRoomPath = (
   mx: MatrixClient,
@@ -43,7 +45,7 @@ const getRoomPath = (
   }
   if (directRooms.has(roomId)) return getDirectRoomPath(roomIdOrAlias, eventId);
 
-  const spaceId = getRoomTopSpace(roomToParents, roomId);
+  const spaceId = getRoomTopSpace(mx, roomToParents, roomId);
   if (spaceId) {
     return getSpaceRoomPath(getCanonicalAliasOrRoomId(mx, spaceId), roomIdOrAlias, eventId);
   }

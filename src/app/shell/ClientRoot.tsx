@@ -1,12 +1,4 @@
-import React, {
-  CSSProperties,
-  ReactNode,
-  Suspense,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import React, { ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -15,7 +7,6 @@ import {
   Icons,
   Spinner,
   Text,
-  color,
   config,
   toRem,
   type RectCords,
@@ -62,7 +53,6 @@ import { withAddAccountSearchIf } from '../navigation/addAccount';
 import { ClientStartupProvider } from '../matrix/ClientStartupContext';
 import { SpecVersions } from './SpecVersions';
 import { SyncStatus } from './SyncStatus';
-import { CATCHING_UP_OVERLAY } from './catchingUpOverlay';
 import { reloadWouldLoseWork } from './reloadWouldLoseWork';
 import { ReloadWouldLoseWorkContext } from '../ui/PartUnavailable';
 import type { TFunction } from 'i18next';
@@ -401,28 +391,6 @@ function StartupFailure({ session, mx, error, onRetry }: StartupFailureProps) {
   );
 }
 
-const CATCHING_UP_STYLE: CSSProperties = {
-  backgroundColor: color.Success.Container,
-  color: color.Success.OnContainer,
-  paddingBlock: config.space.S100,
-};
-
-/** Shown above a shell rendered from the store until the sync loop reports its first state. */
-function CatchingUpBar() {
-  const { t } = useTranslation();
-  return (
-    <Box
-      data-testid="client-sync-status"
-      shrink="No"
-      alignItems="Center"
-      justifyContent="Center"
-      style={{ ...CATCHING_UP_STYLE, ...CATCHING_UP_OVERLAY }}
-    >
-      <Text size="L400">{t('sharedUi.clientRoot.catchingUp')}</Text>
-    </Box>
-  );
-}
-
 type AccountProvidersProps = {
   mx: MatrixClient;
   engine: SyncEngine;
@@ -430,7 +398,7 @@ type AccountProvidersProps = {
   children: ReactNode;
 };
 
-/** Everything the signed-in pages read from context, plus the sync banner above them. */
+/** Everything the signed-in pages read from context, plus how the connection is. */
 function AccountProviders({ mx, engine, sync, children }: AccountProvidersProps) {
   const store = useStore();
   const wouldLoseWork = useCallback(() => reloadWouldLoseWork(store, mx), [store, mx]);
@@ -443,9 +411,11 @@ function AccountProviders({ mx, engine, sync, children }: AccountProvidersProps)
               <CapabilitiesProvider value={serverConfigs.capabilities ?? {}}>
                 <MediaConfigProvider value={serverConfigs.mediaConfig ?? {}}>
                   <ClientStartupProvider hasCompletedInitialSync={sync.live}>
-                    {/* One live region for every banner, so a change of state is read out. */}
+                    {/* One live region for how the connection is, so a change is read out. The
+                        pill floats over the page (SyncStatus), from here until the layout offers
+                        its place. */}
                     <div role="status" aria-live="polite" style={{ position: 'relative' }}>
-                      {sync.reported ? <SyncStatus mx={mx} /> : <CatchingUpBar />}
+                      <SyncStatus mx={mx} reported={sync.reported} />
                     </div>
                     {children}
                   </ClientStartupProvider>

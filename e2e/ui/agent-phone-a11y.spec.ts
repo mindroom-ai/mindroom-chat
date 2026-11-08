@@ -357,16 +357,14 @@ const screens = (stack: AgentStack, seeded: World): Screen[] => {
 };
 
 /**
- * Pills that keep their drawn height inside a 44 px touch target: the model badge (14 px) and
- * [+all] (18 px). A transparent button paints its pill with the layer behind its text.
+ * Pills that keep their drawn height inside a 44 px touch target: [+all] (18 px). A transparent
+ * button paints its pill with the layer behind its text.
  */
 const grownPills = (page: Page): Promise<string[]> =>
   page.evaluate(() =>
     Array.from(document.querySelectorAll<HTMLElement>('button[aria-label]')).flatMap((button) => {
       const label = button.getAttribute('aria-label') ?? '';
-      let drawn = 0;
-      if (label.startsWith('Model: ')) drawn = 14;
-      else if (/^(Expand|Collapse) all long messages$/.test(label)) drawn = 18;
+      const drawn = /^(Expand|Collapse) all long messages$/.test(label) ? 18 : 0;
       const box = button.getBoundingClientRect();
       if (!drawn || box.height === 0) return [];
       const layer = getComputedStyle(button, '::before');
