@@ -256,21 +256,18 @@ describe('example plugin', () => {
     const userId = '@ada:example.org';
     const client = createClient({ baseUrl: 'https://example.org', userId });
     const room = new Room('!lobby:example.org', client, userId);
-    room.currentState.setStateEvents(
-      [
-        [greeting.sender, { avatar_url: 'mxc://example.org/helper' }],
-        ['@bob:example.org', {}],
-      ].map(
-        ([member, content]) =>
-          new MatrixEvent({
-            type: 'm.room.member',
-            room_id: room.roomId,
-            sender: member,
-            state_key: member,
-            content: { membership: KnownMembership.Join, ...content },
-          })
-      )
-    );
+    const member = (memberId: string, avatarUrl?: string) =>
+      new MatrixEvent({
+        type: 'm.room.member',
+        room_id: room.roomId,
+        sender: memberId,
+        state_key: memberId,
+        content: { membership: KnownMembership.Join, avatar_url: avatarUrl },
+      });
+    room.currentState.setStateEvents([
+      member(greeting.sender, 'mxc://example.org/helper'),
+      member('@bob:example.org'),
+    ]);
     client.store.storeRoom(room);
     const inRoom = { ...greeting, roomId: room.roomId };
     const view = await renderPluginComponent(

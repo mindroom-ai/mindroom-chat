@@ -81,10 +81,15 @@ test("the example plugin shows an agent's avatar and mark, and whether the viewe
   });
   await joinRoom(HOMESERVER, viewer.accessToken, roomId);
   await joinRoom(HOMESERVER, agent.accessToken, roomId);
+  const rootId = await sendRoomMessage(HOMESERVER, moderator.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: 'Greet us, please.',
+  });
   const greetingId = await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
     msgtype: 'm.text',
     body: 'Hello from an agent',
     'com.example.greeting': { text: 'Hello from an agent' },
+    'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
   });
 
   const server = await serveBuild(build!);
@@ -92,7 +97,7 @@ test("the example plugin shows an agent's avatar and mark, and whether the viewe
   const page = await context.newPage();
   try {
     await loginWithPassword(page, { homeserver: HOMESERVER, ...viewer });
-    await page.goto(`/home/${encodeURIComponent(roomId)}`);
+    await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
 
     const sender = page.locator(`[data-message-id="${greetingId}"] [data-example-plugin-sender]`);
     await expect(sender).toHaveText(`From ${agent.userId}, a MindRoom agent`, { timeout: 60_000 });
