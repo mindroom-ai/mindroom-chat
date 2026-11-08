@@ -376,17 +376,13 @@ describe("plugins' entries", () => {
     });
   };
 
-  /** The rows of the menu, in their groups. */
-  const groups = () => {
-    const byGroup = new Map<Element | null, string[]>();
-    screen
-      .getByRole('menu')
-      .querySelectorAll('[role^="menuitem"]')
-      .forEach((row) => {
-        const group = byGroup.get(row.parentElement) ?? [];
-        byGroup.set(row.parentElement, [...group, row.textContent?.trim() ?? '']);
-      });
-    return [...byGroup.values()];
+  /** The menu's groups, as the names of their rows, and the lines between them as `—`. */
+  const layout = () => {
+    const first = screen.getByRole('menuitem', { name: 'Mark as Read' }).parentElement;
+    return Array.from(first?.parentElement?.children ?? []).map((part) => {
+      const rows = Array.from(part.querySelectorAll('[role^="menuitem"]'));
+      return rows.length > 0 ? rows.map((row) => row.textContent?.trim() ?? '') : '—';
+    });
   };
 
   /**
@@ -431,7 +427,7 @@ describe("plugins' entries", () => {
     buildWith(entry(), entry({ id: 'other', label: 'other' }));
     const plugins = ['About this room', 'Other entry'];
     render(<Harness />);
-    expect(groups()).toEqual([SHARED.slice(0, -2), plugins, SHARED.slice(-2)]);
+    expect(layout()).toEqual([SHARED.slice(0, -2), '—', plugins, '—', SHARED.slice(-2)]);
     cleanup();
 
     render(
@@ -439,17 +435,21 @@ describe("plugins' entries", () => {
         roomEntries={<MenuEntry label="Show Members" icon={Icons.User} onSelect={vi.fn()} />}
       />
     );
-    expect(groups()).toEqual([['Show Members'], SHARED.slice(0, -2), plugins, SHARED.slice(-2)]);
+    expect(layout()).toEqual([
+      ['Show Members'],
+      '—',
+      SHARED.slice(0, -2),
+      '—',
+      plugins,
+      '—',
+      SHARED.slice(-2),
+    ]);
   });
 
-  it('draws the menu as without plugins when no entry shows for the room', () => {
-    render(<Harness />);
-    const without = screen.getByRole('menu').innerHTML;
-    cleanup();
-
+  it('draws no group for plugins when no entry shows for the room', () => {
     buildWith(entry({ shows: (shown) => shown.isSpaceRoom() }));
     render(<Harness />);
-    expect(screen.getByRole('menu').innerHTML).toBe(without);
+    expect(layout()).toEqual([SHARED.slice(0, -2), '—', SHARED.slice(-2)]);
   });
 
   it("closes the menu, then runs the entry on the menu's room; its dialog stays after the menu has gone, until it closes", async () => {

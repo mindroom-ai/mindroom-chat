@@ -21,7 +21,7 @@
 // Every room's menu but a space's lists its entry "Example room info" ("Beispiel-Rauminfo" in
 // German), whose dialog says "Example dialog of <room name>" until its Close button closes it.
 import { useEffect } from 'react';
-import { Button, Dialog, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text } from 'folds';
+import { Box, Button, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text, color } from 'folds';
 import { KnownMembership, type Room } from 'matrix-js-sdk';
 import {
   pluginPublicUrl,
@@ -194,12 +194,18 @@ function RoomDialog({ room, close }: { room: Room; close: () => void }) {
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter>
-        <Dialog role="dialog" aria-label="Example dialog" style={{ padding: 16 }}>
-          <p>Example dialog of {room.name}</p>
+        <Box
+          role="dialog"
+          aria-label="Example dialog"
+          direction="Column"
+          gap="300"
+          style={{ padding: 16, borderRadius: 8, background: color.Surface.Container }}
+        >
+          <Text>Example dialog of {room.name}</Text>
           <Button size="300" onClick={close}>
             <Text size="B300">Close example dialog</Text>
           </Button>
-        </Dialog>
+        </Box>
       </OverlayCenter>
     </Overlay>
   );

@@ -94,7 +94,7 @@ describe('usePluginRoomActions', () => {
   it("runs an entry on the menu's room with the dialog it was given, and logs a run that throws or rejects with the plugin's tag", async () => {
     const { usePluginRoomActions } = await import('./roomActions');
     const failure = new Error('no');
-    const run = vi.fn();
+    const run = vi.fn<PluginRoomAction['run']>();
     const { result } = renderHook(() =>
       usePluginRoomActions(
         [
@@ -115,7 +115,9 @@ describe('usePluginRoomActions', () => {
     );
     const showDialog = vi.fn();
     result.current[0]?.run(showDialog);
-    expect(run).toHaveBeenCalledWith({ room, showDialog });
+    expect(run).toHaveBeenCalledOnce();
+    expect(run.mock.calls[0]?.[0].room).toBe(room);
+    expect(run.mock.calls[0]?.[0].showDialog).toBe(showDialog);
 
     const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     result.current[1]?.run(showDialog);

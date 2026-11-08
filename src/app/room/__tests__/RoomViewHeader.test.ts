@@ -25,9 +25,10 @@ const { encryptionState, navigateSpy, permissionState, screenSizeState, membersS
   })
 );
 
-vi.mock('react-i18next', async () => {
+vi.mock('react-i18next', async (importOriginal) => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
   return {
+    ...(await importOriginal<typeof import('react-i18next')>()),
     useTranslation: () => ({ t: translateFromEn }),
   };
 });

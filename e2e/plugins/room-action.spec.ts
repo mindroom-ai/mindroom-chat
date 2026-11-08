@@ -95,8 +95,14 @@ const rowOptions = (link: Locator, name: string) =>
 
 const seed = async (label: string) => {
   const person = await registerDisposableUser(`plugin_room_${label}_${RUN}`, 'plugin-room-pass');
-  const orchard = await createPrivateRoom(HOMESERVER, person.accessToken, { name: 'Orchard' });
-  const garden = await createPrivateRoom(HOMESERVER, person.accessToken, { name: 'Garden' });
+  const orchard = await createPrivateRoom(HOMESERVER, person.accessToken, {
+    name: 'Orchard',
+    topic: 'Where the example plugin names the room',
+  });
+  const garden = await createPrivateRoom(HOMESERVER, person.accessToken, {
+    name: 'Garden',
+    topic: 'Another room for the example plugin',
+  });
   return { person, orchard, garden };
 };
 
