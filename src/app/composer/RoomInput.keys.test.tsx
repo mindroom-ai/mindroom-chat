@@ -1,8 +1,8 @@
 import React, { createRef, useEffect } from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { Room } from 'matrix-js-sdk';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EventStatus, type Room } from 'matrix-js-sdk';
 import { UserMentionAutocomplete } from '../editor/autocomplete/UserMentionAutocomplete';
 import { ThreadModelPicker } from '../models/ModelPicker';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
@@ -21,6 +21,8 @@ const state = vi.hoisted(() => ({
   mentionHasSuggestions: true,
   startSendSession: vi.fn(async () => undefined),
   commands: {} as Record<string, SlashCommand>,
+  /** The thread the composer last asked for its commands in. */
+  commandThread: undefined as string | undefined,
   resetEditor: vi.fn(),
   restoreEditorContent: vi.fn(),
 }));
@@ -93,7 +95,10 @@ vi.mock('./commands/useCommands', () => ({
   SHRUG: 'shrug-face',
   TABLEFLIP: 'tableflip-face',
   UNFLIP: 'unflip-face',
-  useCommands: () => state.commands,
+  useCommands: (_room: Room, threadId?: string) => {
+    state.commandThread = threadId;
+    return state.commands;
+  },
 }));
 vi.mock('../lib/hooks/useComposingCheck', () => ({ useComposingCheck: () => () => false }));
 vi.mock('../emoji/useImagePackRooms', () => ({ useImagePackRooms: () => [] }));
@@ -160,33 +165,53 @@ afterEach(() => {
   state.resetEditor.mockClear();
   state.restoreEditorContent.mockClear();
   state.commands = {};
+  state.commandThread = undefined;
 });
 
-/** Mounts the composer holding `document` in `store`, and lets it read the query a key left. */
-const mountComposer = async (document: unknown[] = [], store = createStore()) => {
+type ComposerProps = { room?: Room; threadId?: string; threadingEnabled?: boolean };
+
+/**
+ * Mounts the composer holding `document` in `store`, or renders it again with new props, and lets
+ * it read the query a key left.
+ */
+const mountComposer = async (
+  document: unknown[] = [],
+  store = createStore(),
+  {
+    room = { roomId: '!room:example.org', name: 'Room' } as unknown as Room,
+    ...props
+  }: ComposerProps = {}
+) => {
   const { RoomInput } = await import('./RoomInput');
-  const room = { roomId: '!room:example.org', name: 'Room' } as unknown as Room;
+  const element = (
+    <Provider store={store}>
+      <RoomInput
+        editor={{ children: document } as never}
+        fileDropContainerRef={createRef()}
+        roomId={room.roomId}
+        room={room}
+        {...props}
+      />
+    </Provider>
+  );
   act(() => {
-    renderer = create(
-      <Provider store={store}>
-        <RoomInput
-          editor={{ children: document } as never}
-          fileDropContainerRef={createRef()}
-          roomId={room.roomId}
-          room={room}
-        />
-      </Provider>
-    );
+    if (renderer) renderer.update(element);
+    else renderer = create(element);
   });
   act(() => state.editorProps?.onKeyUp?.());
+};
+
+/** Presses Enter in the mounted composer. */
+const pressEnter = async () => {
+  await act(async () => {
+    state.editorProps?.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
+  });
 };
 
 /** Mounts the composer holding `document` and presses Enter; resolves with whether it sent. */
 const pressEnterAfterMention = async (document: unknown[] = []): Promise<boolean> => {
   await mountComposer(document);
-  await act(async () => {
-    state.editorProps?.onKeyDown?.({ key: 'Enter', preventDefault: vi.fn() });
-  });
+  await pressEnter();
   return state.startSendSession.mock.calls.length > 0;
 };
 
@@ -258,6 +283,73 @@ describe('composer', () => {
       withInvite(vi.fn(async () => undefined));
       const path = [{ type: 'paragraph', children: [{ text: '/usr/bin is on the path' }] }];
       expect(await pressEnterAfterMention(path)).toBe(true);
+    });
+
+    describe("a plugin's command in a thread", () => {
+      const greeting = [{ type: 'paragraph', children: [{ text: '/greet Hi' }] }];
+      const LOCAL_ROOT = '~!room:example.org:txn-root';
+      /** The threads `/greet` ran in, as the composer's commands knew them when it ran. */
+      let ranIn: Array<string | undefined>;
+      beforeEach(() => {
+        ranIn = [];
+        state.mentionHasSuggestions = false;
+        const run = vi.fn(async () => {
+          ranIn.push(state.commandThread);
+        });
+        state.commands = {
+          greet: { name: 'greet', description: 'Greets.', run, inThread: true },
+          invite: { name: 'invite', description: 'Invite user to room.', run },
+        } as Record<string, SlashCommand>;
+      });
+      /** A room whose message `LOCAL_ROOT` waits for the server, which gives it `$root`. */
+      const roomWithPendingRoot = () => {
+        let rootId = LOCAL_ROOT;
+        const root = { status: EventStatus.SENDING, getId: () => rootId };
+        const room = {
+          roomId: '!room:example.org',
+          name: 'Room',
+          findEventById: (eventId: string) => (eventId === rootId ? root : undefined),
+        } as unknown as Room;
+        const confirm = () => {
+          rootId = '$root:example.org';
+        };
+        return { room, confirm };
+      };
+
+      it('runs in the thread the composer writes to, and outside it in a classic timeline', async () => {
+        await mountComposer(greeting, createStore(), { threadId: '$root:example.org' });
+        await pressEnter();
+        await mountComposer(greeting, createStore(), {
+          threadId: '$root:example.org',
+          threadingEnabled: false,
+        });
+        await pressEnter();
+        expect(ranIn).toEqual(['$root:example.org', undefined]);
+        expect(state.startSendSession).not.toHaveBeenCalled();
+      });
+
+      it("waits for a root the server has not confirmed, then runs once in the root's own ID", async () => {
+        const { room, confirm } = roomWithPendingRoot();
+        const store = createStore();
+        await mountComposer(greeting, store, { room, threadId: LOCAL_ROOT });
+        await pressEnter();
+        await pressEnter();
+        expect(ranIn).toEqual([]);
+        // The text stays in the composer while it waits, as a message's does.
+        expect(state.resetEditor).not.toHaveBeenCalled();
+
+        confirm();
+        await mountComposer(greeting, store, { room, threadId: '$root:example.org' });
+        expect(ranIn).toEqual(['$root:example.org']);
+      });
+
+      it('leaves a built-in command that acts to run at once there', async () => {
+        const { room } = roomWithPendingRoot();
+        const invite = [{ type: 'paragraph', children: [{ text: '/invite @bob:example.org' }] }];
+        await mountComposer(invite, createStore(), { room, threadId: LOCAL_ROOT });
+        await pressEnter();
+        expect(ranIn).toEqual([LOCAL_ROOT]);
+      });
     });
   });
 });
