@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
+import { atom, useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { Box, Button, Icon, IconButton, Icons, Spinner, Text, type IconSrc } from 'folds';
 import classNames from 'classnames';
@@ -89,6 +89,17 @@ function Notice({
 /** How many of the others the minimized window's line shows. */
 const BAR_FACES = 3;
 
+/** Whether the primary pointer is a finger, which the bar's call controls are bigger for. */
+const coarsePointer = (): boolean => globalThis.matchMedia?.('(pointer: coarse)').matches ?? false;
+
+/**
+ * Dock and Float move the call view to the other place, where it mounts anew: the focus their
+ * button had goes to the title bar there (`to`) rather than to the page. `from` is that button,
+ * which may stay a moment while the docked panel it was in moves out.
+ */
+type FocusHandOff = { to: 'window' | 'panel'; from: Element | null };
+const focusHandOffAtom = atom<FocusHandOff | undefined>(undefined);
+
 type TitleButtonProps = {
   label: string;
   icon: IconSrc;
@@ -103,19 +114,20 @@ type TitleButtonProps = {
   pressed?: boolean;
   /** Shown but not working; it keeps its focus and name, so its state is still read. */
   held?: boolean;
+  size?: '300' | '400';
 };
 
 /** A small icon button of the title bar or the window's line, named in a tooltip. */
 function TitleButton(props: TitleButtonProps) {
   const { label, icon, onClick, variant = 'Surface', directional, className, above } = props;
-  const { pressed, held } = props;
+  const { pressed, held, size = '300' } = props;
   return (
     <IconTooltip label={label} position={above ? 'Top' : 'Bottom'}>
       {(tipAnchor) => (
         <IconButton
           ref={tipAnchor}
           className={className}
-          size="300"
+          size={size}
           radii="300"
           variant={variant}
           aria-label={label}
@@ -141,8 +153,10 @@ function DockButton({ home }: { home: CallOrigin }) {
   const mx = useMatrixClient();
   const location = useLocation();
   const setPanelRoom = useSetAtom(callPanelRoomAtom);
+  const setFocusHandOff = useSetAtom(focusHandOffAtom);
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const dock = () => {
+    setFocusHandOff({ to: 'panel', from: document.activeElement });
     setMode('docked');
     // The docked panel shows in the room whose call view is open.
     setPanelRoom(home.roomId);
@@ -159,10 +173,13 @@ function DockButton({ home }: { home: CallOrigin }) {
 function FloatButton() {
   const { t } = useTranslation();
   const [, setMode] = useCallWindowMode();
+  const setFocusHandOff = useSetAtom(focusHandOffAtom);
+  const float = () => {
+    setFocusHandOff({ to: 'window', from: document.activeElement });
+    setMode('floating');
+  };
   const label = t('featureUi.calls.window.float');
-  return (
-    <TitleButton label={label} icon={FloatIcon} directional onClick={() => setMode('floating')} />
-  );
+  return <TitleButton label={label} icon={FloatIcon} directional onClick={float} />;
 }
 
 /**
@@ -193,7 +210,7 @@ type BarContent = { faces?: ReactNode; controls?: ReactNode };
 /**
  * The panel's frame: a title with the call's status under it, the body, and a control bar. In the
  * floating window its title bar moves the window, and minimized the window shows one line: the
- * others' faces, the title and status, `bar.controls`, and Expand.
+ * others' faces, the title and status, `bar.controls`, Expand and Close.
  */
 type PanelShellProps = {
   title: string;
@@ -213,11 +230,13 @@ function PanelShell(props: PanelShellProps) {
   const { t } = useTranslation();
   const frame = useCallWindowFrame();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
-  // A call not joined yet shows only its title and Expand in the window's line.
+  // A call not joined yet shows only its title, Expand and Close in the window's line.
   const status = frame?.bar && !bar ? undefined : subtitle;
+  // The docked panel's title takes the focus Dock hands it (the window's handle takes Float's).
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const heading = (
     <div className={css.HeaderTitle}>
-      <Text as="h2" size="H4" truncate>
+      <Text as="h2" size="H4" truncate ref={titleRef} tabIndex={frame ? undefined : -1}>
         {title}
       </Text>
       {status && (
@@ -241,6 +260,23 @@ function PanelShell(props: PanelShellProps) {
     sectionRef.current?.querySelector<HTMLElement>('[data-call-window-handle]')?.focus();
   }, [inBar]);
 
+  // The view Dock or Float asked for takes the focus their button had, unless something else
+  // took it meanwhile.
+  const store = useStore();
+  const place = frame ? 'window' : 'panel';
+  useEffect(() => {
+    const handOff = store.get(focusHandOffAtom);
+    if (handOff?.to !== place) return;
+    store.set(focusHandOffAtom, undefined);
+    const focused = document.activeElement;
+    if (focused && focused !== document.body && focused !== handOff.from) return;
+    const target =
+      place === 'window'
+        ? sectionRef.current?.querySelector<HTMLElement>('[data-call-window-handle]')
+        : titleRef.current;
+    target?.focus();
+  }, [place, store]);
+
   if (frame?.bar) {
     return (
       <section ref={sectionRef} className={panelClass} aria-label={title} data-testid="call-panel">
@@ -252,6 +288,12 @@ function PanelShell(props: PanelShellProps) {
             label={t('featureUi.calls.window.expand')}
             icon={ExpandIcon}
             onClick={frame.expand}
+            above
+          />
+          <TitleButton
+            label={t('featureUi.calls.panel.close')}
+            icon={Icons.Cross}
+            onClick={onClose}
             above
           />
         </div>
@@ -411,6 +453,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
   const microphoneIcon = state.microphone ? Icons.Mic : Icons.MicMute;
   const toggleMicrophone = () => void call.setMicrophone(!state.microphone);
   const leaveLabel = t('featureUi.call.callControls.end');
+  const barControlSize = coarsePointer() ? '400' : '300';
   const leave = () => {
     // The call is over for this device either way; a failed leave leaves nothing to do.
     endCall().catch(() => undefined);
@@ -499,12 +542,14 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
           icon={microphoneIcon}
           variant={state.microphone ? 'Surface' : 'Critical'}
           onClick={toggleMicrophone}
+          size={barControlSize}
           above
         />
         <TitleButton
           label={leaveLabel}
           icon={Icons.PhoneDown}
           variant="Critical"
+          size={barControlSize}
           onClick={leave}
           above
         />

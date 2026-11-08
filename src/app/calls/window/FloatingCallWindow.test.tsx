@@ -47,7 +47,7 @@ const renderWindow = () =>
   render(
     <MatrixClientProvider value={client}>
       <Provider>
-        <FloatingCallWindow label="Call in Lobby">
+        <FloatingCallWindow>
           <TitleBar />
         </FloatingCallWindow>
       </Provider>
@@ -60,7 +60,7 @@ const setViewport = (width: number, height: number) => {
 };
 
 const section = () => screen.getByTestId('call-window');
-const handle = () => screen.getByLabelText('Move call window');
+const handle = () => section().querySelector<HTMLElement>('[data-call-window-handle]')!;
 const edge = (name: string) => section().querySelector(`[data-call-window-edge="${name}"]`)!;
 const placed = (): WindowRect => {
   const { left, top, width, height } = section().style;
@@ -115,7 +115,8 @@ describe('FloatingCallWindow', () => {
   it('opens 400 by 480 at 16 px from the bottom and end edges without stored settings', () => {
     renderWindow();
     expect(section().tagName).toBe('SECTION');
-    expect(section().getAttribute('aria-label')).toBe('Call in Lobby');
+    // A fixed name: the call view inside names the call.
+    expect(section().getAttribute('aria-label')).toBe('Call window');
     expect(placed()).toEqual({ x: 1024, y: 404, width: 400, height: 480 });
     expect(section().hasAttribute('data-bar')).toBe(false);
     expect(frame?.bar).toBe(false);
@@ -123,6 +124,19 @@ describe('FloatingCallWindow', () => {
     expect(handle().tabIndex).toBe(0);
     // A group, so screen readers read the handle's name ("Move call window") on focus.
     expect(handle().getAttribute('role')).toBe('group');
+    expect(handle().getAttribute('aria-label')).toBe('Move call window');
+  });
+
+  it('names the handle for the bar while minimized and tells its keys in both states', () => {
+    const keys =
+      'ArrowUp ArrowDown ArrowLeft ArrowRight Shift+ArrowUp Shift+ArrowDown Shift+ArrowLeft Shift+ArrowRight';
+    renderWindow();
+    expect(handle().getAttribute('aria-keyshortcuts')).toBe(keys);
+    act(() => frame?.minimize());
+    expect(handle().getAttribute('aria-label')).toBe('Move minimized call window');
+    expect(handle().getAttribute('aria-keyshortcuts')).toBe(keys);
+    act(() => frame?.expand());
+    expect(handle().getAttribute('aria-label')).toBe('Move call window');
   });
 
   it('opens at the start edge in a right-to-left document', () => {

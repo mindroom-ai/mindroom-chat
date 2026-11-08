@@ -11,10 +11,12 @@ import * as css from './FloatingCallWindow.css';
 
 const EDGES: readonly ResizeEdge[] = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'];
 type Arrow = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown';
-const ARROWS: readonly string[] = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+const ARROWS: readonly string[] = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 const isArrow = (key: string): key is Arrow => ARROWS.includes(key);
 // A press on one of these in the title bar is theirs (a button, a link, a menu), never a move.
 const PRESSABLE = 'button, a, input, [role="menuitem"]';
+// The arrows move the window and Shift with them sizes it, while its handle has the focus.
+const HANDLE_KEYS = [...ARROWS, ...ARROWS.map((key) => `Shift+${key}`)].join(' ');
 
 const readViewport = (): ViewportSize => ({ width: window.innerWidth, height: window.innerHeight });
 
@@ -44,9 +46,9 @@ const dragFrom = (target: EventTarget): { edge: ResizeEdge | undefined } | undef
 /**
  * The floating window on desktop: it places its children (the call view) at the account's stored
  * box, moves it by the title bar the call view marks with `handleProps`, resizes it from eight grips
- * and keeps it inside the viewport.
+ * and keeps it inside the viewport. It has a fixed name; the call view inside names the call.
  */
-export function FloatingCallWindow({ label, children }: { label: string; children: ReactNode }) {
+export function FloatingCallWindow({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const [settings, setSettings] = useCallWindowSettings();
   const [viewport, setViewport] = useState(readViewport);
@@ -113,7 +115,8 @@ export function FloatingCallWindow({ label, children }: { label: string; childre
     },
     [latest]
   );
-  const moveLabel = t('featureUi.calls.window.move');
+  // The handle names the state it moves, so Minimize and Expand are heard where the focus stays.
+  const moveLabel = t(bar ? 'featureUi.calls.window.moveMinimized' : 'featureUi.calls.window.move');
   const frame = useMemo<CallWindowFrame>(
     () => ({
       bar,
@@ -124,6 +127,7 @@ export function FloatingCallWindow({ label, children }: { label: string; childre
         tabIndex: 0,
         role: 'group',
         'aria-label': moveLabel,
+        'aria-keyshortcuts': HANDLE_KEYS,
         onKeyDown,
       },
     }),
@@ -168,7 +172,7 @@ export function FloatingCallWindow({ label, children }: { label: string; childre
     <CallWindowFrameContext.Provider value={frame}>
       <section
         className={css.Frame}
-        aria-label={label}
+        aria-label={t('featureUi.calls.window.label')}
         data-testid="call-window"
         data-bar={bar || undefined}
         data-dragging={preview ? '' : undefined}

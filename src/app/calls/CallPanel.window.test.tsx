@@ -2,10 +2,11 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
+import { IconButton } from 'folds';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
-import type { ActiveCall } from './callStore';
+import { callPanelRoomAtom, type ActiveCall } from './callStore';
 import type { CallParticipant, CallState } from './RoomCall';
 import { CallPanel } from './CallPanel';
 import { CallWindowFrameContext, type CallWindowFrame } from './window/callWindowFrame';
@@ -114,6 +115,7 @@ const agentCall = (origin: { roomId: string; threadId?: string }) => {
   calls.state = joined([me, person('@mindroom_helper:panel.test')]);
 };
 
+// The handle's props as the floating window gives them (FloatingCallWindow.test.tsx).
 const frame = (bar = false): CallWindowFrame => ({
   bar,
   minimize: vi.fn(),
@@ -121,7 +123,8 @@ const frame = (bar = false): CallWindowFrame => ({
   handleProps: {
     'data-call-window-handle': '',
     tabIndex: 0,
-    'aria-label': 'Move call window',
+    'aria-label': bar ? 'Move minimized call window' : 'Move call window',
+    'aria-keyshortcuts': 'ArrowUp',
     role: 'group',
     onKeyDown: () => undefined,
   },
@@ -243,6 +246,7 @@ describe('the call view title bar', () => {
 
     press('Dock to the side');
     expect(settings().mode).toBe('docked');
+    expect(store.get(callPanelRoomAtom)).toBe(room.roomId);
     expect(navigation.navigateRoom).toHaveBeenCalledWith(room.roomId);
     expect(navigation.navigateRoomThread).not.toHaveBeenCalled();
   });
@@ -253,6 +257,8 @@ describe('the call view title bar', () => {
 
     press('Dock to the side');
     expect(settings().mode).toBe('docked');
+    // The docked panel shows in the conversation's room, not in the agent's call room.
+    expect(store.get(callPanelRoomAtom)).toBe(room.roomId);
     expect(navigation.navigateRoomThread).toHaveBeenCalledWith(room.roomId, '$plan');
     expect(navigation.navigateRoom).not.toHaveBeenCalled();
   });
@@ -348,16 +354,62 @@ describe('the call view title bar', () => {
   });
 });
 
+describe('the focus after Dock and Float', () => {
+  const title = () => screen.getByRole('heading', { name: 'Standup' });
+
+  it("goes to the docked panel's title after Dock, and to the window's handle after Float", () => {
+    roomCall([me, person('@ana:panel.test')]);
+    const inWindow = renderPanel({ frame: frame() });
+    screen.getByRole('button', { name: 'Dock to the side' }).focus();
+    press('Dock to the side');
+    // The window goes with the button, and the room's side panel shows the call view.
+    inWindow.unmount();
+    expect(document.activeElement).toBe(document.body);
+    renderPanel();
+    expect(document.activeElement).toBe(title());
+
+    // The docked panel moves out while the window opens, its Float button still focused.
+    screen.getByRole('button', { name: 'Float' }).focus();
+    press('Float');
+    render(panel({ frame: frame() }));
+    expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Move call window' }));
+  });
+
+  it('leaves the focus where it is when the call view opens otherwise', () => {
+    roomCall([me, person('@ana:panel.test')]);
+    renderPanel({ frame: frame() });
+    expect(document.activeElement).toBe(document.body);
+    cleanup();
+
+    renderPanel();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('leaves the focus to whatever has it when the call view arrives', () => {
+    roomCall([me, person('@ana:panel.test')]);
+    const inWindow = renderPanel({ frame: frame() });
+    press('Dock to the side');
+    inWindow.unmount();
+    const elsewhere = document.createElement('input');
+    document.body.append(elsewhere);
+    elsewhere.focus();
+    renderPanel();
+    expect(document.activeElement).toBe(elsewhere);
+    elsewhere.remove();
+  });
+});
+
 describe('the minimized bar', () => {
   it('keeps the focus in the window when Minimize or Expand goes with its line', () => {
     roomCall([me, person('@ana:panel.test')]);
     const { rerender } = renderPanel({ frame: frame() });
-    const handle = () => screen.getByRole('group', { name: 'Move call window' });
+    const handle = () => screen.getByRole('group', { name: /^Move (minimized )?call window$/ });
 
     screen.getByRole('button', { name: 'Minimize' }).focus();
     rerender(panel({ frame: frame(true) }));
     expect(document.activeElement).toBe(handle());
     expect(handle().hasAttribute('data-call-window-handle')).toBe(true);
+    expect(handle().getAttribute('aria-label')).toBe('Move minimized call window');
 
     screen.getByRole('button', { name: 'Expand' }).focus();
     rerender(panel({ frame: frame() }));
@@ -376,7 +428,7 @@ describe('the minimized bar', () => {
     const inFrame = frame(true);
     renderPanel({ frame: inFrame });
 
-    const bar = screen.getByRole('group', { name: 'Move call window' });
+    const bar = screen.getByRole('group', { name: 'Move minimized call window' });
     const faces = [...bar.querySelectorAll('[data-avatar]')];
     expect(faces.map((face) => face.getAttribute('data-avatar'))).toEqual([
       '@ana:panel.test',
@@ -396,25 +448,58 @@ describe('the minimized bar', () => {
     expect(screen.queryByRole('toolbar')).toBeNull();
     expect(button('Minimize')).toBeNull();
 
+    const names = within(bar)
+      .getAllByRole('button')
+      .map((each) => each.getAttribute('aria-label'));
+    expect(names).toEqual(['Turn Off Microphone', 'End', 'Expand', 'Close call']);
+
     fireEvent.click(within(bar).getByRole('button', { name: 'Turn Off Microphone' }));
     expect(setMicrophone).toHaveBeenCalledWith(false);
     fireEvent.click(within(bar).getByRole('button', { name: 'End' }));
     expect(leave).toHaveBeenCalledOnce();
     fireEvent.click(within(bar).getByRole('button', { name: 'Expand' }));
     expect(inFrame.expand).toHaveBeenCalledOnce();
+    fireEvent.click(within(bar).getByRole('button', { name: 'Close call' }));
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it('shows only the title and Expand before the call is joined', () => {
+  it('shows only the title, Expand and Close before the call is joined', () => {
     calls.members = [{ userId: '@ana:panel.test' }];
     renderPanel({ frame: frame(true) });
 
-    const bar = screen.getByRole('group', { name: 'Move call window' });
+    const bar = screen.getByRole('group', { name: 'Move minimized call window' });
     expect(within(bar).getByText('Standup')).toBeTruthy();
     expect(
       within(bar)
         .getAllByRole('button')
         .map((each) => each.getAttribute('aria-label'))
-    ).toEqual(['Expand']);
+    ).toEqual(['Expand', 'Close call']);
     expect(button('Join')).toBeNull();
+    fireEvent.click(within(bar).getByRole('button', { name: 'Close call' }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  /** The classes folds gives an icon button of the bar at `size`. */
+  const iconButtonClass = (size: '300' | '400', variant: 'Surface' | 'Critical') => {
+    const { container, unmount } = render(<IconButton size={size} radii="300" variant={variant} />);
+    const className = container.querySelector('button')?.className;
+    unmount();
+    return className;
+  };
+
+  it.each([
+    ['a touch screen', true, '400'],
+    ['a mouse', false, '300'],
+  ] as const)('sizes the microphone and leave buttons for %s', (_pointer, coarse, size) => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: coarse && query === '(pointer: coarse)',
+    }));
+    roomCall([me, person('@ana:panel.test')]);
+    renderPanel({ frame: frame(true) });
+    const bar = screen.getByRole('group', { name: 'Move minimized call window' });
+    const named = (name: string) => within(bar).getByRole('button', { name }).className;
+    expect(named('Turn Off Microphone')).toBe(iconButtonClass(size, 'Surface'));
+    expect(named('End')).toBe(iconButtonClass(size, 'Critical'));
+    expect(named('Expand')).toBe(iconButtonClass('300', 'Surface'));
   });
 });

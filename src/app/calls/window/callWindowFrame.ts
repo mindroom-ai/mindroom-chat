@@ -7,6 +7,8 @@ export type CallWindowHandleProps = {
   // Screen readers read the name of a focused element only when it has a role.
   role: 'group';
   'aria-label': string;
+  /** The keys that move and size the window, so assistive technology can tell them. */
+  'aria-keyshortcuts': string;
   onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
 };
 

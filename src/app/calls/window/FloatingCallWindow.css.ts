@@ -39,45 +39,65 @@ export const Box = style({
 // selecting text or opening the callout a long press opens, and keyboard focus on it shows.
 const FOCUS_RING = config.borderWidth.B400;
 const HANDLE = `${Frame} [data-call-window-handle]`;
-const DRAGS_ONLY = { touchAction: 'none', userSelect: 'none', WebkitTouchCallout: 'none' } as const;
+// WebKit reads only the prefixed form of user-select.
+const NO_SELECT = { userSelect: 'none', WebkitUserSelect: 'none' } as const;
+const DRAGS_ONLY = { ...NO_SELECT, touchAction: 'none', WebkitTouchCallout: 'none' } as const;
 globalStyle(HANDLE, DRAGS_ONLY);
 globalStyle(`${HANDLE}:focus-visible`, {
   outline: `${FOCUS_RING} solid ${color.Primary.Main}`,
   outlineOffset: `calc(-1 * ${FOCUS_RING})`,
 });
 
-// Each grip reaches OUTSIDE px past the border and a few px in, so the title bar's buttons keep
-// nearly all of their area; a corner grip is a square that the edge grips stop short of.
-const OUTSIDE = 6;
-const THICKNESS = 10;
-const CORNER = 16;
-const out = toRem(-OUTSIDE);
-const clear = toRem(CORNER - OUTSIDE);
-
-const grip = (pointer: string, place: StyleRule): StyleRule => ({
-  position: 'absolute',
-  cursor: pointer,
-  touchAction: 'none',
-  ...place,
-});
+// Each grip reaches `outside` px past the border and a few px in, so the title bar's buttons keep
+// nearly all of their area; a corner grip is a square that the edge grips stop short of. A finger
+// gets thicker grips that reach further out than a mouse pointer's.
+type GripSize = { outside: number; thickness: number; corner: number };
+const MOUSE_GRIPS: GripSize = { outside: 6, thickness: 10, corner: 16 };
+const TOUCH_GRIPS: GripSize = { outside: 10, thickness: 20, corner: 28 };
 
 // The window is placed by coordinates, so an east grip widens it to the right in every reading
 // direction: the grips sit on physical sides.
-const physical = (side: 'left' | 'right'): StyleRule =>
+const physical = (side: 'left' | 'right', offset: string): StyleRule =>
   // eslint-disable-next-line no-restricted-syntax -- the grips follow the window's physical coordinates.
-  side === 'left' ? { left: out } : { right: out };
+  side === 'left' ? { left: offset } : { right: offset };
 
-const across = { insetInline: clear, height: toRem(THICKNESS) };
-const along = { insetBlock: clear, width: toRem(THICKNESS) };
-const corner = { width: toRem(CORNER), height: toRem(CORNER) };
+/** Where each grip sits at one size. */
+const gripPlaces = ({ outside, thickness, corner }: GripSize): Record<ResizeEdge, StyleRule> => {
+  const out = toRem(-outside);
+  const across = { insetInline: toRem(corner - outside), height: toRem(thickness) };
+  const along = { insetBlock: toRem(corner - outside), width: toRem(thickness) };
+  const square = { width: toRem(corner), height: toRem(corner) };
+  const [start, end] = [physical('left', out), physical('right', out)];
+  return {
+    n: { top: out, ...across },
+    ne: { top: out, ...end, ...square },
+    e: { ...end, ...along },
+    se: { bottom: out, ...end, ...square },
+    s: { bottom: out, ...across },
+    sw: { bottom: out, ...start, ...square },
+    w: { ...start, ...along },
+    nw: { top: out, ...start, ...square },
+  };
+};
+
+const mouse = gripPlaces(MOUSE_GRIPS);
+const touch = gripPlaces(TOUCH_GRIPS);
+
+const grip = (pointer: string, edge: ResizeEdge): StyleRule => ({
+  ...mouse[edge],
+  position: 'absolute',
+  cursor: pointer,
+  '@media': { '(pointer: coarse)': touch[edge] },
+  touchAction: 'none',
+});
 
 export const Edge = styleVariants<Record<ResizeEdge, StyleRule>>({
-  n: grip('ns-resize', { top: out, ...across }),
-  ne: grip('nesw-resize', { top: out, ...physical('right'), ...corner }),
-  e: grip('ew-resize', { ...physical('right'), ...along }),
-  se: grip('nwse-resize', { bottom: out, ...physical('right'), ...corner }),
-  s: grip('ns-resize', { bottom: out, ...across }),
-  sw: grip('nesw-resize', { bottom: out, ...physical('left'), ...corner }),
-  w: grip('ew-resize', { ...physical('left'), ...along }),
-  nw: grip('nwse-resize', { top: out, ...physical('left'), ...corner }),
+  n: grip('ns-resize', 'n'),
+  ne: grip('nesw-resize', 'ne'),
+  e: grip('ew-resize', 'e'),
+  se: grip('nwse-resize', 'se'),
+  s: grip('ns-resize', 's'),
+  sw: grip('nesw-resize', 'sw'),
+  w: grip('ew-resize', 'w'),
+  nw: grip('nwse-resize', 'nw'),
 });

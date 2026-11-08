@@ -1,23 +1,28 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { useAtom, useSetAtom } from 'jotai';
 import { ClientEvent, KnownMembership, RoomEvent, type Room } from 'matrix-js-sdk';
+import { Box, Spinner } from 'folds';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { PowerLevelsContextProvider, usePowerLevels } from '../../matrix/hooks/usePowerLevels';
-import { useRoomName } from '../../matrix/hooks/useRoomMeta';
-import { revealDirectionControls } from '../../ui/directional';
 import { callPanelRoomAtom, isActiveCallShownIn, useActiveCall } from '../callStore';
 import { CallPanelPart } from '../CallPanelPart';
 import { useCallViewFloats, useExpandCallWindow } from './callWindowState';
 import { FloatingCallWindow } from './FloatingCallWindow';
 
+// The call view's code loads on first use; the window shows that it comes rather than an empty box.
+const loadingCallView = (
+  <Box grow="Yes" alignItems="Center" justifyContent="Center" data-call-window-loading="">
+    <Spinner size="400" variant="Secondary" />
+  </Box>
+);
+
 /** The call view of `room` in the floating window, with the room's power levels it reads. */
 function FloatingCall({ room, onClose }: { room: Room; onClose: () => void }) {
   const powerLevels = usePowerLevels(room);
-  const label = revealDirectionControls(useRoomName(room));
   return (
-    <FloatingCallWindow label={label}>
+    <FloatingCallWindow>
       <PowerLevelsContextProvider value={powerLevels}>
-        <Suspense fallback={null}>
+        <Suspense fallback={loadingCallView}>
           <CallPanelPart room={room} onClose={onClose} />
         </Suspense>
       </PowerLevelsContextProvider>

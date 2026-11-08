@@ -18,8 +18,10 @@ const USER = '@me:host.test';
 const LOBBY = '!lobby:host.test';
 const DESK = '!desk:host.test';
 
-const { rooms, listeners, panelRenders } = vi.hoisted(() => ({
+const { rooms, listeners, panelRenders, loading } = vi.hoisted(() => ({
   rooms: new Map<string, unknown>(),
+  // While set, the call view waits for its code, as a lazy part does on its first load.
+  loading: { until: undefined as Promise<void> | undefined },
   // What the client tells its listeners: a room it forgot, a membership of the person's own.
   listeners: new Map<string, Set<(...args: unknown[]) => void>>(),
   panelRenders: { count: 0 },
@@ -40,12 +42,10 @@ vi.mock('../../matrix/hooks/usePowerLevels', () => ({
   PowerLevelsContextProvider: ({ children }: { children: React.ReactNode }) => children,
   usePowerLevels: () => ({}),
 }));
-vi.mock('../../matrix/hooks/useRoomMeta', () => ({
-  useRoomName: (room: { name: string }) => room.name,
-}));
 // The call view itself; the host only places it.
 vi.mock('../CallPanel', () => ({
   CallPanel: ({ room }: { room: Room }) => {
+    if (loading.until) throw loading.until;
     panelRenders.count += 1;
     return <p data-testid="call-panel">{room.roomId}</p>;
   },
@@ -100,15 +100,16 @@ afterEach(() => {
   rooms.clear();
   listeners.clear();
   panelRenders.count = 0;
+  loading.until = undefined;
 });
 
 describe('CallWindowHost', () => {
-  it('floats the call view of the open call panel on desktop, labelled with its room', async () => {
+  it('floats the call view of the open call panel on desktop, in a window named as one', async () => {
     const store = createStore();
     store.set(callPanelRoomAtom, LOBBY);
     renderHost(store);
 
-    expect(callWindow()?.getAttribute('aria-label')).toBe('Lobby');
+    expect(callWindow()?.getAttribute('aria-label')).toBe('Call window');
     expect((await screen.findByTestId('call-panel')).textContent).toBe(LOBBY);
     expect(callWindow()?.contains(screen.getByTestId('call-panel'))).toBe(true);
   });
@@ -135,6 +136,24 @@ describe('CallWindowHost', () => {
     gone.set(callPanelRoomAtom, '!gone:host.test');
     renderHost(gone);
     expect(callWindow()).toBeNull();
+  });
+
+  it('shows a spinner in the window while the call view loads', async () => {
+    let release = () => undefined as void;
+    loading.until = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const store = createStore();
+    store.set(callPanelRoomAtom, LOBBY);
+    renderHost(store);
+    const spinner = () => callWindow()?.querySelector('[data-call-window-loading]');
+    expect(spinner()).not.toBeNull();
+    expect(screen.queryByTestId('call-panel')).toBeNull();
+
+    loading.until = undefined;
+    await act(async () => release());
+    expect((await screen.findByTestId('call-panel')).textContent).toBe(LOBBY);
+    expect(spinner()).toBeNull();
   });
 
   it('shows the window on a tablet too', () => {
@@ -186,7 +205,7 @@ describe('CallWindowHost', () => {
     expect(callWindow()?.hasAttribute('data-bar')).toBe(true);
     act(() => store.set(callPanelRoomAtom, DESK));
     expect(stored().rect).toEqual(expanded);
-    expect(callWindow()?.getAttribute('aria-label')).toBe('Help desk');
+    expect(screen.getByTestId('call-panel').textContent).toBe(DESK);
   });
 
   it('leaves a stored bar alone while docked or on phones', () => {
