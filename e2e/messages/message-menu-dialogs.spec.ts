@@ -201,7 +201,7 @@ const check = async (page: Page, world: World, label: string, phone: boolean) =>
         await page.screenshot({ path: `${SHOTS}/${label}-reactions.png` });
       }
       // eslint-disable-next-line no-await-in-loop
-      expect(await menuBoxes(page), `${step}: no menu stays open behind the dialog`).toEqual([]);
+      expect.soft(await menuBoxes(page), `${step}: no menu stays open behind the dialog`).toEqual([]);
       // eslint-disable-next-line no-await-in-loop
       await page.keyboard.press('Escape');
       // eslint-disable-next-line no-await-in-loop
@@ -209,7 +209,7 @@ const check = async (page: Page, world: World, label: string, phone: boolean) =>
       // eslint-disable-next-line no-await-in-loop
       await page.waitForTimeout(300);
       // eslint-disable-next-line no-await-in-loop
-      expect(await menuBoxes(page), `${step}: the menu does not come back`).toEqual([]);
+      expect.soft(await menuBoxes(page), `${step}: the menu does not come back`).toEqual([]);
     }
   }
   // Nothing was deleted: Escape left the confirmation.
