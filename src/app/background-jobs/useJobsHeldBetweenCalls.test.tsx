@@ -5,6 +5,7 @@ import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
+import { STREAM_IDLE_LIMIT_MS } from '../matrix/client/streamingReplies';
 import { JOBS_HOLD_MS, useJobsHeldBetweenCalls } from './useJobsHeldBetweenCalls';
 
 const AGENT = '@mindroom_helper:example.org';
@@ -45,7 +46,7 @@ const makeRoom = () => {
       room_id: room.roomId,
       sender,
       type: 'm.room.message',
-      origin_server_ts: 1,
+      origin_server_ts: Date.now(),
       content: {
         msgtype: 'm.text',
         body: 'Working on it',
@@ -76,7 +77,7 @@ const makeRoom = () => {
           room_id: room.roomId,
           sender: reply.getSender(),
           type: 'm.room.message',
-          origin_server_ts: 2,
+          origin_server_ts: Date.now(),
           content: {
             msgtype: 'm.text',
             body: '* Done',
@@ -202,6 +203,25 @@ it('holds the bar for a reply the client did not see stream yet, as after a relo
   expect(shown).toEqual(['first']);
   room.finish(reply);
   wait(JOBS_HOLD_MS);
+  expect(shown).toEqual([]);
+});
+
+it.each([
+  ['a reply the client saw stream', false],
+  ['a reply it took at its jobs\' word after a reload', true],
+])('lets the bar go 2 s after %s stalls without an edit', (_case, reloaded) => {
+  room.streamReply('$reply');
+  if (reloaded) unvouched.add('$reply');
+  show([job('first')]);
+  show(NONE);
+  // The agent died mid-reply: the reply says it streams, and no edit comes.
+  wait(STREAM_IDLE_LIMIT_MS);
+  expect(shown).toEqual(['first']);
+  // It stalls 1 ms later; the bar goes 2 s after that.
+  wait(1);
+  wait(JOBS_HOLD_MS - 1);
+  expect(shown).toEqual(['first']);
+  wait(1);
   expect(shown).toEqual([]);
 });
 
