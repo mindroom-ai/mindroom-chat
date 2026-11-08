@@ -13,6 +13,7 @@ const MISMATCH_ERROR = new Error(
 );
 
 const makeCrypto = () => ({
+  userHasCrossSigningKeys: vi.fn().mockResolvedValue(true),
   loadSessionBackupPrivateKeyFromSecretStorage: vi.fn().mockResolvedValue(undefined),
   bootstrapCrossSigning: vi.fn().mockResolvedValue(undefined),
   checkKeyBackupAndEnable: vi.fn().mockResolvedValue(null),
@@ -21,7 +22,10 @@ const makeCrypto = () => ({
 });
 
 const clientWith = (crypto: ReturnType<typeof makeCrypto> | undefined) =>
-  ({ getCrypto: () => crypto } as unknown as Pick<MatrixClient, 'getCrypto'>);
+  ({ getCrypto: () => crypto, getSafeUserId: () => '@me:example.org' } as unknown as Pick<
+    MatrixClient,
+    'getCrypto' | 'getSafeUserId'
+  >);
 
 const KEY = new Uint8Array([7, 7, 7]);
 const auth = vi.fn();
@@ -82,6 +86,8 @@ describe('repairCrossSigning', () => {
       'Authentication cancelled'
     );
     expect(crypto.checkKeyBackupAndEnable).not.toHaveBeenCalled();
+    // The unpublished keys this session now holds give way to the server's identity.
+    expect(crypto.userHasCrossSigningKeys).toHaveBeenCalledWith('@me:example.org', true);
   });
 
   it('fails without a crypto module', async () => {

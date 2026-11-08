@@ -132,7 +132,7 @@ describe('KeyBackupTile without a backup', () => {
     storage.keyFromInput.mockResolvedValue(derived);
     storage.turnOn.mockResolvedValue(undefined);
     clientAnswering(noBackup, noBackup);
-    render(<KeyBackupTile />);
+    render(<KeyBackupTile canTurnOn />);
     await settle();
 
     fireEvent.click(screen.getByRole('button', { name: 'Turn on backup' }));
@@ -152,9 +152,18 @@ describe('KeyBackupTile without a backup', () => {
     expect(document.querySelector('input[name="recoveryInput"]')).toBeNull();
   });
 
+  it('offers nothing to a session that is not verified', async () => {
+    storage.key = ['key1', {}];
+    clientAnswering(noBackup);
+    render(<KeyBackupTile canTurnOn={false} />);
+    await settle();
+
+    expect(screen.queryByRole('button', { name: 'Turn on backup' })).toBeNull();
+  });
+
   it('offers nothing without secret storage to keep the backup key in', async () => {
     clientAnswering(noBackup);
-    render(<KeyBackupTile />);
+    render(<KeyBackupTile canTurnOn />);
     await settle();
 
     expect(screen.getByText(NO_BACKUP_TEXT)).toBeTruthy();

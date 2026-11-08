@@ -11,6 +11,7 @@ vi.mock('../../matrix/client/secretStorageKeys', () => ({ storePrivateKey: vi.fn
 const KEY = new Uint8Array([1, 2, 3]);
 
 const cryptoWith = (privateKeysInSecretStorage: boolean) => ({
+  userHasCrossSigningKeys: vi.fn(async () => true),
   getCrossSigningStatus: vi.fn(async () => ({ privateKeysInSecretStorage })),
   bootstrapCrossSigning: vi.fn(async () => undefined),
   loadSessionBackupPrivateKeyFromSecretStorage: vi.fn(async () => undefined),
@@ -23,7 +24,11 @@ describe('unlockWithRecoveryKey', () => {
     const crypto = cryptoWith(false);
 
     await expect(
-      unlockWithRecoveryKey({ getCrypto: () => crypto } as never, 'KEY_ID', KEY)
+      unlockWithRecoveryKey(
+        { getCrypto: () => crypto, getSafeUserId: () => '@me:example.org' } as never,
+        'KEY_ID',
+        KEY
+      )
     ).rejects.toThrow(NO_CROSS_SIGNING_KEYS_IN_SECRET_STORAGE);
 
     // The SDK would have created new keys and written them over secret storage.
@@ -36,9 +41,18 @@ describe('unlockWithRecoveryKey', () => {
     vi.mocked(storePrivateKey).mockClear();
     const crypto = cryptoWith(true);
 
-    await unlockWithRecoveryKey({ getCrypto: () => crypto } as never, 'KEY_ID', KEY);
+    await unlockWithRecoveryKey(
+      { getCrypto: () => crypto, getSafeUserId: () => '@me:example.org' } as never,
+      'KEY_ID',
+      KEY
+    );
 
     expect(storePrivateKey).toHaveBeenCalledWith('KEY_ID', KEY);
+    // The server's identity is asked for first, so stale keys of this session cannot pass.
+    expect(crypto.userHasCrossSigningKeys).toHaveBeenCalledWith('@me:example.org', true);
+    expect(crypto.userHasCrossSigningKeys.mock.invocationCallOrder[0]).toBeLessThan(
+      crypto.getCrossSigningStatus.mock.invocationCallOrder[0] as number
+    );
     expect(crypto.bootstrapCrossSigning).toHaveBeenCalledWith({});
     expect(crypto.loadSessionBackupPrivateKeyFromSecretStorage).toHaveBeenCalled();
     expect(crypto.checkKeyBackupAndEnable).toHaveBeenCalled();

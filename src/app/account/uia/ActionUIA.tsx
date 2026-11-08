@@ -5,6 +5,7 @@ import { Box, Button, Icon, IconButton, Icons, Input, Text, color, config } from
 import { Dialog, Header } from '../../ui/glass/GlassPrimitives';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { matchesEnum } from '../../lib/matchesEnum';
+import { toHttpUrl } from '../../lib/httpUrl';
 
 /** The unstable name of `m.oauth` (MSC4191), which servers built before spec v1.17 send. */
 const OAUTH_UNSTABLE = 'org.matrix.cross_signing_reset';
@@ -136,7 +137,8 @@ function SsoStage({ session, stage, action }: StageProps) {
  */
 const oauthApprovalUrl = (authData: IAuthData, stage: string): string | undefined => {
   const url: unknown = authData.params?.[stage]?.url ?? authData.params?.[AuthType.OAuth]?.url;
-  return typeof url === 'string' ? url : undefined;
+  // A URL from the server is opened only when it is an http(s) one.
+  return toHttpUrl(url);
 };
 
 /**

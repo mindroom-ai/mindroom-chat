@@ -1,6 +1,6 @@
 import type { MatrixClient, UIAuthCallback } from 'matrix-js-sdk';
 import { storePrivateKey } from '../../matrix/client/secretStorageKeys';
-import { CRYPTO_NOT_FOUND } from './unlockWithRecoveryKey';
+import { CRYPTO_NOT_FOUND, refreshOwnIdentity } from './unlockWithRecoveryKey';
 
 /**
  * How the Rust crypto stack words an import of cross-signing keys from secret storage whose
@@ -25,7 +25,7 @@ export const isCrossSigningMismatch = (error: unknown): boolean =>
  * sessions of the account have to verify again afterwards.
  */
 export async function repairCrossSigning(
-  client: Pick<MatrixClient, 'getCrypto'>,
+  client: Pick<MatrixClient, 'getCrypto' | 'getSafeUserId'>,
   keyId: string,
   secretStorageKey: Uint8Array,
   authUploadDeviceSigningKeys: UIAuthCallback<void>
@@ -35,7 +35,13 @@ export async function repairCrossSigning(
   storePrivateKey(keyId, secretStorageKey);
   // An account without a backup, or a backup key that no longer matches, has none to keep.
   await crypto.loadSessionBackupPrivateKeyFromSecretStorage().catch(() => undefined);
-  // The new keys are written under the cached secret storage key, then published.
-  await crypto.bootstrapCrossSigning({ setupNewCrossSigning: true, authUploadDeviceSigningKeys });
+  // The new keys are written under the cached secret storage key, then published. A publish that
+  // fails leaves this session holding them, so the server's identity is asked for again.
+  try {
+    await crypto.bootstrapCrossSigning({ setupNewCrossSigning: true, authUploadDeviceSigningKeys });
+  } catch (error) {
+    await refreshOwnIdentity(client);
+    throw error;
+  }
   await crypto.checkKeyBackupAndEnable();
 }

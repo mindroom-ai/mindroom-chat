@@ -96,6 +96,26 @@ describe('m.oauth stage', () => {
     expect(action).toHaveBeenCalledWith({ session: 'oauth-session' });
   });
 
+  it('never opens a URL from the server that is not http(s)', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(
+      <ActionUIA
+        authData={{ ...OAUTH, params: { [AuthType.OAuth]: { url: 'javascript:alert(1)' } } }}
+        ongoingFlow={{ stages: [AuthType.OAuth] }}
+        action={vi.fn()}
+        onCancel={vi.fn()}
+      />
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Open account page' }));
+    });
+    expect(open).toHaveBeenCalledWith(
+      'https://hs.example/fallback/m.oauth?session=oauth-session',
+      '_blank',
+      'noopener'
+    );
+  });
+
   it('falls back to the fallback page when the server names no URL', async () => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
     render(

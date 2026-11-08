@@ -137,7 +137,7 @@ function TrustLine({ ok, children }: { ok: boolean; children: React.ReactNode })
  * how many keys it holds, whether this session trusts it, and a full restore of its keys into
  * this session.
  */
-export function KeyBackupTile() {
+export function KeyBackupTile({ canTurnOn = false }: { canTurnOn?: boolean }) {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const alive = useAlive();
@@ -179,8 +179,9 @@ export function KeyBackupTile() {
 
   const { info } = state;
   if (!info) {
-    // With secret storage, a backup can be turned on without a reset: its key goes there.
-    const canTurnOn = !!storageKey;
+    // With secret storage, a backup can be turned on without a reset: its key goes there. Only a
+    // verified session does it: a backup an unverified one signs is not trusted by the others.
+    const offerTurnOn = canTurnOn && !!storageKey;
     return (
       <SettingTile
         focusId="keyBackup"
@@ -189,7 +190,7 @@ export function KeyBackupTile() {
           <span style={{ color: color.Critical.Main }}>{t(`${KEY}.noBackupPresentOnServer`)}</span>
         }
         after={
-          canTurnOn && !turningOn ? (
+          offerTurnOn && !turningOn ? (
             <Button
               size="300"
               radii="300"
@@ -209,6 +210,7 @@ export function KeyBackupTile() {
               setTurningOn(false);
               refresh();
             }}
+            onFailed={refresh}
           />
         )}
       </SettingTile>

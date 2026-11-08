@@ -22,6 +22,7 @@ const crypto = vi.hoisted(() => ({
         }
       })
   ),
+  userHasCrossSigningKeys: vi.fn(async () => true),
   bootstrapSecretStorage: vi.fn(async () => undefined),
 }));
 
@@ -88,7 +89,7 @@ vi.mock('../../ui/PasswordInput', () => ({
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     getCrypto: () => crypto,
-    secretStorage: { getDefaultKeyId: async () => null, setDefaultKeyId: vi.fn() },
+    secretStorage: { hasKey: async () => false },
     getUserId: () => '@alice:example.org',
     getSafeUserId: () => '@alice:example.org',
   }),

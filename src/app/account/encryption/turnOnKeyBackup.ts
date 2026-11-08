@@ -5,6 +5,7 @@ import { CRYPTO_NOT_FOUND } from './unlockWithRecoveryKey';
 
 // Thrown in English and translated when shown, so a retained error follows language changes.
 export const BACKUP_ALREADY_EXISTS = 'The account already has a key backup.';
+export const BACKUP_NOT_IN_USE = 'The new key backup is not in use.';
 
 /**
  * Gives an account that has secret storage but no key backup a backup: the SDK creates a new
@@ -34,4 +35,9 @@ export async function turnOnKeyBackup(
     await crypto.resetKeyBackup();
     await crypto.checkKeyBackupAndEnable();
   }
+  // The server's backup must be the one this session uses (another session turning backup on at
+  // the same moment could have replaced it), or its key in secret storage would open nothing.
+  const active = await crypto.getActiveSessionBackupVersion();
+  const onServer = await fetchKeyBackupVersion(client);
+  if (!active || onServer?.version !== active) throw new Error(BACKUP_NOT_IN_USE);
 }

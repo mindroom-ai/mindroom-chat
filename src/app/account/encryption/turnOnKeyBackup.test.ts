@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
-import { BACKUP_ALREADY_EXISTS, turnOnKeyBackup } from './turnOnKeyBackup';
+import { BACKUP_ALREADY_EXISTS, BACKUP_NOT_IN_USE, turnOnKeyBackup } from './turnOnKeyBackup';
 
 const mocks = vi.hoisted(() => ({ storePrivateKey: vi.fn(), fetchKeyBackupVersion: vi.fn() }));
 vi.mock('../../matrix/client/secretStorageKeys', () => ({
@@ -38,7 +38,9 @@ const clientWith = (crypto: FakeCrypto | undefined) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.fetchKeyBackupVersion.mockResolvedValue(null);
+  mocks.fetchKeyBackupVersion.mockReset();
+  // No backup at first; afterwards the server has the one this session made last.
+  mocks.fetchKeyBackupVersion.mockResolvedValueOnce(null).mockResolvedValue({ version: '2' });
 });
 
 describe('turnOnKeyBackup', () => {
@@ -53,7 +55,17 @@ describe('turnOnKeyBackup', () => {
     expect(calls).toEqual(['cache', 'reset:1', 'enable:1', 'delete:1', 'reset:2', 'enable:2']);
   });
 
+  it('fails when the server ends up with another backup than the one this session uses', async () => {
+    mocks.fetchKeyBackupVersion.mockReset();
+    mocks.fetchKeyBackupVersion.mockResolvedValueOnce(null).mockResolvedValue({ version: '9' });
+
+    await expect(turnOnKeyBackup(clientWith(makeCrypto([])), 'key1', KEY)).rejects.toThrow(
+      BACKUP_NOT_IN_USE
+    );
+  });
+
   it('never replaces a backup the account already has', async () => {
+    mocks.fetchKeyBackupVersion.mockReset();
     mocks.fetchKeyBackupVersion.mockResolvedValue({ version: '3' });
     const crypto = makeCrypto([]);
 

@@ -16,13 +16,15 @@ type TurnOnBackupFormProps = {
   secretStorageKey: DefaultSecretStorageKey;
   /** Called once the backup exists. */
   onDone: () => void;
+  /** Called when turning it on failed, which may have left a backup on the server. */
+  onFailed?: () => void;
 };
 
 /**
  * Asks for the recovery password (or key) once and turns key backup on with it, for an account
  * that has secret storage but no backup.
  */
-export function TurnOnBackupForm({ secretStorageKey, onDone }: TurnOnBackupFormProps) {
+export function TurnOnBackupForm({ secretStorageKey, onDone, onFailed }: TurnOnBackupFormProps) {
   const { keyId, keyContent, hasPassphrase } = secretStorageKey;
   const { t } = useTranslation();
   const client = useMatrixClient();
@@ -46,7 +48,7 @@ export function TurnOnBackupForm({ secretStorageKey, onDone }: TurnOnBackupFormP
     const field = new FormData(evt.currentTarget).get('recoveryInput');
     const value = typeof field === 'string' ? field.trim() : '';
     if (!value || loading) return;
-    turnOn(value).then(onDone, () => undefined);
+    turnOn(value).then(onDone, () => onFailed?.());
   };
 
   return (

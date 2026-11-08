@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { errorMessage } from '../../lib/errorMessage';
 import { describeKnownError } from '../../lib/describeError';
 import { INVALID_RECOVERY_INPUT } from './recoveryInput';
-import { BACKUP_ALREADY_EXISTS } from './turnOnKeyBackup';
+import { BACKUP_ALREADY_EXISTS, BACKUP_NOT_IN_USE } from './turnOnKeyBackup';
 import {
   CRYPTO_NOT_FOUND as CRYPTO_MODULE_NOT_FOUND,
   RECOVERY_KEY_FAILED,
@@ -32,7 +32,8 @@ export const useRecoveryFailureText = () => {
     if (
       message === CRYPTO_NOT_FOUND ||
       message === CRYPTO_MODULE_NOT_FOUND ||
-      message === RECOVERY_KEY_FAILED
+      message === RECOVERY_KEY_FAILED ||
+      message === BACKUP_NOT_IN_USE
     ) {
       return { text: t('sharedUi.deviceVerificationSetup.unexpectedError') };
     }

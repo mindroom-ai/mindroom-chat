@@ -114,7 +114,7 @@ export function SecuritySettings({ trust }: { trust: OwnDeviceTrust }) {
       <SettingsCard>
         <DeviceVerificationTile crossSigning={trust.crossSigning} />
         {trust.crossSigning && <RecoveryPasswordTile />}
-        {trust.crossSigning && <KeyBackupTile />}
+        {trust.crossSigning && <KeyBackupTile canTurnOn={trust.thisDeviceVerified} />}
       </SettingsCard>
     </Box>
   );

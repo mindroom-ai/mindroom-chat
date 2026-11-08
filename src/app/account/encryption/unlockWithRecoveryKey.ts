@@ -15,13 +15,32 @@ export const NO_CROSS_SIGNING_KEYS_IN_SECRET_STORAGE =
  * server asks for the password. Secret storage would be left with keys nobody published, and the
  * recovery key would stop verifying every other session.
  */
+/**
+ * Asks the server for the account's own cross-signing identity again. A publish that failed leaves
+ * this session holding new keys the server never got, and a session can lag behind a reset made
+ * elsewhere; the fresh answer replaces both views (the SDK drops local private keys that do not
+ * match the published identity). A failed request leaves things as they were.
+ */
+export const refreshOwnIdentity = async (
+  client: Pick<MatrixClient, 'getCrypto' | 'getSafeUserId'>
+): Promise<void> => {
+  try {
+    await client.getCrypto()?.userHasCrossSigningKeys(client.getSafeUserId(), true);
+  } catch {
+    // Callers go on with what they know; after a failure, the original error matters more.
+  }
+};
+
 export async function unlockWithRecoveryKey(
-  client: Pick<MatrixClient, 'getCrypto'>,
+  client: Pick<MatrixClient, 'getCrypto' | 'getSafeUserId'>,
   keyId: string,
   recoveryKey: Uint8Array
 ): Promise<void> {
   const crypto = client.getCrypto();
   if (!crypto) throw new Error(CRYPTO_NOT_FOUND);
+  // Compared with what the server publishes now, so stale keys of this session cannot pass for
+  // the account's and a stale view cannot make healthy secret storage look mismatched.
+  await refreshOwnIdentity(client);
   const { privateKeysInSecretStorage } = await crypto.getCrossSigningStatus();
   if (!privateKeysInSecretStorage) throw new Error(NO_CROSS_SIGNING_KEYS_IN_SECRET_STORAGE);
   storePrivateKey(keyId, recoveryKey);

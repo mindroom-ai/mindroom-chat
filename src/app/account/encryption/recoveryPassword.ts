@@ -6,6 +6,7 @@ import type {
 } from 'matrix-js-sdk/lib/crypto-api';
 import { clearSecretStorageKeys } from '../../matrix/client/secretStorageKeys';
 import { fetchKeyBackupVersion } from './keyBackupVersion';
+import { refreshOwnIdentity } from './unlockWithRecoveryKey';
 
 // Thrown in English and translated when shown, so a retained error follows language changes.
 export const CRYPTO_NOT_FOUND = 'Unexpected Error! Crypto module not found!';
@@ -19,19 +20,35 @@ export const SECRET_STORAGE_INCOMPLETE =
 const FRESH_SECRET_STORAGE = { setupNewSecretStorage: true, setupNewKeyBackup: true } as const;
 
 /**
+ * Runs `publish` while the SDK sees no secret storage, in this tab only: the SDK writes new
+ * cross-signing keys into secret storage when it has one, before it publishes them. Nothing on the
+ * server changes, so a tab that closes meanwhile leaves the account as it was.
+ */
+const withoutSecretStorage = async (
+  storage: MatrixClient['secretStorage'],
+  publish: () => Promise<void>
+): Promise<void> => {
+  const hasKey = storage.hasKey.bind(storage);
+  storage.hasKey = () => Promise.resolve(false);
+  try {
+    await publish();
+  } finally {
+    storage.hasKey = hasKey;
+  }
+};
+
+/**
  * Creates new cross-signing keys, then new secret storage and key backup, with the secret storage
  * key derived from `password`. Resolves to the encoded recovery key.
  *
- * The identity is published first, and nothing else changes until it is: the SDK writes new
- * cross-signing keys into the account's secret storage before it publishes them, and the publish
- * is the step that can fail (the person closes the account confirmation, the server refuses it).
- * Had the new storage and backup come first, a failure would leave secret storage holding keys
- * the server never got, and the previous backup deleted. So a reset sets the old secret storage
- * aside while it publishes (the SDK then writes the keys nowhere) and puts it back when the
- * publish fails; the new storage, which stores the published keys, and the new backup follow.
+ * The identity is published first, and nothing else changes until it is: the publish is the step
+ * that can fail (the person closes the account confirmation, the server refuses it). Had the new
+ * storage and backup come first, a failure would leave secret storage holding keys the server
+ * never got, and the previous backup deleted. A failed publish also leaves this session holding
+ * the unpublished keys, so the server's identity is asked for again before the error goes on.
  */
 export const setUpRecovery = async (
-  client: Pick<MatrixClient, 'getCrypto' | 'secretStorage'>,
+  client: Pick<MatrixClient, 'getCrypto' | 'secretStorage' | 'getSafeUserId'>,
   password: string,
   authUploadDeviceSigningKeys: UIAuthCallback<void>
 ): Promise<string> => {
@@ -42,12 +59,12 @@ export const setUpRecovery = async (
   const { encodedPrivateKey } = recoveryKey;
   if (!encodedPrivateKey) throw new Error(RECOVERY_KEY_FAILED);
 
-  const previousStorage = await client.secretStorage.getDefaultKeyId();
-  if (previousStorage) await client.secretStorage.setDefaultKeyId(null);
   try {
-    await crypto.bootstrapCrossSigning({ setupNewCrossSigning: true, authUploadDeviceSigningKeys });
+    await withoutSecretStorage(client.secretStorage, () =>
+      crypto.bootstrapCrossSigning({ setupNewCrossSigning: true, authUploadDeviceSigningKeys })
+    );
   } catch (error) {
-    if (previousStorage) await client.secretStorage.setDefaultKeyId(previousStorage);
+    await refreshOwnIdentity(client);
     throw error;
   }
 
