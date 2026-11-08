@@ -2,7 +2,6 @@ import { lazy, type ComponentType, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { Room } from 'matrix-js-sdk';
-import { useAtomValue } from 'jotai';
 import { Icons, Spinner } from 'folds';
 import { MenuEntry } from '../ui/MenuEntry';
 import { MarkRoomReadMenuItem } from '../notifications/MarkRoomReadMenuItem';
@@ -19,8 +18,7 @@ import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
-import { mDirectAtom } from '../matrix/state/mDirectList';
-import { takesSubRooms, useParentRooms } from '../matrix/state/subRooms';
+import { useOffersSubRooms, useParentRooms } from '../matrix/state/subRooms';
 import { useListRoomsRefusal } from '../rooms/create/useListRoomsRefusal';
 import { useOpenRoomSettings } from '../navigation/useRoomSettingsState';
 import { getCanonicalAliasOrRoomId, isRoomAlias } from '../matrix/matrix';
@@ -128,8 +126,8 @@ function InviteEntry({ room, close, showDialog }: RoomActionProps) {
 function NewSubRoomEntry({ room, spaceId, close, showDialog }: RoomActionProps) {
   const { t } = useTranslation();
   const refusal = useListRoomsRefusal(room);
-  const directRooms = useAtomValue(mDirectAtom);
-  if (!takesSubRooms(room, directRooms)) return null;
+  const offered = useOffersSubRooms(room);
+  if (!offered) return null;
   return (
     <MenuEntry
       icon={Icons.Plus}

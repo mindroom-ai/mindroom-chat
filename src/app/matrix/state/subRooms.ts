@@ -13,8 +13,12 @@ import { roomToParentsAtom } from './roomToParents';
  * instead, and the partner of a direct chat (one of `directRooms`) would find no list to join its
  * sub-rooms from.
  */
-export const takesSubRooms = (room: Room, directRooms: ReadonlySet<string>): boolean =>
+const takesSubRooms = (room: Room, directRooms: ReadonlySet<string>): boolean =>
   !room.isSpaceRoom() && !directRooms.has(room.roomId);
+
+/** Whether the room menu offers New Sub-room in `room`, rendered again when the direct chats change. */
+export const useOffersSubRooms = (room: Room): boolean =>
+  takesSubRooms(room, useAtomValue(mDirectAtom));
 
 /**
  * Whether the room menu offers New Sub-room in `room`: a chat room, neither a space nor a direct

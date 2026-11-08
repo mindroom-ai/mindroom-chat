@@ -7,7 +7,6 @@ import {
   KnownMembership,
   MatrixEvent,
   Room,
-  RoomEvent,
   RoomStateEvent,
   type MatrixClient,
 } from 'matrix-js-sdk';
@@ -397,7 +396,7 @@ describe('useParentRooms, getParentRooms and offersSubRooms', () => {
       const room = new Room(roomId, account, ME);
       room.currentState.setStateEvents(state);
       room.updateMyMembership(KnownMembership.Join);
-      account.reEmitter.reEmit(room, [RoomStateEvent.Events, RoomEvent.MyMembership]);
+      account.reEmitter.reEmit(room, [RoomStateEvent.Events]);
       account.store.storeRoom(room);
       return room;
     };
@@ -484,7 +483,7 @@ describe('useParentRooms, getParentRooms and offersSubRooms', () => {
 
   it('offers sub-rooms in a chat room, not in a space or a direct chat', () => {
     const { account, garden, estate, ideas, withBob } = signedIn();
-    renderParents(account, ideas);
+    render(<AppState account={account} />);
     expect(offersSubRooms(garden)).toBe(true);
     expect(offersSubRooms(ideas)).toBe(true);
     expect(offersSubRooms(estate)).toBe(false);

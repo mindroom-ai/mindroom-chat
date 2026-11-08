@@ -12,6 +12,7 @@ import {
 import {
   createPrivateRoom,
   createThreadFixture,
+  listedRooms,
   matrixFetch,
   setDirectAccountData,
 } from '../helpers/matrix';
@@ -196,16 +197,6 @@ test("the example plugin's slash command greets the thread it was typed in", asy
   }
 });
 
-/** The rooms `parentId` lists as children, each with a `via`. */
-const listedRooms = async (accessToken: string, parentId: string) => {
-  const state = await matrixFetch<
-    Array<{ type: string; state_key: string; content: Record<string, unknown> }>
-  >(HOMESERVER, `/rooms/${encodeURIComponent(parentId)}/state`, { accessToken });
-  return state
-    .filter(({ type, content }) => type === 'm.space.child' && Array.isArray(content.via))
-    .map(({ state_key }) => state_key);
-};
-
 test('/subroom creates a sub-room only where the room menu offers New Sub-room, and the panel names its parent until Remove from takes it off', async ({
   browser,
 }, testInfo) => {
@@ -247,7 +238,7 @@ test('/subroom creates a sub-room only where the room menu offers New Sub-room, 
       })
     ).toBeVisible();
     await expect(composer).toContainText('/subroom Ideas');
-    expect(await listedRooms(person.accessToken, directId)).toEqual([]);
+    expect(await listedRooms(HOMESERVER, person.accessToken, directId)).toEqual([]);
     await shot('refused-in-direct-chat');
 
     await page.goto(`/home/${encodeURIComponent(gardenId)}/`);
@@ -256,10 +247,10 @@ test('/subroom creates a sub-room only where the room menu offers New Sub-room, 
     await page.keyboard.type('/subroom Ideas');
     await page.keyboard.press('Enter');
     await expect
-      .poll(() => listedRooms(person.accessToken, gardenId), { timeout: 30_000 })
+      .poll(() => listedRooms(HOMESERVER, person.accessToken, gardenId), { timeout: 30_000 })
       .toHaveLength(1);
-    const [ideasId] = await listedRooms(person.accessToken, gardenId);
-    expect(await listedRooms(person.accessToken, directId)).toEqual([]);
+    const [ideasId] = await listedRooms(HOMESERVER, person.accessToken, gardenId);
+    expect(await listedRooms(HOMESERVER, person.accessToken, directId)).toEqual([]);
 
     await page.goto(`/home/${encodeURIComponent(ideasId!)}/`);
     await expect(roomHeader(page).locator('h1')).toHaveText('Ideas', { timeout: 60_000 });
@@ -271,7 +262,7 @@ test('/subroom creates a sub-room only where the room menu offers New Sub-room, 
     await roomMoreOptions(page).click();
     await page.getByRole('menuitem', { name: 'Remove from Garden', exact: true }).click();
     await expect
-      .poll(() => listedRooms(person.accessToken, gardenId), { timeout: 30_000 })
+      .poll(() => listedRooms(HOMESERVER, person.accessToken, gardenId), { timeout: 30_000 })
       .toEqual([]);
     await expect(panel).not.toContainText('Sub-room of');
     await expect(panel).toContainText(`Example panel of ${ideasId}`);

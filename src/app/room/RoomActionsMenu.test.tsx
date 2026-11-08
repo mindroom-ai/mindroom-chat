@@ -35,7 +35,6 @@ vi.mock('react-router-dom', async (importOriginal) => ({
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     getSafeUserId: () => '@me:example.org',
-    getRoom: (roomId: string) => state.rooms[roomId] ?? null,
     sendStateEvent: state.sendStateEvent,
   }),
 }));
