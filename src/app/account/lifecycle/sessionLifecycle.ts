@@ -30,7 +30,7 @@ import {
 import { stopSyncEngineForClient } from '../../event-store/engine/syncEngine';
 import { getCanvasStateDbName } from '../../canvas/canvasStateStore';
 import { getCanvasIndexDbName } from '../../canvas/canvasIndexStore';
-import { forgetAccountInPlugins } from '../../plugins/pluginStorage';
+import { forgetAccountInPlugins } from '../../plugins/forgetAccountInPlugins';
 import { revokeClientSessions } from '../../computer/clientSessions';
 import {
   SessionCleanupContext,
