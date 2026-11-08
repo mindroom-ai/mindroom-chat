@@ -16,12 +16,13 @@ const NAMES: Record<string, string> = {
 };
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ mxcUrlToHttp: () => null }),
+  // No room to load the members of: the tiles name everyone as the room's loaded list does.
+  useMatrixClient: () => ({ mxcUrlToHttp: () => null, getRoom: () => undefined }),
 }));
 vi.mock('../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
 vi.mock('../matrix/room', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../matrix/room')>()),
-  getMemberDisplayName: (_room: Room, userId: string) => NAMES[userId],
+  getSenderName: (_room: Room, userId: string) => NAMES[userId] ?? userId,
   getMemberAvatarMxc: () => undefined,
 }));
 vi.mock('../avatars/UserAvatar', () => ({
