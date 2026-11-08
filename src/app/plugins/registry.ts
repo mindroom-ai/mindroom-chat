@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react';
+import type { ComponentType, RefObject } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { isRecord } from '../lib/isRecord';
 import { isHeaderAction, type HeaderAction } from './headerActions';
@@ -7,11 +7,18 @@ import type { MessageRenderer } from './messageRenderers';
 import type { PluginPage } from './pluginPages';
 import { pluginEntries, type PluginEntry } from './pluginEntries';
 import { isSidePanel, type SidePanel } from './sidePanels';
+import { isPluginRoomAction, type PluginRoomAction } from './roomActions';
 import { isPluginSlashCommand, type PluginSlashCommand } from './slashCommands';
 import { registerPluginTranslations, type PluginTranslations } from './pluginTranslations';
 
-/** A component shown under the room header, given the open room; it renders there or nothing. */
-export type RoomHeaderSlotComponent = ComponentType<{ room: Room }>;
+/**
+ * A component shown under the room header, given the open room and the header's element (its row
+ * and the slot), which it may read and listen on, never change; it renders there or nothing.
+ */
+export type RoomHeaderSlotComponent = ComponentType<{
+  room: Room;
+  headerRef: RefObject<HTMLElement>;
+}>;
 
 /** What the entry module of a client plugin exports by default: its contributions, by kind. */
 export type ClientPlugin = {
@@ -24,6 +31,7 @@ export type ClientPlugin = {
   sidePanels?: readonly SidePanel[];
   headerActions?: readonly HeaderAction[];
   slashCommands?: readonly PluginSlashCommand[];
+  roomActions?: readonly PluginRoomAction[];
   translations?: PluginTranslations;
 };
 
@@ -39,6 +47,7 @@ export type RegisteredPlugin = {
   readonly sidePanels: readonly SidePanel[];
   readonly headerActions: readonly HeaderAction[];
   readonly slashCommands: readonly PluginSlashCommand[];
+  readonly roomActions: readonly PluginRoomAction[];
 };
 
 const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
@@ -49,6 +58,7 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   const actions = isRecord(plugin) ? plugin.headerActions : undefined;
   const covers = isRecord(plugin) ? plugin.conversationCovers : undefined;
   const commands = isRecord(plugin) ? plugin.slashCommands : undefined;
+  const roomActions = isRecord(plugin) ? plugin.roomActions : undefined;
   registerPluginTranslations(id, isRecord(plugin) ? plugin.translations : undefined);
   return Object.freeze({
     id,
@@ -79,6 +89,9 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
     ),
     slashCommands: Object.freeze(
       Array.isArray(commands) ? commands.filter(isPluginSlashCommand) : []
+    ),
+    roomActions: Object.freeze(
+      Array.isArray(roomActions) ? roomActions.filter(isPluginRoomAction) : []
     ),
   });
 };

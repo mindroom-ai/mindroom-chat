@@ -34,6 +34,7 @@ const plugin = (id: string, ...pages: PluginPage[]): RegisteredPlugin => ({
   sidePanels: [],
   headerActions: [],
   slashCommands: [],
+  roomActions: [],
 });
 
 /** A config.json with this `plugins` section. */

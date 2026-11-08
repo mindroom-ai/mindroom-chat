@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -10,6 +10,7 @@ import {
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
 import { createRoom } from '../helpers/createRoom';
+import { dropFile } from '../helpers/fileDrop';
 import { joinRoom, sendRoomMessage } from '../helpers/matrix';
 import { serveBuild } from '../helpers/staticBuildServer';
 
@@ -73,18 +74,6 @@ const recordActivity = (page: Page) => {
   });
   return { receipts, typing };
 };
-
-/** Drags a file over `target` and drops it there, as the system's file manager would. */
-const dropFile = (target: Locator) =>
-  target.evaluate((element, name) => {
-    const data = new DataTransfer();
-    data.items.add(new File(['dropped'], name, { type: 'text/plain' }));
-    for (const type of ['dragenter', 'dragover', 'drop']) {
-      element.dispatchEvent(
-        new DragEvent(type, { dataTransfer: data, bubbles: true, cancelable: true })
-      );
-    }
-  }, DROPPED);
 
 /** Whether the focus is in the cover, and not in the conversation it hides. */
 const focusInCover = (page: Page) =>
@@ -156,7 +145,7 @@ test('while the example cover shows the room sends no receipt or typing notice, 
     await cover.getByRole('heading').click();
     expect(await focusInCover(page)).toBe(true);
     // A file dropped on the cover is not attached.
-    await dropFile(cover);
+    await dropFile(cover, DROPPED);
     // A receipt goes out on the next frame after a message arrives: give it a few.
     await page.waitForTimeout(2_000);
     expect(activity.receipts).not.toContain(hidden);
@@ -179,7 +168,7 @@ test('while the example cover shows the room sends no receipt or typing notice, 
     await page.keyboard.type(' again');
     await expect.poll(() => activity.typing).toEqual([true, false, true]);
     await expect(composer).toHaveText('draft again');
-    await dropFile(page.locator('[data-room-footer]'));
+    await dropFile(page.locator('[data-room-footer]'), DROPPED);
     await expect(page.getByText(DROPPED)).toBeVisible();
     await shot(page, 'conversation-cover-closed');
 
