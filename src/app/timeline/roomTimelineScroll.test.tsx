@@ -602,7 +602,11 @@ describe('useTimelineRowJumps', () => {
         },
         activeRangeRef: { current: { start: 0, end: 44 } },
         virtualizerRef: {
-          current: { scrollToIndex: (index: number) => steps.push(`virtual list row ${index}`) },
+          current: {
+            scrollToIndex: (index: number) => steps.push(`virtual list row ${index}`),
+            // The list places row n at n * 100.
+            getOffsetForIndex: (index: number) => [index * 100, 'center'] as const,
+          },
         },
         threadEventIndexMapRef: { current: new Map([['$reply', 3]]) },
         onJump: () => steps.push('ledger'),
@@ -654,14 +658,17 @@ describe('useTimelineRowJumps', () => {
     vi.unstubAllGlobals();
   });
 
-  it('takes a far row through the virtual list, then aligns it until it keeps its place', () => {
+  it('takes a far row to its place in the list, then aligns it until it keeps its place', () => {
     const { steps, state, scroller, runFrame, jumps } = setup();
-    expect(jumps().scrollToItem(0, { behavior: 'smooth', align: 'center' })).toBe(true);
-    expect(steps).toEqual(['ledger', 'ledger', 'virtual list row 0']);
+    scroller.scrollTop = 2400;
+    expect(jumps().scrollToItem(7, { behavior: 'smooth', align: 'center' })).toBe(true);
+    // Not through the list's scrollToIndex, which would scroll there again later.
+    expect(steps).toEqual(['ledger', 'ledger']);
+    expect(scroller.scrollTop).toBe(700);
     steps.length = 0;
     // The row mounts and moves twice while the rows around it measure, then holds still.
     for (const top of [180, 240, 280, 280, 280, 280]) {
-      state.rowTop.set(0, top);
+      state.rowTop.set(7, top);
       runFrame();
     }
     expect(steps.filter((step) => step.startsWith('align'))).toEqual([
@@ -700,7 +707,8 @@ describe('useTimelineRowJumps', () => {
       ...state.rows.current,
     ];
     runFrame();
-    expect(steps).toEqual(['ledger', 'virtual list row 4']);
+    expect(steps).toEqual(['ledger']);
+    expect(scroller.scrollTop).toBe(400);
     scroller.fire('wheel');
     steps.length = 0;
     runFrame();

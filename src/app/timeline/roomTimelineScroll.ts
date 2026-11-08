@@ -461,10 +461,12 @@ type RoomRowLookup = {
  * Jumps to a row. The paginator scrolls to mounted rows near the view and moves the window; the
  * virtual list scrolls to the rows of the window it has not mounted. A row far from the view is
  * reached without animation: its heights are estimates until it mounts, so a smooth scroll stops
- * short. The virtual list goes to its index, and then, frame by frame, the row is aligned again
- * where the jump asked (its alignment and offset) as it and its neighbours mount and measure, until
- * it keeps its place, the reader scrolls, or another jump starts. A thread's rows are all in the
- * list.
+ * short. The view goes to where the virtual list places the row, so that it mounts, and then,
+ * frame by frame, the row is aligned again where the jump asked (its alignment and offset) as it
+ * and its neighbours mount and measure, until it keeps its place, the reader scrolls, or another
+ * jump starts. Not through the list's `scrollToIndex`: for 5 s it scrolls back to its own place
+ * for the row whenever a measurement moves it, a place without the offset ledger's shift, and so
+ * undid the alignment once it was done. A thread's rows are all in the list.
  * `onJump` runs before each jump, so the offset ledger knows the move is the timeline's own.
  */
 export const useTimelineRowJumps = ({
@@ -479,7 +481,9 @@ export const useTimelineRowJumps = ({
   paginatorScrollToItem: ScrollToItem;
   paginatorScrollToElement: ScrollToElement;
   activeRangeRef: MutableRefObject<ItemRange>;
-  virtualizerRef: MutableRefObject<Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex'>>;
+  virtualizerRef: MutableRefObject<
+    Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex' | 'getOffsetForIndex'>
+  >;
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
   onJump: () => void;
   rows: RoomRowLookup;
@@ -569,7 +573,8 @@ export const useTimelineRowJumps = ({
               return;
             }
           } else {
-            virtualizerRef.current.scrollToIndex(index - start, { align, behavior: 'auto' });
+            const place = virtualizerRef.current.getOffsetForIndex(index - start, align);
+            if (place) scrollElement.scrollTop = place[0];
           }
         }
         requestAnimationFrame(step);
