@@ -19,6 +19,9 @@ export type ComputerTouchpad = {
 type Point = { x: number; y: number };
 
 const TOUCH_EVENTS = ['touchstart', 'touchmove', 'touchend', 'touchcancel'] as const;
+// WebKit on iOS reports two fingers as gesture events too, which the page's pinch to zoom
+// follows (theme/usePinchToZoom.ts).
+const GESTURE_EVENTS = ['gesturestart', 'gesturechange', 'gestureend'] as const;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -180,8 +183,17 @@ export function attachComputerTouchpad(
     }
   };
 
+  // Gestures stop where the touches do, so a two-finger scroll in control leaves the page zoom.
+  const handleGesture = (event: Event) => {
+    const canvas = target.querySelector('canvas');
+    if (!canvas || (!isControlling() && event.target !== canvas)) return;
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
   const listenerOptions = { capture: true, passive: false };
   TOUCH_EVENTS.forEach((type) => target.addEventListener(type, handleTouch, listenerOptions));
+  GESTURE_EVENTS.forEach((type) => target.addEventListener(type, handleGesture, listenerOptions));
 
   // On a touch screen noVNC draws its cursor only after a mouse event, so a first tap would
   // click where no pointer shows. This moves the pointer where it is, the canvas centre at
@@ -198,6 +210,7 @@ export function attachComputerTouchpad(
   // `releaseNoVncCapture`.
   const detach = () => {
     TOUCH_EVENTS.forEach((type) => target.removeEventListener(type, handleTouch, true));
+    GESTURE_EVENTS.forEach((type) => target.removeEventListener(type, handleGesture, true));
   };
 
   return { detach, showPointer };
