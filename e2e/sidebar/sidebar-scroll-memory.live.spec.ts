@@ -109,7 +109,7 @@ test('the navigation panel keeps its scroll position across thread and room open
     panel.getByRole('link', { name: roomName(index), exact: true });
   const openThreadFromNav = async (thread: ThreadSeed) => {
     await expect(threadButton(thread)).toBeAttached();
-    // The sync bar changes the available scroll range when it disappears.
+    // Wait until the sync status has gone, so nothing floats over the list while it scrolls.
     await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 45_000 });
     await threadButton(thread).scrollIntoViewIfNeeded();
     const before = await settledNavScrollTop(page);
