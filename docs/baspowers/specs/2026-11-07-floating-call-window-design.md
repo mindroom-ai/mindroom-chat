@@ -40,7 +40,7 @@ Out, with reasons:
 
 - The header call buttons, a ring's Answer, a started call and the rail's call button set `callPanelRoomAtom` as today, so they open the window in floating mode.
 - Close (X, "Close call view") clears `callPanelRoomAtom` as today: the call goes on, the rail's call button brings the window back. The focus Close had goes to the room's call button on the page, else to the page's main content, as after End.
-- The rail's call button in floating mode opens the window and expands it when minimized; it does not navigate. Its focus goes to the window's handle once the window shows, as Float's does. In docked mode it navigates as today.
+- The rail's call button in floating mode opens the window and expands it when minimized; it does not navigate. Its focus goes to the window's handle once the window shows, as Float's does; when no window shows (the call view's room is gone), the focus it handed on is dropped, so no window that opens later takes it. In docked mode it navigates as today.
 - Dock (in the window) sets `docked` and navigates to the call view's room (and the agent call's origin thread) when another route is open, so the docked panel is seen. Float (in the docked panel) sets `floating`; the window opens at its remembered place.
 - A room that is gone (`mx.getRoom` answers null) shows no window.
 
@@ -127,7 +127,7 @@ Unit (vitest; DOM tests with `// @vitest-environment jsdom`, a `PointerEvent` st
 - state: defaults, junk in storage, mode switch, minimize then expand returns the height, an expand from outside after the viewport changed grows the bar where it shows;
 - `fitTiles`: one to six tiles in wide, tall and tiny stages, the speaker-view threshold;
 - `FloatingCallWindow`: drag moves and saves, resize, minimize and expand, keyboard, viewport resize, an expand from outside and a window that comes back (Dock, then Float) after the viewport changed, an expand during a drag of the bar that the release leaves;
-- `CallWindowHost`: shows on desktop in floating mode, not on phones or when docked, stays when the route changes;
+- `CallWindowHost`: shows on desktop in floating mode, not on phones or when docked, stays when the route changes; drops the focus handed to a window that does not show;
 - `callStore`: a room's call view state goes when a call starts there (other rooms' stays), when its call ends or is dismissed, and with the account;
 - `CallStage`: voice stage without video (one face per person on several devices), grid with a camera on, speaker view with someone else's screen share and the inset, a lone own screen in the grid and never in focus, someone else's screen in the grid when picked, every screen while two or more are shared, what the stage shows and when small tiles hold it; the speaker switch (pressed state, free with screens shared, held on a small stage);
 - `CallPanel`: agent calls show camera and screen share; title bar buttons per mode; the prescreen's microphone, camera and devices kept through Dock, Float and a phone's panel, and Join with them; the speaker or grid pick kept through Dock, Float, Close and opening again;

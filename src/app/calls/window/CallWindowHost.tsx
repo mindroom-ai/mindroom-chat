@@ -1,5 +1,5 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
-import { useAtom, useSetAtom } from 'jotai';
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { ClientEvent, KnownMembership, RoomEvent, type Room } from 'matrix-js-sdk';
 import { Box, Spinner } from 'folds';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -7,7 +7,7 @@ import { PowerLevelsContextProvider, usePowerLevels } from '../../matrix/hooks/u
 import { mainContentFocusTarget } from '../../ui/page/mainContentFocus';
 import { callPanelRoomAtom, isActiveCallShownIn, useActiveCall } from '../callStore';
 import { CallPanelPart } from '../CallPanelPart';
-import { useCallViewFloats, useExpandCallWindow } from './callWindowState';
+import { focusHandOffAtom, useCallViewFloats, useExpandCallWindow } from './callWindowState';
 import { FloatingCallWindow } from './FloatingCallWindow';
 
 // The call view's code loads on first use; the window shows that it comes rather than an empty box.
@@ -116,6 +116,14 @@ export function CallWindowHost() {
       !!active && active !== before.active && isActiveCallShownIn(active, panelRoomId);
     if (opened || started) expand();
   }, [active, expand, floats, panelRoomId, setPanelRoomId]);
+
+  // The focus handed to a window that does not show (its room is gone, or the view docked) is
+  // dropped, or the next window to open would take it from wherever it is then.
+  const handedToWindow = useAtomValue(focusHandOffAtom)?.to === 'window';
+  const setHandOff = useSetAtom(focusHandOffAtom);
+  useEffect(() => {
+    if (handedToWindow && !floats) setHandOff(undefined);
+  }, [floats, handedToWindow, setHandOff]);
 
   const close = useCallback(() => setPanelRoomId(undefined), [setPanelRoomId]);
   if (!floats || !room) return null;

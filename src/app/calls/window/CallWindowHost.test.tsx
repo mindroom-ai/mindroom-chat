@@ -10,6 +10,7 @@ import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from '../callStore
 import {
   callWindowStorageKey,
   clearCallWindowStore,
+  focusHandOffAtom,
   getCallWindowSettingsAtom,
   type CallWindowSettings,
 } from './callWindowState';
@@ -145,6 +146,24 @@ describe('CallWindowHost', () => {
     gone.set(callPanelRoomAtom, '!gone:host.test');
     renderHost(gone);
     expect(callWindow()).toBeNull();
+  });
+
+  it('drops the focus handed to a window that does not show, so no later window takes it', () => {
+    const store = createStore();
+    const from = document.createElement('button');
+    store.set(callPanelRoomAtom, LOBBY);
+    store.set(focusHandOffAtom, { to: 'window', from });
+    renderHost(store);
+    // The window shows: its call view takes the focus when it mounts.
+    expect(store.get(focusHandOffAtom)).toEqual({ to: 'window', from });
+
+    // The rail's call button opens the call view of a room this client forgot.
+    act(() => {
+      store.set(callPanelRoomAtom, '!gone:host.test');
+      store.set(focusHandOffAtom, { to: 'window', from });
+    });
+    expect(callWindow()).toBeNull();
+    expect(store.get(focusHandOffAtom)).toBeUndefined();
   });
 
   it('shows a spinner in the window while the call view loads', async () => {
