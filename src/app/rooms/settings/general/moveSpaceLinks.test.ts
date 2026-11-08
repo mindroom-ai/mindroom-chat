@@ -129,15 +129,15 @@ describe('moveSpaceLinks', () => {
 
     await expect(moveSpaceLinks(client, '!old', '!new', [])).resolves.toEqual([]);
 
-    // Once it names the new parent, and before it lets go of the old one.
+    // Before it names the new parent.
     expect(sendStateEvent.mock.calls.filter(([roomId]) => roomId === '!sub')).toEqual([
-      ['!sub', 'm.space.parent', { via: ['home.example'], canonical: true }, '!new'],
       [
         '!sub',
         'm.room.join_rules',
         { join_rule: 'restricted', allow: [member('!old'), member('!new')] },
         '',
       ],
+      ['!sub', 'm.space.parent', { via: ['home.example'], canonical: true }, '!new'],
       ['!sub', 'm.space.parent', {}, '!old'],
     ]);
     expect(sendStateEvent).toHaveBeenCalledWith(
@@ -153,7 +153,7 @@ describe('moveSpaceLinks', () => {
     ).toHaveLength(2);
   });
 
-  it('reports a sub-room that refused to admit the new room, which keeps its old parent', async () => {
+  it('reports a sub-room that refused to admit the new room, which keeps only its old parent', async () => {
     const { client, sendStateEvent } = fakeClient(
       {
         '!old': fakeStateRoom({ 'm.space.child': { '!sub': { via: ['s'] } } }),
@@ -169,7 +169,10 @@ describe('moveSpaceLinks', () => {
     );
 
     await expect(moveSpaceLinks(client, '!old', '!new', [])).resolves.toEqual(['!sub']);
-    expect(sendStateEvent.mock.calls).not.toContainEqual(['!sub', 'm.space.parent', {}, '!old']);
+    // Nor does it name the new room, as when it refuses the new parent.
+    expect(sendStateEvent.mock.calls.filter(([roomId]) => roomId === '!sub')).toEqual([
+      ['!sub', 'm.room.join_rules', expect.anything(), ''],
+    ]);
   });
 
   it('reports the children it could not point at the new room', async () => {

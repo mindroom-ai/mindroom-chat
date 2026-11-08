@@ -82,20 +82,20 @@ export const moveSpaceLinks = async (
     const parent = joined
       ? stateOf(child, StateEvent.SpaceParent, oldRoomId)?.getContent()
       : undefined;
-    const rules = admitAlso(
-      stateOf(child, StateEvent.RoomJoinRules, '')?.getContent(),
-      oldRoomId,
-      newRoomId
-    );
     const listed = send(newRoomId, StateEvent.SpaceChild, event.getContent(), childId);
-    // In turn, so a step that fails leaves the child as the steps before it left it: the child
-    // names the replacement once it lists the child, admits the replacement's members, and lets go
-    // of the old room after that.
+    // In turn, so a step that fails leaves the child as the steps before it left it: once the
+    // replacement lists the child, the child admits the replacement's members, then names the
+    // replacement, and lets go of the old room after that.
     const relink = async () => {
       if (!hasVia(parent)) return;
+      const rules = admitAlso(
+        stateOf(child, StateEvent.RoomJoinRules, '')?.getContent(),
+        oldRoomId,
+        newRoomId
+      );
+      if (rules) await send(childId, StateEvent.RoomJoinRules, rules, '');
       const via = domain ? [domain] : parent.via;
       await send(childId, StateEvent.SpaceParent, { ...parent, via }, newRoomId);
-      if (rules) await send(childId, StateEvent.RoomJoinRules, rules, '');
       await send(childId, StateEvent.SpaceParent, {}, oldRoomId);
     };
     try {
