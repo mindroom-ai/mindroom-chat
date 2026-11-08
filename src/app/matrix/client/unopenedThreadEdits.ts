@@ -107,9 +107,11 @@ const showNewestEdit = (thread: SummarizedThread, target: MatrixEvent): boolean 
   const targetId = target.getId();
   if (!targetId || target.isRedacted() || target.isState()) return false;
   const shown = target.replacingEvent();
-  const candidates = waitingEditsFor(thread, targetId).filter((edit) => isValidEdit(target, edit));
-  if (shown && !shown.isRedacted() && !isKnownRedactedEdit(thread.room, shown.getId()))
-    candidates.unshift(shown);
+  const waiting = waitingEditsFor(thread, targetId).filter((edit) => isValidEdit(target, edit));
+  const candidates = [shown ?? undefined, ...waiting].filter(
+    (edit): edit is MatrixEvent =>
+      !!edit && !edit.isRedacted() && !isKnownRedactedEdit(thread.room, edit.getId())
+  );
   const newest = getLatestEdit(target, candidates);
   if (newest === shown || (!newest && !shown)) return false;
   target.makeReplaced(newest);

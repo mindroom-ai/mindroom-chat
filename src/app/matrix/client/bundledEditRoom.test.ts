@@ -1,4 +1,4 @@
-import { createClient, Room, type IEvent, type MatrixEvent } from 'matrix-js-sdk';
+import { createClient, type IEvent, type MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import { keepBundledEditsInTheirRoom } from './bundledEditRoom';
 
@@ -74,19 +74,5 @@ describe('keepBundledEditsInTheirRoom', () => {
 
     expect(mx.getEventMapper()(raw).replacingEvent()?.getRoomId()).toBe('!other:example.org');
     expect(mx.getEventMapper()(plain).getRoomId()).toBe(ROOM_ID);
-  });
-
-  it('leaves out a bundled edit whose redaction the room took', () => {
-    const { mx } = recordingClient();
-    keepBundledEditsInTheirRoom(mx);
-    const room = new Room(ROOM_ID, mx, '@alice:example.org');
-    mx.store.storeRoom(room);
-    // What the SDK patch records once someone who may redact the edit did (eventRevision.ts).
-    room.redactedBundledEdits.add('$edit');
-
-    const message = mx.getEventMapper()(syncedMessageWithBundledEdit());
-
-    expect(message.replacingEventId()).toBeUndefined();
-    expect(message.getUnsigned()['m.relations']?.['m.replace']).toBeUndefined();
   });
 });

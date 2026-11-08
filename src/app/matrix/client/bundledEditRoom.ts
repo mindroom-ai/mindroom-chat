@@ -1,6 +1,5 @@
 import type { IEvent, MatrixClient } from 'matrix-js-sdk';
 import { isRecord } from '../../lib/isRecord';
-import { stripRedactedRelationsFromRawEvent } from '../eventRevision';
 
 // A server bundles an event's newest edit in `unsigned['m.relations']['m.replace']`, formatted as
 // the response formats its events, so the bundle of a /sync timeline event has no room ID either.
@@ -9,8 +8,7 @@ import { stripRedactedRelationsFromRawEvent } from '../eventRevision';
 // Rust crypto takes an encrypted event without a room ID for a to-device message ("to-device event
 // was not decrypted in preprocessToDeviceMessages") and never tries it again. The message then
 // showed nothing on that device until an unbundled copy of the edit came by. This module gives
-// every bundled edit the room ID of the event it belongs to before the mapper reads it, and leaves
-// out every bundled edit whose redaction the room took (eventRevision.ts).
+// every bundled edit the room ID of the event it belongs to before the mapper reads it.
 
 type RawEvent = Partial<IEvent>;
 
@@ -27,21 +25,11 @@ const withBundledEditRoom = (raw: RawEvent): RawEvent => {
   };
 };
 
-/**
- * Makes the client's event mappers give bundled edits their event's room ID, and leave out those
- * the room took a redaction of; call it once.
- */
+/** Makes the client's event mappers give bundled edits their event's room ID; call it once. */
 export const keepBundledEditsInTheirRoom = (mx: MatrixClient): void => {
   const getEventMapper = mx.getEventMapper.bind(mx);
   mx.getEventMapper = (options) => {
     const map = getEventMapper(options);
-    return (raw) => {
-      // A copy from elsewhere, such as the cache, keeps no edit whose redaction the room took, also
-      // with an event its thread summary bundles (eventRevision.ts).
-      const redacted = mx.getRoom(raw.room_id)?.redactedBundledEdits;
-      return map(
-        withBundledEditRoom(redacted ? stripRedactedRelationsFromRawEvent(raw, redacted) : raw)
-      );
-    };
+    return (raw) => map(withBundledEditRoom(raw));
   };
 };

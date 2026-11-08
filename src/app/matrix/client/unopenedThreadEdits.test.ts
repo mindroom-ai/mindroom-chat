@@ -377,6 +377,26 @@ describe('edits of unopened threads', () => {
     // Nor does the reply still name the edit as the one that finished its stream.
     const kept = defined(getThreadSummaryReply(f.thread()), 'the reply the thread keeps');
     expect(getFinishingEdit(kept, f.thread())).toBeUndefined();
+
+    expect(f.loadedThread()).toBe(false);
+  });
+
+  it('does not show a stale copy of a bundled edit the room took a redaction of', async () => {
+    const leaked = edit('Leaked a secret', 151, 'completed');
+    const bundled = (): IEvent => ({
+      ...reply(),
+      unsigned: { 'm.relations': { 'm.replace': leaked } },
+    });
+    const f = fixture(() => [bundled()]);
+    await f.start();
+    await f.deliver([withSummary(bundled())]);
+    await f.deliver([redaction('$edit-151', 170)]);
+    expect(f.card().preview).toBe('Thinking about it');
+
+    // A copy of the edit as it was before its redaction comes back, as from a cached page.
+    await f.deliver([leaked]);
+
+    expect(f.card().preview).toBe('Thinking about it');
     expect(f.loadedThread()).toBe(false);
   });
 
