@@ -207,6 +207,9 @@ export function RoomViewHeader({
   const spacePathId = space ? getCanonicalAliasOrRoomId(mx, space.roomId) : undefined;
   const direct = useIsDirectRoom();
   const sectionPath = sectionPathOf(spacePathId, direct);
+  // Not while a side panel in the conversation's place hides this header: its swipe and its
+  // Members shortcut wait.
+  const behindPanel = useAtomValue(conversationBehindPanelAtom);
   // A phone's back leaves the room for the page it was opened from (the list, a lobby, search
   // results, the room a notification opened over, a thread with a link), passing over the room's
   // own pages: its threads and the messages it was opened at. Opened from outside the app, the
@@ -217,9 +220,6 @@ export function RoomViewHeader({
     if (origin) navigate(-origin.steps);
     else navigate(sectionPath, { replace: true });
   };
-  // Not while a side panel in the conversation's place hides this header: its swipe and its
-  // Members shortcut wait.
-  const behindPanel = useAtomValue(conversationBehindPanelAtom);
   // A swipe from the screen's left edge does the same, in the iOS app too, whose web view has no
   // back gesture of its own. A thread open in the room takes the swipe itself
   // (useRoomViewThreadState).
