@@ -1,8 +1,10 @@
 // A client plugin for the tests (docs/architecture.md "Client plugins"): a message that carries
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
-// section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
+// section (`plugins.example.label`), else from its strings: English here, German in locales/de.json,
+// and "From <sender>" after the sender's avatar in the room, with ", a MindRoom agent" for an agent.
 // A side panel, "Example panel", names the room it is open in, counts its joined members and says
-// whether a MindRoom agent has joined or is invited, through the account's client. Its toggle, under
+// whether a MindRoom agent has joined or is invited, through the account's client, and whether the
+// account may post there, which it says again when the room's levels change. Its toggle, under
 // a leaf icon, shows in the room header's row, except on phones, where it goes in the room menu. It
 // also shows the greeting a card asked it to show: in a room, each greeting has "Show in panel",
 // and "Close panel" while the panel shows. The panel stays open in its room across reloads
@@ -47,8 +49,12 @@ import {
 } from '@mindroom/client-sdk/core';
 import {
   hasActiveMindroomAgent,
+  isMindroomAgentUserId,
+  mxcUrlToHttp,
   useMatrixClient,
+  useMediaAuthentication,
   useRoomMembers,
+  useRoomPermissions,
 } from '@mindroom/client-sdk/matrix';
 import { useRoomHref, useRoomNavigate } from '@mindroom/client-sdk/room';
 import { MindroomServerError, useMindroomServer } from '@mindroom/client-sdk/server';
@@ -81,6 +87,10 @@ function Greeting({ event }: { event: PluginEvent }) {
   }, [storage, seenKey]);
   const t = usePluginTranslation('example');
   const panel = useRoomSidePanel('example', 'panel');
+  const client = useMatrixClient();
+  const authenticated = useMediaAuthentication();
+  const avatarMxc = client.getRoom(event.roomId)?.getMember(event.sender)?.getMxcAvatarUrl();
+  const avatar = avatarMxc && mxcUrlToHttp(client, avatarMxc, authenticated, 32, 32, 'crop');
   const text = greetingText(event.content);
   const label =
     typeof config === 'object' &&
@@ -93,6 +103,11 @@ function Greeting({ event }: { event: PluginEvent }) {
     <>
       <div data-example-plugin>
         {label}: {text}
+      </div>
+      <div data-example-plugin-sender>
+        {avatar && <img src={avatar} alt="" width={16} height={16} />}
+        From {event.sender}
+        {isMindroomAgentUserId(event.sender) && ', a MindRoom agent'}
       </div>
       {seenIn !== null && seenIn !== pageLoad && <div data-example-plugin-seen>Seen before</div>}
       {panel && (
@@ -180,6 +195,11 @@ function RoomPage({ params: { roomId = '', threadId = '' } }: PluginPageProps) {
       </button>
     </div>
   );
+}
+
+function PostingRight({ room }: { room: Room }) {
+  const mayPost = useRoomPermissions(room).event('m.room.message', room.client.getSafeUserId());
+  return <p>{mayPost ? 'You may post here' : 'You may not post here'}</p>;
 }
 
 function ServerGreeting({ roomId }: { roomId: string }) {
@@ -281,7 +301,9 @@ function FetchedGreeting({ roomId, eventId }: { roomId: string; eventId: string 
 }
 
 function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }) {
-  const members = useRoomMembers(useMatrixClient(), roomId);
+  const client = useMatrixClient();
+  const members = useRoomMembers(client, roomId);
+  const room = client.getRoom(roomId);
   const joined = members.filter(({ membership }) => membership === KnownMembership.Join);
   return (
     <>
@@ -290,6 +312,7 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
         Members: {joined.length}, {hasActiveMindroomAgent(members) ? 'with' : 'without'} a MindRoom
         agent
       </p>
+      {room && <PostingRight room={room} />}
       {typeof request === 'string' && (
         <FetchedGreeting key={request} roomId={roomId} eventId={request} />
       )}
