@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
-import { setLook } from '../helpers/designChoices';
+import { SCHEMES, setLook } from '../helpers/designChoices';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -27,8 +27,6 @@ const LAYOUTS = {
   wide: { width: 1440, height: 900 },
   phone: { width: 390, height: 844 },
 };
-
-test.use({ video: 'off' });
 
 let build: string | undefined;
 
@@ -71,6 +69,12 @@ const rowClasses = async (action: Locator) => [
   await classes(action.locator(':scope > *').first()),
 ];
 
+/** The classes of a dialog and of its header. */
+const dialogClasses = async (dialog: Locator) => [
+  await classes(dialog),
+  await classes(dialog.locator('header')),
+];
+
 /** Opens the example panel: its toggle in the room header's row, or on a phone its menu entry. */
 const openExamplePanel = async (page: Page) => {
   if (!isPhoneLayout(page)) {
@@ -111,7 +115,7 @@ for (const [layout, viewport] of Object.entries(LAYOUTS)) {
     const page = await context.newPage();
     /** Screenshots of the page in the light and the dark scheme, as `<layout>-<name>-<scheme>`. */
     const shots = async (name: string) => {
-      for (const scheme of ['light', 'dark'] as const) {
+      for (const scheme of SCHEMES) {
         await page.emulateMedia({ colorScheme: scheme });
         await page.screenshot({ path: testInfo.outputPath(`${layout}-${name}-${scheme}.png`) });
       }
@@ -130,7 +134,7 @@ for (const [layout, viewport] of Object.entries(LAYOUTS)) {
       await shots('app-menu');
       await page.getByRole('menuitem', { name: 'Leave Room', exact: true }).click();
       const leave = page.getByRole('alertdialog');
-      const appDialogClasses = [await classes(leave), await classes(leave.locator('header'))];
+      const appDialogClasses = await dialogClasses(leave);
       await shots('app-dialog');
       await page.keyboard.press('Escape');
       await expect(leave).toHaveCount(0);
@@ -184,10 +188,7 @@ for (const [layout, viewport] of Object.entries(LAYOUTS)) {
           await menuButton(page).click();
           await exampleMenu(page).getByRole('menuitem', { name: 'Show example dialog' }).click();
           await expect(exampleDialog(page)).toContainText('Example dialog of Orchard');
-          expect([
-            await classes(exampleDialog(page)),
-            await classes(exampleDialog(page).locator('header')),
-          ]).toEqual(appDialogClasses);
+          expect(await dialogClasses(exampleDialog(page))).toEqual(appDialogClasses);
           await shots(`${direction}-dialog`);
           await page.getByRole('button', { name: 'Close example dialog' }).click();
           await expect(exampleDialog(page)).toHaveCount(0);
