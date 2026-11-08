@@ -11,6 +11,7 @@ import { LightTheme } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import { MatrixClientProvider } from '../../src/app/matrix/hooks/useMatrixClient';
 import { SpecVersionsProvider } from '../../src/app/matrix/hooks/useSpecVersions';
+import { PowerLevelsContextProvider } from '../../src/app/matrix/hooks/usePowerLevels';
 import { Sidebar, SidebarStack } from '../../src/app/ui/sidebar/SidebarItem';
 import { ActiveCallTab } from '../../src/app/calls/ActiveCallTab';
 import { CallPanel } from '../../src/app/calls/CallPanel';
@@ -95,6 +96,14 @@ const call = {
   resumeAudio: ignore,
 } as unknown as RoomCall;
 
+// Everyone may join the room's call: the panel shows no notice about who may.
+const POWER_LEVELS = {
+  users_default: 0,
+  events_default: 0,
+  state_default: 0,
+  users: { [ME]: 100 },
+};
+
 const active: ActiveCall = { call, kind: 'room' };
 const store = createStore();
 store.set(activeCallAtom, active);
@@ -105,16 +114,18 @@ function Fixture() {
       <MatrixClientProvider value={client}>
         <SpecVersionsProvider value={{ versions: ['v1.10'] }}>
           <MemoryRouter>
-            <Box style={{ height: '100vh' }}>
-              <Sidebar data-fixture-rail="">
-                <SidebarStack>
-                  <ActiveCallTab active={active} />
-                </SidebarStack>
-              </Sidebar>
-              <Box grow="Yes" style={{ minWidth: 0 }}>
-                <CallPanel room={room} onClose={() => undefined} />
+            <PowerLevelsContextProvider value={POWER_LEVELS}>
+              <Box style={{ height: '100vh' }}>
+                <Sidebar data-fixture-rail="">
+                  <SidebarStack>
+                    <ActiveCallTab active={active} />
+                  </SidebarStack>
+                </Sidebar>
+                <Box grow="Yes" style={{ minWidth: 0 }}>
+                  <CallPanel room={room} onClose={() => undefined} />
+                </Box>
               </Box>
-            </Box>
+            </PowerLevelsContextProvider>
           </MemoryRouter>
         </SpecVersionsProvider>
       </MatrixClientProvider>

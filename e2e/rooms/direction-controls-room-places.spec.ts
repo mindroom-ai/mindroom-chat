@@ -292,7 +292,14 @@ const checkInvite = async (page: Page, label: string) => {
     .getByText(/^Invoice /)
     .first();
   await expectShown(card, INVITE_NAME_SHOWN);
-  await expectShown(page.locator('main'), INVITE_TOPIC_SHOWN);
+  // Only the room's own lines: the card puts the inviter's ID in a left-to-right isolate of its own.
+  await expectShown(
+    page
+      .locator('main')
+      .getByText(/^Sign off /)
+      .first(),
+    INVITE_TOPIC_SHOWN
+  );
   await shot(page, `${label}-invite`);
 };
 
@@ -301,7 +308,7 @@ const checkJoinPage = async (page: Page, world: World, label: string) => {
   await go(page, roomPath(world.publicId));
   const main = page.locator('main');
   await expectShown(main.locator('h1').first(), PUBLIC_NAME_SHOWN);
-  await expectShown(main, PUBLIC_TOPIC_SHOWN);
+  await expectShown(main.getByText(/^Seeds and /).first(), PUBLIC_TOPIC_SHOWN);
   await shot(page, `${label}-join-page`);
 };
 
