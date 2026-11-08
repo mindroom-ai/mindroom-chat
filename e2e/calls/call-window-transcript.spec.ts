@@ -128,8 +128,9 @@ test.describe('the layout by the window size', () => {
         expect(paneBox.height).toBeLessThanOrEqual(1);
         await expect(subtitle).toHaveText('Avery Quinn Line 40: noted.');
         await expect(subtitle).toBeInViewport({ ratio: 1 });
-        // The stage keeps the subtitle's room free at its end, its faces laid out above it, and
-        // the subtitle sits in that room, inside the stage from side to side.
+        // The stage keeps the subtitle's room free at its end (its content box ends above it), and
+        // the subtitle sits in that room, inside the stage from side to side. (A voice stage's
+        // face still runs into it in a window 239 px tall, main's behavior.)
         const stageContentEnd = await callWindow
           .locator('[data-call-stage]')
           .evaluate(
@@ -207,8 +208,11 @@ test('the divider follows the pointer, also off the window, and keeps where it w
   expect(await storedSplit(page)).toBe(0.7);
   // The press was the divider's: the window stayed where it was.
   expect(await boxOf(callWindow)).toEqual(windowBox);
-  // A move after the release drags nothing.
-  await page.mouse.move(offWindow, splitBox.y + 0.4 * splitBox.height, { steps: 4 });
+  // A pointer moving over the grip after the release, no button held, drags nothing: from its
+  // bottom to its top it would set 71 to 68.
+  const grip = await boxOf(divider);
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height - 1);
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + 1, { steps: 4 });
   await twoFrames(page);
   await expect(divider).toHaveAttribute('aria-valuenow', '70');
 
@@ -236,12 +240,11 @@ test('the divider follows the pointer, also off the window, and keeps where it w
 test('the arrow keys move the focused divider the way they point, and each step stays', async ({
   page,
 }) => {
-  const parts = await openWindow(page, TALL.width, TALL.height);
-  const { divider } = parts;
-  await divider.focus();
+  let parts = await openWindow(page, TALL.width, TALL.height);
+  await parts.divider.focus();
   const step = async (key: string, value: number) => {
     await page.keyboard.press(key);
-    await expect(divider).toHaveAttribute('aria-valuenow', String(value));
+    await expect(parts.divider).toHaveAttribute('aria-valuenow', String(value));
     expect(await stageShare(parts)).toBeCloseTo(value / 100, 2);
     expect(await storedSplit(page)).toBe(value / 100);
   };
@@ -253,19 +256,16 @@ test('the arrow keys move the focused divider the way they point, and each step 
   await step('End', 80);
 
   // Beside the stage, Left and Right move it, Up and Down do not.
-  const side = await openWindow(page, 700, 480);
-  await side.divider.focus();
-  await page.keyboard.press('ArrowDown');
-  await expect(side.divider).toHaveAttribute('aria-valuenow', '60');
-  await page.keyboard.press('ArrowUp');
-  await expect(side.divider).toHaveAttribute('aria-valuenow', '60');
-  await page.keyboard.press('ArrowRight');
-  await expect(side.divider).toHaveAttribute('aria-valuenow', '65');
-  expect(await stageShare(side)).toBeCloseTo(0.65, 2);
-  await page.keyboard.press('ArrowLeft');
-  await page.keyboard.press('ArrowLeft');
-  await expect(side.divider).toHaveAttribute('aria-valuenow', '55');
-  expect(await stageShare(side)).toBeCloseTo(0.55, 2);
+  parts = await openWindow(page, 700, 480);
+  await parts.divider.focus();
+  for (const key of ['ArrowDown', 'ArrowUp']) {
+    await page.keyboard.press(key);
+    await expect(parts.divider).toHaveAttribute('aria-valuenow', '60');
+  }
+  expect(await storedSplit(page)).toBeUndefined();
+  await step('ArrowRight', 65);
+  await step('ArrowLeft', 60);
+  await step('ArrowLeft', 55);
 });
 
 test('the transcript keeps its newest line in view through layout changes, unless scrolled up', async ({
