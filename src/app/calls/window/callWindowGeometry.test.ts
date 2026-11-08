@@ -91,6 +91,49 @@ describe('callWindowGeometry', () => {
     expect(next.y + next.height).toBe(780);
   });
 
+  // A bar minimized at the bottom has 64 px below its top in this viewport; one at the top has
+  // its own 56 px above its bottom.
+  const lowBar: WindowRect = { x: 1024, y: 828, width: 400, height: 56 };
+  const highBar: WindowRect = { x: 1024, y: 8, width: 400, height: 56 };
+
+  it('grows a bar dragged past the threshold to the minimum, upward when there is no room below', () => {
+    expect(resizeRect(lowBar, 's', 0, 70, VP)).toEqual({ ...lowBar, y: 672, height: 220 });
+    expect(resizeRect(highBar, 'n', 0, -70, VP)).toEqual({ ...highBar, y: 8, height: 220 });
+  });
+
+  it('stops a tall drag at the margin rather than moving the window', () => {
+    expect(resizeRect(R, 's', 0, 5000, VP)).toEqual({ ...R, height: 900 - 8 - 300 });
+    expect(resizeRect(R, 'n', 0, -5000, VP)).toEqual({ ...R, y: 8, height: 780 - 8 });
+  });
+
+  it('grows a bar with Shift and the down arrow upward when there is no room below', () => {
+    expect(keyStep(lowBar, 'ArrowDown', true, VP)).toEqual({ ...lowBar, y: 672, height: 220 });
+  });
+
+  it('gives a stored window at least the minimum size, or the bar height when it is a bar', () => {
+    expect(clampToViewport({ x: 100, y: 100, width: 1, height: 1 }, VP)).toEqual({
+      x: 100,
+      y: 100,
+      width: 340,
+      height: 56,
+    });
+    expect(clampToViewport({ x: 100, y: 100, width: 400, height: 100 }, VP)).toEqual({
+      x: 100,
+      y: 100,
+      width: 400,
+      height: 220,
+    });
+    expect(clampToViewport({ ...lowBar, height: 100 }, VP)).toEqual({
+      ...lowBar,
+      y: 672,
+      height: 220,
+    });
+    // A viewport too small for the minimum gives the window all it has.
+    expect(
+      clampToViewport({ x: 8, y: 8, width: 1, height: 100 }, { width: 300, height: 200 })
+    ).toEqual({ x: 8, y: 8, width: 284, height: 184 });
+  });
+
   it('drops a bar into the nearest corner', () => {
     const bar = { x: 100, y: 100, width: 400, height: 56 };
     expect(snapToCorner(bar, VP)).toEqual({ x: 8, y: 8, width: 400, height: 56 });

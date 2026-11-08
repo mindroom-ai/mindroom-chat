@@ -87,6 +87,16 @@ describe('minimize and expand', () => {
     expect(back.rect).toEqual(rect);
   });
 
+  it('expands a bar at the top of the viewport downward', () => {
+    const high = { x: 100, y: 8, width: 400, height: 56 };
+    const back = expandedSettings(
+      { mode: 'floating', rect: high, expandedHeight: 300 },
+      high,
+      viewport
+    );
+    expect(back.rect).toEqual({ x: 100, y: 8, width: 400, height: 300 });
+  });
+
   it('falls back to the default height and fits the viewport', () => {
     const low = { x: 100, y: 780, width: 400, height: 56 };
     const back = expandedSettings({ mode: 'floating', rect: low }, low, {

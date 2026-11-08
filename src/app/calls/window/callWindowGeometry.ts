@@ -46,11 +46,21 @@ export function moveRect(
   return { ...start, x, y };
 }
 
-// Under BAR_THRESHOLD the window collapses to the bar; between that and MIN_HEIGHT it stays at the minimum.
-function barAwareHeight(raw: number, space: number): number {
+// The most a window may take of the viewport, and the least it takes there unless it is the bar:
+// a viewport smaller than the minimum gives it all it has.
+const widest = (viewport: ViewportSize): number => viewport.width - 2 * WINDOW_MARGIN;
+const narrowest = (viewport: ViewportSize): number => Math.min(MIN_WIDTH, widest(viewport));
+const tallest = (viewport: ViewportSize): number =>
+  Math.max(BAR_HEIGHT, viewport.height - 2 * WINDOW_MARGIN);
+const shortest = (viewport: ViewportSize): number => Math.min(MIN_HEIGHT, tallest(viewport));
+
+// Under BAR_THRESHOLD the window collapses to the bar. Above it the window is at least the
+// minimum height and grows into the `room` on the side the edge moves to; where that room is
+// short of the minimum, clampToViewport moves the window to the other side to make it.
+function barAwareHeight(raw: number, room: number, viewport: ViewportSize): number {
   if (raw < BAR_THRESHOLD) return BAR_HEIGHT;
-  if (raw < MIN_HEIGHT) return Math.min(MIN_HEIGHT, Math.max(space, BAR_HEIGHT));
-  return Math.min(raw, Math.max(space, BAR_HEIGHT));
+  const least = shortest(viewport);
+  return clamp(raw, least, Math.max(room, least));
 }
 
 export function resizeRect(
@@ -62,7 +72,7 @@ export function resizeRect(
 ): WindowRect {
   const right = start.x + start.width;
   const bottom = start.y + start.height;
-  const minWidth = Math.min(MIN_WIDTH, viewport.width - 2 * WINDOW_MARGIN);
+  const minWidth = narrowest(viewport);
   let { x, y, width, height } = start;
   if (edge.includes('e')) {
     width = clamp(start.width + dx, minWidth, viewport.width - WINDOW_MARGIN - start.x);
@@ -72,13 +82,13 @@ export function resizeRect(
     x = right - width;
   }
   if (edge.includes('s')) {
-    height = barAwareHeight(start.height + dy, viewport.height - WINDOW_MARGIN - start.y);
+    height = barAwareHeight(start.height + dy, viewport.height - WINDOW_MARGIN - start.y, viewport);
   }
   if (edge.includes('n')) {
-    height = barAwareHeight(start.height - dy, bottom - WINDOW_MARGIN);
+    height = barAwareHeight(start.height - dy, bottom - WINDOW_MARGIN, viewport);
     y = bottom - height;
   }
-  return { x, y, width, height };
+  return clampToViewport({ x, y, width, height }, viewport);
 }
 
 export function snapToCorner(rect: WindowRect, viewport: ViewportSize): WindowRect {
@@ -91,9 +101,16 @@ export function snapToCorner(rect: WindowRect, viewport: ViewportSize): WindowRe
   };
 }
 
+/**
+ * The one rule every box of the window ends with (a stored one, a resize, a step, Expand): the bar
+ * is BAR_HEIGHT tall, any other box at least the minimum size, and all of it 8 px inside the
+ * viewport, moved in where it reaches past an edge.
+ */
 export function clampToViewport(rect: WindowRect, viewport: ViewportSize): WindowRect {
-  const width = Math.min(rect.width, viewport.width - 2 * WINDOW_MARGIN);
-  const height = Math.max(BAR_HEIGHT, Math.min(rect.height, viewport.height - 2 * WINDOW_MARGIN));
+  const width = clamp(rect.width, narrowest(viewport), widest(viewport));
+  const height = isBar(rect)
+    ? BAR_HEIGHT
+    : clamp(rect.height, shortest(viewport), tallest(viewport));
   const x = clamp(
     rect.x,
     WINDOW_MARGIN,
@@ -135,10 +152,7 @@ export function keyStep(
   if (resize) {
     if (horizontal) return resizeRect(rect, 'e', sign, 0, viewport);
     // A 16 px step cannot cross the bar threshold, so a height step at the bar or at the minimum jumps to the other state.
-    if (sign > 0 && isBar(rect)) {
-      const space = viewport.height - WINDOW_MARGIN - rect.y;
-      return { ...rect, height: Math.min(MIN_HEIGHT, Math.max(space, BAR_HEIGHT)) };
-    }
+    if (sign > 0 && isBar(rect)) return clampToViewport({ ...rect, height: MIN_HEIGHT }, viewport);
     if (sign < 0 && rect.height <= MIN_HEIGHT && !isBar(rect))
       return { ...rect, height: BAR_HEIGHT };
     return resizeRect(rect, 's', 0, sign, viewport);

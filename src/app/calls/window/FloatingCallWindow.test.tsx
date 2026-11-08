@@ -221,6 +221,41 @@ describe('FloatingCallWindow', () => {
     expect(stored()).toMatchObject({ rect: { x: 1024, y: 404, width: 400, height: 480 } });
   });
 
+  // Minimized from the default place, the bar has 64 px below its top: the window it grows into
+  // takes the minimum height upward, and stays there after a reload.
+  const grownFromLowBar = { x: 1024, y: 672, width: 400, height: 220 };
+
+  it('grows a bar at the bottom upward to the minimum height with Shift and the down arrow', () => {
+    renderWindow();
+    act(() => frame?.minimize());
+    fireEvent.keyDown(handle(), { key: 'ArrowDown', shiftKey: true });
+    expect(placed()).toEqual(grownFromLowBar);
+    expect(section().hasAttribute('data-bar')).toBe(false);
+    expect(stored()).toMatchObject({ rect: grownFromLowBar });
+  });
+
+  it('grows a bar at the bottom upward to the minimum height when its bottom edge is dragged', () => {
+    renderWindow();
+    act(() => frame?.minimize());
+    drag(edge('s'), 0, 70);
+    expect(placed()).toEqual(grownFromLowBar);
+    expect(stored()).toMatchObject({ rect: grownFromLowBar });
+  });
+
+  it('opens a stored rectangle too small for the window at the minimum size', () => {
+    store({ mode: 'floating', rect: { x: 100, y: 100, width: 1, height: 1 } });
+    renderWindow();
+    expect(placed()).toEqual({ x: 100, y: 100, width: 340, height: 56 });
+    expect(section().hasAttribute('data-bar')).toBe(true);
+    cleanup();
+    clearCallWindowStore(USER);
+
+    store({ mode: 'floating', rect: { x: 100, y: 100, width: 400, height: 100 } });
+    renderWindow();
+    expect(placed()).toEqual({ x: 100, y: 100, width: 400, height: 220 });
+    expect(section().hasAttribute('data-bar')).toBe(false);
+  });
+
   it('drops a moved bar into the nearest corner on release', () => {
     renderWindow();
     act(() => frame?.minimize());
