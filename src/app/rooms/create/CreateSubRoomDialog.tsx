@@ -25,9 +25,8 @@ type CreateSubRoomDialogProps = {
 };
 
 /**
- * New Sub-room: a room listed under `parent` (`m.space.child` there, and the new room's canonical
- * `m.space.parent`) that only the members of `parent` may join (`restricted`). The agents in
- * `parent` join it on their own. It opens once sync has it.
+ * New Sub-room: asks for a name and creates the sub-room of `parent` that `createSubRoom`
+ * describes. The agents in `parent` join it on their own. It opens once sync has it.
  */
 export function CreateSubRoomDialog({ parent, spaceId, requestClose }: CreateSubRoomDialogProps) {
   const { t } = useTranslation();

@@ -250,7 +250,7 @@ describe('example plugin', () => {
     const listed = vi.spyOn(client, 'sendStateEvent').mockResolvedValue({ event_id: '$child' });
     const room = new Room('!lobby:example.org', client, '@ada:example.org');
     // The app provides its configuration to what it renders, and to createSubRoom.
-    await renderPluginComponent(<></>, { id: 'example', plugin, client });
+    await renderPluginComponent(<></>, { id: 'example', plugin });
 
     await subroom.run({ room, args: 'Ideas' });
     expect(created).toHaveBeenCalledWith(expect.objectContaining({ name: 'Ideas' }));

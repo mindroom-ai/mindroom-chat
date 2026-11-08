@@ -67,7 +67,7 @@ const messages = async (accessToken: string, roomId: string) => {
     });
 };
 
-test("the example plugin's slash command shows in the command menu and runs in the room", async ({
+test("the example plugin's slash commands show in the command menu, and /greet runs in the room", async ({
   browser,
 }, testInfo) => {
   test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
