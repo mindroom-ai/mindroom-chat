@@ -8,6 +8,11 @@ export const MIN_WIDTH = 340;
 export const MIN_HEIGHT = 220;
 export const BAR_HEIGHT = 56;
 export const BAR_THRESHOLD = 120;
+/**
+ * How far (px) the edge of a bar against the bottom or top of the viewport must be pulled toward
+ * it to grow the bar: the pointer goes only a few px past the screen's edge, never the threshold's.
+ */
+export const BAR_PULL = 4;
 export const KEY_STEP = 16;
 export const DEFAULT_WIDTH = 400;
 export const DEFAULT_HEIGHT = 480;
@@ -73,6 +78,13 @@ function barAwareHeight(raw: number, room: number, viewport: ViewportSize): numb
   return clamp(raw, least, Math.max(room, least));
 }
 
+// A bar's edge pulled toward a viewport edge that leaves no room to pass BAR_THRESHOLD (`room` is
+// what lies beyond the edge, to the margin) passes it at BAR_PULL; any other height stays `raw`.
+function pulledHeight(start: WindowRect, raw: number, pull: number, room: number): number {
+  const short = room < BAR_THRESHOLD - BAR_HEIGHT;
+  return isBar(start) && short && pull >= BAR_PULL ? Math.max(raw, BAR_THRESHOLD) : raw;
+}
+
 export function resizeRect(
   start: WindowRect,
   edge: ResizeEdge,
@@ -92,10 +104,17 @@ export function resizeRect(
     x = right - width;
   }
   if (edge.includes('s')) {
-    height = barAwareHeight(start.height + dy, viewport.height - WINDOW_MARGIN - start.y, viewport);
+    const raw = pulledHeight(
+      start,
+      start.height + dy,
+      dy,
+      viewport.height - WINDOW_MARGIN - bottom
+    );
+    height = barAwareHeight(raw, viewport.height - WINDOW_MARGIN - start.y, viewport);
   }
   if (edge.includes('n')) {
-    height = barAwareHeight(start.height - dy, bottom - WINDOW_MARGIN, viewport);
+    const raw = pulledHeight(start, start.height - dy, -dy, start.y - WINDOW_MARGIN);
+    height = barAwareHeight(raw, bottom - WINDOW_MARGIN, viewport);
     y = bottom - height;
   }
   return clampToViewport({ x, y, width, height }, viewport);

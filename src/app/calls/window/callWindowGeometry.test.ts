@@ -101,6 +101,25 @@ describe('callWindowGeometry', () => {
     expect(resizeRect(highBar, 'n', 0, -70, VP)).toEqual({ ...highBar, y: 8, height: 220 });
   });
 
+  it('grows a bar against the bottom or the top from a short pull toward that edge, away from it', () => {
+    // The pointer can go only a few px past the screen's edge, never the threshold's 64.
+    const cornerBar = { ...lowBar, y: 836 };
+    expect(resizeRect(cornerBar, 's', 0, 4, VP)).toEqual({ ...cornerBar, y: 672, height: 220 });
+    expect(resizeRect(cornerBar, 'se', 0, 4, VP)).toEqual({ ...cornerBar, y: 672, height: 220 });
+    expect(resizeRect(lowBar, 's', 0, 4, VP)).toEqual({ ...lowBar, y: 672, height: 220 });
+    expect(resizeRect(cornerBar, 's', 0, 3, VP)).toEqual(cornerBar);
+    expect(resizeRect(highBar, 'n', 0, -4, VP)).toEqual({ ...highBar, height: 220 });
+    expect(resizeRect(highBar, 'nw', 0, -4, VP)).toEqual({ ...highBar, height: 220 });
+    // A pull the other way, or one with room for the threshold, keeps the bar.
+    expect(resizeRect(cornerBar, 'n', 0, 4, VP)).toEqual(cornerBar);
+    const midBar = { ...lowBar, y: 400 };
+    expect(resizeRect(midBar, 's', 0, 4, VP)).toEqual(midBar);
+    expect(resizeRect(midBar, 'n', 0, -4, VP)).toEqual(midBar);
+    // A window that is no bar resizes as before.
+    const low = { ...R, y: 412 };
+    expect(resizeRect(low, 's', 0, 4, VP)).toEqual(low);
+  });
+
   it('stops a tall drag at the margin rather than moving the window', () => {
     expect(resizeRect(R, 's', 0, 5000, VP)).toEqual({ ...R, height: 900 - 8 - 300 });
     expect(resizeRect(R, 'n', 0, -5000, VP)).toEqual({ ...R, y: 8, height: 780 - 8 });

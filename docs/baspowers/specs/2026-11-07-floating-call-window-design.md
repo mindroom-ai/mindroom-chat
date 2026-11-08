@@ -49,7 +49,7 @@ Out, with reasons:
 - `position: fixed`, above the page, below modal dialogs and the incoming-call ring.
 - Default 400 by 480 px, 16 px from the bottom and end edges. Minimum 340 by 220 px expanded; the bar is 56 px tall.
 - **Move:** pointer drag on the title bar (not on its buttons). The window stays 8 px inside the viewport and sticks to an edge within 16 px of it.
-- **Resize:** pointer drag on any of 4 edges or 4 corners. Resizing below 120 px tall turns the window into the bar; dragging the bar's bottom edge down expands it again.
+- **Resize:** pointer drag on any of 4 edges or 4 corners. Resizing below 120 px tall turns the window into the bar; dragging the bar's bottom edge down (or its top edge up) past 120 px expands it again. A bar against the bottom or top of the viewport (less than the 64 px that takes beyond that edge), where the pointer goes only a few px past the screen's edge, expands once that edge is pulled 4 px toward it, growing away from it to the minimum height.
 - **Minimize** (title bar button) turns it into the bar in place, keeping the height to return to. The bar shows up to three avatars of the others (one per person, as on the voice stage; the speaking one ringed), the title and status, while joined the microphone and leave buttons, then Expand (which gives the height back) and Close (X, "Close call view"). Once the call failed or ended, the status says why (the problem, or that the call ended) and Close, the expanded view's Dismiss, takes the place of the microphone and leave buttons, so a failed call can be dropped from the bar; that bar has Close and Expand only, no X. The notices to act on show in the expanded view only, so a bar expands by itself when one comes up: an agent's voice call error (it joined but cannot hear or speak, with its Dismiss) or the browser blocking the call's sound (Play sound); minimized again while it stands, the window stays a bar. A moved bar drops into the nearest corner on release. When the call shown in a floating window ends on this device, the window closes; the focus it had (or the End button's, gone with the call) goes to the room's call button on the page, else to the page's main content where the skip link lands.
 - **Keyboard:** the title bar takes focus ("Move call window"); arrows move it 16 px, Shift+arrows resize it 16 px.
 - **Viewport changes:** the window keeps its distance to the nearer horizontal and vertical edges, shrinks to fit when the viewport is smaller than it, and stays 8 px inside.
@@ -120,7 +120,7 @@ Layers: everything new is in `calls` (layer 6); it imports `navigation`, `matrix
 
 Unit (vitest; DOM tests with `// @vitest-environment jsdom`, a `PointerEvent` stub and `setPointerCapture` stubs):
 
-- geometry: move clamp and edge stick, every edge and corner resize with minimums, bar threshold, corner snap, viewport fit, keyboard steps;
+- geometry: move clamp and edge stick, every edge and corner resize with minimums, bar threshold, a bar against the bottom or top grown by a short pull, corner snap, viewport fit, keyboard steps;
 - state: defaults, junk in storage, mode switch, minimize then expand returns the height, an expand from outside after the viewport changed grows the bar where it shows;
 - `fitTiles`: one to six tiles in wide, tall and tiny stages, the speaker-view threshold;
 - `FloatingCallWindow`: drag moves and saves, resize, minimize and expand, keyboard, viewport resize, an expand from outside and a window that comes back (Dock, then Float) after the viewport changed;
