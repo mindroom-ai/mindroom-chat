@@ -12,6 +12,7 @@ import {
   loginToMatrix,
   matrixFetch,
   registerAgentAccount,
+  seedRoomOverviewState,
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
@@ -272,10 +273,12 @@ const check = async (browser: Browser, label: string, options: BrowserContextOpt
     await shots(page, `${label}-people-room`);
 
     // The agent's room in Classic, oldest first as well: Jump to Unread brings its line into view.
-    await page.evaluate(
-      (id) => localStorage.setItem(`roomViewMode:${id}`, JSON.stringify('classic')),
-      agentRoom
-    );
+    await seedRoomOverviewState({
+      page,
+      roomId: agentRoom,
+      userId: reader.userId,
+      viewMode: 'classic',
+    });
     await page.goto(`/home/${encodeURIComponent(agentRoom)}/`);
     await expect(jump).toBeVisible({ timeout: 60_000 });
     if (options.hasTouch) await jump.tap();
