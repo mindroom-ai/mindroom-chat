@@ -183,12 +183,19 @@ describe('useCallActions endCall', () => {
   });
 });
 
-/** A signed-in account's running client, alone in its session (no other tab holds its lock). */
-const runningClient = () =>
+/**
+ * A signed-in account's running client, alone in its session (no other tab holds its lock), in
+ * every room but the ones a test takes it out of (`out`: left, or forgotten as `null`).
+ */
+const runningClient = (out = new Map<string, 'leave' | null>()) =>
   ({
     clientRunning: true,
     getSafeUserId: () => '@me:calls.test',
     getDeviceId: () => 'TABDEVICE',
+    getRoom: (roomId: string) => {
+      const membership = out.has(roomId) ? out.get(roomId) : 'join';
+      return membership === null ? null : { roomId, getMyMembership: () => membership };
+    },
   } as unknown as MatrixClient);
 
 describe('useCallActions startCall', () => {
@@ -482,6 +489,52 @@ describe('useCallActions startCall', () => {
 
     await expect(starting).resolves.toBe('failed');
     expect(store.get(activeCallAtom)).toBeUndefined();
+  });
+
+  it('starts no call whose room the person left or forgot while it started, and opens no view on it', async () => {
+    for (const membership of ['leave', null] as const) {
+      const store = createStore();
+      const out = new Map<string, 'leave' | null>();
+      const { room, finishLoading } = slowRoom();
+      const starting = actionsIn(store, runningClient(out)).startCall({ room, kind: 'room' });
+      // eslint-disable-next-line no-await-in-loop
+      await finishLoading(() => out.set(room.roomId, membership));
+
+      // eslint-disable-next-line no-await-in-loop
+      await expect(starting).resolves.toBe('failed');
+      expect(store.get(activeCallAtom)).toBeUndefined();
+      expect(store.get(callPanelRoomAtom)).toBeUndefined();
+    }
+  });
+
+  it('starts no agent call whose conversation the person left while it was prepared, and undoes it', async () => {
+    const store = createStore();
+    const out = new Map<string, 'leave' | null>();
+    const onEnded = vi.fn(async () => undefined);
+    // The conversation went (left, then forgotten) while the call room's origin was written.
+    const prepare = vi.fn(async () => {
+      out.set('!planning:calls.test', null);
+    });
+    const room = {
+      roomId: '!callroom:calls.test',
+      loadMembersIfNeeded: async () => undefined,
+      getLiveTimeline: () => ({ getEvents: () => [] }),
+    } as unknown as Room;
+
+    await expect(
+      actionsIn(store, runningClient(out)).startCall({
+        room,
+        kind: 'agent',
+        origin: { roomId: '!planning:calls.test' },
+        prepare,
+        onEnded,
+      })
+    ).resolves.toBe('failed');
+
+    expect(store.get(activeCallAtom)).toBeUndefined();
+    // No call view opens on a conversation this client no longer has.
+    expect(store.get(callPanelRoomAtom)).toBeUndefined();
+    expect(onEnded).toHaveBeenCalledTimes(1);
   });
 });
 
