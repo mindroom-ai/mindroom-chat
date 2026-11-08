@@ -82,6 +82,17 @@ beforeEach(() => {
   ignored = [];
   mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
   room = new Room('!room:example.org', mx, '@alice:example.org');
+  // A redaction counts only from a member who may make it.
+  room.currentState.setStateEvents([
+    new MatrixEvent({
+      type: 'm.room.member',
+      state_key: '@mindroom_router:example.org',
+      sender: '@mindroom_router:example.org',
+      room_id: '!room:example.org',
+      event_id: '$member',
+      content: { membership: 'join' },
+    }),
+  ]);
   mx.store.storeRoom(room);
 });
 afterEach(() => {
