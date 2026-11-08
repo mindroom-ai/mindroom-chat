@@ -303,6 +303,7 @@ export const resolveCachedOverviewUpdate = ({
       threadId: rootId,
       cachedPage,
       mapper: cachedCopyMapper,
+      room,
     });
     const shouldUseCachedPreview =
       !!cachedPreviewInfo &&
