@@ -33,6 +33,7 @@ const plugin = (id: string, ...pages: PluginPage[]): RegisteredPlugin => ({
   roomHeaderSlot: [],
   sidePanels: [],
   headerActions: [],
+  slashCommands: [],
 });
 
 /** A config.json with this `plugins` section. */
