@@ -255,6 +255,11 @@
       "repairButton": "修复加密",
       "repaired": "加密已修复。请重新验证您的其他设备。",
       "repairCancelled": "修复需要确认您的账户。请重试。"
+    },
+    "oauthStage": {
+      "title": "在账户页面上批准",
+      "description": "您的服务器要求您在账户页面上批准此操作。请打开页面并批准，然后回到这里继续。",
+      "open": "打开账户页面"
     }
   },
   "featureUi": {

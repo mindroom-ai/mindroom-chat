@@ -255,6 +255,11 @@
       "repairButton": "Perbaiki enkripsi",
       "repaired": "Enkripsi diperbaiki. Verifikasi ulang perangkat Anda yang lain.",
       "repairCancelled": "Perbaikan memerlukan konfirmasi akun Anda. Coba lagi."
+    },
+    "oauthStage": {
+      "title": "Setujui di halaman akun Anda",
+      "description": "Server Anda meminta Anda menyetujui ini di halaman akun Anda. Buka halaman itu, setujui, lalu kembali ke sini untuk melanjutkan.",
+      "open": "Buka halaman akun"
     }
   },
   "featureUi": {

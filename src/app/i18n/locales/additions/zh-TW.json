@@ -255,6 +255,11 @@
       "repairButton": "修復加密",
       "repaired": "加密已修復。請重新驗證您的其他裝置。",
       "repairCancelled": "修復需要確認您的帳戶。請重試。"
+    },
+    "oauthStage": {
+      "title": "在帳戶頁面上核准",
+      "description": "您的伺服器要求您在帳戶頁面上核准此操作。請開啟頁面並核准，然後回到這裡繼續。",
+      "open": "開啟帳戶頁面"
     }
   },
   "featureUi": {

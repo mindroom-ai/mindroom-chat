@@ -11,6 +11,7 @@ const SUPPORTED_STAGES: ReadonlySet<string> = new Set([
   AuthType.Sso,
   AuthType.SsoUnstable,
   AuthType.Dummy,
+  AuthType.OAuth,
 ]);
 
 const isSsoStage = (stage: string) =>
@@ -122,6 +123,44 @@ function SsoStage({ session, stage, action }: StageProps) {
   );
 }
 
+/**
+ * The account page the server names for an `m.oauth` stage (spec: "OAuth authentication"), which
+ * guards replacing the cross-signing keys of a session that signed in through OAuth.
+ */
+const oauthApprovalUrl = (authData: IAuthData): string | undefined => {
+  const url: unknown = authData.params?.[AuthType.OAuth]?.url;
+  return typeof url === 'string' ? url : undefined;
+};
+
+/**
+ * Sends the person to their account page to approve the action there, then completes the stage
+ * with the session alone, as the spec asks. A server that names no page gets its fallback page.
+ */
+function OAuthStage({ session, stage, action, url }: StageProps & { url?: string }) {
+  const { t } = useTranslation();
+  const mx = useMatrixClient();
+  const [opened, setOpened] = useState(false);
+
+  const openAccountPage = () => {
+    window.open(url ?? mx.getFallbackAuthUrl(stage, session ?? ''), '_blank', 'noopener');
+    setOpened(true);
+  };
+
+  return (
+    <Box direction="Column" gap="400">
+      <Text size="T300">{t('sharedUi.oauthStage.description')}</Text>
+      <Button variant={opened ? 'Secondary' : 'Primary'} onClick={openAccountPage}>
+        <Text size="B400">{t('sharedUi.oauthStage.open')}</Text>
+      </Button>
+      {opened && (
+        <Button variant="Primary" onClick={() => action({ session })}>
+          <Text size="B400">{t('sharedUi.sSOStage.continue')}</Text>
+        </Button>
+      )}
+    </Box>
+  );
+}
+
 function DummyStage({ session, action }: StageProps) {
   useEffect(() => {
     action({ type: AuthType.Dummy, session });
@@ -152,6 +191,16 @@ export function ActionUIA(props: ActionUIAProps) {
   } else if (stage && isSsoStage(stage)) {
     title = t('sharedUi.sSOStage.ssoLogin');
     body = <SsoStage stage={stage} session={session} action={action} />;
+  } else if (stage === AuthType.OAuth) {
+    title = t('sharedUi.oauthStage.title');
+    body = (
+      <OAuthStage
+        stage={stage}
+        session={session}
+        action={action}
+        url={oauthApprovalUrl(authData)}
+      />
+    );
   } else if (stage === AuthType.Dummy)
     body = <DummyStage stage={stage} session={session} action={action} />;
   else {

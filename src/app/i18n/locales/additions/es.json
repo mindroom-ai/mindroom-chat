@@ -263,6 +263,11 @@
       "repairButton": "Reparar el cifrado",
       "repaired": "Cifrado reparado. Vuelve a verificar tus otros dispositivos.",
       "repairCancelled": "La reparación necesita la confirmación de tu cuenta. Vuelve a intentarlo."
+    },
+    "oauthStage": {
+      "title": "Aprobar en la página de tu cuenta",
+      "description": "Tu servidor te pide que apruebes esto en la página de tu cuenta. Ábrela, apruébalo y vuelve aquí para continuar.",
+      "open": "Abrir la página de la cuenta"
     }
   },
   "featureUi": {

@@ -263,6 +263,11 @@
       "repairButton": "Réparer le chiffrement",
       "repaired": "Chiffrement réparé. Vérifiez à nouveau vos autres appareils.",
       "repairCancelled": "La réparation nécessite la confirmation de votre compte. Réessayez."
+    },
+    "oauthStage": {
+      "title": "Approuver sur la page de votre compte",
+      "description": "Votre serveur vous demande d'approuver cette action sur la page de votre compte. Ouvrez-la, approuvez, puis revenez ici pour continuer.",
+      "open": "Ouvrir la page du compte"
     }
   },
   "featureUi": {

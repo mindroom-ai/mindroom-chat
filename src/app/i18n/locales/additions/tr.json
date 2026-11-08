@@ -259,6 +259,11 @@
       "repairButton": "Şifrelemeyi onar",
       "repaired": "Şifreleme onarıldı. Diğer cihazlarınızı yeniden doğrulayın.",
       "repairCancelled": "Onarım için hesap onayınız gerekiyor. Yeniden deneyin."
+    },
+    "oauthStage": {
+      "title": "Hesap sayfanızda onaylayın",
+      "description": "Sunucunuz bunu hesap sayfanızda onaylamanızı istiyor. Sayfayı açın, onaylayın ve devam etmek için buraya dönün.",
+      "open": "Hesap sayfasını aç"
     }
   },
   "featureUi": {

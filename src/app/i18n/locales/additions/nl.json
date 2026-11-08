@@ -259,6 +259,11 @@
       "repairButton": "Versleuteling herstellen",
       "repaired": "Versleuteling hersteld. Verifieer je andere apparaten opnieuw.",
       "repairCancelled": "Herstellen vraagt om bevestiging van je account. Probeer het opnieuw."
+    },
+    "oauthStage": {
+      "title": "Goedkeuren op je accountpagina",
+      "description": "Je server vraagt je dit goed te keuren op je accountpagina. Open die, keur goed en kom dan hier terug om verder te gaan.",
+      "open": "Accountpagina openen"
     }
   },
   "featureUi": {

@@ -259,6 +259,11 @@
       "repairButton": "Verschlüsselung reparieren",
       "repaired": "Verschlüsselung repariert. Verifiziere deine anderen Geräte erneut.",
       "repairCancelled": "Die Reparatur braucht die Bestätigung deines Kontos. Versuche es erneut."
+    },
+    "oauthStage": {
+      "title": "Auf deiner Kontoseite bestätigen",
+      "description": "Dein Server möchte, dass du dies auf deiner Kontoseite bestätigst. Öffne sie, bestätige und kehre dann hierher zurück, um fortzufahren.",
+      "open": "Kontoseite öffnen"
     }
   },
   "featureUi": {

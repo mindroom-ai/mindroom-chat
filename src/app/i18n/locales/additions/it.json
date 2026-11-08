@@ -263,6 +263,11 @@
       "repairButton": "Ripara la cifratura",
       "repaired": "Cifratura riparata. Verifica di nuovo gli altri dispositivi.",
       "repairCancelled": "La riparazione richiede la conferma del tuo account. Riprova."
+    },
+    "oauthStage": {
+      "title": "Approva nella pagina del tuo account",
+      "description": "Il tuo server ti chiede di approvare questa azione nella pagina del tuo account. Aprila, approva, poi torna qui e continua.",
+      "open": "Apri la pagina dell'account"
     }
   },
   "featureUi": {

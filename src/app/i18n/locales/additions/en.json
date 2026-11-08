@@ -259,6 +259,11 @@
       "repairButton": "Repair encryption",
       "repaired": "Encryption repaired. Verify your other devices again.",
       "repairCancelled": "Repair needs your account confirmation. Try again."
+    },
+    "oauthStage": {
+      "title": "Approve on your account page",
+      "description": "Your server asks you to approve this on your account page. Open it, approve, then come back here and continue.",
+      "open": "Open account page"
     }
   },
   "featureUi": {
