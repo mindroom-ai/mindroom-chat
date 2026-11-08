@@ -93,13 +93,13 @@ export type RoomSidePanelControl = {
   /**
    * Opens it beside the thread `threadId` with `request`, as a renderer of that thread's root
    * message may ask from an effect that depends on it: it takes a new identity whenever the room
-   * shows another thread or its own timeline, so the effect asks again then, also in a card the
-   * room's timeline keeps mounted as its thread opens. Only the first call since the room began to
-   * show that thread counts, so a component that mounts again does not open a panel the person
-   * closed; once another thread or the room's own timeline has shown, the thread's next call
-   * counts again. That call does something only while the room shows that thread and not on a
-   * phone: it opens the panel when no other side panel shows, and when the panel itself shows, it
-   * hands it `request` and leaves it folded or filling the room. Otherwise it does nothing.
+   * shows another thread or its own timeline, so the effect asks again then, also in a card that
+   * stays mounted as its thread opens. Only the first call since the room began to show that thread
+   * counts, so a component that mounts again does not open a panel the person closed; once another
+   * thread or the room's own timeline has shown, the thread's next call counts again. That call
+   * does something only while the room shows that thread and not on a phone: it opens the panel
+   * when no other side panel shows, and when the panel itself shows, it hands it `request` and
+   * leaves it folded or filling the room. Otherwise it does nothing.
    */
   openBesideThread: (threadId: string, request?: unknown) => void;
   /** Closes it, if the room shows it; it keeps its identity as `open` does. */

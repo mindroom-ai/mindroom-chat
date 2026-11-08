@@ -549,7 +549,7 @@ function RoomContent() {
     if (calledBeside.current !== threadId) calledBeside.current = undefined;
   }, [threadId]);
   // It takes a new identity whenever the room shows another thread, so a renderer's effect that
-  // depends on it asks again, also in a card the room's timeline keeps mounted as its thread opens.
+  // depends on it asks again, also in a card that stays mounted as its thread opens.
   const openPluginPanelBesideThread = useCallback<PluginPanelControls['openBesideThread']>(
     (id, besideThread, panelRequest) => {
       const { shownId: shownNow, threadId: threadNow, mobile: phone } = now.current;

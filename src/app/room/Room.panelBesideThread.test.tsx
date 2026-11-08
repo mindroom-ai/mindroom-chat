@@ -237,7 +237,7 @@ describe("a plugin's side panel beside the thread shown", () => {
     expect(state.view?.shownPanel).toBe('notes/panel');
   });
 
-  it("opens as the thread shows when the root's card stays mounted, as the room's timeline keeps it", async () => {
+  it("opens as the thread shows when the root's card stays mounted", async () => {
     state.Root = undefined;
     state.inView = <Card eventId="$a" />;
     await renderRoom();
