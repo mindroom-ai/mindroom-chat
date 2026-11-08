@@ -721,10 +721,14 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
   // in a call (it shares this device), or the call could not start at all.
   const [lastStart, setLastStart] = useAtom(callStartProblemAtom);
   const startProblem = lastStart?.roomId === room.roomId ? lastStart.result : undefined;
-  // It belongs to this opening of the panel: closed and opened again, the panel starts afresh.
+  // It belongs to this opening of the call view: closed and opened again, the view starts
+  // afresh. A prescreen that only moves (Dock, Float) unmounts with the view still open.
   useEffect(
-    () => () => setLastStart((last) => (last?.roomId === room.roomId ? undefined : last)),
-    [room.roomId, setLastStart]
+    () => () => {
+      if (store.get(callPanelRoomAtom) === room.roomId) return;
+      setLastStart((last) => (last?.roomId === room.roomId ? undefined : last));
+    },
+    [room.roomId, setLastStart, store]
   );
 
   let blocker: string | undefined;

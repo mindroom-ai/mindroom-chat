@@ -6,7 +6,7 @@ import { IconButton } from 'folds';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
-import { callPanelRoomAtom, type ActiveCall } from './callStore';
+import { callPanelRoomAtom, callStartProblemAtom, type ActiveCall } from './callStore';
 import type { CallDeviceKind, CallDevices, CallParticipant, CallState } from './RoomCall';
 import { CallPanel } from './CallPanel';
 import { ActiveCallTab } from './ActiveCallTab';
@@ -610,6 +610,27 @@ describe('the prescreen as the call view moves', () => {
     renderPanel({ panelRoom: callRoom });
     expect(button('Turn Off Microphone')).not.toBeNull();
     expect(button('Start Camera')).not.toBeNull();
+  });
+  it('keeps why Join did nothing when it docks, and forgets it once the view closes', () => {
+    calls.members = [{ userId: '@ana:panel.test' }];
+    store.set(callPanelRoomAtom, room.roomId);
+    const busy = () => screen.queryByText(/Already in another call/);
+    const inWindow = renderPanel({ frame: frame() });
+    // Join answered busy: another tab of this session is in a call.
+    act(() => store.set(callStartProblemAtom, { roomId: room.roomId, result: 'busy' }));
+    expect(busy()).not.toBeNull();
+
+    press('Dock to the side');
+    inWindow.unmount();
+    const docked = renderPanel();
+    expect(busy()).not.toBeNull();
+
+    // Close, as the host does it: the open call view is no room's.
+    act(() => store.set(callPanelRoomAtom, undefined));
+    docked.unmount();
+    act(() => store.set(callPanelRoomAtom, room.roomId));
+    renderPanel();
+    expect(busy()).toBeNull();
   });
 });
 
