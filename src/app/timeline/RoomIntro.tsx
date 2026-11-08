@@ -34,6 +34,7 @@ export function RoomIntro({ room }: RoomIntroProps) {
       direction="Column"
       gap="300"
       style={{ padding: `${config.space.S700} ${config.space.S400} ${config.space.S400}` }}
+      data-room-intro=""
     >
       <Avatar size="500" radii="400">
         <RoomAvatar

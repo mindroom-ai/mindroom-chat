@@ -316,15 +316,30 @@ const checkEnglish = async (page: Page, world: World, label: string) => {
   const phone = label.endsWith('phone');
   await openRoom(page, world);
 
-  // The start of the timeline names the room and shows its topic, once the timeline shows (it
-  // stays hidden while it fills the first screen).
-  const timeline = page.getByTestId('room-virtual-inner').locator('xpath=..');
-  const intro = timeline.getByText(ROOM_NAME_SHOWN, { exact: true }).first();
+  // The start of the timeline names the room and shows its topic. The view opens at the newest
+  // message; scrolled to the top, it reaches the room's start.
+  const inner = page.getByTestId('room-virtual-inner');
+  const timeline = inner.locator('xpath=..');
+  const intro = page.locator('[data-room-intro]');
+  await expect
+    .poll(
+      async () => {
+        if ((await intro.count()) > 0) return true;
+        await inner.evaluate((element) => {
+          let scroller = element.parentElement;
+          while (scroller && scroller.scrollHeight <= scroller.clientHeight)
+            scroller = scroller.parentElement;
+          if (scroller) scroller.scrollTop = 0;
+        });
+        return false;
+      },
+      { timeout: 30_000 }
+    )
+    .toBe(true);
   await intro.scrollIntoViewIfNeeded();
-  await expect(intro).toBeVisible({ timeout: 30_000 });
+  await expect(intro).toBeVisible();
   await expectShown(intro, ROOM_NAME_SHOWN);
-  const introTopic = timeline.getByText(ROOM_TOPIC_SHOWN, { exact: true }).first();
-  await expect(introTopic).toBeVisible();
+  await expectShown(intro, ROOM_TOPIC_SHOWN);
   await shot(page, `${label}-timeline-start`);
   // A mention of the other room, and a link to one of its messages.
   const mention = timeline.locator(`[data-mention-id="${world.linkedId}"]`);
