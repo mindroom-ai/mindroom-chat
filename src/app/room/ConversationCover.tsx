@@ -85,16 +85,15 @@ function CoverLayer({ entry: { cover }, room, conversationRef, onFailure }: Cove
     // A cover that took over from another (in the next room, or after one that failed) rendered
     // while the focus was in that one, which has given the focus back by now.
     if (!before.focused?.isConnected) Object.assign(before, readFocus());
-    const takeFocus = () => {
-      const layer = layerRef.current;
-      if (layer && !layer.contains(document.activeElement)) layer.focus({ preventScroll: true });
-    };
-    takeFocus();
+    const layer = layerRef.current;
+    if (layer && !layer.contains(document.activeElement)) layer.focus({ preventScroll: true });
     // A composer popover that held the focus (the emoji board) takes it back, then closes as the
     // conversation hides, in the render this commit sets off, and leaves the focus nowhere: the
     // cover takes it then. Focus that went anywhere else stays there.
     queueMicrotask(() => {
-      if (!document.activeElement || document.activeElement === document.body) takeFocus();
+      if (!document.activeElement || document.activeElement === document.body) {
+        layer?.focus({ preventScroll: true });
+      }
     });
     // Focus the person moved out of the cover stays there: once this commit is done, React gives
     // the focus back to the element that had it when that is still in the page.
