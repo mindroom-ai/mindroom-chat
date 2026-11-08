@@ -21,7 +21,8 @@ function Avatar({ authenticated }: { authenticated?: boolean }) {
 
 describe('renderPluginComponent', () => {
   it("builds media URLs with the stand-in client, as the app's answer on authentication asks", async () => {
-    // jsdom has no service worker to add the access token, so the app asks the legacy endpoints.
+    // A test knows neither the homeserver's versions nor a service worker, so its media is the
+    // unauthenticated kind.
     const view = await renderPluginComponent(<Avatar />, { id: 'media', plugin: {} });
     expect(view.getByRole('img', { name: 'Avatar' })).toHaveProperty(
       'src',
