@@ -388,6 +388,17 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
     expect(body(event)).toBe('Sold.');
   });
 
+  it('keeps a newer edit the message shows when an older bundled edit is redacted', async () => {
+    const { add, event } = await message(bundled(newestEdit()), new MatrixEvent(ownEdit()));
+    // The app puts a newer edit it knows back on a copy that came with an older bundle
+    // (mappedCopyEdits.ts).
+    event.makeReplaced(new MatrixEvent(edit('$later-edit', AUTHOR, 6, 'Sold.')));
+
+    await add(redaction('$redaction', '$newest-edit', 7));
+
+    expect(body(event)).toBe('Sold.');
+  });
+
   it('does not show the previous edit once it is redacted while it decrypts', async () => {
     const { add, event, decrypt } = await decryptingPrevious();
 
