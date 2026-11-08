@@ -423,11 +423,11 @@ test.describe('calls', () => {
   });
 
   test("leaving the room ends this device's call in it", async ({ browser }) => {
-    const alice = await register(`alicel${RUN}`, 'Alice Leaves');
-    const bob = await register(`bobl${RUN}`, 'Bob Stays');
+    const alice = await register(`aliceq${RUN}`, 'Alice Leaves');
+    const bob = await register(`bobq${RUN}`, 'Bob Stays');
     const roomId = await createDirectChat(alice, bob, false);
-    const alicePage = await signIn(browser, `alicel${RUN}`, recordMediaTracks);
-    const bobPage = await signIn(browser, `bobl${RUN}`);
+    const alicePage = await signIn(browser, `aliceq${RUN}`, recordMediaTracks);
+    const bobPage = await signIn(browser, `bobq${RUN}`);
     await openRoom(alicePage, roomId);
     await bobPage.goto('/home/');
 
