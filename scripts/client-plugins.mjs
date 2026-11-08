@@ -254,7 +254,7 @@ const buildModulePlugins = async (plugins) => {
         if (typeof vitePlugin !== 'object' || vitePlugin === null) {
           fail(`the default export of ${plugin.build} is not a Vite plugin or an array of them`);
         }
-        /** @type {Record<string, unknown>} */
+        /** @type {any} */
         const scoped = {};
         for (const [key, hook] of Object.entries(vitePlugin)) {
           const at = BUILD_HOOKS.get(key);
@@ -277,7 +277,7 @@ const buildModulePlugins = async (plugins) => {
             scoped[key] = typeof hook === 'function' ? own : { ...hook, handler: own };
           }
         }
-        return /** @type {import('vite').Plugin} */ (scoped);
+        return scoped;
       });
     })
   );
