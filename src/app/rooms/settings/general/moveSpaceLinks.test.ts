@@ -195,6 +195,7 @@ describe('moveSpaceLinks', () => {
     );
 
     await expect(moveSpaceLinks(client, '!old', '!new', [])).resolves.toEqual(['!sub']);
-    expect(sendStateEvent.mock.calls).not.toContainEqual(['!sub', 'm.space.parent', {}, '!old']);
+    // Nor does it name the new room, which does not list it.
+    expect(sendStateEvent.mock.calls.map(([roomId]) => roomId)).not.toContain('!sub');
   });
 });
