@@ -371,6 +371,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                   size="300"
                   radii="300"
                   variant={variant}
+                  fill="None"
                   aria-label={t('featureUi.room.membersDrawer.invitePeople')}
                   disabled={!canInvite}
                   onClick={() => setInviteOpen(true)}
@@ -381,6 +382,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                   size="300"
                   radii="300"
                   variant={variant}
+                  fill="None"
                   aria-label={t('featureUi.room.membersDrawer.close')}
                   onClick={() => setDrawerOpen(false)}
                 >
