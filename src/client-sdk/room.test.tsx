@@ -33,6 +33,7 @@ import {
   useParentRooms,
   useRoomHref,
   useRoomNavigate,
+  useShownThread,
   type RoomNavigate,
 } from './room';
 
@@ -488,5 +489,16 @@ describe('useParentRooms, getParentRooms and offersSubRooms', () => {
     expect(offersSubRooms(ideas)).toBe(true);
     expect(offersSubRooms(estate)).toBe(false);
     expect(offersSubRooms(withBob)).toBe(false);
+  });
+});
+
+// In a room's page, src/app/room/Room.panelBesideThread.test.tsx reads it through the room.
+describe('useShownThread', () => {
+  it("is undefined outside a room's page", () => {
+    function Shown() {
+      return <output>{useShownThread() ?? 'none'}</output>;
+    }
+    render(<Shown />);
+    expect(screen.getByRole('status').textContent).toBe('none');
   });
 });

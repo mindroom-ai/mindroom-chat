@@ -555,11 +555,12 @@ function RoomContent() {
   const pluginPanelControls = useMemo<PluginPanelControls>(
     () => ({
       shown: shownId,
+      thread: threadId,
       open: openPluginPanel,
       openBesideThread: openPluginPanelBesideThread,
       close: closeShownPluginPanel,
     }),
-    [closeShownPluginPanel, openPluginPanel, openPluginPanelBesideThread, shownId]
+    [closeShownPluginPanel, openPluginPanel, openPluginPanelBesideThread, shownId, threadId]
   );
 
   const showCanvas = useCallback(

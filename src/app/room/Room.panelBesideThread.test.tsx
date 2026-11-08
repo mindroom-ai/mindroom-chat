@@ -9,6 +9,7 @@ import { clearCallWindowStore, getCallWindowSettingsAtom } from '../calls/window
 import { openTranscriptPanel, transcriptPanelAtom } from '../calls/transcription/transcriptPanel';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { putSession } from '../matrix/session/sessions';
+import { useShownThread } from '../../client-sdk/room';
 import { type RoomSidePanelControl, useRoomSidePanel } from '../plugins/sidePanels';
 import type { RoomViewProps } from './RoomView';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
@@ -56,9 +57,13 @@ const { mx, room, state } = vi.hoisted(() => {
       roomId: '!room:example.org',
       getMember: (userId: string) => members.find((member) => member.userId === userId),
       getThread: () => undefined,
-      // The thread of an agent's requests (makeUiEvent), whose root the room has.
-      findEventById: (eventId: string) =>
-        eventId === '$thread' ? { getId: () => '$thread', isSending: () => false } : undefined,
+      // The thread of an agent's requests (makeUiEvent), whose root the room has, and a reply in it.
+      findEventById: (eventId: string) => {
+        if (eventId === '$thread') return { getId: () => '$thread', isSending: () => false };
+        return eventId === '$reply'
+          ? { getId: () => '$reply', threadRootId: '$thread', isSending: () => false }
+          : undefined;
+      },
       on: () => undefined,
       removeListener: () => undefined,
     },
@@ -431,5 +436,63 @@ describe("a plugin's side panel beside the thread shown", () => {
     await showThread('$b');
     expect(notesRequest()).toBe('Notes request "beside $b"');
     expect(frameButton('Fill the room with Notes')?.getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+describe('the thread shown, as a plugin component in the room reads it (useShownThread)', () => {
+  /** A plugin's component in the conversation, such as its slot under the room header. */
+  function Shown() {
+    return <output>{useShownThread() ?? 'none'}</output>;
+  }
+  const shown = () => screen.getByRole('status').textContent;
+
+  beforeEach(() => {
+    state.Root = undefined;
+    state.inView = <Shown />;
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      }
+    );
+  });
+
+  afterEach(() => {
+    cleanup();
+    state.inView = undefined;
+    localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it("is undefined in the room's own timeline", async () => {
+    await renderRoom();
+    expect(shown()).toBe('none');
+  });
+
+  it("is the root a thread's address names", async () => {
+    await renderRoom('$thread');
+    expect(shown()).toBe('$thread');
+  });
+
+  it("is the thread's root when the address names a reply in it, the thread openBesideThread takes", async () => {
+    state.inView = (
+      <>
+        <Shown />
+        <Card eventId="$thread" />
+      </>
+    );
+    await renderRoom('$reply');
+    expect(shown()).toBe('$thread');
+    expect(notesRequest()).toBe('Notes request "beside $thread"');
+  });
+
+  it('changes as the room shows another thread, and its own timeline', async () => {
+    await renderRoom('$a');
+    expect(shown()).toBe('$a');
+    await showThread('$b');
+    expect(shown()).toBe('$b');
+    await showThread(undefined);
+    expect(shown()).toBe('none');
   });
 });

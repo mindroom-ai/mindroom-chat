@@ -118,6 +118,11 @@ export const usePluginSidePanels = (
 export type PluginPanelControls = {
   /** The id of the panel the room shows. */
   shown: string | undefined;
+  /**
+   * The root event ID of the thread the room shows, the one `openBesideThread` takes; undefined
+   * while it shows its own timeline.
+   */
+  thread: string | undefined;
   /** Opens a plugin's panel by its rule and hands it `request`; nothing for an unknown panel. */
   open: (id: string, request: unknown) => void;
   /** Opens a plugin's panel beside the thread `threadId`, as {@link RoomSidePanelControl} says. */
