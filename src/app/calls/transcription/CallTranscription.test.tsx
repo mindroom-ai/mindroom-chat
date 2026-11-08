@@ -2,26 +2,19 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
-import type { IOpenIDToken } from 'matrix-js-sdk';
+import type { MatrixClient } from 'matrix-js-sdk';
 import { CallTranscription } from './CallTranscription';
 import { activeCallAtom, type ActiveCall } from '../callStore';
 import type { CallState } from '../RoomCall';
 import type { CallTranscriberOptions } from './callTranscriber';
 import type { TranscriptCall } from './api';
 import { callTranscriptionAtom, liveTranscriptAtom, pauseRequestAtom } from './transcriptionState';
-import { requestAudienceOpenIdToken } from '../../matrix/openidAudience';
+import { clientSessions } from '../../computer/clientSessions';
 import { defined } from '../../../test/utils/defined';
 
 const ROOM_ID = '!room:example.org';
 const PUBLISHED = 'https://published.example.org';
 const CONFIGURED = 'https://configured.example.org';
-
-const TOKEN: IOpenIDToken = {
-  access_token: 'openid',
-  token_type: 'Bearer',
-  matrix_server_name: 'example.org',
-  expires_in: 3600,
-};
 
 const CALL: TranscriptCall = {
   id: 'call-1',
@@ -41,7 +34,7 @@ const room = vi.hoisted(() => ({
   configured: undefined as string | undefined,
 }));
 
-const mx = vi.hoisted(() => ({ getSafeUserId: () => '@ann:example.org' }));
+const mx = vi.hoisted(() => ({ getSafeUserId: () => '@ann:example.org', getRoom: () => null }));
 
 /** Each transcriber made, with what it was told. */
 const made = vi.hoisted(
@@ -92,9 +85,6 @@ vi.mock('../../computer/useAgentServers', () => ({
 }));
 vi.mock('../../config/useClientConfig', () => ({
   useClientConfig: () => ({ mindroom: { computers: { apiUrl: room.configured } } }),
-}));
-vi.mock('../../matrix/openidAudience', () => ({
-  requestAudienceOpenIdToken: vi.fn(async () => TOKEN),
 }));
 
 const MIC_A = { id: 'mic-a' } as MediaStreamTrack;
@@ -169,7 +159,6 @@ beforeEach(() => {
   ];
   room.bindsTokens = true;
   room.configured = undefined;
-  vi.mocked(requestAudienceOpenIdToken).mockClear();
 });
 
 afterEach(() => {
@@ -186,15 +175,12 @@ describe('CallTranscription', () => {
     set({ phase: 'connected', microphoneTrack: MIC_A });
     await loaded();
     const transcriber = only();
-    expect(transcriber.options).toMatchObject({ roomId: ROOM_ID, apiUrl: PUBLISHED });
+    expect(transcriber.options.roomId).toBe(ROOM_ID);
     expect(transcriber.start).toHaveBeenCalledTimes(1);
     expect(store.get(callTranscriptionAtom)).toEqual({ roomId: ROOM_ID, status: 'joining' });
 
-    // A server the agents published gets a token only while the homeserver binds it.
-    await expect(transcriber.options.getOpenIdToken()).resolves.toBe(TOKEN);
-    expect(requestAudienceOpenIdToken).toHaveBeenCalledWith(mx, PUBLISHED, {
-      requireBinding: true,
-    });
+    // The account's session with that server, which gets a token only while the homeserver binds it.
+    expect(transcriber.options.sessions).toBe(clientSessions(mx as MatrixClient, PUBLISHED, true));
 
     // Reconnecting is still the same call.
     set({ phase: 'reconnecting' });
@@ -212,11 +198,9 @@ describe('CallTranscription', () => {
     await loaded();
 
     const transcriber = only();
-    expect(transcriber.options.apiUrl).toBe(CONFIGURED);
-    await transcriber.options.getOpenIdToken();
-    expect(requestAudienceOpenIdToken).toHaveBeenCalledWith(mx, CONFIGURED, {
-      requireBinding: false,
-    });
+    expect(transcriber.options.sessions).toBe(
+      clientSessions(mx as MatrixClient, CONFIGURED, false)
+    );
   });
 
   it('skips calls with an agent, which post their own transcript', async () => {

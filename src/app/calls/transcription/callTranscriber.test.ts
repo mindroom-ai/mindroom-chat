@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IOpenIDToken } from 'matrix-js-sdk';
+import { ClientSessions } from '../../computer/clientSessions';
 import { CallTranscriber, type TranscriberStatus } from './callTranscriber';
 import type { TranscriptCall, TranscriptLine } from './api';
 import { startSpeechCapture, type SpeechCapture, type SpeechStretch } from './speechCapture';
@@ -164,9 +165,7 @@ const setup = ({
   const updates: LiveUpdate[] = [];
   const transcriber = new CallTranscriber({
     roomId,
-    apiUrl: API_URL,
-    getOpenIdToken: async () => TOKEN,
-    request,
+    sessions: new ClientSessions({ apiUrl: API_URL, getOpenIdToken: async () => TOKEN, request }),
     startCapture: listen ?? startCapture,
     onStatus: (status) => statuses.push(status),
     onUpdate: (update) => updates.push(update),

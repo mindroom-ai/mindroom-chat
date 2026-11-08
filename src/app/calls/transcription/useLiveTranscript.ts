@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useAtomValue } from 'jotai';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
+import type { Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { requestAudienceOpenIdToken } from '../../matrix/openidAudience';
+import { clientSessions, type ClientSessions } from '../../computer/clientSessions';
+import { useRoomMindroomServer } from '../../computer/useRoomMindroomServer';
 import { useActiveCall } from '../callStore';
 import { TranscriptionClient } from './api';
 import { pollLiveCall } from './liveCallPoll';
@@ -12,7 +13,6 @@ import {
   liveTranscriptAtom,
   type LiveTranscript,
 } from './transcriptionState';
-import { useTranscriptionServer } from './useTranscriptionServer';
 
 /**
  * `loading` until MindRoom first tells the room's live call; `live`; `unavailable` while MindRoom
@@ -33,24 +33,7 @@ export type LiveTranscriptView = {
 type ReadView = Pick<LiveTranscriptView, 'state' | 'live'>;
 
 /** The server and room reads come from, and the last line they read there. */
-type LastRead = { client: TranscriptionClient; roomId: string; lineId?: string };
-
-/** One client per Matrix client and server, so rows, panels and remounts share its sign-in. */
-const clients = new WeakMap<MatrixClient, Map<string, TranscriptionClient>>();
-
-const sharedClient = (mx: MatrixClient, apiUrl: string, discovered: boolean) => {
-  const servers = clients.get(mx) ?? new Map<string, TranscriptionClient>();
-  clients.set(mx, servers);
-  const key = `${discovered ? 'discovered' : 'configured'} ${apiUrl}`;
-  const client =
-    servers.get(key) ??
-    new TranscriptionClient({
-      apiUrl,
-      getOpenIdToken: () => requestAudienceOpenIdToken(mx, apiUrl, { requireBinding: discovered }),
-    });
-  servers.set(key, client);
-  return client;
-};
+type LastRead = { sessions: ClientSessions; roomId: string; lineId?: string };
 
 const onVisibilityChange = (onChange: () => void) => {
   document.addEventListener('visibilitychange', onChange);
@@ -73,27 +56,25 @@ const useLiveCallReads = (
   const mx = useMatrixClient();
   const reading = usePageShown() && wanted;
   const { roomId } = room;
-  const { apiUrl, discovered } = useTranscriptionServer(mx, room);
-  const client = useMemo(
-    () => (apiUrl ? sharedClient(mx, apiUrl, discovered) : undefined),
-    [apiUrl, discovered, mx]
-  );
+  const { apiUrl, discovered } = useRoomMindroomServer(mx, roomId);
+  // One per account and server, so rows, panels and remounts share its sign-in.
+  const sessions = apiUrl ? clientSessions(mx, apiUrl, discovered) : undefined;
   const [view, setView] = useState<ReadView>({ state: 'loading' });
   const lastRead = useRef<LastRead>();
   useEffect(() => {
-    if (!client || !reading) return undefined;
+    if (!sessions || !reading) return undefined;
     // What was read of the room on this server stays while reading pauses, and reads that start
     // again go on after its last line; another room's or server's goes.
     const last = lastRead.current;
     const read: LastRead =
-      last?.client === client && last.roomId === roomId ? last : { client, roomId };
+      last?.sessions === sessions && last.roomId === roomId ? last : { sessions, roomId };
     lastRead.current = read;
     setView((shown) =>
       read === last && shown.live?.roomId === roomId ? shown : { state: 'loading' }
     );
     const stop = new AbortController();
     void pollLiveCall(
-      client,
+      new TranscriptionClient(sessions),
       roomId,
       everyMs,
       stop.signal,
@@ -112,8 +93,10 @@ const useLiveCallReads = (
       setView({ state: 'not-transcribed' });
     });
     return () => stop.abort();
-  }, [client, everyMs, reading, roomId]);
-  return client ? { ...view, serverKnown: true } : { state: 'not-transcribed', serverKnown: false };
+  }, [sessions, everyMs, reading, roomId]);
+  return sessions
+    ? { ...view, serverKnown: true }
+    : { state: 'not-transcribed', serverKnown: false };
 };
 
 /**

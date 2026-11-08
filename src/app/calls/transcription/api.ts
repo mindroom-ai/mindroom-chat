@@ -1,12 +1,7 @@
-import { ConnectionError, HTTPError, type IOpenIDToken } from 'matrix-js-sdk';
+import { MindroomServerError, type ClientSessions } from '../../computer/clientSessions';
 import type { SpeechStretch } from './speechCapture';
 
 const API_PATH = '/api/call-transcripts/v1';
-const SESSIONS_PATH = '/api/client-sessions';
-/** A session is renewed this long before the server lets it run out. */
-const SESSION_RENEW_MARGIN_MS = 60_000;
-/** Signing in (the token and the exchange) gives up after this long; the next request tries again. */
-const SIGN_IN_TIMEOUT_MS = 15_000;
 
 /** A call as MindRoom keeps it: who is in it, and who paused it. */
 export type TranscriptCall = {
@@ -48,19 +43,16 @@ export type RefusalCode =
   | 'unavailable'
   | 'too-large';
 
-/** A request MindRoom refused (`status`), or one that got no answer (status 0). */
-export class TranscriptionApiError extends Error {
-  readonly status: number;
-
+/** A call route MindRoom refused (`status`), or one that got no answer (status 0). */
+export class TranscriptionApiError extends MindroomServerError {
   readonly code?: RefusalCode;
 
   /** When to try again, from `Retry-After`. */
   readonly retryAfterMs?: number;
 
   constructor(message: string, status: number, code?: RefusalCode, retryAfterMs?: number) {
-    super(message);
+    super(message, status);
     this.name = 'TranscriptionApiError';
-    this.status = status;
     this.code = code;
     this.retryAfterMs = retryAfterMs;
   }
@@ -68,13 +60,11 @@ export class TranscriptionApiError extends Error {
 
 /** MindRoom does not transcribe this room (or not for this person): nothing is shown or sent. */
 export const isNotTranscribed = (error: unknown): boolean =>
-  error instanceof TranscriptionApiError && (error.status === 403 || error.status === 404);
+  error instanceof MindroomServerError && (error.status === 403 || error.status === 404);
 
 /** MindRoom could not be reached or failed: transcripts are unavailable for now. */
 export const isUnavailable = (error: unknown): boolean =>
-  error instanceof TranscriptionApiError && (error.status === 0 || error.status >= 500);
-
-const noAnswer = (message: string) => new TranscriptionApiError(message, 0);
+  error instanceof MindroomServerError && (error.status === 0 || error.status >= 500);
 
 /** `Retry-After` in milliseconds from now: delay seconds or an HTTP date. */
 const readRetryAfter = (value: string | null): number | undefined => {
@@ -104,158 +94,22 @@ const refusal = async (response: Response): Promise<TranscriptionApiError> => {
   );
 };
 
-/** Rejects as soon as `signal` aborts, for steps that cannot be cancelled themselves. */
-const untilAborted = <T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> => {
-  if (!signal) return promise;
-  if (signal.aborted) return Promise.reject(noAnswer('Call transcripts request cancelled.'));
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(noAnswer('Call transcripts request cancelled.'));
-    signal.addEventListener('abort', onAbort, { once: true });
-    promise.then(
-      (value) => {
-        signal.removeEventListener('abort', onAbort);
-        resolve(value);
-      },
-      (error: unknown) => {
-        signal.removeEventListener('abort', onAbort);
-        reject(error);
-      }
-    );
-  });
-};
-
-/**
- * A homeserver that could not be asked, or failed (also with a proxy's page that is not JSON), may
- * answer later. One that refused for good, such as one that does not bind tokens to their audience,
- * never lets MindRoom sign this person in.
- */
-const tokenError = (error: unknown): TranscriptionApiError => {
-  if (error instanceof TranscriptionApiError) return error;
-  if (error instanceof ConnectionError || error instanceof HTTPError)
-    return noAnswer('The homeserver could not give a sign-in token.');
-  return new TranscriptionApiError(
-    'The homeserver will not sign in to MindRoom.',
-    403,
-    'forbidden'
-  );
-};
-
-type ClientSession = { token: string; expiresAt: number };
-
-export type TranscriptionClientOptions = {
-  /** The MindRoom server's origin. */
-  apiUrl: string;
-  /** A Matrix OpenID token bound to `apiUrl`. */
-  getOpenIdToken: () => Promise<IOpenIDToken>;
-  request?: typeof fetch;
-};
-
-/**
- * MindRoom's call transcript routes for the signed-in person. It signs in with a Matrix OpenID
- * token for a client session and sends that as bearer; no cookies go with any request.
- */
+/** MindRoom's call transcript routes for the signed-in person, sent with their client session. */
 export class TranscriptionClient {
-  private readonly apiUrl: string;
+  private readonly sessions: ClientSessions;
 
-  private readonly getOpenIdToken: () => Promise<IOpenIDToken>;
-
-  private readonly request: typeof fetch;
-
-  private session?: ClientSession;
-
-  private signingIn?: Promise<ClientSession>;
-
-  constructor({ apiUrl, getOpenIdToken, request }: TranscriptionClientOptions) {
-    this.apiUrl = apiUrl;
-    this.getOpenIdToken = getOpenIdToken;
-    this.request = request ?? ((input, init) => fetch(input, init));
+  constructor(sessions: ClientSessions) {
+    this.sessions = sessions;
   }
 
-  private async fetch(url: string, init: RequestInit): Promise<Response> {
-    try {
-      return await this.request(url, { ...init, credentials: 'omit', cache: 'no-store' });
-    } catch {
-      throw noAnswer('MindRoom could not be reached.');
-    }
-  }
-
-  private async signIn(): Promise<ClientSession> {
-    const timeout = new AbortController();
-    const timer = setTimeout(() => timeout.abort(), SIGN_IN_TIMEOUT_MS);
-    try {
-      return await this.exchange(timeout.signal);
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  private async exchange(signal: AbortSignal): Promise<ClientSession> {
-    const openIdToken = await untilAborted(this.getOpenIdToken(), signal).catch(
-      (error: unknown) => {
-        throw tokenError(error);
-      }
-    );
-    const response = await this.fetch(`${this.apiUrl}${SESSIONS_PATH}`, {
-      method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ openid_token: openIdToken }),
-      signal,
-    });
-    if (!response.ok) throw await refusal(response);
-    const body = (await response.json().catch(() => undefined)) as
-      | { session_token?: unknown; expires_at?: unknown }
-      | undefined;
-    if (typeof body?.session_token !== 'string' || typeof body.expires_at !== 'number') {
-      throw noAnswer('MindRoom answered the sign-in without a session.');
-    }
-    return { token: body.session_token, expiresAt: body.expires_at * 1000 };
-  }
-
-  /**
-   * The session to send, signing in when there is none or it is about to run out. Requests at the
-   * same time share one sign-in; a failed one is not kept, so the next request signs in again.
-   */
-  private currentSession(signal?: AbortSignal): Promise<ClientSession> {
-    if (this.session && this.session.expiresAt - SESSION_RENEW_MARGIN_MS > Date.now()) {
-      return Promise.resolve(this.session);
-    }
-    this.session = undefined;
-    if (!this.signingIn) {
-      const signingIn: Promise<ClientSession> = this.signIn()
-        .then((session) => {
-          if (this.signingIn === signingIn) this.session = session;
-          return session;
-        })
-        .finally(() => {
-          if (this.signingIn === signingIn) this.signingIn = undefined;
-        });
-      this.signingIn = signingIn;
-    }
-    return untilAborted(this.signingIn, signal);
-  }
-
-  /** Sends a call route with the session for its JSON; a refused session signs in again, once. */
+  /** Sends a call route with the session for its JSON. */
   private async sendJson<T>(path: string, init: RequestInit, signal?: AbortSignal): Promise<T> {
-    for (let attempt = 0; ; attempt += 1) {
-      const session = await this.currentSession(signal);
-      const headers = new Headers(init.headers);
-      headers.set('Accept', 'application/json');
-      headers.set('Authorization', `Bearer ${session.token}`);
-      const response = await this.fetch(`${this.apiUrl}${API_PATH}${path}`, {
-        ...init,
-        headers,
-        signal,
-      });
-      if (response.status === 401 && attempt === 0) {
-        if (this.session === session) this.session = undefined;
-        continue;
-      }
-      if (!response.ok) throw await refusal(response);
-      try {
-        return (await response.json()) as T;
-      } catch {
-        throw noAnswer('MindRoom answered with something that is not JSON.');
-      }
+    const response = await this.sessions.send(`${API_PATH}${path}`, { ...init, signal });
+    if (!response.ok) throw await refusal(response);
+    try {
+      return (await response.json()) as T;
+    } catch {
+      throw new TranscriptionApiError('MindRoom answered with something that is not JSON.', 0);
     }
   }
 
@@ -279,13 +133,9 @@ export class TranscriptionClient {
    * sign in.
    */
   leaveNow(callId: string): void {
-    const { session } = this;
-    if (!session || session.expiresAt <= Date.now()) return;
-    void this.fetch(`${this.apiUrl}${API_PATH}/calls/${encodeURIComponent(callId)}/leave`, {
+    this.sessions.sendNow(`${API_PATH}/calls/${encodeURIComponent(callId)}/leave`, {
       method: 'POST',
-      keepalive: true,
-      headers: { Accept: 'application/json', Authorization: `Bearer ${session.token}` },
-    }).catch(() => undefined);
+    });
   }
 
   /** Pauses or resumes transcription of the call for everyone in it. */

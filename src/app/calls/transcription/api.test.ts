@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConnectionError, HTTPError, type IOpenIDToken } from 'matrix-js-sdk';
+import { ClientSessions } from '../../computer/clientSessions';
 import {
   TranscriptionApiError,
   TranscriptionClient,
@@ -84,7 +85,9 @@ const client = (
   getOpenIdToken = vi.fn(async (): Promise<IOpenIDToken> => TOKEN)
 ) => ({
   getOpenIdToken,
-  api: new TranscriptionClient({ apiUrl: API_URL, getOpenIdToken, request: server.request }),
+  api: new TranscriptionClient(
+    new ClientSessions({ apiUrl: API_URL, getOpenIdToken, request: server.request })
+  ),
 });
 
 beforeEach(() => {

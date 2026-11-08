@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useAtomValue, useStore } from 'jotai';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { requestAudienceOpenIdToken } from '../../matrix/openidAudience';
+import { clientSessions } from '../../computer/clientSessions';
+import { useRoomMindroomServer } from '../../computer/useRoomMindroomServer';
 import { useActiveCall, useCallState } from '../callStore';
 import type { RoomCall } from '../RoomCall';
 import type { CallTranscriber } from './callTranscriber';
@@ -11,14 +12,13 @@ import {
   liveTranscriptAtom,
   pauseRequestAtom,
 } from './transcriptionState';
-import { useTranscriptionServer } from './useTranscriptionServer';
 
 /** Transcribes this device's speech while it is connected to `call`. */
 function RoomCallTranscription({ call }: { call: RoomCall }) {
   const mx = useMatrixClient();
   const store = useStore();
   const { roomId } = call.room;
-  const server = useTranscriptionServer(mx, call.room);
+  const server = useRoomMindroomServer(mx, roomId);
   const state = useCallState(call);
   const connected = state.phase === 'connected' || state.phase === 'reconnecting';
   const apiUrl = connected ? server.apiUrl : undefined;
@@ -46,9 +46,7 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
         if (!current) return;
         transcriber = new Transcriber({
           roomId,
-          apiUrl,
-          getOpenIdToken: () =>
-            requestAudienceOpenIdToken(mx, apiUrl, { requireBinding: discovered }),
+          sessions: clientSessions(mx, apiUrl, discovered),
           onStatus: (status) => {
             if (!current) return;
             store.set(callTranscriptionAtom, status === 'off' ? undefined : { roomId, status });
