@@ -194,9 +194,10 @@ test("the example plugin's own-frame card moves in and out as the room's panels 
   test.setTimeout(5 * 60_000);
   await withPanelRoom(browser, async (page) => {
     const conversation = roomHeader(page);
+    const members = panelLocator(page, 'members');
     const box = cardBox(page);
     // Each motion of the card's box is held at its start for the test to step through; the room's
-    // own panels move as they do, and their timing is noted.
+    // own panels move as they do, and the members panel's timing is noted.
     await page.evaluate(() => {
       const animate = Element.prototype.animate;
       const state = window as unknown as { cardMotions: Animation[]; roomTiming: EffectTiming[] };
@@ -213,7 +214,7 @@ test("the example plugin's own-frame card moves in and out as the room's panels 
         return animation;
       };
     });
-    /** The card's motions so far, where each starts and ends, and their time and curve. */
+    /** The card's motions so far: where each starts and ends, and their time and curve. */
     const motions = () =>
       page.evaluate(() =>
         (window as unknown as { cardMotions: Animation[] }).cardMotions.map((animation) => {
@@ -223,37 +224,44 @@ test("the example plugin's own-frame card moves in and out as the room's panels 
           return { from: first!.width, to: last?.width, duration, easing } as CardMotion;
         })
       );
-    /** Puts the card's last motion at `time`, or `play`s it to its end. */
-    const step = (time: number | 'play') =>
+    /** Puts the card's last motion at `time` (in ms), or plays it to its end. */
+    const step = (time: number | 'end') =>
       page.evaluate((at) => {
         const animation = (window as unknown as { cardMotions: Animation[] }).cardMotions.at(-1)!;
-        if (at === 'play') animation.play();
+        if (at === 'end') animation.play();
         else animation.currentTime = at;
       }, time);
+    const toEnd = async () => {
+      await step('end');
+      await settled(page);
+    };
 
-    // The members, which a new account shows, move out as the room's panels do.
+    // The members, which a new account shows, move out and in as the room's panels do.
     await conversation.getByRole('button', { name: 'Hide Members', exact: true }).click();
-    await expect(panelLocator(page, 'members')).toHaveCount(0);
+    await expect(members).toHaveCount(0);
     const conversationAlone = await widthOf(conversation);
+    await conversation.getByRole('button', { name: 'Show Members', exact: true }).click();
+    await members.evaluate((element) =>
+      Promise.all(element.getAnimations().map((animation) => animation.finished))
+    );
+    const membersWidth = await widthOf(members);
     const [roomTiming] = await page.evaluate(
       () => (window as unknown as { roomTiming: EffectTiming[] }).roomTiming
     );
 
-    // Opened, the card moves in from nothing, in the time and on the curve of the room's panels,
-    // and the conversation gives way.
+    // Opened in the members' place, the card moves from their width to its own, in the time and on
+    // the curve of the room's panels, and the conversation gives way.
     await toggleCard(page, false);
     await expect(card(page)).toBeVisible();
-    expect(await motions()).toEqual([
-      { from: '0px', to: undefined, duration: roomTiming!.duration, easing: roomTiming!.easing },
-    ]);
-    expect(await widthOf(box)).toBe(0);
+    const [taking] = await motions();
+    expect(taking).toMatchObject({ duration: roomTiming!.duration, easing: roomTiming!.easing });
+    expect(Number.parseFloat(taking!.from)).toBeCloseTo(membersWidth, -1);
     await step(110);
     const halfway = await widthOf(box);
-    expect(halfway).toBeGreaterThan(0);
+    expect(halfway).toBeGreaterThan(membersWidth + 5);
     expect(halfway).toBeLessThan(336);
     expect(await widthOf(conversation)).toBeCloseTo(conversationAlone - halfway, -1);
-    await step('play');
-    await settled(page);
+    await toEnd();
     expect(await widthOf(box)).toBe(336);
     expect(await widthOf(conversation)).toBeCloseTo(conversationAlone - 336, -1);
 
@@ -273,21 +281,25 @@ test("the example plugin's own-frame card moves in and out as the room's panels 
       animation.play();
     });
     await toggleCard(page, false);
-    const [back] = (await motions()).slice(-1);
-    expect(Number.parseFloat(back!.from)).toBeCloseTo(leaving, -1);
-    await step('play');
-    await settled(page);
+    expect(Number.parseFloat((await motions()).at(-1)!.from)).toBeCloseTo(leaving, -1);
+    await toEnd();
     expect(await widthOf(box)).toBe(336);
 
-    // Closed, it goes once it has moved out.
+    // Closed, it goes once it has moved out; opened again, it moves in from nothing.
     await toggleCard(page, true);
-    await step('play');
+    await step('end');
     await expect(card(page)).toHaveCount(0);
     expect(await widthOf(conversation)).toBeCloseTo(conversationAlone, -1);
+    await toggleCard(page, false);
+    expect((await motions()).at(-1)).toMatchObject({ from: '0px', to: undefined });
+    await toEnd();
+    await toggleCard(page, true);
+    await step('end');
+    await expect(card(page)).toHaveCount(0);
 
     // Under reduced motion it opens and closes at once.
-    await page.emulateMedia({ reducedMotion: 'reduce' });
     const moved = (await motions()).length;
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await toggleCard(page, false);
     await expect(card(page)).toBeVisible();
     expect(await widthOf(box)).toBe(336);

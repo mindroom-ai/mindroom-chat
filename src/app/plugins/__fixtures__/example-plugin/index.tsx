@@ -25,8 +25,8 @@
 // app's theme ("Theme: light" or "Theme: dark") and the screen size the app lays out by ("Screen:
 // Mobile", "Tablet" or "Desktop"), each as it changes, and "Show example PDF" previews a one-page
 // PDF it builds as a blob, in the browser's viewer in the card. Beside the conversation the card
-// slides in and out as the room's panels do, also from and to the width of a panel it takes the
-// place of; it opens and closes at once filling the room, folded, on a phone and under reduced motion.
+// slides in and out as the room's panels do, also from the width of a panel whose place it takes;
+// folded, and under reduced motion, it opens and closes at once.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg); its build module (build.mjs) writes "Example banner" in place of a marker, which
 // unit tests, where no build module runs, show as it is. The banner also has a button, "Show
@@ -679,10 +679,10 @@ const CARD_CSS = `[data-example-card-box] { display: flex; flex: none; width: 33
 @media (max-width: 750px) { [data-example-card-box], [data-example-card] { flex: 1 1 0; } }`;
 
 /**
- * Moves the card's box in and out as the room moves its panels, when `moves`: it registers with the
- * room's panel place, which then keeps the closing card until it calls `done`.
+ * Moves the card's box in and out as the room moves its panels: it registers with the room's panel
+ * place, which then keeps the closing card until it calls `done`.
  */
-function useCardMotion(box: RefObject<HTMLElement>, moves: boolean) {
+function useCardMotion(box: RefObject<HTMLElement>) {
   const presence = usePanelPresence();
   const register = presence?.register;
   useLayoutEffect(() => register?.(), [register]);
@@ -699,7 +699,7 @@ function useCardMotion(box: RefObject<HTMLElement>, moves: boolean) {
     const now = motion.current?.playState === 'running' ? element?.offsetWidth : undefined;
     motion.current?.cancel();
     motion.current = undefined;
-    if (moves && element) {
+    if (element) {
       const width = element.offsetWidth;
       const size = (pixels: number) => ({ width: pixels, gap: 0 });
       // In from nothing, or from the width of the panel whose place it takes; out to nothing.
@@ -712,7 +712,7 @@ function useCardMotion(box: RefObject<HTMLElement>, moves: boolean) {
     if (phase !== 'exit') return;
     if (motion.current) void motion.current.finished.then(done, () => undefined);
     else done?.();
-  }, [box, done, lastWidth, moves, phase]);
+  }, [box, done, lastWidth, phase]);
 }
 
 /**
@@ -724,7 +724,7 @@ function ExampleCard() {
   const themeKind = useThemeKind();
   const screenSize = useScreenSize();
   const box = useRef<HTMLDivElement>(null);
-  useCardMotion(box, frame?.layout === 'beside' && screenSize !== 'Mobile');
+  useCardMotion(box);
   if (!frame) return null;
   const { layout, setLayout } = frame;
   const look = {
