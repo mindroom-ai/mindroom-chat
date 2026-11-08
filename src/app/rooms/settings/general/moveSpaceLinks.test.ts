@@ -37,6 +37,7 @@ const fakeClient = (
 ) => {
   const sendStateEvent = vi.fn(send);
   const client = {
+    getDomain: () => 'home.example',
     getRoom: (id: string) => rooms[id] ?? null,
     sendStateEvent,
   } as unknown as MatrixClient;
@@ -75,6 +76,7 @@ describe('moveSpaceLinks', () => {
     expect(sendStateEvent).toHaveBeenCalledTimes(2);
   });
 
+  // The new parent link names this account's server, the one surely in the new room.
   it("lists the old room's children in the new room, and moves the sub-rooms' parent to it", async () => {
     const { client, sendStateEvent } = fakeClient({
       '!old': fakeRoom({
@@ -94,7 +96,7 @@ describe('moveSpaceLinks', () => {
       expect.arrayContaining([
         ['!new', 'm.space.child', { via: ['s'], order: 'a' }, '!sub'],
         ['!new', 'm.space.child', { via: ['s'] }, '!plain'],
-        ['!sub', 'm.space.parent', { via: ['s'], canonical: true }, '!new'],
+        ['!sub', 'm.space.parent', { via: ['home.example'], canonical: true }, '!new'],
         ['!sub', 'm.space.parent', {}, '!old'],
       ])
     );
@@ -102,7 +104,12 @@ describe('moveSpaceLinks', () => {
     const calls = sendStateEvent.mock.calls.map((call) => JSON.stringify(call));
     expect(calls.indexOf(JSON.stringify(['!sub', 'm.space.parent', {}, '!old']))).toBeGreaterThan(
       calls.indexOf(
-        JSON.stringify(['!sub', 'm.space.parent', { via: ['s'], canonical: true }, '!new'])
+        JSON.stringify([
+          '!sub',
+          'm.space.parent',
+          { via: ['home.example'], canonical: true },
+          '!new',
+        ])
       )
     );
     // A room that did not name the old room gets no parent, and a removed child stays removed.
@@ -170,9 +177,9 @@ describe('moveSpaceLinks', () => {
         ['!new', 'm.space.child', { via: ['s'] }, '!room'],
         ['!new', 'm.space.child', { via: ['s'] }, '!theirs'],
         ['!new', 'm.space.child', { via: ['s'] }, '!unjoined'],
-        ['!room', 'm.space.parent', { via: ['s'], canonical: true }, '!new'],
+        ['!room', 'm.space.parent', { via: ['home.example'], canonical: true }, '!new'],
         ['!room', 'm.space.parent', {}, '!old'],
-        ['!theirs', 'm.space.parent', { via: ['s'] }, '!new'],
+        ['!theirs', 'm.space.parent', { via: ['home.example'] }, '!new'],
       ])
     );
   });

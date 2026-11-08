@@ -31,6 +31,7 @@ const rooms: Record<string, ReturnType<typeof fakeRoom>> = {};
 const navigateRoom = vi.fn();
 const client = {
   getSafeUserId: () => '@me:example.org',
+  getDomain: () => 'example.org',
   getRoom: (roomId: string) => rooms[roomId] ?? null,
   upgradeRoom: vi.fn(async () => ({ replacement_room: '!new' })),
   sendStateEvent: vi.fn(async (roomId: string) => {
@@ -116,7 +117,7 @@ it('opens the new room once every room under the old one came along', async () =
   expect(client.sendStateEvent).toHaveBeenCalledWith(
     '!mine',
     'm.space.parent',
-    { via: ['s'], canonical: true },
+    { via: ['example.org'], canonical: true },
     '!new'
   );
   expect(onOpened).toHaveBeenCalledOnce();
