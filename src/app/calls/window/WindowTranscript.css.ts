@@ -3,8 +3,14 @@ import { color, config, toRem } from 'folds';
 
 const { space, radii, borderWidth } = config;
 
-/** The divider's grip across the line it draws, thick enough to take a pointer. */
+/**
+ * The divider's grip across the line it draws, thick enough to take a mouse pointer; a finger gets
+ * one as thick as the window's own edge grips (FloatingCallWindow.css.ts).
+ */
 const DIVIDER_GRIP = toRem(12);
+const DIVIDER_TOUCH_GRIP = toRem(20);
+/** Keyboard focus rings the whole grip, thicker than the line a pointer over it marks. */
+const DIVIDER_FOCUS_RING = toRem(2);
 /** Even under a short window the stage keeps a face's height, as it does alone (CallStage.css.ts). */
 const STAGE_MIN_HEIGHT = toRem(80);
 /** Read out, never seen: a box of one pixel, clipped away. */
@@ -56,7 +62,7 @@ export const PaneUnseen = style({
 });
 
 const hairline = `${borderWidth.B300} solid ${color.Background.ContainerLine}`;
-const focusLine = `${borderWidth.B400} solid ${color.Primary.Main}`;
+const hoverLine = `${borderWidth.B400} solid ${color.Primary.Main}`;
 
 // A grip with a hairline through its middle, across the split: a row under the stage, a column
 // beside it. A pointer on it drags rather than selecting text or scrolling.
@@ -71,9 +77,15 @@ export const Divider = style({
   WebkitUserSelect: 'none',
   WebkitTouchCallout: 'none',
   outline: 'none',
+  '@media': { '(pointer: coarse)': { flexBasis: DIVIDER_TOUCH_GRIP } },
   selectors: {
     '&::after': { content: '""', borderBlockStart: hairline },
-    '&:hover::after, &:focus-visible::after': { borderBlockStart: focusLine },
+    '&:hover::after': { borderBlockStart: hoverLine },
+    // Inside the grip, so the panes beside it do not cover it.
+    '&:focus-visible': {
+      outline: `${DIVIDER_FOCUS_RING} solid ${color.Primary.Main}`,
+      outlineOffset: `calc(-1 * ${DIVIDER_FOCUS_RING})`,
+    },
     [`${Split}[data-call-transcript-layout="side"] > &`]: {
       flexFlow: 'row nowrap',
       cursor: 'col-resize',
@@ -82,8 +94,8 @@ export const Divider = style({
       borderBlockStart: 'none',
       borderInlineStart: hairline,
     },
-    [`${Split}[data-call-transcript-layout="side"] > &:is(:hover, :focus-visible)::after`]: {
-      borderInlineStart: focusLine,
+    [`${Split}[data-call-transcript-layout="side"] > &:hover::after`]: {
+      borderInlineStart: hoverLine,
     },
   },
 });

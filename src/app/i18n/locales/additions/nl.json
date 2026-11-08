@@ -462,7 +462,8 @@
         "speakerView": "Sprekersweergave",
         "openConversation": "Ga naar de conversatie",
         "label": "Oproepvenster",
-        "resizeTranscript": "Grootte van het transcript wijzigen"
+        "resizeTranscript": "Grootte van het transcript wijzigen",
+        "transcriptSplit": "Podium {{stage}} procent, transcript {{transcript}} procent"
       }
     },
     "room": {

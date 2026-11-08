@@ -462,7 +462,8 @@
         "speakerView": "স্পিকার ভিউ",
         "openConversation": "কথোপকথনে যান",
         "label": "কল উইন্ডো",
-        "resizeTranscript": "ট্রান্সক্রিপ্টের আকার বদলান"
+        "resizeTranscript": "ট্রান্সক্রিপ্টের আকার বদলান",
+        "transcriptSplit": "স্টেজ {{stage}} শতাংশ, ট্রান্সক্রিপ্ট {{transcript}} শতাংশ"
       }
     },
     "room": {

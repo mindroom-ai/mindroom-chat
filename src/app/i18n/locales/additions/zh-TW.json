@@ -453,7 +453,8 @@
         "speakerView": "發言者檢視",
         "openConversation": "前往對話",
         "label": "通話視窗",
-        "resizeTranscript": "調整逐字稿大小"
+        "resizeTranscript": "調整逐字稿大小",
+        "transcriptSplit": "舞台 {{stage}}%，逐字稿 {{transcript}}%"
       }
     },
     "room": {

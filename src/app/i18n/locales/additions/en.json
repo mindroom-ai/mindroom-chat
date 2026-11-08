@@ -462,7 +462,8 @@
         "speakerView": "Speaker view",
         "openConversation": "Go to the conversation",
         "label": "Call window",
-        "resizeTranscript": "Resize the transcript"
+        "resizeTranscript": "Resize the transcript",
+        "transcriptSplit": "Stage {{stage}} percent, transcript {{transcript}} percent"
       }
     },
     "room": {

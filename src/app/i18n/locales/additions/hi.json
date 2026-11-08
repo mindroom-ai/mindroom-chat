@@ -462,7 +462,8 @@
         "speakerView": "स्पीकर व्यू",
         "openConversation": "बातचीत पर जाएं",
         "label": "कॉल विंडो",
-        "resizeTranscript": "ट्रांसक्रिप्ट का आकार बदलें"
+        "resizeTranscript": "ट्रांसक्रिप्ट का आकार बदलें",
+        "transcriptSplit": "स्टेज {{stage}} प्रतिशत, ट्रांसक्रिप्ट {{transcript}} प्रतिशत"
       }
     },
     "room": {

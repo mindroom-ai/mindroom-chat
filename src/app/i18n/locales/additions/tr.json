@@ -462,7 +462,8 @@
         "speakerView": "Konuşmacı görünümü",
         "openConversation": "Sohbete git",
         "label": "Arama penceresi",
-        "resizeTranscript": "Konuşma metnini yeniden boyutlandır"
+        "resizeTranscript": "Konuşma metnini yeniden boyutlandır",
+        "transcriptSplit": "Sahne yüzde {{stage}}, konuşma metni yüzde {{transcript}}"
       }
     },
     "room": {

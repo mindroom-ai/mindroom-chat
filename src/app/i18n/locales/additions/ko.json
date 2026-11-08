@@ -453,7 +453,8 @@
         "speakerView": "발언자 보기",
         "openConversation": "대화로 이동",
         "label": "통화 창",
-        "resizeTranscript": "대화 기록 크기 조정"
+        "resizeTranscript": "대화 기록 크기 조정",
+        "transcriptSplit": "무대 {{stage}}%, 대화 기록 {{transcript}}%"
       }
     },
     "room": {

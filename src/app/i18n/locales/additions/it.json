@@ -471,7 +471,8 @@
         "speakerView": "Vista relatore",
         "openConversation": "Vai alla conversazione",
         "label": "Finestra della chiamata",
-        "resizeTranscript": "Ridimensiona la trascrizione"
+        "resizeTranscript": "Ridimensiona la trascrizione",
+        "transcriptSplit": "Palco {{stage}} per cento, trascrizione {{transcript}} per cento"
       }
     },
     "room": {

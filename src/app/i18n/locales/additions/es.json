@@ -471,7 +471,8 @@
         "speakerView": "Vista de orador",
         "openConversation": "Ir a la conversación",
         "label": "Ventana de la llamada",
-        "resizeTranscript": "Cambiar el tamaño de la transcripción"
+        "resizeTranscript": "Cambiar el tamaño de la transcripción",
+        "transcriptSplit": "Escenario {{stage}} por ciento, transcripción {{transcript}} por ciento"
       }
     },
     "room": {

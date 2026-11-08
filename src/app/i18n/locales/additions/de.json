@@ -462,7 +462,8 @@
         "speakerView": "Sprecheransicht",
         "openConversation": "Zur Unterhaltung",
         "label": "Anruffenster",
-        "resizeTranscript": "Größe des Transkripts ändern"
+        "resizeTranscript": "Größe des Transkripts ändern",
+        "transcriptSplit": "Bühne {{stage}} Prozent, Transkript {{transcript}} Prozent"
       }
     },
     "room": {

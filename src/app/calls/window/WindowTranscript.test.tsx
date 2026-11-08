@@ -97,11 +97,13 @@ const showTranscript = (split?: number) =>
     transcriptSplit: split,
   });
 
+// The window's title bar, its handle (focusable, as a button is), comes before the call's body.
 const windowWith = (size: CallWindowSize) => (
   <Provider store={store}>
     <CallWindowSizeContext.Provider value={size}>
+      <button type="button" data-call-window-handle="" />
       <WindowTranscript room={room}>
-        <div data-stage="" />
+        <button type="button" data-stage="" />
       </WindowTranscript>
     </CallWindowSizeContext.Provider>
   </Provider>
@@ -312,6 +314,40 @@ describe('the live transcript in the floating window', () => {
     expect(separator.getAttribute('aria-valuenow')).toBe('60');
     expect(separator.getAttribute('aria-valuemin')).toBe('25');
     expect(separator.getAttribute('aria-valuemax')).toBe('80');
+    // The value is the stage's share, so it says whose share is which.
+    expect(separator.getAttribute('aria-valuetext')).toBe(
+      'Stage 60 percent, transcript 40 percent'
+    );
+    fireEvent.keyDown(separator, { key: 'ArrowDown' });
+    expect(separator.getAttribute('aria-valuetext')).toBe(
+      'Stage 65 percent, transcript 35 percent'
+    );
+  });
+
+  it("hands the focus the divider had to the window's handle when the divider goes", () => {
+    inCall();
+    showTranscript();
+    const { rerender } = render(windowWith({ width: 400, height: 480 }));
+    const handle = document.querySelector<HTMLElement>('[data-call-window-handle]');
+
+    // The window turned too short for more than the subtitle.
+    act(() => divider()!.focus());
+    rerender(windowWith({ width: 400, height: 300 }));
+    expect(document.activeElement).toBe(handle);
+
+    // The transcript was switched off.
+    rerender(windowWith({ width: 400, height: 480 }));
+    act(() => divider()!.focus());
+    act(() => store.set(getCallWindowSettingsAtom(USER), { mode: 'floating', transcript: false }));
+    expect(divider()).toBeNull();
+    expect(document.activeElement).toBe(handle);
+
+    // Focus elsewhere stays there.
+    act(() => showTranscript());
+    const stage = document.querySelector<HTMLElement>('[data-stage]')!;
+    act(() => stage.focus());
+    rerender(windowWith({ width: 400, height: 300 }));
+    expect(document.activeElement).toBe(stage);
   });
 
   it('moves the divider 5 percent a key step, Home and End to its ends, and keeps each step', () => {

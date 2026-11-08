@@ -498,7 +498,8 @@
         "speakerView": "عرض المتحدث",
         "openConversation": "الانتقال إلى المحادثة",
         "label": "نافذة المكالمة",
-        "resizeTranscript": "تغيير حجم نص المكالمة"
+        "resizeTranscript": "تغيير حجم نص المكالمة",
+        "transcriptSplit": "المنصة ⁨{{stage}}⁩٪، نص المكالمة ⁨{{transcript}}⁩٪"
       }
     },
     "room": {

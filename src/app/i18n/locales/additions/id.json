@@ -453,7 +453,8 @@
         "speakerView": "Tampilan pembicara",
         "openConversation": "Buka percakapan",
         "label": "Jendela panggilan",
-        "resizeTranscript": "Ubah ukuran transkrip"
+        "resizeTranscript": "Ubah ukuran transkrip",
+        "transcriptSplit": "Panggung {{stage}} persen, transkrip {{transcript}} persen"
       }
     },
     "room": {

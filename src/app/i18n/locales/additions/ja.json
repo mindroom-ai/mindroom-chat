@@ -453,7 +453,8 @@
         "speakerView": "スピーカービュー",
         "openConversation": "会話に移動",
         "label": "通話ウィンドウ",
-        "resizeTranscript": "文字起こしのサイズを変更"
+        "resizeTranscript": "文字起こしのサイズを変更",
+        "transcriptSplit": "ステージ {{stage}}%、文字起こし {{transcript}}%"
       }
     },
     "room": {

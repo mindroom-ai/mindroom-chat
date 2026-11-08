@@ -480,7 +480,8 @@
         "speakerView": "Режим докладчика",
         "openConversation": "Перейти к беседе",
         "label": "Окно звонка",
-        "resizeTranscript": "Изменить размер расшифровки"
+        "resizeTranscript": "Изменить размер расшифровки",
+        "transcriptSplit": "Сцена {{stage}} %, расшифровка {{transcript}} %"
       }
     },
     "room": {

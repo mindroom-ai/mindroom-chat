@@ -471,7 +471,8 @@
         "speakerView": "Visão do orador",
         "openConversation": "Ir para a conversa",
         "label": "Janela da chamada",
-        "resizeTranscript": "Redimensionar a transcrição"
+        "resizeTranscript": "Redimensionar a transcrição",
+        "transcriptSplit": "Palco {{stage}} por cento, transcrição {{transcript}} por cento"
       }
     },
     "room": {

@@ -453,7 +453,8 @@
         "speakerView": "发言人视图",
         "openConversation": "前往对话",
         "label": "通话窗口",
-        "resizeTranscript": "调整文字记录大小"
+        "resizeTranscript": "调整文字记录大小",
+        "transcriptSplit": "舞台 {{stage}}%，文字记录 {{transcript}}%"
       }
     },
     "room": {

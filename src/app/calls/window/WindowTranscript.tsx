@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PointerEvent, ReactNode, RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtom, useAtomValue } from 'jotai';
@@ -61,6 +61,18 @@ function Divider({ layout, share, boxRef, onDrag, onSet }: DividerProps) {
   // A drag the divider goes away during (the window turned short, the transcript hidden) ends
   // with it, unsaved; its pointer capture went with the element.
   useEffect(() => () => onDrag(undefined), [onDrag]);
+  // The focus it had then goes to the window's handle, as Minimize's and Expand's does, rather
+  // than to the page. Before it leaves the page, while it still has the focus to tell.
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    return () => {
+      if (!element || element !== document.activeElement) return;
+      // One floating window shows at a time, and the divider is only ever in it.
+      document.querySelector<HTMLElement>('[data-call-window-handle]')?.focus();
+    };
+  }, []);
+  const stage = percent(share);
   const follow = (event: PointerEvent<HTMLElement>) => {
     const box = boxRef.current;
     if (!box || drag.current?.pointerId !== event.pointerId) return;
@@ -84,12 +96,17 @@ function Divider({ layout, share, boxRef, onDrag, onSet }: DividerProps) {
   /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
   return (
     <div
+      ref={ref}
       className={css.Divider}
       role="separator"
       tabIndex={0}
       aria-label={t('featureUi.calls.window.resizeTranscript')}
       aria-orientation={layout === 'side' ? 'vertical' : 'horizontal'}
-      aria-valuenow={percent(share)}
+      aria-valuenow={stage}
+      aria-valuetext={t('featureUi.calls.window.transcriptSplit', {
+        stage,
+        transcript: 100 - stage,
+      })}
       aria-valuemin={percent(MIN_TRANSCRIPT_SPLIT)}
       aria-valuemax={percent(MAX_TRANSCRIPT_SPLIT)}
       data-call-window-divider=""
