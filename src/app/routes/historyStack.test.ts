@@ -7,7 +7,7 @@ import {
   type HistoryStack,
 } from './historyStack';
 
-const entry = (key: string) => ({ key, pathname: `/${key}/`, search: '' });
+const entry = (key: string) => ({ key, pathname: `/${key}/`, search: '', hash: '' });
 const walk = (...steps: [string, 'PUSH' | 'REPLACE' | 'POP'][]): HistoryStack =>
   steps.reduce(
     (stack, [key, action]) => advanceHistoryStack(stack, entry(key), action),
@@ -50,7 +50,12 @@ describe('advanceHistoryStack', () => {
 });
 
 describe('findHistoryOrigin', () => {
-  const page = (key: string, pathname: string, search = '') => ({ key, pathname, search });
+  const page = (key: string, pathname: string, search = '') => ({
+    key,
+    pathname,
+    search,
+    hash: '',
+  });
   const stack = (...pages: ReturnType<typeof page>[]): HistoryStack => ({
     entries: pages,
     index: pages.length - 1,

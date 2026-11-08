@@ -40,9 +40,12 @@ vi.mock('react-router-dom', async (importOriginal) => {
   return {
     ...actual,
     useNavigate: () => mocks.navigate,
-    useLocation: () => mocks.location,
   };
 });
+
+vi.mock('../routes/historyStack', () => ({
+  currentHistoryLocation: () => mocks.location,
+}));
 
 vi.mock('jotai', async (importOriginal) => {
   const actual = await importOriginal<typeof import('jotai')>();

@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { NavigateOptions, useLocation, useNavigate } from 'react-router-dom';
+import { NavigateOptions, useNavigate } from 'react-router-dom';
 import { useAtomValue } from 'jotai';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -17,7 +17,7 @@ import {
   withSearchParam,
 } from '../routes/pathUtils';
 import { navigateToRoomThread } from './threadNavigation';
-import { useLatestRef } from '../lib/hooks/useLatestRef';
+import { currentHistoryLocation } from '../routes/historyStack';
 
 /**
  * The top-level space to open a room in: the first root space found walking up from the room,
@@ -113,10 +113,6 @@ export const useRoomNavigate = () => {
     [navigate, roomPath]
   );
 
-  // The page on screen as the router has it, inside the base path or after `#`, which a thread
-  // records as the place its back button returns to.
-  const threadOpenedFrom = useLatestRef(useLocation());
-
   /** Opens a thread and records the current page as the place its back button returns to. */
   const navigateRoomThread = useCallback(
     (roomId: string, threadId: string, eventId?: string, opts?: NavigateOptions) =>
@@ -126,9 +122,9 @@ export const useRoomNavigate = () => {
         threadId,
         eventId,
         opts,
-        location: threadOpenedFrom.current,
+        location: currentHistoryLocation(),
       }),
-    [navigateRoomThreadDirect, threadOpenedFrom]
+    [navigateRoomThreadDirect]
   );
 
   return useMemo(

@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
-import { useLocation, useNavigationType, type NavigationType } from 'react-router-dom';
+import { useLocation, useNavigationType, type NavigationType, type Path } from 'react-router-dom';
 import { decodeRouteParam } from './pathUtils';
 
 /** A page of this tab's history: its path and its query. */
 export type HistoryPage = { pathname: string; search: string };
 
-type HistoryEntry = HistoryPage & { key: string };
+type HistoryEntry = HistoryPage & { key: string; hash: string };
 
 /** The entries of this tab's history the app has shown, and which one is current. */
 export type HistoryStack = { entries: HistoryEntry[]; index: number };
@@ -38,12 +38,18 @@ let current = emptyHistoryStack;
 
 /** Keeps the stack up to date; mounted once, around every signed-in page. */
 export const useHistoryStackRecorder = (): void => {
-  const { key, pathname, search } = useLocation();
+  const { key, pathname, search, hash } = useLocation();
   const action = useNavigationType();
   useEffect(() => {
-    current = advanceHistoryStack(current, { key, pathname, search }, action);
-  }, [key, pathname, search, action]);
+    current = advanceHistoryStack(current, { key, pathname, search, hash }, action);
+  }, [key, pathname, search, hash, action]);
 };
+
+/**
+ * The page on screen as the router has it (inside the base path, or after `#`), once the app has
+ * shown one; also for a caller whose own page is gone.
+ */
+export const currentHistoryLocation = (): Path | undefined => current.entries[current.index];
 
 /** The pathname of the history entry before the current one, when the app has shown it. */
 export const previousHistoryPathname = (): string | undefined =>

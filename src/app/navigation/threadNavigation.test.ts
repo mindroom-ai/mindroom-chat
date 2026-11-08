@@ -123,7 +123,6 @@ describe('navigateToRoomThread', () => {
       threadId: '$thread',
       opts,
       navigateRoomThreadDirect,
-      location: { pathname: '/home/!room:example.org', search: '', hash: '' },
       schedule,
     });
 

@@ -19,7 +19,7 @@ export type RoomThreadNavigationOptions = {
   eventId?: string;
   opts?: NavigateOptions;
   navigateRoomThreadDirect: NavigateRoomThreadDirect;
-  location: Path;
+  location?: Path;
   getHistoryState?: () => unknown;
   schedule?: (callback: () => void) => void;
   isNativeIOSDevice?: () => boolean;
@@ -47,7 +47,7 @@ export const navigateToRoomThread = ({
   const seededExitTarget = !opts?.replace;
   const exitTarget = seededExitTarget
     ? {
-        exitPath: joinPathComponent(location),
+        exitPath: location && joinPathComponent(location),
         roomId,
         threadId,
         useHistoryBack: !isNativeIOSDevice(),
