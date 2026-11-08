@@ -2,6 +2,7 @@ import {
   type Dispatch,
   type SetStateAction,
   useCallback,
+  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
@@ -15,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Box, Scroll, Spinner, config } from 'folds';
+import type { VirtualItem } from '@tanstack/react-virtual';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useAlive } from '../lib/hooks/useAlive';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
@@ -843,9 +845,14 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // the list's top (its negative top margin) in that render, so the held height takes the
   // difference; the rows paint where they belong either way.
   // A row that changed size in place renders the rows after it the same way.
+  // That render keeps the rows it had, too, and the next one mounts the rows the window gained:
+  // virtual-core observes a row as it mounts, so a row mounted inside the loop is observed at the
+  // depth of the rows just reported, and the browser skips it and reports the loop (closing the
+  // message editor shrank its row, and the window gained a row above). Those rows are overscan.
   const renderedList = ledger.virtualInnerRef.current?.style;
+  const beforePaint = ledger.unrenderedCorrectionPx() !== 0 || ledger.unrenderedRowMove();
   const listHeight =
-    (ledger.unrenderedCorrectionPx() !== 0 || ledger.unrenderedRowMove()) && renderedList?.height
+    beforePaint && renderedList?.height
       ? heldListHeight(renderedList, ledger.ledgerPxAtRender)
       : virtualizer.getTotalSize();
   useThreadApprovalRowMeasurements(
@@ -1298,7 +1305,16 @@ export function RoomTimeline(props: RoomTimelineProps) {
   });
 
   // Scrolling near the top of a thread's loaded rows asks for older ones.
-  const virtualItems = virtualizer.getVirtualItems();
+  const windowItems = virtualizer.getVirtualItems();
+  const mountedRowKeysRef = useRef<ReadonlySet<VirtualItem['key']>>();
+  const mountedRowKeys = mountedRowKeysRef.current;
+  const virtualItems =
+    beforePaint && mountedRowKeys
+      ? windowItems.filter((item) => mountedRowKeys.has(item.key))
+      : windowItems;
+  useLayoutEffect(() => {
+    mountedRowKeysRef.current = new Set(virtualItems.map((item) => item.key));
+  });
   const threadPaginatingBack = threadPagination.isPending('backward');
   useThreadAutoPaginateBack({
     scrollElement,
