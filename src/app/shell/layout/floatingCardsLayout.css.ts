@@ -44,7 +44,7 @@ globalStyle(`${FloatingShell} :has(> ${Panel}[data-side='end'])`, {
 });
 globalStyle(`${FloatingShell} ${Panel}[data-side='end']`, { paddingBlock: CARD_GAP });
 // Expanded, a panel takes the conversation's place, so it keeps the gap on both sides.
-globalStyle(`${FloatingShell} ${Panel}[data-side='end']:first-child`, {
+globalStyle(`${FloatingShell} ${Panel}[data-side='end'][data-filled]`, {
   paddingInlineStart: CARD_GAP,
 });
 globalStyle(`${FloatingShell} ${Panel}[data-side='end'] > :first-child`, card);
