@@ -359,9 +359,10 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
     );
   });
 
-  it('drops the edit at once, and keeps a newer one that comes while the previous one decrypts', async () => {
+  /** The message with its bundled edit and the sender's previous edit, which still decrypts. */
+  const decryptingPrevious = async () => {
     const previous = new MatrixEvent(ownEdit());
-    const { add, event } = await message(bundled(newestEdit()), previous);
+    const shown = await message(bundled(newestEdit()), previous);
     let decrypted = () => {};
     vi.spyOn(previous, 'isBeingDecrypted').mockReturnValue(true);
     vi.spyOn(previous, 'getDecryptionPromise').mockReturnValue(
@@ -369,14 +370,32 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
         decrypted = resolve;
       })
     );
+    const decrypt = async () => {
+      decrypted();
+      await tick();
+    };
+    return { ...shown, decrypt };
+  };
+
+  it('drops the edit at once, and keeps a newer one that comes while the previous one decrypts', async () => {
+    const { add, event, decrypt } = await decryptingPrevious();
 
     await add(redaction('$redaction', '$newest-edit', 5));
     expect(body(event)).toBe('The forklift is charged.');
     await add(new MatrixEvent(edit('$later-edit', AUTHOR, 6, 'Sold.')));
-    decrypted();
-    await tick();
+    await decrypt();
 
     expect(body(event)).toBe('Sold.');
+  });
+
+  it('does not show the previous edit once it is redacted while it decrypts', async () => {
+    const { add, event, decrypt } = await decryptingPrevious();
+
+    await add(redaction('$redaction', '$newest-edit', 5));
+    await add(redaction('$second-redaction', '$own-edit', 6));
+    await decrypt();
+
+    expect(body(event)).toBe('The forklift is charged.');
   });
 
   it('drops a bundled edit that the app hides because it could not read it yet', async () => {
