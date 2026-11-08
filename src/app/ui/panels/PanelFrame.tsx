@@ -1,23 +1,9 @@
-import { createContext, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, IconButton, Icons, Text } from 'folds';
 import { IconTooltip } from '../IconTooltip';
 import { ExpandIcon, ShrinkIcon } from './panelIcons';
-import type { PanelLayout } from './roomPanels';
+import type { PanelFrame } from './panelFrameContext';
 import * as css from './PanelFrame.css';
-
-/** The frame around a room's side panel: the panel's name, its layout, and how to change it. */
-export type PanelFrame = {
-  label: string;
-  layout: PanelLayout;
-  setLayout: (layout: PanelLayout) => void;
-};
-
-const PanelFrameContext = createContext<PanelFrame | undefined>(undefined);
-
-/** Frames the side panel inside (ResizablePanel draws the frame); a panel outside one has none. */
-export const PanelFrameProvider = PanelFrameContext.Provider;
-export const usePanelFrame = (): PanelFrame | undefined => useContext(PanelFrameContext);
 
 /**
  * The frame's strip at the panel's start edge: Fill the room and Fold beside the conversation or
