@@ -1,11 +1,16 @@
 // `@mindroom/client-sdk/room`, the client SDK's subpath for rooms and threads (docs/architecture.md
-// "Client plugins"): it opens them, links to them, and creates sub-rooms. Like `/core` it only
-// grows, and each addition raises CLIENT_PLUGIN_API_VERSION in scripts/client-plugins.mjs.
-import { useMemo } from 'react';
+// "Client plugins"): it opens them, links to them, creates sub-rooms, and shows a person's profile
+// card in a room. Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in
+// scripts/client-plugins.mjs.
+import { createElement, useCallback, useMemo } from 'react';
 import { useHref } from 'react-router-dom';
+import type { Position, RectCords } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { getClientConfig } from '../app/config/useClientConfig';
+import { useMatrixClient } from '../app/matrix/hooks/useMatrixClient';
 import { useRoomNavigate as useAppRoomNavigate } from '../app/navigation/useRoomNavigate';
+import { UserRoomProfile } from '../app/members/profile/UserRoomProfile';
+import { useOpenUserRoomProfile } from '../app/navigation/useUserRoomProfileState';
 import { withSearchParam } from '../app/routes/pathUtils';
 import { createSubRoom as createAppSubRoom } from '../app/rooms/create/createSubRoom';
 
@@ -72,12 +77,40 @@ export const useRoomHref = (roomId: string, threadId?: string): string =>
  * to its room ID: listed under `parent`, open only to its members, and encrypted and federated as
  * the deployment's config.json (`createRoom`) says when it is called. It refuses, creating nothing,
  * a blank name, a parent where the signed-in user may not list rooms, and a call while the app
- * provides no configuration. Unlike the room menu, which offers New Sub-room in chat rooms only, it
- * takes spaces and direct chats too. It resolves once the server has created the room, before sync
- * has it, and does not open it; `useRoomNavigate` does.
+ * provides no configuration. When the homeserver then refuses to list the new room under
+ * `parent`, it leaves and forgets the room, if the homeserver lets it, and rejects with that
+ * refusal. Unlike the room menu, which offers New Sub-room in chat rooms only, it takes spaces and
+ * direct chats too. It resolves once the server has created the room, before sync has it, and
+ * does not open it; `useRoomNavigate` does.
  */
 export const createSubRoom = async (parent: Room, { name }: { name: string }): Promise<string> => {
   const config = getClientConfig();
   if (!config) throw new Error('createSubRoom ran before the app provided its configuration');
   return createAppSubRoom(parent, name, config.createRoom);
 };
+
+/**
+ * Opens the profile card of the person `userId` in the room `roomId`, floating at `anchor` (an
+ * element's `getBoundingClientRect()`) on its `side`, below it unless given, as a mention pill opens
+ * it. Escape or a click outside closes it. For a room the client does not have it opens nothing, not
+ * even once sync brings the room, where the card would pop up at a stale anchor.
+ */
+export const useOpenUserProfile = () => {
+  const client = useMatrixClient();
+  const open = useOpenUserRoomProfile();
+  return useCallback(
+    (roomId: string, userId: string, anchor: RectCords, side?: Position) => {
+      if (client.getRoom(roomId)) open(roomId, undefined, userId, anchor, side);
+    },
+    [client, open]
+  );
+};
+
+/**
+ * The profile card of the person `userId` in `room`, as the floating card shows it, for a plugin's
+ * own surface; `onDone` runs when the card has done its job, such as before it opens the direct chat.
+ * Like the floating card, it starts afresh for another room or person, so what one began there (a
+ * ban and its reason) never goes to the next.
+ */
+export const UserProfileCard = (props: { room: Room; userId: string; onDone: () => void }) =>
+  createElement(UserRoomProfile, { ...props, key: `${props.room.roomId}:${props.userId}` });

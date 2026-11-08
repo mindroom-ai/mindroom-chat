@@ -4,6 +4,7 @@ import {
   ICreateRoomStateEvent,
   KnownMembership,
   MatrixClient,
+  MatrixError,
   Preset,
   Room,
   Visibility,
@@ -138,11 +139,15 @@ export type CreateRoomData = RoomIdentity &
   RoomPolicy & {
     /** `RoomType.Space` or `RoomType.Call`; a chat room when left out. */
     type?: RoomType;
-    /** The space to add the room to. */
+    /** The room or space that lists the new room (`m.space.child`). */
     parent?: Room;
   };
 
-/** Creates a room (or space, or voice room) and returns its ID; adds it to `parent` if given. */
+/**
+ * Creates a room (or space, or voice room) and returns its ID; adds it to `parent` if given. When
+ * the server refuses to list a room that is not public under `parent`, it leaves and forgets the
+ * room, if the server lets it, before it throws.
+ */
 export const createRoom = async (client: MatrixClient, data: CreateRoomData): Promise<string> => {
   const { access, parent, type, version } = data;
   const isPublic = access === CreateRoomAccess.Public;
@@ -176,12 +181,27 @@ export const createRoom = async (client: MatrixClient, data: CreateRoomData): Pr
   const roomId = result.room_id;
   if (parent) {
     const childContent = { via: getViaServers(parent), suggested: false, auto_join: false };
-    await client.sendStateEvent(
-      parent.roomId,
-      StateEvent.SpaceChild as never,
-      childContent as never,
-      roomId
-    );
+    try {
+      await client.sendStateEvent(
+        parent.roomId,
+        StateEvent.SpaceChild as never,
+        childContent as never,
+        roomId
+      );
+    } catch (failure) {
+      // A refusal (a Matrix error below 500) leaves the room listed nowhere, hidden from the
+      // parent's members, and trying again would create another: leave and forget it, unless it is
+      // public, where anyone finds it and its address would stay taken. After any other failure the
+      // server may still list it, so the room stays.
+      const refused = failure instanceof MatrixError && (failure.httpStatus ?? 500) < 500;
+      if (refused && !isPublic) {
+        await client
+          .leave(roomId)
+          .then(() => client.forget(roomId))
+          .catch(() => undefined);
+      }
+      throw failure;
+    }
   }
   return roomId;
 };
