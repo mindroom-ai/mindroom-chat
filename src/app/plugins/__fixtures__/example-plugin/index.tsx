@@ -4,12 +4,18 @@
 // and "From <sender>" after the sender's avatar in the room, with ", a MindRoom agent" for an agent.
 // A side panel, "Example panel", names the room it is open in, counts its joined members and says
 // whether a MindRoom agent has joined or is invited, through the account's client, and whether the
-// account may post there, which it says again when the room's levels change. Its toggle, under
-// a leaf icon, shows in the room header's row, except on phones, where it goes in the room menu. It
-// also shows the greeting a card asked it to show: in a room, each greeting has "Show in panel",
-// and "Close panel" while the panel shows. A greeting that begins a thread opens the panel beside
-// that thread as the thread shows. The panel stays open in its room across reloads (`remember`), so
-// a card hands it only the greeting's event ID, and it reads the greeting itself.
+// account may post there, which it says again when the room's levels change. Under "Example rows"
+// it draws its rows, "First example row" and "Second example row", as the sidebar draws its rows,
+// and marks the one chosen; its button "Example menu", beside that title, opens a menu drawn as the
+// room menu is, in a pop-out under it lined up with its end, as is its tooltip: "Show example
+// dialog" opens the dialog of its room entry (below), and "Clear example selection" unmarks the
+// row. They are the app's own pieces, from the client SDK's `ui` subpath, so they look like the
+// app's and mirror in right-to-left languages.
+// Its toggle, under a leaf icon, shows in the room header's row, except on phones, where it goes in
+// the room menu. It also shows the greeting a card asked it to show: in a room, each greeting has
+// "Show in panel", and "Close panel" while the panel shows. A greeting that begins a thread opens
+// the panel beside that thread as the thread shows. The panel stays open in its room across reloads
+// (`remember`), so a card hands it only the greeting's event ID, and it reads the greeting itself.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg), and a button, "Show example cover", that covers the room's conversation with
 // "Example cover of <room name>" until its Close button or Escape closes it. Its panel also offers
@@ -38,8 +44,20 @@
 // Its panel names the sender of the greeting it shows, and their name opens their profile card
 // beside the panel, as a mention pill opens one; under it, the panel shows the signed-in person's
 // card itself.
-import { useEffect, useRef, useState, type RefObject } from 'react';
-import { Box, Button, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text, color } from 'folds';
+import { useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react';
+import FocusTrap from 'focus-trap-react';
+import {
+  Avatar,
+  Box,
+  Icon,
+  Icons,
+  Overlay,
+  OverlayBackdrop,
+  OverlayCenter,
+  Text,
+  config,
+  type RectCords,
+} from 'folds';
 import { KnownMembership, type Room } from 'matrix-js-sdk';
 import {
   pluginPublicUrl,
@@ -70,6 +88,19 @@ import {
   useRoomNavigate,
 } from '@mindroom/client-sdk/room';
 import { MindroomServerError, useMindroomServer } from '@mindroom/client-sdk/server';
+import {
+  Dialog,
+  Header,
+  IconButton,
+  IconTooltip,
+  Menu,
+  MenuEntry,
+  MenuGroup,
+  NavButton,
+  NavItem,
+  NavItemContent,
+  PopOut,
+} from '@mindroom/client-sdk/ui';
 
 /** The drag type of the item its panel offers, which the room header takes. */
 const ITEM_TYPE = 'application/x-example-item';
@@ -338,14 +369,108 @@ function FetchedGreeting({ roomId, eventId }: { roomId: string; eventId: string 
   );
 }
 
+const ROWS = ['First example row', 'Second example row'];
+
+/** Its menu's button, and the menu, which Escape and a click outside close, as the room menu's. */
+function ExampleMenu({ onShowDialog, onClear }: { onShowDialog: () => void; onClear: () => void }) {
+  const [anchor, setAnchor] = useState<RectCords>();
+  const close = () => {
+    setAnchor(undefined);
+    return true;
+  };
+  const choose = (act: () => void) => () => {
+    close();
+    act();
+  };
+  return (
+    <>
+      <IconTooltip label="Example menu" align="End">
+        {(triggerRef) => (
+          <IconButton
+            ref={triggerRef}
+            size="300"
+            radii="300"
+            aria-label="Example menu"
+            aria-haspopup="menu"
+            aria-expanded={anchor !== undefined}
+            onClick={(event: MouseEvent<HTMLButtonElement>) =>
+              setAnchor(event.currentTarget.getBoundingClientRect())
+            }
+          >
+            <Icon size="200" src={Icons.VerticalDots} />
+          </IconButton>
+        )}
+      </IconTooltip>
+      <PopOut
+        anchor={anchor}
+        position="Bottom"
+        align="End"
+        offset={4}
+        content={
+          <FocusTrap
+            focusTrapOptions={{
+              initialFocus: false,
+              returnFocusOnDeactivate: false,
+              clickOutsideDeactivates: close,
+              escapeDeactivates: close,
+            }}
+          >
+            <Menu>
+              <MenuGroup>
+                <MenuEntry
+                  label="Show example dialog"
+                  icon={Icons.Info}
+                  onSelect={choose(onShowDialog)}
+                />
+                <MenuEntry
+                  label="Clear example selection"
+                  icon={Icons.Cross}
+                  onSelect={choose(onClear)}
+                />
+              </MenuGroup>
+            </Menu>
+          </FocusTrap>
+        }
+      />
+    </>
+  );
+}
+
 function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }) {
   const client = useMatrixClient();
   const members = useRoomMembers(client, roomId);
   const room = client.getRoom(roomId);
   const joined = members.filter(({ membership }) => membership === KnownMembership.Join);
+  const [selected, setSelected] = useState<string>();
+  const [dialogOpen, setDialogOpen] = useState(false);
   return (
     <>
-      <p>Example panel of {roomId}</p>
+      {/* A room ID breaks anywhere, so it never widens the panel past its edge. */}
+      <p style={{ overflowWrap: 'anywhere' }}>Example panel of {roomId}</p>
+      <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
+        <Text size="L400">Example rows</Text>
+        <ExampleMenu
+          onShowDialog={() => setDialogOpen(true)}
+          onClear={() => setSelected(undefined)}
+        />
+      </Box>
+      {ROWS.map((row) => (
+        <NavItem key={row} variant="Background" radii="400" aria-selected={row === selected}>
+          <NavButton onClick={() => setSelected(row)}>
+            <NavItemContent>
+              <Box as="span" alignItems="Center" gap="200" grow="Yes">
+                <Avatar radii="400" size="200">
+                  <Icon size="100" src={Icons.Leaf} />
+                </Avatar>
+                <Text as="span" size="Inherit" truncate>
+                  {row}
+                </Text>
+              </Box>
+            </NavItemContent>
+          </NavButton>
+        </NavItem>
+      ))}
+      {dialogOpen && room && <RoomDialog room={room} close={() => setDialogOpen(false)} />}
       <p>
         Members: {joined.length}, {hasActiveMindroomAgent(members) ? 'with' : 'without'} a MindRoom
         agent
@@ -400,18 +525,19 @@ function RoomDialog({ room, close }: { room: Room; close: () => void }) {
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter>
-        <Box
-          role="dialog"
-          aria-label="Example dialog"
-          direction="Column"
-          gap="300"
-          style={{ padding: 16, borderRadius: 8, background: color.Surface.Container }}
-        >
-          <Text>Example dialog of {room.name}</Text>
-          <Button size="300" onClick={close}>
-            <Text size="B300">Close example dialog</Text>
-          </Button>
-        </Box>
+        <Dialog role="dialog" aria-label="Example dialog">
+          <Header size="500" style={{ paddingInline: `${config.space.S400} ${config.space.S200}` }}>
+            <Text size="H4" style={{ flexGrow: 1 }}>
+              Example dialog
+            </Text>
+            <IconButton aria-label="Close example dialog" size="300" radii="300" onClick={close}>
+              <Icon src={Icons.Cross} size="200" />
+            </IconButton>
+          </Header>
+          <Text size="T300" style={{ padding: config.space.S400 }}>
+            Example dialog of {room.name}
+          </Text>
+        </Dialog>
       </OverlayCenter>
     </Overlay>
   );
