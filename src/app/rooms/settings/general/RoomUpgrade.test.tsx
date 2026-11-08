@@ -103,6 +103,7 @@ const subRoomOf = (name: string) =>
 beforeEach(() => {
   Object.keys(rooms).forEach((roomId) => delete rooms[roomId]);
   navigateRoom.mockClear();
+  client.sendStateEvent.mockClear();
 });
 
 it('opens the new room once every room under the old one came along', async () => {
