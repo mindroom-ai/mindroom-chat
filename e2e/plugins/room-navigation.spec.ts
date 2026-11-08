@@ -22,8 +22,9 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // disposable homeserver, with the browser router and with the hash router. The plugin's page at
 // /p/example/rooms/<room>/<thread> links to the room and to its thread at the paths the app opens
 // them at, and both links open them; its buttons open the room, and the thread, whose Back button
-// returns to the page; and its reload button reloads the page. Set PLUGIN_SHOTS=<directory> to save
-// screenshots.
+// returns to the page, the room at the thread's root, marked, and the room in place of the page, so
+// that Back skips the page; and its reload button reloads the page. Set PLUGIN_SHOTS=<directory> to
+// save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'room-navigation-password';
 const RUN = Date.now().toString(36);
@@ -75,6 +76,35 @@ test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
+/** Records whether the row of `eventId` is ever drawn highlighted, from now on. */
+const watchHighlight = (page: Page, eventId: string) =>
+  page.evaluate((id) => {
+    const state = window as Window & { roomNavigationMarks?: Record<string, boolean> };
+    const marks = state.roomNavigationMarks ?? {};
+    state.roomNavigationMarks = marks;
+    marks[id] = false;
+    const started = performance.now();
+    const tick = () => {
+      const row = document.querySelector(`[data-message-id="${CSS.escape(id)}"]`);
+      const fill = row ? getComputedStyle(row).backgroundColor : 'transparent';
+      if (fill !== 'rgba(0, 0, 0, 0)' && fill !== 'transparent') {
+        marks[id] = true;
+        return;
+      }
+      if (performance.now() - started < 60_000) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, eventId);
+
+const highlighted = (page: Page, eventId: string) =>
+  page.evaluate(
+    (id) =>
+      (window as Window & { roomNavigationMarks?: Record<string, boolean> }).roomNavigationMarks?.[
+        id
+      ] ?? false,
+    eventId
+  );
+
 const shot = async (page: Page, name: string) => {
   const directory = process.env.PLUGIN_SHOTS;
   if (directory) await page.screenshot({ path: `${directory}/${name}.png` });
@@ -125,6 +155,8 @@ for (const [router, hashRouter] of [
       await page.locator('input[name="passwordInput"]').fill(person.password);
       await page.getByRole('button', { name: 'Login' }).click();
       await waitForLoggedInShell(page);
+      // The page before the plugin's, where Back leads once the room took the plugin's page's place.
+      const before = routerPath();
 
       await open(`/p/example/rooms/${encodeURIComponent(roomId)}/${encodeURIComponent(rootId)}`);
       await expect(examplePage).toBeVisible({ timeout: 30_000 });
@@ -134,7 +166,7 @@ for (const [router, hashRouter] of [
       await expect(roomLink).toHaveAttribute('href', href(roomPath));
       await expect(threadLink).toHaveAttribute('href', href(threadPath));
 
-      await page.getByRole('button', { name: 'Open the room' }).click();
+      await page.getByRole('button', { name: 'Open the room', exact: true }).click();
       await roomOpen();
       expect(routerPath()).toBe(roomPath);
       await backToPage();
@@ -158,6 +190,14 @@ for (const [router, hashRouter] of [
       expect(routerPath()).toBe(threadPath);
       await backToPage();
 
+      await watchHighlight(page, rootId);
+      await page.getByRole('button', { name: 'Open the room at the thread root' }).click();
+      await roomOpen();
+      expect(routerPath()).toBe(`${roomPath}/${encodeURIComponent(rootId)}`);
+      await expect.poll(() => highlighted(page, rootId), { timeout: 10_000 }).toBe(true);
+      await shot(page, `room-navigation-${router}-at-root`);
+      await backToPage();
+
       await page.evaluate(() => {
         (window as { beforeReload?: boolean }).beforeReload = true;
       });
@@ -168,6 +208,13 @@ for (const [router, hashRouter] of [
       expect(
         await page.evaluate(() => (window as { beforeReload?: boolean }).beforeReload)
       ).toBeUndefined();
+
+      await page.getByRole('button', { name: 'Open the room in place of this page' }).click();
+      await roomOpen();
+      expect(routerPath()).toBe(roomPath);
+      await page.goBack();
+      await expect.poll(routerPath, { timeout: 30_000 }).toBe(before);
+      await expect(examplePage).toBeHidden();
     } finally {
       await context.close();
       await server.close();

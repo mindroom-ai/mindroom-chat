@@ -15,7 +15,8 @@
 // greeting the account saw in an earlier page load also shows "Seen before".
 // Its page at /p/example/ keeps the app's rail and links to its page at /p/example/window, which
 // fills the window and links back. Its page at /p/example/rooms/<room ID>/<thread ID> links to that
-// room and that thread, opens either, and reloads the page into a new version.
+// room and that thread, opens either, opens the room at the thread's root, opens the room in place
+// of itself, and reloads the page into a new version.
 // Its slash command, `/greet <text>`, sends the notice "Example greeting: <text>" to the room through
 // the room's client, and fails without a text.
 import { useEffect } from 'react';
@@ -136,6 +137,12 @@ function RoomPage({ params: { roomId = '', threadId = '' } }: PluginPageProps) {
       </button>
       <button type="button" onClick={() => navigateRoomThread(roomId, threadId)}>
         Open the thread
+      </button>
+      <button type="button" onClick={() => navigateRoom(roomId, { eventId: threadId })}>
+        Open the room at the thread root
+      </button>
+      <button type="button" onClick={() => navigateRoom(roomId, { replace: true })}>
+        Open the room in place of this page
       </button>
       <button type="button" onClick={() => void reloadForNewVersion()}>
         Reload into the new version

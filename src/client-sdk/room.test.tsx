@@ -3,6 +3,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { MatrixClient } from 'matrix-js-sdk';
 import type { ReactNode } from 'react';
 import {
+  BrowserRouter,
+  HashRouter,
   MemoryRouter,
   RouterProvider,
   createBrowserRouter,
@@ -15,6 +17,7 @@ import { useRoomHref, useRoomNavigate } from './room';
 
 const ROOM = '!lobby:example.org';
 const THREAD = '$root:example.org';
+const REPLY = '$reply:example.org';
 // A client that knows no room by an alias, so paths name rooms by their ID.
 const client = { getRoom: () => null } as unknown as MatrixClient;
 
@@ -61,12 +64,20 @@ describe('useRoomHref', () => {
 });
 
 describe('useRoomNavigate', () => {
-  /** A room picker that tells its callback more than the room. */
-  function Picker({ onPick }: { onPick: (roomId: string, how: string) => void }) {
+  /** A room picker that tells its callback more than the room: an index, a name, or the click. */
+  function Picker({ onPick }: { onPick: (roomId: string, how: unknown) => void }) {
     return (
-      <button type="button" onClick={() => onPick(ROOM, 'clicked')}>
-        Pick
-      </button>
+      <>
+        <button type="button" onClick={() => onPick(ROOM, 1)}>
+          Pick the second
+        </button>
+        <button type="button" onClick={() => onPick(ROOM, 'clicked')}>
+          Pick by name
+        </button>
+        <button type="button" onClick={(event) => onPick(ROOM, event)}>
+          Pick by click
+        </button>
+      </>
     );
   }
   function Buttons() {
@@ -79,7 +90,19 @@ describe('useRoomNavigate', () => {
         <button type="button" onClick={() => navigateRoomThread(ROOM, THREAD)}>
           Thread
         </button>
-        <Picker onPick={navigateRoom} />
+        <button type="button" onClick={() => navigateRoom(ROOM, { eventId: THREAD })}>
+          Room at the root
+        </button>
+        <button type="button" onClick={() => navigateRoomThread(ROOM, THREAD, { eventId: REPLY })}>
+          Thread at the reply
+        </button>
+        <button type="button" onClick={() => navigateRoom(ROOM, { replace: true })}>
+          Room in place
+        </button>
+        <button type="button" onClick={() => navigateRoomThread(ROOM, THREAD, { replace: true })}>
+          Thread in place
+        </button>
+        <Picker onPick={navigateRoom as (roomId: string, how: unknown) => void} />
       </>
     );
   }
@@ -105,9 +128,53 @@ describe('useRoomNavigate', () => {
     expect(address()).toBe('/home/!lobby%3Aexample.org?threadId=%24root%3Aexample.org');
   });
 
-  it('opens the room itself when it is a callback that gets more arguments', () => {
+  it("opens the room at an event and the thread at a reply, at the app's own addresses", () => {
     renderButtons();
-    click('Pick');
-    expect(address()).toBe('/home/!lobby%3Aexample.org');
+    click('Room at the root');
+    expect(address()).toBe('/home/!lobby%3Aexample.org/%24root%3Aexample.org');
+    click('Thread at the reply');
+    expect(address()).toBe(
+      '/home/!lobby%3Aexample.org/%24reply%3Aexample.org?threadId=%24root%3Aexample.org'
+    );
   });
+
+  it('opens the room itself, as a new page, when it is a callback that gets more arguments', () => {
+    window.history.replaceState(null, '', '/p/example/');
+    renderSignedIn(
+      <BrowserRouter>
+        <Buttons />
+      </BrowserRouter>
+    );
+    for (const pick of ['Pick the second', 'Pick by name', 'Pick by click']) {
+      click('Thread');
+      const entries = window.history.length;
+      click(pick);
+      expect(`${window.location.pathname}${window.location.search}`).toBe(
+        '/home/!lobby%3Aexample.org'
+      );
+      expect(window.history.length).toBe(entries + 1);
+    }
+  });
+
+  for (const [name, Router, start, shown] of [
+    ['browser', BrowserRouter, '/p/example/', () => window.location.pathname],
+    ['hash', HashRouter, '/#/p/example/', () => window.location.hash],
+  ] as const) {
+    it(`replaces the page it leaves with the ${name} router, and adds one without replace`, () => {
+      window.history.replaceState(null, '', start);
+      renderSignedIn(
+        <Router>
+          <Buttons />
+        </Router>
+      );
+      const entries = window.history.length;
+      click('Room in place');
+      expect(shown()).toContain('/home/!lobby%3Aexample.org');
+      click('Thread in place');
+      expect(window.location.search || window.location.hash).toContain('threadId=');
+      expect(window.history.length).toBe(entries);
+      click('Room');
+      expect(window.history.length).toBe(entries + 1);
+    });
+  }
 });
