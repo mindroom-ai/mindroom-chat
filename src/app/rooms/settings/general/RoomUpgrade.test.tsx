@@ -53,7 +53,11 @@ vi.mock('../../../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () =>
 vi.mock('../../../matrix/hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({ stateEvent: () => true }),
 }));
-vi.mock('../../../matrix/hooks/useStateEvent', () => ({ useStateEvent: () => undefined }));
+const hooks = vi.hoisted(() => ({ tombstone: undefined as unknown }));
+vi.mock('../../../matrix/hooks/useStateEvent', () => ({
+  useStateEvent: (_room: unknown, type: string) =>
+    type === 'm.room.tombstone' ? hooks.tombstone : undefined,
+}));
 vi.mock('../../../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoom }),
 }));
@@ -105,6 +109,7 @@ beforeEach(() => {
   Object.keys(rooms).forEach((roomId) => delete rooms[roomId]);
   navigateRoom.mockClear();
   client.sendStateEvent.mockClear();
+  hooks.tombstone = undefined;
 });
 
 it('opens the new room once every room under the old one came along', async () => {
@@ -143,4 +148,30 @@ it('names the rooms that did not come along, and offers the new room', async () 
   });
   expect(onOpened).toHaveBeenCalledOnce();
   expect(navigateRoom).toHaveBeenCalledWith('!new');
+});
+
+it('offers the new room only once the rooms under the old one have moved', async () => {
+  rooms['!old'] = fakeRoom('Garden', { 'm.space.child': { '!mine': { via: ['s'] } } });
+  rooms['!mine'] = subRoomOf('Seeds');
+  let release = () => {};
+  client.sendStateEvent.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        release = () => resolve({});
+      })
+  );
+  const onOpened = vi.fn();
+  const renderer = await upgrade(onOpened);
+
+  // The tombstone arrives while the new room is still listing the old one's rooms.
+  hooks.tombstone = { getContent: () => ({ replacement_room: '!new' }) };
+  act(() => {
+    renderer.update(<RoomUpgrade room={room} space={false} onOpened={onOpened} />);
+  });
+  expect(buttonNamed(renderer, 'Open New Room')?.props.disabled).toBe(true);
+
+  await act(async () => {
+    release();
+  });
+  expect(onOpened).toHaveBeenCalledOnce();
 });
