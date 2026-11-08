@@ -153,7 +153,7 @@ describe('example plugin', () => {
       plugin,
     });
     // Its build module, which writes "Example banner" in place of the marker, runs only in a build.
-    expect(view.getByText('__EXAMPLE_BANNER__ in Lobby')).toBeTruthy();
+    expect(view.getByText('EXAMPLE_BANNER in Lobby')).toBeTruthy();
   });
 
   it("shows in its banner its panel's item dropped on the room's name, and lets a file drag pass", async () => {

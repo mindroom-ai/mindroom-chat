@@ -151,7 +151,7 @@ function RoomBanner({ room, headerRef }: { room: Room; headerRef: RefObject<HTML
         height={16}
         style={{ marginInlineEnd: 8, verticalAlign: 'middle' }}
       />
-      __EXAMPLE_BANNER__ in {room.name}
+      EXAMPLE_BANNER in {room.name}
       {dropped !== undefined && <div data-example-plugin-dropped>Dropped: {dropped}</div>}
     </div>
   );

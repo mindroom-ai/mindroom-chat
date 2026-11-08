@@ -211,7 +211,7 @@ describe('clientPlugins', () => {
     expect(code).toMatch(/id: "example",\s*version: "1\.0\.0"/);
     // Its build module (build.mjs) writes its banner's words in place of their marker.
     expect(code).toContain('Example banner in');
-    expect(code).not.toContain('__EXAMPLE_BANNER__');
+    expect(code).not.toContain('EXAMPLE_BANNER');
   });
 
   it('lets the dev server serve the plugin directories besides the workspace', () => {
@@ -658,6 +658,26 @@ describe("a plugin's build module", () => {
     expect(modules).toContain(path.join(outside, 'helper.js'));
   });
 
+  it('loads and transforms the modules its resolveId makes up, as Vite virtual modules', async () => {
+    // One id made up as a string, one as an object, as resolveId may return either.
+    const dir = withFiles('own', {
+      'build.mjs':
+        "export default { name: 'made-up', enforce: 'pre',\n" +
+        "  resolveId: (source) => source === 'virtual:greeting' ? '\\0virtual:greeting'\n" +
+        "    : source === 'virtual:name' ? { id: '\\0virtual:name' } : null,\n" +
+        "  load: (id) => id.startsWith('\\0virtual:') ? `export default '${id.slice(9)} made up';` : null,\n" +
+        "  transform: (code, id) => id.startsWith('\\0virtual:') ? code.replace('made', 'made and changed') : null };\n",
+      'index.js':
+        "import greeting from 'virtual:greeting';\nimport name from 'virtual:name';\n" +
+        'export default { messageRenderers: [], greeting, name };\n',
+    });
+    const code = (await buildEntries({ MINDROOM_CLIENT_PLUGINS: dir }))
+      .map((chunk) => chunk.code)
+      .join('\n');
+    expect(code).toContain('greeting made and changed up');
+    expect(code).toContain('name made and changed up');
+  });
+
   it('fails the build for a hook other than resolveId, load and transform, naming the plugin and the hook', async () => {
     const dir = withFiles('some-plugin', {
       // A hook left undefined, as `load` here, is none.
@@ -667,14 +687,15 @@ describe("a plugin's build module", () => {
     await expect(
       buildEntries({ MINDROOM_CLIENT_PLUGINS: dir }, { external: packages })
     ).rejects.toThrow(
-      `MINDROOM_CLIENT_PLUGINS: ${dir}: the Vite plugin "notes" of plugin "some-plugin" has the hook generateBundle`
+      `MINDROOM_CLIENT_PLUGINS: ${dir}: the Vite plugin "notes" of plugin "some-plugin" has generateBundle`
     );
   });
 
-  it('fails the build for a default export that is not a Vite plugin, naming the module', async () => {
-    const dir = withFiles('some-plugin', {
-      'build.mjs': "export default () => ({ name: 'made-by-a-call' });\n",
-    });
+  it.each([
+    ['a function that makes one', "export default () => ({ name: 'made-by-a-call' });\n"],
+    ['a promise of one', "export default [Promise.resolve({ name: 'later' })];\n"],
+  ])('fails the build for a default export of %s, naming the module', async (_case, code) => {
+    const dir = withFiles('some-plugin', { 'build.mjs': code });
     await expect(
       buildEntries({ MINDROOM_CLIENT_PLUGINS: dir }, { external: packages })
     ).rejects.toThrow(
