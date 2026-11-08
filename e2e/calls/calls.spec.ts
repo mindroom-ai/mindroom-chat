@@ -383,10 +383,9 @@ test.describe('calls', () => {
     await expect(ring).toBeVisible({ timeout: 60_000 });
     await ring.getByRole('button', { name: 'Answer' }).click();
 
-    // Bob is in the call with his microphone on, and his call panel only says it could not load.
-    const unavailable = bobPage
-      .getByTestId('resizable-call-panel')
-      .locator('[data-part-unavailable]');
+    // Bob is in the call with his microphone on, and his call window (on desktop the call view
+    // floats) only says it could not load.
+    const unavailable = bobPage.getByTestId('call-window').locator('[data-part-unavailable]');
     await expect(unavailable).toContainText("This couldn't load", { timeout: 60_000 });
     await expect(tileOf(alicePage, bob.userId)).toHaveAttribute('data-connected', 'true', {
       timeout: 60_000,
