@@ -48,6 +48,7 @@ const mx = vi.hoisted(() => ({
   getSafeUserId: () => '@ann:example.org',
   getUserId: () => '@ann:example.org',
   mxcUrlToHttp: () => null,
+  getRoom: () => room,
 }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
 vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
@@ -63,6 +64,7 @@ const room = {
     NAMES[userId]
       ? { userId, name: NAMES[userId], rawDisplayName: NAMES[userId], getMxcAvatarUrl: () => null }
       : null,
+  membersLoaded: () => true,
 } as unknown as Room;
 
 const CALL: TranscriptCall = {

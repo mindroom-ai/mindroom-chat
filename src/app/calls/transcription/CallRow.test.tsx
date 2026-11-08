@@ -74,6 +74,7 @@ const room = {
     NAMES[userId]
       ? { userId, name: NAMES[userId], rawDisplayName: NAMES[userId], getMxcAvatarUrl: () => null }
       : null,
+  membersLoaded: () => true,
 };
 const mx = {
   getRoom: (roomId: string) => (roomId === ROOM_ID ? room : null),
