@@ -1,5 +1,6 @@
 """Tests of check.py's pre-push mode and the pre-push hook (scripts/git-hooks/): which commits a push adds,
-which file versions those commits carry, and that the hook blocks any push with a finding.
+which file versions those commits carry, and that the hook blocks any push with a finding; and of the reviewed
+findings that --history leaves out.
 
 The corpus is a made-up upstream repository built here; no upstream file is read. Each test keeps the checker's
 cache in its own temporary directory (XDG_CACHE_HOME).
@@ -346,6 +347,61 @@ class PrePushTests(Fixture):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue((home / ".cache" / "upstream-overlap").is_dir())
         self.assertFalse((self.repo / "rel").exists())
+
+
+class ReviewedHistoryTests(Fixture):
+    """--history and the list of reviewed findings beside check.py (reviewed-history.tsv). check.py runs from its
+    place in the made-up client, so it checks that client's blobs and reads that client's list."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.script = self.repo / "scripts" / "upstream-overlap" / "check.py"
+        self.script.parent.mkdir(parents=True)
+        shutil.copy(HERE / "check.py", self.script)
+        # An old version with two copied runs (lines 1-3 and 11-13), replaced by the next commit, and a file whose
+        # copied run has the same range in another blob.
+        self.old = commit(self.repo, {"src/app/old.ts": COPIED + OWN_CODE + COPIED, "src/app/other.ts": COPIED}, "copies")
+        self.replaced = commit(self.repo, {"src/app/old.ts": CLEAN, "src/app/other.ts": None}, "replace the copies")
+        self.blob = git(self.repo, "rev-parse", f"{self.old}:src/app/old.ts")
+        self.other = git(self.repo, "rev-parse", f"{self.old}:src/app/other.ts")
+
+    def review(self, *rows: tuple[str, str, str]) -> None:
+        (self.script.parent / "reviewed-history.tsv").write_text(
+            "blob\tpath\tlines\treason\n" + "".join(f"{blob}\t{path}\t{lines}\tgeneric, for this test\n"
+                                                 for blob, path, lines in rows))
+
+    def checker(self, *args: str, **kwargs) -> subprocess.CompletedProcess[str]:
+        return run(self.repo, sys.executable, str(self.script), "--corpus", str(self.corpus), *args, check=False,
+                   **kwargs)
+
+    def test_history_leaves_out_only_the_listed_blob_and_range(self) -> None:
+        self.review((self.blob, "src/app/old.ts", "1-3"))
+        result = self.checker("--history")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertNotIn(f"{self.blob}\tsrc/app/old.ts\t1-3\t", result.stdout)
+        for kind in ("line-run", "tokens"):
+            self.assertIn(f"{self.blob}\tsrc/app/old.ts\t11-13\t{kind}", result.stdout)
+            self.assertIn(f"{self.other}\tsrc/app/other.ts\t1-3\t{kind}", result.stdout)
+        self.assertIn("4 findings in 2 files", result.stdout)
+        self.assertIn("2 left out as reviewed in reviewed-history.tsv", result.stdout)
+        self.review((self.blob, "src/app/old.ts", "1-3"), (self.blob, "src/app/old.ts", "11-13"),
+                    (self.other, "src/app/other.ts", "1-3"))
+        result = self.checker("--history")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("0 findings in 0 files", result.stdout)
+        self.assertIn("6 left out as reviewed in reviewed-history.tsv", result.stdout)
+
+    def test_the_pre_push_check_refuses_a_listed_blob_in_a_new_commit(self) -> None:
+        self.review((self.blob, "src/app/old.ts", "1-3"), (self.blob, "src/app/old.ts", "11-13"),
+                    (self.other, "src/app/other.ts", "1-3"))
+        self.assertEqual(self.checker("--history").returncode, 0)
+        again = commit(self.repo, {"src/app/again.ts": COPIED + OWN_CODE + COPIED}, "the same copies again")
+        self.assertEqual(git(self.repo, "rev-parse", f"{again}:src/app/again.ts"), self.blob)
+        result = self.checker("--pre-push", str(self.remote),
+                              input=f"refs/heads/work {again} refs/heads/work {self.replaced}\n")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(f"{again}\tsrc/app/again.ts\t1-3\tline-run", result.stdout)
+        self.assertIn(f"{again}\tsrc/app/again.ts\t11-13\tline-run", result.stdout)
 
 
 class HookTests(Fixture):

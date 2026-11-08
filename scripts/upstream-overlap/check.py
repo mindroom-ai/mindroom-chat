@@ -20,11 +20,12 @@ Rules (spec: docs/provenance.md, "upstream overlap check"):
 
 Output lists only paths and line ranges in this repository, never upstream text.
 Without --paths it checks every tracked text file at HEAD; with --history it checks every blob
-that any commit of this repository contains and prints "<blob> <path>:<start>-<end>".
+that any commit of this repository contains and prints "<blob> <path>:<start>-<end>", leaving out the
+findings in old blobs that reviewed-history.tsv beside this script lists as reviewed (blob and line range).
 With --pre-push (the pre-push hook, scripts/git-hooks/pre-push) it reads the hook's input from the
 current repository and checks every commit the push adds: each text file the commit adds or
-modifies, as that commit has it. It prints "<commit> <path> <start>-<end> <kind>" and remembers
-blobs it found clean, so a routine push checks only new files.
+modifies, as that commit has it, whether reviewed-history.tsv lists the blob or not. It prints
+"<commit> <path> <start>-<end> <kind>" and remembers blobs it found clean, so a routine push checks only new files.
 """
 
 import argparse
@@ -51,6 +52,8 @@ SNAPSHOT_TAGS = ["v1.8.2", "v2.2.6", "v3.2.0", "v4.0.0", "v4.10.2", "v4.12.8"]
 # XDG_CACHE_HOME is ignored, as the XDG Base Directory specification says; it would put upstream lines in the checkout.
 XDG_CACHE = Path(os.environ.get("XDG_CACHE_HOME", ""))
 CACHE = (XDG_CACHE if XDG_CACHE.is_absolute() else Path.home() / ".cache") / "upstream-overlap"
+# Findings in old blobs that were reviewed as generic: blob, path, start-end, reason (AGENTS.md).
+REVIEWED = Path(__file__).with_name("reviewed-history.tsv")
 
 
 def git(repo, *args, text=True):
@@ -95,6 +98,16 @@ def write_atomic(path, data):
     else:
         tmp.write_text(data)
     os.replace(tmp, path)
+
+
+def reviewed_findings():
+    """(blob, start, end) of each row of REVIEWED, below its header."""
+    found = set()
+    for row in REVIEWED.read_text().splitlines()[1:]:
+        oid, _, lines, _ = row.split("\t")
+        start, end = lines.split("-")
+        found.add((oid, int(start), int(end)))
+    return found
 
 
 def unchecked(path):
@@ -504,11 +517,17 @@ def main():
                 oid, path = key.get(rel, (None, None))
                 if path:
                     rows.append((oid, path, start, end, f"jscpd-{tag}"))
+    left_out = ""
+    if args.history:
+        reviewed = reviewed_findings()
+        kept = [r for r in rows if (r[0], r[2], r[3]) not in reviewed]
+        left_out = f", {len(rows) - len(kept)} left out as reviewed in {REVIEWED.name}"
+        rows = kept
     rows.sort(key=lambda r: (r[1], r[0], r[2]))
     lines = [f"{oid}\t{path}\t{start}-{end}\t{kind}" for oid, path, start, end, kind in rows]
     if args.out:
         Path(args.out).write_text("\n".join(lines) + ("\n" if lines else ""))
-    print(f"upstream-overlap: {len(rows)} findings in {len({r[1] for r in rows})} files ({len(items)} checked)")
+    print(f"upstream-overlap: {len(rows)} findings in {len({r[1] for r in rows})} files ({len(items)} checked{left_out})")
     if not args.out:
         print("\n".join(lines[:200]))
     sys.exit(1 if rows else 0)
