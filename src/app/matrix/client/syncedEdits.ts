@@ -28,6 +28,8 @@ const REMEMBERED_LIMIT = 5000;
 // By message ID, which no two rooms or accounts share for different events.
 const newestEdits = new Map<string, MatrixEvent>();
 const finishingEdits = new Map<string, MatrixEvent>();
+/** Per message, the sender and time of the newest edit that finished it; kept after a redaction. */
+const finishes = new Map<string, { sender: string | undefined; ts: number }>();
 let client: MatrixClient | undefined;
 
 /**
@@ -85,6 +87,18 @@ export const isStreamingByServer = (reply: MatrixEvent): boolean | undefined => 
   return ACTIVE_STREAM_STATUSES.has(status) ? true : undefined;
 };
 
+/**
+ * Whether the reply's stream ended: an edit by its sender finished it, and the reply shows no
+ * revision since. Redacting that edit takes the reply back to the one before, which still says it
+ * streams, but the stream is over all the same (P3-webkit-cards-F004).
+ */
+export const hasStreamEnded = (reply: MatrixEvent): boolean => {
+  const replyId = reply.getId();
+  const finish = replyId ? finishes.get(replyId) : undefined;
+  if (!finish || finish.sender !== reply.getSender()) return false;
+  return finish.ts >= (reply.replacingEvent?.() ?? reply).getTs();
+};
+
 const keepNewer = (edits: Map<string, MatrixEvent>, eventId: string, edit: MatrixEvent) => {
   const known = edits.get(eventId);
   if (known && known.getTs() >= edit.getTs() && !isRedactedBundledEdit(known)) return;
@@ -99,13 +113,19 @@ const keepNewer = (edits: Map<string, MatrixEvent>, eventId: string, edit: Matri
 export const keepSyncedEdits = (mx: MatrixClient): (() => void) => {
   newestEdits.clear();
   finishingEdits.clear();
+  finishes.clear();
   client = mx;
   const remember = (event: MatrixEvent) => {
     const relation: unknown = event.getWireContent()['m.relates_to'];
     if (!isRecord(relation) || relation.rel_type !== RelationType.Replace) return;
     if (typeof relation.event_id !== 'string' || event.isRedacted()) return;
     if (!isRedactedBundledEdit(event)) keepNewer(newestEdits, relation.event_id, event);
-    if (isFinishingEdit(event)) keepNewer(finishingEdits, relation.event_id, event);
+    if (!isFinishingEdit(event)) return;
+    keepNewer(finishingEdits, relation.event_id, event);
+    const known = finishes.get(relation.event_id);
+    if (known && known.ts >= event.getTs()) return;
+    if (finishes.size >= REMEMBERED_LIMIT) finishes.clear();
+    finishes.set(relation.event_id, { sender: event.getSender(), ts: event.getTs() });
   };
   // A room the account forgets goes with its record of redacted edits, so its newest kept edits
   // go too.

@@ -33,19 +33,41 @@ const message = (id: string, ts: number, threadId?: string) =>
   });
 
 /** A read receipt; `threadId` undefined makes it unthreaded. */
-const receipt = (userId: string, eventId: string, ts: number, threadId: string | undefined) =>
+const receipt = (
+  userId: string,
+  eventId: string,
+  ts: number,
+  threadId: string | undefined,
+  type = ReceiptType.Read
+) =>
   new MatrixEvent({
     type: 'm.receipt',
     room_id: ROOM_ID,
     content: {
       [eventId]: {
-        [ReceiptType.Read]: { [userId]: { ts, ...(threadId && { thread_id: threadId }) } },
+        [type]: { [userId]: { ts, ...(threadId && { thread_id: threadId }) } },
       },
     },
   });
 
+/** An agent's title notice in the thread under `threadId`, as MindRoom sends one. */
+const titleNotice = (id: string, ts: number, threadId: string) =>
+  new MatrixEvent({
+    event_id: id,
+    room_id: ROOM_ID,
+    sender: '@mindroom_helper:example.org',
+    type: 'm.room.message',
+    origin_server_ts: ts,
+    content: {
+      msgtype: 'm.notice',
+      body: 'Release checklist',
+      'io.mindroom.thread_summary': { version: 1, summary: 'Release checklist' },
+      'm.relates_to': { rel_type: RelationType.Thread, event_id: threadId },
+    },
+  });
+
 /** A thread by Bob with its reply loaded; nobody has sent a receipt in the room. */
-const setupThread = async () => {
+const setupThread = async (replies = [message('$reply', 2000, '$root')]) => {
   const mx = createClient({ baseUrl: 'https://example.org', userId: USER_ID });
   vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
   keepUnthreadedReceiptEvents(mx);
@@ -54,8 +76,8 @@ const setupThread = async () => {
   mx.reEmitter.reEmit(room, [RoomEvent.Receipt]);
   const root = message('$root', 1000);
   room.getUnfilteredTimelineSet().addLiveEvent(root, { addToState: false });
-  const thread = room.createThread('$root', root, [message('$reply', 2000, '$root')], false);
-  await vi.waitFor(() => expect(thread.events.at(-1)?.getId()).toBe('$reply'));
+  const thread = room.createThread('$root', root, replies, false);
+  await vi.waitFor(() => expect(thread.events.at(-1)?.getId()).toBe(replies.at(-1)?.getId()));
   return { room, thread };
 };
 
@@ -168,6 +190,37 @@ describe('getThreadEventReadUpTo', () => {
     room.addReceipt(receipt(USER_ID, '$unknown-edit', 3000, '$root'));
 
     expect(getThreadEventReadUpTo(thread, USER_ID)).toBeNull();
+    expect(getThreadUnread(thread, USER_ID)).toBe(true);
+  });
+
+  it('keeps the newer of a public and a private unthreaded receipt', async () => {
+    const { room, thread } = await setupThread();
+    room.addReceipt(receipt(USER_ID, '$other', 1500, '$x'));
+    room.addReceipt(receipt(USER_ID, '$reply', 3000, undefined));
+    // Another device's private receipt on an older event, taken later.
+    room.addReceipt(receipt(USER_ID, '$root', 4000, undefined, ReceiptType.ReadPrivate));
+
+    expect(getThreadReadState(thread, USER_ID)?.readUpToTs).toBe(2000);
+    expect(getThreadUnread(thread, USER_ID)).toBe(false);
+  });
+
+  // Design decision #17: an agent's title notice never counts, as the server never counts one in
+  // a room it can read (Tuwunel #149).
+  it('leaves a thread whose only reply is a title notice read', async () => {
+    const { thread } = await setupThread([titleNotice('$title', 2000, '$root')]);
+
+    expect(getThreadUnread(thread, USER_ID)).toBe(false);
+  });
+
+  it('keeps a read thread read when its title notice arrives later', async () => {
+    const { room, thread } = await setupThread();
+    room.addReceipt(receipt(USER_ID, '$reply', 2500, '$root'));
+    expect(getThreadUnread(thread, USER_ID)).toBe(false);
+
+    thread.addEvent(titleNotice('$title', 3000, '$root'), false);
+    expect(getThreadUnread(thread, USER_ID)).toBe(false);
+    // A real reply after the title still makes the thread unread.
+    thread.addEvent(message('$later', 4000, '$root'), false);
     expect(getThreadUnread(thread, USER_ID)).toBe(true);
   });
 });

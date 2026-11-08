@@ -7,6 +7,7 @@ import {
   isStreamingByServer,
   keepSyncedEdits,
 } from './syncedEdits';
+import { isEventStreaming } from '../../event-store/threads/useThreadStreamingState';
 
 // Regression (P2-e2ee-F002): a device without the room's keys showed a stopped reply as streaming
 // for good. The SDK never puts an edit it cannot decrypt on its reply, but MindRoom keeps each
@@ -104,5 +105,65 @@ describe('a redacted edit the client kept', () => {
     room = { redactedBundledEdits: new Set<string>() };
 
     expect(getSyncedEdit('$reply')).toBeUndefined();
+  });
+});
+
+// Regression (P3-webkit-cards-F004): the agent redacted the edit that finished its streamed reply.
+// The reply went back to the edit before, which says it streams, and the card of every device that
+// had watched it read "streaming" until a reload.
+describe('a finishing edit that is redacted', () => {
+  const plain = (eventId: string, ts: number, content: Record<string, unknown>) =>
+    new MatrixEvent({
+      type: 'm.room.message',
+      event_id: eventId,
+      room_id: '!room:example.org',
+      sender: AGENT,
+      origin_server_ts: ts,
+      content,
+    });
+  const streamedEdit = (eventId: string, ts: number, status: string) =>
+    plain(eventId, ts, {
+      msgtype: 'm.text',
+      body: `* ${eventId}`,
+      'm.new_content': { msgtype: 'm.text', body: eventId, 'io.mindroom.stream_status': status },
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$streamed' },
+      'io.mindroom.stream_status': status,
+    });
+  const timelineSet = {
+    relations: { getChildEventsForEvent: () => undefined },
+  } as unknown as Parameters<typeof isEventStreaming>[2];
+
+  it('leaves the reply finished, until a newer revision streams', () => {
+    const room = { redactedBundledEdits: new Set<string>() };
+    const mx = Object.assign(new EventEmitter(), {
+      getRoom: () => room,
+    }) as unknown as MatrixClient;
+    keepSyncedEdits(mx);
+    const reply = plain('$streamed', 1, {
+      msgtype: 'm.text',
+      body: 'Thinking...',
+      'io.mindroom.stream_status': 'streaming',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+    });
+    const middle = streamedEdit('$middle', 2, 'streaming');
+    const finish = streamedEdit('$finish', 3, 'completed');
+    [middle, finish].forEach((edit) => mx.emit(ClientEvent.Event, edit));
+    reply.makeReplaced(finish);
+    expect(isEventStreaming(reply, undefined, timelineSet)).toBe(false);
+
+    // The redaction strips the finishing edit, and the reply shows the edit before it again.
+    finish.makeRedacted(
+      plain('$redaction', 4, { redacts: '$finish' }),
+      {} as Parameters<MatrixEvent['makeRedacted']>[1]
+    );
+    reply.makeReplaced(middle);
+    expect(getFinishingEdit(reply)).toBeUndefined();
+    expect(isEventStreaming(reply, undefined, timelineSet)).toBe(false);
+
+    // A revision after the finish streams again.
+    const resumed = streamedEdit('$resumed', 5, 'streaming');
+    mx.emit(ClientEvent.Event, resumed);
+    reply.makeReplaced(resumed);
+    expect(isEventStreaming(reply, undefined, timelineSet)).toBe(true);
   });
 });

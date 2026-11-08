@@ -3,8 +3,8 @@
  * A room is listed while it has notification counts or an unread message by someone else in
  * its main timeline (shown as a dot without a count, unless the room is muted); thread activity
  * alone does not list it, and neither do notices that the thread lists of a room with an agent
- * leave out, or main-timeline counts for roots the user answered in their threads or opened on
- * this device (`isMainTimelineMessageUnread`, `isMainUnreadCountRead`).
+ * leave out, or main-timeline counts for roots the user opened on this device
+ * (`isMainTimelineMessageUnread`, `isMainUnreadCountRead`).
  */
 import { useEffect } from 'react';
 import { atom, type WritableAtom, useSetAtom } from 'jotai';

@@ -70,6 +70,12 @@ type ReadReceiptControllerOptions = {
   hideActivity: boolean;
   mx: MatrixClient;
   readUptoEventIdRef: MutableRefObject<string | undefined>;
+  /**
+   * Whether reaching the bottom, or coming back to the window there, reads the room's main
+   * timeline. Compact never does, also while a room without a thread shows its timeline. Default
+   * true.
+   */
+  readsMainTimeline?: boolean;
   room: Room;
   setAtBottom: Dispatch<SetStateAction<boolean>>;
   /**
@@ -97,6 +103,7 @@ type ReadContext = Pick<
   | 'handleOpenEvent'
   | 'hideActivity'
   | 'mx'
+  | 'readsMainTimeline'
   | 'room'
   | 'classicRows'
   | 'threadEventsLength'
@@ -137,7 +144,7 @@ const readRoomOnNextFrame = (
   stillReading: StillReading
 ): void => {
   const { hideActivity, mx, room } = context;
-  if (!markerReachesLiveTimeline(room, markerEventId)) return;
+  if (!context.readsMainTimeline || !markerReachesLiveTimeline(room, markerEventId)) return;
   const { roomId } = room;
   requestAnimationFrame(() => {
     if (!stillReading(roomId, undefined)) return;
@@ -187,6 +194,7 @@ export const useTimelineReadReceiptController = ({
   hideActivity,
   mx,
   readUptoEventIdRef,
+  readsMainTimeline = true,
   room,
   setAtBottom,
   classicRows,
@@ -203,6 +211,7 @@ export const useTimelineReadReceiptController = ({
     handleOpenEvent,
     hideActivity,
     mx,
+    readsMainTimeline,
     room,
     classicRows,
     threadEventsLength,
@@ -297,6 +306,7 @@ export const useTimelineReadReceiptController = ({
         if (atLiveEndRef.current) readThreadOnceLanded(context, stillReading);
         return;
       }
+      if (!context.readsMainTimeline) return;
       const marker = context.unreadInfo;
       if (!marker?.inLiveTimeline) {
         readRoomOnNextFrame(context, readUptoEventIdRef.current, stillReading);

@@ -2,6 +2,8 @@ import React from 'react';
 import { create } from 'react-test-renderer';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
+import { ToolCallMessageContext } from '../../agent-run/toolCallStatus';
+import { RenderMessageContent } from '../RenderMessageContent';
 
 const toolApprovalCardMock = vi.hoisted(() => vi.fn());
 const renderAgentMessageContentMock = vi.hoisted(() => vi.fn());
@@ -203,8 +205,7 @@ describe('RenderMessageContent', () => {
     ],
   ])(
     'passes the edited-label policy for %s messages to the content renderer',
-    async (_, sender, metadata, edited) => {
-      const { RenderMessageContent } = await import('../RenderMessageContent');
+    (_, sender, metadata, edited) => {
       renderAgentMessageContentMock.mockReset();
       renderAgentMessageContentMock.mockReturnValue(null);
       const content = { msgtype: 'm.text', body: 'Updated answer', ...metadata };
@@ -234,8 +235,7 @@ describe('RenderMessageContent', () => {
     [true, expect.any(Function)],
   ])(
     'passes a URL preview renderer on only with urlPreview on (urlPreview: %s)',
-    async (urlPreview, preview) => {
-      const { RenderMessageContent } = await import('../RenderMessageContent');
+    (urlPreview, preview) => {
       renderAgentMessageContentMock.mockReset();
       renderAgentMessageContentMock.mockReturnValue(null);
       const renderer = create(
@@ -257,9 +257,7 @@ describe('RenderMessageContent', () => {
     }
   );
 
-  it("gives an agent reply's tool rows its event ID to find its approval cards", async () => {
-    const { RenderMessageContent } = await import('../RenderMessageContent');
-    const { ToolCallMessageContext } = await import('../../agent-run/toolCallStatus');
+  it("gives an agent reply's tool rows its event ID to find its approval cards", () => {
     const ToolRows = () =>
       React.createElement('span', null, React.useContext(ToolCallMessageContext));
     renderAgentMessageContentMock.mockReset();
@@ -280,8 +278,7 @@ describe('RenderMessageContent', () => {
     renderer.unmount();
   });
 
-  it('delegates MindRoom-specific message content to the MindRoom renderer seam', async () => {
-    const { RenderMessageContent } = await import('../RenderMessageContent');
+  it('delegates MindRoom-specific message content to the MindRoom renderer seam', () => {
     renderAgentMessageContentMock.mockReset();
     renderAgentMessageContentMock.mockReturnValue(
       React.createElement('div', { 'data-renderer': 'mindroom-message' }, 'delegated')
@@ -327,8 +324,7 @@ describe('RenderMessageContent', () => {
     renderer.unmount();
   });
 
-  it('renders the summary card when thread summary metadata is present on a legacy msgtype', async () => {
-    const { RenderMessageContent } = await import('../RenderMessageContent');
+  it('renders the summary card when thread summary metadata is present on a legacy msgtype', () => {
     renderAgentMessageContentMock.mockReset();
     renderAgentMessageContentMock.mockReturnValue(
       React.createElement('div', { 'data-renderer': 'summary-card' }, 'Rendered summary text')
@@ -361,8 +357,7 @@ describe('RenderMessageContent', () => {
     renderer.unmount();
   });
 
-  it('keeps rendering edited summaries as summary cards when m.new_content omits metadata', async () => {
-    const { RenderMessageContent } = await import('../RenderMessageContent');
+  it('keeps rendering edited summaries as summary cards when m.new_content omits metadata', () => {
     renderAgentMessageContentMock.mockReset();
     renderAgentMessageContentMock.mockReturnValue(
       React.createElement('div', { 'data-renderer': 'summary-card' }, 'Edited summary body')
@@ -400,8 +395,7 @@ describe('RenderMessageContent', () => {
     renderer.unmount();
   });
 
-  it('renders the tool approval card for io.mindroom.tool_approval events', async () => {
-    const { RenderMessageContent } = await import('../RenderMessageContent');
+  it('renders the tool approval card for io.mindroom.tool_approval events', () => {
     renderAgentMessageContentMock.mockReset();
     renderAgentMessageContentMock.mockReturnValue(
       React.createElement('div', { 'data-renderer': 'tool-approval' }, 'web_search')
@@ -461,8 +455,7 @@ describe('RenderMessageContent', () => {
     ['agent', AGENT, { 'io.mindroom.stream_status': 'completed' }, false],
   ])(
     'keeps send status on %s image captions while applying the edited-label policy',
-    async (_, sender, metadata, showEdited) => {
-      const { RenderMessageContent } = await import('../RenderMessageContent');
+    (_, sender, metadata, showEdited) => {
       renderAgentMessageContentMock.mockReset();
       renderAgentMessageContentMock.mockReturnValue(undefined);
 
@@ -496,8 +489,7 @@ describe('RenderMessageContent', () => {
     }
   );
 
-  it('shows the caption of an SVG image rendered as a file once', async () => {
-    const { RenderMessageContent } = await import('../RenderMessageContent');
+  it('shows the caption of an SVG image rendered as a file once', () => {
     renderAgentMessageContentMock.mockReset();
     renderAgentMessageContentMock.mockReturnValue(undefined);
 
