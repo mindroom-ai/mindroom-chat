@@ -21,7 +21,10 @@
 // A second side panel, "Example card", toggled from the room menu, draws its own frame: a plain
 // card, 320 px wide beside the conversation and as wide as the room when it fills it or on a phone,
 // with "Fill example card" ("Shrink example card" while it fills the room) and "Hide example card",
-// which leaves only its tab, "Show example card", at the room's edge.
+// which leaves only its tab, "Show example card", at the room's edge. The card says the kind of the
+// app's theme ("Theme: light" or "Theme: dark") and the screen size the app lays out by ("Screen:
+// Mobile", "Tablet" or "Desktop"), each as it changes, and "Show example PDF" previews a one-page
+// PDF it builds as a blob, in the browser's viewer in the card.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg); its build module (build.mjs) writes "Example banner" in place of a marker, which
 // unit tests, where no build module runs, show as it is. The banner also has a button, "Show
@@ -123,8 +126,11 @@ import {
   NavItem,
   NavItemContent,
   PopOut,
+  pdfFrameUrl,
   replaceMatrixUserIdsWithDisplayNames,
   useMarkdownHtml,
+  useScreenSize,
+  useThemeKind,
 } from '@mindroom/client-sdk/ui';
 
 /** The drag type of the item its panel offers, which the room header takes. */
@@ -473,6 +479,55 @@ function FetchedGreeting({ roomId, eventId }: { roomId: string; eventId: string 
   );
 }
 
+/** A one-page PDF that says "Example PDF", with the cross-reference table a viewer reads. */
+const examplePdf = (): Blob => {
+  const text = 'BT /F1 24 Tf 24 40 Td (Example PDF) Tj ET';
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 240 100] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${text.length} >>\nstream\n${text}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = objects.map((body, index) => {
+    const offset = pdf.length;
+    pdf += `${index + 1} 0 obj\n${body}\nendobj\n`;
+    return `${String(offset).padStart(10, '0')} 00000 n \n`;
+  });
+  const size = objects.length + 1;
+  const xref = pdf.length;
+  pdf += `xref\n0 ${size}\n0000000000 65535 f \n${offsets.join('')}`;
+  pdf += `trailer\n<< /Size ${size} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new Blob([pdf], { type: 'application/pdf' });
+};
+
+/** Its PDF, built as a blob, in the browser's viewer through the app's frame page. */
+function ExamplePdf() {
+  const [objectUrl, setObjectUrl] = useState<string>();
+  useEffect(
+    () => () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    },
+    [objectUrl]
+  );
+  const frameUrl = objectUrl && pdfFrameUrl(objectUrl);
+  if (!frameUrl) {
+    return (
+      <button type="button" onClick={() => setObjectUrl(URL.createObjectURL(examplePdf()))}>
+        Show example PDF
+      </button>
+    );
+  }
+  return (
+    <iframe
+      title="Example PDF"
+      src={frameUrl}
+      style={{ display: 'block', width: '100%', height: 240, border: 'none' }}
+    />
+  );
+}
+
 const ROWS = ['First example row', 'Second example row'];
 
 /** Its menu's button, and the menu, which Escape and a click outside close, as the room menu's. */
@@ -609,9 +664,14 @@ const CARD_CSS = `[data-example-card] { flex: 0 0 320px; }
 [data-example-card][data-filled] { flex: 1 1 0; }
 @media (max-width: 750px) { [data-example-card] { flex: 1 1 0; } }`;
 
-/** The panel that draws its own frame: a card with Fill and Hide, and a tab while hidden. */
+/**
+ * The panel that draws its own frame: a card with Fill and Hide, the app's theme kind and screen
+ * size, and its PDF, and a tab while hidden.
+ */
 function ExampleCard() {
   const frame = usePanelFrame();
+  const themeKind = useThemeKind();
+  const screenSize = useScreenSize();
   if (!frame) return null;
   const { layout, setLayout } = frame;
   const look = {
@@ -649,6 +709,9 @@ function ExampleCard() {
       <button type="button" onClick={() => setLayout('folded')}>
         Hide example card
       </button>
+      <p>Theme: {themeKind}</p>
+      <p>Screen: {screenSize}</p>
+      <ExamplePdf />
     </section>
   );
 }

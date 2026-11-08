@@ -25,16 +25,28 @@
       The app's frame-src policy allows only its own pages, and a blob: document would inherit
       that policy. This page is one of the app's own pages, loaded from the server with no
       frame policy, so it can hand an object URL that the app made to the browser's PDF viewer.
-      It takes only object URLs of this origin, named after the # sign.
+      It takes only object URLs of this origin, named after the # sign, and shows their bytes as a
+      PDF whatever type the blob carries: it hands the viewer a copy typed application/pdf, since
+      the browser shows an object URL as the type its blob has.
     -->
     <script>
       (function showPdf() {
+        // A frame whose URL changes only after the # sign stays on this page: show the new one.
+        window.addEventListener('hashchange', function () {
+          window.location.reload();
+        });
         var pdfUrl = decodeURIComponent(window.location.hash.slice(1));
         if (pdfUrl.indexOf('blob:' + window.location.origin + '/') !== 0) return;
-        var viewer = document.createElement('embed');
-        viewer.type = 'application/pdf';
-        viewer.src = pdfUrl;
-        document.body.appendChild(viewer);
+        fetch(pdfUrl)
+          .then(function (response) {
+            return response.blob();
+          })
+          .then(function (blob) {
+            var viewer = document.createElement('embed');
+            viewer.type = 'application/pdf';
+            viewer.src = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+            document.body.appendChild(viewer);
+          });
       })();
     </script>
   </body>
