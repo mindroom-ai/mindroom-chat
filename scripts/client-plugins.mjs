@@ -17,7 +17,7 @@ import { normalizePath, searchForWorkspaceRoot } from 'vite';
 /**
  * The client SDK version this client provides (`src/client-sdk/`); each plugin declares, as its
  * `apiVersion`, the one it needs. Version 1 had no SDK; each later addition to the SDK (an export,
- * or a contribution kind in `ClientPlugin`) raises it.
+ * a contribution kind in `ClientPlugin`, or a field of the declaration) raises it.
  */
 const CLIENT_PLUGIN_API_VERSION = 23;
 
@@ -234,10 +234,10 @@ const BUILD_HOOKS = new Map([
 
 /**
  * The Vite plugins of the build modules (`build`) of `plugins`, in their order, with each hook kept
- * to its plugin's modules, the ones its `resolveId` makes up (Vite's virtual modules, with ids that
- * start with `\0`) included: `transform` and `load` run only for them, and `resolveId` only for their
- * imports. Any other hook or property fails the build, so that no hook works on the app's build as a
- * whole or on another plugin's modules.
+ * to its plugin's modules, the ones its `resolveId` makes up under its id included (Vite's virtual
+ * modules, such as `\0my-plugin:settings`): `transform` and `load` run only for them, and `resolveId`
+ * only for their imports. Any other hook or property fails the build, so that no hook works on the
+ * app's build as a whole or on another plugin's modules.
  * @param {ClientPluginInfo[]} plugins
  * @returns {Promise<import('vite').Plugin[]>}
  */
@@ -250,11 +250,11 @@ const buildModulePlugins = async (plugins) => {
       const fail = (/** @type {string} */ reason) => {
         throw new Error(`MINDROOM_CLIENT_PLUGINS: ${plugin.dir}: ${reason}`);
       };
-      /** @type {Set<string>} */
-      const madeUp = new Set();
+      const madeUpPrefix = `\0${plugin.id}:`;
       const { default: exported } = await import(pathToFileURL(plugin.build).href);
       return [exported].flat(Infinity).map((/** @type {any} */ vitePlugin) => {
-        if (typeof vitePlugin !== 'object' || typeof vitePlugin?.name !== 'string') {
+        // An object literal: a class's hooks are no properties of its instance, so they would be lost.
+        if (vitePlugin?.constructor !== Object || typeof vitePlugin.name !== 'string') {
           fail(`the default export of ${plugin.build} is not a Vite plugin or an array of them`);
         }
         /** @type {any} */
@@ -271,17 +271,12 @@ const buildModulePlugins = async (plugins) => {
           } else {
             const handler = typeof hook === 'function' ? hook : hook.handler;
             /** @this {unknown} */
-            const own = async function (/** @type {unknown[]} */ ...args) {
+            const own = function (/** @type {unknown[]} */ ...args) {
               const file = args[at];
-              if (typeof file !== 'string') return null;
-              if (ownerOf(file)?.plugin !== plugin && !madeUp.has(file)) return null;
-              const result = await handler.apply(this, args);
-              // An id its resolveId makes up names a module of its own.
-              const id = typeof result === 'object' ? result?.id : result;
-              if (key === 'resolveId' && typeof id === 'string' && id.startsWith('\0')) {
-                madeUp.add(id);
-              }
-              return result;
+              return typeof file === 'string' &&
+                (ownerOf(file)?.plugin === plugin || file.startsWith(madeUpPrefix))
+                ? handler.apply(this, args)
+                : null;
             };
             scoped[key] = typeof hook === 'function' ? own : { ...hook, handler: own };
           }

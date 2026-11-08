@@ -658,24 +658,56 @@ describe("a plugin's build module", () => {
     expect(modules).toContain(path.join(outside, 'helper.js'));
   });
 
-  it('loads and transforms the modules its resolveId makes up, as Vite virtual modules', async () => {
-    // One id made up as a string, one as an object, as resolveId may return either.
+  it('loads and transforms the modules its resolveId makes up under its own id, as Vite virtual modules', async () => {
     const dir = withFiles('own', {
       'build.mjs':
         "export default { name: 'made-up', enforce: 'pre',\n" +
-        "  resolveId: (source) => source === 'virtual:greeting' ? '\\0virtual:greeting'\n" +
-        "    : source === 'virtual:name' ? { id: '\\0virtual:name' } : null,\n" +
-        "  load: (id) => id.startsWith('\\0virtual:') ? `export default '${id.slice(9)} made up';` : null,\n" +
-        "  transform: (code, id) => id.startsWith('\\0virtual:') ? code.replace('made', 'made and changed') : null };\n",
+        "  resolveId: (source) => (source === 'virtual:greeting' ? '\\0own:greeting' : null),\n" +
+        "  load: (id) => (id === '\\0own:greeting' ? 'export default \"made up\";' : null),\n" +
+        "  transform: (code, id) => (id === '\\0own:greeting' ? code.replace('made', 'made and changed') : null) };\n",
       'index.js':
-        "import greeting from 'virtual:greeting';\nimport name from 'virtual:name';\n" +
-        'export default { messageRenderers: [], greeting, name };\n',
+        "import greeting from 'virtual:greeting';\nexport default { messageRenderers: [], greeting };\n",
     });
     const code = (await buildEntries({ MINDROOM_CLIENT_PLUGINS: dir }))
       .map((chunk) => chunk.code)
       .join('\n');
-    expect(code).toContain('greeting made and changed up');
-    expect(code).toContain('name made and changed up');
+    expect(code).toContain('made and changed up');
+  });
+
+  it('leaves a module another plugin makes up to that plugin', async () => {
+    // Listed first and `pre`, `greedy` would load every made-up module if they were anyone's.
+    const greedy = withFiles('greedy', {
+      'build.mjs':
+        "export default { name: 'greedy', enforce: 'pre', load: (id) => (id.startsWith('\\0') ? 'export default \"taken\";' : null) };\n",
+    });
+    const own = withFiles('own', {
+      'build.mjs':
+        "export default { name: 'made-up', enforce: 'pre',\n" +
+        "  resolveId: (source) => (source === 'virtual:greeting' ? '\\0own:greeting' : null),\n" +
+        "  load: (id) => (id === '\\0own:greeting' ? 'export default \"made up\";' : null) };\n",
+      'index.js':
+        "import greeting from 'virtual:greeting';\nexport default { messageRenderers: [], greeting };\n",
+    });
+    const code = (await buildEntries({ MINDROOM_CLIENT_PLUGINS: `${greedy},${own}` }))
+      .map((chunk) => chunk.code)
+      .join('\n');
+    expect(code).toContain('made up');
+    expect(code).not.toContain('taken');
+  });
+
+  it('runs in the dev server for the files it serves', async () => {
+    const dir = withFiles('own', {
+      'build.mjs':
+        "export default { name: 'rename', transform: (code) => code.replace('Plain', 'Renamed') };\n",
+      'index.js': "export default { messageRenderers: [], text: 'Plain' };\n",
+    });
+    const server = await devServer(dir);
+    try {
+      const served = await server.transformRequest(`/@fs${path.join(dir, 'index.js')}`);
+      expect(served?.code).toContain('Renamed');
+    } finally {
+      await server.close();
+    }
   });
 
   it('fails the build for a hook other than resolveId, load and transform, naming the plugin and the hook', async () => {
@@ -694,6 +726,10 @@ describe("a plugin's build module", () => {
   it.each([
     ['a function that makes one', "export default () => ({ name: 'made-by-a-call' });\n"],
     ['a promise of one', "export default [Promise.resolve({ name: 'later' })];\n"],
+    [
+      'an instance of a class, whose hooks are not its own properties',
+      "export default new (class { name = 'scope'; transform() { return null; } })();\n",
+    ],
   ])('fails the build for a default export of %s, naming the module', async (_case, code) => {
     const dir = withFiles('some-plugin', { 'build.mjs': code });
     await expect(
