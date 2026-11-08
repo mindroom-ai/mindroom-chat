@@ -6,7 +6,8 @@ import { isPluginEnabled } from './pluginConfig';
 import { getPluginTranslation, pluginNamespace } from './pluginTranslations';
 import type { RegisteredPlugin } from './registry';
 
-const PLACEMENTS: readonly unknown[] = ['auto', 'menu'];
+/** The placements a plugin may give what it adds to the room header. */
+export const PLACEMENTS: readonly unknown[] = ['auto', 'menu'];
 
 /** The open room, and the thread open in it, that an action runs in. */
 export type HeaderActionRoom = { roomId: string; threadId?: string };
