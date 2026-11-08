@@ -25,9 +25,9 @@ export type CallWindowSettings = {
   mode: CallWindowMode;
   rect?: WindowRect;
   /**
-   * The viewport `rect` was placed in, which it is fitted from to the viewport it shows in. Kept
-   * since rectangles fit that way also after a reload, Dock and Float, or an expand from outside
-   * the window; one stored without it counts as placed in the viewport that reads it.
+   * The viewport `rect` was placed in. The window fits `rect` from it to the viewport it shows in,
+   * also after a reload or Dock and Float, and an expand from outside the window grows the bar
+   * from there; a rectangle stored without it counts as placed in the viewport that reads it.
    */
   placedIn?: ViewportSize;
   expandedHeight?: number;
@@ -214,7 +214,7 @@ export const getCallWindowSplitAtom = (userId: string) =>
  * Where the stored rectangle shows in `viewport`: fitted from the viewport it was placed in, so it
  * keeps its distance to the nearer edges.
  */
-export const shownRect = (
+const shownRect = (
   settings: CallWindowSettings,
   viewport: ViewportSize
 ): WindowRect | undefined =>
