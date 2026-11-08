@@ -55,6 +55,10 @@ export const sharedScreens = (participants: CallParticipant[]): CallParticipant[
   return [...sharing.filter(({ local }) => !local), ...sharing.filter(({ local }) => local)];
 };
 
+/** Speaker view has room for one shared screen; with two or more the stage gives each a row. */
+export const showsScreenRows = (participants: CallParticipant[]): boolean =>
+  sharedScreens(participants).length > 1;
+
 /**
  * The tile speaker view puts in focus: the first of the `sharedScreens`; else the remote in focus
  * before (`previous`) while it still speaks, so a second speaker does not take the stage from it;

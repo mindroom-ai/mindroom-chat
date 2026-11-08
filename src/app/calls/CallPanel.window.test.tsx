@@ -84,7 +84,9 @@ vi.mock('./CallTile', () => ({
   CallTile: ({ participant }: { participant: CallParticipant }) => (
     <li data-call-tile={participant.userId} />
   ),
-  ScreenTile: () => null,
+  ScreenTile: ({ participant }: { participant: CallParticipant }) => (
+    <li data-call-screen={participant.userId} />
+  ),
 }));
 
 const person = (userId: string, extra: Partial<CallParticipant> = {}): CallParticipant => ({
@@ -250,6 +252,27 @@ describe('the call view title bar', () => {
     expect(speakerView()).toBe(false);
     expect(speakerSwitch().getAttribute('aria-pressed')).toBe('false');
     expect(speakerSwitch().hasAttribute('aria-disabled')).toBe(false);
+  });
+
+  it('holds the speaker switch off while two or more shared screens all show', () => {
+    const ana = person('@ana:panel.test', { screen: camera });
+    roomCall([me, ana, person('@bo:panel.test', { screen: camera })]);
+    const inFrame = frame();
+    const { rerender } = renderPanel({ frame: inFrame });
+    const speakerSwitch = () => screen.getByRole('button', { name: 'Speaker view' });
+    const speakerView = () =>
+      document.querySelector('[data-call-stage]')?.hasAttribute('data-speaker-view');
+    expect(document.querySelectorAll('[data-call-screen]')).toHaveLength(2);
+    expect(speakerView()).toBe(false);
+    expect(speakerSwitch().getAttribute('aria-pressed')).toBe('false');
+    expect(speakerSwitch().getAttribute('aria-disabled')).toBe('true');
+
+    // One screen left: speaker view shows it, and the switch says so.
+    roomCall([me, ana, person('@bo:panel.test')]);
+    rerender(panel({ frame: inFrame }));
+    expect(speakerView()).toBe(true);
+    expect(speakerSwitch().getAttribute('aria-pressed')).toBe('true');
+    expect(speakerSwitch().getAttribute('aria-disabled')).toBe('true');
   });
 
   it('docks from the window and takes the person to the call room', () => {

@@ -37,7 +37,7 @@ import { allowMembersToCall, readCallAccess, type CallAccess } from './callAcces
 import { CallControl, DeviceControl } from './CallControls';
 import { CallMemberAvatar, useCallMemberProfile } from './CallTile';
 import { CallStage } from './CallStage';
-import { hasVideo } from './stageLayout';
+import { hasVideo, showsScreenRows } from './stageLayout';
 import { useCallWindowFrame } from './window/callWindowFrame';
 import { focusHandOffAtom, useCallWindowMode } from './window/callWindowState';
 import { DockIcon, FloatIcon } from './window/windowIcons';
@@ -443,11 +443,13 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
           microphone: true,
         }
       : undefined;
-  // The person's pick; a shared screen or tiles too small for the grid show speaker view anyway,
-  // and the stage says when, so the switch shows it on and holds it there.
+  // The person's pick; one shared screen or tiles too small for the grid show speaker view anyway,
+  // and the stage says when, so the switch shows it on and holds it there. Two or more shared
+  // screens hold it off: the stage shows each of them instead.
   const [speakerView, setSpeakerView] = useState(false);
   const [speakerForced, setSpeakerForced] = useState(false);
   const video = !finished && hasVideo(state.participants);
+  const speakerShown = (speakerView || speakerForced) && !showsScreenRows(state.participants);
 
   const microphoneLabel = state.microphone
     ? t('featureUi.call.controls.turnOffMicrophone')
@@ -529,7 +531,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
           className={css.SpeakerSwitch}
           label={t('featureUi.calls.window.speakerView')}
           icon={Icons.User}
-          pressed={speakerView || speakerForced}
+          pressed={speakerShown}
           held={speakerForced}
           onClick={() => setSpeakerView((picked) => !picked)}
         />

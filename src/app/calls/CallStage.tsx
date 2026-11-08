@@ -16,6 +16,7 @@ import {
   pickFocus,
   screenKey,
   sharedScreens,
+  showsScreenRows,
 } from './stageLayout';
 import * as css from './CallStage.css';
 
@@ -244,8 +245,7 @@ export function CallStage(props: CallStageProps) {
   const video = hasVideo(people);
   const fit = size && fitTiles(people.length, size.width, size.height, TILE_GAP);
   const screens = sharedScreens(people);
-  // Speaker view has room for one screen; two or more each get a row of their own.
-  const screenRows = screens.length > 1;
+  const screenRows = showsScreenRows(people);
   const forced = video && (screens.length > 0 || (!!fit && fit.size < SPEAKER_VIEW_MIN_TILE));
   const speaker = video && !screenRows && (speakerView || forced);
   useEffect(() => {
