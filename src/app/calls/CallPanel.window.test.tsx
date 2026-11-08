@@ -30,6 +30,7 @@ const calls = vi.hoisted(() => ({
 }));
 const navigation = vi.hoisted(() => ({ navigateRoom: vi.fn(), navigateRoomThread: vi.fn() }));
 const leave = vi.hoisted(() => vi.fn(async () => undefined));
+const dismiss = vi.hoisted(() => vi.fn());
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getSafeUserId: () => '@me:panel.test' }),
@@ -61,7 +62,7 @@ vi.mock('./callStore', async (importOriginal) => ({
   useRoomCallMembers: () => calls.members,
   useCallActions: () => ({
     endCall: leave,
-    dismissCall: () => undefined,
+    dismissCall: dismiss,
     startCall: async () => 'started',
   }),
 }));
@@ -462,6 +463,29 @@ describe('the minimized bar', () => {
     fireEvent.click(within(bar).getByRole('button', { name: 'Close call' }));
     expect(onClose).toHaveBeenCalledOnce();
   });
+
+  it.each([
+    ['failed', 'connection', "The call's connection was lost."],
+    ['ended', undefined, 'The call ended.'],
+  ] as const)(
+    'says in the bar why the call stopped (%s) and offers Close in place of the microphone and leave',
+    (phase, problem, said) => {
+      roomCall([me, person('@ana:panel.test')]);
+      calls.state = { ...joined([me, person('@ana:panel.test')]), phase, problem };
+      renderPanel({ frame: frame(true) });
+
+      const bar = screen.getByRole('group', { name: 'Move minimized call window' });
+      expect(within(bar).getByText(said)).toBeTruthy();
+      const names = within(bar)
+        .getAllByRole('button')
+        .map((each) => each.textContent || each.getAttribute('aria-label'));
+      expect(names).toEqual(['Close', 'Expand', 'Close call']);
+      // Close drops the finished call, as the expanded view's Close does, so new calls can start.
+      fireEvent.click(within(bar).getByRole('button', { name: 'Close' }));
+      expect(dismiss).toHaveBeenCalledOnce();
+      expect(onClose).not.toHaveBeenCalled();
+    }
+  );
 
   it('shows only the title, Expand and Close before the call is joined', () => {
     calls.members = [{ userId: '@ana:panel.test' }];
