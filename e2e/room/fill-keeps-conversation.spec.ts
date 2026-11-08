@@ -114,6 +114,12 @@ test('a side panel filling the room keeps the conversation under it as it was', 
   await fill.click();
   await expect(fill).toHaveAttribute('aria-pressed', 'true');
   await expect(discard).toBeHidden();
+  // In the conversation's place, the panel's card keeps the gap at its start as at its ends.
+  const gaps = await panelLocator(page, 'call').evaluate((panel) => {
+    const style = getComputedStyle(panel);
+    return [style.paddingInlineStart, style.paddingBlockStart];
+  });
+  expect(gaps[0]).toBe(gaps[1]);
   await shot('filled');
   await fill.click();
   await expect(discard).toBeVisible();
