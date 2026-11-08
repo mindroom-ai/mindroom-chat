@@ -49,8 +49,9 @@ export const getBundledThreadPreviews = (
     const event = new MatrixEvent({ ...raw, room_id: room.roomId } as IEvent);
     if (event.isRedacted()) return undefined;
     const replacement: unknown = event.getUnsigned()['m.relations']?.['m.replace'];
-    // A root's summary keeps the edits of its events as the server sent them, also one the room
-    // took a redaction of since (eventRevision.ts).
+    // A root's summary keeps the edits of its events as the server sent them: the room may hold
+    // one as an event and have redacted it since, and a copy of the root the room does not hold
+    // keeps every edit (eventRevision.ts).
     if (object(replacement) && object(replacement.content)) {
       const target = replacement.content['m.relates_to'];
       if (

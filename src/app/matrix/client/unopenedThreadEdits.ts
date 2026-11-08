@@ -36,8 +36,8 @@ type SummarizedThread = {
   replayEvents?: MatrixEvent[] | null;
 };
 
-/** Whether `room` took a redaction of the edit `editId`. */
-const isRedactedEdit = (room: Room | undefined, editId: string | undefined): boolean =>
+/** Whether `room` took a redaction of the edit `editId` (eventRevision.ts). */
+const isKnownRedactedEdit = (room: Room | undefined, editId: string | undefined): boolean =>
   !!room && !!editId && isKnownRedactedEventId(room, editId);
 
 /** A reply the thread's summary may name: not its root, nor its title notice. */
@@ -61,7 +61,7 @@ export const getThreadSummaryReply = (
   // not hold this one. The app hides an edit it cannot decrypt yet from replacingEvent(), not
   // from replacingEventId().
   const editId = retained?.replacingEventId();
-  if (retained && editId && isRedactedEdit(thread.room, editId)) {
+  if (retained && editId && isKnownRedactedEdit(thread.room, editId)) {
     const { unsigned } = stripRedactedRelationsFromRawEvent(retained.event, new Set([editId]));
     retained.setUnsigned(unsigned ?? {});
     showNewestEdit(thread, retained);
@@ -107,7 +107,7 @@ const showNewestEdit = (thread: SummarizedThread, target: MatrixEvent): boolean 
   if (!targetId || target.isRedacted() || target.isState()) return false;
   const shown = target.replacingEvent();
   const candidates = waitingEditsFor(thread, targetId).filter((edit) => isValidEdit(target, edit));
-  if (shown && !shown.isRedacted() && !isRedactedEdit(thread.room, shown.getId()))
+  if (shown && !shown.isRedacted() && !isKnownRedactedEdit(thread.room, shown.getId()))
     candidates.unshift(shown);
   const newest = getLatestEdit(target, candidates);
   if (newest === shown || (!newest && !shown)) return false;

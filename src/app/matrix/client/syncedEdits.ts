@@ -34,7 +34,7 @@ let client: MatrixClient | undefined;
  * Whether the room of `edit` took a redaction of it while it knew the edit only from its message's
  * bundle (eventRevision.ts), whichever way the redaction came: synced or paginated back.
  */
-const isRedactedEdit = (edit: MatrixEvent): boolean => {
+const isRedactedBundledEdit = (edit: MatrixEvent): boolean => {
   const editId = edit.getId();
   return !!editId && !!client?.getRoom(edit.getRoomId())?.redactedBundledEdits.has(editId);
 };
@@ -50,10 +50,13 @@ const isFinishingEdit = (edit: MatrixEvent): boolean => {
   return readable && hasTerminalStreamMetadata(edit.getContent());
 };
 
-/** The newest edit of the message `eventId` the sync brought, readable or not, unless redacted. */
+/**
+ * The newest edit of the message `eventId` the sync brought, readable or not, unless the room took
+ * its redaction while it knew the edit only from the message's bundle.
+ */
 export const getSyncedEdit = (eventId: string): MatrixEvent | undefined => {
   const edit = newestEdits.get(eventId);
-  return edit && !isRedactedEdit(edit) ? edit : undefined;
+  return edit && !isRedactedBundledEdit(edit) ? edit : undefined;
 };
 
 /** The edit of `reply` by its sender that finished its stream, if the client has one. */
@@ -84,7 +87,7 @@ export const isStreamingByServer = (reply: MatrixEvent): boolean | undefined => 
 
 const keepNewer = (edits: Map<string, MatrixEvent>, eventId: string, edit: MatrixEvent) => {
   const known = edits.get(eventId);
-  if (known && known.getTs() >= edit.getTs() && !isRedactedEdit(known)) return;
+  if (known && known.getTs() >= edit.getTs() && !isRedactedBundledEdit(known)) return;
   if (edits.size >= REMEMBERED_LIMIT) edits.clear();
   edits.set(eventId, edit);
 };
@@ -101,7 +104,7 @@ export const keepSyncedEdits = (mx: MatrixClient): (() => void) => {
     const relation: unknown = event.getWireContent()['m.relates_to'];
     if (!isRecord(relation) || relation.rel_type !== RelationType.Replace) return;
     if (typeof relation.event_id !== 'string' || event.isRedacted()) return;
-    if (!isRedactedEdit(event)) keepNewer(newestEdits, relation.event_id, event);
+    if (!isRedactedBundledEdit(event)) keepNewer(newestEdits, relation.event_id, event);
     if (isFinishingEdit(event)) keepNewer(finishingEdits, relation.event_id, event);
   };
   // A room the account forgets goes with its record of redacted edits, so its kept edits go too.
