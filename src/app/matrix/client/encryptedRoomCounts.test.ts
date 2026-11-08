@@ -786,4 +786,61 @@ describe('unread counts of an encrypted room', () => {
     }
     expect(reloaded.totalCount()).toBe(1);
   });
+
+  describe('SCRATCH fresh session holding the whole room', () => {
+    const joinInTimeline = { ...member(ME), origin_server_ts: 1 } as IEvent;
+    const reaction = {
+      type: 'm.reaction',
+      event_id: '$reaction',
+      room_id: ROOM,
+      sender: AGENT,
+      origin_server_ts: 12,
+      unsigned: {},
+      content: { 'm.relates_to': { rel_type: 'm.annotation', event_id: ROOT, key: 'x' } },
+    } as unknown as IEvent;
+    const redaction = {
+      type: 'm.room.redaction',
+      event_id: '$redaction',
+      room_id: ROOM,
+      sender: AGENT,
+      origin_server_ts: 16,
+      unsigned: {},
+      redacts: '$reaction',
+      content: { redacts: '$reaction' },
+    } as unknown as IEvent;
+    const edits = () => [
+      ...streamingEdits(2, 13),
+      finishingEdit('$done', REPLY, 15),
+    ];
+    const room = (withReaction: boolean) => [
+      joinInTimeline,
+      encrypted(ROOT, ME, 10),
+      streamedReply(REPLY, 11),
+      ...(withReaction ? [reaction] : []),
+      ...edits(),
+      ...(withReaction ? [redaction] : []),
+      encrypted('$title', AGENT, 17, inThread),
+    ];
+    const contentOf2 = (id: string) =>
+      id === ROOT ? clear[ROOT] : id === REPLY ? clear[REPLY] : contentOf(id);
+    for (const withReaction of [false, true]) {
+      for (const keyless of [false, true]) {
+        it(`SCRATCH reaction=${withReaction} keyless=${keyless}`, async () => {
+          const f = await fixture(true);
+          const events = room(withReaction);
+          await f.deliver(events, [], { counts: replyCounts });
+          const enc = events.filter((e) => e.type === 'm.room.encrypted');
+          const steps: string[] = [];
+          if (keyless) {
+            for (const e of enc) await f.decrypt(f.find(e.event_id), undefined);
+            steps.push(`keyless ${f.totalCount()} ${f.threadCount()}`);
+          }
+          for (const e of enc) await f.decrypt(f.find(e.event_id), contentOf2(e.event_id));
+          const thread = f.room().getThread(ROOT);
+          steps.push(`keys ${f.totalCount()} ${f.threadCount()} thread=${thread?.events.map((e) => e.getId()).join(',')} live=${f.room().getLiveTimeline().getEvents().map((e) => e.getId()).join(',')} token=${f.room().getLiveTimeline().getPaginationToken('b' as never)}`);
+          expect(steps).toEqual(['x']);
+        });
+      }
+    }
+  });
 });
