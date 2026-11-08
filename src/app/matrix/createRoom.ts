@@ -139,7 +139,7 @@ export type CreateRoomData = RoomIdentity &
   RoomPolicy & {
     /** `RoomType.Space` or `RoomType.Call`; a chat room when left out. */
     type?: RoomType;
-    /** The space to add the room to. */
+    /** The room or space that lists the new room (`m.space.child`). */
     parent?: Room;
   };
 
@@ -195,10 +195,10 @@ export const createRoom = async (client: MatrixClient, data: CreateRoomData): Pr
       // server may still list it, so the room stays.
       const refused = failure instanceof MatrixError && (failure.httpStatus ?? 500) < 500;
       if (refused && !isPublic) {
-        await client.leave(roomId).then(
-          () => client.forget(roomId).catch(() => undefined),
-          () => undefined
-        );
+        await client
+          .leave(roomId)
+          .then(() => client.forget(roomId))
+          .catch(() => undefined);
       }
       throw failure;
     }
