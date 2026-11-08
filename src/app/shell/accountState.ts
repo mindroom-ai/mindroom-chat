@@ -7,7 +7,10 @@ import {
   liveTranscriptAtom,
   pauseRequestAtom,
 } from '../calls/transcription/transcriptionState';
-import { transcriptPanelAtom } from '../calls/transcription/transcriptPanel';
+import {
+  transcriptPanelAtom,
+  windowTranscriptFocusAtom,
+} from '../calls/transcription/transcriptPanel';
 import { commandPaletteOpenAtom } from '../command-palette/commandPaletteState';
 import { shortcutHelpOpenAtom } from '../navigation/shortcutHelpState';
 import {
@@ -90,8 +93,9 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(userDirectoryCacheAtom),
   toInitial(lastExitedThreadAtom),
   // What the person was doing: composer replies and staged files, the call and its panel (and the
-  // focus Dock or Float hands its view), its transcription, Pause and live transcript panel, why an
-  // agent call did not start, and the dialogs and overlays open.
+  // focus Dock or Float hands its view), its transcription, Pause and live transcript panel (and
+  // the focus the call's row hands the window's transcript), why an agent call did not start, and
+  // the dialogs and overlays open.
   forgetComposerStateOfSession,
   forgetCallState,
   toInitial(focusHandOffAtom),
@@ -99,6 +103,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(liveTranscriptAtom),
   toInitial(pauseRequestAtom),
   toInitial(transcriptPanelAtom),
+  toInitial(windowTranscriptFocusAtom),
   toInitial(agentCallFailureAtom),
   toInitial(settingsModalAtom),
   toInitial(recoveryDialogAtom),

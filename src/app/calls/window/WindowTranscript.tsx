@@ -10,7 +10,10 @@ import { textDirection } from '../../ui/directional';
 import type { TranscriptLine } from '../transcription/api';
 import { GAP_KEYS, LiveTranscriptBody } from '../transcription/LiveTranscriptBody';
 import { callTranscriptionAtom } from '../transcription/transcriptionState';
-import { dismissTranscriptPanel } from '../transcription/transcriptPanel';
+import {
+  dismissTranscriptPanel,
+  windowTranscriptFocusAtom,
+} from '../transcription/transcriptPanel';
 import { useLiveTranscript } from '../transcription/useLiveTranscript';
 import { useCallWindowSize } from './callWindowFrame';
 import { getCallWindowSplitAtom, getCallWindowTranscriptAtom } from './callWindowState';
@@ -156,14 +159,20 @@ function Subtitle({ room, line }: { room: Room; line: TranscriptLine | undefined
   );
 }
 
-type TranscriptProps = { room: Room; layout: TranscriptLayout; grow: number | undefined };
+type TranscriptProps = {
+  room: Room;
+  layout: TranscriptLayout;
+  grow: number | undefined;
+  paneRef: RefObject<HTMLDivElement>;
+};
 
 /**
  * The transcript beside or under the stage, at `grow` of the body. Too short a window shows only
  * its latest line as a subtitle, and the transcript stays out of sight for screen readers, whose
  * log announces new lines as it does in every other layout.
  */
-function Transcript({ room, layout, grow }: TranscriptProps) {
+function Transcript({ room, layout, grow, paneRef }: TranscriptProps) {
+  const { t } = useTranslation();
   // It is this device's call: its transcriber reads it, and the window only shows what it read.
   const view = useLiveTranscript(room, READ_MS, false);
   const lines = view.live?.lines ?? [];
@@ -171,8 +180,12 @@ function Transcript({ room, layout, grow }: TranscriptProps) {
   return (
     <>
       <div
+        ref={paneRef}
         className={subtitle ? css.PaneUnseen : css.Pane}
         style={grow === undefined ? undefined : { flexGrow: grow }}
+        role="region"
+        aria-label={t('featureUi.calls.transcription.liveTranscript')}
+        tabIndex={-1}
         data-call-window-transcript=""
       >
         <LiveTranscriptBody room={room} view={view} className={css.PaneBody} members={false} />
@@ -199,6 +212,19 @@ export function WindowTranscript({ room, children }: { room: Room; children: Rea
   useEffect(() => {
     if (shows) dismissTranscriptPanel(store, roomId);
   }, [roomId, shows, store]);
+  // The row's Transcript, outside the window, hands its focus to the transcript it opened here; one
+  // that shows on its own (the controls' switch, left on for a call just joined) takes none. The
+  // subtitle's transcript is out of sight, so there the focus goes to the window's handle.
+  const [focusRequest, setFocusRequest] = useAtom(windowTranscriptFocusAtom);
+  const paneRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!focusRequest || !layout) return;
+    setFocusRequest(undefined);
+    const focused = document.activeElement;
+    if (focused && focused !== document.body && focused !== focusRequest.from) return;
+    const handle = document.querySelector<HTMLElement>('[data-call-window-handle]');
+    (layout === 'subtitle' ? handle : paneRef.current)?.focus();
+  }, [focusRequest, layout, setFocusRequest]);
   const [split, setSplit] = useAtom(getCallWindowSplitAtom(userId));
   const [dragged, setDragged] = useState<number>();
   const boxRef = useRef<HTMLDivElement>(null);
@@ -219,7 +245,14 @@ export function WindowTranscript({ room, children }: { room: Room; children: Rea
           onSet={setSplit}
         />
       )}
-      {layout && <Transcript room={room} layout={layout} grow={shared && 100 - stagePercent} />}
+      {layout && (
+        <Transcript
+          room={room}
+          layout={layout}
+          grow={shared && 100 - stagePercent}
+          paneRef={paneRef}
+        />
+      )}
     </div>
   );
 }

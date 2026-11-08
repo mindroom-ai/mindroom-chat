@@ -16,6 +16,13 @@ export type TranscriptPanel = { roomId: string; replacedCall: boolean };
 export const transcriptPanelAtom = atom<TranscriptPanel | undefined>(undefined);
 
 /**
+ * The focus the call's row hands to the live transcript it shows in the floating window, as Dock
+ * and Float hand theirs to the call view: the transcript takes it from `from`, the row's
+ * Transcript, as it shows, unless the person moved the focus on meanwhile.
+ */
+export const windowTranscriptFocusAtom = atom<{ from: Element | null } | undefined>(undefined);
+
+/**
  * Shows the room's live transcript in its side panel, in place of its call panel if that is open
  * there; a call view that floats (`callFloats`) is no side panel, and stays. Opened again while it
  * shows, it still brings back the call panel it replaced.
@@ -87,7 +94,8 @@ export const openCallTranscript = (
  * `toggle`). The window shows only what this device's transcriber reads, so anywhere else the
  * side panel, which reads the call itself, shows it: a call that failed or ended here (its
  * finished view has no transcript, while the others may still talk), and one whose transcriber
- * did not load or MindRoom has not answered yet.
+ * did not load or MindRoom has not answered yet. Opened rather than toggled (the row, outside the
+ * window), it hands its focus to the transcript there.
  */
 export const useCallTranscript = (roomId: string) => {
   const store = useStore();
@@ -101,11 +109,14 @@ export const useCallTranscript = (roomId: string) => {
     floats && live && transcribed && active?.kind === 'room' && active.call.room.roomId === roomId;
   const shown = useAtomValue(getCallWindowTranscriptAtom(userId));
   const open = useCallback(
-    (toggle: boolean) =>
+    (toggle: boolean) => {
       openCallTranscript(store, roomId, {
         callFloats: floats,
         inWindow: inWindow ? { userId, toggle } : undefined,
-      }),
+      });
+      if (inWindow && !toggle)
+        store.set(windowTranscriptFocusAtom, { from: document.activeElement });
+    },
     [floats, inWindow, roomId, store, userId]
   );
   return { inWindow, shownInWindow: inWindow && shown, open };

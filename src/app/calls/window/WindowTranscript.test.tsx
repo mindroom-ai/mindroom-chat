@@ -10,7 +10,7 @@ import {
   liveTranscriptAtom,
   type TranscriptionStatus,
 } from '../transcription/transcriptionState';
-import { transcriptPanelAtom } from '../transcription/transcriptPanel';
+import { transcriptPanelAtom, windowTranscriptFocusAtom } from '../transcription/transcriptPanel';
 import { CallWindowSizeContext, type CallWindowSize } from './callWindowFrame';
 import { clearCallWindowStore, getCallWindowSettingsAtom } from './callWindowState';
 import { WindowTranscript } from './WindowTranscript';
@@ -215,6 +215,20 @@ describe('the live transcript in the floating window', () => {
     act(() => store.set(callTranscriptionAtom, { roomId: ROOM_ID, status: 'joining' }));
     rerender(windowWith({ width: 400, height: 480 }));
     expect(layout()).toBeUndefined();
+  });
+
+  it('takes no focus when it shows on its own, only the focus a row hands it', () => {
+    inCall();
+    render(windowWith({ width: 400, height: 480 }));
+    const stage = document.querySelector<HTMLElement>('[data-stage]')!;
+    act(() => stage.focus());
+    act(() => showTranscript());
+    expect(layout()).toBe('stacked');
+    expect(document.activeElement).toBe(stage);
+
+    act(() => store.set(windowTranscriptFocusAtom, { from: stage }));
+    expect(document.activeElement).toBe(screen.getByRole('region', { name: 'Live transcript' }));
+    expect(store.get(windowTranscriptFocusAtom)).toBeUndefined();
   });
 
   it("closes the room's side transcript once it shows, so the lines show and are read out once", () => {

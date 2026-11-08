@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
 import { MatrixEvent, type IEvent, type Room } from 'matrix-js-sdk';
 import { CallRow } from './CallRow';
+import { TranscriptionControls } from './TranscriptionControls';
 import { useLiveTranscript, type LiveTranscriptView } from './useLiveTranscript';
 import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from '../callStore';
 import { callTranscriptionAtom, liveTranscriptAtom } from './transcriptionState';
@@ -15,6 +16,8 @@ import {
   getCallWindowSettingsAtom,
   minimizedSettings,
 } from '../window/callWindowState';
+import { CallWindowSizeContext, type CallWindowSize } from '../window/callWindowFrame';
+import { WindowTranscript } from '../window/WindowTranscript';
 import type { CallRowContent } from '../../matrix/protocol/callRow';
 import type { CallPhase } from '../RoomCall';
 import type { LiveCall, TranscriptCall, TranscriptLine } from './api';
@@ -161,6 +164,37 @@ const render = (row: CallRowContent, store = createStore(), size: ScreenSize = '
     );
   });
   return store;
+};
+
+/**
+ * The row on the page and, once its call view shows (`size`), the floating window after the page,
+ * as the app renders it: its handle, then the call's stage with its controls and the transcript.
+ */
+const renderBesideWindow = (store: ReturnType<typeof createStore>, size?: CallWindowSize) => {
+  const callRoom = room as unknown as Room;
+  act(() => {
+    root.render(
+      <Provider store={store}>
+        <ScreenSizeProvider value="Desktop">
+          <CallRow mEvent={ROW} row={LIVE} />
+          {size && (
+            <CallWindowSizeContext.Provider value={size}>
+              <button type="button" data-call-window-handle="" />
+              <WindowTranscript room={callRoom}>
+                <TranscriptionControls room={callRoom} />
+              </WindowTranscript>
+            </CallWindowSizeContext.Provider>
+          )}
+        </ScreenSizeProvider>
+      </Provider>
+    );
+  });
+};
+
+/** Presses the button as a keyboard does: the focus is on it first. */
+const press = (target: HTMLButtonElement | undefined) => {
+  act(() => target?.focus());
+  act(() => target?.click());
 };
 
 // Read anew each time: the registry makes a new atom after each test clears it.
@@ -377,6 +411,57 @@ describe('CallRow', () => {
     // Pressed again, it keeps the transcript open.
     act(() => button('Transcript')?.click());
     expect(store.get(settings()).transcript).toBe(true);
+  });
+
+  it("moves the focus from its Transcript into the window's transcript, which says what it is", () => {
+    state.selectedRoom = undefined;
+    const store = inCall();
+    renderBesideWindow(store, { width: 400, height: 480 });
+
+    press(button('Transcript'));
+    const pane = document.querySelector('[data-call-window-transcript]');
+    expect(document.activeElement).toBe(pane);
+    expect(pane?.getAttribute('role')).toBe('region');
+    expect(pane?.getAttribute('aria-label')).toBe('Live transcript');
+  });
+
+  it('hands the focus to the window transcript once its call view shows, if it is still there', () => {
+    const store = inCall();
+    // The call view was closed: the window opens, and its call view loads, after the press.
+    renderBesideWindow(store);
+    const transcript = button('Transcript');
+    press(transcript);
+    expect(document.activeElement).toBe(transcript);
+    renderBesideWindow(store, { width: 400, height: 480 });
+    expect(document.activeElement).toBe(document.querySelector('[data-call-window-transcript]'));
+
+    // Focus the person moved on meanwhile stays where they put it.
+    renderBesideWindow(store);
+    press(transcript);
+    const elsewhere = document.createElement('button');
+    container.after(elsewhere);
+    act(() => elsewhere.focus());
+    renderBesideWindow(store, { width: 400, height: 480 });
+    expect(document.activeElement).toBe(elsewhere);
+    elsewhere.remove();
+  });
+
+  it("hands the focus to the window's handle when the window only has room for the subtitle", () => {
+    const store = inCall();
+    renderBesideWindow(store, { width: 400, height: 230 });
+
+    press(button('Transcript'));
+    expect(document.activeElement).toBe(document.querySelector('[data-call-window-handle]'));
+  });
+
+  it("leaves the focus on the window controls' Transcript, which shows the transcript in place", () => {
+    const store = inCall();
+    renderBesideWindow(store, { width: 400, height: 480 });
+
+    const toggle = container.querySelector<HTMLButtonElement>('[aria-label="Live transcript"]');
+    press(toggle ?? undefined);
+    expect(store.get(settings()).transcript).toBe(true);
+    expect(document.activeElement).toBe(toggle);
   });
 
   it.each([
