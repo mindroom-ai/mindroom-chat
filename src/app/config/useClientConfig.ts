@@ -3,8 +3,8 @@ import { createContext, createElement, useContext, useEffect, type ReactNode } f
 const configContext = createContext<ClientConfig | undefined>(undefined);
 configContext.displayName = 'ClientConfig';
 
-/** What the mounted `ClientConfigProvider`s supply, in the order they mounted or last changed. */
-const provided: (ClientConfig | undefined)[] = [];
+/** What each mounted `ClientConfigProvider` supplies, in the order they mounted or last changed. */
+const mountedProviders: { config: ClientConfig | undefined }[] = [];
 
 /**
  * Supplies the loaded `config.json` to everything rendered below it, and to `getClientConfig()`
@@ -18,9 +18,10 @@ export function ClientConfigProvider({
   children?: ReactNode;
 }) {
   useEffect(() => {
-    provided.push(value);
+    const entry = { config: value };
+    mountedProviders.push(entry);
     return () => {
-      provided.splice(provided.lastIndexOf(value), 1);
+      mountedProviders.splice(mountedProviders.indexOf(entry), 1);
     };
   }, [value]);
   return createElement(configContext.Provider, { value }, children);
@@ -31,7 +32,8 @@ export function ClientConfigProvider({
  * (the app mounts one), for code that runs outside components, such as a plugin command's `run`;
  * undefined while none is mounted.
  */
-export const getClientConfig = (): ClientConfig | undefined => provided[provided.length - 1];
+export const getClientConfig = (): ClientConfig | undefined =>
+  mountedProviders[mountedProviders.length - 1]?.config;
 
 /** The deployment's configuration; throws when no `ClientConfigProvider` is above the caller. */
 export const useClientConfig = (): ClientConfig => {

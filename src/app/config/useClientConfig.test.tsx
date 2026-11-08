@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactElement } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ClientConfigProvider, getClientConfig } from './useClientConfig';
@@ -14,10 +14,10 @@ describe('getClientConfig', () => {
     renderer = undefined;
   });
 
-  const render = (ui: ReactNode) => {
+  const render = (ui: ReactElement) => {
     act(() => {
-      if (renderer) renderer.update(<>{ui}</>);
-      else renderer = create(<>{ui}</>);
+      if (renderer) renderer.update(ui);
+      else renderer = create(ui);
     });
   };
 
@@ -53,7 +53,18 @@ describe('getClientConfig', () => {
     expect(getClientConfig()).toBe(OUTER);
   });
 
-  it('is none while no provider is mounted', () => {
-    expect(getClientConfig()).toBeUndefined();
+  it('keeps the later of two providers of one configuration when the earlier one unmounts', () => {
+    const roots = [OUTER, INNER, OUTER].map((config) => {
+      let root: ReactTestRenderer | undefined;
+      act(() => {
+        root = create(<ClientConfigProvider value={config} />);
+      });
+      return root!;
+    });
+
+    act(() => roots[0]?.unmount());
+    expect(getClientConfig()).toBe(OUTER);
+
+    act(() => roots.slice(1).forEach((root) => root.unmount()));
   });
 });
