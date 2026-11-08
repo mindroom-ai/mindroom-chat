@@ -23,6 +23,7 @@ import {
   withSearchParam,
 } from '../routes/pathUtils';
 import { navigateToRoomThread } from './threadNavigation';
+import { currentHistoryLocation } from '../routes/historyStack';
 
 /**
  * The top-level space to open a room in: the first root space found walking up from the room,
@@ -151,7 +152,14 @@ export const useRoomNavigate = () => {
   /** Opens a thread and records the current page as the place its back button returns to. */
   const navigateRoomThread = useCallback(
     (roomId: string, threadId: string, eventId?: string, opts?: NavigateOptions) =>
-      navigateToRoomThread({ navigateRoomThreadDirect, roomId, threadId, eventId, opts }),
+      navigateToRoomThread({
+        navigateRoomThreadDirect,
+        roomId,
+        threadId,
+        eventId,
+        opts,
+        location: currentHistoryLocation(),
+      }),
     [navigateRoomThreadDirect]
   );
 

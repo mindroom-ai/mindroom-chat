@@ -7,7 +7,7 @@ import {
   type HistoryStack,
 } from './historyStack';
 
-const entry = (key: string) => ({ key, pathname: `/${key}/`, search: '' });
+const entry = (key: string) => ({ key, pathname: `/${key}/`, search: '', hash: '' });
 const walk = (...steps: [string, 'PUSH' | 'REPLACE' | 'POP'][]): HistoryStack =>
   steps.reduce(
     (stack, [key, action]) => advanceHistoryStack(stack, entry(key), action),
@@ -50,7 +50,12 @@ describe('advanceHistoryStack', () => {
 });
 
 describe('findHistoryOrigin', () => {
-  const page = (key: string, pathname: string, search = '') => ({ key, pathname, search });
+  const page = (key: string, pathname: string, search = '') => ({
+    key,
+    pathname,
+    search,
+    hash: '',
+  });
   const stack = (...pages: ReturnType<typeof page>[]): HistoryStack => ({
     entries: pages,
     index: pages.length - 1,
@@ -73,8 +78,23 @@ describe('findHistoryOrigin', () => {
   });
 
   it('knows a room by its alias too', () => {
-    expect(inRoom(page('a', '/space/%23harbor%3Aexample.org/'))).toBe(true);
+    expect(inRoom(page('a', '/%23garden%3Aexample.org/%23harbor%3Aexample.org/'))).toBe(true);
+    expect(inRoom(page('a', '/direct/%23harbor%3Aexample.org/'))).toBe(true);
     expect(inRoom(page('a', '/home/!garden:example.org/'))).toBe(false);
+  });
+
+  it("counts a space's own pages as the space", () => {
+    expect(inRoom(page('a', `/${encodeURIComponent(room)}/lobby/`))).toBe(true);
+  });
+
+  it('stops at a page of another kind whose path only carries the room, such as a plugin page', () => {
+    expect(inRoom(page('a', `/explore/${encodeURIComponent(room)}/`))).toBe(false);
+    const plugin = `/p/example/rooms/${encodeURIComponent(room)}/%24root`;
+    const history = stack(page('a', plugin), page('b', `/home/${encodeURIComponent(room)}/`));
+    expect(findHistoryOrigin(history, (candidate) => !inRoom(candidate))).toEqual({
+      steps: 1,
+      path: plugin,
+    });
   });
 
   it('tells a thread of the room from the room itself', () => {

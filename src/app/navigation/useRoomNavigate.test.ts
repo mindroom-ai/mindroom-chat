@@ -37,7 +37,6 @@ vi.stubGlobal('window', {
   history: {
     state: mocks.historyState,
   },
-  location: mocks.location,
 } as unknown as Window & typeof globalThis);
 
 vi.mock('react-router-dom', async (importOriginal) => {
@@ -48,6 +47,10 @@ vi.mock('react-router-dom', async (importOriginal) => {
     useParams: () => ({ roomIdOrAlias: mocks.routeRoom }),
   };
 });
+
+vi.mock('../routes/historyStack', () => ({
+  currentHistoryLocation: () => mocks.location,
+}));
 
 vi.mock('jotai', async (importOriginal) => {
   const actual = await importOriginal<typeof import('jotai')>();
