@@ -26,11 +26,7 @@ export const ListSlot = style({
 // The page's place stacks its notices, the new version notice above a sync status (their own
 // `order`, so the notice someone may tap never moves when the other comes or goes), a gap apart.
 export const PageSlot = recipe({
-  base: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: config.space.S200,
-  },
+  base: { display: 'flex', flexDirection: 'column', gap: config.space.S200 },
   variants: {
     phone: {
       // Over the top of the page, centred: placed against the signed-in layout (or, signed out,
@@ -50,9 +46,9 @@ export const PageSlot = recipe({
       // the page, slide in over it.
       true: {
         position: 'relative',
+        blockSize: 0,
         zIndex: 1,
         flexShrink: 0,
-        blockSize: 0,
         insetBlockStart: config.space.S200,
         paddingInline: config.space.S200,
       },

@@ -164,4 +164,48 @@ test.describe('compact card swipe', () => {
     await expect(page.locator('body')).toHaveAttribute('data-opened-thread', '$thread-2');
     await touch.detach();
   });
+
+  test('a pinch over an armed card resolves nothing', async ({ page }) => {
+    await page.goto('/e2e/fixtures/compact-thread-cards.html');
+    await page.locator('body[data-fixture-ready="true"]').waitFor();
+    const touch = await page.context().newCDPSession(page);
+    const card = page.locator('[data-thread-root-id="$thread-2"]');
+    const bounds = await card.boundingBox();
+    if (!bounds) throw new Error('Card has no bounds');
+    const y = bounds.y + bounds.height / 2;
+    const swipeFinger = (x: number) => ({ id: 1, x, y });
+
+    // The swipe arms, then that finger holds still while a second one lands away from the card
+    // and pinches: the pinch changes the page zoom, and the card lets go of its swipe.
+    const start = bounds.x + bounds.width - 30;
+    await touch.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [swipeFinger(start)],
+    });
+    for (let step = 1; step <= 8; step += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await touch.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [swipeFinger(start + ((bounds.x + 60 - start) * step) / 8)],
+      });
+    }
+    await expect(page.locator('[data-compact-card-swipe="action"]')).toHaveAttribute(
+      'data-armed',
+      'true'
+    );
+    const held = swipeFinger(bounds.x + 60);
+    await touch.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [held, { id: 2, x: 200, y: 480 }],
+    });
+    await touch.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [held, { id: 2, x: 200, y: 440 }],
+    });
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+
+    await expect(page.locator('[data-compact-card-swipe="action"]')).toHaveCount(0);
+    await expect(card).not.toHaveAttribute('data-attention-state', 'resolved');
+    await touch.detach();
+  });
 });

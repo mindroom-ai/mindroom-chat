@@ -8,10 +8,6 @@ const capacitorConfig: CapacitorConfig = {
   ios: {
     // iPhone and iPad get the mobile layout; Mac Catalyst asks for the desktop one natively.
     preferredContentMode: 'mobile',
-    // A pinch zooms the whole app, as in Safari. Capacitor switches the web view's pinch off
-    // unless this asks for it; views with their own pinch (the image viewer) keep it with
-    // touch-action: none.
-    zoomEnabled: true,
   },
   plugins: {
     StatusBar: {

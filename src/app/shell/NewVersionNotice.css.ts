@@ -18,9 +18,9 @@ export const Region = style({ position: 'relative', flexShrink: 0 });
 // top bar. Its places take no clicks, the card does.
 export const Card = recipe({
   base: {
-    pointerEvents: 'auto',
     gap: config.space.S300,
     padding: config.space.S300,
+    pointerEvents: 'auto',
     borderRadius: config.radii.R500,
   },
   variants: {
@@ -67,8 +67,8 @@ export const Mark = recipe({
     display: 'grid',
     placeItems: 'center',
     inlineSize: toRem(28),
-    blockSize: toRem(28),
     borderRadius: config.radii.R400,
+    blockSize: toRem(28),
     backgroundColor: color.Primary.Container,
     color: color.Primary.Main,
   },
@@ -81,9 +81,9 @@ export const Body = recipe({
       list: { display: 'contents' },
       page: {
         flexGrow: 1,
-        minInlineSize: 0,
         display: 'flex',
         flexWrap: 'wrap',
+        minInlineSize: 0,
         alignItems: 'center',
         gap: config.space.S200,
       },

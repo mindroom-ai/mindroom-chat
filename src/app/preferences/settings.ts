@@ -119,7 +119,7 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 /** A whole zoom percentage inside the supported range; anything not a finite number is the default. */
-const sanitizeZoom = (value: unknown): number => {
+export const sanitizeZoom = (value: unknown): number => {
   if (typeof value === 'number' && Number.isFinite(value)) {
     const percent = Math.round(value);
     if (percent < PAGE_ZOOM_MIN) return PAGE_ZOOM_MIN;
