@@ -340,6 +340,20 @@ describe('ClientSessions.send', () => {
   });
 });
 
+describe('ClientSessions.token', () => {
+  it('signs in again for a refused token, which sign-out then leaves alone', async () => {
+    const server = fakeServer();
+    const store = sessions(server);
+
+    await expect(store.token()).resolves.toBe('session-1');
+    await expect(store.token({ refused: 'session-1' })).resolves.toBe('session-2');
+
+    server.sent.length = 0;
+    await store.revoke();
+    expect(server.routes()).toEqual([`DELETE ${API_URL}/api/client-sessions Bearer session-2`]);
+  });
+});
+
 describe('ClientSessions.openSocket', () => {
   it('opens a websocket to the path that offers the session as both subprotocols', async () => {
     const server = fakeServer();
@@ -401,6 +415,23 @@ describe('ClientSessions.openSocket', () => {
       'mindroom-session',
       'mindroom-session.session-1',
     ]);
+  });
+
+  it('still asks after a refused socket when one of a replaced session closes later', async () => {
+    const server = fakeServer();
+    const store = sessions(server);
+    const old = (await store.openSocket('/api/plugins/notes/live')) as unknown as FakeSocket;
+    // A 401 ends session-1; a socket with session-2 is then refused before session-1's closes.
+    server.route.mockImplementationOnce(() => json({}, 401));
+    await store.send('/api/plugins');
+    const refused = (await store.openSocket('/api/plugins/notes/live')) as unknown as FakeSocket;
+    refused.closeWith(1006);
+    old.closeWith(1006);
+    server.sent.length = 0;
+
+    await store.openSocket('/api/plugins/notes/live');
+
+    expect(server.routes()).toEqual([`GET ${API_URL}/api/plugins Bearer session-2`]);
   });
 
   it('signs in again when the check after a socket that never opened says the session ended', async () => {
