@@ -145,7 +145,8 @@ export type CreateRoomData = RoomIdentity &
 
 /**
  * Creates a room (or space, or voice room) and returns its ID; adds it to `parent` if given. When
- * `parent` does not list a room that is not public, it leaves and forgets it before it throws.
+ * the server refuses to list a room that is not public under `parent`, it leaves and forgets the
+ * room, if the server lets it, before it throws.
  */
 export const createRoom = async (client: MatrixClient, data: CreateRoomData): Promise<string> => {
   const { access, parent, type, version } = data;
@@ -188,19 +189,12 @@ export const createRoom = async (client: MatrixClient, data: CreateRoomData): Pr
         roomId
       );
     } catch (failure) {
-      // The answer may have been lost after the parent listed the room, so ask. A room it does not
-      // list stays hidden from its members, and trying again would create another: leave and forget
-      // it, unless it is public, where anyone finds it and its address would stay taken. When the
-      // server can't say, or leaving fails, the room stays.
-      const listed = await client
-        .getStateEvent(parent.roomId, StateEvent.SpaceChild as never, roomId)
-        .then(
-          () => true,
-          (error: unknown) =>
-            error instanceof MatrixError && error.errcode === 'M_NOT_FOUND' ? false : undefined
-        );
-      if (listed) return roomId;
-      if (listed === false && !isPublic) {
+      // A refusal (a Matrix error below 500) leaves the room listed nowhere, hidden from the
+      // parent's members, and trying again would create another: leave and forget it, unless it is
+      // public, where anyone finds it and its address would stay taken. After any other failure the
+      // server may still list it, so the room stays.
+      const refused = failure instanceof MatrixError && (failure.httpStatus ?? 500) < 500;
+      if (refused && !isPublic) {
         await client.leave(roomId).then(
           () => client.forget(roomId).catch(() => undefined),
           () => undefined

@@ -268,10 +268,6 @@ describe('createSubRoom, when the parent does not list the new room', () => {
       listed.push(String(stateKey));
       return { event_id: '$child' };
     }) as never);
-    vi.spyOn(mx, 'getStateEvent').mockImplementation(async (_roomId, _type, stateKey) => {
-      if (listed.includes(stateKey)) return { via: ['example.org'] };
-      throw new MatrixError({ errcode: 'M_NOT_FOUND', error: 'Event not found' }, 404);
-    });
     vi.spyOn(mx, 'leave').mockImplementation(async (roomId) => {
       left.push(roomId);
       return {};

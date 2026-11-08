@@ -45,15 +45,11 @@ describe('createRoom', () => {
   const NEW_ROOM = '!new:mindroom.test';
 
   /**
-   * A space whose server creates `NEW_ROOM` and fails to list it there with `failure`, then answers
-   * whether it lists it with `lookup`: the event's content, or the error it fails with (by default,
-   * that it has none). `leave` and `forget` succeed unless `leaveFails` or `forgetFails`.
+   * A space whose server creates `NEW_ROOM` and fails to list it there with `failure`, by default a
+   * refusal. `leave` and `forget` succeed unless `leaveFails` or `forgetFails`.
    */
   const linkFailing = ({
     failure = new MatrixError({ errcode: 'M_FORBIDDEN', error: 'Not allowed' }, 403) as Error,
-    lookup = new MatrixError({ errcode: 'M_NOT_FOUND', error: 'Event not found' }, 404) as
-      | Error
-      | Record<string, unknown>,
     leaveFails = false,
     forgetFails = false,
   } = {}) => {
@@ -64,10 +60,6 @@ describe('createRoom', () => {
     });
     vi.spyOn(mx, 'createRoom').mockResolvedValue({ room_id: NEW_ROOM });
     vi.spyOn(mx, 'sendStateEvent').mockRejectedValue(failure);
-    vi.spyOn(mx, 'getStateEvent').mockImplementation(async () => {
-      if (lookup instanceof Error) throw lookup;
-      return lookup;
-    });
     const leave = vi.spyOn(mx, 'leave');
     if (leaveFails) leave.mockRejectedValue(new Error('offline'));
     else leave.mockResolvedValue({});
@@ -105,18 +97,19 @@ describe('createRoom', () => {
     }
   );
 
-  it('keeps a room the space lists, although the answer to listing it was lost', async () => {
-    const { leave, create } = linkFailing({
-      failure: new Error('Failed to fetch'),
-      lookup: { via: ['mindroom.test'] },
-    });
-
-    await expect(create()).resolves.toBe(NEW_ROOM);
-    expect(leave).not.toHaveBeenCalled();
-  });
-
   it.each<[string, Parameters<typeof linkFailing>[0], Partial<CreateRoomData>]>([
-    ['the server cannot say whether the space lists it', { lookup: new Error('offline') }, {}],
+    // The server may still list the room after either.
+    ['no answer came', { failure: new Error('Failed to fetch') }, {}],
+    [
+      'the error has no status',
+      { failure: new MatrixError({ errcode: 'M_UNKNOWN', error: 'Unknown' }) },
+      {},
+    ],
+    [
+      'the server failed',
+      { failure: new MatrixError({ errcode: 'M_UNKNOWN', error: 'Gateway timeout' }, 504) },
+      {},
+    ],
     [
       'it is public, where anyone finds it and its address would stay taken',
       {},

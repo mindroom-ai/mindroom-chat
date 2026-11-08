@@ -27,7 +27,7 @@ const mayListRooms = (room: Room): boolean => {
  * members of `parent` (`restricted`), encrypted and federated as `policy` (config.json's
  * `createRoom`) says, both by default, in the homeserver's default room version. A blank name, and
  * a parent where the signed-in user may not list rooms, are refused before anything is created. A
- * room the parent then does not list is left and forgotten, and the failure rejects.
+ * room the server then refuses to list is left and forgotten, as `createRoom` says.
  */
 export const createSubRoom = async (
   parent: Room,
