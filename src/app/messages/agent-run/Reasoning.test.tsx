@@ -360,6 +360,22 @@ describe('MindroomReasoning', () => {
     expect(reasoningWrapper(render(content)).props.style).toEqual({ whiteSpace: 'pre-wrap' });
   });
 
+  it('shows direction controls as code points in plain reasoning and in live activity', () => {
+    // Before the Markdown renderer loads, reasoning shows as plain lines.
+    vi.mocked(useLiveMarkdownReady).mockReturnValueOnce(false);
+    const root = render({
+      msgtype: 'm.text',
+      body: 'Partial answer',
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.live_reasoning': 'Run \u202emr- hs\u202c next',
+      'io.mindroom.live_activity': 'Running `sh\u202enur` on \u202eatad\u202c...',
+    });
+
+    expect(text(blockBody(root))).toBe('Run <U+202E>mr- hs<U+202C> next');
+    expect(root.findAllByType('code').map((node) => text(node))).toEqual(['sh<U+202E>nur']);
+    expect(text(root)).toContain('Running sh<U+202E>nur on <U+202E>atad<U+202C>...');
+  });
+
   it('shows live reasoning and activity around the thinking placeholder', () => {
     const root = render({
       msgtype: 'm.text',

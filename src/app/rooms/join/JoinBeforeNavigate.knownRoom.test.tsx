@@ -160,6 +160,10 @@ describe('JoinBeforeNavigate names the room it knows', () => {
   };
   const headerText = (renderer: ReturnType<typeof create>) =>
     renderer.root.findByType('h1').children.join('');
+  const textOf = (node: unknown): string =>
+    typeof node === 'string'
+      ? node
+      : ((node as { children?: unknown[] }).children ?? []).map(textOf).join('');
   const hasText = (renderer: ReturnType<typeof create>, text: string) =>
     renderer.root.findAll((node) => node.children.includes(text)).length > 0;
 
@@ -194,6 +198,42 @@ describe('JoinBeforeNavigate names the room it knows', () => {
   it('keeps the ID for a room the client does not know', () => {
     summaryLoaderMock.state = { status: AsyncStatus.Error, error: new Error('offline') };
     expect(headerText(renderPage('!unknown:example.org', roomClient))).toBe('!unknown:example.org');
+  });
+
+  it('shows a ban reason with its direction controls as code points, and names as text', () => {
+    summaryLoaderMock.state = { status: AsyncStatus.Error, error: new Error('forbidden') };
+    const members = [
+      { userId: '@morgan:example.org', rawDisplayName: 'Morgan <i>Lee</i>', membership: 'join' },
+      {
+        userId: '@me:example.org',
+        membership: 'ban',
+        events: {
+          member: {
+            getSender: () => '@morgan:example.org',
+            getContent: () => ({ membership: 'ban', reason: 'Posted a \u202ekcilc\u202c link' }),
+          },
+        },
+      },
+    ];
+    const bannedRoom = {
+      ...invitedRoom,
+      roomId: '!banned:example.org',
+      name: 'Banned planning room',
+      getMyMembership: () => 'ban',
+      getMember: (userId: string) => members.find((member) => member.userId === userId) ?? null,
+      getMembers: () => members,
+    };
+    const client = {
+      ...roomClient,
+      getRoom: vi.fn((roomId: string) => (roomId === bannedRoom.roomId ? bannedRoom : null)),
+    } as unknown as MatrixClient;
+    const renderer = renderPage(bannedRoom.roomId, client);
+    const lines = renderer.root
+      .findAll((node) => node.type === 'p' || node.type === 'span')
+      .map((node) => textOf(node));
+
+    expect(lines).toContain('Banned by: Morgan <i>Lee</i>');
+    expect(lines).toContain('Reason: Posted a <U+202E>kcilc<U+202C> link');
   });
 
   it('asks for a failed summary again once sync recovers', () => {
