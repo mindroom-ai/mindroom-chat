@@ -38,8 +38,14 @@ export const Header = style([
   { containerType: 'inline-size', containerName: titleBar },
 ]);
 
-// The window's resize grips reach 10 px in from its corners; the end button keeps clear of them.
-export const WindowHeader = style({ paddingInlineEnd: space.S300 });
+// The window's corner grips reach 10 px in for a mouse and 18 px for a finger
+// (FloatingCallWindow.css.ts); the end button of the title bar and the bar keeps clear of them.
+const clearOfGrips: StyleRule = {
+  paddingInlineEnd: space.S300,
+  '@media': { '(pointer: coarse)': { paddingInlineEnd: space.S500 } },
+};
+
+export const WindowHeader = style(clearOfGrips);
 
 export const HeaderTitle = style(lined('column', '0', { minWidth: 0, flex: '1 1 auto' }));
 
@@ -49,11 +55,12 @@ export const HeaderButtons = style(
 
 export const SpeakerSwitch = style({ '@container': { [TITLE_BAR_CROWDED]: { display: 'none' } } });
 
-// The minimized window: the others' faces, the title and status, the microphone, leave and
-// Expand on one line that moves the window as the title bar does. Its ends keep clear of the
-// window's resize grips, as the title bar's do.
+// The minimized window: the others' faces, the title and status, the microphone and leave (or
+// Close once the call is over), Expand and Close on one line that moves the window as the title
+// bar does. Its end keeps clear of the window's resize grips, as the title bar's does.
 export const Bar = style([
-  lined('row', space.S200, { alignItems: 'center', paddingInline: space.S300 }),
+  lined('row', space.S200, { alignItems: 'center', paddingInlineStart: space.S300 }),
+  clearOfGrips,
   { flex: '1 1 auto', minWidth: 0 },
 ]);
 
