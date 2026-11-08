@@ -5,7 +5,7 @@
   "description": "A MindRoom client plugin for the tests: renders messages that carry com.example.greeting, adds a side panel, a room header action and a slash command, shows a banner under the room header, and covers the conversation.",
   "mindroomClientPlugin": {
     "id": "example",
-    "apiVersion": 11,
+    "apiVersion": 12,
     "entry": "./index.tsx"
   }
 }

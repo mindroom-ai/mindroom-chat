@@ -2,7 +2,9 @@
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
 // A side panel, "Example panel", names the room it is open in, counts its joined members and says
-// whether a MindRoom agent has joined or is invited, through the account's client.
+// whether a MindRoom agent has joined or is invited, through the account's client. It also shows
+// the greeting a card asked it to show: in a room, each greeting has "Show in panel", and "Close
+// panel" while the panel shows. The panel stays open in its room across reloads (`remember`).
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg), and a button, "Show example cover", that covers the room's conversation with
 // "Example cover of <room name>" until its Close button or Escape closes it. Like a plugin outside
@@ -26,6 +28,7 @@ import {
   usePluginRouteHref,
   usePluginStorage,
   usePluginTranslation,
+  useRoomSidePanel,
   type ClientPlugin,
   type PluginEvent,
   type PluginPageProps,
@@ -60,6 +63,8 @@ function Greeting({ event }: { event: PluginEvent }) {
     return note;
   }, [storage, seenKey]);
   const t = usePluginTranslation('example');
+  const panel = useRoomSidePanel('example', 'panel');
+  const text = greetingText(event);
   const label =
     typeof config === 'object' &&
     config !== null &&
@@ -70,9 +75,19 @@ function Greeting({ event }: { event: PluginEvent }) {
   return (
     <>
       <div data-example-plugin>
-        {label}: {greetingText(event)}
+        {label}: {text}
       </div>
       {seenIn !== null && seenIn !== pageLoad && <div data-example-plugin-seen>Seen before</div>}
+      {panel && (
+        <button type="button" onClick={() => panel.open(text)}>
+          Show in panel
+        </button>
+      )}
+      {panel?.isOpen && (
+        <button type="button" onClick={panel.close}>
+          Close panel
+        </button>
+      )}
     </>
   );
 }
@@ -129,7 +144,7 @@ function RoomPage({ params: { roomId = '', threadId = '' } }: PluginPageProps) {
   );
 }
 
-function ExamplePanel({ roomId }: { roomId: string }) {
+function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }) {
   const members = useRoomMembers(useMatrixClient(), roomId);
   const joined = members.filter(({ membership }) => membership === KnownMembership.Join);
   return (
@@ -139,6 +154,7 @@ function ExamplePanel({ roomId }: { roomId: string }) {
         Members: {joined.length}, {hasActiveMindroomAgent(members) ? 'with' : 'without'} a MindRoom
         agent
       </p>
+      {typeof request === 'string' && <p>Greeting: {request}</p>}
     </>
   );
 }
@@ -198,7 +214,7 @@ const plugin: ClientPlugin = {
     sessionStorage.setItem('example-plugin.forgot', userId);
   },
   roomHeaderSlot: [RoomBanner, CoverButton],
-  sidePanels: [{ id: 'panel', label: 'Example panel', Component: ExamplePanel }],
+  sidePanels: [{ id: 'panel', label: 'Example panel', Component: ExamplePanel, remember: true }],
   headerActions: [
     {
       id: 'wave',
