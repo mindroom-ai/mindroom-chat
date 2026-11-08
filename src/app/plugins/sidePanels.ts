@@ -5,7 +5,7 @@ import type { ClientConfig } from '../config/useClientConfig';
 import { isRecord } from '../lib/isRecord';
 import { PLACEMENTS, type HeaderAction } from './headerActions';
 import { isPluginEnabled } from './pluginConfig';
-import { type PluginT, pluginNamespace } from './pluginTranslations';
+import { pluginNamespace } from './pluginTranslations';
 import type { RegisteredPlugin } from './registry';
 
 /**
@@ -81,15 +81,16 @@ export const usePluginSidePanels = (
   // A new `t` with each change of language and each plugin's strings that arrive.
   const { t, i18n } = useTranslation(enabled.map(({ id }) => pluginNamespace(id)) as never);
   return useMemo(() => {
-    const translate = t as unknown as PluginT;
+    // The app's typed keys and namespaces cover its own catalog only.
+    const translate = t as unknown as (key: string, options: never) => string;
     return enabled.flatMap(({ id, tag, sidePanels }) => {
-      const ns = pluginNamespace(id);
+      const options = { ns: pluginNamespace(id) } as never;
       return sidePanels.map((panel) => ({
         ...panel,
         id: `${id}/${panel.id}`,
         tag,
         // Looked up first, as i18next would read a plain label's `.` or `:` as a path.
-        label: i18n.exists(panel.label, { ns }) ? translate(panel.label, { ns }) : panel.label,
+        label: i18n.exists(panel.label, options) ? translate(panel.label, options) : panel.label,
       }));
     });
   }, [enabled, i18n, t]);
