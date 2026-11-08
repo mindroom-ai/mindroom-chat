@@ -2,6 +2,7 @@
 import { MatrixEvent } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { putSession } from '../session/sessions';
+import { trustAgentsOfViewer } from '../protocol/untrustedContent';
 import { getRoomUnreadAction } from './roomToUnread';
 
 // A room with a MindRoom agent shows its thread lists, and is unread only for what they show. A
@@ -105,6 +106,21 @@ describe('getRoomUnreadAction for notices', () => {
     { what: "an agent's message", event: { sender: AGENT, msgtype: 'm.text' }, unread: true },
   ])('$what makes the room unread: $unread', ({ event, unread }) => {
     expect(isUnread(message(event))).toBe(unread);
+  });
+
+  it("counts an agent's call row, which the thread lists show before anyone replies", () => {
+    trustAgentsOfViewer(READER);
+    const row = (sender: string) =>
+      new MatrixEvent({
+        ...message({ sender }).event,
+        content: {
+          msgtype: 'm.notice',
+          body: 'Call started',
+          'io.mindroom.call': { call_id: 'c1' },
+        },
+      });
+    expect(isUnread(row(AGENT))).toBe(true);
+    expect(isUnread(row(PERSON))).toBe(false);
   });
 
   it('counts every notice in a room without a MindRoom agent', () => {

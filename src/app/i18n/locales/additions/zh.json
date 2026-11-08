@@ -408,7 +408,32 @@
       "transcript": {
         "title": "语音通话",
         "transcript": "文字记录",
-        "turns_other": "{{count}} 条发言"
+        "turns_other": "{{count}} 条发言",
+        "moreTurns_other": "另有 {{count}} 条发言未显示",
+        "callTitle": "通话"
+      },
+      "transcription": {
+        "unavailable": "转录不可用",
+        "pause": "暂停转录",
+        "pausedBy": "{{name}} 已暂停",
+        "liveTranscript": "实时文字记录",
+        "close": "关闭实时文字记录",
+        "resize": "调整实时文字记录大小",
+        "transcribed": "此通话正在转录。",
+        "inCall": "通话中",
+        "lines": "目前的文字记录",
+        "noCall": "此房间当前没有通话。",
+        "notTranscribed": "此房间的通话不会转录。",
+        "nothingYet": "还没有人说话。",
+        "gap": {
+          "paused": "已暂停",
+          "notTranscribed": "未转录"
+        }
+      },
+      "row": {
+        "live": "通话进行中",
+        "ended": "通话已结束",
+        "notes": "笔记和文字记录"
       }
     },
     "room": {

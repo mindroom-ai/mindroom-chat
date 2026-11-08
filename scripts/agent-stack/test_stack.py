@@ -598,6 +598,102 @@ class WorkerImageTests(unittest.TestCase):
         self.assertIn("no space left on device", str(raised.exception))
 
 
+class TranscriptionTests(unittest.TestCase):
+    STUB = {"stt": "stub", "notesModel": "default"}
+    REAL = {"stt": "real", "notesModel": "notes"}
+    REAL_MODEL = {"stt": "real", "notesModel": "luna"}
+
+    def setting(self, model: str, transcription: str, has_them: bool = True) -> dict | None:
+        args = mock.Mock(model=model, transcription=transcription)
+        with mock.patch.object(stack, "has_call_transcripts", return_value=has_them):
+            return stack.transcription_setting(args, Path("/checkout"), "abc")
+
+    def test_a_mindroom_without_call_transcripts_runs_without_them(self) -> None:
+        for model in stack.MODES:
+            transcription = self.setting(model, "real", has_them=False)
+            self.assertIsNone(transcription)
+            config = stack.config_yaml(model, TESTER, STUB_URL, 0.0003, transcription=transcription)
+            self.assertNotIn("transcripts:", config)
+            self.assertNotIn("voice:", config)
+            self.assertNotIn("  notes:\n", config)
+
+    def test_the_stand_in_transcribes_and_the_stub_writes_the_notes(self) -> None:
+        self.assertEqual(self.setting("stub", "stub"), self.STUB)
+        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, transcription=self.STUB)
+        self.assertIn("calls:\n  transcripts:\n    enabled: true\n    notes_model: default\n", config)
+        self.assertIn(
+            f"voice:\n  stt:\n    provider: openai_compatible\n    host: {STUB_URL}\n    model: stub-transcribe\n",
+            config,
+        )
+        self.assertNotIn("gpt-6-luna", config)
+
+    def test_real_transcripts_go_to_openai_and_luna_writes_the_notes(self) -> None:
+        self.assertEqual(self.setting("stub", "real"), self.REAL)
+        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, transcription=self.REAL)
+        self.assertIn("  notes:\n    provider: openai\n    id: gpt-6-luna\n", config)
+        self.assertIn("    notes_model: notes\n", config)
+        self.assertIn("voice:\n  stt:\n    provider: openai\n    credentials_service: openai\n", config)
+        self.assertNotIn("stub-transcribe", config)
+
+    def test_a_real_model_stack_has_its_own_luna_write_the_notes(self) -> None:
+        # It always transcribes for real: the stand-in lives in the stub, which it does not start.
+        self.assertEqual(self.setting("real", "stub"), self.REAL_MODEL)
+        self.assertEqual(self.setting("real", "real"), self.REAL_MODEL)
+        config = stack.config_yaml("real", TESTER, STUB_URL, 0.0003, transcription=self.REAL_MODEL)
+        self.assertIn("    notes_model: luna\n", config)
+        self.assertIn("voice:\n  stt:\n    provider: openai\n", config)
+        # One entry per model: the model picker finds GPT-6 Luna by its name.
+        self.assertEqual(config.count("display_name: GPT-6 Luna\n"), 1)
+        self.assertNotIn("  notes:\n", config)
+
+    def test_real_transcripts_without_an_openai_key_do_not_start(self) -> None:
+        args = mock.Mock(
+            checkout=None, ref=None, model="stub", transcription="real", calls=None, calls_profile="realtime"
+        )
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": directory, "ANTHROPIC_API_KEY": "a"}, clear=True),
+            mock.patch.object(stack, "resolve_checkout", return_value=Path("/checkout")),
+            mock.patch.object(stack, "http_json", return_value=(200, {})),
+            mock.patch.object(stack, "resolve_commit", return_value="abc"),
+            mock.patch.object(stack, "has_call_transcripts", return_value=True),
+            mock.patch.object(stack, "start") as start,
+            self.assertRaises(stack.StackError) as raised,
+        ):
+            stack.up(14, args)
+        self.assertEqual(raised.exception.code, stack.EXIT_NO_KEYS)
+        self.assertIn("--transcription real needs OPENAI_API_KEY", str(raised.exception))
+        start.assert_not_called()
+
+    def test_voice_calls_and_transcripts_share_one_calls_section(self) -> None:
+        calls = {"serviceUrl": "http://127.0.0.1:29521", "profile": "realtime", "model": "gpt-realtime-2.1-mini"}
+        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, calls, transcription=self.STUB)
+        self.assertEqual(config.count("\ncalls:\n"), 1)
+        self.assertIn("  agents:\n    helper: voice\n  transcripts:\n    enabled: true\n", config)
+
+    def test_a_running_stack_is_reused_only_with_the_call_transcripts_it_started_with(self) -> None:
+        sha, homeserver = "a" * 40, "http://127.0.0.1:28142"
+        state = {"model": "stub", "calls": None, "sha": sha, "homeserver": homeserver, "approvalExpiryDays": 0.0003}
+        transcribed = {**state, "transcription": self.STUB}
+        self.assertTrue(stack.started_with(transcribed, up_args(), sha, homeserver, transcription=self.STUB))
+        self.assertFalse(stack.started_with(transcribed, up_args(), sha, homeserver, transcription=self.REAL))
+        self.assertFalse(stack.started_with(transcribed, up_args(), sha, homeserver))
+        self.assertFalse(stack.started_with(state, up_args(), sha, homeserver, transcription=self.STUB))
+
+    def test_only_the_notes_model_is_priced_beside_stub_models(self) -> None:
+        notes = json.dumps(
+            {"event": "LLM usage", "model_name": "notes", "uncached_input_tokens": 1000, "output_tokens": 100}
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            slot_dir = Path(directory)
+            (slot_dir / "backend.log").write_text(f"{CONSOLE_LINE}\n{notes}\n")
+            summary = stack.usage_summary({"model": "stub", "transcription": self.REAL}, slot_dir)
+        self.assertNotIn("usd", summary["models"]["default"])
+        self.assertAlmostEqual(summary["models"]["notes"]["usd"], round((1000 * 0.1 + 100 * 0.5) / 1e6, 4))
+        self.assertTrue(stack.paid({"model": "stub", "transcription": self.REAL}))
+        self.assertFalse(stack.paid({"model": "stub", "transcription": self.STUB}))
+
+
 SAMPLE_PLUGIN = stack.REPOSITORY / "e2e" / "fixtures" / "sample-plugin"
 SAMPLE_SCENARIOS = SAMPLE_PLUGIN / "e2e" / "stub-scenarios.json"
 

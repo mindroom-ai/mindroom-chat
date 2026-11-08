@@ -5,6 +5,7 @@ import { createStore, Provider } from 'jotai';
 import { ClientBindAtoms } from '../shell/ClientBindAtoms';
 import { CallFeatures } from './CallFeatures';
 import { activeCallAtom, type ActiveCall } from './callStore';
+import { CallTranscription } from './transcription/CallTranscription';
 
 // CallResume waits for a server sync before it reads the reload's call record; this client
 // syncs only in the tests that set `syncState`, so the others stay about the page and the panel.
@@ -44,6 +45,8 @@ vi.mock('./IncomingCalls.css', () => ({ Host: 'incoming-calls' }));
 vi.mock('./agent/AgentCallFailureNotice', () => ({
   AgentCallFailureNotice: () => null,
 }));
+// Transcription has tests of its own; here it only has to be there.
+vi.mock('./transcription/CallTranscription', () => ({ CallTranscription: vi.fn(() => null) }));
 vi.mock('./agent/agentCaller', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./agent/agentCaller')>()),
   startAgentCall: vi.fn(),
@@ -171,6 +174,12 @@ describe('CallFeatures', () => {
 
     expect(room.loadMembersIfNeeded).not.toHaveBeenCalled();
     expect(store.get(activeCallAtom)).toBeUndefined();
+  });
+
+  it("transcribes this device's speech in the call", () => {
+    const unmount = mount(createStore());
+    expect(CallTranscription).toHaveBeenCalled();
+    unmount();
   });
 
   it('leaves the call when the screens of its account go away', () => {
