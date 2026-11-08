@@ -13,8 +13,9 @@ import { createRoom } from '../helpers/createRoom';
 
 // The room list's unread mark and the room's unread thread filter agree, against the disposable
 // homeserver of `just hs-up` (or a slot of scripts/e2e-slot.sh): a root an agent posted keeps the
-// room unread and the filter finds it, and a root the reader answered in its thread leaves the
-// room read. Each run registers its own reader and agent.
+// room unread and the filter finds it, also once the reader answered it in its thread, since that
+// reply reads only the thread and the server keeps counting the root (mindroom-tuwunel #139). A
+// main receipt reads it. Each run registers its own reader and agent.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'room-unread-filter-spec-password';
 const RUN = Date.now().toString(36);
@@ -152,8 +153,8 @@ test('the room list marks a room unread only for threads its unread filter finds
   await expect(roomRow(page, 'Welcome Desk')).toHaveAttribute('data-highlight', 'true', {
     timeout: 30_000,
   });
-  // The answered report leaves its room read.
-  await expect(roomRow(page, 'Weekly Report')).toHaveAttribute('data-highlight', 'false');
+  // So does the answered report: the server still counts its root.
+  await expect(roomRow(page, 'Weekly Report')).toHaveAttribute('data-highlight', 'true');
 
   const welcomeCards = await openUnreadThreads(page, welcomeId, 'Welcome Desk');
   await expect(welcomeCards).toHaveCount(1);
@@ -161,5 +162,23 @@ test('the room list marks a room unread only for threads its unread filter finds
   await expect(welcomeCards).toHaveAttribute('data-thread-unread', 'true');
 
   const reportCards = await openUnreadThreads(page, reportId, 'Weekly Report');
-  await expect(reportCards).toHaveCount(0);
+  await expect(reportCards).toHaveCount(1);
+  await expect(reportCards).toHaveAttribute('data-thread-root-id', reportRoot);
+  await expect(reportCards).toHaveAttribute('data-thread-unread', 'true');
+
+  // A main receipt from another device reads the root: the room turns read and the filter empty.
+  const receipt = await fetch(
+    `${HOMESERVER}/_matrix/client/v3/rooms/${encodeURIComponent(reportId)}/receipt/m.read/${encodeURIComponent(reportRoot)}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${reader.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ thread_id: 'main' }),
+    }
+  );
+  expect(receipt.ok, 'main receipt on the report').toBe(true);
+  await expect(reportCards).toHaveCount(0, { timeout: 30_000 });
+  await expect(roomRow(page, 'Weekly Report')).toHaveAttribute('data-highlight', 'false');
 });

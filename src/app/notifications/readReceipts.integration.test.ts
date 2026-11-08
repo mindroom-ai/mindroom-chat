@@ -218,7 +218,15 @@ describe('thread receipt unread state with SDK models', () => {
       expect(getThreadUnread(thread, USER_ID)).toBe(false);
       requests.mockClear();
       await markThreadAsRead(mx, ROOM_ID, '$root', receiptType === ReceiptType.ReadPrivate);
-      expect(requests).not.toHaveBeenCalled();
+      // No thread receipt again. The root, which the server keeps counting in the main timeline
+      // after the reader's reply in its thread (mindroom-tuwunel #139), gets its main receipt.
+      expect(requests).toHaveBeenCalledOnce();
+      expect(requests).toHaveBeenCalledWith(
+        'POST',
+        `/rooms/${encodeURIComponent(ROOM_ID)}/receipt/${receiptType}/%24root`,
+        undefined,
+        { thread_id: 'main' }
+      );
     }
   );
 

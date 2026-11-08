@@ -25,18 +25,6 @@ export const getMainTimelineReadTs = (room: Room, userId: string): number => {
   return readTs;
 };
 
-/** Whether the user replied in the thread under this event, so they have seen it. */
-const answeredInThread = (room: Room, event: MatrixEvent, userId: string): boolean => {
-  const eventId = event.getId();
-  const thread = eventId ? room.getThread?.(eventId) : undefined;
-  if (!thread) return false;
-  return (
-    !!thread.hasCurrentUserParticipated ||
-    thread.replyToEvent?.getSender() === userId ||
-    (thread.events ?? []).some((reply) => reply !== event && reply.getSender() === userId)
-  );
-};
-
 /**
  * Whether the thread lists that a room with a MindRoom agent shows leave out a notice: an unmarked
  * one (`isUnmarkedNotice`) without replies. A room without an agent shows its whole conversation,
@@ -48,10 +36,11 @@ const isUnlistedNotice = (room: Room, event: MatrixEvent): boolean =>
 /**
  * Whether a message in the main timeline, such as a thread root, is unread for the user: someone
  * else sent it after the user last read the main timeline (`readTs`, see
- * `getMainTimelineReadTs`), the thread lists show it (not `isUnlistedNotice`), the user has not
- * replied in its thread, and has not opened its thread on this device (`isSeenThreadRoot`). The
- * room's unread dot and the unread thread filter both follow this rule, so a room is unread only
- * for what the filter finds.
+ * `getMainTimelineReadTs`), the thread lists show it (not `isUnlistedNotice`), and the user has
+ * not opened its thread on this device (`isSeenThreadRoot`). A reply of the user's in its thread
+ * reads only that thread, as on the server (mindroom-tuwunel #139), which keeps counting the root.
+ * The room's unread dot and the unread thread filter both follow this rule, so a room is unread
+ * only for what the filter finds.
  */
 export const isMainTimelineMessageUnread = (
   room: Room,
@@ -63,5 +52,4 @@ export const isMainTimelineMessageUnread = (
   !event.isRedacted() &&
   event.getTs() > readTs &&
   !isUnlistedNotice(room, event) &&
-  !answeredInThread(room, event, userId) &&
   !isSeenThreadRoot(userId, room.roomId, event.getId());
