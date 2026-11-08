@@ -146,7 +146,6 @@ for (const [layout, viewport] of Object.entries(LAYOUTS)) {
 
       await openExamplePanel(page);
       for (const direction of ['ltr', 'rtl'] as const) {
-        // eslint-disable-next-line no-await-in-loop
         await test.step(direction === 'ltr' ? 'English' : 'Arabic', async () => {
           await setLook(page, 'light', direction);
           // The panel stays open across the reload into the other language.
