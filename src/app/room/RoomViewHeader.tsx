@@ -22,7 +22,6 @@ import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { usePinnedEventIds as useRoomPinnedEvents } from '../event-store/threads/useThreadPinning';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
-import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
@@ -207,23 +206,21 @@ export function RoomViewHeader({
   const spacePathId = space ? getCanonicalAliasOrRoomId(mx, space.roomId) : undefined;
   const direct = useIsDirectRoom();
   const sectionPath = sectionPathOf(spacePathId, direct);
-  // Not while a side panel in the conversation's place hides this header: its swipe and its
-  // Members shortcut wait.
+  // Not while a side panel in the conversation's place hides this header: its Members shortcut
+  // waits.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
-  // A phone's back leaves the room for the page it was opened from (the list, a lobby, search
-  // results, the room a notification opened over, a thread with a link), passing over the room's
-  // own pages: its threads and the messages it was opened at. Opened from outside the app, the
-  // list takes the room's place.
+  // A phone's back chevron leaves the room for the page it was opened from (the list, a lobby,
+  // search results, the room a notification opened over, a thread with a link), passing over the
+  // room's own pages: its threads and the messages it was opened at. Opened from outside the app,
+  // the list takes the room's place. A swipe from the screen's left edge does not: it brings the
+  // navigation drawer out over the room (PhoneNavDrawer), unless a thread open in the room takes
+  // it (useRoomViewThreadState).
   const leaveRoom = () => {
     const addresses = [room.roomId, getCanonicalAliasOrRoomId(mx, room.roomId)];
     const origin = previousHistoryOrigin((page) => !showsRoom(page, addresses));
     if (origin) navigate(-origin.steps);
     else navigate(sectionPath, { replace: true });
   };
-  // A swipe from the screen's left edge does the same, in the iOS app too, whose web view has no
-  // back gesture of its own. A thread open in the room takes the swipe itself
-  // (useRoomViewThreadState).
-  useEdgeSwipeBack(leaveRoom, mobile && !threadId && !behindPanel);
 
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [pinAnchor, setPinAnchor] = useState<RectCords>();
