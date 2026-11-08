@@ -55,9 +55,10 @@ export const HeaderButtons = style(
 
 export const SpeakerSwitch = style({ '@container': { [TITLE_BAR_CROWDED]: { display: 'none' } } });
 
-// The minimized window: the others' faces, the title and status, the microphone and leave (or
-// Close once the call is over), Expand and Close on one line that moves the window as the title
-// bar does. Its end keeps clear of the window's resize grips, as the title bar's does.
+// The minimized window: the others' faces, the title and status, the microphone and leave, Expand
+// and Close on one line that moves the window as the title bar does; once the call is over, its
+// Close (Dismiss) and Expand. Its end keeps clear of the window's resize grips, as the title
+// bar's does.
 export const Bar = style([
   lined('row', space.S200, { alignItems: 'center', paddingInlineStart: space.S300 }),
   clearOfGrips,
