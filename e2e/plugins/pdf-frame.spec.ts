@@ -2,7 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 
 // The app's PDF frame page (public/pdf-frame.html), at the URL the client SDK's `pdfFrameUrl` gives
 // a plugin for an object URL, shows the object URL's bytes as a PDF in the browser's viewer,
-// whatever type its blob carries: an HTML document typed `text/html` runs none of its script. The
+// whatever type its blob carries: an HTML document typed `text/html` runs none of its script. A
+// frame moved to another object URL, which changes only the part after `#`, shows the new one. The
 // spec loads the function, which the SDK exports as the app's own (src/client-sdk/ui.test.tsx),
 // from the dev server into the app's page (scripts/e2e-suite.sh runs specs that import /src/ on the
 // dev server). The example plugin's card shows a PDF through the same frame page
