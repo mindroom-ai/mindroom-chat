@@ -35,7 +35,9 @@ const edit = (eventId: string, ts: number, status: string, sender = AGENT) =>
 
 describe('the edit that finished a reply', () => {
   it('is known from its status in the clear, without the room keys', () => {
-    const mx = new EventEmitter() as unknown as MatrixClient;
+    const mx = Object.assign(new EventEmitter(), {
+      getRoom: () => null,
+    }) as unknown as MatrixClient;
     keepSyncedEdits(mx);
     expect(getFinishingEdit(reply)).toBeUndefined();
 

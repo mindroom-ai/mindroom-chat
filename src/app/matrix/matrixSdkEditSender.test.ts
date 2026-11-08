@@ -359,7 +359,7 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
     );
   });
 
-  it('keeps a newer edit that arrives while the previous edit still decrypts', async () => {
+  it('drops the edit at once, and keeps a newer one that comes while the previous one decrypts', async () => {
     const previous = new MatrixEvent(ownEdit());
     const { add, event } = await message(bundled(newestEdit()), previous);
     let decrypted = () => {};
@@ -371,6 +371,7 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
     );
 
     await add(redaction('$redaction', '$newest-edit', 5));
+    expect(body(event)).toBe('The forklift is charged.');
     await add(new MatrixEvent(edit('$later-edit', AUTHOR, 6, 'Sold.')));
     decrypted();
     await tick();
@@ -395,20 +396,39 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
       keepSyncedEdits(new EventEmitter() as unknown as MatrixClient)();
     });
 
-    /**
-     * Redacts the message's bundled edit, which the client keeps once it decrypts it: `decrypts`
-     * before the redactions arrive or after them, as when its key comes later.
-     */
-    const redactKeptEdit = async (decrypts: 'before' | 'after', ...redactions: MatrixEvent[]) => {
+    /** The message's bundled edit, which the client keeps once it decrypts it. */
+    const keptEdit = async () => {
       const { room, add, event } = await message(bundled(newestEdit()));
       const bundledEdit = event.replacingEvent();
       const mx = Object.assign(new EventEmitter(), { getRoom: () => room });
       keepSyncedEdits(mx as unknown as MatrixClient);
-      if (decrypts === 'before') mx.emit(MatrixEventEvent.Decrypted, bundledEdit);
-      await add(...redactions);
-      redactions.forEach((redacted) => mx.emit(ClientEvent.Event, redacted));
-      if (decrypts === 'after') mx.emit(MatrixEventEvent.Decrypted, bundledEdit);
-      return { shown: rendered(room, event), kept: getSyncedEdit('$message')?.getId() };
+      // Another message's edit, which no redaction here names.
+      mx.emit(
+        MatrixEventEvent.Decrypted,
+        new MatrixEvent(edit('$sold', AUTHOR, 3, 'Sold.', '$sale'))
+      );
+      return {
+        room,
+        decrypt: () => mx.emit(MatrixEventEvent.Decrypted, bundledEdit),
+        redact: async (...redactions: MatrixEvent[]) => {
+          await add(...redactions);
+          redactions.forEach((redacted) => mx.emit(ClientEvent.Event, redacted));
+        },
+        result: () => ({
+          shown: rendered(room, event),
+          kept: getSyncedEdit('$message')?.getId(),
+          other: getSyncedEdit('$sale')?.getId(),
+        }),
+      };
+    };
+
+    /** Redacts the kept edit, which decrypts before the redactions or after, as when its key comes later. */
+    const redactKeptEdit = async (decrypts: 'before' | 'after', ...redactions: MatrixEvent[]) => {
+      const kept = await keptEdit();
+      if (decrypts === 'before') kept.decrypt();
+      await kept.redact(...redactions);
+      if (decrypts === 'after') kept.decrypt();
+      return kept.result();
     };
 
     it.each(['before', 'after'] as const)(
@@ -417,6 +437,7 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
         expect(await redactKeptEdit(decrypts, redaction('$redaction', '$newest-edit', 5))).toEqual({
           shown: 'The forklift is charged.',
           kept: undefined,
+          other: '$sold',
         });
       }
     );
@@ -428,7 +449,25 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
           redaction('$redaction', '$newest-edit', 5),
           redaction('$second-redaction', '$newest-edit', 6, OTHER)
         )
-      ).toEqual({ shown: 'The forklift is charged.', kept: undefined });
+      ).toEqual({ shown: 'The forklift is charged.', kept: undefined, other: '$sold' });
+    });
+
+    it('keeps the edit forgotten when its redactor loses the right before it decrypts', async () => {
+      const kept = await keptEdit();
+      await kept.redact(redaction('$redaction', '$newest-edit', 5, MODERATOR));
+      kept.room.currentState.setStateEvents([
+        new MatrixEvent({
+          ...state('m.room.power_levels', '', { redact: 50 }).event,
+          event_id: '$demotion',
+        }),
+      ]);
+      kept.decrypt();
+
+      expect(kept.result()).toEqual({
+        shown: 'The forklift is charged.',
+        kept: undefined,
+        other: '$sold',
+      });
     });
 
     it.each(['before', 'after'] as const)(
@@ -440,7 +479,7 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
             redaction('$redaction', '$own-edit', 5),
             redaction('$second-redaction', '$newest-edit', 6, OTHER)
           )
-        ).toEqual({ shown: 'The forklift is back.', kept: '$newest-edit' });
+        ).toEqual({ shown: 'The forklift is back.', kept: '$newest-edit', other: '$sold' });
       }
     );
   });
