@@ -67,8 +67,8 @@ def forget_calling_repository():
 
 
 def corpus_version(corpus):
-    """The key of the caches made from the corpus: a hash of every commit its content is read from (`--all`: each
-    ref and HEAD), so that a corpus update that moves any of them makes new caches."""
+    """The key of the caches made from the corpus: a hash of the commits the walk over its content starts from
+    (`--all`: what each ref and HEAD point at), so that a corpus update that moves any of them makes new caches."""
     try:
         tips = git(corpus, "rev-list", "--no-walk", "--all")
     except subprocess.CalledProcessError:

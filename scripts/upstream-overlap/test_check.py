@@ -277,11 +277,12 @@ class PrePushTests(Fixture):
         self.assertIn("0 not seen before", out)
 
     def test_lines_a_later_corpus_branch_gains_are_found_in_a_file_checked_before(self) -> None:
-        git(self.corpus, "branch", "release")  # sorts after main, which stays the corpus's first ref
         copy = commit(self.repo, {"src/app/finch.ts": LATER_COPIED}, "copy")
         self.assertEqual(self.push(copy)[0], 0, "the corpus lacks the lines yet")
-        git(self.corpus, "checkout", "-q", "release")
+        # Only a branch that sorts after main moves: the corpus's first ref and its HEAD stay where they were.
+        git(self.corpus, "checkout", "-q", "-b", "release")
         commit(self.corpus, {"src/app/finch.ts": LATER_UPSTREAM}, "a later upstream file")
+        git(self.corpus, "checkout", "-q", "main")
         status, out = self.push(copy)
         self.assertEqual(status, 1, out)
         self.assertIn(f"{copy}\tsrc/app/finch.ts\t1-3\tline-run", out)
