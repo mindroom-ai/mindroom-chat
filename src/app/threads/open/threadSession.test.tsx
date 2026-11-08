@@ -97,7 +97,8 @@ const openFixture = () => {
   return { runtime, root, reply, timeline, bootstrap, context, rendered, cache };
 };
 
-const renderOpen = (runtime: ThreadOpenRuntime, initialRoute: ThreadRoute) => {
+/** With `concurrent`, React renders state updates later, batched, as the app's root does. */
+const renderOpen = (runtime: ThreadOpenRuntime, initialRoute: ThreadRoute, concurrent = false) => {
   let session!: ThreadSession;
   let renderer!: ReactTestRenderer;
   const index = new Map<string, number>();
@@ -115,7 +116,9 @@ const renderOpen = (runtime: ThreadOpenRuntime, initialRoute: ThreadRoute) => {
     return null;
   }
   act(() => {
-    renderer = create(<Harness route={initialRoute} />);
+    renderer = create(<Harness route={initialRoute} />, {
+      unstable_isConcurrent: concurrent,
+    } as Parameters<typeof create>[1]);
   });
   return {
     get session() {
@@ -639,6 +642,34 @@ describe('thread session opening', () => {
     expect(view.session.commands.isCurrent(lease)).toBe(true);
     view.unmount();
     expect(view.session.commands.isCurrent(lease)).toBe(false);
+  });
+
+  it('keeps the tail of a complete cache when the SDK finishes before the next render', async () => {
+    vi.mocked(loadThreadCachedSnapshot).mockReset();
+    const fixture = openFixture();
+    const cache = deferred<ReturnType<typeof fixture.cache>>();
+    const sdk = deferred<boolean>();
+    vi.mocked(loadThreadCachedSnapshot).mockReturnValue(cache.promise);
+    fixture.bootstrap.mockReturnValue(sdk.promise);
+    const view = renderOpen(
+      fixture.runtime,
+      { roomId: fixture.runtime.room.roomId, threadId: '$a' },
+      true
+    );
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+    try {
+      // The cache lands complete, then the SDK finishes, and React renders only after both.
+      await act(async () => {
+        cache.resolve(fixture.cache());
+        await settle();
+        sdk.resolve(false);
+        await settle();
+      });
+      expect(fixture.rendered.get('$reply')).toBe(fixture.reply);
+      expect(view.session.snapshot.history).toEqual({ hasMoreCachedBack: false, tailLoaded: true });
+    } finally {
+      view.unmount();
+    }
   });
 
   it.each(['partial', 'error'] as const)(
