@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
-import { useLocation, useNavigationType, type NavigationType } from 'react-router-dom';
+import { useLocation, useNavigationType, type NavigationType, type Path } from 'react-router-dom';
+import { decodeRouteParam } from './pathUtils';
+import { DIRECT_PATH, HOME_PATH } from './paths';
 
 /** A page of this tab's history: its path and its query. */
 export type HistoryPage = { pathname: string; search: string };
 
-type HistoryEntry = HistoryPage & { key: string };
+type HistoryEntry = HistoryPage & { key: string; hash: string };
 
 /** The entries of this tab's history the app has shown, and which one is current. */
 export type HistoryStack = { entries: HistoryEntry[]; index: number };
@@ -37,12 +39,18 @@ let current = emptyHistoryStack;
 
 /** Keeps the stack up to date; mounted once, around every signed-in page. */
 export const useHistoryStackRecorder = (): void => {
-  const { key, pathname, search } = useLocation();
+  const { key, pathname, search, hash } = useLocation();
   const action = useNavigationType();
   useEffect(() => {
-    current = advanceHistoryStack(current, { key, pathname, search }, action);
-  }, [key, pathname, search, action]);
+    current = advanceHistoryStack(current, { key, pathname, search, hash }, action);
+  }, [key, pathname, search, hash, action]);
 };
+
+/**
+ * The page on screen as the router has it (inside the base path, or after `#`), once the app has
+ * shown one; also for a caller whose own page is gone.
+ */
+export const currentHistoryLocation = (): Path | undefined => current.entries[current.index];
 
 /** The pathname of the history entry before the current one, when the app has shown it. */
 export const previousHistoryPathname = (): string | undefined =>
@@ -74,18 +82,23 @@ export const previousHistoryOrigin = (
   isElsewhere: (page: HistoryPage) => boolean
 ): HistoryOrigin | undefined => findHistoryOrigin(current, isElsewhere);
 
-const decodeSegment = (segment: string): string => {
-  try {
-    return decodeURIComponent(segment);
-  } catch {
-    return segment;
-  }
+/**
+ * The rooms a page's route names: a room in Home or Direct (`/home/<room>`), and a space with a room
+ * open in it (`/<space>/<room>`) or one of the space's own pages (`/<space>/lobby/`). No other route
+ * names one, such as a plugin's page about a room (`/p/<plugin>/rooms/<room>`).
+ */
+const routeRooms = (pathname: string): string[] => {
+  const [section = '', room = ''] = pathname.split('/').slice(1, 3).map(decodeRouteParam);
+  if (`/${section}/` === HOME_PATH || `/${section}/` === DIRECT_PATH) return [room];
+  // A space's routes start with its ID or alias, whose sigil no other section's name has.
+  return /^[!#]/.test(section) ? [section, room] : [];
 };
 
 /**
- * Whether a page shows the room: its path names it by one of `addresses` (its ID or an alias), as a
- * room's own page, an event in it and its threads do. `threadIds` narrows it to those threads.
+ * Whether a page shows the room: its route names it by one of `addresses` (its ID or an alias), as a
+ * room's own page, an event in it, its threads and a space's own pages do. `threadIds` narrows it
+ * to those threads.
  */
 export const showsRoom = (page: HistoryPage, addresses: string[], threadIds?: string[]): boolean =>
-  page.pathname.split('/').some((segment) => addresses.includes(decodeSegment(segment))) &&
+  routeRooms(page.pathname).some((address) => addresses.includes(address)) &&
   (!threadIds || threadIds.includes(new URLSearchParams(page.search).get('threadId') ?? ''));

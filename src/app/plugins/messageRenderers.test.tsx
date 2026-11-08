@@ -21,6 +21,7 @@ const plugin = (id: string, ...messageRenderers: MessageRenderer[]): RegisteredP
   conversationCovers: [],
   sidePanels: [],
   headerActions: [],
+  slashCommands: [],
 });
 
 const renderer = (overrides: Partial<MessageRenderer> = {}): MessageRenderer => ({

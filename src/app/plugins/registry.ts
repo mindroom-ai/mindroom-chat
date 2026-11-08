@@ -7,6 +7,7 @@ import type { MessageRenderer } from './messageRenderers';
 import type { PluginPage } from './pluginPages';
 import { pluginEntries, type PluginEntry } from './pluginEntries';
 import { isSidePanel, type SidePanel } from './sidePanels';
+import { isPluginSlashCommand, type PluginSlashCommand } from './slashCommands';
 import { registerPluginTranslations, type PluginTranslations } from './pluginTranslations';
 
 /** A component shown under the room header, given the open room; it renders there or nothing. */
@@ -22,6 +23,7 @@ export type ClientPlugin = {
   roomHeaderSlot?: readonly RoomHeaderSlotComponent[];
   sidePanels?: readonly SidePanel[];
   headerActions?: readonly HeaderAction[];
+  slashCommands?: readonly PluginSlashCommand[];
   translations?: PluginTranslations;
 };
 
@@ -36,6 +38,7 @@ export type RegisteredPlugin = {
   readonly roomHeaderSlot: readonly RoomHeaderSlotComponent[];
   readonly sidePanels: readonly SidePanel[];
   readonly headerActions: readonly HeaderAction[];
+  readonly slashCommands: readonly PluginSlashCommand[];
 };
 
 const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
@@ -45,6 +48,7 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   const panels = isRecord(plugin) ? plugin.sidePanels : undefined;
   const actions = isRecord(plugin) ? plugin.headerActions : undefined;
   const covers = isRecord(plugin) ? plugin.conversationCovers : undefined;
+  const commands = isRecord(plugin) ? plugin.slashCommands : undefined;
   registerPluginTranslations(id, isRecord(plugin) ? plugin.translations : undefined);
   return Object.freeze({
     id,
@@ -72,6 +76,9 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
     headerActions: Object.freeze(Array.isArray(actions) ? actions.filter(isHeaderAction) : []),
     conversationCovers: Object.freeze(
       Array.isArray(covers) ? covers.filter(isConversationCover) : []
+    ),
+    slashCommands: Object.freeze(
+      Array.isArray(commands) ? commands.filter(isPluginSlashCommand) : []
     ),
   });
 };
