@@ -110,6 +110,15 @@ const pushRules = {
         actions: [],
       },
       {
+        rule_id: '.m.rule.is_user_mention',
+        default: true,
+        enabled: true,
+        conditions: [
+          { kind: 'event_property_contains', key: 'content.m\\.mentions.user_ids', value: ME },
+        ],
+        actions: ['notify', { set_tweak: 'highlight' }],
+      },
+      {
         rule_id: '.m.rule.suppress_notices',
         default: true,
         enabled: true,
@@ -821,5 +830,42 @@ describe('unread counts of an encrypted room', () => {
       await f.decrypt(f.find(id), id === ROOT ? clear[ROOT] : id === REPLY ? clear[REPLY] : contentOf(id));
     }
     expect([f.totalCount(), f.threadCount()]).toEqual([1, 1]);
+  });
+
+  // In an encrypted room only the client can see a mention. The server bundles a reply's newest
+  // edit with the reply, and that copy stays encrypted until the reply is shown, while the SDK
+  // decrypts the copy the sync brought. The count read the bundled copy, so a finished reply that
+  // names the reader counted, but did not highlight, until the reader opened the room.
+  it('highlight a finished reply that mentions the reader while its bundled edit stays encrypted', async () => {
+    const f = await fixture(true);
+    const bundled = finishingEdit('$done', REPLY, 40);
+    const reply = { ...streamedReply(REPLY, 11), unsigned: { 'm.relations': { 'm.replace': bundled } } };
+    const window = [
+      { ...member(ME), origin_server_ts: 1 } as IEvent,
+      encrypted(ROOT, ME, 10),
+      reply,
+      finishingEdit('$done', REPLY, 40),
+      encrypted('$title', AGENT, 41, inThread),
+    ];
+    await f.deliver(window, [], { counts: replyCounts });
+    await f.decrypt(f.find(ROOT), clear[ROOT]);
+    await f.decrypt(f.find(REPLY), clear[REPLY]);
+    await f.decrypt(f.find('$title'), titleNotice);
+    // The copy the sync brought decrypts; the bundled one on the reply does not.
+    await f.decrypt(f.find('$done'), {
+      ...finishedContent(REPLY),
+      'm.new_content': {
+        msgtype: 'm.text',
+        body: 'The build passed, reader.',
+        'io.mindroom.stream_status': 'completed',
+        'm.mentions': { user_ids: [ME] },
+      },
+    });
+    expect(f.find(REPLY).replacingEvent()?.getClearContent()).toBeNull();
+
+    expect([f.totalCount(), f.threadCount()]).toEqual([1, 1]);
+    expect(
+      f.room().getThreadUnreadNotificationCount(ROOT, NotificationCountType.Highlight)
+    ).toBe(1);
   });
 });
