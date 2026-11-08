@@ -489,8 +489,9 @@ describe('the minimized bar', () => {
       const names = within(bar)
         .getAllByRole('button')
         .map((each) => each.textContent || each.getAttribute('aria-label'));
-      expect(names).toEqual(['Close', 'Expand', 'Close call view']);
-      // Close drops the finished call, as the expanded view's Close does, so new calls can start.
+      // Close drops the finished call, as the expanded view's Close does, so new calls can start;
+      // the window closes with it, so the bar has no Close call view beside it.
+      expect(names).toEqual(['Close', 'Expand']);
       fireEvent.click(within(bar).getByRole('button', { name: 'Close' }));
       expect(dismiss).toHaveBeenCalledOnce();
       expect(onClose).not.toHaveBeenCalled();

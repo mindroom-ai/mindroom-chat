@@ -200,9 +200,11 @@ function ConversationButton({ origin, onClose }: { origin: CallOrigin; onClose: 
 
 /**
  * What the window's one-line bar shows: the faces before the title, its own status in place of the
- * title bar's, and the controls between the title and Expand.
+ * title bar's, and the controls between the title and Expand. `closes`: the controls close the
+ * call view themselves (Close of a finished call, which takes the window with the call), so the
+ * bar has no Close of its own.
  */
-type BarContent = { faces?: ReactNode; status?: string; controls?: ReactNode };
+type BarContent = { faces?: ReactNode; status?: string; controls?: ReactNode; closes?: boolean };
 
 /**
  * The panel's frame: a title with the call's status under it, the body, and a control bar. In the
@@ -287,12 +289,14 @@ function PanelShell(props: PanelShellProps) {
             onClick={frame.expand}
             above
           />
-          <TitleButton
-            label={t('featureUi.calls.panel.close')}
-            icon={Icons.Cross}
-            onClick={onClose}
-            above
-          />
+          {!bar?.closes && (
+            <TitleButton
+              label={t('featureUi.calls.panel.close')}
+              icon={Icons.Cross}
+              onClick={onClose}
+              above
+            />
+          )}
         </div>
       </section>
     );
@@ -561,6 +565,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
     // A finished call stays until it is closed: a failed one answers every new start busy till
     // then. The bar says why it stopped, as the expanded view's notice does, and closes it.
     status: state.problem && state.phase === 'failed' ? t(PROBLEM_KEYS[state.problem]) : undefined,
+    closes: finished,
     controls: finished ? (
       <Button size="300" radii="300" variant="Secondary" fill="Soft" onClick={dismissCall}>
         <Text size="B300">{dismissLabel}</Text>
