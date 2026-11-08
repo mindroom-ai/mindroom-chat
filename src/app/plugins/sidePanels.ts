@@ -40,7 +40,7 @@ export type SidePanel = {
    * room draws none: no title, Close, splitter or frame strip. The component reads and sets its
    * layout with `usePanelFrame`, on phones too; folded, it covers nothing, there either. Over a
    * phone's conversation it hides the room header and the panel's toggle with it, so the component
-   * offers a way out of its own, such as Hide.
+   * offers a way out of its own: Hide, or a Close that calls `close` of {@link useRoomSidePanel}.
    */
   frame?: 'own';
 };
