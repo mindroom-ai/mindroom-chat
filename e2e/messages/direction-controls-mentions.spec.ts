@@ -9,6 +9,7 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
+import { openMessageMenu } from '../helpers/messageMenu';
 import {
   createDefaultThreadFilterState,
   joinRoom,
@@ -195,15 +196,8 @@ const check = async (page: Page, world: World, label: string) => {
   await expectShown(mention.locator('button').filter({ hasText: KEY_SHOWN }), KEY_SHOWN);
   await shot(page, `${label}-room`);
 
-  // View Reactions names the key the same way. The menu opens on the row's contextmenu event: a
-  // real right click in WebKit first selects the word under the pointer.
-  const text = mention.getByText(/check with/).first();
-  const box = await text.boundingBox();
-  await text.dispatchEvent('contextmenu', {
-    button: 2,
-    clientX: (box?.x ?? 0) + 8,
-    clientY: (box?.y ?? 0) + 8,
-  });
+  // View Reactions names the key the same way.
+  await openMessageMenu(page, mention, 'check', label.endsWith('phone'));
   await page.getByRole('menuitem', { name: 'View Reactions' }).click({ timeout: 30_000 });
   const heading = page.getByText(/^Reacted with /);
   await expectShown(heading, `Reacted with :${KEY_SHOWN}:`);
