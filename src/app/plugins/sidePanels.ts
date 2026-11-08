@@ -1,9 +1,11 @@
 import { type ComponentType, createContext, useContext, useMemo } from 'react';
 import type { IconSrc } from 'folds';
+import { useTranslation } from 'react-i18next';
 import type { ClientConfig } from '../config/useClientConfig';
 import { isRecord } from '../lib/isRecord';
 import { PLACEMENTS, type HeaderAction } from './headerActions';
 import { isPluginEnabled } from './pluginConfig';
+import { type PluginT, pluginNamespace } from './pluginTranslations';
 import type { RegisteredPlugin } from './registry';
 
 /**
@@ -13,7 +15,10 @@ import type { RegisteredPlugin } from './registry';
 export type SidePanel = {
   /** Names it among its plugin's panels. */
   id: string;
-  /** Its title, and the name of its toggle in the room header, which shows and hides it. */
+  /**
+   * Its title, and the name of its toggle in the room header, which shows and hides it: a key of the
+   * plugin's strings (`translations`), shown in the app's language, or any other text, shown as given.
+   */
   label: string;
   /** Its toggle's icon, as folds draws one, such as `Icons.Star`; a bulb by default. */
   icon?: IconSrc;
@@ -35,6 +40,12 @@ export type SidePanel = {
    * panel) or the account's last login leaves this browser.
    */
   remember?: boolean;
+  /**
+   * Whether it may take the place of the members list beside the conversation, which then closes as
+   * when the person opens the panel: as it opens again when its room shows, with `remember`, and as
+   * `openBesideThread` ({@link useRoomSidePanel}) opens it. Without it, the list keeps it closed then.
+   */
+  opensOverMembers?: true;
 };
 
 /** Whether a plugin's contribution is a side panel; the build does not type-check plugins. */
@@ -45,21 +56,44 @@ export const isSidePanel = (value: unknown): value is SidePanel =>
   typeof value.label === 'string' &&
   (typeof value.Component === 'function' || isRecord(value.Component)) &&
   (value.icon === undefined || typeof value.icon === 'function') &&
-  (value.placement === undefined || PLACEMENTS.includes(value.placement));
+  (value.placement === undefined || PLACEMENTS.includes(value.placement)) &&
+  (value.opensOverMembers === undefined || value.opensOverMembers === true);
 
 /** A plugin's side panel in a room: `id` is `<plugin id>/<panel id>`, `tag` names its plugin. */
 export type RoomSidePanel = SidePanel & { tag: string };
 
-/** The side panels of the plugins config.json leaves on, in build order. */
-export const enabledSidePanels = (
+/**
+ * The side panels of the plugins config.json leaves on, in build order, with their labels in the
+ * app's language: a new list when the language changes and once a plugin's strings arrive, else
+ * the same one.
+ */
+export const usePluginSidePanels = (
   plugins: readonly RegisteredPlugin[],
   config: ClientConfig | undefined
-): RoomSidePanel[] =>
-  plugins
-    .filter((plugin) => isPluginEnabled(config, plugin.id))
-    .flatMap(({ id, tag, sidePanels }) =>
-      sidePanels.map((panel) => ({ ...panel, id: `${id}/${panel.id}`, tag }))
-    );
+): RoomSidePanel[] => {
+  const enabled = useMemo(
+    () =>
+      plugins.filter(
+        (plugin) => plugin.sidePanels.length > 0 && isPluginEnabled(config, plugin.id)
+      ),
+    [config, plugins]
+  );
+  // A new `t` with each change of language and each plugin's strings that arrive.
+  const { t, i18n } = useTranslation(enabled.map(({ id }) => pluginNamespace(id)) as never);
+  return useMemo(() => {
+    const translate = t as unknown as PluginT;
+    return enabled.flatMap(({ id, tag, sidePanels }) => {
+      const ns = pluginNamespace(id);
+      return sidePanels.map((panel) => ({
+        ...panel,
+        id: `${id}/${panel.id}`,
+        tag,
+        // Looked up first, as i18next would read a plain label's `.` or `:` as a path.
+        label: i18n.exists(panel.label, { ns }) ? translate(panel.label, { ns }) : panel.label,
+      }));
+    });
+  }, [enabled, i18n, t]);
+};
 
 /** What the open room lets plugin code do with its plugins' panels. */
 export type PluginPanelControls = {
@@ -98,8 +132,9 @@ export type RoomSidePanelControl = {
    * counts, so a component that mounts again does not open a panel the person closed; once another
    * thread or the room's own timeline has shown, the thread's next call counts again. That call
    * does something only while the room shows that thread and not on a phone: it opens the panel
-   * when no other side panel shows, and when the panel itself shows, it hands it `request` and
-   * leaves it folded or filling the room. Otherwise it does nothing.
+   * when no other side panel shows, or only the members list and the panel has `opensOverMembers`,
+   * and when the panel itself shows, it hands it `request` and leaves it folded or filling the room.
+   * Otherwise it does nothing.
    */
   openBesideThread: (threadId: string, request?: unknown) => void;
   /** Closes it, if the room shows it; it keeps its identity as `open` does. */

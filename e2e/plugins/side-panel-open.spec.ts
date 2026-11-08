@@ -24,7 +24,11 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // first. Folded to its tab, the panel unfolds from its toggle in the room header with its request.
 // The panel remembers it is open: a reload and a switch to another room and back keep it open in
 // its room, with its request, which the browser keeps without the greeting's text, and only there.
-// Another account in the same browser never sees it, and signing out deletes it.
+// Another account in the same browser never sees it, and signing out deletes it. It may take the
+// members list's place (`opensOverMembers`): back in its room after the members opened elsewhere, it
+// opens again and the members close, while on a phone it opens again over them as before. Its name
+// is a key of the plugin's strings, "Beispielbereich" in German: the toggle, the panel and its Close
+// follow the language picked in Settings, wide and on a phone, without a reload.
 // Set PLUGIN_SHOTS=<directory> to save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'plugin-panel-password';
@@ -38,6 +42,7 @@ let build: string | undefined;
 let alice: DisposableUser;
 let bob: DisposableUser;
 let threadPath = '';
+let roomPath = '';
 const greetings: { id: string; text: string }[] = [];
 
 test.beforeAll(async () => {
@@ -79,7 +84,8 @@ test.beforeAll(async () => {
     });
     greetings.push({ id, text });
   }
-  threadPath = `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`;
+  roomPath = `/home/${encodeURIComponent(roomId)}`;
+  threadPath = `${roomPath}?threadId=${encodeURIComponent(rootId)}`;
 });
 
 test.afterAll(() => {
@@ -99,6 +105,44 @@ const panel = (page: Page) => page.getByRole('region', { name: 'Example panel', 
 /** The panel's toggle, a button in the room header's row on a wide screen. */
 const toggle = (page: Page) =>
   roomHeader(page).getByRole('button', { name: 'Example panel', exact: true });
+
+const PHONE = { width: 390, height: 844 };
+const WIDE = { width: 1600, height: 1000 };
+
+const membersButton = (page: Page, name: 'Show Members' | 'Hide Members') =>
+  roomHeader(page).getByRole('button', { name, exact: true });
+
+/** What Settings is called in each language the test picks from, and the language itself. */
+const SETTINGS_UI = {
+  en: {
+    account: /Open account menu for /,
+    settings: 'Settings',
+    page: 'Language & region',
+    language: 'English',
+  },
+  de: {
+    account: /Kontomenü für /,
+    settings: 'Einstellungen',
+    page: 'Sprache & Region',
+    language: 'Deutsch',
+  },
+};
+
+/** Picks `next` on the Language & region page of Settings, in the app's language `from`. */
+const pickLanguage = async (page: Page, from: keyof typeof SETTINGS_UI, next: string) => {
+  const ui = SETTINGS_UI[from];
+  await page.getByRole('button', { name: ui.account }).first().click();
+  await page.getByRole('menuitem', { name: ui.settings, exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: ui.settings });
+  await dialog
+    .getByRole('navigation', { name: ui.settings })
+    .getByRole('button', { name: ui.page, exact: true })
+    .click();
+  await dialog.getByRole('button', { name: ui.language, exact: true }).click();
+  await page.getByRole('menuitemradio', { name: next, exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+};
 
 /** The greeting card of the agent's reply `index`, once the plugin renders it. */
 const card = async (page: Page, index: number) => {
@@ -195,6 +239,117 @@ test("a card opens the plugin's panel with its request, which stays open in its 
     await logoutActiveAccount(page);
     await reloaded;
     expect(await panelKeysOf(page, alice.userId)).toEqual([]);
+  } finally {
+    await context.close();
+    await server.close();
+  }
+});
+
+test('the panel opens again over the members beside the conversation, which close; on a phone as before', async ({
+  browser,
+}) => {
+  test.setTimeout(5 * 60_000);
+  const server = await serveBuild(build!);
+  const context = await browser.newContext({ baseURL: server.origin });
+  const page = await context.newPage();
+  try {
+    await loginWithPassword(page, { homeserver: HOMESERVER, ...alice });
+    await page.goto(roomPath);
+    // A new browser shows the members beside the conversation; opened, the panel takes their place.
+    await expect(membersButton(page, 'Hide Members')).toBeVisible({ timeout: 60_000 });
+    await toggle(page).click();
+    await expect(panel(page)).toBeVisible();
+    await expect(membersButton(page, 'Show Members')).toBeVisible();
+
+    // Back in its room after the members opened in another, it opens again and they close.
+    await showRoom(page, ELSEWHERE);
+    await expect(panel(page)).toHaveCount(0);
+    await membersButton(page, 'Show Members').click();
+    await expect(membersButton(page, 'Hide Members')).toBeVisible();
+    await shot(page, 'members-elsewhere');
+    await showRoom(page, ROOM);
+    await expect(panel(page)).toBeVisible();
+    await expect(membersButton(page, 'Show Members')).toBeVisible();
+    await shot(page, 'over-members');
+
+    // The members take its place again from their button, as before.
+    await membersButton(page, 'Show Members').click();
+    await expect(panel(page)).toHaveCount(0);
+    await expect(membersButton(page, 'Hide Members')).toBeVisible();
+    await shot(page, 'members-again');
+
+    // On a phone it opens again over the members as before, and leaves their setting as it was.
+    await toggle(page).click();
+    await expect(panel(page)).toBeVisible();
+    await showRoom(page, ELSEWHERE);
+    await membersButton(page, 'Show Members').click();
+    await expect(membersButton(page, 'Hide Members')).toBeVisible();
+    await page.setViewportSize(PHONE);
+    await page.goto(roomPath);
+    await expect(panel(page)).toBeVisible({ timeout: 60_000 });
+    await shot(page, 'phone');
+    await page.getByRole('button', { name: 'Close Example panel', exact: true }).click();
+    await page.setViewportSize(WIDE);
+    await expect(membersButton(page, 'Hide Members')).toBeVisible();
+  } finally {
+    await context.close();
+    await server.close();
+  }
+});
+
+test("the panel's name follows the language picked in Settings, wide and on a phone, without a reload", async ({
+  browser,
+}) => {
+  test.setTimeout(5 * 60_000);
+  const server = await serveBuild(build!);
+  const context = await browser.newContext({ baseURL: server.origin });
+  const page = await context.newPage();
+  try {
+    await loginWithPassword(page, { homeserver: HOMESERVER, ...alice });
+    await page.goto(roomPath);
+    await expect(toggle(page)).toBeVisible({ timeout: 60_000 });
+    await page.evaluate(() => {
+      (window as { panelSpecLoad?: boolean }).panelSpecLoad = true;
+    });
+
+    await pickLanguage(page, 'en', 'Deutsch');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+    await roomHeader(page).getByRole('button', { name: 'Beispielbereich', exact: true }).click();
+    const german = page.getByRole('region', { name: 'Beispielbereich', exact: true });
+    await expect(german).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Beispielbereich schließen', exact: true })
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Beispielbereich an den Rand einklappen', exact: true })
+    ).toBeVisible();
+    await shot(page, 'german-wide');
+
+    // On a phone it covers the conversation under its name, and its toggle is in the room menu.
+    await page.setViewportSize(PHONE);
+    await expect(german).toBeVisible();
+    await shot(page, 'german-phone');
+    await page.getByRole('button', { name: 'Beispielbereich schließen', exact: true }).click();
+    await roomHeader(page).getByRole('button', { name: 'Weitere Optionen', exact: true }).click();
+    await expect(
+      page.getByRole('menuitemcheckbox', { name: 'Beispielbereich', exact: true })
+    ).toBeVisible();
+    await shot(page, 'german-phone-menu');
+    await page.keyboard.press('Escape');
+
+    // Back in English, it is English again.
+    await page.setViewportSize(WIDE);
+    await pickLanguage(page, 'de', 'English');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await toggle(page).click();
+    await expect(panel(page)).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Close Example panel', exact: true })
+    ).toBeVisible();
+    await shot(page, 'english-wide');
+    expect(await page.evaluate(() => (window as { panelSpecLoad?: boolean }).panelSpecLoad)).toBe(
+      true
+    );
   } finally {
     await context.close();
     await server.close();
