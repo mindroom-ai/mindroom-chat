@@ -257,6 +257,9 @@ test("the example plugin's own-frame card follows the app's theme kind and scree
     await says('Screen: Desktop');
     expect(await page.evaluate(() => 'exampleSurfaceMark' in window)).toBe(true);
 
+    // In the dark scheme the card around the frame is dark: white there is the PDF's page.
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await says('Theme: dark');
     await card.getByRole('button', { name: 'Show example PDF', exact: true }).click();
     const frameElement = card.locator('iframe[title="Example PDF"]');
     await expect(frameElement).toBeVisible();
