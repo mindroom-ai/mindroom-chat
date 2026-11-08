@@ -421,16 +421,21 @@
       "stage": {
         "speaking": "{{name}} কথা বলছেন",
         "listening": "শুনছে",
-        "muted": "আপনি মিউট আছেন"
+        "muted": "আপনি মিউট আছেন",
+        "waiting": "অন্যরা যোগ দেওয়ার অপেক্ষা করা হচ্ছে",
+        "more": "+{{count}}",
+        "moreLabel": "আরও {{count}} জন"
       },
       "window": {
         "move": "কল উইন্ডো সরান",
+        "moveMinimized": "ছোট করা কল উইন্ডো সরান",
         "minimize": "ছোট করুন",
         "expand": "বড় করুন",
         "dock": "পাশে ডক করুন",
         "float": "ভাসমান করুন",
         "speakerView": "স্পিকার ভিউ",
-        "openConversation": "কথোপকথনে যান"
+        "openConversation": "কথোপকথনে যান",
+        "label": "কল উইন্ডো"
       }
     },
     "room": {

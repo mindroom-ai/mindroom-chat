@@ -429,16 +429,21 @@
       "stage": {
         "speaking": "{{name}} parle",
         "listening": "À l’écoute",
-        "muted": "Vous êtes en sourdine"
+        "muted": "Vous êtes en sourdine",
+        "waiting": "En attente d’autres participants",
+        "more": "+{{count}}",
+        "moreLabel": "{{count}} de plus"
       },
       "window": {
         "move": "Déplacer la fenêtre d’appel",
+        "moveMinimized": "Déplacer la fenêtre d’appel réduite",
         "minimize": "Réduire",
         "expand": "Agrandir",
         "dock": "Ancrer sur le côté",
         "float": "Détacher",
         "speakerView": "Vue intervenant",
-        "openConversation": "Aller à la conversation"
+        "openConversation": "Aller à la conversation",
+        "label": "Fenêtre d’appel"
       }
     },
     "room": {

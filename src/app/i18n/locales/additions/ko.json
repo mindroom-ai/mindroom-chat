@@ -413,16 +413,21 @@
       "stage": {
         "speaking": "{{name}} 님이 말하는 중",
         "listening": "듣는 중",
-        "muted": "음소거되어 있습니다"
+        "muted": "음소거되어 있습니다",
+        "waiting": "다른 참가자를 기다리는 중",
+        "more": "+{{count}}",
+        "moreLabel": "외 {{count}}명"
       },
       "window": {
         "move": "통화 창 이동",
+        "moveMinimized": "최소화된 통화 창 이동",
         "minimize": "최소화",
         "expand": "펼치기",
         "dock": "옆에 고정",
         "float": "플로팅",
         "speakerView": "발언자 보기",
-        "openConversation": "대화로 이동"
+        "openConversation": "대화로 이동",
+        "label": "통화 창"
       }
     },
     "room": {

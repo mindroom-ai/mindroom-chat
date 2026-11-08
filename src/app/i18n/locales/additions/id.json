@@ -413,16 +413,21 @@
       "stage": {
         "speaking": "{{name}} sedang berbicara",
         "listening": "Mendengarkan",
-        "muted": "Anda dibisukan"
+        "muted": "Anda dibisukan",
+        "waiting": "Menunggu yang lain bergabung",
+        "more": "+{{count}}",
+        "moreLabel": "{{count}} lainnya"
       },
       "window": {
         "move": "Pindahkan jendela panggilan",
+        "moveMinimized": "Pindahkan jendela panggilan yang dikecilkan",
         "minimize": "Kecilkan",
         "expand": "Perbesar",
         "dock": "Sematkan ke samping",
         "float": "Melayang",
         "speakerView": "Tampilan pembicara",
-        "openConversation": "Buka percakapan"
+        "openConversation": "Buka percakapan",
+        "label": "Jendela panggilan"
       }
     },
     "room": {

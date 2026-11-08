@@ -437,16 +437,21 @@
       "stage": {
         "speaking": "{{name}} говорит",
         "listening": "Слушает",
-        "muted": "Ваш микрофон выключен"
+        "muted": "Ваш микрофон выключен",
+        "waiting": "Ожидание других участников",
+        "more": "+{{count}}",
+        "moreLabel": "ещё {{count}}"
       },
       "window": {
         "move": "Переместить окно звонка",
+        "moveMinimized": "Переместить свёрнутое окно звонка",
         "minimize": "Свернуть",
         "expand": "Развернуть",
         "dock": "Закрепить сбоку",
         "float": "Открепить",
         "speakerView": "Режим докладчика",
-        "openConversation": "Перейти к беседе"
+        "openConversation": "Перейти к беседе",
+        "label": "Окно звонка"
       }
     },
     "room": {

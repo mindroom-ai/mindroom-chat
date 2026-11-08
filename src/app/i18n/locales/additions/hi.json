@@ -421,16 +421,21 @@
       "stage": {
         "speaking": "{{name}} बोल रहे हैं",
         "listening": "सुन रहा है",
-        "muted": "आप म्यूट हैं"
+        "muted": "आप म्यूट हैं",
+        "waiting": "दूसरों के जुड़ने की प्रतीक्षा की जा रही है",
+        "more": "+{{count}}",
+        "moreLabel": "{{count}} और"
       },
       "window": {
         "move": "कॉल विंडो हिलाएं",
+        "moveMinimized": "छोटी की गई कॉल विंडो हिलाएं",
         "minimize": "छोटा करें",
         "expand": "बड़ा करें",
         "dock": "किनारे डॉक करें",
         "float": "फ़्लोट करें",
         "speakerView": "स्पीकर व्यू",
-        "openConversation": "बातचीत पर जाएं"
+        "openConversation": "बातचीत पर जाएं",
+        "label": "कॉल विंडो"
       }
     },
     "room": {

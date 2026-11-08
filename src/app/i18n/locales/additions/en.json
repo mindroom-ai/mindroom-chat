@@ -421,16 +421,21 @@
       "stage": {
         "speaking": "{{name}} is speaking",
         "listening": "Listening",
-        "muted": "You are muted"
+        "muted": "You are muted",
+        "waiting": "Waiting for others to join",
+        "more": "+{{count}}",
+        "moreLabel": "{{count}} more"
       },
       "window": {
         "move": "Move call window",
+        "moveMinimized": "Move minimized call window",
         "minimize": "Minimize",
         "expand": "Expand",
         "dock": "Dock to the side",
         "float": "Float",
         "speakerView": "Speaker view",
-        "openConversation": "Go to the conversation"
+        "openConversation": "Go to the conversation",
+        "label": "Call window"
       }
     },
     "room": {

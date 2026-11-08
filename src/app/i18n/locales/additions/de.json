@@ -421,16 +421,21 @@
       "stage": {
         "speaking": "{{name}} spricht",
         "listening": "Hört zu",
-        "muted": "Du bist stummgeschaltet"
+        "muted": "Du bist stummgeschaltet",
+        "waiting": "Warten, bis andere beitreten",
+        "more": "+{{count}}",
+        "moreLabel": "{{count}} weitere"
       },
       "window": {
         "move": "Anruffenster verschieben",
+        "moveMinimized": "Minimiertes Anruffenster verschieben",
         "minimize": "Minimieren",
-        "expand": "Erweitern",
+        "expand": "Vergrößern",
         "dock": "Seitlich andocken",
         "float": "Schweben lassen",
         "speakerView": "Sprecheransicht",
-        "openConversation": "Zur Unterhaltung"
+        "openConversation": "Zur Unterhaltung",
+        "label": "Anruffenster"
       }
     },
     "room": {

@@ -421,16 +421,21 @@
       "stage": {
         "speaking": "{{name}} konuşuyor",
         "listening": "Dinliyor",
-        "muted": "Sesiniz kapalı"
+        "muted": "Sesiniz kapalı",
+        "waiting": "Başkalarının katılması bekleniyor",
+        "more": "+{{count}}",
+        "moreLabel": "{{count}} kişi daha"
       },
       "window": {
         "move": "Arama penceresini taşı",
+        "moveMinimized": "Küçültülmüş arama penceresini taşı",
         "minimize": "Küçült",
         "expand": "Genişlet",
         "dock": "Yana yerleştir",
         "float": "Yüzdür",
         "speakerView": "Konuşmacı görünümü",
-        "openConversation": "Sohbete git"
+        "openConversation": "Sohbete git",
+        "label": "Arama penceresi"
       }
     },
     "room": {

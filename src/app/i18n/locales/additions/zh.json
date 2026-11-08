@@ -413,16 +413,21 @@
       "stage": {
         "speaking": "{{name}} 正在发言",
         "listening": "正在聆听",
-        "muted": "你已静音"
+        "muted": "你已静音",
+        "waiting": "正在等待其他人加入",
+        "more": "+{{count}}",
+        "moreLabel": "另外 {{count}} 人"
       },
       "window": {
         "move": "移动通话窗口",
+        "moveMinimized": "移动已最小化的通话窗口",
         "minimize": "最小化",
         "expand": "展开",
         "dock": "停靠到侧边",
         "float": "悬浮",
         "speakerView": "发言人视图",
-        "openConversation": "前往对话"
+        "openConversation": "前往对话",
+        "label": "通话窗口"
       }
     },
     "room": {

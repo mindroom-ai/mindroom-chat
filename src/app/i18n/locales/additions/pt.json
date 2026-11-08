@@ -429,16 +429,21 @@
       "stage": {
         "speaking": "{{name}} está falando",
         "listening": "Ouvindo",
-        "muted": "Você está no mudo"
+        "muted": "Você está no mudo",
+        "waiting": "Aguardando outras pessoas entrarem",
+        "more": "+{{count}}",
+        "moreLabel": "mais {{count}}"
       },
       "window": {
         "move": "Mover janela da chamada",
+        "moveMinimized": "Mover janela da chamada minimizada",
         "minimize": "Minimizar",
         "expand": "Expandir",
         "dock": "Acoplar ao lado",
         "float": "Flutuar",
         "speakerView": "Visão do orador",
-        "openConversation": "Ir para a conversa"
+        "openConversation": "Ir para a conversa",
+        "label": "Janela da chamada"
       }
     },
     "room": {

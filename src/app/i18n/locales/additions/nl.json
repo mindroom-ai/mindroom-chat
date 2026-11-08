@@ -421,16 +421,21 @@
       "stage": {
         "speaking": "{{name}} spreekt",
         "listening": "Luistert",
-        "muted": "Je staat gedempt"
+        "muted": "Je staat gedempt",
+        "waiting": "Wachten tot anderen deelnemen",
+        "more": "+{{count}}",
+        "moreLabel": "nog {{count}}"
       },
       "window": {
-        "move": "Gespreksvenster verplaatsen",
+        "move": "Oproepvenster verplaatsen",
+        "moveMinimized": "Geminimaliseerd oproepvenster verplaatsen",
         "minimize": "Minimaliseren",
         "expand": "Uitvouwen",
         "dock": "Aan de zijkant vastzetten",
         "float": "Zwevend maken",
         "speakerView": "Sprekersweergave",
-        "openConversation": "Ga naar het gesprek"
+        "openConversation": "Ga naar de conversatie",
+        "label": "Oproepvenster"
       }
     },
     "room": {

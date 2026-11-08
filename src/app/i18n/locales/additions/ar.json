@@ -453,16 +453,21 @@
       "stage": {
         "speaking": "⁨{{name}}⁩ يتحدث",
         "listening": "يستمع",
-        "muted": "أنت مكتوم الصوت"
+        "muted": "أنت مكتوم الصوت",
+        "waiting": "في انتظار انضمام الآخرين",
+        "more": "+⁨{{count}}⁩",
+        "moreLabel": "المزيد: ⁨{{count}}⁩"
       },
       "window": {
         "move": "نقل نافذة المكالمة",
+        "moveMinimized": "نقل نافذة المكالمة المصغّرة",
         "minimize": "تصغير",
         "expand": "توسيع",
         "dock": "تثبيت في الجانب",
-        "float": "تعويم",
+        "float": "نافذة عائمة",
         "speakerView": "عرض المتحدث",
-        "openConversation": "الانتقال إلى المحادثة"
+        "openConversation": "الانتقال إلى المحادثة",
+        "label": "نافذة المكالمة"
       }
     },
     "room": {
