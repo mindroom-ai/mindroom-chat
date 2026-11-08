@@ -2,6 +2,7 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { openSettingsFromAccountRail } from '../helpers/accounts';
 import { buildLoginPath } from '../env';
+import { setUpRecoveryPassword, unlockWithRecovery } from '../helpers/recovery';
 
 // End-to-end encryption between sessions of one account, against the disposable homeserver of
 // `just hs-up`: the first session sets up cross-signing, secret storage and key backup; a second
@@ -9,6 +10,7 @@ import { buildLoginPath } from '../env';
 // it with the recovery key; the rows that could not be decrypted fix themselves each time.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'encryption-spec-password';
+const RECOVERY_PASSWORD = 'e2e recovery password 1';
 const SECRETS = ['The launch code is tangerine', 'Meet at the old mill at noon'];
 const UNDECRYPTABLE = "Couldn't decrypt this message — the encryption key isn't available";
 
@@ -104,11 +106,7 @@ test('sessions verify each other by emoji or recovery key and then read the hist
   const first = await signIn(browser, username);
   await openDevices(first);
   await first.getByRole('button', { name: 'Enable' }).click();
-  await first.getByRole('button', { name: 'Continue' }).click();
-  const keyText = first.getByRole('dialog').locator('code');
-  await expect(keyText).toHaveText(/^E\w{3}( \w{4}){11}$/, { timeout: 60_000 });
-  const recoveryKey = (await keyText.textContent()) ?? '';
-  await first.getByRole('button', { name: 'Okay' }).click();
+  const recoveryKey = await setUpRecoveryPassword(first, RECOVERY_PASSWORD);
   await expect(first.getByText(/Connected · Version: \S+ · Keys: \d+/)).toBeVisible({
     timeout: 30_000,
   });
@@ -176,9 +174,8 @@ test('sessions verify each other by emoji or recovery key and then read the hist
   await openFullRoom(third, roomId);
   await expect(third.getByText(UNDECRYPTABLE)).toHaveCount(2, { timeout: 30_000 });
   await openDevices(third);
-  await third.getByRole('button', { name: 'Verify Manually' }).click();
-  await third.locator('input[name="recoveryKeyInput"]').fill(recoveryKey);
-  await third.getByRole('button', { name: 'Verify', exact: true }).last().click();
+  await third.getByRole('button', { name: 'Use recovery password' }).click();
+  await unlockWithRecovery(third, recoveryKey);
   await expect(third.getByRole('button', { name: 'Unverified Device' })).toHaveCount(0, {
     timeout: 30_000,
   });

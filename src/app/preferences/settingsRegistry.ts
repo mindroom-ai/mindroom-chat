@@ -355,6 +355,14 @@ export const SETTINGS = [
     scope: 'account',
   },
   {
+    id: 'recoveryPassword',
+    page: 'privacy',
+    group: `${DEVICES}.security`,
+    labelKey: 'sharedUi.recoveryPassword.title',
+    keywordsKey: `${KEYWORDS}.encryption`,
+    scope: 'account',
+  },
+  {
     id: 'keyBackup',
     page: 'privacy',
     group: `${DEVICES}.security`,

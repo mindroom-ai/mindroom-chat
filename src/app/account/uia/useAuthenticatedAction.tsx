@@ -37,7 +37,7 @@ type AuthenticatedAction = {
 };
 
 /** Shown when every flow the server offers has a stage this client cannot do. */
-function UnsupportedStages({ onClose }: { onClose: () => void }) {
+function UnsupportedStages({ stages, onClose }: { stages: string[]; onClose: () => void }) {
   const { t } = useTranslation();
   const messageId = useId();
   // The message is all the dialog says, so it names the dialog too.
@@ -53,6 +53,12 @@ function UnsupportedStages({ onClose }: { onClose: () => void }) {
         <Text id={messageId} size="T300">
           {t('featureUi.settings.devices.otherDevices.authenticationStepsToPerformThisActionAre')}
         </Text>
+        {/* The stage names, so a report says what the server asked for. */}
+        {stages.length > 0 && (
+          <Text size="T200" priority="300" style={{ overflowWrap: 'anywhere' }}>
+            <code>{stages.join(', ')}</code>
+          </Text>
+        )}
         <Button variant="Secondary" fill="Soft" onClick={onClose}>
           <Text size="B400">{t('featureUi.settings.devices.otherDevices.cancel')}</Text>
         </Button>
@@ -129,7 +135,12 @@ export function useAuthenticatedAction(): AuthenticatedAction {
     <SettingsOverlay onDismiss={waiting.cancel}>
       <ActionUIAFlowsLoader
         authData={waiting.authData}
-        unsupported={() => <UnsupportedStages onClose={waiting.cancel} />}
+        unsupported={() => (
+          <UnsupportedStages
+            stages={[...new Set((waiting.authData.flows ?? []).flatMap((flow) => flow.stages))]}
+            onClose={waiting.cancel}
+          />
+        )}
       >
         {(flow) => (
           <ActionUIA

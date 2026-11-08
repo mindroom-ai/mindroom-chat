@@ -10,9 +10,11 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { SettingsCard } from '../../ui/settings/SettingsCard';
 import { KeyBackupTile } from './KeyBackupTile';
+import { RecoveryPasswordTile } from './RecoveryPasswordTile';
 import { hasServerEncryptionSetup } from './serverEncryptionSetup';
 
-type Step = 'confirm-reset' | 'setup';
+// `replace` is the setup after the reset warning was confirmed.
+type Step = 'confirm-reset' | 'setup' | 'replace';
 
 /**
  * Sets up cross-signing, secret storage and key backup for an account that has none, or replaces
@@ -87,9 +89,15 @@ function DeviceVerificationTile({ crossSigning }: { crossSigning: boolean }) {
       {step && (
         <SecurityOverlay onClose={close} dismissible={!keepOpen}>
           {step === 'confirm-reset' ? (
-            <ResetVerificationDialog onReset={() => setStep('setup')} onCancel={close} />
+            <ResetVerificationDialog onReset={() => setStep('replace')} onCancel={close} />
           ) : (
-            <DeviceVerificationSetup onCancel={close} onKeepOpenChange={setKeepOpen} />
+            <DeviceVerificationSetup
+              key={step}
+              confirmFresh={step === 'setup'}
+              onExistingSetup={() => setStep('confirm-reset')}
+              onCancel={close}
+              onKeepOpenChange={setKeepOpen}
+            />
           )}
         </SecurityOverlay>
       )}
@@ -107,7 +115,8 @@ export function SecuritySettings({ trust }: { trust: OwnDeviceTrust }) {
       </Text>
       <SettingsCard>
         <DeviceVerificationTile crossSigning={trust.crossSigning} />
-        {trust.crossSigning && <KeyBackupTile />}
+        {trust.crossSigning && <RecoveryPasswordTile />}
+        {trust.crossSigning && <KeyBackupTile canTurnOn={trust.thisDeviceVerified} />}
       </SettingsCard>
     </Box>
   );

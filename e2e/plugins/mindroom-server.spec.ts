@@ -2,7 +2,7 @@ import type { Page, Request } from '@playwright/test';
 import { logoutActiveAccount } from '../helpers/accounts';
 import { expect, openLobby, openNewSession, test, type AgentStack } from '../helpers/agentStack';
 import { matrixFetch } from '../helpers/matrix';
-import { roomMoreOptions } from '../helpers/roomMenu';
+import { roomHeader } from '../helpers/roomMenu';
 
 // The client SDK's `server` subpath end to end: a production build with the example client plugin
 // (src/app/plugins/__fixtures__/example-plugin) against the agent stack with --client-sessions and
@@ -81,8 +81,7 @@ test("a plugin's panel calls its MindRoom routes and websocket, signs in again, 
   const page = await openNewSession(browser, stack, {});
   const requests = serverRequests(page, stack);
   await openLobby(page, stack);
-  await roomMoreOptions(page).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Example panel', exact: true }).click();
+  await roomHeader(page).getByRole('button', { name: 'Example panel', exact: true }).click();
   const panel = page.getByRole('region', { name: 'Example panel', exact: true });
 
   await expect(panel.getByText('Socket: open')).toBeVisible({ timeout: 60_000 });
