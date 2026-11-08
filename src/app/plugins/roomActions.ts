@@ -25,8 +25,9 @@ export type PluginRoomAction = {
   /** Whether this room's menu lists it; pure and synchronous. Without it, every room's does. */
   shows?: (room: Room) => boolean;
   /**
-   * Runs it on the menu's room, open or not, once the menu has closed. `showDialog` shows a dialog
-   * where the menu opened, as the room menu's own entries show theirs.
+   * Runs it on the menu's room, open or not, in the click that closes the menu, before the menu
+   * has gone. `showDialog` shows a dialog where the menu opened, as the room menu's own entries
+   * show theirs.
    */
   run: (action: {
     room: Room;
