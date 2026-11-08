@@ -332,7 +332,7 @@ function RoomContent() {
   } = usePluginPanel(
     roomId,
     pluginPanels,
-    computerOpen || !!canvas || callOpen || (membersOpen && !membersOverPage)
+    computerOpen || !!canvas || callOpen || transcript.open || (membersOpen && !membersOverPage)
   );
 
   const closeCall = () => setCallOpen(false);

@@ -684,7 +684,7 @@ describe('the side panels of a room', () => {
     expect(board()).toBeNull();
   });
 
-  it.each(['call', 'members'] as const)(
+  it.each(['call', 'transcript', 'members'] as const)(
     'opens a panel that remembers again only when no other panel of its room is open: %s',
     async (core) => {
       signIn();
@@ -693,6 +693,7 @@ describe('the side panels of a room', () => {
       await act(async () => controls.board?.open());
       cleanup();
       if (core === 'call') store.set(callPanelRoomAtom, room.roomId);
+      else if (core === 'transcript') openTranscriptPanel(store, room.roomId);
       else store.set(membersOpenAtom, true);
       await renderRoom();
       expect(board()).toBeNull();
@@ -700,6 +701,7 @@ describe('the side panels of a room', () => {
       // Nor when that panel closes.
       await act(async () => {
         if (core === 'call') store.set(callPanelRoomAtom, undefined);
+        else if (core === 'transcript') closeTranscriptPanel(store, room.roomId);
         else store.set(membersOpenAtom, false);
       });
       expect(board()).toBeNull();
