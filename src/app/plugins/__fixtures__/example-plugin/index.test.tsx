@@ -107,16 +107,24 @@ describe('example plugin', () => {
     expect(view.getByText('Fill the window').getAttribute('href')).toBe('/p/example/window');
   });
 
-  it('shows the greeting a card asked its panel to show; outside a room a card offers none', async () => {
+  it('shows the greeting of the message a card asked its panel to show, which it reads itself; outside a room a card offers none', async () => {
     const [panel] = plugin.sidePanels ?? [];
     if (!panel) throw new Error('the example plugin has no side panel');
-    // The panel reads the room's members through the account's client.
+    // The panel reads the room's members and the greeting's message through the account's client.
     const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
+    const fetched = vi.spyOn(client, 'fetchRoomEvent').mockResolvedValue({
+      event_id: '$greeting',
+      room_id: '!lobby:example.org',
+      type: 'm.room.message',
+      sender: greeting.sender,
+      content: { ...greeting.content },
+    });
     const view = await renderPluginComponent(
-      <panel.Component roomId="!lobby:example.org" request="Hello" />,
+      <panel.Component roomId="!lobby:example.org" request="$greeting" />,
       { id: 'example', plugin, client }
     );
-    expect(view.getByText('Greeting: Hello')).toBeTruthy();
+    expect(await view.findByText('Greeting: Hello')).toBeTruthy();
+    expect(fetched).toHaveBeenCalledWith('!lobby:example.org', '$greeting');
     expect((await renderGreeting()).queryByRole('button', { name: 'Show in panel' })).toBeNull();
   });
 

@@ -4,8 +4,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const entries = vi.hoisted(() => {
   const Component = (): null => null;
   const renderer = { match: () => true, Component };
-  const panel = { id: 'notes', label: 'Notes', Component };
   const icon = () => null;
+  const panel = { id: 'notes', label: 'Notes', Component };
+  const autoPanel = { id: 'tasks', label: 'Tasks', Component, icon, placement: 'auto' };
   const run = () => undefined;
   const action = { id: 'wave', label: 'wave', icon, run };
   const autoAction = { id: 'auto', label: 'auto', icon, run, placement: 'auto' };
@@ -21,7 +22,7 @@ const entries = vi.hoisted(() => {
     renderer,
     page,
     forgotten,
-    panel,
+    panels: [panel, autoPanel],
     actions: [action, autoAction],
     command,
     roomActions: [roomAction, spacesAction],
@@ -56,6 +57,10 @@ const entries = vi.hoisted(() => {
             { id: '', label: 'No id', Component },
             { id: 'unnamed', label: 1, Component },
             { id: 'empty', label: 'Empty' },
+            { id: 'plain', label: 'Plain', Component, icon: 'Bulb' },
+            // Its toggle, like a plugin's header action, stays off a phone's header row.
+            { id: 'row', label: 'Row', Component, placement: 'row' },
+            autoPanel,
           ],
           headerActions: [
             action,
@@ -130,9 +135,10 @@ describe('registeredPlugins', () => {
     // So does a page without a path or a component.
     expect(plugins[0]?.pages).toEqual([]);
     expect(plugins[1]?.pages).toEqual([entries.page]);
-    // A side panel needs an id, a label and a component.
+    // A side panel needs an id, a label, a component, and no icon or one folds draws, and no
+    // placement, `auto` or `menu`.
     expect(plugins[0]?.sidePanels).toEqual([]);
-    expect(plugins[1]?.sidePanels).toEqual([entries.panel]);
+    expect(plugins[1]?.sidePanels).toEqual(entries.panels);
     // A header action needs an id, a label, an icon, a run, and no placement, `auto` or `menu`.
     expect(plugins[0]?.headerActions).toEqual([]);
     expect(plugins[1]?.headerActions).toEqual(entries.actions);
