@@ -19,6 +19,8 @@ import {
 import { tagColor, TAG_TEXT_COLOR } from './tags/threadTagColor';
 import { ThreadContextBanner, type ThreadContextBannerProps } from './ThreadContextBanner';
 import { settingsAtom } from '../preferences/settings';
+import { conversationBehindPanelAtom } from '../navigation/conversationCover';
+import { runShortcut } from '../shortcuts/useShortcut';
 
 const menuProps = vi.hoisted(() => vi.fn());
 const textDirection = vi.hoisted(() => vi.fn(() => 'ltr'));
@@ -1209,6 +1211,38 @@ describe('ThreadContextBanner rendering', () => {
       []
     );
     renderer.unmount();
+  });
+
+  it('resolves the thread from its shortcut, but not while a side panel hides the conversation', () => {
+    const setResolved = vi.fn();
+    bannerMocks.useThreadTags.mockReturnValue({
+      tags: {},
+      displayTags: [],
+      isResolved: false,
+      canEdit: true,
+      availableTags: [],
+    });
+    bannerMocks.useMutateThreadTags.mockReturnValue({
+      addTag: vi.fn(),
+      removeTag: vi.fn(),
+      setResolved,
+      updating: false,
+      error: undefined,
+    });
+    let renderer: ReturnType<typeof renderBanner> | undefined;
+    act(() => {
+      renderer = renderBanner('A concise thread summary');
+    });
+    const press = () => runShortcut('resolveThread', {} as KeyboardEvent);
+
+    act(() => store.set(conversationBehindPanelAtom, true));
+    press();
+    expect(setResolved).not.toHaveBeenCalled();
+
+    act(() => store.set(conversationBehindPanelAtom, false));
+    expect(press()).toBe(true);
+    expect(setResolved).toHaveBeenCalledTimes(1);
+    act(() => renderer?.unmount());
   });
 
   it('opens the back tooltip toward the banner in either text direction', () => {

@@ -2,7 +2,14 @@ import { EventEmitter } from 'node:events';
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MatrixClient, MatrixEvent, Room, RoomMember, RoomMemberEvent } from 'matrix-js-sdk';
+import {
+  ClientEvent,
+  MatrixClient,
+  MatrixEvent,
+  Room,
+  RoomMember,
+  RoomMemberEvent,
+} from 'matrix-js-sdk';
 import { logger } from 'matrix-js-sdk/lib/logger';
 import { useRoomMembers } from './useRoomMembers';
 
@@ -154,6 +161,54 @@ describe('useRoomMembers', () => {
     expect(readOutputText(renderer)).toBe('@alice:example.org,@bob:example.org,@carol:example.org');
 
     unmountRenderer(renderer);
+  });
+
+  it('loads the full list of a room the client learns of after mount', async () => {
+    const roomId = '!late:example.org';
+    const alice = createMember('@alice:example.org');
+    const bob = createMember('@bob:example.org');
+    let members = [alice];
+    const memberLoad = deferred<void>();
+    const room = {
+      roomId,
+      getMembers: vi.fn(() => members),
+      loadMembersIfNeeded: vi.fn(() => memberLoad.promise),
+    } as unknown as Room;
+    const otherRoom = {
+      roomId: '!other:example.org',
+      loadMembersIfNeeded: vi.fn(() => deferred<void>().promise),
+    } as unknown as Room;
+    let knownRoom: Room | null = null;
+    const mx = Object.assign(new EventEmitter(), {
+      getRoom: vi.fn(() => knownRoom),
+    }) as unknown as MatrixClient;
+    const emitter = mx as unknown as EventEmitter;
+
+    const renderer = createRoomMembersRenderer(mx, roomId);
+    expect(readOutputText(renderer)).toBe('');
+
+    act(() => {
+      emitter.emit(ClientEvent.Room, otherRoom);
+    });
+    expect(otherRoom.loadMembersIfNeeded).not.toHaveBeenCalled();
+
+    // Like the SDK, the client stores the room before it emits Room.
+    knownRoom = room;
+    act(() => {
+      emitter.emit(ClientEvent.Room, room);
+    });
+    expect(room.loadMembersIfNeeded).toHaveBeenCalledTimes(1);
+    expect(readOutputText(renderer)).toBe('@alice:example.org');
+
+    members = [alice, bob];
+    await act(async () => {
+      memberLoad.resolve();
+      await memberLoad.promise;
+    });
+    expect(readOutputText(renderer)).toBe('@alice:example.org,@bob:example.org');
+
+    unmountRenderer(renderer);
+    expect(emitter.listenerCount(ClientEvent.Room)).toBe(0);
   });
 
   it('handles member load rejection without an unhandled promise', async () => {
