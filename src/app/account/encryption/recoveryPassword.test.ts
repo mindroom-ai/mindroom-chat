@@ -57,21 +57,38 @@ beforeEach(() => {
   vi.mocked(fetchKeyBackupVersion).mockResolvedValue(null);
 });
 
+/** The account's secret storage pointer: `null` for an account that never had one. */
+const storageOf = (calls: string[], defaultKeyId: string | null) => ({
+  getDefaultKeyId: vi.fn(async () => {
+    calls.push('readDefault');
+    return defaultKeyId;
+  }),
+  setDefaultKeyId: vi.fn(async (keyId: string | null) => {
+    calls.push(`setDefault:${keyId}`);
+  }),
+});
+
 describe('setUpRecovery', () => {
-  it('creates new secret storage, key backup and cross-signing from the password, in that order', async () => {
+  it('publishes the new identity before it creates secret storage and the key backup', async () => {
     const { crypto, calls } = makeCrypto();
     vi.mocked(clearSecretStorageKeys).mockImplementation(() => void calls.push('clear'));
+    const secretStorage = storageOf(calls, null);
     const auth = vi.fn();
 
     const key = await setUpRecovery(
-      { getCrypto: () => crypto } as never,
+      { getCrypto: () => crypto, secretStorage } as never,
       'a long recovery password',
       auth
     );
 
     expect(key).toBe('EsT1 KEY');
-    expect(calls).toEqual(['create', 'clear', 'storage', 'crossSigning']);
+    expect(calls).toEqual(['create', 'readDefault', 'crossSigning', 'clear', 'storage']);
+    expect(secretStorage.setDefaultKeyId).not.toHaveBeenCalled();
     expect(crypto.createRecoveryKeyFromPassphrase).toHaveBeenCalledWith('a long recovery password');
+    expect(crypto.bootstrapCrossSigning).toHaveBeenCalledWith({
+      authUploadDeviceSigningKeys: auth,
+      setupNewCrossSigning: true,
+    });
     expect(crypto.bootstrapSecretStorage).toHaveBeenCalledWith({
       setupNewSecretStorage: true,
       setupNewKeyBackup: true,
@@ -81,19 +98,68 @@ describe('setUpRecovery', () => {
       { createSecretStorageKey: () => Promise<unknown> }
     ];
     await expect(createSecretStorageKey()).resolves.toBe(GENERATED);
-    expect(crypto.bootstrapCrossSigning).toHaveBeenCalledWith({
-      authUploadDeviceSigningKeys: auth,
-      setupNewCrossSigning: true,
+  });
+
+  it('a reset sets the old secret storage aside while it publishes, so no new key lands in it', async () => {
+    const { crypto, calls } = makeCrypto();
+    vi.mocked(clearSecretStorageKeys).mockImplementation(() => void calls.push('clear'));
+    const secretStorage = storageOf(calls, 'old-key');
+
+    await setUpRecovery(
+      { getCrypto: () => crypto, secretStorage } as never,
+      'a long recovery password',
+      vi.fn()
+    );
+
+    expect(calls).toEqual([
+      'create',
+      'readDefault',
+      'setDefault:null',
+      'crossSigning',
+      'clear',
+      'storage',
+    ]);
+  });
+
+  it('a publish that fails leaves secret storage and the key backup as they were', async () => {
+    const { crypto, calls } = makeCrypto();
+    crypto.bootstrapCrossSigning.mockImplementation(async () => {
+      calls.push('crossSigning');
+      throw new Error('Authentication cancelled');
     });
+    vi.mocked(clearSecretStorageKeys).mockImplementation(() => void calls.push('clear'));
+    const secretStorage = storageOf(calls, 'old-key');
+
+    await expect(
+      setUpRecovery(
+        { getCrypto: () => crypto, secretStorage } as never,
+        'a long recovery password',
+        vi.fn()
+      )
+    ).rejects.toThrow('Authentication cancelled');
+    expect(calls).toEqual([
+      'create',
+      'readDefault',
+      'setDefault:null',
+      'crossSigning',
+      'setDefault:old-key',
+    ]);
+    expect(crypto.bootstrapSecretStorage).not.toHaveBeenCalled();
+    expect(clearSecretStorageKeys).not.toHaveBeenCalled();
   });
 
   it('setUpRecovery fails without an encoded key', async () => {
-    const { crypto } = makeCrypto({ generated: {} });
+    const { crypto, calls } = makeCrypto({ generated: {} });
 
     await expect(
-      setUpRecovery({ getCrypto: () => crypto } as never, 'a long recovery password', vi.fn())
+      setUpRecovery(
+        { getCrypto: () => crypto, secretStorage: storageOf(calls, null) } as never,
+        'a long recovery password',
+        vi.fn()
+      )
     ).rejects.toThrow(RECOVERY_KEY_FAILED);
     expect(crypto.bootstrapSecretStorage).not.toHaveBeenCalled();
+    expect(crypto.bootstrapCrossSigning).not.toHaveBeenCalled();
   });
 });
 

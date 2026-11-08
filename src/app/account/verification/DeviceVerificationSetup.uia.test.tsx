@@ -88,6 +88,7 @@ vi.mock('../../ui/PasswordInput', () => ({
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     getCrypto: () => crypto,
+    secretStorage: { getDefaultKeyId: async () => null, setDefaultKeyId: vi.fn() },
     getUserId: () => '@alice:example.org',
     getSafeUserId: () => '@alice:example.org',
   }),
@@ -140,11 +141,10 @@ const expectSetupStopped = (renderer: ReactTestRenderer) => {
   expect(renderer.root.findAllByProps({ 'data-spinner': true })).toHaveLength(0);
   const error = renderer.root.findAllByType('b').at(-1);
   expect(error && textOf(error)).toBe('Unexpected Error!');
-  // The new secret storage is made before the cross-signing keys, whose upload asks for the
-  // authentication; the setup stops there and shows no recovery key.
-  const [storage] = crypto.bootstrapSecretStorage.mock.invocationCallOrder.slice(-1);
-  const [crossSigning] = crypto.bootstrapCrossSigning.mock.invocationCallOrder.slice(-1);
-  expect(storage).toBeLessThan(crossSigning ?? 0);
+  // The cross-signing keys are published first, and their upload asks for the authentication;
+  // the setup stops there, before any secret storage or key backup is made, and shows no key.
+  expect(crypto.bootstrapCrossSigning).toHaveBeenCalled();
+  expect(crypto.bootstrapSecretStorage).not.toHaveBeenCalled();
   expect(textOf(renderer.root)).not.toContain('EsTc 1234');
 };
 

@@ -19,11 +19,19 @@ export const SECRET_STORAGE_INCOMPLETE =
 const FRESH_SECRET_STORAGE = { setupNewSecretStorage: true, setupNewKeyBackup: true } as const;
 
 /**
- * Creates new secret storage, key backup and cross-signing keys, with the secret storage key
- * derived from `password`. Resolves to the encoded recovery key.
+ * Creates new cross-signing keys, then new secret storage and key backup, with the secret storage
+ * key derived from `password`. Resolves to the encoded recovery key.
+ *
+ * The identity is published first, and nothing else changes until it is: the SDK writes new
+ * cross-signing keys into the account's secret storage before it publishes them, and the publish
+ * is the step that can fail (the person closes the account confirmation, the server refuses it).
+ * Had the new storage and backup come first, a failure would leave secret storage holding keys
+ * the server never got, and the previous backup deleted. So a reset sets the old secret storage
+ * aside while it publishes (the SDK then writes the keys nowhere) and puts it back when the
+ * publish fails; the new storage, which stores the published keys, and the new backup follow.
  */
 export const setUpRecovery = async (
-  client: Pick<MatrixClient, 'getCrypto'>,
+  client: Pick<MatrixClient, 'getCrypto' | 'secretStorage'>,
   password: string,
   authUploadDeviceSigningKeys: UIAuthCallback<void>
 ): Promise<string> => {
@@ -34,9 +42,15 @@ export const setUpRecovery = async (
   const { encodedPrivateKey } = recoveryKey;
   if (!encodedPrivateKey) throw new Error(RECOVERY_KEY_FAILED);
 
-  // The new secret storage comes first. New cross-signing keys are written into the
-  // account's secret storage, and a reset is for people who no longer have the old
-  // storage's key, so they go into the new one, whose key is cached as it is created.
+  const previousStorage = await client.secretStorage.getDefaultKeyId();
+  if (previousStorage) await client.secretStorage.setDefaultKeyId(null);
+  try {
+    await crypto.bootstrapCrossSigning({ setupNewCrossSigning: true, authUploadDeviceSigningKeys });
+  } catch (error) {
+    if (previousStorage) await client.secretStorage.setDefaultKeyId(previousStorage);
+    throw error;
+  }
+
   // Keys cached for the previous secret storage cannot open the new one.
   const freshStorage: CreateSecretStorageOpts = {
     createSecretStorageKey: () => Promise.resolve(recoveryKey),
@@ -44,9 +58,6 @@ export const setUpRecovery = async (
   };
   clearSecretStorageKeys();
   await crypto.bootstrapSecretStorage(freshStorage);
-  // The SDK writes the new cross-signing keys into the storage made above.
-  const newIdentity = { setupNewCrossSigning: true, authUploadDeviceSigningKeys };
-  await crypto.bootstrapCrossSigning(newIdentity);
   return encodedPrivateKey;
 };
 
