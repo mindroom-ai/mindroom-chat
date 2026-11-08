@@ -4,12 +4,13 @@
 // and "From <sender>" after the sender's avatar in the room, with ", a MindRoom agent" for an agent.
 // A side panel, "Example panel", names the room it is open in, counts its joined members and says
 // whether a MindRoom agent has joined or is invited, through the account's client, and whether the
-// account may post there, which it says again when the room's levels change. It draws its rows,
-// "First example row" and "Second example row", as the sidebar draws its rows, and marks the one
-// chosen; its button "Example menu" opens a menu drawn as the room menu is, in a pop-out under it
-// lined up with its end, as is its tooltip: "Show example dialog" opens the dialog of its room
-// entry (below), and "Clear example selection" unmarks the row. They are the app's own pieces, from
-// the client SDK's `ui` subpath, so they look like the app's and mirror in right-to-left languages.
+// account may post there, which it says again when the room's levels change. Under "Example rows"
+// it draws its rows, "First example row" and "Second example row", as the sidebar draws its rows,
+// and marks the one chosen; its button "Example menu", beside that title, opens a menu drawn as the
+// room menu is, in a pop-out under it lined up with its end, as is its tooltip: "Show example
+// dialog" opens the dialog of its room entry (below), and "Clear example selection" unmarks the
+// row. They are the app's own pieces, from the client SDK's `ui` subpath, so they look like the
+// app's and mirror in right-to-left languages.
 // Its toggle, under a leaf icon, shows in the room header's row, except on phones, where it goes in
 // the room menu. It also shows the greeting a card asked it to show: in a room, each greeting has
 // "Show in panel", and "Close panel" while the panel shows. The panel stays open in its room across
@@ -412,8 +413,10 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
   const [dialogOpen, setDialogOpen] = useState(false);
   return (
     <>
+      <p>Example panel of {roomId}</p>
+      {/* Its own line: a long room ID above would push the button out of the panel. */}
       <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
-        <p>Example panel of {roomId}</p>
+        <Text size="L400">Example rows</Text>
         <ExampleMenu
           onShowDialog={() => setDialogOpen(true)}
           onClear={() => setSelected(undefined)}
