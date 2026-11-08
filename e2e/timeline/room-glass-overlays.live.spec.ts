@@ -109,6 +109,8 @@ for (const width of [390, 1280]) {
       await page.goto(`/home/${encodeURIComponent(roomId)}`);
       const scroll = page.locator('[data-compact-room-view="true"]');
       const header = page.locator('header').filter({ hasText: 'Project notes' });
+      // The element around the row draws the header's surface; the row shows it.
+      const headerSurface = header.locator('xpath=..');
       const filters = page.locator('[data-room-thread-overview="true"]');
       const footer = page.locator('[data-room-footer="true"]');
       const following = page.locator('[data-room-following="true"]');
@@ -116,12 +118,12 @@ for (const width of [390, 1280]) {
       await expect(cards).toHaveCount(14);
       await expectClearStrip(following);
       expect(
-        await header.evaluate((element) => {
+        await headerSurface.evaluate((element) => {
           const css = getComputedStyle(element);
           return [css.borderTopWidth, css.borderBottomWidth, css.boxShadow, css.backgroundImage];
         })
       ).toEqual(['0px', '0px', 'none', 'none']);
-      await expect(header).toHaveCSS('backdrop-filter', /^blur\(3px\)/);
+      await expect(headerSurface).toHaveCSS('backdrop-filter', /^blur\(3px\)/);
       await expectRoomCompact(page, true);
       const headerBox = (await header.boundingBox())!;
       const filtersBox = (await filters.boundingBox())!;
