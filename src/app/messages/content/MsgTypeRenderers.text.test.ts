@@ -2,7 +2,7 @@ import React from 'react';
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MsgType } from 'matrix-js-sdk';
-import { MEmote, MNotice, MText } from './MsgTypeRenderers';
+import { MEmote, MLocation, MNotice, MText } from './MsgTypeRenderers';
 
 vi.mock('./FallbackContent', () => ({
   MessageBadEncryptedContent: () => null,
@@ -128,5 +128,24 @@ describe('emoji-only text message', () => {
 
   it('keeps an emote at the size of the text, since its sender name leads the line', () => {
     expect(showsJumboEmoji({ body: '🎉' }, true)).toBe(false);
+  });
+});
+
+describe('location', () => {
+  it('shows the direction controls of its description as code points', () => {
+    // Applied, the right-to-left override would show `B4 tsae` as `east 4B`.
+    const renderer = create(
+      React.createElement(MLocation, {
+        content: {
+          msgtype: MsgType.Location,
+          body: 'Meet at gate \u202eB4 tsae\u202c by the lifts',
+          geo_uri: 'geo:52.3702,4.8952',
+        },
+      })
+    );
+    const text = JSON.stringify(renderer.toJSON());
+    renderer.unmount();
+    expect(text).toContain('Meet at gate <U+202E>B4 tsae<U+202C> by the lifts');
+    expect(text).not.toMatch(/[\u202a-\u202e]/);
   });
 });
