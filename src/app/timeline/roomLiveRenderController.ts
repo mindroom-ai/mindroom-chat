@@ -59,6 +59,11 @@ type LiveRenderOptions = {
   effectiveThreadFilterState: ThreadFilterState;
   /** The reader sends private read receipts. */
   readonly hideActivity: boolean;
+  /**
+   * Whether a message arriving where the reader watches reads the room's main timeline. Compact
+   * never does, also while a room without a thread shows its timeline under the bar. Default true.
+   */
+  readonly readsMainTimeline?: boolean;
   readonly hideMembershipEvents: boolean;
   readonly hideNickAvatarEvents: boolean;
   ignoredUsersSet: Set<string>;
@@ -167,6 +172,7 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     atLiveEndRef,
     effectiveThreadFilterState,
     hideActivity,
+    readsMainTimeline = true,
     hideMembershipEvents,
     hideNickAvatarEvents,
     ignoredUsersSet,
@@ -386,7 +392,7 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     const area = scrollRef.current;
     const followsLiveEnd = atLiveEnd && !!area && isNearLatestEnd(area, !!latestAtTopRef?.current);
     if (followsLiveEnd && atBottomRef.current && readerSees()) {
-      void markMainTimelineAsRead(mx, room.roomId, hideActivity);
+      if (readsMainTimeline) void markMainTimelineAsRead(mx, room.roomId, hideActivity);
     } else if (isRoomRow) {
       // The "New messages" line goes above the first message the reader has not seen. Only a
       // new row sets where it goes: a reaction, an edit or a hidden event the reader did not
