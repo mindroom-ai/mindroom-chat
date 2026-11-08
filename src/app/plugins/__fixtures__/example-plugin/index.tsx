@@ -59,6 +59,7 @@ import {
   OverlayBackdrop,
   OverlayCenter,
   Text,
+  color,
   config,
   type RectCords,
 } from 'folds';
