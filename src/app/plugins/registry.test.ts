@@ -121,10 +121,12 @@ const entries = vi.hoisted(() => {
 vi.mock('./pluginEntries', () => ({ pluginEntries: entries.list }));
 
 /** The registry as a fresh page load builds it, at the address a case set. */
-const loadRegistry = async () => (await import('./registry')).registeredPlugins;
+const loadRegistry = async () => {
+  vi.resetModules();
+  return (await import('./registry')).registeredPlugins;
+};
 
 afterEach(() => {
-  vi.resetModules();
   window.history.replaceState(null, '', '/');
 });
 
