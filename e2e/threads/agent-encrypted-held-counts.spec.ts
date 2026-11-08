@@ -25,7 +25,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // its title and every other device showed 1. Each device must show the server's count less the
 // title notices (design decision #17).
 //
-// The second test sets up secret storage and a key backup for the stack's test account, so it
+// The last test sets up secret storage and a key backup for the stack's test account, so it
 // comes last; other specs' new sessions of that account then start unverified.
 test.describe.configure({ timeout: 480_000 });
 test.use({ viewport: { width: 1440, height: 900 } });
@@ -197,6 +197,32 @@ test('after a sync gap every device shows the messages the server counts, also a
   } finally {
     writeFileSync(test.info().outputPath('counts.log'), `${log.join('\n')}\n`);
     await webkit.close();
+  }
+});
+
+test('an unread fast agent reply stays counted after a reload', async ({ page: desk, stack }) => {
+  // P3-lane5-F002's clean repro: a short reply (two edits, a reaction and its removal, a title).
+  const log: string[] = [];
+  try {
+    const roomId = await createEncryptedAgentRoom(stack, 'Fast reply');
+    await readRouterWelcome(stack, roomId);
+    await desk.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
+    await expect(composer(desk)).toBeVisible({ timeout: 90_000 });
+    await mentionHelper(desk, stack, 'a short question for the helper');
+    await goHome(desk, roomId);
+    await expect
+      .poll(
+        async () =>
+          Math.max(0, ...Object.values((await serverUnreadCounts(stack, roomId)).threads)),
+        { timeout: 120_000, intervals: [1000], message: 'the server counts the reply and its title' }
+      )
+      .toBeGreaterThanOrEqual(2);
+    await expectDevices([['desk', desk]], stack, roomId, log, 'fast', (server) => server - 1);
+    await desk.reload();
+    await goHome(desk, roomId);
+    await expectDevices([['desk', desk]], stack, roomId, log, 'fast-reload', (s) => s - 1);
+  } finally {
+    writeFileSync(test.info().outputPath('counts.log'), `${log.join('\n')}\n`);
   }
 });
 

@@ -290,8 +290,7 @@ const recount = (mx: MatrixClient, room: Room): void => {
   if (!userId) return;
   const ownJoinTs = ownJoinTsOf(room, userId);
   const server = serverCounts.get(mx)?.get(room.roomId);
-  // A thread's events come with the room's sync, so a thread holds no more than the room does;
-  // one the device opened holds its newest page and what came after.
+  // A thread's events come with the room's sync, so a thread holds no more than the room does.
   const roomSince = heldSince(room.getLiveTimeline());
   const count = (
     context: Room | Thread,
@@ -315,8 +314,8 @@ const recount = (mx: MatrixClient, room: Room): void => {
   };
   setCounts(room, undefined, count(room, room.getLiveTimeline().getEvents(), roomSince));
   room.getThreads().forEach((thread) => {
-    const since = thread.initialEventsFetched ? heldSince(thread.liveTimeline) : -Infinity;
-    setCounts(room, thread.id, count(thread, thread.events, Math.max(roomSince, since), thread.id));
+    const since = Math.max(roomSince, heldSince(thread.liveTimeline));
+    setCounts(room, thread.id, count(thread, thread.events, since, thread.id));
   });
   // A thread the server counts of which the device holds nothing.
   server?.threads.forEach((counts, threadId) => {
