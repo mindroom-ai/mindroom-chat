@@ -168,23 +168,34 @@ type MeasurementScrollCorrectionHookDeps = {
 };
 
 /**
- * Whether a row's shrink leaves the reader past the end of the list. The list keeps its height
- * until React renders the new one, so the shrink first opens a blank band under the newest row,
- * and the browser then clamps the scroll position a frame later, moving the whole timeline. A
- * correction applied now keeps the end where it is in the same frame: the rows above move down
- * by the shrink, which is where the clamp would have put them. `renderedOffset` is the scroll
- * offset in the rendered layout, whose scroll height the list's old height still sets.
+ * The correction that keeps a reader past the end of the list where the list will end, when a row
+ * shrinks. The list keeps its height until React renders the new one, so the shrink first opens a
+ * blank band under the newest row, and the browser then clamps the scroll position a frame later,
+ * moving the whole timeline. A correction applied now keeps the end where it is in the same frame:
+ * the rows above move down to where the clamp would have put them.
+ * The rendered rows tell where the list will end when they show the row's new size (`shownPx`):
+ * virtual-core's cache can hold sizes the list never rendered (a newest row's growth renders only
+ * after the paint; a row mounted while the list held its height never lengthened it), and a
+ * correction by the cached change moved a reader at the bottom up by those. `rowMovesPx` is the
+ * corrections for rows above that React has not moved the rows under yet: the reader already moved
+ * with them, the newest row will. Otherwise a reader within the shrink of the end moves by the
+ * whole shrink, keeping their distance to it; `renderedOffset` is the scroll offset in the rendered
+ * layout, whose scroll height the list's old height still sets.
  * iOS keeps the clamp: virtual-core banks a correction made while a finger is down and replays it
  * after the browser has clamped.
  */
-const shrinksPastEnd = (
+const pastEndCorrection = (
   delta: number,
+  scrollOffset: number,
   renderedOffset: number,
-  scrollElement: { scrollHeight?: number; clientHeight?: number } | null | undefined
-): boolean => {
+  scrollElement: { scrollHeight?: number; clientHeight?: number } | null | undefined,
+  shownPx: number | undefined,
+  rowMovesPx: number
+): number => {
   const { scrollHeight, clientHeight } = scrollElement ?? {};
-  if (delta >= 0 || scrollHeight === undefined || clientHeight === undefined) return false;
-  return scrollHeight - clientHeight - renderedOffset < -delta;
+  if (delta >= 0 || scrollHeight === undefined || clientHeight === undefined) return 0;
+  if (shownPx === undefined) return scrollHeight - clientHeight - renderedOffset < -delta ? delta : 0;
+  return Math.min(0, scrollHeight - clientHeight - shownPx + rowMovesPx - scrollOffset);
 };
 
 // virtual-core takes a scroll event within this of its own last write as
@@ -204,6 +215,8 @@ export const buildMeasurementScrollCorrectionHook =
     viewportTopOffset,
     onAppliedCorrection,
     unrenderedCorrectionPx,
+    unrenderedEndCorrectionPx,
+    listEndShrinkPx,
   }: MeasurementScrollCorrectionHookDeps) =>
   (
     item: { end: number; index?: number },
@@ -231,32 +244,51 @@ export const buildMeasurementScrollCorrectionHook =
     }
     const scrollOffset = liveOffset ?? cachedOffset;
     // Judge the row in the rendered layout, where the reader has not moved yet.
-    const renderedOffset = scrollOffset - (unrenderedCorrectionPx?.() ?? 0);
+    const unrenderedPx = unrenderedCorrectionPx?.() ?? 0;
+    const renderedOffset = scrollOffset - unrenderedPx;
     const itemFullyAboveViewport =
       item.end <= (viewportTopOffset?.(renderedOffset) ?? renderedOffset);
     const automaticFillPredecessor = shouldDeferAutomaticFillCorrection?.(item) ?? false;
+    const isIOS = isIOSWebKitDevice();
+    const above = shouldApplyMeasurementScrollCorrection({
+      itemFullyAboveViewport,
+      isIOSWebKitDevice: isIOS,
+      isScrollingBackward:
+        instance.scrollDirection === 'backward' ||
+        scrollOffset < cachedOffset - VIRTUAL_CORE_WRITE_TOLERANCE_PX,
+    });
+    const shownPx =
+      !above && !isIOS && delta < 0 && item.index !== undefined
+        ? listEndShrinkPx?.(item.index, delta)
+        : undefined;
+    let correction = delta;
+    if (!above) {
+      correction = isIOS
+        ? 0
+        : pastEndCorrection(
+            delta,
+            scrollOffset,
+            renderedOffset,
+            instance.scrollElement,
+            shownPx,
+            unrenderedPx - (unrenderedEndCorrectionPx?.() ?? 0)
+          );
+    }
     // Scrolling cannot go above the top: the browser would clamp the write and
     // lose the correction, so the ledger takes it instead.
     const apply =
-      !automaticFillPredecessor &&
-      scrollOffset + delta >= 0 &&
-      (shouldApplyMeasurementScrollCorrection({
-        itemFullyAboveViewport,
-        isIOSWebKitDevice: isIOSWebKitDevice(),
-        isScrollingBackward:
-          instance.scrollDirection === 'backward' ||
-          scrollOffset < cachedOffset - VIRTUAL_CORE_WRITE_TOLERANCE_PX,
-      }) ||
-        (!isIOSWebKitDevice() &&
-          shrinksPastEnd(delta, renderedOffset, instance.scrollElement)));
+      !automaticFillPredecessor && (above || correction < 0) && scrollOffset + correction >= 0;
     // During latest-open fill, visible predecessors also move the retained
     // latest anchor. Its own height cannot move its start and is excluded by
     // the owner. Ordinary visible rows keep their natural reflow policy.
     if (!apply && (itemFullyAboveViewport || automaticFillPredecessor)) {
       onDroppedCorrection(delta);
     }
-    if (apply) onAppliedCorrection?.(delta, false);
-    return apply;
+    if (!apply) return false;
+    // virtual-core adds the delta to its pending adjustments and writes the offset plus those.
+    (instance as unknown as { scrollAdjustments: number }).scrollAdjustments += correction - delta;
+    onAppliedCorrection?.(correction, !above && shownPx !== undefined);
+    return true;
   };
 
 type LedgerBoundaryOpts = {
