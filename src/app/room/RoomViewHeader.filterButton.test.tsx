@@ -311,18 +311,6 @@ describe("a phone's room header", () => {
     });
     expect(navigate).toHaveBeenCalledOnce();
   });
-
-  it('leaves a swipe to an open thread, and does nothing on a wider screen', () => {
-    screen.size = 'Mobile';
-    renderHeader({ threadId: '$thread' });
-    swipeFromLeftEdge();
-    expect(navigate).not.toHaveBeenCalled();
-
-    screen.size = 'Desktop';
-    renderHeader();
-    swipeFromLeftEdge();
-    expect(navigate).not.toHaveBeenCalled();
-  });
 });
 
 describe("the room header's side panel controls", () => {

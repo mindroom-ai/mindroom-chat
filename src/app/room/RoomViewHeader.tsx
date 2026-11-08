@@ -213,8 +213,8 @@ export function RoomViewHeader({
   // search results, the room a notification opened over, a thread with a link), passing over the
   // room's own pages: its threads and the messages it was opened at. Opened from outside the app,
   // the list takes the room's place. A swipe from the screen's left edge does not: it brings the
-  // navigation drawer out over the room (PhoneNavDrawer), unless a thread open in the room takes
-  // it (useRoomViewThreadState).
+  // navigation drawer out over the room (PhoneNavDrawer), unless a thread open in the room has
+  // its own back swipe on (useRoomViewThreadState).
   const leaveRoom = () => {
     const addresses = [room.roomId, getCanonicalAliasOrRoomId(mx, room.roomId)];
     const origin = previousHistoryOrigin((page) => !showsRoom(page, addresses));

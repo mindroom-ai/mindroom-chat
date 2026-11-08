@@ -3,8 +3,8 @@ import { atom, useSetAtom } from 'jotai';
 import { useEdgeSwipe } from './useEdgeSwipe';
 
 /**
- * How many back swipes (a room's, a thread's) are on: while one is, a swipe from the screen's
- * left edge goes back, and a phone's drawer leaves that swipe to it.
+ * How many back swipes (a thread's) are on: while one is, a swipe from the screen's left edge
+ * goes back, and a phone's drawer leaves that swipe to it.
  */
 export const edgeSwipeBackCountAtom = atom(0);
 

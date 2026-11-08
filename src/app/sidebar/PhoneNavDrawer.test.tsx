@@ -40,8 +40,8 @@ const swipeFromLeftEdge = () => {
   });
 };
 
-/** A room on the page, whose swipe from the left edge goes back. */
-function RoomWithBackSwipe({ onBack }: { onBack: () => void }) {
+/** A thread on the page, whose swipe from the left edge goes back. */
+function ThreadWithBackSwipe({ onBack }: { onBack: () => void }) {
   useEdgeSwipeBack(onBack);
   return null;
 }
@@ -239,7 +239,7 @@ describe('PhoneNavDrawer', () => {
     act(() => renderer?.unmount());
   });
 
-  it('leaves the swipe from the left edge to a room, which goes back with it', () => {
+  it('leaves the swipe from the left edge to a thread, which goes back with it', () => {
     const store = createStore();
     const onBack = vi.fn();
     // The shell's drawer listens before any room, as in the app.
@@ -247,7 +247,7 @@ describe('PhoneNavDrawer', () => {
       <Provider store={store}>
         <MemoryRouter initialEntries={['/home/']}>
           <PhoneNavDrawer nav={null} />
-          {room && <RoomWithBackSwipe onBack={onBack} />}
+          {room && <ThreadWithBackSwipe onBack={onBack} />}
         </MemoryRouter>
       </Provider>
     );

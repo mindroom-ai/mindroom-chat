@@ -14,7 +14,7 @@ import { cornersOf, pageCardRadius } from '../helpers/cardCorners';
 // comes from the start edge: below the top bar, at the drawer's height, as wide as the drawer, over
 // a dimmed room. The scrim, Escape, a swipe toward the end edge, the menu button and a room picked
 // in the search put it away; closed after a keyboard opened it, it gives the focus back to the
-// room's More Options; while it is out a swipe from the start edge does not leave the room. It
+// room's More Options; while it is out a swipe from the start edge brings out no drawer. It
 // rounds only its corner over the page, as the drawer does, with the page card's radius. 390 by 844
 // (and 744 by 1133 for the corner) with touch, in Chromium with real touches and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
@@ -209,9 +209,10 @@ for (const engine of ENGINES) {
         await expect(menuButton(page), 'the top bar stays above the sheet').toBeVisible();
         await shoot(page, testInfo, 'members-sheet');
 
-        // While it is out, a swipe from the start edge does not leave the room.
+        // While it is out, a swipe from the start edge brings out no drawer and stays in the room.
         await swipe(page, engine, 4, 24);
         await expect(sheet(page)).toBeVisible();
+        await expect(drawer(page)).toBeHidden();
         expect(decodeURIComponent(page.url())).toContain(room);
 
         // The scrim, Escape, a swipe toward the end edge and the menu button put it away.
