@@ -17,9 +17,11 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
  * reader scrolls up, all the way to the room's first message. The room's newest rows (the ones the
  * first sync brings) are short, so they stand a little taller than the screen, and the view opens
  * with the "load older" sentinel close above the first unread row, also just under the room
- * header. Checked with few and with more unread messages, in the Classic and Threads views, at
- * desktop size with classic scrollbars and on a touch phone, in Chromium and, when the runner
- * names it, in WebKit. Set ROOM_HISTORY_UNREAD_SHOTS=<directory> to save each room at its start.
+ * header. Checked with few and with more unread messages, and in a room whose history holds two
+ * short messages edited many times (as an agent's streamed reply is): a page of history there
+ * brings one short row. Each in the Classic and Threads views, at desktop size with classic
+ * scrollbars and on a touch phone, in Chromium and, when the runner names it, in WebKit. Set
+ * ROOM_HISTORY_UNREAD_SHOTS=<directory> to save each room at its start.
  */
 
 const PASSWORD = 'room-history-from-unread-1';
@@ -33,8 +35,15 @@ type ViewMode = 'classic' | 'threaded';
 const MESSAGES = 250;
 /** The newest events, the ones the first sync brings: short lines. */
 const SYNCED = 20;
-/** Unread messages at the end of each room. */
-const UNREAD = [3, 9] as const;
+/** The rooms each test reads: unread messages at their end, and edit runs in their history. */
+const ROOMS = [
+  { kind: 'unread-3', unread: 3, edited: false },
+  { kind: 'unread-9', unread: 9, edited: false },
+  { kind: 'edited', unread: 3, edited: true },
+] as const;
+/** Where the edited messages are, and how many edits each gets: more than a page of history. */
+const EDITED_AT = 60;
+const EDITS = 230;
 
 type Account = { username: string; userId: string; accessToken: string };
 type LongRoom = { roomId: string; first: string; firstUnread: string };
@@ -69,13 +78,14 @@ const text = (body: string) => ({ msgtype: 'm.text', body });
 
 /**
  * A long room: notes from two people, then `SYNCED` short lines, the last `unread` of them new
- * to the viewer, whose read receipt sits on the line before them.
+ * to the viewer, whose read receipt sits on the line before them. With `edited`, the two messages
+ * at `EDITED_AT` are short lines, each followed by `EDITS` edits of it.
  */
 const seedRoom = async (
   viewer: Account,
   member: Account,
   name: string,
-  unread: number
+  { unread, edited }: (typeof ROOMS)[number]
 ): Promise<LongRoom> => {
   const roomId = await createPrivateRoom(homeserver, viewer.accessToken, {
     name,
@@ -89,12 +99,23 @@ const seedRoom = async (
     // The line before the unread ones is the viewer's own.
     const sender =
       isUnread || (index % 2 === 0 && index !== MESSAGES - unread - 1) ? member : viewer;
+    const editedHere = edited && (index === EDITED_AT || index === EDITED_AT + 1);
     const body =
-      index < MESSAGES - SYNCED
+      index < MESSAGES - SYNCED && !editedHere
         ? `${NOTES[index % NOTES.length] ?? ''} (${index + 1})`
         : `${SHORT[index % SHORT.length] ?? ''} (${index + 1})`;
     // eslint-disable-next-line no-await-in-loop
-    sent.push(await sendRoomMessage(homeserver, sender.accessToken, roomId, text(body)));
+    const eventId = await sendRoomMessage(homeserver, sender.accessToken, roomId, text(body));
+    sent.push(eventId);
+    for (let edit = 0; editedHere && edit < EDITS; edit += 1) {
+      const newBody = `${body}, revised ${edit + 1} times`;
+      // eslint-disable-next-line no-await-in-loop
+      await sendRoomMessage(homeserver, sender.accessToken, roomId, {
+        ...text(`* ${newBody}`),
+        'm.new_content': text(newBody),
+        'm.relates_to': { rel_type: 'm.replace', event_id: eventId },
+      });
+    }
   }
   const lastRead = sent[MESSAGES - unread - 1] ?? '';
   const room = encodeURIComponent(roomId);
@@ -134,11 +155,16 @@ const seed = async (): Promise<Fixture> => {
     )
   );
   // Each test reads its own rooms: reading one sends receipts.
-  const keys = CASES.flatMap((one) => UNREAD.map((unread) => `${caseName(one)}-${unread}`));
-  const seeded = await Promise.all(
-    keys.map((key) => seedRoom(viewer, member, `Release diary ${key}`, Number(key.split('-')[3])))
+  const rooms = CASES.flatMap((one) =>
+    ROOMS.map((room) => ({ key: `${caseName(one)}-${room.kind}`, room }))
   );
-  return { viewer, rooms: new Map(keys.map((key, index) => [key, seeded[index] as LongRoom])) };
+  const seeded = await Promise.all(
+    rooms.map(({ key, room }) => seedRoom(viewer, member, `Release diary ${key}`, room))
+  );
+  return {
+    viewer,
+    rooms: new Map(rooms.map(({ key }, index) => [key, seeded[index] as LongRoom])),
+  };
 };
 
 /** Where `selector`, the scroll area and the "load older" sentinel are. */
@@ -278,8 +304,8 @@ test.describe('a long room opened at its first unread message reads back to its 
           username: fixture.viewer.username,
           password: PASSWORD,
         });
-        for (const unread of UNREAD) {
-          const label = `${caseName(one)}-${unread}`;
+        for (const { kind } of ROOMS) {
+          const label = `${caseName(one)}-${kind}`;
           const room = fixture.rooms.get(label);
           if (!room) throw new Error(`No room for ${label}`);
           // eslint-disable-next-line no-await-in-loop
@@ -298,6 +324,11 @@ test.describe('a long room opened at its first unread message reads back to its 
           });
           // eslint-disable-next-line no-await-in-loop
           await page.waitForTimeout(1_500);
+          // Where the sentinel and the rows stand at open, for the record.
+          // eslint-disable-next-line no-await-in-loop
+          const atOpen = await readView(page, `[data-message-id="${room.firstUnread}"]`);
+          // eslint-disable-next-line no-console
+          console.log(`${label} at open: ${JSON.stringify(atOpen)}`);
           // eslint-disable-next-line no-await-in-loop
           await readUpTo(page, device, `[data-message-id="${room.first}"]`, label);
         }
