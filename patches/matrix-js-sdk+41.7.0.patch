@@ -3803,3 +3803,38 @@ index 49c5a4d..d5012ae 100644
          const room = client.getRoom(plainOldJsObject.room_id);
  
          let event: MatrixEvent | undefined;
+diff --git a/node_modules/matrix-js-sdk/lib/models/relations-container.js b/node_modules/matrix-js-sdk/lib/models/relations-container.js
+index 8ccc053..f059f3e 100644
+--- a/node_modules/matrix-js-sdk/lib/models/relations-container.js
++++ b/node_modules/matrix-js-sdk/lib/models/relations-container.js
+@@ -80,7 +80,10 @@ export class RelationsContainer {
+    * @param timelineSet - The event timeline set within which to search for the related event if any.
+    */
+   aggregateChildEvent(event, timelineSet) {
+-    if (event.isRedacted() || event.status === EventStatus.CANCELLED) {
++    var _this$room;
++    // MindRoom: nor an edit whose redaction the room took while it knew the edit only from a message's bundle
++    // (Room.dropRedactedBundledEdit), such as a copy of the edit read from a cache.
++    if (event.isRedacted() || event.status === EventStatus.CANCELLED || (_this$room = this.room) !== null && _this$room !== void 0 && _this$room.redactedBundledEdits.has(event.getId())) {
+       return;
+     }
+     var relation = event.getRelation();
+diff --git a/node_modules/matrix-js-sdk/src/models/relations-container.ts b/node_modules/matrix-js-sdk/src/models/relations-container.ts
+index 8394bc6..84a65a4 100644
+--- a/node_modules/matrix-js-sdk/src/models/relations-container.ts
++++ b/node_modules/matrix-js-sdk/src/models/relations-container.ts
+@@ -90,7 +90,13 @@ export class RelationsContainer {
+      * @param timelineSet - The event timeline set within which to search for the related event if any.
+      */
+     public aggregateChildEvent(event: MatrixEvent, timelineSet?: EventTimelineSet): void {
+-        if (event.isRedacted() || event.status === EventStatus.CANCELLED) {
++        // MindRoom: nor an edit whose redaction the room took while it knew the edit only from a message's bundle
++        // (Room.dropRedactedBundledEdit), such as a copy of the edit read from a cache.
++        if (
++            event.isRedacted() ||
++            event.status === EventStatus.CANCELLED ||
++            this.room?.redactedBundledEdits.has(event.getId()!)
++        ) {
+             return;
+         }
+ 

@@ -8,6 +8,7 @@ import {
 } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createPreferLiveEventMapper } from './eventRepository';
+import { insertCachedRoomTimeline } from '../sdk/roomTimelineSdk';
 import {
   aggregateCachedRelationEvents,
   applyCachedRedactions,
@@ -506,6 +507,25 @@ describe('cached copies of an edit redacted from a bundle', () => {
     hydrateCachedEvents({ room: live, events: [cached] });
 
     expect(cached.getContent().body).toBe('original');
+  });
+
+  it('does not let a cached copy of the edit itself put it back', async () => {
+    const { live, redactEdit } = liveRoom();
+    await live.addLiveEvents([client.getEventMapper()(withEdit(message('$target')))], {
+      addToState: false,
+    });
+    await redactEdit();
+
+    // The edit as a row of its own, as the cache keeps an edit saved apart from its message.
+    const mapEvent = createPreferLiveEventMapper(live, client.getEventMapper());
+    const events = [
+      message('$target'),
+      makeEditEvent('$edit', 2000, '$target', ALICE, 'secret').event,
+    ].map(mapEvent);
+    await insertCachedRoomTimeline({ mx: client, room: live, events });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(live.findEventById('$target')!.getContent().body).toBe('original');
   });
 
   it('drops the edit from the latest reply of an unopened thread and from its root', async () => {
