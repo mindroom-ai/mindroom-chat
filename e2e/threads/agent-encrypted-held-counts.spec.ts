@@ -8,6 +8,7 @@ import {
   mentionHelper,
   openNewSession,
   readRouterWelcome,
+  routerToken,
   serverUnreadCounts,
   test,
   type AgentStack,
@@ -24,9 +25,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // first message, and showed 0 once the keys came, while the server counted the finished reply and
 // its title and every other device showed 1. Each device must show the server's count less the
 // title notices (design decision #17).
-//
-// The last test sets up secret storage and a key backup for the stack's test account, so it
-// comes last; other specs' new sessions of that account then start unverified.
 test.describe.configure({ timeout: 480_000 });
 test.use({ viewport: { width: 1440, height: 900 } });
 
@@ -240,16 +238,39 @@ test('an unread fast agent reply stays counted after a reload', async ({ page: d
 });
 
 test('a new session whose keys come late from the key backup shows an unread finished reply', async ({
-  page: desk,
   browser,
-  stack,
+  stack: shared,
   baseURL,
 }) => {
   test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE names no WebKit');
   const log: string[] = [];
   const webkit = await launchWebKit();
   try {
+    // An account of its own: the secret storage and key backup it sets up stay on the account, so
+    // the stack's test account would offer no Enable on a later run. The agents answer the
+    // members of their lobby, where the router invites it.
+    const owner = await registerDisposableUser(
+      `latekeys${Date.now().toString(36)}`,
+      'secret-pass-1'
+    );
+    const lobby = encodeURIComponent(shared.rooms.lobby);
+    await matrixFetch(shared.homeserver, `/rooms/${lobby}/invite`, {
+      method: 'POST',
+      accessToken: routerToken(shared),
+      body: JSON.stringify({ user_id: owner.userId }),
+    });
+    await matrixFetch(shared.homeserver, `/join/${lobby}`, {
+      method: 'POST',
+      accessToken: owner.accessToken,
+      body: '{}',
+    });
+    const stack: AgentStack = { ...shared, tester: owner };
+
     // The desk sets up secret storage and the key backup, which then holds the room's keys.
+    const desk = await openNewSession(browser, stack, {
+      baseURL,
+      viewport: { width: 1440, height: 900 },
+    });
     await desk.goto('/home/', { timeout: 180_000 });
     await openSecurity(desk);
     await desk.getByRole('button', { name: 'Enable' }).click({ timeout: 30_000 });
