@@ -311,6 +311,15 @@ class PrePushTests(Fixture):
         self.assertEqual((home / ".cache" / "upstream-overlap").stat().st_mode & 0o777, 0o700)
         self.assertEqual(home.stat().st_mode & 0o777, 0o755, "a parent that was there stays as it was")
 
+    def test_a_relative_cache_home_is_ignored_so_upstream_lines_never_land_in_the_checkout(self) -> None:
+        home = self.tmp / "home"
+        home.mkdir()
+        tip = commit(self.repo, {"src/app/own.ts": CLEAN}, "clean")
+        result = self.run_checker(tip, HOME=str(home), XDG_CACHE_HOME="rel")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue((home / ".cache" / "upstream-overlap").is_dir())
+        self.assertFalse((self.repo / "rel").exists())
+
 
 class HookTests(Fixture):
     """The installed hook on real pushes to a local bare repository."""
