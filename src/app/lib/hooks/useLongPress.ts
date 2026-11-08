@@ -4,6 +4,14 @@ import { TouchEvent, useEffect, useRef } from 'react';
 export const LONG_PRESS_MS = 500;
 /** How far a resting finger may drift, in CSS pixels, before the press becomes a scroll or drag. */
 export const LONG_PRESS_SLOP = 10;
+/**
+ * How long a finger rests before the page's text turns unselectable: well before iOS selects the
+ * word under it (about when the 500 ms press fires), and longer than a finger that scrolls stays
+ * put. A scroll thus leaves the page's style alone: restyling the whole page under a moving finger
+ * costs a style pass, and the iOS web view drew the navigation drawer's badges and lists 34 px too
+ * high until the finger had moved on.
+ */
+export const SELECTION_HOLD_MS = 150;
 
 type Press = {
   timer: ReturnType<typeof setTimeout>;
@@ -49,9 +57,10 @@ const holdSelection = (): (() => void) => {
  * any scroll on the page, lifting the finger or the browser cancelling the touch ends the press
  * first. iOS Safari fires no `contextmenu` on a long press, so this is how a finger opens a menu
  * there. Nothing prevents the browser's own handling while the finger rests, so scrolling works as
- * before, but no text is selectable until the finger lifts, and a selection the page already had
- * is cleared when the press fires: the menu is the long press's only answer. Once the press fired,
- * the lift does not also click. `canStart` decides per touch whether a press may begin.
+ * before, but once the finger has rested `SELECTION_HOLD_MS` no text is selectable until it lifts,
+ * and a selection the page already had is cleared when the press fires: the menu is the long
+ * press's only answer. Once the press fired, the lift does not also click. `canStart` decides per
+ * touch whether a press may begin.
  */
 export function useLongPress(
   onLongPress: (x: number, y: number, element: HTMLElement) => void,
@@ -99,13 +108,20 @@ export function useLongPress(
       if (selection && !selection.isCollapsed) selection.removeAllRanges();
       latest.current(x, y, element);
     }, LONG_PRESS_MS);
+    let releaseHeldSelection: (() => void) | undefined;
+    const holdTimer = setTimeout(() => {
+      releaseHeldSelection = holdSelection();
+    }, SELECTION_HOLD_MS);
     press.current = {
       timer,
       x,
       y,
       fired: false,
       stopWatchingScroll: () => window.removeEventListener('scroll', onScroll, { capture: true }),
-      releaseSelection: holdSelection(),
+      releaseSelection: () => {
+        clearTimeout(holdTimer);
+        releaseHeldSelection?.();
+      },
     };
   };
 

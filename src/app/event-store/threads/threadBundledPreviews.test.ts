@@ -2,6 +2,7 @@ import { MatrixClient, MatrixEvent, Room, type IEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import { buildThreadRecord } from './threadRecord';
 import { resolveThreadPresentationSnapshot } from './threadPresentation';
+import { getBundledThreadPreviews } from './threadBundledPreviews';
 import { buildCompactThreadCardViewModelFromRecord } from '../../threads/overview/compactThreadCardViewModel';
 import { buildThreadHeaderViewModelFromRecord } from '../../threads/threadHeaderViewModel';
 import { buildCrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
@@ -264,6 +265,23 @@ describe('fresh-device bundled thread presentation', () => {
       room_id: roomId,
     });
     expect(read(title).latestReplyPreviewText).toBeUndefined();
+  });
+
+  it('dates the bundle’s latest event by its own sender’s edit only', () => {
+    const latest = (editSender: string) => {
+      const shape = summaryShape();
+      shape.latest_event = {
+        ...reply('$reply', 'Thinking...', 2000),
+        unsigned: {
+          'm.relations': { 'm.replace': { ...reply('$edit', '* Done', 5000), sender: editSender } },
+        },
+      };
+      const { room, root } = fixture(shape);
+      return getBundledThreadPreviews(room, root).latest;
+    };
+
+    expect(latest('@other:example.org')).toEqual({ id: '$reply', ts: 2000 });
+    expect(latest(author)).toEqual({ id: '$reply', ts: 5000 });
   });
 
   it('reads titles and replies as the server sorts them, whoever sent the title', () => {

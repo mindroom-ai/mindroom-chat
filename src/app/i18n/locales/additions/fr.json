@@ -224,6 +224,11 @@
       },
       "developerTools": {
         "invalidJson": "Donnez à l’événement un type et un contenu qui soit un objet JSON."
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "Ces salons n'ont pas pu suivre la mise à niveau : {{rooms}}"
+        }
       }
     },
     "settings": {
@@ -477,6 +482,12 @@
     "phoneNav": {
       "search": "Rechercher",
       "navigation": "Navigation"
+    },
+    "subRooms": {
+      "newSubRoom": "Nouveau sous-salon",
+      "description": "Les membres de {{name}} peuvent le rejoindre, et les agents de {{name}} le rejoignent d’eux-mêmes.",
+      "noPermission": "Vous ne pouvez pas modifier les salons listés sous {{name}}",
+      "takeOff": "Retirer de {{name}}"
     }
   },
   "mindroomUi": {

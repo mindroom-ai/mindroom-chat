@@ -407,12 +407,20 @@ function MobileSurface({ state, requestClose, onCommand }: Omit<SurfaceProps, 'm
   );
 }
 
-export function ModelPicker({ state }: { state: ModelPickerState }) {
+export function ModelPicker({
+  state,
+  conversationHidden,
+}: {
+  state: ModelPickerState;
+  /** The conversation it is in is hidden (a cover over it, a side panel in its place): it closes. */
+  conversationHidden?: boolean;
+}) {
   const { t } = useTranslation();
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const triggerDescriptionId = useId();
+  const triggerId = useId();
+  const triggerLabelId = useId();
   const commandStartedRef = useRef(false);
   const sawPendingRef = useRef(false);
   const selectedModel = state.models.find((model) => model.key === state.override);
@@ -420,11 +428,10 @@ export function ModelPicker({ state }: { state: ModelPickerState }) {
     selectedModel?.display_name ?? state.override ?? t('mindroomUi.models.modelPicker.roomDefault');
 
   const close = () => {
-    commandStartedRef.current = false;
-    sawPendingRef.current = false;
     setOpen(false);
     triggerRef.current?.focus();
   };
+  if (conversationHidden && open) setOpen(false);
 
   useEffect(() => {
     if (!open || !commandStartedRef.current) return;
@@ -438,7 +445,10 @@ export function ModelPicker({ state }: { state: ModelPickerState }) {
     if (!state.error) close();
   }, [open, state.pending, state.error]);
 
+  // A command of an earlier opening, which may have been closed while it waited, counts no more.
   const openPicker = () => {
+    commandStartedRef.current = false;
+    sawPendingRef.current = false;
     setOpen(true);
     state.refresh();
   };
@@ -447,9 +457,11 @@ export function ModelPicker({ state }: { state: ModelPickerState }) {
     <button
       ref={triggerRef}
       type="button"
+      id={triggerId}
       className={css.Trigger}
+      // Named "Choose model" and then the model it shows, so the name holds the visible text.
       aria-label={t('mindroomUi.models.modelPicker.chooseModel')}
-      aria-describedby={triggerDescriptionId}
+      aria-labelledby={`${triggerId} ${triggerLabelId}`}
       aria-haspopup="dialog"
       aria-expanded={open}
       onClick={openPicker}
@@ -461,7 +473,7 @@ export function ModelPicker({ state }: { state: ModelPickerState }) {
         size={15}
         className={css.TriggerIcon}
       />
-      <span id={triggerDescriptionId} className={css.TriggerLabel}>
+      <span id={triggerLabelId} className={css.TriggerLabel}>
         {label}
       </span>
       <IconChevronDown size={14} aria-hidden="true" />
@@ -509,7 +521,13 @@ export function ModelPicker({ state }: { state: ModelPickerState }) {
   );
 }
 
-function ExistingThreadModelPicker({ room, threadId }: { room: Room; threadId: string }) {
+type ThreadModelPickerProps = { room: Room; conversationHidden?: boolean };
+
+function ExistingThreadModelPicker({
+  room,
+  threadId,
+  conversationHidden,
+}: ThreadModelPickerProps & { threadId: string }) {
   const { t } = useTranslation();
   const state = useModelPicker(room, threadId);
   if (!state.eligible) return null;
@@ -517,12 +535,15 @@ function ExistingThreadModelPicker({ room, threadId }: { room: Room; threadId: s
   return (
     <div className={css.ComposerRow}>
       <span className={css.ScopeLabel}>{t('mindroomUi.models.modelPicker.threadModel')}</span>
-      <ModelPicker state={state} />
+      <ModelPicker state={state} conversationHidden={conversationHidden} />
     </div>
   );
 }
 
-export function ThreadModelPicker({ room, threadId }: { room: Room; threadId?: string }) {
+export function ThreadModelPicker({
+  threadId,
+  ...props
+}: ThreadModelPickerProps & { threadId?: string }) {
   if (!threadId) return null;
-  return <ExistingThreadModelPicker room={room} threadId={threadId} />;
+  return <ExistingThreadModelPicker threadId={threadId} {...props} />;
 }

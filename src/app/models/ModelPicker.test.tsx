@@ -570,14 +570,27 @@ describe('responsive model picker', () => {
     expect(container.querySelector('input[role="searchbox"]')).not.toBeNull();
   });
 
-  it('exposes the current visible model label as the trigger description', () => {
+  it('closes as the conversation it is in hides', () => {
+    const state = createState();
+    act(() => root.render(<ModelPicker state={state} />));
+    click(container.querySelector('button[aria-label="Choose model"]')!);
+    expect(container.querySelector('input[role="searchbox"]')).not.toBeNull();
+
+    act(() => root.render(<ModelPicker state={state} conversationHidden />));
+
+    expect(container.querySelector('input[role="searchbox"]')).toBeNull();
+  });
+
+  it('names the trigger "Choose model" followed by the model label it shows', () => {
     act(() => root.render(<ModelPicker state={createState({ override: 'reset' })} />));
 
     const trigger = container.querySelector('button[aria-label="Choose model"]')!;
-    const descriptionId = trigger.getAttribute('aria-describedby');
+    const [self, label, ...rest] = (trigger.getAttribute('aria-labelledby') ?? '').split(' ');
 
-    expect(descriptionId).toBeTruthy();
-    expect(document.getElementById(descriptionId!)?.textContent).toBe('Deep reasoning');
+    expect(self).toBe(trigger.id);
+    expect(document.getElementById(label!)?.textContent).toBe('Deep reasoning');
+    expect(rest).toEqual([]);
+    expect(trigger.hasAttribute('aria-describedby')).toBe(false);
   });
 
   it('states that future thread replies use the selection for all agents and teams', () => {

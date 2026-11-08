@@ -1,6 +1,11 @@
 import { globalStyle } from '@vanilla-extract/css';
 import { color, config } from 'folds';
-import { FloatingShell, PageDivider, PageSurface } from '../../ui/page/floatingCards.css';
+import {
+  FloatingShell,
+  PageDivider,
+  PageSurface,
+  cardRadius,
+} from '../../ui/page/floatingCards.css';
 import { PageNavContent, PageNavHeader, PageNavTrack } from '../../ui/page/style.css';
 import { Handle, Panel } from '../../ui/panels/ResizablePanel.css';
 import { Header as RoomHeader } from '../../ui/styles/RoomOverlay.css';
@@ -18,7 +23,7 @@ const CARD_GAP = config.space.S200;
 const card = {
   // The line is a shadow just outside the card, so it takes no width from what the card holds.
   boxShadow: `0 0 0 ${config.borderWidth.B300} ${color.Background.ContainerLine}`,
-  borderRadius: config.radii.R500,
+  borderRadius: cardRadius,
   backgroundColor: color.Surface.Container,
   // Clips content to the rounded corners without making the card a scroll container, so sticky
   // headers inside keep sticking to their own scrolling areas.
@@ -39,7 +44,7 @@ globalStyle(`${FloatingShell} :has(> ${Panel}[data-side='end'])`, {
 });
 globalStyle(`${FloatingShell} ${Panel}[data-side='end']`, { paddingBlock: CARD_GAP });
 // Expanded, a panel takes the conversation's place, so it keeps the gap on both sides.
-globalStyle(`${FloatingShell} ${Panel}[data-side='end']:first-child`, {
+globalStyle(`${FloatingShell} ${Panel}[data-side='end'][data-filled]`, {
   paddingInlineStart: CARD_GAP,
 });
 globalStyle(`${FloatingShell} ${Panel}[data-side='end'] > :first-child`, card);

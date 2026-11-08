@@ -4,6 +4,7 @@ import {
   getStreamStatusFromContent,
   TERMINAL_STREAM_STATUSES,
 } from '../../matrix/protocol/aiRun';
+import { getSameSenderBundledEdit } from '../../matrix/editEvent';
 import { createSessionId } from '../../matrix/session/sessions';
 import {
   createPreferLiveEventMapper,
@@ -24,7 +25,7 @@ import {
 // the reply (a root's bundled latest reply), `matrix/client/mappedCopyEdits.ts` keeps the newer
 // edit on it.
 
-type SavedEvent = Partial<IEvent> & { unsigned?: { 'm.relations'?: Record<string, unknown> } };
+type SavedEvent = Partial<IEvent>;
 
 /** The SDK's sync accumulator: the saved timeline of each joined room. */
 type SavedSync = { joinRooms?: Record<string, { _timeline?: { event: SavedEvent }[] }> };
@@ -53,11 +54,13 @@ const relatedId = (event: SavedEvent, relType: string): string | undefined => {
 };
 
 /**
- * The replies of the saved sync that no revision it holds (the reply, an edit bundled with it, or
- * an edit in its room's saved timeline) shows finished, while one shows them streaming.
+ * The replies of the saved sync that no revision it holds (the reply, or an edit by its sender
+ * bundled with it or in its room's saved timeline) shows finished, while one shows them streaming.
  */
 export const findSavedStreamingReplies = (sync: SavedSync | undefined): SavedReply[] =>
   Object.entries(sync?.joinRooms ?? {}).flatMap(([roomId, room]) => {
+    const timeline = (room._timeline ?? []).map(({ event }) => event);
+    const senders = new Map(timeline.map((event) => [event.event_id, event.sender]));
     const replies = new Map<string, string | undefined>();
     const streaming = new Set<string>();
     const finished = new Set<string>();
@@ -65,20 +68,17 @@ export const findSavedStreamingReplies = (sync: SavedSync | undefined): SavedRep
       if (status && ACTIVE_STREAM_STATUSES.has(status)) streaming.add(eventId);
       if (status && TERMINAL_STREAM_STATUSES.has(status)) finished.add(eventId);
     };
-    (room._timeline ?? []).forEach(({ event }) => {
+    timeline.forEach((event) => {
       const target = relatedId(event, RelationType.Replace);
       if (target) {
-        note(target, streamStatusOf(event.content));
+        if (senders.get(target) === event.sender) note(target, streamStatusOf(event.content));
         return;
       }
       const eventId = event.event_id;
       if (typeof eventId !== 'string') return;
       replies.set(eventId, relatedId(event, RelationType.Thread));
       note(eventId, streamStatusOf(event.content));
-      const bundled = event.unsigned?.['m.relations']?.[RelationType.Replace] as
-        | SavedEvent
-        | undefined;
-      note(eventId, streamStatusOf(bundled?.content));
+      note(eventId, streamStatusOf(getSameSenderBundledEdit(event)?.content));
     });
     return [...replies]
       .filter(([eventId]) => streaming.has(eventId) && !finished.has(eventId))

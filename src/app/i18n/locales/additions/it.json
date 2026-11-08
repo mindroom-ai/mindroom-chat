@@ -224,6 +224,11 @@
       },
       "developerTools": {
         "invalidJson": "Dai all’evento un tipo e un contenuto che sia un oggetto JSON."
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "Queste stanze non sono state spostate con l'aggiornamento: {{rooms}}"
+        }
       }
     },
     "settings": {
@@ -477,6 +482,12 @@
     "phoneNav": {
       "search": "Cerca",
       "navigation": "Navigazione"
+    },
+    "subRooms": {
+      "newSubRoom": "Nuova sottostanza",
+      "description": "I membri di {{name}} possono entrarvi, e gli agenti in {{name}} vi entrano da soli.",
+      "noPermission": "Non puoi modificare le stanze elencate sotto {{name}}",
+      "takeOff": "Rimuovi da {{name}}"
     }
   },
   "mindroomUi": {

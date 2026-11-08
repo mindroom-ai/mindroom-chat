@@ -220,6 +220,11 @@
       },
       "developerTools": {
         "invalidJson": "Gib dem Ereignis einen Typ und einen Inhalt, der ein JSON-Objekt ist."
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "Diese Räume konnten nicht mit dem Upgrade umziehen: {{rooms}}"
+        }
       }
     },
     "settings": {
@@ -468,6 +473,12 @@
     "phoneNav": {
       "search": "Suchen",
       "navigation": "Navigation"
+    },
+    "subRooms": {
+      "newSubRoom": "Neuer Unterraum",
+      "description": "Mitglieder von {{name}} können ihm beitreten, und die Agenten in {{name}} treten ihm von selbst bei.",
+      "noPermission": "Du kannst die unter {{name}} aufgeführten Räume nicht ändern",
+      "takeOff": "Aus {{name}} entfernen"
     }
   },
   "mindroomUi": {

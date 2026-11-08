@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Provider, createStore } from 'jotai';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import {
+  conversationBehindPanelAtom,
+  conversationCoveredAtom,
+} from '../navigation/conversationCover';
 
 const {
   keyHotkeyMock,
@@ -45,16 +49,13 @@ vi.mock('../notifications/readReceipts', () => ({
 }));
 
 const Harness = ({
-  conversationHidden = false,
   hideActivity = false,
   threadId,
 }: {
-  conversationHidden?: boolean;
   hideActivity?: boolean;
   threadId?: string;
 }) => {
   useRoomEscapeReadReceipts({
-    conversationHidden,
     hideActivity,
     roomId: '!room:server',
     threadId,
@@ -76,23 +77,15 @@ describe('useRoomEscapeReadReceipts', () => {
     vi.unstubAllGlobals();
   });
 
-  it('marks nothing read while a panel covers the conversation', () => {
-    keyHotkeyMock.mockReturnValue(true);
-    create(React.createElement(Harness, { conversationHidden: true, threadId: '$thread' }));
-
-    act(() => {
-      state.handler?.({} as KeyboardEvent);
-    });
-
-    expect(markRoomAndThreadsAsReadMock).not.toHaveBeenCalled();
-    expect(markThreadAsReadMock).not.toHaveBeenCalled();
-  });
-
-  it("marks nothing read while a phone's navigation drawer covers the conversation", () => {
+  it.each([
+    ["a phone's navigation drawer covers", phoneNavDrawerOpenAtom],
+    ["a plugin's cover hides", conversationCoveredAtom],
+    ['a side panel takes the place of', conversationBehindPanelAtom],
+  ])('marks nothing read while %s the conversation', (_what, atom) => {
     keyHotkeyMock.mockReturnValue(true);
     // Its own store: other cases' harnesses stay mounted on the default one.
     const store = createStore();
-    store.set(phoneNavDrawerOpenAtom, true);
+    store.set(atom, true);
     const renderer = create(
       React.createElement(
         Provider,

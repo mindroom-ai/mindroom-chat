@@ -54,7 +54,7 @@ const placeholder = event(
   { msgtype: 'm.text', body: 'Thinking...', [STATUS]: 'pending', 'm.relates_to': inThread },
   { ts: 2 }
 );
-const editOf = (eventId: string, body: string, status: string, ts: number) =>
+const editOf = (eventId: string, body: string, status: string, ts: number, sender = AGENT_ID) =>
   event(
     `$edit-${ts}`,
     {
@@ -64,8 +64,15 @@ const editOf = (eventId: string, body: string, status: string, ts: number) =>
       'm.new_content': { msgtype: 'm.text', body, [STATUS]: status },
       'm.relates_to': { rel_type: RelationType.Replace, event_id: eventId },
     },
-    { ts }
+    { ts, sender }
   );
+
+/** The replies a saved sync with this room timeline holds as still streaming. */
+const savedStreaming = (timeline: IEvent[]) =>
+  findSavedStreamingReplies({
+    joinRooms: { [ROOM_ID]: { _timeline: timeline.map((item) => ({ event: item })) } },
+  });
+const streamingReply = [{ roomId: ROOM_ID, eventId: '$reply', threadId: '$root' }];
 
 describe('streaming replies restored from the saved sync', () => {
   let syncDb: IDBFactory;
@@ -279,10 +286,25 @@ describe('streaming replies restored from the saved sync', () => {
       bundledDone,
     ];
 
-    expect(
-      findSavedStreamingReplies({
-        joinRooms: { [ROOM_ID]: { _timeline: timeline.map((item) => ({ event: item })) } },
-      })
-    ).toEqual([{ roomId: ROOM_ID, eventId: '$reply', threadId: '$root' }]);
+    expect(savedStreaming(timeline)).toEqual(streamingReply);
+  });
+
+  it('does not take another sender’s bundled edit as the end of a reply', () => {
+    const othersDone = withBundledEdit(
+      placeholder,
+      editOf('$reply', 'Done', 'completed', 6, USER_ID)
+    );
+
+    expect(savedStreaming([root, othersDone])).toEqual(streamingReply);
+  });
+
+  it('takes no edit of another sender in the saved timeline as a reply’s state', () => {
+    const othersDone = editOf('$reply', 'Done', 'completed', 6, USER_ID);
+    const quiet = event('$quiet', { body: 'Hello' }, { ts: 7 });
+    const othersStreaming = editOf('$quiet', 'Hello again', 'streaming', 8, USER_ID);
+
+    expect(savedStreaming([root, placeholder, othersDone, quiet, othersStreaming])).toEqual(
+      streamingReply
+    );
   });
 });

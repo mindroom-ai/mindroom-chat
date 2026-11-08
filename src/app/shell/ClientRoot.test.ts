@@ -129,7 +129,9 @@ vi.mock('./SpecVersions', () => ({
 }));
 
 vi.mock('./SyncStatus', () => ({
-  SyncStatus: () => React.createElement('div', null, 'sync'),
+  // Catching up until the sync loop has reported, as the real one says.
+  SyncStatus: ({ reported }: { reported?: boolean }) =>
+    React.createElement('div', null, reported === false ? 'Catching up...' : 'sync'),
 }));
 
 vi.mock('../matrix/session/useSessionStore', () => ({

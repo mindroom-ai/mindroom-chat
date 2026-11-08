@@ -6,7 +6,8 @@ import { useServerEmojiRoom } from './server/useServerEmojiRoom';
 
 /**
  * The rooms whose image packs the emoji and sticker pickers offer in `roomId`: the room itself,
- * its parent spaces, and the homeserver's shared emoji room when the account has joined it.
+ * its parent spaces and the chat rooms a sub-room sits under, and the homeserver's shared emoji
+ * room when the account has joined it.
  */
 export const useImagePackRooms = (
   roomId: string,
@@ -16,7 +17,7 @@ export const useImagePackRooms = (
   const serverEmojiRoom = useServerEmojiRoom();
 
   return useMemo(() => {
-    // The room, then every space above it, nearest first.
+    // The room, then the Spaces and chat rooms above it, nearest first.
     const ids = [roomId, ...getAncestorSpaceIds(parentsByRoom, roomId)];
     if (serverEmojiRoom && !ids.includes(serverEmojiRoom.roomId)) ids.push(serverEmojiRoom.roomId);
     return ids

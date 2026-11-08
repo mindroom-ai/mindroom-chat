@@ -1,9 +1,16 @@
 // @vitest-environment jsdom
+import { Profiler } from 'react';
+import { createRoot } from 'react-dom/client';
 import { Provider, createStore } from 'jotai';
 import { act, create } from 'react-test-renderer';
-import { RouterProvider, createMemoryRouter } from 'react-router-dom';
+import { MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import { phoneNavDrawerOpenAtom, phoneNavSectionRootAtom } from '../navigation/phoneNavDrawer';
+import {
+  phoneNavDrawerOpenAtom,
+  phoneNavSectionRootAtom,
+  useMarkPhoneSectionRoot,
+} from '../navigation/phoneNavDrawer';
+import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { PhoneNavDrawer } from './PhoneNavDrawer';
 import { followRouterSignalsInNode } from '../../test/utils/nodeSignalRequests';
 
@@ -21,6 +28,23 @@ vi.mock('./PhoneNavDrawer.css', () => ({
 
 // The data router builds a Request per navigation; under jsdom its signal needs this.
 followRouterSignalsInNode();
+
+/** A finger from the screen's left edge 112 px into the page, then lifted. */
+const swipeFromLeftEdge = () => {
+  const touch = (type: string, touches: { clientX: number; clientY: number }[]) =>
+    window.dispatchEvent(Object.assign(new Event(type, { cancelable: true }), { touches }));
+  act(() => {
+    touch('touchstart', [{ clientX: 8, clientY: 300 }]);
+    touch('touchmove', [{ clientX: 120, clientY: 304 }]);
+    touch('touchend', []);
+  });
+};
+
+/** A room on the page, whose swipe from the left edge goes back. */
+function RoomWithBackSwipe({ onBack }: { onBack: () => void }) {
+  useEdgeSwipeBack(onBack);
+  return null;
+}
 
 describe('PhoneNavDrawer', () => {
   it('puts the drawer away when it unmounts, as a phone turned sideways does', () => {
@@ -143,6 +167,102 @@ describe('PhoneNavDrawer', () => {
       await router.navigate('/home/!birch:example.org/', { replace: true });
     });
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+    act(() => renderer?.unmount());
+  });
+
+  it('shows the drawer out without sliding it on the section page it opens with', () => {
+    // The first frame comes at once, as on a busy phone whose frame beats the drawer's next render.
+    const frame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0);
+      return 0;
+    });
+    function SectionPage() {
+      useMarkPhoneSectionRoot();
+      return null;
+    }
+    const router = createMemoryRouter(
+      [
+        {
+          path: '*',
+          element: (
+            <>
+              <SectionPage />
+              <PhoneNavDrawer nav={null} />
+            </>
+          ),
+        },
+      ],
+      { initialEntries: ['/home/'] }
+    );
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    // The drawer's state in each commit: out, and moving.
+    const commits: string[] = [];
+    const record = () => {
+      const panel = container.querySelector('#phone-nav-drawer');
+      commits.push(
+        `open=${panel?.hasAttribute('data-open')} animate=${panel?.hasAttribute('data-animate')}`
+      );
+    };
+    act(() =>
+      root.render(
+        <Profiler id="drawer" onRender={record}>
+          <Provider store={createStore()}>
+            <RouterProvider router={router} />
+          </Provider>
+        </Profiler>
+      )
+    );
+    // It comes out still and moves only from a later commit on.
+    const firstOut = commits.findIndex((commit) => commit.startsWith('open=true'));
+    expect(commits[firstOut]).toBe('open=true animate=false');
+    expect(commits.at(-1)).toBe('open=true animate=true');
+    act(() => root.unmount());
+    frame.mockRestore();
+  });
+
+  it('comes out with a swipe from the left edge on a page that takes no such swipe', () => {
+    const store = createStore();
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(
+        <Provider store={store}>
+          <MemoryRouter initialEntries={['/home/']}>
+            <PhoneNavDrawer nav={null} />
+          </MemoryRouter>
+        </Provider>
+      );
+    });
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+    swipeFromLeftEdge();
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
+    act(() => renderer?.unmount());
+  });
+
+  it('leaves the swipe from the left edge to a room, which goes back with it', () => {
+    const store = createStore();
+    const onBack = vi.fn();
+    // The shell's drawer listens before any room, as in the app.
+    const page = (room: boolean) => (
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/home/']}>
+          <PhoneNavDrawer nav={null} />
+          {room && <RoomWithBackSwipe onBack={onBack} />}
+        </MemoryRouter>
+      </Provider>
+    );
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(page(true));
+    });
+    swipeFromLeftEdge();
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+    // Gone with the room, its swipe brings the drawer out again.
+    act(() => renderer?.update(page(false)));
+    swipeFromLeftEdge();
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
     act(() => renderer?.unmount());
   });
 });

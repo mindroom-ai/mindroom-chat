@@ -220,6 +220,11 @@
       },
       "developerTools": {
         "invalidJson": "इवेंट को एक प्रकार दें और ऐसी सामग्री दें जो JSON ऑब्जेक्ट हो।"
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "ये रूम अपग्रेड के साथ नहीं ले जाए जा सके: {{rooms}}"
+        }
       }
     },
     "settings": {
@@ -468,6 +473,12 @@
     "phoneNav": {
       "search": "खोजें",
       "navigation": "नेविगेशन"
+    },
+    "subRooms": {
+      "newSubRoom": "नया सब-रूम",
+      "description": "{{name}} के सदस्य इसमें शामिल हो सकते हैं, और {{name}} के एजेंट अपने-आप इसमें शामिल हो जाते हैं।",
+      "noPermission": "आप {{name}} के नीचे सूचीबद्ध रूम नहीं बदल सकते",
+      "takeOff": "{{name}} से हटाएँ"
     }
   },
   "mindroomUi": {

@@ -220,6 +220,11 @@
       },
       "developerTools": {
         "invalidJson": "Olaya bir tür ve JSON nesnesi olan bir içerik verin."
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "Bu odalar yükseltmeyle birlikte taşınamadı: {{rooms}}"
+        }
       }
     },
     "settings": {
@@ -468,6 +473,12 @@
     "phoneNav": {
       "search": "Ara",
       "navigation": "Gezinme"
+    },
+    "subRooms": {
+      "newSubRoom": "Yeni alt oda",
+      "description": "{{name}} üyeleri katılabilir; {{name}} içindeki ajanlar kendiliğinden katılır.",
+      "noPermission": "{{name}} altında listelenen odaları değiştiremezsiniz",
+      "takeOff": "{{name}} içinden kaldır"
     }
   },
   "mindroomUi": {

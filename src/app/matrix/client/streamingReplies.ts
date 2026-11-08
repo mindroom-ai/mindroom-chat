@@ -15,7 +15,9 @@ import {
   getStreamStatusFromContent,
   TERMINAL_STREAM_STATUSES,
 } from '../protocol/aiRun';
+import { getSameSenderBundledEdit } from '../editEvent';
 import { getLatestEdit, isEventOrderedAfter } from '../room';
+import { findReply } from './unopenedThreadEdits';
 
 // A thread's card says "streaming" while its newest reply says it streams. What the client holds of
 // a reply can be old, though: a root's thread summary is the server's word at the moment it was
@@ -25,12 +27,12 @@ import { getLatestEdit, isEventOrderedAfter } from '../room';
 // those copies, and finished threads kept "streaming" for hours, through reloads.
 //
 // So a reply shows as streaming only while the client can vouch for it: it saw the reply or an
-// edit of it arrive through /sync since the room's last gap (the SDK's saved sync, replayed at
-// start, does not count), or the server said so. Any other reply that says it streams is checked:
-// the server's copy of the reply bundles its newest edit, which the client puts on the reply.
-// Until the answer, a reply seen before a gap still streams and one never seen does not. As a
-// last resort, a reply without an edit for STREAM_IDLE_LIMIT_MS no longer streams, whatever it
-// says: its writer is gone.
+// edit of it by its sender arrive through /sync since the room's last gap (the SDK's saved sync,
+// replayed at start, does not count), or the server said so. Any other reply that says it streams
+// is checked: the server's copy of the reply bundles its newest edit, which the client puts on the
+// reply. Until the answer, a reply seen before a gap still streams and one never seen does not.
+// As a last resort, a reply without an edit for STREAM_IDLE_LIMIT_MS no longer streams, whatever
+// it says: its writer is gone.
 //
 // A room's thread list answers for 30 threads per request: each listed root bundles its thread's
 // newest event with that event's newest edit. So a check waits a moment before it asks (a room's
@@ -80,9 +82,7 @@ type Checker = {
 const checkers = new WeakMap<MatrixClient, Checker>();
 
 const newestRevisionTs = (event: MatrixEvent): number => {
-  const bundled = event.getUnsigned()?.['m.relations']?.[RelationType.Replace] as
-    | Partial<IEvent>
-    | undefined;
+  const bundled = event.getServerAggregatedRelation<Partial<IEvent>>(RelationType.Replace);
   return Math.max(
     event.getTs(),
     event.replacingEvent()?.getTs() ?? 0,
@@ -148,6 +148,16 @@ export const holdStreamingChecks = (room: Room): (() => void) =>
 
 const threadOf = (event: MatrixEvent): string | undefined =>
   event.threadRootId ?? event.getRelation()?.event_id;
+
+/** The reply an edit replaces, as the client holds it: in a timeline or as its thread's summary. */
+const heldReply = (
+  room: Room | null,
+  edit: MatrixEvent,
+  replyId: string
+): MatrixEvent | undefined => {
+  const thread = edit.threadRootId ? room?.getThread(edit.threadRootId) : undefined;
+  return (thread && findReply(thread, replyId)) ?? room?.findEventById(replyId);
+};
 
 /**
  * Follows the client's sync for the whole client life to vouch for streaming replies, and checks
@@ -229,14 +239,11 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
     if (newer) target.makeReplaced(newer);
   };
 
-  /** The newest edit the server bundled with a reply, decrypted. */
+  /** A raw edit the server bundled with a reply, mapped into the room and decrypted. */
   const bundledEdit = async (
     roomId: string,
-    rawReply: Partial<IEvent>
+    rawEdit: Partial<IEvent> | undefined
   ): Promise<MatrixEvent | undefined> => {
-    const rawEdit = rawReply.unsigned?.['m.relations']?.[RelationType.Replace] as
-      | Partial<IEvent>
-      | undefined;
     const edit = rawEdit && mx.getEventMapper()({ ...rawEdit, room_id: roomId });
     if (edit) await mx.decryptEventIfNeeded(edit);
     return edit;
@@ -272,7 +279,7 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
       announce(room, check.targets);
       return true;
     }
-    const edit = await bundledEdit(check.roomId, rawReply);
+    const edit = await bundledEdit(check.roomId, getSameSenderBundledEdit(rawReply));
     if (!stopped) answer(room, check, edit);
     return true;
   };
@@ -433,9 +440,7 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
         stale.forEach((check) => {
           if (drop(check)) announce(room, check.targets);
         });
-        const rawEdit = latest.unsigned?.['m.relations']?.[RelationType.Replace] as
-          | Partial<IEvent>
-          | undefined;
+        const rawEdit = getSameSenderBundledEdit(latest);
         const listedMayStream = [latest, rawEdit].some(
           (event) =>
             event?.type === 'm.room.encrypted' ||
@@ -443,7 +448,7 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
             event?.content?.[AI_RUN_METADATA_KEY] !== undefined
         );
         if (!listedMayStream) return;
-        const edit = await bundledEdit(roomId, latest);
+        const edit = await bundledEdit(roomId, rawEdit);
         if (stopped) return;
         vouch(roomId, latestId, edit);
         const check = checks.get(latestId);
@@ -472,6 +477,9 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
     const eventId = relation?.rel_type === RelationType.Replace ? relation.event_id : event.getId();
     if (!eventId) return;
     const edit = relation?.rel_type === RelationType.Replace ? event : undefined;
+    // Only a reply's sender can edit it, and the client must hold the reply to tell.
+    if (edit && heldReply(mx.getRoom(roomId), edit, eventId)?.getSender() !== edit.getSender())
+      return;
     if (firstBatch) firstBatch.push([roomId, eventId, edit]);
     else vouch(roomId, eventId, edit);
   };

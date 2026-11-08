@@ -236,6 +236,11 @@
       },
       "developerTools": {
         "invalidJson": "حدّد نوعًا للحدث ومحتوى يكون كائن JSON."
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "تعذّر نقل هذه الغرف مع الترقية: ⁨{{rooms}}⁩"
+        }
       }
     },
     "settings": {
@@ -504,6 +509,12 @@
     "phoneNav": {
       "search": "بحث",
       "navigation": "التنقل"
+    },
+    "subRooms": {
+      "newSubRoom": "غرفة فرعية جديدة",
+      "description": "يمكن لأعضاء ⁨{{name}}⁩ الانضمام إليها، وينضم إليها الوكلاء في ⁨{{name}}⁩ من تلقاء أنفسهم.",
+      "noPermission": "لا يمكنك تغيير الغرف المدرجة تحت ⁨{{name}}⁩",
+      "takeOff": "إزالة من ⁨{{name}}⁩"
     }
   },
   "mindroomUi": {

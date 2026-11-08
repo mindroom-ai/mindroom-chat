@@ -109,7 +109,7 @@ test('the navigation panel keeps its scroll position across thread and room open
     panel.getByRole('link', { name: roomName(index), exact: true });
   const openThreadFromNav = async (thread: ThreadSeed) => {
     await expect(threadButton(thread)).toBeAttached();
-    // The sync bar changes the available scroll range when it disappears.
+    // Wait until the sync status has gone, so nothing floats over the list while it scrolls.
     await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 45_000 });
     await threadButton(thread).scrollIntoViewIfNeeded();
     const before = await settledNavScrollTop(page);
@@ -190,6 +190,24 @@ const settledRecentRowOffsets = (page: Page) =>
     return offsets;
   }, RECENT_LIST);
 
+// Playwright retries a click on a row that is still moving with its own scroll alignments
+// (end, center, start), which scroll the list away from the position read before it. The sync
+// bar moves the panel when it goes, and a phone's drawer slides in after the page opens.
+const expectRecentListAtRest = async (page: Page) => {
+  await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 45_000 });
+  await expect
+    .poll(() =>
+      page.evaluate((selector) => {
+        const list = document.querySelector(selector);
+        return document.getAnimations().filter((animation) => {
+          const target = (animation.effect as KeyframeEffect | null)?.target;
+          return !!list && !!target && target.contains(list);
+        }).length;
+      }, RECENT_LIST)
+    )
+    .toBe(0);
+};
+
 test('Recently Opened keeps its rows in place across thread opens', async ({ page }) => {
   test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
   const homeserver = getHomeserver();
@@ -239,6 +257,7 @@ test('Recently Opened keeps its rows in place across thread opens', async ({ pag
   // Opens the second row in view, which moves to the top of the list; after
   // `returnToList`, the rows below it must be exactly where they were.
   const openRowAndReturn = async (returnToList: () => Promise<void>) => {
+    await expectRecentListAtRest(page);
     await page.evaluate((selector) => {
       document.querySelector<HTMLElement>(selector)!.scrollTop = 90;
     }, RECENT_LIST);
@@ -277,6 +296,10 @@ test('Recently Opened keeps its rows in place across thread opens', async ({ pag
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/home/');
     await showRecentlyOpened();
-    await openRowAndReturn(() => page.goBack());
+    await openRowAndReturn(async () => {
+      // The thread puts the drawer away, which drops the list once it has slid out.
+      await expect(page.locator(RECENT_LIST)).toHaveCount(0);
+      await page.goBack();
+    });
   });
 });

@@ -216,6 +216,11 @@
       },
       "developerTools": {
         "invalidJson": "이벤트에 유형을 지정하고 내용은 JSON 객체로 입력하세요."
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "다음 방은 업그레이드와 함께 옮기지 못했습니다: {{rooms}}"
+        }
       }
     },
     "settings": {
@@ -459,6 +464,12 @@
     "phoneNav": {
       "search": "검색",
       "navigation": "탐색"
+    },
+    "subRooms": {
+      "newSubRoom": "새 하위 방",
+      "description": "{{name}}의 멤버가 참여할 수 있으며, {{name}}의 에이전트는 스스로 참여합니다.",
+      "noPermission": "{{name}} 아래에 표시되는 방을 변경할 수 없습니다",
+      "takeOff": "{{name}}에서 제거"
     }
   },
   "mindroomUi": {

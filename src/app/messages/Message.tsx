@@ -59,7 +59,7 @@ import { MessageEditor } from './edit/MessageEditor';
 import { MessageBugReportItem } from '../bug-reports/MessageBugReportItem';
 import { useThreadPinning } from '../event-store/threads/useThreadPinning';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
-import { ModelBadge } from './agent-run/ModelBadge';
+import { AvatarModelMark, ModelBadge } from './agent-run/ModelBadge';
 import { isKeyboardFocus, useToolbarClearance } from './hoverToolbarPlacement';
 import { getSenderNameTone } from './senderNameTone';
 import {
@@ -734,7 +734,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       return (
         <AvatarBase>
           <div className={css.MessageAvatarWithModel}>
-            {avatar}
+            <AvatarModelMark info={aiRunInfo}>{avatar}</AvatarModelMark>
             <ModelBadge info={aiRunInfo} />
           </div>
         </AvatarBase>

@@ -9,6 +9,8 @@ import {
   phoneNavSlotAtom,
   phoneSheetSlotAtom,
 } from '../navigation/phoneNavDrawer';
+import { useEdgeSwipe } from '../navigation/useEdgeSwipe';
+import { edgeSwipeBackCountAtom } from '../navigation/useEdgeSwipeBack';
 import { useSwipeAway } from '../navigation/useSwipeAway';
 import { hasOpenOverlay } from '../lib/openOverlay';
 import { observeLayerHost } from '../lib/overlayFocus';
@@ -47,13 +49,15 @@ const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean
 
 /**
  * A phone's navigation drawer: the icon rail and, beside it, the section's list, sliding in from
- * the start edge below the top bar over a dimmed page. The menu button, the scrim, Escape and a
- * swipe toward the edge put it away; following a link in it does too.
+ * the start edge below the top bar over a dimmed page. The menu button or a swipe from the screen's
+ * left edge brings it out. The menu button, the scrim, Escape and a swipe toward the edge put it
+ * away; following a link in it does too.
  */
 export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
   const [open, setOpen] = useAtom(phoneNavDrawerOpenAtom);
   // The section's list portals itself into the slot (`MobileFriendlyPageNav`).
-  const slotRef = useSetAtom(phoneNavSlotAtom);
+  const setSlot = useSetAtom(phoneNavSlotAtom);
+  const slotRef = useRef<HTMLDivElement>(null);
   // A sheet from the end edge (a room's members) portals itself into the layer under the drawer,
   // where focus treats it as a dialog in the body (`overlayFocus`).
   const setSheetSlot = useSetAtom(phoneSheetSlotAtom);
@@ -65,12 +69,17 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
     [setSheetSlot]
   );
   const panelRef = useRef<HTMLDivElement>(null);
-  // Motion only after the first frame, so a page that opens with the drawer out does not slide it.
+  // Motion only from the frame after the drawer first shows the stored state, so a page that opens
+  // with the drawer out does not slide it. The page brings it out in a layout effect of the first
+  // commit, but the atom's subscription starts with the passive effects, so the drawer renders it
+  // one commit late: until then the rendered state lags the store.
+  const store = useStore();
   const [animate, setAnimate] = useState(false);
   useEffect(() => {
+    if (animate || store.get(phoneNavDrawerOpenAtom) !== open) return undefined;
     const frame = requestAnimationFrame(() => setAnimate(true));
     return () => cancelAnimationFrame(frame);
-  }, []);
+  }, [animate, open, store]);
 
   useDrawerFollowsNavigation(setOpen);
   useInert(panelRef, !open);
@@ -90,6 +99,13 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [open]);
   const filled = open || sliding;
+  // The slot stays on the page and is offered only while the drawer holds the list, so the list
+  // leaves while it is still on the page: one that remembers the reader's place reads it then.
+  useLayoutEffect(() => {
+    if (!filled) return undefined;
+    setSlot(slotRef.current);
+    return () => setSlot(null);
+  }, [filled, setSlot]);
 
   // Opened with the menu button, the drawer takes the focus from it; brought out by a navigation,
   // it leaves the focus to the page that restores it. Put away around the focus, the focus goes
@@ -125,6 +141,12 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [open, setOpen]);
+
+  // A swipe from the screen's left edge brings it out, on a page whose own back swipe (a room's,
+  // a thread's) does not take it.
+  const backSwipeOn = useAtomValue(edgeSwipeBackCountAtom) > 0;
+  const openDrawer = useCallback(() => setOpen(true), [setOpen]);
+  useEdgeSwipe({ direction: 'back', enabled: !backSwipeOn, onSwipe: openDrawer });
 
   // The section's list is portaled in, so React's events from it bubble through the page, not
   // the drawer: the drawer listens on its own element. Following a link puts it away, also a link
@@ -162,7 +184,7 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
         data-animate={animate || undefined}
       >
         {filled && nav}
-        {filled && <div ref={slotRef} className={css.Slot} data-nav-slot />}
+        <div ref={slotRef} className={css.Slot} data-nav-slot />
       </div>
     </>
   );

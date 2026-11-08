@@ -216,6 +216,11 @@
       },
       "developerTools": {
         "invalidJson": "請為事件指定型別，並提供一個 JSON 物件作為內容。"
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "以下房間未能隨升級一起移轉：{{rooms}}"
+        }
       }
     },
     "settings": {
@@ -459,6 +464,12 @@
     "phoneNav": {
       "search": "搜尋",
       "navigation": "導覽"
+    },
+    "subRooms": {
+      "newSubRoom": "新增子房間",
+      "description": "{{name}} 的成員可以加入，{{name}} 中的代理程式會自行加入。",
+      "noPermission": "您無法變更 {{name}} 下列出的房間",
+      "takeOff": "從 {{name}} 移除"
     }
   },
   "mindroomUi": {

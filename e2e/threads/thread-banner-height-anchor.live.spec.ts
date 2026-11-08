@@ -74,8 +74,8 @@ const openThread = async (page: Page, { tagged = false } = {}): Promise<Fixture>
   });
   await loginWithPassword(page, { homeserver, username, password });
   await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
-  // The "Catching up" bar above the room goes with the next sync, which the
-  // banner change itself brings, and would move the scroller mid-check.
+  // The "Catching up" pill over the room goes with the next sync, which the
+  // banner change itself brings; hide it so it never covers what is checked.
   await page.addStyleTag({
     content: '[data-testid="client-sync-status"] { display: none !important; }',
   });

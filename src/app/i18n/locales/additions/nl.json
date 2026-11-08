@@ -220,6 +220,11 @@
       },
       "developerTools": {
         "invalidJson": "Geef de gebeurtenis een type en inhoud die een JSON-object is."
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "Deze kamers konden niet mee met de upgrade: {{rooms}}"
+        }
       }
     },
     "settings": {
@@ -468,6 +473,12 @@
     "phoneNav": {
       "search": "Zoeken",
       "navigation": "Navigatie"
+    },
+    "subRooms": {
+      "newSubRoom": "Nieuwe subkamer",
+      "description": "Leden van {{name}} kunnen erin, en de agents in {{name}} komen er vanzelf bij.",
+      "noPermission": "Je kunt de kamers onder {{name}} niet wijzigen",
+      "takeOff": "Verwijderen uit {{name}}"
     }
   },
   "mindroomUi": {

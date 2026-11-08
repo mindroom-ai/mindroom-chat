@@ -216,6 +216,11 @@
       },
       "developerTools": {
         "invalidJson": "Beri peristiwa sebuah jenis dan konten berupa objek JSON."
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "Ruang ini tidak dapat dipindahkan bersama peningkatan: {{rooms}}"
+        }
       }
     },
     "settings": {
@@ -459,6 +464,12 @@
     "phoneNav": {
       "search": "Cari",
       "navigation": "Navigasi"
+    },
+    "subRooms": {
+      "newSubRoom": "Subruang Baru",
+      "description": "Anggota {{name}} dapat bergabung, dan agen di {{name}} bergabung dengan sendirinya.",
+      "noPermission": "Anda tidak dapat mengubah ruang yang tercantum di bawah {{name}}",
+      "takeOff": "Hapus dari {{name}}"
     }
   },
   "mindroomUi": {

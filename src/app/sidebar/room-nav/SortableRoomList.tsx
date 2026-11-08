@@ -20,7 +20,7 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { SortableContext } from '@dnd-kit/sortable';
-import { suppressNextClickDefaultAfterPointerDrag } from '../../lib/sortableDrag';
+import { preventClickDefaultsDuringPointerDrag } from '../../lib/sortableDrag';
 import { LongPressTouchSensor } from '../../lib/longPressTouchSensor';
 import {
   makeRoomSortableId,
@@ -128,7 +128,7 @@ export function SortableRoomList({ listId, roomIds, onReorder, children }: Sorta
   };
 
   const handleDragStart = (event: DragStartEvent) => {
-    suppressNextClickDefaultAfterPointerDrag(event.activatorEvent);
+    preventClickDefaultsDuringPointerDrag(event.activatorEvent);
     setDragged(roomOf(event.active.id));
   };
   const endDrag = () => {

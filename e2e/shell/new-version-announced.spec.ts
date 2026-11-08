@@ -8,6 +8,7 @@ import {
 } from '../helpers/disposableAccounts';
 import { previewBuildDir, serveBuild } from '../helpers/staticBuildServer';
 import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { putPhoneDrawerAway } from '../helpers/phoneDrawer';
 
 // A deployment while the app is open (L7-F018). A page that already loaded every part it uses has
 // nothing fail to load, and said nothing until the person reloaded on their own. The page must
@@ -28,10 +29,79 @@ test.beforeEach(async () => {
 
 const deployment = { version: undefined as string | undefined };
 
+type Box = { x: number; y: number; width: number; height: number };
+
 /** Saves a screenshot as `<name>.png` when CONNECTION_STATE_SHOTS names a directory. */
 const shot = async (page: Page, name: string) => {
   const directory = process.env.CONNECTION_STATE_SHOTS;
   if (directory) await page.screenshot({ path: `${directory}/${name}.png` });
+};
+
+/** What the notice is placed against: the room list on a desktop, the top bar on a phone. */
+const anchorOf = (page: Page) =>
+  (page.viewportSize()?.width ?? 0) <= 750
+    ? page.locator('[data-phone-top-bar]')
+    : page.getByTestId('resizable-page-nav');
+
+/**
+ * The notice is a card floating over the page, which stays where it was: inside the room list at
+ * its foot on a desktop, right below the top bar on a phone, with nothing painted over it.
+ */
+const floatsInItsPlace = async (page: Page, anchorBefore: Box) => {
+  const phone = (page.viewportSize()?.width ?? 0) <= 750;
+  const card = page.locator('[data-new-version-card]');
+  await expect(card).toHaveAttribute('data-new-version-card', phone ? 'page' : 'list');
+  // Measured once it has come in.
+  await card.evaluate((element) =>
+    Promise.all(element.getAnimations().map((animation) => animation.finished))
+  );
+  const anchor = await anchorOf(page).boundingBox();
+  const box = await card.boundingBox();
+  if (!anchor || !box) throw new Error('the notice card or what it is placed against has no size');
+  expect(anchor).toEqual(anchorBefore);
+  if (phone) {
+    expect(box.y).toBeGreaterThanOrEqual(anchor.y + anchor.height);
+    expect(box.y).toBeLessThan(anchor.y + anchor.height + 24);
+  } else {
+    expect(box.x).toBeGreaterThanOrEqual(anchor.x);
+    expect(box.x + box.width).toBeLessThanOrEqual(anchor.x + anchor.width);
+    expect(box.y + box.height).toBeLessThanOrEqual(anchor.y + anchor.height);
+    expect(anchor.y + anchor.height - (box.y + box.height)).toBeLessThan(32);
+  }
+  // Once a phone's drawer has slid away, nothing covers it.
+  await expect
+    .poll(() =>
+      card.evaluate((element) => {
+        const { x, y, width, height } = element.getBoundingClientRect();
+        const hit = document.elementFromPoint(x + width / 2, y + height / 2);
+        return hit !== null && element.contains(hit);
+      })
+    )
+    .toBe(true);
+};
+
+/**
+ * In the page's notice place (a phone's), a sync status comes under the card: the card stays where
+ * it is while the pill shows and after it has gone, and the two never overlap.
+ */
+const staysPutUnderTheSyncPill = async (page: Page) => {
+  const card = page.locator('[data-new-version-card]');
+  const pill = page.getByTestId('client-sync-status');
+  const before = await card.boundingBox();
+  const unreachable = `${HOMESERVER}/**`;
+  await page.context().route(unreachable, (route) => route.abort('internetdisconnected'));
+  await expect(pill).toContainText('Connection Lost!', { timeout: 60_000 });
+  await pill.evaluate((element) =>
+    Promise.all(element.getAnimations().map((animation) => animation.finished))
+  );
+  const during = await card.boundingBox();
+  const under = await pill.boundingBox();
+  if (!before || !during || !under) throw new Error('the card or the pill has no size');
+  expect(during).toEqual(before);
+  expect(under.y).toBeGreaterThanOrEqual(during.y + during.height);
+  await page.context().unroute(unreachable);
+  await expect(pill).toHaveCount(0, { timeout: 60_000 });
+  expect(await card.boundingBox()).toEqual(before);
 };
 
 const announcesTheNewVersion = async (page: Page, browserName: string) => {
@@ -43,12 +113,28 @@ const announcesTheNewVersion = async (page: Page, browserName: string) => {
   await page.waitForTimeout(2_000);
   await expect(notice).toHaveCount(0);
 
+  const anchorBefore = await anchorOf(page).boundingBox();
+  if (!anchorBefore) throw new Error('no room list or top bar to place the notice against');
+
   deployment.version = `deployment-${browserName}-${RUN}`;
+  const published = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/version.json'
+  );
   // The person comes back to the tab.
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await published;
+  if ((page.viewportSize()?.width ?? 0) <= 750) {
+    // A phone's drawer, out on a section's own page, covers the page: the notice found meanwhile
+    // waits, and comes in once the drawer has gone.
+    await page.waitForTimeout(1_000);
+    await expect(page.locator('[data-new-version-card]')).toHaveCount(0);
+    await putPhoneDrawerAway(page);
+  }
   await expect(notice).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: 'Reload' })).toBeVisible();
+  await floatsInItsPlace(page, anchorBefore);
   await shot(page, `new-version-${browserName}`);
+  if ((page.viewportSize()?.width ?? 0) <= 750) await staysPutUnderTheSyncPill(page);
 };
 
 const withDeployment = async (run: (origin: string) => Promise<void>) => {
@@ -72,6 +158,25 @@ test('a deployment is announced when the page is shown again (Chromium)', async 
     const context = await browser.newContext({ baseURL: origin });
     try {
       await announcesTheNewVersion(await context.newPage(), browserName);
+    } finally {
+      await context.close();
+    }
+  });
+});
+
+test('a deployment is announced when the page is shown again (Chromium phone)', async ({
+  browser,
+}) => {
+  test.setTimeout(180_000);
+  await withDeployment(async (origin) => {
+    const context = await browser.newContext({
+      baseURL: origin,
+      viewport: { width: 390, height: 844 },
+      hasTouch: true,
+      isMobile: true,
+    });
+    try {
+      await announcesTheNewVersion(await context.newPage(), 'chromiumphone');
     } finally {
       await context.close();
     }

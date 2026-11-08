@@ -8,6 +8,7 @@ import React, {
   useRef,
 } from 'react';
 import classNames from 'classnames';
+import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { EventStatus, RoomEvent, type Room, type RoomEventHandlerMap } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
@@ -38,6 +39,8 @@ import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
 import { RoomTimeline, type RoomTimelineProps } from '../timeline/RoomTimeline';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 import { RoomHeaderSlot } from './RoomHeaderSlot';
+import { ConversationCover } from './ConversationCover';
+import { conversationHiddenAtom } from '../navigation/conversationCover';
 import * as overlay from '../ui/styles/RoomOverlay.css';
 import * as css from './RoomView.css';
 import { ThreadContextBanner } from '../threads/ThreadContextBanner';
@@ -72,6 +75,8 @@ const AREA_STYLE: CSSProperties = {
   overflow: 'hidden',
 };
 const TIMELINE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
+// Groups what a plugin's cover hides, without a box of its own in the room area's layout.
+const CONVERSATION_STYLE: CSSProperties = { display: 'contents' };
 // Background jobs and approvals float just above the composer.
 const DOCK_STYLE: CSSProperties = {
   position: 'absolute',
@@ -207,6 +212,7 @@ export function RoomView({
   const headerRef = useRef<HTMLDivElement>(null);
   const footerRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
+  const conversationRef = useRef<HTMLDivElement>(null);
   const compactRoomScrollStateRef = useRef<ScrollAnchorMemory>(new Map());
 
   const myUserId = client.getSafeUserId();
@@ -231,7 +237,9 @@ export function RoomView({
     localRoot.pending && localRoot.event && isFailedLocalEchoEvent(localRoot.event)
       ? localRoot.event
       : undefined;
-  useTypeToCompose(editor, composerShown);
+  // Under a plugin's cover or behind a side panel the composer takes no keys.
+  const hidden = useAtomValue(conversationHiddenAtom);
+  useTypeToCompose(editor, composerShown && !hidden);
   useRoomOverlayInsets(areaRef, headerRef, footerRef, dockRef, effectiveThreadId);
 
   // The open room (and thread) keeps its history downloads; leaving the room ends them.
@@ -320,43 +328,46 @@ export function RoomView({
           />
           <RoomHeaderSlot room={room} />
         </div>
-        <ThreadApprovalProvider
-          room={room}
-          // A message not yet on the server has no approvals, and no relations to ask for.
-          threadId={focusedThreadId}
-          focusConversation={focusConversation}
-        >
-          <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
-            <RoomTimeline {...timelineProps} />
-          </Box>
-          <div ref={dockRef} style={DOCK_STYLE}>
-            <div style={DOCK_CONTENT_STYLE}>
-              <BackgroundJobsBar
-                room={room}
-                threadId={effectiveThreadId ?? null}
-                canCancel={canCancelJobs}
-              />
-              {effectiveThreadId && <ThreadApprovalQueue />}
+        <div ref={conversationRef} style={CONVERSATION_STYLE}>
+          <ThreadApprovalProvider
+            room={room}
+            // A message not yet on the server has no approvals, and no relations to ask for.
+            threadId={focusedThreadId}
+            focusConversation={focusConversation}
+          >
+            <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
+              <RoomTimeline {...timelineProps} />
+            </Box>
+            <div ref={dockRef} style={DOCK_STYLE}>
+              <div style={DOCK_CONTENT_STYLE}>
+                <BackgroundJobsBar
+                  room={room}
+                  threadId={effectiveThreadId ?? null}
+                  canCancel={canCancelJobs}
+                />
+                {effectiveThreadId && <ThreadApprovalQueue />}
+              </div>
             </div>
+          </ThreadApprovalProvider>
+          {/* Outside the approval provider: opening a thread must not remount the composer. */}
+          <div ref={footerRef} className={overlay.Footer} data-room-footer="true">
+            <RoomViewTyping room={room} threadId={effectiveThreadId} />
+            {composerNotice}
+            {composerShown && (
+              <RoomInput
+                room={room}
+                roomId={roomId}
+                threadId={effectiveThreadId}
+                threadingEnabled={viewMode !== 'classic'}
+                editor={editor}
+                fileDropContainerRef={areaRef}
+                onRoomMessageSent={threadState.handleRoomMessageSent}
+              />
+            )}
+            <RoomViewFollowing room={room} threadId={effectiveThreadId} />
           </div>
-        </ThreadApprovalProvider>
-        {/* Outside the approval provider: opening a thread must not remount the composer. */}
-        <div ref={footerRef} className={overlay.Footer} data-room-footer="true">
-          <RoomViewTyping room={room} threadId={effectiveThreadId} />
-          {composerNotice}
-          {composerShown && (
-            <RoomInput
-              room={room}
-              roomId={roomId}
-              threadId={effectiveThreadId}
-              threadingEnabled={viewMode !== 'classic'}
-              editor={editor}
-              fileDropContainerRef={areaRef}
-              onRoomMessageSent={threadState.handleRoomMessageSent}
-            />
-          )}
-          <RoomViewFollowing room={room} threadId={effectiveThreadId} />
         </div>
+        <ConversationCover key={roomId} room={room} conversationRef={conversationRef} />
       </div>
     </Page>
   );
