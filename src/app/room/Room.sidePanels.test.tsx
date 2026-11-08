@@ -77,14 +77,7 @@ vi.mock('./RoomView', () => ({
     return <div data-testid="room-view">{state.inView}</div>;
   },
 }));
-// On phones the members sheet traps focus, which needs something to focus.
-vi.mock('../members/MembersDrawer', () => ({
-  MembersDrawer: () => (
-    <aside>
-      <button type="button">A member</button>
-    </aside>
-  ),
-}));
+vi.mock('../members/MembersDrawer', () => ({ MembersDrawer: () => <aside /> }));
 vi.mock('../members/useMembersDrawer', async () => {
   const { atom, useAtom } = await vi.importActual<typeof import('jotai')>('jotai');
   const membersOpenAtom = atom(false);
@@ -666,8 +659,10 @@ describe('the side panels of a room', () => {
     const showRoom = await renderRoom(ScreenSize.Mobile);
     await act(async () => controls.board?.open('kept'));
     await showRoom('!other:example.org');
+    // The members the other room showed are still open as the room shows again; the navigation puts
+    // them away after.
+    state.roomId = room.roomId;
     await act(async () => store.set(membersOpenAtom, true));
-    await showRoom(room.roomId);
     expect(screen.getByText('Board request "kept"')).toBeTruthy();
   });
 
