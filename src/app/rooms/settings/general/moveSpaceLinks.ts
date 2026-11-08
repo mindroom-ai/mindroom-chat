@@ -61,18 +61,14 @@ export const moveSpaceLinks = async (
       ? stateOf(child, StateEvent.SpaceParent, oldRoomId)?.getContent()
       : undefined;
     const listed = send(newRoomId, StateEvent.SpaceChild, event.getContent(), childId);
-    const linked = hasVia(parent)
-      ? send(
-          childId,
-          StateEvent.SpaceParent,
-          { ...parent, via: domain ? [domain] : parent?.via },
-          newRoomId
-        )
-      : undefined;
-    // The old link goes only once the replacement lists the child and the child names it.
-    const relinked = Promise.all([listed, linked]).then(
-      () => linked && send(childId, StateEvent.SpaceParent, {}, oldRoomId)
-    );
+    // In turn, so a step that fails leaves the child as the steps before it left it: the child
+    // names the replacement once it lists the child, and lets go of the old room after that.
+    const relinked = listed.then(async () => {
+      if (!hasVia(parent)) return;
+      const via = domain ? [domain] : parent?.via;
+      await send(childId, StateEvent.SpaceParent, { ...parent, via }, newRoomId);
+      await send(childId, StateEvent.SpaceParent, {}, oldRoomId);
+    });
     try {
       await Promise.all([listed, space ? relinked.catch(() => undefined) : relinked]);
     } catch {
