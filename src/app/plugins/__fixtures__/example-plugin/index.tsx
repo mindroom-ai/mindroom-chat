@@ -19,11 +19,14 @@
 // greeting the account saw in an earlier page load also shows "Seen before".
 // Its page at /p/example/ keeps the app's rail and links to its page at /p/example/window, which
 // fills the window and links back. Its page at /p/example/rooms/<room ID>/<thread ID> links to that
-// room and that thread, opens either, and reloads the page into a new version.
+// room and that thread, opens either, opens the room at the thread's root, opens the room in place
+// of itself, and reloads the page into a new version.
 // Its slash command, `/greet <text>`, sends the notice "Example greeting: <text>" to the room, or in a
 // thread's composer to that thread, through the room's client, and fails without a text.
+// Every room's menu but a space's lists its entry "Example room info" ("Beispiel-Rauminfo" in
+// German), whose dialog says "Example dialog of <room name>" until its Close button closes it.
 import { useEffect, useState, type RefObject } from 'react';
-import { Icons } from 'folds';
+import { Box, Button, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text, color } from 'folds';
 import { KnownMembership, type Room } from 'matrix-js-sdk';
 import {
   pluginPublicUrl,
@@ -173,6 +176,12 @@ function RoomPage({ params: { roomId = '', threadId = '' } }: PluginPageProps) {
       <button type="button" onClick={() => navigateRoomThread(roomId, threadId)}>
         Open the thread
       </button>
+      <button type="button" onClick={() => navigateRoom(roomId, { eventId: threadId })}>
+        Open the room at the thread root
+      </button>
+      <button type="button" onClick={() => navigateRoom(roomId, { replace: true })}>
+        Open the room in place of this page
+      </button>
       <button type="button" onClick={() => void reloadForNewVersion()}>
         Reload into the new version
       </button>
@@ -235,6 +244,27 @@ function ExampleCover({ room }: { room: Room }) {
   );
 }
 
+function RoomDialog({ room, close }: { room: Room; close: () => void }) {
+  return (
+    <Overlay open backdrop={<OverlayBackdrop />}>
+      <OverlayCenter>
+        <Box
+          role="dialog"
+          aria-label="Example dialog"
+          direction="Column"
+          gap="300"
+          style={{ padding: 16, borderRadius: 8, background: color.Surface.Container }}
+        >
+          <Text>Example dialog of {room.name}</Text>
+          <Button size="300" onClick={close}>
+            <Text size="B300">Close example dialog</Text>
+          </Button>
+        </Box>
+      </OverlayCenter>
+    </Overlay>
+  );
+}
+
 const plugin: ClientPlugin = {
   conversationCovers: [
     {
@@ -284,11 +314,22 @@ const plugin: ClientPlugin = {
       },
     },
   ],
+  roomActions: [
+    {
+      id: 'info',
+      label: 'roomInfo',
+      icon: Icons.Info,
+      shows: (room) => !room.isSpaceRoom(),
+      run: ({ room, showDialog }) =>
+        showDialog((close) => <RoomDialog room={room} close={close} />),
+    },
+  ],
   translations: {
     en: {
       label: 'Example plugin',
       wave: 'Wave',
       greet: 'Send the room a greeting. Example: /greet Hello',
+      roomInfo: 'Example room info',
     },
     load: async (language) =>
       language === 'de' ? (await import('./locales/de.json')).default : undefined,
