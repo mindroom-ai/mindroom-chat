@@ -743,7 +743,8 @@
       "resolveThread": "Resolve or reopen the open thread",
       "newLine": "New line",
       "editLast": "Edit your last message (in an empty composer)",
-      "inlineCode": "Inline code"
+      "inlineCode": "Inline code",
+      "callView": "Go to the call"
     }
   },
   "thread": {

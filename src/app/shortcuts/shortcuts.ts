@@ -58,6 +58,13 @@ const DEFINITIONS = {
     group: 'general',
     field: 'always',
   },
+  // The open call view renders after the page, so Tab reaches it last: this moves the focus there.
+  callView: {
+    keys: 'mod+shift+l',
+    labelKey: 'shortcuts.actions.callView',
+    group: 'general',
+    field: 'always',
+  },
   previousRoom: {
     keys: 'alt+up',
     labelKey: 'shortcuts.actions.previousRoom',
