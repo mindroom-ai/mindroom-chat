@@ -107,15 +107,25 @@ type World = {
   reader: Account;
   roomId: string;
   imageId: string;
-  videoId: string;
+  /** Undefined where the browser cannot play media (`mediaPlays`). */
+  videoId?: string;
   stillId: string;
   textId: string;
 };
 
 /**
+ * Whether the browser can be given a video to load. Playwright's WebKit on the Linux runners
+ * crashes its web process as soon as any `<video>` or `<audio>` element gets a source (a valid
+ * WebM, other bytes, audio alike), outside the app too: `Target crashed`. There the playable
+ * video is left out; macOS WebKit and Chromium check it.
+ */
+const mediaPlays = (engine: string): boolean =>
+  !(engine === 'webkit' && process.platform === 'linux');
+
+/**
  * Two people in a room among 24 others, a few lines of talk, then the member's attachments: a
- * picture with a caption, a video, a video whose file is gone but whose thumbnail is there, and a
- * text file, each named with direction controls.
+ * picture with a caption, a video (where the browser can load one), a video whose file is gone but
+ * whose thumbnail is there, and a text file, each named with direction controls.
  */
 const seed = async (engine: string): Promise<World> => {
   const reader = await registerAndLogin(`reader_${engine}`);
@@ -147,12 +157,14 @@ const seed = async (engine: string): Promise<World> => {
     info: { mimetype: 'image/png', w: 320, h: 240, size: PNG.length },
   });
   const clip = Buffer.from('not a playable video, only bytes to load');
-  const videoId = await send({
-    msgtype: 'm.video',
-    body: VIDEO_NAME,
-    url: await upload(member.accessToken, clip, 'video/mp4'),
-    info: { mimetype: 'video/mp4', w: 320, h: 240, size: clip.length },
-  });
+  const videoId = mediaPlays(engine)
+    ? await send({
+        msgtype: 'm.video',
+        body: VIDEO_NAME,
+        url: await upload(member.accessToken, clip, 'video/mp4'),
+        info: { mimetype: 'video/mp4', w: 320, h: 240, size: clip.length },
+      })
+    : undefined;
   // The video's own file is gone; its thumbnail stays up, with the Retry button over it.
   const stillId = await send({
     msgtype: 'm.video',
@@ -261,11 +273,13 @@ const check = async (page: Page, world: World, label: string) => {
   await expect(viewer).toBeHidden();
 
   // The video: its tooltip, once loaded (a phone may wait for Watch).
-  const video = row(page, world.videoId);
-  await video.scrollIntoViewIfNeeded();
-  const watch = video.getByRole('button', { name: 'Watch' });
-  if (await watch.isVisible()) await watch.click();
-  await expectAttribute(video.locator('video').first(), 'title', VIDEO_NAME_SHOWN);
+  if (world.videoId) {
+    const video = row(page, world.videoId);
+    await video.scrollIntoViewIfNeeded();
+    const watch = video.getByRole('button', { name: 'Watch' });
+    if (await watch.isVisible()) await watch.click();
+    await expectAttribute(video.locator('video').first(), 'title', VIDEO_NAME_SHOWN);
+  }
 
   // The video whose file is gone keeps its thumbnail, named after the video.
   const still = row(page, world.stillId);
@@ -306,6 +320,12 @@ const check = async (page: Page, world: World, label: string) => {
 };
 
 const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
+  if (!mediaPlays(engine)) {
+    test.info().annotations.push({
+      type: 'skipped case',
+      description: "the playable video: Linux WebKit's web process crashes on any media source",
+    });
+  }
   const world = await seed(engine);
   for (const [viewport, options] of [
     ['phone', PHONE],
