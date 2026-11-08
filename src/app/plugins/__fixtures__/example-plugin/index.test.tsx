@@ -247,4 +247,27 @@ describe('example plugin', () => {
     );
     expect(sent).toHaveBeenCalledTimes(2);
   });
+
+  it("lists its room entry in every room's menu but a space's, and its dialog names the room", async () => {
+    const [info] = plugin.roomActions ?? [];
+    if (!info) throw new Error('the example plugin has no room action');
+    const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
+    const room = new Room('!lobby:example.org', client, '@ada:example.org');
+    room.name = 'Lobby';
+    expect(info.shows?.(room)).toBe(true);
+    expect(info.shows?.({ ...room, isSpaceRoom: () => true } as Room)).toBe(false);
+
+    const showDialog = vi.fn();
+    await info.run({ room, showDialog });
+    const close = vi.fn();
+    const view = await renderPluginComponent(<>{showDialog.mock.calls[0]?.[0](close)}</>, {
+      id: 'example',
+      plugin,
+    });
+    expect(view.getByRole('dialog', { name: 'Example dialog' }).textContent).toContain(
+      'Example dialog of Lobby'
+    );
+    view.getByRole('button', { name: 'Close example dialog' }).click();
+    expect(close).toHaveBeenCalled();
+  });
 });
