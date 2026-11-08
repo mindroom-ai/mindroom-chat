@@ -1,29 +1,40 @@
 // @vitest-environment jsdom
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import type { IOpenIDToken, MatrixClient } from 'matrix-js-sdk';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TranscriptionClient } from '../app/calls/transcription/api';
 import { clientSessions } from '../app/computer/clientSessions';
 import { ClientConfigProvider } from '../app/config/useClientConfig';
 import { MatrixClientProvider } from '../app/matrix/hooks/useMatrixClient';
-import { MindroomServerError, useMindroomServer, type MindroomServer } from './server';
+import {
+  MindroomServerError,
+  useMindroomServer,
+  useMindroomServerStatus,
+  type MindroomServer,
+} from './server';
 
 const ROOM_ID = '!room:example.org';
 const PUBLISHED = 'https://published.example.org';
 const DEPLOYMENT = 'https://deployment.example.org';
 
 const state = vi.hoisted(() => ({
-  bindsTokens: true,
+  // Undefined asks the homeserver, which gives `binding`'s answer, as the app does.
+  bindsTokens: true as boolean | undefined,
+  binding: Promise.resolve(true as boolean | undefined),
   published: undefined as string | undefined,
   members: [] as { userId: string; membership: string }[],
 }));
-vi.mock('../app/computer/useAgentServers', () => ({
-  useBindsOpenIdTokens: () => state.bindsTokens,
-  useRoomAgentServers: () => (state.published ? [{ apiUrl: state.published }] : []),
-}));
+vi.mock('../app/computer/useAgentServers', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../app/computer/useAgentServers')>();
+  return {
+    useOpenIdBinding: () => state.bindsTokens ?? actual.useOpenIdBinding(),
+    useRoomAgentServers: () => (state.published ? [{ apiUrl: state.published }] : []),
+  };
+});
 vi.mock('../app/matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => state.members }));
 vi.mock('../app/matrix/openidAudience', () => ({
+  readOpenIdBinding: () => state.binding,
   requestAudienceOpenIdToken: async (): Promise<IOpenIDToken> => ({
     access_token: 'openid',
     token_type: 'Bearer',
@@ -64,17 +75,37 @@ const fakeFetch = () => {
 
 let mx: MatrixClient;
 
+const signedIn = (deploymentUrl?: string) =>
+  function Wrapper({ children }: { children: ReactNode }) {
+    return (
+      <MatrixClientProvider value={mx}>
+        <ClientConfigProvider value={{ mindroom: { computers: { apiUrl: deploymentUrl } } }}>
+          {children}
+        </ClientConfigProvider>
+      </MatrixClientProvider>
+    );
+  };
+
 /** What `useMindroomServer(roomId)` gives, signed in to `mx`, with `deploymentUrl` in config.json. */
-const server = (deploymentUrl?: string) => {
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <MatrixClientProvider value={mx}>
-      <ClientConfigProvider value={{ mindroom: { computers: { apiUrl: deploymentUrl } } }}>
-        {children}
-      </ClientConfigProvider>
-    </MatrixClientProvider>
-  );
-  return renderHook(() => useMindroomServer(ROOM_ID), { wrapper }).result.current;
+const server = (deploymentUrl?: string) =>
+  renderHook(() => useMindroomServer(ROOM_ID), { wrapper: signedIn(deploymentUrl) }).result.current;
+
+/** The homeserver's answer on binding tokens, which the test gives. */
+const bindingAnswer = () => {
+  let answer: (binds: boolean | undefined) => void = () => undefined;
+  state.bindsTokens = undefined;
+  state.binding = new Promise((resolve) => {
+    answer = resolve;
+  });
+  return (binds: boolean | undefined) => act(async () => answer(binds));
 };
+
+/** The origins the page signed in at. */
+const signInOrigins = (answers: ReturnType<typeof fakeFetch>) =>
+  answers.request.mock.calls
+    .map(([input]) => String(input))
+    .filter((url) => url.endsWith('/api/client-sessions'))
+    .map((url) => new URL(url).origin);
 
 const published = (): MindroomServer => {
   state.published = PUBLISHED;
@@ -87,6 +118,7 @@ beforeEach(() => {
   // Each test signs in afresh: sessions are kept per account.
   mx = { getRoom: () => null, getSafeUserId: () => '@ann:example.org' } as unknown as MatrixClient;
   state.bindsTokens = true;
+  state.binding = Promise.resolve(true);
   state.published = undefined;
   state.members = [{ userId: '@mindroom_router:example.org', membership: 'join' }];
 });
@@ -112,6 +144,30 @@ describe('useMindroomServer', () => {
     expect(server(DEPLOYMENT)).toBeUndefined();
   });
 
+  // A plugin that signs in at once spends a session at the configured server.
+  it('is the configured server until the homeserver answers on binding tokens, then the published one', async () => {
+    const answers = fakeFetch();
+    const answer = bindingAnswer();
+    state.published = PUBLISHED;
+    const seen: (string | undefined)[] = [];
+    renderHook(
+      () => {
+        const found = useMindroomServer(ROOM_ID);
+        seen.push(found?.origin);
+        useEffect(() => {
+          found?.request('/api/plugins/notes/hello').catch(() => undefined);
+        }, [found]);
+      },
+      { wrapper: signedIn(DEPLOYMENT) }
+    );
+
+    await answer(true);
+
+    expect(seen[0]).toBe(DEPLOYMENT);
+    expect(seen.at(-1)).toBe(PUBLISHED);
+    await vi.waitFor(() => expect(signInOrigins(answers)).toEqual([DEPLOYMENT, PUBLISHED]));
+  });
+
   it('shares one sign-in between every plugin and call transcripts', async () => {
     const answers = fakeFetch();
     answers.route.mockImplementation((url) =>
@@ -126,6 +182,113 @@ describe('useMindroomServer', () => {
 
     expect(answers.signIns()).toBe(1);
     expect(answers.routes()).toHaveLength(3);
+  });
+});
+
+describe('useMindroomServerStatus', () => {
+  const AGENT = { userId: '@mindroom_router:example.org', membership: 'join' };
+
+  /** Each status the hook gives, from a plugin that requests as soon as it has a server. */
+  const statuses = (deploymentUrl?: string) => {
+    const seen: { origin?: string; pending: boolean }[] = [];
+    renderHook(
+      () => {
+        const { server: found, pending } = useMindroomServerStatus(ROOM_ID);
+        seen.push({ origin: found?.origin, pending });
+        useEffect(() => {
+          found?.request('/api/plugins/notes/hello').catch(() => undefined);
+        }, [found]);
+      },
+      { wrapper: signedIn(deploymentUrl) }
+    );
+    return seen;
+  };
+
+  /** A room whose member list, lazy-loaded, is still out until the test settles it. */
+  const loadingMembers = () => {
+    let settle: (loaded: boolean) => void = () => undefined;
+    const load = new Promise<boolean>((resolve, reject) => {
+      settle = (loaded) => (loaded ? resolve(true) : reject(new Error('offline')));
+    });
+    let loaded = false;
+    const room = {
+      membersLoaded: () => loaded,
+      loadMembersIfNeeded: () => load,
+    };
+    mx.getRoom = () => room as unknown as ReturnType<MatrixClient['getRoom']>;
+    return (ok: boolean) =>
+      act(async () => {
+        loaded = ok;
+        settle(ok);
+        await load.catch(() => undefined);
+      });
+  };
+
+  it.each([
+    ['loaded', true, PUBLISHED],
+    ['failed to load, as the members the client has', false, undefined],
+  ])(
+    "is pending, with no server, until the room's member list has %s",
+    async (_name, loads, origin) => {
+      fakeFetch();
+      state.published = PUBLISHED;
+      // Before the list, the client knows no agent in the room.
+      state.members = [];
+      const settle = loadingMembers();
+      const seen = statuses(DEPLOYMENT);
+      expect(seen.at(-1)).toEqual({ origin: undefined, pending: true });
+
+      if (loads) state.members = [AGENT];
+      await settle(loads);
+
+      expect(seen.at(-1)).toEqual({ origin, pending: false });
+      expect(seen.filter(({ origin: shown }) => shown)).toHaveLength(origin ? 1 : 0);
+    }
+  );
+
+  it('is pending, with no server, until the homeserver answers on binding tokens, then signs in at the published server only', async () => {
+    const answers = fakeFetch();
+    const answer = bindingAnswer();
+    state.published = PUBLISHED;
+    const seen = statuses(DEPLOYMENT);
+    expect(seen).toEqual([{ origin: undefined, pending: true }]);
+
+    await answer(true);
+
+    expect(seen.at(-1)).toEqual({ origin: PUBLISHED, pending: false });
+    expect(seen.filter(({ origin }) => origin)).toHaveLength(1);
+    await vi.waitFor(() => expect(answers.routes()).toHaveLength(1));
+    expect(signInOrigins(answers)).toEqual([PUBLISHED]);
+  });
+
+  it("counts a binding check that could not reach the homeserver as an answer: the deployment's server", async () => {
+    fakeFetch();
+    const answer = bindingAnswer();
+    state.published = PUBLISHED;
+    const seen = statuses(DEPLOYMENT);
+
+    await answer(undefined);
+
+    expect(seen.at(-1)).toEqual({ origin: DEPLOYMENT, pending: false });
+  });
+
+  it('is no server, and not pending, once both are in: without either server, or without an agent', async () => {
+    const answer = bindingAnswer();
+    const neither = statuses();
+    state.published = PUBLISHED;
+    state.members = [{ userId: '@bob:example.org', membership: 'join' }];
+    const noAgent = statuses(DEPLOYMENT);
+    expect([neither.at(-1), noAgent.at(-1)]).toEqual([
+      { origin: undefined, pending: true },
+      { origin: undefined, pending: true },
+    ]);
+
+    await answer(true);
+
+    expect([neither.at(-1), noAgent.at(-1)]).toEqual([
+      { origin: undefined, pending: false },
+      { origin: undefined, pending: false },
+    ]);
   });
 });
 

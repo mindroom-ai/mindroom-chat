@@ -3,6 +3,7 @@
 // plugin's requests and opens its websockets as the signed-in user. Like `/core` it only grows, and
 // each addition raises CLIENT_PLUGIN_API_VERSION in scripts/client-plugins.mjs.
 import { useMemo } from 'react';
+import type { MatrixClient } from 'matrix-js-sdk';
 import {
   MindroomServerError,
   clientSessions,
@@ -72,16 +73,9 @@ const request = async <T>(sessions: ClientSessions, path: string, init?: Request
   return body as T;
 };
 
-/**
- * The MindRoom server of the room `roomId`, by the rule call transcripts use: the one the room's
- * agents published while the homeserver binds sign-in tokens to it, else the one `config.json`
- * names (`mindroom.computers.apiUrl`). Undefined in a room without a MindRoom agent, or without
- * either server. Every plugin and the app share one session with each server.
- */
-export const useMindroomServer = (roomId: string): MindroomServer | undefined => {
-  const mx = useMatrixClient();
-  const { apiUrl, discovered } = useRoomMindroomServer(mx, roomId);
-  return useMemo(() => {
+/** The `MindroomServer` at `apiUrl`, or undefined without one. */
+const useServer = (mx: MatrixClient, apiUrl: string | undefined, discovered: boolean) =>
+  useMemo((): MindroomServer | undefined => {
     if (!apiUrl) return undefined;
     const sessions = clientSessions(mx, apiUrl, discovered);
     return {
@@ -92,4 +86,33 @@ export const useMindroomServer = (roomId: string): MindroomServer | undefined =>
       token: (options) => sessions.token(options),
     };
   }, [apiUrl, discovered, mx]);
+
+/**
+ * The MindRoom server of the room `roomId`, by the rule call transcripts use: the one the room's
+ * agents published while the homeserver binds sign-in tokens to it, else the one `config.json`
+ * names (`mindroom.computers.apiUrl`). Undefined in a room without a MindRoom agent, or without
+ * either server. Every plugin and the app share one session with each server. Until the room's
+ * members and the homeserver's answer are in, it can be undefined or the configured server and
+ * change after; a plugin that signs in at once or tells the person there is no server takes
+ * `useMindroomServerStatus`.
+ */
+export const useMindroomServer = (roomId: string): MindroomServer | undefined => {
+  const mx = useMatrixClient();
+  const { apiUrl, discovered } = useRoomMindroomServer(mx, roomId);
+  return useServer(mx, apiUrl, discovered);
+};
+
+/**
+ * The room's MindRoom server as `useMindroomServer` gives it, once that is settled: `pending` while
+ * the room's members or the homeserver's answer on binding sign-in tokens are not in yet, with no
+ * `server`. A check that could not reach the homeserver counts as an answer that it does not bind
+ * them, and a member list that could not load as the members the client has.
+ */
+export const useMindroomServerStatus = (
+  roomId: string
+): { server: MindroomServer | undefined; pending: boolean } => {
+  const mx = useMatrixClient();
+  const { apiUrl, discovered, pending } = useRoomMindroomServer(mx, roomId);
+  const server = useServer(mx, pending ? undefined : apiUrl, discovered);
+  return useMemo(() => ({ server, pending }), [server, pending]);
 };
