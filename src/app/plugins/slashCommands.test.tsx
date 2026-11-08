@@ -117,6 +117,46 @@ describe('usePluginSlashCommands', () => {
     await expect(result.current[0]?.run({ room, args: '' })).rejects.toBe(failure);
   });
 
+  it("shows a command that refuses with the SDK's commandUsage as the composer shows a built-in one's usage, with its description in the app's language", async () => {
+    vi.stubGlobal('navigator', { language: 'de', languages: ['de'] });
+    const { commandUsage } = await import('../../client-sdk/core');
+    const { default: i18n } = await import('../i18n/i18n');
+    const { describeCommandFailure } = await import('../composer/slashCommandQuery');
+    const { registerPluginTranslations } = await import('./pluginTranslations');
+    const { usePluginSlashCommands } = await import('./slashCommands');
+    registerPluginTranslations('demo', {
+      en: { greet: 'Send the room a greeting.' },
+      load: async (language: string) =>
+        language === 'de' ? { greet: 'Dem Raum einen Gruß senden.' } : undefined,
+    });
+    const greet = command({
+      run: ({ args }) => {
+        if (!args.trim()) throw commandUsage();
+      },
+    });
+    const { result } = renderHook(() =>
+      usePluginSlashCommands([plugin('demo', [greet])], undefined)
+    );
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+
+    /** What the composer says when `/greet` is sent with nothing after it. */
+    const problem = async () => {
+      const [enabled] = result.current;
+      if (!enabled) throw new Error('the plugin has no command');
+      // The command as the composer holds it (useCommands).
+      const { name, description } = enabled;
+      const run = (args: string) => enabled.run({ room, args });
+      const acting = { command: { name, description, run }, run, args: ' ' };
+      const error = await acting.run(acting.args).catch((reason: unknown) => reason);
+      return describeCommandFailure(i18n.t, acting, error);
+    };
+    expect(await problem()).toBe(
+      '/greet konnte nicht ausgeführt werden. Dem Raum einen Gruß senden.'
+    );
+    await act(() => i18n.changeLanguage('en'));
+    expect(await problem()).toBe('Could not run /greet. Send the room a greeting.');
+  });
+
   it("describes the commands in the app's language, also with strings that arrive later", async () => {
     vi.stubGlobal('navigator', { language: 'de', languages: ['de'] });
     let release: () => void = () => undefined;
