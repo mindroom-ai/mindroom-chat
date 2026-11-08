@@ -128,11 +128,16 @@ describe('EncryptionRecoveryPrompt', () => {
       { showEncryptionOption: false, defaultEncryption: true },
       { showEncryptionOption: true, defaultEncryption: false },
     ]) {
-      cleanup();
-      resetPromptedAccountsForTests();
-      const oneOff = setup(LOCKED, { createRoom });
-      await act(async () => {});
-      expect(oneOff.store.get(recoveryDialogAtom)).toBe('unlock');
+      for (const [state, dialog] of [
+        [LOCKED, 'unlock'],
+        [NONE, 'setup'],
+      ] as const) {
+        cleanup();
+        resetPromptedAccountsForTests();
+        const oneOff = setup(state, { createRoom });
+        await act(async () => {});
+        expect(oneOff.store.get(recoveryDialogAtom)).toBe(dialog);
+      }
     }
   });
 
