@@ -30,7 +30,10 @@ export type PanelPresence = {
    * that goes first while it closes (a failure took its place) lets the place end its exit.
    */
   register: () => () => void;
-  /** The width the last panel in this place had when it left, which a swapped-in panel starts from. */
+  /**
+   * The width the last panel in this place had when it left, which a swapped-in panel starts from:
+   * the room's own panels set it as they go, and a moving panel may too.
+   */
   lastWidth: MutableRefObject<number | undefined>;
 };
 
@@ -77,9 +80,8 @@ export function usePanelSlot(
     if (panel) lastPanel.current = panel;
   });
   const lastWidth = useRef<number>();
-  const closing = slot.key === undefined && slot.shownKey !== undefined;
   /** Whether the panel was closing at the last commit, until `done`. */
-  const closingRef = useRef(closing);
+  const closingRef = useRef(false);
   const done = useCallback(() => {
     closingRef.current = false;
     setSlot((current) => (current.key === undefined ? { phase: 'shown' } : current));
@@ -96,6 +98,7 @@ export function usePanelSlot(
   }, [done]);
   // Runs after the panel's own effects: with no moving panel inside (a canvas without its
   // content, or other content), what closes leaves at once.
+  const closing = slot.key === undefined && slot.shownKey !== undefined;
   useLayoutEffect(() => {
     closingRef.current = closing;
     if (closing && movers.current === 0) done();

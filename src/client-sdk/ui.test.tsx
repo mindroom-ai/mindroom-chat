@@ -33,6 +33,7 @@ import {
   usePanelPresence,
   useScreenSize,
   useThemeKind,
+  type PanelPresence,
 } from './ui';
 
 // The test setup stands folds' plain components in for the glass ones; compare the real modules.
@@ -270,17 +271,15 @@ describe('usePanelPresence', () => {
     vi.restoreAllMocks();
   });
 
-  /** The phases the panel was rendered in, its `done` there, and what makes it fail. */
-  let phases: (string | undefined)[] = [];
-  let finish: (() => void) | undefined;
+  /** The panel's place as it last rendered, and what makes it fail. */
+  let place: PanelPresence | undefined;
   let fail: (() => void) | undefined;
 
   /** An own-frame panel that moves: it registers with its place. */
   function MovingCard() {
     const presence = usePanelPresence();
     const [failed, setFailed] = useState(false);
-    phases.push(presence?.phase);
-    finish = presence?.done;
+    place = presence;
     fail = () => setFailed(true);
     const register = presence?.register;
     useLayoutEffect(() => register?.(), [register]);
@@ -290,7 +289,7 @@ describe('usePanelPresence', () => {
 
   /** The room's panel place holding a plugin's panel with `frame: 'own'`, as the room renders it. */
   const renderPlace = (Component: ComponentType<{ roomId: string }>) => {
-    phases = [];
+    place = undefined;
     const panel = { id: 'example/card', tag: 'example@1.0.0', label: 'Card', Component };
     function Place({ open }: { open: boolean }) {
       const card = (
@@ -316,11 +315,11 @@ describe('usePanelPresence', () => {
   it('tells an own-frame panel that registers that it opens and closes, and keeps it until done', () => {
     const { container, setOpen } = renderPlace(MovingCard);
     setOpen(true);
-    expect(phases.at(-1)).toBe('enter');
+    expect(place?.phase).toBe('enter');
     setOpen(false);
-    expect(phases.at(-1)).toBe('exit');
+    expect(place?.phase).toBe('exit');
     expect(container.textContent).toBe('Example card');
-    act(() => finish?.());
+    act(() => place?.done());
     expect(container.textContent).toBe('');
   });
 
@@ -342,6 +341,6 @@ describe('usePanelPresence', () => {
     expect(container.textContent).toBe('');
     setOpen(true);
     expect(container.textContent).toBe('Example card');
-    expect(phases.at(-1)).toBe('enter');
+    expect(place?.phase).toBe('enter');
   });
 });

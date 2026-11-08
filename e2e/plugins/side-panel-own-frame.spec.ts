@@ -2,7 +2,14 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { expect, test, type Browser, type Page, type TestInfo } from '@playwright/test';
+import {
+  expect,
+  test,
+  type Browser,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from '@playwright/test';
 import { disposableHomeserverIsUp } from '../helpers/disposableAccounts';
 import { roomHeader, roomMoreOptions } from '../helpers/roomMenu';
 import { openPanelRoom, panelLocator, widthOf } from '../helpers/sidePanels';
@@ -52,9 +59,9 @@ const menuEntry = (page: Page) =>
 /** The card's box, which moves while the card inside keeps its width. */
 const cardBox = (page: Page) => page.locator('[data-example-card-box]');
 
-/** Waits until the card's box has moved to where it settles. */
-const settled = (page: Page) =>
-  cardBox(page).evaluate((element) =>
+/** Waits until `target` has moved to where it settles. */
+const settled = (target: Locator) =>
+  target.evaluate((element) =>
     Promise.all(element.getAnimations().map((animation) => animation.finished))
   );
 
@@ -115,7 +122,7 @@ test("the example plugin's own-frame card fills the room and hides to its tab", 
     // A new account shows the members beside the conversation; the card takes their place.
     await toggleCard(page, false);
     await expect(card(page)).toBeVisible();
-    await settled(page);
+    await settled(cardBox(page));
     await expectNoRoomFrame(page);
     const besideWidth = await widthOf(card(page));
     expect(besideWidth).toBe(320);
@@ -186,6 +193,8 @@ test("on a phone the example plugin's own-frame card covers the conversation unt
 });
 
 type CardMotion = { from: string; to?: string; duration: unknown; easing?: string };
+/** What the page notes of the motions: the card's, held, and the members panel's timing. */
+type MotionLog = { cardMotions: Animation[]; roomTiming: EffectTiming[] };
 
 test("the example plugin's own-frame card moves in and out as the room's panels do, at once under reduced motion", async ({
   browser,
@@ -200,7 +209,7 @@ test("the example plugin's own-frame card moves in and out as the room's panels 
     // own panels move as they do, and the members panel's timing is noted.
     await page.evaluate(() => {
       const animate = Element.prototype.animate;
-      const state = window as unknown as { cardMotions: Animation[]; roomTiming: EffectTiming[] };
+      const state = window as unknown as MotionLog;
       state.cardMotions = [];
       state.roomTiming = [];
       Element.prototype.animate = function hold(this: Element, ...args) {
@@ -217,7 +226,7 @@ test("the example plugin's own-frame card moves in and out as the room's panels 
     /** The card's motions so far: where each starts and ends, and their time and curve. */
     const motions = () =>
       page.evaluate(() =>
-        (window as unknown as { cardMotions: Animation[] }).cardMotions.map((animation) => {
+        (window as unknown as MotionLog).cardMotions.map((animation) => {
           const effect = animation.effect as KeyframeEffect;
           const [first, last] = effect.getKeyframes();
           const { duration, easing } = effect.getTiming();
@@ -227,13 +236,13 @@ test("the example plugin's own-frame card moves in and out as the room's panels 
     /** Puts the card's last motion at `time` (in ms), or plays it to its end. */
     const step = (time: number | 'end') =>
       page.evaluate((at) => {
-        const animation = (window as unknown as { cardMotions: Animation[] }).cardMotions.at(-1)!;
+        const animation = (window as unknown as MotionLog).cardMotions.at(-1)!;
         if (at === 'end') animation.play();
         else animation.currentTime = at;
       }, time);
     const toEnd = async () => {
       await step('end');
-      await settled(page);
+      await settled(box);
     };
 
     // The members, which a new account shows, move out and in as the room's panels do.
@@ -241,13 +250,9 @@ test("the example plugin's own-frame card moves in and out as the room's panels 
     await expect(members).toHaveCount(0);
     const conversationAlone = await widthOf(conversation);
     await conversation.getByRole('button', { name: 'Show Members', exact: true }).click();
-    await members.evaluate((element) =>
-      Promise.all(element.getAnimations().map((animation) => animation.finished))
-    );
+    await settled(members);
     const membersWidth = await widthOf(members);
-    const [roomTiming] = await page.evaluate(
-      () => (window as unknown as { roomTiming: EffectTiming[] }).roomTiming
-    );
+    const [roomTiming] = await page.evaluate(() => (window as unknown as MotionLog).roomTiming);
 
     // Opened in the members' place, the card moves from their width to its own, in the time and on
     // the curve of the room's panels, and the conversation gives way.
@@ -276,7 +281,7 @@ test("the example plugin's own-frame card moves in and out as the room's panels 
 
     // Turned around as it moves out, it moves on from where it is and settles at its width.
     await page.evaluate(() => {
-      const animation = (window as unknown as { cardMotions: Animation[] }).cardMotions.at(-1)!;
+      const animation = (window as unknown as MotionLog).cardMotions.at(-1)!;
       animation.playbackRate = 0.001;
       animation.play();
     });

@@ -2,7 +2,7 @@
 // The example plugin's test, written as a plugin outside this repository writes one: it imports the
 // app only through the client SDK, `/testing` included, and runs in the app's vitest.
 import { createRef, type ReactNode } from 'react';
-import { fireEvent, waitFor } from '@testing-library/react';
+import { act, fireEvent, waitFor } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -17,12 +17,20 @@ vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: ReactNode }) => children,
 }));
 
-// The room's panel place around the card, which the room provides; outside it there is none.
-const place = vi.hoisted(() => ({ presence: undefined as PanelPresence | undefined }));
-vi.mock('@mindroom/client-sdk/ui', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@mindroom/client-sdk/ui')>()),
-  usePanelPresence: () => place.presence,
+// The room's panel place around the card and the screen size, which the app provides; outside it
+// there is no place, and the size is the SDK's own answer.
+const place = vi.hoisted(() => ({
+  presence: undefined as PanelPresence | undefined,
+  screenSize: undefined as 'Desktop' | 'Mobile' | undefined,
 }));
+vi.mock('@mindroom/client-sdk/ui', async (importOriginal) => {
+  const ui = await importOriginal<typeof import('@mindroom/client-sdk/ui')>();
+  return {
+    ...ui,
+    usePanelPresence: () => place.presence,
+    useScreenSize: () => place.screenSize ?? ui.useScreenSize(),
+  };
+});
 
 /**
  * A drag event as the browser fires it, carrying `data` (format to text), which a drag start fills
@@ -336,36 +344,68 @@ describe('example plugin', () => {
     expect(revoked).toEqual([objectUrl]);
   });
 
-  it("registers its own-frame card with the room's panel place, and is done at once where nothing moves", async () => {
-    const card = plugin.sidePanels?.find(({ id }) => id === 'card');
-    if (!card) throw new Error('the example plugin has no card');
-    const unregister = vi.fn();
-    const presence: PanelPresence = {
-      phase: 'enter',
-      register: vi.fn(() => unregister),
-      done: vi.fn(),
-      lastWidth: { current: undefined },
-    };
-    place.presence = presence;
-    try {
-      const ui = () => <card.Component roomId="!lobby:example.org" />;
-      const view = await renderPluginComponent(ui(), {
-        id: 'example',
-        plugin,
-        frame: { label: 'Example card', layout: 'beside', setLayout: () => undefined },
+  it.each([
+    ['beside the conversation', 'beside', 'Desktop', true],
+    ['filling the room', 'filled', 'Desktop', false],
+    ['on a phone', 'beside', 'Mobile', false],
+  ] as const)(
+    "registers its own-frame card with the room's panel place and closes it %s, moving it out first only beside the conversation",
+    async (_where, layout, screenSize, moves) => {
+      const card = plugin.sidePanels?.find(({ id }) => id === 'card');
+      if (!card) throw new Error('the example plugin has no card');
+      // jsdom lays nothing out and has no Web Animations: the card's box is 336 px wide, and its
+      // motion ends when the test says.
+      const offsetWidth = vi
+        .spyOn(HTMLElement.prototype, 'offsetWidth', 'get')
+        .mockReturnValue(336);
+      let finish = () => {};
+      const animate = vi.fn(() => ({
+        playState: 'running',
+        cancel: () => undefined,
+        finished: new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+      }));
+      Object.defineProperty(HTMLElement.prototype, 'animate', {
+        value: animate,
+        configurable: true,
       });
-      expect(presence.register).toHaveBeenCalledTimes(1);
-      expect(presence.done).not.toHaveBeenCalled();
-      // Closing: jsdom has no Web Animations, so the card does not move and is done at once.
-      place.presence = { ...presence, phase: 'exit' };
-      view.rerender(ui());
-      expect(presence.done).toHaveBeenCalledTimes(1);
-      view.unmount();
-      expect(unregister).toHaveBeenCalledTimes(1);
-    } finally {
-      place.presence = undefined;
+      const unregister = vi.fn();
+      const presence: PanelPresence = {
+        phase: 'shown',
+        register: vi.fn(() => unregister),
+        done: vi.fn(),
+        lastWidth: { current: undefined },
+      };
+      place.presence = presence;
+      place.screenSize = screenSize;
+      try {
+        const ui = () => <card.Component roomId="!lobby:example.org" />;
+        const view = await renderPluginComponent(ui(), {
+          id: 'example',
+          plugin,
+          frame: { label: 'Example card', layout, setLayout: () => undefined },
+        });
+        expect(presence.register).toHaveBeenCalledTimes(1);
+        place.presence = { ...presence, phase: 'exit' };
+        view.rerender(ui());
+        expect(animate).toHaveBeenCalledTimes(moves ? 1 : 0);
+        expect(presence.done).toHaveBeenCalledTimes(moves ? 0 : 1);
+        await act(async () => finish());
+        expect(presence.done).toHaveBeenCalledTimes(1);
+        view.unmount();
+        expect(unregister).toHaveBeenCalledTimes(1);
+        // A panel that takes its place moves on from its width.
+        expect(presence.lastWidth.current).toBe(336);
+      } finally {
+        place.presence = undefined;
+        place.screenSize = undefined;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        delete (HTMLElement.prototype as any).animate;
+        offsetWidth.mockRestore();
+      }
     }
-  });
+  );
 
   it("says in its panel whether the account may post in the room, from the room's levels", async () => {
     const [panel] = plugin.sidePanels ?? [];
