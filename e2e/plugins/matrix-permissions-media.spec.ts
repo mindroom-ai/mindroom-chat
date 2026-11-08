@@ -17,7 +17,7 @@ import {
   sendRoomMessage,
   sendStateEvent,
 } from '../helpers/matrix';
-import { roomMoreOptions } from '../helpers/roomMenu';
+import { roomHeader } from '../helpers/roomMenu';
 import { serveBuild } from '../helpers/staticBuildServer';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
@@ -114,8 +114,7 @@ test("the example plugin shows an agent's avatar and mark, and whether the viewe
       )
       .toEqual({ authenticated: true, loaded: true });
 
-    await roomMoreOptions(page).click();
-    await page.getByRole('menuitemcheckbox', { name: 'Example panel', exact: true }).click();
+    await roomHeader(page).getByRole('button', { name: 'Example panel', exact: true }).click();
     const panel = page.getByRole('region', { name: 'Example panel', exact: true });
     await expect(panel).toContainText('You may post here');
 
