@@ -1,13 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import en from '../../i18n/englishResources';
-import {
-  Command,
-  type CommandContext,
-  CommandRefusedError,
-  isActingCommand,
-  runCommandAction,
-} from './useCommands';
+import { CommandRefusedError } from './commandRefusal';
+import { Command, type CommandContext, isActingCommand, runCommandAction } from './useCommands';
 
 type FakeMember = { userId: string; membership: string };
 
