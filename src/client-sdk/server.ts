@@ -26,6 +26,14 @@ export type MindroomServer = {
    */
   request: <T = unknown>(path: string, init?: RequestInit) => Promise<T>;
   /**
+   * Sends a request to `path` on the server as `request` does, asking for JSON unless `init`'s
+   * headers name an `Accept`, and resolves with the answer's `Response` whatever its type or status,
+   * such as an image a route serves. A 401 signs in again and sends once more. Rejects as `request`
+   * does when there is no answer or the sign-in fails, and with a `TypeError` for a path that leads
+   * to another origin before anything is sent.
+   */
+  send: (path: string, init?: RequestInit) => Promise<Response>;
+  /**
    * Opens a websocket to `path` on the server (`wss:`, or `ws:` for an `http:` server) that signs
    * in as MindRoom's plugin websockets take it. Reconnecting is the plugin's: the server closes
    * with 4401 once the session ends, after which the next `openSocket` signs in again, and with
@@ -34,6 +42,15 @@ export type MindroomServer = {
    * when the sign-in fails, and for a path that leads to another origin.
    */
   openSocket: (path: string) => Promise<WebSocket>;
+  /**
+   * The signed-in user's session token, for a request to the server that `send` cannot make, such
+   * as an upload that reports its progress through `XMLHttpRequest`, sent with `Authorization:
+   * Bearer <token>` and no cookies. It signs in when there is no session or it is about to run out.
+   * Ask again for each request and never keep it. After a 401, ask again with `refused`, the token
+   * the server refused, which signs in again, and send once more. `signal` stops the wait for a
+   * sign-in. Rejects as `request` does when the sign-in fails.
+   */
+  token: (options?: { signal?: AbortSignal; refused?: string }) => Promise<string>;
 };
 
 const request = async <T>(sessions: ClientSessions, path: string, init?: RequestInit) => {
@@ -70,7 +87,9 @@ export const useMindroomServer = (roomId: string): MindroomServer | undefined =>
     return {
       origin: apiUrl,
       request: <T>(path: string, init?: RequestInit) => request<T>(sessions, path, init),
+      send: (path, init) => sessions.send(path, init),
       openSocket: (path) => sessions.openSocket(path),
+      token: (options) => sessions.token(options),
     };
   }, [apiUrl, discovered, mx]);
 };

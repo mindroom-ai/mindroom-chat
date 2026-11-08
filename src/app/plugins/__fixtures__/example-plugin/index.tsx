@@ -48,6 +48,8 @@
 // In a room with a MindRoom server, its panel also talks to the routes of e2e's sample MindRoom
 // plugin (e2e/fixtures/sample-plugin/routes.py) as the signed-in user: "Say hello" asks for the
 // backend's hello, and a websocket echoes what "Echo" sends, opened again unless the user left.
+// "Show square" shows the image a route answers, and "Upload file" sends a file to a route with
+// its progress, "Sent: <bytes> of <bytes>", and then the size the route answers.
 // Its panel names the sender of the greeting it shows, and their name opens their profile card
 // beside the panel, as a mention pill opens one; under it, the panel shows the signed-in person's
 // card itself. It shows the greeting's text as the app renders an agent's reply, as Markdown whose
@@ -271,7 +273,17 @@ function ServerGreeting({ roomId }: { roomId: string }) {
   const [lastClose, setLastClose] = useState<number>();
   const [echo, setEcho] = useState<string>();
   const [text, setText] = useState('');
+  const [square, setSquare] = useState<string>();
+  const [squareFailed, setSquareFailed] = useState<number>();
+  const [sent, setSent] = useState<{ loaded: number; total: number }>();
+  const [uploaded, setUploaded] = useState<string>();
   const socket = useRef<WebSocket>();
+  useEffect(
+    () => () => {
+      if (square) URL.revokeObjectURL(square);
+    },
+    [square]
+  );
   useEffect(() => {
     if (!server) return undefined;
     let mounted = true;
@@ -317,6 +329,42 @@ function ServerGreeting({ roomId }: { roomId: string }) {
         setHello(`failed (${error instanceof MindroomServerError ? error.status : 'error'})`)
     );
   };
+  const showSquare = async () => {
+    try {
+      const response = await server.send(`${routes}/square.png`);
+      if (!response.ok) setSquareFailed(response.status);
+      else setSquare(URL.createObjectURL(await response.blob()));
+    } catch {
+      setSquareFailed(0);
+    }
+  };
+  // `fetch` reports no upload progress, so the upload goes through XMLHttpRequest with the
+  // session's token, asked for anew after a 401.
+  const post = (file: File, token: string) =>
+    new Promise<XMLHttpRequest>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${server.origin}${routes}/upload`);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.upload.addEventListener('progress', ({ loaded, total }) => setSent({ loaded, total }));
+      xhr.addEventListener('load', () => resolve(xhr));
+      xhr.addEventListener('error', () => reject(new Error('No answer')));
+      const body = new FormData();
+      body.append('file', file);
+      xhr.send(body);
+    });
+  const uploadFile = async (file: File) => {
+    setUploaded(undefined);
+    try {
+      const token = await server.token();
+      let xhr = await post(file, token);
+      if (xhr.status === 401) xhr = await post(file, await server.token({ refused: token }));
+      if (xhr.status !== 200) throw new Error(String(xhr.status));
+      const answer = JSON.parse(xhr.responseText) as { size: number };
+      setUploaded(`${answer.size} bytes`);
+    } catch (error) {
+      setUploaded(`failed (${error instanceof Error ? error.message : 'error'})`);
+    }
+  };
   return (
     <>
       <p>MindRoom server: {server.origin}</p>
@@ -335,6 +383,25 @@ function ServerGreeting({ roomId }: { roomId: string }) {
         Echo
       </button>
       {echo !== undefined && <p>Echo: {echo}</p>}
+      <button type="button" onClick={() => void showSquare()}>
+        Show square
+      </button>
+      {square !== undefined && <img src={square} alt="Square from MindRoom" width={32} />}
+      {squareFailed !== undefined && <p>Square failed: {squareFailed}</p>}
+      <input
+        type="file"
+        aria-label="Upload file"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void uploadFile(file);
+        }}
+      />
+      {sent !== undefined && (
+        <p>
+          Sent: {sent.loaded} of {sent.total}
+        </p>
+      )}
+      {uploaded !== undefined && <p>Uploaded: {uploaded}</p>}
     </>
   );
 }
