@@ -16,6 +16,7 @@ import {
   minimizedSettings,
 } from '../window/callWindowState';
 import type { CallRowContent } from '../../matrix/protocol/callRow';
+import type { CallPhase } from '../RoomCall';
 import type { LiveCall, TranscriptCall, TranscriptLine } from './api';
 
 const ROOM_ID = '!room:example.org';
@@ -166,10 +167,17 @@ const render = (row: CallRowContent, store = createStore(), size: ScreenSize = '
 // Read anew each time: the registry makes a new atom after each test clears it.
 const settings = () => getCallWindowSettingsAtom(VIEWER);
 
+/** This device's call in `roomId`, at `phase`. */
+const ownCall = (roomId = ROOM_ID, phase: CallPhase = 'connected') =>
+  ({
+    kind: 'room',
+    call: { room: { roomId }, subscribe: () => () => undefined, getState: () => ({ phase }) },
+  } as unknown as ActiveCall);
+
 /** This device is in a call, in `roomId`, transcribed. */
-const inCall = (roomId = ROOM_ID) => {
+const inCall = (roomId = ROOM_ID, phase: CallPhase = 'connected') => {
   const store = createStore();
-  store.set(activeCallAtom, { kind: 'room', call: { room: { roomId } } } as unknown as ActiveCall);
+  store.set(activeCallAtom, ownCall(roomId, phase));
   store.set(callTranscriptionAtom, { roomId, status: 'transcribing' });
   return store;
 };
@@ -317,10 +325,7 @@ describe('CallRow', () => {
 
   it('shows who is in the call this device is in as its transcriber reads it', () => {
     const store = createStore();
-    store.set(activeCallAtom, {
-      kind: 'room',
-      call: { room: { roomId: ROOM_ID } },
-    } as unknown as ActiveCall);
+    store.set(activeCallAtom, ownCall());
     store.set(callTranscriptionAtom, { roomId: ROOM_ID, status: 'transcribing' });
     store.set(liveTranscriptAtom, {
       roomId: ROOM_ID,
@@ -343,10 +348,7 @@ describe('CallRow', () => {
 
   it('offers no Join for the call this device is in', () => {
     const store = createStore();
-    store.set(activeCallAtom, {
-      kind: 'room',
-      call: { room: { roomId: ROOM_ID } },
-    } as unknown as ActiveCall);
+    store.set(activeCallAtom, ownCall());
     render(LIVE, store);
     expect(button('Join')).toBeUndefined();
     expect(button('Transcript')).toBeDefined();
@@ -371,6 +373,25 @@ describe('CallRow', () => {
     act(() => button('Transcript')?.click());
     expect(store.get(settings()).transcript).toBe(true);
   });
+
+  it.each([
+    ['connecting', true],
+    ['reconnecting', true],
+    ['failed', false],
+    ['ended', false],
+  ] as const)(
+    "opens the window's transcript only while this device's call is on (%s: %s)",
+    (phase, inWindow) => {
+      // A call that failed or ended here shows its finished view in the window, which has no
+      // transcript; the others may still be talking, which the side panel shows.
+      const store = inCall(ROOM_ID, phase);
+      render(LIVE, store);
+
+      act(() => button('Transcript')?.click());
+      expect(store.get(settings()).transcript).toBe(inWindow || undefined);
+      expect(store.get(transcriptPanelAtom)?.roomId).toBe(inWindow ? undefined : ROOM_ID);
+    }
+  );
 
   it.each([
     ["another room's call", '!other:example.org', 'floating', 'Desktop'],

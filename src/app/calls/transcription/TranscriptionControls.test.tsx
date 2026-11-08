@@ -216,7 +216,11 @@ const inOwnCall = () => {
   const store = createStore();
   store.set(activeCallAtom, {
     kind: 'room',
-    call: { room: { roomId: ROOM_ID } },
+    call: {
+      room: { roomId: ROOM_ID },
+      subscribe: () => () => undefined,
+      getState: () => ({ phase: 'connected' }),
+    },
   } as unknown as ActiveCall);
   store.set(callPanelRoomAtom, ROOM_ID);
   return store;

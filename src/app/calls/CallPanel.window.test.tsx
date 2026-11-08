@@ -67,6 +67,8 @@ vi.mock('./callStore', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./callStore')>()),
   useActiveCall: () => calls.active,
   useCallState: () => calls.state,
+  // This device's call is on while it connects, is connected or reconnects.
+  useInCall: () => ['connecting', 'connected', 'reconnecting'].includes(calls.state?.phase ?? ''),
   useRoomCallMembers: () => calls.members,
   useCallActions: () => ({
     endCall: leave,

@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { atom, useAtomValue, useStore } from 'jotai';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { callPanelRoomAtom, useActiveCall } from '../callStore';
+import { callPanelRoomAtom, useActiveCall, useInCall } from '../callStore';
 import { getCallWindowTranscriptAtom, useCallViewFloats } from '../window/callWindowState';
 
 type Store = ReturnType<typeof useStore>;
@@ -81,15 +81,18 @@ export const openCallTranscript = (
 
 /**
  * Transcript for the call in `roomId`: whether it shows inside the floating window (the call is
- * this device's, and its view floats), whether it shows there now, and `open`, which shows it
- * where it belongs (toggling it in the window when `toggle`).
+ * this device's and still on here, and its view floats), whether it shows there now, and `open`,
+ * which shows it where it belongs (toggling it in the window when `toggle`). A call that failed or
+ * ended here shows its finished view in the window, without a transcript, while the others may
+ * still talk: the side panel shows that.
  */
 export const useCallTranscript = (roomId: string) => {
   const store = useStore();
   const userId = useMatrixClient().getSafeUserId();
   const active = useActiveCall();
+  const live = useInCall();
   const floats = useCallViewFloats();
-  const inWindow = floats && active?.kind === 'room' && active.call.room.roomId === roomId;
+  const inWindow = floats && live && active?.kind === 'room' && active.call.room.roomId === roomId;
   const shown = useAtomValue(getCallWindowTranscriptAtom(userId));
   const open = useCallback(
     (toggle: boolean) =>
