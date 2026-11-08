@@ -768,6 +768,52 @@ describe('SDK thread bootstrap requests', () => {
     });
   });
 
+  it('replaces the events a shown thread held with its first page, keeping those that came meanwhile', async () => {
+    const rootId = rootIdAt(1);
+    // The page holds the thread's latest reply, which sync has not brought yet.
+    const f = server({ roots: [summarizedRoot(rootId, 2)] });
+    const room = roomFor(f.client);
+    room.processThreadRoots([f.client.getEventMapper()(summarizedRoot(rootId, 1))], true);
+    await room.addLiveEvents([new MatrixEvent(reply(rootId, 1, 1))], { addToState: false });
+    const thread = room.getThread(rootId)!;
+    let release!: () => void;
+    f.network.relationsHeld = new Promise((resolve) => {
+      release = resolve;
+    });
+    const opening = thread.initialize();
+    await vi.waitFor(() => expect(f.relationPages()).toBe(1));
+    await room.addLiveEvents([new MatrixEvent(reply(rootId, 3, 30))], { addToState: false });
+    release();
+    await opening;
+    await settle();
+
+    expect(thread.events.map((event) => event.getId())).toEqual([
+      `${rootId}-reply-2`,
+      `${rootId}-reply-3`,
+    ]);
+  });
+
+  it('asks for the latest first page after a room sync gap, and keeps the gap when it fails', async () => {
+    const rootId = rootIdAt(1);
+    const f = server({ roots: [summarizedRoot(rootId, 2)] });
+    const room = roomFor(f.client);
+    room.processThreadRoots([f.client.getEventMapper()(summarizedRoot(rootId, 1))], true);
+    room.resetLiveTimeline('back', 'forward');
+    await room.addLiveEvents([new MatrixEvent(reply(rootId, 2, 10))], { addToState: false });
+    await settle();
+    const thread = room.getThread(rootId)!;
+    // The gap's token, converted for thread pagination.
+    expect(thread.liveTimeline.getPaginationToken(Direction.Backward)).toBe('end');
+
+    f.network.relationsDown = true;
+    await thread.initialize();
+
+    const page = f.requests.find((url) => /\/relations\//.test(url.pathname))!;
+    expect(page.searchParams.get('from')).toBeNull();
+    expect(thread.events.map((event) => event.getId())).toEqual([`${rootId}-reply-2`]);
+    expect(thread.liveTimeline.getPaginationToken(Direction.Backward)).toBe('end');
+  });
+
   it('records room sync gaps on 200 unopened threads without allocating timelines', async () => {
     const f = server();
     const room = roomFor(f.client);
