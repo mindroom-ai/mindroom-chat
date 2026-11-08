@@ -326,7 +326,7 @@ export function RoomView({
             threadFilterState={threadState.threadFilterState}
             {...headerProps}
           />
-          <RoomHeaderSlot room={room} />
+          <RoomHeaderSlot room={room} headerRef={headerRef} />
         </div>
         <div ref={conversationRef} style={CONVERSATION_STYLE}>
           <ThreadApprovalProvider

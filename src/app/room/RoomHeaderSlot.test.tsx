@@ -1,3 +1,4 @@
+import { createRef, type ComponentProps } from 'react';
 import {
   act,
   create,
@@ -7,9 +8,14 @@ import {
 import type { Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
+import type { RoomHeaderSlotComponent } from '../plugins/registry';
 import { RoomHeaderSlot } from './RoomHeaderSlot';
 
-const mocks = vi.hoisted(() => ({ reportBoundaryError: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  reportBoundaryError: vi.fn(),
+  // What each named component's header element was when its first effect ran.
+  headers: [] as [string, unknown][],
+}));
 vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   reportBoundaryError: mocks.reportBoundaryError,
@@ -18,11 +24,15 @@ vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) 
 // Plugins as a build lists them: one shows two things under the header, one only messages, and one
 // fails in some rooms (throwing an Error, a string or a value without text) and lists a value that
 // is not a component.
-vi.mock('../plugins/pluginEntries', () => {
-  const named =
-    (label: string) =>
-    ({ room }: { room: Room }) =>
-      `${label}:${room.roomId}`;
+vi.mock('../plugins/pluginEntries', async () => {
+  const { useEffect } = await import('react');
+  const named = (label: string) =>
+    function Named({ room, headerRef }: ComponentProps<RoomHeaderSlotComponent>) {
+      useEffect(() => {
+        mocks.headers.push([label, headerRef.current]);
+      }, [headerRef]);
+      return `${label}:${room.roomId}`;
+    };
   return {
     pluginEntries: [
       {
@@ -61,11 +71,12 @@ describe('RoomHeaderSlot', () => {
     renderer = undefined;
     vi.restoreAllMocks();
     mocks.reportBoundaryError.mockReset();
+    mocks.headers.length = 0;
   });
 
   const slot = (roomId: string, config: ClientConfig = {}) => (
     <ClientConfigProvider value={config}>
-      <RoomHeaderSlot room={{ roomId } as Room} />
+      <RoomHeaderSlot room={{ roomId } as Room} headerRef={createRef()} />
     </ClientConfigProvider>
   );
 
@@ -87,6 +98,27 @@ describe('RoomHeaderSlot', () => {
   it("shows each enabled plugin's components in build order, given the room", () => {
     const shown = render('!a:example.org');
     expect(shown).toMatch(/first:!a:example.org.*second:!a:example.org.*broken:!a:example.org/);
+  });
+
+  it('gives each component the element holding the header row and the slot, set by its first effect', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const headerRef = createRef<HTMLDivElement>();
+    const header = { element: 'the header' };
+    act(() => {
+      renderer = create(
+        <ClientConfigProvider value={{}}>
+          <div ref={headerRef}>
+            <h1>Room name</h1>
+            <RoomHeaderSlot room={{ roomId: '!a:example.org' } as Room} headerRef={headerRef} />
+          </div>
+        </ClientConfigProvider>,
+        { createNodeMock: () => header }
+      );
+    });
+    expect(mocks.headers).toEqual([
+      ['first', header],
+      ['second', header],
+    ]);
   });
 
   it('shows nothing of a plugin that config.json turns off', () => {

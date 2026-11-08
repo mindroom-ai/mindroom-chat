@@ -316,9 +316,9 @@ export const useRoomWindowPaginator = ({
     () => suppressFocusPaginationRef.current,
     [suppressFocusPaginationRef]
   );
-  // The opening fill loads a screen of history above the reader. A short room, whose creation
-  // event came with the sync, has nothing older to load ahead: its start (the room intro) shows
-  // once the reader scrolls up to it.
+  // The opening fill loads a screen of history above the reader. A room whose creation is loaded
+  // has nothing older to load ahead: its rows above the reader, and its start, mount as the reader
+  // scrolls up to them.
   const automaticBackReach = useCallback(() => {
     const first = firstRoomTimelineRef.current?.getEvents()[0];
     if (first?.getType() === EventType.RoomCreate) return 0;
