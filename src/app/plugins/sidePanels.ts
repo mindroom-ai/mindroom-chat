@@ -67,6 +67,8 @@ export type PluginPanelControls = {
   shown: string | undefined;
   /** Opens a plugin's panel by its rule and hands it `request`; nothing for an unknown panel. */
   open: (id: string, request: unknown) => void;
+  /** Opens a plugin's panel beside the thread `threadId`, as {@link RoomSidePanelControl} says. */
+  openBesideThread: (id: string, threadId: string, request: unknown) => void;
   /** Closes a plugin's panel if the room shows it. */
   close: (id: string) => void;
 };
@@ -84,9 +86,22 @@ export type RoomSidePanelControl = {
    * browser, so the request should hold only what the panel needs to open again, never secrets or
    * message text. `open` keeps its identity while the room shows. Call it in answer to something
    * the person does, such as a click, never as a component mounts: the conversation's components
-   * mount again whenever it shows another thread or view.
+   * mount again whenever it shows another thread or view. To open as one mounts, see
+   * `openBesideThread`.
    */
   open: (request?: unknown) => void;
+  /**
+   * Opens it beside the thread `threadId` with `request`, as a renderer of that thread's root
+   * message may ask from an effect that depends on it: it takes a new identity whenever the room
+   * shows another thread or its own timeline, so the effect asks again then, also in a card that
+   * stays mounted as its thread opens. Only the first call since the room began to show that thread
+   * counts, so a component that mounts again does not open a panel the person closed; once another
+   * thread or the room's own timeline has shown, the thread's next call counts again. That call
+   * does something only while the room shows that thread and not on a phone: it opens the panel
+   * when no other side panel shows, and when the panel itself shows, it hands it `request` and
+   * leaves it folded or filling the room. Otherwise it does nothing.
+   */
+  openBesideThread: (threadId: string, request?: unknown) => void;
   /** Closes it, if the room shows it; it keeps its identity as `open` does. */
   close: () => void;
 };
@@ -103,6 +118,7 @@ export const useRoomSidePanel = (
   const controls = useContext(PluginPanelControlsContext);
   const id = `${pluginId}/${panelId}`;
   const roomOpen = controls?.open;
+  const roomOpenBeside = controls?.openBesideThread;
   const roomClose = controls?.close;
   const actions = useMemo(
     () =>
@@ -113,6 +129,16 @@ export const useRoomSidePanel = (
       },
     [id, roomClose, roomOpen]
   );
+  // Its own memo: it changes with each thread the room shows, `open` and `close` do not.
+  const openBesideThread = useMemo(
+    () =>
+      roomOpenBeside &&
+      ((threadId: string, request?: unknown) => roomOpenBeside(id, threadId, request)),
+    [id, roomOpenBeside]
+  );
   const isOpen = controls?.shown === id;
-  return useMemo(() => actions && { ...actions, isOpen }, [actions, isOpen]);
+  return useMemo(
+    () => actions && openBesideThread && { ...actions, openBesideThread, isOpen },
+    [actions, isOpen, openBesideThread]
+  );
 };
