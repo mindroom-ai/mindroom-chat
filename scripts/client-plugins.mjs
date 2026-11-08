@@ -18,7 +18,7 @@ import { normalizePath, searchForWorkspaceRoot } from 'vite';
  * `apiVersion`, the one it needs. Version 1 had no SDK; each later addition to the SDK (an export,
  * or a contribution kind in `ClientPlugin`) raises it.
  */
-const CLIENT_PLUGIN_API_VERSION = 17;
+const CLIENT_PLUGIN_API_VERSION = 18;
 
 /** The SDK's subpaths a build resolves, which plugins import, and the modules they are. */
 export const CLIENT_SDK_ALIAS = {
@@ -27,6 +27,9 @@ export const CLIENT_SDK_ALIAS = {
     new URL('../src/client-sdk/matrix.ts', import.meta.url)
   ),
   '@mindroom/client-sdk/room': fileURLToPath(new URL('../src/client-sdk/room.ts', import.meta.url)),
+  '@mindroom/client-sdk/server': fileURLToPath(
+    new URL('../src/client-sdk/server.ts', import.meta.url)
+  ),
 };
 
 const KEBAB_CASE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
