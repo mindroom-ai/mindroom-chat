@@ -221,22 +221,6 @@ const watchRequests = (page: Page, roomId: string) => {
   return counts;
 };
 
-/** How many rows the room's list holds, from the timeline's debug log (`room-surface`). */
-const watchRowCount = (page: Page) => {
-  const state = { rows: 0 };
-  page.on('console', (message) => {
-    if (!message.text().includes('room-surface')) return;
-    const payload = message.args()[1];
-    void payload
-      ?.jsonValue()
-      .then((value: { visibleCount?: number }) => {
-        if (typeof value?.visibleCount === 'number') state.rows = value.visibleCount;
-      })
-      .catch(() => undefined);
-  });
-  return state;
-};
-
 /** The room timeline's scroll area: the nearest scrolling box around its virtual list. */
 const findScroller = (page: Page) =>
   page.getByTestId('room-virtual-inner').evaluateHandle((inner) => {
@@ -247,6 +231,45 @@ const findScroller = (page: Page) =>
     return node;
   });
 type Scroller = Awaited<ReturnType<typeof findScroller>>;
+
+/**
+ * How many of `roots` the Threads view holds now: its list read top to bottom in half screens while
+ * the room's history pages wait, so only rows it held already show. The view returns to its top.
+ */
+const countHeldRoots = async (page: Page, roots: string[]): Promise<number> => {
+  const waiting: (() => void)[] = [];
+  const isHistoryPage = (url: URL) => url.pathname.endsWith('/messages');
+  await page.route(isHistoryPage, (route) => {
+    waiting.push(() => void route.continue().catch(() => undefined));
+  });
+  try {
+    const scroller = await findScroller(page);
+    return await scroller.evaluate(async (view, rootIds) => {
+      const wanted = new Set(rootIds);
+      const seen = new Set<string>();
+      const frame = () =>
+        new Promise((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(resolve));
+        });
+      for (let step = 0; step < 2_000; step += 1) {
+        view.scrollTop = (step * view.clientHeight) / 2;
+        // eslint-disable-next-line no-await-in-loop
+        await frame();
+        view.querySelectorAll<HTMLElement>('[data-message-id]').forEach((row) => {
+          const id = row.dataset.messageId;
+          if (id && wanted.has(id)) seen.add(id);
+        });
+        if (view.scrollTop + view.clientHeight >= view.scrollHeight - 1) break;
+      }
+      view.scrollTop = 0;
+      await frame();
+      return seen.size;
+    }, roots);
+  } finally {
+    await page.unroute(isHistoryPage);
+    waiting.forEach((release) => release());
+  }
+};
 
 type WatchWindow = Window & { manyThreadsWatch?: { seen: Set<string>; stop: () => void } };
 
@@ -342,7 +365,6 @@ const flick = async (page: Page, scroller: Scroller, device: Device, down: boole
 type Step = { requests: Requests; rows: number; stalled: boolean; drift: number };
 type Reading = {
   label: string;
-  rowsAtStart: number;
   steps: Step[];
   reached: boolean;
   seconds: number;
@@ -370,7 +392,6 @@ const readToOldest = async (
   down: boolean,
   target: string,
   requests: Requests,
-  rowCount: { rows: number },
   label: string
 ): Promise<Reading> => {
   const scroller = await findScroller(page);
@@ -378,7 +399,6 @@ const readToOldest = async (
   if (!box) throw new Error('The timeline is not laid out');
   if (device === 'desktop') await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await startWatch(scroller);
-  const rowsAtStart = rowCount.rows;
   const start = Date.now();
   const before = { ...requests };
   const steps: Step[] = [];
@@ -421,7 +441,6 @@ const readToOldest = async (
   }
   return {
     label,
-    rowsAtStart,
     steps,
     reached,
     seconds,
@@ -431,9 +450,10 @@ const readToOldest = async (
   };
 };
 
-const report = (reading: Reading) => {
+const report = (reading: Reading, heldRoots?: number) => {
   const summary = {
     ...reading,
+    heldRoots,
     steps: reading.steps.length,
     perStep: reading.steps.map(
       (step) =>
@@ -471,7 +491,6 @@ const oldestRoot = (fixture: Fixture) => fixture.roots[0] ?? '';
 const switchFromCompact = async (page: Page, fixture: Fixture, label: string) => {
   await login(page, fixture, 'compact');
   const requests = watchRequests(page, fixture.roomId);
-  const rowCount = watchRowCount(page);
   await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
   const cards = page.locator('[data-compact-room-view="true"] button[data-thread-root-id]');
   await expect
@@ -488,7 +507,7 @@ const switchFromCompact = async (page: Page, fixture: Fixture, label: string) =>
   });
   await page.waitForTimeout(1_500);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${label}-threads.png` });
-  return { requests, rowCount };
+  return requests;
 };
 
 /** Opens the room straight in a view: on a device that holds nothing, or after a reload. */
@@ -507,7 +526,6 @@ const openIn = async (
     await page.waitForTimeout(3_000);
   }
   const requests = watchRequests(page, fixture.roomId);
-  const rowCount = watchRowCount(page);
   if (warm) await page.reload();
   else await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
   await expect(rows).toBeVisible({ timeout: 60_000 });
@@ -516,7 +534,7 @@ const openIn = async (
     mkdirSync(SHOTS, { recursive: true });
     await page.screenshot({ path: `${SHOTS}/${label}-open.png` });
   }
-  return { requests, rowCount };
+  return requests;
 };
 
 let fixture: Fixture;
@@ -578,17 +596,18 @@ test.describe('a room with 245 threads', () => {
       await withContext(browser, baseURL, engine, device, async (context) => {
         const page = await context.newPage();
         const label = `${prefix}-switch`;
-        const { requests, rowCount } = await switchFromCompact(page, fixture, label);
+        const requests = await switchFromCompact(page, fixture, label);
+        const held = await countHeldRoots(page, fixture.roots);
+        await page.waitForTimeout(1_000);
         const reading = await readToOldest(
           page,
           device,
           true,
           oldestRoot(fixture),
           requests,
-          rowCount,
           label
         );
-        report(reading);
+        report(reading, held);
       });
     });
 
@@ -599,23 +618,24 @@ test.describe('a room with 245 threads', () => {
         await withContext(browser, baseURL, engine, device, async (context) => {
           const page = await context.newPage();
           const label = `${prefix}-threads-${cache}`;
-          const { requests, rowCount } = await openIn(
+          const requests = await openIn(
             page,
             fixture,
             'threaded',
             label,
             cache === 'warm'
           );
+          const held = await countHeldRoots(page, fixture.roots);
+          await page.waitForTimeout(1_000);
           const reading = await readToOldest(
             page,
             device,
             true,
             oldestRoot(fixture),
             requests,
-            rowCount,
             label
           );
-          report(reading);
+          report(reading, held);
         });
       });
 
@@ -625,7 +645,7 @@ test.describe('a room with 245 threads', () => {
         await withContext(browser, baseURL, engine, device, async (context) => {
           const page = await context.newPage();
           const label = `${prefix}-classic-${cache}`;
-          const { requests, rowCount } = await openIn(
+          const requests = await openIn(
             page,
             fixture,
             'classic',
@@ -638,7 +658,6 @@ test.describe('a room with 245 threads', () => {
             false,
             oldestRoot(fixture),
             requests,
-            rowCount,
             label
           );
           report(reading);
