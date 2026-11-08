@@ -3,15 +3,20 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
+import { type RoomSidePanelControl, useRoomSidePanel } from '../plugins/sidePanels';
 import type { RoomViewProps } from './RoomView';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
 
 // A plugin's side panel whose `label` is a key of the plugin's strings, named in the app's language
 // wherever the room names it: its toggle in the room header, its frame, its Close and its resize
-// handle, again when the language changes.
+// handle, again when the language changes, which leaves what the plugin's code holds as it was.
 
 const { mx, room, state } = vi.hoisted(() => ({
-  state: { view: undefined as RoomViewProps | undefined },
+  state: {
+    view: undefined as RoomViewProps | undefined,
+    /** What the plugin's code in the conversation holds of its panel. */
+    control: undefined as RoomSidePanelControl | undefined,
+  },
   mx: {
     getSafeUserId: () => '@alice:example.org',
     isInitialSyncComplete: () => true,
@@ -33,10 +38,18 @@ vi.mock('react-router-dom', () => ({
   useParams: () => ({}),
   useSearchParams: () => [new URLSearchParams()],
 }));
+function PluginCode() {
+  state.control = useRoomSidePanel('notes', 'panel');
+  return null;
+}
 vi.mock('./RoomView', () => ({
   RoomView: (props: RoomViewProps) => {
     state.view = props;
-    return <div data-testid="room-view" />;
+    return (
+      <div data-testid="room-view">
+        <PluginCode />
+      </div>
+    );
   },
 }));
 vi.mock('../members/MembersDrawer', () => ({ MembersDrawer: () => <aside /> }));
@@ -141,8 +154,14 @@ describe("a plugin's side panel's name", () => {
     expect(await names('Notizen')).toEqual(shown);
     expect(screen.getByRole('button', { name: 'Notizen schließen' })).toBeTruthy();
 
+    const held = state.control;
+
     await act(async () => i18n.changeLanguage('en'));
     expect(await names('Notes')).toEqual({ ...shown, toggle: ['Notes'] });
     expect(screen.getByRole('button', { name: 'Close Notes' })).toBeTruthy();
+    // The plugin's code keeps the calls it holds, as it does while the room shows.
+    expect(state.control?.open).toBe(held?.open);
+    expect(state.control?.close).toBe(held?.close);
+    expect(state.control?.openBesideThread).toBe(held?.openBesideThread);
   });
 });

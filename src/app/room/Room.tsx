@@ -527,21 +527,21 @@ function RoomContent() {
   // got these, once a save ends, say: they act on the room and the panel shown then, and not at all
   // once this page has gone.
   const shownId = shown?.id;
-  const now = useLatestRef({ roomId, shownId, threadId, mobile });
+  const now = useLatestRef({ roomId, shownId, threadId, mobile, pluginPanels });
   const alive = useAlive();
   // `open` and `close` keep their identity while the room shows, so plugin code that depends on them
-  // does not run again when another panel shows.
+  // does not run again when another panel shows or the panels' labels change with the language.
   const openPluginPanel = useCallback<PluginPanelControls['open']>(
     (id, panelRequest) => {
       if (
         alive() &&
         now.current.roomId === roomId &&
-        pluginPanels.some((panel) => panel.id === id)
+        now.current.pluginPanels.some((panel) => panel.id === id)
       ) {
         request(id, () => showPluginPanel(id, panelRequest));
       }
     },
-    [alive, now, pluginPanels, request, roomId, showPluginPanel]
+    [alive, now, request, roomId, showPluginPanel]
   );
   // The thread shown whose one call to open a plugin's panel beside it came; it gets another once
   // another thread or the room's own timeline has shown.
@@ -554,7 +554,7 @@ function RoomContent() {
   const openPluginPanelBesideThread = useCallback<PluginPanelControls['openBesideThread']>(
     (id, besideThread, panelRequest) => {
       const { shownId: shownNow, threadId: threadNow, mobile: phone } = now.current;
-      const panel = pluginPanels.find((candidate) => candidate.id === id);
+      const panel = now.current.pluginPanels.find((candidate) => candidate.id === id);
       if (
         !alive() ||
         now.current.roomId !== roomId ||
@@ -573,7 +573,7 @@ function RoomContent() {
         request(id, () => showPluginPanel(id, panelRequest));
       }
     },
-    [alive, now, pluginPanels, request, roomId, showPluginPanel, threadId]
+    [alive, now, request, roomId, showPluginPanel, threadId]
   );
   const closeShownPluginPanel = useCallback<PluginPanelControls['close']>(
     (id) => {
