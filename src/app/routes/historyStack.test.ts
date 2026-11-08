@@ -78,7 +78,8 @@ describe('findHistoryOrigin', () => {
   });
 
   it('knows a room by its alias too', () => {
-    expect(inRoom(page('a', '/space/%23harbor%3Aexample.org/'))).toBe(true);
+    expect(inRoom(page('a', '/%23garden%3Aexample.org/%23harbor%3Aexample.org/'))).toBe(true);
+    expect(inRoom(page('a', '/direct/%23harbor%3Aexample.org/'))).toBe(true);
     expect(inRoom(page('a', '/home/!garden:example.org/'))).toBe(false);
   });
 
@@ -87,6 +88,7 @@ describe('findHistoryOrigin', () => {
   });
 
   it('stops at a page of another kind whose path only carries the room, such as a plugin page', () => {
+    expect(inRoom(page('a', `/explore/${encodeURIComponent(room)}/`))).toBe(false);
     const plugin = `/p/example/rooms/${encodeURIComponent(room)}/%24root`;
     const history = stack(page('a', plugin), page('b', `/home/${encodeURIComponent(room)}/`));
     expect(findHistoryOrigin(history, (candidate) => !inRoom(candidate))).toEqual({
