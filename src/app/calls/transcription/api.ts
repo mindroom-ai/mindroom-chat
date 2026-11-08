@@ -1,4 +1,4 @@
-import { ConnectionError, MatrixError, type IOpenIDToken } from 'matrix-js-sdk';
+import { ConnectionError, HTTPError, type IOpenIDToken } from 'matrix-js-sdk';
 import type { SpeechStretch } from './speechCapture';
 
 const API_PATH = '/api/call-transcripts/v1';
@@ -125,12 +125,13 @@ const untilAborted = <T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> 
 };
 
 /**
- * A homeserver that could not be asked, or failed, may answer later. One that refused for good,
- * such as one that does not bind tokens to their audience, never lets MindRoom sign this person in.
+ * A homeserver that could not be asked, or failed (also with a proxy's page that is not JSON), may
+ * answer later. One that refused for good, such as one that does not bind tokens to their audience,
+ * never lets MindRoom sign this person in.
  */
 const tokenError = (error: unknown): TranscriptionApiError => {
   if (error instanceof TranscriptionApiError) return error;
-  if (error instanceof ConnectionError || error instanceof MatrixError)
+  if (error instanceof ConnectionError || error instanceof HTTPError)
     return noAnswer('The homeserver could not give a sign-in token.');
   return new TranscriptionApiError(
     'The homeserver will not sign in to MindRoom.',

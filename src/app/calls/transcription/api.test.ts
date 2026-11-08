@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ConnectionError, type IOpenIDToken } from 'matrix-js-sdk';
+import { ConnectionError, HTTPError, type IOpenIDToken } from 'matrix-js-sdk';
 import {
   TranscriptionApiError,
   TranscriptionClient,
@@ -170,7 +170,7 @@ describe('TranscriptionClient sessions', () => {
     expect(getOpenIdToken).toHaveBeenCalledTimes(2);
   });
 
-  it('counts a homeserver that cannot give a token as unreachable, and one that will not bind it as no transcripts', async () => {
+  it('counts a homeserver that cannot give a token now as unreachable, and one that will not bind it as no transcripts', async () => {
     const server = fakeServer();
     const unreachable = client(
       server,
@@ -181,6 +181,17 @@ describe('TranscriptionClient sessions', () => {
     const error = await unreachable.api.join(ROOM_ID).catch((reason: unknown) => reason);
     expect(isUnavailable(error)).toBe(true);
     expect(isNotTranscribed(error)).toBe(false);
+
+    // A proxy in front of the homeserver that fails with a page that is not JSON.
+    const failing = client(
+      server,
+      vi.fn(async () => {
+        throw new HTTPError('Server returned 502 error', 502);
+      })
+    );
+    const failed = await failing.api.join(ROOM_ID).catch((reason: unknown) => reason);
+    expect(isUnavailable(failed)).toBe(true);
+    expect(isNotTranscribed(failed)).toBe(false);
 
     const unbound = client(
       server,
