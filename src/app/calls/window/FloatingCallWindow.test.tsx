@@ -347,6 +347,24 @@ describe('FloatingCallWindow', () => {
     expect(section().hasAttribute('data-bar')).toBe(false);
   });
 
+  it('shows an expand from the call view during a drag of the bar, and saves nothing over it', () => {
+    renderWindow();
+    act(() => frame?.minimize());
+    press(handle());
+    moveTo(400, 300);
+    expect(placed()).toEqual({ x: 924, y: 628, width: 400, height: 56 });
+
+    // A notice to act on comes up: the bar grows from where it is dragged, and the drag ends.
+    act(() => frame?.expand());
+    const expanded = { x: 924, y: 204, width: 400, height: 480 };
+    expect(placed()).toEqual(expanded);
+    expect(section().hasAttribute('data-dragging')).toBe(false);
+    moveTo(300, 200);
+    releaseAt(300, 200);
+    expect(placed()).toEqual(expanded);
+    expect(stored()).toMatchObject({ rect: expanded, placedIn: LAPTOP });
+  });
+
   it('drops a moved bar into the nearest corner on release', () => {
     renderWindow();
     act(() => frame?.minimize());
@@ -386,7 +404,11 @@ describe('FloatingCallWindow', () => {
   });
 
   it('shrinks a stored window into a small viewport and gives its size back when it grows', () => {
-    store({ mode: 'floating', rect: { x: 1000, y: 400, width: 400, height: 440 } });
+    store({
+      mode: 'floating',
+      rect: { x: 1000, y: 400, width: 400, height: 440 },
+      placedIn: LAPTOP,
+    });
     renderWindow();
     setViewport(1000, 700);
     act(() => {
@@ -407,6 +429,7 @@ describe('FloatingCallWindow', () => {
     expect(stored()).toEqual({
       mode: 'floating',
       rect: { x: 1000, y: 400, width: 400, height: 440 },
+      placedIn: LAPTOP,
     });
   });
 

@@ -422,6 +422,31 @@ describe('the call view title bar', () => {
     expect(speakerSwitch().getAttribute('aria-pressed')).toBe('true');
   });
 
+  it('keeps the pick wherever the call view moves and when it opens again, for the call and for the screens shared', () => {
+    roomCall([me, person('@ana:panel.test', { video: camera })]);
+    const inWindow = renderPanel({ frame: frame() });
+    press('Speaker view');
+    expect(speakerView()).toBe(true);
+    // Docked, floating again, or closed and opened again, the call view mounts anew.
+    inWindow.unmount();
+    const docked = renderPanel();
+    expect(speakerView()).toBe(true);
+    docked.unmount();
+    const again = renderPanel({ frame: frame() });
+    expect(speakerSwitch().getAttribute('aria-pressed')).toBe('true');
+    again.unmount();
+
+    // Ana shares her screen, which opens speaker view; the grid picked for it stays too.
+    roomCall([me, person('@ana:panel.test', { video: camera, screen: camera })]);
+    const sharing = renderPanel({ frame: frame() });
+    expect(speakerView()).toBe(true);
+    press('Speaker view');
+    expect(speakerView()).toBe(false);
+    sharing.unmount();
+    renderPanel();
+    expect(speakerView()).toBe(false);
+  });
+
   it('docks from the window and takes the person to the call room', () => {
     roomCall([me, person('@ana:panel.test')]);
     renderPanel({ frame: frame() });

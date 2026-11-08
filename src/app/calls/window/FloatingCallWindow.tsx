@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, PointerEvent, ReactNode, Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
-import { clampToViewport, defaultRect, fitToViewport, isBar, keyStep } from './callWindowGeometry';
+import { clampToViewport, defaultRect, isBar, keyStep } from './callWindowGeometry';
 import { moveRect, resizeRect, snapToCorner } from './callWindowGeometry';
 import type { ResizeEdge, ViewportSize, WindowRect } from './callWindowGeometry';
-import { expandedSettings, minimizedSettings, useCallWindowSettings } from './callWindowState';
+import { expandedSettings, minimizedSettings, shownRect } from './callWindowState';
+import { useCallWindowSettings } from './callWindowState';
 import { CallWindowFrameContext, CallWindowSizeContext } from './callWindowFrame';
 import type { CallWindowFrame } from './callWindowFrame';
 import * as css from './FloatingCallWindow.css';
@@ -55,21 +56,22 @@ export function FloatingCallWindow(props: { children: ReactNode; frameRef?: Ref<
   const { t } = useTranslation();
   const [settings, setSettings] = useCallWindowSettings();
   const [viewport, setViewport] = useState(readViewport);
-  const stored = settings.rect;
-  // A stored box is fitted from the viewport it was placed in, so it keeps its distance to the
-  // nearer edges as the viewport changes and gets its size back when the viewport grows again.
-  // Nothing is written meanwhile. A box stored without its viewport counts as placed in the one
-  // it arrives in.
-  const [placed, setPlaced] = useState({ rect: stored, viewport });
-  if (placed.rect !== stored) setPlaced({ rect: stored, viewport });
-  const placedIn = settings.placedIn ?? (placed.rect === stored ? placed.viewport : viewport);
-  const settled = stored
-    ? fitToViewport(stored, placedIn, viewport)
-    : clampToViewport(defaultRect(viewport, document.dir === 'rtl'), viewport);
+  // The stored box, fitted from the viewport it was placed in: it keeps its distance to the nearer
+  // edges as the viewport changes and gets its size back when the viewport grows again. Nothing
+  // is written meanwhile.
+  const settled =
+    shownRect(settings, viewport) ??
+    clampToViewport(defaultRect(viewport, document.dir === 'rtl'), viewport);
   const [preview, setPreview] = useState<WindowRect>();
   const rect = preview ?? settled;
   const bar = isBar(rect);
   const dragRef = useRef<Drag>();
+  // The settings are the one source of the box: one written during a drag (Expand or Minimize
+  // from the call view, a step) ends the drag and shows, and the release saves nothing over it.
+  useLayoutEffect(() => {
+    dragRef.current = undefined;
+    setPreview(undefined);
+  }, [settings.rect]);
 
   useEffect(() => {
     const measure = () =>

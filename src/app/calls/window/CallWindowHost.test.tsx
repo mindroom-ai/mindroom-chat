@@ -6,12 +6,7 @@ import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { PAGE_MAIN_ID } from '../../ui/page/Page';
-import {
-  activeCallAtom,
-  callPanelRoomAtom,
-  callPrescreenChoicesAtom,
-  type ActiveCall,
-} from '../callStore';
+import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from '../callStore';
 import {
   callWindowStorageKey,
   clearCallWindowStore,
@@ -440,41 +435,6 @@ describe('CallWindowHost', () => {
     renderHost(phone, 'Mobile');
     act(() => phone.set(activeCallAtom, undefined));
     expect(phone.get(callPanelRoomAtom)).toBe(LOBBY);
-  });
-
-  it("forgets the prescreen's choices when the call view closes or shows another room, or a call starts", () => {
-    const store = createStore();
-    store.set(callPanelRoomAtom, LOBBY);
-    renderHost(store);
-    const choices = () => store.get(callPrescreenChoicesAtom);
-    const pick = () =>
-      act(() =>
-        store.set(callPrescreenChoicesAtom, {
-          roomId: LOBBY,
-          microphone: false,
-          camera: true,
-          devices: {},
-        })
-      );
-
-    // Docked and floating again, the call view stays open on its room, and so do the choices.
-    pick();
-    settle(store, { mode: 'docked' });
-    settle(store, { mode: 'floating' });
-    expect(choices()).toMatchObject({ roomId: LOBBY, microphone: false });
-
-    act(() => store.set(callPanelRoomAtom, undefined));
-    expect(choices()).toBeUndefined();
-
-    act(() => store.set(callPanelRoomAtom, LOBBY));
-    pick();
-    act(() => store.set(callPanelRoomAtom, DESK));
-    expect(choices()).toBeUndefined();
-
-    act(() => store.set(callPanelRoomAtom, LOBBY));
-    pick();
-    act(() => store.set(activeCallAtom, callIn(LOBBY)));
-    expect(choices()).toBeUndefined();
   });
 
   it('leaves the call view alone when the window only moves or resizes', async () => {

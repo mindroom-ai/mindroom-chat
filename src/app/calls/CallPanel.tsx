@@ -21,13 +21,13 @@ import type { CallParticipant, CallProblem, CallState } from './RoomCall';
 import {
   callHomeRoomId,
   callPanelRoomAtom,
-  callPrescreenChoicesAtom,
   callStartProblemAtom,
   isActiveCallShownIn,
   noteCallStart,
   useActiveCall,
   useCallActions,
   useCallState,
+  useCallViewState,
   useRoomCallMembers,
   type ActiveCall,
   type CallOrigin,
@@ -473,18 +473,23 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
   const shownPeople = awaitedAgent ? [...state.participants, awaitedAgent] : state.participants;
   // The person's pick of speaker view or the grid, for the call and, while someone else shares a
   // screen, for the screens shared then: new shares open at the stage's default (speaker view for
-  // someone else's one screen) until picked again. The stage says what it shows, which the switch
-  // shows, and holds it there while tiles would be too small for the grid.
-  const [callPick, setCallPick] = useState(false);
-  const [screensPick, setScreensPick] = useState<{ scope: string; speaker: boolean }>();
+  // someone else's one screen) until picked again. Kept with the call, so it stays wherever the
+  // view moves. The stage says what it shows, which the switch shows, and holds it there while
+  // tiles would be too small for the grid.
+  const [picks, changePicks] = useCallViewState(callHomeRoomId(active));
   const scope = pickScope(state.participants);
-  if (screensPick && screensPick.scope !== scope) setScreensPick(undefined);
-  const speakerView = scope ? screensPick?.speaker : callPick;
+  const screensPick = picks.screens?.scope === scope ? picks.screens.speaker : undefined;
+  const screensChanged = !!picks.screens && screensPick === undefined;
+  useEffect(() => {
+    if (screensChanged) changePicks((last) => ({ ...last, screens: undefined }));
+  }, [changePicks, screensChanged]);
+  const speakerView = scope ? screensPick : picks.speaker;
   const [stageView, setStageView] = useState<StageView>({ speaker: false, held: false });
   const toggleSpeakerView = () => {
     const speaker = !stageView.speaker;
-    if (scope) setScreensPick({ scope, speaker });
-    else setCallPick(speaker);
+    changePicks((last) =>
+      scope ? { ...last, screens: { scope, speaker } } : { ...last, speaker }
+    );
   };
   const video = !finished && hasVideo(state.participants);
 
@@ -687,22 +692,8 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
   );
 }
 
-/**
- * The prescreen's microphone, camera and devices: kept with the call view, so they stay as picked
- * when Dock, Float or a phone's panel mounts the prescreen anew; the microphone on and the camera
- * off until then.
- */
-const usePrescreenChoices = (roomId: string) => {
-  const [kept, setKept] = useAtom(callPrescreenChoicesAtom);
-  const choices: PrescreenChoices =
-    kept?.roomId === roomId ? kept : { roomId, microphone: true, camera: false, devices: {} };
-  const choose = (change: (last: PrescreenChoices) => Partial<PrescreenChoices>) =>
-    setKept((last) => {
-      const from = last?.roomId === roomId ? last : choices;
-      return { ...from, ...change(from) };
-    });
-  return [choices, choose] as const;
-};
+/** The prescreen's microphone, camera and devices until they are picked: the microphone on. */
+const FIRST_CHOICES: PrescreenChoices = { microphone: true, camera: false, devices: {} };
 
 /** A room's call before this device joins it: who is in it, and Join. */
 function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
@@ -717,7 +708,14 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
   const direct = useAtomValue(mDirectAtom).has(room.roomId);
   const store = useStore();
   const { startCall } = useCallActions(mx);
-  const [{ microphone, camera, devices }, choose] = usePrescreenChoices(room.roomId);
+  // Kept with the room's call view, so they stay as picked wherever the prescreen mounts anew.
+  const [view, changeView] = useCallViewState(room.roomId);
+  const { microphone, camera, devices } = view.prescreen ?? FIRST_CHOICES;
+  const choose = (change: (last: PrescreenChoices) => Partial<PrescreenChoices>) =>
+    changeView((last) => {
+      const from = last.prescreen ?? FIRST_CHOICES;
+      return { ...last, prescreen: { ...from, ...change(from) } };
+    });
   const [joining, setJoining] = useState(false);
   // Why the last Join (or Answer on a ring) did not start the call: this session's other tab is
   // in a call (it shares this device), or the call could not start at all.

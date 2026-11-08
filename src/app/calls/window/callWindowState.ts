@@ -212,10 +212,10 @@ export const getCallWindowSplitAtom = (userId: string) =>
   viewsOf(getCallWindowSettingsAtom(userId)).split;
 
 /**
- * Where the stored rectangle shows in `viewport`: fitted from the viewport it was placed in, so it
- * keeps its distance to the nearer edges.
+ * Where the stored rectangle shows in `viewport`, in the window and for an expand from outside
+ * it: fitted from the viewport it was placed in, so it keeps its distance to the nearer edges.
  */
-const shownRect = (
+export const shownRect = (
   settings: CallWindowSettings,
   viewport: ViewportSize
 ): WindowRect | undefined =>
