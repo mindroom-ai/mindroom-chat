@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen } from '@testing-library/react';
-import { useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import { getDefaultStore, type PrimitiveAtom } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
@@ -17,7 +17,7 @@ import * as membersDrawer from '../members/useMembersDrawer';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { putSession } from '../matrix/session/sessions';
 import { type RoomSidePanelControl, useRoomSidePanel } from '../plugins/sidePanels';
-import { usePanelFrame } from '../ui/panels/PanelFrame';
+import { type PanelFrame, usePanelFrame } from '../ui/panels/PanelFrame';
 import type { RoomViewProps } from './RoomView';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
 import { makeUiEvent } from '../ui-actions/testUtils';
@@ -144,10 +144,23 @@ vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoom: () => undefined, navigateRoomThread: () => undefined }),
 }));
 const { neverLoads } = vi.hoisted(() => ({ neverLoads: new Promise<never>(() => undefined) }));
+/**
+ * What the sketch below last saw of its frame, and, while `fillFromEffect`, how often its effect
+ * filled the room (20 at most).
+ */
+const sketchSeen = { frame: undefined as PanelFrame | undefined, fillFromEffect: false, fills: 0 };
+
 /** A plugin's panel that draws its own frame: a card with its own Fill and Hide. */
 function Sketch({ roomId }: { roomId: string }) {
   // As the client SDK gives it.
   const frame = usePanelFrame();
+  sketchSeen.frame = frame;
+  // A plugin may set its layout from an effect that depends on its frame.
+  useEffect(() => {
+    if (!sketchSeen.fillFromEffect || sketchSeen.fills >= 20) return;
+    sketchSeen.fills += 1;
+    frame?.setLayout('filled');
+  }, [frame]);
   const layout = frame?.layout;
   return (
     <div data-testid="sketch">
@@ -241,6 +254,14 @@ vi.mock('../plugins/pluginEntries', () => ({
             frame: 'own',
             Component: () => {
               throw new Error('no sketch today');
+            },
+          },
+          {
+            id: 'later',
+            label: 'Later sketch',
+            frame: 'own',
+            Component: () => {
+              throw neverLoads;
             },
           },
         ],
@@ -355,6 +376,9 @@ describe('the side panels of a room', () => {
     state.computer = undefined;
     state.canvas = undefined;
     state.roomId = room.roomId;
+    sketchSeen.frame = undefined;
+    sketchSeen.fillFromEffect = false;
+    sketchSeen.fills = 0;
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     reportBoundaryError.mockClear();
@@ -934,6 +958,48 @@ describe('the side panels of a room', () => {
     }
   );
 
+  it('keeps the frame a panel gets while its layout stays, so an effect that sets it settles', async () => {
+    sketchSeen.fillFromEffect = true;
+    const showRoom = await renderRoom();
+    await act(async () => state.view?.onPanelToggle?.('notes/sketch'));
+    expect(sketch()?.textContent).toContain('filled');
+    expect(hidden()).toBe(true);
+    // As it mounted, and once more for the frame that filled the room.
+    expect(sketchSeen.fills).toBe(2);
+    const filled = sketchSeen.frame;
+    await showRoom(room.roomId);
+    expect(sketchSeen.frame).toBe(filled);
+    expect(sketchSeen.fills).toBe(2);
+  });
+
+  it("acts on the room a panel's frame came from, not on the room shown when it is called", async () => {
+    const showRoom = await renderRoom();
+    await act(async () => state.view?.onPanelToggle?.('notes/sketch'));
+    const there = sketchSeen.frame;
+    await showRoom('!other:example.org');
+    await act(async () => state.view?.onPanelToggle?.('notes/sketch'));
+    expect(sketchSeen.frame).not.toBe(there);
+    // A late call of the frame the panel had in the first room changes nothing here.
+    await act(async () => there?.setLayout('filled'));
+    expect(sketch()?.textContent).toContain('beside');
+    expect(hidden()).toBe(false);
+    await act(async () => there?.setLayout('folded'));
+    expect(sketch()?.textContent).toContain('beside');
+  });
+
+  it.each([ScreenSize.Desktop, ScreenSize.Mobile])(
+    'frames a panel that draws its own while its code loads, so it can be closed (%s)',
+    async (size) => {
+      await renderRoom(size);
+      await act(async () => state.view?.onPanelToggle?.('broken/later'));
+      const panel = screen.getByRole('region', { name: 'Later sketch' });
+      expect(panel.textContent).not.toContain('This panel stopped working.');
+      await act(async () => screen.getByRole('button', { name: 'Close Later sketch' }).click());
+      expect(screen.queryByRole('region', { name: 'Later sketch' })).toBeNull();
+      expect(hidden()).toBe(false);
+    }
+  );
+
   it.each([ScreenSize.Desktop, ScreenSize.Mobile])(
     'frames a failed panel that draws its own, which says so and can still be closed (%s)',
     async (size) => {
@@ -1043,6 +1109,7 @@ describe('the side panels of a room', () => {
       ['broken/opaque', 'Opaque'],
       ['broken/waiting', 'Waiting'],
       ['broken/own', 'Broken sketch'],
+      ['broken/later', 'Later sketch'],
     ]);
     expect(state.view?.pluginActions?.map(({ id, label }) => [id, label])).toEqual([
       ['notes/add', 'Add a note'],
@@ -1056,6 +1123,7 @@ describe('the side panels of a room', () => {
       'broken/opaque',
       'broken/waiting',
       'broken/own',
+      'broken/later',
     ]);
     expect(state.view?.pluginActions).toEqual([]);
   });
