@@ -25,6 +25,12 @@ export type PluginRoomAction = {
   /** Whether this room's menu lists it; pure and synchronous. Without it, every room's does. */
   shows?: (room: Room) => boolean;
   /**
+   * It deletes or removes something: the menu draws it as Leave and lists it after the core's
+   * entries of its last group (Remove from, Archive, Leave). Without it, it is listed after the
+   * menu's first group.
+   */
+  critical?: true;
+  /**
    * Runs it on the menu's room, open or not, in the click that closes the menu, before the menu
    * has gone. `showDialog` shows a dialog where the menu opened, as the room menu's own entries
    * show theirs.
@@ -43,7 +49,8 @@ export const isPluginRoomAction = (value: unknown): value is PluginRoomAction =>
   typeof value.label === 'string' &&
   typeof value.icon === 'function' &&
   typeof value.run === 'function' &&
-  (value.shows === undefined || typeof value.shows === 'function');
+  (value.shows === undefined || typeof value.shows === 'function') &&
+  (value.critical === undefined || value.critical === true);
 
 /** A plugin's entry in one room's menu. */
 type PluginRoomEntry = {
@@ -54,6 +61,7 @@ type PluginRoomEntry = {
   /** In the app's language. */
   label: string;
   icon: IconSrc;
+  critical: boolean;
   /** Runs it on the room with the menu's `showDialog`. */
   run: (showDialog: (dialog: PluginRoomDialog) => void) => void;
 };
@@ -92,6 +100,7 @@ export const usePluginRoomActions = (
       tag,
       label: t(action.label),
       icon: action.icon,
+      critical: action.critical === true,
       run: (showDialog) => {
         try {
           Promise.resolve(action.run({ room, showDialog })).catch(fail('its room action failed'));

@@ -49,19 +49,27 @@ function PluginDialog({ tag, dialog, close }: PluginDialogProps & { tag: string 
   );
 }
 
-/** The entries plugins add to the room's menu, in a group of their own; nothing without any. */
-function PluginRoomActions({ room, close, showDialog }: RoomActionProps) {
-  const entries = usePluginRoomActions(registeredPlugins, useOptionalClientConfig(), room);
-  if (entries.length === 0) return null;
-  return (
-    <>
-      <Line variant="Surface" size="300" />
-      <MenuGroup>
-        {entries.map(({ id, tag, label, icon, run }) => (
+/**
+ * A room's menu, the same wherever it opens: the room's actions (`ROOM_ACTIONS`), with the
+ * entries client plugins add after their first group, in a group of their own, and their critical
+ * ones at the end of the last group, after Leave; all of them after the open room's own entries
+ * when the room header opens it. Rows are 44 px on touch screens. The ref reaches the menu element,
+ * which the focus trap around it needs to close on Escape and outside clicks.
+ */
+export const RoomActionsMenu = forwardRef<HTMLDivElement, RoomActionsMenuProps>(
+  function RoomActionsMenu({ roomEntries, ...actionProps }, ref) {
+    const { room, close, showDialog } = actionProps;
+    const pluginEntries = usePluginRoomActions(registeredPlugins, useOptionalClientConfig(), room);
+    // A plugin's entry closes the menu, then runs with the menu's dialog.
+    const pluginRows = (critical: boolean) =>
+      pluginEntries
+        .filter((entry) => entry.critical === critical)
+        .map(({ id, tag, label, icon, run }) => (
           <MenuEntry
             key={id}
             icon={icon}
             label={label}
+            critical={critical}
             onSelect={() => {
               close();
               run((dialog) =>
@@ -69,20 +77,8 @@ function PluginRoomActions({ room, close, showDialog }: RoomActionProps) {
               );
             }}
           />
-        ))}
-      </MenuGroup>
-    </>
-  );
-}
-
-/**
- * A room's menu, the same wherever it opens: the room's actions (`ROOM_ACTIONS`), with the
- * entries client plugins add after their first group, and after the open room's own entries when
- * the room header opens it. Rows are 44 px on touch screens. The ref reaches the menu element,
- * which the focus trap around it needs to close on Escape and outside clicks.
- */
-export const RoomActionsMenu = forwardRef<HTMLDivElement, RoomActionsMenuProps>(
-  function RoomActionsMenu({ roomEntries, ...actionProps }, ref) {
+        ));
+    const ordinaryRows = pluginRows(false);
     return (
       <Menu ref={ref} className={css.RoomMenu} style={menuStyle}>
         {roomEntries && (
@@ -98,8 +94,14 @@ export const RoomActionsMenu = forwardRef<HTMLDivElement, RoomActionsMenuProps>(
               {group.map(({ id, Entry }) => (
                 <Entry key={id} {...actionProps} />
               ))}
+              {index === ROOM_ACTIONS.length - 1 && pluginRows(true)}
             </MenuGroup>
-            {index === 0 && <PluginRoomActions {...actionProps} />}
+            {index === 0 && ordinaryRows.length > 0 && (
+              <>
+                <Line variant="Surface" size="300" />
+                <MenuGroup>{ordinaryRows}</MenuGroup>
+              </>
+            )}
           </Fragment>
         ))}
       </Menu>

@@ -23,6 +23,8 @@
 // thread's composer to that thread, through the room's client, and fails without a text.
 // Every room's menu but a space's lists its entry "Example room info" ("Beispiel-Rauminfo" in
 // German), whose dialog says "Example dialog of <room name>" until its Close button closes it.
+// Every room's menu also lists, after Leave and drawn as Leave is, its critical entry "Example
+// removal" ("Beispiel-Entfernung" in German), which says in an alert which room it ran in.
 import { useEffect, useState, type RefObject } from 'react';
 import { Box, Button, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text, color } from 'folds';
 import { KnownMembership, type Room } from 'matrix-js-sdk';
@@ -300,6 +302,16 @@ const plugin: ClientPlugin = {
       run: ({ room, showDialog }) =>
         showDialog((close) => <RoomDialog room={room} close={close} />),
     },
+    {
+      id: 'removal',
+      label: 'roomRemoval',
+      icon: Icons.Delete,
+      critical: true,
+      run: ({ room }) => {
+        // eslint-disable-next-line no-alert
+        window.alert(`Example removal in ${room.roomId}`);
+      },
+    },
   ],
   translations: {
     en: {
@@ -307,6 +319,7 @@ const plugin: ClientPlugin = {
       wave: 'Wave',
       greet: 'Send the room a greeting. Example: /greet Hello',
       roomInfo: 'Example room info',
+      roomRemoval: 'Example removal',
     },
     load: async (language) =>
       language === 'de' ? (await import('./locales/de.json')).default : undefined,
