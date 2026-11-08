@@ -246,7 +246,12 @@ const recount = (mx: MatrixClient, room: Room): void => {
           (e) =>
             `${e.getId()?.slice(0, 6)}:${e.getTs()}:${e.getType()}:${e.isDecryptionFailure() ? 'F' : ''}:${
               getFinishingEdit(e)?.getId()?.slice(0, 6) ?? ''
-            }`
+            }:${(() => {
+              const edit = getFinishingEdit(e);
+              if (!edit) return '';
+              const actions = finishedReplyActions(mx, room, e, edit);
+              return `edit[F=${edit.isDecryptionFailure()} enc=${edit.isEncrypted()} type=${edit.getType()} clear=${!!edit.getClearContent()} notify=${!!actions?.notify} rule=${edit.getPushDetails?.()?.rule?.rule_id ?? ''}]`;
+            })()}`
         )
         .join(',')}`
     );
