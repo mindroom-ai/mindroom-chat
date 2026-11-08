@@ -23,11 +23,13 @@ import {
   config,
   toRem,
 } from 'folds';
+import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
 import {
   MatrixEventEvent,
   Method,
+  RoomEvent,
   type IRoomEvent,
   type INotification,
   type MatrixEvent,
@@ -41,6 +43,8 @@ import { SequenceCard } from '../../ui/SequenceCard';
 import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import { RoomAvatar } from '../../avatars/RoomAvatar';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
+import { roomToUnreadAtom } from '../../matrix/state/roomToUnread';
+import { isRecord } from '../../lib/isRecord';
 import { PhoneBackButton } from '../../ui/page/PhoneBackButton';
 import { LoneTouchTarget } from '../../ui/styles/TouchTarget.css';
 import * as css from './Notifications.css';
@@ -79,8 +83,14 @@ import {
   resolveNotificationEvent,
   shouldRenderNotificationLoadingPlaceholders,
 } from './notificationTimelineView';
+import { mergeRefreshedNotifications } from './notificationRefresh';
+import { useKeptRowPlace } from './useKeptRowPlace';
 
 const PAGE_SIZE = 30;
+/** The most notifications the server answers in one request. */
+const MAX_REQUEST = 100;
+/** How long a refresh waits, so that a burst of changes (one sync's) asks the server once. */
+const REFRESH_DELAY_MS = 1_000;
 
 type NotificationFilter = 'all' | 'highlight';
 
@@ -106,8 +116,25 @@ const requestNotifications = (
     ...(from ? { from } : {}),
   });
 
-/** The notifications of the signed-in account, one page at a time, newest first. */
-const useNotificationPages = (mx: MatrixClient, filter: NotificationFilter) => {
+/** Where the list goes on after `page`, asked from `from`; undefined once the list is complete. */
+const pageEnd = (page: INotificationsResponse, from: string | undefined): string | undefined =>
+  // A page that brings nothing, or points back at itself, ends the list: some servers keep
+  // sending a token after the last page.
+  page.next_token && page.next_token !== from && page.notifications.length
+    ? page.next_token
+    : undefined;
+
+/**
+ * The notifications of the signed-in account, one page at a time, newest first. The server keeps
+ * their read flags, so `refresh` asks it again for as many as are loaded, in one request, and
+ * merges the answer in (`mergeRefreshedNotifications`) through `keepPlace`; a refresh of the
+ * list a filter switch replaced asks for the list now shown.
+ */
+const useNotificationPages = (
+  mx: MatrixClient,
+  filter: NotificationFilter,
+  keepPlace: (apply: () => void) => void
+) => {
   const [pages, setPages] = useState<NotificationPages>({
     status: AsyncStatus.Idle,
     notifications: [],
@@ -116,22 +143,24 @@ const useNotificationPages = (mx: MatrixClient, filter: NotificationFilter) => {
   const generation = useRef(0);
 
   const load = useCallback(
-    (from: string | undefined, limit = PAGE_SIZE) => {
+    (from: string | undefined) => {
       const mine = generation.current;
       setPages((held) => ({ ...held, status: AsyncStatus.Loading }));
-      requestNotifications(mx, filter, from, limit).then(
+      requestNotifications(mx, filter, from, PAGE_SIZE).then(
         (page) => {
           if (generation.current !== mine) return;
-          // A page that brings nothing, or points back at itself, ends the list: some servers
-          // keep sending a token after the last page.
-          const more = !!page.next_token && page.next_token !== from && !!page.notifications.length;
-          setPages((held) => ({
-            status: AsyncStatus.Success,
-            notifications: from
-              ? [...held.notifications, ...page.notifications]
-              : page.notifications,
-            nextToken: more ? page.next_token : undefined,
-          }));
+          setPages((held) => {
+            // An older page goes on only from where the list still ends: a refresh may have
+            // replaced the rows it was asked after.
+            if (from && held.nextToken !== from) return { ...held, status: AsyncStatus.Success };
+            return {
+              status: AsyncStatus.Success,
+              notifications: from
+                ? [...held.notifications, ...page.notifications]
+                : page.notifications,
+              nextToken: pageEnd(page, from),
+            };
+          });
         },
         () => {
           if (generation.current !== mine) return;
@@ -152,19 +181,82 @@ const useNotificationPages = (mx: MatrixClient, filter: NotificationFilter) => {
     if (pages.nextToken && pages.status !== AsyncStatus.Loading) load(pages.nextToken);
   }, [load, pages.nextToken, pages.status]);
 
-  // The server keeps the read flags, so a receipt shows here only once the list is asked again:
-  // as many as are loaded, in one request, so older pages stay. The server answers at most 100.
-  // A receipt that lands after a switch of filter reloads the list now shown.
-  const shown = useRef({ load, count: 0 });
+  const shown = useRef({ filter, count: 0, keepPlace });
   useEffect(() => {
-    shown.current = { load, count: pages.notifications.length };
-  }, [load, pages.notifications.length]);
-  const reload = useCallback(() => {
-    generation.current += 1;
-    shown.current.load(undefined, Math.max(PAGE_SIZE, shown.current.count));
-  }, []);
+    shown.current = { filter, count: pages.notifications.length, keepPlace };
+  }, [filter, keepPlace, pages.notifications.length]);
+  // Only the newest refresh's answer applies.
+  const refreshes = useRef(0);
+  const refresh = useCallback(() => {
+    const mine = generation.current;
+    refreshes.current += 1;
+    const refreshId = refreshes.current;
+    const { filter: shownFilter, count } = shown.current;
+    const limit = Math.min(MAX_REQUEST, Math.max(PAGE_SIZE, count));
+    requestNotifications(mx, shownFilter, undefined, limit).then(
+      (page) => {
+        if (generation.current !== mine || refreshes.current !== refreshId) return;
+        shown.current.keepPlace(() =>
+          flushSync(() =>
+            setPages((held) => ({
+              ...mergeRefreshedNotifications(held, page.notifications, pageEnd(page, undefined)),
+              status: held.status === AsyncStatus.Loading ? held.status : AsyncStatus.Success,
+            }))
+          )
+        );
+      },
+      // The rows shown stay; the next change asks again.
+      () => undefined
+    );
+  }, [mx]);
 
-  return { ...pages, loadOlder, reload };
+  return { ...pages, loadOlder, refresh };
+};
+
+/** Whether a receipt event holds a read receipt, public or private, of `userId`. */
+const holdsReadReceiptOf = (event: MatrixEvent, userId: string): boolean =>
+  Object.values(event.getContent()).some(
+    (byType) =>
+      isRecord(byType) &&
+      ['m.read', 'm.read.private'].some((type) => {
+        const byUser = byType[type];
+        return isRecord(byUser) && userId in byUser;
+      })
+  );
+
+/**
+ * Calls `refresh` once the account's read state may have changed while the page is shown: unread
+ * counts changed (a new notification, a read here or on another device) or a sync brought one of
+ * its read receipts. A burst of changes calls it once, `REFRESH_DELAY_MS` after the first.
+ */
+const useRefreshOnReadChanges = (mx: MatrixClient, refresh: () => void) => {
+  const unread = useAtomValue(roomToUnreadAtom);
+  const timer = useRef<number>();
+  const schedule = useCallback(() => {
+    if (timer.current !== undefined) return;
+    timer.current = window.setTimeout(() => {
+      timer.current = undefined;
+      refresh();
+    }, REFRESH_DELAY_MS);
+  }, [refresh]);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  // The counts the page opened with are what its first load shows.
+  const openedWith = useRef(unread);
+  useEffect(() => {
+    if (unread !== openedWith.current) schedule();
+  }, [unread, schedule]);
+
+  useEffect(() => {
+    const onReceipt = (event: MatrixEvent) => {
+      const userId = mx.getUserId();
+      if (userId && holdsReadReceiptOf(event, userId)) schedule();
+    };
+    mx.on(RoomEvent.Receipt, onReceipt);
+    return () => {
+      mx.removeListener(RoomEvent.Receipt, onReceipt);
+    };
+  }, [mx, schedule]);
 };
 
 /**
@@ -182,6 +274,31 @@ const groupByRoom = (mx: MatrixClient, notifications: INotification[]): RoomNoti
     else groups.push({ room, notifications: [notification] });
     return groups;
   }, []);
+
+/**
+ * A key for each group that it keeps while it gains rows at either end (a new notification on
+ * top, an older page below), so its rows are not drawn anew: a key its rows had before.
+ */
+const useGroupKeys = (groups: RoomNotifications[]): string[] => {
+  const keyByEvent = useRef(new Map<string, string>());
+  return useMemo(() => {
+    const taken = new Set<string>();
+    const next = new Map<string, string>();
+    const keys = groups.map(({ room, notifications }) => {
+      const ids = notifications.map(({ event }) => event.event_id);
+      const key =
+        ids
+          .map((id) => keyByEvent.current.get(id))
+          .find((held): held is string => held !== undefined && !taken.has(held)) ??
+        `${room.roomId}:${ids[0]}`;
+      taken.add(key);
+      ids.forEach((id) => next.set(id, key));
+      return key;
+    });
+    keyByEvent.current = next;
+    return keys;
+  }, [groups]);
+};
 
 // Long messages show their start; Open shows the rest in the room.
 const PREVIEW_MAX_HEIGHT = toRem(240);
@@ -324,6 +441,7 @@ const NotificationRow = memo(function NotificationRow({
     <Box
       gap="300"
       alignItems="Start"
+      data-notification-event={notification.event.event_id}
       data-notification-highlight={highlighted || undefined}
       style={{
         padding: config.space.S300,
@@ -410,11 +528,16 @@ export function Notifications() {
   const client = useMatrixClient();
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const [filter, setFilter] = useState<NotificationFilter>('all');
-  const { status, notifications, nextToken, loadOlder, reload } = useNotificationPages(
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const { keepPlace, handlers: pointerHandlers } = useKeptRowPlace(scrollRef);
+  const { status, notifications, nextToken, loadOlder, refresh } = useNotificationPages(
     client,
-    filter
+    filter,
+    keepPlace
   );
+  useRefreshOnReadChanges(client, refresh);
   const groups = useMemo(() => groupByRoom(client, notifications), [client, notifications]);
+  const groupKeys = useGroupKeys(groups);
   const openNotification = useCallback(
     (roomId: string, eventId: string, threadId?: string) =>
       threadId ? navigateRoomThread(roomId, threadId, eventId) : navigateRoom(roomId, eventId),
@@ -454,10 +577,10 @@ export function Notifications() {
           {!phone && filterChips}
         </Box>
       </PageHeader>
-      <PageScroll>
+      <PageScroll scrollRef={scrollRef}>
         <PageContent>
           <PageContentCenter>
-            <Box direction="Column" gap="400">
+            <Box direction="Column" gap="400" {...pointerHandlers}>
               {phone && filterChips}
               {shouldRenderNotificationLoadingPlaceholders(status, groups.length) && (
                 <Box justifyContent="Center" style={{ padding: config.space.S400 }}>
@@ -472,19 +595,15 @@ export function Notifications() {
                   </Text>
                 </Box>
               )}
-              {groups.map(({ room, notifications: roomNotifications }) => (
-                <Box
-                  key={`${room.roomId}:${roomNotifications[0].event.event_id}`}
-                  direction="Column"
-                  gap="200"
-                >
+              {groups.map(({ room, notifications: roomNotifications }, index) => (
+                <Box key={groupKeys[index]} direction="Column" gap="200">
                   <Box alignItems="Center" gap="200">
                     <NotificationGroupAvatar room={room} />
                     <Text size="H5" truncate style={{ flexGrow: 1 }} {...ownDirectionLine}>
                       {revealDirectionControls(room.name)}
                     </Text>
                     {roomNotifications.some((notification) => !notification.read) && (
-                      <MarkRoomReadChip roomId={room.roomId} onMarked={reload} />
+                      <MarkRoomReadChip roomId={room.roomId} onMarked={refresh} />
                     )}
                   </Box>
                   <SequenceCard
