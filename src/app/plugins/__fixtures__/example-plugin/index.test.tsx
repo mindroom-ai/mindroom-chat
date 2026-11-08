@@ -83,9 +83,11 @@ describe('example plugin', () => {
   it('shows the greeting a card asked its panel to show; outside a room a card offers none', async () => {
     const [panel] = plugin.sidePanels ?? [];
     if (!panel) throw new Error('the example plugin has no side panel');
+    // The panel reads the room's members through the account's client.
+    const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
     const view = await renderPluginComponent(
       <panel.Component roomId="!lobby:example.org" request="Hello" />,
-      { id: 'example', plugin }
+      { id: 'example', plugin, client }
     );
     expect(view.getByText('Greeting: Hello')).toBeTruthy();
     expect((await renderGreeting()).queryByRole('button', { name: 'Show in panel' })).toBeNull();
