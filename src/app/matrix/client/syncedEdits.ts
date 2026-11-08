@@ -22,7 +22,7 @@ import { isRecord } from '../../lib/isRecord';
 // finished an agent's streamed reply, readable or not: the relation and MindRoom's stream status
 // stay outside the encrypted payload.
 
-/** Messages remembered; the oldest are forgotten first. */
+/** Entries each map keeps; a full map starts over. */
 const REMEMBERED_LIMIT = 5000;
 
 // By message ID, which no two rooms or accounts share for different events.
@@ -40,7 +40,10 @@ const isFinishingEdit = (edit: MatrixEvent): boolean => {
   return readable && hasTerminalStreamMetadata(edit.getContent());
 };
 
-/** The newest edit of the message `eventId` the sync brought, readable or not. */
+/**
+ * The newest edit of the message `eventId` the sync brought, readable or not, but none that someone
+ * who may redact it redacted while the client knew it only from the message's bundle.
+ */
 export const getSyncedEdit = (eventId: string): MatrixEvent | undefined => newestEdits.get(eventId);
 
 /** The edit of `reply` by its sender that finished its stream, if the client has one. */
@@ -83,11 +86,27 @@ const keepNewer = (edits: Map<string, MatrixEvent>, eventId: string, edit: Matri
 export const keepSyncedEdits = (mx: MatrixClient): (() => void) => {
   newestEdits.clear();
   finishingEdits.clear();
+  // A redaction marks a kept edit redacted only when the client holds the edit as an event. An edit
+  // the client knows only from its message's bundle is in its room's redactedBundledEdits once the
+  // SDK patch's Room.dropRedactedBundledEdit dropped it for an allowed redaction: it is forgotten,
+  // also when it decrypts later.
+  const isRedactedBundledEdit = (roomId: string | undefined, eventId: string | undefined) =>
+    !!eventId && !!mx.getRoom(roomId)?.redactedBundledEdits.has(eventId);
   const remember = (event: MatrixEvent) => {
+    const redacts = event.isRedaction() ? event.event.redacts : undefined;
+    if (redacts) {
+      if (!isRedactedBundledEdit(event.getRoomId(), redacts)) return;
+      newestEdits.forEach((edit, messageId) => {
+        if (edit.getId() === redacts) newestEdits.delete(messageId);
+      });
+      return;
+    }
     const relation: unknown = event.getWireContent()['m.relates_to'];
     if (!isRecord(relation) || relation.rel_type !== RelationType.Replace) return;
     if (typeof relation.event_id !== 'string' || event.isRedacted()) return;
-    keepNewer(newestEdits, relation.event_id, event);
+    if (!isRedactedBundledEdit(event.getRoomId(), event.getId())) {
+      keepNewer(newestEdits, relation.event_id, event);
+    }
     if (isFinishingEdit(event)) keepNewer(finishingEdits, relation.event_id, event);
   };
   mx.on(ClientEvent.Event, remember);
