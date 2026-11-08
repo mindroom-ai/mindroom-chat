@@ -416,6 +416,12 @@ export const isDiscardedSettleWrite = ({
   previousScrollTop,
   currentScrollTop,
 }: DiscardedSettleWriteOpts): boolean => {
+  // Rows folded in above a reader at the top: every scroll up brings the reader back there,
+  // clamped at the top, and no reassertion can be told apart from that. Refolding it put the rows
+  // back in the ledger, the next settle moved the reader down again, and the reader never reached
+  // them (WebKit on macOS, reading a room back to its start). None of the corpus discards started
+  // at the top.
+  if (px > 0 && preSettleScrollTop <= 0) return false;
   const delta = currentScrollTop - previousScrollTop;
   const againstFold = px > 0 ? delta < 0 : delta > 0;
   if (!againstFold) return false;

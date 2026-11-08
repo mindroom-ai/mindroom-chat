@@ -31,23 +31,25 @@ const selectRoomServers = (events: MatrixEvent[]): AgentServer[] =>
 const roomServers = (room: Room): AgentServer[] =>
   selectRoomServers(agentRoomState(room, MINDROOM_SERVER_EVENT));
 
-// One answer per client for what Chat shows; a token for a published origin is only ever requested after a
-// new check. A check that could not reach the homeserver is not kept, so the next mount asks again.
-const bindingChecks = new WeakMap<MatrixClient, Promise<boolean | undefined>>();
+// One answer per client for what Chat shows, kept once it came so a later mount starts from it; a token
+// for a published origin is only ever requested after a new check. A check that could not reach the
+// homeserver is not kept, so the next mount asks again.
+const bindingChecks = new WeakMap<
+  MatrixClient,
+  { check: Promise<boolean | undefined>; binds?: boolean }
+>();
 
 /** Whether the homeserver binds OpenID tokens, asked once per client, so Chat may offer the origins agents publish. */
 export const useBindsOpenIdTokens = (): boolean => {
   const mx = useMatrixClient();
-  const [binds, setBinds] = useState(false);
+  const [binds, setBinds] = useState(() => bindingChecks.get(mx)?.binds === true);
   useEffect(() => {
     let current = true;
-    let check = bindingChecks.get(mx);
-    if (!check) {
-      check = readOpenIdBinding(mx);
-      bindingChecks.set(mx, check);
-    }
-    check.then((value) => {
+    const binding = bindingChecks.get(mx) ?? { check: readOpenIdBinding(mx) };
+    bindingChecks.set(mx, binding);
+    binding.check.then((value) => {
       if (value === undefined) bindingChecks.delete(mx);
+      else binding.binds = value;
       if (current) setBinds(value === true);
     });
     return () => {
