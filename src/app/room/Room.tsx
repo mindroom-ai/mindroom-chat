@@ -528,8 +528,8 @@ function RoomContent() {
   const shownId = shown?.id;
   const now = useLatestRef({ roomId, shownId, threadId, mobile });
   const alive = useAlive();
-  // `open` and `close` keep their identity while the room shows, so plugin code that depends on them
-  // does not run again when another panel shows.
+  // `open`, `openBesideThread` and `close` keep their identity while the room shows, so plugin code
+  // that depends on them does not run again when another panel shows.
   const openPluginPanel = useCallback<PluginPanelControls['open']>(
     (id, panelRequest) => {
       if (

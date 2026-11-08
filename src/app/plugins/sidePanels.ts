@@ -95,9 +95,10 @@ export type RoomSidePanelControl = {
    * message may ask as it mounts. Only the first call since the room began to show that thread
    * counts, so a component that mounts again does not open a panel the person closed; once another
    * thread or the room's own timeline has shown, the thread's next call counts again. That call
-   * opens it only while the room shows that thread on a wider screen than a phone's, with no other
-   * side panel; when the panel itself shows, it takes `request` and keeps its place (folded or
-   * filling the room). Otherwise it does nothing. It keeps its identity as `open` does.
+   * does something only while the room shows that thread and not on a phone: it opens the panel
+   * when no other side panel shows, and when the panel itself shows, it hands it `request` and
+   * leaves it folded or filling the room. Otherwise it does nothing. It keeps its identity as
+   * `open` does.
    */
   openBesideThread: (threadId: string, request?: unknown) => void;
   /** Closes it, if the room shows it; it keeps its identity as `open` does. */
