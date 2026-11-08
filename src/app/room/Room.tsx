@@ -635,11 +635,14 @@ function RoomContent() {
   };
 
   // The panel shown, keyed by which it is: opening or closing one moves it in or out, and one
-  // taking another's place changes width without closing first.
+  // taking another's place changes width without closing first. It holds the plugin panel controls
+  // of the room it shows in, so one still moving out after a room switch acts on no other room.
   const sidePanel = usePanelSlot(
     shown && (
       <PanelFrameProvider key={shown.id} value={frame}>
-        {shown.render()}
+        <PluginPanelControlsContext.Provider value={pluginPanelControls}>
+          {shown.render()}
+        </PluginPanelControlsContext.Provider>
       </PanelFrameProvider>
     )
   );
