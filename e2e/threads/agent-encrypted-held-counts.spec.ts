@@ -14,6 +14,7 @@ import {
   type AgentStack,
 } from '../helpers/agentStack';
 import { registerDisposableUser } from '../helpers/disposableAccounts';
+import { setUpRecoveryPassword, unlockWithRecovery } from '../helpers/recovery';
 import { matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
@@ -288,11 +289,7 @@ test('a new session whose keys come late from the key backup shows an unread fin
     await desk.goto('/home/', { timeout: 180_000 });
     await openSecurity(desk);
     await desk.getByRole('button', { name: 'Enable' }).click({ timeout: 30_000 });
-    await desk.getByRole('button', { name: 'Continue' }).click();
-    const keyText = desk.getByRole('dialog').locator('code');
-    await expect(keyText).toHaveText(/^E\w{3}( \w{4}){11}$/, { timeout: 60_000 });
-    const recoveryKey = (await keyText.textContent()) ?? '';
-    await desk.getByRole('button', { name: 'Okay' }).click();
+    const recoveryKey = await setUpRecoveryPassword(desk, 'late keys recovery 1', 'secret-pass-1');
     await expect(desk.getByText(/Connected · Version: \S+ · Keys: \d+/)).toBeVisible({
       timeout: 60_000,
     });
@@ -364,9 +361,8 @@ test('a new session whose keys come late from the key backup shows an unread fin
 
       // The recovery key unlocks secret storage; the backup brings the room's keys.
       await openSecurity(page);
-      await page.getByRole('button', { name: 'Verify Manually' }).click({ timeout: 30_000 });
-      await page.locator('input[name="recoveryKeyInput"]').fill(recoveryKey);
-      await page.getByRole('button', { name: 'Verify', exact: true }).last().click();
+      await page.getByRole('button', { name: 'Use recovery password' }).click({ timeout: 30_000 });
+      await unlockWithRecovery(page, recoveryKey);
       // The other sessions stay unverified ("Unverified Devices"); this one is verified.
       await expect(
         page.getByRole('button', { name: 'Unverified Device', exact: true })
