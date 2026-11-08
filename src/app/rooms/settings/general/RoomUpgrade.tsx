@@ -121,7 +121,13 @@ export function RoomUpgrade({ room, space, onOpened }: RoomUpgradeProps) {
           title={t(`${KEY}.${space ? 'space' : 'room'}Replaced` as never)}
           description={t(`${KEY}.currentVersion`, { version: current })}
           after={
-            <Button size="300" radii="300" variant="Primary" onClick={() => open(replacement)}>
+            <Button
+              size="300"
+              radii="300"
+              variant="Primary"
+              disabled={busy}
+              onClick={() => open(replacement)}
+            >
               <Text size="B300">{t(`${KEY}.openNew${noun}` as never)}</Text>
             </Button>
           }
