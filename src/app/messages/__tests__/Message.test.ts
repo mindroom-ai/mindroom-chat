@@ -920,6 +920,7 @@ describe('Message copy text tool markers', () => {
       await act(async () => {
         row.props.onContextMenu({
           target: { closest: () => null },
+          currentTarget: { contains: () => true },
           preventDefault: () => undefined,
           clientX: 24,
           clientY: 24,
@@ -940,6 +941,30 @@ describe('Message copy text tool markers', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it('leaves a right click inside its pop-outs and their dialogs to the browser', async () => {
+    const { renderer } = await renderMessage({ msgtype: 'm.text', body: 'plain reply' });
+    const row = renderer.root.find(
+      (node) =>
+        typeof node.props.onContextMenu === 'function' &&
+        typeof node.props.onFocusCapture === 'function'
+    );
+    const preventDefault = vi.fn();
+
+    // React passes a right click inside a portal (View Source, say) up to the row.
+    await act(async () => {
+      row.props.onContextMenu({
+        target: { closest: () => null },
+        currentTarget: { contains: () => false },
+        preventDefault,
+        clientX: 24,
+        clientY: 24,
+      });
+    });
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(getButtonByText(renderer, 'Copy Text')).toBeUndefined();
   });
 
   it('hides the side action for replies without tool markers', async () => {
