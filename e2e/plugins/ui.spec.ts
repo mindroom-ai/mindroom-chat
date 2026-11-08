@@ -21,8 +21,9 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // sidebar's rows, the room menu's entries, the Leave Room dialog and its header), and the menu and
 // the tooltip line up with the end of their button, its right edge in English and its left edge
 // in Arabic. Screenshots of each, beside the app's counterparts, in the light and the dark scheme.
-// The panel also says the app's theme kind and screen size as they change, without a reload, and
-// shows a PDF it holds as a blob in the browser's viewer, through the app's frame page.
+// Its card, which draws its own frame, says the app's theme kind and screen size as they change,
+// without a reload, and shows a PDF it holds as a blob in the browser's viewer, through the app's
+// frame page.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const RUN = Date.now().toString(36);
 const LAYOUTS = {
@@ -217,7 +218,7 @@ const whiteShare = async (page: Page, area: Locator) =>
     return white / (bitmap.width * bitmap.height);
   }, (await area.screenshot()).toString('base64'));
 
-test("the example plugin's panel follows the app's theme kind and screen size, and shows its PDF in the browser's viewer", async ({
+test("the example plugin's own-frame card follows the app's theme kind and screen size, and shows its PDF in the browser's viewer", async ({
   browser,
 }, testInfo) => {
   test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
@@ -230,13 +231,16 @@ test("the example plugin's panel follows the app's theme kind and screen size, a
   const server = await serveBuild(build!);
   const context = await browser.newContext({ baseURL: server.origin, viewport: LAYOUTS.phone });
   const page = await context.newPage();
-  const says = (text: string) => expect(panel(page).getByText(text, { exact: true })).toBeVisible();
+  const card = page.getByRole('region', { name: 'Example card', exact: true });
+  const says = (text: string) => expect(card.getByText(text, { exact: true })).toBeVisible();
   try {
     await page.emulateMedia({ colorScheme: 'light' });
     await loginWithPassword(page, { homeserver: HOMESERVER, ...person });
     await page.goto(`/home/${encodeURIComponent(roomId)}/`);
     await expect(roomMoreOptions(page)).toBeVisible({ timeout: 60_000 });
-    await openExamplePanel(page);
+    await roomMoreOptions(page).click();
+    await page.getByRole('menuitemcheckbox', { name: 'Example card', exact: true }).click();
+    await expect(card).toBeVisible();
     // A mark on the window, which a reload would lose.
     await page.evaluate(() => Object.assign(window, { exampleSurfaceMark: true }));
 
@@ -253,8 +257,8 @@ test("the example plugin's panel follows the app's theme kind and screen size, a
     await says('Screen: Desktop');
     expect(await page.evaluate(() => 'exampleSurfaceMark' in window)).toBe(true);
 
-    await panel(page).getByRole('button', { name: 'Show example PDF', exact: true }).click();
-    const frameElement = panel(page).locator('iframe[title="Example PDF"]');
+    await card.getByRole('button', { name: 'Show example PDF', exact: true }).click();
+    const frameElement = card.locator('iframe[title="Example PDF"]');
     await expect(frameElement).toBeVisible();
     // The browser's viewer runs in a frame of its own inside the app's frame page.
     const framePage = await (await frameElement.elementHandle())?.contentFrame();

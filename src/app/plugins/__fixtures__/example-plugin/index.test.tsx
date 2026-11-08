@@ -287,9 +287,9 @@ describe('example plugin', () => {
     expect(view.getAllByText('No MindRoom server')).toHaveLength(2);
   });
 
-  it("says in its panel the app's theme kind and screen size, and previews a PDF it builds", async () => {
-    const [panel] = plugin.sidePanels ?? [];
-    if (!panel) throw new Error('the example plugin has no side panel');
+  it("says in its own-frame card the app's theme kind and screen size, and previews a PDF it builds", async () => {
+    const card = plugin.sidePanels?.find(({ id }) => id === 'card');
+    if (!card) throw new Error('the example plugin has no card');
     const objectUrl = 'blob:https://example.org/0b5e-4c1d';
     const created: Blob[] = [];
     const revoked: string[] = [];
@@ -307,11 +307,10 @@ describe('example plugin', () => {
         };
       }
     );
-    const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
-    const view = await renderPluginComponent(<panel.Component roomId="!lobby:example.org" />, {
+    const view = await renderPluginComponent(<card.Component roomId="!lobby:example.org" />, {
       id: 'example',
       plugin,
-      client,
+      frame: { label: 'Example card', layout: 'beside', setLayout: () => undefined },
     });
     // Outside the app no theme is on the page and nothing lays out by size: light, and Desktop.
     expect(view.getByText('Theme: light')).toBeTruthy();

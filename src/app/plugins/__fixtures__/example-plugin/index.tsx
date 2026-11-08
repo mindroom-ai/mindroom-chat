@@ -21,7 +21,10 @@
 // A second side panel, "Example card", toggled from the room menu, draws its own frame: a plain
 // card, 320 px wide beside the conversation and as wide as the room when it fills it or on a phone,
 // with "Fill example card" ("Shrink example card" while it fills the room) and "Hide example card",
-// which leaves only its tab, "Show example card", at the room's edge.
+// which leaves only its tab, "Show example card", at the room's edge. The card says the kind of the
+// app's theme ("Theme: light" or "Theme: dark") and the screen size the app lays out by ("Screen:
+// Mobile", "Tablet" or "Desktop"), each as it changes, and "Show example PDF" previews a one-page
+// PDF it builds as a blob, in the browser's viewer in the card.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg); its build module (build.mjs) writes "Example banner" in place of a marker, which
 // unit tests, where no build module runs, show as it is. The banner also has a button, "Show
@@ -52,9 +55,6 @@
 // beside the panel, as a mention pill opens one; under it, the panel shows the signed-in person's
 // card itself. It shows the greeting's text as the app renders an agent's reply, as Markdown whose
 // HTML the app sanitized, with the Matrix IDs of the room's members replaced by their names.
-// The panel also says the kind of the app's theme ("Theme: light" or "Theme: dark") and the screen
-// size the app lays out by ("Screen: Mobile", "Tablet" or "Desktop"), each as it changes, and "Show
-// example PDF" previews a one-page PDF it builds as a blob, in the browser's viewer in the panel.
 import { useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react';
 import FocusTrap from 'focus-trap-react';
 import {
@@ -445,7 +445,7 @@ function ExamplePdf() {
     <iframe
       title="Example PDF"
       src={frameUrl}
-      style={{ flexShrink: 0, width: '100%', height: 240, border: 'none' }}
+      style={{ display: 'block', width: '100%', height: 240, border: 'none' }}
     />
   );
 }
@@ -524,15 +524,10 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
   const joined = members.filter(({ membership }) => membership === KnownMembership.Join);
   const [selected, setSelected] = useState<string>();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const themeKind = useThemeKind();
-  const screenSize = useScreenSize();
   return (
     <>
       {/* A room ID breaks anywhere, so it never widens the panel past its edge. */}
       <p style={{ overflowWrap: 'anywhere' }}>Example panel of {roomId}</p>
-      <p>Theme: {themeKind}</p>
-      <p>Screen: {screenSize}</p>
-      <ExamplePdf />
       <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
         <Text size="L400">Example rows</Text>
         <ExampleMenu
@@ -583,9 +578,14 @@ const CARD_CSS = `[data-example-card] { flex: 0 0 320px; }
 [data-example-card][data-filled] { flex: 1 1 0; }
 @media (max-width: 750px) { [data-example-card] { flex: 1 1 0; } }`;
 
-/** The panel that draws its own frame: a card with Fill and Hide, and a tab while hidden. */
+/**
+ * The panel that draws its own frame: a card with Fill and Hide, the app's theme kind and screen
+ * size, and its PDF, and a tab while hidden.
+ */
 function ExampleCard() {
   const frame = usePanelFrame();
+  const themeKind = useThemeKind();
+  const screenSize = useScreenSize();
   if (!frame) return null;
   const { layout, setLayout } = frame;
   const look = {
@@ -623,6 +623,9 @@ function ExampleCard() {
       <button type="button" onClick={() => setLayout('folded')}>
         Hide example card
       </button>
+      <p>Theme: {themeKind}</p>
+      <p>Screen: {screenSize}</p>
+      <ExamplePdf />
     </section>
   );
 }
