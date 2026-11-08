@@ -58,7 +58,10 @@ import { ChatUiActionContext, useChatUiActions } from '../ui-actions/ChatUiActio
 import type { ChatUiAction } from '../matrix/protocol/chatUiProtocol';
 import type { RoomViewHeaderProps } from './RoomViewHeader';
 import { RoomView } from './RoomView';
-import { isThreadRouteReady } from '../event-store/threads/threadRouteUtils';
+import {
+  isConfirmedMatrixEventId,
+  isThreadRouteReady,
+} from '../event-store/threads/threadRouteUtils';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { useRoomThreadRouteGuards } from '../threads/useRoomThreadRouteGuards';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
@@ -555,12 +558,21 @@ function RoomContent() {
   const pluginPanelControls = useMemo<PluginPanelControls>(
     () => ({
       shown: shownId,
-      thread: threadId,
+      // Known once the room has the event the address names, which may be a reply, and the server
+      // has confirmed the root, which a new thread's first message waits for.
+      thread: routeReady && isConfirmedMatrixEventId(threadId) ? threadId : undefined,
       open: openPluginPanel,
       openBesideThread: openPluginPanelBesideThread,
       close: closeShownPluginPanel,
     }),
-    [closeShownPluginPanel, openPluginPanel, openPluginPanelBesideThread, shownId, threadId]
+    [
+      closeShownPluginPanel,
+      openPluginPanel,
+      openPluginPanelBesideThread,
+      routeReady,
+      shownId,
+      threadId,
+    ]
   );
 
   const showCanvas = useCallback(

@@ -18,7 +18,9 @@ import { makeUiEvent } from '../ui-actions/testUtils';
 // A plugin's side panel that opens itself beside the thread the room shows (`openBesideThread` of
 // useRoomSidePanel), as the plugin's renderer of the thread's root message asks for it as it mounts.
 
-const { mx, room, state } = vi.hoisted(() => {
+const { mx, room, state, PENDING } = vi.hoisted(() => {
+  /** The local echo of a new thread's root, which the server has not confirmed yet. */
+  const PENDING = '~!room:example.org:m1';
   const listeners = new Map<string, (...args: unknown[]) => void>();
   const members = [
     { membership: 'join', userId: '@mindroom_helper:example.org', name: 'Helper' },
@@ -45,6 +47,8 @@ const { mx, room, state } = vi.hoisted(() => {
       inView: undefined as React.ReactNode,
       /** Bumped when the conversation's components mount again, as on a switch of view. */
       viewMount: 0,
+      /** An event below that the room has not loaded yet. */
+      unloaded: undefined as string | undefined,
     },
     mx: {
       getSafeUserId: () => '@alice:example.org',
@@ -57,14 +61,22 @@ const { mx, room, state } = vi.hoisted(() => {
       roomId: '!room:example.org',
       getMember: (userId: string) => members.find((member) => member.userId === userId),
       getThread: () => undefined,
-      // The thread of an agent's requests (makeUiEvent), whose root the room has, and a reply in it.
+      // The thread of an agent's requests (makeUiEvent) and another, whose roots the room has, a
+      // reply in the first, and the root of a new thread, still sending.
       findEventById: (eventId: string) =>
-        eventId === '$thread' || eventId === '$reply'
-          ? { getId: () => eventId, threadRootId: '$thread', isSending: () => false }
+        ['$thread', '$other', '$reply', PENDING].includes(eventId) && eventId !== state.unloaded
+          ? {
+              getId: () => eventId,
+              threadRootId: eventId === '$reply' ? '$thread' : eventId,
+              isSending: () => eventId === PENDING,
+              getTxnId: () => undefined,
+              getUnsigned: () => ({}),
+            }
           : undefined,
       on: () => undefined,
       removeListener: () => undefined,
     },
+    PENDING,
   };
 });
 
@@ -461,6 +473,7 @@ describe('the thread shown, as a plugin component in the room reads it (useShown
   afterEach(() => {
     cleanup();
     state.inView = undefined;
+    state.unloaded = undefined;
     localStorage.clear();
     vi.unstubAllGlobals();
   });
@@ -487,11 +500,31 @@ describe('the thread shown, as a plugin component in the room reads it (useShown
     expect(notesRequest()).toBe('Notes request "beside $thread"');
   });
 
+  it.each([
+    { named: 'a reply', address: '$reply', root: '$thread' },
+    { named: 'a root', address: '$other', root: '$other' },
+  ])(
+    "is undefined until the room has $named the address names, then the thread's root",
+    async ({ address, root }) => {
+      state.unloaded = address;
+      await renderRoom(address);
+      expect(shown).toBeUndefined();
+      state.unloaded = undefined;
+      await rerenderRoom?.();
+      expect(shown).toBe(root);
+    }
+  );
+
+  it("is undefined while the server has not confirmed the thread's root", async () => {
+    await renderRoom(PENDING);
+    expect(shown).toBeUndefined();
+  });
+
   it('changes as the room shows another thread, and its own timeline', async () => {
-    await renderRoom('$a');
-    expect(shown).toBe('$a');
-    await showThread('$b');
-    expect(shown).toBe('$b');
+    await renderRoom('$thread');
+    expect(shown).toBe('$thread');
+    await showThread('$other');
+    expect(shown).toBe('$other');
     await showThread(undefined);
     expect(shown).toBeUndefined();
   });

@@ -120,7 +120,8 @@ export type PluginPanelControls = {
   shown: string | undefined;
   /**
    * The root event ID of the thread the room shows, the one `openBesideThread` takes; undefined
-   * while it shows its own timeline.
+   * while it shows its own timeline, until it has the event its address names, and while the
+   * server has not confirmed the root.
    */
   thread: string | undefined;
   /** Opens a plugin's panel by its rule and hands it `request`; nothing for an unknown panel. */
