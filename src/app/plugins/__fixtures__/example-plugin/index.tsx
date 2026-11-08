@@ -339,7 +339,10 @@ const ROWS = ['First example row', 'Second example row'];
 /** Its menu's button, and the menu, which Escape and a click outside close, as the room menu's. */
 function ExampleMenu({ onShowDialog, onClear }: { onShowDialog: () => void; onClear: () => void }) {
   const [anchor, setAnchor] = useState<RectCords>();
-  const close = () => setAnchor(undefined);
+  const close = () => {
+    setAnchor(undefined);
+    return true;
+  };
   const choose = (act: () => void) => () => {
     close();
     act();
@@ -373,14 +376,8 @@ function ExampleMenu({ onShowDialog, onClear }: { onShowDialog: () => void; onCl
             focusTrapOptions={{
               initialFocus: false,
               returnFocusOnDeactivate: false,
-              clickOutsideDeactivates: () => {
-                close();
-                return true;
-              },
-              escapeDeactivates: () => {
-                close();
-                return true;
-              },
+              clickOutsideDeactivates: close,
+              escapeDeactivates: close,
             }}
           >
             <Menu>
