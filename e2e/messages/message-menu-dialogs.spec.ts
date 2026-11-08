@@ -149,9 +149,14 @@ const check = async (page: Page, world: World, label: string, phone: boolean) =>
   const openers: Array<[string, () => Promise<unknown>]> = phone
     ? [
         [
+          // Off the text, at the row's empty start: a long press on the text selects it instead.
           'long press',
           () =>
-            touch(text, [{ type: 'start' }, { type: 'wait', ms: 800 }, { type: 'end' }]),
+            touch(
+              row,
+              [{ type: 'start' }, { type: 'wait', ms: 800 }, { type: 'end' }],
+              'start'
+            ),
         ],
         [
           'More Options',
