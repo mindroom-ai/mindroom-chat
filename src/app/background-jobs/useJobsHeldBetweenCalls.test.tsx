@@ -23,12 +23,13 @@ const job = (jobId: string): BackgroundJob => ({
 const NONE: BackgroundJob[] = [];
 
 let shown: string[] = [];
+let statuses: string[] = [];
 let renderer: ReactTestRenderer | undefined;
 
 function Probe({ jobs, view }: { jobs: BackgroundJob[]; view: string | null }) {
-  shown = useJobsHeldBetweenCalls(jobs, view, (jobId) => jobId === 'sent', {} as Room).map(
-    (held) => held.jobId
-  );
+  const held = useJobsHeldBetweenCalls(jobs, view, (jobId) => jobId === 'sent', {} as Room);
+  shown = held.map((item) => item.jobId);
+  statuses = held.map((item) => item.status);
   return null;
 }
 
@@ -49,25 +50,44 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it('lets the bar go as soon as the reply that ran the jobs finishes', () => {
+it('holds the bar while the reply streams, however long the model thinks between calls', () => {
   streaming = true;
   show([job('first')]);
   show(NONE);
+  act(() => {
+    vi.advanceTimersByTime(JOBS_HOLD_MS * 5);
+  });
   expect(shown).toEqual(['first']);
-  // The reply's final edit arrives; its thread no longer streams.
-  streaming = false;
-  show(NONE);
-  expect(shown).toEqual([]);
+  show([job('second')]);
+  expect(shown).toEqual(['second']);
 });
 
-it('holds the last call while the reply still streams', () => {
+it('lets the bar go 2 s after the reply that ran the jobs ends, not before', () => {
   streaming = true;
   show([job('first')]);
+  show(NONE);
+  act(() => {
+    vi.advanceTimersByTime(JOBS_HOLD_MS * 3);
+  });
+  // The reply's final edit arrives; its thread no longer streams.
+  streaming = false;
   show(NONE);
   act(() => {
     vi.advanceTimersByTime(JOBS_HOLD_MS - 1);
   });
   expect(shown).toEqual(['first']);
+  act(() => {
+    vi.advanceTimersByTime(1);
+  });
+  expect(shown).toEqual([]);
+});
+
+it('shows the jobs it holds as finished', () => {
+  show([job('first'), { ...job('second'), status: 'awaiting_approval' }]);
+  expect(statuses).toEqual(['running', 'awaiting_approval']);
+  show(NONE);
+  expect(shown).toEqual(['first', 'second']);
+  expect(statuses).toEqual(['finished', 'finished']);
 });
 
 it('keeps the last call between two calls and shows the next one at once', () => {

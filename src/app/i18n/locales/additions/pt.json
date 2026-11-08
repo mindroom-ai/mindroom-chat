@@ -605,7 +605,9 @@
       }
     },
     "backgroundJobs": {
-      "jobCountShowing": "{{count}} tarefas em segundo plano (mostrando {{shown}})"
+      "jobCountShowing": "{{count}} tarefas em segundo plano (mostrando {{shown}})",
+      "finished": "Concluído: {{tool}}",
+      "jobCountFinished": "{{count}} tarefas em segundo plano concluídas"
     }
   },
   "composer": {

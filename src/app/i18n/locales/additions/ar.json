@@ -638,7 +638,9 @@
       }
     },
     "backgroundJobs": {
-      "jobCountShowing": "مهام في الخلفية: ⁨{{count}}⁩ (المعروض: ⁨{{shown}}⁩)"
+      "jobCountShowing": "مهام في الخلفية: ⁨{{count}}⁩ (المعروض: ⁨{{shown}}⁩)",
+      "finished": "انتهى: ⁨{{tool}}⁩",
+      "jobCountFinished": "مهام منتهية في الخلفية: ⁨{{count}}⁩"
     }
   },
   "composer": {
