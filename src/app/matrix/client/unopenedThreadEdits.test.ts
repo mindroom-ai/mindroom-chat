@@ -358,6 +358,24 @@ describe('edits of unopened threads', () => {
     expect(f.card()).toEqual({ preview: 'Thinking about it', streaming: true });
   });
 
+  it('shows the reply as sent once its bundled edit is redacted after a title notice', async () => {
+    const leaked = edit('Leaked a secret', 151, 'completed');
+    const bundled = (): IEvent => ({
+      ...reply(),
+      unsigned: { 'm.relations': { 'm.replace': leaked } },
+    });
+    const f = fixture(() => [bundled()]);
+    await f.start();
+    // The reply and its edit are known only from the root's summary; then the title notice follows.
+    await f.deliver([withSummary(bundled())]);
+    await f.deliver([title(160)]);
+    expect(f.card().preview).toBe('Leaked a secret');
+
+    await f.deliver([redaction('$edit-151', 170)]);
+    expect(f.card().preview).toBe('Thinking about it');
+    expect(f.loadedThread()).toBe(false);
+  });
+
   it('shows an encrypted edit once a later attempt decrypts it', async () => {
     const f = await streamingThread();
     await f.deliver([encryptedEdit(150)]);

@@ -13,6 +13,7 @@ import {
   type MatrixClient,
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { keepBundledEditsInTheirRoom } from './client/bundledEditRoom';
 import { getSyncedEdit, keepSyncedEdits } from './client/syncedEdits';
 import { getEditedEvent, getLatestMessageContent } from './room';
 
@@ -88,8 +89,8 @@ const redaction = (id: string, redacts: string, ts: number, sender = AUTHOR) =>
   });
 
 /** A room, and how its events arrive: live, as the sync brings them. */
-const liveRoom = () => {
-  const room = new Room(ROOM, client, AUTHOR, { timelineSupport: true });
+const liveRoom = (mx = client) => {
+  const room = new Room(ROOM, mx, AUTHOR, { timelineSupport: true });
   const add = async (...events: MatrixEvent[]) => {
     await room.addLiveEvents(events, { addToState: false });
     await tick();
@@ -301,8 +302,8 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
     });
 
   /** A room where the moderator alone may redact other members' events. */
-  const moderatedRoom = () => {
-    const { room, add } = liveRoom();
+  const moderatedRoom = (mx = client) => {
+    const { room, add } = liveRoom(mx);
     room.currentState.setStateEvents([
       state('m.room.create', '', { creator: AUTHOR, room_version: '10' }),
       ...[AUTHOR, OTHER, MODERATOR].map((userId) =>
@@ -472,6 +473,20 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
       }
     );
 
+    it('forgets the kept edit when its redaction comes with thread events paginated back', async () => {
+      const kept = await keptEdit();
+      kept.decrypt();
+      // The SDK applies the redactions in a page of thread events it paginates back; nothing
+      // announces them as synced events.
+      kept.room.processThreadedEvents([redaction('$redaction', '$newest-edit', 5)], true);
+
+      expect(kept.result()).toEqual({
+        shown: 'The forklift is charged.',
+        kept: undefined,
+        other: '$sold',
+      });
+    });
+
     it('keeps the edit forgotten when another member redacts it again before it decrypts', async () => {
       expect(
         await redactKeptEdit(
@@ -563,10 +578,10 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
     });
 
     /** The message's thread as the thread list brings it, before it is opened. */
-    const listedThread = async () => {
+    const listedThread = async (mx = client) => {
       Thread.hasServerSideSupport = FeatureSupport.Stable;
-      const { room, add } = moderatedRoom();
-      const root = client.getEventMapper()({
+      const { room, add } = moderatedRoom(mx);
+      const root = mx.getEventMapper()({
         ...original(),
         unsigned: {
           'm.relations': {
@@ -577,7 +592,7 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
       });
       room.processThreadRoots([root], false);
       await tick();
-      return { add, root, thread: room.getThread('$message')! };
+      return { room, add, root, thread: room.getThread('$message')! };
     };
 
     it('shows the original text of a root and latest reply known from the thread list', async () => {
@@ -591,6 +606,28 @@ describe('SDK redactions of an edit the client knows only from its bundle', () =
       );
 
       expect(body(root)).toBe('The forklift is charged.');
+      expect(body(thread.replyToEvent!)).toBe('Is the forklift for sale?');
+    });
+
+    it('keeps the original text of the latest reply once opening the thread maps it again from its root', async () => {
+      // A client set up as the app's: its event mappers read the room's redactions.
+      const mx = createClient({ baseUrl: 'https://example.org', userId: AUTHOR });
+      keepBundledEditsInTheirRoom(mx);
+      vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
+      const { room, add, thread } = await listedThread(mx);
+      mx.store.storeRoom(room);
+      await add(redaction('$redaction', '$reply-edit', 6));
+      expect(body(thread.replyToEvent!)).toBe('Is the forklift for sale?');
+
+      // Offline, opening the thread maps its latest reply again from the summary of the root it holds.
+      const offline = () => Promise.reject(new Error('offline'));
+      vi.spyOn(mx, 'fetchRoomEvent').mockImplementation(offline);
+      vi.spyOn(mx, 'createThreadListMessagesRequest').mockImplementation(offline);
+      vi.spyOn(mx, 'fetchRelations').mockImplementation(offline);
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      await thread.initialize()?.catch(() => undefined);
+      await tick();
+
       expect(body(thread.replyToEvent!)).toBe('Is the forklift for sale?');
     });
 

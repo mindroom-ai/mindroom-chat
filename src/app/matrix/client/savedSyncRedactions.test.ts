@@ -1,10 +1,13 @@
 import { EventEmitter } from 'events';
 import {
   ClientEvent,
+  createClient,
   EventStatus,
   MatrixEvent,
+  Room,
   RoomEvent,
   SyncState,
+  type IEvent,
   type MatrixClient,
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -22,7 +25,10 @@ type Deferred = { resolve: () => void };
 const ME = '@me:example.org';
 
 /** A client whose store saves only when asked to and reports whether it would save itself. */
-const makeClient = ({ sdkWantsSave = false } = {}) => {
+const makeClient = ({
+  sdkWantsSave = false,
+  room,
+}: { sdkWantsSave?: boolean; room?: Room } = {}) => {
   const pending: Deferred[] = [];
   const store = {
     wantsSave: vi.fn<() => boolean>(() => sdkWantsSave),
@@ -34,7 +40,11 @@ const makeClient = ({ sdkWantsSave = false } = {}) => {
     ),
   };
   const emitter = new EventEmitter();
-  const mx = Object.assign(emitter, { store, getUserId: () => ME }) as unknown as MatrixClient;
+  const mx = Object.assign(emitter, {
+    store,
+    getUserId: () => ME,
+    getRoom: () => room ?? null,
+  }) as unknown as MatrixClient;
   const finishSaves = async () => {
     pending.splice(0).forEach(({ resolve }) => resolve());
     // Let the save's settle handlers run.
@@ -340,14 +350,14 @@ const redaction = (id: string, target: string) =>
   raw(id, { redacts: target }, { type: 'm.room.redaction', redacts: target });
 
 /** One /sync response with `events` as the room's timeline. */
-const syncOf = (events: object[], prevBatch: string, nextBatch: string) =>
+const syncOf = (events: object[], prevBatch: string, nextBatch: string, state: object[] = []) =>
   ({
     next_batch: nextBatch,
     rooms: {
       join: {
         [ROOM]: {
           timeline: { events, prev_batch: prevBatch, limited: false },
-          state: { events: [] },
+          state: { events: state },
           account_data: { events: [] },
           ephemeral: { events: [] },
           summary: {},
@@ -501,5 +511,71 @@ describe('dropRedactedContent', () => {
     batch(emitter, [synced('m.room.redaction', '$redaction')]);
 
     expect(store.save).toHaveBeenCalledTimes(1);
+  });
+});
+
+// The SDK patch decides once, as a redaction arrives, whether its sender may redact an edit known
+// only from a message's bundle. A reload replays the saved sync against the room's state after
+// it, where the sender may no longer be a member.
+describe('an edit redacted from a bundle, after a reload', () => {
+  const MODERATOR = '@moderator:example.org';
+  const sdk = createClient({ baseUrl: 'https://example.org', userId: ME });
+  const map = (event: object) => sdk.getEventMapper()({ ...event, room_id: ROOM } as IEvent);
+  const stateEvent = (type: string, stateKey: string, content: object, extra: object = {}) =>
+    raw(`$${type}-${stateKey}-${ts}`, content as Record<string, unknown>, {
+      type,
+      state_key: stateKey,
+      ...extra,
+    });
+  const body = (room: Room) => room.findEventById('$message')?.getContent().body as unknown;
+
+  it('stays gone once the moderator who redacted it left the room', async () => {
+    const roomState = [
+      stateEvent('m.room.create', '', { creator: ALICE, room_version: '10' }),
+      ...[ALICE, MODERATOR].map((userId) =>
+        stateEvent('m.room.member', userId, { membership: 'join' }, { sender: userId })
+      ),
+      stateEvent('m.room.power_levels', '', { users: { [MODERATOR]: 50 }, redact: 50 }),
+    ];
+    const message = raw('$message', text('message v1'), {
+      unsigned: { 'm.relations': { 'm.replace': editOf('$edit', '$message', 'message v2') } },
+    });
+    const moderation = { ...redaction('$redaction', '$edit'), sender: MODERATOR };
+    const leave = stateEvent(
+      'm.room.member',
+      MODERATOR,
+      { membership: 'leave' },
+      { sender: MODERATOR, unsigned: { prev_content: { membership: 'join' } } }
+    );
+
+    // The room takes the moderator's redaction as it arrives.
+    const live = new Room(ROOM, sdk, ME, { timelineSupport: true });
+    live.currentState.setStateEvents(roomState.map(map));
+    await live.addLiveEvents([message, moderation].map(map), { addToState: false });
+    expect(body(live)).toBe('message v1');
+
+    const accumulator = new SyncAccumulator({ maxTimelineEntries: 500 });
+    accumulator.accumulate(syncOf([message], 'token-1', 'b1', roomState));
+    accumulator.accumulate(syncOf([moderation], 'token-2', 'b2'));
+    accumulator.accumulate(syncOf([leave], 'token-3', 'b3'));
+    const { mx, emitter, store } = makeClient({ room: live });
+    Object.assign(store, { backend: { syncAccumulator: accumulator } });
+    keepRedactionsInSavedSync(mx);
+    batch(emitter, [synced('m.room.redaction', '$redaction')]);
+    expect(store.save).toHaveBeenCalledTimes(1);
+
+    // An offline reload: the SDK replays the saved timeline after setting the state after it.
+    const saved = accumulator.getJSON(true).roomsData.join[ROOM]!;
+    const reloaded = new Room(ROOM, sdk, ME, { timelineSupport: true });
+    reloaded
+      .getLiveTimeline()
+      .initialiseState(saved['org.matrix.msc4222.state_after']!.events.map(map));
+    await reloaded.addLiveEvents(saved.timeline.events.map(map), {
+      addToState: false,
+      fromCache: true,
+    });
+
+    expect(body(reloaded)).toBe('message v1');
+    expect(JSON.stringify(saved.timeline)).not.toContain('message v2');
   });
 });
