@@ -348,6 +348,11 @@ test('a new session whose keys come late from the key backup shows an unread fin
       ],
     ];
     for (const [who, page] of sessions) {
+      page.on('console', (message) => {
+        if (message.text().includes('ERHDIAG') && message.text().includes('Late keys')) {
+          log.push(`${who} ${message.text().slice(0, 1500)}`);
+        }
+      });
       await goHome(page, roomId);
       // Without the keys a session cannot tell the title notice from a message; it shows the
       // room unread.

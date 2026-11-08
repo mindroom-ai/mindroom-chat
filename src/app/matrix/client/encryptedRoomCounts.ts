@@ -239,6 +239,17 @@ const recount = (mx: MatrixClient, room: Room): void => {
       Math.max(ownJoinTs, ownLastTsIn(events, userId, threadId))
     );
     const local = countContext(mx, room, events, threadId, readTs, userId);
+    // eslint-disable-next-line no-console
+    console.info(
+      `ERHDIAG ${room.name} ctx=${threadId ?? 'main'} readTs=${readTs} since=${since} join=${ownJoinTs} local=${JSON.stringify(local)} server=${JSON.stringify(threadId ? room.serverThreadUnreadNotifications?.[threadId] : room.serverUnreadNotifications)} events=${events
+        .map(
+          (e) =>
+            `${e.getId()?.slice(0, 6)}:${e.getTs()}:${e.getType()}:${e.isDecryptionFailure() ? 'F' : ''}:${
+              getFinishingEdit(e)?.getId()?.slice(0, 6) ?? ''
+            }`
+        )
+        .join(',')}`
+    );
     const fromServer = serverCountsOf(
       threadId ? room.serverThreadUnreadNotifications?.[threadId] : room.serverUnreadNotifications
     );
