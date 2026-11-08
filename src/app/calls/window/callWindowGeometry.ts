@@ -8,11 +8,6 @@ export const MIN_WIDTH = 340;
 export const MIN_HEIGHT = 220;
 export const BAR_HEIGHT = 56;
 export const BAR_THRESHOLD = 120;
-/**
- * How far (px) the edge of a bar against the bottom or top of the viewport must be pulled toward
- * it to grow the bar: the pointer goes only a few px past the screen's edge, never the threshold's.
- */
-export const BAR_PULL = 4;
 export const KEY_STEP = 16;
 export const DEFAULT_WIDTH = 400;
 export const DEFAULT_HEIGHT = 480;
@@ -69,22 +64,19 @@ const tallest = (viewport: ViewportSize): number =>
   Math.max(BAR_HEIGHT, viewport.height - 2 * WINDOW_MARGIN);
 const shortest = (viewport: ViewportSize): number => Math.min(MIN_HEIGHT, tallest(viewport));
 
-// Under BAR_THRESHOLD the window collapses to the bar. Above it the window is at least the
-// minimum height and grows into the `room` on the side the edge moves to; where that room is
-// short of the minimum, clampToViewport moves the window to the other side to make it.
-function barAwareHeight(raw: number, room: number, viewport: ViewportSize): number {
-  if (raw < BAR_THRESHOLD) return BAR_HEIGHT;
-  const least = shortest(viewport);
-  return clamp(raw, least, Math.max(room, least));
+// Under BAR_THRESHOLD the window is the bar, unless its dragged edge went past the margin (`room`
+// is what lies beyond it): a pointer there has no room to pass the threshold, and growth past the
+// margin is growth from the other side, which makes the bar a window. Else at least the minimum.
+function pulledHeight(start: WindowRect, pull: number, room: number, viewport: ViewportSize) {
+  const raw = start.height + pull;
+  return raw < BAR_THRESHOLD && pull <= room ? BAR_HEIGHT : Math.max(raw, shortest(viewport));
 }
 
-// A bar's edge pulled toward a viewport edge that leaves no room to pass BAR_THRESHOLD (`room` is
-// what lies beyond the edge, to the margin) passes it at BAR_PULL; any other height stays `raw`.
-function pulledHeight(start: WindowRect, raw: number, pull: number, room: number): number {
-  const short = room < BAR_THRESHOLD - BAR_HEIGHT;
-  return isBar(start) && short && pull >= BAR_PULL ? Math.max(raw, BAR_THRESHOLD) : raw;
-}
-
+/**
+ * The one resize rule, for a pointer on an edge or corner and for a keyboard step: the dragged
+ * edge moves while there is room beyond it, then the window grows from the opposite side (it moves
+ * inward), up to the viewport less its margins; shrinking moves only the dragged edge.
+ */
 export function resizeRect(
   start: WindowRect,
   edge: ResizeEdge,
@@ -96,27 +88,19 @@ export function resizeRect(
   const bottom = start.y + start.height;
   const minWidth = narrowest(viewport);
   let { x, y, width, height } = start;
-  if (edge.includes('e')) {
-    width = clamp(start.width + dx, minWidth, viewport.width - WINDOW_MARGIN - start.x);
-  }
+  if (edge.includes('e')) width = Math.max(start.width + dx, minWidth);
   if (edge.includes('w')) {
-    width = clamp(start.width - dx, minWidth, right - WINDOW_MARGIN);
+    width = Math.max(start.width - dx, minWidth);
     x = right - width;
   }
   if (edge.includes('s')) {
-    const raw = pulledHeight(
-      start,
-      start.height + dy,
-      dy,
-      viewport.height - WINDOW_MARGIN - bottom
-    );
-    height = barAwareHeight(raw, viewport.height - WINDOW_MARGIN - start.y, viewport);
+    height = pulledHeight(start, dy, viewport.height - WINDOW_MARGIN - bottom, viewport);
   }
   if (edge.includes('n')) {
-    const raw = pulledHeight(start, start.height - dy, -dy, start.y - WINDOW_MARGIN);
-    height = barAwareHeight(raw, bottom - WINDOW_MARGIN, viewport);
+    height = pulledHeight(start, -dy, start.y - WINDOW_MARGIN, viewport);
     y = bottom - height;
   }
+  // What grew past an edge moves back inside: the growth comes from the opposite side.
   return clampToViewport({ x, y, width, height }, viewport);
 }
 

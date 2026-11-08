@@ -316,17 +316,17 @@ describe('FloatingCallWindow', () => {
     expect(stored()).toMatchObject({ rect: grownFromLowBar });
   });
 
-  it('grows a bar in a bottom corner upward when its bottom edge is pulled a few px down', () => {
+  it('grows a bar in a bottom corner upward once its bottom edge is pulled down at all', () => {
     renderWindow();
     act(() => frame?.minimize());
     // Moved, the bar drops into the bottom end corner, where the pointer has no room below.
     drag(handle(), 0, 20);
     const cornerBar = { x: 1032, y: 836, width: 400, height: 56 };
     expect(placed()).toEqual(cornerBar);
-    drag(edge('s'), 0, 3);
+    drag(edge('s'), 0, -3);
     expect(placed()).toEqual(cornerBar);
 
-    drag(edge('s'), 0, 4);
+    drag(edge('s'), 0, 2);
     const grown = { ...cornerBar, y: 672, height: 220 };
     expect(placed()).toEqual(grown);
     expect(section().hasAttribute('data-bar')).toBe(false);

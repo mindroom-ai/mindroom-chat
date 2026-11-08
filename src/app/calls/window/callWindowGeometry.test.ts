@@ -67,9 +67,12 @@ describe('callWindowGeometry', () => {
     expect(resizeRect(R, 'e', -500, 0, VP).width).toBe(340);
   });
 
-  it('stops a resize at the margin of the viewport', () => {
-    expect(resizeRect(R, 'e', 5000, 0, VP).width).toBe(1440 - 8 - 500);
-    expect(resizeRect(R, 'w', -5000, 0, VP).x).toBe(8);
+  it('grows from the other side once the dragged edge reaches the margin, up to the viewport', () => {
+    // 532 px of room beyond the end edge, then 68 px from the start side.
+    expect(resizeRect(R, 'e', 600, 0, VP)).toEqual({ ...R, x: 432, width: 1000 });
+    expect(resizeRect(R, 'w', -600, 0, VP)).toEqual({ ...R, x: 8, width: 1000 });
+    expect(resizeRect(R, 'e', 5000, 0, VP)).toEqual({ ...R, x: 8, width: 1424 });
+    expect(resizeRect(R, 'w', -5000, 0, VP)).toEqual({ ...R, x: 8, width: 1424 });
   });
 
   it('turns into the 56 px bar under 120 px tall and grows back past it', () => {
@@ -101,28 +104,30 @@ describe('callWindowGeometry', () => {
     expect(resizeRect(highBar, 'n', 0, -70, VP)).toEqual({ ...highBar, y: 8, height: 220 });
   });
 
-  it('grows a bar against the bottom or the top from a short pull toward that edge, away from it', () => {
+  it('grows a bar against the bottom or the top once its edge is pulled past the margin, away from it', () => {
     // The pointer can go only a few px past the screen's edge, never the threshold's 64.
     const cornerBar = { ...lowBar, y: 836 };
-    expect(resizeRect(cornerBar, 's', 0, 4, VP)).toEqual({ ...cornerBar, y: 672, height: 220 });
-    expect(resizeRect(cornerBar, 'se', 0, 4, VP)).toEqual({ ...cornerBar, y: 672, height: 220 });
-    expect(resizeRect(lowBar, 's', 0, 4, VP)).toEqual({ ...lowBar, y: 672, height: 220 });
-    expect(resizeRect(cornerBar, 's', 0, 3, VP)).toEqual(cornerBar);
-    expect(resizeRect(highBar, 'n', 0, -4, VP)).toEqual({ ...highBar, height: 220 });
-    expect(resizeRect(highBar, 'nw', 0, -4, VP)).toEqual({ ...highBar, height: 220 });
-    // A pull the other way, or one with room for the threshold, keeps the bar.
+    expect(resizeRect(cornerBar, 's', 0, 1, VP)).toEqual({ ...cornerBar, y: 672, height: 220 });
+    expect(resizeRect(cornerBar, 'se', 0, 1, VP)).toEqual({ ...cornerBar, y: 672, height: 220 });
+    // The minimized default bar has 8 px below it to the margin.
+    expect(resizeRect(lowBar, 's', 0, 8, VP)).toEqual(lowBar);
+    expect(resizeRect(lowBar, 's', 0, 9, VP)).toEqual({ ...lowBar, y: 672, height: 220 });
+    expect(resizeRect(highBar, 'n', 0, -1, VP)).toEqual({ ...highBar, height: 220 });
+    expect(resizeRect(highBar, 'nw', 0, -1, VP)).toEqual({ ...highBar, height: 220 });
+    // A push the other way, or a pull with room for the threshold, keeps the bar.
     expect(resizeRect(cornerBar, 'n', 0, 4, VP)).toEqual(cornerBar);
     const midBar = { ...lowBar, y: 400 };
     expect(resizeRect(midBar, 's', 0, 4, VP)).toEqual(midBar);
     expect(resizeRect(midBar, 'n', 0, -4, VP)).toEqual(midBar);
-    // A window that is no bar resizes as before.
+    // A window that is no bar grows upward as its bottom edge passes the margin.
     const low = { ...R, y: 412 };
-    expect(resizeRect(low, 's', 0, 4, VP)).toEqual(low);
+    expect(resizeRect(low, 's', 0, 4, VP)).toEqual({ ...low, y: 408, height: 484 });
   });
 
-  it('stops a tall drag at the margin rather than moving the window', () => {
-    expect(resizeRect(R, 's', 0, 5000, VP)).toEqual({ ...R, height: 900 - 8 - 300 });
-    expect(resizeRect(R, 'n', 0, -5000, VP)).toEqual({ ...R, y: 8, height: 780 - 8 });
+  it('grows a tall drag from the other side once the edge reaches the margin', () => {
+    expect(resizeRect(R, 's', 0, 200, VP)).toEqual({ ...R, y: 212, height: 680 });
+    expect(resizeRect(R, 'n', 0, -400, VP)).toEqual({ ...R, y: 8, height: 880 });
+    expect(resizeRect(R, 's', 0, 5000, VP)).toEqual({ ...R, y: 8, height: 884 });
   });
 
   it('grows a bar with Shift and the down arrow upward when there is no room below', () => {
@@ -214,6 +219,19 @@ describe('callWindowGeometry', () => {
     expect(keyStep(R, 'ArrowUp', false, VP)).toEqual({ ...R, y: 284 });
     expect(keyStep(R, 'ArrowDown', false, VP)).toEqual({ ...R, y: 316 });
     expect(keyStep({ ...R, x: 10 }, 'ArrowLeft', false, VP).x).toBe(8);
+  });
+
+  it('grows a window at the default place with Shift and the right or down arrow, moving it in', () => {
+    const start = defaultRect(VP, false);
+    const wider = keyStep(start, 'ArrowRight', true, VP);
+    expect(wider).toEqual({ ...start, x: 1016, width: 416 });
+    expect(keyStep(wider, 'ArrowRight', true, VP)).toEqual({ ...start, x: 1000, width: 432 });
+    const taller = keyStep(start, 'ArrowDown', true, VP);
+    expect(taller).toEqual({ ...start, y: 396, height: 496 });
+    expect(keyStep(taller, 'ArrowDown', true, VP)).toEqual({ ...start, y: 380, height: 512 });
+    // Shrinking moves only the end or bottom edge.
+    expect(keyStep(wider, 'ArrowLeft', true, VP)).toEqual({ ...start, x: 1016 });
+    expect(keyStep(taller, 'ArrowUp', true, VP)).toEqual({ ...start, y: 396 });
   });
 
   it('resizes 16 px per arrow with Shift, keeping the top left corner', () => {
