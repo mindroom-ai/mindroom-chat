@@ -120,6 +120,13 @@ const isAnchorVisible = (root: HTMLElement, anchor: Element | null, reachAbove =
   );
 };
 
+/** The sentinel is inside the scroll area's box, under a floating bar or not. */
+const isAnchorInScrollArea = (root: HTMLElement, anchor: Element): boolean => {
+  const view = root.getBoundingClientRect();
+  const rect = anchor.getBoundingClientRect();
+  return rect.bottom > view.top && rect.top < view.bottom;
+};
+
 /**
  * The item's top within the scroll content, comparable to `scrollTop`. An item laid out inside
  * another positioned box (a virtual list's absolutely placed tile) counts its `offsetTop` from
@@ -302,6 +309,11 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
     [changeRange, firstNotAboveView, lastNotBelowView]
   );
 
+  // Sentinels inside the scroll area that sit under its padding, where the reader cannot see
+  // them. They count once a scroll or a size change brings them out from under it, which the
+  // observer does not report: it sees only the scroll area's box.
+  const coveredRef = useRef(new Set<string>());
+
   /**
    * Paginates towards the first visible sentinel, history first; false when none is visible.
    * `backReach` extends the view above the visible band for the back sentinel.
@@ -312,12 +324,19 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
       if (shouldSuppressPagination?.()) return false;
       const root = getScrollElement();
       if (!root) return false;
-      if (isAnchorVisible(root, root.querySelector(anchorSelector(BACK_ANCHOR)), backReach)) {
-        return paginate(true, opts);
-      }
-      if (isAnchorVisible(root, root.querySelector(anchorSelector(FRONT_ANCHOR)))) {
-        return paginate(false, opts);
-      }
+      const back = root.querySelector(anchorSelector(BACK_ANCHOR));
+      if (isAnchorVisible(root, back, backReach)) return paginate(true, opts);
+      const front = root.querySelector(anchorSelector(FRONT_ANCHOR));
+      if (isAnchorVisible(root, front)) return paginate(false, opts);
+      // The observer may have reported a sentinel in view while pagination was held (a focus
+      // jump, the opening fill) that has since moved under a floating bar. It reports nothing
+      // more while the sentinel stays inside the scroll area, so it counts as covered from here.
+      [
+        { direction: BACK_ANCHOR, anchor: back },
+        { direction: FRONT_ANCHOR, anchor: front },
+      ].forEach(({ direction, anchor }) => {
+        if (anchor && isAnchorInScrollArea(root, anchor)) coveredRef.current.add(direction);
+      });
       return false;
     },
     [paginate]
@@ -352,10 +371,6 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
     [paginateVisibleAnchor]
   );
 
-  // Sentinels the observer reports in view that still sit under the scroll padding. They count
-  // once scrolling brings them out from under it, which the observer does not report.
-  const coveredRef = useRef(new Set<string>());
-
   /** Paginates towards the sentinels that came into view, history first. */
   const paginateShown = useCallback(
     (directions: readonly (string | null)[]) => {
@@ -386,29 +401,52 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
     [paginateShown]
   );
 
+  /** Paginates towards the covered sentinels that the reader can see now. */
+  const recheckCovered = useCallback(() => {
+    const covered = coveredRef.current;
+    const root = optionsRef.current.getScrollElement();
+    if (covered.size === 0 || !root) return;
+    const { back, front } = anchorsRef.current;
+    const shown = [
+      { direction: BACK_ANCHOR, element: back },
+      { direction: FRONT_ANCHOR, element: front },
+    ]
+      .filter(
+        ({ direction, element }) => covered.has(direction) && isAnchorVisible(root, element ?? null)
+      )
+      .map(({ direction }) => direction);
+    shown.forEach((direction) => covered.delete(direction));
+    paginateShown(shown);
+  }, [paginateShown]);
+
   useEffect(() => {
     if (typeof document === 'undefined') return undefined;
-    const recheckCovered = (event: Event) => {
-      const covered = coveredRef.current;
-      const root = optionsRef.current.getScrollElement();
-      if (covered.size === 0 || !root || event.target !== root) return;
-      const { back, front } = anchorsRef.current;
-      const shown = [
-        { direction: BACK_ANCHOR, element: back },
-        { direction: FRONT_ANCHOR, element: front },
-      ]
-        .filter(
-          ({ direction, element }) =>
-            covered.has(direction) && isAnchorVisible(root, element ?? null)
-        )
-        .map(({ direction }) => direction);
-      shown.forEach((direction) => covered.delete(direction));
-      paginateShown(shown);
+    const recheckOnScroll = (event: Event) => {
+      if (event.target === optionsRef.current.getScrollElement()) recheckCovered();
     };
     // Scroll events do not bubble; the capture phase sees the scroll area's whichever it is.
-    document.addEventListener('scroll', recheckCovered, { capture: true, passive: true });
-    return () => document.removeEventListener('scroll', recheckCovered, { capture: true });
-  }, [paginateShown]);
+    document.addEventListener('scroll', recheckOnScroll, { capture: true, passive: true });
+    return () => document.removeEventListener('scroll', recheckOnScroll, { capture: true });
+  }, [recheckCovered]);
+
+  // A size change brings a covered sentinel into view without a scroll too: the scroll area's
+  // own, or that of the content holding a sentinel (rows before it measure smaller).
+  const resizesRef = useRef<ResizeObserver>();
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const resizes = new ResizeObserver(recheckCovered);
+    resizesRef.current = resizes;
+    const root = optionsRef.current.getScrollElement();
+    if (root) resizes.observe(root);
+    const { back, front } = anchorsRef.current;
+    [back, front].forEach((anchor) => {
+      if (anchor?.parentElement) resizes.observe(anchor.parentElement);
+    });
+    return () => {
+      resizes.disconnect();
+      resizesRef.current = undefined;
+    };
+  }, [recheckCovered]);
 
   // Read through the ref, so a new `getScrollElement` each render keeps the same observer.
   const getObserverOptions = useCallback(
@@ -438,6 +476,7 @@ export const useVirtualPaginator = (options: VirtualPaginatorOptions): VirtualPa
       if (!element) return;
       element.setAttribute(PAGINATOR_ANCHOR_ATTRIBUTE, direction);
       observer?.observe(element);
+      if (element.parentElement) resizesRef.current?.observe(element.parentElement);
     },
     [observer]
   );
