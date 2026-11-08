@@ -6,9 +6,7 @@ import type { EnabledSlashCommand } from '../../plugins/slashCommands';
 import { getCommandSuggestions } from '../slashCommandQuery';
 import { useCommands } from './useCommands';
 
-const plugins = vi.hoisted(() => ({
-  commands: [] as Array<{ name: string; description: string; run: () => Promise<void> }>,
-}));
+const plugins = vi.hoisted(() => ({ commands: [] as EnabledSlashCommand[] }));
 
 vi.mock('../../plugins/slashCommands', () => ({
   usePluginSlashCommands: () => plugins.commands,

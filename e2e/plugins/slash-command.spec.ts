@@ -65,7 +65,10 @@ test("the example plugin's slash command shows in the command menu and runs in t
   test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
   test.setTimeout(5 * 60_000);
   const person = await registerDisposableUser(`plugin_command_${RUN}`, 'plugin-command-password');
-  const roomId = await createPrivateRoom(HOMESERVER, person.accessToken, { name: 'Greetings' });
+  const roomId = await createPrivateRoom(HOMESERVER, person.accessToken, {
+    name: 'Greetings',
+    topic: 'Where the example plugin greets',
+  });
   const server = await serveBuild(build!);
   const context = await browser.newContext({ baseURL: server.origin });
   const page = await context.newPage();
