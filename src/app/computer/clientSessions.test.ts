@@ -347,7 +347,6 @@ describe('ClientSessions.token', () => {
 
     await expect(store.token()).resolves.toBe('session-1');
     await expect(store.token({ refused: 'session-1' })).resolves.toBe('session-2');
-    await store.send('/api/plugins');
 
     server.sent.length = 0;
     await store.revoke();
