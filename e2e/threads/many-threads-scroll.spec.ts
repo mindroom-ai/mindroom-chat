@@ -294,7 +294,10 @@ const startWatch = (scroller: Scroller) =>
     };
   });
 
-/** The first row fully inside the visible band and its top, to see whether it moves. */
+/**
+ * The first row fully inside the visible band and its top, to see whether it moves, and whether
+ * the reader sees the end of the loaded rows: the sentinel that loads older history.
+ */
 const readPlace = (scroller: Scroller) =>
   scroller.evaluate((view) => {
     const style = getComputedStyle(view);
@@ -306,13 +309,26 @@ const readPlace = (scroller: Scroller) =>
       .filter(({ rect }) => rect.height > 0 && rect.top >= bandTop && rect.bottom <= bandBottom)
       .sort((a, b) => a.rect.top - b.rect.top);
     const first = rows[0];
-    const { scrollTop, scrollHeight, clientHeight } = view;
+    const edge = view.querySelector('[data-paginator-anchor="B"]')?.getBoundingClientRect();
     return {
       id: first?.id,
       top: first?.rect.top ?? 0,
-      atTop: scrollTop <= 1,
-      atBottom: scrollTop + clientHeight >= scrollHeight - 1,
+      atEnd: !!edge && edge.bottom > bandTop && edge.top < bandBottom,
     };
+  });
+
+/** Waits until the scroll position has not moved for five frames: the flick has run out. */
+const settle = (scroller: Scroller) =>
+  scroller.evaluate(async (view) => {
+    let previous = view.scrollTop;
+    for (let still = 0, frames = 0; still < 5 && frames < 90; frames += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((resolve) => {
+        requestAnimationFrame(resolve);
+      });
+      still = view.scrollTop === previous ? still + 1 : 0;
+      previous = view.scrollTop;
+    }
   });
 
 const topOf = (scroller: Scroller, id: string) =>
@@ -383,8 +399,8 @@ const diff = (after: Requests, before: Requests): Requests => ({
 /**
  * Reads towards older rows like a person: a flick, a glance, until `target` is in view or nothing
  * new shows for fifteen flicks. Each step records the requests it caused, the rows it showed for
- * the first time, whether the reader hit the end of the loaded rows while older ones remained, and
- * how far the row at the top of the view moved while the step's rows loaded.
+ * the first time, whether the reader saw the end of the loaded rows while older ones remained, and
+ * how far the row at the top of the view moved in the 400 ms after the flick ran out.
  */
 const readToOldest = async (
   page: Page,
@@ -410,13 +426,15 @@ const readToOldest = async (
     // eslint-disable-next-line no-await-in-loop
     await flick(page, scroller, device, down);
     // eslint-disable-next-line no-await-in-loop
-    await page.waitForTimeout(60);
+    await settle(scroller);
     // eslint-disable-next-line no-await-in-loop
     const place = await readPlace(scroller);
     // eslint-disable-next-line no-await-in-loop
     await page.waitForTimeout(400);
     // eslint-disable-next-line no-await-in-loop
     const later = place.id ? await topOf(scroller, place.id) : undefined;
+    // eslint-disable-next-line no-await-in-loop
+    const settled = await readPlace(scroller);
     // eslint-disable-next-line no-await-in-loop
     reached = await inView(scroller, target);
     // eslint-disable-next-line no-await-in-loop
@@ -426,7 +444,7 @@ const readToOldest = async (
     steps.push({
       requests: diff(requests, stepBefore),
       rows: now - seen,
-      stalled: !reached && (down ? place.atBottom : place.atTop),
+      stalled: !reached && (place.atEnd || settled.atEnd),
       drift: later === undefined ? 0 : Math.round(Math.abs(later - place.top)),
     });
     if (reached) break;
