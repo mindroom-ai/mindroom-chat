@@ -12,6 +12,7 @@ const NAMES: Record<string, string> = {
   '@mind:stage.test': 'Mind',
   '@ada:stage.test': 'Ada',
   '@tom:stage.test': 'Tom',
+  '@mindroom_helper:stage.test': 'Helper',
 };
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
@@ -64,6 +65,8 @@ const me = person('me', { local: true });
 const mind = person('mind');
 const ada = person('ada');
 const tom = person('tom');
+// A MindRoom agent, by its user name.
+const helper = person('mindroom_helper');
 
 type StageProps = React.ComponentProps<typeof CallStage>;
 
@@ -132,7 +135,7 @@ describe('CallStage without video', () => {
     ).toBeTruthy();
   });
 
-  it('says who speaks, else that the microphone is off, else that it listens', () => {
+  it('says who speaks, else that the microphone is off, else that an agent listens', () => {
     const speaking = showStage({
       participants: [me, { ...ada, speaking: false }, { ...mind, speaking: true }],
       microphone: false,
@@ -147,11 +150,31 @@ describe('CallStage without video', () => {
     expect(within(muted.container).getByText('You are muted')).toBeTruthy();
     cleanup();
 
-    const listening = showStage({ participants: [{ ...me, speaking: true }, mind] });
+    const listening = showStage({ participants: [{ ...me, speaking: true }, helper] });
     expect(within(listening.container).getByText('Listening')).toBeTruthy();
     expect(
       listening.container.querySelector('[data-call-voice-bars]')?.getAttribute('data-speaking')
     ).toBe('true');
+  });
+
+  it('says nothing while the people in the call are quiet', () => {
+    const { container } = showStage({ participants: [{ ...me, speaking: true }, mind, helper] });
+    expect(within(container).queryByText('Listening')).toBeNull();
+    expect(container.querySelector('[data-call-voice-bars]')).not.toBeNull();
+    expect(container.querySelector(`.${css.VoiceStatus}`)).toBeNull();
+  });
+
+  it('waits for others in place of the bars and the status while alone in the call', () => {
+    for (const microphone of [true, false]) {
+      const { container } = showStage({ participants: [me], microphone });
+      expect(within(container).getByText('Waiting for others to join')).toBeTruthy();
+      expect(container.querySelector('[data-call-voice-bars]')).toBeNull();
+      expect(within(container).queryByText('Listening')).toBeNull();
+      expect(within(container).queryByText('You are muted')).toBeNull();
+      // This device stays in the people list for screen readers.
+      expect(tileOf(container, me.userId).textContent).toBe('Me (you)');
+      cleanup();
+    }
   });
 
   it('shows the awaited agent waiting until it joins', () => {
@@ -227,6 +250,33 @@ describe('CallStage with video', () => {
     expect(stageOf(container).hasAttribute('data-speaker-view')).toBe(true);
     expect(container.querySelector('[data-call-inset]')).toBeNull();
     expect(tileOf(container, me.userId).querySelector('video')).not.toBeNull();
+  });
+
+  it('shows five faces at most in speaker view, the last one counting the rest', () => {
+    const crowd = Array.from({ length: 8 }, (_, index) =>
+      person(`guest${index}`, { key: `@guest${index}:stage.test:DEVICE` })
+    );
+    const { container } = showStage({
+      participants: [{ ...mind, screen: track() }, ...crowd],
+    });
+
+    const faces = container.querySelectorAll(`.${css.SpeakerFace.trim().split(/\s+/).join('.')}`);
+    expect(faces).toHaveLength(5);
+    // The sharer and the first three guests, then one face for the other five.
+    expect(container.querySelectorAll('[data-call-tile]')).toHaveLength(4);
+    const more = faces[4] as HTMLElement;
+    expect(more.hasAttribute('data-call-tile')).toBe(false);
+    expect(more.getAttribute('aria-label')).toBe('5 more');
+    expect(more.textContent).toBe('+5');
+  });
+
+  it('shows every face in speaker view while there are five or fewer', () => {
+    const crowd = Array.from({ length: 4 }, (_, index) =>
+      person(`guest${index}`, { key: `@guest${index}:stage.test:DEVICE` })
+    );
+    const { container } = showStage({ participants: [{ ...mind, screen: track() }, ...crowd] });
+    expect(container.querySelectorAll('[data-call-tile]')).toHaveLength(5);
+    expect(within(container).queryByText(/^\+/)).toBeNull();
   });
 
   it('switches to speaker view when grid tiles would be under 100 px wide', () => {

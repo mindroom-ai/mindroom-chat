@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { Icon, Icons, Text, toRem } from 'folds';
+import { Avatar, Icon, Icons, Text, toRem } from 'folds';
 import { useResizeObserver } from '../lib/hooks/useResizeObserver';
+import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import type { CallParticipant } from './RoomCall';
 import { CallMemberAvatar, CallTile, ScreenTile, useCallMemberProfile } from './CallTile';
 import {
@@ -18,6 +20,8 @@ import * as css from './CallStage.css';
 
 /** How far apart (px) the overlapping faces of speaker view's row sit. */
 const SPEAKER_FACE_STEP = 18;
+/** Speaker view's row shows this many faces at most; a longer one ends with a count of the rest. */
+const SPEAKER_FACES = 5;
 /** Room (px) a shared screen keeps at its top end corner for its full screen button. */
 const SCREEN_CONTROL_ROOM = 32;
 
@@ -110,12 +114,21 @@ function SpeakingLine({ room, userId }: { room: Room; userId: string }) {
 
 type VoiceStageProps = { room: Room; people: CallParticipant[]; microphone: boolean };
 
-/** Nobody shows video: the others' faces, bars that move while anyone talks, and who does. */
+/**
+ * Nobody shows video: the others' faces, bars that move while anyone talks, and who does. Alone in
+ * the call, a line that waits for the others instead.
+ */
 function VoiceStage({ room, people, microphone }: VoiceStageProps) {
   const { t } = useTranslation();
   const others = people.filter((participant) => !participant.local);
   const speaker = others.find((participant) => participant.speaking);
   const anyoneSpeaks = people.some((participant) => participant.speaking);
+  // Agents listen while nobody talks; quiet people are just quiet, so nothing is said of them.
+  const agentsOnly = others.every(({ userId }) => isMindroomAgentUserId(userId));
+  let status: ReactNode;
+  if (speaker) status = <SpeakingLine room={room} userId={speaker.userId} />;
+  else if (!microphone) status = t('featureUi.calls.stage.muted');
+  else if (agentsOnly) status = t('featureUi.calls.stage.listening');
   return (
     <div className={css.Voice}>
       <ul className={css.VoiceFaces} aria-label={t('featureUi.calls.panel.participants')}>
@@ -132,23 +145,29 @@ function VoiceStage({ room, people, microphone }: VoiceStageProps) {
           )
         )}
       </ul>
-      <span
-        className={css.VoiceBars}
-        data-call-voice-bars=""
-        data-speaking={anyoneSpeaks}
-        aria-hidden
-      >
-        <span className={css.VoiceBar} />
-        <span className={css.VoiceBar} />
-        <span className={css.VoiceBar} />
-      </span>
-      <Text className={css.VoiceStatus} size="T200" priority="300">
-        {speaker ? (
-          <SpeakingLine room={room} userId={speaker.userId} />
-        ) : (
-          t(microphone ? 'featureUi.calls.stage.listening' : 'featureUi.calls.stage.muted')
-        )}
-      </Text>
+      {others.length === 0 ? (
+        <Text size="T300" priority="300">
+          {t('featureUi.calls.stage.waiting')}
+        </Text>
+      ) : (
+        <>
+          <span
+            className={css.VoiceBars}
+            data-call-voice-bars=""
+            data-speaking={anyoneSpeaks}
+            aria-hidden
+          >
+            <span className={css.VoiceBar} />
+            <span className={css.VoiceBar} />
+            <span className={css.VoiceBar} />
+          </span>
+          {status && (
+            <Text className={css.VoiceStatus} size="T200" priority="300">
+              {status}
+            </Text>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -168,6 +187,25 @@ function SpeakerFace({ room, participant, inlineEnd }: FaceProps & { inlineEnd: 
       aria-label={participant.local ? t('featureUi.calls.panel.you', { name }) : name}
     >
       <CallMemberAvatar room={room} userId={participant.userId} size="200" />
+    </li>
+  );
+}
+
+/** The last face of a long row in speaker view: how many more people the row leaves out. */
+function MoreFaces({ count, inlineEnd }: { count: number; inlineEnd: number }) {
+  const { t } = useTranslation();
+  const style: CSSProperties = { insetInlineEnd: toRem(inlineEnd) };
+  return (
+    <li
+      className={css.SpeakerFace}
+      style={style}
+      aria-label={t('featureUi.calls.stage.moreLabel', { count })}
+    >
+      <Avatar size="200" radii="Pill" aria-hidden>
+        <Text as="span" size="L400">
+          {t('featureUi.calls.stage.more', { count })}
+        </Text>
+      </Avatar>
     </li>
   );
 }
@@ -239,6 +277,8 @@ export function CallStage(props: CallStageProps) {
     const faces = people.filter(
       (participant) => participant !== inset && (screenInFocus || participant !== focused)
     );
+    // A row longer than the tile can hold ends with a count in place of its last faces.
+    const shownFaces = faces.length > SPEAKER_FACES ? faces.slice(0, SPEAKER_FACES - 1) : faces;
     const facesFrom = STAGE_PADDING + (screenInFocus ? SCREEN_CONTROL_ROOM : 0);
     body = (
       <>
@@ -249,7 +289,7 @@ export function CallStage(props: CallStageProps) {
             ) : (
               <CallTile key={focus} room={room} participant={focused} />
             ))}
-          {faces.map((participant, place) => (
+          {shownFaces.map((participant, place) => (
             <SpeakerFace
               key={participant.key}
               room={room}
@@ -257,6 +297,12 @@ export function CallStage(props: CallStageProps) {
               inlineEnd={facesFrom + place * SPEAKER_FACE_STEP}
             />
           ))}
+          {shownFaces.length < faces.length && (
+            <MoreFaces
+              count={faces.length - shownFaces.length}
+              inlineEnd={facesFrom + shownFaces.length * SPEAKER_FACE_STEP}
+            />
+          )}
         </ul>
         {inset && (
           <ul className={css.Inset} data-call-inset="">

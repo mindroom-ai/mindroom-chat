@@ -43,6 +43,34 @@ describe('fitTiles', () => {
     expect(fit.tileHeight).toBe(300);
   });
 
+  // The column count each stage gives one to six tiles: a wide stage lays them in a row (two
+  // rows from four), a tall one stacks them, a tiny one packs them as best it can.
+  const STAGES = {
+    wide: { width: 800, height: 300, columns: [1, 2, 3, 2, 3, 3] },
+    tall: { width: 300, height: 800, columns: [1, 1, 1, 1, 1, 1] },
+    tiny: { width: 200, height: 120, columns: [1, 2, 2, 2, 3, 3] },
+  } as const;
+  const cases = Object.entries(STAGES).flatMap(([stage, { width, height, columns }]) =>
+    columns.map((expected, index) => ({ stage, count: index + 1, width, height, expected }))
+  );
+
+  it.each(cases)(
+    '$stage stage: $count tiles in $expected columns, inside the stage, between square and 16:9',
+    ({ count, width, height, expected }) => {
+      const gap = 6;
+      const fit = fitTiles(count, width, height, gap);
+      const rows = Math.ceil(count / fit.columns);
+
+      expect(fit.columns).toBe(expected);
+      expect(fit.columns * fit.tileWidth + (fit.columns - 1) * gap).toBeLessThanOrEqual(
+        width + 1e-9
+      );
+      expect(rows * fit.tileHeight + (rows - 1) * gap).toBeLessThanOrEqual(height + 1e-9);
+      expect(fit.tileWidth / fit.tileHeight).toBeGreaterThanOrEqual(1 - 1e-9);
+      expect(fit.tileWidth / fit.tileHeight).toBeLessThanOrEqual(16 / 9 + 1e-9);
+    }
+  );
+
   it('reports tiles under the speaker-view threshold in a small stage', () => {
     expect(fitTiles(4, 300, 120, 6).size).toBeLessThan(SPEAKER_VIEW_MIN_TILE);
     expect(fitTiles(2, 384, 300, 6).size).toBeGreaterThanOrEqual(SPEAKER_VIEW_MIN_TILE);
