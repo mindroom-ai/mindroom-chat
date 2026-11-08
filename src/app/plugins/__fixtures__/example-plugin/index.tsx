@@ -18,6 +18,10 @@
 // (`remember`), so a card hands it only the greeting's event ID, and it reads the greeting itself.
 // Its name is a key of its strings ("Beispielbereich" in German). It may take the members list's
 // place (`opensOverMembers`): as it opens again in its room, and beside a thread.
+// A second side panel, "Example card", toggled from the room menu, draws its own frame: a plain
+// card, 320 px wide beside the conversation and as wide as the room when it fills it or on a phone,
+// with "Fill example card" ("Shrink example card" while it fills the room) and "Hide example card",
+// which leaves only its tab, "Show example card", at the room's edge.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg); its build module (build.mjs) writes "Example banner" in place of a marker, which
 // unit tests, where no build module runs, show as it is. The banner also has a button, "Show
@@ -59,6 +63,7 @@ import {
   OverlayBackdrop,
   OverlayCenter,
   Text,
+  color,
   config,
   type RectCords,
 } from 'folds';
@@ -66,6 +71,7 @@ import { KnownMembership, type Room } from 'matrix-js-sdk';
 import {
   pluginPublicUrl,
   reloadForNewVersion,
+  usePanelFrame,
   usePluginConfig,
   usePluginRouteHref,
   usePluginStorage,
@@ -512,6 +518,55 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
   );
 }
 
+// The card's width: its own beside the conversation, the room's when it fills it or on a phone.
+const CARD_CSS = `[data-example-card] { flex: 0 0 320px; }
+[data-example-card][data-filled] { flex: 1 1 0; }
+@media (max-width: 750px) { [data-example-card] { flex: 1 1 0; } }`;
+
+/** The panel that draws its own frame: a card with Fill and Hide, and a tab while hidden. */
+function ExampleCard() {
+  const frame = usePanelFrame();
+  if (!frame) return null;
+  const { layout, setLayout } = frame;
+  const look = {
+    margin: 8,
+    padding: 16,
+    borderRadius: 8,
+    border: `1px solid ${color.Surface.ContainerLine}`,
+    background: color.Surface.Container,
+    color: color.Surface.OnContainer,
+  };
+  if (layout === 'folded') {
+    return (
+      <button
+        type="button"
+        onClick={() => setLayout('beside')}
+        style={{ ...look, writingMode: 'vertical-rl' }}
+      >
+        Show example card
+      </button>
+    );
+  }
+  const filled = layout === 'filled';
+  return (
+    <section
+      aria-label="Example card"
+      data-example-card
+      data-filled={filled || undefined}
+      style={look}
+    >
+      <style>{CARD_CSS}</style>
+      <h2>Example card</h2>
+      <button type="button" onClick={() => setLayout(filled ? 'beside' : 'filled')}>
+        {filled ? 'Shrink example card' : 'Fill example card'}
+      </button>
+      <button type="button" onClick={() => setLayout('folded')}>
+        Hide example card
+      </button>
+    </section>
+  );
+}
+
 // The rooms whose cover is open, and who wants to hear when that changes.
 const coveredRooms = new Set<string>();
 const coverListeners = new Set<() => void>();
@@ -601,6 +656,7 @@ const plugin: ClientPlugin = {
       remember: true,
       opensOverMembers: true,
     },
+    { id: 'card', label: 'Example card', Component: ExampleCard, frame: 'own' },
   ],
   headerActions: [
     {

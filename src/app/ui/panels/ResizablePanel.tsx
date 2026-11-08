@@ -13,7 +13,8 @@ import {
   type PanelPhase,
   usePanelPresence,
 } from './panelPresence';
-import { PanelFrameStrip, usePanelFrame } from './PanelFrame';
+import { PanelFrameStrip } from './PanelFrame';
+import { usePanelFrame } from './panelFrameContext';
 import { STRIP_WIDTH } from './PanelFrame.css';
 import * as css from './ResizablePanel.css';
 

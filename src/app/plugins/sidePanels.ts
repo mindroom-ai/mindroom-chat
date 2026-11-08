@@ -47,6 +47,14 @@ export type SidePanel = {
    * keeps it closed then.
    */
   opensOverMembers?: true;
+  /**
+   * `own`: its `Component` draws its own frame, such as a card with its own Fill and Hide, and the
+   * room draws none: no title, Close, splitter or frame strip. The component reads and sets its
+   * layout with `usePanelFrame`, on phones too; folded, it covers nothing, there either. Over a
+   * phone's conversation it hides the room header and the panel's toggle with it, so the component
+   * offers a way out of its own: Hide, or a Close that calls `close` of {@link useRoomSidePanel}.
+   */
+  frame?: 'own';
 };
 
 /** Whether a plugin's contribution is a side panel; the build does not type-check plugins. */
@@ -58,7 +66,8 @@ export const isSidePanel = (value: unknown): value is SidePanel =>
   (typeof value.Component === 'function' || isRecord(value.Component)) &&
   (value.icon === undefined || typeof value.icon === 'function') &&
   (value.placement === undefined || PLACEMENTS.includes(value.placement)) &&
-  (value.opensOverMembers === undefined || value.opensOverMembers === true);
+  (value.opensOverMembers === undefined || value.opensOverMembers === true) &&
+  (value.frame === undefined || value.frame === 'own');
 
 /** A plugin's side panel in a room: `id` is `<plugin id>/<panel id>`, `tag` names its plugin. */
 export type RoomSidePanel = SidePanel & { tag: string };

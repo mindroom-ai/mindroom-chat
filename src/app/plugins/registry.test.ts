@@ -17,6 +17,7 @@ const entries = vi.hoisted(() => {
     remember: true,
     opensOverMembers: true,
   };
+  const ownPanel = { id: 'board', label: 'Board', Component, frame: 'own' };
   const run = () => undefined;
   const action = { id: 'wave', label: 'wave', icon, run };
   const autoAction = { id: 'auto', label: 'auto', icon, run, placement: 'auto' };
@@ -33,7 +34,7 @@ const entries = vi.hoisted(() => {
     renderer,
     page,
     forgotten,
-    panels: [panel, autoPanel],
+    panels: [panel, autoPanel, ownPanel],
     actions: [action, autoAction],
     command,
     roomActions: [roomAction, spacesAction, criticalAction],
@@ -73,6 +74,8 @@ const entries = vi.hoisted(() => {
             { id: 'row', label: 'Row', Component, placement: 'row' },
             { id: 'over', label: 'Over', Component, opensOverMembers: 'yes' },
             autoPanel,
+            { id: 'framed', label: 'Framed', Component, frame: 'yes' },
+            ownPanel,
           ],
           headerActions: [
             action,
@@ -153,7 +156,7 @@ describe('registeredPlugins', () => {
     expect(plugins[0]?.pages).toEqual([]);
     expect(plugins[1]?.pages).toEqual([entries.page]);
     // A side panel needs an id, a label, a component, no icon or one folds draws, no placement,
-    // `auto` or `menu`, and no opensOverMembers or `true`.
+    // `auto` or `menu`, no opensOverMembers or `true`, and no frame or `own`.
     expect(plugins[0]?.sidePanels).toEqual([]);
     expect(plugins[1]?.sidePanels).toEqual(entries.panels);
     // A header action needs an id, a label, an icon, a run, and no placement, `auto` or `menu`.
