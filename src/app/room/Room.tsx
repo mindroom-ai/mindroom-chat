@@ -178,6 +178,8 @@ type ShownCanvas = { event: MatrixEvent; conversation: string };
 type PanelEntry = RoomPanel & {
   label?: string;
   covers: boolean;
+  /** Draws its frame itself (a plugin's `frame: 'own'`): it has its layout on phones too. */
+  ownFrame?: boolean;
   render: () => ReactNode;
   /** Opens it in its own state, for the header's toggle; panels opened otherwise have none. */
   show?: () => void;
@@ -462,27 +464,35 @@ function RoomContent() {
         show: () => showPluginPanel(panel.id),
         label: panel.label,
         covers: mobile,
-        render: () => (
-          <ResizablePanel
-            side="end"
-            storageKey={`mindroom.panel.width:${ownUserId}:${panel.id}`}
-            defaultWidth={CALL_DEFAULT_WIDTH}
-            minContentWidth={CONVERSATION_MIN_WIDTH}
-            maxPanelWidth={CALL_MAX_WIDTH}
-            passthrough={mobile}
-            resizeLabel={t('mindroomUi.plugins.sidePanel.resize', { label: panel.label })}
-            collapseLabel={t('mindroomUi.plugins.sidePanel.close', { label: panel.label })}
-            onCollapse={closePluginPanel}
-            testId="resizable-plugin-panel"
-          >
+        ownFrame: panel.frame === 'own',
+        render: () => {
+          const content = (
             <PluginSidePanel
               panel={panel}
               roomId={roomId}
               request={pluginPanel?.request}
               onClose={closePluginPanel}
             />
-          </ResizablePanel>
-        ),
+          );
+          // One that draws its own frame has no box of the room's either: it sizes itself.
+          if (panel.frame === 'own') return content;
+          return (
+            <ResizablePanel
+              side="end"
+              storageKey={`mindroom.panel.width:${ownUserId}:${panel.id}`}
+              defaultWidth={CALL_DEFAULT_WIDTH}
+              minContentWidth={CONVERSATION_MIN_WIDTH}
+              maxPanelWidth={CALL_MAX_WIDTH}
+              passthrough={mobile}
+              resizeLabel={t('mindroomUi.plugins.sidePanel.resize', { label: panel.label })}
+              collapseLabel={t('mindroomUi.plugins.sidePanel.close', { label: panel.label })}
+              onCollapse={closePluginPanel}
+              testId="resizable-plugin-panel"
+            >
+              {content}
+            </ResizablePanel>
+          );
+        },
       })
     ),
     {
@@ -513,9 +523,10 @@ function RoomContent() {
   );
   // Beside the conversation the shown panel has a frame, which fills the room with it or folds it
   // to a tab at the room's edge. Phones show the panel over the conversation, with no frame; the
-  // members, a list their header button already shows and hides, have none either.
+  // members, a list their header button already shows and hides, have none either. A panel that
+  // draws its own frame gets its layout on phones too.
   const frame: PanelFrame | undefined =
-    !mobile && shown?.label !== undefined
+    (!mobile || shown?.ownFrame) && shown?.label !== undefined
       ? { label: shown.label, layout, setLayout: (next) => setLayout(shown.id, next) }
       : undefined;
   const folded = layout === 'folded';
@@ -704,10 +715,11 @@ function RoomContent() {
   );
   useCanvasOpenRequest(client, room, canvasEnabled, openRequestedCanvas);
 
-  // On phones a panel covers the conversation; filling the room, it takes the conversation's place.
-  // The conversation stays mounted under it, with its draft and a recording in progress, out of
-  // reach and out of sight (conversationBehindPanelAtom), as under a plugin's cover.
-  const behindPanel = !!shown?.covers || layout === 'filled';
+  // On phones a panel covers the conversation, unless it draws its own frame and is folded; filling
+  // the room, it takes the conversation's place. The conversation stays mounted under it, with its
+  // draft and a recording in progress, out of reach and out of sight (conversationBehindPanelAtom),
+  // as under a plugin's cover.
+  const behindPanel = (!!shown?.covers && !(shown.ownFrame && folded)) || layout === 'filled';
   const conversationRef = useRef<HTMLDivElement>(null);
   useInert(conversationRef, behindPanel);
   const setBehindPanel = useSetAtom(conversationBehindPanelAtom);

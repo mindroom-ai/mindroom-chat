@@ -35,6 +35,12 @@ export type SidePanel = {
    * panel) or the account's last login leaves this browser.
    */
   remember?: boolean;
+  /**
+   * `own`: its `Component` draws its own frame, such as a card with its own Fill and Hide, and the
+   * room draws none: no title, Close, splitter or frame strip. The component reads and sets its
+   * layout with `usePanelFrame`, on phones too; folded, it covers nothing, there either.
+   */
+  frame?: 'own';
 };
 
 /** Whether a plugin's contribution is a side panel; the build does not type-check plugins. */
@@ -45,7 +51,8 @@ export const isSidePanel = (value: unknown): value is SidePanel =>
   typeof value.label === 'string' &&
   (typeof value.Component === 'function' || isRecord(value.Component)) &&
   (value.icon === undefined || typeof value.icon === 'function') &&
-  (value.placement === undefined || PLACEMENTS.includes(value.placement));
+  (value.placement === undefined || PLACEMENTS.includes(value.placement)) &&
+  (value.frame === undefined || value.frame === 'own');
 
 /** A plugin's side panel in a room: `id` is `<plugin id>/<panel id>`, `tag` names its plugin. */
 export type RoomSidePanel = SidePanel & { tag: string };
