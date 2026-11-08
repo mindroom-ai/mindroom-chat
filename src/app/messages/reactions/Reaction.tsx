@@ -5,6 +5,7 @@ import { Text, as } from 'folds';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { getMemberDisplayName } from '../../matrix/room';
 import { useEmojiData } from '../../emoji/emojiData';
+import { revealDirectionControls } from '../../ui/directional';
 import * as css from './Reaction.css';
 
 type ReactionProps = {
@@ -17,7 +18,10 @@ type ReactionProps = {
   useAuthentication?: boolean;
 };
 
-/** One reaction chip with its count; pressed when the user reacted with it. */
+/**
+ * One reaction chip with its count; pressed when the user reacted with it. A key is any text its
+ * sender chose, so it shows its direction controls as code points.
+ */
 export const Reaction = as<'button', ReactionProps>(
   ({ className, mx, reaction, count, label, useAuthentication, onClick, ...props }, ref) => {
     const imageSrc = reaction.startsWith('mxc://')
@@ -37,10 +41,10 @@ export const Reaction = as<'button', ReactionProps>(
             {label}
           </Text>
         ) : imageSrc ? (
-          <img className={css.ReactionImg} src={imageSrc} alt={reaction} />
+          <img className={css.ReactionImg} src={imageSrc} alt={revealDirectionControls(reaction)} />
         ) : (
           <Text as="span" size="Inherit" className={css.ReactionText}>
-            {reaction}
+            {revealDirectionControls(reaction)}
           </Text>
         )}
         {/* A labelled chip is a control, not a tally. */}
@@ -87,7 +91,7 @@ export function ReactionTooltipMsg({ room, reaction, events }: ReactionTooltipMs
       i18nKey="sharedUi.reaction.reactionSummary"
       values={{
         names: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(listed),
-        reaction: shortcode,
+        reaction: revealDirectionControls(shortcode),
       }}
       components={{ names: <b />, reaction: <span /> }}
     />
