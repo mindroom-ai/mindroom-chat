@@ -18,6 +18,7 @@ const state = vi.hoisted(() => ({
   editorProps: undefined as EditorProps | undefined,
   mentionHasSuggestions: true,
   mentionShown: false,
+  modelPickerHidden: undefined as boolean | undefined,
   startSendSession: vi.fn(async () => undefined),
   commands: {} as Record<string, SlashCommand>,
   resetEditor: vi.fn(),
@@ -54,9 +55,9 @@ vi.mock('../editor/output', () => ({
   trimCustomHtml: (value: string) => value,
 }));
 vi.mock('../editor/Editor', () => ({
-  CustomEditor: (props: EditorProps) => {
+  CustomEditor: (props: EditorProps & { top?: React.ReactNode }) => {
     state.editorProps = props;
-    return null;
+    return <>{props.top}</>;
   },
 }));
 vi.mock('../editor/autocomplete/autocompleteQuery', async (importOriginal) => {
@@ -113,7 +114,12 @@ vi.mock('../lib/user-agent', () => ({ mobileOrTablet: () => false }));
 vi.mock('../matrix/protocol/pasteAttachmentMarker', () => ({
   withPasteAttachmentMetadata: (content: unknown) => content,
 }));
-vi.mock('../models/ModelPicker', () => ({ ThreadModelPicker: () => null }));
+vi.mock('../models/ModelPicker', () => ({
+  ThreadModelPicker: ({ conversationHidden }: { conversationHidden?: boolean }) => {
+    state.modelPickerHidden = conversationHidden;
+    return null;
+  },
+}));
 vi.mock('../ui/IconTooltip', () => ({ IconTooltip: () => null }));
 vi.mock('./commands/agentCommandQuery', () => ({ getAgentCommandQuery: () => undefined }));
 vi.mock('./RoomInputExtensions', () => ({
@@ -200,7 +206,7 @@ describe('composer', () => {
     expect(state.editorProps?.placeholder).toBeTruthy();
   });
 
-  it('closes the mention menu as a side panel hides the conversation, so Tab picks nothing', async () => {
+  it('closes the mention menu and the model picker as a side panel hides the conversation', async () => {
     state.mentionHasSuggestions = true;
     const { RoomInput } = await import('./RoomInput');
     const room = { roomId: '!room:example.org', name: 'Room' } as unknown as Room;
@@ -219,8 +225,11 @@ describe('composer', () => {
     });
     act(() => state.editorProps?.onKeyUp?.());
     expect(state.mentionShown).toBe(true);
+    expect(state.modelPickerHidden).toBe(false);
     act(() => store.set(conversationBehindPanelAtom, true));
+    // Its Tab would pick a completion into the hidden draft.
     expect(state.mentionShown).toBe(false);
+    expect(state.modelPickerHidden).toBe(true);
   });
 
   it('leaves Enter to the mention menu while it shows suggestions', async () => {
