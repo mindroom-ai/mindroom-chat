@@ -82,16 +82,21 @@ export const usePluginSidePanels = (
   const { t, i18n } = useTranslation(enabled.map(({ id }) => pluginNamespace(id)) as never);
   return useMemo(() => {
     // The app's typed keys and namespaces cover its own catalog only.
-    const translate = t as unknown as (key: string, options: never) => string;
+    const translate = t as unknown as (key: string, options: never) => unknown;
     return enabled.flatMap(({ id, tag, sidePanels }) => {
-      const options = { ns: pluginNamespace(id) } as never;
-      return sidePanels.map((panel) => ({
-        ...panel,
-        id: `${id}/${panel.id}`,
-        tag,
-        // Looked up first, as i18next would read a plain label's `.` or `:` as a path.
-        label: i18n.exists(panel.label, options) ? translate(panel.label, options) : panel.label,
-      }));
+      // Only the plugin's own strings: a label's `:` names no other namespace, and a group of
+      // strings comes back as such.
+      const options = { ns: pluginNamespace(id), nsSeparator: false, returnObjects: true } as never;
+      return sidePanels.map((panel) => {
+        // Looked up first, as i18next would read a label that is no key as a template (`$t(…)`).
+        const text = i18n.exists(panel.label, options) && translate(panel.label, options);
+        return {
+          ...panel,
+          id: `${id}/${panel.id}`,
+          tag,
+          label: typeof text === 'string' ? text : panel.label,
+        };
+      });
     });
   }, [enabled, i18n, t]);
 };

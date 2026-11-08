@@ -79,21 +79,30 @@ describe('usePluginSidePanels', () => {
     expect(listed()).toEqual([['notes/panel', 'Notes', 'notes@1.0.0']]);
   });
 
-  it("shows a label that is no key of its plugin's strings exactly as given, separators and all", async () => {
-    plugins.entries.splice(0, plugins.entries.length, {
-      id: 'notes',
-      version: '1.0.0',
-      plugin: {
-        sidePanels: [
-          panel('draft', 'Notes: draft'),
-          panel('namespaced', 'Notes:draft'),
-          panel('version', 'v1.2 notes'),
-          panel('board', 'Board'),
-          panel('nested', 'names.panel'),
-        ],
-        translations: { en: { v1: { x: 'Not this' }, names: { panel: 'Nested notes' } } },
+  it("shows a label that is no string of its plugin's strings exactly as given, separators and all", async () => {
+    plugins.entries.splice(
+      0,
+      plugins.entries.length,
+      {
+        id: 'notes',
+        version: '1.0.0',
+        plugin: {
+          sidePanels: [
+            panel('draft', 'Notes: draft'),
+            panel('namespaced', 'Notes:draft'),
+            panel('version', 'v1.2 notes'),
+            panel('board', 'Board'),
+            panel('nested', 'names.panel'),
+            // A group of strings, and another plugin's string, are none of its strings.
+            panel('group', 'names'),
+            panel('other', 'plugin.other:panel'),
+            panel('template', 'See $t(names.panel)'),
+          ],
+          translations: { en: { v1: { x: 'Not this' }, names: { panel: 'Nested notes' } } },
+        },
       },
-    });
+      { id: 'other', version: '1.0.0', plugin: { translations: { en: { panel: 'Other panel' } } } }
+    );
     const { listed } = await renderPanels();
     expect(listed().map(([, label]) => label)).toEqual([
       'Notes: draft',
@@ -101,6 +110,9 @@ describe('usePluginSidePanels', () => {
       'v1.2 notes',
       'Board',
       'Nested notes',
+      'names',
+      'plugin.other:panel',
+      'See $t(names.panel)',
     ]);
   });
 });
