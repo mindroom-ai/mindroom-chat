@@ -66,11 +66,16 @@ def forget_calling_repository():
         os.environ.pop(name, None)
 
 
-def corpus_head(corpus):
+def corpus_version(corpus):
+    """The key of the caches made from the corpus: a hash of every commit its content is read from (`--all`: each
+    ref and HEAD), so that a corpus update that moves any of them makes new caches."""
     try:
-        return git(corpus, "rev-parse", "--all").split()[0]
-    except (subprocess.CalledProcessError, IndexError):
+        tips = git(corpus, "rev-list", "--no-walk", "--all")
+    except subprocess.CalledProcessError:
+        tips = ""
+    if not tips:
         sys.exit(f"upstream-overlap: {corpus} is not a git clone of the upstream client with commits; nothing was checked")
+    return hashlib.sha256(tips.encode()).hexdigest()[:16]
 
 
 def make_cache():
@@ -158,9 +163,9 @@ def strip_imports(text):
 
 def corpus_lines(corpus):
     make_cache()
-    head = corpus_head(corpus)
+    version = corpus_version(corpus)
     rules = hashlib.sha256((IMPORTS.pattern + "".join(t.pattern for t in TRIVIAL) + str(MIN_LEN)).encode()).hexdigest()[:12]
-    cached = CACHE / f"corpus-{head}-{rules}.json"
+    cached = CACHE / f"corpus-{version}-{rules}.json"
     if cached.exists():
         return set(json.loads(cached.read_text()))
     lines = set()
@@ -268,9 +273,9 @@ def windows(ids):
 
 def corpus_windows(corpus):
     from array import array
-    head = corpus_head(corpus)
+    version = corpus_version(corpus)
     rules = hashlib.sha256((TOKEN.pattern + IMPORTS.pattern + "".join(t.pattern for t in TRIVIAL) + str(WINDOW)).encode()).hexdigest()[:12]
-    cached = CACHE / f"windows-{head}-{rules}.bin"
+    cached = CACHE / f"windows-{version}-{rules}.bin"
     data = array("Q")
     if cached.exists():
         with open(cached, "rb") as fh:
@@ -372,7 +377,7 @@ def changed_blobs(repo, commits):
 
 def pre_push(corpus, url, lines, repo, prefix=""):
     """Check every commit a push adds (scripts/git-hooks/pre-push); returns the exit status, 1 on any finding.
-    A blob found clean is remembered under the checker's own hash and the corpus head, so a routine push reads
+    A blob found clean is remembered under the checker's own hash and the corpus version, so a routine push reads
     the corpus only for files it has not seen."""
     updates = push_updates(lines)
     main = remote_main(repo, url, repo / prefix) if updates else None
@@ -380,7 +385,7 @@ def pre_push(corpus, url, lines, repo, prefix=""):
         print("upstream-overlap: the remote's main is not available here, so every commit behind the pushed tips is checked")
     commits = pushed_commits(repo, updates, main)
     changes = changed_blobs(repo, commits)
-    key = hashlib.sha256(Path(__file__).read_bytes() + corpus_head(corpus).encode()).hexdigest()[:16]
+    key = hashlib.sha256(Path(__file__).read_bytes() + corpus_version(corpus).encode()).hexdigest()[:16]
     clean = CACHE / f"clean-{key}"
 
     def marker(oid, path):
@@ -458,7 +463,7 @@ def main():
     prefix = os.environ.get("GIT_PREFIX", "")  # where the push ran, for a relative remote path
     forget_calling_repository()
     corpus = Path(args.corpus)
-    corpus_head(corpus)
+    corpus_version(corpus)
     if args.pre_push is not None:
         repo = Path(git(Path.cwd(), "rev-parse", "--show-toplevel").strip())
         sys.exit(pre_push(corpus, args.pre_push, sys.stdin.read().splitlines(), repo, prefix))
