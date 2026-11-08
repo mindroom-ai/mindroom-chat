@@ -2,9 +2,11 @@
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
 // A side panel, "Example panel", names the room it is open in, counts its joined members and says
-// whether a MindRoom agent has joined or is invited, through the account's client. It also shows
-// the greeting a card asked it to show: in a room, each greeting has "Show in panel", and "Close
-// panel" while the panel shows. The panel stays open in its room across reloads (`remember`).
+// whether a MindRoom agent has joined or is invited, through the account's client. Its toggle, under
+// a leaf icon, shows in the room header's row, except on phones, where it goes in the room menu. It
+// also shows the greeting a card asked it to show: in a room, each greeting has "Show in panel",
+// and "Close panel" while the panel shows. The panel stays open in its room across reloads
+// (`remember`), so the card hands it only the greeting's event ID, and it reads the greeting itself.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg), and a button, "Show example cover", that covers the room's conversation with
 // "Example cover of <room name>" until its Close button or Escape closes it. Like a plugin outside
@@ -18,9 +20,9 @@
 // room and that thread, opens either, and reloads the page into a new version.
 // Its slash command, `/greet <text>`, sends the notice "Example greeting: <text>" to the room, or in a
 // thread's composer to that thread, through the room's client, and fails without a text.
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Icons } from 'folds';
-import { KnownMembership, type Room } from 'matrix-js-sdk';
+import { KnownMembership, MatrixEvent, type Room } from 'matrix-js-sdk';
 import {
   pluginPublicUrl,
   reloadForNewVersion,
@@ -43,8 +45,8 @@ import { useRoomHref, useRoomNavigate } from '@mindroom/client-sdk/room';
 /** This page load; what the plugin stored in it does not count as seen before. */
 const pageLoad = `${Date.now()}-${Math.random()}`;
 
-const greetingText = (event: PluginEvent): string | undefined => {
-  const greeting = event.content['com.example.greeting'];
+const greetingText = ({ content }: Pick<PluginEvent, 'content'>): string | undefined => {
+  const greeting = content['com.example.greeting'];
   if (typeof greeting !== 'object' || greeting === null || !('text' in greeting)) return undefined;
   return typeof greeting.text === 'string' ? greeting.text : undefined;
 };
@@ -79,7 +81,7 @@ function Greeting({ event }: { event: PluginEvent }) {
       </div>
       {seenIn !== null && seenIn !== pageLoad && <div data-example-plugin-seen>Seen before</div>}
       {panel && (
-        <button type="button" onClick={() => panel.open(text)}>
+        <button type="button" onClick={() => panel.open(event.eventId)}>
           Show in panel
         </button>
       )}
@@ -144,6 +146,25 @@ function RoomPage({ params: { roomId = '', threadId = '' } }: PluginPageProps) {
   );
 }
 
+/** The greeting of the message `eventId` in the room, which it fetches and decrypts if need be. */
+function FetchedGreeting({ roomId, eventId }: { roomId: string; eventId: string }) {
+  const client = useMatrixClient();
+  const [text, setText] = useState<string>();
+  useEffect(() => {
+    let current = true;
+    const read = async () => {
+      const event = new MatrixEvent(await client.fetchRoomEvent(roomId, eventId));
+      await client.decryptEventIfNeeded(event);
+      if (current) setText(greetingText({ content: event.getContent() }));
+    };
+    read().catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, [client, eventId, roomId]);
+  return text === undefined ? null : <p>Greeting: {text}</p>;
+}
+
 function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }) {
   const members = useRoomMembers(useMatrixClient(), roomId);
   const joined = members.filter(({ membership }) => membership === KnownMembership.Join);
@@ -154,7 +175,9 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
         Members: {joined.length}, {hasActiveMindroomAgent(members) ? 'with' : 'without'} a MindRoom
         agent
       </p>
-      {typeof request === 'string' && <p>Greeting: {request}</p>}
+      {typeof request === 'string' && (
+        <FetchedGreeting key={request} roomId={roomId} eventId={request} />
+      )}
     </>
   );
 }
@@ -214,7 +237,16 @@ const plugin: ClientPlugin = {
     sessionStorage.setItem('example-plugin.forgot', userId);
   },
   roomHeaderSlot: [RoomBanner, CoverButton],
-  sidePanels: [{ id: 'panel', label: 'Example panel', Component: ExamplePanel, remember: true }],
+  sidePanels: [
+    {
+      id: 'panel',
+      label: 'Example panel',
+      icon: Icons.Leaf,
+      placement: 'auto',
+      Component: ExamplePanel,
+      remember: true,
+    },
+  ],
   headerActions: [
     {
       id: 'wave',
