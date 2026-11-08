@@ -1,4 +1,11 @@
-import { type ComponentProps, type ReactNode, useRef } from 'react';
+import {
+  type ComponentProps,
+  type ReactNode,
+  createContext,
+  useContext,
+  useLayoutEffect,
+  useRef,
+} from 'react';
 import FocusTrap from 'focus-trap-react';
 import { Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
 
@@ -23,6 +30,13 @@ type ModalLayerProps = {
 };
 
 /**
+ * Given by a pop-out, such as a message's menu, whose entries open their dialogs from inside it:
+ * a dialog calls it as it opens and calls what it returns as it closes. The pop-out hides
+ * meanwhile, so it does not stay open behind the dialog.
+ */
+export const DialogOpenerContext = createContext<(() => () => void) | undefined>(undefined);
+
+/**
  * The dimmed, centered layer a small modal dialog sits in. Keyboard focus stays inside while it is
  * open, and Escape or a click outside closes it unless it is busy.
  */
@@ -36,6 +50,9 @@ export function ModalLayer({
   // focus-trap reads its options once, when the layer opens; the handlers read the latest props.
   const latest = useRef({ onClose, busy });
   latest.current = { onClose, busy };
+  // Before the first paint, so the opener is never seen behind the dialog.
+  const hideOpener = useContext(DialogOpenerContext);
+  useLayoutEffect(() => (open ? hideOpener?.() : undefined), [open, hideOpener]);
   const dismiss = (): boolean => {
     if (latest.current.busy) return false;
     latest.current.onClose();
