@@ -220,6 +220,11 @@
       },
       "developerTools": {
         "invalidJson": "Give the event a type and content that is a JSON object."
+      },
+      "general": {
+        "roomUpgrade": {
+          "notMoved": "Couldn't move these rooms along with the upgrade: {{rooms}}"
+        }
       }
     },
     "settings": {
