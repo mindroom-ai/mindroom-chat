@@ -1,8 +1,8 @@
 import { CSSProperties, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import FileSaver from 'file-saver';
 import { Box, Button, Checkbox, Chip, Icon, Icons, Text, config } from 'folds';
 import { copyToClipboard } from '../../lib/dom';
+import { saveFile } from '../../native/nativeFileSave';
 import { ContainerColor } from '../../ui/styles/ContainerColor.css';
 
 const RECOVERY_KEY_BOX_STYLE: CSSProperties = {
@@ -27,7 +27,8 @@ function RecoveryKeyForOtherApps({ recoveryKey }: RecoveryKeyForOtherAppsProps) 
   };
   const handleDownload = () => {
     const blob = new Blob([recoveryKey], { type: 'text/plain;charset=us-ascii' });
-    FileSaver.saveAs(blob, 'recovery-key.txt');
+    // The iOS app has no downloads; there the platform's save sheet asks where to put it.
+    saveFile(blob, 'recovery-key.txt').catch(() => undefined);
   };
 
   return (

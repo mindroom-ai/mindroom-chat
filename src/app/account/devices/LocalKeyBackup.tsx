@@ -1,7 +1,6 @@
 import { ChangeEvent, FormEvent, ReactNode, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Icon, Icons, Spinner, Text, color } from 'folds';
-import FileSaver from 'file-saver';
 import { ImportRoomKeyStage, type ImportRoomKeyProgressData } from 'matrix-js-sdk/lib/crypto-api';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useAlive } from '../../lib/hooks/useAlive';
@@ -13,6 +12,7 @@ import {
   encryptRoomKeyExport,
 } from '../encryption/roomKeyExport';
 import { SettingsCard } from '../../ui/settings/SettingsCard';
+import { saveFile } from '../../native/nativeFileSave';
 import { describeError } from '../../lib/describeError';
 import { ErrorDetail } from '../../ui/ErrorDetail';
 import { isSecretPasswordLongEnough } from '../encryption/secretPassword';
@@ -106,8 +106,12 @@ function ExportKeys() {
     setBusy(true);
     try {
       const file = await encryptRoomKeyExport(await crypto.exportRoomKeysAsJson(), password);
-      FileSaver.saveAs(new Blob([file], { type: 'text/plain;charset=us-ascii' }), EXPORT_FILE_NAME);
-      if (!alive()) return;
+      // The iOS app has no downloads; there the platform's save sheet asks where to put it.
+      const saved = await saveFile(
+        new Blob([file], { type: 'text/plain;charset=us-ascii' }),
+        EXPORT_FILE_NAME
+      );
+      if (!alive() || !saved) return;
       setPassword('');
       setConfirmation('');
       setOutcome({ ok: true, text: EXPORT_FILE_NAME });
