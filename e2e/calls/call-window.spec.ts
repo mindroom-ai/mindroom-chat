@@ -108,22 +108,27 @@ test('the call window moves, resizes, minimizes, docks and stays put', async ({
   box = { ...box, width: 480, height: 540 };
   await expectWindowAt(callWindow, box);
 
-  // Minimize turns it into the 56 px bar on its bottom edge; Expand gives the height back.
+  // Minimize turns it into the 56 px bar on its bottom edge, which ends with Expand and Close;
+  // Expand gives the height back.
   await callView.getByRole('button', { name: 'Minimize', exact: true }).click();
   await expect(callWindow).toHaveAttribute('data-bar', 'true');
   await expectWindowAt(callWindow, { ...box, y: box.y + box.height - 56, height: 56 });
+  const bar = callWindow.getByRole('group', { name: 'Move minimized call window' });
+  await expect(bar.getByRole('button', { name: 'Close call', exact: true })).toBeVisible();
   await callView.getByRole('button', { name: 'Expand', exact: true }).click();
   await expect(callWindow).not.toHaveAttribute('data-bar');
   await expectWindowAt(callWindow, box);
 
   // Dock shows the call view in the room's side column instead; Float brings the window back
-  // where it was.
+  // where it was. Each hands the focus its button had to the call view in its new place.
   await callView.getByRole('button', { name: 'Dock to the side', exact: true }).click();
   await expect(sidePanel.getByTestId('call-panel')).toContainText('Be the first to hop in');
   await expect(callWindow).toHaveCount(0);
+  await expect(sidePanel.getByRole('heading', { name: callRoom, exact: true })).toBeFocused();
   await sidePanel.getByRole('button', { name: 'Float', exact: true }).click();
   await expect(sidePanel).toHaveCount(0);
   await expectWindowAt(callWindow, box);
+  await expect(callWindow.getByRole('group', { name: 'Move call window' })).toBeFocused();
 
   // Another room opens: the window stays, in its place, on the first room's call.
   await page.getByRole('link', { name: otherRoom, exact: true }).first().click();

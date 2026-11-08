@@ -88,9 +88,7 @@ test('a canvas does not open during a call, and says why', async ({ page, stack 
   await page.locator('[data-call-tab]').click();
   await callPanel.getByRole('button', { name: 'End' }).click();
   await expect(page.locator('[data-call-tab]')).toHaveCount(0, { timeout: 30_000 });
-  // The call view stays open on the room's call; closed, its window no longer floats over the
-  // thread.
-  await callPanel.getByRole('button', { name: 'Close call' }).click();
+  // The call window closes with the call, so it no longer floats over the thread.
   await expect(callPanel).toHaveCount(0);
   await showThread(page, stack, rootId);
   await expect(open).toBeEnabled({ timeout: 30_000 });
