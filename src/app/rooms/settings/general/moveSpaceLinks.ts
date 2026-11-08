@@ -5,7 +5,9 @@ import { isJoined } from '../../../matrix/state/roomList';
 const stateOf = (room: Room | null, type: string, stateKey: string) =>
   room?.getLiveTimeline().getState(EventTimeline.FORWARDS)?.getStateEvents(type, stateKey);
 
-const hasVia = (content: Record<string, unknown> | undefined): boolean =>
+const hasVia = (
+  content: Record<string, unknown> | undefined
+): content is Record<string, unknown> & { via: unknown[] } =>
   Array.isArray(content?.via) && content.via.length > 0;
 
 /**
@@ -14,9 +16,8 @@ const hasVia = (content: Record<string, unknown> | undefined): boolean =>
  * replacement instead (`m.space.child`), and the replacement gets the old room's `m.space.parent`
  * links; each is best effort, since a space this account may not change keeps its old child, which
  * the tombstone then leads on from. The replacement also lists the old room's children, and each
- * child that names the old room as its parent names the replacement instead, the old link going
- * once the replacement lists the child and the child names it, so a sub-room moves under the
- * replacement and no longer counts as under the old room. A Space lists its rooms on its own, so
+ * child that names the old room as its parent names the replacement instead, so a sub-room moves
+ * under the replacement and no longer counts as under the old room. A Space lists its rooms on its own, so
  * their links back to it are best effort, as when a room is added to one; a chat room's sub-room
  * needs its own link to the replacement as well. Resolves to the children that did not come
  * along: one the replacement could not list, and for a chat room one that refused the new parent
@@ -41,7 +42,7 @@ export const moveSpaceLinks = async (
   [...spaceIds].forEach((spaceId) => {
     const child = stateOf(client.getRoom(spaceId), StateEvent.SpaceChild, oldRoomId)?.getContent();
     if (!hasVia(child)) return;
-    tryToSend(spaceId, StateEvent.SpaceChild, child as object, newRoomId);
+    tryToSend(spaceId, StateEvent.SpaceChild, child, newRoomId);
     tryToSend(spaceId, StateEvent.SpaceChild, {}, oldRoomId);
   });
 
@@ -63,14 +64,16 @@ export const moveSpaceLinks = async (
     const listed = send(newRoomId, StateEvent.SpaceChild, event.getContent(), childId);
     // In turn, so a step that fails leaves the child as the steps before it left it: the child
     // names the replacement once it lists the child, and lets go of the old room after that.
-    const relinked = listed.then(async () => {
+    const relink = async () => {
       if (!hasVia(parent)) return;
-      const via = domain ? [domain] : parent?.via;
+      const via = domain ? [domain] : parent.via;
       await send(childId, StateEvent.SpaceParent, { ...parent, via }, newRoomId);
       await send(childId, StateEvent.SpaceParent, {}, oldRoomId);
-    });
+    };
     try {
-      await Promise.all([listed, space ? relinked.catch(() => undefined) : relinked]);
+      await listed;
+      // A Space's rooms come along on its listing alone.
+      await (space ? relink().catch(() => undefined) : relink());
     } catch {
       return childId;
     }
