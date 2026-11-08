@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react';
+import type { ComponentType, RefObject } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { isRecord } from '../lib/isRecord';
 import { isHeaderAction, type HeaderAction } from './headerActions';
@@ -11,8 +11,14 @@ import { isPluginRoomAction, type PluginRoomAction } from './roomActions';
 import { isPluginSlashCommand, type PluginSlashCommand } from './slashCommands';
 import { registerPluginTranslations, type PluginTranslations } from './pluginTranslations';
 
-/** A component shown under the room header, given the open room; it renders there or nothing. */
-export type RoomHeaderSlotComponent = ComponentType<{ room: Room }>;
+/**
+ * A component shown under the room header, given the open room and the header's element (its row
+ * and the slot), which it may read and listen on, never change; it renders there or nothing.
+ */
+export type RoomHeaderSlotComponent = ComponentType<{
+  room: Room;
+  headerRef: RefObject<HTMLElement>;
+}>;
 
 /** What the entry module of a client plugin exports by default: its contributions, by kind. */
 export type ClientPlugin = {

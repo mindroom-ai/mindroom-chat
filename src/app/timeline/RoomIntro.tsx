@@ -31,6 +31,7 @@ export function RoomIntro({ room }: RoomIntroProps) {
 
   return (
     <Box
+      data-room-intro=""
       direction="Column"
       gap="300"
       style={{ padding: `${config.space.S700} ${config.space.S400} ${config.space.S400}` }}

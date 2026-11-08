@@ -1,0 +1,78 @@
+import { expect, test, type Locator } from '@playwright/test';
+import { loginWithPassword } from '../helpers/auth';
+import { createRoom } from '../helpers/createRoom';
+import { loginToMatrix } from '../helpers/matrix';
+
+// The members panel's header buttons (Invite people, Close) answer the pointer as the room
+// header's buttons beside them do: no fill at rest, a fill while hovered. Runs in Chromium against
+// the homeserver of `just hs-up` or of an e2e slot.
+const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
+const PASSWORD = 'members-header-hover-spec-password';
+const RUN = Date.now().toString(36);
+
+test.use({
+  viewport: { width: 1280, height: 800 },
+  launchOptions: {
+    // The other launch options repeat playwright.config.ts.
+    executablePath: process.env.CHROMIUM_PATH || undefined,
+    args: ['--disable-features=IsolateSandboxedIframes'],
+    ignoreDefaultArgs: ['--hide-scrollbars'],
+  },
+});
+
+const homeserverIsUp = async (): Promise<boolean> => {
+  try {
+    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
+      signal: AbortSignal.timeout(2_000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+};
+
+const TRANSPARENT = 'rgba(0, 0, 0, 0)';
+const fill = (button: Locator) =>
+  button.evaluate((element) => getComputedStyle(element).backgroundColor);
+
+test.beforeEach(async () => {
+  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+});
+
+test('the members header buttons fill while hovered, as the room header buttons do', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const username = `mhh_host_${RUN}`;
+  const registered = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username,
+      password: PASSWORD,
+      auth: { type: 'm.login.dummy' },
+      inhibit_login: true,
+    }),
+  });
+  expect(registered.ok, `registering ${username}`).toBe(true);
+  const host = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const roomId = await createRoom(HOMESERVER, host.accessToken, { name: `Hover room ${RUN}` });
+  await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
+  await page.goto(`/home/${encodeURIComponent(roomId)}`);
+
+  const invite = page.getByRole('button', { name: 'Invite people' });
+  await expect(invite).toBeVisible({ timeout: 60_000 });
+  const close = invite.locator('xpath=..').getByRole('button', { name: 'Close', exact: true });
+  const hideMembers = page.getByRole('button', { name: 'Hide Members' });
+
+  for (const [name, button] of [
+    ['Hide Members', hideMembers],
+    ['Invite people', invite],
+    ['Close', close],
+  ] as const) {
+    await page.mouse.move(0, 0);
+    await expect.poll(() => fill(button), { message: `${name} at rest` }).toBe(TRANSPARENT);
+    await button.hover();
+    await expect.poll(() => fill(button), { message: `${name} hovered` }).not.toBe(TRANSPARENT);
+  }
+});
