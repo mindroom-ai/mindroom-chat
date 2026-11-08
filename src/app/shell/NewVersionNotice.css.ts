@@ -1,44 +1,12 @@
-import { keyframes, style } from '@vanilla-extract/css';
+import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { color, config, toRem } from 'folds';
 import { glassShadow } from '../ui/styles/Glass.css';
-import { motion } from '../ui/styles/Motion.css';
+import { noticeMotionFromAbove, noticeMotionFromBelow } from '../ui/noticeMotion.css';
 
-// The card comes in from the edge it is placed at, a little smaller and faded, and leaves the same
-// way once dismissed (NewVersionNotice.tsx removes it after the Normal motion token). With
-// reduced motion it only fades: an animation still runs, so leaving takes the same time.
-const away = (edge: 1 | -1) => ({
-  opacity: 0,
-  transform: `translateY(calc(${edge} * ${toRem(8)})) scale(0.98)`,
-});
-const enterFromBelow = keyframes({ from: away(1) });
-const enterFromAbove = keyframes({ from: away(-1) });
-const leaveDownward = keyframes({ to: away(1) });
-const leaveUpward = keyframes({ to: away(-1) });
-const fadeIn = keyframes({ from: { opacity: 0 } });
-const fadeOut = keyframes({ to: { opacity: 0 } });
-const reducedMotion = '(prefers-reduced-motion: reduce)';
-
-const motionFrom = (enter: string, leave: string) => ({
-  animation: `${enter} ${motion.duration.Slow} ${motion.easing.Decelerate}`,
-  selectors: {
-    '&[data-settled]:not([data-leaving])': { animation: 'none' },
-    '&[data-leaving]': {
-      animation: `${leave} ${motion.duration.Normal} ${motion.easing.Accelerate} forwards`,
-      pointerEvents: 'none' as const,
-    },
-  },
-  '@media': {
-    [reducedMotion]: {
-      animationName: fadeIn,
-      selectors: { '&[data-leaving]': { animationName: fadeOut } },
-    },
-  },
-});
-
-const listMotion = motionFrom(enterFromBelow, leaveDownward);
+const listMotion = noticeMotionFromBelow;
 const listEndGap = `max(${config.space.S200}, var(--mr-panel-handle-inset, 0px))`;
-const pageMotion = motionFrom(enterFromAbove, leaveUpward);
+const pageMotion = noticeMotionFromAbove;
 
 // The live region at the top of the app's content box (NoticeLayoutContent), as wide as the box
 // and no height. Signed out, the card floats from it, so it moves with the operator notices above.
@@ -50,9 +18,9 @@ export const Region = style({ position: 'relative', flexShrink: 0 });
 // top bar. Its places take no clicks, the card does.
 export const Card = recipe({
   base: {
-    pointerEvents: 'auto',
     gap: config.space.S300,
     padding: config.space.S300,
+    pointerEvents: 'auto',
     borderRadius: config.radii.R500,
   },
   variants: {
@@ -77,17 +45,15 @@ export const Card = recipe({
       },
       page: {
         ...pageMotion,
+        // A phone's place has no height of its own: the card keeps the height of its content.
+        flexShrink: 0,
         display: 'flex',
         alignItems: 'center',
         maxInlineSize: toRem(480),
         selectors: {
           ...pageMotion.selectors,
-          '[data-phone] > &': {
-            position: 'absolute',
-            insetBlockStart: config.space.S200,
-            insetInline: config.space.S200,
-            maxInlineSize: 'none',
-          },
+          // A phone's place spans the page, and so does the card.
+          '[data-phone] > &': { maxInlineSize: 'none' },
         },
       },
     },
@@ -101,8 +67,8 @@ export const Mark = recipe({
     display: 'grid',
     placeItems: 'center',
     inlineSize: toRem(28),
-    blockSize: toRem(28),
     borderRadius: config.radii.R400,
+    blockSize: toRem(28),
     backgroundColor: color.Primary.Container,
     color: color.Primary.Main,
   },
@@ -115,9 +81,9 @@ export const Body = recipe({
       list: { display: 'contents' },
       page: {
         flexGrow: 1,
-        minInlineSize: 0,
         display: 'flex',
         flexWrap: 'wrap',
+        minInlineSize: 0,
         alignItems: 'center',
         gap: config.space.S200,
       },

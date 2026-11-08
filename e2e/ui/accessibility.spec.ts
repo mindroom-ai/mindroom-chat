@@ -446,7 +446,7 @@ test.describe.serial('keyboard and accessibility', () => {
     await expect(log).toContainText(`${guest.username}: The build is green again.`, {
       timeout: 20_000,
     });
-    // The sync banners share one polite region that stays mounted.
+    // How the connection is reads out from one polite region that stays mounted.
     await expect(page.locator('[role="status"][aria-live="polite"]').first()).toBeAttached();
   });
 

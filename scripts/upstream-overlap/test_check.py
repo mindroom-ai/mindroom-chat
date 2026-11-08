@@ -43,6 +43,15 @@ UPSTREAM = """export function heronLimit(colour: string): number {
 }
 """
 COPIED = "".join(UPSTREAM.splitlines(keepends=True)[1:4])
+# A made-up upstream file that the corpus gains later, and three of its lines.
+LATER_UPSTREAM = """export function finchTally(season: string): number {
+  const copperFinchTally = countFinchTally(9203, season);
+  const indigoHeronShift = copperFinchTally * 53 + season.length;
+  recordHeronShift(indigoHeronShift, { finch: copperFinchTally });
+  return indigoHeronShift;
+}
+"""
+LATER_COPIED = "".join(LATER_UPSTREAM.splitlines(keepends=True)[1:4])
 CLEAN = "export const quietMeadow = 'a line of our own, written for this test';\n"
 OWN_CODE = CLEAN + "".join(f"export const meadowRow{i} = quietMeadow.length * {i} + 'row {i}'.length;\n" for i in range(6))
 ZERO = "0" * 40
@@ -267,6 +276,24 @@ class PrePushTests(Fixture):
         self.assertEqual(status, 0)
         self.assertIn("0 not seen before", out)
 
+    def test_lines_a_later_corpus_branch_gains_are_found_in_a_file_checked_before(self) -> None:
+        copy = commit(self.repo, {"src/app/finch.ts": LATER_COPIED}, "copy")
+        self.assertEqual(self.push(copy)[0], 0, "the corpus lacks the lines yet")
+        # Only a branch that sorts after main moves: the corpus's first ref and its HEAD stay where they were.
+        git(self.corpus, "checkout", "-q", "-b", "release")
+        commit(self.corpus, {"src/app/finch.ts": LATER_UPSTREAM}, "a later upstream file")
+        git(self.corpus, "checkout", "-q", "main")
+        status, out = self.push(copy)
+        self.assertEqual(status, 1, out)
+        self.assertIn(f"{copy}\tsrc/app/finch.ts\t1-3\tline-run", out)
+        self.assertIn(f"{copy}\tsrc/app/finch.ts\t1-3\ttokens", out)
+
+    def test_a_commit_on_a_detached_corpus_head_changes_the_cache_key(self) -> None:
+        before = check.corpus_version(self.corpus)
+        git(self.corpus, "checkout", "-q", "--detach")
+        commit(self.corpus, {"src/app/finch.ts": LATER_UPSTREAM}, "a later upstream file on a detached HEAD")
+        self.assertNotEqual(check.corpus_version(self.corpus), before)
+
     def test_findings_are_not_remembered_as_clean(self) -> None:
         bad = commit(self.repo, {"src/app/copy.ts": COPIED}, "copy")
         self.assertEqual(self.push(bad)[0], 1)
@@ -287,7 +314,7 @@ class PrePushTests(Fixture):
     def test_the_cache_is_the_users_own_whatever_the_temporary_directory_holds(self) -> None:
         bad = commit(self.repo, {"src/app/copy.ts": COPIED}, "copy")
         temporary = self.tmp / "temporary"
-        key = hashlib.sha256((HERE / "check.py").read_bytes() + check.corpus_head(self.corpus).encode()).hexdigest()[:16]
+        key = hashlib.sha256((HERE / "check.py").read_bytes() + check.corpus_version(self.corpus).encode()).hexdigest()[:16]
         blob = git(self.repo, "rev-parse", f"{bad}:src/app/copy.ts")
         marker = temporary / "upstream-overlap-cache" / f"clean-{key}" / f"{blob}-code"
         marker.parent.mkdir(parents=True)
@@ -310,6 +337,15 @@ class PrePushTests(Fixture):
         self.assertEqual((home / ".cache").stat().st_mode & 0o777, 0o700)
         self.assertEqual((home / ".cache" / "upstream-overlap").stat().st_mode & 0o777, 0o700)
         self.assertEqual(home.stat().st_mode & 0o777, 0o755, "a parent that was there stays as it was")
+
+    def test_a_relative_cache_home_is_ignored_so_upstream_lines_never_land_in_the_checkout(self) -> None:
+        home = self.tmp / "home"
+        home.mkdir()
+        tip = commit(self.repo, {"src/app/own.ts": CLEAN}, "clean")
+        result = self.run_checker(tip, HOME=str(home), XDG_CACHE_HOME="rel")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue((home / ".cache" / "upstream-overlap").is_dir())
+        self.assertFalse((self.repo / "rel").exists())
 
 
 class HookTests(Fixture):
