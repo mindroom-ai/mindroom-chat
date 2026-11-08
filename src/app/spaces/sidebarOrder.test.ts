@@ -13,7 +13,6 @@ const emitStorageEvent = (key: string) => {
 
 describe('sidebarOrder', () => {
   beforeEach(() => {
-    vi.resetModules();
     storageState.clear();
     storageListeners.clear();
 
@@ -46,8 +45,6 @@ describe('sidebarOrder', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    storageState.clear();
-    storageListeners.clear();
   });
 
   it('persists reordered spaces per user', () => {
