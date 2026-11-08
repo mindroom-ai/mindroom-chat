@@ -16,42 +16,31 @@ import { importBeforeTests } from '../../test/utils/importBeforeTests';
 // with `opensOverMembers` opens again in the list's place and closes the list, as its toggle would;
 // one without stays closed behind the list.
 
-const { mx, room, state } = vi.hoisted(() => {
-  const members = [
-    { membership: 'join', userId: '@mindroom_helper:example.org', name: 'Helper' },
-    { membership: 'join', userId: '@alice:example.org', name: 'Alice' },
-  ];
-  return {
-    state: {
-      members,
-      config: {
-        mindroom: {
-          computers: { apiUrl: 'https://computer.example.org' },
-          canvas: { enabled: true },
-        },
-      } as ClientConfig,
-      view: undefined as RoomViewProps | undefined,
-      roomId: '!room:example.org',
-      /** Whether the room is too narrow for the members beside the conversation. */
-      overlay: false,
-    },
-    mx: {
-      getSafeUserId: () => '@alice:example.org',
-      isInitialSyncComplete: () => true,
-      getSyncState: () => 'SYNCING',
-      on: () => undefined,
-      removeListener: () => undefined,
-    },
-    room: {
-      roomId: '!room:example.org',
-      getMember: (userId: string) => members.find((member) => member.userId === userId),
-      getThread: () => undefined,
-      findEventById: () => undefined,
-      on: () => undefined,
-      removeListener: () => undefined,
-    },
-  };
-});
+const { mx, room, state } = vi.hoisted(() => ({
+  state: {
+    members: [],
+    config: {} as ClientConfig,
+    view: undefined as RoomViewProps | undefined,
+    roomId: '!room:example.org',
+    /** Whether the room is too narrow for the members beside the conversation. */
+    overlay: false,
+  },
+  mx: {
+    getSafeUserId: () => '@alice:example.org',
+    isInitialSyncComplete: () => true,
+    getSyncState: () => 'SYNCING',
+    on: () => undefined,
+    removeListener: () => undefined,
+  },
+  room: {
+    roomId: '!room:example.org',
+    getMember: () => undefined,
+    getThread: () => undefined,
+    findEventById: () => undefined,
+    on: () => undefined,
+    removeListener: () => undefined,
+  },
+}));
 
 vi.mock('react-router-dom', () => ({
   useParams: () => ({}),
@@ -73,8 +62,6 @@ vi.mock('../members/PanelRow', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../members/PanelRow')>()),
   useMembersOverlay: () => state.overlay,
 }));
-vi.mock('../computer/ComputerPanel', () => ({ ComputerPanel: () => null }));
-vi.mock('../canvas/RoomCanvasPanel', () => ({ RoomCanvasPanel: () => null }));
 vi.mock('../calls/CallPanel', () => ({ CallPanel: () => null }));
 vi.mock('../calls/transcription/LiveTranscriptPanel', () => ({ LiveTranscriptPanel: () => null }));
 vi.mock('../canvas/canvasIndex', async (importOriginal) => ({
@@ -133,7 +120,6 @@ const OTHER_ROOM = '!other:example.org';
 const region = (name: string) => screen.queryByRole('region', { name });
 const membersShown = () => screen.queryByTestId('resizable-members-panel') !== null;
 const toggle = (id: string) => act(async () => state.view?.onPanelToggle?.(id));
-const setMembersOpen = (open: boolean) => act(async () => store.set(membersOpenAtom, open));
 
 const renderRoom = async (size: ScreenSize = ScreenSize.Desktop) => {
   const { Room } = await import('./Room');
@@ -243,29 +229,20 @@ describe("a remembered plugin's side panel and the members list", () => {
     }
   );
 
-  it.each([
-    { where: 'on a phone', size: ScreenSize.Mobile, overlay: false },
-    {
-      where: 'in a room too narrow for the members beside it',
-      size: ScreenSize.Desktop,
-      overlay: true,
-    },
-  ])(
-    'opens either again over the members $where, and leaves them to the navigation',
-    async ({ size, overlay }) => {
-      for (const panel of ['over', 'board'] as const) {
-        // eslint-disable-next-line no-await-in-loop
-        await rememberOpen(panel);
-        state.overlay = overlay;
-        store.set(membersOpenAtom, true);
-        // eslint-disable-next-line no-await-in-loop
-        await renderRoom(size);
-        expect(region(panel === 'over' ? 'Over' : 'Board')).not.toBeNull();
-        expect(store.get(membersOpenAtom)).toBe(true);
-        cleanup();
-        state.overlay = false;
-        store.set(membersOpenAtom, false);
-      }
+  it.each(
+    [
+      { where: 'on a phone', size: ScreenSize.Mobile, overlay: false },
+      { where: 'in a room too narrow for them beside it', size: ScreenSize.Desktop, overlay: true },
+    ].flatMap((place) => (['Over', 'Board'] as const).map((label) => ({ ...place, label })))
+  )(
+    'opens $label again over the members $where, and leaves them to the navigation',
+    async ({ size, overlay, label }) => {
+      await rememberOpen(label === 'Over' ? 'over' : 'board');
+      state.overlay = overlay;
+      store.set(membersOpenAtom, true);
+      await renderRoom(size);
+      expect(region(label)).not.toBeNull();
+      expect(store.get(membersOpenAtom)).toBe(true);
     }
   );
 
@@ -275,7 +252,7 @@ describe("a remembered plugin's side panel and the members list", () => {
     await renderRoom();
     expect(store.get(membersOpenAtom)).toBe(false);
     // As the setting changes in another tab.
-    await setMembersOpen(true);
+    await act(async () => store.set(membersOpenAtom, true));
     expect(region('Over')).not.toBeNull();
     expect(store.get(membersOpenAtom)).toBe(true);
   });

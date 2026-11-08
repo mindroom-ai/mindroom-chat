@@ -2,9 +2,13 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from '@playwright/test';
 import { logoutActiveAccount, switchToStoredUsername } from '../helpers/accounts';
-import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
+import {
+  activeAccountButtonNamePattern,
+  chooseFromAccountMenu,
+  loginWithPassword,
+} from '../helpers/auth';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -36,7 +40,10 @@ const RUN = Date.now().toString(36);
 const ROOM = `Panel requests ${RUN}`;
 const ELSEWHERE = `Elsewhere ${RUN}`;
 
-test.use({ viewport: { width: 1600, height: 1000 } });
+const PHONE = { width: 390, height: 844 };
+const WIDE = { width: 1600, height: 1000 };
+
+test.use({ viewport: WIDE });
 
 let build: string | undefined;
 let alice: DisposableUser;
@@ -106,16 +113,13 @@ const panel = (page: Page) => page.getByRole('region', { name: 'Example panel', 
 const toggle = (page: Page) =>
   roomHeader(page).getByRole('button', { name: 'Example panel', exact: true });
 
-const PHONE = { width: 390, height: 844 };
-const WIDE = { width: 1600, height: 1000 };
-
 const membersButton = (page: Page, name: 'Show Members' | 'Hide Members') =>
   roomHeader(page).getByRole('button', { name, exact: true });
 
-/** What Settings is called in each language the test picks from, and the language itself. */
+/** What Settings is called in each language the test picks, and the language itself. */
 const SETTINGS_UI = {
   en: {
-    account: /Open account menu for /,
+    account: activeAccountButtonNamePattern,
     settings: 'Settings',
     page: 'Language & region',
     language: 'English',
@@ -128,8 +132,12 @@ const SETTINGS_UI = {
   },
 };
 
-/** Picks `next` on the Language & region page of Settings, in the app's language `from`. */
-const pickLanguage = async (page: Page, from: keyof typeof SETTINGS_UI, next: string) => {
+/** Picks the language `to` on the Language & region page of Settings, in the language `from`. */
+const pickLanguage = async (
+  page: Page,
+  from: keyof typeof SETTINGS_UI,
+  to: keyof typeof SETTINGS_UI
+) => {
   const ui = SETTINGS_UI[from];
   await page.getByRole('button', { name: ui.account }).first().click();
   await page.getByRole('menuitem', { name: ui.settings, exact: true }).click();
@@ -139,9 +147,25 @@ const pickLanguage = async (page: Page, from: keyof typeof SETTINGS_UI, next: st
     .getByRole('button', { name: ui.page, exact: true })
     .click();
   await dialog.getByRole('button', { name: ui.language, exact: true }).click();
-  await page.getByRole('menuitemradio', { name: next, exact: true }).click();
+  await page.getByRole('menuitemradio', { name: SETTINGS_UI[to].language, exact: true }).click();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('html')).toHaveAttribute('lang', to);
+};
+
+/** Serves the build in a browser context of its own, signs Alice in there and runs `steps`. */
+const asAlice = async (browser: Browser, steps: (page: Page) => Promise<void>) => {
+  test.setTimeout(5 * 60_000);
+  const server = await serveBuild(build!);
+  const context = await browser.newContext({ baseURL: server.origin });
+  const page = await context.newPage();
+  try {
+    await loginWithPassword(page, { homeserver: HOMESERVER, ...alice });
+    await steps(page);
+  } finally {
+    await context.close();
+    await server.close();
+  }
 };
 
 /** The greeting card of the agent's reply `index`, once the plugin renders it. */
@@ -162,15 +186,10 @@ const panelKeysOf = (page: Page, userId: string) =>
     `mindroom.plugin:${encodeURIComponent(userId)}/:side-panel/`
   );
 
-test("a card opens the plugin's panel with its request, which stays open in its room", async ({
+test("a card opens the plugin's panel with its request, which stays open in its room", ({
   browser,
-}) => {
-  test.setTimeout(5 * 60_000);
-  const server = await serveBuild(build!);
-  const context = await browser.newContext({ baseURL: server.origin });
-  const page = await context.newPage();
-  try {
-    await loginWithPassword(page, { homeserver: HOMESERVER, ...alice });
+}) =>
+  asAlice(browser, async (page) => {
     await page.goto(threadPath);
     const first = await card(page, 0);
     await first.getByRole('button', { name: 'Show in panel' }).click();
@@ -239,21 +258,12 @@ test("a card opens the plugin's panel with its request, which stays open in its 
     await logoutActiveAccount(page);
     await reloaded;
     expect(await panelKeysOf(page, alice.userId)).toEqual([]);
-  } finally {
-    await context.close();
-    await server.close();
-  }
-});
+  }));
 
-test('the panel opens again over the members beside the conversation, which close; on a phone as before', async ({
+test('the panel opens again over the members beside the conversation, which close; on a phone as before', ({
   browser,
-}) => {
-  test.setTimeout(5 * 60_000);
-  const server = await serveBuild(build!);
-  const context = await browser.newContext({ baseURL: server.origin });
-  const page = await context.newPage();
-  try {
-    await loginWithPassword(page, { homeserver: HOMESERVER, ...alice });
+}) =>
+  asAlice(browser, async (page) => {
     await page.goto(roomPath);
     // A new browser shows the members beside the conversation; opened, the panel takes their place.
     await expect(membersButton(page, 'Hide Members')).toBeVisible({ timeout: 60_000 });
@@ -291,29 +301,19 @@ test('the panel opens again over the members beside the conversation, which clos
     await page.getByRole('button', { name: 'Close Example panel', exact: true }).click();
     await page.setViewportSize(WIDE);
     await expect(membersButton(page, 'Hide Members')).toBeVisible();
-  } finally {
-    await context.close();
-    await server.close();
-  }
-});
+  }));
 
-test("the panel's name follows the language picked in Settings, wide and on a phone, without a reload", async ({
+test("the panel's name follows the language picked in Settings, wide and on a phone, without a reload", ({
   browser,
-}) => {
-  test.setTimeout(5 * 60_000);
-  const server = await serveBuild(build!);
-  const context = await browser.newContext({ baseURL: server.origin });
-  const page = await context.newPage();
-  try {
-    await loginWithPassword(page, { homeserver: HOMESERVER, ...alice });
+}) =>
+  asAlice(browser, async (page) => {
     await page.goto(roomPath);
     await expect(toggle(page)).toBeVisible({ timeout: 60_000 });
     await page.evaluate(() => {
       (window as { panelSpecLoad?: boolean }).panelSpecLoad = true;
     });
 
-    await pickLanguage(page, 'en', 'Deutsch');
-    await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+    await pickLanguage(page, 'en', 'de');
     await roomHeader(page).getByRole('button', { name: 'Beispielbereich', exact: true }).click();
     const german = page.getByRole('region', { name: 'Beispielbereich', exact: true });
     await expect(german).toBeVisible();
@@ -339,8 +339,7 @@ test("the panel's name follows the language picked in Settings, wide and on a ph
 
     // Back in English, it is English again.
     await page.setViewportSize(WIDE);
-    await pickLanguage(page, 'de', 'English');
-    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await pickLanguage(page, 'de', 'en');
     await toggle(page).click();
     await expect(panel(page)).toBeVisible();
     await expect(
@@ -350,8 +349,4 @@ test("the panel's name follows the language picked in Settings, wide and on a ph
     expect(await page.evaluate(() => (window as { panelSpecLoad?: boolean }).panelSpecLoad)).toBe(
       true
     );
-  } finally {
-    await context.close();
-    await server.close();
-  }
-});
+  }));

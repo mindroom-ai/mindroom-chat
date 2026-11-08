@@ -5,14 +5,13 @@
 // A side panel, "Example panel" ("Beispielbereich" in German), names the room it is open in, counts
 // its joined members and says whether a MindRoom agent has joined or is invited, through the
 // account's client, and whether the account may post there, which it says again when the room's
-// levels change. Its toggle, under
-// a leaf icon, shows in the room header's row, except on phones, where it goes in the room menu. It
-// also shows the greeting a card asked it to show: in a room, each greeting has "Show in panel",
-// and "Close panel" while the panel shows. A greeting that begins a thread opens the panel beside
-// that thread as the thread shows. The panel stays open in its room across reloads (`remember`), so
-// a card hands it only the greeting's event ID, and it reads the greeting itself. It may take the
-// members list's place beside the conversation (`opensOverMembers`): as it opens again in its room,
-// and beside a thread.
+// levels change. Its toggle, under a leaf icon, shows in the room header's row, except on phones,
+// where it goes in the room menu. It also shows the greeting a card asked it to show: in a room,
+// each greeting has "Show in panel", and "Close panel" while the panel shows. A greeting that
+// begins a thread opens the panel beside that thread as the thread shows. The panel stays open in
+// its room across reloads (`remember`), so a card hands it only the greeting's event ID, and it
+// reads the greeting itself. It may take the members list's place (`opensOverMembers`): as it opens
+// again in its room, and beside a thread.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg), and a button, "Show example cover", that covers the room's conversation with
 // "Example cover of <room name>" until its Close button or Escape closes it. Its panel also offers

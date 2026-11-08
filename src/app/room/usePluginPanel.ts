@@ -66,16 +66,12 @@ export const usePluginPanel = (
     if (open?.overMembers) closeMembers.current();
   }, [closeMembers, open]);
 
-  // It keeps its identity as the panels' labels change with the language.
-  const latestPanels = useLatestRef(panels);
   const show = useCallback(
-    (id: string, request?: unknown) => {
+    ({ id, remember }: RoomSidePanel, request?: unknown) => {
       setOpen({ roomId, id, request });
-      if (latestPanels.current.find((panel) => panel.id === id)?.remember) {
-        remembered.setItem(key, JSON.stringify({ id, request }));
-      }
+      if (remember) remembered.setItem(key, JSON.stringify({ id, request }));
     },
-    [key, latestPanels, remembered, roomId]
+    [key, remembered, roomId]
   );
   const close = useCallback(() => {
     setOpen(undefined);

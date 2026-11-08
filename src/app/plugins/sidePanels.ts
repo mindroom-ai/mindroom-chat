@@ -41,9 +41,10 @@ export type SidePanel = {
    */
   remember?: boolean;
   /**
-   * Whether it may take the place of the members list beside the conversation, which then closes as
-   * when the person opens the panel: as it opens again when its room shows, with `remember`, and as
-   * `openBesideThread` ({@link useRoomSidePanel}) opens it. Without it, the list keeps it closed then.
+   * Whether it may take the members list's place, which then closes as when the person opens the
+   * panel: as it opens again when its room shows, with `remember` (the list over the page never keeps
+   * it closed), and as `openBesideThread` ({@link useRoomSidePanel}) opens it. Without it, the list
+   * keeps it closed then.
    */
   opensOverMembers?: true;
 };

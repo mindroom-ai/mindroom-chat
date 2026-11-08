@@ -279,20 +279,24 @@ describe("a plugin's side panel beside the thread shown", () => {
     expect(notes()).toBeNull();
   });
 
-  it.each(Object.keys(OTHERS) as (keyof typeof OTHERS)[])(
-    'does not open while %s shows',
-    async (other) => {
-      state.Root = undefined;
-      await renderRoom('$thread');
-      await OTHERS[other]();
-      const before = state.view?.shownPanel;
-      expect(before).toBeDefined();
-      state.Root = Card;
-      await mountAgain();
-      expect(notes()).toBeNull();
-      expect(state.view?.shownPanel).toBe(before);
-    }
-  );
+  const others = Object.keys(OTHERS) as (keyof typeof OTHERS)[];
+  it.each([
+    ...others.map((other) => ({ other, name: 'Notes', Root: Card })),
+    // One that may open over the members opens over no other panel.
+    ...others
+      .filter((other) => other !== 'members')
+      .map((other) => ({ other, name: 'Over', Root: OverCard })),
+  ])('does not open $name while $other shows', async ({ other, name, Root }) => {
+    state.Root = undefined;
+    await renderRoom('$thread');
+    await OTHERS[other]();
+    const before = state.view?.shownPanel;
+    expect(before).toBeDefined();
+    state.Root = Root;
+    await mountAgain();
+    expect(screen.queryByRole('region', { name })).toBeNull();
+    expect(state.view?.shownPanel).toBe(before);
+  });
 
   it('opens over the members when it may, and the members close', async () => {
     state.Root = undefined;
@@ -307,21 +311,6 @@ describe("a plugin's side panel beside the thread shown", () => {
     await click('Close Over');
     expect(state.view?.shownPanel).toBeUndefined();
   });
-
-  it.each((Object.keys(OTHERS) as (keyof typeof OTHERS)[]).filter((other) => other !== 'members'))(
-    'does not open while %s shows, though it may open over the members',
-    async (other) => {
-      state.Root = undefined;
-      await renderRoom('$thread');
-      await OTHERS[other]();
-      const before = state.view?.shownPanel;
-      expect(before).toBeDefined();
-      state.Root = OverCard;
-      await mountAgain();
-      expect(screen.queryByRole('region', { name: 'Over' })).toBeNull();
-      expect(state.view?.shownPanel).toBe(before);
-    }
-  );
 
   it('does not open for a thread the room does not show, which leaves the shown thread its chance', async () => {
     state.Root = undefined;
