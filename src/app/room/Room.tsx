@@ -31,13 +31,17 @@ import { MembersDrawer } from '../members/MembersDrawer';
 import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import { useMembersDrawer } from '../members/useMembersDrawer';
 import { ResizableMembersPanel } from '../members/ResizableMembersPanel';
-import { PanelRow } from '../members/PanelRow';
+import { PanelRow, useMembersOverlay } from '../members/PanelRow';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
 import { usePanelSlot } from '../ui/panels/panelPresence';
 import { type PanelFrame, PanelFrameProvider } from '../ui/panels/PanelFrame';
 import { type RoomPanel, useRoomPanels } from '../ui/panels/roomPanels';
 import { registeredPlugins } from '../plugins/registry';
-import { enabledSidePanels } from '../plugins/sidePanels';
+import {
+  type PluginPanelControls,
+  PluginPanelControlsContext,
+  enabledSidePanels,
+} from '../plugins/sidePanels';
 import { usePluginHeaderActions } from '../plugins/headerActions';
 import { ComputerPanel } from '../computer/ComputerPanel';
 import type { ComputerAgent } from '../computer/types';
@@ -74,6 +78,9 @@ import { useTranscriptPanel } from '../calls/transcription/transcriptPanel';
 import { type PartLoadRetry, lazyPart } from '../lib/lazyPart';
 import { PartUnavailable } from '../ui/PartUnavailable';
 import { PluginSidePanel } from './PluginSidePanel';
+import { usePluginPanel } from './usePluginPanel';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
+import { useAlive } from '../lib/hooks/useAlive';
 
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;
@@ -315,9 +322,18 @@ function RoomContent() {
     [clientConfig]
   );
   const pluginActions = usePluginHeaderActions(registeredPlugins, clientConfig);
-  // A plugin's panel belongs to the room it opened in.
-  const [pluginPanel, setPluginPanel] = useState<{ roomId: string; id: string }>();
-  const closePluginPanel = useCallback(() => setPluginPanel(undefined), []);
+  // A plugin's panel belongs to the room it opened in. Over the page the members go away with the
+  // navigation that shows a room, so they keep no remembered panel from opening again there.
+  const membersOverPage = useMembersOverlay() || mobile;
+  const {
+    here: pluginPanel,
+    show: showPluginPanel,
+    close: closePluginPanel,
+  } = usePluginPanel(
+    roomId,
+    pluginPanels,
+    computerOpen || !!canvas || callOpen || (membersOpen && !membersOverPage)
+  );
 
   const closeCall = () => setCallOpen(false);
   const closeMembers = () => setMembersOpen(false);
@@ -441,9 +457,9 @@ function RoomContent() {
     ...pluginPanels.map(
       (panel): PanelEntry => ({
         id: panel.id,
-        open: pluginPanel?.roomId === roomId && pluginPanel.id === panel.id,
+        open: pluginPanel?.id === panel.id,
         close: closePluginPanel,
-        show: () => setPluginPanel({ roomId, id: panel.id }),
+        show: () => showPluginPanel(panel.id),
         label: panel.label,
         covers: mobile,
         render: () => (
@@ -459,7 +475,12 @@ function RoomContent() {
             onCollapse={closePluginPanel}
             testId="resizable-plugin-panel"
           >
-            <PluginSidePanel panel={panel} roomId={roomId} onClose={closePluginPanel} />
+            <PluginSidePanel
+              panel={panel}
+              roomId={roomId}
+              request={pluginPanel?.request}
+              onClose={closePluginPanel}
+            />
           </ResizablePanel>
         ),
       })
@@ -489,6 +510,38 @@ function RoomContent() {
   function toggleFilled(id: string) {
     setLayout(id, layout === 'filled' ? 'beside' : 'filled');
   }
+  // What a plugin's code may do with its panels here (useRoomSidePanel). It may call long after it
+  // got these, once a save ends, say: they act on the room and the panel shown then, and not at all
+  // once this page has gone.
+  const shownId = shown?.id;
+  const now = useLatestRef({ roomId, shownId });
+  const alive = useAlive();
+  // `open` and `close` keep their identity while the room shows, so plugin code that depends on them
+  // does not run again when another panel shows.
+  const openPluginPanel = useCallback<PluginPanelControls['open']>(
+    (id, panelRequest) => {
+      if (
+        alive() &&
+        now.current.roomId === roomId &&
+        pluginPanels.some((panel) => panel.id === id)
+      ) {
+        request(id, () => showPluginPanel(id, panelRequest));
+      }
+    },
+    [alive, now, pluginPanels, request, roomId, showPluginPanel]
+  );
+  const closeShownPluginPanel = useCallback<PluginPanelControls['close']>(
+    (id) => {
+      if (alive() && now.current.roomId === roomId && now.current.shownId === id) {
+        closePluginPanel();
+      }
+    },
+    [alive, closePluginPanel, now, roomId]
+  );
+  const pluginPanelControls = useMemo<PluginPanelControls>(
+    () => ({ shown: shownId, open: openPluginPanel, close: closeShownPluginPanel }),
+    [closeShownPluginPanel, openPluginPanel, shownId]
+  );
 
   const showCanvas = useCallback(
     (event: MatrixEvent, filled = false) =>
@@ -654,11 +707,14 @@ function RoomContent() {
   };
 
   // The panel shown, keyed by which it is: opening or closing one moves it in or out, and one
-  // taking another's place changes width without closing first.
+  // taking another's place changes width without closing first. It holds the plugin panel controls
+  // of the room it shows in, so one still moving out after a room switch acts on no other room.
   const sidePanel = usePanelSlot(
     shown && (
       <PanelFrameProvider key={shown.id} value={frame}>
-        {shown.render()}
+        <PluginPanelControlsContext.Provider value={pluginPanelControls}>
+          {shown.render()}
+        </PluginPanelControlsContext.Provider>
       </PanelFrameProvider>
     )
   );
@@ -666,25 +722,27 @@ function RoomContent() {
   return (
     <PowerLevelsContextProvider value={powerLevels}>
       <ChatUiActionContext.Provider value={uiActions}>
-        <Box
-          ref={conversationRef}
-          grow="Yes"
-          direction="Column"
-          style={behindPanel ? HIDDEN_CONVERSATION_STYLE : CONVERSATION_STYLE}
-        >
-          <RoomMessageAnnouncer room={room} threadId={routedThreadId} myUserId={ownUserId} />
-          <RoomView
-            room={room}
-            eventId={eventId}
-            threadId={routedThreadId}
-            focusEventInRoom={focusEventInRoom}
-            hasMindroomAgents={hasMindroomAgents}
-            joinRequestCount={joinRequestCount}
-            onThreadLoadError={onThreadLoadError}
-            {...headerPanels}
-          />
-        </Box>
-        {sidePanel}
+        <PluginPanelControlsContext.Provider value={pluginPanelControls}>
+          <Box
+            ref={conversationRef}
+            grow="Yes"
+            direction="Column"
+            style={behindPanel ? HIDDEN_CONVERSATION_STYLE : CONVERSATION_STYLE}
+          >
+            <RoomMessageAnnouncer room={room} threadId={routedThreadId} myUserId={ownUserId} />
+            <RoomView
+              room={room}
+              eventId={eventId}
+              threadId={routedThreadId}
+              focusEventInRoom={focusEventInRoom}
+              hasMindroomAgents={hasMindroomAgents}
+              joinRequestCount={joinRequestCount}
+              onThreadLoadError={onThreadLoadError}
+              {...headerPanels}
+            />
+          </Box>
+          {sidePanel}
+        </PluginPanelControlsContext.Provider>
       </ChatUiActionContext.Provider>
     </PowerLevelsContextProvider>
   );

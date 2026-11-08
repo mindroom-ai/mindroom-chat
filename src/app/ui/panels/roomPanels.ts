@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLatestRef } from '../../lib/hooks/useLatestRef';
 
 /**
  * Where a room's side panel shows: `beside` the conversation (resizable), `filled` across the room
@@ -50,23 +51,25 @@ const makeRoomFor = (panels: readonly RoomPanel[], id: string) =>
  * conversation hides it.
  */
 export function useRoomPanels<Panel extends RoomPanel>(room: string, panels: readonly Panel[]) {
-  const latest = useRef({ room, panels });
-  useLayoutEffect(() => {
-    latest.current = { room, panels };
-  });
+  // Read as it renders, so code that runs before the room's own effects (a plugin's layout effect)
+  // acts on the room shown.
+  const latest = useLatestRef({ room, panels });
   const [layouts, setLayouts] = useState<Layouts>({});
   const setLayout = useCallback(
     (id: string, layout: PanelLayout) =>
       setLayouts((all) => ({ ...all, [id]: { ...all[id], [latest.current.room]: layout } })),
-    []
+    [latest]
   );
-  const request = useCallback((id: string, show: () => void) => {
-    const { room: here, panels: current } = latest.current;
-    makeRoomFor(current, id);
-    const open = current.some((panel) => panel.id === id && panel.open);
-    setLayouts((all) => (open && all[id]?.[here] === 'filled' ? all : opened(all, id)));
-    show();
-  }, []);
+  const request = useCallback(
+    (id: string, show: () => void) => {
+      const { room: here, panels: current } = latest.current;
+      makeRoomFor(current, id);
+      const open = current.some((panel) => panel.id === id && panel.open);
+      setLayouts((all) => (open && all[id]?.[here] === 'filled' ? all : opened(all, id)));
+      show();
+    },
+    [latest]
+  );
 
   // The panels open when each room last showed: a panel already open when its room shows again
   // did not open elsewhere.
