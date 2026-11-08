@@ -28,6 +28,7 @@ import {
   type RectCords,
 } from 'folds';
 import { PopOut } from '../ui/directional';
+import { DialogOpenerContext } from '../ui/ModalLayer';
 import { Menu } from '../ui/glass/GlassPrimitives';
 import { ActionDialog } from '../ui/ActionDialog';
 import { MenuEntry } from '../ui/MenuEntry';
@@ -618,6 +619,14 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     // Anchors of the context menu and of the emoji board while they are open.
     const [menuAnchor, setMenuAnchor] = useState<RectCords>();
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
+    // The menu's entries keep the dialogs they open: the menu hides while one is open rather than
+    // stay open behind it, and the entry closes the menu with its dialog.
+    const [menuDialogs, setMenuDialogs] = useState(0);
+    const hideMenu = useCallback(() => {
+      setMenuDialogs((count) => count + 1);
+      return () => setMenuDialogs((count) => count - 1);
+    }, []);
+    const menuShown = menuDialogs === 0;
     // The hover toolbar shows while the pointer or the focus is inside the row. A mouse click
     // also focuses the row, but that focus does not keep the toolbar once the pointer leaves;
     // a tap does, since touch screens have no hover. Where the pointer cannot hover, the row
@@ -689,11 +698,18 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     const startEdit = () => onEditId?.(eventId);
     const dismissMenu = () => setMenuAnchor(undefined);
     // A right click opens the message's menu where the pointer is. A menu key has no press before
-    // it, so text selected then is the reader's.
+    // it, so text selected then is the reader's. Right clicks inside the row's own pop-outs and
+    // the dialogs their entries open, which React passes up through their portals, are not the
+    // row's: they keep the browser's menu.
     const openMenuAtPointer = (evt: MouseEvent<HTMLDivElement>) => {
       const selectedBefore = selectedAtMenuPress.current ?? true;
       selectedAtMenuPress.current = undefined;
-      if (edit || wantsBrowserMenu(evt.target, selectedBefore && hasSelectedText())) return;
+      if (
+        edit ||
+        !evt.currentTarget.contains(evt.target as Node) ||
+        wantsBrowserMenu(evt.target, selectedBefore && hasSelectedText())
+      )
+        return;
       evt.preventDefault();
       // The word the click selected would stay highlighted under the menu.
       if (hasSelectedText()) document.getSelection()?.removeAllRanges();
@@ -795,6 +811,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       );
       const menu = menuAnchor && (
         <FocusTrap
+          active={menuShown}
           focusTrapOptions={{
             initialFocus: false,
             returnFocusOnDeactivate: false,
@@ -808,7 +825,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
             },
           }}
         >
-          <Menu>
+          <Menu style={menuShown ? undefined : { display: 'none' }}>
             <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
               {canSendReaction && confirmed && onReactionToggle && (
                 <MessageQuickReactions
@@ -972,7 +989,11 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                 position={menuAnchor ? popOutSide(menuAnchor) : 'Bottom'}
                 align="End"
                 offset={4}
-                content={menu}
+                content={
+                  <DialogOpenerContext.Provider value={hideMenu}>
+                    {menu}
+                  </DialogOpenerContext.Provider>
+                }
               >
                 <ToolbarAction
                   label={t('mindroomUi.messages.mindroomMessage.moreOptions')}

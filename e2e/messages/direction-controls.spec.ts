@@ -9,6 +9,7 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
+import { openMessageMenu } from '../helpers/messageMenu';
 import {
   createDefaultThreadFilterState,
   joinRoom,
@@ -197,16 +198,8 @@ const check = async (page: Page, world: World, label: string, canRead: boolean) 
   await page.keyboard.press('Escape');
   await expect(viewer).toBeHidden();
 
-  // View Source of the plain message. The menu opens on the row's contextmenu event: a real right
-  // click in WebKit first selects the word under the pointer, and the row then leaves the click to
-  // the browser's own menu.
-  const text = row(page, world.plainId).getByText(/^Rename the report/);
-  const box = await text.boundingBox();
-  await text.dispatchEvent('contextmenu', {
-    button: 2,
-    clientX: (box?.x ?? 0) + 8,
-    clientY: (box?.y ?? 0) + 8,
-  });
+  // View Source of the plain message.
+  await openMessageMenu(page, row(page, world.plainId), 'Rename', label.endsWith('phone'));
   await page.getByRole('menuitem', { name: 'View Source' }).click({ timeout: 30_000 });
   const source = page.locator('pre.language-json');
   await expect(source).toBeVisible({ timeout: 30_000 });

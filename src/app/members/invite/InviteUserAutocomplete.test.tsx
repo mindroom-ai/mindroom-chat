@@ -466,6 +466,22 @@ describe('InviteUserAutocomplete', () => {
     expect(displayNameNode.props.children).toBe('space');
   });
 
+  it('names a user without the direction controls in their display name, beside the user ID', () => {
+    const userId = '@quinn:example.org';
+    const { renderer } = renderAutocomplete({
+      cacheState: readyCache([{ userId, displayName: 'Quinn \u202erelyat\u202c' }]),
+      initialValue: 'quinn',
+    });
+
+    const [option] = getOptions(renderer);
+    const displayNameNode = renderer.root.findByProps({ title: 'Quinn relyat' });
+    const avatar = renderer.root.findByProps({ 'data-user-id': userId });
+
+    expect(option.props['aria-label']).toBe(`Quinn relyat, ${userId}`);
+    expect(displayNameNode.props.children).toBe('Quinn relyat');
+    expect(avatar.props['data-alt']).toBe('Quinn relyat');
+  });
+
   it('portals the suggestion menu anchored to the input rect instead of nesting it', () => {
     const { renderer } = renderAutocomplete({
       cacheState: readyCache([{ userId: '@alice:example.org', displayName: 'Alice Adams' }]),

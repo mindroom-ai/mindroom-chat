@@ -21,7 +21,7 @@ const makeRoom = (rootEvent: MatrixEvent, receiptTs?: number): Room =>
   ({
     roomId: '!room:example.org',
     getThread: () => null,
-    findEventById: () => rootEvent,
+    findEventById: (eventId: string) => (eventId === rootEvent.getId() ? rootEvent : undefined),
     getUnfilteredTimelineSet: () => ({ relations: { getChildEventsForEvent: () => undefined } }),
     getMember: () => null,
     getLastUnthreadedReceiptFor: () => undefined,

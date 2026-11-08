@@ -605,7 +605,9 @@
       }
     },
     "backgroundJobs": {
-      "jobCountShowing": "{{count}} attività in background ({{shown}} mostrate)"
+      "jobCountShowing": "{{count}} attività in background ({{shown}} mostrate)",
+      "finished": "Completato: {{tool}}",
+      "jobCountFinished": "{{count}} attività in background completate"
     }
   },
   "composer": {

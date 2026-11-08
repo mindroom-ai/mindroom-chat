@@ -69,13 +69,21 @@ const NAME_DISGUISES =
 /** A name that could be a user ID's localpart (`sam` of `@sam:example.org`). */
 const LOCALPART_SHAPE = /^[a-z0-9._=\-/+]+$/;
 
+/**
+ * A name without the characters above, for a place that shows the user ID beside it; undefined
+ * when it shows nothing.
+ */
+export const withoutNameDisguises = (name: string): string | undefined => {
+  const shown = name.replace(NAME_DISGUISES, '');
+  return shown.trim() ? shown : undefined;
+};
+
 /** A member's display name without the characters above; undefined when it shows nothing. */
 const shownName = (member: RoomMember): string | undefined => {
   // The SDK's raw name lacks direction overrides, and is the user ID when it would show nothing.
   const raw = member.rawDisplayName;
   if (!raw || raw === member.userId) return undefined;
-  const name = raw.replace(NAME_DISGUISES, '');
-  return name.trim() ? name : undefined;
+  return withoutNameDisguises(raw);
 };
 
 /**
@@ -657,11 +665,11 @@ export type ThreadRootReadAction = 'receipt' | 'seen';
 
 /**
  * How to mark a thread's root read when the user opens the thread. The root belongs to the main
- * timeline, and the server reads all of it on any main receipt, the messages after the one the
- * receipt names included. So `receipt`, a main receipt, only once nothing else there is unread
- * (`isMainTimelineMessageUnread`, which counts the roots seen before as read), and until then
- * `seen`: the root counts as read on this device (`rememberSeenThreadRoot`). Undefined when the
- * root is read already.
+ * timeline, and the main receipt this client sends names its newest event
+ * (`markMainTimelineAsRead`), so it reads all of it. So `receipt`, a main receipt, only once
+ * nothing else there is unread (`isMainTimelineMessageUnread`, which counts the roots seen before
+ * as read), and until then `seen`: the root counts as read on this device
+ * (`rememberSeenThreadRoot`). Undefined when the root is read already.
  *
  * The walk goes back from the newest loaded event to the user's read position or own last
  * message. When it runs out of loaded events first, the server's count of unread main-timeline
