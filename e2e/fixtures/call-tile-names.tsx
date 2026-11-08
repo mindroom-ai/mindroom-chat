@@ -1,5 +1,7 @@
+import type { CSSProperties } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider } from 'jotai';
+import { config, toRem } from 'folds';
 import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
@@ -108,6 +110,21 @@ const screens = [COPY, LONG_ID_COPY, LONG_NAME_COPY].map((userId) =>
   device(userId, 'IN', { screen: screenTrack })
 );
 
+// The tiles in a plain grid, each at its own 4:3 and in the middle of the panel's body. The call
+// stage (CallStage.tsx) sizes its tiles to the space it measures, which this scrolling page has
+// none of.
+const TILE_GRID: CSSProperties = {
+  flex: '1 1 auto',
+  alignContent: 'center',
+  display: 'grid',
+  // At least 160 px wide: two to a 400 px line, as in a call panel that wide.
+  gridTemplateColumns: `repeat(auto-fill, minmax(${toRem(160)}, 1fr))`,
+  gap: config.space.S200,
+  listStyle: 'none',
+  margin: 0,
+  padding: 0,
+};
+
 function Tiles() {
   return (
     <div
@@ -115,7 +132,7 @@ function Tiles() {
       style={{ width: 'min(400px, 100vw)', height: 'auto', minHeight: '100vh' }}
     >
       <div className={panelCss.Body}>
-        <ul className={panelCss.Tiles}>
+        <ul style={TILE_GRID}>
           {screens.map((participant) => (
             <ScreenTile key={participant.key} room={room} participant={participant} />
           ))}

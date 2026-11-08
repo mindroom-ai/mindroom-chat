@@ -416,7 +416,7 @@
     "calls": {
       "panel": {
         "title": "कॉल",
-        "close": "कॉल पैनल बंद करें",
+        "close": "कॉल व्यू बंद करें",
         "participants": "कॉल में मौजूद लोग",
         "connecting": "कनेक्ट हो रहा है…",
         "reconnecting": "फिर से कनेक्ट हो रहा है…",
@@ -501,6 +501,27 @@
         "live": "कॉल जारी है",
         "ended": "कॉल समाप्त हुई",
         "notes": "नोट्स और ट्रांसक्रिप्ट"
+      },
+      "stage": {
+        "speaking": "{{name}} बोल रहे हैं",
+        "listening": "सुन रहा है",
+        "muted": "आप म्यूट हैं",
+        "waiting": "दूसरों के जुड़ने की प्रतीक्षा की जा रही है",
+        "more": "+{{count}}",
+        "moreLabel": "{{count}} और"
+      },
+      "window": {
+        "move": "कॉल विंडो हिलाएं",
+        "moveMinimized": "छोटी की गई कॉल विंडो हिलाएं",
+        "minimize": "छोटा करें",
+        "expand": "बड़ा करें",
+        "dock": "किनारे डॉक करें",
+        "float": "फ़्लोट करें",
+        "speakerView": "स्पीकर व्यू",
+        "openConversation": "बातचीत पर जाएं",
+        "label": "कॉल विंडो",
+        "resizeTranscript": "ट्रांसक्रिप्ट का आकार बदलें",
+        "transcriptSplit": "स्टेज {{stage}} प्रतिशत, ट्रांसक्रिप्ट {{transcript}} प्रतिशत"
       }
     },
     "room": {

@@ -411,7 +411,7 @@
     "calls": {
       "panel": {
         "title": "Panggilan",
-        "close": "Tutup panel panggilan",
+        "close": "Tutup tampilan panggilan",
         "participants": "Orang dalam panggilan",
         "connecting": "Menghubungkan…",
         "reconnecting": "Menghubungkan ulang…",
@@ -492,6 +492,27 @@
         "live": "Panggilan berlangsung",
         "ended": "Panggilan berakhir",
         "notes": "Catatan dan transkrip"
+      },
+      "stage": {
+        "speaking": "{{name}} sedang berbicara",
+        "listening": "Mendengarkan",
+        "muted": "Anda dibisukan",
+        "waiting": "Menunggu yang lain bergabung",
+        "more": "+{{count}}",
+        "moreLabel": "{{count}} lainnya"
+      },
+      "window": {
+        "move": "Pindahkan jendela panggilan",
+        "moveMinimized": "Pindahkan jendela panggilan yang dikecilkan",
+        "minimize": "Kecilkan",
+        "expand": "Perbesar",
+        "dock": "Sematkan ke samping",
+        "float": "Melayang",
+        "speakerView": "Tampilan pembicara",
+        "openConversation": "Buka percakapan",
+        "label": "Jendela panggilan",
+        "resizeTranscript": "Ubah ukuran transkrip",
+        "transcriptSplit": "Panggung {{stage}} persen, transkrip {{transcript}} persen"
       }
     },
     "room": {

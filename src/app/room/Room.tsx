@@ -1,5 +1,4 @@
 import {
-  type ComponentProps,
   type CSSProperties,
   type ReactNode,
   Suspense,
@@ -14,7 +13,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
-import { Box, Button, Text } from 'folds';
+import { Box } from 'folds';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoom } from '../matrix/hooks/useRoom';
 import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
@@ -66,17 +65,11 @@ import { useRoomViewMode } from '../navigation/useRoomViewMode';
 import { useThreadRootEvent } from '../threads/useThreadRootEvent';
 import { useInitializeOpenThread } from '../threads/useInitializeOpenThread';
 import { RoomMessageAnnouncer } from '../timeline/RoomMessageAnnouncer';
-import {
-  isActiveCallShownIn,
-  useActiveCall,
-  useCallActions,
-  useCallPanel,
-  useInCall,
-} from '../calls/callStore';
-import type { CallPanel as CallPanelComponent } from '../calls/CallPanel';
+import { useCallPanel, useInCall } from '../calls/callStore';
+import { CallPanelPart, CallPanelUnavailable } from '../calls/CallPanelPart';
 import { transcriptPanelAtom, useTranscriptPanel } from '../calls/transcription/transcriptPanel';
-import { type PartLoadRetry, lazyPart } from '../lib/lazyPart';
-import { PartUnavailable } from '../ui/PartUnavailable';
+import { useCallViewFloats } from '../calls/window/callWindowState';
+import { lazyPart } from '../lib/lazyPart';
 import { PluginSidePanel } from './PluginSidePanel';
 import { usePluginPanel } from './usePluginPanel';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
@@ -85,56 +78,8 @@ import { useAlive } from '../lib/hooks/useAlive';
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;
 const COMPUTER_MAX_WIDTH = 1600;
-/**
- * Without its chunk (offline when the panel is first needed) the call panel says so and offers
- * Retry. A call already on in this room gets End too, as the panel's own End did not load and Retry
- * may not reload.
- */
-function CallPanelUnavailable({
-  room,
-  onClose,
-  retryLoad,
-}: ComponentProps<typeof CallPanelComponent> & PartLoadRetry) {
-  const { t } = useTranslation();
-  const mx = useMatrixClient();
-  const { endCall } = useCallActions(mx);
-  const callHere = isActiveCallShownIn(useActiveCall(), room.roomId);
-  return (
-    <PartUnavailable retryLoad={retryLoad}>
-      {callHere && (
-        <Button
-          type="button"
-          size="300"
-          radii="300"
-          variant="Critical"
-          fill="Soft"
-          onClick={() => {
-            // The call is over for this device either way; a failed leave leaves nothing to do.
-            endCall().catch(() => undefined);
-          }}
-        >
-          <Text size="B300">{t('featureUi.call.callControls.end')}</Text>
-        </Button>
-      )}
-      <Button
-        type="button"
-        size="300"
-        radii="300"
-        variant="Secondary"
-        fill="None"
-        onClick={onClose}
-      >
-        <Text size="B300">{t('featureUi.calls.panel.dismiss')}</Text>
-      </Button>
-    </PartUnavailable>
-  );
-}
-
-// Calls load on first use, so rooms without one never load them.
-const CallPanel = lazyPart(
-  () => import('../calls/CallPanel').then((module) => ({ default: module.CallPanel })),
-  CallPanelUnavailable
-);
+// The live transcript loads on first use too, and says so as the call panel does when its chunk
+// does not load.
 const LiveTranscriptPanel = lazyPart(
   () =>
     import('../calls/transcription/LiveTranscriptPanel').then((module) => ({
@@ -142,6 +87,7 @@ const LiveTranscriptPanel = lazyPart(
     })),
   CallPanelUnavailable
 );
+// The call buttons load on first use, as the call panel does.
 const HeaderCallButtons = lazyPart(() =>
   import('../calls/HeaderCallButtons').then((module) => ({ default: module.HeaderCallButtons }))
 );
@@ -317,6 +263,10 @@ function RoomContent() {
   // A canvas does not open while this device is in a call (PANEL-09).
   const [callOpen, setCallOpen] = useCallPanel(roomId);
   const inCall = useInCall();
+  // On desktop the call view floats over every page unless the person docked it here. The mode
+  // alone: the room does not render again when the floating window moves.
+  const callFloats = useCallViewFloats();
+  const callInSidePanel = callOpen && !callFloats;
   const transcript = useTranscriptPanel(roomId);
 
   const pluginPanels = usePluginSidePanels(registeredPlugins, clientConfig);
@@ -333,9 +283,39 @@ function RoomContent() {
   } = usePluginPanel(
     roomId,
     pluginPanels,
-    computerOpen || !!canvas || callOpen || transcript.open,
+    computerOpen || !!canvas || callInSidePanel || transcript.open,
     { beside: membersOpen && !membersOverPage, close: closeMembers }
   );
+
+  // The call side panel, while the call view does not float: a floating window is no side panel,
+  // so the others neither close it nor are closed by it.
+  const callPanel: PanelEntry = {
+    id: 'call',
+    open: callInSidePanel,
+    close: closeCall,
+    // The call buttons, a ring and a call started elsewhere open it in the call store.
+    opensElsewhere: true,
+    label: t('featureUi.calls.panel.title'),
+    covers: mobile,
+    render: () => (
+      <ResizablePanel
+        side="end"
+        storageKey={`mindroom.call.width:${ownUserId}`}
+        defaultWidth={CALL_DEFAULT_WIDTH}
+        minContentWidth={CONVERSATION_MIN_WIDTH}
+        maxPanelWidth={CALL_MAX_WIDTH}
+        passthrough={mobile}
+        resizeLabel={t('featureUi.calls.panel.resize')}
+        collapseLabel={t('featureUi.calls.panel.close')}
+        onCollapse={closeCall}
+        testId="resizable-call-panel"
+      >
+        <Suspense fallback={null}>
+          <CallPanelPart room={room} onClose={closeCall} />
+        </Suspense>
+      </ResizablePanel>
+    ),
+  };
 
   // One side panel at a time (useRoomPanels), the first open one of these. Opening one closes the
   // others, except that the members stay open behind the call or its live transcript and show
@@ -397,33 +377,7 @@ function RoomContent() {
           />
         ),
     },
-    {
-      id: 'call',
-      open: callOpen,
-      close: closeCall,
-      // The call buttons, a ring and a call started elsewhere open it in the call store.
-      opensElsewhere: true,
-      label: t('featureUi.calls.panel.title'),
-      covers: mobile,
-      render: () => (
-        <ResizablePanel
-          side="end"
-          storageKey={`mindroom.call.width:${ownUserId}`}
-          defaultWidth={CALL_DEFAULT_WIDTH}
-          minContentWidth={CONVERSATION_MIN_WIDTH}
-          maxPanelWidth={CALL_MAX_WIDTH}
-          passthrough={mobile}
-          resizeLabel={t('featureUi.calls.panel.resize')}
-          collapseLabel={t('featureUi.calls.panel.close')}
-          onCollapse={closeCall}
-          testId="resizable-call-panel"
-        >
-          <Suspense fallback={null}>
-            <CallPanel room={room} onClose={closeCall} />
-          </Suspense>
-        </ResizablePanel>
-      ),
-    },
+    ...(callFloats ? [] : [callPanel]),
     {
       id: 'transcript',
       open: transcript.open,

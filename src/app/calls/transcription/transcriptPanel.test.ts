@@ -55,6 +55,17 @@ describe('the live transcript panel', () => {
     expect(store.get(callPanelRoomAtom)).toBeUndefined();
   });
 
+  it('leaves a floating call view in place, which no side panel replaces', () => {
+    const store = createStore();
+    store.set(callPanelRoomAtom, ROOM);
+
+    openTranscriptPanel(store, ROOM, true);
+    expect(store.get(transcriptPanelAtom)).toEqual({ roomId: ROOM, replacedCall: false });
+    expect(store.get(callPanelRoomAtom)).toBe(ROOM);
+    closeTranscriptPanel(store, ROOM);
+    expect(store.get(callPanelRoomAtom)).toBe(ROOM);
+  });
+
   it("leaves another room's panel alone", () => {
     const store = createStore();
     openTranscriptPanel(store, OTHER);

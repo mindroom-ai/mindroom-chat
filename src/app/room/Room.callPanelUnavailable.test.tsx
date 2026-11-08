@@ -1,9 +1,15 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RoomCall } from '../calls/RoomCall';
 import { type ActiveCall, activeCallAtom, callPanelRoomAtom } from '../calls/callStore';
+import { CallWindowHost } from '../calls/window/CallWindowHost';
+import {
+  type CallWindowMode,
+  clearCallWindowStore,
+  getCallWindowSettingsAtom,
+} from '../calls/window/callWindowState';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
 
 // The call panel's code is a chunk of its own; here it cannot load, as offline or after a deploy.
@@ -12,17 +18,16 @@ vi.mock('../calls/CallPanel', () => {
 });
 
 const { mx, room } = vi.hoisted(() => {
-  const listeners = { on: () => undefined, removeListener: () => undefined };
+  const listeners = { on: () => undefined, off: () => undefined, removeListener: () => undefined };
+  const room = { roomId: '!room:example.org', name: 'Standup', ...listeners };
   return {
     mx: {
       getSafeUserId: () => '@alice:example.org',
       getHomeserverUrl: () => 'https://example.org',
+      getRoom: (roomId: string) => (roomId === room.roomId ? room : null),
       ...listeners,
     },
-    room: {
-      roomId: '!room:example.org',
-      ...listeners,
-    },
+    room,
   };
 });
 
@@ -67,16 +72,20 @@ const liveCall = (roomId: string) => {
   return { call, leave };
 };
 
-const renderRoomWithCallPanel = async (active?: ActiveCall) => {
+type Place = 'docked' | 'window';
+
+/**
+ * The call view of `room` with `active` on: docked beside the room, or in the floating window,
+ * which shows over every page (`CallWindowHost`).
+ */
+const renderRoomWithCallPanel = async (active?: ActiveCall, place: Place = 'docked') => {
   const store = createStore();
+  const mode: CallWindowMode = place === 'docked' ? 'docked' : 'floating';
+  store.set(getCallWindowSettingsAtom(mx.getSafeUserId()), { mode });
   store.set(activeCallAtom, active);
   store.set(callPanelRoomAtom, room.roomId);
   const { Room } = await import('./Room');
-  render(
-    <Provider store={store}>
-      <Room />
-    </Provider>
-  );
+  render(<Provider store={store}>{place === 'docked' ? <Room /> : <CallWindowHost />}</Provider>);
   await screen.findByRole('button', { name: 'Retry' });
   return store;
 };
@@ -96,6 +105,7 @@ describe('the call panel when its code cannot load', () => {
 
   afterEach(() => {
     cleanup();
+    clearCallWindowStore(mx.getSafeUserId());
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -132,5 +142,23 @@ describe('the call panel when its code cannot load', () => {
     const { call } = liveCall('!elsewhere:example.org');
     await renderRoomWithCallPanel({ call, kind: 'room' });
     expect(screen.queryByRole('button', { name: 'End' })).toBeNull();
+  });
+
+  it('says so in the floating window, which ends the call and closes there too', async () => {
+    const { call, leave } = liveCall(room.roomId);
+    const store = await renderRoomWithCallPanel({ call, kind: 'room' }, 'window');
+    const callWindow = screen.getByTestId('call-window');
+    expect(callWindow.textContent).toContain("This couldn't load");
+
+    await act(async () => {
+      fireEvent.click(within(callWindow).getByRole('button', { name: 'End' }));
+    });
+    expect(leave).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      fireEvent.click(within(callWindow).getByRole('button', { name: 'Close' }));
+    });
+    expect(store.get(callPanelRoomAtom)).toBeUndefined();
+    expect(screen.queryByTestId('call-window')).toBeNull();
   });
 });

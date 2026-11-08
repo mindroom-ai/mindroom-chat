@@ -6,6 +6,7 @@ import {
   activeCallAtom,
   callPanelRoomAtom,
   callStartProblemAtom,
+  callViewStateAtom,
   forgetCallState,
   noteCallStart,
   useCallActions,
@@ -87,7 +88,10 @@ describe('useCallActions endCall', () => {
     const onEnded = vi.fn(async () => undefined);
     const active = {
       kind: 'room',
-      call: { leave: vi.fn(async () => Promise.reject(new Error('LiveKit gone'))) },
+      call: {
+        room: { roomId: '!callroom:calls.test' },
+        leave: vi.fn(async () => Promise.reject(new Error('LiveKit gone'))),
+      },
       onEnded,
     } as unknown as ActiveCall;
     store.set(activeCallAtom, active);
@@ -137,6 +141,34 @@ describe('useCallActions endCall', () => {
     await actionsIn(store).endCall();
 
     expect(store.get(callPanelRoomAtom)).toBe('!elsewhere:calls.test');
+  });
+
+  it("forgets what the call's view picked once the call ends, and every room's with the account", async () => {
+    const store = createStore();
+    const picked = { speaker: true, prescreen: { microphone: false, camera: true, devices: {} } };
+    const shown = () => [...store.get(callViewStateAtom).keys()];
+    store.set(
+      callViewStateAtom,
+      new Map([
+        ['!callroom:calls.test', picked],
+        ['!other:calls.test', picked],
+      ])
+    );
+    store.set(activeCallAtom, callIn('room'));
+    await actionsIn(store).endCall();
+    expect(shown()).toEqual(['!other:calls.test']);
+
+    // An agent call's view is in the conversation it started from.
+    store.set(
+      callViewStateAtom,
+      new Map(store.get(callViewStateAtom)).set('!planning:calls.test', picked)
+    );
+    store.set(activeCallAtom, callIn('agent'));
+    actionsIn(store).dismissCall();
+    expect(shown()).toEqual(['!other:calls.test']);
+
+    forgetCallState(store);
+    expect(shown()).toEqual([]);
   });
 
   it('closes the panel of an agent call dismissed after it failed', () => {
@@ -257,6 +289,24 @@ describe('useCallActions startCall', () => {
 
     await expect(starting).resolves.toBe('started');
     expect(store.get(activeCallAtom)?.call.room).toBe(room);
+  });
+
+  it("forgets the prescreen's choices of the room whose call starts, and keeps other rooms'", async () => {
+    const store = createStore();
+    const prescreen = { microphone: false, camera: true, devices: {} };
+    store.set(
+      callViewStateAtom,
+      new Map([
+        ['!call:calls.test', { prescreen }],
+        ['!other:calls.test', { prescreen }],
+      ])
+    );
+    const { room, finishLoading } = slowRoom();
+    const starting = actionsIn(store, runningClient()).startCall({ room, kind: 'room' });
+    await finishLoading();
+
+    await expect(starting).resolves.toBe('started');
+    expect(store.get(callViewStateAtom)).toEqual(new Map([['!other:calls.test', { prescreen }]]));
   });
 
   describe('with the browser lock manager', () => {

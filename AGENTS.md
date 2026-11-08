@@ -74,3 +74,7 @@ Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, 
 - Unsigned (`git -c commit.gpgsign=false commit`), on branch `main`; never push.
 - No em dashes in docs, comments, or commit messages.
 - Add files by explicit path; never `git add -A`.
+
+## Pull requests
+
+- A pull request that changes what people see carries screenshots of that change, taken at the pull request's head (a throwaway Playwright spec on a `just e2e-slot` slot, or the dev server). Attach them with `gh pr create --attach '<file>#<alt text>'` when opening it, or `gh pr comment <number> --body '<what they show>' --attach '<file>#<alt text>'` on an open one; repeat `--attach` for each image. Take them again after a change that alters what they show.

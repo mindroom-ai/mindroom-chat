@@ -501,6 +501,27 @@
         "live": "Anruf läuft",
         "ended": "Anruf beendet",
         "notes": "Notizen und Transkript"
+      },
+      "stage": {
+        "speaking": "{{name}} spricht",
+        "listening": "Hört zu",
+        "muted": "Du bist stummgeschaltet",
+        "waiting": "Warten, bis andere beitreten",
+        "more": "+{{count}}",
+        "moreLabel": "{{count}} weitere"
+      },
+      "window": {
+        "move": "Anruffenster verschieben",
+        "moveMinimized": "Minimiertes Anruffenster verschieben",
+        "minimize": "Minimieren",
+        "expand": "Vergrößern",
+        "dock": "Seitlich andocken",
+        "float": "Schweben lassen",
+        "speakerView": "Sprecheransicht",
+        "openConversation": "Zur Unterhaltung",
+        "label": "Anruffenster",
+        "resizeTranscript": "Größe des Transkripts ändern",
+        "transcriptSplit": "Bühne {{stage}} Prozent, Transkript {{transcript}} Prozent"
       }
     },
     "room": {

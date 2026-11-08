@@ -436,7 +436,7 @@
     "calls": {
       "panel": {
         "title": "مكالمة",
-        "close": "إغلاق لوحة المكالمة",
+        "close": "إغلاق عرض المكالمة",
         "participants": "الأشخاص في المكالمة",
         "connecting": "جارٍ الاتصال…",
         "reconnecting": "جارٍ إعادة الاتصال…",
@@ -537,6 +537,27 @@
         "live": "مكالمة جارية",
         "ended": "انتهت المكالمة",
         "notes": "الملاحظات ونص المكالمة"
+      },
+      "stage": {
+        "speaking": "⁨{{name}}⁩ يتحدث",
+        "listening": "يستمع",
+        "muted": "أنت مكتوم الصوت",
+        "waiting": "في انتظار انضمام الآخرين",
+        "more": "+⁨{{count}}⁩",
+        "moreLabel": "⁨{{count}}⁩ آخرون"
+      },
+      "window": {
+        "move": "نقل نافذة المكالمة",
+        "moveMinimized": "نقل نافذة المكالمة المصغّرة",
+        "minimize": "تصغير",
+        "expand": "توسيع",
+        "dock": "تثبيت في الجانب",
+        "float": "إلغاء التثبيت",
+        "speakerView": "عرض المتحدث",
+        "openConversation": "الانتقال إلى المحادثة",
+        "label": "نافذة المكالمة",
+        "resizeTranscript": "تغيير حجم نص المكالمة",
+        "transcriptSplit": "المنصة ⁨{{stage}}⁩٪، نص المكالمة ⁨{{transcript}}⁩٪"
       }
     },
     "room": {

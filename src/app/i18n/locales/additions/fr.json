@@ -421,7 +421,7 @@
     "calls": {
       "panel": {
         "title": "Appel",
-        "close": "Fermer le panneau d’appel",
+        "close": "Fermer la vue d’appel",
         "participants": "Personnes dans l’appel",
         "connecting": "Connexion…",
         "reconnecting": "Reconnexion…",
@@ -510,6 +510,27 @@
         "live": "Appel en cours",
         "ended": "Appel terminé",
         "notes": "Notes et transcription"
+      },
+      "stage": {
+        "speaking": "{{name}} parle",
+        "listening": "À l’écoute",
+        "muted": "Vous êtes en sourdine",
+        "waiting": "En attente d’autres participants",
+        "more": "+{{count}}",
+        "moreLabel": "{{count}} de plus"
+      },
+      "window": {
+        "move": "Déplacer la fenêtre d’appel",
+        "moveMinimized": "Déplacer la fenêtre d’appel réduite",
+        "minimize": "Réduire",
+        "expand": "Agrandir",
+        "dock": "Ancrer sur le côté",
+        "float": "Détacher",
+        "speakerView": "Vue intervenant",
+        "openConversation": "Aller à la conversation",
+        "label": "Fenêtre d’appel",
+        "resizeTranscript": "Redimensionner la transcription",
+        "transcriptSplit": "Scène {{stage}} pour cent, transcription {{transcript}} pour cent"
       }
     },
     "room": {

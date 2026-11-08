@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
-import { atom, useAtomValue, useSetAtom, useStore } from 'jotai';
+import { atom, useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import { RoomStateEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { MatrixRTCSessionEvent } from 'matrix-js-sdk/lib/matrixrtc';
 import type { CallDevices, CallPhase, CallState, RoomCall } from './RoomCall';
@@ -45,7 +45,47 @@ export type CallStartProblem = { roomId: string; result: Exclude<StartCallResult
 
 export const callStartProblemAtom = atom<CallStartProblem | undefined>(undefined);
 
+/** What a room's call prescreen joins with: the microphone, the camera and the devices picked. */
+export type PrescreenChoices = { microphone: boolean; camera: boolean; devices: CallDevices };
+
+/**
+ * What the person picked in a room's call view: the prescreen's choices, and for the call it
+ * shows speaker view or the grid (`speaker`) and the pick for the screens shared then (`screens`,
+ * for its `pickScope`).
+ */
+export type CallViewState = {
+  prescreen?: PrescreenChoices;
+  speaker?: boolean;
+  screens?: { scope: string; speaker: boolean };
+};
+
+/**
+ * Each room's call view state. The view mounts anew wherever it moves (the floating window, the
+ * docked panel, a phone's panel) and when it opens again, so what was picked in it lives here,
+ * with the call: until a call starts in the room or the call it shows ends, and with the account.
+ */
+export const callViewStateAtom = atom<ReadonlyMap<string, CallViewState>>(new Map());
+
+const NOTHING_PICKED: CallViewState = {};
+
+/** A room's call view state, and a way to change it. */
+export const useCallViewState = (roomId: string) => {
+  const [views, setViews] = useAtom(callViewStateAtom);
+  const change = useCallback(
+    (next: (last: CallViewState) => CallViewState) =>
+      setViews((last) => new Map(last).set(roomId, next(last.get(roomId) ?? NOTHING_PICKED))),
+    [roomId, setViews]
+  );
+  return [views.get(roomId) ?? NOTHING_PICKED, change] as const;
+};
+
 type Store = ReturnType<typeof useStore>;
+
+/** Forgets what a room's call view kept: a call starts there, or the call it shows ended. */
+const forgetCallView = (store: Store, roomId: string): void => {
+  const views = new Map(store.get(callViewStateAtom));
+  if (views.delete(roomId)) store.set(callViewStateAtom, views);
+};
 
 /** Leaves the call without waiting for the server, then runs what follows its end. */
 export const leaveCallNow = (active: ActiveCall): void => {
@@ -68,23 +108,31 @@ const closeAgentCallPanel = (store: Store, ended: ActiveCall): void => {
   }
 };
 
+/** Forgets the call that is over here, and what its view kept. */
+const forgetEndedCall = (store: Store, ended: ActiveCall): void => {
+  store.set(activeCallAtom, undefined);
+  forgetCallView(store, callHomeRoomId(ended));
+  closeAgentCallPanel(store, ended);
+};
+
 /** Leaves the active call without waiting and forgets it, so the next start finds none. */
 export const dropActiveCall = (store: Store): void => {
   const active = store.get(activeCallAtom);
   if (!active) return;
   leaveCallNow(active);
-  store.set(activeCallAtom, undefined);
-  closeAgentCallPanel(store, active);
+  forgetEndedCall(store, active);
 };
 
 /**
  * What an account leaves in the call state when its screens go: its call (left), the open call
- * panel, a start still running (which gives up, its client being stopped) and why the last start
- * failed. The next account would otherwise find them in a room both accounts are in.
+ * panel and what was picked in call views, a start still running (which gives up, its client
+ * being stopped) and why the last start failed. The next account would otherwise find them in a
+ * room both accounts are in.
  */
 export const forgetCallState = (store: Store): void => {
   dropActiveCall(store);
   store.set(callPanelRoomAtom, undefined);
+  store.set(callViewStateAtom, new Map());
   store.set(callStartingAtom, undefined);
   store.set(callStartProblemAtom, undefined);
 };
@@ -213,10 +261,7 @@ export const useCallActions = (mx: MatrixClient) => {
       await active.call.leave();
     } finally {
       await active.onEnded?.().catch(() => undefined);
-      if (store.get(activeCallAtom) === active) {
-        store.set(activeCallAtom, undefined);
-        closeAgentCallPanel(store, active);
-      }
+      if (store.get(activeCallAtom) === active) forgetEndedCall(store, active);
     }
   }, [store]);
 
@@ -276,6 +321,8 @@ export const useCallActions = (mx: MatrixClient) => {
         call,
         startedAfterTs: meta.startedAfterTs ?? newestEventTs(room),
       };
+      // The prescreen's choices went into the call, whose own picks start afresh.
+      forgetCallView(store, callHomeRoomId(active));
       store.set(activeCallAtom, active);
       store.set(callPanelRoomAtom, callHomeRoomId(active));
       return call;

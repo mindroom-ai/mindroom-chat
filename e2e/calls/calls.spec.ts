@@ -5,7 +5,8 @@ import { defined } from '../../src/test/utils/defined';
 
 // Calls over MatrixRTC and LiveKit between real browser sessions with fake microphones and
 // cameras: a direct chat call that rings (card, ringtone, system notification), is answered,
-// carries sound both ways (encrypted too), mutes, shows video and survives a reload; a group
+// carries sound both ways (encrypted too), mutes from the floating window's bar, shows video,
+// survives a reload and closes its window when it ends; a group
 // room whose admin lets members call, with a shared screen; leftover memberships withdrawn at
 // start; a second tab of the same session, which answers busy (on Join, on two Joins at the same
 // moment, and on a ring's Answer); a call to a MindRoom agent, which runs in the agent call room
@@ -317,13 +318,24 @@ test.describe('calls', () => {
         .poll(() => remoteSoundLevel(alicePage), { timeout: 60_000 })
         .toBeGreaterThan(0.05);
 
-      // Alice mutes; Bob sees it on her tile.
-      await callPanel(alicePage).getByRole('button', { name: 'Turn Off Microphone' }).click();
+      // Alice minimizes her call window to its bar and mutes there; Bob sees it on her tile.
+      // Expand gives her the whole call view back.
+      const aliceWindow = alicePage.getByTestId('call-window');
+      await callPanel(alicePage).getByRole('button', { name: 'Minimize', exact: true }).click();
+      await expect(aliceWindow).toHaveAttribute('data-bar', 'true');
+      const aliceBar = aliceWindow.getByRole('group', { name: 'Move minimized call window' });
+      await aliceBar.getByRole('button', { name: 'Turn Off Microphone' }).click();
       await expect(
         tileOf(bobPage, alice.userId).getByRole('img', { name: 'Microphone off' })
       ).toBeVisible({
         timeout: 30_000,
       });
+      await expect(aliceBar.getByRole('button', { name: 'Turn On Microphone' })).toBeVisible();
+      await aliceBar.getByRole('button', { name: 'Expand', exact: true }).click();
+      await expect(aliceWindow).not.toHaveAttribute('data-bar');
+      await expect(
+        callPanel(alicePage).locator('[data-call-tile][data-connected="true"]')
+      ).toHaveCount(2);
 
       // Bob starts his camera; Alice sees his video.
       await callPanel(bobPage).getByRole('button', { name: 'Start Camera' }).click();
@@ -354,12 +366,18 @@ test.describe('calls', () => {
       await callPanel(alicePage).getByRole('button', { name: 'Turn On Microphone' }).click();
       await expect.poll(() => remoteSoundLevel(bobPage), { timeout: 60_000 }).toBeGreaterThan(0.05);
 
-      // Alice hangs up: Bob is alone, and the room shows one person in the call.
+      // Alice hangs up: Bob is alone, her call window closes with her call, and the room's call
+      // button opens the room's call again, with one person in it.
       await callPanel(alicePage).getByRole('button', { name: 'End' }).click();
       await expect(tileOf(bobPage, alice.userId)).toHaveCount(0, { timeout: 30_000 });
       await expect(alicePage.locator('[data-call-tab]')).toHaveCount(0);
+      await expect(aliceWindow).toHaveCount(0);
+      // The focus End had goes to the room's call button rather than to the page's body.
+      await expect(alicePage.locator('[data-room-call-button]')).toBeFocused();
+      await alicePage.locator('[data-room-call-button]').click();
       await expect(callPanel(alicePage)).toContainText('1 person in the call', { timeout: 30_000 });
       await callPanel(bobPage).getByRole('button', { name: 'End' }).click();
+      await expect(bobPage.getByTestId('call-window')).toHaveCount(0);
       await expect(callPanel(alicePage)).toContainText('Be the first to hop in', {
         timeout: 30_000,
       });
@@ -385,10 +403,9 @@ test.describe('calls', () => {
     await expect(ring).toBeVisible({ timeout: 60_000 });
     await ring.getByRole('button', { name: 'Answer' }).click();
 
-    // Bob is in the call with his microphone on, and his call panel only says it could not load.
-    const unavailable = bobPage
-      .getByTestId('resizable-call-panel')
-      .locator('[data-part-unavailable]');
+    // Bob is in the call with his microphone on, and his call window (on desktop the call view
+    // floats) only says it could not load.
+    const unavailable = bobPage.getByTestId('call-window').locator('[data-part-unavailable]');
     await expect(unavailable).toContainText("This couldn't load", { timeout: 60_000 });
     await expect(tileOf(alicePage, bob.userId)).toHaveAttribute('data-connected', 'true', {
       timeout: 60_000,
@@ -472,6 +489,24 @@ test.describe('calls', () => {
     await expect(
       callPanel(alicePage).locator(`[data-call-screen="${alice.userId}"]`)
     ).toBeVisible();
+    // Alice's own screen never takes her stage: it shows in her grid, over both tiles. Bob's stage
+    // puts it in focus, and his speaker switch, free, takes him to the grid and back.
+    await expect(callPanel(alicePage).locator('[data-call-stage]')).not.toHaveAttribute(
+      'data-speaker-view'
+    );
+    await expect(callPanel(alicePage).locator('[data-call-tile]')).toHaveCount(2);
+    const bobStage = callPanel(bobPage).locator('[data-call-stage]');
+    const speakerSwitch = callPanel(bobPage).getByRole('button', { name: 'Speaker view' });
+    await expect(bobStage).toHaveAttribute('data-speaker-view', '');
+    await expect(speakerSwitch).toHaveAttribute('aria-pressed', 'true');
+    await expect(speakerSwitch).not.toHaveAttribute('aria-disabled');
+    await speakerSwitch.click();
+    await expect(bobStage).not.toHaveAttribute('data-speaker-view');
+    await expect(speakerSwitch).toHaveAttribute('aria-pressed', 'false');
+    await expect(shared).toBeVisible();
+    await expect(callPanel(bobPage).locator('[data-call-tile]')).toHaveCount(2);
+    await speakerSwitch.click();
+    await expect(bobStage).toHaveAttribute('data-speaker-view', '');
     await callPanel(alicePage).getByRole('button', { name: 'Stop Screenshare' }).click();
     await expect(shared).toHaveCount(0, { timeout: 30_000 });
 

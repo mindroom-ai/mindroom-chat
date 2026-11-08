@@ -16,7 +16,8 @@ import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { useSelectedRoom } from '../../navigation/useSelectedRoom';
 import { callPanelRoomAtom, isActiveCallShownIn, useActiveCall } from '../callStore';
 import { CallMemberAvatar } from '../CallTile';
-import { openTranscriptPanel } from './transcriptPanel';
+import { useCallViewFloats, useExpandCallWindow } from '../window/callWindowState';
+import { useCallTranscript } from './transcriptPanel';
 import { useLiveTranscript } from './useLiveTranscript';
 import * as css from './CallRow.css';
 
@@ -84,6 +85,9 @@ function LiveCallRow({ room, row }: RowProps) {
   );
   const { live, serverKnown } = useLiveTranscript(room, READ_MS, inView);
   const shownCall = isActiveCallShownIn(useActiveCall(), room.roomId);
+  const transcript = useCallTranscript(room.roomId);
+  const floats = useCallViewFloats();
+  const expand = useExpandCallWindow();
   const people = live?.call?.id === row.callId ? live.call.members : [];
 
   const showRoom = () => {
@@ -126,6 +130,8 @@ function LiveCallRow({ room, row }: RowProps) {
             onClick={() => {
               showRoom();
               store.set(callPanelRoomAtom, room.roomId);
+              // A window already on this room's prescreen, minimized to its bar, has no Join.
+              if (floats) expand();
             }}
           >
             <Text size="B300">{t('featureUi.call.prescreenControls.join')}</Text>
@@ -138,8 +144,9 @@ function LiveCallRow({ room, row }: RowProps) {
             variant="Secondary"
             fill="Soft"
             onClick={() => {
-              showRoom();
-              openTranscriptPanel(store, room.roomId);
+              // The floating window shows over every page; the side panel only in its room.
+              if (!transcript.inWindow) showRoom();
+              transcript.open(false);
             }}
           >
             <Text size="B300">{t('featureUi.calls.transcript.transcript')}</Text>

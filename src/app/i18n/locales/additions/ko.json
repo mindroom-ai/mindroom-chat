@@ -411,7 +411,7 @@
     "calls": {
       "panel": {
         "title": "통화",
-        "close": "통화 패널 닫기",
+        "close": "통화 보기 닫기",
         "participants": "통화 참여자",
         "connecting": "연결 중…",
         "reconnecting": "다시 연결하는 중…",
@@ -492,6 +492,27 @@
         "live": "통화 진행 중",
         "ended": "통화 종료",
         "notes": "메모 및 대화 기록"
+      },
+      "stage": {
+        "speaking": "{{name}} 님이 말하는 중",
+        "listening": "듣는 중",
+        "muted": "음소거되어 있습니다",
+        "waiting": "다른 참가자를 기다리는 중",
+        "more": "+{{count}}",
+        "moreLabel": "외 {{count}}명"
+      },
+      "window": {
+        "move": "통화 창 이동",
+        "moveMinimized": "최소화된 통화 창 이동",
+        "minimize": "최소화",
+        "expand": "펼치기",
+        "dock": "옆에 고정",
+        "float": "플로팅",
+        "speakerView": "발언자 보기",
+        "openConversation": "대화로 이동",
+        "label": "통화 창",
+        "resizeTranscript": "대화 기록 크기 조정",
+        "transcriptSplit": "무대 {{stage}}%, 대화 기록 {{transcript}}%"
       }
     },
     "room": {

@@ -95,6 +95,8 @@ export type AgentCallStart = {
   agentUserId: string;
   origin: CallOrigin;
   microphone?: boolean;
+  /** Off unless asked: a call taken up after a reload keeps the camera it had. */
+  video?: boolean;
   devices?: CallDevices;
 };
 
@@ -107,7 +109,7 @@ export type AgentCallStart = {
 export const startAgentCall = (
   mx: MatrixClient,
   startCall: StartCall,
-  { room, agentUserId, origin, microphone = true, devices }: AgentCallStart
+  { room, agentUserId, origin, microphone = true, video = false, devices }: AgentCallStart
 ): Promise<StartCallResult> =>
   startCall({
     room,
@@ -115,7 +117,7 @@ export const startAgentCall = (
     agentUserId,
     origin,
     microphone,
-    video: false,
+    video,
     devices,
     // Written only once the call may start: a start that answers busy, such as while another
     // tab of this session is in a call in the same call room, leaves that call's origin alone.
