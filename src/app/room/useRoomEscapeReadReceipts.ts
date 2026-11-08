@@ -18,8 +18,6 @@ export const useRoomEscapeReadReceipts = ({
   threadId,
 }: UseRoomEscapeReadReceiptsOptions): void => {
   const mx = useMatrixClient();
-  // A phone's navigation drawer over the page, a plugin's cover or a side panel in the
-  // conversation's place hides it.
   const store = useStore();
 
   // Escape marks the conversation as read, wherever the focus is on the page: an open thread, or

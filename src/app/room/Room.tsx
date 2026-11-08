@@ -563,20 +563,20 @@ function RoomContent() {
   // On phones a panel covers the conversation; filling the room, it takes the conversation's place.
   // The conversation stays mounted under it, with its draft and a recording in progress, out of
   // reach and out of sight (conversationBehindPanelAtom), as under a plugin's cover.
-  const conversationHidden = !!shown?.covers || layout === 'filled';
+  const behindPanel = !!shown?.covers || layout === 'filled';
   const conversationRef = useRef<HTMLDivElement>(null);
-  useInert(conversationRef, conversationHidden);
+  useInert(conversationRef, behindPanel);
   const setBehindPanel = useSetAtom(conversationBehindPanelAtom);
   useLayoutEffect(() => {
-    if (!conversationHidden) return undefined;
+    if (!behindPanel) return undefined;
     setBehindPanel(true);
     // Focus left in it, as in the composer when a click on Fill does not take the focus (Safari),
     // goes: a browser need not move it off an element that turns inert, and keys would reach it.
-    const conversation = conversationRef.current;
-    const focused = conversation?.ownerDocument.activeElement;
-    if (focused && conversation?.contains(focused)) (focused as HTMLElement).blur();
+    const box = conversationRef.current;
+    const focused = box?.ownerDocument.activeElement;
+    if (focused && box?.contains(focused)) (focused as HTMLElement).blur();
     return () => setBehindPanel(false);
-  }, [conversationHidden, setBehindPanel]);
+  }, [behindPanel, setBehindPanel]);
 
   const onThreadLoadError = useRoomThreadRouteGuards({
     eventId,
@@ -629,7 +629,7 @@ function RoomContent() {
           ref={conversationRef}
           grow="Yes"
           direction="Column"
-          style={conversationHidden ? HIDDEN_CONVERSATION_STYLE : CONVERSATION_STYLE}
+          style={behindPanel ? HIDDEN_CONVERSATION_STYLE : CONVERSATION_STYLE}
         >
           <RoomMessageAnnouncer room={room} threadId={routedThreadId} myUserId={ownUserId} />
           <RoomView
