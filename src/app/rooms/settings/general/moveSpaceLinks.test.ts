@@ -7,6 +7,9 @@ type Content = Record<string, unknown>;
 
 type FakeRoom = ReturnType<typeof fakeStateRoom>;
 
+/** A restricted room's allow condition for the members of `roomId`. */
+const member = (roomId: string) => ({ type: 'm.room_membership', room_id: roomId });
+
 const fakeClient = (
   rooms: Record<string, FakeRoom>,
   send: (
@@ -90,7 +93,6 @@ describe('moveSpaceLinks', () => {
 
   it("admits the new room's members to a restricted sub-room, besides the old room's", async () => {
     const parent = { '!old': { via: ['s'], canonical: true } };
-    const member = (roomId: string) => ({ type: 'm.room_membership', room_id: roomId });
     const { client, sendStateEvent } = fakeClient({
       '!old': fakeStateRoom({
         'm.space.child': {
@@ -157,12 +159,7 @@ describe('moveSpaceLinks', () => {
         '!old': fakeStateRoom({ 'm.space.child': { '!sub': { via: ['s'] } } }),
         '!sub': fakeStateRoom({
           'm.space.parent': { '!old': { via: ['s'], canonical: true } },
-          'm.room.join_rules': {
-            '': {
-              join_rule: 'restricted',
-              allow: [{ type: 'm.room_membership', room_id: '!old' }],
-            },
-          },
+          'm.room.join_rules': { '': { join_rule: 'restricted', allow: [member('!old')] } },
         }),
       },
       (_roomId, type) =>
