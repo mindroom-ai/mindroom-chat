@@ -132,7 +132,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   const total = threadId === null ? Math.max(roomTotal, jobs.length) : jobs.length;
   const model = presentBackgroundJobs(jobs, (jobId) => sent.has(jobId), t, total);
   if (!model) return null;
-  const stoppable = model.items.filter((item) => !item.stopping);
+  const stoppable = model.items.filter((item) => !item.stopping && !item.finished);
   // A failure shows in its own view while its job is listed and no cancel reached it, here or elsewhere.
   const shownFailures = [
     ...new Set(
@@ -169,9 +169,10 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
     );
   };
   // Stop and Stop all are text on the bar's own material: no control adds a fill, rim or border.
-  // A row's Stop is regular weight, under the bar's own Stop or Stop all.
+  // A row's Stop is regular weight, under the bar's own Stop or Stop all. A finished job has none.
   const stop = (item: BackgroundJobsBarItem, inRow: boolean) =>
-    item.stopping ? (
+    !item.finished &&
+    (item.stopping ? (
       <Text as="span" size="T200" className={css.Stopping}>
         {t('mindroomUi.backgroundJobs.stopping')}
       </Text>
@@ -193,12 +194,13 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
           <Text size={inRow ? 'T200' : 'B300'}>{t('mindroomUi.backgroundJobs.stop')}</Text>
         </Chip>
       )
-    );
+    ));
   const [single] = model.items;
+  const finished = model.items.every((item) => item.finished);
   // Only the title text is live, so a change is announced once, not with the button around it.
   const status = (
     <>
-      <Icon src={Icons.Clock} size="50" aria-hidden />
+      <Icon src={finished ? Icons.Check : Icons.Clock} size="50" aria-hidden />
       <Text as="span" size="T200" truncate role="status" title={model.title}>
         {model.title}
       </Text>

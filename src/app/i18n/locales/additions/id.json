@@ -558,7 +558,9 @@
       }
     },
     "backgroundJobs": {
-      "jobCountShowing": "{{count}} tugas latar belakang (menampilkan {{shown}})"
+      "jobCountShowing": "{{count}} tugas latar belakang (menampilkan {{shown}})",
+      "finished": "Selesai: {{tool}}",
+      "jobCountFinished": "{{count}} tugas latar belakang selesai"
     }
   },
   "composer": {
