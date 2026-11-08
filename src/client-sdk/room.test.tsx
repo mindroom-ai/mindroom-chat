@@ -220,6 +220,7 @@ describe('useRoomNavigate', () => {
 describe('useOpenUserProfile and UserProfileCard', () => {
   const ME = '@ada:example.org';
   const BOB = '@bob:example.org';
+  const CAROL = '@carol:example.org';
   // The rectangle of what a plugin's user clicked, as `getBoundingClientRect()` gives it.
   const ANCHOR = { x: 100, y: 200, width: 50, height: 20 };
 
@@ -235,14 +236,15 @@ describe('useOpenUserProfile and UserProfileCard', () => {
     vi.restoreAllMocks();
   });
 
-  /** A client signed in as Ada, who shares the room with Bob. */
+  /** A client signed in as Ada, who moderates the room she shares with Bob and Carol. */
   const signedIn = () => {
     const account = createClient({ baseUrl: 'https://example.org', userId: ME });
     const room = new Room(ROOM, account, ME);
-    room.currentState.setStateEvents(
-      [
+    room.currentState.setStateEvents([
+      ...[
         [ME, 'Ada'],
         [BOB, 'Bob Builder'],
+        [CAROL, 'Carol'],
       ].map(
         ([member, displayname]) =>
           new MatrixEvent({
@@ -252,8 +254,15 @@ describe('useOpenUserProfile and UserProfileCard', () => {
             state_key: member,
             content: { membership: KnownMembership.Join, displayname },
           })
-      )
-    );
+      ),
+      new MatrixEvent({
+        type: 'm.room.power_levels',
+        room_id: ROOM,
+        sender: ME,
+        state_key: '',
+        content: { users: { [ME]: 100 } },
+      }),
+    ]);
     account.store.storeRoom(room);
     return { account, room };
   };
@@ -274,17 +283,17 @@ describe('useOpenUserProfile and UserProfileCard', () => {
   }
 
   /** `ui` in the app, signed in to `account`, with the app's floating profile card. */
-  const renderInApp = (account: MatrixClient, ui: ReactNode) =>
-    render(
-      <StoreProvider>
-        <MatrixClientProvider value={account}>
-          <MemoryRouter>
-            {ui}
-            <UserRoomProfileRenderer />
-          </MemoryRouter>
-        </MatrixClientProvider>
-      </StoreProvider>
-    );
+  const inApp = (account: MatrixClient, ui: ReactNode) => (
+    <StoreProvider>
+      <MatrixClientProvider value={account}>
+        <MemoryRouter>
+          {ui}
+          <UserRoomProfileRenderer />
+        </MemoryRouter>
+      </MatrixClientProvider>
+    </StoreProvider>
+  );
+  const renderInApp = (account: MatrixClient, ui: ReactNode) => render(inApp(account, ui));
 
   it("opens the app's floating card of the person in the room at the anchor, which Escape closes", () => {
     const { account } = signedIn();
@@ -320,5 +329,21 @@ describe('useOpenUserProfile and UserProfileCard', () => {
     expect(screen.getByRole('heading', { name: 'Ada' })).toBeTruthy();
     expect(screen.getByText(ME)).toBeTruthy();
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('starts afresh for another person, so a ban begun for one never goes to the next', () => {
+    const { account, room } = signedIn();
+    const card = (userId: string) => (
+      <UserProfileCard room={room} userId={userId} onDone={() => undefined} />
+    );
+    const view = renderInApp(account, card(BOB));
+    fireEvent.click(screen.getByRole('button', { name: 'Ban' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Reason (Optional)' }), {
+      target: { value: 'Spam' },
+    });
+
+    view.rerender(inApp(account, card(CAROL)));
+    expect(screen.getByRole('heading', { name: 'Carol' })).toBeTruthy();
+    expect(screen.queryByRole('textbox', { name: 'Reason (Optional)' })).toBeNull();
   });
 });
