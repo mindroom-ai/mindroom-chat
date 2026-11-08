@@ -4,6 +4,7 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getSettings, settingsAtom } from '../preferences/settings';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
+import { edgeSwipeBackCountAtom } from '../navigation/useEdgeSwipeBack';
 import type { RoomViewMode } from '../navigation/roomViewMode';
 import { createDefaultThreadFilterState } from '../event-store/threads/roomThreadOverviewModel';
 import { Icons } from 'folds';
@@ -291,9 +292,15 @@ describe("a phone's room header", () => {
     });
   };
 
-  it('leaves the room on a swipe from the left edge, as its back chevron does', () => {
+  it("leaves a phone's swipe from the left edge to the navigation drawer, staying in the room", () => {
     screen.size = 'Mobile';
-    renderHeader();
+    const store = renderHeader();
+    // No back swipe of the room's own, so the drawer's swipe brings it out (PhoneNavDrawer).
+    expect(store.get(edgeSwipeBackCountAtom)).toBe(0);
+    swipeFromLeftEdge();
+    expect(navigate).not.toHaveBeenCalled();
+
+    // The back chevron still leaves the room.
     const [back] =
       renderer?.root.findAll(
         (node) => node.type === 'button' && node.props['aria-label'] === 'Back'
@@ -302,12 +309,7 @@ describe("a phone's room header", () => {
     act(() => {
       back.props.onClick();
     });
-    const chevron = navigate.mock.calls;
-    expect(chevron).toHaveLength(1);
-    navigate.mockReset();
-
-    swipeFromLeftEdge();
-    expect(navigate.mock.calls).toEqual(chevron);
+    expect(navigate).toHaveBeenCalledOnce();
   });
 
   it('leaves a swipe to an open thread, and does nothing on a wider screen', () => {
