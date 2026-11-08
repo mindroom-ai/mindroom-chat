@@ -72,6 +72,7 @@ const resumeCall = async (
       agentUserId: record.agentUserId,
       origin: record.origin,
       microphone,
+      video: record.camera,
       devices,
     });
     return;

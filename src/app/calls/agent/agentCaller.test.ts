@@ -53,6 +53,14 @@ describe('startAgentCall', () => {
     });
     expect(cleanupMindroomAgentCall).toHaveBeenCalledWith(mx, room);
   });
+
+  it('starts with the camera on when asked, as a call taken up after a reload', async () => {
+    const startCall = vi.fn(async () => 'started' as const);
+
+    await startAgentCall(mx, startCall, { ...target, video: true });
+
+    expect(startCall).toHaveBeenCalledWith(expect.objectContaining({ video: true }));
+  });
 });
 
 describe('startAgentCall in an encrypted conversation', () => {
