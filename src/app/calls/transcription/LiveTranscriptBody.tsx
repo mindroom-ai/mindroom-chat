@@ -128,6 +128,11 @@ type BodyProps = {
   className: string;
   /** Who is in the call shows too (the window's stage shows them already). */
   members?: boolean;
+  /**
+   * Names the scrolling box and makes it a stop for Tab, so it takes the focus and the keys that
+   * scroll it (the window, where the call's row hands it the focus); the side panel names itself.
+   */
+  label?: string;
 };
 
 /**
@@ -135,7 +140,7 @@ type BodyProps = {
  * line saying the call is transcribed, who is in it, and what each person said under their name,
  * with the gaps; or why there is nothing to show. It scrolls, newest at the bottom.
  */
-export function LiveTranscriptBody({ room, view, className, members = true }: BodyProps) {
+export function LiveTranscriptBody({ room, view, className, members = true, label }: BodyProps) {
   const { t } = useTranslation();
   const { state, live } = view;
   const call = live?.call;
@@ -194,9 +199,14 @@ export function LiveTranscriptBody({ room, view, className, members = true }: Bo
   }
 
   return (
+    // A named box that scrolls is a stop for Tab, as browsers make one without a name.
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
     <div
       ref={bodyRef}
       className={className}
+      role={label ? 'group' : undefined}
+      aria-label={label}
+      tabIndex={label ? 0 : undefined}
       onScroll={({ currentTarget: body }) => {
         // The scroll that kept the end says nothing of the reader, and comes a frame late: a box
         // that shrank since would no longer seem to be at its end.

@@ -1144,7 +1144,7 @@ describe('the live transcript in the window', () => {
     renderInWindow();
     expect(transcript()).not.toBeNull();
     expect(screen.getAllByRole('region')).toEqual([screen.getByTestId('call-window')]);
-    expect(screen.getByRole('group', { name: 'Live transcript' })).toBe(transcript());
+    expect(screen.getByRole('group', { name: 'Live transcript' })).toBe(transcript()?.firstChild);
   });
 
   it("hides with its switch, leaving the room's side transcript alone", () => {

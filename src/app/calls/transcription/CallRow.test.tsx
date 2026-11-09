@@ -419,10 +419,12 @@ describe('CallRow', () => {
     renderBesideWindow(store, { width: 400, height: 480 });
 
     press(button('Transcript'));
-    const pane = document.querySelector('[data-call-window-transcript]');
-    expect(document.activeElement).toBe(pane);
-    expect(pane?.getAttribute('role')).toBe('group');
-    expect(pane?.getAttribute('aria-label')).toBe('Live transcript');
+    // The transcript's scroll box, named, which the keys then scroll.
+    const box = document.querySelector('[data-call-window-transcript] > div');
+    expect(document.activeElement).toBe(box);
+    expect(box?.getAttribute('role')).toBe('group');
+    expect(box?.getAttribute('aria-label')).toBe('Live transcript');
+    expect(box?.getAttribute('tabindex')).toBe('0');
   });
 
   it('hands the focus to the window transcript once its call view shows, if it is still there', () => {
@@ -433,7 +435,9 @@ describe('CallRow', () => {
     press(transcript);
     expect(document.activeElement).toBe(transcript);
     renderBesideWindow(store, { width: 400, height: 480 });
-    expect(document.activeElement).toBe(document.querySelector('[data-call-window-transcript]'));
+    expect(document.activeElement).toBe(
+      document.querySelector('[data-call-window-transcript] > div')
+    );
 
     // Focus the person moved on meanwhile stays where they put it.
     renderBesideWindow(store);

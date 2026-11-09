@@ -178,8 +178,8 @@ type TranscriptProps = {
 /**
  * The transcript beside or under the stage, at `grow` of the body. Too short a window shows only
  * its latest line as a subtitle, and the transcript stays out of sight for screen readers, whose
- * log announces new lines as it does in every other layout. It is a named group, which says what
- * it is when it takes the focus; the window is the call view's one landmark.
+ * log announces new lines as it does in every other layout. Its scroll box is a named group, which
+ * says what it is when it takes the focus; the window is the call view's one landmark.
  */
 function Transcript({ room, layout, grow, paneRef }: TranscriptProps) {
   const { t } = useTranslation();
@@ -201,12 +201,15 @@ function Transcript({ room, layout, grow, paneRef }: TranscriptProps) {
         ref={paneRef}
         className={subtitle ? css.PaneUnseen : css.Pane}
         style={grow === undefined ? undefined : { flexGrow: grow }}
-        role="group"
-        aria-label={t('featureUi.calls.transcription.liveTranscript')}
-        tabIndex={-1}
         data-call-window-transcript=""
       >
-        <LiveTranscriptBody room={room} view={view} className={css.PaneBody} members={false} />
+        <LiveTranscriptBody
+          room={room}
+          view={view}
+          className={css.PaneBody}
+          members={false}
+          label={t('featureUi.calls.transcription.liveTranscript')}
+        />
       </div>
       {subtitle && <Subtitle room={room} line={lines[lines.length - 1]} />}
     </>
@@ -236,7 +239,8 @@ export function WindowTranscript({ room, children }: { room: Room; children: Rea
   const paneRef = useRef<HTMLDivElement>(null);
   useFocusHandOff(layout ? 'transcript' : undefined, () => {
     if (layout === 'subtitle') focusWindowHandle();
-    else paneRef.current?.focus();
+    // The pane holds only the transcript's scroll box, which takes the focus and the keys.
+    else (paneRef.current?.firstElementChild as HTMLElement | null)?.focus();
   });
   const [split, setSplit] = useAtom(getCallWindowSplitAtom(userId));
   const [dragged, setDragged] = useState<number>();
