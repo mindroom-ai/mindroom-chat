@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, renderHook, waitFor } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
-import type { ReactNode } from 'react';
+import { type ComponentType, type ReactNode, useLayoutEffect, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider } from '../app/config/useClientConfig';
 import {
@@ -11,6 +11,7 @@ import {
 import { withReasoning } from '../app/messages/agent-run/Reasoning';
 import { LIVE_REASONING_KEY } from '../app/messages/live/useLiveReplyContent';
 import { pdfFrameUrl as appPdfFrameUrl } from '../app/messages/viewers/pdfFrame';
+import { PluginSidePanel } from '../app/room/PluginSidePanel';
 import { applyAppTheme } from '../app/theme/appliedTheme';
 import { DarkTheme, LightTheme } from '../app/theme/useTheme';
 import { Dialog, Header, IconButton, Menu } from '../app/ui/glass/GlassPrimitives';
@@ -18,14 +19,21 @@ import { PopOut } from '../app/ui/directional';
 import { IconTooltip } from '../app/ui/IconTooltip';
 import { MenuEntry, MenuGroup } from '../app/ui/MenuEntry';
 import { NavButton, NavItem, NavItemContent } from '../app/ui/nav/NavItem';
+import {
+  animatePanel as appAnimatePanel,
+  usePanelPresence as appUsePanelPresence,
+  usePanelSlot,
+} from '../app/ui/panels/panelPresence';
 import * as ui from './ui';
 import {
   pdfFrameUrl,
   replaceMatrixUserIdsWithDisplayNames,
   sanitizeHtml,
   useMarkdownHtml,
+  usePanelPresence,
   useScreenSize,
   useThemeKind,
+  type PanelPresence,
 } from './ui';
 
 // The test setup stands folds' plain components in for the glass ones; compare the real modules.
@@ -50,8 +58,11 @@ describe('@mindroom/client-sdk/ui', () => {
     };
     const text = ['replaceMatrixUserIdsWithDisplayNames', 'sanitizeHtml', 'useMarkdownHtml'];
     const ownSurface = ['pdfFrameUrl', 'useScreenSize', 'useThemeKind'];
+    const panelMotion = ['animatePanel', 'usePanelPresence'];
     // The SDK only grows: a name a plugin imports never goes.
-    expect(Object.keys(ui).sort()).toEqual([...Object.keys(app), ...text, ...ownSurface].sort());
+    expect(Object.keys(ui).sort()).toEqual(
+      [...Object.keys(app), ...text, ...ownSurface, ...panelMotion].sort()
+    );
     Object.entries(app).forEach(([name, component]) => {
       expect(ui[name as keyof typeof ui], name).toBe(component);
     });
@@ -253,4 +264,83 @@ describe('pdfFrameUrl', () => {
       expect(pdfFrameUrl(url)).toBeUndefined();
     }
   );
+});
+
+describe('usePanelPresence', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /** The panel's place as it last rendered, and what makes it fail. */
+  let place: PanelPresence | undefined;
+  let fail: (() => void) | undefined;
+
+  /** An own-frame panel that moves: it registers with its place. */
+  function MovingCard() {
+    const presence = usePanelPresence();
+    const [failed, setFailed] = useState(false);
+    place = presence;
+    fail = () => setFailed(true);
+    const register = presence?.register;
+    useLayoutEffect(() => register?.(), [register]);
+    if (failed) throw new Error('Example card failed');
+    return <p>Example card</p>;
+  }
+
+  /** The room's panel place holding a plugin's panel with `frame: 'own'`, as the room renders it. */
+  const renderPlace = (Component: ComponentType<{ roomId: string }>) => {
+    place = undefined;
+    const panel = { id: 'example/card', tag: 'example@1.0.0', label: 'Card', Component };
+    function Place({ open }: { open: boolean }) {
+      const card = (
+        <PluginSidePanel
+          key="card"
+          panel={{ ...panel, frame: 'own' }}
+          roomId="!lobby:example.org"
+          request={undefined}
+          onClose={() => undefined}
+        />
+      );
+      return <>{usePanelSlot(open ? card : undefined)}</>;
+    }
+    const view = render(<Place open={false} />);
+    return { ...view, setOpen: (open: boolean) => view.rerender(<Place open={open} />) };
+  };
+
+  it("is the app's own, which the room's panels move with", () => {
+    expect(usePanelPresence).toBe(appUsePanelPresence);
+    expect(ui.animatePanel).toBe(appAnimatePanel);
+  });
+
+  it('tells an own-frame panel that registers that it opens and closes, and keeps it until done', () => {
+    const { container, setOpen } = renderPlace(MovingCard);
+    setOpen(true);
+    expect(place?.phase).toBe('enter');
+    setOpen(false);
+    expect(place?.phase).toBe('exit');
+    expect(container.textContent).toBe('Example card');
+    act(() => place?.done());
+    expect(container.textContent).toBe('');
+  });
+
+  it('removes an own-frame panel that does not register at once, as without motion', () => {
+    const { container, setOpen } = renderPlace(() => <p>Example card</p>);
+    setOpen(true);
+    expect(container.textContent).toBe('Example card');
+    setOpen(false);
+    expect(container.textContent).toBe('');
+  });
+
+  it('empties the place when the panel fails as it moves out, and opens it again', () => {
+    // React and the panel's boundary log the failure.
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { container, setOpen } = renderPlace(MovingCard);
+    setOpen(true);
+    setOpen(false);
+    act(() => fail?.());
+    expect(container.textContent).toBe('');
+    setOpen(true);
+    expect(container.textContent).toBe('Example card');
+    expect(place?.phase).toBe('enter');
+  });
 });
