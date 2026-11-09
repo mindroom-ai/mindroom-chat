@@ -3,21 +3,27 @@ import { shortViewport } from '../ui/styles/shortViewport';
 import { color, config, toRem } from 'folds';
 
 const stripHeight = toRem(28);
-// What the row keeps below it of a bottom safe area: the home indicator's 13 px and a gap.
+// What the row keeps below it of the bottom safe area: the home indicator's 13 px and a gap.
 const homeIndicatorClearance = '14px';
 
 // The row under the composer. It keeps its height while empty, so the composer never moves
-// when someone starts or stops following. Above a home indicator it reaches into the bottom safe
-// area, which the footer keeps below it, down to 14 px above the screen's edge, so the composer
-// sits lower without the names meeting the indicator.
+// when someone starts or stops following. Above an iPhone's or iPad's home indicator it reaches
+// into the bottom safe area, which the footer keeps below it, down to 14 px above the screen's
+// edge, so the composer sits lower without the names meeting the indicator. Elsewhere that area
+// holds system buttons (Android's navigation bar), so the row stays above it.
 export const FollowingStrip = style({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'flex-end',
   minBlockSize: stripHeight,
-  marginBlockEnd: `calc(-1 * clamp(0px, env(safe-area-inset-bottom, 0px) - ${homeIndicatorClearance}, ${stripHeight}))`,
   paddingInline: config.space.S400,
   minWidth: 0,
+  // Only iOS WebKit has the property.
+  '@supports': {
+    '(-webkit-touch-callout: none)': {
+      marginBlockEnd: `calc(-1 * clamp(0px, env(safe-area-inset-bottom, 0px) - ${homeIndicatorClearance}, ${stripHeight}))`,
+    },
+  },
   // Short landscape phones give the row's height to the messages (after the display above).
   '@media': { [shortViewport]: { display: 'none' } },
 });
