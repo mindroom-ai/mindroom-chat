@@ -88,19 +88,21 @@ const request = async <T>(sessions: ClientSessions, path: string, init?: Request
   return body as T;
 };
 
+/** The `MindroomServer` at `apiUrl`, over the account's one session there. */
+const serverAt = (mx: MatrixClient, apiUrl: string, discovered: boolean): MindroomServer => {
+  const sessions = clientSessions(mx, apiUrl, discovered);
+  return {
+    origin: apiUrl,
+    request: <T>(path: string, init?: RequestInit) => request<T>(sessions, path, init),
+    send: (path, init) => sessions.send(path, init),
+    openSocket: (path) => sessions.openSocket(path),
+    token: (options) => sessions.token(options),
+  };
+};
+
 /** The `MindroomServer` at `apiUrl`, or undefined without one. */
 const useServer = (mx: MatrixClient, apiUrl: string | undefined, discovered: boolean) =>
-  useMemo((): MindroomServer | undefined => {
-    if (!apiUrl) return undefined;
-    const sessions = clientSessions(mx, apiUrl, discovered);
-    return {
-      origin: apiUrl,
-      request: <T>(path: string, init?: RequestInit) => request<T>(sessions, path, init),
-      send: (path, init) => sessions.send(path, init),
-      openSocket: (path) => sessions.openSocket(path),
-      token: (options) => sessions.token(options),
-    };
-  }, [apiUrl, discovered, mx]);
+  useMemo(() => (apiUrl ? serverAt(mx, apiUrl, discovered) : undefined), [apiUrl, discovered, mx]);
 
 /**
  * The MindRoom server of the room `roomId`, by the rule call transcripts use: the one the room's
@@ -141,6 +143,14 @@ export type RoomComputer = {
   userId: string;
   /** The agent's name in the room, or its user ID without one. */
   name: string;
+  /**
+   * The agent's own MindRoom server, the one `openSession` signs in to: the server the agent
+   * published, with a session for a token bound to it, else the computer server set for every
+   * agent. In a room whose agents publish different servers, it is the one for this agent's
+   * routes and websockets, where `useMindroomServer` gives one server for the whole room. It
+   * shares the account's one session with that server.
+   */
+  server: MindroomServer;
   /**
    * Opens a session on the agent's computer as the room's computer panel does, once: a sign-in
    * token for the computer's server, then a session for this room and agent, which starts in
@@ -205,6 +215,7 @@ export const useRoomComputers = (roomId: string): RoomComputer[] => {
         ? agents.map((agent) => ({
             userId: agent.userId,
             name: agent.name,
+            server: serverAt(mx, agent.serverUrl ?? apiUrl, agent.serverUrl !== undefined),
             openSession: (signal?: AbortSignal) => openSession(mx, roomId, agent, apiUrl, signal),
           }))
         : [],

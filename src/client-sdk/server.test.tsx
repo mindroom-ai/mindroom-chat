@@ -494,10 +494,10 @@ describe('useRoomComputers', () => {
       { userId: AGENT.userId, name: AGENT.userId },
       { userId: HELPER.userId, name: 'Helper' },
     ]);
-    // Which server each runs on stays inside the SDK.
     expect(Object.keys(computerOf(found, HELPER.userId)).sort()).toEqual([
       'name',
       'openSession',
+      'server',
       'userId',
     ]);
   });
@@ -538,6 +538,82 @@ describe('useRoomComputers', () => {
       room_id: ROOM_ID,
       agent_user_id: CODER.userId,
     });
+  });
+
+  it('gives each agent the server it published, where requests and sockets go with a session bound to it', async () => {
+    const answers = fakeFetch();
+    const sockets: { url: string; protocols: unknown }[] = [];
+    vi.stubGlobal(
+      'WebSocket',
+      class extends EventTarget {
+        constructor(url: string | URL, protocols?: string | string[]) {
+          super();
+          sockets.push({ url: String(url), protocols });
+        }
+      }
+    );
+    const coderServer = 'https://coder.example.org';
+    state.servers = [
+      { agentUserId: HELPER.userId, apiUrl: PUBLISHED, computer: true, ts: 2 },
+      { agentUserId: CODER.userId, apiUrl: coderServer, computer: true, ts: 1 },
+    ];
+    const found = computers();
+    const helper = computerOf(found, HELPER.userId).server;
+    const coder = computerOf(found, CODER.userId).server;
+
+    expect([helper.origin, coder.origin]).toEqual([PUBLISHED, coderServer]);
+    await coder.request('/api/plugins');
+    await helper.openSocket('/api/plugins/notes/live');
+
+    expect(openId.requestToken.mock.calls).toEqual([
+      [mx, coderServer, { requireBinding: true }],
+      [mx, PUBLISHED, { requireBinding: true }],
+    ]);
+    expect(answers.signInOrigins()).toEqual([coderServer, PUBLISHED]);
+    expect(answers.routes()).toEqual([`${coderServer}/api/plugins`]);
+    expect(sockets).toEqual([
+      {
+        url: 'wss://published.example.org/api/plugins/notes/live',
+        protocols: ['mindroom-session', 'mindroom-session.session-2'],
+      },
+    ]);
+  });
+
+  it('gives every agent the configured server, with an unbound session, when config.json names one', async () => {
+    const answers = fakeFetch();
+    state.servers = [
+      { agentUserId: HELPER.userId, apiUrl: PUBLISHED, computer: true, ts: 2 },
+      { agentUserId: CODER.userId, apiUrl: 'https://coder.example.org', computer: true, ts: 1 },
+    ];
+    const found = computers(DEPLOYMENT);
+
+    expect(found.map(({ server }) => server.origin)).toEqual([DEPLOYMENT, DEPLOYMENT, DEPLOYMENT]);
+    await Promise.all(found.map(({ server }) => server.request('/api/plugins')));
+
+    expect(openId.requestToken.mock.calls).toEqual([[mx, DEPLOYMENT, { requireBinding: false }]]);
+    expect(answers.signIns()).toBe(1);
+    expect(answers.routes()).toHaveLength(3);
+  });
+
+  it("shares the account's one session with each server: between agents, renders and the room's server", async () => {
+    const answers = fakeFetch();
+    state.servers = [
+      { agentUserId: HELPER.userId, apiUrl: PUBLISHED, computer: true, ts: 2 },
+      { agentUserId: CODER.userId, apiUrl: PUBLISHED, computer: true, ts: 1 },
+    ];
+    state.published = PUBLISHED;
+    const before = computerOf(computers(), HELPER.userId).server;
+
+    await Promise.all([
+      before.request('/api/plugins/notes/rooms/x/hello'),
+      computerOf(computers(), HELPER.userId).server.request('/api/plugins/notes/rooms/x/hello'),
+      computerOf(computers(), CODER.userId).server.request('/api/plugins/notes/rooms/x/hello'),
+      published().request('/api/plugins/notes/rooms/x/hello'),
+      new TranscriptionClient(clientSessions(mx, PUBLISHED, true)).live(ROOM_ID),
+    ]);
+
+    expect(answers.signIns()).toBe(1);
+    expect(answers.routes()).toHaveLength(5);
   });
 
   it('rejects with ComputerApiError and its status when the server or the homeserver refuses', async () => {
