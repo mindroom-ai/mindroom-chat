@@ -25,8 +25,11 @@ const hiddenWhen = (query: string): StyleRule => ({
 
 /** The smallest a voice stage's face gets in a short stage. */
 const FACE_MIN = 24;
-/** Even a body crowded with notices leaves the stage the smallest face's height. */
-const STAGE_MIN_HEIGHT = toRem(FACE_MIN + 2 * STAGE_PADDING);
+/**
+ * Even a body crowded with notices, or a short window over the transcript (WindowTranscript.css.ts),
+ * leaves the stage the smallest face's height.
+ */
+export const STAGE_MIN_HEIGHT = toRem(FACE_MIN + 2 * STAGE_PADDING);
 /** Speaker view's faces sit inside the tile in focus as far as that tile sits inside the stage. */
 const FACE_EDGE = toRem(STAGE_PADDING);
 /** The inset is measured from the stage, so twice as far: inside the tile in focus by as much. */
