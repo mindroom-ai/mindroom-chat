@@ -696,12 +696,13 @@ function useCardMotion(box: RefObject<HTMLElement>, moves: boolean) {
   const register = presence?.register;
   const lastWidth = presence?.lastWidth;
   useLayoutEffect(() => {
-    const element = box.current;
     const unregister = register?.();
     return () => {
       unregister?.();
-      // A panel that takes the card's place moves on from its width.
-      if (lastWidth) lastWidth.current = element?.offsetWidth;
+      // A panel that takes the card's place moves on from its width: the box on the page as it
+      // goes, which React lets go of only after this (hidden and shown again, it has a new box).
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      if (lastWidth) lastWidth.current = box.current?.offsetWidth;
     };
   }, [box, lastWidth, register]);
   const phase = presence?.phase ?? 'shown';

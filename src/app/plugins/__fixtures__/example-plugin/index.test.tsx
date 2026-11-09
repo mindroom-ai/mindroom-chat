@@ -6,7 +6,12 @@ import { act, fireEvent, waitFor } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { commandUsage, usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
+import {
+  commandUsage,
+  usePluginStorage,
+  type PanelFrame,
+  type PluginEvent,
+} from '@mindroom/client-sdk/core';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
 import type { PanelPresence } from '@mindroom/client-sdk/ui';
 import plugin from './index';
@@ -353,11 +358,13 @@ describe('example plugin', () => {
     async (_where, layout, screenSize, moves) => {
       const card = plugin.sidePanels?.find(({ id }) => id === 'card');
       if (!card) throw new Error('the example plugin has no card');
-      // jsdom lays nothing out and has no Web Animations: the card's box is 336 px wide, and its
-      // motion ends when the test says.
+      // jsdom lays nothing out and has no Web Animations: the card's box is 336 px wide on the page
+      // (none off it), and its motion ends when the test says.
       const offsetWidth = vi
         .spyOn(HTMLElement.prototype, 'offsetWidth', 'get')
-        .mockReturnValue(336);
+        .mockImplementation(function width(this: HTMLElement) {
+          return this.isConnected ? 336 : 0;
+        });
       let finish = () => {};
       const animate = vi.fn(() => ({
         playState: 'running',
@@ -381,12 +388,14 @@ describe('example plugin', () => {
       place.screenSize = screenSize;
       try {
         const ui = () => <card.Component roomId="!lobby:example.org" />;
-        const view = await renderPluginComponent(ui(), {
-          id: 'example',
-          plugin,
-          frame: { label: 'Example card', layout, setLayout: () => undefined },
-        });
+        const frame: PanelFrame = { label: 'Example card', layout, setLayout: () => undefined };
+        const view = await renderPluginComponent(ui(), { id: 'example', plugin, frame });
         expect(presence.register).toHaveBeenCalledTimes(1);
+        // Hidden and shown again, the card has a new box.
+        frame.layout = 'folded';
+        view.rerender(ui());
+        frame.layout = layout;
+        view.rerender(ui());
         place.presence = { ...presence, phase: 'exit' };
         view.rerender(ui());
         expect(animate).toHaveBeenCalledTimes(moves ? 1 : 0);
@@ -395,7 +404,7 @@ describe('example plugin', () => {
         expect(presence.done).toHaveBeenCalledTimes(1);
         view.unmount();
         expect(unregister).toHaveBeenCalledTimes(1);
-        // A panel that takes its place moves on from its width.
+        // A panel that takes its place moves on from the width of its box on the page.
         expect(presence.lastWidth.current).toBe(336);
       } finally {
         place.presence = undefined;
