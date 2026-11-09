@@ -184,24 +184,22 @@ export class ClientSessions {
     // Before a sign-in starts that no one would wait for.
     if (signal?.aborted) return Promise.reject(cancelled());
     this.session = undefined;
-    if (!this.signingIn) {
-      this.signingIn = this.signIn()
-        .then((session) => {
-          if (this.revoked) {
-            void this.sendNow(SESSIONS_PATH, { method: 'DELETE' }, session);
-            throw noAnswer('Signed out of MindRoom.');
-          }
-          this.issued.forEach((old) => {
-            if (old.expiresAt <= Date.now()) this.issued.delete(old);
-          });
-          this.issued.add(session);
-          this.session = session;
-          return session;
-        })
-        .finally(() => {
-          this.signingIn = undefined;
+    this.signingIn ??= this.signIn()
+      .then((session) => {
+        if (this.revoked) {
+          void this.sendNow(SESSIONS_PATH, { method: 'DELETE' }, session);
+          throw noAnswer('Signed out of MindRoom.');
+        }
+        this.issued.forEach((old) => {
+          if (old.expiresAt <= Date.now()) this.issued.delete(old);
         });
-    }
+        this.issued.add(session);
+        this.session = session;
+        return session;
+      })
+      .finally(() => {
+        this.signingIn = undefined;
+      });
     return untilAborted(this.signingIn, signal);
   }
 
