@@ -295,68 +295,103 @@ describe('watchRings', () => {
     stop();
   });
 
-  it('drops a ring the catch-up reads after a newer ring has rung, and never rings a declined one', async () => {
-    // The SDK is still decrypting one ring; another waits for its room key, and is declined.
-    let decrypted = () => {};
-    const late = ringIn('!a:example.org', '$late', Date.now());
-    const declinedLate = undecrypted(ringIn('!b:example.org', '$declinedLate', Date.now()));
-    const decline = new MatrixEvent({
-      type: EventType.RTCDecline,
-      room_id: '!b:example.org',
-      event_id: '$decline',
-      sender: ME,
-      origin_server_ts: Date.now(),
-      content: { 'm.relates_to': { rel_type: 'm.reference', event_id: '$declinedLate' } },
-    });
-    const { mx, deliver } = syncingClient([
-      { events: [late] },
-      { events: [declinedLate.event, decline] },
-    ]);
+  /** What `decryptEventIfNeeded` resolves only once the test calls the function it returns. */
+  const decryptingUntil = (mx: MatrixClient, slow: MatrixEvent[]) => {
+    const done = new Map<MatrixEvent, () => void>();
     vi.mocked(mx.decryptEventIfNeeded).mockImplementation((event) =>
-      event === late
+      slow.includes(event)
         ? new Promise<void>((resolve) => {
-            decrypted = resolve;
+            done.set(event, resolve);
           })
         : Promise.resolve()
     );
+    return async (event: MatrixEvent) => {
+      done.get(event)?.();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    };
+  };
+
+  it('rings for a ring sync delivered before it started once its late room key arrives', async () => {
+    const late = undecrypted(ringIn('!a:example.org', '$late', Date.now()));
+    const { mx } = syncingClient([{ events: [late.event] }]);
+    const onRing = vi.fn();
+    const stop = watchRings(mx, { onRing, onDeclined: vi.fn() });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    late.keyArrives();
+
+    expect(onRing).toHaveBeenCalledWith(expect.objectContaining({ eventId: '$late' }));
+    stop();
+  });
+
+  it('drops a ring the catch-up reads after a newer ring has rung, and never rings a declined one', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW + 10_000);
+    // The SDK is still decrypting the oldest ring; two others wait for their room keys.
+    const older = ringIn('!a:example.org', '$older', NOW);
+    const newer = ringIn('!b:example.org', '$newer', NOW + 2000);
+    const newestKeyLate = undecrypted(ringIn('!c:example.org', '$newestKeyLate', NOW + 2500));
+    const declinedKeyLate = undecrypted(ringIn('!d:example.org', '$declinedKeyLate', NOW + 3000));
+    const decline = new MatrixEvent({
+      type: EventType.RTCDecline,
+      room_id: '!d:example.org',
+      event_id: '$decline',
+      sender: ME,
+      origin_server_ts: NOW + 4000,
+      content: { 'm.relates_to': { rel_type: 'm.reference', event_id: '$declinedKeyLate' } },
+    });
+    const { mx, deliver } = syncingClient([
+      { events: [older] },
+      { events: [newer] },
+      { events: [newestKeyLate.event] },
+      { events: [declinedKeyLate.event, decline] },
+    ]);
+    const decrypted = decryptingUntil(mx, [older]);
     const heard: string[] = [];
     const stop = watchRings(mx, {
       onRing: (ring) => heard.push(`ring ${ring.eventId}`),
       onDeclined: (ringEventId) => heard.push(`declined ${ringEventId}`),
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    declinedLate.keyArrives();
-    await deliver(ringIn('!c:example.org', '$new', Date.now()));
-    decrypted();
-    await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(heard).toEqual(['declined $declinedLate', 'ring $new']);
+    declinedKeyLate.keyArrives();
+    // Older than the caught-up ring that rang: it would replace that newer ring.
+    await decrypted(older);
+    await deliver(ringIn('!e:example.org', '$live', NOW + 10_000));
+    // Newer than every caught-up ring, but read after a ring sync delivered live.
+    newestKeyLate.keyArrives();
+
+    expect(heard).toEqual(['ring $newer', 'declined $declinedKeyLate', 'ring $live']);
     stop();
   });
 
-  it('rings for a ring sync delivers whose decryption ends after a newer ring, as before', async () => {
-    let decrypted = () => {};
+  it('rings for a ring sync delivers whose decryption ends after a newer ring, as before, unless declined meanwhile', async () => {
     const older = ringIn('!a:example.org', '$older', Date.now());
+    const declined = ringIn('!b:example.org', '$declined', Date.now());
     const { mx, deliver } = syncingClient();
-    vi.mocked(mx.decryptEventIfNeeded).mockImplementation((event) =>
-      event === older
-        ? new Promise<void>((resolve) => {
-            decrypted = resolve;
-          })
-        : Promise.resolve()
-    );
+    const decrypted = decryptingUntil(mx, [older, declined]);
     const heard: string[] = [];
     const stop = watchRings(mx, {
       onRing: (ring) => heard.push(`ring ${ring.eventId}`),
-      onDeclined: vi.fn(),
+      onDeclined: (ringEventId) => heard.push(`declined ${ringEventId}`),
     });
 
     await deliver(older);
-    await deliver(ringIn('!b:example.org', '$newer', Date.now()));
-    decrypted();
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await deliver(declined);
+    await deliver(ringIn('!c:example.org', '$newer', Date.now()));
+    await deliver(
+      new MatrixEvent({
+        type: EventType.RTCDecline,
+        room_id: '!b:example.org',
+        event_id: '$decline',
+        sender: ME,
+        origin_server_ts: Date.now(),
+        content: { 'm.relates_to': { rel_type: 'm.reference', event_id: '$declined' } },
+      })
+    );
+    await decrypted(older);
+    await decrypted(declined);
 
-    expect(heard).toEqual(['ring $newer', 'ring $older']);
+    expect(heard).toEqual(['ring $newer', 'declined $declined', 'ring $older']);
     stop();
   });
 

@@ -109,10 +109,12 @@ export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void)
   const myUserId = mx.getSafeUserId();
   let stopped = false;
   const decryptions = createDecryptionWaits();
-  // A ring read after its decline (its room key came late) does not ring. Nor does one the catch-up
-  // below reads once a ring sync delivered since has rung: it would replace the newer ring.
+  // A ring read after its decline (its room key came late) does not ring. The catch-up below reads
+  // rings as their decryption ends: one older than a caught-up ring that rang, or read once a ring
+  // sync delivered since has rung, would replace a newer ring, and does not ring either.
   const declinedRings = new Set<string>();
   let liveRing = false;
+  let newestCaughtUp = Number.NEGATIVE_INFINITY;
 
   const read = (event: MatrixEvent, caughtUp: boolean) => {
     const declined = declinedRingId(event, myUserId);
@@ -122,8 +124,11 @@ export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void)
       return;
     }
     const ring = readRing(event, myUserId);
-    if (!ring || declinedRings.has(ring.eventId) || (caughtUp && liveRing)) return;
-    if (!caughtUp) liveRing = true;
+    if (!ring || declinedRings.has(ring.eventId)) return;
+    if (caughtUp) {
+      if (liveRing || event.getTs() < newestCaughtUp) return;
+      newestCaughtUp = event.getTs();
+    } else liveRing = true;
     watcher.onRing(ring);
   };
 
