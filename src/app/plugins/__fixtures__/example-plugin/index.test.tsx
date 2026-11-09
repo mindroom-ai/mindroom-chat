@@ -354,7 +354,7 @@ describe('example plugin', () => {
     ['filling the room', 'filled', 'Desktop', false],
     ['on a phone', 'beside', 'Mobile', false],
   ] as const)(
-    "registers its own-frame card with the room's panel place and closes it %s, moving it out first only beside the conversation",
+    "registers its own-frame card with the room's panel place and closes it %s, moving it out first and handing on its width only beside the conversation",
     async (_where, layout, screenSize, moves) => {
       const card = plugin.sidePanels?.find(({ id }) => id === 'card');
       if (!card) throw new Error('the example plugin has no card');
@@ -388,12 +388,14 @@ describe('example plugin', () => {
       place.screenSize = screenSize;
       try {
         const ui = () => <card.Component roomId="!lobby:example.org" />;
-        const frame: PanelFrame = { label: 'Example card', layout, setLayout: () => undefined };
+        const frame: PanelFrame = {
+          label: 'Example card',
+          layout: 'folded',
+          setLayout: () => undefined,
+        };
         const view = await renderPluginComponent(ui(), { id: 'example', plugin, frame });
         expect(presence.register).toHaveBeenCalledTimes(1);
-        // Hidden and shown again, the card has a new box.
-        frame.layout = 'folded';
-        view.rerender(ui());
+        // Shown from its tab, the card has its box, and moves if it does, only from now on.
         frame.layout = layout;
         view.rerender(ui());
         place.presence = { ...presence, phase: 'exit' };
@@ -404,13 +406,12 @@ describe('example plugin', () => {
         expect(presence.done).toHaveBeenCalledTimes(1);
         view.unmount();
         expect(unregister).toHaveBeenCalledTimes(1);
-        // A panel that takes its place moves on from the width of its box on the page.
-        expect(presence.lastWidth.current).toBe(336);
+        // A panel that takes its place moves on from the width of its box on the page, if it moved.
+        expect(presence.lastWidth.current).toBe(moves ? 336 : undefined);
       } finally {
         place.presence = undefined;
         place.screenSize = undefined;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        delete (HTMLElement.prototype as any).animate;
+        delete (HTMLElement.prototype as { animate?: unknown }).animate;
         offsetWidth.mockRestore();
       }
     }
