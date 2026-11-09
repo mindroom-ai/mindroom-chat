@@ -3,7 +3,7 @@
 // plugin's requests and opens its websockets as the signed-in user, and the computers of the room's
 // agents. Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in
 // scripts/client-plugins.mjs.
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
 import {
   ComputerApiError,
@@ -87,21 +87,30 @@ const request = async <T>(sessions: ClientSessions, path: string, init?: Request
   return body as T;
 };
 
-/** The `MindroomServer` at `apiUrl`, over the account's one session there. */
+const knownServers = new WeakMap<ClientSessions, MindroomServer>();
+
+/**
+ * The `MindroomServer` at `apiUrl`, over the account's one session there: one object for each
+ * account and server, so a plugin may key work on it.
+ */
 const serverAt = (mx: MatrixClient, apiUrl: string): MindroomServer => {
   const sessions = clientSessions(mx, apiUrl);
-  return {
+  const known = knownServers.get(sessions);
+  if (known) return known;
+  const server: MindroomServer = {
     origin: apiUrl,
     request: <T>(path: string, init?: RequestInit) => request<T>(sessions, path, init),
     send: (path, init) => sessions.send(path, init),
     openSocket: (path) => sessions.openSocket(path),
     token: (options) => sessions.token(options),
   };
+  knownServers.set(sessions, server);
+  return server;
 };
 
 /** The `MindroomServer` at `apiUrl`, or undefined without one. */
-const useServer = (mx: MatrixClient, apiUrl: string | undefined) =>
-  useMemo(() => (apiUrl ? serverAt(mx, apiUrl) : undefined), [apiUrl, mx]);
+const serverOrNone = (mx: MatrixClient, apiUrl: string | undefined) =>
+  apiUrl ? serverAt(mx, apiUrl) : undefined;
 
 /**
  * The MindRoom server of the room `roomId`, by the rule call transcripts use: the one the room's
@@ -115,7 +124,7 @@ const useServer = (mx: MatrixClient, apiUrl: string | undefined) =>
 export const useMindroomServer = (roomId: string): MindroomServer | undefined => {
   const mx = useMatrixClient();
   const { apiUrl } = useRoomMindroomServer(mx, roomId);
-  return useServer(mx, apiUrl);
+  return serverOrNone(mx, apiUrl);
 };
 
 /**
@@ -133,7 +142,7 @@ export const useMindroomServerStatus = (
 ): { server: MindroomServer | undefined; pending: boolean } => {
   const mx = useMatrixClient();
   const { apiUrl, pending } = useRoomMindroomServer(mx, roomId);
-  return { server: useServer(mx, pending ? undefined : apiUrl), pending };
+  return { server: serverOrNone(mx, pending ? undefined : apiUrl), pending };
 };
 
 /** An agent of the room with a computer, as `useRoomComputers` gives it. */
@@ -148,7 +157,8 @@ export type RoomComputer = {
    * without one, the server the agent published, with a session for a token bound to it. In a
    * room whose agents publish different servers, it is the one for this agent's routes and
    * websockets, where `useMindroomServer` gives one server for the whole room. It shares the
-   * account's session with that server with every caller that signs in there.
+   * account's session with that server with every caller that signs in there. It stays the same
+   * object while the agent's server does, so a plugin may key work on it.
    */
   server: MindroomServer;
   /**
@@ -162,7 +172,7 @@ export type RoomComputer = {
    * give a sign-in token, the server gave no answer or `signal` aborted, 403 when the homeserver
    * will not sign in there (it binds no tokens to a server the agent published), else the server's
    * refusal. Retrying, reconnecting a stream and ending a session the plugin no longer shows are
-   * the plugin's.
+   * the plugin's. It stays the same function while the agent's server and the token's binding do.
    */
   openSession: (signal?: AbortSignal) => Promise<ComputerSessionClient>;
 };
@@ -200,22 +210,33 @@ export const useRoomComputers = (roomId: string): RoomComputer[] => {
   const members = useRoomMembers(mx, roomId);
   const servers = useRoomAgentServers(mx.getRoom(roomId));
   const { agents, apiUrl } = useRoomComputer(members, servers, mx.getSafeUserId());
-  return useMemo(
-    () =>
-      // An agent the room lists always has a server: its own, or the one set for every agent.
-      apiUrl
-        ? agents.map(({ userId, name, serverUrl }) => {
-            const discovered = serverUrl !== undefined;
-            const url = serverUrl ?? apiUrl;
-            return {
+  // The last list's computers, by room, agent and binding, kept while their server is the same.
+  const known = useRef(new Map<string, RoomComputer>());
+  return useMemo(() => {
+    const before = known.current;
+    known.current = new Map();
+    // An agent the room lists always has a server: its own, or the one set for every agent.
+    if (!apiUrl) return [];
+    return agents.map(({ userId, name, serverUrl }) => {
+      const discovered = serverUrl !== undefined;
+      const url = serverUrl ?? apiUrl;
+      const server = serverAt(mx, url);
+      const key = JSON.stringify([roomId, userId, discovered]);
+      const kept = before.get(key);
+      const computer =
+        kept?.server !== server
+          ? {
               userId,
               name,
-              server: serverAt(mx, url),
+              server,
               openSession: (signal?: AbortSignal) =>
                 openSession(mx, roomId, userId, url, discovered, signal),
-            };
-          })
-        : [],
-    [agents, apiUrl, mx, roomId]
-  );
+            }
+          : kept.name === name
+          ? kept
+          : { ...kept, name };
+      known.current.set(key, computer);
+      return computer;
+    });
+  }, [agents, apiUrl, mx, roomId]);
 };

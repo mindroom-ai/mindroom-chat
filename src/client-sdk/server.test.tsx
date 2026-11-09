@@ -620,6 +620,130 @@ describe('useRoomComputers', () => {
     expect(answers.routes()).toHaveLength(5);
   });
 
+  describe('across renders', () => {
+    let deployment: string | undefined;
+    let roomId: string;
+    /** `useRoomComputers(roomId)` rendered with `deployment` in config.json, both read at each render. */
+    const rendered = () =>
+      renderHook(() => useRoomComputers(roomId), {
+        wrapper: ({ children }) => signedIn(deployment)({ children }),
+      });
+
+    beforeEach(() => {
+      deployment = undefined;
+      roomId = ROOM_ID;
+      state.servers = bothComputers();
+    });
+
+    it("keeps each agent's computer, server and openSession while no agent's server changes", () => {
+      const { result, rerender } = rendered();
+      const before = result.current;
+      expect(before).toHaveLength(2);
+
+      // Another member renames themselves, then a third one joins.
+      state.members = state.members.map((member) =>
+        member.userId === '@ann:example.org' ? { ...member, name: 'Ann' } : member
+      );
+      rerender();
+      state.members = [...state.members, { userId: '@bob:example.org', membership: 'join' }];
+      rerender();
+
+      expect(result.current).not.toBe(before);
+      result.current.forEach((computer, index) => expect(computer).toBe(before[index]));
+    });
+
+    it("keeps an agent's server and openSession when only its name changes", () => {
+      const { result, rerender } = rendered();
+      const before = computerOf(result.current, CODER.userId);
+
+      state.members = state.members.map((member) =>
+        member.userId === CODER.userId ? { ...member, name: 'Coder 2' } : member
+      );
+      rerender();
+
+      const after = computerOf(result.current, CODER.userId);
+      expect(after.name).toBe('Coder 2');
+      expect(after.server).toBe(before.server);
+      expect(after.openSession).toBe(before.openSession);
+    });
+
+    it('gives an agent that publishes another server a new server and openSession, the others theirs', async () => {
+      fakeFetch().route.mockImplementation(() => json(SESSION));
+      const { result, rerender } = rendered();
+      const helper = computerOf(result.current, HELPER.userId);
+      const coder = computerOf(result.current, CODER.userId);
+
+      state.servers = bothComputers('https://moved.example.org');
+      rerender();
+
+      expect(computerOf(result.current, HELPER.userId)).toBe(helper);
+      const moved = computerOf(result.current, CODER.userId);
+      expect(moved.server).not.toBe(coder.server);
+      expect(moved.server.origin).toBe('https://moved.example.org');
+      expect(moved.openSession).not.toBe(coder.openSession);
+      await moved.openSession();
+      expect(openId.requestToken.mock.calls).toEqual([
+        [mx, 'https://moved.example.org', { requireBinding: true }],
+      ]);
+    });
+
+    it("gives an agent whose binding changes at the same server a new openSession, with that server's session", async () => {
+      fakeFetch().route.mockImplementation(() => json(SESSION));
+      const { result, rerender } = rendered();
+      const before = computerOf(result.current, HELPER.userId);
+
+      // config.json now names the server the helper published, which signs in unbound.
+      deployment = PUBLISHED;
+      rerender();
+
+      const after = computerOf(result.current, HELPER.userId);
+      expect(after.server).toBe(before.server);
+      expect(after.openSession).not.toBe(before.openSession);
+      await after.openSession();
+      expect(openId.requestToken.mock.calls).toEqual([[mx, PUBLISHED, { requireBinding: false }]]);
+    });
+
+    it("gives an agent's computer in another room an openSession for that room, on the same server", async () => {
+      const answers = fakeFetch();
+      answers.route.mockImplementation(() => json(SESSION));
+      const { result, rerender } = rendered();
+      const before = computerOf(result.current, HELPER.userId);
+
+      roomId = '!other:example.org';
+      rerender();
+
+      const after = computerOf(result.current, HELPER.userId);
+      expect(after.server).toBe(before.server);
+      expect(after.openSession).not.toBe(before.openSession);
+      await after.openSession();
+      expect(JSON.parse(String(answers.last()?.init.body))).toMatchObject({
+        room_id: '!other:example.org',
+      });
+    });
+
+    it("keeps an agent's server when it leaves and comes back, and gives another account its own", () => {
+      const { result, rerender } = rendered();
+      const before = computerOf(result.current, HELPER.userId);
+      const members = state.members;
+
+      state.members = members.filter(({ userId }) => userId !== HELPER.userId);
+      rerender();
+      expect(result.current.map(({ userId }) => userId)).toEqual([CODER.userId]);
+      state.members = [...members];
+      rerender();
+      expect(computerOf(result.current, HELPER.userId).server).toBe(before.server);
+
+      mx = {
+        getRoom: () => null,
+        getSafeUserId: () => '@ann:example.org',
+      } as unknown as MatrixClient;
+      rerender();
+      const other = computerOf(result.current, HELPER.userId);
+      expect(other.server).not.toBe(before.server);
+      expect(other.openSession).not.toBe(before.openSession);
+    });
+  });
+
   it('rejects with ComputerApiError and its status when the server or the homeserver refuses', async () => {
     const answers = fakeFetch();
     answers.route.mockImplementation(() => json({ detail: 'Not in this room.' }, 403));
