@@ -773,7 +773,7 @@ describe('CallTranscriber microphone', () => {
     await advance();
     // Switching: the old capture takes a while to stop, and meanwhile the person mutes and leaves.
     const stopped = pending<void>();
-    t.capture().stop.mockImplementationOnce(() => stopped.promise);
+    vi.mocked(t.capture().stop).mockImplementationOnce(() => stopped.promise);
     t.transcriber.setMicrophone(MIC_B);
     await advance();
     t.transcriber.setMicrophone(undefined);
