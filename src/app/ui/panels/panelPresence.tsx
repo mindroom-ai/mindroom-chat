@@ -24,8 +24,9 @@ export type PanelPhase = 'shown' | 'enter' | 'swap' | 'exit';
 export type PanelPresence = {
   phase: PanelPhase;
   /**
-   * The closing panel has finished moving out (or does not move), so it may go. It ends only the
-   * exit it came with: one kept from an earlier exit ends none that follows.
+   * The closing panel has finished moving out (or does not move), so it may go. It ends only its
+   * own panel's exit: one kept from an earlier exit, or by a panel that has gone, ends none that
+   * follows.
    */
   done: () => void;
   /**
@@ -89,13 +90,16 @@ export function usePanelSlot(
   /** The slot of the panel closing at the last commit, until that exit ends. */
   const closingRef = useRef<Slot>();
   /**
-   * Ends the exit `exit` is the slot of, while it is the current one. Once the panel has gone, a
-   * later `done` (from its last mover as it goes, or from a motion of a panel that another took
-   * the place of, which may close in turn) changes nothing.
+   * Ends the current exit if `from` is its slot or, for a `done` kept from before the panel
+   * closed, the slot of that panel open. Once the panel has gone, a later `done` (from its last
+   * mover as it goes, or from a motion of a panel that another took the place of, which may close
+   * in turn) changes nothing.
    */
-  const end = useCallback((exit: Slot) => {
-    if (closingRef.current === exit) closingRef.current = undefined;
-    setSlot((current) => (current === exit && isClosing(current) ? { phase: 'shown' } : current));
+  const end = useCallback((from: Slot) => {
+    const ends = (current: Slot) =>
+      isClosing(current) && (current === from || current.shownKey === from.key);
+    if (closingRef.current && ends(closingRef.current)) closingRef.current = undefined;
+    setSlot((current) => (ends(current) ? { phase: 'shown' } : current));
   }, []);
   const movers = useRef(0);
   const register = useCallback(() => {

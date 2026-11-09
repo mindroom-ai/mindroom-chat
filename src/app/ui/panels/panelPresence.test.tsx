@@ -77,6 +77,23 @@ describe('usePanelSlot', () => {
     expect(shown(renderer)).toEqual([]);
   });
 
+  it("ends a panel's exit with a done it kept from before it closed", () => {
+    const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
+    const kept = presence?.done;
+    update(undefined);
+    act(() => kept?.());
+    expect(shown(renderer)).toEqual([]);
+  });
+
+  it("ends no other panel's exit with a done kept by a panel that has gone before it closed", () => {
+    const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
+    const kept = presence?.done;
+    update(<Mover key="computer" name="computer" />);
+    update(undefined);
+    act(() => kept?.());
+    expect(shown(renderer)).toEqual(['computer']);
+  });
+
   it('ends no later exit with the done of a panel that has gone', () => {
     const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
     update(undefined);
