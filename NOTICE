@@ -119,9 +119,7 @@ Capacitor native project templates
     mipmap-anydpi-v26/ic_launcher_round.xml, values/styles.xml,
     xml/file_paths.xml; ios/.gitignore, and under ios/App/:
     App.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist,
-    App/Assets.xcassets/Contents.json,
-    App/Assets.xcassets/Splash.imageset/Contents.json,
-    App/Base.lproj/LaunchScreen.storyboard.
+    App/Assets.xcassets/Contents.json.
   Changed from the templates, keeping template lines:
     android/build.gradle, android/app/build.gradle,
     android/app/src/main/AndroidManifest.xml,
@@ -129,7 +127,9 @@ Capacitor native project templates
     android/app/src/main/res/values/strings.xml, and under ios/App/:
     Podfile, App.xcodeproj/project.pbxproj, App/AppDelegate.swift,
     App/SceneDelegate.swift, App/Info.plist, App/Base.lproj/Main.storyboard,
-    App/Assets.xcassets/AppIcon.appiconset/Contents.json.
+    App/Base.lproj/LaunchScreen.storyboard,
+    App/Assets.xcassets/AppIcon.appiconset/Contents.json,
+    App/Assets.xcassets/Splash.imageset/Contents.json.
   android/gradlew and android/gradlew.bat are the Gradle wrapper scripts,
   Copyright 2015-2021 the original authors, Apache License 2.0; their
   headers are kept. The Android launcher icons and launch screens are not
