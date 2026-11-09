@@ -743,7 +743,8 @@
       "resolveThread": "Open thread oplossen of heropenen",
       "newLine": "Nieuwe regel",
       "editLast": "Je laatste bericht bewerken (in een leeg invoerveld)",
-      "inlineCode": "Inline code"
+      "inlineCode": "Inline code",
+      "callView": "Naar de oproep gaan"
     }
   },
   "thread": {

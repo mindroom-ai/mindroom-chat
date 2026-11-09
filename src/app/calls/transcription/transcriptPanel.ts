@@ -2,7 +2,11 @@ import { useCallback } from 'react';
 import { atom, useAtomValue, useStore } from 'jotai';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { callPanelRoomAtom, useActiveCall, useInCall } from '../callStore';
-import { getCallWindowTranscriptAtom, useCallViewFloats } from '../window/callWindowState';
+import {
+  focusHandOffAtom,
+  getCallWindowTranscriptAtom,
+  useCallViewFloats,
+} from '../window/callWindowState';
 import { callTranscriptionAtom } from './transcriptionState';
 
 type Store = ReturnType<typeof useStore>;
@@ -50,42 +54,14 @@ export const useTranscriptPanel = (roomId: string) => {
   return { open, close, dismiss };
 };
 
-/** Where the call view is: floating or not, and whether its window shows the room's call. */
-type CallTranscriptPlace = {
-  callFloats: boolean;
-  /** The window shows this device's call in the room, for the account `userId`. */
-  inWindow?: { userId: string; toggle: boolean };
-};
-
 /**
- * Where Transcript (in the call's controls or on its row) shows the room's live transcript. While
- * the call view floats and shows this device's call in the room (`inWindow`), the transcript
- * shows inside the window, whose call view opens: the controls toggle it (`toggle`), the row
- * opens it, and the room's side transcript closes, so one shows it. Anywhere else it opens in the
- * room's side panel, as it always did, beside a floating call view.
- */
-export const openCallTranscript = (
-  store: Store,
-  roomId: string,
-  { callFloats, inWindow }: CallTranscriptPlace
-): void => {
-  if (!inWindow) {
-    openTranscriptPanel(store, roomId, callFloats);
-    return;
-  }
-  const shown = getCallWindowTranscriptAtom(inWindow.userId);
-  const show = inWindow.toggle ? !store.get(shown) : true;
-  store.set(shown, show);
-  store.set(callPanelRoomAtom, roomId);
-  if (show) dismissTranscriptPanel(store, roomId);
-};
-
-/**
- * Transcript for the call in `roomId`: whether it shows inside the floating window (the call is
- * this device's and still on here, this device transcribes it, and its view floats), whether it
- * shows there now, and `open`, which shows it where it belongs (toggling it in the window when
- * `toggle`). The window shows only what this device's transcriber reads, so anywhere else the
- * side panel, which reads the call itself, shows it: a call that failed or ended here (its
+ * Transcript for the call in `roomId`, in the call's controls or on its row: whether it shows
+ * inside the floating window (the call is this device's and still on here, this device
+ * transcribes it, and its view floats), whether it shows there now, and `open`. There, the window's
+ * call view opens with the transcript: the controls toggle it (`toggle`), the row opens it and
+ * hands it its focus, and the room's side transcript closes, so one shows it. The window shows only
+ * what this device's transcriber reads, so anywhere else the room's side panel, which reads the
+ * call itself, shows it, beside a floating call view: a call that failed or ended here (its
  * finished view has no transcript, while the others may still talk), and one whose transcriber
  * did not load or MindRoom has not answered yet.
  */
@@ -101,11 +77,18 @@ export const useCallTranscript = (roomId: string) => {
     floats && live && transcribed && active?.kind === 'room' && active.call.room.roomId === roomId;
   const shown = useAtomValue(getCallWindowTranscriptAtom(userId));
   const open = useCallback(
-    (toggle: boolean) =>
-      openCallTranscript(store, roomId, {
-        callFloats: floats,
-        inWindow: inWindow ? { userId, toggle } : undefined,
-      }),
+    (toggle: boolean) => {
+      if (!inWindow) {
+        openTranscriptPanel(store, roomId, floats);
+        return;
+      }
+      const shownAtom = getCallWindowTranscriptAtom(userId);
+      const show = toggle ? !store.get(shownAtom) : true;
+      store.set(shownAtom, show);
+      store.set(callPanelRoomAtom, roomId);
+      if (show) dismissTranscriptPanel(store, roomId);
+      if (!toggle) store.set(focusHandOffAtom, { to: 'transcript', from: document.activeElement });
+    },
     [floats, inWindow, roomId, store, userId]
   );
   return { inWindow, shownInWindow: inWindow && shown, open };

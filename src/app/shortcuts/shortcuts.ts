@@ -58,6 +58,14 @@ const DEFINITIONS = {
     group: 'general',
     field: 'always',
   },
+  // Moves the focus to the open call view: the floating window renders after the page, so Tab
+  // reaches it last, and the docked panel sits after the conversation.
+  callView: {
+    keys: 'mod+shift+l',
+    labelKey: 'shortcuts.actions.callView',
+    group: 'general',
+    field: 'always',
+  },
   previousRoom: {
     keys: 'alt+up',
     labelKey: 'shortcuts.actions.previousRoom',

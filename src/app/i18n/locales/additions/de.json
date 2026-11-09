@@ -743,7 +743,8 @@
       "resolveThread": "Geöffneten Thread auflösen oder wieder öffnen",
       "newLine": "Neue Zeile",
       "editLast": "Letzte eigene Nachricht bearbeiten (in leerem Eingabefeld)",
-      "inlineCode": "Inline-Code"
+      "inlineCode": "Inline-Code",
+      "callView": "Zum Anruf wechseln"
     }
   },
   "thread": {
