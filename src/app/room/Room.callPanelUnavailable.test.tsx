@@ -195,6 +195,16 @@ describe('the call panel when its code cannot load', () => {
     expect(navigate.navigateRoomThread).toHaveBeenCalledWith(room.roomId, '$thread');
   });
 
+  it("docks the view of an agent call's own room into the conversation the call started from", async () => {
+    const { call } = liveCall(room.roomId);
+    const origin = { roomId: '!origin:example.org', threadId: '$thread' };
+    await renderRoomWithCallPanel({ call, kind: 'agent', origin }, 'window');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dock to the side' }));
+
+    expect(navigate.navigateRoomThread).toHaveBeenCalledWith(origin.roomId, '$thread');
+  });
+
   it("docks a room's view into the room, not into the thread of an agent call elsewhere", async () => {
     const { call } = liveCall('!agent-call:example.org');
     const origin = { roomId: '!elsewhere:example.org', threadId: '$thread' };

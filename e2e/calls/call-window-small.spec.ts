@@ -166,6 +166,13 @@ test('a call view that could not load keeps the window that moves, minimizes and
   await expect(callWindow).not.toHaveAttribute('data-bar');
   await expect(callWindow.getByRole('button', { name: 'Retry', exact: true })).toBeVisible();
 
+  // The shortcut to the call view takes the focus to the window's handle, as it does from a
+  // loaded call view.
+  await page.locator('body').click({ position: { x: 600, y: 300 } });
+  await expect(titleBar).not.toBeFocused();
+  await page.keyboard.press('Control+Shift+L');
+  await expect(titleBar).toBeFocused();
+
   // Close closes the window.
   await titleBar.getByRole('button', { name: 'Close call view', exact: true }).click();
   await expect(callWindow).toHaveCount(0);

@@ -6,7 +6,7 @@ import { useRoomName } from '../matrix/hooks/useRoomMeta';
 import { type PartLoadRetry, lazyPart } from '../lib/lazyPart';
 import { revealDirectionControls } from '../ui/directional';
 import { PartUnavailable } from '../ui/PartUnavailable';
-import { isActiveCallShownIn, useActiveCall, useCallActions } from './callStore';
+import { callHomeRoomId, isActiveCallShownIn, useActiveCall, useCallActions } from './callStore';
 import type { CallPanel } from './CallPanel';
 import { CallViewChrome } from './CallViewChrome';
 import { useCallWindowFrame } from './window/callWindowFrame';
@@ -59,10 +59,14 @@ export function CallPanelUnavailable({
     </PartUnavailable>
   );
   if (!frame) return unavailable;
-  // An agent call's view docks into the thread it started from, as the loaded view's does.
-  const threadId = callHere ? active?.origin?.threadId : undefined;
+  // The call shown here docks where the loaded view's does: an agent call into the conversation it
+  // started from.
+  const home =
+    callHere && active
+      ? { roomId: callHomeRoomId(active), threadId: active.origin?.threadId }
+      : { roomId: room.roomId };
   return (
-    <CallViewChrome title={title} onClose={onClose} home={{ roomId: room.roomId, threadId }}>
+    <CallViewChrome title={title} onClose={onClose} home={home}>
       {unavailable}
     </CallViewChrome>
   );
