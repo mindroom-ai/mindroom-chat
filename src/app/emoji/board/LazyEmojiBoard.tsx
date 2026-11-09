@@ -16,11 +16,12 @@ type BoardProps = ComponentProps<typeof EmojiBoardComponent>;
 function BoardUnavailable({
   requestClose,
   returnFocusOnDeactivate,
+  maxHeight,
   retryLoad,
 }: BoardProps & PartLoadRetry) {
   return (
     <FocusTrap focusTrapOptions={makeRetryViewTrapOptions(requestClose, returnFocusOnDeactivate)}>
-      <Box className={css.Base}>
+      <Box className={css.Base} style={{ maxHeight }}>
         <PartUnavailable retryLoad={retryLoad} />
       </Box>
     </FocusTrap>
@@ -36,7 +37,9 @@ const Board = lazyPart(
 /** The emoji and sticker picker; an empty board of its size holds its place while it loads. */
 export function EmojiBoard(props: BoardProps) {
   return (
-    <Suspense fallback={<Box className={css.Base} aria-busy />}>
+    <Suspense
+      fallback={<Box className={css.Base} style={{ maxHeight: props.maxHeight }} aria-busy />}
+    >
       <Board {...props} />
     </Suspense>
   );

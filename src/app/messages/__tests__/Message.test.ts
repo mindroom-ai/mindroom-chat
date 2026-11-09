@@ -140,6 +140,7 @@ vi.mock('folds', async () => {
       open ? createElement('div', null, children) : null,
     OverlayBackdrop: div(),
     OverlayCenter: div(),
+    Scroll: div(),
     PopOut: ({
       children,
       content,
