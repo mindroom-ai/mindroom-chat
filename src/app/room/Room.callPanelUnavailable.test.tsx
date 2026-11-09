@@ -73,20 +73,17 @@ const liveCall = (roomId: string) => {
   return { call, leave };
 };
 
-type Place = 'docked' | 'window';
-
 /**
  * The call view of `room` with `active` on: docked beside the room, or in the floating window,
  * which shows over every page (`CallWindowHost`).
  */
-const renderRoomWithCallPanel = async (active?: ActiveCall, place: Place = 'docked') => {
+const renderRoomWithCallPanel = async (active?: ActiveCall, mode: CallWindowMode = 'docked') => {
   const store = createStore();
-  const mode: CallWindowMode = place === 'docked' ? 'docked' : 'floating';
   store.set(getCallWindowSettingsAtom(mx.getSafeUserId()), { mode });
   store.set(activeCallAtom, active);
   store.set(callPanelRoomAtom, room.roomId);
   const { Room } = await import('./Room');
-  render(<Provider store={store}>{place === 'docked' ? <Room /> : <CallWindowHost />}</Provider>);
+  render(<Provider store={store}>{mode === 'docked' ? <Room /> : <CallWindowHost />}</Provider>);
   await screen.findByRole('button', { name: 'Retry' });
   return store;
 };
@@ -147,7 +144,7 @@ describe('the call panel when its code cannot load', () => {
 
   it('says so in the floating window, which ends the call and closes there too', async () => {
     const { call, leave } = liveCall(room.roomId);
-    const store = await renderRoomWithCallPanel({ call, kind: 'room' }, 'window');
+    const store = await renderRoomWithCallPanel({ call, kind: 'room' }, 'floating');
     const callWindow = screen.getByTestId('call-window');
     expect(callWindow.textContent).toContain("This couldn't load");
 
@@ -165,7 +162,7 @@ describe('the call panel when its code cannot load', () => {
 
   it("keeps the floating window's title bar, and its line with Expand when minimized", async () => {
     const { call } = liveCall(room.roomId);
-    await renderRoomWithCallPanel({ call, kind: 'room' }, 'window');
+    await renderRoomWithCallPanel({ call, kind: 'room' }, 'floating');
     const callWindow = screen.getByTestId('call-window');
     // The title bar moves the window and names it after the room.
     const titleBar = within(callWindow).getByRole('group', { name: 'Move call window' });
@@ -187,7 +184,7 @@ describe('the call panel when its code cannot load', () => {
   it("docks an agent call's view into the thread the call started from", async () => {
     const { call } = liveCall('!agent-call:example.org');
     const origin = { roomId: room.roomId, threadId: '$thread' };
-    const store = await renderRoomWithCallPanel({ call, kind: 'agent', origin }, 'window');
+    const store = await renderRoomWithCallPanel({ call, kind: 'agent', origin }, 'floating');
 
     fireEvent.click(screen.getByRole('button', { name: 'Dock to the side' }));
 
@@ -198,7 +195,7 @@ describe('the call panel when its code cannot load', () => {
   it("docks the view of an agent call's own room into the conversation the call started from", async () => {
     const { call } = liveCall(room.roomId);
     const origin = { roomId: '!origin:example.org', threadId: '$thread' };
-    await renderRoomWithCallPanel({ call, kind: 'agent', origin }, 'window');
+    await renderRoomWithCallPanel({ call, kind: 'agent', origin }, 'floating');
 
     fireEvent.click(screen.getByRole('button', { name: 'Dock to the side' }));
 
@@ -208,7 +205,7 @@ describe('the call panel when its code cannot load', () => {
   it("docks a room's view into the room, not into the thread of an agent call elsewhere", async () => {
     const { call } = liveCall('!agent-call:example.org');
     const origin = { roomId: '!elsewhere:example.org', threadId: '$thread' };
-    await renderRoomWithCallPanel({ call, kind: 'agent', origin }, 'window');
+    await renderRoomWithCallPanel({ call, kind: 'agent', origin }, 'floating');
 
     fireEvent.click(screen.getByRole('button', { name: 'Dock to the side' }));
 
