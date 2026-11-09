@@ -352,6 +352,22 @@ describe('ClientSessions.token', () => {
     await store.revoke();
     expect(server.routes()).toEqual([`DELETE ${API_URL}/api/client-sessions Bearer session-2`]);
   });
+
+  it('refuses a signal that already aborted without signing in, and gives a held session', async () => {
+    const server = fakeServer();
+    const getOpenIdToken = vi.fn(async () => TOKEN);
+    const store = new ClientSessions({ apiUrl: API_URL, getOpenIdToken, request: server.request });
+
+    await expect(store.token({ signal: AbortSignal.abort() })).rejects.toMatchObject({
+      status: 0,
+    });
+    expect(getOpenIdToken).not.toHaveBeenCalled();
+    expect(server.sent).toEqual([]);
+
+    await expect(store.token()).resolves.toBe('session-1');
+    await expect(store.token({ signal: AbortSignal.abort() })).resolves.toBe('session-1');
+    expect(server.signIns()).toBe(1);
+  });
 });
 
 describe('ClientSessions.openSocket', () => {

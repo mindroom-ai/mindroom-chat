@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAtom, useSetAtom } from 'jotai';
+import { useSetAtom } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { Icon, IconButton, Icons, Text, type IconSrc } from 'folds';
 import classNames from 'classnames';
@@ -11,12 +11,13 @@ import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { getViewedPlace } from '../navigation/viewedPlace';
 import { IconTooltip } from '../ui/IconTooltip';
 import { ExpandIcon } from '../ui/panels/panelIcons';
+import { useShortcut } from '../shortcuts/useShortcut';
 import type { CallParticipant } from './RoomCall';
 import { callPanelRoomAtom, type CallOrigin } from './callStore';
 import { CallMemberAvatar, useCallMemberProfile } from './CallTile';
 import { byPerson } from './stageLayout';
 import { useCallWindowFrame } from './window/callWindowFrame';
-import { focusHandOffAtom, useCallWindowMode } from './window/callWindowState';
+import { focusHandOffAtom, useCallWindowMode, useFocusHandOff } from './window/callWindowState';
 import { DockIcon, FloatIcon } from './window/windowIcons';
 import * as css from './CallPanel.css';
 
@@ -211,17 +212,17 @@ export function CallViewChrome(props: CallViewChromeProps) {
     handleRef.current?.focus();
   }, [inBar]);
 
-  // The view Dock, Float or the rail's call button asked for takes the focus their button had,
-  // unless something else took it meanwhile: when it mounts, or at once when it shows already.
-  const [handOff, setHandOff] = useAtom(focusHandOffAtom);
-  const place = frame ? 'window' : 'panel';
-  useEffect(() => {
-    if (handOff?.to !== place) return;
-    setHandOff(undefined);
-    const focused = document.activeElement;
-    if (focused && focused !== document.body && focused !== handOff.from) return;
-    (place === 'window' ? handleRef : titleRef).current?.focus();
-  }, [handOff, place, setHandOff]);
+  // The view Dock, Float or the rail's call button asked for takes the focus their button had, and
+  // the shortcut to the call view takes it there too: the window's handle, or the docked panel's
+  // title. A panel folded to its tab shows nothing to focus, so the key stays the browser's.
+  const focusTarget = frame ? handleRef : titleRef;
+  useFocusHandOff(frame ? 'window' : 'panel', () => focusTarget.current?.focus());
+  useShortcut('callView', () => {
+    const target = focusTarget.current;
+    if (!target) return false;
+    target.focus();
+    return document.activeElement === target;
+  });
 
   return (
     <Shell

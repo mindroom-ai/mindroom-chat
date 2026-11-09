@@ -227,15 +227,17 @@ test("two people in a call are transcribed under their names, Pause leaves a gap
 
     // For the tester the row has both in the call and no Join for the call this device is in. The
     // call view floats, so the row's Transcript shows the live transcript inside the call window,
-    // under the stage, and the window stays; the side panel stays shut.
+    // under the stage, and the window stays; the side panel stays shut. Pressed from the keyboard,
+    // it takes the focus into the transcript there, which says what it is.
     const { card: listed, row } = await listedRow(page);
     const rowId = await listed.getAttribute('data-scroll-anchor');
     await expect(row.locator('[data-call-row-member]')).toHaveCount(2, { timeout: 30_000 });
     await expect(row.getByRole('button', { name: 'Join', exact: true })).toHaveCount(0);
-    await row.getByRole('button', { name: 'Transcript', exact: true }).click();
+    await row.getByRole('button', { name: 'Transcript', exact: true }).press('Enter');
     const callWindow = page.getByTestId('call-window');
     const inWindow = callWindow.locator('[data-call-window-transcript]');
     await expect(inWindow).toContainText('This call is transcribed.');
+    await expect(inWindow.getByRole('group', { name: 'Live transcript' })).toBeFocused();
     await expect(callWindow.locator('[data-call-transcript-layout]')).toHaveAttribute(
       'data-call-transcript-layout',
       'stacked'

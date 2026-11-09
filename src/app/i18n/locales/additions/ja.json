@@ -732,7 +732,8 @@
       "resolveThread": "開いているスレッドを解決または再開",
       "newLine": "改行",
       "editLast": "最後の自分のメッセージを編集（入力欄が空のとき）",
-      "inlineCode": "インライン コード"
+      "inlineCode": "インライン コード",
+      "callView": "通話へ移動"
     }
   },
   "thread": {

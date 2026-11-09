@@ -732,7 +732,8 @@
       "resolveThread": "열린 스레드 해결 또는 다시 열기",
       "newLine": "줄 바꿈",
       "editLast": "마지막 메시지 편집 (입력창이 비어 있을 때)",
-      "inlineCode": "인라인 코드"
+      "inlineCode": "인라인 코드",
+      "callView": "통화로 이동"
     }
   },
   "thread": {

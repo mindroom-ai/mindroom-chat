@@ -157,6 +157,7 @@ describe('formatShortcut and ariaShortcut', () => {
     ['settings', '⌘,', 'Ctrl+,'],
     ['help', '⌘/', 'Ctrl+/'],
     ['roomList', '⌘\\', 'Ctrl+\\'],
+    ['callView', '⌘⇧L', 'Ctrl+Shift+L'],
     ['nextRoom', '⌥↓', 'Alt+↓'],
     ['previousUnread', '⌥⇧↑', 'Alt+Shift+↑'],
     ['resolveThread', '⌘⇧↵', 'Ctrl+Shift+Enter'],
@@ -223,6 +224,7 @@ describe('findShortcut', () => {
     expect(inField({ key: '\\', ctrlKey: true })).toBe('roomList');
     expect(inField({ key: 'M', ctrlKey: true, shiftKey: true })).toBe('members');
     expect(inField({ key: 'F', ctrlKey: true, shiftKey: true })).toBe('messageSearch');
+    expect(inField({ key: 'L', ctrlKey: true, shiftKey: true })).toBe('callView');
     // Paragraph moves and selections, Escape, and a slip of the send key stay with the field.
     expect(inField({ key: 'ArrowUp', altKey: true })).toBeUndefined();
     expect(inField({ key: 'ArrowDown', altKey: true, shiftKey: true })).toBeUndefined();
