@@ -14,9 +14,9 @@ import { dismissTranscriptPanel } from '../transcription/transcriptPanel';
 import { useLiveTranscript } from '../transcription/useLiveTranscript';
 import { useCallWindowSize } from './callWindowFrame';
 import {
-  focusHandOffAtom,
   getCallWindowSplitAtom,
   getCallWindowTranscriptAtom,
+  useFocusHandOff,
 } from './callWindowState';
 import { MAX_TRANSCRIPT_SPLIT, MIN_TRANSCRIPT_SPLIT, transcriptLayout } from './transcriptLayout';
 import { splitFromPointer, stepSplit, type TranscriptLayout } from './transcriptLayout';
@@ -232,16 +232,11 @@ export function WindowTranscript({ room, children }: { room: Room; children: Rea
   // The row's Transcript, outside the window, hands its focus to the transcript it opened here; one
   // that shows on its own (the controls' switch, left on for a call just joined) takes none. The
   // subtitle's transcript is out of sight, so there the focus goes to the window's handle.
-  const [handOff, setHandOff] = useAtom(focusHandOffAtom);
   const paneRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (handOff?.to !== 'transcript' || !layout) return;
-    setHandOff(undefined);
-    const focused = document.activeElement;
-    if (focused && focused !== document.body && focused !== handOff.from) return;
+  useFocusHandOff(layout ? 'transcript' : undefined, () => {
     if (layout === 'subtitle') focusWindowHandle();
     else paneRef.current?.focus();
-  }, [handOff, layout, setHandOff]);
+  });
   const [split, setSplit] = useAtom(getCallWindowSplitAtom(userId));
   const [dragged, setDragged] = useState<number>();
   const boxRef = useRef<HTMLDivElement>(null);

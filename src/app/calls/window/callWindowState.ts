@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { Atom, WritableAtom } from 'jotai';
 import { atom, useAtom, useAtomValue, useSetAtom } from 'jotai';
 import {
@@ -6,6 +7,7 @@ import {
   setLocalStorageItem,
 } from '../../lib/state/atomWithLocalStorage';
 import { createUserScopedAtomRegistry } from '../../lib/state/userScopedAtomRegistry';
+import { useLatestRef } from '../../lib/hooks/useLatestRef';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import {
@@ -194,6 +196,22 @@ export const useCallViewFloats = (): boolean => {
  */
 export type FocusHandOff = { to: 'window' | 'panel' | 'transcript'; from: Element | null };
 export const focusHandOffAtom = atom<FocusHandOff | undefined>(undefined);
+
+/**
+ * Takes the focus handed to `to` (nothing while undefined) with `focus`, once: when the place
+ * mounts, or at once when it shows already; unless something else took the focus meanwhile.
+ */
+export const useFocusHandOff = (to: FocusHandOff['to'] | undefined, focus: () => void): void => {
+  const [handOff, setHandOff] = useAtom(focusHandOffAtom);
+  const latestFocus = useLatestRef(focus);
+  useEffect(() => {
+    if (!handOff || handOff.to !== to) return;
+    setHandOff(undefined);
+    const focused = document.activeElement;
+    if (focused && focused !== document.body && focused !== handOff.from) return;
+    latestFocus.current();
+  }, [handOff, latestFocus, setHandOff, to]);
+};
 
 /** Whether the account's floating window is minimized to its bar. */
 export const useCallWindowMinimized = (): boolean => useAtomValue(useSettingsViews().minimized);
