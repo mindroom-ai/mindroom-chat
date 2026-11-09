@@ -59,11 +59,12 @@ vi.mock('@ricky0123/vad-web', async () => {
 
     constructor(options: Partial<RealTimeVADOptions>) {
       this.given = options;
-      this.options = { ...defaultFrameProcessorOptions, ...options };
+      const merged = { ...defaultFrameProcessorOptions, ...options };
+      this.options = merged;
       this.frames = new FrameProcessor(
         async (frame) => ({ isSpeech: frame[0] ?? 0, notSpeech: 1 - (frame[0] ?? 0) }),
         () => undefined,
-        { ...defaultFrameProcessorOptions, ...options },
+        merged,
         FRAME / 16
       );
       this.frames.resume();
@@ -136,8 +137,6 @@ class FakeAudioContext {
   /** How often the page asked the context to run. */
   resumes = 0;
 
-  closed = false;
-
   constructor() {
     FakeAudioContext.last = this;
   }
@@ -148,7 +147,6 @@ class FakeAudioContext {
   }
 
   close() {
-    this.closed = true;
     this.state = 'closed';
     return Promise.resolve();
   }
@@ -177,13 +175,13 @@ const start = async () => {
   await entered;
   await settle();
   const vad = defined(detector.made.at(-1), 'the detector');
-  /** Frames of the given speech probability, one after the other. */
   const context = defined(FakeAudioContext.last, 'the audio context');
   /** One frame's time passing, on the audio clock and the wall clock. */
   const pass = (frames = 1) => {
     context.currentTime += (frames * FRAME) / 16000;
     vi.setSystemTime(Date.now() + (frames * FRAME) / 16);
   };
+  /** Frames of the given speech probability, one after the other. */
   const hear = async (count: number, probability: number) => {
     for (let index = 0; index < count; index += 1) {
       pass();
@@ -206,6 +204,16 @@ const framesOf = async (stretch: SpeechStretch) => {
 
 /** Lets every step started so far finish, as the next task would. */
 const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+/** Keeps the model loading until the returned function is called. */
+const holdModel = () => {
+  let loaded!: () => void;
+  detector.loading = () =>
+    new Promise((resolve) => {
+      loaded = resolve;
+    });
+  return () => loaded();
+};
 
 /** Resolves once the next capture has imported the wrapper and asks it for a detector. */
 const entering = () =>
@@ -259,7 +267,6 @@ describe('startSpeechCapture', () => {
       'ortConfig',
       'pauseStream',
       'resumeStream',
-      'submitUserSpeechOnPause',
     ]);
     // Same origin: the worklet, the model and the runtime's files come from one directory here.
     const base = defined(options.baseAssetPath, 'baseAssetPath');
@@ -329,7 +336,7 @@ describe('startSpeechCapture', () => {
   });
 
   it('cuts speech that goes on past 30 seconds into stretches of at most 30 seconds, losing no frame', async () => {
-    const { hear, stretches, vad } = await start();
+    const { capture, hear, stretches, vad } = await start();
     await hear(10, QUIET);
     // 48 seconds of talk without a pause.
     await hear(500, SPEECH);
@@ -344,6 +351,11 @@ describe('startSpeechCapture', () => {
     expect(numbers).toEqual(Array.from({ length: numbers.length }, (_, index) => first + index));
     expect(numbers.at(-1)).toBeGreaterThanOrEqual(510);
     expect(vad.listening).toBe(true);
+    // A pause after a cut still drops the stretch in progress.
+    await hear(20, SPEECH);
+    capture.setPaused(true);
+    await settle();
+    expect(stretches.length).toBe(2);
   });
 
   it('drops the stretch a pause cuts into and hears nothing until it resumes', async () => {
@@ -366,6 +378,16 @@ describe('startSpeechCapture', () => {
     // Only what was said once it resumed, dated from its first frame.
     expect(numbers[0]).toBe(81);
     expect(defined(stretches[0], 'the stretch').startedAt.getTime()).toBe(NOW + (80 * FRAME) / 16);
+  });
+
+  it('drops the stretch in progress on a pause, even one resumed at once', async () => {
+    const { capture, hear, stretches } = await start();
+    await hear(20, SPEECH);
+    capture.setPaused(true);
+    capture.setPaused(false);
+    await settle();
+    await hear(20, QUIET);
+    expect(stretches).toEqual([]);
   });
 
   it('pauses and resumes in the order asked, however fast', async () => {
@@ -401,7 +423,7 @@ describe('startSpeechCapture', () => {
 
     expect(stretches).toHaveLength(1);
     expect(vad.destroyed).toBe(true);
-    expect(defined(FakeAudioContext.last, 'the audio context').closed).toBe(true);
+    expect(defined(FakeAudioContext.last, 'the audio context').state).toBe('closed');
     expect(stopTrack).not.toHaveBeenCalled();
     await hear(20, SPEECH);
     await hear(20, QUIET);
@@ -426,32 +448,24 @@ describe('startSpeechCapture', () => {
     expect(detector.made).toEqual([]);
     capture.setPaused(true);
     await capture.stop();
-    expect(defined(FakeAudioContext.last, 'the audio context').closed).toBe(true);
+    expect(defined(FakeAudioContext.last, 'the audio context').state).toBe('closed');
   });
 
   it('does not wait for the model on stop, and lets go of one that loads after it', async () => {
-    let loaded!: () => void;
-    detector.loading = () =>
-      new Promise((resolve) => {
-        loaded = resolve;
-      });
+    const loaded = holdModel();
     const { track } = microphone();
     const entered = entering();
     const capture = await startSpeechCapture(track, () => undefined);
     await capture.stop();
     await entered;
-    expect(defined(FakeAudioContext.last, 'the audio context').closed).toBe(true);
+    expect(defined(FakeAudioContext.last, 'the audio context').state).toBe('closed');
     loaded();
     await settle();
     expect(defined(detector.made.at(-1), 'the detector').destroyed).toBe(true);
   });
 
   it('listens once the model has loaded, paused when a pause came meanwhile', async () => {
-    let loaded!: () => void;
-    detector.loading = () =>
-      new Promise((resolve) => {
-        loaded = resolve;
-      });
+    const loaded = holdModel();
     const { track } = microphone();
     const entered = entering();
     const capture = await startSpeechCapture(track, () => undefined);

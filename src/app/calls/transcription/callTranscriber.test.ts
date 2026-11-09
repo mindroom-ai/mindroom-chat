@@ -84,7 +84,7 @@ type FakeCapture = SpeechCapture & {
   onStretch: (stretch: SpeechStretch) => void;
   paused: boolean;
   stopped: boolean;
-  /** What the worklet still holds; stopping hands it on. */
+  /** What the capture still holds; stopping hands it on. */
   inProgress?: SpeechStretch;
 };
 
@@ -753,7 +753,7 @@ describe('CallTranscriber microphone', () => {
 
   it('tries again with the next microphone when listening could not start', async () => {
     const t = setup();
-    t.startCapture.mockRejectedValueOnce(new Error('worklet blocked'));
+    t.startCapture.mockRejectedValueOnce(new Error('capture blocked'));
     t.transcriber.setMicrophone(MIC_A);
     t.transcriber.start();
     await advance();
