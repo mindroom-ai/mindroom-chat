@@ -311,6 +311,86 @@ describe('example plugin', () => {
     expect(await view.findAllByText('No MindRoom server')).toHaveLength(2);
   });
 
+  it("lists its room's agents with a computer, and opens, shows and ends a session on one", async () => {
+    const [panel] = plugin.sidePanels ?? [];
+    if (!panel) throw new Error('the example plugin has no side panel');
+    const userId = '@ada:example.org';
+    const agent = '@mindroom_helper:example.org';
+    const api = 'https://mindroom.example.org';
+    const client = createClient({ baseUrl: 'https://example.org', userId });
+    const room = new Room('!computer:example.org', client, userId);
+    const state = (type: string, sender: string, content: Record<string, unknown>) =>
+      new MatrixEvent({ type, room_id: room.roomId, sender, state_key: sender, content });
+    // The agent's MindRoom has a computer, and the homeserver binds sign-in tokens to it.
+    room.currentState.setStateEvents([
+      state('m.room.member', userId, { membership: KnownMembership.Join }),
+      state('m.room.member', agent, { membership: KnownMembership.Join }),
+      state('io.mindroom.server', agent, { api_origin: api, computer: true }),
+    ]);
+    client.store.storeRoom(room);
+    let created: (answer: Response) => void = () => undefined;
+    let opening: AbortSignal | null | undefined;
+    const sent: string[] = [];
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = String(input);
+      if (url.endsWith('/_matrix/client/versions')) {
+        return Response.json({
+          versions: ['v1.11'],
+          unstable_features: { 'io.mindroom.openid_audience': true },
+        });
+      }
+      if (url.includes('/openid/request_token')) {
+        return Response.json({ access_token: 'openid', matrix_server_name: 'example.org' });
+      }
+      // The panel's other parts (its server greeting, the profile card) get no answer.
+      if (!url.startsWith(`${api}/api/computers/`)) return new Response(null, { status: 404 });
+      sent.push(`${init.method} ${url}`);
+      if (init.method === 'DELETE') return new Response(null, { status: 204 });
+      opening = init.signal;
+      return new Promise<Response>((resolve) => {
+        created = resolve;
+      });
+    });
+    const view = await renderPluginComponent(
+      <MemoryRouter>
+        <panel.Component roomId={room.roomId} />
+      </MemoryRouter>,
+      { id: 'example', plugin, client }
+    );
+
+    await view.findByText(`Agents with a computer: ${agent}`);
+    const openButton = view.getByRole('button', { name: `Open computer of ${agent}` });
+    fireEvent.click(openButton);
+    await view.findByText('Computer session: starting');
+    // A second session cannot start while the first one does.
+    expect(openButton).toHaveProperty('disabled', true);
+    await waitFor(() => expect(sent).toEqual([`POST ${api}/api/computers/sessions`]));
+    created(
+      Response.json({
+        session_id: 's1',
+        session_token: 'viewer',
+        state: 'ready',
+        mode: 'view',
+        expires_at: 2,
+      })
+    );
+    await view.findByText('Computer session: ready, view');
+    fireEvent.click(view.getByRole('button', { name: 'End computer session' }));
+    await view.findByText('Computer session: ended');
+    expect(sent.at(-1)).toBe(`DELETE ${api}/api/computers/sessions/s1`);
+
+    // A session still opening as the panel goes is called off.
+    fireEvent.click(openButton);
+    await waitFor(() => expect(sent).toHaveLength(3));
+    view.unmount();
+    expect(opening?.aborted).toBe(true);
+    // One the server still gives then ends at once.
+    created(
+      Response.json({ session_id: 's2', session_token: 'late', state: 'ready', mode: 'view' })
+    );
+    await waitFor(() => expect(sent.at(-1)).toBe(`DELETE ${api}/api/computers/sessions/s2`));
+  });
+
   it("says in its own-frame card the app's theme kind and screen size, and previews a PDF it builds", async () => {
     const card = plugin.sidePanels?.find(({ id }) => id === 'card');
     if (!card) throw new Error('the example plugin has no card');

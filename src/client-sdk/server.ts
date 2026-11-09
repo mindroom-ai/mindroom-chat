@@ -1,18 +1,33 @@
 // `@mindroom/client-sdk/server`, the client SDK's subpath for plugins whose MindRoom plugin serves
 // routes (docs/architecture.md "Client plugins"): the room's MindRoom server, which takes the
-// plugin's requests and opens its websockets as the signed-in user. Like `/core` it only grows, and
-// each addition raises CLIENT_PLUGIN_API_VERSION in scripts/client-plugins.mjs.
+// plugin's requests and opens its websockets as the signed-in user, and the computers of the room's
+// agents. Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in
+// scripts/client-plugins.mjs.
 import { useMemo } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
 import {
+  ComputerApiError,
+  createComputerSession,
+  type ComputerSessionClient,
+} from '../app/computer/api';
+import {
   MindroomServerError,
   clientSessions,
+  tokenError,
+  untilAborted,
   type ClientSessions,
 } from '../app/computer/clientSessions';
+import type { ComputerAgent } from '../app/computer/types';
+import { useRoomAgentServers } from '../app/computer/useAgentServers';
+import { useRoomComputer } from '../app/computer/useRoomComputer';
 import { useRoomMindroomServer } from '../app/computer/useRoomMindroomServer';
 import { useMatrixClient } from '../app/matrix/hooks/useMatrixClient';
+import { useRoomMembers } from '../app/matrix/hooks/useRoomMembers';
+import { requestAudienceOpenIdToken } from '../app/matrix/openidAudience';
 
-export { MindroomServerError };
+export { ComputerApiError, MindroomServerError };
+export type { ComputerSessionClient };
+export type { ComputerStatus, ComputerStreamConnection } from '../app/computer/types';
 
 /** A room's MindRoom server, which `useMindroomServer` gives. */
 export type MindroomServer = {
@@ -103,11 +118,14 @@ export const useMindroomServer = (roomId: string): MindroomServer | undefined =>
 };
 
 /**
- * The room's MindRoom server as `useMindroomServer` gives it, once that is settled: `pending` while
- * the room's members or the homeserver's answer on binding sign-in tokens are not in yet, with no
- * `server`. A check that could not reach the homeserver counts as an answer that it does not bind
- * them, and a member list that could not load as the members the client has. A room the client does
- * not know has no member list to wait for: once the homeserver answered, it has no server.
+ * The room's MindRoom server as `useMindroomServer` gives it, `pending` with no `server` while the
+ * room's members or the homeserver's answer on binding sign-in tokens are not in yet. Once both
+ * are in, the server can still change, as when an agent that just joined publishes its own. A
+ * check that could not reach the homeserver counts as an answer that it does not bind them, and a
+ * member list that could not load as the members the client has. A room the client does not know
+ * has no member list to wait for: once the homeserver answered, it has no server, and once the
+ * client learns of the room, as by a join or an invite, it is `pending` again until the room's
+ * members are in.
  */
 export const useMindroomServerStatus = (
   roomId: string
@@ -115,4 +133,81 @@ export const useMindroomServerStatus = (
   const mx = useMatrixClient();
   const { apiUrl, discovered, pending } = useRoomMindroomServer(mx, roomId);
   return { server: useServer(mx, pending ? undefined : apiUrl, discovered), pending };
+};
+
+/** An agent of the room with a computer, as `useRoomComputers` gives it. */
+export type RoomComputer = {
+  /** The agent's user ID. */
+  userId: string;
+  /** The agent's name in the room, or its user ID without one. */
+  name: string;
+  /**
+   * Opens a session on the agent's computer as the room's computer panel does, once: a sign-in
+   * token for the computer's server, then a session for this room and agent, which starts in
+   * `view` mode. Resolves with the session: its `status` (`state` `starting`, `ready` or
+   * `stopped`, `mode` `view` or `control`), `refreshStatus()`, `createStream()` (the URL and
+   * subprotocols of the screen's RFB websocket, which `control('take')` needs open), `control()`
+   * with `take`, `release` or `stop`, and `dispose()`, which ends it on the server; each method
+   * takes a `signal`. Rejects with `ComputerApiError`, `status` 0 when the homeserver could not
+   * give a sign-in token, the server gave no answer or `signal` aborted, 403 when the homeserver
+   * will not sign in there (it binds no tokens to a server the agent published), else the server's
+   * refusal. Retrying, reconnecting a stream and ending a session the plugin no longer shows are
+   * the plugin's.
+   */
+  openSession: (signal?: AbortSignal) => Promise<ComputerSessionClient>;
+};
+
+/**
+ * A session on `agent`'s computer: on its own server, which needs a token bound to it, else on the
+ * room's `apiUrl`.
+ */
+const openSession = async (
+  mx: MatrixClient,
+  roomId: string,
+  agent: ComputerAgent,
+  apiUrl: string,
+  signal?: AbortSignal
+) => {
+  if (signal?.aborted) throw new ComputerApiError('Computer request cancelled.', 0);
+  const serverUrl = agent.serverUrl ?? apiUrl;
+  const token = requestAudienceOpenIdToken(mx, serverUrl, {
+    requireBinding: agent.serverUrl !== undefined,
+  });
+  const openIdToken = await untilAborted(token, signal).catch((error: unknown) => {
+    const refusal = tokenError(error);
+    throw new ComputerApiError(refusal.message, refusal.status);
+  });
+  return createComputerSession({
+    apiUrl: serverUrl,
+    agentUserId: agent.userId,
+    openIdToken,
+    roomId,
+    signal,
+  });
+};
+
+/**
+ * The agents of the room `roomId` with a computer, by the rule of the room's own computer button:
+ * with a computer server set (the person's in Settings, else `mindroom.computers.apiUrl`), every
+ * agent that joined but one whose MindRoom says it has none; without one, each agent that
+ * published a computer, while the homeserver binds sign-in tokens. None once the person turned
+ * computers off, and none in a room the client does not know.
+ */
+export const useRoomComputers = (roomId: string): RoomComputer[] => {
+  const mx = useMatrixClient();
+  const members = useRoomMembers(mx, roomId);
+  const servers = useRoomAgentServers(mx.getRoom(roomId));
+  const { agents, apiUrl } = useRoomComputer(members, servers, mx.getSafeUserId());
+  return useMemo(
+    () =>
+      // An agent the room lists always has a server: its own, or the one set for every agent.
+      apiUrl
+        ? agents.map((agent) => ({
+            userId: agent.userId,
+            name: agent.name,
+            openSession: (signal?: AbortSignal) => openSession(mx, roomId, agent, apiUrl, signal),
+          }))
+        : [],
+    [agents, apiUrl, mx, roomId]
+  );
 };

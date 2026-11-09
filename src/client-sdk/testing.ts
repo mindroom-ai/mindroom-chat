@@ -60,7 +60,10 @@ const standIn = {
  * `Desktop`), and `useThemeKind` returns `themeKind`, which marks the document's root element as
  * the app marks it, until the test ends (default the kind marked there, `light` when none is). A
  * component that needs more of the app, such as a router for `usePluginRouteHref` or the app's
- * query client, gets it from `ui`. The test file needs `// @vitest-environment jsdom`.
+ * query client, gets it from `ui`. One that uses `useMindroomServer`, `useMindroomServerStatus` or
+ * `useRoomComputers` needs a `client` from matrix-js-sdk's `createClient`, whose homeserver the
+ * hook asks through `fetch` whether it binds sign-in tokens, so the test stubs `fetch`. The test
+ * file needs `// @vitest-environment jsdom`.
  */
 export const renderPluginComponent = async (
   ui: ReactElement,

@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { buildLoginPath } from '../env';
+import type * as Livekit from 'livekit-client';
 import { roomMoreOptions } from '../helpers/roomMenu';
 import { defined } from '../../src/test/utils/defined';
 
@@ -13,8 +14,10 @@ import { defined } from '../../src/test/utils/defined';
 // moment, and on a ring's Answer); a call to a MindRoom agent, which runs in the agent call room
 // with the conversation as its origin; an encrypted agent call whose agent hears the caller
 // although the session's own send of the caller's key fails, and again when called again; a call
-// whose panel could not load, ended from that panel's failure view; and a call that ends when its
-// room is left. Needs the slot's LiveKit server and authorization service (scripts/e2e-rtc.sh),
+// whose panel could not load, ended from that panel's failure view; a call that ends when its
+// room is left; and a group call that plays and sends sound only between its members, not to a
+// device on its media server that is not in the call (until it joins, and again once it leaves
+// the room). Needs the slot's LiveKit server and authorization service (scripts/e2e-rtc.sh),
 // which --rtc starts before the slot's homeserver and stops afterwards:
 //   scripts/e2e-slot.sh <slot> --rtc npx playwright test e2e/calls/calls.spec.ts
 // scripts/e2e-suite.sh gives --rtc to every spec that names scripts/e2e-rtc.sh, as this one does.
@@ -974,5 +977,176 @@ test.describe('calls', () => {
         { timeout: 30_000 }
       )
       .toBeUndefined();
+  });
+  test('a call plays the sound of, and sends its own to, the devices in the call only', async ({
+    browser,
+  }) => {
+    const [alice, bob, carol, eve] = await Promise.all([
+      register(`alicem${RUN}`, 'Alice Huddle'),
+      register(`bobm${RUN}`, 'Bob Huddle'),
+      register(`carolm${RUN}`, 'Carol Huddle'),
+      register(`evem${RUN}`, 'Eve Huddle'),
+    ]);
+    const { room_id: roomId } = await matrix<{ room_id: string }>('/createRoom', {
+      token: alice.token,
+      body: {
+        name: 'Huddle',
+        preset: 'private_chat',
+        invite: [bob, carol, eve].map(({ userId }) => userId),
+        // Everyone in the room may take part in its call.
+        power_level_content_override: { events: { 'org.matrix.msc3401.call.member': 0 } },
+      },
+    });
+    await Promise.all(
+      [bob, carol, eve].map(({ token }) =>
+        matrix(`/join/${encodeURIComponent(roomId)}`, { token, body: {} })
+      )
+    );
+
+    // Alice, Bob and Carol are in the room's call and hear each other.
+    const playing = (page: Page) => page.locator('[data-call-audio] audio');
+    const pages = await Promise.all(
+      ['alicem', 'bobm', 'carolm'].map(async (name) => {
+        const page = await signIn(browser, `${name}${RUN}`);
+        await openRoom(page, roomId);
+        await page.locator('[data-room-call-button]').click();
+        await callPanel(page).getByRole('button', { name: 'Join', exact: true }).click({
+          timeout: 30_000,
+        });
+        return page;
+      })
+    );
+    for (const page of pages) {
+      // eslint-disable-next-line no-await-in-loop
+      await expect(callPanel(page).locator('[data-call-tile][data-connected="true"]')).toHaveCount(
+        3,
+        { timeout: 60_000 }
+      );
+      // eslint-disable-next-line no-await-in-loop
+      await expect(playing(page)).toHaveCount(2, { timeout: 60_000 });
+    }
+    // Bob and Carol turn their microphones off: what Alice hears from now on comes from Eve only.
+    const alicePage = defined(pages[0], "Alice's page");
+    for (const page of pages.slice(1)) {
+      // eslint-disable-next-line no-await-in-loop
+      await callPanel(page).getByRole('button', { name: 'Turn Off Microphone' }).click();
+    }
+    await expect.poll(() => remoteSoundLevel(alicePage), { timeout: 30_000 }).toBeLessThan(0.01);
+
+    // Eve, in the room but not in its call, connects to the call's media server all the same
+    // with a grant of its own, publishes her microphone and plays whatever she receives.
+    const { device_id: eveDevice } = await matrix<{ device_id: string }>('/account/whoami', {
+      token: eve.token,
+    });
+    const openIdToken = await matrix<Record<string, unknown>>(
+      `/user/${encodeURIComponent(eve.userId)}/openid/request_token`,
+      { token: eve.token, body: {} }
+    );
+    const service = defined(process.env.E2E_LIVEKIT_SERVICE_URL, 'the call service');
+    const granted = await fetch(`${service}/sfu/get`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ room: roomId, device_id: eveDevice, openid_token: openIdToken }),
+    });
+    expect(granted.ok, `the call service answered ${granted.status}`).toBe(true);
+    const grant = (await granted.json()) as { url: string; jwt: string };
+    const evePage = await (await browser.newContext({ permissions: ['microphone'] })).newPage();
+    await evePage.goto(`${HOMESERVER}/_matrix/client/versions`);
+    await evePage.addScriptTag({ path: 'node_modules/livekit-client/dist/livekit-client.umd.js' });
+    type EveWindow = {
+      LivekitClient: typeof Livekit;
+      eveMedia: { room: Livekit.Room; subscribed: boolean };
+    };
+    await evePage.evaluate(async ({ url, jwt }) => {
+      const eveWindow = window as unknown as EveWindow;
+      const { Room, RoomEvent } = eveWindow.LivekitClient;
+      const host = document.createElement('div');
+      host.dataset.callAudio = '';
+      document.body.append(host);
+      const media: EveWindow['eveMedia'] = { room: new Room(), subscribed: false };
+      eveWindow.eveMedia = media;
+      media.room
+        .on(RoomEvent.TrackSubscribed, (track) => {
+          host.append(track.attach());
+        })
+        .on(RoomEvent.LocalTrackSubscribed, () => {
+          media.subscribed = true;
+        });
+      await media.room.connect(url, jwt);
+      await media.room.localParticipant.setMicrophoneEnabled(true);
+    }, grant);
+    /** Whether someone subscribed to Eve's microphone, and how many tracks she may not receive. */
+    const eveMedia = () =>
+      evePage.evaluate(() => {
+        const { eveMedia: media, LivekitClient } = window as unknown as EveWindow;
+        const { NotAllowed } = LivekitClient.TrackPublication.PermissionStatus;
+        const { room, subscribed } = media;
+        const refused = [...room.remoteParticipants.values()]
+          .flatMap((participant) => [...participant.audioTrackPublications.values()])
+          .filter((publication) => publication.permissionStatus === NotAllowed).length;
+        return { subscribed, refused };
+      });
+
+    // Nobody plays her sound, and she may receive none of theirs.
+    await expect.poll(eveMedia, { timeout: 30_000 }).toEqual({ subscribed: true, refused: 3 });
+    await evePage.waitForTimeout(3_000);
+    for (const page of pages) {
+      // eslint-disable-next-line no-await-in-loop
+      await expect(playing(page)).toHaveCount(2);
+    }
+    expect(await remoteSoundLevel(alicePage)).toBeLessThan(0.01);
+    expect(await remoteSoundLevel(evePage)).toBe(0);
+
+    // Once she joins the call, everyone plays her sound and she hears them.
+    await matrix(
+      `/rooms/${encodeURIComponent(
+        roomId
+      )}/state/org.matrix.msc3401.call.member/${encodeURIComponent(
+        `_${eve.userId}_${eveDevice}_m.call`
+      )}`,
+      {
+        token: eve.token,
+        method: 'PUT',
+        body: {
+          application: 'm.call',
+          call_id: '',
+          scope: 'm.room',
+          device_id: eveDevice,
+          expires: 14_400_000,
+          focus_active: { type: 'livekit', focus_selection: 'oldest_membership' },
+          foci_preferred: [],
+        },
+      }
+    );
+    for (const page of pages) {
+      // eslint-disable-next-line no-await-in-loop
+      await expect(tileOf(page, eve.userId)).toHaveAttribute('data-connected', 'true', {
+        timeout: 30_000,
+      });
+      // eslint-disable-next-line no-await-in-loop
+      await expect(playing(page)).toHaveCount(3);
+    }
+    await expect.poll(() => remoteSoundLevel(alicePage), { timeout: 60_000 }).toBeGreaterThan(0.05);
+    await expect.poll(eveMedia, { timeout: 30_000 }).toEqual({ subscribed: true, refused: 0 });
+    await expect.poll(() => remoteSoundLevel(evePage), { timeout: 60_000 }).toBeGreaterThan(0.05);
+
+    // She leaves the room, and with it the call, while her media connection stays: nobody plays
+    // her sound any more, and theirs stops reaching her.
+    await matrix(`/rooms/${encodeURIComponent(roomId)}/leave`, { token: eve.token, body: {} });
+    for (const page of pages) {
+      // eslint-disable-next-line no-await-in-loop
+      await expect(tileOf(page, eve.userId)).toHaveCount(0, { timeout: 30_000 });
+      // eslint-disable-next-line no-await-in-loop
+      await expect(playing(page)).toHaveCount(2);
+    }
+    await expect.poll(() => remoteSoundLevel(alicePage), { timeout: 30_000 }).toBeLessThan(0.01);
+    await expect.poll(eveMedia, { timeout: 30_000 }).toEqual({ subscribed: true, refused: 3 });
+    await expect.poll(() => remoteSoundLevel(evePage), { timeout: 30_000 }).toBeLessThan(0.01);
+
+    await evePage.evaluate(() => (window as unknown as EveWindow).eveMedia.room.disconnect());
+    for (const page of pages) {
+      // eslint-disable-next-line no-await-in-loop
+      await callPanel(page).getByRole('button', { name: 'End' }).click();
+    }
   });
 });
