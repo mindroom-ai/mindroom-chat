@@ -47,8 +47,8 @@ import {
   categorizeInvite,
   type InviteCategory,
 } from './inviteFilter';
-import { INBOX_PATH } from '../../routes/paths';
-import { getDirectRoomPath, getInboxNotificationsPath } from '../../routes/pathUtils';
+import { ACTIVITY_PATH } from '../../routes/paths';
+import { getActivityPath, getDirectRoomPath } from '../../routes/pathUtils';
 
 const FSI = '\u2068';
 const LRI = '\u2066';
@@ -367,9 +367,8 @@ export function InviteCard({
 // button comes and goes.
 const SECTION_HEADER_STYLE = { minHeight: toRem(32) } as const;
 
-// The Inbox opens on Invites also with no invite waiting, so the empty page leads on to
-// Notifications: a button as wide as its label, under the hint. It is a link, drawn without the
-// underline links get.
+// With no invite waiting the empty page leads on to Activity: a button as wide as its label,
+// under the hint. It is a link, drawn without the underline links get.
 const EMPTY_LINK_STYLE = {
   alignSelf: 'flex-start',
   marginBlockStart: config.space.S200,
@@ -397,7 +396,7 @@ export function Invites() {
   const navigate = useNavigate();
   const [acceptingAll, setAcceptingAll] = useState(false);
   const headingId = useId();
-  // Phones lead with the way back to the Inbox, so the title starts beside it.
+  // Phones lead with the way back to Activity, so the title starts beside it.
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
 
   const invites = useMemo(
@@ -448,7 +447,7 @@ export function Invites() {
   const acceptAllShown = category !== 'spam' && shownInvites.length > 1;
   const header = (
     <PageHeader balance>
-      <PhoneBackButton to={INBOX_PATH} />
+      <PhoneBackButton to={ACTIVITY_PATH} />
       <Box grow="Yes" justifyContent={phone ? 'Start' : 'Center'} alignItems="Center" gap="200">
         <Icon size="400" src={Icons.Mail} />
         <Text as="h1" size="H4" truncate>
@@ -498,16 +497,16 @@ export function Invites() {
                     {invites.length === 0 && (
                       <Button
                         as={Link}
-                        to={getInboxNotificationsPath()}
+                        to={getActivityPath()}
                         size="300"
                         radii="300"
                         variant="Secondary"
                         fill="Soft"
                         className={QUIET_BUTTON}
-                        before={<Icon size="100" src={Icons.MessageUnread} />}
+                        before={<Icon size="100" src={Icons.Bell} />}
                         style={EMPTY_LINK_STYLE}
                       >
-                        <Text size="B300">{t('sharedUi.invites.openNotifications')}</Text>
+                        <Text size="B300">{t('activity.openActivity')}</Text>
                       </Button>
                     )}
                   </Box>

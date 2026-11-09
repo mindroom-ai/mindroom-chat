@@ -104,8 +104,7 @@
       "close": "Tutup"
     },
     "invites": {
-      "actionFailed": "Terjadi kesalahan. Coba lagi.",
-      "openNotifications": "Buka notifikasi"
+      "actionFailed": "Terjadi kesalahan. Coba lagi."
     },
     "inviteUserAutocomplete": {
       "placeholder": "Cari pengguna atau masukkan ID pengguna"
@@ -697,7 +696,8 @@
       "description": "Mengirim undangan ke {{userId}}."
     },
     "actions": {
-      "goInboxInvitesDescription": "Buka undangan dan notifikasi kotak masuk"
+      "goActivity": "Ke Aktivitas",
+      "goActivityDescription": "Sebutan, balasan, dan hal yang menunggu Anda"
     }
   },
   "shortcuts": {
@@ -738,5 +738,107 @@
   },
   "thread": {
     "back": "Kembali"
+  },
+  "nav": {
+    "activity": "Aktivitas"
+  },
+  "activity": {
+    "title": "Aktivitas",
+    "unreadOnly": "Belum dibaca",
+    "markAllRead": "Tandai semua dibaca",
+    "openAsPage": "Buka sebagai halaman",
+    "tabs": {
+      "all": "Semua",
+      "mentions": "Sebutan",
+      "replies": "Balasan",
+      "needsYou": "Menunggu Anda"
+    },
+    "tabsLabel": "Tampilkan",
+    "days": {
+      "today": "Hari ini",
+      "yesterday": "Kemarin",
+      "earlier": "Sebelumnya"
+    },
+    "sentence": {
+      "approval": "{{name}} perlu persetujuan",
+      "question": "{{name}} bertanya kepada Anda",
+      "invite": "{{name}} mengundang Anda",
+      "inviteUnknown": "Anda diundang",
+      "mention": "{{name}} menyebut Anda",
+      "mentionAndReply": "{{name}} menyebut Anda, {{other}} membalas",
+      "reply": "{{name}} membalas",
+      "replyAndOther": "{{name}} dan {{other}} membalas",
+      "replyAndOthers_other": "{{name}} dan {{count}} lainnya membalas",
+      "finished": "{{name}} selesai",
+      "stopped": "{{name}} berhenti",
+      "youReplied": "Anda membalas"
+    },
+    "newCount_other": "{{count}} baru",
+    "runMinutes_other": "{{count}} mnt",
+    "toolCount_other": "{{count}} alat",
+    "actions": {
+      "approve": "Setujui",
+      "deny": "Tolak",
+      "details": "Detail",
+      "join": "Bergabung",
+      "decline": "Tolak",
+      "sending": "Mengirim…",
+      "failed": "Gagal mengirim. Coba lagi.",
+      "answered": "Dijawab: {{label}}",
+      "approved": "Disetujui",
+      "denied": "Ditolak",
+      "joined": "Sudah bergabung",
+      "declined": "Ditolak"
+    },
+    "automationsHidden_other": "{{count}} eksekusi otomatisasi disembunyikan",
+    "showAutomations": "Tampilkan",
+    "hideAutomations": "Sembunyikan eksekusi otomatisasi",
+    "allInvites": "Semua undangan",
+    "caughtUp": "Semua sudah Anda lihat",
+    "caughtUpDescription": "Sebutan, balasan di utas Anda, dan apa pun yang menunggu Anda muncul di sini.",
+    "pickTitle": "Pilih sesuatu dari Aktivitas",
+    "pickDescription": "Utasnya terbuka di sini, di samping daftar.",
+    "bellLabel": "Aktivitas",
+    "bellLabelCount_other": "Aktivitas, {{count}} belum dibaca",
+    "openActivity": "Buka Aktivitas",
+    "close": "Tutup Aktivitas"
+  },
+  "threadPreview": {
+    "voice": "Pesan suara",
+    "image": "Gambar",
+    "video": "Video",
+    "file": "File",
+    "you": "Anda"
+  },
+  "threadsPage": {
+    "title": "Utas",
+    "scopeLabel": "Tampilkan",
+    "scope": {
+      "mine": "Milik saya",
+      "following": "Diikuti",
+      "all": "Semua"
+    },
+    "search": "Cari utas",
+    "groups": {
+      "needsYou": "Menunggu Anda",
+      "unread": "Belum dibaca",
+      "working": "Agen sedang bekerja",
+      "recent": "Terbaru",
+      "automations": "Otomatisasi"
+    },
+    "showMore": "Tampilkan lebih banyak",
+    "chips": {
+      "approval": "Persetujuan",
+      "question": "Pertanyaan",
+      "mention": "Menyebut Anda",
+      "resolved": "Selesai"
+    },
+    "working": "Sedang bekerja",
+    "noThreads": "Belum ada utas di sini",
+    "noThreadsDescription": "Utas yang Anda mulai atau ikuti muncul di sini.",
+    "noMatches": "Tidak ada utas yang cocok dengan pencarian ini",
+    "pickTitle": "Pilih utas",
+    "pickDescription": "Utas terbuka di sini, di samping daftar.",
+    "needsYouLabel_other": "Utas, {{count}} menunggu Anda"
   }
 }

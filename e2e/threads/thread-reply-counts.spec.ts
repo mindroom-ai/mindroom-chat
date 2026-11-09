@@ -12,8 +12,8 @@ import {
 } from '../helpers/matrix';
 import { defined } from '../../src/test/utils/defined';
 
-// Thread reply counts on the Compact cards and the Threads page, from the first sign-in through
-// new replies, edits, redactions, reloads and opening the thread.
+// Thread reply counts on the Compact cards, in Home and beside the Threads list, from the first
+// sign-in through new replies, edits, redactions, reloads and opening the thread.
 // Until the client opens or shows a thread, its count comes from the root's server summary and
 // the replies sync brought; the SDK used to count the synced replies on top of the summary that
 // already counted them (6 for a thread of 3), above all after a reload.
@@ -247,16 +247,17 @@ test('thread reply counts stay right through reloads, replies, edits, redactions
     [retro]: { saved: 2, server: 2 },
   });
 
-  // The Threads page shows the same counts. Another redaction and reply leave the saved sync behind
-  // again, and going there loads the page again.
+  // The room beside the Threads list shows the same counts. Another redaction and reply leave the
+  // saved sync behind again, and going there loads the page again.
   await redactEvent(HOMESERVER, token, roomId, defined(launchReplies[0], 'the first launch reply'));
   await expect(cardCount(page, launch)).toHaveText('2', { timeout: 30_000 });
   await send(replyTo(launch, 'Ops is ready'));
   await expect(cardCount(page, launch)).toHaveText('3', { timeout: 30_000 });
   await expectCountsHold(page, { [launch]: 3, [retro]: 2 }, 1_500);
-  await page.goto('/threads/');
+  await page.goto(`/threads/${encodeURIComponent(roomId)}/`);
   await expectSavedThenServerCounts(page, {
     [launch]: { saved: 2, server: 3 },
     [retro]: { saved: 2, server: 2 },
   });
+  await expect(page.getByRole('navigation', { name: 'Threads' })).toBeVisible();
 });

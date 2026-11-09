@@ -20,7 +20,7 @@ import { roomViewSwitch } from '../helpers/roomViewSwitch';
 import { defined } from '../../src/test/utils/defined';
 
 // Avatars without a picture take one color per user or room ID, on every screen: the room header
-// tile, the lobby, the room intro, the Inbox, the Direct list, the Compact bars, the members and
+// tile, the lobby, the room intro, Activity, the Direct list, the Compact bars, the members and
 // the messages. A direct chat takes the color of the person it is with.
 
 // A disposable local Matrix server with open registration (`just hs-up` or scripts/e2e-slot.sh).
@@ -75,15 +75,24 @@ const seed = async (): Promise<Seeded> => {
     msgtype: 'm.text',
     body: 'Which color is the launch room?',
   });
-  await sendRoomMessage(homeserver!, viewer.access_token, roomId, {
-    msgtype: 'm.text',
-    body: 'The same one everywhere',
+  const inThread = {
     'm.relates_to': {
       rel_type: 'm.thread',
       event_id: rootId,
       is_falling_back: true,
       'm.in_reply_to': { event_id: rootId },
     },
+  };
+  await sendRoomMessage(homeserver!, viewer.access_token, roomId, {
+    msgtype: 'm.text',
+    body: 'The same one everywhere',
+    ...inThread,
+  });
+  // The peer answers last, so Activity's row for the thread shows the peer.
+  await sendRoomMessage(homeserver!, peer.access_token, roomId, {
+    msgtype: 'm.text',
+    body: 'Teal, then',
+    ...inThread,
   });
 
   const directId = await createPrivateRoom(homeserver!, viewer.access_token, {
@@ -240,9 +249,12 @@ test('a user or room without a picture has one color on every screen', async ({
   await page.goto(`/${encodeURIComponent(seeded.spaceId)}/lobby/`);
   await record('lobby', [seeded.spaceId, seeded.roomId]);
 
-  // The Inbox groups notifications under the room and the direct chat.
-  await page.goto('/inbox/notifications/');
-  await record('inbox', [seeded.roomId, seeded.peer]);
+  // Activity's row for the thread shows the peer, who answered last.
+  await page.goto('/activity/');
+  await expect(page.locator('[data-activity-row]').first()).toContainText('Teal, then', {
+    timeout: 30_000,
+  });
+  await record('activity', [seeded.peer]);
 
   // The Direct list and the direct chat show the person, in their color.
   await page.goto('/direct/');
@@ -259,10 +271,10 @@ test('a user or room without a picture has one color on every screen', async ({
   const screensOf = (id: string) =>
     new Set(seen.filter((fill) => fill.id === id).map((f) => f.screen));
   expect([...screensOf(seeded.roomId)].sort()).toEqual(
-    ['inbox', 'lobby', 'room-compact', 'room-full', 'thread'].sort()
+    ['lobby', 'room-compact', 'room-full', 'thread'].sort()
   );
   expect([...screensOf(seeded.peer)].sort()).toEqual(
-    ['direct-list', 'direct-room', 'inbox', 'room-compact', 'room-full', 'thread'].sort()
+    ['activity', 'direct-list', 'direct-room', 'room-compact', 'room-full', 'thread'].sort()
   );
 
   // Dark themes use the pale swatch of the same hue.

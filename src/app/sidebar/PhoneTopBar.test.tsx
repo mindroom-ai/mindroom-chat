@@ -9,6 +9,7 @@ import { PhoneTopBar } from './PhoneTopBar';
 const unread = vi.hoisted(() => ({
   value: undefined as undefined | { total: number; highlight: number },
 }));
+const activity = vi.hoisted(() => ({ badge: { count: 0, needsYou: false } }));
 
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../test/utils/i18n');
@@ -20,6 +21,13 @@ vi.mock('./rail/SettingsTab', () => ({
   SettingsTab: ({ inTopBar }: { inTopBar?: boolean }) =>
     React.createElement('button', { 'data-account': inTopBar }),
 }));
+vi.mock('../activity/useActivityRows', () => ({ useActivityBadge: () => activity.badge }));
+vi.mock('../activity/ActivitySheet', () => ({
+  ActivitySheet: () => React.createElement('section', { 'data-activity-sheet': true }),
+}));
+vi.mock('./rail/ActivityTab', () => ({
+  ActivityBadge: ({ count }: { count: number }) => React.createElement('b', null, String(count)),
+}));
 vi.mock('./PhoneTopBar.css', () => ({
   PhoneTopBar: 'bar',
   MenuButtonFrame: 'menu',
@@ -27,6 +35,8 @@ vi.mock('./PhoneTopBar.css', () => ({
   SearchField: 'search',
   SearchPlaceholder: 'placeholder',
   BarControl: 'control',
+  BellFrame: 'bell',
+  BellBadge: 'bell-badge',
 }));
 vi.mock('folds', async () => {
   const reactModule = await import('react');
@@ -38,7 +48,7 @@ vi.mock('folds', async () => {
     Badge: element('span'),
     Icon: () => reactModule.createElement('i'),
     IconButton: element('button'),
-    Icons: { Search: 'Search' },
+    Icons: { Search: 'Search', Bell: 'Bell' },
     Text: ({ children }: { children?: React.ReactNode }) =>
       reactModule.createElement('span', null, children),
   };
@@ -111,6 +121,23 @@ describe('PhoneTopBar', () => {
       (node) => node.type === 'span' && 'data-highlight' in node.props
     );
     expect(dot?.props['data-highlight']).toBe(true);
+  });
+
+  it('opens Activity as a sheet from the bell, which counts the unread rows', () => {
+    activity.badge = { count: 2, needsYou: false };
+    const { renderer, button } = renderBar();
+    const bell = button('Activity, 2 unread');
+    expect(bell.props['aria-expanded']).toBe(false);
+    expect(
+      renderer.root.findAll((node) => node.props['data-activity-sheet'] === true)
+    ).toHaveLength(0);
+    act(() => {
+      bell.props.onClick();
+    });
+    expect(
+      renderer.root.findAll((node) => node.props['data-activity-sheet'] === true)
+    ).toHaveLength(1);
+    activity.badge = { count: 0, needsYou: false };
   });
 
   it('puts the account at the end of the bar', () => {

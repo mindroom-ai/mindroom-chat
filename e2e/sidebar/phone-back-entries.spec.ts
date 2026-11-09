@@ -15,7 +15,7 @@ import { openRoomPins } from '../helpers/roomMenu';
 
 // On a phone, a thread's back chevron and a room's return to wherever the person opened them
 // from: the room list, a notification, the command palette, the search results, a link in
-// another conversation, the Inbox, the pinned messages or Jump to Time. A thread's chevron steps
+// another conversation, Activity, the pinned messages or Jump to Time. A thread's chevron steps
 // back past the thread, a room's past every page of the room, and the browser's back then goes on
 // from there. Neither ever lands on a room the person did not open. Each way in is its own test,
 // at 390 by 844 with touch, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
@@ -66,6 +66,8 @@ type Seed = {
   gardenNote: string;
   books: string;
   booksRoot: string;
+  /** A thread of Book Swap that mentions the reader, for Activity; no other way in opens it. */
+  shelfRoot: string;
 };
 
 const homeserverIsUp = async (): Promise<boolean> => {
@@ -171,11 +173,11 @@ const seed = async (engine: Engine): Promise<Seed> => {
     text('Which titles are coming to the swap on Saturday morning?'),
     writer
   );
-  // The Inbox lists these two mentions.
-  await say(books, mention(reader.userId, 'can you bring the travel guides this time?'), writer);
+  // Activity lists this thread, which names the reader.
+  const shelfRoot = await say(books, text('Who can help sort the shelves on Saturday?'), writer);
   await say(
     books,
-    inThread(booksRoot, mention(reader.userId, 'the poetry shelf needs a volunteer too')),
+    inThread(shelfRoot, mention(reader.userId, 'the poetry shelf needs a volunteer too')),
     writer
   );
   return {
@@ -190,6 +192,7 @@ const seed = async (engine: Engine): Promise<Seed> => {
     gardenNote,
     books,
     booksRoot,
+    shelfRoot,
   };
 };
 
@@ -497,29 +500,25 @@ const FLOWS: Record<string, Flow> = {
     await browserBackLeaves(page, harbor, 'browser back after the chevrons leaves the list');
   },
 
-  'the Inbox': async (page, { books, booksRoot }, testInfo) => {
-    await page.getByRole('button', { name: 'Inbox', exact: true }).tap();
-    await expectAt(page, { path: '/inbox/invites/' }, 'the Inbox opens on Invites');
-    await page.getByRole('button', { name: 'Back', exact: true }).tap();
-    await page.getByRole('link', { name: /Notifications/ }).tap();
-    const inbox: Partial<Place> = { path: '/inbox/notifications/', room: null, thread: null };
-    await expectAt(page, inbox, 'the Inbox notifications open');
-    const open = (words: string) =>
-      page
-        .locator('[data-notification-highlight]')
-        .filter({ hasText: words })
-        .getByText('Open', { exact: true });
+  Activity: async (page, { books, shelfRoot }, testInfo) => {
+    // The bell of the rail in the drawer opens the Activity list.
+    await page
+      .getByRole('navigation', { name: 'Main', exact: true })
+      .getByRole('button', { name: /^Activity/ })
+      .tap();
+    const activity: Partial<Place> = { path: '/activity/', room: null, thread: null };
+    await expectAt(page, activity, 'the bell opens Activity');
+    const row = page
+      .getByRole('navigation', { name: 'Activity', exact: true })
+      .locator('[data-activity-row]')
+      .filter({ hasText: 'poetry shelf' });
 
-    await open('poetry shelf').tap();
-    await expectAt(page, inThreadOf(books, booksRoot), 'Open leads to the thread');
+    await row.getByRole('button').first().tap();
+    await expectAt(page, inThreadOf(books, shelfRoot), 'the row leads to the thread');
     await threadBack(page).tap();
-    await expectAt(page, inbox, 'the thread chevron returns to the Inbox');
-
-    await open('travel guides').tap();
-    await expectAt(page, inRoom(books), 'Open leads to the room');
-    await roomBack(page).tap();
-    await shoot(page, testInfo, 'inbox-room-back');
-    await expectAt(page, inbox, 'the room chevron returns to the Inbox');
+    await shoot(page, testInfo, 'activity-thread-back');
+    await expectAt(page, activity, 'the thread chevron returns to Activity');
+    await expect(row).toBeVisible();
   },
 
   'the pinned messages': async (

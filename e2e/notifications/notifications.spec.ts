@@ -11,7 +11,7 @@ import { createRoom } from '../helpers/createRoom';
 
 // Notifications against the disposable homeserver of `just hs-up` (or a slot of
 // scripts/e2e-slot.sh): a room's mode from the header menu, desktop notifications for messages
-// from another account and where a click on one leads, and the Inbox's highlighted rows. Each run
+// from another account and where a click on one leads, and the mention's row in Activity. Each run
 // registers its own two accounts.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'notifications-spec-password';
@@ -222,6 +222,16 @@ test('messages from another account notify, and a click opens their room or thre
       },
     ]);
 
+  // Activity lists the mention as one, while it is unread.
+  await openPath(page, '/activity/');
+  const activity = page.getByRole('navigation', { name: 'Activity' });
+  const row = activity.locator('[data-activity-row]').filter({
+    hasText: 'can you check the numbers?',
+  });
+  await expect(row).toHaveAttribute('data-activity-row', 'mention', { timeout: 30_000 });
+  await expect(row).toContainText('mentioned you');
+
+  await openPath(page, `/home/${encodeURIComponent(quietId)}/`);
   await page.evaluate(() =>
     (window as unknown as { clickNotification: (index: number) => void }).clickNotification(0)
   );
@@ -229,11 +239,11 @@ test('messages from another account notify, and a click opens their room or thre
     new RegExp(`${encodeURIComponent(busyId)}.*threadId=${encodeURIComponent(rootId)}`)
   );
 
-  // The Inbox marks the mention as a highlight, and Open leads to its thread too.
-  await openPath(page, '/inbox/notifications/');
-  const highlighted = page.locator('[data-notification-highlight]');
-  await expect(highlighted).toHaveCount(1, { timeout: 30_000 });
-  await expect(highlighted).toContainText('can you check the numbers?');
-  await highlighted.getByText('Open', { exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`threadId=${encodeURIComponent(rootId)}`));
+  // Read now, the thread keeps its row in Activity, which leads to it too, beside the list.
+  await openPath(page, '/activity/');
+  await row.getByRole('button').first().click();
+  await expect(page).toHaveURL(
+    new RegExp(`/activity/[^/?]+/?\\?threadId=${encodeURIComponent(rootId)}`)
+  );
+  await expect(activity).toBeVisible();
 });

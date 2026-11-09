@@ -23,8 +23,6 @@ import { launchWebKit } from '../helpers/webkit';
 // An agent's tool calls show as one line each in its reply: icon, title, detail and an arrow
 // right after the text. On a phone (390 by 844, touch), in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit:
-// - In Russian, the Inbox's narrow cards leave a tool line less room than its title needs. The
-//   title truncates with an ellipsis and the arrow stays in view, right after it.
 // - In Arabic, a tool's output, its arguments and the tool names after the title read in their
 //   own direction: `8 results` and `2026 SaaS churn benchmarks`, not `results 8`, and a list of
 //   tool names cut short keeps its start. English reads the same as before.
@@ -93,8 +91,8 @@ const traceOf = (...calls: [string, string, string][]) => ({
 });
 
 /**
- * A thread where an agent ran two tools for the reader, mentioning them so that the reply also
- * shows in the Inbox, and ran a third one that the reader approved.
+ * A thread where an agent ran two tools for the reader, in a reply that mentions them, and ran a
+ * third one that the reader approved.
  */
 const seed = async (engine: string) => {
   const reader = await registerAndLogin(`reader_${engine}`);
@@ -293,31 +291,6 @@ const readsLeftToRight = async (target: Locator, first: string, second: string) 
   return !!before && !!after && before.left < after.left;
 };
 
-/** Russian Inbox: the narrow card truncates a tool line's title and keeps its arrow in view. */
-const checkRussianInbox = async (page: Page, engine: string) => {
-  await openIn(page, 'ru', '/inbox/notifications/');
-  const rows = disclosures(page);
-  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
-  await page.waitForTimeout(500);
-  const arrows = await Promise.all((await rows.all()).map((row) => measureArrow(row)));
-  console.log(`${engine} ru inbox: ${JSON.stringify(arrows)}`);
-  await shot(page, rows.first().locator('xpath=..'), `tool-row-ru-inbox-${engine}-phone`);
-  for (const arrow of arrows) {
-    const where = `${engine}, Russian Inbox, ${arrow.text.slice(0, 40)}`;
-    expect
-      .soft(arrow.roomToEnd, `the arrow stays inside the line (${where})`)
-      .toBeGreaterThanOrEqual(0);
-    expect.soft(arrow.painted, `the arrow is painted (${where})`).toBe(true);
-    expect.soft(arrow.titleClear, `the title ends before the arrow (${where})`).toBe(true);
-    if (arrow.titleTruncated) {
-      expect
-        .soft(arrow.titleOverflow, `a cut title ends in an ellipsis (${where})`)
-        .toBe('ellipsis');
-    }
-    expect.soft(arrow.gapToText, `the arrow follows the text (${where})`).toBeLessThanOrEqual(20);
-  }
-};
-
 /** The thread in a language, with the tool line of the reply that searched the web. */
 const openToolLine = async (page: Page, world: World, language: 'en' | 'ar') => {
   await openIn(page, language, threadRoute(world));
@@ -432,7 +405,6 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
       username: world.reader.username,
       password: PASSWORD,
     });
-    await checkRussianInbox(page, engine);
     await checkOutputDirection(page, world, engine, 'en');
     await checkOutputDirection(page, world, engine, 'ar');
     await checkReceiptArrow(page, world, engine, 'en');

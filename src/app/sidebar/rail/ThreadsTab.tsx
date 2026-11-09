@@ -2,7 +2,14 @@ import { RefCallback } from 'react';
 import { Icon, Icons } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../ui/sidebar/SidebarItem';
+import {
+  SidebarAvatar,
+  SidebarItem,
+  SidebarItemBadge,
+  SidebarItemTooltip,
+} from '../../ui/sidebar/SidebarItem';
+import { useThreadsNeedsYouCount } from '../../activity/useActivityRows';
+import { ActivityBadge } from './ActivityTab';
 import { useThreadsSelected } from '../../routes/useThreadsSelected';
 import { getThreadsPath } from '../../routes/pathUtils';
 
@@ -11,12 +18,13 @@ type ThreadsTabProps = {
   onSelect?: (selected: boolean) => boolean;
 };
 
-/** The Threads button of the icon rail: threads across every room. */
+/** The Threads button of the icon rail: threads across every room, counting those that wait for you. */
 export function ThreadsTab({ onSelect }: ThreadsTabProps) {
   const navigate = useNavigate();
   const active = useThreadsSelected();
   const { t } = useTranslation();
-  const label = t('nav.threads');
+  const waiting = useThreadsNeedsYouCount();
+  const label = waiting > 0 ? t('threadsPage.needsYouLabel', { count: waiting }) : t('nav.threads');
 
   const openThreads = () => {
     if (onSelect?.(active)) return;
@@ -37,7 +45,12 @@ export function ThreadsTab({ onSelect }: ThreadsTabProps) {
 
   return (
     <SidebarItem active={active}>
-      <SidebarItemTooltip tooltip={label}>{renderButton}</SidebarItemTooltip>
+      <SidebarItemTooltip tooltip={t('nav.threads')}>{renderButton}</SidebarItemTooltip>
+      {waiting > 0 && (
+        <SidebarItemBadge hasCount>
+          <ActivityBadge count={waiting} needsYou />
+        </SidebarItemBadge>
+      )}
     </SidebarItem>
   );
 }

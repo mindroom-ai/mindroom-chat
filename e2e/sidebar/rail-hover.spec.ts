@@ -254,6 +254,15 @@ const pointerAway = async (page: Page) => {
   await settle(page);
 };
 
+/** Opens the Activity page from the rail's bell, whose popover offers Open as page. */
+const openActivityPage = async (page: Page, bell: Locator) => {
+  await bell.click();
+  const popover = page.getByRole('dialog', { name: 'Activity' });
+  await popover.getByRole('button', { name: 'Open as page', exact: true }).click();
+  await expect(page).toHaveURL(/\/activity\/$/);
+  await expect(popover).toBeHidden();
+};
+
 /** Hovers the button and returns how its centre moved and how its indicator looked. */
 const hoverAndMeasure = async (page: Page, button: Locator) => {
   const entry = entryOf(button);
@@ -354,7 +363,7 @@ test('every rail entry slides toward the inline end and grows its indicator on h
     Create: rail(page).getByRole('button', { name: 'Create Space' }),
     Search: rail(page).getByRole('button', { name: 'Open command palette' }),
     'device verification': rail(page).getByRole('button', { name: 'Unverified Device' }),
-    Inbox: rail(page).getByRole('button', { name: 'Inbox' }),
+    Activity: rail(page).getByRole('button', { name: /^Activity/ }),
     account: rail(page).getByRole('button', { name: /Open account menu for / }),
     collapse: rail(page).getByRole('button', { name: 'Collapse navigation panel' }),
   };
@@ -403,18 +412,18 @@ test('every rail entry slides toward the inline end and grows its indicator on h
   );
 });
 
-test('the bottom group shows its indicators while Inbox or Search is open', async ({ page }) => {
+test('the bottom group shows its indicators while Activity or Search is open', async ({ page }) => {
   test.slow();
   const account = await register('rail_hover_d');
   await publishCrossSigning(account);
   await signIn(page, account);
 
   const search = rail(page).getByRole('button', { name: 'Open command palette' });
-  const inbox = rail(page).getByRole('button', { name: 'Inbox' });
+  const activity = rail(page).getByRole('button', { name: /^Activity/ });
   const bottom: Record<string, Locator> = {
     Search: search,
     'device verification': rail(page).getByRole('button', { name: 'Unverified Device' }),
-    Inbox: inbox,
+    Activity: activity,
     account: rail(page).getByRole('button', { name: /Open account menu for / }),
     collapse: rail(page).getByRole('button', { name: 'Collapse navigation panel' }),
   };
@@ -422,13 +431,13 @@ test('the bottom group shows its indicators while Inbox or Search is open', asyn
     await expect(button, `${name} on the rail`).toBeVisible({ timeout: 30_000 });
   }
 
-  // Inbox open: its tall indicator shows at rest and on hover; the others still grow theirs.
-  await inbox.click();
-  await expect(entryOf(inbox)).toHaveAttribute('data-active', 'true');
+  // Activity open: its tall indicator shows at rest and on hover; the others still grow theirs.
+  await openActivityPage(page, activity);
+  await expect(entryOf(activity)).toHaveAttribute('data-active', 'true');
   await pointerAway(page);
-  expectDrawn('Inbox open', await drawnIndicator(page, entryOf(inbox)), SELECTED_HEIGHT);
+  expectDrawn('Activity open', await drawnIndicator(page, entryOf(activity)), SELECTED_HEIGHT);
   for (const [name, button] of Object.entries(bottom)) {
-    expectHover(`${name} with Inbox open`, await hoverAndMeasure(page, button));
+    expectHover(`${name} with Activity open`, await hoverAndMeasure(page, button));
   }
 
   // Search open: the command palette's backdrop covers the rail, and the tall indicator shows
@@ -550,7 +559,7 @@ test.describe('with more spaces than the rail can show', () => {
     await signIn(page, account);
 
     const home = rail(page).getByRole('button', { name: 'Home', exact: true });
-    const inbox = rail(page).getByRole('button', { name: 'Inbox' });
+    const activity = rail(page).getByRole('button', { name: /^Activity/ });
     const deepest = rail(page).locator(`button[data-id="${spaces.at(-1) ?? ''}"]`);
     await expect(deepest).toBeAttached({ timeout: 30_000 });
     await expect(entryOf(home)).toHaveAttribute('data-active', 'true');
@@ -571,8 +580,8 @@ test.describe('with more spaces than the rail can show', () => {
 
     // One centre line for the scrolling part and the bottom group.
     await pointerAway(page);
-    const inboxCentre = (await centre(inbox)).x;
-    expectOnLine('Home', (await centre(home)).x, inboxCentre);
+    const activityCentre = (await centre(activity)).x;
+    expectOnLine('Home', (await centre(home)).x, activityCentre);
 
     // The selected Home's indicator shows at the rail's edge.
     expectDrawn('selected Home', await drawnIndicator(page, entryOf(home)), SELECTED_HEIGHT);
@@ -580,15 +589,15 @@ test.describe('with more spaces than the rail can show', () => {
     // Scrolled to the deepest space: on the centre line, and hovering shows its indicator.
     await deepest.scrollIntoViewIfNeeded();
     await pointerAway(page);
-    expectOnLine('the deepest space', (await centre(deepest)).x, inboxCentre);
+    expectOnLine('the deepest space', (await centre(deepest)).x, activityCentre);
     const measured = await hoverAndMeasure(page, deepest);
     expectHover('the deepest space, scrolled', measured);
 
     // Right to left: the same, mirrored, with the indicator at the right edge.
     await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
     await pointerAway(page);
-    const rtlInbox = (await centre(inbox)).x;
-    expectOnLine('right to left, the deepest space', (await centre(deepest)).x, rtlInbox);
+    const rtlActivity = (await centre(activity)).x;
+    expectOnLine('right to left, the deepest space', (await centre(deepest)).x, rtlActivity);
     await deepest.hover();
     await settle(page);
     const rtlEdge = await entryOf(deepest).evaluate((element) => {
@@ -659,16 +668,16 @@ test('saves the rail at rest, hovered and selected, light and dark', async ({ pa
     await home.hover();
     await settle(page);
     await shot(`selected-${label}`);
-    // The bottom group: Inbox hovered beside the account's selection mark, then Inbox open.
-    const inbox = rail(page).getByRole('button', { name: 'Inbox' });
+    // The bottom group: Activity hovered beside the account's selection mark, then Activity open.
+    const activity = rail(page).getByRole('button', { name: /^Activity/ });
     await pointerAway(page);
-    await inbox.hover();
+    await activity.hover();
     await settle(page);
     await bottomShot(`bottom-hover-${label}`);
-    await inbox.click();
-    await expect(entryOf(inbox)).toHaveAttribute('data-active', 'true');
+    await openActivityPage(page, activity);
+    await expect(entryOf(activity)).toHaveAttribute('data-active', 'true');
     await pointerAway(page);
-    await bottomShot(`inbox-selected-${label}`);
+    await bottomShot(`activity-selected-${label}`);
     await home.click();
     await expect(entryOf(home)).toHaveAttribute('data-active', 'true');
   }

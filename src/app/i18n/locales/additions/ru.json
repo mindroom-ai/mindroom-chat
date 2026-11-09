@@ -113,8 +113,7 @@
       "close": "Закрыть"
     },
     "invites": {
-      "actionFailed": "Что-то пошло не так. Повторите попытку.",
-      "openNotifications": "Открыть уведомления"
+      "actionFailed": "Что-то пошло не так. Повторите попытку."
     },
     "inviteUserAutocomplete": {
       "placeholder": "Найдите пользователей или введите идентификатор пользователя"
@@ -730,7 +729,8 @@
       "description": "{{userId}} получит приглашение."
     },
     "actions": {
-      "goInboxInvitesDescription": "Открыть приглашения и уведомления во входящих"
+      "goActivity": "Перейти к активности",
+      "goActivityDescription": "Упоминания, ответы и то, что ждёт вас"
     }
   },
   "shortcuts": {
@@ -771,5 +771,128 @@
   },
   "thread": {
     "back": "Назад"
+  },
+  "nav": {
+    "activity": "Активность"
+  },
+  "activity": {
+    "title": "Активность",
+    "unreadOnly": "Непрочитанные",
+    "markAllRead": "Отметить все прочитанными",
+    "openAsPage": "Открыть как страницу",
+    "tabs": {
+      "all": "Все",
+      "mentions": "Упоминания",
+      "replies": "Ответы",
+      "needsYou": "Ждут вас"
+    },
+    "tabsLabel": "Показать",
+    "days": {
+      "today": "Сегодня",
+      "yesterday": "Вчера",
+      "earlier": "Ранее"
+    },
+    "sentence": {
+      "approval": "{{name}} ждёт одобрения",
+      "question": "{{name}} задаёт вам вопрос",
+      "invite": "{{name}} приглашает вас",
+      "inviteUnknown": "Вас пригласили",
+      "mention": "{{name}} упомянул(а) вас",
+      "mentionAndReply": "{{name}} упомянул(а) вас, {{other}} ответил(а)",
+      "reply": "{{name}} ответил(а)",
+      "replyAndOther": "{{name}} и {{other}} ответили",
+      "replyAndOthers_one": "{{name}} и ещё {{count}} участник ответили",
+      "replyAndOthers_few": "{{name}} и ещё {{count}} участника ответили",
+      "replyAndOthers_many": "{{name}} и ещё {{count}} участников ответили",
+      "replyAndOthers_other": "{{name}} и ещё {{count}} участника ответили",
+      "finished": "{{name}}: работа завершена",
+      "stopped": "{{name}}: работа остановлена",
+      "youReplied": "Вы ответили"
+    },
+    "newCount_one": "{{count}} новое",
+    "newCount_few": "{{count}} новых",
+    "newCount_many": "{{count}} новых",
+    "newCount_other": "{{count}} новых",
+    "runMinutes_one": "{{count}} мин",
+    "runMinutes_few": "{{count}} мин",
+    "runMinutes_many": "{{count}} мин",
+    "runMinutes_other": "{{count}} мин",
+    "toolCount_one": "{{count}} инструмент",
+    "toolCount_few": "{{count}} инструмента",
+    "toolCount_many": "{{count}} инструментов",
+    "toolCount_other": "{{count}} инструмента",
+    "actions": {
+      "approve": "Одобрить",
+      "deny": "Запретить",
+      "details": "Подробнее",
+      "join": "Войти",
+      "decline": "Отклонить",
+      "sending": "Отправка…",
+      "failed": "Не удалось отправить. Повторите попытку.",
+      "answered": "Ответ: {{label}}",
+      "approved": "Одобрено",
+      "denied": "Запрещено",
+      "joined": "Вы вошли",
+      "declined": "Отклонено"
+    },
+    "automationsHidden_one": "Скрыто запусков автоматизаций: {{count}}",
+    "automationsHidden_few": "Скрыто запусков автоматизаций: {{count}}",
+    "automationsHidden_many": "Скрыто запусков автоматизаций: {{count}}",
+    "automationsHidden_other": "Скрыто запусков автоматизаций: {{count}}",
+    "showAutomations": "Показать",
+    "hideAutomations": "Скрыть запуски автоматизаций",
+    "allInvites": "Все приглашения",
+    "caughtUp": "Вы всё просмотрели",
+    "caughtUpDescription": "Здесь появляются упоминания, ответы в ваших ветках и всё, что ждёт вас.",
+    "pickTitle": "Выберите что-нибудь в активности",
+    "pickDescription": "Ветка откроется здесь, рядом со списком.",
+    "bellLabel": "Активность",
+    "bellLabelCount_one": "Активность, непрочитанных: {{count}}",
+    "bellLabelCount_few": "Активность, непрочитанных: {{count}}",
+    "bellLabelCount_many": "Активность, непрочитанных: {{count}}",
+    "bellLabelCount_other": "Активность, непрочитанных: {{count}}",
+    "openActivity": "Открыть активность",
+    "close": "Закрыть активность"
+  },
+  "threadPreview": {
+    "voice": "Голосовое сообщение",
+    "image": "Изображение",
+    "video": "Видео",
+    "file": "Файл",
+    "you": "Вы"
+  },
+  "threadsPage": {
+    "title": "Ветки",
+    "scopeLabel": "Показать",
+    "scope": {
+      "mine": "Мои",
+      "following": "Отслеживаемые",
+      "all": "Все"
+    },
+    "search": "Поиск веток",
+    "groups": {
+      "needsYou": "Ждут вас",
+      "unread": "Непрочитанные",
+      "working": "Агенты работают",
+      "recent": "Недавние",
+      "automations": "Автоматизации"
+    },
+    "showMore": "Показать больше",
+    "chips": {
+      "approval": "Одобрение",
+      "question": "Вопрос",
+      "mention": "Упоминает вас",
+      "resolved": "Решена"
+    },
+    "working": "В работе",
+    "noThreads": "Здесь пока нет веток",
+    "noThreadsDescription": "Здесь появляются ветки, которые вы начали или в которых участвуете.",
+    "noMatches": "Нет веток по этому запросу",
+    "pickTitle": "Выберите ветку",
+    "pickDescription": "Она откроется здесь, рядом со списком.",
+    "needsYouLabel_one": "Ветки, ждут вас: {{count}}",
+    "needsYouLabel_few": "Ветки, ждут вас: {{count}}",
+    "needsYouLabel_many": "Ветки, ждут вас: {{count}}",
+    "needsYouLabel_other": "Ветки, ждут вас: {{count}}"
   }
 }

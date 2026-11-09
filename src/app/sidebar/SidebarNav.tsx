@@ -7,7 +7,7 @@ import { CanvasesTab } from './rail/CanvasesTab';
 import { DirectTab } from './rail/DirectTab';
 import { ExploreTab } from './rail/ExploreTab';
 import { HomeTab } from './rail/HomeTab';
-import { InboxTab } from './rail/InboxTab';
+import { ActivityTab } from './rail/ActivityTab';
 import { SearchTab } from '../command-palette/CommandPaletteSidebarTab';
 import { SettingsTab } from './rail/SettingsTab';
 import { SpaceTabs } from './rail/SpaceTabs';
@@ -34,7 +34,7 @@ type SidebarNavProps = {
  * The icon rail. On top: Home, Direct Messages, Threads and Canvases, then the joined spaces,
  * Explore and Create Space; while the window leaves room for enough spaces, the top group stays
  * put and only the spaces scroll (`RailScrollArea`). Pinned to the foot: the call this device is
- * in, the command palette, device and Local MindRoom notices when they apply, the Inbox, the
+ * in, the command palette, device and Local MindRoom notices when they apply, the Activity bell, the
  * account, and the footer. Threads, Canvases, Explore, Create Space, the command palette and
  * Local MindRoom show where the deployment offers them and the person has not hidden them in
  * Settings (`useRailButtons`). On phones the top bar holds the command palette, and the account
@@ -79,7 +79,7 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
               {shown.search && !phone && <SearchTab />}
               <UnverifiedTab />
               {shown.localMindroom && <LocalMindroomTab />}
-              <InboxTab />
+              <ActivityTab />
               <SettingsTab />
             </SidebarStack>
             {footer && (

@@ -245,7 +245,7 @@ export const classifyFlightRecorderRoute = (
   else if (
     segment &&
     // SPACE_PATH owns every non-reserved top-level segment as a Matrix space identifier.
-    !['explore', 'create', 'inbox', 'space-settings', 'room-settings'].includes(segment)
+    !['explore', 'create', 'inbox', 'activity', 'space-settings', 'room-settings'].includes(segment)
   )
     route = 'space';
   return { route, hasThreadId: url.searchParams.has('threadId') };

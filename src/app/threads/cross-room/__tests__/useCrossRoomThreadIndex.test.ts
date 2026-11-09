@@ -21,11 +21,7 @@ import { setRoomEventPinned } from '../../../event-store/threads/threadPinning';
 import { buildSidebarThreadEntries } from '../../../sidebar/threads/threadNavCategoryUtils';
 import { useCrossRoomThreadIndex } from '../useCrossRoomThreadIndex';
 import { crossRoomThreadIndexAtom, getCrossRoomThreadIndexKey } from '../crossRoomThreadIndex';
-import {
-  applyCrossRoomThreadFilters,
-  isCrossRoomThreadEntryEligible,
-} from '../crossRoomThreadFilterPipeline';
-import { DEFAULT_CROSS_ROOM_THREAD_FILTERS } from '../crossRoomThreadFilters';
+import { isCrossRoomThreadEntryEligible } from '../crossRoomThreadOrder';
 
 const { matrixClientMock, activeSessionMock } = vi.hoisted(() => ({
   matrixClientMock: vi.fn(),
@@ -489,24 +485,14 @@ describe('useCrossRoomThreadIndex', () => {
         expect(entries()[0].isResolved).toBe(false);
         expect(entries()[0].threadRecord.status.isResolved).toBe(false);
         expect(
-          applyCrossRoomThreadFilters(entries(), {
-            ...DEFAULT_CROSS_ROOM_THREAD_FILTERS,
-            scope: 'all',
-            resolved: 'unresolved',
-            activityWindow: 'all',
-          })
+          entries().filter((entry) => !entry.isResolved)
         ).toHaveLength(1);
         expect(buildSidebarThreadEntries(entries(), [])).toHaveLength(1);
         await syncPins(['$root']);
         await syncPins([]);
         expect(entries()[0].isResolved).toBe(true);
         expect(
-          applyCrossRoomThreadFilters(entries(), {
-            ...DEFAULT_CROSS_ROOM_THREAD_FILTERS,
-            scope: 'all',
-            resolved: 'unresolved',
-            activityWindow: 'all',
-          })
+          entries().filter((entry) => !entry.isResolved)
         ).toHaveLength(0);
         expect(buildSidebarThreadEntries(entries(), [])).toHaveLength(0);
       } finally {

@@ -107,8 +107,7 @@
       "close": "বন্ধ করুন"
     },
     "invites": {
-      "actionFailed": "কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।",
-      "openNotifications": "বিজ্ঞপ্তি খুলুন"
+      "actionFailed": "কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।"
     },
     "inviteUserAutocomplete": {
       "placeholder": "ব্যবহারকারী খুঁজুন বা একটি ব্যবহারকারী ID লিখুন"
@@ -708,7 +707,8 @@
       "description": "{{userId}}-কে একটি আমন্ত্রণ পাঠায়।"
     },
     "actions": {
-      "goInboxInvitesDescription": "ইনবক্সের আমন্ত্রণ ও বিজ্ঞপ্তি খুলুন"
+      "goActivity": "কার্যকলাপে যান",
+      "goActivityDescription": "উল্লেখ, উত্তর এবং যা আপনার অপেক্ষায় আছে"
     }
   },
   "shortcuts": {
@@ -749,5 +749,114 @@
   },
   "thread": {
     "back": "পিছনে"
+  },
+  "nav": {
+    "activity": "কার্যকলাপ"
+  },
+  "activity": {
+    "title": "কার্যকলাপ",
+    "unreadOnly": "অপঠিত",
+    "markAllRead": "সব পঠিত হিসেবে চিহ্নিত করুন",
+    "openAsPage": "পৃষ্ঠা হিসেবে খুলুন",
+    "tabs": {
+      "all": "সব",
+      "mentions": "উল্লেখ",
+      "replies": "উত্তর",
+      "needsYou": "আপনার অপেক্ষায়"
+    },
+    "tabsLabel": "দেখান",
+    "days": {
+      "today": "আজ",
+      "yesterday": "গতকাল",
+      "earlier": "আগে"
+    },
+    "sentence": {
+      "approval": "{{name}} অনুমোদন চাইছে",
+      "question": "{{name}} আপনাকে প্রশ্ন করেছে",
+      "invite": "{{name}} আপনাকে আমন্ত্রণ জানিয়েছে",
+      "inviteUnknown": "আপনাকে আমন্ত্রণ জানানো হয়েছে",
+      "mention": "{{name}} আপনাকে উল্লেখ করেছে",
+      "mentionAndReply": "{{name}} আপনাকে উল্লেখ করেছে, {{other}} উত্তর দিয়েছে",
+      "reply": "{{name}} উত্তর দিয়েছে",
+      "replyAndOther": "{{name}} এবং {{other}} উত্তর দিয়েছে",
+      "replyAndOthers_one": "{{name}} এবং আরও {{count}} জন উত্তর দিয়েছে",
+      "replyAndOthers_other": "{{name}} এবং আরও {{count}} জন উত্তর দিয়েছে",
+      "finished": "{{name}} কাজ শেষ করেছে",
+      "stopped": "{{name}} থেমে গেছে",
+      "youReplied": "আপনি উত্তর দিয়েছেন"
+    },
+    "newCount_one": "{{count}}টি নতুন",
+    "newCount_other": "{{count}}টি নতুন",
+    "runMinutes_one": "{{count}} মিনিট",
+    "runMinutes_other": "{{count}} মিনিট",
+    "toolCount_one": "{{count}}টি টুল",
+    "toolCount_other": "{{count}}টি টুল",
+    "actions": {
+      "approve": "অনুমোদন করুন",
+      "deny": "প্রত্যাখ্যান করুন",
+      "details": "বিস্তারিত",
+      "join": "যোগ দিন",
+      "decline": "প্রত্যাখ্যান করুন",
+      "sending": "পাঠানো হচ্ছে…",
+      "failed": "পাঠানো যায়নি। আবার চেষ্টা করুন।",
+      "answered": "উত্তর দেওয়া হয়েছে: {{label}}",
+      "approved": "অনুমোদিত",
+      "denied": "প্রত্যাখ্যাত",
+      "joined": "যোগ দিয়েছেন",
+      "declined": "প্রত্যাখ্যাত"
+    },
+    "automationsHidden_one": "{{count}}টি অটোমেশন রান লুকানো আছে",
+    "automationsHidden_other": "{{count}}টি অটোমেশন রান লুকানো আছে",
+    "showAutomations": "দেখান",
+    "hideAutomations": "অটোমেশন রান লুকান",
+    "allInvites": "সব আমন্ত্রণ",
+    "caughtUp": "আপনি সব দেখে ফেলেছেন",
+    "caughtUpDescription": "উল্লেখ, আপনার থ্রেডের উত্তর এবং আপনার অপেক্ষায় থাকা সবকিছু এখানে দেখা যায়।",
+    "pickTitle": "কার্যকলাপ থেকে কিছু বেছে নিন",
+    "pickDescription": "এর থ্রেড এখানে, তালিকার পাশে খোলে।",
+    "bellLabel": "কার্যকলাপ",
+    "bellLabelCount_one": "কার্যকলাপ, {{count}}টি অপঠিত",
+    "bellLabelCount_other": "কার্যকলাপ, {{count}}টি অপঠিত",
+    "openActivity": "কার্যকলাপ খুলুন",
+    "close": "কার্যকলাপ বন্ধ করুন"
+  },
+  "threadPreview": {
+    "voice": "ভয়েস বার্তা",
+    "image": "ছবি",
+    "video": "ভিডিও",
+    "file": "ফাইল",
+    "you": "আপনি"
+  },
+  "threadsPage": {
+    "title": "থ্রেড",
+    "scopeLabel": "দেখান",
+    "scope": {
+      "mine": "আমার",
+      "following": "অনুসরণ করা",
+      "all": "সব"
+    },
+    "search": "থ্রেড অনুসন্ধান করুন",
+    "groups": {
+      "needsYou": "আপনার অপেক্ষায়",
+      "unread": "অপঠিত",
+      "working": "এজেন্ট কাজ করছে",
+      "recent": "সাম্প্রতিক",
+      "automations": "অটোমেশন"
+    },
+    "showMore": "আরও দেখুন",
+    "chips": {
+      "approval": "অনুমোদন",
+      "question": "প্রশ্ন",
+      "mention": "আপনাকে উল্লেখ",
+      "resolved": "সমাধান করা হয়েছে"
+    },
+    "working": "কাজ চলছে",
+    "noThreads": "এখানে এখনও কোনো থ্রেড নেই",
+    "noThreadsDescription": "আপনি যে থ্রেড শুরু করেন বা যাতে অংশ নেন, সেগুলো এখানে দেখা যায়।",
+    "noMatches": "এই অনুসন্ধানের সাথে কোনো থ্রেড মেলেনি",
+    "pickTitle": "একটি থ্রেড বেছে নিন",
+    "pickDescription": "এটি এখানে, তালিকার পাশে খোলে।",
+    "needsYouLabel_one": "থ্রেড, {{count}}টি আপনার অপেক্ষায়",
+    "needsYouLabel_other": "থ্রেড, {{count}}টি আপনার অপেক্ষায়"
   }
 }

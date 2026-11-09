@@ -3,9 +3,11 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { NavigateOptions } from 'react-router-dom';
 import {
+  getActivityRoomPath,
   getDirectRoomPath,
   getHomeRoomPath,
   getSpaceRoomPath,
+  getThreadsRoomPath,
   withSearchParam,
 } from '../routes/pathUtils';
 import { useRoomNavigate } from './useRoomNavigate';
@@ -25,6 +27,9 @@ const mocks = vi.hoisted(() => ({
   // The route's `:roomIdOrAlias` segment, and whether the route is in the Direct section.
   routeRoom: undefined as string | undefined,
   directSelected: false,
+  // The section the route is in when it is Activity or Threads.
+  activitySelected: false,
+  threadsSelected: false,
   aliases: new Map<string, string>(),
   mx: {
     getRoom: (roomId: string) => ({ isSpaceRoom: () => mocks.spaces.has(roomId) }),
@@ -75,6 +80,14 @@ vi.mock('./useSelectedSpace', () => ({
 
 vi.mock('../routes/useDirectSelected', () => ({
   useDirectSelected: () => mocks.directSelected,
+}));
+
+vi.mock('../routes/useActivitySelected', () => ({
+  useActivitySelected: () => mocks.activitySelected,
+}));
+
+vi.mock('../routes/useThreadsSelected', () => ({
+  useThreadsSelected: () => mocks.threadsSelected,
 }));
 
 vi.mock('../preferences/settings', () => ({
@@ -157,6 +170,8 @@ describe('useRoomNavigate', () => {
     mocks.selectedSpace = undefined;
     mocks.routeRoom = undefined;
     mocks.directSelected = false;
+    mocks.activitySelected = false;
+    mocks.threadsSelected = false;
     mocks.aliases.clear();
     mocks.historyState = { idx: 1, key: 'room-entry' };
     Object.assign(window.history, { state: mocks.historyState });
@@ -414,6 +429,58 @@ describe('useRoomNavigate', () => {
       inSpace();
       mocks.aliases.set('#room:example.org', roomId);
       mocks.routeRoom = encodeURIComponent('#room:example.org');
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      act(() => {
+        getSnapshot().navigateRoomThreadDirect(roomId, '$thread');
+      });
+
+      expect(mocks.navigate.mock.calls[0][0]).toBe(
+        withSearchParam(getHomeRoomPath(roomId), { threadId: '$thread' })
+      );
+      renderer.unmount();
+    });
+
+    it('keeps a room shown in Activity there', () => {
+      inSpace();
+      mocks.routeRoom = roomId;
+      mocks.activitySelected = true;
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      act(() => {
+        getSnapshot().navigateRoomThreadDirect(roomId, '$thread');
+        getSnapshot().navigateRoomFocusEvent(roomId, '$reply');
+      });
+
+      expect(mocks.navigate.mock.calls[0][0]).toBe(
+        withSearchParam(getActivityRoomPath(roomId), { threadId: '$thread' })
+      );
+      expect(mocks.navigate.mock.calls[1][0]).toBe(
+        withSearchParam(getActivityRoomPath(roomId, '$reply'), { focusEvent: '1' })
+      );
+      renderer.unmount();
+    });
+
+    it('keeps a room shown in Threads by its alias there', () => {
+      inSpace();
+      mocks.aliases.set('#room:example.org', roomId);
+      mocks.routeRoom = encodeURIComponent('#room:example.org');
+      mocks.threadsSelected = true;
+      const { getSnapshot, renderer } = renderHookHarness();
+
+      act(() => {
+        getSnapshot().navigateRoomThreadDirect(roomId, '$thread');
+      });
+
+      expect(mocks.navigate.mock.calls[0][0]).toBe(
+        withSearchParam(getThreadsRoomPath(roomId), { threadId: '$thread' })
+      );
+      renderer.unmount();
+    });
+
+    it('opens another room from Activity in its own section', () => {
+      mocks.routeRoom = '!other:example.org';
+      mocks.activitySelected = true;
       const { getSnapshot, renderer } = renderHookHarness();
 
       act(() => {

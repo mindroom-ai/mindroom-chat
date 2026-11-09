@@ -119,8 +119,7 @@
       "close": "إغلاق"
     },
     "invites": {
-      "actionFailed": "حدث خطأ ما. حاول مرة أخرى.",
-      "openNotifications": "فتح الإشعارات"
+      "actionFailed": "حدث خطأ ما. حاول مرة أخرى."
     },
     "inviteUserAutocomplete": {
       "placeholder": "ابحث عن مستخدمين أو أدخل معرّف مستخدم"
@@ -752,7 +751,8 @@
       "description": "يرسل دعوة إلى ⁨{{userId}}⁩."
     },
     "actions": {
-      "goInboxInvitesDescription": "فتح دعوات صندوق الوارد وإشعاراته"
+      "goActivity": "الانتقال إلى النشاط",
+      "goActivityDescription": "الإشارات والردود وما ينتظرك"
     }
   },
   "shortcuts": {
@@ -793,5 +793,142 @@
   },
   "thread": {
     "back": "رجوع"
+  },
+  "nav": {
+    "activity": "النشاط"
+  },
+  "activity": {
+    "title": "النشاط",
+    "unreadOnly": "غير المقروءة",
+    "markAllRead": "تعليم الكل كمقروء",
+    "openAsPage": "فتح كصفحة",
+    "tabs": {
+      "all": "الكل",
+      "mentions": "الإشارات",
+      "replies": "الردود",
+      "needsYou": "بانتظارك"
+    },
+    "tabsLabel": "عرض",
+    "days": {
+      "today": "اليوم",
+      "yesterday": "أمس",
+      "earlier": "سابقًا"
+    },
+    "sentence": {
+      "approval": "يحتاج ⁨{{name}}⁩ إلى موافقة",
+      "question": "سألك ⁨{{name}}⁩",
+      "invite": "دعاك ⁨{{name}}⁩",
+      "inviteUnknown": "تمت دعوتك",
+      "mention": "أشار إليك ⁨{{name}}⁩",
+      "mentionAndReply": "أشار إليك ⁨{{name}}⁩، وردّ ⁨{{other}}⁩",
+      "reply": "ردّ ⁨{{name}}⁩",
+      "replyAndOther": "ردّ ⁨{{name}}⁩ و⁨{{other}}⁩",
+      "replyAndOthers_zero": "ردّ ⁨{{name}}⁩ و⁨{{count}}⁩ مشارك آخر",
+      "replyAndOthers_one": "ردّ ⁨{{name}}⁩ و⁨{{count}}⁩ مشارك آخر",
+      "replyAndOthers_two": "ردّ ⁨{{name}}⁩ ومشاركان آخران (⁨{{count}}⁩)",
+      "replyAndOthers_few": "ردّ ⁨{{name}}⁩ و⁨{{count}}⁩ مشاركين آخرين",
+      "replyAndOthers_many": "ردّ ⁨{{name}}⁩ و⁨{{count}}⁩ مشاركًا آخر",
+      "replyAndOthers_other": "ردّ ⁨{{name}}⁩ و⁨{{count}}⁩ مشارك آخر",
+      "finished": "أنهى ⁨{{name}}⁩ عمله",
+      "stopped": "توقف ⁨{{name}}⁩",
+      "youReplied": "رددت"
+    },
+    "newCount_zero": "جديدة: ⁨{{count}}⁩",
+    "newCount_one": "جديدة: ⁨{{count}}⁩",
+    "newCount_two": "جديدة: ⁨{{count}}⁩",
+    "newCount_few": "جديدة: ⁨{{count}}⁩",
+    "newCount_many": "جديدة: ⁨{{count}}⁩",
+    "newCount_other": "جديدة: ⁨{{count}}⁩",
+    "runMinutes_zero": "⁨{{count}}⁩ دقيقة",
+    "runMinutes_one": "⁨{{count}}⁩ دقيقة",
+    "runMinutes_two": "دقيقتان (⁨{{count}}⁩)",
+    "runMinutes_few": "⁨{{count}}⁩ دقائق",
+    "runMinutes_many": "⁨{{count}}⁩ دقيقة",
+    "runMinutes_other": "⁨{{count}}⁩ دقيقة",
+    "toolCount_zero": "⁨{{count}}⁩ أداة",
+    "toolCount_one": "⁨{{count}}⁩ أداة",
+    "toolCount_two": "أداتان (⁨{{count}}⁩)",
+    "toolCount_few": "⁨{{count}}⁩ أدوات",
+    "toolCount_many": "⁨{{count}}⁩ أداة",
+    "toolCount_other": "⁨{{count}}⁩ أداة",
+    "actions": {
+      "approve": "موافقة",
+      "deny": "رفض",
+      "details": "التفاصيل",
+      "join": "انضمام",
+      "decline": "رفض",
+      "sending": "جارٍ الإرسال…",
+      "failed": "تعذر الإرسال. حاول مرة أخرى.",
+      "answered": "تمت الإجابة: ⁨{{label}}⁩",
+      "approved": "تمت الموافقة",
+      "denied": "تم الرفض",
+      "joined": "تم الانضمام",
+      "declined": "تم الرفض"
+    },
+    "automationsHidden_zero": "تشغيلات أتمتة مخفية: ⁨{{count}}⁩",
+    "automationsHidden_one": "تشغيلات أتمتة مخفية: ⁨{{count}}⁩",
+    "automationsHidden_two": "تشغيلات أتمتة مخفية: ⁨{{count}}⁩",
+    "automationsHidden_few": "تشغيلات أتمتة مخفية: ⁨{{count}}⁩",
+    "automationsHidden_many": "تشغيلات أتمتة مخفية: ⁨{{count}}⁩",
+    "automationsHidden_other": "تشغيلات أتمتة مخفية: ⁨{{count}}⁩",
+    "showAutomations": "عرض",
+    "hideAutomations": "إخفاء تشغيلات الأتمتة",
+    "allInvites": "كل الدعوات",
+    "caughtUp": "لقد اطّلعت على كل شيء",
+    "caughtUpDescription": "تظهر هنا الإشارات والردود في سلاسل محادثاتك وكل ما ينتظرك.",
+    "pickTitle": "اختر عنصرًا من النشاط",
+    "pickDescription": "تُفتح سلسلة المحادثة الخاصة به هنا، بجانب القائمة.",
+    "bellLabel": "النشاط",
+    "bellLabelCount_zero": "النشاط، غير المقروءة: ⁨{{count}}⁩",
+    "bellLabelCount_one": "النشاط، غير المقروءة: ⁨{{count}}⁩",
+    "bellLabelCount_two": "النشاط، غير المقروءة: ⁨{{count}}⁩",
+    "bellLabelCount_few": "النشاط، غير المقروءة: ⁨{{count}}⁩",
+    "bellLabelCount_many": "النشاط، غير المقروءة: ⁨{{count}}⁩",
+    "bellLabelCount_other": "النشاط، غير المقروءة: ⁨{{count}}⁩",
+    "openActivity": "فتح النشاط",
+    "close": "إغلاق النشاط"
+  },
+  "threadPreview": {
+    "voice": "رسالة صوتية",
+    "image": "صورة",
+    "video": "فيديو",
+    "file": "ملف",
+    "you": "أنت"
+  },
+  "threadsPage": {
+    "title": "سلاسل المحادثات",
+    "scopeLabel": "عرض",
+    "scope": {
+      "mine": "الخاصة بي",
+      "following": "المتابَعة",
+      "all": "الكل"
+    },
+    "search": "البحث في سلاسل المحادثات",
+    "groups": {
+      "needsYou": "بانتظارك",
+      "unread": "غير المقروءة",
+      "working": "وكلاء يعملون",
+      "recent": "الأخيرة",
+      "automations": "الأتمتة"
+    },
+    "showMore": "عرض المزيد",
+    "chips": {
+      "approval": "موافقة",
+      "question": "سؤال",
+      "mention": "يشير إليك",
+      "resolved": "محلولة"
+    },
+    "working": "قيد العمل",
+    "noThreads": "لا توجد سلاسل محادثات هنا بعد",
+    "noThreadsDescription": "تظهر هنا سلاسل المحادثات التي تبدؤها أو تشارك فيها.",
+    "noMatches": "لا توجد سلسلة محادثة تطابق هذا البحث",
+    "pickTitle": "اختر سلسلة محادثة",
+    "pickDescription": "تُفتح هنا، بجانب القائمة.",
+    "needsYouLabel_zero": "سلاسل المحادثات، بانتظارك: ⁨{{count}}⁩",
+    "needsYouLabel_one": "سلاسل المحادثات، بانتظارك: ⁨{{count}}⁩",
+    "needsYouLabel_two": "سلاسل المحادثات، بانتظارك: ⁨{{count}}⁩",
+    "needsYouLabel_few": "سلاسل المحادثات، بانتظارك: ⁨{{count}}⁩",
+    "needsYouLabel_many": "سلاسل المحادثات، بانتظارك: ⁨{{count}}⁩",
+    "needsYouLabel_other": "سلاسل المحادثات، بانتظارك: ⁨{{count}}⁩"
   }
 }

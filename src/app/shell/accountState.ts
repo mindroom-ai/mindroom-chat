@@ -39,6 +39,11 @@ import {
 import { listNoticeSlotAtom, pageNoticeSlotAtom } from '../ui/noticeSlots';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import { allInvitesAtom } from '../matrix/state/inviteList';
+import {
+  activityRowsAtom,
+  activityShowAutomationsAtom,
+  activityUnreadOnlyAtom,
+} from '../activity/activityState';
 import { allRoomsAtom } from '../matrix/state/roomList';
 import { forgetComposerStateOfSession } from '../composer/roomInputDrafts';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
@@ -87,6 +92,9 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(pendingRoamingSettingsAtom),
   // Built by the pages from the account's rooms and people.
   (store) => store.set(crossRoomThreadIndexAtom, emptyCrossRoomThreadIndexSnapshot()),
+  toInitial(activityRowsAtom),
+  toInitial(activityUnreadOnlyAtom),
+  toInitial(activityShowAutomationsAtom),
   toInitial(userDirectoryCacheAtom),
   toInitial(lastExitedThreadAtom),
   // What the person was doing: composer replies and staged files, the call and its panel (and the

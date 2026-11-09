@@ -1,0 +1,104 @@
+import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
+import type { ThreadSignals } from './threadSignals';
+import { createThreadSignalsReader } from './threadSignalsReader';
+
+const mocks = vi.hoisted(() => ({ read: vi.fn() }));
+vi.mock('./threadSignals', () => ({ readThreadSignals: mocks.read }));
+
+const NOW = Date.UTC(2026, 10, 9, 12);
+const quiet: ThreadSignals = {
+  mentionedMe: false,
+  newCount: 0,
+  newSenderIds: [],
+  automation: false,
+};
+
+const entry = (generation = 1) =>
+  ({ key: 'k', roomId: '!r:x', threadRootId: '$root', generation } as CrossRoomThreadIndexEntry);
+
+const makeRoom = () => {
+  const thread = { events: [{ getId: () => '$a' }] };
+  const reactions: unknown[] = [];
+  const room = {
+    getThread: () => thread,
+    getUnfilteredTimelineSet: () => ({
+      relations: {
+        getChildEventsForEvent: () => ({ getRelations: () => reactions }),
+      },
+    }),
+  } as unknown as Room;
+  return { room, thread, reactions };
+};
+
+afterEach(() => mocks.read.mockReset());
+
+describe('createThreadSignalsReader', () => {
+  it('reads a thread once while nothing about it changes', () => {
+    mocks.read.mockReturnValue(quiet);
+    const { room } = makeRoom();
+    const reader = createThreadSignalsReader();
+    reader.read(room, entry(), '@me:x', NOW);
+    reader.read(room, entry(), '@me:x', NOW + 60_000);
+    expect(mocks.read).toHaveBeenCalledTimes(1);
+    reader.read(room, entry(2), '@me:x', NOW);
+    expect(mocks.read).toHaveBeenCalledTimes(2);
+  });
+
+  it('reads again when the thread gains an event the index entry does not show', () => {
+    mocks.read.mockReturnValue(quiet);
+    const { room, thread } = makeRoom();
+    const reader = createThreadSignalsReader();
+    reader.read(room, entry(), '@me:x', NOW);
+    thread.events.push({ getId: () => '$reaction' });
+    reader.read(room, entry(), '@me:x', NOW);
+    expect(mocks.read).toHaveBeenCalledTimes(2);
+  });
+
+  it('reads again once a waiting approval has expired', () => {
+    const approval = {
+      eventId: '$ask',
+      wireStatus: 'pending',
+      approval: { status: 'pending', expiresAt: new Date(NOW + 30_000).toISOString() },
+    };
+    mocks.read.mockReturnValue({ ...quiet, pendingApproval: approval });
+    const { room } = makeRoom();
+    const reader = createThreadSignalsReader();
+    reader.read(room, entry(), '@me:x', NOW);
+    reader.read(room, entry(), '@me:x', NOW + 10_000);
+    expect(mocks.read).toHaveBeenCalledTimes(1);
+    reader.read(room, entry(), '@me:x', NOW + 60_000);
+    expect(mocks.read).toHaveBeenCalledTimes(2);
+  });
+
+  it('reads again when a reaction lands on the question it waits on', () => {
+    mocks.read.mockReturnValue({
+      ...quiet,
+      pendingQuestion: { eventId: '$q', senderId: '@mindroom_a:x', text: 'q', options: [] },
+    });
+    const { room, reactions } = makeRoom();
+    const reader = createThreadSignalsReader();
+    reader.read(room, entry(), '@me:x', NOW);
+    reactions.push({});
+    reader.read(room, entry(), '@me:x', NOW);
+    expect(mocks.read).toHaveBeenCalledTimes(2);
+  });
+
+  it('forgets threads the index no longer lists', () => {
+    mocks.read.mockReturnValue(quiet);
+    const { room } = makeRoom();
+    const reader = createThreadSignalsReader();
+    reader.read(room, entry(), '@me:x', NOW);
+    reader.prune(new Set());
+    reader.read(room, entry(), '@me:x', NOW);
+    expect(mocks.read).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps one reader per client', async () => {
+    const { getThreadSignalsReader } = await import('./threadSignalsReader');
+    const mx = {} as MatrixClient;
+    expect(getThreadSignalsReader(mx)).toBe(getThreadSignalsReader(mx));
+    expect(getThreadSignalsReader({} as MatrixClient)).not.toBe(getThreadSignalsReader(mx));
+  });
+});

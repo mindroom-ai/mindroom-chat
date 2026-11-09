@@ -107,8 +107,7 @@
       "close": "बंद करें"
     },
     "invites": {
-      "actionFailed": "कुछ गलत हो गया। फिर से कोशिश करें।",
-      "openNotifications": "सूचनाएं खोलें"
+      "actionFailed": "कुछ गलत हो गया। फिर से कोशिश करें।"
     },
     "inviteUserAutocomplete": {
       "placeholder": "उपयोगकर्ता खोजें या उपयोगकर्ता ID दर्ज करें"
@@ -708,7 +707,8 @@
       "description": "{{userId}} को आमंत्रण भेजता है।"
     },
     "actions": {
-      "goInboxInvitesDescription": "इनबॉक्स के आमंत्रण और सूचनाएं खोलें"
+      "goActivity": "गतिविधि पर जाएँ",
+      "goActivityDescription": "उल्लेख, जवाब और जो आपकी प्रतीक्षा में है"
     }
   },
   "shortcuts": {
@@ -749,5 +749,114 @@
   },
   "thread": {
     "back": "वापस"
+  },
+  "nav": {
+    "activity": "गतिविधि"
+  },
+  "activity": {
+    "title": "गतिविधि",
+    "unreadOnly": "अपठित",
+    "markAllRead": "सभी को पढ़ा हुआ चिह्नित करें",
+    "openAsPage": "पेज के रूप में खोलें",
+    "tabs": {
+      "all": "सभी",
+      "mentions": "उल्लेख",
+      "replies": "जवाब",
+      "needsYou": "आपकी प्रतीक्षा में"
+    },
+    "tabsLabel": "दिखाएँ",
+    "days": {
+      "today": "आज",
+      "yesterday": "कल",
+      "earlier": "पहले"
+    },
+    "sentence": {
+      "approval": "{{name}} को मंज़ूरी चाहिए",
+      "question": "{{name}} ने आपसे सवाल पूछा",
+      "invite": "{{name}} ने आपको आमंत्रित किया",
+      "inviteUnknown": "आपको आमंत्रित किया गया",
+      "mention": "{{name}} ने आपका उल्लेख किया",
+      "mentionAndReply": "{{name}} ने आपका उल्लेख किया, {{other}} ने जवाब दिया",
+      "reply": "{{name}} ने जवाब दिया",
+      "replyAndOther": "{{name}} और {{other}} ने जवाब दिया",
+      "replyAndOthers_one": "{{name}} और {{count}} अन्य ने जवाब दिया",
+      "replyAndOthers_other": "{{name}} और {{count}} अन्य ने जवाब दिया",
+      "finished": "{{name}} ने काम पूरा किया",
+      "stopped": "{{name}} का काम रुक गया",
+      "youReplied": "आपने जवाब दिया"
+    },
+    "newCount_one": "{{count}} नया",
+    "newCount_other": "{{count}} नए",
+    "runMinutes_one": "{{count}} मिनट",
+    "runMinutes_other": "{{count}} मिनट",
+    "toolCount_one": "{{count}} उपकरण",
+    "toolCount_other": "{{count}} उपकरण",
+    "actions": {
+      "approve": "मंज़ूरी दें",
+      "deny": "अस्वीकार करें",
+      "details": "विवरण",
+      "join": "जुड़ें",
+      "decline": "अस्वीकार करें",
+      "sending": "भेजा जा रहा है…",
+      "failed": "भेजा नहीं जा सका। फिर से कोशिश करें।",
+      "answered": "जवाब दिया: {{label}}",
+      "approved": "मंज़ूर किया गया",
+      "denied": "अस्वीकृत",
+      "joined": "जुड़ गए",
+      "declined": "अस्वीकृत"
+    },
+    "automationsHidden_one": "{{count}} ऑटोमेशन रन छिपाया गया",
+    "automationsHidden_other": "{{count}} ऑटोमेशन रन छिपाए गए",
+    "showAutomations": "दिखाएँ",
+    "hideAutomations": "ऑटोमेशन रन छिपाएँ",
+    "allInvites": "सभी आमंत्रण",
+    "caughtUp": "आपने सब कुछ देख लिया है",
+    "caughtUpDescription": "उल्लेख, आपके थ्रेड में जवाब और आपकी प्रतीक्षा में रही हर चीज़ यहाँ दिखती है।",
+    "pickTitle": "गतिविधि में से कुछ चुनें",
+    "pickDescription": "उसका थ्रेड यहाँ, सूची के बगल में खुलता है।",
+    "bellLabel": "गतिविधि",
+    "bellLabelCount_one": "गतिविधि, {{count}} अपठित",
+    "bellLabelCount_other": "गतिविधि, {{count}} अपठित",
+    "openActivity": "गतिविधि खोलें",
+    "close": "गतिविधि बंद करें"
+  },
+  "threadPreview": {
+    "voice": "स्वर संदेश",
+    "image": "छवि",
+    "video": "वीडियो",
+    "file": "फ़ाइल",
+    "you": "आप"
+  },
+  "threadsPage": {
+    "title": "थ्रेड",
+    "scopeLabel": "दिखाएँ",
+    "scope": {
+      "mine": "मेरे",
+      "following": "फ़ॉलो किए गए",
+      "all": "सभी"
+    },
+    "search": "थ्रेड खोजें",
+    "groups": {
+      "needsYou": "आपकी प्रतीक्षा में",
+      "unread": "अपठित",
+      "working": "एजेंट काम कर रहे हैं",
+      "recent": "हाल के",
+      "automations": "ऑटोमेशन"
+    },
+    "showMore": "और दिखाएँ",
+    "chips": {
+      "approval": "मंज़ूरी",
+      "question": "सवाल",
+      "mention": "आपका उल्लेख",
+      "resolved": "सुलझा हुआ"
+    },
+    "working": "काम जारी",
+    "noThreads": "यहाँ अभी कोई थ्रेड नहीं है",
+    "noThreadsDescription": "जो थ्रेड आप शुरू करते हैं या जिनमें आप भाग लेते हैं, वे यहाँ दिखते हैं।",
+    "noMatches": "कोई थ्रेड इस खोज से मेल नहीं खाता",
+    "pickTitle": "कोई थ्रेड चुनें",
+    "pickDescription": "यह यहाँ, सूची के बगल में खुलता है।",
+    "needsYouLabel_one": "थ्रेड, {{count}} आपकी प्रतीक्षा में",
+    "needsYouLabel_other": "थ्रेड, {{count}} आपकी प्रतीक्षा में"
   }
 }

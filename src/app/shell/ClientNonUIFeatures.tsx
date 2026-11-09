@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { CanvasIndexFeature } from '../canvas/CanvasIndexFeature';
 import { CrossRoomThreadIndexFeature } from '../threads/cross-room/CrossRoomThreadIndexFeature';
+import { ActivityRowsFeature } from '../activity/ActivityRowsFeature';
 import { ThreadTitlesFeature } from '../threads/summary/ThreadTitlesFeature';
 import { InviteNotifications } from '../notifications/InviteNotifications';
 import {
@@ -43,6 +44,7 @@ export function ClientNonUIFeatures() {
   return (
     <>
       <CrossRoomThreadIndexFeature />
+      <ActivityRowsFeature />
       <ThreadTitlesFeature />
       <JoinedRoomThreadListsFeature />
       <InviteNotifications />

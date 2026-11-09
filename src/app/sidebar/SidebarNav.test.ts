@@ -45,8 +45,8 @@ vi.mock('./rail/ExploreTab', () => ({
 vi.mock('./rail/HomeTab', () => ({
   HomeTab: () => React.createElement('div', { 'data-tab': 'home' }),
 }));
-vi.mock('./rail/InboxTab', () => ({
-  InboxTab: () => React.createElement('div', { 'data-tab': 'inbox' }),
+vi.mock('./rail/ActivityTab', () => ({
+  ActivityTab: () => React.createElement('div', { 'data-tab': 'activity' }),
 }));
 vi.mock('../command-palette/CommandPaletteSidebarTab', () => ({
   SearchTab: () => React.createElement('div', { 'data-tab': 'search' }),

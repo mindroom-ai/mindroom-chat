@@ -107,8 +107,7 @@
       "close": "Close"
     },
     "invites": {
-      "actionFailed": "Something went wrong. Try again.",
-      "openNotifications": "Open Notifications"
+      "actionFailed": "Something went wrong. Try again."
     },
     "inviteUserAutocomplete": {
       "placeholder": "Search users or enter a user ID"
@@ -708,7 +707,8 @@
       "description": "Sends an invite to {{userId}}."
     },
     "actions": {
-      "goInboxInvitesDescription": "Open Inbox invites and notifications"
+      "goActivity": "Go to Activity",
+      "goActivityDescription": "Mentions, replies and what waits for you"
     }
   },
   "shortcuts": {
@@ -749,5 +749,114 @@
   },
   "thread": {
     "back": "Back"
+  },
+  "nav": {
+    "activity": "Activity"
+  },
+  "activity": {
+    "title": "Activity",
+    "unreadOnly": "Unread",
+    "markAllRead": "Mark all read",
+    "openAsPage": "Open as page",
+    "tabs": {
+      "all": "All",
+      "mentions": "Mentions",
+      "replies": "Replies",
+      "needsYou": "Needs you"
+    },
+    "tabsLabel": "Show",
+    "days": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "earlier": "Earlier"
+    },
+    "sentence": {
+      "approval": "{{name}} needs approval",
+      "question": "{{name}} asked you",
+      "invite": "{{name}} invited you",
+      "inviteUnknown": "You were invited",
+      "mention": "{{name}} mentioned you",
+      "mentionAndReply": "{{name}} mentioned you, {{other}} replied",
+      "reply": "{{name}} replied",
+      "replyAndOther": "{{name}} and {{other}} replied",
+      "replyAndOthers_one": "{{name}} and {{count}} other replied",
+      "replyAndOthers_other": "{{name}} and {{count}} others replied",
+      "finished": "{{name}} finished",
+      "stopped": "{{name}} stopped",
+      "youReplied": "You replied"
+    },
+    "newCount_one": "{{count}} new",
+    "newCount_other": "{{count}} new",
+    "runMinutes_one": "{{count}} min",
+    "runMinutes_other": "{{count}} min",
+    "toolCount_one": "{{count}} tool",
+    "toolCount_other": "{{count}} tools",
+    "actions": {
+      "approve": "Approve",
+      "deny": "Deny",
+      "details": "Details",
+      "join": "Join",
+      "decline": "Decline",
+      "sending": "Sending…",
+      "failed": "Couldn't send. Try again.",
+      "answered": "Answered: {{label}}",
+      "approved": "Approved",
+      "denied": "Denied",
+      "joined": "Joined",
+      "declined": "Declined"
+    },
+    "automationsHidden_one": "{{count}} automation run hidden",
+    "automationsHidden_other": "{{count}} automation runs hidden",
+    "showAutomations": "Show",
+    "hideAutomations": "Hide automation runs",
+    "allInvites": "All invites",
+    "caughtUp": "You're all caught up",
+    "caughtUpDescription": "Mentions, replies in your threads and anything that waits for you show up here.",
+    "pickTitle": "Pick something from Activity",
+    "pickDescription": "Its thread opens here, beside the list.",
+    "bellLabel": "Activity",
+    "bellLabelCount_one": "Activity, {{count}} unread",
+    "bellLabelCount_other": "Activity, {{count}} unread",
+    "openActivity": "Open Activity",
+    "close": "Close Activity"
+  },
+  "threadPreview": {
+    "voice": "Voice message",
+    "image": "Image",
+    "video": "Video",
+    "file": "File",
+    "you": "You"
+  },
+  "threadsPage": {
+    "title": "Threads",
+    "scopeLabel": "Show",
+    "scope": {
+      "mine": "Mine",
+      "following": "Following",
+      "all": "All"
+    },
+    "search": "Search threads",
+    "groups": {
+      "needsYou": "Needs you",
+      "unread": "Unread",
+      "working": "Agents working",
+      "recent": "Recent",
+      "automations": "Automations"
+    },
+    "showMore": "Show more",
+    "chips": {
+      "approval": "Approval",
+      "question": "Question",
+      "mention": "Mentions you",
+      "resolved": "Resolved"
+    },
+    "working": "Working",
+    "noThreads": "No threads here yet",
+    "noThreadsDescription": "Threads you start or take part in show up here.",
+    "noMatches": "No thread matches this search",
+    "pickTitle": "Pick a thread",
+    "pickDescription": "It opens here, beside the list.",
+    "needsYouLabel_one": "Threads, {{count}} waits for you",
+    "needsYouLabel_other": "Threads, {{count}} wait for you"
   }
 }

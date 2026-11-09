@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import classNames from 'classnames';
 import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +12,10 @@ import {
 import { allRoomsAtom } from '../matrix/state/roomList';
 import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
 import { useRoomsUnread } from '../matrix/state/useUnread';
+import { useActivityBadge } from '../activity/useActivityRows';
+import { ActivitySheet } from '../activity/ActivitySheet';
 import { SettingsTab } from './rail/SettingsTab';
+import { ActivityBadge } from './rail/ActivityTab';
 import * as css from './PhoneTopBar.css';
 
 /** The drawer's element, which the menu button controls. */
@@ -67,9 +70,40 @@ function MenuButton() {
   );
 }
 
+/** The Activity bell, with the unread count; it slides the Activity list up as a sheet. */
+function ActivityBell() {
+  const { t } = useTranslation();
+  const { count, needsYou } = useActivityBadge();
+  const [open, setOpen] = useState(false);
+  const label = count > 0 ? t('activity.bellLabelCount', { count }) : t('activity.bellLabel');
+  return (
+    <div className={css.BellFrame}>
+      <IconButton
+        className={css.BarControl}
+        size="400"
+        radii="Pill"
+        variant="Background"
+        aria-label={label}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+      >
+        <Icon size="200" src={Icons.Bell} />
+      </IconButton>
+      {count > 0 && (
+        <span className={css.BellBadge} aria-hidden>
+          <ActivityBadge count={count} needsYou={needsYou} />
+        </span>
+      )}
+      {open && <ActivitySheet requestClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
 /**
  * A phone's top bar, above every page: the menu button that slides the navigation drawer in, a
- * search field that opens the command palette (and names its keyboard shortcut), and the account.
+ * search field that opens the command palette (and names its keyboard shortcut), the Activity
+ * bell, and the account.
  */
 export function PhoneTopBar() {
   const { t } = useTranslation();
@@ -97,6 +131,7 @@ export function PhoneTopBar() {
           </Text>
         </Badge>
       </button>
+      <ActivityBell />
       <SettingsTab inTopBar className={css.BarControl} />
     </div>
   );

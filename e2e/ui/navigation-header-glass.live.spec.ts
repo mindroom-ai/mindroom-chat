@@ -73,11 +73,10 @@ for (const [themeId, width] of [
           window.history.pushState(null, '', url);
           window.dispatchEvent(new PopStateEvent('popstate'));
         }, path);
+      // Activity's and Threads' columns open with their list's own title row instead.
       for (const [path, title] of [
         ['/home/', 'Home'],
         ['/direct/', 'Direct Messages'],
-        [width < 750 ? '/inbox/' : '/inbox/invites/', 'Inbox'],
-        ...(width < 750 ? [] : [['/inbox/notifications/', 'Inbox']]),
         ['/explore/', 'Explore Community'],
       ]) {
         // eslint-disable-next-line no-await-in-loop

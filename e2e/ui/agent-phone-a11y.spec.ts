@@ -34,7 +34,7 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 // - axe-core finds nothing critical or serious.
 // The screens: home with the rail, a room in Compact and in Threads view (unread, streaming and
 // resolved threads), a thread with reasoning, a tool call, a folded long reply, a code block, a
-// running background job and someone typing, an approval under review, settings, the inbox, a
+// running background job and someone typing, an approval under review, settings, Activity, a
 // space's lobby and the command palette.
 // Set PHONE_A11Y_SHOTS=<directory> to save each screen.
 const SHOTS = process.env.PHONE_A11Y_SHOTS;
@@ -325,12 +325,11 @@ const screens = (stack: AgentStack, seeded: World): Screen[] => {
       },
     },
     {
-      name: 'inbox',
+      name: 'activity',
       open: async (page) => {
-        await go(page, '/inbox/notifications/');
-        await expect(
-          page.getByRole('heading', { level: 1, name: 'Notification Messages' })
-        ).toBeVisible();
+        // A phone shows the Activity list in its drawer, over the page.
+        await go(page, '/activity/');
+        await expect(page.getByRole('navigation', { name: 'Activity' })).toBeVisible();
       },
     },
     {

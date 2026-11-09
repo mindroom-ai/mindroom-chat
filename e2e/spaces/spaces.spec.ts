@@ -220,7 +220,7 @@ test('an invited member accepts a space invite and lands in its lobby', async ({
   });
 
   await signIn(page, guest.username);
-  await page.goto('/inbox/invites/');
+  await page.goto('/activity/invites/');
   const invite = page.locator('[data-invite-room-id]').filter({ hasText: 'Night owls' });
   const card = (await invite.count()) > 0 ? invite : page.getByText('Night owls').first();
   await expect(card).toBeVisible({ timeout: 30_000 });

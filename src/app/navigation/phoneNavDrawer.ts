@@ -30,7 +30,7 @@ export const PHONE_SLIDE_OUT_MS = 320;
 
 /**
  * The history entry (location key) whose page is a section's own page (Home, Direct Messages, a
- * space, the Inbox, Explore), set by that page while it is shown. A page matched at a section's
+ * space, Activity, Explore), set by that page while it is shown. A page matched at a section's
  * address that shows something else (a short room link's redirect, a room to join) never sets it.
  */
 export const phoneNavSectionRootAtom = atom<string | null>(null);

@@ -107,8 +107,7 @@
       "close": "Sluiten"
     },
     "invites": {
-      "actionFailed": "Er ging iets mis. Probeer het opnieuw.",
-      "openNotifications": "Meldingen openen"
+      "actionFailed": "Er ging iets mis. Probeer het opnieuw."
     },
     "inviteUserAutocomplete": {
       "placeholder": "Zoek gebruikers of voer een gebruikers-ID in"
@@ -708,7 +707,8 @@
       "description": "Stuurt {{userId}} een uitnodiging."
     },
     "actions": {
-      "goInboxInvitesDescription": "Open Inbox-uitnodigingen en -meldingen"
+      "goActivity": "Naar Activiteit",
+      "goActivityDescription": "Vermeldingen, antwoorden en wat op je wacht"
     }
   },
   "shortcuts": {
@@ -749,5 +749,114 @@
   },
   "thread": {
     "back": "Terug"
+  },
+  "nav": {
+    "activity": "Activiteit"
+  },
+  "activity": {
+    "title": "Activiteit",
+    "unreadOnly": "Ongelezen",
+    "markAllRead": "Alles als gelezen markeren",
+    "openAsPage": "Openen als pagina",
+    "tabs": {
+      "all": "Alles",
+      "mentions": "Vermeldingen",
+      "replies": "Antwoorden",
+      "needsYou": "Wacht op jou"
+    },
+    "tabsLabel": "Tonen",
+    "days": {
+      "today": "Vandaag",
+      "yesterday": "Gisteren",
+      "earlier": "Eerder"
+    },
+    "sentence": {
+      "approval": "{{name}} vraagt om goedkeuring",
+      "question": "{{name}} heeft je iets gevraagd",
+      "invite": "{{name}} heeft je uitgenodigd",
+      "inviteUnknown": "Je bent uitgenodigd",
+      "mention": "{{name}} heeft je vermeld",
+      "mentionAndReply": "{{name}} heeft je vermeld, {{other}} heeft geantwoord",
+      "reply": "{{name}} heeft geantwoord",
+      "replyAndOther": "{{name}} en {{other}} hebben geantwoord",
+      "replyAndOthers_one": "{{name}} en {{count}} ander hebben geantwoord",
+      "replyAndOthers_other": "{{name}} en {{count}} anderen hebben geantwoord",
+      "finished": "{{name}} is klaar",
+      "stopped": "{{name}} is gestopt",
+      "youReplied": "Je hebt gereageerd"
+    },
+    "newCount_one": "{{count}} nieuw",
+    "newCount_other": "{{count}} nieuw",
+    "runMinutes_one": "{{count}} min",
+    "runMinutes_other": "{{count}} min",
+    "toolCount_one": "{{count}} tool",
+    "toolCount_other": "{{count}} tools",
+    "actions": {
+      "approve": "Goedkeuren",
+      "deny": "Weigeren",
+      "details": "Details",
+      "join": "Deelnemen",
+      "decline": "Weigeren",
+      "sending": "Bezig met verzenden…",
+      "failed": "Verzenden mislukt. Probeer het opnieuw.",
+      "answered": "Beantwoord: {{label}}",
+      "approved": "Goedgekeurd",
+      "denied": "Geweigerd",
+      "joined": "Lid geworden",
+      "declined": "Geweigerd"
+    },
+    "automationsHidden_one": "{{count}} automatiseringsrun verborgen",
+    "automationsHidden_other": "{{count}} automatiseringsruns verborgen",
+    "showAutomations": "Tonen",
+    "hideAutomations": "Automatiseringsruns verbergen",
+    "allInvites": "Alle uitnodigingen",
+    "caughtUp": "Je bent helemaal bij",
+    "caughtUpDescription": "Vermeldingen, antwoorden in je threads en alles wat op je wacht, verschijnen hier.",
+    "pickTitle": "Kies iets uit Activiteit",
+    "pickDescription": "De bijbehorende thread opent hier, naast de lijst.",
+    "bellLabel": "Activiteit",
+    "bellLabelCount_one": "Activiteit, {{count}} ongelezen",
+    "bellLabelCount_other": "Activiteit, {{count}} ongelezen",
+    "openActivity": "Activiteit openen",
+    "close": "Activiteit sluiten"
+  },
+  "threadPreview": {
+    "voice": "Spraakbericht",
+    "image": "Afbeelding",
+    "video": "Video",
+    "file": "Bestand",
+    "you": "Jij"
+  },
+  "threadsPage": {
+    "title": "Threads",
+    "scopeLabel": "Tonen",
+    "scope": {
+      "mine": "Van mij",
+      "following": "Gevolgd",
+      "all": "Alle"
+    },
+    "search": "Threads doorzoeken",
+    "groups": {
+      "needsYou": "Wacht op jou",
+      "unread": "Ongelezen",
+      "working": "Agenten aan het werk",
+      "recent": "Recent",
+      "automations": "Automatiseringen"
+    },
+    "showMore": "Meer tonen",
+    "chips": {
+      "approval": "Goedkeuring",
+      "question": "Vraag",
+      "mention": "Vermeldt jou",
+      "resolved": "Opgelost"
+    },
+    "working": "Bezig",
+    "noThreads": "Hier zijn nog geen threads",
+    "noThreadsDescription": "Threads die je start of waaraan je deelneemt, verschijnen hier.",
+    "noMatches": "Geen thread past bij deze zoekopdracht",
+    "pickTitle": "Kies een thread",
+    "pickDescription": "Die opent hier, naast de lijst.",
+    "needsYouLabel_one": "Threads, {{count}} wacht op jou",
+    "needsYouLabel_other": "Threads, {{count}} wachten op jou"
   }
 }

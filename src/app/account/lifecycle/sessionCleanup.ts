@@ -8,7 +8,7 @@ import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads
 import { clearRecentlyOpenedPanelHeightStore } from '../../preferences/recentlyOpenedPanelHeight';
 import { clearCallWindowStore } from '../../calls/window/callWindowState';
 import { clearThreadSidebarPreferencesStore } from '../../threads/cross-room/threadSidebarPreferences';
-import { clearCrossRoomThreadFiltersStore } from '../../threads/cross-room/crossRoomThreadFilters';
+import { clearThreadsScopeStore } from '../../threads/page/threadsScope';
 import { clearRoomThreadFiltersStore } from '../../threads/overview/roomThreadFilterState';
 import { clearRoomViewModeStore } from '../../navigation/roomViewMode';
 import { clearThreadSummarySharedState } from '../../event-store/threads/threadSummaryState';
@@ -92,6 +92,8 @@ export const deleteSessionCaches = async (sessionId: string): Promise<void> => {
 // The last-open-thread auto-restore feature was removed; its per-user
 // localStorage key may still exist on installs that ran older builds.
 const LEGACY_LAST_OPEN_THREAD_STORE_PREFIX = 'lastOpenThread';
+// The old Threads page kept its filters per account; the page that replaced it keeps only a scope.
+const LEGACY_CROSS_ROOM_THREAD_FILTERS_PREFIX = 'crossRoomThreadFilters:';
 
 export const clearUserUiState = (userId: string): void => {
   clearRoomInputDrafts(userId);
@@ -99,7 +101,8 @@ export const clearUserUiState = (userId: string): void => {
   void clearSavedVoiceDraft(userId);
   removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_LAST_OPEN_THREAD_STORE_PREFIX}${userId}`);
   clearRoomThreadFiltersStore(userId);
-  clearCrossRoomThreadFiltersStore(userId);
+  removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_CROSS_ROOM_THREAD_FILTERS_PREFIX}${userId}`);
+  clearThreadsScopeStore(userId);
   clearRecentThreadsStore(userId);
   clearRecentlyOpenedPanelHeightStore(userId);
   clearCallWindowStore(userId);

@@ -147,7 +147,7 @@ test.describe('phone back button', () => {
 
       // The pages that already used the shared button.
       for (const [name, path] of [
-        ['inbox', '/inbox/notifications/'],
+        ['invites', '/activity/invites/'],
         ['search', '/home/search/'],
         ['explore', '/explore/featured/'],
       ] as const) {

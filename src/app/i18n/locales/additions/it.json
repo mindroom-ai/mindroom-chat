@@ -110,8 +110,7 @@
       "close": "Chiudi"
     },
     "invites": {
-      "actionFailed": "Qualcosa è andato storto. Riprova.",
-      "openNotifications": "Apri le notifiche"
+      "actionFailed": "Qualcosa è andato storto. Riprova."
     },
     "inviteUserAutocomplete": {
       "placeholder": "Cerca utenti o inserisci un ID utente"
@@ -719,7 +718,8 @@
       "description": "Invia un invito a {{userId}}."
     },
     "actions": {
-      "goInboxInvitesDescription": "Apri gli inviti e le notifiche della posta in arrivo"
+      "goActivity": "Vai ad Attività",
+      "goActivityDescription": "Menzioni, risposte e ciò che ti aspetta"
     }
   },
   "shortcuts": {
@@ -760,5 +760,121 @@
   },
   "thread": {
     "back": "Indietro"
+  },
+  "nav": {
+    "activity": "Attività"
+  },
+  "activity": {
+    "title": "Attività",
+    "unreadOnly": "Non letti",
+    "markAllRead": "Segna tutto come letto",
+    "openAsPage": "Apri come pagina",
+    "tabs": {
+      "all": "Tutto",
+      "mentions": "Menzioni",
+      "replies": "Risposte",
+      "needsYou": "Da gestire"
+    },
+    "tabsLabel": "Mostra",
+    "days": {
+      "today": "Oggi",
+      "yesterday": "Ieri",
+      "earlier": "Prima"
+    },
+    "sentence": {
+      "approval": "{{name}} chiede un’approvazione",
+      "question": "{{name}} ti ha fatto una domanda",
+      "invite": "{{name}} ti ha inviato un invito",
+      "inviteUnknown": "Hai ricevuto un invito",
+      "mention": "{{name}} ti ha menzionato",
+      "mentionAndReply": "{{name}} ti ha menzionato, {{other}} ha risposto",
+      "reply": "{{name}} ha risposto",
+      "replyAndOther": "{{name}} e {{other}} hanno risposto",
+      "replyAndOthers_one": "{{name}} e {{count}} altro hanno risposto",
+      "replyAndOthers_many": "{{name}} e altri {{count}} hanno risposto",
+      "replyAndOthers_other": "{{name}} e altri {{count}} hanno risposto",
+      "finished": "{{name}} ha finito",
+      "stopped": "{{name}} si è fermato",
+      "youReplied": "Hai risposto"
+    },
+    "newCount_one": "{{count}} nuovo",
+    "newCount_many": "{{count}} nuovi",
+    "newCount_other": "{{count}} nuovi",
+    "runMinutes_one": "{{count}} min",
+    "runMinutes_many": "{{count}} min",
+    "runMinutes_other": "{{count}} min",
+    "toolCount_one": "{{count}} strumento",
+    "toolCount_many": "{{count}} strumenti",
+    "toolCount_other": "{{count}} strumenti",
+    "actions": {
+      "approve": "Approva",
+      "deny": "Nega",
+      "details": "Dettagli",
+      "join": "Entra",
+      "decline": "Rifiuta",
+      "sending": "Invio…",
+      "failed": "Invio non riuscito. Riprova.",
+      "answered": "Risposta: {{label}}",
+      "approved": "Approvato",
+      "denied": "Negato",
+      "joined": "Entrato",
+      "declined": "Rifiutato"
+    },
+    "automationsHidden_one": "{{count}} esecuzione di automazione nascosta",
+    "automationsHidden_many": "{{count}} esecuzioni di automazioni nascoste",
+    "automationsHidden_other": "{{count}} esecuzioni di automazioni nascoste",
+    "showAutomations": "Mostra",
+    "hideAutomations": "Nascondi le esecuzioni di automazioni",
+    "allInvites": "Tutti gli inviti",
+    "caughtUp": "Hai visto tutto",
+    "caughtUpDescription": "Qui compaiono le menzioni, le risposte nei tuoi thread e tutto ciò che ti aspetta.",
+    "pickTitle": "Scegli un elemento da Attività",
+    "pickDescription": "Il suo thread si apre qui, accanto all’elenco.",
+    "bellLabel": "Attività",
+    "bellLabelCount_one": "Attività, {{count}} non letto",
+    "bellLabelCount_many": "Attività, {{count}} non letti",
+    "bellLabelCount_other": "Attività, {{count}} non letti",
+    "openActivity": "Apri Attività",
+    "close": "Chiudi Attività"
+  },
+  "threadPreview": {
+    "voice": "Messaggio vocale",
+    "image": "Immagine",
+    "video": "Video",
+    "file": "File",
+    "you": "Tu"
+  },
+  "threadsPage": {
+    "title": "Thread",
+    "scopeLabel": "Mostra",
+    "scope": {
+      "mine": "Miei",
+      "following": "Seguiti",
+      "all": "Tutti"
+    },
+    "search": "Cerca thread",
+    "groups": {
+      "needsYou": "Da gestire",
+      "unread": "Non letti",
+      "working": "Agenti al lavoro",
+      "recent": "Recenti",
+      "automations": "Automazioni"
+    },
+    "showMore": "Mostra di più",
+    "chips": {
+      "approval": "Approvazione",
+      "question": "Domanda",
+      "mention": "Ti menziona",
+      "resolved": "Risolto"
+    },
+    "working": "In lavorazione",
+    "noThreads": "Ancora nessun thread qui",
+    "noThreadsDescription": "Qui compaiono i thread che avvii o a cui partecipi.",
+    "noMatches": "Nessun thread corrisponde a questa ricerca",
+    "pickTitle": "Scegli un thread",
+    "pickDescription": "Si apre qui, accanto all’elenco.",
+    "needsYouLabel_one": "Thread, {{count}} ti aspetta",
+    "needsYouLabel_many": "Thread, {{count}} ti aspettano",
+    "needsYouLabel_other": "Thread, {{count}} ti aspettano"
   }
 }
