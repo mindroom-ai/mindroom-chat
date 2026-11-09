@@ -50,6 +50,13 @@ describe('recordRecentLiveEvents', () => {
     announce(old);
     announce(ring);
     announce(event(EventType.RoomMessage, '$message', NOW, { body: 'hi' }));
+    // Encrypted, and already read: a message.
+    announce(
+      Object.assign(event(EventType.RoomMessage, '$decrypted', NOW, { body: 'hi' }), {
+        isEncrypted: () => true,
+        shouldAttemptDecryption: () => false,
+      })
+    );
     announce(event(EventType.RTCNotification, '$history'), true);
     announce(event(EventType.RTCNotification, '$removed'), false, true);
     announce(event(EventType.RTCNotification, '$saved'), false, false, false);

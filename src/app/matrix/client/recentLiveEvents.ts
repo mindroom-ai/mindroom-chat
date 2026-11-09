@@ -19,7 +19,8 @@ const recordings = new WeakMap<MatrixClient, () => MatrixEvent[]>();
  * watcher starts with the signed-in pages, which load on their own while the client starts;
  * started before the first sync, this keeps what that sync delivers until the watcher takes it
  * with {@link takeRecentLiveEvents}. The saved sync a client starts from is not live, so a ring
- * the last page showed is not kept again.
+ * it holds is not kept again; one sent after it was saved comes again with the first sync, as on
+ * any start.
  */
 export const recordRecentLiveEvents = (mx: MatrixClient): void => {
   let kept: MatrixEvent[] = [];
