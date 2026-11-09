@@ -6,9 +6,9 @@ import { WEBKIT_EXECUTABLE, onWebKitPage } from '../helpers/webkit';
 // Call transcription's speech capture as it ships: the Silero VAD model, its runtime and the
 // wrapper's AudioWorklet, loaded from the files the build serves, in Chromium. The fixture page
 // plays a recording into the microphone track the capture listens to and reports the stretches it
-// found: a spoken question (e2e/fixtures/agent-call-question.wav, 4.45 s) is one stretch, also in
-// WebKit (the iOS app's web view), and typing, a fan and knocks on a door at the level of a voice
-// are none.
+// found: a spoken question (e2e/fixtures/agent-call-question.wav, 4.45 s) is one stretch, also on
+// the right channel of a stereo microphone and in WebKit (the iOS app's web view), and typing, a
+// fan and knocks on a door at the level of a voice, played after it, are none.
 
 const RATE = 16000;
 const SPEECH = readFileSync(new URL('../fixtures/agent-call-question.wav', import.meta.url));
@@ -81,15 +81,16 @@ const noise = () => {
 
 const findSpeech = async (
   page: Page,
-  recording: Buffer
+  recordings: Buffer[],
+  right = false
 ): Promise<{ stretches: FoundStretch[]; files: string[] }> => {
   const files: string[] = [];
   page.on('request', (request) => files.push(request.url()));
   await page.goto('/e2e/fixtures/speech-capture.html');
-  const stretches = await page.evaluate(([file, wait]) => window.findSpeech(file, wait), [
-    recording.toString('base64'),
-    LEAD,
-  ] as const);
+  const stretches = await page.evaluate(
+    ([played, wait, stereo]) => window.findSpeech(played, wait, stereo),
+    [recordings.map((recording) => recording.toString('base64')), LEAD, right] as const
+  );
   // The worklet loads too, through a request the page's events do not show.
   return { stretches, files: files.filter((url) => /\.onnx$|\/ort-/.test(url)) };
 };
@@ -98,7 +99,7 @@ test('finds a spoken question as one stretch, from the speech files this app ser
   page,
   baseURL,
 }) => {
-  const { stretches, files } = await findSpeech(page, SPEECH);
+  const { stretches, files } = await findSpeech(page, [SPEECH]);
   // The model and the runtime's module and WebAssembly, from this app's own build.
   const model = files.map((url) => url.replace(/\/assets\/speech-model-[0-9a-f]+\//, '/model/'));
   expect(model.sort()).toEqual([
@@ -116,14 +117,22 @@ test('finds a spoken question as one stretch, from the speech files this app ser
 });
 
 test('finds no speech in typing, a fan and knocks on a door', async ({ page }) => {
-  const { stretches } = await findSpeech(page, noise());
-  expect(stretches).toEqual([]);
+  // The question first shows the detector listening; the noise after it adds no stretch.
+  const { stretches } = await findSpeech(page, [SPEECH, noise()]);
+  expect(stretches).toHaveLength(1);
+  expect(stretches[0]?.seconds).toBeLessThan(4.45 + BEFORE + AFTER + 0.3);
+});
+
+test('finds speech on the right channel of a stereo microphone', async ({ page }) => {
+  const { stretches } = await findSpeech(page, [SPEECH], true);
+  expect(stretches).toHaveLength(1);
+  expect(stretches[0]?.seconds).toBeGreaterThan(4);
 });
 
 test('finds the spoken question in WebKit too', async ({ baseURL }) => {
   test.skip(!WEBKIT_EXECUTABLE, 'needs PLAYWRIGHT_WEBKIT_EXECUTABLE');
   await onWebKitPage({ baseURL }, async (page) => {
-    const { stretches } = await findSpeech(page, SPEECH);
+    const { stretches } = await findSpeech(page, [SPEECH]);
     expect(stretches).toHaveLength(1);
     expect(stretches[0]?.seconds).toBeGreaterThan(4);
   });

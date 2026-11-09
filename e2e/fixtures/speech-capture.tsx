@@ -9,11 +9,12 @@ export type FoundStretch = { from: number; seconds: number };
 declare global {
   interface Window {
     /**
-     * Plays a recording (base64) into a microphone track that the app's speech capture listens
-     * to, `lead` seconds after the model's files arrived, lets 2.5 s of silence follow, then stops
-     * the capture; resolves with the stretches found, timed from when the lead began.
+     * Plays recordings (base64), one after the other, into a microphone track that the app's
+     * speech capture listens to, `lead` seconds after the model's files arrived, on the right
+     * channel of a stereo track only when `right`; lets 2.5 s of silence follow, then stops the
+     * capture. Resolves with the stretches found, timed from when the lead began.
      */
-    findSpeech: (recording: string, lead: number) => Promise<FoundStretch[]>;
+    findSpeech: (recordings: string[], lead: number, right: boolean) => Promise<FoundStretch[]>;
   }
 }
 
@@ -34,25 +35,38 @@ const fetched = (name: string) =>
     observer.observe({ type: 'resource' });
   });
 
-window.findSpeech = async (recording, lead) => {
+window.findSpeech = async (recordings, lead, right) => {
   const context = new AudioContext();
-  const bytes = Uint8Array.from(atob(recording), (character) => character.charCodeAt(0));
-  const audio = await context.decodeAudioData(bytes.buffer);
+  const audio = await Promise.all(
+    recordings.map((recording) =>
+      context.decodeAudioData(
+        Uint8Array.from(atob(recording), (character) => character.charCodeAt(0)).buffer
+      )
+    )
+  );
   const microphone = context.createMediaStreamDestination();
   const [track] = microphone.stream.getAudioTracks();
   if (!track) throw new Error('The microphone has no track.');
   const stretches: SpeechStretch[] = [];
   const capture = await startSpeechCapture(track, (stretch) => stretches.push(stretch));
   await Promise.all([fetched('silero_vad_legacy.onnx'), fetched('ort-wasm-simd-threaded.wasm')]);
-  const source = context.createBufferSource();
-  source.buffer = audio;
-  source.connect(microphone);
-  const ended = new Promise((resolve) => {
-    source.onended = resolve;
-  });
+  // Left silent, the right channel carrying the recordings.
+  const stereo = context.createChannelMerger(2);
+  stereo.connect(microphone);
   const startedAt = Date.now();
-  source.start(context.currentTime + lead);
-  await ended;
+  let at = context.currentTime + lead;
+  const played = audio.map((buffer) => {
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    if (right) source.connect(stereo, 0, 1);
+    else source.connect(microphone);
+    source.start(at);
+    at += buffer.duration;
+    return new Promise((resolve) => {
+      source.onended = resolve;
+    });
+  });
+  await Promise.all(played);
   await new Promise((resolve) => setTimeout(resolve, 2500));
   await capture.stop();
   await context.close();
