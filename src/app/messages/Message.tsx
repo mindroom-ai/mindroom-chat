@@ -22,6 +22,7 @@ import {
   IconButton,
   Icons,
   Line,
+  Scroll,
   Text,
   color,
   config,
@@ -848,98 +849,101 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
             },
           }}
         >
+          {/* The entries scroll inside the menu's rim, which stays put around them. */}
           <Menu
             style={{
               maxHeight: popOutMaxHeight(menuAnchor, menuSide),
-              overflowY: 'auto',
-              display: menuShown ? undefined : 'none',
+              display: menuShown ? 'flex' : 'none',
+              flexDirection: 'column',
             }}
           >
-            <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
-              {canSendReaction && confirmed && onReactionToggle && (
-                <MessageQuickReactions
-                  imagePackRooms={imagePackRooms}
-                  onReaction={(key, shortcode) => {
-                    onReactionToggle(key, shortcode);
-                    dismissMenu();
-                  }}
-                />
-              )}
-              {confirmed && relations && (
-                <MessageAllReactionItem room={room} relations={relations} onClose={dismissMenu} />
-              )}
-              {confirmed && onReplyClick && (
-                <MenuEntry
-                  label={t('mindroomUi.messages.mindroomMessage.reply')}
-                  icon={Icons.ReplyArrow}
-                  directional
-                  onSelect={() => {
-                    onReplyClick(eventId);
-                    dismissMenu();
-                  }}
-                />
-              )}
-              {confirmed && onReplyClick && (
-                <MenuEntry
-                  label={t('mindroomUi.messages.mindroomMessage.replyInThread')}
-                  icon={Icons.ThreadPlus}
-                  onSelect={() => {
-                    onReplyClick(eventId, true);
-                    dismissMenu();
-                  }}
-                />
-              )}
-              {canEdit && (
-                <MenuEntry
-                  label={t('mindroomUi.messages.mindroomMessage.editMessage')}
-                  icon={Icons.Pencil}
-                  onSelect={() => {
-                    startEdit();
-                    dismissMenu();
-                  }}
-                />
-              )}
-              {canSendReaction && confirmed && (
-                <MenuEntry
-                  label={t('mindroomUi.messages.mindroomMessage.addReaction')}
-                  icon={Icons.SmilePlus}
-                  onSelect={() => {
-                    setEmojiAnchor(menuAnchor);
-                    dismissMenu();
-                  }}
-                />
-              )}
-              {longTextSource || isCopyTextMessageContent(content) ? (
-                <MessageCopyTextItem
-                  content={content}
-                  originalContent={mEvent.getContent()}
-                  resolvedContent={resolvedLongTextContent}
-                  loading={longTextLoading}
-                  onClose={dismissMenu}
-                />
-              ) : null}
-              {confirmed && (
-                <MessageCopyLinkItem room={room} eventId={eventId} onClose={dismissMenu} />
-              )}
-              {confirmed && canPinEvent && (
-                <MessagePinItem room={room} mEvent={mEvent} onClose={dismissMenu} />
-              )}
-              {controls && <AiRunMenuItem onOpen={openAiRun} />}
-              {longTextSource && (
-                <DownloadOriginalMenuItem source={longTextSource} onClose={dismissMenu} />
-              )}
-              {!hideReadReceipts && confirmed && (
-                <MessageReadReceiptItem room={room} eventId={eventId} onClose={dismissMenu} />
-              )}
-              <MessageSourceCodeItem room={room} mEvent={mEvent} onClose={dismissMenu} />
-              <MessageBugReportItem room={room} mEvent={mEvent} onClose={dismissMenu} />
-              {confirmed && canDelete && (
-                <MessageDeleteItem room={room} mEvent={mEvent} onClose={dismissMenu} />
-              )}
-              {confirmed && senderId !== client.getUserId() && (
-                <MessageReportItem room={room} mEvent={mEvent} onClose={dismissMenu} />
-              )}
-            </Box>
+            <Scroll size="300" hideTrack visibility="Hover">
+              <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
+                {canSendReaction && confirmed && onReactionToggle && (
+                  <MessageQuickReactions
+                    imagePackRooms={imagePackRooms}
+                    onReaction={(key, shortcode) => {
+                      onReactionToggle(key, shortcode);
+                      dismissMenu();
+                    }}
+                  />
+                )}
+                {confirmed && relations && (
+                  <MessageAllReactionItem room={room} relations={relations} onClose={dismissMenu} />
+                )}
+                {confirmed && onReplyClick && (
+                  <MenuEntry
+                    label={t('mindroomUi.messages.mindroomMessage.reply')}
+                    icon={Icons.ReplyArrow}
+                    directional
+                    onSelect={() => {
+                      onReplyClick(eventId);
+                      dismissMenu();
+                    }}
+                  />
+                )}
+                {confirmed && onReplyClick && (
+                  <MenuEntry
+                    label={t('mindroomUi.messages.mindroomMessage.replyInThread')}
+                    icon={Icons.ThreadPlus}
+                    onSelect={() => {
+                      onReplyClick(eventId, true);
+                      dismissMenu();
+                    }}
+                  />
+                )}
+                {canEdit && (
+                  <MenuEntry
+                    label={t('mindroomUi.messages.mindroomMessage.editMessage')}
+                    icon={Icons.Pencil}
+                    onSelect={() => {
+                      startEdit();
+                      dismissMenu();
+                    }}
+                  />
+                )}
+                {canSendReaction && confirmed && (
+                  <MenuEntry
+                    label={t('mindroomUi.messages.mindroomMessage.addReaction')}
+                    icon={Icons.SmilePlus}
+                    onSelect={() => {
+                      setEmojiAnchor(menuAnchor);
+                      dismissMenu();
+                    }}
+                  />
+                )}
+                {longTextSource || isCopyTextMessageContent(content) ? (
+                  <MessageCopyTextItem
+                    content={content}
+                    originalContent={mEvent.getContent()}
+                    resolvedContent={resolvedLongTextContent}
+                    loading={longTextLoading}
+                    onClose={dismissMenu}
+                  />
+                ) : null}
+                {confirmed && (
+                  <MessageCopyLinkItem room={room} eventId={eventId} onClose={dismissMenu} />
+                )}
+                {confirmed && canPinEvent && (
+                  <MessagePinItem room={room} mEvent={mEvent} onClose={dismissMenu} />
+                )}
+                {controls && <AiRunMenuItem onOpen={openAiRun} />}
+                {longTextSource && (
+                  <DownloadOriginalMenuItem source={longTextSource} onClose={dismissMenu} />
+                )}
+                {!hideReadReceipts && confirmed && (
+                  <MessageReadReceiptItem room={room} eventId={eventId} onClose={dismissMenu} />
+                )}
+                <MessageSourceCodeItem room={room} mEvent={mEvent} onClose={dismissMenu} />
+                <MessageBugReportItem room={room} mEvent={mEvent} onClose={dismissMenu} />
+                {confirmed && canDelete && (
+                  <MessageDeleteItem room={room} mEvent={mEvent} onClose={dismissMenu} />
+                )}
+                {confirmed && senderId !== client.getUserId() && (
+                  <MessageReportItem room={room} mEvent={mEvent} onClose={dismissMenu} />
+                )}
+              </Box>
+            </Scroll>
           </Menu>
         </FocusTrap>
       );
