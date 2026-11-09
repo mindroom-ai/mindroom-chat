@@ -9,11 +9,13 @@ import React, {
   useEffect,
   useId,
   useMemo,
+  useReducer,
   useRef,
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { mobileOrTablet } from '../lib/user-agent';
 import { Menu } from '../ui/glass/GlassPrimitives';
 import { IconTooltip } from '../ui/IconTooltip';
 import type { ModelCatalogEntry } from './modelProtocol';
@@ -62,7 +64,8 @@ function ModelPickerPanel({ state, maxHeight, requestClose, onCommand }: ModelPi
   const resultsRef = useRef<HTMLDivElement>(null);
   const listId = useId();
   const filterShown = state.models.length > FILTER_AFTER;
-  const normalizedQuery = query.trim().toLocaleLowerCase();
+  // A catalog that shrinks under the field (another runtime, a refresh) takes its filter with it.
+  const normalizedQuery = filterShown ? query.trim().toLocaleLowerCase() : '';
   // What "Room default" means here: each agent's own model, by name, once the router says.
   const defaultDetail = useMemo(() => {
     if (state.inherited.length === 0) {
@@ -99,22 +102,23 @@ function ModelPickerPanel({ state, maxHeight, requestClose, onCommand }: ModelPi
     ],
     [defaultVisible, groups]
   );
-  // The menu opens on the current choice, so Enter keeps it and the arrows move from it.
-  const [activeIndex, setActiveIndex] = useState(() =>
-    Math.max(
-      items.findIndex((item) =>
-        item.kind === 'default' ? state.override === null : item.model.key === state.override
-      ),
-      0
-    )
-  );
+  const isCurrent = (item: PickerItem): boolean =>
+    item.kind === 'default' ? state.override === null : state.override === item.model.key;
+  // The menu opens on the current choice, so the arrows move from it.
+  const [activeIndex, setActiveIndex] = useState(() => Math.max(items.findIndex(isCurrent), 0));
   const activeItem = items[activeIndex];
   const activeId = activeItem ? optionId(listId, pickerItemId(activeItem)) : undefined;
   const mutationsDisabled = !state.canMutate;
 
+  // A phone's keyboard would come up over the menu, so there the list takes focus, not the filter.
   useEffect(() => {
-    (inputRef.current ?? listRef.current)?.focus();
+    (mobileOrTablet() ? listRef.current : inputRef.current ?? listRef.current)?.focus();
   }, []);
+
+  // A filter field that goes while it has focus leaves the keys to the list.
+  useEffect(() => {
+    if (!filterShown && document.activeElement === document.body) listRef.current?.focus();
+  }, [filterShown]);
 
   useEffect(() => {
     if (activeIndex < items.length) return;
@@ -127,12 +131,17 @@ function ModelPickerPanel({ state, maxHeight, requestClose, onCommand }: ModelPi
 
   const selectItem = (item: PickerItem) => {
     if (mutationsDisabled) return;
+    // The current choice needs no command; choosing it again only closes the menu.
+    if (isCurrent(item)) {
+      requestClose();
+      return;
+    }
     onCommand();
     if (item.kind === 'default') state.resetToRoomDefault();
     else state.selectModel(item.model.key);
   };
 
-  // The filter field, or the list when there is none, keeps focus; the arrows move the highlight.
+  // The filter field or the list holds focus; the arrows move the highlight.
   const handleKeyDown: KeyboardEventHandler<HTMLElement> = (event) => {
     if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (event.key === 'ArrowDown') {
@@ -164,8 +173,7 @@ function ModelPickerPanel({ state, maxHeight, requestClose, onCommand }: ModelPi
   };
 
   const option = (item: PickerItem, index: number) => {
-    const selected =
-      item.kind === 'default' ? state.override === null : state.override === item.model.key;
+    const selected = isCurrent(item);
     return (
       // Keyboard activation belongs to the filter field or the list, which keeps DOM focus.
       // eslint-disable-next-line jsx-a11y/click-events-have-key-events
@@ -200,10 +208,7 @@ function ModelPickerPanel({ state, maxHeight, requestClose, onCommand }: ModelPi
               ? t('mindroomUi.models.modelPicker.roomDefault')
               : item.model.display_name}
           </span>
-          <span
-            className={css.OptionDetail}
-            title={item.kind === 'default' ? defaultDetail : undefined}
-          >
+          <span className={item.kind === 'default' ? css.RoomDefaultDetail : css.OptionDetail}>
             {item.kind === 'default' ? defaultDetail : item.model.id}
           </span>
         </span>
@@ -310,10 +315,10 @@ function ModelPickerPanel({ state, maxHeight, requestClose, onCommand }: ModelPi
           id={listId}
           role="listbox"
           aria-label={t('mindroomUi.models.modelPicker.models')}
-          // Without a filter field the list keeps focus itself and takes the keys.
-          tabIndex={filterShown ? -1 : 0}
-          aria-activedescendant={filterShown ? undefined : activeId}
-          onKeyDown={filterShown ? undefined : handleKeyDown}
+          // The list takes the keys when it has focus: with no filter field, or on a phone.
+          tabIndex={0}
+          aria-activedescendant={activeId}
+          onKeyDown={handleKeyDown}
           className={css.Results}
         >
           {defaultVisible && option({ kind: 'default' }, 0)}
@@ -388,6 +393,19 @@ export function ModelPicker({
     triggerRef.current?.focus();
   };
   if (conversationHidden && open) setOpen(false);
+
+  // The window can change under an open menu, as when a phone's keyboard comes up: the button is
+  // measured again, so the menu stays above it.
+  const [, remeasure] = useReducer((count: number) => count + 1, 0);
+  useEffect(() => {
+    if (!open) return undefined;
+    window.addEventListener('resize', remeasure);
+    window.visualViewport?.addEventListener('resize', remeasure);
+    return () => {
+      window.removeEventListener('resize', remeasure);
+      window.visualViewport?.removeEventListener('resize', remeasure);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open || !commandStartedRef.current) return;

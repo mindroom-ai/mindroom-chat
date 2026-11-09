@@ -174,6 +174,14 @@ for (const theme of ['silver', 'dark']) {
       );
       await page.keyboard.press('Enter');
       await expect(page.locator('output')).toHaveText('model-24');
+      // A phone's keyboard shrinks the window under the open menu, which stays above its button.
+      await page.setViewportSize({ width, height: 420 });
+      await expect
+        .poll(async () => {
+          const shrunk = (await dialog.boundingBox())!;
+          return shrunk.y >= 0 && shrunk.y + shrunk.height <= (await trigger.boundingBox())!.y;
+        })
+        .toBe(true);
       await page.keyboard.press('Escape');
       await expect(dialog).toBeHidden();
       await expect(trigger).toBeFocused();

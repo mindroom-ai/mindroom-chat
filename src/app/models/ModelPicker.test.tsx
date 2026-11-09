@@ -15,6 +15,8 @@ import { ModelIcon } from './ModelIcon';
 const mocks = vi.hoisted(() => ({
   useModelPicker: vi.fn(),
   mxcUrlToHttp: vi.fn(() => 'https://matrix.example/media/icon'),
+  touch: false,
+  anchors: [] as unknown[],
 }));
 
 vi.mock('./ModelPicker.css', () => ({
@@ -33,6 +35,7 @@ vi.mock('./ModelPicker.css', () => ({
   OptionTitle: 'OptionTitle',
   Panel: 'Panel',
   Results: 'Results',
+  RoomDefaultDetail: 'RoomDefaultDetail',
   RuntimeLabel: 'RuntimeLabel',
   RuntimeRow: 'RuntimeRow',
   RuntimeSelect: 'RuntimeSelect',
@@ -77,12 +80,23 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('folds', async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  PopOut: ({ children, content }: { children?: React.ReactNode; content?: React.ReactNode }) => (
-    <div>
-      {children}
-      {content}
-    </div>
-  ),
+  PopOut: ({
+    children,
+    content,
+    anchor,
+  }: {
+    children?: React.ReactNode;
+    content?: React.ReactNode;
+    anchor?: unknown;
+  }) => {
+    mocks.anchors.push(anchor);
+    return (
+      <div>
+        {children}
+        {content}
+      </div>
+    );
+  },
   Spinner: () => <span role="progressbar" aria-label="Loading" />,
 }));
 
@@ -112,6 +126,8 @@ vi.mock('../ui/IconTooltip', () => ({
     </>
   ),
 }));
+
+vi.mock('../lib/user-agent', () => ({ mobileOrTablet: () => mocks.touch }));
 
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -213,7 +229,8 @@ describe('composer model picker', () => {
   const list = () => container.querySelector('[role="listbox"]');
   const search = () => container.querySelector('input[role="searchbox"]') as HTMLInputElement;
   const options = () => [...container.querySelectorAll('[role="option"]')];
-  const optionNamed = (text: string) => options().find((row) => row.textContent?.includes(text))!;
+  const optionNamed = (title: string) =>
+    options().find((row) => row.querySelector('.OptionTitle')?.textContent === title)!;
   const open = (state: ModelPickerState) => {
     act(() => root.render(<ModelPicker state={state} />));
     click(trigger());
@@ -222,6 +239,8 @@ describe('composer model picker', () => {
   beforeEach(() => {
     mocks.useModelPicker.mockReset();
     mocks.mxcUrlToHttp.mockClear();
+    mocks.touch = false;
+    mocks.anchors = [];
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
@@ -337,7 +356,7 @@ describe('composer model picker', () => {
       })
     );
 
-    expect(optionNamed('Room default').querySelector('.OptionDetail')?.textContent).toBe(
+    expect(optionNamed('Room default').querySelector('.RoomDefaultDetail')?.textContent).toBe(
       'assistant: Quick helper, reviewer: legacy-key'
     );
   });
@@ -345,18 +364,21 @@ describe('composer model picker', () => {
   it('explains "Room default" before the router names the fallback models', () => {
     open(createState({ inherited: [] }));
 
-    expect(optionNamed('Room default').querySelector('.OptionDetail')?.textContent).toBe(
+    expect(optionNamed('Room default').querySelector('.RoomDefaultDetail')?.textContent).toBe(
       'Let each agent use its configured model.'
     );
   });
 
-  it('starts on the current model, so Enter keeps it', () => {
+  it('opens on the current model, where Enter only closes the menu', () => {
     const state = createState({ override: 'reset' });
     open(state);
+    expect(list()?.getAttribute('aria-activedescendant')).toBe(optionNamed('Deep reasoning').id);
 
     keyDown(list()!, 'Enter');
 
-    expect(state.selectModel).toHaveBeenCalledWith('reset');
+    expect(state.selectModel).not.toHaveBeenCalled();
+    expect(list()).toBeNull();
+    expect(trigger()).toBe(document.activeElement);
   });
 
   it('supports arrow selection, Enter, and Escape from the list', () => {
@@ -373,20 +395,17 @@ describe('composer model picker', () => {
   });
 
   it('keeps room reset distinct from selecting a model whose stable key is default', () => {
-    const state = createState({ override: 'default' });
+    const state = createState();
     open(state);
 
-    const defaultAction = optionNamed('Room default');
-    const namedDefault = optionNamed('Named default');
-
-    expect(defaultAction.getAttribute('aria-selected')).toBe('false');
-    expect(namedDefault.getAttribute('aria-selected')).toBe('true');
-
-    click(namedDefault);
+    click(optionNamed('Named default'));
     expect(state.selectModel).toHaveBeenCalledWith('default');
     expect(state.resetToRoomDefault).not.toHaveBeenCalled();
 
-    click(defaultAction);
+    act(() => root.render(<ModelPicker state={{ ...state, override: 'default' }} />));
+    expect(optionNamed('Room default').getAttribute('aria-selected')).toBe('false');
+    expect(optionNamed('Named default').getAttribute('aria-selected')).toBe('true');
+    click(optionNamed('Room default'));
     expect(state.resetToRoomDefault).toHaveBeenCalledOnce();
   });
 
@@ -435,7 +454,6 @@ describe('composer model picker', () => {
 
     expect(search()).toBe(document.activeElement);
     expect(search().getAttribute('placeholder')).toBe('Search models');
-    expect(list()?.getAttribute('tabindex')).toBe('-1');
 
     input(search(), 'quick');
     expect(options().map((option) => option.textContent)).toEqual([
@@ -472,6 +490,69 @@ describe('composer model picker', () => {
     keyDown(search(), 'Escape');
     expect(search()).toBeNull();
     expect(trigger()).toBe(document.activeElement);
+  });
+
+  it('keeps the keys working when a refresh adds the filter field under the focused list', () => {
+    const state = createState({ models: longCatalog().slice(0, 8) });
+    open(state);
+    expect(list()).toBe(document.activeElement);
+
+    act(() => root.render(<ModelPicker state={{ ...state, models: longCatalog() }} />));
+    expect(search()).not.toBeNull();
+    expect(list()).toBe(document.activeElement);
+    keyDown(list()!, 'ArrowDown');
+    keyDown(list()!, 'Enter');
+
+    expect(state.selectModel).toHaveBeenCalledWith('fast');
+  });
+
+  it('drops the filter and gives the list focus when the catalog shrinks under the field', () => {
+    const state = createState({ models: longCatalog() });
+    open(state);
+    input(search(), 'studio');
+    expect(search()).toBe(document.activeElement);
+
+    act(() => root.render(<ModelPicker state={{ ...state, models: createState().models }} />));
+
+    expect(search()).toBeNull();
+    expect(options().map((option) => option.querySelector('.OptionTitle')?.textContent)).toEqual([
+      'Room default',
+      'Quick helper',
+      'Deep reasoning',
+      'Named default',
+    ]);
+    expect(list()).toBe(document.activeElement);
+  });
+
+  it('shows no filter field for exactly eight models', () => {
+    open(createState({ models: longCatalog().slice(0, 8) }));
+
+    expect(search()).toBeNull();
+    expect(list()).toBe(document.activeElement);
+  });
+
+  it('focuses the list, not the filter field, on a touch device, and the list takes the keys', () => {
+    mocks.touch = true;
+    const state = createState({ models: longCatalog() });
+    open(state);
+
+    expect(search()).not.toBeNull();
+    expect(list()).toBe(document.activeElement);
+    keyDown(list()!, 'ArrowDown');
+    keyDown(list()!, 'Enter');
+    expect(state.selectModel).toHaveBeenCalledWith('fast');
+  });
+
+  it('measures its button again when the window resizes while it is open', () => {
+    open(createState());
+    const moved = { x: 16, y: 300, width: 32, height: 32, top: 300, left: 16, right: 48 };
+    trigger().getBoundingClientRect = () => ({ ...moved, bottom: 332, toJSON: () => moved });
+
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    expect(mocks.anchors.at(-1)).toMatchObject({ y: 300 });
   });
 
   it('shows an explicit readable chooser when multiple runtimes answer', () => {
@@ -536,7 +617,9 @@ describe('composer model picker', () => {
     keyDown(list()!, 'Escape');
     expect(list()).toBeNull();
     click(trigger());
-    act(() => root.render(<ModelPicker state={{ ...state, canMutate: true }} />));
+    act(() =>
+      root.render(<ModelPicker state={{ ...state, canMutate: true, override: 'reset' }} />)
+    );
     expect(options().every((option) => option.getAttribute('aria-disabled') === 'false')).toBe(
       true
     );

@@ -237,6 +237,12 @@ export const OptionDetail = style([
   },
 ]);
 
+// "Room default" names each agent's model; its line wraps rather than cutting names off.
+export const RoomDefaultDetail = style([
+  OptionDetail,
+  { whiteSpace: 'normal', overflowWrap: 'anywhere' },
+]);
+
 export const Check = style({
   flexShrink: 0,
   color: color.Primary.Main,

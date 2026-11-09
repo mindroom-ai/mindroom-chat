@@ -4,6 +4,7 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RelationType, Room } from 'matrix-js-sdk';
 import { createRoomUploadItems, RoomInput } from '../RoomInput';
+import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { MATRIX_AUDIO_DETAILS_PROPERTY_NAME } from '../../matrix/types/common';
 import {
   IReplyDraft,
@@ -341,6 +342,10 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
 
 vi.mock('../useTypingStatusUpdater', () => ({
   useTypingStatusUpdater: () => typingState.sendTypingStatus,
+}));
+
+vi.mock('../ComposerActionsMenu', () => ({
+  ComposerActionsMenu: () => React.createElement('button', { 'aria-label': 'More actions' }),
 }));
 
 vi.mock('../../models/ModelPicker', () => ({
@@ -932,6 +937,27 @@ describe('RoomInput', () => {
 
     expect(labels).toEqual(expect.arrayContaining(['Attach files', 'Emoji', 'Send message']));
     expect(labels.some((label) => String(label).startsWith('Record voice message'))).toBe(true);
+
+    renderer.unmount();
+  });
+
+  it('mounts the thread model picker before More actions on a phone', async () => {
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ScreenSizeProvider,
+          { value: ScreenSize.Mobile },
+          createRoomInputTree(createStore(), { threadId: '$thread' })
+        )
+      );
+    });
+
+    const before = renderer.root.findByProps({ 'data-room-input-slot': 'before' });
+    const labels = before
+      .findAll((node) => node.type === 'button')
+      .map((button) => button.props['aria-label']);
+    expect(labels.slice(0, 2)).toEqual(['Model picker seam', 'More actions']);
 
     renderer.unmount();
   });

@@ -19,6 +19,7 @@ describe('ProviderModelIcon', () => {
 
   it.each([
     ['openai/gpt-6-sol', 'tabler-icon-brand-openai'],
+    ['openai/o3', 'tabler-icon-brand-openai'],
     ['meta-llama/llama-5-scout', 'tabler-icon-brand-meta'],
     ['google/gemini-3-pro', 'tabler-icon-brand-google'],
   ])('uses the maker of an OpenRouter model %s', (id, glyph) => {
@@ -35,13 +36,20 @@ describe('ProviderModelIcon', () => {
     expect(renderer.root.findByType('path').props.d).toMatch(/^M17\.3041/);
   });
 
-  it('keeps the generic mark for an OpenRouter model without a known maker', () => {
-    const renderer = create(
-      <ProviderModelIcon provider="openrouter" id="deepseek/deepseek-v4" size={20} />
-    );
+  it('keeps the Azure mark for an Azure deployment of a GPT model', () => {
+    const renderer = create(<ProviderModelIcon provider="azure" id="gpt-4o" size={20} />);
 
-    expect(renderer.root.findByType('svg').props.className).toContain('tabler-icon-sparkles');
+    expect(renderer.root.findByType('svg').props.className).toContain('tabler-icon-brand-azure');
   });
+
+  it.each(['deepseek/deepseek-v4', 'constructor/model', '/gpt-6'])(
+    'keeps the generic mark for an OpenRouter model without a known maker: %s',
+    (id) => {
+      const renderer = create(<ProviderModelIcon provider="openrouter" id={id} size={20} />);
+
+      expect(renderer.root.findByType('svg').props.className).toContain('tabler-icon-sparkles');
+    }
+  );
 
   it.each(['gpt-4.1', 'anti-gemini-detector', 'google/gemini/model', 'geminized-model'])(
     'preserves the OpenAI glyph for unrelated model %s',
