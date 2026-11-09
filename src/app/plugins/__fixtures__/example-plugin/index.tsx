@@ -109,6 +109,7 @@ import {
   usePluginTranslation,
   useRoomSidePanel,
   type ClientPlugin,
+  type MessageLinkCardProps,
   type PluginEvent,
   type PluginPageProps,
 } from '@mindroom/client-sdk/core';
@@ -957,6 +958,28 @@ function RoomDialog({ room, close }: { room: Room; close: () => void }) {
   );
 }
 
+/** The card a click on a link to an item of example.org shows. */
+function ItemCard({ href, close }: MessageLinkCardProps) {
+  const panel = useRoomSidePanel('example', 'panel');
+  const id = new URL(href).pathname.split('/').pop();
+  return (
+    <div data-example-item-card>
+      <div>Example item {id}</div>
+      {panel && (
+        <button
+          type="button"
+          onClick={() => {
+            panel.open(undefined);
+            close();
+          }}
+        >
+          Show item in panel
+        </button>
+      )}
+    </div>
+  );
+}
+
 const plugin: ClientPlugin = {
   conversationCovers: [
     {
@@ -1038,6 +1061,12 @@ const plugin: ClientPlugin = {
         if (!args.trim()) throw commandUsage();
         await createSubRoom(room, { name: args });
       },
+    },
+  ],
+  messageLinks: [
+    {
+      match: (url) => url.hostname === 'example.org' && /^\/items\/[^/]+$/.test(url.pathname),
+      Component: ItemCard,
     },
   ],
   roomActions: [
