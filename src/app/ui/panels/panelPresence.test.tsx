@@ -14,9 +14,13 @@ function Mover({ name }: { name: string }) {
 }
 
 let slotRenders = 0;
+let slotCommits = 0;
 
 function Slot({ panel }: { panel?: ReactElement }) {
   slotRenders += 1;
+  useLayoutEffect(() => {
+    slotCommits += 1;
+  });
   return <>{usePanelSlot(panel)}</>;
 }
 
@@ -106,7 +110,28 @@ describe('usePanelSlot', () => {
     act(() => presence?.done());
     expect(slotRenders).toBe(1);
   });
+
+  it('changes only as it closes and as it is done, when its moving panel stays still', () => {
+    const { renderer, update } = renderSlot(<StillMover key="members" />);
+    slotCommits = 0;
+    update(undefined);
+    expect(shown(renderer)).toEqual([]);
+    expect(slotCommits).toBe(2);
+  });
 });
+
+/** A moving panel that stays still (such as one that fills the room): done as soon as it closes. */
+function StillMover() {
+  const own = usePanelPresence();
+  const register = own?.register;
+  useLayoutEffect(() => register?.(), [register]);
+  const closing = own?.phase === 'exit';
+  const done = own?.done;
+  useLayoutEffect(() => {
+    if (closing) done?.();
+  }, [closing, done]);
+  return <span data-panel="still" />;
+}
 
 /** A moving panel that registers anew with each phase it gets. */
 function PhaseMover() {

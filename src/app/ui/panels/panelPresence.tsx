@@ -50,6 +50,9 @@ type Slot = {
   phase: PanelPhase;
 };
 
+/** Whether the panel on screen is closing: none is asked for, and it has not yet gone. */
+const isClosing = (slot: Slot) => slot.key === undefined && slot.shownKey !== undefined;
+
 /**
  * One place for a panel beside the content that opens and closes in motion. Pass the panel to
  * show (with a key naming which one) or undefined; the slot keeps a closing panel mounted until it
@@ -84,7 +87,8 @@ export function usePanelSlot(
   const closingRef = useRef(false);
   const done = useCallback(() => {
     closingRef.current = false;
-    setSlot((current) => (current.key === undefined ? { phase: 'shown' } : current));
+    // Once the panel has gone, a later `done` (from its last mover as it goes) changes nothing.
+    setSlot((current) => (isClosing(current) ? { phase: 'shown' } : current));
   }, []);
   const movers = useRef(0);
   const register = useCallback(() => {
@@ -98,7 +102,7 @@ export function usePanelSlot(
   }, [done]);
   // Runs after the panel's own effects: with no moving panel inside (a canvas without its
   // content, or other content), what closes leaves at once.
-  const closing = slot.key === undefined && slot.shownKey !== undefined;
+  const closing = isClosing(slot);
   useLayoutEffect(() => {
     closingRef.current = closing;
     if (closing && movers.current === 0) done();
