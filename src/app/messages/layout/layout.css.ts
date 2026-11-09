@@ -111,7 +111,8 @@ export const OwnBubble = style({ marginInlineStart: 'auto' });
 // Sender names take the colour of the sender's standing in the room: whoever leads it (creators
 // and administrators) in blue, moderators in violet, everyone else in teal. The dark themes use
 // lighter shades of the same hues.
-const DARK_THEMES = ':is(.dark-theme, .midnight-theme, .butter-theme) &';
+const DARK_THEMES =
+  ':is(.dark-theme, .midnight-theme, .butter-theme, .green-theme, .orange-theme) &';
 const nameTone = (light: string, dark: string) => ({
   color: light,
   selectors: { [DARK_THEMES]: { color: dark } },

@@ -166,6 +166,14 @@ pre {
   --mr-link-color: #e3c46b;
 }
 
+.green-theme {
+  --mr-link-color: #25faa1;
+}
+
+.orange-theme {
+  --mr-link-color: #ff5000;
+}
+
 /* Scrollbars: a thumb that stays visible on every track of the theme. */
 :root,
 .light-theme,
@@ -175,7 +183,9 @@ pre {
 
 .dark-theme,
 .midnight-theme,
-.butter-theme {
+.butter-theme,
+.green-theme,
+.orange-theme {
   --mr-scrollbar-thumb-color: #ffffff73;
   color-scheme: dark;
 }

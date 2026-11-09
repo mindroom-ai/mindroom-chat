@@ -40,7 +40,9 @@
       "silver": "Plateado",
       "dark": "Oscuro",
       "midnight": "Medianoche",
-      "butter": "Mantequilla"
+      "butter": "Mantequilla",
+      "green": "Verde",
+      "orange": "Naranja"
     },
     "prefetchScope": {
       "allRooms": "Todas las salas",

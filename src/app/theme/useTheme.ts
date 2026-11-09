@@ -33,8 +33,18 @@ export const SilverTheme = defineTheme('silver', ThemeKind.Light, palettes.silve
 export const DarkTheme = defineTheme('dark', ThemeKind.Dark, palettes.darkTheme);
 export const MidnightTheme = defineTheme('midnight', ThemeKind.Dark, palettes.midnightTheme);
 export const ButterTheme = defineTheme('butter', ThemeKind.Dark, palettes.butterTheme);
+export const GreenTheme = defineTheme('green', ThemeKind.Dark, palettes.greenTheme);
+export const OrangeTheme = defineTheme('orange', ThemeKind.Dark, palettes.orangeTheme);
 
-export const THEMES: Theme[] = [LightTheme, SilverTheme, DarkTheme, MidnightTheme, ButterTheme];
+export const THEMES: Theme[] = [
+  LightTheme,
+  SilverTheme,
+  DarkTheme,
+  MidnightTheme,
+  ButterTheme,
+  GreenTheme,
+  OrangeTheme,
+];
 
 const getThemeById = (themeId: string | undefined): Theme | undefined =>
   THEMES.find((theme) => theme.id === themeId);

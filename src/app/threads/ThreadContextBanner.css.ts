@@ -171,7 +171,7 @@ export const ResolvedButton = style({
 });
 
 // The grey this used to hardcode (rgba(128,128,128,0.2)) is the same slab in
-// all five themes, so it read as a hole in butter and as a smudge in midnight.
+// every theme, so it read as a hole in butter and as a smudge in midnight.
 // On the container tokens it tracks the tag pills it sits next to.
 export const OverflowChip = style({
   display: 'inline-flex',

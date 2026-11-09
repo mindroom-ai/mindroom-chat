@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react';
 import type { ParticleThemeKind } from './particleBackgroundTheme';
 
 const LIGHT_THEME_CLASSES = ['light-theme', 'silver-theme'];
-const DARK_THEME_CLASSES = ['dark-theme', 'midnight-theme', 'butter-theme'];
+const DARK_THEME_CLASSES = [
+  'dark-theme',
+  'midnight-theme',
+  'butter-theme',
+  'green-theme',
+  'orange-theme',
+];
 
 export const resolveParticleThemeKind = (): ParticleThemeKind => {
   if (typeof document === 'undefined') return 'dark';

@@ -14,6 +14,9 @@ const rimShade = createVar();
 const rimReflection = createVar();
 export const glassShadow = createVar();
 
+/** The theme classes whose palettes are dark. */
+const darkThemes = ':is(.dark-theme, .midnight-theme, .butter-theme, .green-theme, .orange-theme)';
+
 const maskedRimSupport =
   '((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) and ((mask-composite: exclude) or (-webkit-mask-composite: xor))';
 
@@ -67,7 +70,7 @@ const material = (
       backgroundColor: surfaceContainer,
       backgroundImage: 'none',
     },
-    ':is(.dark-theme, .midnight-theme, .butter-theme) &&': {
+    [`${darkThemes} &&`]: {
       vars: {
         [surfaceTint]: `${darkTint}%`,
         [highlight]: 'rgb(255 255 255 / 4%)',
@@ -172,7 +175,7 @@ export const glassFlat = style({
       boxShadow: 'none',
       backgroundImage: 'none',
     },
-    ':is(.dark-theme, .midnight-theme, .butter-theme) &&&': {
+    [`${darkThemes} &&&`]: {
       vars: { [surfaceTint]: denseTint.dark },
     },
   },
@@ -186,7 +189,7 @@ export const glassInheritTint = style({
   selectors: {
     '&&&&&': { vars: { [surfaceContainer]: 'inherit', [surfaceTint]: '0%' } },
     '&&&&&[data-scrolled-beneath]': { vars: { [surfaceTint]: denseTint.light } },
-    ':is(.dark-theme, .midnight-theme, .butter-theme) &&&&&[data-scrolled-beneath]': {
+    [`${darkThemes} &&&&&[data-scrolled-beneath]`]: {
       vars: { [surfaceTint]: denseTint.dark },
     },
   },
@@ -197,7 +200,7 @@ export const glassOverBackdrop = style({
   selectors: {
     '&&&': { vars: { [surfaceTint]: '60%' } },
     '.silver-theme &&&': { vars: { [surfaceTint]: '64%' } },
-    ':is(.dark-theme, .midnight-theme, .butter-theme) &&&': {
+    [`${darkThemes} &&&`]: {
       vars: { [surfaceTint]: '28%' },
     },
   },
@@ -209,7 +212,7 @@ export const glassOverBackdrop = style({
 export const glassDenseOverBackdrop = style({
   selectors: {
     '&&&': { vars: { [surfaceTint]: denseTint.light } },
-    ':is(.dark-theme, .midnight-theme, .butter-theme) &&&': {
+    [`${darkThemes} &&&`]: {
       vars: { [surfaceTint]: denseTint.dark },
     },
   },

@@ -40,7 +40,9 @@
       "silver": "Zilver",
       "dark": "Donker",
       "midnight": "Middernacht",
-      "butter": "Boter"
+      "butter": "Boter",
+      "green": "Groen",
+      "orange": "Oranje"
     },
     "prefetchScope": {
       "allRooms": "Alle kamers",

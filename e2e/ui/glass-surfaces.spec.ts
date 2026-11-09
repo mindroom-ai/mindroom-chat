@@ -174,7 +174,7 @@ for (const theme of ['light', 'dark']) {
   });
 }
 
-for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter']) {
+for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter', 'green', 'orange']) {
   test(`thread and audio rims highlight the top and bottom in ${theme}`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 1600 });
     await page.goto(`/e2e/fixtures/glass-surfaces.html?theme=${theme}`);
@@ -271,7 +271,7 @@ for (const theme of ['light', 'dark']) {
   });
 }
 
-for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter']) {
+for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter', 'green', 'orange']) {
   test(`settings sheet reveals its dimmed backdrop and retains contrast in ${theme}`, async ({
     page,
   }) => {
@@ -520,7 +520,7 @@ const expectOpaqueFallback = async (page: Page) => {
   }
 };
 
-for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter']) {
+for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter', 'green', 'orange']) {
   test(`shared materials retain rendered text contrast over every backdrop in ${theme}`, async ({
     page,
   }) => {

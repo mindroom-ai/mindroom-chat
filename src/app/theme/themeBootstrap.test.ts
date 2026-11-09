@@ -40,6 +40,16 @@ vi.mock('./useTheme', () => {
       kind: ThemeKind.Dark,
       classNames: ['butter-theme', 'butter-class', 'dark-font', 'prism-dark'],
     },
+    GreenTheme: {
+      id: 'green-theme',
+      kind: ThemeKind.Dark,
+      classNames: ['green-theme', 'green-class', 'dark-font', 'prism-dark'],
+    },
+    OrangeTheme: {
+      id: 'orange-theme',
+      kind: ThemeKind.Dark,
+      classNames: ['orange-theme', 'orange-class', 'dark-font', 'prism-dark'],
+    },
   };
 });
 

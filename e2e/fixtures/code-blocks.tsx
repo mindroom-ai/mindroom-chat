@@ -10,8 +10,10 @@ import '../../src/app/i18n/i18n';
 import {
   butterTheme,
   darkTheme,
+  greenTheme,
   lightTheme,
   midnightTheme,
+  orangeTheme,
   silverTheme,
 } from '../../src/app/theme/colors.css';
 import { roundedRadii } from '../../src/app/theme/config.css';
@@ -26,6 +28,8 @@ const themes = {
   dark: [darkTheme, 'prism-dark'],
   midnight: [midnightTheme, 'prism-dark'],
   butter: [butterTheme, 'prism-dark'],
+  green: [greenTheme, 'prism-dark'],
+  orange: [orangeTheme, 'prism-dark'],
 } as const;
 const themeName = new URLSearchParams(window.location.search).get('theme');
 const [themeClass, prismClass] = themes[themeName as keyof typeof themes] ?? themes.light;

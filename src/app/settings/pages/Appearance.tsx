@@ -20,6 +20,8 @@ const THEME_LABEL_KEYS = {
   'dark-theme': 'options.themeName.dark',
   'midnight-theme': 'options.themeName.midnight',
   'butter-theme': 'options.themeName.butter',
+  'green-theme': 'options.themeName.green',
+  'orange-theme': 'options.themeName.orange',
 } as const;
 
 type ThemeLabelKey = (typeof THEME_LABEL_KEYS)[keyof typeof THEME_LABEL_KEYS];

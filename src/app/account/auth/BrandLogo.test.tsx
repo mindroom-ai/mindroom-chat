@@ -12,6 +12,8 @@ vi.mock('../../theme/colors.css', () => ({
   darkTheme: 'dark-palette',
   midnightTheme: 'midnight-palette',
   butterTheme: 'butter-palette',
+  greenTheme: 'green-palette',
+  orangeTheme: 'orange-palette',
 }));
 
 const BRANDED: ClientConfig = {

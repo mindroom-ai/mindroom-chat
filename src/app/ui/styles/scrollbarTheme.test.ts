@@ -12,7 +12,7 @@ const foldsCss = readFileSync(
 describe('scrollbar theme', () => {
   it('keeps the dark-theme thumb visible on every dark track', () => {
     const thumbValue = indexCss.match(
-      /\.dark-theme,\s*\.midnight-theme,\s*\.butter-theme\s*\{[^}]*--mr-scrollbar-thumb-color:\s*(#[\da-f]{8})/i
+      /\.dark-theme,\s*\.midnight-theme,\s*\.butter-theme,\s*\.green-theme,\s*\.orange-theme\s*\{[^}]*--mr-scrollbar-thumb-color:\s*(#[\da-f]{8})/i
     )?.[1];
     if (!thumbValue) throw new Error('Dark scrollbar thumb token is missing.');
 

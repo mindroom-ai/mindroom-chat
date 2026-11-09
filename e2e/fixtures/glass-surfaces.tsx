@@ -12,8 +12,10 @@ import '../../src/app/i18n/i18n';
 import {
   ButterTheme,
   DarkTheme,
+  GreenTheme,
   LightTheme,
   MidnightTheme,
+  OrangeTheme,
   SilverTheme,
 } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
@@ -42,6 +44,8 @@ const themes = {
   dark: DarkTheme,
   midnight: MidnightTheme,
   butter: ButterTheme,
+  green: GreenTheme,
+  orange: OrangeTheme,
 };
 const themeName = new URLSearchParams(window.location.search).get('theme') ?? 'light';
 const theme = themes[themeName as keyof typeof themes] ?? LightTheme;

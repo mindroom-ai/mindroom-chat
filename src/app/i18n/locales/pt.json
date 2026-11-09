@@ -40,7 +40,9 @@
       "silver": "Prata",
       "dark": "Escuro",
       "midnight": "Meia-noite",
-      "butter": "Manteiga"
+      "butter": "Manteiga",
+      "green": "Verde",
+      "orange": "Laranja"
     },
     "prefetchScope": {
       "allRooms": "Todas as salas",

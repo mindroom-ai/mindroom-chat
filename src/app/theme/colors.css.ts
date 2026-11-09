@@ -4,7 +4,8 @@ import { color } from 'folds';
 // MindRoom's palettes for the folds colour contract. Light and dark follow the reference
 // screenshots (docs/design/reference/): neutral greys with a faint violet cast, a violet
 // primary, green for success and resolved threads. Silver is a greyer light theme; midnight
-// and butter are dark themes with a blue and a warm cast.
+// and butter are dark themes with a blue and a warm cast. Green and orange are dark themes on
+// deep green and blue-black surfaces with a neon green and an orange primary.
 
 type Palette = Parameters<typeof createTheme<typeof color>>[1];
 
@@ -285,8 +286,120 @@ const butterPalette: Palette = {
   },
 };
 
+// The surfaces keep the dark palette's lightness steps in the hue of the timeline's green
+// (Surface.Container), and the neutral buttons take the same tint.
+const greenPalette: Palette = {
+  Background: {
+    Container: '#042018',
+    ContainerHover: '#112C24',
+    ContainerActive: '#213D34',
+    ContainerLine: '#1A362D',
+    OnContainer: '#F7F7F5',
+  },
+  Surface: {
+    Container: '#103228',
+    ContainerHover: '#193A30',
+    ContainerActive: '#214238',
+    ContainerLine: '#24463B',
+    OnContainer: '#F7F7F5',
+  },
+  SurfaceVariant: {
+    Container: '#1C3E33',
+    ContainerHover: '#24463B',
+    ContainerActive: '#2C4E43',
+    ContainerLine: '#2C4E43',
+    OnContainer: '#F7F7F5',
+  },
+  ...darkAccents,
+  Primary: {
+    Main: '#25FAA1',
+    MainHover: '#46FBAF',
+    MainActive: '#66FCBD',
+    MainLine: '#87FCCB',
+    OnMain: '#103228',
+    Container: '#0F4B36',
+    ContainerHover: '#1A533E',
+    ContainerActive: '#235C46',
+    ContainerLine: '#2C644E',
+    OnContainer: '#DCF7EA',
+  },
+  Secondary: {
+    Main: '#F7F7F5',
+    MainHover: '#E9EBE7',
+    MainActive: '#DCDFDA',
+    MainLine: '#CED2CC',
+    OnMain: '#103228',
+    Container: '#324840',
+    ContainerHover: '#3A5048',
+    ContainerActive: '#425850',
+    ContainerLine: '#4A6158',
+    OnContainer: '#F7F7F5',
+  },
+  Other: {
+    ...darkAccents.Other,
+    FocusRing: 'rgba(37, 250, 161, 0.55)',
+  },
+};
+
+// Blue-black surfaces with an orange primary; the code block background (SurfaceVariant) is
+// the navy the surfaces step up to.
+const orangePalette: Palette = {
+  Background: {
+    Container: '#0F161B',
+    ContainerHover: '#1B2227',
+    ContainerActive: '#2A3237',
+    ContainerLine: '#232B30',
+    OnContainer: '#FAFAFA',
+  },
+  Surface: {
+    Container: '#19262F',
+    ContainerHover: '#212E37',
+    ContainerActive: '#28363F',
+    ContainerLine: '#2B3942',
+    OnContainer: '#FAFAFA',
+  },
+  SurfaceVariant: {
+    Container: '#233440',
+    ContainerHover: '#2B3C48',
+    ContainerActive: '#324450',
+    ContainerLine: '#324450',
+    OnContainer: '#FAFAFA',
+  },
+  ...darkAccents,
+  Primary: {
+    Main: '#FF5000',
+    MainHover: '#FF621A',
+    MainActive: '#FF7333',
+    MainLine: '#FF844C',
+    OnMain: '#0F161B',
+    Container: '#622F1D',
+    ContainerHover: '#6B3725',
+    ContainerActive: '#743F2D',
+    ContainerLine: '#7D4835',
+    OnContainer: '#FFDCCC',
+  },
+  Secondary: {
+    Main: '#FAFAFA',
+    MainHover: '#ECEDEE',
+    MainActive: '#DEE0E2',
+    MainLine: '#D0D3D6',
+    OnMain: '#0F161B',
+    Container: '#39444C',
+    ContainerHover: '#414C54',
+    ContainerActive: '#49545D',
+    ContainerLine: '#515D65',
+    OnContainer: '#FAFAFA',
+  },
+  Other: {
+    ...darkAccents.Other,
+    FocusRing: 'rgba(255, 80, 0, 0.55)',
+  },
+};
+
 export const lightTheme = createTheme(color, lightPalette);
 export const silverTheme = createTheme(color, silverPalette);
 export const darkTheme = createTheme(color, darkPalette);
 export const midnightTheme = createTheme(color, midnightPalette);
 export const butterTheme = createTheme(color, butterPalette);
+export const greenTheme = createTheme(color, greenPalette);
+export const orangeTheme = createTheme(color, orangePalette);

@@ -2,8 +2,10 @@ import { configClass, varsClass } from 'folds';
 import {
   ButterTheme,
   DarkTheme,
+  GreenTheme,
   LightTheme,
   MidnightTheme,
+  OrangeTheme,
   SilverTheme,
   type Theme,
   ThemeKind,
@@ -21,6 +23,8 @@ const THEME_IDS = [
   DarkTheme.id,
   MidnightTheme.id,
   ButterTheme.id,
+  GreenTheme.id,
+  OrangeTheme.id,
 ] as const;
 type ThemeId = typeof THEME_IDS[number];
 type ThemeScheme = 'light' | 'dark';
@@ -76,6 +80,20 @@ const RESOLVED_THEME_MAP: Record<ThemeId, ResolvedTheme> = {
     bgColor: '#1A1916',
     scheme: 'dark',
     classNames: [configClass, varsClass, ...ButterTheme.classNames],
+  },
+  [GreenTheme.id]: {
+    themeId: GreenTheme.id,
+    themeKind: GreenTheme.kind,
+    bgColor: '#042018',
+    scheme: 'dark',
+    classNames: [configClass, varsClass, ...GreenTheme.classNames],
+  },
+  [OrangeTheme.id]: {
+    themeId: OrangeTheme.id,
+    themeKind: OrangeTheme.kind,
+    bgColor: '#0F161B',
+    scheme: 'dark',
+    classNames: [configClass, varsClass, ...OrangeTheme.classNames],
   },
 };
 
