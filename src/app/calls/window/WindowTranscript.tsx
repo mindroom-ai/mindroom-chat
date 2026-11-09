@@ -35,6 +35,18 @@ const focusWindowHandle = () =>
   document.querySelector<HTMLElement>('[data-call-window-handle]')?.focus();
 
 /**
+ * The focus in the element of `ref` goes to the window's handle when the element leaves the page,
+ * rather than to the page: before it does, while it still has the focus to tell.
+ */
+const useFocusHandleOnLeave = (ref: RefObject<HTMLElement>) =>
+  useLayoutEffect(() => {
+    const element = ref.current;
+    return () => {
+      if (element?.contains(document.activeElement)) focusWindowHandle();
+    };
+  }, [ref]);
+
+/**
  * Where the live transcript sits in the window now: by the window's size, while the account shows
  * it there and MindRoom has answered for the call (it may be unreachable since, which the
  * transcript says). None otherwise.
@@ -70,15 +82,9 @@ function Divider({ layout, share, boxRef, onDrag, onSet }: DividerProps) {
   // A drag the divider goes away during (the window turned short, the transcript hidden) ends
   // with it, unsaved; its pointer capture went with the element.
   useEffect(() => () => onDrag(undefined), [onDrag]);
-  // The focus it had then goes to the window's handle, as Minimize's and Expand's does, rather
-  // than to the page. Before it leaves the page, while it still has the focus to tell.
+  // The focus it had then goes to the window's handle, as Minimize's and Expand's does.
   const ref = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const element = ref.current;
-    return () => {
-      if (element && element === document.activeElement) focusWindowHandle();
-    };
-  }, []);
+  useFocusHandleOnLeave(ref);
   const stage = percent(share);
   const follow = (event: PointerEvent<HTMLElement>) => {
     const box = boxRef.current;
@@ -187,13 +193,8 @@ function Transcript({ room, layout, grow, paneRef }: TranscriptProps) {
   useLayoutEffect(() => {
     if (subtitle && paneRef.current?.contains(document.activeElement)) focusWindowHandle();
   }, [paneRef, subtitle]);
-  // ...and when it leaves the page, before it does, while it still has the focus.
-  useLayoutEffect(() => {
-    const pane = paneRef.current;
-    return () => {
-      if (pane?.contains(document.activeElement)) focusWindowHandle();
-    };
-  }, [paneRef]);
+  // ...and when it leaves the page.
+  useFocusHandleOnLeave(paneRef);
   return (
     <>
       <div
