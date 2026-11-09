@@ -6,7 +6,13 @@ import { IconButton } from 'folds';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
-import { callPanelRoomAtom, callStartProblemAtom, type ActiveCall } from './callStore';
+import type { IconTooltipProps } from '../ui/IconTooltip';
+import {
+  callPanelRoomAtom,
+  callStartProblemAtom,
+  callViewStateAtom,
+  type ActiveCall,
+} from './callStore';
 import type { CallDeviceKind, CallDevices, CallParticipant, CallState } from './RoomCall';
 import { CallPanel } from './CallPanel';
 import { ActiveCallTab } from './ActiveCallTab';
@@ -24,7 +30,7 @@ import {
 } from './window/callWindowState';
 
 // The call view's title bar in the floating window and in the docked panel: its buttons per
-// mode, and the one-line bar the window shows while minimized.
+// mode, and the one-line bar the window shows while minimized; and the call's controls.
 
 const USER = '@me:panel.test';
 const room = { roomId: '!standup:panel.test' } as Room;
@@ -47,17 +53,16 @@ vi.mock('../matrix/hooks/useRoomMeta', () => ({ useRoomName: () => 'Standup' }))
 vi.mock('../matrix/hooks/usePowerLevels', () => ({ usePowerLevelsContext: () => ({}) }));
 vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => [] }));
 vi.mock('../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navigation }));
-vi.mock('./agent/useCallFailureNotice', () => ({ useCallFailureNotice: () => undefined }));
+// A button named in a tooltip says which side the tooltip opens on.
+vi.mock('../ui/IconTooltip', () => ({
+  IconTooltip: ({ position = 'Bottom', children }: IconTooltipProps) =>
+    children((anchor) => anchor?.setAttribute('data-tooltip', position)),
+}));
 // The notice an agent posts when it joined but cannot hear or speak, while a test shows one.
 const failures = vi.hoisted(() => ({
   visible: undefined as { eventId: string; message: string } | undefined,
 }));
-vi.mock('./agent/useCallFailureDismissal', () => ({
-  useCallFailureDismissal: () => ({
-    visibleFailure: failures.visible,
-    dismissFailure: () => undefined,
-  }),
-}));
+vi.mock('./agent/useCallFailureNotice', () => ({ useCallFailureNotice: () => failures.visible }));
 vi.mock('../computer/useRoomMindroomServer', () => ({
   useRoomMindroomServer: () => ({ apiUrl: undefined, discovered: false }),
 }));
@@ -69,9 +74,6 @@ vi.mock('./callSupport', () => ({
 vi.mock('./callAccess', () => ({
   readCallAccess: () => ({ canJoin: true, canLetMembersIn: false }),
   allowMembersToCall: async () => undefined,
-}));
-vi.mock('./callMemberships', () => ({
-  callUserIds: (members: { userId: string }[]) => members.map(({ userId }) => userId),
 }));
 vi.mock('./callStore', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./callStore')>()),
@@ -259,12 +261,21 @@ describe('the call view title bar', () => {
     const handle = screen.getByRole('group', { name: 'Move call window' });
     expect(handle.tagName).toBe('HEADER');
     expect(handle.hasAttribute('data-call-window-handle')).toBe(true);
-    expect(within(handle).getByRole('heading', { name: 'Standup' })).toBeTruthy();
+    // Read out as it changes.
+    expect(within(handle).getByText('2 people in the call').getAttribute('aria-live')).toBe(
+      'polite'
+    );
+    // The window's handle takes the focus handed to the window, not its title.
+    const heading = within(handle).getByRole('heading', { name: 'Standup' });
+    expect(heading.hasAttribute('tabindex')).toBe(false);
     cleanup();
 
     renderPanel();
     expect(screen.queryByRole('group', { name: 'Move call window' })).toBeNull();
     expect(document.querySelector('[data-call-window-handle]')).toBeNull();
+    const header = screen.getByTestId('call-panel').querySelector('header')!;
+    expect(within(header).getByText('2 people in the call')).toBeTruthy();
+    expect(within(header).getByRole('heading', { name: 'Standup' }).tabIndex).toBe(-1);
   });
 
   it('is no landmark of its own in the window, whose one landmark its title names', () => {
@@ -420,6 +431,7 @@ describe('the call view title bar', () => {
     press('Speaker view');
     expect(speakerView()).toBe(true);
     expect(speakerSwitch().getAttribute('aria-pressed')).toBe('true');
+    expect(store.get(callViewStateAtom).size).toBe(0);
   });
 
   it('keeps the pick wherever the call view moves and when it opens again, for the call and for the screens shared', () => {
@@ -451,6 +463,11 @@ describe('the call view title bar', () => {
     roomCall([me, person('@ana:panel.test')]);
     renderPanel({ frame: frame() });
     expect(button('Float')).toBeNull();
+
+    // Its icon points to the side, which mirrors in right-to-left languages.
+    const icon = (name: string) => button(name)?.querySelector('[data-directional]');
+    expect(icon('Dock to the side')).not.toBeNull();
+    expect(icon('Minimize')).toBeNull();
 
     press('Dock to the side');
     expect(settings().mode).toBe('docked');
@@ -507,6 +524,7 @@ describe('the call view title bar', () => {
     renderPanel();
     expect(button('Dock to the side')).toBeNull();
     expect(button('Minimize')).toBeNull();
+    expect(button('Float')?.querySelector('[data-directional]')).not.toBeNull();
 
     press('Float');
     expect(settings().mode).toBe('floating');
@@ -526,6 +544,11 @@ describe('the call view title bar', () => {
     roomCall([me, person('@ana:panel.test')]);
     const inFrame = frame();
     renderPanel({ frame: inFrame });
+
+    const sides = ['Dock to the side', 'Minimize', 'Close call view'].map(
+      (name) => button(name)?.dataset.tooltip
+    );
+    expect(sides).toEqual(['Bottom', 'Bottom', 'Bottom']);
 
     press('Minimize');
     expect(inFrame.minimize).toHaveBeenCalledOnce();
@@ -559,6 +582,17 @@ describe('the call view title bar', () => {
     roomCall([me, person('@ana:panel.test')]);
     renderPanel({ frame: frame() });
     expect(button('Go to the conversation')).toBeNull();
+  });
+});
+
+describe('the control bar', () => {
+  it('offers the camera and screen sharing in an agent call too', () => {
+    agentCall({ roomId: room.roomId });
+    renderPanel();
+
+    const controls = screen.getByRole('toolbar', { name: 'Standup' });
+    expect(within(controls).getByRole('button', { name: 'Start Camera' })).toBeTruthy();
+    expect(within(controls).getByRole('button', { name: 'Start Screenshare' })).toBeTruthy();
   });
 });
 
@@ -655,6 +689,21 @@ describe('the focus after Dock and Float', () => {
     expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Move call window' }));
   });
 
+  it('hands the focus over once, not to the docked panel when it opens again', () => {
+    roomCall([me, person('@ana:panel.test')]);
+    const inWindow = renderPanel({ frame: frame() });
+    screen.getByRole('button', { name: 'Dock to the side' }).focus();
+    press('Dock to the side');
+    inWindow.unmount();
+    const docked = renderPanel();
+    expect(document.activeElement).toBe(title());
+
+    // Another room shown and this one again: the panel mounts anew, the focus on the page.
+    docked.unmount();
+    renderPanel();
+    expect(document.activeElement).toBe(document.body);
+  });
+
   it('leaves the focus where it is when the call view opens otherwise', () => {
     roomCall([me, person('@ana:panel.test')]);
     renderPanel({ frame: frame() });
@@ -745,6 +794,20 @@ describe('the minimized bar', () => {
     expect(handle().tagName).toBe('HEADER');
   });
 
+  it('leaves the focus that is elsewhere when the window minimizes or expands', () => {
+    roomCall([me, person('@ana:panel.test')]);
+    const { rerender } = renderPanel({ frame: frame() });
+    const elsewhere = document.createElement('input');
+    document.body.append(elsewhere);
+    elsewhere.focus();
+
+    rerender(panel({ frame: frame(true) }));
+    expect(document.activeElement).toBe(elsewhere);
+    rerender(panel({ frame: frame() }));
+    expect(document.activeElement).toBe(elsewhere);
+    elsewhere.remove();
+  });
+
   it('shows three of the others, the speaking one marked, the title, the status, the microphone and leave', () => {
     roomCall([
       me,
@@ -764,6 +827,12 @@ describe('the minimized bar', () => {
       '@cy:panel.test',
     ]);
     expect(faces.every((face) => face.getAttribute('data-size') === '200')).toBe(true);
+    const list = within(bar).getByRole('list', { name: 'People in the call' });
+    expect(
+      within(list)
+        .getAllByRole('listitem')
+        .map((face) => face.getAttribute('aria-label'))
+    ).toEqual(['@ana:panel.test', '@bo:panel.test', '@cy:panel.test']);
     const speaking = bar.querySelectorAll('[data-speaking="true"] [data-avatar]');
     expect([...speaking].map((face) => face.getAttribute('data-avatar'))).toEqual([
       '@bo:panel.test',
@@ -776,10 +845,11 @@ describe('the minimized bar', () => {
     expect(screen.queryByRole('toolbar')).toBeNull();
     expect(button('Minimize')).toBeNull();
 
-    const names = within(bar)
-      .getAllByRole('button')
-      .map((each) => each.getAttribute('aria-label'));
+    const buttons = within(bar).getAllByRole('button');
+    const names = buttons.map((each) => each.getAttribute('aria-label'));
     expect(names).toEqual(['Turn Off Microphone', 'End', 'Expand', 'Close call view']);
+    // The line sits low on the screen, so its buttons are named above it.
+    expect(buttons.map((each) => each.dataset.tooltip)).toEqual(['Top', 'Top', 'Top', 'Top']);
 
     fireEvent.click(within(bar).getByRole('button', { name: 'Turn Off Microphone' }));
     expect(setMicrophone).toHaveBeenCalledWith(false);
@@ -905,6 +975,12 @@ describe('the minimized bar', () => {
     const bar = screen.getByRole('group', { name: 'Move minimized call window' });
     expect(within(bar).getByText('Your microphone or camera could not be used.')).toBeTruthy();
     expect(within(bar).getByRole('button', { name: 'Turn On Microphone' })).toBeTruthy();
+    cleanup();
+
+    // Expanded, the notice over the stage says the same.
+    renderPanel({ frame: frame() });
+    const said = screen.getByText('Your microphone or camera could not be used.');
+    expect(said.closest('[role="status"]')).not.toBeNull();
   });
 
   it('shows only the title, Expand and Close before the call is joined', () => {
@@ -913,6 +989,7 @@ describe('the minimized bar', () => {
 
     const bar = screen.getByRole('group', { name: 'Move minimized call window' });
     expect(within(bar).getByText('Standup')).toBeTruthy();
+    expect(within(bar).queryByText('1 person in the call')).toBeNull();
     expect(
       within(bar)
         .getAllByRole('button')

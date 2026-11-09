@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { pluginPublicUrl, reloadForNewVersion } from './core';
+import i18n from '../app/i18n/i18n';
+import { registerPluginTranslations } from '../app/plugins/pluginTranslations';
+import { getPluginTranslation, pluginPublicUrl, reloadForNewVersion } from './core';
 
 // The page's version check, which the test finishes, and its reloads.
 const update = vi.hoisted(() => ({ finishCheck: () => {}, reloads: 0 }));
@@ -35,5 +37,27 @@ describe('reloadForNewVersion', () => {
     update.finishCheck();
     await reloading;
     expect(update.reloads).toBe(1);
+  });
+});
+
+describe('getPluginTranslation', () => {
+  afterEach(async () => {
+    await i18n.changeLanguage('en');
+    vi.unstubAllGlobals();
+  });
+
+  it("translates a plugin's strings outside React, in the language in use when it is called", async () => {
+    // The app's own catalogs come from the deployment.
+    vi.stubGlobal('fetch', async () => Response.json({}));
+    registerPluginTranslations('demo', {
+      en: { greeting: 'Hello, {{name}}' },
+      load: async (language: string) =>
+        language === 'de' ? { greeting: 'Hallo, {{name}}' } : undefined,
+    });
+    const t = getPluginTranslation('demo');
+
+    expect(t('greeting', { name: 'Ada' })).toBe('Hello, Ada');
+    await i18n.changeLanguage('de');
+    expect(t('greeting', { name: 'Ada' })).toBe('Hallo, Ada');
   });
 });

@@ -9,16 +9,26 @@ import {
   disposableHomeserverIsUp,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { createPrivateRoom, createThreadFixture, matrixFetch } from '../helpers/matrix';
+import {
+  createPrivateRoom,
+  createThreadFixture,
+  listedRooms,
+  matrixFetch,
+  setDirectAccountData,
+} from '../helpers/matrix';
+import { roomHeader, roomMoreOptions } from '../helpers/roomMenu';
 import { serveBuild } from '../helpers/staticBuildServer';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
-// served as a deployment serves it, against the disposable homeserver. The plugin's slash commands,
-// `/greet` and `/subroom`, show in the composer's command menu after the app's own, in the order the
-// plugin lists them, with their descriptions. Run with a text, `/greet` sends the room the plugin's
-// notice and no message of its own; without one it fails as a built-in command fails: the text stays
-// in the composer with the plugin's error above it, and the composer still sends. Typed in a thread,
-// it greets that thread.
+// served as a deployment serves it, against the disposable homeserver. The plugin's slash commands
+// end with `/greet` and `/subroom`, which show in the composer's command menu after the app's own, in
+// the order the plugin lists them, with their descriptions. Run with a text, `/greet` sends the room
+// the plugin's notice and no message of its own; without one it refuses with its usage as a built-in
+// command does: the text stays in the composer with the usage line above it, which names the command
+// and gives its description in the app's language, and the composer still sends. Typed in a thread,
+// it greets that thread. `/subroom` refuses in a direct chat, where the room menu offers no New
+// Sub-room, and in a chat room creates a sub-room, whose example panel names the chat room until
+// the room menu's Remove from takes it off.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const RUN = Date.now().toString(36);
 
@@ -120,10 +130,12 @@ test("the example plugin's slash commands show in the command menu, and /greet r
     await page.keyboard.type('/greet ');
     await page.keyboard.press('Enter');
     await expect(
-      page.getByRole('alert').filter({ hasText: '/greet failed: Type a greeting after /greet.' })
+      page.getByRole('alert').filter({
+        hasText: 'Could not run /greet. Send the room a greeting. Example: /greet Hello',
+      })
     ).toBeVisible();
     await expect(composer).toContainText('/greet');
-    await shot('failed');
+    await shot('usage');
 
     await composer.click();
     await page.keyboard.press('ControlOrMeta+a');
@@ -135,6 +147,25 @@ test("the example plugin's slash commands show in the command menu, and /greet r
         ['m.text', 'Still sending', null],
         ['m.notice', 'Example greeting: Hello there', null],
       ]);
+
+    await page.evaluate(() => localStorage.setItem('i18nextLng', 'de'));
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+    await composer.click();
+    await page.keyboard.type('/');
+    await expect(page.locator('[data-slash-command="greet"]')).toContainText(
+      'Dem Raum einen Gruß senden. Beispiel: /greet Hallo'
+    );
+    await page.keyboard.type('greet ');
+    await page.keyboard.press('Enter');
+    await expect(
+      page.getByRole('alert').filter({
+        hasText:
+          '/greet konnte nicht ausgeführt werden. Dem Raum einen Gruß senden. Beispiel: /greet Hallo',
+      })
+    ).toBeVisible();
+    await expect(composer).toContainText('/greet');
+    await shot('usage-german');
   } finally {
     // The page's live sync may still be in a route.
     await context.unrouteAll({ behavior: 'ignoreErrors' });
@@ -181,6 +212,83 @@ test("the example plugin's slash command greets the thread it was typed in", asy
     await expect(page.getByText('Example greeting: Hi')).toBeVisible();
     await expect(composer).not.toContainText('/greet');
     await page.screenshot({ path: testInfo.outputPath('greeted-thread.png') });
+  } finally {
+    await context.unrouteAll({ behavior: 'ignoreErrors' });
+    await context.close();
+    await server.close();
+  }
+});
+
+test('/subroom creates a sub-room only where the room menu offers New Sub-room, and the panel names its parent until Remove from takes it off', async ({
+  browser,
+}, testInfo) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+  test.setTimeout(5 * 60_000);
+  const person = await registerDisposableUser(`plugin_subroom_${RUN}`, 'plugin-command-password');
+  const gardenId = await createPrivateRoom(HOMESERVER, person.accessToken, {
+    name: 'Garden',
+    topic: 'Where sub-rooms grow',
+  });
+  const directId = await createPrivateRoom(HOMESERVER, person.accessToken, {
+    name: 'Chat with Bob',
+    topic: 'A direct chat',
+  });
+  await setDirectAccountData(
+    HOMESERVER,
+    person.accessToken,
+    person.userId,
+    person.userId.replace(/^@[^:]*/, '@bob'),
+    directId
+  );
+  const server = await serveBuild(build!);
+  const context = await browser.newContext({ baseURL: server.origin });
+  const page = await context.newPage();
+  const composer = page.locator('[data-editable-name="RoomInput"]');
+  const shot = (name: string) => page.screenshot({ path: testInfo.outputPath(`${name}.png`) });
+  try {
+    await loginWithPassword(page, { homeserver: HOMESERVER, ...person });
+
+    // A direct chat's partner would find no list to join its sub-rooms from.
+    await page.goto(`/direct/${encodeURIComponent(directId)}/`);
+    await expect(composer).toBeVisible({ timeout: 60_000 });
+    await composer.click();
+    await page.keyboard.type('/subroom Ideas');
+    await page.keyboard.press('Enter');
+    await expect(
+      page.getByRole('alert').filter({
+        hasText: '/subroom failed: Sub-rooms go in chat rooms, not in spaces or direct chats.',
+      })
+    ).toBeVisible();
+    await expect(composer).toContainText('/subroom Ideas');
+    expect(await listedRooms(HOMESERVER, person.accessToken, directId)).toEqual([]);
+    await shot('refused-in-direct-chat');
+
+    await page.goto(`/home/${encodeURIComponent(gardenId)}/`);
+    await expect(composer).toBeVisible({ timeout: 60_000 });
+    await composer.click();
+    await page.keyboard.type('/subroom Ideas');
+    await page.keyboard.press('Enter');
+    await expect
+      .poll(() => listedRooms(HOMESERVER, person.accessToken, gardenId), { timeout: 30_000 })
+      .toHaveLength(1);
+    const [ideasId] = await listedRooms(HOMESERVER, person.accessToken, gardenId);
+    expect(await listedRooms(HOMESERVER, person.accessToken, directId)).toEqual([]);
+
+    await page.goto(`/home/${encodeURIComponent(ideasId!)}/`);
+    await expect(roomHeader(page).locator('h1')).toHaveText('Ideas', { timeout: 60_000 });
+    await roomHeader(page).getByRole('button', { name: 'Example panel', exact: true }).click();
+    const panel = page.getByRole('region', { name: 'Example panel', exact: true });
+    await expect(panel).toContainText('Sub-room of Garden');
+    await shot('panel-names-parent');
+
+    await roomMoreOptions(page).click();
+    await page.getByRole('menuitem', { name: 'Remove from Garden', exact: true }).click();
+    await expect
+      .poll(() => listedRooms(HOMESERVER, person.accessToken, gardenId), { timeout: 30_000 })
+      .toEqual([]);
+    await expect(panel).not.toContainText('Sub-room of');
+    await expect(panel).toContainText(`Example panel of ${ideasId}`);
+    await shot('panel-after-remove-from');
   } finally {
     await context.unrouteAll({ behavior: 'ignoreErrors' });
     await context.close();

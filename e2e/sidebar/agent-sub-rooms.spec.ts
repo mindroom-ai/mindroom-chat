@@ -9,7 +9,7 @@ import {
   type AgentStack,
 } from '../helpers/agentStack';
 import { registerDisposableUser } from '../helpers/disposableAccounts';
-import { joinRoom, matrixFetch } from '../helpers/matrix';
+import { joinRoom, listedRooms, matrixFetch } from '../helpers/matrix';
 import { roomMoreOptions } from '../helpers/roomMenu';
 
 // Sub-rooms: New Sub-room in a room's menu makes a room only the room's members may join, listed
@@ -29,18 +29,6 @@ const joinedMembers = async (stack: AgentStack, roomId: string): Promise<string[
     { accessToken: stack.tester.accessToken }
   );
   return Object.keys(joined);
-};
-
-/** The rooms `parentId` lists under it (`m.space.child` with servers). */
-const listedRooms = async (stack: AgentStack, parentId: string): Promise<string[]> => {
-  const state = await matrixFetch<
-    { type: string; state_key: string; content: { via?: unknown } }[]
-  >(stack.homeserver, `/rooms/${encodeURIComponent(parentId)}/state`, {
-    accessToken: stack.tester.accessToken,
-  });
-  return state
-    .filter((event) => event.type === 'm.space.child' && Array.isArray(event.content.via))
-    .map((event) => event.state_key);
 };
 
 const goHome = async (page: Page): Promise<void> => {
@@ -111,8 +99,10 @@ test('a sub-room shows under its room, opens to its members and brings its agent
   await page.getByRole('textbox', { name: 'Name' }).fill(subName);
   await page.getByRole('button', { name: 'Create', exact: true }).click();
 
-  await expect.poll(() => listedRooms(stack, parentId), AGENT_WAIT).toHaveLength(1);
-  const subId = (await listedRooms(stack, parentId))[0]!;
+  await expect
+    .poll(() => listedRooms(stack.homeserver, stack.tester.accessToken, parentId), AGENT_WAIT)
+    .toHaveLength(1);
+  const subId = (await listedRooms(stack.homeserver, stack.tester.accessToken, parentId))[0]!;
   await goHome(page);
   await expectUnderParent(page, parentId, subName);
   await shot(page, '1-creator-under-room');

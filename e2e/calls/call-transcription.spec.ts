@@ -206,6 +206,8 @@ test("two people in a call are transcribed under their names, Pause leaves a gap
   const spoken = real
     ? /capital of France/i
     : /^Stand-in transcript of \d+\.\d seconds of speech\.$/;
+  // What the notes say: the stub model's, or the real model's about the recording.
+  const notes = real ? /France|capital/i : /Stub notes of the call\./;
 
   await page.addInitScript(installMicrophone);
   const guest = await signInGuest(browser, stack);
@@ -299,14 +301,27 @@ test("two people in a call are transcribed under their names, Pause leaves a gap
     await callPanel(guest.page).getByRole('button', { name: 'End' }).click();
     await expect(page.locator('[data-call-tab]')).toHaveCount(0);
 
-    // The row is edited to ended, and again once the transcript message is in its thread.
-    await expect(row).toContainText('Call ended', { timeout: 60_000 });
-    const notesLink = row.getByRole('button', { name: 'Notes and transcript' });
-    await expect(notesLink).toBeVisible({ timeout: 150_000 });
+    // The row is edited to ended and the card drops it: the card of a call that is over shows as
+    // any other thread's, with the notes as its latest reply once they are in the row's thread.
+    const cardShell = page.locator(`[data-scroll-anchor="${rowId}"]`);
+    const rowCard = cardShell.locator(`[data-thread-root-id="${rowId}"]`);
+    await expect(rowCard).toBeVisible();
+    await expect(cardShell.locator('[data-call-row]')).toHaveCount(0, { timeout: 60_000 });
+    await expect(rowCard).toContainText(notes, { timeout: 150_000 });
 
     // As the homeserver has them: the row's latest edit names the message, which holds the notes
     // and both people's turns, the paused stretch left out.
-    const events = await lobbyEvents(stack);
+    let events: MatrixEvent[] = [];
+    await expect
+      .poll(
+        async () => {
+          events = await lobbyEvents(stack);
+          const found = events.find((event) => event.event_id === rowId);
+          return found && callContent(found)?.transcript_event_id;
+        },
+        { timeout: 60_000 }
+      )
+      .toBeTruthy();
     const rowEvent = events.find((event) => event.event_id === rowId);
     expect(rowEvent?.sender).toBe(stack.agents.router);
     const rowCall = rowEvent && callContent(rowEvent);
@@ -322,12 +337,15 @@ test("two people in a call are transcribed under their names, Pause leaves a gap
       guest.userId,
     ]);
     transcript.turns.forEach((turn) => expect(turn.text).toMatch(spoken));
-    const notes = real ? /France|capital/i : /Stub notes of the call\./;
     expect(bodyOf(message as MatrixEvent)).toMatch(notes);
 
-    // The row's link opens its thread on the message, shown as the call's transcript card: the
-    // notes, then the transcript under each speaker's name.
-    await notesLink.click();
+    // The card opens the row's thread, where the row says the call ended. Its link goes to the
+    // message, shown as the call's transcript card: the notes, then the transcript under each
+    // speaker's name.
+    await rowCard.click();
+    const threadRow = page.locator(`[data-message-id="${rowId}"] [data-call-row]`);
+    await expect(threadRow).toContainText('Call ended', { timeout: 60_000 });
+    await threadRow.getByRole('button', { name: 'Notes and transcript' }).click();
     const card = page.locator(`[data-message-id="${message?.event_id}"] [data-call-transcript]`);
     await expect(card).toBeVisible({ timeout: 60_000 });
     await expect(card.locator('[data-call-transcript-header]')).toContainText('Call');
@@ -336,17 +354,13 @@ test("two people in a call are transcribed under their names, Pause leaves a gap
     await expect(card.locator('[data-call-transcript-name]')).toHaveText([TESTER_NAME, GUEST_NAME]);
     await expect(card.locator('[data-call-transcript-text]')).toHaveText([spoken, spoken]);
 
-    // Back in the lobby's list, the row's card says the call ended and holds the message, and the
-    // row in it links to the message too.
+    // Back in the lobby's list, the row's card is still a plain thread with the notes in it.
     await page
       .locator('[data-thread-context-banner]')
       .getByRole('button', { name: 'Back', exact: true })
       .click();
-    const rowCard = page.locator(`[data-thread-root-id="${rowId}"]`);
-    await expect(rowCard).toContainText(/Call ended · \d+ min/, { timeout: 30_000 });
-    await expect(rowCard.locator('[data-compact-card-reply-count]')).toHaveText('1');
-    await expect(row).toContainText('Call ended');
-    await expect(row.getByRole('button', { name: 'Notes and transcript' })).toBeVisible();
+    await expect(rowCard).toContainText(notes, { timeout: 30_000 });
+    await expect(cardShell.locator('[data-call-row]')).toHaveCount(0);
   } finally {
     await guest.page.context().close();
   }

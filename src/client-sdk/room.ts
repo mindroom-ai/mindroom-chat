@@ -1,8 +1,9 @@
 // `@mindroom/client-sdk/room`, the client SDK's subpath for rooms and threads (docs/architecture.md
-// "Client plugins"): it opens them, links to them, creates sub-rooms, and shows a person's profile
-// card in a room. Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in
+// "Client plugins"): it opens them, links to them, names the thread a room's page shows, creates
+// sub-rooms and names the rooms a room is a sub-room of, and shows a person's profile card in a
+// room. Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in
 // scripts/client-plugins.mjs.
-import { createElement, useCallback, useMemo } from 'react';
+import { createElement, useCallback, useContext, useMemo } from 'react';
 import { useHref } from 'react-router-dom';
 import type { Position, RectCords } from 'folds';
 import type { Room } from 'matrix-js-sdk';
@@ -11,8 +12,11 @@ import { useMatrixClient } from '../app/matrix/hooks/useMatrixClient';
 import { useRoomNavigate as useAppRoomNavigate } from '../app/navigation/useRoomNavigate';
 import { UserRoomProfile } from '../app/members/profile/UserRoomProfile';
 import { useOpenUserRoomProfile } from '../app/navigation/useUserRoomProfileState';
+import { PluginPanelControlsContext } from '../app/plugins/sidePanels';
 import { withSearchParam } from '../app/routes/pathUtils';
 import { createSubRoom as createAppSubRoom } from '../app/rooms/create/createSubRoom';
+
+export { getParentRooms, offersSubRooms, useParentRooms } from '../app/matrix/state/subRooms';
 
 /** Where in the room `navigateRoom` and `navigateRoomThread` open it, and how. */
 type RoomNavigateOptions = {
@@ -73,14 +77,24 @@ export const useRoomHref = (roomId: string, threadId?: string): string =>
   useHref(withSearchParam(useAppRoomNavigate().roomPath(roomId), { threadId }));
 
 /**
+ * The root event ID of the thread the room's page shows, also when its address names a reply in
+ * the thread: the ID `openBesideThread` of `useRoomSidePanel` takes. Undefined while the page
+ * shows the room's own timeline, until the room has the event the address names, while the server
+ * has not confirmed the root (a new thread's first message, still sending), and outside a room's
+ * page (the inbox, the search page). It renders again when the room shows another thread.
+ */
+export const useShownThread = (): string | undefined =>
+  useContext(PluginPanelControlsContext)?.thread;
+
+/**
  * Creates a sub-room of `parent` called `name`, as the room menu's New Sub-room does, and resolves
  * to its room ID: listed under `parent`, open only to its members, and encrypted and federated as
  * the deployment's config.json (`createRoom`) says when it is called. It refuses, creating nothing,
  * a blank name, a parent where the signed-in user may not list rooms, and a call while the app
  * provides no configuration. When the homeserver then refuses to list the new room under
  * `parent`, it leaves and forgets the room, if the homeserver lets it, and rejects with that
- * refusal. Unlike the room menu, which offers New Sub-room in chat rooms only, it takes spaces and
- * direct chats too. It resolves once the server has created the room, before sync has it, and
+ * refusal. It takes spaces and direct chats too, where the room menu offers no New Sub-room
+ * (`offersSubRooms`). It resolves once the server has created the room, before sync has it, and
  * does not open it; `useRoomNavigate` does.
  */
 export const createSubRoom = async (parent: Room, { name }: { name: string }): Promise<string> => {
