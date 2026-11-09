@@ -141,6 +141,15 @@ const menusOpenAbove = async (
   expect(menu.right, 'the menu stays in the room view').toBeLessThanOrEqual(timeline.right + 1);
   expect(menu.left).toBeGreaterThanOrEqual(timeline.left - 1);
   expect(menu.top, 'the menu stays below the status bar').toBeGreaterThanOrEqual(safeTop);
+  // A wheel over the menu brings its last entry into view inside it: the entries neither spill
+  // past the menu nor stay clipped.
+  const last = page.getByRole('menuitem').last();
+  await page.mouse.move((menu.left + menu.right) / 2, (menu.top + menu.bottom) / 2);
+  await page.mouse.wheel(0, 2_000);
+  await expect
+    .poll(async () => (await boxOf(last)).bottom, { message: 'the last entry shows in the menu' })
+    .toBeLessThanOrEqual(menu.bottom);
+  expect((await boxOf(last)).top).toBeGreaterThanOrEqual(menu.top);
   await page.keyboard.press('Escape');
   await expect(copyLink).toBeHidden();
 
