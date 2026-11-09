@@ -633,7 +633,8 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
     <>
       {/* A room ID breaks anywhere, so it never widens the panel past its edge. */}
       <p style={{ overflowWrap: 'anywhere' }}>Example panel of {roomId}</p>
-      <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
+      {/* Kept whole in a panel shorter than what it shows, which scrolls then. */}
+      <Box alignItems="Center" justifyContent="SpaceBetween" gap="200" shrink="No">
         <Text size="L400">Example rows</Text>
         <ExampleMenu
           onShowDialog={() => setDialogOpen(true)}
