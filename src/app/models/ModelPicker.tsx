@@ -104,8 +104,10 @@ function ModelPickerPanel({ state, maxHeight, requestClose, onCommand }: ModelPi
   );
   const isCurrent = (item: PickerItem): boolean =>
     item.kind === 'default' ? state.override === null : state.override === item.model.key;
-  // The menu opens on the current choice, so the arrows move from it.
-  const [activeIndex, setActiveIndex] = useState(() => Math.max(items.findIndex(isCurrent), 0));
+  // The highlight sits on the current choice, also once a late catalog lists it, until the user
+  // moves it with the keys, the pointer or the filter.
+  const [movedIndex, setMovedIndex] = useState<number>();
+  const activeIndex = movedIndex ?? Math.max(items.findIndex(isCurrent), 0);
   const activeItem = items[activeIndex];
   const activeId = activeItem ? optionId(listId, pickerItemId(activeItem)) : undefined;
   const mutationsDisabled = !state.canMutate;
@@ -115,15 +117,16 @@ function ModelPickerPanel({ state, maxHeight, requestClose, onCommand }: ModelPi
     (mobileOrTablet() ? listRef.current : inputRef.current ?? listRef.current)?.focus();
   }, []);
 
-  // A filter field that goes while it has focus leaves the keys to the list.
+  // A control that goes while it has focus (the filter field, Retry, the runtime chooser) leaves
+  // the keys to the list.
   useEffect(() => {
-    if (!filterShown && document.activeElement === document.body) listRef.current?.focus();
-  }, [filterShown]);
+    if (document.activeElement === document.body) listRef.current?.focus();
+  });
 
   useEffect(() => {
-    if (activeIndex < items.length) return;
-    setActiveIndex(Math.max(items.length - 1, 0));
-  }, [activeIndex, items.length]);
+    if (movedIndex === undefined || movedIndex < items.length) return;
+    setMovedIndex(Math.max(items.length - 1, 0));
+  }, [movedIndex, items.length]);
 
   useEffect(() => {
     document.getElementById(activeId ?? '')?.scrollIntoView?.({ block: 'nearest' });
@@ -146,12 +149,12 @@ function ModelPickerPanel({ state, maxHeight, requestClose, onCommand }: ModelPi
     if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      if (items.length) setActiveIndex((index) => (index + 1) % items.length);
+      if (items.length) setMovedIndex((activeIndex + 1) % items.length);
       return;
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      if (items.length) setActiveIndex((index) => (index - 1 + items.length) % items.length);
+      if (items.length) setMovedIndex((activeIndex - 1 + items.length) % items.length);
       return;
     }
     if (event.key === 'Enter' && activeItem) {
@@ -168,7 +171,7 @@ function ModelPickerPanel({ state, maxHeight, requestClose, onCommand }: ModelPi
 
   const handleQuery: ChangeEventHandler<HTMLInputElement> = (event) => {
     setQuery(event.currentTarget.value);
-    setActiveIndex(0);
+    setMovedIndex(0);
     if (resultsRef.current) resultsRef.current.scrollTop = 0;
   };
 
@@ -187,7 +190,7 @@ function ModelPickerPanel({ state, maxHeight, requestClose, onCommand }: ModelPi
         data-active={index === activeIndex}
         tabIndex={-1}
         onMouseDown={(event) => event.preventDefault()}
-        onPointerMove={() => setActiveIndex(index)}
+        onPointerMove={() => setMovedIndex(index)}
         onClick={() => selectItem(item)}
       >
         <span className={css.OptionIcon} aria-hidden="true">
@@ -394,17 +397,15 @@ export function ModelPicker({
   };
   if (conversationHidden && open) setOpen(false);
 
-  // The window can change under an open menu, as when a phone's keyboard comes up: the button is
-  // measured again, so the menu stays above it.
+  // The page can change size under an open menu: the window resizes, or a phone's keyboard comes
+  // up and useMobileKeyboardViewportFix shortens #root a frame later. Once the page has its new
+  // size the button is measured again, so the menu stays above it.
   const [, remeasure] = useReducer((count: number) => count + 1, 0);
   useEffect(() => {
-    if (!open) return undefined;
-    window.addEventListener('resize', remeasure);
-    window.visualViewport?.addEventListener('resize', remeasure);
-    return () => {
-      window.removeEventListener('resize', remeasure);
-      window.visualViewport?.removeEventListener('resize', remeasure);
-    };
+    if (!open || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => remeasure());
+    observer.observe(document.getElementById('root') ?? document.body);
+    return () => observer.disconnect();
   }, [open]);
 
   useEffect(() => {

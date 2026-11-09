@@ -381,6 +381,28 @@ describe('composer model picker', () => {
     expect(trigger()).toBe(document.activeElement);
   });
 
+  it('moves the highlight to the current model once a late catalog lists it', () => {
+    const state = createState({ override: 'fast' });
+    open({ ...state, models: [] });
+
+    act(() => root.render(<ModelPicker state={state} />));
+    expect(list()?.getAttribute('aria-activedescendant')).toBe(optionNamed('Quick helper').id);
+    keyDown(list()!, 'Enter');
+
+    expect(state.resetToRoomDefault).not.toHaveBeenCalled();
+    expect(list()).toBeNull();
+  });
+
+  it('keeps a highlight the user moved when the selection changes', () => {
+    const state = createState();
+    open(state);
+    keyDown(list()!, 'ArrowDown');
+
+    act(() => root.render(<ModelPicker state={{ ...state, override: 'reset' }} />));
+
+    expect(list()?.getAttribute('aria-activedescendant')).toBe(optionNamed('Quick helper').id);
+  });
+
   it('supports arrow selection, Enter, and Escape from the list', () => {
     const state = createState();
     open(state);
@@ -543,16 +565,38 @@ describe('composer model picker', () => {
     expect(state.selectModel).toHaveBeenCalledWith('fast');
   });
 
-  it('measures its button again when the window resizes while it is open', () => {
-    open(createState());
-    const moved = { x: 16, y: 300, width: 32, height: 32, top: 300, left: 16, right: 48 };
-    trigger().getBoundingClientRect = () => ({ ...moved, bottom: 332, toJSON: () => moved });
+  it('measures its button again once the page changes size while it is open', () => {
+    const resized: Array<() => void> = [];
+    const observed: Element[] = [];
+    const disconnect = vi.fn();
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          resized.push(callback);
+        }
 
-    act(() => {
-      window.dispatchEvent(new Event('resize'));
-    });
+        observe(element: Element) {
+          observed.push(element);
+        }
 
-    expect(mocks.anchors.at(-1)).toMatchObject({ y: 300 });
+        disconnect = disconnect;
+      }
+    );
+    try {
+      open(createState());
+      expect(observed).toEqual([document.body]);
+      const moved = { x: 16, y: 300, width: 32, height: 32, top: 300, left: 16, right: 48 };
+      trigger().getBoundingClientRect = () => ({ ...moved, bottom: 332, toJSON: () => moved });
+
+      act(() => resized.forEach((callback) => callback()));
+
+      expect(mocks.anchors.at(-1)).toMatchObject({ y: 300 });
+      keyDown(list()!, 'Escape');
+      expect(disconnect).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('shows an explicit readable chooser when multiple runtimes answer', () => {
@@ -623,11 +667,25 @@ describe('composer model picker', () => {
     expect(options().every((option) => option.getAttribute('aria-disabled') === 'false')).toBe(
       true
     );
+    // The highlight starts on the current model, Deep reasoning.
+    keyDown(list()!, 'ArrowUp');
     keyDown(list()!, 'Enter');
-    keyDown(list()!, 'ArrowDown');
+    keyDown(list()!, 'ArrowUp');
     keyDown(list()!, 'Enter');
     expect(state.resetToRoomDefault).toHaveBeenCalledOnce();
     expect(state.selectModel).toHaveBeenCalledWith('fast');
+  });
+
+  it('gives the list focus when Retry goes while it has focus', () => {
+    const state = createState({ error: 'Model discovery unavailable.' });
+    open(state);
+    const retry = container.querySelector<HTMLButtonElement>('button[aria-label="Retry"]')!;
+    retry.focus();
+
+    act(() => root.render(<ModelPicker state={{ ...state, error: undefined }} />));
+
+    expect(container.querySelector('button[aria-label="Retry"]')).toBeNull();
+    expect(list()).toBe(document.activeElement);
   });
 
   it('keeps an error open with retry and readable command fallback', () => {

@@ -260,7 +260,7 @@ export const Empty = style([
 const triggerSize = toRem(32);
 
 // The button at the start of the composer: the provider's logo alone, without the glass of the
-// buttons after it, the same 32 px square and 44 px to a finger.
+// buttons after it, the same 32 px square, 44 px tall and 36 px wide to a finger.
 export const Trigger = style([
   control,
   touchTarget('2px'),

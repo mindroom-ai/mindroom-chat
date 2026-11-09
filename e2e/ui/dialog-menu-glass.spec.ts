@@ -174,14 +174,25 @@ for (const theme of ['silver', 'dark']) {
       );
       await page.keyboard.press('Enter');
       await expect(page.locator('output')).toHaveText('model-24');
+      const aboveButton = async () => {
+        const shrunk = (await dialog.boundingBox())!;
+        return shrunk.y >= 0 && shrunk.y + shrunk.height <= (await trigger.boundingBox())!.y;
+      };
       // A phone's keyboard shrinks the window under the open menu, which stays above its button.
       await page.setViewportSize({ width, height: 420 });
-      await expect
-        .poll(async () => {
-          const shrunk = (await dialog.boundingBox())!;
-          return shrunk.y >= 0 && shrunk.y + shrunk.height <= (await trigger.boundingBox())!.y;
-        })
-        .toBe(true);
+      await expect.poll(aboveButton).toBe(true);
+      // Where it pans only the visual viewport, useMobileKeyboardViewportFix shortens #root a
+      // frame later. With the button at the foot of #root, as the composer is, the menu follows.
+      await page.setViewportSize({ width, height: 620 });
+      await trigger.evaluate((button) => {
+        document.getElementById('root')!.style.position = 'relative';
+        button.closest<HTMLElement>('div[style*="fixed"]')!.style.position = 'absolute';
+      });
+      await page.evaluate(() =>
+        document.documentElement.style.setProperty('--app-height', '360px')
+      );
+      await expect.poll(async () => (await trigger.boundingBox())!.y).toBeLessThan(360);
+      await expect.poll(aboveButton).toBe(true);
       await page.keyboard.press('Escape');
       await expect(dialog).toBeHidden();
       await expect(trigger).toBeFocused();

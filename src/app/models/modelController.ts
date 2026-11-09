@@ -632,7 +632,7 @@ export class ModelController {
     scope.needsRefresh = true;
     this.publish(scope, {
       pending: !!scope.send,
-      error: 'Model selection unconfirmed. Refresh before trying again.',
+      error: 'Model selection unconfirmed. Try again once the models reload.',
     });
     this.refresh(scope.room, scope.threadId);
   }
