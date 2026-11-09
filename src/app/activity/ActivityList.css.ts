@@ -20,6 +20,9 @@ export const Header = style({
   padding: `${space.S200} ${space.S300}`,
 });
 
+/** The Unread label beside its switch; a press on either toggles it. */
+export const Toggle = style({ ...strip, columnGap: space.S100, cursor: 'pointer' });
+
 export const Tabs = style({
   ...strip,
   overflowX: 'auto',

@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useMemo, useState } from 'react';
 import { useAtom } from 'jotai';
-import { Button, Chip, Icon, IconButton, Icons, Text } from 'folds';
+import { Button, Chip, Icon, IconButton, Icons, Switch, Text } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -92,15 +92,13 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
             {t('activity.title')}
           </Text>
         )}
-        <Chip
-          role="switch"
-          aria-checked={unreadOnly}
-          variant={unreadOnly ? 'Primary' : 'SurfaceVariant'}
-          radii="Pill"
-          onClick={() => setUnreadOnly(!unreadOnly)}
-        >
-          <Text size="T200">{t('activity.unreadOnly')}</Text>
-        </Chip>
+        {/* The label names the switch and toggles it too. */}
+        <label className={css.Toggle}>
+          <Text as="span" size="T200">
+            {t('activity.unreadOnly')}
+          </Text>
+          <Switch value={unreadOnly} onChange={setUnreadOnly} />
+        </label>
         <IconButton
           size="300"
           radii="300"

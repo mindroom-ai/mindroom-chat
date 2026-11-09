@@ -869,6 +869,14 @@ class StubScenarioTests(unittest.TestCase):
         self.assertIn("Finished **samplegreet** after 1 tool call(s)", text)
         self.assertIn("Hello Ada, from the sample plugin", text)
 
+    def test_ask_streams_a_question_with_options_for_reactions(self) -> None:
+        kind, text, seconds = stub_model.plan(chat("which deck? #ask"), stub_model.tool_scenarios([]))
+        self.assertEqual((kind, seconds), ("slow", stub_model.ASK_SECONDS_PER_WORD))
+        block = text.split("```interactive\n", 1)[1].split("\n```", 1)[0]
+        payload = json.loads(block)
+        self.assertEqual(payload["question"], "Which deck should I polish for Thursday?")
+        self.assertEqual([option["emoji"] for option in payload["options"]], ["✅", "📄"])
+
     def test_a_hashtag_matches_only_whole(self) -> None:
         greet = self.scenarios(
             {"#greet": [["sample_greet", {"name": "Ada"}]], "#greet2": [["sample_greet", {"name": "Bob"}]]}
