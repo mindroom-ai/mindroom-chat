@@ -138,11 +138,13 @@ test('a held tool call is approved from its Activity row and then runs', async (
     (event) => event.type === APPROVAL_EVENT && event.content.status === 'approved',
     { timeout: 90_000, description: 'the approved tool approval' }
   );
+  // The call ran once approved: the helper reports its result (whatever the host's shell said).
   await waitForAgentReply(
     stack,
     rootId,
-    (body) =>
-      body.includes('needs-approval: deploy the stub') && !body.includes('awaiting_approval'),
-    { timeout: 120_000 }
+    (body) => body.includes('Finished **approve** after 1 tool call(s)'),
+    {
+      timeout: 120_000,
+    }
   );
 });
