@@ -313,6 +313,8 @@ describe('watchRings', () => {
     await deliver(decrypting);
     await deliver(late.event);
     const { heard, stop } = watchHeard(mx);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(heard).toEqual([]);
     await decrypted(decrypting);
     late.keyArrives();
 
