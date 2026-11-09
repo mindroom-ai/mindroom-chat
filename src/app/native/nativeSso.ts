@@ -170,7 +170,7 @@ export const registerNativeAppUrlCallbacks = (nativeApp: NativeAppUrlPlugin): vo
     }
     // Keep rejected callbacks diagnosable without disclosing codes or credentials.
     // eslint-disable-next-line no-console
-    console.warn('[MindRoom Chat] Ignored unsupported app URL');
+    console.warn('[MindRoom] Ignored unsupported app URL');
     return false;
   };
 

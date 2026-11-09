@@ -222,7 +222,7 @@
       "toggleTheme": "테마 전환",
       "toggleThemeDescription": "밝은 테마와 어두운 테마 간 전환",
       "logout": "로그아웃",
-      "logoutDescription": "MindRoom Chat에서 로그아웃",
+      "logoutDescription": "MindRoom에서 로그아웃",
       "markCurrentRoomRead": "현재 방을 읽음으로 표시",
       "markCurrentRoomReadDescription": "{{room}} 방을 읽음으로 표시",
       "copyCurrentRoomLink": "현재 방 링크 복사",
@@ -2258,8 +2258,8 @@
         "ok": "확인"
       },
       "errors": {
-        "microphoneBlockedAndroid": "마이크 접근이 차단되었습니다. Android 앱 설정에서 MindRoom Chat의 마이크 접근을 허용한 후 다시 시도하세요.",
-        "microphoneBlockedIos": "마이크 접근이 차단되었습니다. iPhone 설정에서 MindRoom Chat의 마이크 접근을 허용한 후 다시 시도하세요.",
+        "microphoneBlockedAndroid": "마이크 접근이 차단되었습니다. Android 앱 설정에서 MindRoom의 마이크 접근을 허용한 후 다시 시도하세요.",
+        "microphoneBlockedIos": "마이크 접근이 차단되었습니다. iPhone 설정에서 MindRoom의 마이크 접근을 허용한 후 다시 시도하세요.",
         "microphoneBlockedBrowser": "마이크 접근이 차단되었습니다. 브라우저 또는 시스템 설정에서 이 사이트/앱의 마이크 접근을 허용한 후 다시 시도하세요.",
         "noMicrophone": "이 기기에서 마이크를 찾을 수 없습니다.",
         "microphoneUnavailable": "현재 마이크를 사용할 수 없습니다. 다른 앱에서 사용 중일 수 있습니다.",

@@ -9,7 +9,7 @@ describe('matrix-sdk-crypto-wasm IndexedDB contract', () => {
     await initAsync();
   });
 
-  it('creates only the main database when MindRoom Chat opens a passwordless store', async () => {
+  it('creates only the main database when MindRoom opens a passwordless store', async () => {
     const prefix = 'mindroom-crypto-contract';
 
     const handle = await StoreHandle.open(prefix, undefined);

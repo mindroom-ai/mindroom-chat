@@ -181,7 +181,7 @@ describe('ClientRoot when an account cannot start', () => {
     const { sentence } = await failWith(new DeviceIdentityVerificationError(SESSION.userId));
 
     expect(sentence).toContain("MindRoom couldn't safely check this account's encryption storage");
-    expect(sentence).not.toContain('MindRoom Chat');
+    expect(sentence).not.toContain('could not safely verify');
   });
 
   it("translates a server's refusal and keeps its code and explanation beside it", async () => {

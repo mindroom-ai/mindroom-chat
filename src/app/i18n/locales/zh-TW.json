@@ -222,7 +222,7 @@
       "toggleTheme": "切換主題",
       "toggleThemeDescription": "明暗切換",
       "logout": "登出",
-      "logoutDescription": "登出 MindRoom Chat",
+      "logoutDescription": "登出 MindRoom",
       "markCurrentRoomRead": "標記目前房間已讀",
       "markCurrentRoomReadDescription": "將 {{room}} 標記為已讀",
       "copyCurrentRoomLink": "複製目前房間連結",
@@ -2258,8 +2258,8 @@
         "ok": "確定"
       },
       "errors": {
-        "microphoneBlockedAndroid": "麥克風存取被阻止。在 Android 應用程式設定中允許 MindRoom Chat 的麥克風存取權限，然後再試一次。",
-        "microphoneBlockedIos": "麥克風存取被阻止。在 iPhone 設定中允許 MindRoom Chat 存取麥克風，然後再試一次。",
+        "microphoneBlockedAndroid": "麥克風存取被阻止。在 Android 應用程式設定中允許 MindRoom 的麥克風存取權限，然後再試一次。",
+        "microphoneBlockedIos": "麥克風存取被阻止。在 iPhone 設定中允許 MindRoom 存取麥克風，然後再試一次。",
         "microphoneBlockedBrowser": "麥克風存取被阻止。在您的瀏覽器或系統設定中允許存取此網站/應用程式的麥克風，然後重試。",
         "noMicrophone": "在此裝置上找不到麥克風。",
         "microphoneUnavailable": "麥克風目前不可用（可能正被其他應用程式使用）。",

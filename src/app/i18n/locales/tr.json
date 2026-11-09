@@ -222,7 +222,7 @@
       "toggleTheme": "Temayı değiştir",
       "toggleThemeDescription": "Açık ve koyu tema arasında geçiş yap",
       "logout": "Çıkış yap",
-      "logoutDescription": "MindRoom Chat oturumunu kapat",
+      "logoutDescription": "MindRoom oturumunu kapat",
       "markCurrentRoomRead": "Geçerli odayı okundu işaretle",
       "markCurrentRoomReadDescription": "{{room}} odasını okundu işaretle",
       "copyCurrentRoomLink": "Geçerli odanın bağlantısını kopyala",
@@ -2258,8 +2258,8 @@
         "ok": "Tamam"
       },
       "errors": {
-        "microphoneBlockedAndroid": "Mikrofon erişimi engellenmiş. Android uygulama ayarlarında MindRoom Chat için mikrofon erişimine izin verip tekrar deneyin.",
-        "microphoneBlockedIos": "Mikrofon erişimi engellenmiş. iPhone ayarlarında MindRoom Chat için mikrofon erişimine izin verip tekrar deneyin.",
+        "microphoneBlockedAndroid": "Mikrofon erişimi engellenmiş. Android uygulama ayarlarında MindRoom için mikrofon erişimine izin verip tekrar deneyin.",
+        "microphoneBlockedIos": "Mikrofon erişimi engellenmiş. iPhone ayarlarında MindRoom için mikrofon erişimine izin verip tekrar deneyin.",
         "microphoneBlockedBrowser": "Mikrofon erişimi engellenmiş. Tarayıcı veya sistem ayarlarınızda bu site/uygulama için mikrofon erişimine izin verip tekrar deneyin.",
         "noMicrophone": "Bu cihazda mikrofon bulunamadı.",
         "microphoneUnavailable": "Mikrofon şu anda kullanılamıyor (başka bir uygulama kullanıyor olabilir).",

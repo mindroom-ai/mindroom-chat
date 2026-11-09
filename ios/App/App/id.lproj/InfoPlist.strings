@@ -1,5 +1,5 @@
-"NSLocalNetworkUsageDescription" = "MindRoom Chat perlu terhubung ke homeserver Matrix lokal Anda.";
-"NSMicrophoneUsageDescription" = "MindRoom Chat memerlukan akses mikrofon untuk merekam pesan suara dan berbicara dalam panggilan suara.";
-"NSCameraUsageDescription" = "MindRoom Chat memerlukan akses kamera untuk mengambil foto dan video yang akan dikirim dalam obrolan.";
-"NSPhotoLibraryUsageDescription" = "MindRoom Chat memerlukan akses ke perpustakaan foto agar Anda dapat berbagi foto dan video dalam obrolan.";
-"NSPhotoLibraryAddUsageDescription" = "MindRoom Chat memerlukan izin untuk menyimpan gambar dan video dari obrolan ke perpustakaan foto Anda.";
+"NSLocalNetworkUsageDescription" = "MindRoom perlu terhubung ke homeserver Matrix lokal Anda.";
+"NSMicrophoneUsageDescription" = "MindRoom memerlukan akses mikrofon untuk merekam pesan suara dan berbicara dalam panggilan suara.";
+"NSCameraUsageDescription" = "MindRoom memerlukan akses kamera untuk mengambil foto dan video yang akan dikirim dalam obrolan.";
+"NSPhotoLibraryUsageDescription" = "MindRoom memerlukan akses ke perpustakaan foto agar Anda dapat berbagi foto dan video dalam obrolan.";
+"NSPhotoLibraryAddUsageDescription" = "MindRoom memerlukan izin untuk menyimpan gambar dan video dari obrolan ke perpustakaan foto Anda.";

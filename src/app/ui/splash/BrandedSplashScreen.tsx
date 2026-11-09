@@ -7,7 +7,7 @@ import { useLoadedOrCachedClientConfig } from '../../config/ClientConfigLoader';
 import { deploymentBranding } from '../branding/deploymentBranding';
 
 /** The loading line when there is no other line with text in it. */
-export const DEFAULT_MINDROOM_SPLASH_MESSAGES = ['Loading MindRoom Chat'] as const;
+export const DEFAULT_MINDROOM_SPLASH_MESSAGES = ['Loading MindRoom'] as const;
 
 /**
  * One loading line, picked with `random`: from the trimmed `messages` that keep some text, or from

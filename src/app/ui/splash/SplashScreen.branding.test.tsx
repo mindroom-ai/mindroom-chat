@@ -35,7 +35,7 @@ describe('SplashScreen branding', () => {
     cacheConfig(null);
     const markup = renderToStaticMarkup(<SplashScreen />);
     expect(markup).not.toContain('data-name');
-    expect(markup).not.toContain('MindRoom Chat');
+    expect(markup).not.toContain('MindRoom');
   });
 
   it('names the deployment of the last configuration this browser loaded until one loads', () => {
@@ -45,7 +45,7 @@ describe('SplashScreen branding', () => {
     );
     cacheConfig({});
     expect(renderToStaticMarkup(<SplashScreen />)).toContain(
-      '<span data-name="true">MindRoom Chat</span>'
+      '<span data-name="true">MindRoom</span>'
     );
   });
 

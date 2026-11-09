@@ -222,7 +222,7 @@
       "toggleTheme": "Cambia tema",
       "toggleThemeDescription": "Passa dal tema chiaro a quello scuro",
       "logout": "Disconnetti",
-      "logoutDescription": "Disconnettiti da MindRoom Chat",
+      "logoutDescription": "Disconnettiti da MindRoom",
       "markCurrentRoomRead": "Segna come letta la stanza attuale",
       "markCurrentRoomReadDescription": "Segna {{room}} come letta",
       "copyCurrentRoomLink": "Copia il link della stanza attuale",
@@ -2286,8 +2286,8 @@
         "ok": "OK"
       },
       "errors": {
-        "microphoneBlockedAndroid": "L’accesso al microfono è bloccato. Consentilo a MindRoom Chat nelle impostazioni dell’app Android e riprova.",
-        "microphoneBlockedIos": "L’accesso al microfono è bloccato. Consentilo a MindRoom Chat nelle impostazioni di iPhone e riprova.",
+        "microphoneBlockedAndroid": "L’accesso al microfono è bloccato. Consentilo a MindRoom nelle impostazioni dell’app Android e riprova.",
+        "microphoneBlockedIos": "L’accesso al microfono è bloccato. Consentilo a MindRoom nelle impostazioni di iPhone e riprova.",
         "microphoneBlockedBrowser": "L’accesso al microfono è bloccato. Consentilo per questo sito/app nelle impostazioni del browser o del sistema e riprova.",
         "noMicrophone": "Nessun microfono trovato su questo dispositivo.",
         "microphoneUnavailable": "Il microfono non è disponibile al momento (potrebbe essere usato da un’altra app).",

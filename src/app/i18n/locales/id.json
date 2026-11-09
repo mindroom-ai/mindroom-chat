@@ -222,7 +222,7 @@
       "toggleTheme": "Ganti tema",
       "toggleThemeDescription": "Beralih antara tema terang dan gelap",
       "logout": "Keluar",
-      "logoutDescription": "Keluar dari MindRoom Chat",
+      "logoutDescription": "Keluar dari MindRoom",
       "markCurrentRoomRead": "Tandai ruang saat ini sudah dibaca",
       "markCurrentRoomReadDescription": "Tandai {{room}} sudah dibaca",
       "copyCurrentRoomLink": "Salin tautan ruang saat ini",
@@ -2258,8 +2258,8 @@
         "ok": "Oke"
       },
       "errors": {
-        "microphoneBlockedAndroid": "Akses mikrofon diblokir. Izinkan akses mikrofon untuk MindRoom Chat di pengaturan aplikasi Android, lalu coba lagi.",
-        "microphoneBlockedIos": "Akses mikrofon diblokir. Izinkan akses mikrofon untuk MindRoom Chat di pengaturan iPhone, lalu coba lagi.",
+        "microphoneBlockedAndroid": "Akses mikrofon diblokir. Izinkan akses mikrofon untuk MindRoom di pengaturan aplikasi Android, lalu coba lagi.",
+        "microphoneBlockedIos": "Akses mikrofon diblokir. Izinkan akses mikrofon untuk MindRoom di pengaturan iPhone, lalu coba lagi.",
         "microphoneBlockedBrowser": "Akses mikrofon diblokir. Izinkan akses mikrofon untuk situs/aplikasi ini di pengaturan browser atau sistem, lalu coba lagi.",
         "noMicrophone": "Tidak ditemukan mikrofon di perangkat ini.",
         "microphoneUnavailable": "Mikrofon saat ini tidak tersedia (mungkin sedang digunakan aplikasi lain).",

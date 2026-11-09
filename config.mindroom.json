@@ -15,7 +15,7 @@
     "mindRoomProvisioningUrl": "https://mindroom.chat"
   },
   "welcome": {
-    "title": "Welcome to MindRoom Chat",
+    "title": "Welcome to MindRoom",
     "subtitle": "AI agents that live in your chat rooms.",
     "docsLabel": "Docs",
     "docsUrl": "https://docs.mindroom.chat/",
@@ -24,7 +24,7 @@
   },
   "splash": {
     "loadingMessages": [
-      "Loading MindRoom Chat",
+      "Loading MindRoom",
       "Waking up your agents",
       "Syncing your rooms",
       "Fetching new messages"
@@ -46,7 +46,7 @@
   "push": {
     "ios": {
       "appId": "chat.mindroom.app",
-      "appDisplayName": "MindRoom Chat iOS",
+      "appDisplayName": "MindRoom iOS",
       "format": "full"
     }
   }

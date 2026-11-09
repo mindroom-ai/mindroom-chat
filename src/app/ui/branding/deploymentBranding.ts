@@ -32,7 +32,7 @@ export type DeploymentBranding = {
     /** The logo for dark themes; `src` when none is configured. */
     srcDark: string;
     alt: string;
-    /** A configured logo rather than MindRoom Chat's own. */
+    /** A configured logo rather than MindRoom's own. */
     custom: boolean;
   };
   /** The line before the credits, read in order; undefined shows none. */
@@ -239,6 +239,6 @@ export const deploymentBranding = (config: ClientConfig | undefined): Deployment
   return branding;
 };
 
-/** The deployment's look; MindRoom Chat's own before the configuration has loaded. */
+/** The deployment's look; MindRoom's own before the configuration has loaded. */
 export const useDeploymentBranding = (): DeploymentBranding =>
   deploymentBranding(useOptionalClientConfig());

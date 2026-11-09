@@ -222,7 +222,7 @@
       "toggleTheme": "تبديل السمة",
       "toggleThemeDescription": "التبديل بين السمتين الفاتحة والداكنة",
       "logout": "تسجيل الخروج",
-      "logoutDescription": "تسجيل الخروج من MindRoom Chat",
+      "logoutDescription": "تسجيل الخروج من MindRoom",
       "markCurrentRoomRead": "تعليم الغرفة الحالية كمقروءة",
       "markCurrentRoomReadDescription": "تعليم ⁨{{room}}⁩ كمقروءة",
       "copyCurrentRoomLink": "نسخ رابط الغرفة الحالية",
@@ -2370,8 +2370,8 @@
         "ok": "موافق"
       },
       "errors": {
-        "microphoneBlockedAndroid": "تم حظر الوصول إلى الميكروفون. اسمح لـ MindRoom Chat باستخدامه في إعدادات تطبيق Android وحاول مجددًا.",
-        "microphoneBlockedIos": "تم حظر الوصول إلى الميكروفون. اسمح لـ MindRoom Chat باستخدامه في إعدادات iPhone وحاول مجددًا.",
+        "microphoneBlockedAndroid": "تم حظر الوصول إلى الميكروفون. اسمح لـ MindRoom باستخدامه في إعدادات تطبيق Android وحاول مجددًا.",
+        "microphoneBlockedIos": "تم حظر الوصول إلى الميكروفون. اسمح لـ MindRoom باستخدامه في إعدادات iPhone وحاول مجددًا.",
         "microphoneBlockedBrowser": "تم حظر الوصول إلى الميكروفون. اسمح لهذا الموقع أو التطبيق باستخدامه في إعدادات المتصفح أو النظام وحاول مجددًا.",
         "noMicrophone": "لم يتم العثور على ميكروفون في هذا الجهاز.",
         "microphoneUnavailable": "الميكروفون غير متاح الآن (قد يستخدمه تطبيق آخر).",
