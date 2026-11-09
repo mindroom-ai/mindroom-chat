@@ -63,7 +63,13 @@ export const copyFiles = {
 // The service worker precaches the SPA shell. Some files must stay network-fresh
 // so a deployment can change them without rebuilding the bundle, and the
 // authentication recovery script also serves shells cached by older workers.
-const precacheGlobIgnores = ['runtime-config.js', 'authentication-recovery.js', 'version.json'];
+// The speech model's files load only when a call is transcribed, and are kept then.
+const precacheGlobIgnores = [
+  'runtime-config.js',
+  'authentication-recovery.js',
+  'version.json',
+  `${SPEECH_MODEL_DIR}/**`,
+];
 
 // The Lane C string overlays (src/app/i18n/localeAdditions.ts): one JSON file per language, in the
 // folder of the English one (named by a file, which the move codemod rewrites).
