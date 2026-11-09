@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { disposableHomeserverIsUp } from '../helpers/disposableAccounts';
 import { roomHeader, roomMoreOptions } from '../helpers/roomMenu';
 import {
@@ -25,7 +25,8 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // The toggle is pressed while the panel shows, but not while it is folded to its tab, when choosing
 // it unfolds the panel. On a phone the toggle is an entry of the room menu.
 // It counts the room's members, the viewer and an agent, which it reads through the client SDK's
-// `matrix` subpath.
+// `matrix` subpath. Taller than the panel, it scrolls, and its rows, which may not shrink, keep their
+// size.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PHONE = { width: 390, height: 844 };
 
@@ -58,15 +59,33 @@ const menuEntry = (page: Page) =>
 const toggle = (page: Page) =>
   roomHeader(page).getByRole('button', { name: 'Example panel', exact: true });
 
+const panelRegion = (page: Page) =>
+  page.getByRole('region', { name: 'Example panel', exact: true });
+
 const openExamplePanel = async (page: Page, room: PanelRoom) => {
   await expect(toggle(page)).toHaveAttribute('aria-pressed', 'false');
   await toggle(page).click();
-  const panel = page.getByRole('region', { name: 'Example panel', exact: true });
+  const panel = panelRegion(page);
   await expect(panel).toBeVisible();
   await expect(toggle(page)).toHaveAttribute('aria-pressed', 'true');
   await expect(panel).toContainText(`Example panel of ${room.roomId}`);
   await expect(panel).toContainText('Members: 2, with a MindRoom agent');
 };
+
+const bottomOf = async (locator: Locator) => {
+  const box = (await locator.boundingBox())!;
+  return box.y + box.height;
+};
+
+/** The heights of the panel's title row "Example rows" and of its two rows. */
+const rowHeights = (page: Page) =>
+  Promise.all(
+    [
+      page.getByText('Example rows', { exact: true }),
+      page.getByRole('button', { name: 'First example row', exact: true }),
+      page.getByRole('button', { name: 'Second example row', exact: true }),
+    ].map(async (row) => (await row.locator('..').boundingBox())?.height ?? 0)
+  );
 
 const closeExamplePanel = async (page: Page) => {
   await page.getByRole('button', { name: 'Close Example panel', exact: true }).click();
@@ -171,5 +190,40 @@ test("on a phone the example plugin's side panel toggles from the room menu", as
     await expect(roomMoreOptions(page)).toBeHidden();
     await closeExamplePanel(page);
     await expect(roomMoreOptions(page)).toBeVisible();
+  });
+});
+
+test("the example plugin's side panel scrolls when it is taller than the room, its rows kept whole", async ({
+  browser,
+}) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+  test.setTimeout(5 * 60_000);
+  await withPanelRoom(browser, async (page, room) => {
+    await openExamplePanel(page, room);
+    // Its last part, the signed-in account's profile card.
+    const end = page.locator('[data-example-plugin-own-card]');
+    for (const { width, height } of [
+      { width: 1600, height: 600 },
+      { width: 375, height: 667 },
+    ]) {
+      // eslint-disable-next-line no-await-in-loop
+      await test.step(`${width} px wide`, async () => {
+        await page.setViewportSize({ width, height: 2000 });
+        await expect(end).toBeInViewport();
+        const heights = await rowHeights(page);
+        expect(heights.every((rowHeight) => rowHeight >= 20)).toBe(true);
+        // What it shows is laid out in a column as tall as the panel, which a part could fill.
+        const column = page.getByText(`Example panel of ${room.roomId}`).locator('..');
+        await expect
+          .poll(async () => (await bottomOf(panelRegion(page))) - (await bottomOf(column)))
+          .toBeCloseTo(0, 0);
+        await page.setViewportSize({ width, height });
+        await expect(end).not.toBeInViewport();
+        await expect.poll(() => rowHeights(page)).toEqual(heights);
+        await end.scrollIntoViewIfNeeded();
+        await expect(end).toBeInViewport();
+        await expect.poll(() => rowHeights(page)).toEqual(heights);
+      });
+    }
   });
 });
