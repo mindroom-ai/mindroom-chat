@@ -1053,21 +1053,21 @@ test.describe('calls', () => {
     const evePage = await (await browser.newContext({ permissions: ['microphone'] })).newPage();
     await evePage.goto(`${HOMESERVER}/_matrix/client/versions`);
     await evePage.addScriptTag({ path: 'node_modules/livekit-client/dist/livekit-client.umd.js' });
-    type EveMedia = { room: Livekit.Room; subscribed: boolean };
+    type EveWindow = {
+      LivekitClient: typeof Livekit;
+      eveMedia: { room: Livekit.Room; subscribed: boolean };
+    };
     await evePage.evaluate(async ({ url, jwt }) => {
-      const { Room, RoomEvent } = (window as unknown as { LivekitClient: typeof Livekit })
-        .LivekitClient;
+      const eveWindow = window as unknown as EveWindow;
+      const { Room, RoomEvent } = eveWindow.LivekitClient;
       const host = document.createElement('div');
       host.dataset.callAudio = '';
       document.body.append(host);
-      const media: EveMedia = { room: new Room(), subscribed: false };
-      (window as unknown as { eveMedia: EveMedia }).eveMedia = media;
+      const media: EveWindow['eveMedia'] = { room: new Room(), subscribed: false };
+      eveWindow.eveMedia = media;
       media.room
         .on(RoomEvent.TrackSubscribed, (track) => {
           host.append(track.attach());
-        })
-        .on(RoomEvent.TrackUnsubscribed, (track) => {
-          track.detach().forEach((element) => element.remove());
         })
         .on(RoomEvent.LocalTrackSubscribed, () => {
           media.subscribed = true;
@@ -1078,9 +1078,9 @@ test.describe('calls', () => {
     /** Whether someone subscribed to Eve's microphone, and how many tracks she may not receive. */
     const eveMedia = () =>
       evePage.evaluate(() => {
-        const { room, subscribed } = (window as unknown as { eveMedia: EveMedia }).eveMedia;
-        const { NotAllowed } = (window as unknown as { LivekitClient: typeof Livekit })
-          .LivekitClient.TrackPublication.PermissionStatus;
+        const { eveMedia: media, LivekitClient } = window as unknown as EveWindow;
+        const { NotAllowed } = LivekitClient.TrackPublication.PermissionStatus;
+        const { room, subscribed } = media;
         const refused = [...room.remoteParticipants.values()]
           .flatMap((participant) => [...participant.audioTrackPublications.values()])
           .filter((publication) => publication.permissionStatus === NotAllowed).length;
@@ -1143,9 +1143,7 @@ test.describe('calls', () => {
     await expect.poll(eveMedia, { timeout: 30_000 }).toEqual({ subscribed: true, refused: 3 });
     await expect.poll(() => remoteSoundLevel(evePage), { timeout: 30_000 }).toBeLessThan(0.01);
 
-    await evePage.evaluate(() =>
-      (window as unknown as { eveMedia: EveMedia }).eveMedia.room.disconnect()
-    );
+    await evePage.evaluate(() => (window as unknown as EveWindow).eveMedia.room.disconnect());
     for (const page of pages) {
       // eslint-disable-next-line no-await-in-loop
       await callPanel(page).getByRole('button', { name: 'End' }).click();

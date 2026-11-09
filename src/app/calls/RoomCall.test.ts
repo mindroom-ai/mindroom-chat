@@ -925,11 +925,11 @@ describe("RoomCall members' media", () => {
   });
 
   it('lets only the members of the call receive its media, from before its microphone opens', async () => {
-    const sentWhile: string[] = [];
+    let sentWhile: string | undefined;
     fakes.connect = async (room) => {
       const media = room as FakeMediaRoom;
       media.localParticipant.setTrackSubscriptionPermissions.mockImplementation(() => {
-        sentWhile.push(media.state);
+        sentWhile = media.state;
       });
     };
     const { call, session } = setup();
@@ -941,7 +941,7 @@ describe("RoomCall members' media", () => {
       identities.map((participantIdentity) => ({ participantIdentity, allowAll: true }));
 
     expect(permissions).toHaveBeenLastCalledWith(false, allowed(OTHER_IDENTITY));
-    expect(sentWhile.at(-1)).toBe('connected');
+    expect(sentWhile).toBe('connected');
     expect(permissions.mock.invocationCallOrder.at(-1)).toBeLessThan(
       defined(localParticipant.setMicrophoneEnabled.mock.invocationCallOrder[0], 'the microphone')
     );
