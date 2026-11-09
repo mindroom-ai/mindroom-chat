@@ -73,6 +73,20 @@ describe('advanceHistoryStack', () => {
     expect(previous(advanceHistoryStack(redirected, entry('next'), 'PUSH'))).toBe('/reply/');
   });
 
+  it('keeps the pages after a page opened from outside the app when back or forward returns to it', () => {
+    const opened = advanceHistoryStack(
+      walk(['home', 'POP'], ['dm', 'PUSH']),
+      entry('thread'),
+      'PUSH',
+      true
+    );
+    const next = advanceHistoryStack(opened, entry('next'), 'PUSH');
+    // Back to the page, whose navigation state still says it was opened from outside.
+    const back = advanceHistoryStack(next, entry('thread'), 'POP', true);
+    expect(back.entries.map(({ key }) => key)).toEqual(['thread', 'next']);
+    expect(back.index).toBe(0);
+  });
+
   it('starts over at a page another account shows', () => {
     const as = (key: string, sessionId: string) => ({ ...entry(key), sessionId });
     const first = advanceHistoryStack(
@@ -87,8 +101,8 @@ describe('advanceHistoryStack', () => {
 });
 
 describe('useHistoryStackRecorder', () => {
-  // The stack is the module's own: each test records under an account of its own, which starts it
-  // over.
+  // The stack is the module's own: each test's first page has a key no other test used, which
+  // starts it over.
   const record = async (sessionId: string) => {
     let navigate: NavigateFunction | undefined;
     function Recorder({ session }: { session: string }) {
@@ -99,7 +113,7 @@ describe('useHistoryStackRecorder', () => {
     const element = (session: string) =>
       React.createElement(
         MemoryRouter,
-        { initialEntries: ['/home/'] },
+        { initialEntries: [{ pathname: '/home/', key: `first-page-of-${sessionId}` }] },
         React.createElement(Recorder, { session })
       );
     let renderer: ReactTestRenderer | undefined;

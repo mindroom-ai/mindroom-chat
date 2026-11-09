@@ -1032,6 +1032,63 @@ describe('RoomView', { timeout: 30_000 }, () => {
     expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
   });
 
+  it("leaves a thread for its room when its exit target is another account's", async () => {
+    // Another account opened the thread from its own room, and a browser back step after the
+    // switch returned to it: that account's way back leads to a page this one cannot show.
+    const { createSessionId, putSession } = await import('../../matrix/session/sessions');
+    putSession({
+      baseUrl: 'https://mindroom.chat',
+      userId: '@alice:example.org',
+      deviceId: 'ALICE',
+      accessToken: 'alice-token',
+    });
+    const room = makeRoom(nextRoomId('room-a'));
+    const target = {
+      roomId: room.roomId,
+      threadId: '$thread',
+      exitPath: '/home/!bob-only:example.org/',
+      useHistoryBack: true,
+    };
+    window.history.state = {
+      usr: {
+        [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+          ...target,
+          sessionId: createSessionId('https://example.org', '@bob:example.org'),
+        },
+      },
+    };
+    const { RoomView } = await import('../RoomView');
+    await act(async () => {
+      create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+    });
+
+    await act(async () => {
+      threadContextBannerState.props?.onExitThread?.();
+    });
+
+    expect(historyBackMock).not.toHaveBeenCalled();
+    expect(navigatePathMock).not.toHaveBeenCalled();
+    expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(room.roomId, '$thread', {
+      replace: true,
+    });
+
+    // The same target recorded by this account still leads back.
+    navigateRoomFocusEventMock.mockClear();
+    window.history.state = {
+      usr: {
+        [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+          ...target,
+          sessionId: createSessionId('https://mindroom.chat', '@alice:example.org'),
+        },
+      },
+    };
+    await act(async () => {
+      threadContextBannerState.props?.onExitThread?.();
+    });
+    expect(historyBackMock).toHaveBeenCalledOnce();
+    expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
+  });
+
   it('exits a thread with history back when the exit target is stored by history entry key', async () => {
     const room = makeRoom(nextRoomId('room-a'));
     window.history.state = {

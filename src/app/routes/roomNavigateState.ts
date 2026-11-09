@@ -6,6 +6,8 @@ export type RoomThreadExitTarget = {
   threadId: string;
   exitPath?: string;
   useHistoryBack?: boolean;
+  /** The account that opened the thread; a target recorded before accounts were named has none. */
+  sessionId?: string;
 };
 
 const roomThreadExitTargetMemory = new Map<string, RoomThreadExitTarget>();
@@ -37,8 +39,9 @@ const getStoredRoomThreadExitTarget = (entryKey: string): RoomThreadExitTarget |
     const exitPath = typeof parsedValue.exitPath === 'string' ? parsedValue.exitPath : undefined;
     const useHistoryBack =
       typeof parsedValue.useHistoryBack === 'boolean' ? parsedValue.useHistoryBack : true;
+    const sessionId = typeof parsedValue.sessionId === 'string' ? parsedValue.sessionId : undefined;
 
-    const target = { roomId, threadId, exitPath, useHistoryBack };
+    const target = { roomId, threadId, exitPath, useHistoryBack, sessionId };
     roomThreadExitTargetMemory.set(entryKey, target);
     return target;
   } catch {
@@ -87,9 +90,10 @@ export const getRoomThreadExitTargetFromHistoryState = (
         const exitPath = typeof target.exitPath === 'string' ? target.exitPath : undefined;
         const useHistoryBack =
           typeof target.useHistoryBack === 'boolean' ? target.useHistoryBack : true;
+        const sessionId = typeof target.sessionId === 'string' ? target.sessionId : undefined;
 
         if (typeof roomId === 'string' && typeof threadId === 'string') {
-          return { roomId, threadId, exitPath, useHistoryBack };
+          return { roomId, threadId, exitPath, useHistoryBack, sessionId };
         }
       }
     }

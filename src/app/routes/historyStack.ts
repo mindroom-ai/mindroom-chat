@@ -1,13 +1,14 @@
 import { useEffect } from 'react';
 import { useLocation, useNavigationType, type NavigationType, type Path } from 'react-router-dom';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
+import { isRecord } from '../lib/isRecord';
 import { decodeRouteParam } from './pathUtils';
 import { DIRECT_PATH, HOME_PATH } from './paths';
 
 /** A page of this tab's history: its path and its query. */
 export type HistoryPage = { pathname: string; search: string };
 
-/** An entry, with the account active when it was shown (none before an account is). */
+/** An entry, with the account active when it was shown. */
 type HistoryEntry = HistoryPage & { key: string; hash: string; sessionId?: string };
 
 /** The entries of this tab's history the app has shown, and which one is current. */
@@ -23,9 +24,7 @@ export const emptyHistoryStack: HistoryStack = { entries: [], index: -1 };
 export const OPENED_FROM_OUTSIDE_STATE = { openedFromOutside: true } as const;
 
 const isOpenedFromOutside = (state: unknown): boolean =>
-  typeof state === 'object' &&
-  state !== null &&
-  (state as Record<string, unknown>).openedFromOutside === true;
+  isRecord(state) && state.openedFromOutside === true;
 
 /**
  * The stack after the router moved to `entry` by `action`, which `openedFromOutside` says came

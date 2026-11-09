@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Browser, type Page } from '@playwright/test';
+import { switchToStoredUsername } from '../helpers/accounts';
 import { loginWithPassword } from '../helpers/auth';
 import {
   createPrivateRoom,
@@ -14,7 +15,8 @@ import {
 
 // The iOS app opens a tapped push as a page opened from outside the app: a thread's back chevron
 // leads to the thread's room, and the room's to its list, never to the page the app was left on
-// (another conversation, or another account's). The app runs as the iOS app here: Capacitor's iOS
+// (another conversation, or another account's), and no back chevron leads to the pages of the
+// account that was active before a switch. The app runs as the iOS app here: Capacitor's iOS
 // platform with a stand-in for the push plugin, whose taps the test fires as iOS would deliver
 // them. At 390 by 844 with touch, in Chromium. IOS_PUSH_BACK_SHOTS=<directory> saves the thread
 // and the pages its chevrons lead to.
@@ -310,6 +312,19 @@ test("a thread another account's push opened leads back to that account's room",
       mindroom_account: 'tag-2',
     });
     await backFromPushedThread(page, second, 'two-accounts');
+
+    // Switched from the account menu, the first account's page leads to its own list, never to
+    // the second account's room shown before the switch.
+    await listLink(page, 'Harbor Plans').tap();
+    await expectAt(page, { room: second.room, thread: null }, "the second account's room opens");
+    await switchToStoredUsername(page, first.username);
+    await expectAt(page, { room: first.dm, thread: null }, "the first account's last page opens");
+    await roomBack(page).tap();
+    await expectAt(
+      page,
+      { path: '/direct/', room: null, thread: null },
+      "its back leads to the first account's list"
+    );
   } finally {
     await context.close();
   }

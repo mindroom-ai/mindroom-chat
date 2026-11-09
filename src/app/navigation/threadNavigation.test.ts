@@ -52,6 +52,23 @@ describe('navigateToRoomThread', () => {
     });
   });
 
+  it('records the account that opened the thread in its exit target', () => {
+    const navigateRoomThreadDirect = vi.fn();
+    navigateToRoomThread({
+      roomId: '!room:example.org',
+      threadId: '$thread',
+      navigateRoomThreadDirect,
+      location: { pathname: '/home/!room:example.org', search: '', hash: '' },
+      getHistoryState: () => ({ key: 'thread-navigation-test-account' }),
+      schedule: () => undefined,
+      isNativeIOSDevice: () => true,
+      getSessionId: () => 'session-a',
+    });
+    expect(navigateRoomThreadDirect.mock.calls[0]?.[3]).toMatchObject({
+      state: { [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: { sessionId: 'session-a' } },
+    });
+  });
+
   it('preserves existing navigate state when adding the exit target', () => {
     const navigateRoomThreadDirect = vi.fn();
     const opts: NavigateOptions = { state: { source: 'test-suite' } };
