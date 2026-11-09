@@ -308,7 +308,7 @@ describe('example plugin', () => {
     expect(view.getByText('Members: 2, with a MindRoom agent')).toBeTruthy();
     expect(view.getByText('Members: 3, without a MindRoom agent')).toBeTruthy();
     // Neither room has a MindRoom server: none published, and none in config.json.
-    expect(view.getAllByText('No MindRoom server')).toHaveLength(2);
+    expect(await view.findAllByText('No MindRoom server')).toHaveLength(2);
   });
 
   it("says in its own-frame card the app's theme kind and screen size, and previews a PDF it builds", async () => {
