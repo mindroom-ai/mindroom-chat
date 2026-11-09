@@ -3,7 +3,7 @@
 // plugin's requests and opens its websockets as the signed-in user, and the computers of the room's
 // agents. Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in
 // scripts/client-plugins.mjs.
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
 import {
   ComputerApiError,
@@ -95,9 +95,7 @@ const knownServers = new WeakMap<ClientSessions, MindroomServer>();
  */
 const serverAt = (mx: MatrixClient, apiUrl: string): MindroomServer => {
   const sessions = clientSessions(mx, apiUrl);
-  const known = knownServers.get(sessions);
-  if (known) return known;
-  const server: MindroomServer = {
+  const server: MindroomServer = knownServers.get(sessions) ?? {
     origin: apiUrl,
     request: <T>(path: string, init?: RequestInit) => request<T>(sessions, path, init),
     send: (path, init) => sessions.send(path, init),
@@ -107,10 +105,6 @@ const serverAt = (mx: MatrixClient, apiUrl: string): MindroomServer => {
   knownServers.set(sessions, server);
   return server;
 };
-
-/** The `MindroomServer` at `apiUrl`, or undefined without one. */
-const serverOrNone = (mx: MatrixClient, apiUrl: string | undefined) =>
-  apiUrl ? serverAt(mx, apiUrl) : undefined;
 
 /**
  * The MindRoom server of the room `roomId`, by the rule call transcripts use: the one the room's
@@ -124,7 +118,7 @@ const serverOrNone = (mx: MatrixClient, apiUrl: string | undefined) =>
 export const useMindroomServer = (roomId: string): MindroomServer | undefined => {
   const mx = useMatrixClient();
   const { apiUrl } = useRoomMindroomServer(mx, roomId);
-  return serverOrNone(mx, apiUrl);
+  return apiUrl ? serverAt(mx, apiUrl) : undefined;
 };
 
 /**
@@ -142,7 +136,7 @@ export const useMindroomServerStatus = (
 ): { server: MindroomServer | undefined; pending: boolean } => {
   const mx = useMatrixClient();
   const { apiUrl, pending } = useRoomMindroomServer(mx, roomId);
-  return { server: serverOrNone(mx, pending ? undefined : apiUrl), pending };
+  return { server: !pending && apiUrl ? serverAt(mx, apiUrl) : undefined, pending };
 };
 
 /** An agent of the room with a computer, as `useRoomComputers` gives it. */
@@ -172,7 +166,8 @@ export type RoomComputer = {
    * give a sign-in token, the server gave no answer or `signal` aborted, 403 when the homeserver
    * will not sign in there (it binds no tokens to a server the agent published), else the server's
    * refusal. Retrying, reconnecting a stream and ending a session the plugin no longer shows are
-   * the plugin's. It stays the same function while the agent's server and the token's binding do.
+   * the plugin's. It stays the same function while the agent stays listed in the same room with
+   * that server and the token's binding.
    */
   openSession: (signal?: AbortSignal) => Promise<ComputerSessionClient>;
 };
@@ -210,33 +205,35 @@ export const useRoomComputers = (roomId: string): RoomComputer[] => {
   const members = useRoomMembers(mx, roomId);
   const servers = useRoomAgentServers(mx.getRoom(roomId));
   const { agents, apiUrl } = useRoomComputer(members, servers, mx.getSafeUserId());
-  // The last list's computers, by room, agent and binding, kept while their server is the same.
-  const known = useRef(new Map<string, RoomComputer>());
-  return useMemo(() => {
-    const before = known.current;
-    known.current = new Map();
+  // The shown list's computers, by room, agent and binding, kept while their server is the same.
+  const shown = useRef(new Map<string, RoomComputer>());
+  const { computers, byKey } = useMemo(() => {
+    const byKey = new Map<string, RoomComputer>();
     // An agent the room lists always has a server: its own, or the one set for every agent.
-    if (!apiUrl) return [];
-    return agents.map(({ userId, name, serverUrl }) => {
+    if (!apiUrl) return { computers: [], byKey };
+    const computers = agents.map(({ userId, name, serverUrl }) => {
       const discovered = serverUrl !== undefined;
       const url = serverUrl ?? apiUrl;
       const server = serverAt(mx, url);
       const key = JSON.stringify([roomId, userId, discovered]);
-      const kept = before.get(key);
-      const computer =
-        kept?.server !== server
-          ? {
-              userId,
-              name,
-              server,
-              openSession: (signal?: AbortSignal) =>
-                openSession(mx, roomId, userId, url, discovered, signal),
-            }
-          : kept.name === name
-          ? kept
-          : { ...kept, name };
-      known.current.set(key, computer);
+      let computer = shown.current.get(key);
+      if (computer?.server !== server) {
+        computer = {
+          userId,
+          name,
+          server,
+          openSession: (signal?: AbortSignal) =>
+            openSession(mx, roomId, userId, url, discovered, signal),
+        };
+      } else if (computer.name !== name) computer = { ...computer, name };
+      byKey.set(key, computer);
       return computer;
     });
+    return { computers, byKey };
   }, [agents, apiUrl, mx, roomId]);
+  // Only a list that showed is kept: a render that never shows, as one that suspends, keeps none.
+  useEffect(() => {
+    shown.current = byKey;
+  }, [byKey]);
+  return computers;
 };

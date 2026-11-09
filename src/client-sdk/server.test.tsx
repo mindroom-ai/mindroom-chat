@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
 import { ConnectionError, type IOpenIDToken, type MatrixClient, type Room } from 'matrix-js-sdk';
-import { useEffect, type ReactNode } from 'react';
+import { Suspense, useEffect, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TranscriptionClient } from '../app/calls/transcription/api';
 import type { AgentServer } from '../app/computer/agentServer';
@@ -90,6 +90,9 @@ const fakeFetch = () => {
 };
 
 let mx: MatrixClient;
+/** A new signed-in account: sessions are kept per account. */
+const newAccount = () =>
+  ({ getRoom: () => null, getSafeUserId: () => '@ann:example.org' } as unknown as MatrixClient);
 
 const signedIn = (deploymentUrl?: string) =>
   function Wrapper({ children }: { children: ReactNode }) {
@@ -125,7 +128,7 @@ const published = (): MindroomServer => {
 
 beforeEach(() => {
   // Each test signs in afresh: sessions are kept per account.
-  mx = { getRoom: () => null, getSafeUserId: () => '@ann:example.org' } as unknown as MatrixClient;
+  mx = newAccount();
   state.bindsTokens = true;
   state.published = undefined;
   state.servers = undefined;
@@ -721,6 +724,39 @@ describe('useRoomComputers', () => {
       });
     });
 
+    it('keeps the computers of the list it showed when a render that moved a server never showed', async () => {
+      let suspended: Promise<void> | undefined;
+      let resume = () => undefined as void;
+      const { result, rerender } = renderHook(
+        () => {
+          const found = useRoomComputers(ROOM_ID);
+          if (suspended) throw suspended;
+          return found;
+        },
+        {
+          wrapper: ({ children }) =>
+            signedIn(deployment)({ children: <Suspense fallback={null}>{children}</Suspense> }),
+        }
+      );
+      const before = result.current;
+      const shown = state.servers;
+
+      // A render in which the coder moved to another server suspends, so it never shows.
+      suspended = new Promise((resolve) => {
+        resume = resolve;
+      });
+      state.servers = bothComputers('https://moved.example.org');
+      rerender();
+      // The coder is back on its server and a member joins before the render is tried again.
+      state.servers = shown;
+      state.members = [...state.members, { userId: '@bob:example.org', membership: 'join' }];
+      suspended = undefined;
+      await act(async () => resume());
+
+      expect(result.current).not.toBe(before);
+      result.current.forEach((computer, index) => expect(computer).toBe(before[index]));
+    });
+
     it("keeps an agent's server when it leaves and comes back, and gives another account its own", () => {
       const { result, rerender } = rendered();
       const before = computerOf(result.current, HELPER.userId);
@@ -733,10 +769,7 @@ describe('useRoomComputers', () => {
       rerender();
       expect(computerOf(result.current, HELPER.userId).server).toBe(before.server);
 
-      mx = {
-        getRoom: () => null,
-        getSafeUserId: () => '@ann:example.org',
-      } as unknown as MatrixClient;
+      mx = newAccount();
       rerender();
       const other = computerOf(result.current, HELPER.userId);
       expect(other.server).not.toBe(before.server);
