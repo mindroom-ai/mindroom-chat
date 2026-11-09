@@ -21,6 +21,8 @@ const detector = vi.hoisted(() => ({
   made: [] as Array<{
     /** The options the capture gave it. */
     given: Partial<RealTimeVADOptions>;
+    /** What its ortConfig gave the runtime. */
+    runtime: RuntimeFlags;
     /** With the defaults for what it left out, and as changed since. */
     options: Partial<RealTimeVADOptions>;
     listening: boolean;
@@ -33,7 +35,22 @@ const detector = vi.hoisted(() => ({
   loading: () => Promise.resolve(),
   /** Called as `MicVAD.new` starts, once the capture has imported the wrapper. */
   entered: () => {},
+  /** Called as `MicVAD.new` has made a detector. */
+  making: () => {},
+  /**
+   * The runtime as onnxruntime-web starts it, once in a page: with the module and the WebAssembly
+   * it was given, or else loading them by the paths it was given. A start that failed stays failed.
+   */
+  runtime: undefined as Promise<void> | undefined,
+  /** The runtime modules imported, in order. */
+  modules: [] as string[],
 }));
+
+// The runtime's module, by each URL the page may ask for it by.
+vi.mock('/assets/speech-model/ort-wasm-simd-threaded.js', () => ({}));
+vi.mock('/assets/speech-model/ort-wasm-simd-threaded.js?retry=1', () => ({}));
+
+type RuntimeFlags = { wasmPaths?: { mjs?: string; wasm?: string }; wasmBinary?: ArrayBuffer };
 
 vi.mock('@ricky0123/vad-web', async () => {
   const { FrameProcessor, defaultFrameProcessorOptions } = await import(
@@ -46,6 +63,9 @@ vi.mock('@ricky0123/vad-web', async () => {
     given: Partial<RealTimeVADOptions>;
 
     options: Partial<RealTimeVADOptions>;
+
+    /** What its ortConfig gave the runtime. */
+    runtime: RuntimeFlags = {};
 
     listening = true;
 
@@ -73,8 +93,19 @@ vi.mock('@ricky0123/vad-web', async () => {
     static async new(options: Partial<RealTimeVADOptions>) {
       detector.entered();
       await detector.loading();
+      const ort = { env: { logLevel: 'warning', wasm: {} as RuntimeFlags } };
+      options.ortConfig?.(ort as never);
+      detector.runtime ??= (async () => {
+        const { wasmPaths, wasmBinary } = ort.env.wasm;
+        detector.modules.push(String(wasmPaths?.mjs));
+        await import(/* @vite-ignore */ String(wasmPaths?.mjs));
+        if (!wasmBinary && !(await fetch(String(wasmPaths?.wasm))).ok) throw new Error('no wasm');
+      })();
+      await detector.runtime;
       const vad = new FakeMicVAD(options);
+      vad.runtime = ort.env.wasm;
       detector.made.push(vad);
+      detector.making();
       return vad;
     }
 
@@ -170,9 +201,9 @@ const microphone = () => {
 const start = async () => {
   const { track, stop } = microphone();
   const stretches: SpeechStretch[] = [];
-  const entered = entering();
+  const made = making();
   const capture = await startSpeechCapture(track, (stretch) => stretches.push(stretch));
-  await entered;
+  await made;
   await settle();
   const vad = defined(detector.made.at(-1), 'the detector');
   const context = defined(FakeAudioContext.last, 'the audio context');
@@ -221,6 +252,12 @@ const entering = () =>
     detector.entered = resolve;
   });
 
+/** Resolves once the next detector is made, its runtime and model loaded. */
+const making = () =>
+  new Promise<void>((resolve) => {
+    detector.making = resolve;
+  });
+
 /** Speech probabilities the model gives a frame of speech and one of quiet. */
 const SPEECH = 0.9;
 const QUIET = 0.05;
@@ -238,6 +275,13 @@ describe('startSpeechCapture', () => {
     detector.made.length = 0;
     detector.loading = () => Promise.resolve();
     detector.entered = () => undefined;
+    detector.making = () => undefined;
+    detector.runtime = undefined;
+    detector.modules.length = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(new Uint8Array([0, 97, 115, 109])))
+    );
   });
 
   afterEach(() => {
@@ -278,12 +322,12 @@ describe('startSpeechCapture', () => {
     // Same origin: the worklet, the model and the runtime's files come from one directory here.
     const base = defined(options.baseAssetPath, 'baseAssetPath');
     expect(base).toMatch(/^\/assets\/speech-model[^/]*\/$/);
-    const ort = { env: { logLevel: 'warning', wasm: {} as Record<string, unknown> } };
-    options.ortConfig?.(ort as never);
-    expect(ort.env.wasm.wasmPaths).toEqual({
-      mjs: `${base}ort-wasm-simd-threaded.js`,
-      wasm: `${base}ort-wasm-simd-threaded.wasm`,
-    });
+    // The runtime starts with its module and WebAssembly loaded already.
+    expect(vad.runtime.wasmPaths).toEqual({ mjs: `${base}ort-wasm-simd-threaded.js` });
+    expect(fetch).toHaveBeenCalledWith(`${base}ort-wasm-simd-threaded.wasm`);
+    expect(new Uint8Array(defined(vad.runtime.wasmBinary, 'the WebAssembly'))).toEqual(
+      new Uint8Array([0, 97, 115, 109])
+    );
   });
 
   it('hands on each stretch as a 16 kHz mono 16-bit WAV, with when it started and how long it is', async () => {
@@ -515,7 +559,9 @@ describe('startSpeechCapture', () => {
     await capture.stop();
     await entered;
     expect(defined(FakeAudioContext.last, 'the audio context').state).toBe('closed');
+    const made = making();
     loaded();
+    await made;
     await settle();
     expect(defined(detector.made.at(-1), 'the detector').destroyed).toBe(true);
   });
@@ -527,13 +573,106 @@ describe('startSpeechCapture', () => {
     const capture = await startSpeechCapture(track, () => undefined);
     await entered;
     capture.setPaused(true);
+    const made = making();
     loaded();
+    await made;
     await settle();
     const vad = defined(detector.made.at(-1), 'the detector');
     expect(vad.listening).toBe(false);
     capture.setPaused(false);
     await settle();
     expect(vad.listening).toBe(true);
+  });
+
+  it('hands on the stretch in progress on mute, and hears speech straight after unmuting with the same model', async () => {
+    const { capture, hear, stretches, vad } = await start();
+    await hear(20, SPEECH);
+    capture.setMuted(true);
+    await settle();
+    expect(stretches).toHaveLength(1);
+    expect(vad.listening).toBe(false);
+    await hear(20, SPEECH);
+    await hear(20, QUIET);
+    expect(stretches).toHaveLength(1);
+
+    capture.setMuted(false);
+    await settle();
+    await hear(10, SPEECH);
+    await hear(20, QUIET);
+    expect(detector.made).toEqual([vad]);
+    expect(stretches).toHaveLength(2);
+    // From the second frame heard after unmuting (the first is dropped).
+    expect((await framesOf(defined(stretches[1], 'the stretch')))[0]).toBe(62);
+  });
+
+  it('stays paused on unmute while a pause holds, and drops nothing more on mute', async () => {
+    const { capture, hear, stretches, vad } = await start();
+    await hear(20, SPEECH);
+    capture.setPaused(true);
+    capture.setMuted(true);
+    capture.setMuted(false);
+    await settle();
+    expect(vad.listening).toBe(false);
+    capture.setPaused(false);
+    await settle();
+    expect(vad.listening).toBe(true);
+    await hear(20, QUIET);
+    expect(stretches).toEqual([]);
+  });
+
+  it('loads the model again on unmute when it could not load', async () => {
+    detector.loading = () => Promise.reject(new Error('offline'));
+    const { track } = microphone();
+    const entered = entering();
+    const capture = await startSpeechCapture(track, () => undefined);
+    await entered;
+    await settle();
+
+    detector.loading = () => Promise.resolve();
+    capture.setMuted(true);
+    const made = making();
+    capture.setMuted(false);
+    await made;
+    await settle();
+    expect(detector.made).toHaveLength(1);
+    expect(defined(detector.made[0], 'the detector').listening).toBe(true);
+  });
+
+  it('loads the runtime again on the next start when its WebAssembly could not be fetched', async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    const { track } = microphone();
+    const failed = await startSpeechCapture(track, () => undefined);
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+    await settle();
+    await failed.stop();
+
+    const { vad } = await start();
+    expect(detector.made).toEqual([vad]);
+    expect(vad.listening).toBe(true);
+  });
+
+  it('asks for the runtime module by a URL of its own after it failed to load, as the browser keeps it failed', async () => {
+    vi.resetModules();
+    vi.doMock('/assets/speech-model/ort-wasm-simd-threaded.js', () => {
+      throw new TypeError('Failed to fetch dynamically imported module');
+    });
+    try {
+      const fresh = await import('./speechCapture');
+      const { track } = microphone();
+      const failed = await fresh.startSpeechCapture(track, () => undefined);
+      await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+      await settle();
+      await failed.stop();
+
+      const made = making();
+      await fresh.startSpeechCapture(track, () => undefined);
+      await made;
+      expect(detector.made).toHaveLength(1);
+      expect(detector.modules).toEqual(['/assets/speech-model/ort-wasm-simd-threaded.js?retry=1']);
+    } finally {
+      vi.doUnmock('/assets/speech-model/ort-wasm-simd-threaded.js');
+      vi.resetModules();
+    }
   });
 
   it('asks a context the browser keeps suspended to run again at each click or key press', async () => {

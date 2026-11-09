@@ -321,8 +321,8 @@ export class CallTranscriber {
 
   // Capture
 
-  private wantedTrack(): MediaStreamTrack | undefined {
-    return this.status === 'transcribing' && !this.ending ? this.track : undefined;
+  private get listening(): boolean {
+    return this.status === 'transcribing' && !this.ending;
   }
 
   /**
@@ -339,16 +339,23 @@ export class CallTranscriber {
       .catch(() => undefined);
   }
 
-  /** Starts, stops or switches the capture to what is wanted now, after the steps before. */
+  /**
+   * Starts, stops or switches the capture to what is wanted now, after the steps before. A mute
+   * keeps it, with its model loaded, for the microphone to come back.
+   */
   private updateCapture(): void {
     if (this.status !== 'transcribing') this.uploadGeneration += 1;
     this.captureSteps = this.captureSteps.then(() => this.applyCapture()).catch(() => undefined);
   }
 
   private async applyCapture(): Promise<void> {
-    const wanted = this.wantedTrack();
-    if (this.capture?.track === wanted) return;
+    const wanted = this.listening ? this.track : undefined;
     const current = this.capture;
+    if (current && this.listening && (!wanted || wanted === current.track)) {
+      current.capture.setMuted(!wanted);
+      return;
+    }
+    if (!current && !wanted) return;
     this.capture = undefined;
     // Stopping hands on the stretch in progress: sent while transcribing, dropped otherwise.
     if (current) await current.capture.stop();
@@ -363,7 +370,7 @@ export class CallTranscriber {
     capture.setPaused(this.paused);
     this.capture = { track: wanted, capture };
     // What is wanted may have changed while it started.
-    if (this.wantedTrack() !== wanted) this.updateCapture();
+    if (!this.listening || this.track !== wanted) this.updateCapture();
   }
 
   // Uploads

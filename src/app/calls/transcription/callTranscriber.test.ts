@@ -83,8 +83,9 @@ type FakeCapture = SpeechCapture & {
   track: MediaStreamTrack;
   onStretch: (stretch: SpeechStretch) => void;
   paused: boolean;
+  muted: boolean;
   stopped: boolean;
-  /** What the capture still holds; stopping hands it on. */
+  /** What the capture still holds; stopping or muting hands it on. */
   inProgress?: SpeechStretch;
 };
 
@@ -158,8 +159,17 @@ const setup = ({
         onStretch,
         paused: false,
         stopped: false,
+        muted: false,
         setPaused: vi.fn((paused: boolean) => {
           capture.paused = paused;
+        }),
+        // Told again what it is already, it does nothing.
+        setMuted: vi.fn((muted: boolean) => {
+          if (muted === capture.muted) return;
+          log.push(`${muted ? 'mute' : 'unmute'} ${track.id}`);
+          capture.muted = muted;
+          if (muted && capture.inProgress) onStretch(capture.inProgress);
+          capture.inProgress = undefined;
         }),
         stop: vi.fn(async () => {
           log.push(`stop ${track.id}`);
@@ -703,15 +713,37 @@ describe('CallTranscriber microphone', () => {
     expect([...t.steps().slice(3)].sort()).toEqual(['listen mic-b', 'speech 1']);
     expect(t.capture(1).track).toBe(MIC_B);
 
-    // Muted again: listening stops, and nothing is sent.
+    // Muted: listening waits, its model loaded, and the stretch in progress goes.
+    t.capture(1).inProgress = stretch(2);
     t.transcriber.setMicrophone(undefined);
     await advance();
-    expect(t.capture(1).stopped).toBe(true);
-    expect(t.captures).toHaveLength(2);
+    expect(t.steps().slice(5)).toEqual(['mute mic-b', 'speech 2']);
+    expect(t.capture(1).stopped).toBe(false);
 
+    // Unmuted: the same capture listens again at once.
     t.transcriber.setMicrophone(MIC_B);
     await advance();
-    expect(t.capture(2).track).toBe(MIC_B);
+    expect(t.steps().slice(7)).toEqual(['unmute mic-b']);
+    expect(t.captures).toHaveLength(2);
+
+    // Unmuted with another microphone: that one gets a capture of its own.
+    t.transcriber.setMicrophone(undefined);
+    t.transcriber.setMicrophone(MIC_A);
+    await advance();
+    expect(t.steps().slice(8)).toEqual(['stop mic-b', 'listen mic-a']);
+    expect(t.capture(2).track).toBe(MIC_A);
+  });
+
+  it('stops a muted capture when the call ends here', async () => {
+    const t = setup();
+    t.transcriber.setMicrophone(MIC_A);
+    t.transcriber.start();
+    await advance();
+    t.transcriber.setMicrophone(undefined);
+    await advance();
+    expect(t.capture().muted).toBe(true);
+    await t.transcriber.end();
+    expect(t.capture().stopped).toBe(true);
   });
 
   it('pauses listening at once for a request pressed here, and a capture that starts later starts paused', async () => {
