@@ -34,6 +34,11 @@ export const TIMELINE_OVERLAY_ATTRIBUTE = 'data-timeline-overlay';
  * end of the message's bottom edge, the corner the toolbar of the row below floats over.
  */
 const FOLD_BUTTON = '[data-message-fold] > * > [data-message-disclosure] > button';
+/**
+ * The sender line at the top of a message: its name, the reply details button of an agent reply
+ * and the time, which the toolbar keeps clear of once it moves down into its row.
+ */
+const SENDER_LINE = '[data-message-sender-line]';
 // Space kept between the toolbar and such controls: twice the toolbar's own 4 px padding, so a
 // control does not read as part of the toolbar.
 const CONTROL_GAP_PX = 8;
@@ -64,14 +69,16 @@ export type FoldSpan = { top: number; bottom: number; ownRow: boolean };
 /**
  * Where the toolbar's top goes, relative to the top of its row, or `undefined` for its usual
  * place. `usual` is that place, `covered` where what floats over the top of the timeline ends,
- * `height` the toolbar's own height, and `folds` the fold buttons under its span.
+ * `height` the toolbar's own height, `folds` the fold buttons under its span, and `senderLine`
+ * the row's sender line where it is under the span.
  */
 export const toolbarOffset = (
   usual: number,
   covered: number,
   rowHeight: number,
   height: number,
-  folds: FoldSpan[]
+  folds: FoldSpan[],
+  senderLine?: { top: number; bottom: number }
 ): number | undefined => {
   // Below the header and the controls under it, but no lower than 4 px above the row's bottom.
   let top = covered > usual + 0.5 ? Math.min(covered, rowHeight - ROW_END_GAP_PX - height) : usual;
@@ -84,6 +91,18 @@ export const toolbarOffset = (
         top = fold.ownRow ? fold.top - CONTROL_GAP_PX - height : fold.bottom + CONTROL_GAP_PX;
       }
     });
+  // Moved down into its row, it goes on below the row's sender line where that shows, so the
+  // name, the time and the reply details button stay in reach. In its usual place it ends a few
+  // pixels into the row, above the line's text.
+  if (
+    senderLine &&
+    senderLine.bottom > covered &&
+    top > usual + 0.5 &&
+    top < senderLine.bottom &&
+    top + height > senderLine.top
+  ) {
+    top = senderLine.bottom + CONTROL_GAP_PX;
+  }
   return Math.abs(top - usual) > 0.5 ? Math.round(top) : undefined;
 };
 
@@ -92,8 +111,9 @@ export const toolbarOffset = (
  * place above the row. It moves to stay clear of what floats over the top of the timeline (the
  * first row starts right under the `[+all]` toggle and a thread's banner, so its toolbar moves
  * down into the row instead of covering them) and of the fold buttons of long messages, so
- * it never draws over a Show less button. Measured while the toolbar shows, and again as the
- * timeline scrolls under it or the row changes size.
+ * it never draws over a Show less button. Moved down into its row, it also keeps below the row's
+ * sender line. Measured while the toolbar shows, and again as the timeline scrolls under it or
+ * the row changes size.
  */
 export const useToolbarClearance = (
   rowRef: RefObject<HTMLElement>,
@@ -128,12 +148,18 @@ export const useToolbarClearance = (
         const top = rect.top - rowRect.top;
         return [{ top, bottom: top + rect.height, ownRow: row.contains(button) }];
       });
+      const sender = row.querySelector(SENDER_LINE)?.getBoundingClientRect();
+      const senderLine =
+        sender && sender.width > 0 && sender.left < bar.right && sender.right > bar.left
+          ? { top: sender.top - rowRect.top, bottom: sender.bottom - rowRect.top }
+          : undefined;
       const next = toolbarOffset(
         usualOffset.current ?? 0,
         coveredUntilY(scroller, bar.left, bar.right) - rowRect.top,
         rowRect.height,
         bar.height,
-        folds
+        folds,
+        senderLine
       );
       if (next !== clearanceRef.current) setClearance(next);
     };

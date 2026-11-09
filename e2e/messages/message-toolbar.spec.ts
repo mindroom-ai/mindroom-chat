@@ -6,12 +6,12 @@ import {
   hasPrimaryCredentials,
 } from '../env';
 import { activeAccountButton } from '../helpers/auth';
-import { createPrivateRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
+import { createPrivateRoom, joinRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
 
 // The hover toolbar of a message is a glass pill of quiet icon buttons: every button 32 px
 // square and transparent until hovered, 2 px apart, inside an even 4 px of padding and the
 // pill's 1 px rim, with corners concentric to the buttons'. Under a thread's banner it keeps
-// 8 px below the `[+all]` toggle. Set MESSAGE_TOOLBAR_SHOTS=<directory> to also save close crops
+// below the `[+all]` toggle and the first row's sender line, 8 px clear of it. Set MESSAGE_TOOLBAR_SHOTS=<directory> to also save close crops
 // at rest and with a button hovered, in dark and light themes.
 const SHOTS = process.env.MESSAGE_TOOLBAR_SHOTS;
 
@@ -79,6 +79,7 @@ const toolbarGeometry = (row: Locator) =>
     const first = onScreen[0]!;
     const last = onScreen[onScreen.length - 1]!;
     const toggle = document.querySelector('[data-timeline-overlay] button');
+    const sender = rowElement.querySelector('[data-message-sender-line]');
     return {
       pill: box(pillRect),
       pillRadius: Number.parseFloat(pillStyle.borderTopLeftRadius),
@@ -96,6 +97,7 @@ const toolbarGeometry = (row: Locator) =>
       buttons,
       row: box(rowElement.getBoundingClientRect()),
       toggle: toggle ? box(toggle.getBoundingClientRect()) : undefined,
+      sender: sender ? box(sender.getBoundingClientRect()) : undefined,
     };
   });
 
@@ -256,14 +258,16 @@ test.describe('message hover toolbar', () => {
     await expect(copyLink).toHaveCount(0);
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 
-    // The first row under the banner moves its toolbar 8 px below `[+all]`, which ends above the
-    // row, so the pointer never leaves the row on its way to the toolbar.
+    // The first row under the banner moves its toolbar below `[+all]`, which ends above the row,
+    // and on below the row's sender line, 8 px clear of it, so the name and the time stay in
+    // reach and the pointer never leaves the row on its way to the toolbar.
     await firstRow.hover();
     await expect(firstRow.getByRole('button', { name: 'Reply', exact: true })).toBeVisible();
     const underToggle = await toolbarGeometry(firstRow);
     expectBalanced(underToggle);
     expect(underToggle.toggle).toBeDefined();
-    expect(underToggle.pill.top - underToggle.toggle!.bottom).toBeCloseTo(TOGGLE_GAP, 0);
+    expect(underToggle.sender).toBeDefined();
+    expect(underToggle.pill.top - underToggle.sender!.bottom).toBeCloseTo(TOGGLE_GAP, 0);
     expect(underToggle.toggle!.bottom).toBeLessThanOrEqual(underToggle.row.top);
     await page.mouse.move(0, 0);
 
@@ -323,9 +327,14 @@ test.describe('message hover toolbar', () => {
   // A long message folds behind a Show full message button at the end of its bottom edge, and
   // shows Show less there once unfolded. That corner is where the toolbar of the row below
   // floats, and where a long row's own toolbar ends up when the row is scrolled up under the
-  // header. In both places the toolbar keeps 8 px clear of the button.
+  // header. In both places the toolbar keeps 8 px clear of the button. In the thread, the row
+  // below is an agent's reply, whose sender line, with its Reply details button, the toolbar
+  // keeps clear of as well.
   test('keeps clear of the fold button of a long message', async ({ page }) => {
     test.setTimeout(480_000);
+    const agentUsername = process.env.E2E_AGENT_USERNAME;
+    const agentPassword = process.env.E2E_AGENT_PASSWORD;
+    test.skip(!agentUsername || !agentPassword, 'Requires a local MindRoom agent account');
     const homeserver = getHomeserver();
     const credentials = getPrimaryCredentials();
     const { accessToken } = await loginToMatrix(
@@ -333,29 +342,41 @@ test.describe('message hover toolbar', () => {
       credentials.username,
       credentials.password
     );
+    const agent = await loginToMatrix(homeserver, agentUsername!, agentPassword!);
     const roomId = await createPrivateRoom(homeserver, accessToken, {
       name: `Fold ${Date.now()}`,
       topic: 'Long messages and the hover toolbar',
     });
+    // The agent's own room: with an agent in it, a room opens in Compact, where its messages are
+    // thread cards.
+    const agentRoomId = await createPrivateRoom(homeserver, accessToken, {
+      name: `Fold with an agent ${Date.now()}`,
+      topic: 'Long messages and the hover toolbar',
+      invite: [agent.userId],
+    });
+    await joinRoom(homeserver, agent.accessToken, agentRoomId);
     const longBody = (title: string) =>
       [title, ...Array.from({ length: 24 }, (_, i) => `Step ${i + 1} of the plan.`)].join('\n');
-    const send = (body: string, relation?: object) =>
-      sendRoomMessage(homeserver, accessToken, roomId, {
-        msgtype: 'm.text',
-        body,
-        ...(relation ? { 'm.relates_to': relation } : {}),
-      });
-    const rootId = await send('Plans for the week');
+    const send = (room: string, body: string, extra: object = {}, token = accessToken) =>
+      sendRoomMessage(homeserver, token, room, { msgtype: 'm.text', body, ...extra });
+    const rootId = await send(agentRoomId, 'Plans for the week');
     const thread = {
-      rel_type: 'm.thread',
-      event_id: rootId,
-      is_falling_back: true,
-      'm.in_reply_to': { event_id: rootId },
+      'm.relates_to': {
+        rel_type: 'm.thread',
+        event_id: rootId,
+        is_falling_back: true,
+        'm.in_reply_to': { event_id: rootId },
+      },
     };
-    await send(longBody('The thread plan'), thread);
-    await send('A short answer in the thread.', thread);
-    await send(longBody('The room plan'));
-    await send('A short note in the room.');
+    await send(agentRoomId, longBody('The thread plan'), thread);
+    await send(
+      agentRoomId,
+      'A short answer in the thread.',
+      { ...thread, 'io.mindroom.ai_run': { version: 1, status: 'completed' } },
+      agent.accessToken
+    );
+    await send(roomId, longBody('The room plan'));
+    await send(roomId, 'A short note in the room.');
 
     await signIn(page, homeserver, credentials.username, credentials.password);
     const rows = page.locator('[data-message-item]');
@@ -378,14 +399,21 @@ test.describe('message hover toolbar', () => {
       expect(gap, `${where}: the toolbar and Show less stay apart`).toBeGreaterThanOrEqual(7.5);
     };
 
-    for (const [view, path, longTitle, short] of [
+    for (const [view, path, longTitle, short, agentReply] of [
       [
         'thread',
-        `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`,
+        `/home/${encodeURIComponent(agentRoomId)}?threadId=${encodeURIComponent(rootId)}`,
         'The thread plan',
         'A short answer in the thread.',
+        true,
       ],
-      ['room', `/home/${encodeURIComponent(roomId)}`, 'The room plan', 'A short note in the room.'],
+      [
+        'room',
+        `/home/${encodeURIComponent(roomId)}`,
+        'The room plan',
+        'A short note in the room.',
+        false,
+      ],
     ] as const) {
       for (const viewport of [
         { width: 1280, height: 800 },
@@ -429,6 +457,24 @@ test.describe('message hover toolbar', () => {
               height: below.pill.y + below.pill.height + 40 - top,
             },
           });
+        }
+        if (agentReply) {
+          // eslint-disable-next-line no-await-in-loop
+          const sender = (await next.locator('[data-message-sender-line]').boundingBox())!;
+          expect(
+            below.pill.y - (sender.y + sender.height),
+            `${where}: the toolbar keeps below the sender line`
+          ).toBeGreaterThanOrEqual(7.5);
+          // The Reply details button there takes the click, with the toolbar still showing.
+          const details = page.getByRole('dialog', { name: 'Reply details' });
+          // eslint-disable-next-line no-await-in-loop
+          await next.getByRole('button', { name: 'Reply details' }).click({ timeout: 10_000 });
+          // eslint-disable-next-line no-await-in-loop
+          await expect(details).toBeVisible();
+          // eslint-disable-next-line no-await-in-loop
+          await page.keyboard.press('Escape');
+          // eslint-disable-next-line no-await-in-loop
+          await expect(details).toHaveCount(0);
         }
 
         // The long message scrolled up until only its end shows under the header: its toolbar
