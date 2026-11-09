@@ -15,6 +15,7 @@ import {
   useMindroomServerStatus,
   useRoomComputers,
   type MindroomServer,
+  type RoomComputer,
 } from './server';
 
 const ROOM_ID = '!room:example.org';
@@ -474,6 +475,13 @@ describe('useRoomComputers', () => {
     renderHook(() => useRoomComputers(ROOM_ID), { wrapper: signedIn(deploymentUrl) }).result
       .current;
 
+  /** The computer of the agent `userId` among `found`. */
+  const computerOf = (found: RoomComputer[], userId: string) => {
+    const computer = found.find((entry) => entry.userId === userId);
+    if (!computer) throw new Error(`no computer of ${userId}`);
+    return computer;
+  };
+
   beforeEach(() => {
     state.members = [AGENT, HELPER, CODER, { userId: '@ann:example.org', membership: 'join' }];
     // The helper's MindRoom has a computer and the coder's has none; the router publishes nothing.
@@ -490,7 +498,11 @@ describe('useRoomComputers', () => {
       { userId: HELPER.userId, name: 'Helper' },
     ]);
     // Which server each runs on stays inside the SDK.
-    expect(Object.keys(found[0]).sort()).toEqual(['name', 'openSession', 'userId']);
+    expect(Object.keys(computerOf(found, HELPER.userId)).sort()).toEqual([
+      'name',
+      'openSession',
+      'userId',
+    ]);
   });
 
   it('lists, without one, only the agents that published a computer, while the homeserver binds tokens', () => {
@@ -509,12 +521,10 @@ describe('useRoomComputers', () => {
       { agentUserId: CODER.userId, apiUrl: coderServer, computer: true, ts: 1 },
     ];
 
-    const [, coder] = computers();
-    const session = await coder.openSession();
+    const session = await computerOf(computers(), CODER.userId).openSession();
     expect(session.status).toEqual(SESSION);
-    const [onConfigured] = computers(DEPLOYMENT).filter(({ userId }) => userId === CODER.userId);
     const stop = new AbortController();
-    await onConfigured.openSession(stop.signal);
+    await computerOf(computers(DEPLOYMENT), CODER.userId).openSession(stop.signal);
     expect(answers.last()?.init.signal).toBe(stop.signal);
 
     expect(openId.requestToken.mock.calls).toEqual([
@@ -536,7 +546,7 @@ describe('useRoomComputers', () => {
   it('rejects with ComputerApiError and its status when the server or the homeserver refuses', async () => {
     const answers = fakeFetch();
     answers.route.mockImplementation(() => json({ detail: 'Not in this room.' }, 403));
-    const [helper] = computers();
+    const helper = computerOf(computers(), HELPER.userId);
 
     const refused = helper.openSession();
     await expect(refused).rejects.toBeInstanceOf(ComputerApiError);

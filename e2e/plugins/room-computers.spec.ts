@@ -46,7 +46,7 @@ test("a plugin's panel lists the room's agents with a computer, and opens, contr
   await expect(panel.getByText('Computer session: starting', { exact: true })).toBeVisible();
   const session = (await (await opened).json()) as { session_id: string; session_token: string };
   await expect(panel.getByText('Computer session: ready, view', { exact: true })).toBeVisible();
-  expect(created[0].postDataJSON()).toMatchObject({
+  expect(created[0]?.postDataJSON()).toMatchObject({
     room_id: stack.rooms.lobby,
     agent_user_id: stack.agents.helper,
   });
@@ -80,7 +80,7 @@ test("a plugin's panel lists the room's agents with a computer, and opens, contr
     timeout: 300_000,
   });
   expect(created).toHaveLength(2);
-  expect(created[1].postDataJSON()).toMatchObject({
+  expect(created[1]?.postDataJSON()).toMatchObject({
     room_id: stack.rooms.lobby,
     agent_user_id: stack.agents.helper,
   });
