@@ -652,6 +652,7 @@ describe('useRoomComputers', () => {
       rerender();
 
       expect(result.current).not.toBe(before);
+      expect(result.current).toHaveLength(2);
       result.current.forEach((computer, index) => expect(computer).toBe(before[index]));
     });
 
@@ -739,6 +740,7 @@ describe('useRoomComputers', () => {
         }
       );
       const before = result.current;
+      expect(before).toHaveLength(2);
       const shown = state.servers;
 
       // A render in which the coder moved to another server suspends, so it never shows.
@@ -754,6 +756,7 @@ describe('useRoomComputers', () => {
       await act(async () => resume());
 
       expect(result.current).not.toBe(before);
+      expect(result.current).toHaveLength(2);
       result.current.forEach((computer, index) => expect(computer).toBe(before[index]));
     });
 
