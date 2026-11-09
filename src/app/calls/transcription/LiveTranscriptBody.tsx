@@ -199,7 +199,8 @@ export function LiveTranscriptBody({ room, view, className, members = true, labe
   }
 
   return (
-    // A named box that scrolls is a stop for Tab, as browsers make one without a name.
+    // Named, the box is a stop for Tab in every browser (Chromium and Firefox make one of any box
+    // that scrolls), so the keys that scroll it reach it.
     // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
     <div
       ref={bodyRef}
