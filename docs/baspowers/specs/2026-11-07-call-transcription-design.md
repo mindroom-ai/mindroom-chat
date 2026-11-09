@@ -128,7 +128,9 @@ IDs whose apps are in the call now), `pausedBy` (user ID, or null when not pause
   speech is dropped. The one setting of the app's own is the longest stretch, 30 seconds, the server's limit
   (`too-large` above it): longer talk goes on in the next stretch. Stretches are sent as 16 kHz mono 16-bit WAV. The
   model (about 1.8 MB) and the runtime (about 15 MB) load from the app's own origin when capture starts, never with the
-  first page, and are cached like the app's other build files. Nothing is captured while paused.
+  first page; listening begins once they have loaded, however long that takes, and ending a call never waits for them.
+  They sit under `assets/` in a directory named by a hash of their contents, so the browser may keep them for good.
+  Nothing is captured while paused.
 - **Status.** Once a call route has answered in this call, if the server becomes unreachable or answers 5xx, the call
   goes on, the controls say "Transcripts are unavailable", nothing is sent, and the heartbeat keeps trying; the first
   answered heartbeat resumes. A live read that fails or takes longer than 10 seconds counts the same, and polling goes on. Before any call route has answered (for example a server that predates this feature,

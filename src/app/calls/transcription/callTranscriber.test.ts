@@ -1125,6 +1125,8 @@ describe('CallTranscriber ending', () => {
       class {
         closed = false;
 
+        state = 'running';
+
         constructor() {
           contexts.push(this);
         }
@@ -1134,13 +1136,16 @@ describe('CallTranscriber ending', () => {
         }
       }
     );
+    // The page, where the capture listens for clicks and key presses.
+    vi.stubGlobal('window', new EventTarget());
     try {
       const first = setup({ listen: startSpeechCapture });
       first.transcriber.setMicrophone(MIC_A);
       first.transcriber.start();
       await advance();
+      // The leave does not wait for the model.
       void first.transcriber.end();
-      await advance(30_000);
+      await advance();
       expect(first.steps()).toEqual(['calls.join', 'leave']);
       expect(contexts.map(({ closed }) => closed)).toEqual([true]);
 

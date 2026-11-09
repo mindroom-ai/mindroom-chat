@@ -9,11 +9,6 @@ const SAMPLE_RATE = 16000;
  * at most that.
  */
 const LONGEST_STRETCH_SECONDS = 30;
-/**
- * The model and its runtime (about 17 MB on the first call, kept by the browser after) not loaded
- * after this long failed to load, so ending a call never waits on them.
- */
-const LOAD_TIMEOUT_MS = 30_000;
 /** What a person does that lets a page start sound (browsers' autoplay rules). */
 const USER_GESTURES = ['pointerdown', 'pointerup', 'click', 'keydown', 'touchend'] as const;
 
@@ -50,10 +45,11 @@ export type SpeechCapture = {
 /**
  * Listens to `track` (the microphone this device publishes to the call) with the Silero VAD model,
  * through @ricky0123/vad-web with its default model and settings, and calls `onStretch` with each
- * stretch of speech it finds. Rejects when the model cannot be loaded, or has not loaded after 30
- * seconds.
+ * stretch of speech it finds. The model and its runtime (about 17 MB the first time, kept by the
+ * browser after) load meanwhile, however long that takes: listening starts once they have, and
+ * stopping never waits for them. One that cannot load captures nothing.
  */
-export const startSpeechCapture = async (
+export const startSpeechCapture = (
   track: MediaStreamTrack,
   onStretch: (stretch: SpeechStretch) => void
 ): Promise<SpeechCapture> => {
@@ -64,6 +60,7 @@ export const startSpeechCapture = async (
   let encodeWav: ((samples: Float32Array, format: number) => ArrayBuffer) | undefined;
   let vad: MicVAD | undefined;
   let paused = false;
+  let stopped = false;
   /** Whether a stretch is in progress, and how many frames since its speech started. */
   let speaking = false;
   let spoken = 0;
@@ -149,26 +146,25 @@ export const startSpeechCapture = async (
     },
   };
 
-  let loadTimer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    vad = await Promise.race([
-      (async () => {
-        const { MicVAD, utils } = await import('@ricky0123/vad-web');
-        encodeWav = (samples, format) => utils.encodeWAV(samples, format, SAMPLE_RATE, 1, 16);
-        return MicVAD.new(options);
-      })(),
-      new Promise<never>((_resolve, reject) => {
-        loadTimer = setTimeout(
-          () => reject(new Error('The speech model did not load in time.')),
-          LOAD_TIMEOUT_MS
-        );
-      }),
-    ]).finally(() => clearTimeout(loadTimer));
-  } catch (error) {
-    await context.close().catch(() => undefined);
-    throw error;
-  }
-  listeningSince = context.currentTime;
+  void (async () => {
+    const { MicVAD, utils } = await import('@ricky0123/vad-web');
+    encodeWav = (samples, format) => utils.encodeWAV(samples, format, SAMPLE_RATE, 1, 16);
+    return MicVAD.new(options);
+  })().then(
+    (detector) => {
+      // Loaded after a stop: let it go at once.
+      if (stopped) {
+        detector.destroy().catch(() => undefined);
+        return;
+      }
+      // It listens from the start; a pause asked for meanwhile comes next.
+      vad = detector;
+      listeningSince = context.currentTime;
+      void step(follow);
+    },
+    // Nothing is captured; the next microphone the call publishes starts a capture of its own.
+    () => undefined
+  );
 
   // A suspended context hears nothing. Autoplay rules may keep it suspended until the person uses
   // the page (a call taken up again after a reload starts without a click), and a phone may
@@ -181,24 +177,21 @@ export const startSpeechCapture = async (
   USER_GESTURES.forEach((type) => window.addEventListener(type, keepRunning, { capture: true }));
 
   let stopping: Promise<void> | undefined;
-  return {
+  return Promise.resolve({
     setPaused: (value) => {
       paused = value;
       void step(follow);
     },
     stop: () => {
-      stopping ??= step(async (detector) => {
-        try {
-          await detector.destroy();
-        } finally {
-          context.onstatechange = null;
-          USER_GESTURES.forEach((type) =>
-            window.removeEventListener(type, keepRunning, { capture: true })
-          );
-          await context.close().catch(() => undefined);
-        }
+      stopped = true;
+      stopping ??= step((detector) => detector.destroy()).then(async () => {
+        context.onstatechange = null;
+        USER_GESTURES.forEach((type) =>
+          window.removeEventListener(type, keepRunning, { capture: true })
+        );
+        await context.close().catch(() => undefined);
       });
       return stopping;
     },
-  };
+  });
 };

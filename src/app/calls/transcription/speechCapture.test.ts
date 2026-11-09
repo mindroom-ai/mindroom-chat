@@ -31,6 +31,8 @@ const detector = vi.hoisted(() => ({
   }>,
   /** What `MicVAD.new` waits for before it is ready: the model and runtime loading. */
   loading: () => Promise.resolve(),
+  /** Called as `MicVAD.new` starts, once the capture has imported the wrapper. */
+  entered: () => {},
 }));
 
 vi.mock('@ricky0123/vad-web', async () => {
@@ -68,6 +70,7 @@ vi.mock('@ricky0123/vad-web', async () => {
     }
 
     static async new(options: Partial<RealTimeVADOptions>) {
+      detector.entered();
       await detector.loading();
       const vad = new FakeMicVAD(options);
       detector.made.push(vad);
@@ -169,7 +172,10 @@ const microphone = () => {
 const start = async () => {
   const { track, stop } = microphone();
   const stretches: SpeechStretch[] = [];
+  const entered = entering();
   const capture = await startSpeechCapture(track, (stretch) => stretches.push(stretch));
+  await entered;
+  await settle();
   const vad = defined(detector.made.at(-1), 'the detector');
   /** Frames of the given speech probability, one after the other. */
   const context = defined(FakeAudioContext.last, 'the audio context');
@@ -201,6 +207,12 @@ const framesOf = async (stretch: SpeechStretch) => {
 /** Lets every step started so far finish, as the next task would. */
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
+/** Resolves once the next capture has imported the wrapper and asks it for a detector. */
+const entering = () =>
+  new Promise<void>((resolve) => {
+    detector.entered = resolve;
+  });
+
 /** Speech probabilities the model gives a frame of speech and one of quiet. */
 const SPEECH = 0.9;
 const QUIET = 0.05;
@@ -217,6 +229,7 @@ describe('startSpeechCapture', () => {
     FakeAudioContext.last = undefined;
     detector.made.length = 0;
     detector.loading = () => Promise.resolve();
+    detector.entered = () => undefined;
   });
 
   afterEach(() => {
@@ -403,26 +416,54 @@ describe('startSpeechCapture', () => {
     expect(stretches).toEqual([]);
   });
 
-  it('rejects, and closes its audio context, when the model cannot load', async () => {
+  it('captures nothing when the model cannot load, and still lets go on stop', async () => {
     detector.loading = () => Promise.reject(new Error('no model'));
     const { track } = microphone();
-    await expect(startSpeechCapture(track, () => undefined)).rejects.toThrow('no model');
+    const entered = entering();
+    const capture = await startSpeechCapture(track, () => undefined);
+    await entered;
+    await settle();
+    expect(detector.made).toEqual([]);
+    capture.setPaused(true);
+    await capture.stop();
     expect(defined(FakeAudioContext.last, 'the audio context').closed).toBe(true);
   });
 
-  it('gives up on a model not loaded after 30 seconds, so ending a call never waits on it', async () => {
-    detector.loading = () => new Promise(() => undefined);
+  it('does not wait for the model on stop, and lets go of one that loads after it', async () => {
+    let loaded!: () => void;
+    detector.loading = () =>
+      new Promise((resolve) => {
+        loaded = resolve;
+      });
     const { track } = microphone();
-    const starting = startSpeechCapture(track, () => undefined);
-    const outcome = starting.then(
-      () => 'started',
-      (error: Error) => error.message
-    );
-    await vi.advanceTimersByTimeAsync(29_999);
-    expect(FakeAudioContext.last?.closed).toBe(false);
-    await vi.advanceTimersByTimeAsync(1);
-    expect(await outcome).toMatch(/did not load/);
+    const entered = entering();
+    const capture = await startSpeechCapture(track, () => undefined);
+    await capture.stop();
+    await entered;
     expect(defined(FakeAudioContext.last, 'the audio context').closed).toBe(true);
+    loaded();
+    await settle();
+    expect(defined(detector.made.at(-1), 'the detector').destroyed).toBe(true);
+  });
+
+  it('listens once the model has loaded, paused when a pause came meanwhile', async () => {
+    let loaded!: () => void;
+    detector.loading = () =>
+      new Promise((resolve) => {
+        loaded = resolve;
+      });
+    const { track } = microphone();
+    const entered = entering();
+    const capture = await startSpeechCapture(track, () => undefined);
+    await entered;
+    capture.setPaused(true);
+    loaded();
+    await settle();
+    const vad = defined(detector.made.at(-1), 'the detector');
+    expect(vad.listening).toBe(false);
+    capture.setPaused(false);
+    await settle();
+    expect(vad.listening).toBe(true);
   });
 
   it('asks a context the browser keeps suspended to run again at each click or key press', async () => {
