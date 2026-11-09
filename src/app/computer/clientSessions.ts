@@ -184,25 +184,22 @@ export class ClientSessions {
     // Before a sign-in starts that no one would wait for.
     if (signal?.aborted) return Promise.reject(cancelled());
     this.session = undefined;
-    if (!this.signingIn) {
-      const signingIn: Promise<ClientSession> = this.signIn()
-        .then((session) => {
-          if (this.revoked) {
-            void this.sendNow(SESSIONS_PATH, { method: 'DELETE' }, session);
-            throw noAnswer('Signed out of MindRoom.');
-          }
-          this.issued.forEach((old) => {
-            if (old.expiresAt <= Date.now()) this.issued.delete(old);
-          });
-          this.issued.add(session);
-          if (this.signingIn === signingIn) this.session = session;
-          return session;
-        })
-        .finally(() => {
-          if (this.signingIn === signingIn) this.signingIn = undefined;
+    this.signingIn ??= this.signIn()
+      .then((session) => {
+        if (this.revoked) {
+          void this.sendNow(SESSIONS_PATH, { method: 'DELETE' }, session);
+          throw noAnswer('Signed out of MindRoom.');
+        }
+        this.issued.forEach((old) => {
+          if (old.expiresAt <= Date.now()) this.issued.delete(old);
         });
-      this.signingIn = signingIn;
-    }
+        this.issued.add(session);
+        this.session = session;
+        return session;
+      })
+      .finally(() => {
+        this.signingIn = undefined;
+      });
     return untilAborted(this.signingIn, signal);
   }
 
@@ -318,11 +315,12 @@ export class ClientSessions {
   }
 }
 
-/** Each account's sessions by server, one for every caller: the page holds one of the user's eight. */
+/** Each account's sessions, one per server URL and whether the room's agents published it. */
 const shared = new WeakMap<MatrixClient, Map<string, ClientSessions>>();
 
 /**
- * The account's client session with the MindRoom server at `apiUrl`, shared by every caller.
+ * The account's client session with the MindRoom server at `apiUrl`, shared by every caller that
+ * passes the same `apiUrl` and `discovered`.
  * `discovered`: an origin the room's agents published, whose tokens only a homeserver that binds
  * them may give.
  */

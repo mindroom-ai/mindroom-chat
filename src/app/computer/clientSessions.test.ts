@@ -284,6 +284,19 @@ describe('ClientSessions.send', () => {
     expect(server.routes()).toEqual([`DELETE ${API_URL}/api/client-sessions Bearer session-2`]);
   });
 
+  it('shares one sign-in among requests at the same time', async () => {
+    const server = fakeServer();
+    const store = sessions(server);
+
+    await Promise.all([store.send('/api/plugins/notes/a'), store.send('/api/plugins/notes/b')]);
+
+    expect(server.signIns()).toBe(1);
+    expect(server.routes()).toEqual([
+      `GET ${API_URL}/api/plugins/notes/a Bearer session-1`,
+      `GET ${API_URL}/api/plugins/notes/b Bearer session-1`,
+    ]);
+  });
+
   it('asks for JSON with no cookies, unless the caller asks for something else', async () => {
     const server = fakeServer();
     const store = sessions(server);
