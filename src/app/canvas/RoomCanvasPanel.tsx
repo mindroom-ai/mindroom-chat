@@ -13,6 +13,7 @@ import { useCanvasPage } from './useCanvasPage';
 import { useCanvasVersions } from './useCanvasVersions';
 import { useCanvasSavedState } from './useCanvasSavedState';
 import { useCanvasStateShare } from './useCanvasStateShare';
+import { canvasWidthStorageKey } from '../preferences/accountStorageKeys';
 
 type RoomCanvasPanelProps = {
   mx: MatrixClient;
@@ -121,7 +122,7 @@ function LoadedCanvasPanel({
   return (
     <ResizablePanel
       side="end"
-      storageKey={`mindroom.canvas.width:${mx.getSafeUserId()}`}
+      storageKey={canvasWidthStorageKey(mx.getSafeUserId())}
       defaultWidth={CANVAS_DEFAULT_WIDTH}
       minContentWidth={CONVERSATION_MIN_WIDTH}
       maxPanelWidth={CANVAS_MAX_WIDTH}

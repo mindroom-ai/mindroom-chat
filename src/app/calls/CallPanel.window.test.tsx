@@ -23,6 +23,8 @@ import {
   type CallWindowFrame,
 } from './window/callWindowFrame';
 import { callTranscriptionAtom, liveTranscriptAtom } from './transcription/transcriptionState';
+import { transcriptPanelAtom } from './transcription/transcriptPanel';
+import { hasShortcutHandler, runShortcut } from '../shortcuts/useShortcut';
 import {
   clearCallWindowStore,
   getCallWindowSettingsAtom,
@@ -209,6 +211,21 @@ const renderInWindow = () =>
             <CallPanel room={room} onClose={onClose} />
           </FloatingCallWindow>
         </MemoryRouter>
+      </ScreenSizeProvider>
+    </Provider>
+  );
+
+/** The rail's call button, for the call in `calls.active`, and a press of it from the keyboard. */
+const rail = () => screen.getByRole('button', { name: 'Return to the call in Standup' });
+const pressRail = () => {
+  rail().focus();
+  fireEvent.click(rail());
+};
+const renderRail = () =>
+  render(
+    <Provider store={store}>
+      <ScreenSizeProvider value="Desktop">
+        <ActiveCallTab active={calls.active!} />
       </ScreenSizeProvider>
     </Provider>
   );
@@ -730,19 +747,6 @@ describe('the focus after Dock and Float', () => {
 
 describe("the focus after the rail's call button", () => {
   const handle = () => screen.getByRole('group', { name: 'Move call window' });
-  const rail = () => screen.getByRole('button', { name: 'Return to the call in Standup' });
-  const pressRail = () => {
-    rail().focus();
-    fireEvent.click(rail());
-  };
-  const renderRail = () =>
-    render(
-      <Provider store={store}>
-        <ScreenSizeProvider value="Desktop">
-          <ActiveCallTab active={calls.active!} />
-        </ScreenSizeProvider>
-      </Provider>
-    );
 
   it("goes to the window's handle when the button opens the window", () => {
     roomCall([me, person('@ana:panel.test')]);
@@ -773,6 +777,67 @@ describe("the focus after the rail's call button", () => {
     pressRail();
     expect(callWindow.hasAttribute('data-bar')).toBe(false);
     expect(document.activeElement).toBe(handle());
+  });
+});
+
+describe('the shortcut to the call view', () => {
+  /** ⌘⇧L or Ctrl+Shift+L, as the app's one window listener hands it on (ShortcutRoot). */
+  const goToCall = () => {
+    let acted = false;
+    act(() => {
+      acted = runShortcut('callView', new KeyboardEvent('keydown', { key: 'L' }));
+    });
+    return acted;
+  };
+  /** The focus is on the page, far from the call view: in the composer, say. */
+  const typing = () => {
+    const composer = document.createElement('textarea');
+    document.body.prepend(composer);
+    composer.focus();
+    return composer;
+  };
+  afterEach(() => document.querySelectorAll('textarea').forEach((composer) => composer.remove()));
+
+  it("goes to the floating window's handle, also while it is minimized to its bar", () => {
+    roomCall([me, person('@ana:panel.test')]);
+    const { rerender } = renderPanel({ frame: frame() });
+    typing();
+    expect(goToCall()).toBe(true);
+    expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Move call window' }));
+
+    rerender(panel({ frame: frame(true) }));
+    typing();
+    expect(goToCall()).toBe(true);
+    expect(document.activeElement).toBe(
+      screen.getByRole('group', { name: 'Move minimized call window' })
+    );
+  });
+
+  it.each(['Desktop', 'Mobile'] as const)(
+    "goes to the title of the call view in the room's side panel (%s)",
+    (size) => {
+      roomCall([me, person('@ana:panel.test')]);
+      renderPanel({ size });
+      typing();
+      expect(goToCall()).toBe(true);
+      expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Standup' }));
+    }
+  );
+
+  it('leaves the key to the browser while no call view shows, or when it cannot take the focus', () => {
+    roomCall([me, person('@ana:panel.test')]);
+    expect(hasShortcutHandler('callView')).toBe(false);
+
+    // The docked panel folded to its tab at the room's edge shows nothing to focus.
+    renderPanel();
+    const title = screen.getByRole('heading', { name: 'Standup' });
+    vi.spyOn(title, 'focus').mockImplementation(() => undefined);
+    const composer = typing();
+    expect(goToCall()).toBe(false);
+    expect(document.activeElement).toBe(composer);
+
+    cleanup();
+    expect(hasShortcutHandler('callView')).toBe(false);
   });
 });
 
@@ -1062,6 +1127,36 @@ describe('the live transcript in the window', () => {
     expect(settings().transcript).toBe(false);
     expect(transcript()).toBeNull();
     expect(document.querySelector('[data-call-stage]')).not.toBeNull();
+  });
+
+  it("leaves the focus the rail's call button hands the window to its handle, not the transcript", () => {
+    roomCall([me, person('@ana:panel.test')]);
+    transcribed();
+    renderPanel({ frame: frame() });
+    renderRail();
+    pressRail();
+    expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Move call window' }));
+  });
+
+  it("names the transcript without a landmark of its own: the window is the call view's one", () => {
+    roomCall([me, person('@ana:panel.test')]);
+    transcribed();
+    renderInWindow();
+    expect(transcript()).not.toBeNull();
+    expect(screen.getAllByRole('region')).toEqual([screen.getByTestId('call-window')]);
+    expect(screen.getByRole('group', { name: 'Live transcript' })).toBe(transcript()?.firstChild);
+  });
+
+  it("hides with its switch, leaving the room's side transcript alone", () => {
+    roomCall([me, person('@ana:panel.test')]);
+    transcribed();
+    renderPanel({ frame: frame() });
+    const side = { roomId: room.roomId, replacedCall: false };
+    act(() => store.set(transcriptPanelAtom, side));
+
+    press('Live transcript');
+    expect(settings().transcript).toBe(false);
+    expect(store.get(transcriptPanelAtom)).toEqual(side);
   });
 
   it('shows neither in the bar nor in the docked panel', () => {

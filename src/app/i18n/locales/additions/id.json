@@ -732,7 +732,8 @@
       "resolveThread": "Selesaikan atau buka kembali utas yang terbuka",
       "newLine": "Baris baru",
       "editLast": "Edit pesan terakhir Anda (di kotak pesan kosong)",
-      "inlineCode": "Kode sebaris"
+      "inlineCode": "Kode sebaris",
+      "callView": "Buka panggilan"
     }
   },
   "thread": {

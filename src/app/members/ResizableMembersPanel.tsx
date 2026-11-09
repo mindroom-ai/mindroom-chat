@@ -9,6 +9,7 @@ import { usePanelForm } from '../ui/panels/panelPresence';
 import { useMembersOverlay } from './PanelRow';
 import { PhoneMembersSheet, usePhoneSheetSlot } from './PhoneMembersSheet';
 import * as css from './ResizableMembersPanel.css';
+import { membersWidthStorageKey } from '../preferences/accountStorageKeys';
 
 export function ResizableMembersPanel({
   children,
@@ -27,7 +28,7 @@ export function ResizableMembersPanel({
   const panel = (
     <ResizablePanel
       side="end"
-      storageKey={`mindroom.members.width:${userId}`}
+      storageKey={membersWidthStorageKey(userId)}
       defaultWidth={266}
       minContentWidth={mobile ? 0 : 200}
       resizeLabel={t('mindroomUi.sidebar.resizeMemberPanel')}

@@ -4,10 +4,7 @@ import {
   getStorageItemSafe,
   setStorageItemSafe,
 } from '../lib/safeLocalStorage';
-
-/** Where an account's choice to collapse the page navigation (room list) panel is kept. */
-export const getDesktopPageNavCollapsedStorageKey = (userId: string): string =>
-  `mindroom.pageNav.desktopCollapsed:${userId}`;
+import { getDesktopPageNavCollapsedStorageKey } from '../preferences/accountStorageKeys';
 
 /** The saved choice; anything but the exact strings written below counts as expanded. */
 export const readDesktopPageNavCollapsed = (userId: string): boolean =>
