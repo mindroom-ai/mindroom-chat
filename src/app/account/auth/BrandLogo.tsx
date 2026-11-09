@@ -7,7 +7,7 @@ import * as css from './styles.css';
 
 /**
  * The deployment's logo in the sign-in card's header: its dark variant in dark themes, and
- * MindRoom Chat's own when none is configured or the configured image fails to load.
+ * MindRoom's own when none is configured or the configured image fails to load.
  */
 export function BrandLogo({ className }: { className: string }) {
   const { logo } = useDeploymentBranding();

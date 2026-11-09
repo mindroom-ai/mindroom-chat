@@ -22,7 +22,7 @@ export class MissingCryptoStoreError extends Error {
 export class DeviceIdentityVerificationError extends Error {
   constructor(userId: string) {
     super(
-      `MindRoom Chat could not safely verify the encryption storage and device identity for ${userId}. ` +
+      `MindRoom could not safely verify the encryption storage and device identity for ${userId}. ` +
         'Check your connection and browser storage access, then retry. No encryption keys were changed.'
     );
     this.name = 'DeviceIdentityVerificationError';

@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { MINDROOM_CLIENT_BRANDING, getWelcomePageContent } from './clientBranding';
 
 describe('clientBranding', () => {
-  it('exposes client-facing MindRoom Chat defaults', () => {
-    expect(MINDROOM_CLIENT_BRANDING.appName).toBe('MindRoom Chat');
+  it('exposes client-facing MindRoom defaults', () => {
+    expect(MINDROOM_CLIENT_BRANDING.appName).toBe('MindRoom');
     expect(MINDROOM_CLIENT_BRANDING.docsUrl).toBe('https://docs.mindroom.chat/');
     expect(MINDROOM_CLIENT_BRANDING.sourceUrl).toBe('https://github.com/mindroom-ai/mindroom-chat');
-    expect(MINDROOM_CLIENT_BRANDING.logoAlt).toBe('MindRoom Chat Logo');
+    expect(MINDROOM_CLIENT_BRANDING.logoAlt).toBe('MindRoom Logo');
     expect(MINDROOM_CLIENT_BRANDING.subtitle).toBe('AI agents that live in your chat rooms.');
   });
 
@@ -53,7 +53,7 @@ describe('clientBranding', () => {
       docsLabel: 'Dokumentation',
       sourceLabel: 'Quellcode',
       subtitle: 'Lokalisierter Untertitel',
-      title: 'Willkommen bei MindRoom Chat',
+      title: 'Willkommen bei MindRoom',
     });
 
     expect(

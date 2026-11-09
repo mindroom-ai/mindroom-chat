@@ -102,7 +102,7 @@ describe('native pairing links', () => {
     await register();
     openUrl({ url });
     expect(window.location.pathname).toBe('/home');
-    expect(warn).toHaveBeenCalledWith('[MindRoom Chat] Ignored unsupported app URL');
+    expect(warn).toHaveBeenCalledWith('[MindRoom] Ignored unsupported app URL');
     expect(Browser.close).not.toHaveBeenCalled();
   });
 });

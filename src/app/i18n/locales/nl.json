@@ -222,7 +222,7 @@
       "toggleTheme": "Thema wisselen",
       "toggleThemeDescription": "Wissel tussen licht en donker",
       "logout": "Uitloggen",
-      "logoutDescription": "Uitloggen bij MindRoom Chat",
+      "logoutDescription": "Uitloggen bij MindRoom",
       "markCurrentRoomRead": "Huidige kamer als gelezen markeren",
       "markCurrentRoomReadDescription": "{{room}} als gelezen markeren",
       "copyCurrentRoomLink": "Link naar huidige kamer kopiëren",
@@ -2258,8 +2258,8 @@
         "ok": "OK"
       },
       "errors": {
-        "microphoneBlockedAndroid": "Microfoontoegang is geblokkeerd. Geef MindRoom Chat toegang tot de microfoon in de Android-appinstellingen en probeer het opnieuw.",
-        "microphoneBlockedIos": "Microfoontoegang is geblokkeerd. Geef MindRoom Chat toegang tot de microfoon in de iPhone-instellingen en probeer het opnieuw.",
+        "microphoneBlockedAndroid": "Microfoontoegang is geblokkeerd. Geef MindRoom toegang tot de microfoon in de Android-appinstellingen en probeer het opnieuw.",
+        "microphoneBlockedIos": "Microfoontoegang is geblokkeerd. Geef MindRoom toegang tot de microfoon in de iPhone-instellingen en probeer het opnieuw.",
         "microphoneBlockedBrowser": "Microfoontoegang is geblokkeerd. Geef deze site/app toegang tot de microfoon in je browser- of systeeminstellingen en probeer het opnieuw.",
         "noMicrophone": "Er is geen microfoon gevonden op dit apparaat.",
         "microphoneUnavailable": "De microfoon is momenteel niet beschikbaar (mogelijk wordt deze door een andere app gebruikt).",

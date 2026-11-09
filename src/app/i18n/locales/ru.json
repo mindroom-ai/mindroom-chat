@@ -222,7 +222,7 @@
       "toggleTheme": "Сменить тему",
       "toggleThemeDescription": "Переключиться между светлой и тёмной темой",
       "logout": "Выйти",
-      "logoutDescription": "Выйти из MindRoom Chat",
+      "logoutDescription": "Выйти из MindRoom",
       "markCurrentRoomRead": "Отметить текущую комнату прочитанной",
       "markCurrentRoomReadDescription": "Отметить {{room}} прочитанной",
       "copyCurrentRoomLink": "Копировать ссылку на текущую комнату",
@@ -2314,8 +2314,8 @@
         "ok": "ОК"
       },
       "errors": {
-        "microphoneBlockedAndroid": "Доступ к микрофону заблокирован. Разрешите MindRoom Chat доступ в настройках приложения Android и повторите попытку.",
-        "microphoneBlockedIos": "Доступ к микрофону заблокирован. Разрешите MindRoom Chat доступ в настройках iPhone и повторите попытку.",
+        "microphoneBlockedAndroid": "Доступ к микрофону заблокирован. Разрешите MindRoom доступ в настройках приложения Android и повторите попытку.",
+        "microphoneBlockedIos": "Доступ к микрофону заблокирован. Разрешите MindRoom доступ в настройках iPhone и повторите попытку.",
         "microphoneBlockedBrowser": "Доступ к микрофону заблокирован. Разрешите его для сайта или приложения в настройках браузера или системы и повторите попытку.",
         "noMicrophone": "На устройстве не найден микрофон.",
         "microphoneUnavailable": "Микрофон сейчас недоступен (возможно, его использует другое приложение).",

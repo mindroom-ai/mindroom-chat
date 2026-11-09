@@ -222,7 +222,7 @@
       "toggleTheme": "Theme umschalten",
       "toggleThemeDescription": "Zwischen Hell und Dunkel wechseln",
       "logout": "Abmelden",
-      "logoutDescription": "Von MindRoom Chat abmelden",
+      "logoutDescription": "Von MindRoom abmelden",
       "markCurrentRoomRead": "Aktuellen Raum als gelesen markieren",
       "markCurrentRoomReadDescription": "{{room}} als gelesen markieren",
       "copyCurrentRoomLink": "Link zum aktuellen Raum kopieren",
@@ -2258,8 +2258,8 @@
         "ok": "OK"
       },
       "errors": {
-        "microphoneBlockedAndroid": "Der Mikrofonzugriff ist blockiert. Erlaube MindRoom Chat den Mikrofonzugriff in den Android-App-Einstellungen und versuche es erneut.",
-        "microphoneBlockedIos": "Der Mikrofonzugriff ist blockiert. Erlaube MindRoom Chat den Mikrofonzugriff in den iPhone-Einstellungen und versuche es erneut.",
+        "microphoneBlockedAndroid": "Der Mikrofonzugriff ist blockiert. Erlaube MindRoom den Mikrofonzugriff in den Android-App-Einstellungen und versuche es erneut.",
+        "microphoneBlockedIos": "Der Mikrofonzugriff ist blockiert. Erlaube MindRoom den Mikrofonzugriff in den iPhone-Einstellungen und versuche es erneut.",
         "microphoneBlockedBrowser": "Der Mikrofonzugriff ist blockiert. Erlaube den Mikrofonzugriff für diese Website/App in deinen Browser- oder Systemeinstellungen und versuche es erneut.",
         "noMicrophone": "Auf diesem Gerät wurde kein Mikrofon gefunden.",
         "microphoneUnavailable": "Das Mikrofon ist derzeit nicht verfügbar (möglicherweise wird es von einer anderen App verwendet).",

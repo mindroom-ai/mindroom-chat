@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 // Native shells (iOS, Android) load the production build from `dist/`.
 const capacitorConfig: CapacitorConfig = {
   appId: 'chat.mindroom.app',
-  appName: 'MindRoom Chat',
+  appName: 'MindRoom',
   webDir: 'dist',
   ios: {
     // iPhone and iPad get the mobile layout; Mac Catalyst asks for the desktop one natively.

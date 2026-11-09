@@ -13,12 +13,12 @@ import {
 
 describe('MindRoom branding', () => {
   it('keeps shared product labels and URLs centralized', () => {
-    expect(MINDROOM_APP_NAME).toBe('MindRoom Chat');
+    expect(MINDROOM_APP_NAME).toBe('MindRoom');
     expect(MINDROOM_DEVICE_DISPLAY_NAMES).toEqual({
-      web: 'MindRoom Chat Web',
-      ios: 'MindRoom Chat iOS',
-      android: 'MindRoom Chat Android',
-      macos: 'MindRoom Chat macOS',
+      web: 'MindRoom Web',
+      ios: 'MindRoom iOS',
+      android: 'MindRoom Android',
+      macos: 'MindRoom macOS',
     });
     expect(MINDROOM_NOTIFICATION_BRAND).toBe(MINDROOM_APP_NAME);
     expect(MINDROOM_SOURCE_URL).toBe('https://github.com/mindroom-ai/mindroom');

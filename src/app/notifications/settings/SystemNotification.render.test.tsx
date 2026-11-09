@@ -34,7 +34,7 @@ describe('SystemNotification rendered with its real tiles', () => {
         expect.objectContaining({
           kind: 'email',
           pushkey: 'ana@example.org',
-          data: { brand: 'MindRoom Chat' },
+          data: { brand: 'MindRoom' },
         })
       )
     );

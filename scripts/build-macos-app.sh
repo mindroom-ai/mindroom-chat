@@ -105,15 +105,15 @@ notarize() {
     --team-id "$APPLE_TEAM_ID" \
     --wait
 }
-ditto -c -k --keepParent "$app" "$scratch/MindRoom-Chat.zip"
-notarize "$scratch/MindRoom-Chat.zip"
+ditto -c -k --keepParent "$app" "$scratch/MindRoom.zip"
+notarize "$scratch/MindRoom.zip"
 xcrun stapler staple "$app"
 
 mkdir -p "$scratch/dmg"
-ditto "$app" "$scratch/dmg/MindRoom Chat.app"
+ditto "$app" "$scratch/dmg/MindRoom.app"
 ln -s /Applications "$scratch/dmg/Applications"
-dmg_path="build/macos/MindRoom-Chat.dmg"
-hdiutil create -volname 'MindRoom Chat' -srcfolder "$scratch/dmg" -format UDZO -ov "$dmg_path"
+dmg_path="build/macos/MindRoom.dmg"
+hdiutil create -volname 'MindRoom' -srcfolder "$scratch/dmg" -format UDZO -ov "$dmg_path"
 codesign --sign "$CODESIGN_IDENTITY" --timestamp "$dmg_path"
 notarize "$dmg_path"
 xcrun stapler staple "$dmg_path"

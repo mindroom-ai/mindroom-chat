@@ -222,7 +222,7 @@
       "toggleTheme": "テーマの切り替え",
       "toggleThemeDescription": "明暗を切り替えます",
       "logout": "ログアウト",
-      "logoutDescription": "MindRoom Chat からログアウト",
+      "logoutDescription": "MindRoom からログアウト",
       "markCurrentRoomRead": "現在のルームに既読のマークを付ける",
       "markCurrentRoomReadDescription": "{{room}}を既読としてマーク",
       "copyCurrentRoomLink": "現在のルームリンクをコピー",
@@ -2258,8 +2258,8 @@
         "ok": "わかりました"
       },
       "errors": {
-        "microphoneBlockedAndroid": "マイクへのアクセスがブロックされています。 Android アプリの設定で MindRoom Chat のマイク アクセスを許可し、再試行してください。",
-        "microphoneBlockedIos": "マイクへのアクセスがブロックされています。 iPhone の設定で MindRoom Chatのマイク アクセスを許可して、もう一度試してください。",
+        "microphoneBlockedAndroid": "マイクへのアクセスがブロックされています。 Android アプリの設定で MindRoom のマイク アクセスを許可し、再試行してください。",
+        "microphoneBlockedIos": "マイクへのアクセスがブロックされています。 iPhone の設定で MindRoomのマイク アクセスを許可して、もう一度試してください。",
         "microphoneBlockedBrowser": "マイクへのアクセスがブロックされています。ブラウザまたはシステム設定でこのサイト/アプリへのマイクアクセスを許可して、もう一度お試しください。",
         "noMicrophone": "このデバイスにはマイクが見つかりませんでした。",
         "microphoneUnavailable": "マイクは現在使用できません (別のアプリによって使用されている可能性があります)。",

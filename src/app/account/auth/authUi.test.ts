@@ -59,10 +59,10 @@ describe('authUi', () => {
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)';
 
     it.each([
-      ['a browser, even on an iPhone', 'web', IPHONE_SAFARI, 'iPhone', 5, 'MindRoom Chat Web'],
-      ['the iOS app', 'ios', IPHONE_APP, 'iPhone', 5, 'MindRoom Chat iOS'],
-      ['the Android app', 'android', ANDROID_APP, 'Linux aarch64', 5, 'MindRoom Chat Android'],
-      ['the Mac app', 'ios', MAC_APP, 'MacIntel', 0, 'MindRoom Chat macOS'],
+      ['a browser, even on an iPhone', 'web', IPHONE_SAFARI, 'iPhone', 5, 'MindRoom Web'],
+      ['the iOS app', 'ios', IPHONE_APP, 'iPhone', 5, 'MindRoom iOS'],
+      ['the Android app', 'android', ANDROID_APP, 'Linux aarch64', 5, 'MindRoom Android'],
+      ['the Mac app', 'ios', MAC_APP, 'MacIntel', 0, 'MindRoom macOS'],
     ])(
       'names a session of %s by its platform',
       (_, platform, userAgent, navPlatform, touch, name) => {
