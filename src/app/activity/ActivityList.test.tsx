@@ -24,7 +24,13 @@ const mocks = vi.hoisted(() => ({
   markActivityRowsRead: vi.fn(async () => undefined),
   rooms: new Map<
     string,
-    { roomId: string; name: string; getCanonicalAlias: () => null; membersLoaded: () => boolean }
+    {
+      roomId: string;
+      name: string;
+      getCanonicalAlias: () => null;
+      membersLoaded: () => boolean;
+      getJoinedMembers: () => { userId: string; name: string }[];
+    }
   >(),
 }));
 
@@ -288,6 +294,7 @@ describe('ActivityList', () => {
       name: 'Partner Pilot',
       getCanonicalAlias: () => null,
       membersLoaded: () => true,
+      getJoinedMembers: () => [],
     });
     renderList({
       rows: [
