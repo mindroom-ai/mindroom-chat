@@ -157,7 +157,7 @@ describe('slash commands', () => {
     expect(context.openRoom).toHaveBeenCalledWith('!joined-#lobby:far.org');
   });
 
-  it("leaves the room, ending this device's call in it first, and goes Home", async () => {
+  it("leaves the room through the call store's leave, which ends a call there first, and goes Home", async () => {
     const { mx } = fakeClient();
     const context = contextFor(mx, fakeRoom(members));
     await runCommandAction(Command.Leave, context, '');

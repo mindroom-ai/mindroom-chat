@@ -116,8 +116,9 @@ const forgetEndedCall = (store: Store, ended: ActiveCall): void => {
 };
 
 /**
- * Leaves the call, waiting for its membership to be withdrawn, then forgets it. A leave that fails
- * still ends the call here, or every later start would answer `busy`.
+ * Leaves the call, waiting for its membership to be withdrawn (or the wait to time out), then
+ * forgets it. A leave that fails still ends the call here, or every later start would answer
+ * `busy`.
  */
 const endActiveCall = async (store: Store, active: ActiveCall): Promise<void> => {
   try {
@@ -273,8 +274,8 @@ export const useCallActions = (mx: MatrixClient) => {
 
   /**
    * Leaves a room, ending this device's call in it first: once the room is left, the server refuses
-   * the withdrawal of the call's membership, which would stay until it expires. Every leave of a
-   * room the app offers goes through here.
+   * the withdrawal of the call's membership, which would stay until it expires. The room menu's
+   * Leave and `/leave` go through here.
    */
   const leaveRoom = useCallback(
     async (roomId: string) => {
