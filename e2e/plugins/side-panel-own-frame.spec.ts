@@ -195,6 +195,8 @@ test("on a phone the example plugin's own-frame card covers the conversation unt
 type CardMotion = { from: string; to?: string; duration: unknown; easing?: string };
 /** What the page notes of the motions: the card's, held, and the members panel's timing. */
 type MotionLog = { cardMotions: Animation[]; roomTiming: EffectTiming[] };
+/** The last motion of the card's box and of the members panel, held at its start. */
+type HeldMotions = { heldMotions: { card?: Animation; members?: Animation } };
 
 test("the example plugin's own-frame card moves in and out as the room's panels do, at once under reduced motion", async ({
   browser,
@@ -326,8 +328,8 @@ test("a panel swapped out as it moves out leaves the next panel's exit alone, th
     // decides when each ends, also after its panel has gone.
     await page.evaluate(() => {
       const animate = Element.prototype.animate;
-      const held: Record<string, Animation[]> = { card: [], members: [] };
-      (window as unknown as { heldMotions: typeof held }).heldMotions = held;
+      const held: HeldMotions['heldMotions'] = {};
+      (window as unknown as HeldMotions).heldMotions = held;
       Element.prototype.animate = function hold(this: Element, ...args) {
         const animation = animate.apply(this, args);
         const which = this.matches('[data-example-card-box]')
@@ -335,7 +337,7 @@ test("a panel swapped out as it moves out leaves the next panel's exit alone, th
           : this.matches('[data-testid="resizable-members-panel"]') && 'members';
         if (which) {
           animation.pause();
-          held[which]!.push(animation);
+          held[which] = animation;
         }
         return animation;
       };
@@ -343,8 +345,7 @@ test("a panel swapped out as it moves out leaves the next panel's exit alone, th
     /** Ends the last motion of the card's box or of the members panel, and lets the room render. */
     const finish = (which: 'card' | 'members') =>
       page.evaluate(async (name) => {
-        const { heldMotions } = window as unknown as { heldMotions: Record<string, Animation[]> };
-        heldMotions[name]!.at(-1)!.finish();
+        (window as unknown as HeldMotions).heldMotions[name]!.finish();
         const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
         await frame();
         await frame();

@@ -86,7 +86,7 @@ export function usePanelSlot(
     if (panel) lastPanel.current = panel;
   });
   const lastWidth = useRef<number>();
-  /** The slot of the panel closing at the last commit, until `done`. */
+  /** The slot of the panel closing at the last commit, until that exit ends. */
   const closingRef = useRef<Slot>();
   /**
    * Ends the exit `exit` is the slot of, while it is the current one. Once the panel has gone, a
@@ -97,7 +97,6 @@ export function usePanelSlot(
     if (closingRef.current === exit) closingRef.current = undefined;
     setSlot((current) => (current === exit && isClosing(current) ? { phase: 'shown' } : current));
   }, []);
-  const done = useCallback(() => end(slot), [end, slot]);
   const movers = useRef(0);
   const register = useCallback(() => {
     movers.current += 1;
@@ -110,14 +109,14 @@ export function usePanelSlot(
   }, [end]);
   // Runs after the panel's own effects: with no moving panel inside (a canvas without its
   // content, or other content), what closes leaves at once.
-  const closing = isClosing(slot);
   useLayoutEffect(() => {
+    const closing = isClosing(slot);
     closingRef.current = closing ? slot : undefined;
-    if (closing && movers.current === 0) done();
-  }, [closing, done, slot]);
+    if (closing && movers.current === 0) end(slot);
+  }, [end, slot]);
   const value = useMemo(
-    () => ({ phase: slot.phase, done, register, lastWidth }),
-    [slot.phase, done, register]
+    () => ({ phase: slot.phase, done: () => end(slot), register, lastWidth }),
+    [end, register, slot]
   );
   const shown = panel ?? (slot.shownKey === undefined ? undefined : lastPanel.current);
   return (

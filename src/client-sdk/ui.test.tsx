@@ -290,21 +290,22 @@ describe('usePanelPresence', () => {
   /** The room's panel place holding a plugin's panel with `frame: 'own'`, as the room renders it. */
   const renderPlace = (Component: ComponentType<{ roomId: string }>) => {
     place = undefined;
-    const panel = { id: 'example/card', tag: 'example@1.0.0', label: 'Card', Component };
-    function Place({ open }: { open: boolean }) {
-      const card = (
+    const panel = { tag: 'example@1.0.0', label: 'Card', Component, frame: 'own' as const };
+    /** Shows the panel under the key `open`, or none. */
+    function Place({ open }: { open?: string }) {
+      const card = open && (
         <PluginSidePanel
-          key="card"
-          panel={{ ...panel, frame: 'own' }}
+          key={open}
+          panel={{ ...panel, id: `example/${open}` }}
           roomId="!lobby:example.org"
           request={undefined}
           onClose={() => undefined}
         />
       );
-      return <>{usePanelSlot(open ? card : undefined)}</>;
+      return <>{usePanelSlot(card || undefined)}</>;
     }
-    const view = render(<Place open={false} />);
-    return { ...view, setOpen: (open: boolean) => view.rerender(<Place open={open} />) };
+    const view = render(<Place />);
+    return { ...view, setOpen: (open?: string) => view.rerender(<Place open={open} />) };
   };
 
   it("is the app's own, which the room's panels move with", () => {
@@ -314,9 +315,9 @@ describe('usePanelPresence', () => {
 
   it('tells an own-frame panel that registers that it opens and closes, and keeps it until done', () => {
     const { container, setOpen } = renderPlace(MovingCard);
-    setOpen(true);
+    setOpen('card');
     expect(place?.phase).toBe('enter');
-    setOpen(false);
+    setOpen();
     expect(place?.phase).toBe('exit');
     expect(container.textContent).toBe('Example card');
     act(() => place?.done());
@@ -325,51 +326,24 @@ describe('usePanelPresence', () => {
 
   it('removes an own-frame panel that does not register at once, as without motion', () => {
     const { container, setOpen } = renderPlace(() => <p>Example card</p>);
-    setOpen(true);
+    setOpen('card');
     expect(container.textContent).toBe('Example card');
-    setOpen(false);
+    setOpen();
     expect(container.textContent).toBe('');
   });
 
   it('keeps the next own-frame panel until it is done when one swapped out mid-exit finishes moving', () => {
-    /** The place as each card last rendered. */
-    const seen: Record<string, PanelPresence | undefined> = {};
-    function Card({ name }: { name: string }) {
-      const presence = usePanelPresence();
-      seen[name] = presence;
-      const register = presence?.register;
-      useLayoutEffect(() => register?.(), [register]);
-      return <p>{name}</p>;
-    }
-    const cards = { first: () => <Card name="first" />, second: () => <Card name="second" /> };
-    function Place({ open }: { open?: keyof typeof cards }) {
-      const card = open && (
-        <PluginSidePanel
-          key={open}
-          panel={{
-            id: `example/${open}`,
-            tag: 'example@1.0.0',
-            label: open,
-            Component: cards[open],
-            frame: 'own',
-          }}
-          roomId="!lobby:example.org"
-          request={undefined}
-          onClose={() => undefined}
-        />
-      );
-      return <>{usePanelSlot(card || undefined)}</>;
-    }
-    const { container, rerender } = render(<Place open="first" />);
-    rerender(<Place />);
-    const firstDone = seen.first?.done;
-    rerender(<Place open="second" />);
-    rerender(<Place />);
-    expect(seen.second?.phase).toBe('exit');
+    const { container, setOpen } = renderPlace(MovingCard);
+    setOpen('first');
+    setOpen();
+    const firstDone = place?.done;
+    setOpen('second');
+    setOpen();
+    expect(place?.phase).toBe('exit');
     // The first card's motion ends only now, after the second card started to close.
     act(() => firstDone?.());
-    expect(container.textContent).toBe('second');
-    act(() => seen.second?.done());
+    expect(container.textContent).toBe('Example card');
+    act(() => place?.done());
     expect(container.textContent).toBe('');
   });
 
@@ -377,11 +351,11 @@ describe('usePanelPresence', () => {
     // React and the panel's boundary log the failure.
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { container, setOpen } = renderPlace(MovingCard);
-    setOpen(true);
-    setOpen(false);
+    setOpen('card');
+    setOpen();
     act(() => fail?.());
     expect(container.textContent).toBe('');
-    setOpen(true);
+    setOpen('card');
     expect(container.textContent).toBe('Example card');
     expect(place?.phase).toBe('enter');
   });
