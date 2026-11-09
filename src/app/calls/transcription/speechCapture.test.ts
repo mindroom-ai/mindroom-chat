@@ -8,7 +8,8 @@ import { defined } from '../../../test/utils/defined';
 // wrapper's own FrameProcessor (the part that turns speech probabilities into stretches, with its
 // default settings), fed frames whose first sample is the probability the model gives them and
 // whose second is their number, so a test can tell which frames a stretch holds. Frames arrive one
-// task after the other, as the wrapper's AudioWorklet posts them.
+// task after the other, as the wrapper's AudioWorklet posts them, and the audio clock and the wall
+// clock move on 96 ms with each one heard (paused or not).
 
 /** Samples in a frame of the wrapper's default model, at 16 kHz (96 ms). */
 const FRAME = 1536;
@@ -124,6 +125,9 @@ class FakeAudioContext {
 
   state: AudioContextState = 'running';
 
+  /** The audio clock, in seconds. */
+  currentTime = 10;
+
   onstatechange: ((event: Event) => void) | null = null;
 
   /** How often the page asked the context to run. */
@@ -168,13 +172,20 @@ const start = async () => {
   const capture = await startSpeechCapture(track, (stretch) => stretches.push(stretch));
   const vad = defined(detector.made.at(-1), 'the detector');
   /** Frames of the given speech probability, one after the other. */
+  const context = defined(FakeAudioContext.last, 'the audio context');
+  /** One frame's time passing, on the audio clock and the wall clock. */
+  const pass = (frames = 1) => {
+    context.currentTime += (frames * FRAME) / 16000;
+    vi.setSystemTime(Date.now() + (frames * FRAME) / 16);
+  };
   const hear = async (count: number, probability: number) => {
     for (let index = 0; index < count; index += 1) {
+      pass();
       await vad.hear(probability);
       await settle();
     }
   };
-  return { capture, vad, hear, stretches, track, stopTrack: stop };
+  return { capture, vad, hear, pass, stretches, track, stopTrack: stop };
 };
 
 /** The numbers of the frames a stretch holds, from its 16-bit samples. */
@@ -260,7 +271,8 @@ describe('startSpeechCapture', () => {
     // The wrapper's 800 ms before the speech (8 frames), the speech, and its 1400 ms after (14).
     const frames = 8 + 20 + 14;
     expect(stretch.seconds).toBeCloseTo((frames * FRAME) / 16000, 6);
-    expect(stretch.startedAt.getTime()).toBeCloseTo(NOW - stretch.seconds * 1000, 0);
+    // It starts with the third frame heard, 800 ms before the speech.
+    expect(stretch.startedAt.getTime()).toBe(NOW + (2 * FRAME) / 16);
     expect(stretch.wav.type).toBe('audio/wav');
     const view = new DataView(await stretch.wav.arrayBuffer());
     expect(view.byteLength).toBe(44 + frames * FRAME * 2);
@@ -268,6 +280,39 @@ describe('startSpeechCapture', () => {
     expect(view.getUint16(22, true)).toBe(1); // mono
     expect(view.getUint32(24, true)).toBe(16000);
     expect(view.getUint16(34, true)).toBe(16);
+  });
+
+  it('dates a stretch by when its audio was heard, also when the page gets to it late', async () => {
+    const { hear, pass, stretches, vad } = await start();
+    await hear(10, QUIET);
+    // The page stalls for 4.8 s while the microphone goes on; then it takes the frames heard
+    // meanwhile one after the other.
+    pass(50);
+    for (let index = 0; index < 34; index += 1) {
+      await vad.hear(index < 20 ? SPEECH : QUIET);
+      await settle();
+    }
+    expect(stretches).toHaveLength(1);
+    expect(defined(stretches[0], 'the stretch').startedAt.getTime()).toBe(NOW + (2 * FRAME) / 16);
+  });
+
+  it('dates the stretch after a 30-second cut by its audio too, when the page is late', async () => {
+    const { hear, pass, stretches, vad } = await start();
+    await hear(10, QUIET);
+    // The page stalls for 38.4 s of talk, then takes its frames one after the other.
+    pass(400);
+    for (let index = 0; index < 350; index += 1) {
+      await vad.hear(index < 330 ? SPEECH : QUIET);
+      await settle();
+    }
+    expect(stretches).toHaveLength(2);
+    const [first, second] = stretches as [SpeechStretch, SpeechStretch];
+    expect(first.startedAt.getTime()).toBe(NOW + (2 * FRAME) / 16);
+    // The second starts with the frame after the first's last.
+    expect(second.startedAt.getTime()).toBeCloseTo(
+      first.startedAt.getTime() + first.seconds * 1000,
+      6
+    );
   });
 
   it('cuts speech that goes on past 30 seconds into stretches of at most 30 seconds, losing no frame', async () => {
@@ -305,8 +350,9 @@ describe('startSpeechCapture', () => {
     await hear(20, QUIET);
     expect(stretches).toHaveLength(1);
     const numbers = await framesOf(defined(stretches[0], 'the stretch'));
-    // Only what was said once it resumed, and the quiet before it.
-    expect(Math.min(...numbers)).toBeGreaterThan(80);
+    // Only what was said once it resumed, dated from its first frame.
+    expect(numbers[0]).toBe(81);
+    expect(defined(stretches[0], 'the stretch').startedAt.getTime()).toBe(NOW + (80 * FRAME) / 16);
   });
 
   it('pauses and resumes in the order asked, however fast', async () => {

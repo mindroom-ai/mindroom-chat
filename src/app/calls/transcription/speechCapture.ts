@@ -67,6 +67,12 @@ export const startSpeechCapture = async (
   /** Whether a stretch is in progress, and how many frames since its speech started. */
   let speaking = false;
   let spoken = 0;
+  /**
+   * The audio clock's time when listening last began, and the samples heard since: the audio clock
+   * dates each stretch, however late the page gets to its frames.
+   */
+  let listeningSince = 0;
+  let heard = 0;
 
   /** Pausing, resuming, cutting and stopping, one after the other. */
   let steps = Promise.resolve();
@@ -76,11 +82,17 @@ export const startSpeechCapture = async (
   };
   const follow = async (detector: MicVAD) => {
     if (paused) await detector.pause();
-    else await detector.start();
+    else if (!detector.listening) {
+      await detector.start();
+      listeningSince = context.currentTime;
+      heard = 0;
+    }
   };
+  // Listening goes on at once, so the samples heard go on counting (a pause asked for meanwhile
+  // comes next).
   const cut = async (detector: MicVAD) => {
     await detector.pause();
-    await follow(detector);
+    await detector.start();
   };
 
   const options: Partial<RealTimeVADOptions> = {
@@ -107,6 +119,7 @@ export const startSpeechCapture = async (
       spoken = 1;
     },
     onFrameProcessed: (_probabilities, frame) => {
+      heard += frame.length;
       if (!speaking || !vad) return;
       spoken += 1;
       // The stretch holds up to preSpeechPadMs before its speech, and every frame since. It ends
@@ -125,10 +138,12 @@ export const startSpeechCapture = async (
       speaking = false;
       if (paused || !encodeWav) return;
       const seconds = audio.length / SAMPLE_RATE;
+      // The stretch ends with the last frame heard.
+      const start = listeningSince + heard / SAMPLE_RATE - seconds;
       onStretch({
         // Format 1 is 16-bit PCM, which MindRoom takes.
         wav: new Blob([encodeWav(audio, 1)], { type: 'audio/wav' }),
-        startedAt: new Date(Date.now() - seconds * 1000),
+        startedAt: new Date(Date.now() - (context.currentTime - start) * 1000),
         seconds,
       });
     },
@@ -153,6 +168,7 @@ export const startSpeechCapture = async (
     await context.close().catch(() => undefined);
     throw error;
   }
+  listeningSince = context.currentTime;
 
   // A suspended context hears nothing. Autoplay rules may keep it suspended until the person uses
   // the page (a call taken up again after a reload starts without a click), and a phone may
