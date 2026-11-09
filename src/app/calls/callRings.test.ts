@@ -295,6 +295,45 @@ describe('watchRings', () => {
     stop();
   });
 
+  it('never lets a ring read late replace a ring that came after it, nor ring after its decline', async () => {
+    // The SDK is still decrypting one ring; another waits for its room key, and is declined.
+    let decrypted = () => {};
+    const late = ringIn('!a:example.org', '$late', Date.now());
+    const declinedLate = undecrypted(ringIn('!b:example.org', '$declinedLate', Date.now()));
+    const decline = new MatrixEvent({
+      type: EventType.RTCDecline,
+      room_id: '!b:example.org',
+      event_id: '$decline',
+      sender: ME,
+      origin_server_ts: Date.now(),
+      content: { 'm.relates_to': { rel_type: 'm.reference', event_id: '$declinedLate' } },
+    });
+    const { mx, deliver } = syncingClient([
+      { events: [late] },
+      { events: [declinedLate.event, decline] },
+    ]);
+    vi.mocked(mx.decryptEventIfNeeded).mockImplementation((event) =>
+      event === late
+        ? new Promise<void>((resolve) => {
+            decrypted = resolve;
+          })
+        : Promise.resolve()
+    );
+    const heard: string[] = [];
+    const stop = watchRings(mx, {
+      onRing: (ring) => heard.push(`ring ${ring.eventId}`),
+      onDeclined: (ringEventId) => heard.push(`declined ${ringEventId}`),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    declinedLate.keyArrives();
+    await deliver(ringIn('!c:example.org', '$new', Date.now()));
+    decrypted();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(heard).toEqual(['declined $declinedLate', 'ring $new']);
+    stop();
+  });
+
   it('reads an event once: what sync delivers after it started is not read again', async () => {
     const events: MatrixEvent[] = [];
     const { mx, deliver } = syncingClient([{ events }]);

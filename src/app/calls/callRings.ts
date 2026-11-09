@@ -109,25 +109,36 @@ export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void)
   const myUserId = mx.getSafeUserId();
   let stopped = false;
   const decryptions = createDecryptionWaits();
+  // Events are read in the order they reach this, but one whose room key comes late is read later:
+  // such a ring never replaces a ring that reached this after it, nor rings after its decline.
+  let reached = 0;
+  let newestRing = 0;
+  const declinedRings = new Set<string>();
 
-  const read = (event: MatrixEvent) => {
+  const read = (event: MatrixEvent, order: number) => {
     const declined = declinedRingId(event, myUserId);
-    if (declined) watcher.onDeclined(declined);
-    else {
-      const ring = readRing(event, myUserId);
-      if (ring) watcher.onRing(ring);
+    if (declined) {
+      declinedRings.add(declined);
+      watcher.onDeclined(declined);
+      return;
     }
+    const ring = readRing(event, myUserId);
+    if (!ring || order < newestRing || declinedRings.has(ring.eventId)) return;
+    newestRing = order;
+    watcher.onRing(ring);
   };
 
   const consider = async (event: MatrixEvent) => {
+    reached += 1;
+    const order = reached;
     await mx.decryptEventIfNeeded(event).catch(() => undefined);
     if (stopped) return;
     if (!event.isDecryptionFailure()) {
-      read(event);
+      read(event, order);
       return;
     }
     const left = MAX_RING_LIFETIME_MS - (Date.now() - event.getTs());
-    decryptions.wait(event, left, () => read(event));
+    decryptions.wait(event, left, () => read(event, order));
   };
 
   const onTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (event, _room, older, gone, at) => {
