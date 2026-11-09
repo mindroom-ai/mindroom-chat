@@ -109,11 +109,14 @@ export const clearUserUiState = (userId: string): void => {
   clearSyncFilterIds(userId);
   clearNotified(userId);
   // Every key named after the account goes too, whichever module wrote it, but not one that also
-  // reads as named after a login this browser keeps: `@a:example.org` starts `@a:example.org:8448`.
+  // names a login this browser keeps: `@a:example.org` starts `@a:example.org:8448`, and a plugin
+  // of another account keeps its values under that account's encoded ID and keys of its own.
   const kept = listSessions().map((session) => session.userId);
+  const keeps = (key: string) =>
+    kept.some((other) => isNamedAfter(key, other) || key.includes(encodeURIComponent(other)));
   const storage = getSafeLocalStorage();
   getStorageKeysSafe(storage)
-    .filter((key) => isNamedAfter(key, userId) && !kept.some((other) => isNamedAfter(key, other)))
+    .filter((key) => isNamedAfter(key, userId) && !keeps(key))
     .forEach((key) => removeStorageItemSafe(storage, key));
 };
 

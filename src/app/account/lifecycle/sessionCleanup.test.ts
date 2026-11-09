@@ -98,16 +98,23 @@ it('removes every key named after the logged-out account, whichever part of the 
   vi.unstubAllGlobals();
 });
 
-it('keeps the keys of a stored login whose user ID starts with the logged-out one', () => {
+it('keeps the keys of logins this browser keeps, also ones that name the logged-out account', () => {
   const values = stubLocalStorage();
-  const userId = '@alice:example.org:8448';
-  putSession({ baseUrl: 'https://example.org:8448', userId, deviceId: 'DEVICE', accessToken: 't' });
+  const alice = '@alice:example.org';
+  const aliceOnPort = '@alice:example.org:8448';
+  const bob = '@bob:example.org';
+  [aliceOnPort, bob].forEach((userId) =>
+    putSession({ baseUrl: 'https://example.org', userId, deviceId: 'DEVICE', accessToken: 't' })
+  );
   const keys = [
-    `mindroom.panel.width:${userId}:example.panel`,
-    pendingRoamingSettingsKey(userId, 'DEVICE'),
+    `mindroom.panel.width:${aliceOnPort}:example.panel`,
+    pendingRoamingSettingsKey(aliceOnPort, 'DEVICE'),
+    // A value Bob's plugin keeps under a key of its own that names Alice.
+    `mindroom.plugin:${encodeURIComponent(bob)}/notes/contact:${alice}`,
   ];
   keys.forEach((key) => values.set(key, '1'));
-  clearUserUiState('@alice:example.org');
+  values.set(`mindroom.panel.width:${alice}:example.panel`, '1');
+  clearUserUiState(alice);
   expect([...values.keys()]).toEqual([SESSION_STORE_KEY, ...keys]);
   vi.unstubAllGlobals();
 });
