@@ -34,7 +34,9 @@ describe('LeaveRoomPrompt', () => {
     forget.mockReset();
   });
 
-  const show = (onLeft = vi.fn(), requestClose = vi.fn(), store = createStore()) => {
+  const show = (store = createStore()) => {
+    const onLeft = vi.fn();
+    const requestClose = vi.fn();
     act(() =>
       root.render(
         <Provider store={store}>
@@ -77,7 +79,7 @@ describe('LeaveRoomPrompt', () => {
       steps.push('room left');
       return {};
     });
-    const { onLeft, leaveButton } = show(vi.fn(), vi.fn(), store);
+    const { onLeft, leaveButton } = show(store);
 
     await act(async () => leaveButton.click());
 

@@ -260,9 +260,9 @@ const newestEventTs = (room: Room): number | undefined =>
   room.getLiveTimeline().getEvents().at(-1)?.getTs();
 
 /**
- * Starting and ending the call. Starting while another call is active or starting, in this tab or
- * another tab of the same session, does nothing and answers `busy`. The call engine and LiveKit
- * load on first use.
+ * Starting and ending the call, and leaving a room, which ends this device's call there first.
+ * Starting while another call is active or starting, in this tab or another tab of the same
+ * session, does nothing and answers `busy`. The call engine and LiveKit load on first use.
  */
 export const useCallActions = (mx: MatrixClient) => {
   const store = useStore();
@@ -274,8 +274,7 @@ export const useCallActions = (mx: MatrixClient) => {
 
   /**
    * Leaves a room, ending this device's call in it first: once the room is left, the server refuses
-   * the withdrawal of the call's membership, which would stay until it expires. The room menu's
-   * Leave and `/leave` go through here.
+   * the withdrawal of the call's membership, which would stay until it expires.
    */
   const leaveRoom = useCallback(
     async (roomId: string) => {
