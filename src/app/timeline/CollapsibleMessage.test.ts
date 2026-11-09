@@ -8,7 +8,6 @@ vi.mock('./CollapsibleMessage.css', () => ({
   CollapsibleFooter: 'collapsible-footer',
   CollapsibleStickyFooter: 'collapsible-sticky-footer',
   CollapsiblePill: 'collapsible-pill',
-  CollapsedFade: 'collapsed-fade',
 }));
 
 import {
@@ -510,28 +509,41 @@ describe('CollapsibleMessage', () => {
     });
   });
 
-  it('unfolds from a click on the faded lines, which only a folded message has', () => {
-    const findFades = (renderer: ReactTestRenderer) =>
-      renderer.root.findAll(
-        (node) => node.type === 'div' && node.props.className === 'collapsed-fade'
+  it('unfolds from a click on its faded last 4em, but not on a link there or above them', () => {
+    // The content ends at y=200; at 16 px its last 4em start at y=136.
+    const laidOut = {
+      clientHeight: 72,
+      scrollHeight: 320,
+      getBoundingClientRect: () => ({ bottom: 200 }),
+    } as unknown as MockContentElement;
+    const link = { tagName: 'A' };
+    const click = (clientY: number, onLink = false) => ({
+      clientY,
+      target: { closest: () => (onLink ? link : null) },
+      currentTarget: { contains: (node: unknown) => node === link },
+    });
+    const getContainer = (renderer: ReactTestRenderer) =>
+      renderer.root.find(
+        (node) => node.type === 'div' && node.props.className === 'collapsible-container'
       );
-    const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
-    const [fade] = findFades(renderer);
-    // A pointer target only: the pill stays the one control assistive technology meets.
-    expect(fade?.props['aria-hidden']).toBe(true);
+    const renderer = renderCollapsibleMessage({ collapseMode: 'default' }, laidOut);
+    const expanded = () => getContentContainer(renderer).props['data-expanded'];
 
-    act(() => fade?.props.onClick());
+    act(() => getContainer(renderer).props.onClick(click(120)));
+    expect(expanded()).toBe(false);
+    act(() => getContainer(renderer).props.onClick(click(180, true)));
+    expect(expanded()).toBe(false);
+    // A drag that selected text ends in a click too.
+    vi.stubGlobal('getSelection', () => ({ isCollapsed: false }));
+    act(() => getContainer(renderer).props.onClick(click(180)));
+    expect(expanded()).toBe(false);
+    vi.stubGlobal('getSelection', () => ({ isCollapsed: true }));
 
-    expect(getContentContainer(renderer).props['data-expanded']).toBe(true);
-    expect(findFades(renderer)).toHaveLength(0);
+    act(() => getContainer(renderer).props.onClick(click(180)));
+    expect(expanded()).toBe(true);
+    // Unfolded, the lines are plain text again.
+    expect(getContainer(renderer).props.onClick).toBeUndefined();
     act(() => renderer.unmount());
-
-    const short = renderCollapsibleMessage(
-      { collapseMode: 'default' },
-      { clientHeight: 40, scrollHeight: 40 }
-    );
-    expect(findFades(short)).toHaveLength(0);
-    act(() => short.unmount());
   });
 
   it('content wrapper has no click handler when collapsed (nested interactive elements safe)', () => {
