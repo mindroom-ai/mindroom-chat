@@ -179,9 +179,9 @@ describe('CallTranscription', () => {
     expect(transcriber.start).toHaveBeenCalledTimes(1);
     expect(store.get(callTranscriptionAtom)).toEqual({ roomId: ROOM_ID, status: 'joining' });
 
-    // The account's session with that server, which gets a token only while the homeserver binds it.
+    // The account's session with that server.
     expect(transcriber.options.sessions).toBe(
-      clientSessions(mx as unknown as MatrixClient, PUBLISHED, true)
+      clientSessions(mx as unknown as MatrixClient, PUBLISHED)
     );
 
     // Reconnecting is still the same call.
@@ -201,7 +201,7 @@ describe('CallTranscription', () => {
 
     const transcriber = only();
     expect(transcriber.options.sessions).toBe(
-      clientSessions(mx as unknown as MatrixClient, CONFIGURED, false)
+      clientSessions(mx as unknown as MatrixClient, CONFIGURED)
     );
   });
 

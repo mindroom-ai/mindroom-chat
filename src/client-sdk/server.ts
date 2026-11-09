@@ -88,8 +88,8 @@ const request = async <T>(sessions: ClientSessions, path: string, init?: Request
 };
 
 /** The `MindroomServer` at `apiUrl`, over the account's one session there. */
-const serverAt = (mx: MatrixClient, apiUrl: string, discovered: boolean): MindroomServer => {
-  const sessions = clientSessions(mx, apiUrl, discovered);
+const serverAt = (mx: MatrixClient, apiUrl: string): MindroomServer => {
+  const sessions = clientSessions(mx, apiUrl);
   return {
     origin: apiUrl,
     request: <T>(path: string, init?: RequestInit) => request<T>(sessions, path, init),
@@ -100,8 +100,8 @@ const serverAt = (mx: MatrixClient, apiUrl: string, discovered: boolean): Mindro
 };
 
 /** The `MindroomServer` at `apiUrl`, or undefined without one. */
-const useServer = (mx: MatrixClient, apiUrl: string | undefined, discovered: boolean) =>
-  useMemo(() => (apiUrl ? serverAt(mx, apiUrl, discovered) : undefined), [apiUrl, discovered, mx]);
+const useServer = (mx: MatrixClient, apiUrl: string | undefined) =>
+  useMemo(() => (apiUrl ? serverAt(mx, apiUrl) : undefined), [apiUrl, mx]);
 
 /**
  * The MindRoom server of the room `roomId`, by the rule call transcripts use: the one the room's
@@ -114,8 +114,8 @@ const useServer = (mx: MatrixClient, apiUrl: string | undefined, discovered: boo
  */
 export const useMindroomServer = (roomId: string): MindroomServer | undefined => {
   const mx = useMatrixClient();
-  const { apiUrl, discovered } = useRoomMindroomServer(mx, roomId);
-  return useServer(mx, apiUrl, discovered);
+  const { apiUrl } = useRoomMindroomServer(mx, roomId);
+  return useServer(mx, apiUrl);
 };
 
 /**
@@ -132,8 +132,8 @@ export const useMindroomServerStatus = (
   roomId: string
 ): { server: MindroomServer | undefined; pending: boolean } => {
   const mx = useMatrixClient();
-  const { apiUrl, discovered, pending } = useRoomMindroomServer(mx, roomId);
-  return { server: useServer(mx, pending ? undefined : apiUrl, discovered), pending };
+  const { apiUrl, pending } = useRoomMindroomServer(mx, roomId);
+  return { server: useServer(mx, pending ? undefined : apiUrl), pending };
 };
 
 /** An agent of the room with a computer, as `useRoomComputers` gives it. */
@@ -210,7 +210,7 @@ export const useRoomComputers = (roomId: string): RoomComputer[] => {
             return {
               userId,
               name,
-              server: serverAt(mx, url, discovered),
+              server: serverAt(mx, url),
               openSession: (signal?: AbortSignal) =>
                 openSession(mx, roomId, userId, url, discovered, signal),
             };

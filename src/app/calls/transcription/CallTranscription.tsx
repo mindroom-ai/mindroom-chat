@@ -22,7 +22,6 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
   const state = useCallState(call);
   const connected = state.phase === 'connected' || state.phase === 'reconnecting';
   const apiUrl = connected ? server.apiUrl : undefined;
-  const { discovered } = server;
   // A muted microphone sends nothing.
   const track = state.microphone ? state.microphoneTrack : undefined;
   // Pause or Resume pressed here pauses capture at once, until MindRoom answered every request:
@@ -46,7 +45,7 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
         if (!current) return;
         transcriber = new Transcriber({
           roomId,
-          sessions: clientSessions(mx, apiUrl, discovered),
+          sessions: clientSessions(mx, apiUrl),
           onStatus: (status) => {
             if (!current) return;
             store.set(callTranscriptionAtom, status === 'off' ? undefined : { roomId, status });
@@ -90,7 +89,7 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
       store.set(liveTranscriptAtom, undefined);
       store.set(pauseRequestAtom, undefined);
     };
-  }, [apiUrl, call, discovered, mx, roomId, store]);
+  }, [apiUrl, call, mx, roomId, store]);
 
   useEffect(() => {
     transcriberRef.current?.setMicrophone(track);

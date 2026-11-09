@@ -185,7 +185,7 @@ describe('useMindroomServer', () => {
     await Promise.all([
       published().request('/api/plugins/notes/rooms/x/hello'),
       published().request('/api/plugins/tasks/rooms/x/list'),
-      new TranscriptionClient(clientSessions(mx, PUBLISHED, true)).live(ROOM_ID),
+      new TranscriptionClient(clientSessions(mx, PUBLISHED)).live(ROOM_ID),
     ]);
 
     expect(answers.signIns()).toBe(1);
@@ -590,6 +590,19 @@ describe('useRoomComputers', () => {
     expect(answers.routes()).toHaveLength(3);
   });
 
+  it("shares one unbound session between the room's server and its agents' computers when config.json names the server they publish", async () => {
+    const answers = fakeFetch();
+    state.servers = bothComputers(PUBLISHED);
+    const helper = computerOf(computers(PUBLISHED), HELPER.userId).server;
+    const room = server(PUBLISHED);
+
+    expect(room?.origin).toBe(PUBLISHED);
+    await Promise.all([helper.request('/api/plugins'), room?.request('/api/plugins')]);
+
+    expect(answers.signIns()).toBe(1);
+    expect(openId.requestToken.mock.calls).toEqual([[mx, PUBLISHED, { requireBinding: false }]]);
+  });
+
   it("shares the account's one session with each server: between agents, renders and the room's server", async () => {
     const answers = fakeFetch();
     state.servers = bothComputers(PUBLISHED);
@@ -600,7 +613,7 @@ describe('useRoomComputers', () => {
       computerOf(computers(), HELPER.userId).server.request('/api/plugins/notes/rooms/x/hello'),
       computerOf(computers(), CODER.userId).server.request('/api/plugins/notes/rooms/x/hello'),
       published().request('/api/plugins/notes/rooms/x/hello'),
-      new TranscriptionClient(clientSessions(mx, PUBLISHED, true)).live(ROOM_ID),
+      new TranscriptionClient(clientSessions(mx, PUBLISHED)).live(ROOM_ID),
     ]);
 
     expect(answers.signIns()).toBe(1);

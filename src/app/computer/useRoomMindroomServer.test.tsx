@@ -64,7 +64,6 @@ describe('useRoomMindroomServer', () => {
       state.published = PUBLISHED;
       expect(server(preference, DEPLOYMENT)).toEqual({
         apiUrl: PUBLISHED,
-        discovered: true,
         pending: false,
       });
     });
@@ -72,14 +71,12 @@ describe('useRoomMindroomServer', () => {
     it("is the deployment's server when none is published or tokens are not bound", () => {
       expect(server(preference, DEPLOYMENT)).toEqual({
         apiUrl: DEPLOYMENT,
-        discovered: false,
         pending: false,
       });
       state.published = PUBLISHED;
       state.bindsTokens = false;
       expect(server(preference, DEPLOYMENT)).toEqual({
         apiUrl: DEPLOYMENT,
-        discovered: false,
         pending: false,
       });
     });
@@ -116,12 +113,10 @@ describe('useRoomMindroomServer', () => {
 
     // The page's first check is still unanswered on the first render.
     const first = mount();
-    expect(first.seen[0]).toEqual({ apiUrl: DEPLOYMENT, discovered: false, pending: true });
-    await waitFor(() =>
-      expect(first.seen.at(-1)).toEqual({ apiUrl: PUBLISHED, discovered: true, pending: false })
-    );
+    expect(first.seen[0]).toEqual({ apiUrl: DEPLOYMENT, pending: true });
+    await waitFor(() => expect(first.seen.at(-1)).toEqual({ apiUrl: PUBLISHED, pending: false }));
     first.unmount();
 
-    expect(mount().seen[0]).toEqual({ apiUrl: PUBLISHED, discovered: true, pending: false });
+    expect(mount().seen[0]).toEqual({ apiUrl: PUBLISHED, pending: false });
   });
 });
