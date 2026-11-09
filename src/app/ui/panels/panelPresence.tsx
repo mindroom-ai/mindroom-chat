@@ -21,15 +21,24 @@ const PANEL_MOTION_EASING = 'cubic-bezier(0.2, 0, 0, 1)';
  */
 export type PanelPhase = 'shown' | 'enter' | 'swap' | 'exit';
 
+/**
+ * What `register()` gives a moving panel: called, it unregisters; its `done` is the place's `done`
+ * while registered, and ends nothing after. A motion that ends after its panel has gone (another
+ * panel took the place, which may close in turn) so leaves the next panel's exit alone. Call it
+ * only for the exit you are animating; a kept `done` from an earlier exit is not supported.
+ */
+export type PanelRegistration = (() => void) & { done: () => void };
+
 export type PanelPresence = {
   phase: PanelPhase;
   /** The closing panel has finished moving out (or does not move), so it may go. */
   done: () => void;
   /**
-   * A moving panel announces itself while mounted; it then calls `done` when it has closed. One
-   * that goes first while it closes (a failure took its place) lets the place end its exit.
+   * A moving panel announces itself while mounted; it then calls the registration's `done` when it
+   * has closed. One that goes first while it closes (a failure took its place) lets the place end
+   * its exit.
    */
-  register: () => () => void;
+  register: () => PanelRegistration;
   /**
    * The width the last panel in this place had when it left, which a swapped-in panel starts from:
    * the room's own panels set it as they go, and a moving panel may too.
@@ -93,12 +102,19 @@ export function usePanelSlot(
   const movers = useRef(0);
   const register = useCallback(() => {
     movers.current += 1;
-    return () => {
+    let registered = true;
+    const unregister = () => {
+      registered = false;
       movers.current -= 1;
       // The last moving panel went while it closed without calling `done` (a failure took its
       // place), so nothing would end the exit.
       if (movers.current === 0 && closingRef.current) done();
     };
+    return Object.assign(unregister, {
+      done: () => {
+        if (registered) done();
+      },
+    });
   }, [done]);
   // Runs after the panel's own effects: with no moving panel inside (a canvas without its
   // content, or other content), what closes leaves at once.

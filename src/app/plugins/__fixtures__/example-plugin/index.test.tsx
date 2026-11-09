@@ -457,7 +457,8 @@ describe('example plugin', () => {
         value: animate,
         configurable: true,
       });
-      const unregister = vi.fn();
+      // Called, it unregisters; its own `done` is the one the card calls.
+      const unregister = Object.assign(vi.fn(), { done: vi.fn() });
       const presence: PanelPresence = {
         phase: 'shown',
         register: vi.fn(() => unregister),
@@ -481,9 +482,10 @@ describe('example plugin', () => {
         place.presence = { ...presence, phase: 'exit' };
         view.rerender(ui());
         expect(animate).toHaveBeenCalledTimes(moves ? 1 : 0);
-        expect(presence.done).toHaveBeenCalledTimes(moves ? 0 : 1);
+        expect(unregister.done).toHaveBeenCalledTimes(moves ? 0 : 1);
         await act(async () => finish());
-        expect(presence.done).toHaveBeenCalledTimes(1);
+        expect(unregister.done).toHaveBeenCalledTimes(1);
+        expect(presence.done).not.toHaveBeenCalled();
         view.unmount();
         expect(unregister).toHaveBeenCalledTimes(1);
         // A panel that takes its place moves on from the width of its box on the page, if it moved.

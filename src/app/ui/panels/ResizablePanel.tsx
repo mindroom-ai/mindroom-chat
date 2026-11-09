@@ -11,6 +11,7 @@ import {
   currentPanelSize,
   panelGap,
   type PanelPhase,
+  type PanelRegistration,
   usePanelPresence,
 } from './panelPresence';
 import { PanelFrameStrip } from './PanelFrame';
@@ -103,6 +104,7 @@ export function ResizablePanel({
   // folded panels switch at once.
   const moves = resizable && !mobile;
   const motionRef = useRef<Animation>();
+  const registration = useRef<PanelRegistration>();
   const phaseSeen = useRef<PanelPhase>('shown');
   /** The width a released drag left on screen, which the next commit moves from. */
   const releasedAt = useRef<number>();
@@ -143,7 +145,8 @@ export function ResizablePanel({
       // A drag released past the threshold left the panel at its width; it closes from there.
       const motion = animatePanel(panel, now ?? { width, gap: 0 }, { width: 0, gap }, true);
       motionRef.current = motion;
-      if (motion) void motion.finished.then(presence?.done, () => undefined);
+      // Its own `done`, which ends nothing once this panel has gone.
+      if (motion) void motion.finished.then(registration.current?.done, () => undefined);
       else presence?.done();
       return;
     }
@@ -172,9 +175,10 @@ export function ResizablePanel({
   const lastWidth = presence?.lastWidth;
   useLayoutEffect(() => {
     const panel = panelRef.current;
-    const unregister = register?.();
+    const own = register?.();
+    registration.current = own;
     return () => {
-      unregister?.();
+      own?.();
       if (lastWidth && panel) {
         lastWidth.current = movesRef.current ? panel.getBoundingClientRect().width : undefined;
       }
