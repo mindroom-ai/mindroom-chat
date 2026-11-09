@@ -32,6 +32,7 @@ const { mx, room } = vi.hoisted(() => {
 });
 
 vi.mock('react-router-dom', () => ({
+  useLocation: () => ({ pathname: '/home/', search: '', hash: '' }),
   useParams: () => ({}),
   useSearchParams: () => [new URLSearchParams()],
 }));
@@ -160,5 +161,32 @@ describe('the call panel when its code cannot load', () => {
     });
     expect(store.get(callPanelRoomAtom)).toBeUndefined();
     expect(screen.queryByTestId('call-window')).toBeNull();
+  });
+
+  it("keeps the floating window's title bar, and its line with Expand when minimized", async () => {
+    const { call } = liveCall(room.roomId);
+    await renderRoomWithCallPanel({ call, kind: 'room' }, 'window');
+    const callWindow = screen.getByTestId('call-window');
+    // The title bar moves the window and names it after the room.
+    const titleBar = within(callWindow).getByRole('group', { name: 'Move call window' });
+    expect(within(titleBar).getByRole('heading', { name: 'Standup' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Standup' })).toBe(callWindow);
+
+    fireEvent.click(within(titleBar).getByRole('button', { name: 'Minimize' }));
+    expect(callWindow.getAttribute('data-bar')).toBe('true');
+    const bar = within(callWindow).getByRole('group', { name: 'Move minimized call window' });
+    expect(within(bar).getByRole('button', { name: 'Close call view' })).toBeTruthy();
+    expect(callWindow.textContent).not.toContain("This couldn't load");
+
+    fireEvent.click(within(bar).getByRole('button', { name: 'Expand' }));
+    expect(callWindow.getAttribute('data-bar')).toBeNull();
+    expect(callWindow.textContent).toContain("This couldn't load");
+    expect(within(callWindow).getByRole('button', { name: 'End' })).toBeTruthy();
+  });
+
+  it('shows no title bar of its own in the side panel', async () => {
+    await renderRoomWithCallPanel();
+    expect(screen.queryByRole('group', { name: 'Move call window' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Close call view' })).toBeNull();
   });
 });
