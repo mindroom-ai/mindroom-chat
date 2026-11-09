@@ -100,6 +100,22 @@ describe('roomNavigateState', () => {
     });
   });
 
+  it('keeps the account that recorded a thread exit target, from router state and from storage', () => {
+    const target = { roomId: '!room', threadId: '$thread', sessionId: 'session-a' };
+    expect(
+      getRoomThreadExitTargetFromHistoryState({
+        usr: { [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: target },
+      })
+    ).toMatchObject({ sessionId: 'session-a' });
+    window.sessionStorage.setItem(
+      'mindroom.roomThreadExitTarget:entry-stored-account',
+      JSON.stringify(target)
+    );
+    expect(getRoomThreadExitTargetFromHistoryState({ key: 'entry-stored-account' })).toMatchObject({
+      sessionId: 'session-a',
+    });
+  });
+
   it('does not store targets when the history entry has no key', () => {
     expect(
       setRoomThreadExitTargetForHistoryState(

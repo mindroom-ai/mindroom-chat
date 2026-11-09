@@ -14,7 +14,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
-import { createSessionId } from '../matrix/session/sessions';
+import { createSessionId, getActiveSession } from '../matrix/session/sessions';
 import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import { isIOSStandaloneWebApp, isNativeIOS } from '../native/nativeSso';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
@@ -47,11 +47,17 @@ import {
 } from '../event-store/threads/roomThreadOverviewModel';
 import { roomThreadFilterAtomFamily } from '../threads/overview/roomThreadFilterState';
 import type { RoomViewMode } from '../navigation/roomViewMode';
-import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from '../event-store/threads/threadFilterDsl';
+import {
+  applyParsedThreadFilterQuery,
+  parseThreadFilterQuery,
+} from '../event-store/threads/threadFilterDsl';
 import { useRoomThreadSummaryState } from '../event-store/threads/useRoomThreadSummaryState';
 import { toggleThreadPerson } from '../event-store/threads/threadPeopleFilter';
 import { useThreadRootEvent } from '../threads/useThreadRootEvent';
-import { isConfirmedMatrixEventId, isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
+import {
+  isConfirmedMatrixEventId,
+  isLocalEchoEventId,
+} from '../event-store/threads/threadRouteUtils';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 
 type UseRoomViewThreadStateOptions = {
@@ -157,8 +163,13 @@ export const useRoomViewThreadState = ({
   const leaveThread = useCallback(
     (fallback: () => void) => {
       const historyExitTarget = getRoomThreadExitTargetFromHistoryState(window.history.state);
+      // Another account's way back, reached by a browser back step after a switch, leads to its
+      // own pages.
+      const recordedBy = historyExitTarget?.sessionId;
       const exitTarget =
-        historyExitTarget?.roomId === roomId && historyExitTarget.threadId === effectiveThreadId
+        historyExitTarget?.roomId === roomId &&
+        historyExitTarget.threadId === effectiveThreadId &&
+        (recordedBy === undefined || recordedBy === getActiveSession()?.sessionId)
           ? historyExitTarget
           : undefined;
       // The page the thread was opened from, wherever that was, when the app has shown it; a
