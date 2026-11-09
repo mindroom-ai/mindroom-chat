@@ -51,7 +51,7 @@ type MessageLink = {
 Behavior:
 
 - Applies to the links of messages in a room's page (its timeline in every view, a thread, the pinned messages), every link `CheckedMessageLink` draws there with an `http:` or `https:` address. Elsewhere (the inbox, search, thread previews outside a room's page) links stay as they are.
-- A plain click (primary button, no Ctrl, Meta, Shift or Alt), or Enter on the focused link, on a link that the first enabled plugin's `match` takes (build order, then list order) shows that plugin's `Component` in a pop-out at the link, below it and lined up with its start (mirrored in right-to-left), on the app's glass menu surface, instead of opening the link. A modified click, a middle click, the context menu and dragging keep the browser's behavior.
+- A plain click (primary button, no Ctrl, Meta, Shift or Alt), or Enter on the focused link, on a link that the first enabled plugin's `match` takes (build order, then list order) shows that plugin's `Component` in a pop-out at the link, below it and lined up with its start (mirrored in right-to-left), or above it when the link is in the lower half of the window, on the app's glass menu surface, instead of opening the link. A modified click, a middle click, the context menu and dragging keep the browser's behavior.
 - A link whose text reads as another address keeps the app's check first; once confirmed, it opens as a link, without a card.
 - The click goes no further than the link, so a thread card around it does not open its thread.
 - Escape, a click outside the card and `close()` close the card, and the focus goes back to the link. One card shows at a time; another link's card takes its place.

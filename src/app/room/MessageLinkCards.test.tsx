@@ -16,7 +16,18 @@ vi.mock('react-i18next', async (importOriginal) => {
   return { ...(await importOriginal<object>()), useTranslation: () => ({ t: translateFromEn }) };
 });
 
-const mocks = vi.hoisted(() => ({ reportBoundaryError: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  reportBoundaryError: vi.fn(),
+  position: undefined as string | undefined,
+}));
+// Records where the card is asked to open.
+vi.mock('../ui/directional', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  PopOut: ({ content, position }: { content?: ReactNode; position: string }) => {
+    mocks.position = content ? position : undefined;
+    return content ?? null;
+  },
+}));
 vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   reportBoundaryError: mocks.reportBoundaryError,
@@ -60,6 +71,25 @@ afterEach(() => {
 });
 
 describe('MessageLinkCards', () => {
+  const clickAt = (top: number) => {
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(800);
+    const link = screen.getByRole('link', { name: 'One' });
+    link.getBoundingClientRect = () => ({ top, bottom: top + 20, left: 0, right: 50 } as DOMRect);
+    fireEvent.click(link);
+  };
+
+  it('opens the card above a link in the lower half of the window', () => {
+    renderCards();
+    clickAt(700);
+    expect(mocks.position).toBe('Top');
+  });
+
+  it('opens the card below a link in the upper half of the window', () => {
+    renderCards();
+    clickAt(100);
+    expect(mocks.position).toBe('Bottom');
+  });
+
   it('shows the card at the link with href, roomId and close', () => {
     renderCards();
     expect(fireEvent.click(screen.getByRole('link', { name: 'One' }))).toBe(false);

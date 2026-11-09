@@ -84,12 +84,13 @@ export function MessageLinkCards({
     );
   }, [shown, roomId, close]);
 
+  const anchor = shown?.link.getBoundingClientRect();
   return (
     <MessageLinkCardContext.Provider value={show}>
       {children}
       <PopOut
-        anchor={shown?.link.getBoundingClientRect()}
-        position="Bottom"
+        anchor={anchor}
+        position={anchor && anchor.top > window.innerHeight / 2 ? 'Top' : 'Bottom'}
         align="Start"
         offset={4}
         content={content}
