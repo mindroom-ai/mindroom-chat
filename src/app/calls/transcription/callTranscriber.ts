@@ -321,8 +321,8 @@ export class CallTranscriber {
 
   // Capture
 
-  private get listening(): boolean {
-    return this.status === 'transcribing' && !this.ending;
+  private wantedTrack(): MediaStreamTrack | undefined {
+    return this.status === 'transcribing' && !this.ending ? this.track : undefined;
   }
 
   /**
@@ -349,13 +349,13 @@ export class CallTranscriber {
   }
 
   private async applyCapture(): Promise<void> {
-    const wanted = this.listening ? this.track : undefined;
+    const wanted = this.wantedTrack();
     const current = this.capture;
-    if (current && this.listening && (!wanted || wanted === current.track)) {
-      current.capture.setMuted(!wanted);
+    const muted = !this.track && this.status === 'transcribing';
+    if (current && (muted || current.track === wanted)) {
+      current.capture.setMuted(muted);
       return;
     }
-    if (!current && !wanted) return;
     this.capture = undefined;
     // Stopping hands on the stretch in progress: sent while transcribing, dropped otherwise.
     if (current) await current.capture.stop();
@@ -370,7 +370,7 @@ export class CallTranscriber {
     capture.setPaused(this.paused);
     this.capture = { track: wanted, capture };
     // What is wanted may have changed while it started.
-    if (!this.listening || this.track !== wanted) this.updateCapture();
+    if (this.wantedTrack() !== wanted) this.updateCapture();
   }
 
   // Uploads

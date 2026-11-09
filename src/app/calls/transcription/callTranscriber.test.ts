@@ -734,7 +734,7 @@ describe('CallTranscriber microphone', () => {
     expect(t.capture(2).track).toBe(MIC_A);
   });
 
-  it('stops a muted capture when the call ends here', async () => {
+  it('stops a muted capture when MindRoom becomes unavailable, and when the call ends here', async () => {
     const t = setup();
     t.transcriber.setMicrophone(MIC_A);
     t.transcriber.start();
@@ -742,8 +742,19 @@ describe('CallTranscriber microphone', () => {
     t.transcriber.setMicrophone(undefined);
     await advance();
     expect(t.capture().muted).toBe(true);
-    await t.transcriber.end();
+    t.server.join.mockImplementationOnce(serverError);
+    await advance(20_000);
+    expect(t.statuses).toEqual(['transcribing', 'unavailable']);
     expect(t.capture().stopped).toBe(true);
+
+    await advance(20_000);
+    t.transcriber.setMicrophone(MIC_A);
+    await advance();
+    t.transcriber.setMicrophone(undefined);
+    await advance();
+    expect(t.capture(1).muted).toBe(true);
+    await t.transcriber.end();
+    expect(t.capture(1).stopped).toBe(true);
   });
 
   it('pauses listening at once for a request pressed here, and a capture that starts later starts paused', async () => {

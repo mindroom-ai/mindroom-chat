@@ -15,31 +15,29 @@ const USER_GESTURES = ['pointerdown', 'pointerup', 'click', 'keydown', 'touchend
 declare const __MINDROOM_SPEECH_MODEL__: string;
 
 /**
- * Loads of the runtime's files that failed in this page. The runtime keeps a start that failed
+ * Loads of the runtime's module that failed in this page. The runtime keeps a start that failed
  * failed for good, so the capture loads its module and WebAssembly before it starts; the browser
- * keeps a module that failed to load failed too, so each load after a failure asks for the module
- * by a URL of its own.
+ * keeps a module that failed to load failed too, so each load after such a failure asks for the
+ * module by a URL of its own.
  */
-let failedLoads = 0;
+let failedModuleLoads = 0;
 
 /** The runtime's module, loaded, and its WebAssembly from `directory`. */
 const loadRuntime = async (directory: string) => {
   const moduleUrl = `${directory}ort-wasm-simd-threaded.js${
-    failedLoads ? `?retry=${failedLoads}` : ''
+    failedModuleLoads ? `?retry=${failedModuleLoads}` : ''
   }`;
-  try {
-    const [wasm] = await Promise.all([
-      fetch(`${directory}ort-wasm-simd-threaded.wasm`).then((response) => {
-        if (!response.ok) throw new Error(`The speech runtime answered ${response.status}.`);
-        return response.arrayBuffer();
-      }),
-      import(/* @vite-ignore */ moduleUrl),
-    ]);
-    return { moduleUrl, wasm };
-  } catch (error) {
-    failedLoads += 1;
-    throw error;
-  }
+  const [wasm] = await Promise.all([
+    fetch(`${directory}ort-wasm-simd-threaded.wasm`).then((response) => {
+      if (!response.ok) throw new Error(`The speech runtime answered ${response.status}.`);
+      return response.arrayBuffer();
+    }),
+    import(/* @vite-ignore */ moduleUrl).catch((error: unknown) => {
+      failedModuleLoads += 1;
+      throw error;
+    }),
+  ]);
+  return { moduleUrl, wasm };
 };
 
 /** One stretch of speech from this device's microphone. */
@@ -66,8 +64,8 @@ export type SpeechCapture = {
  * through @ricky0123/vad-web with its default model and settings, and calls `onStretch` with each
  * stretch of speech it finds. The model and its runtime (about 17 MB the first time, kept by the
  * browser after) load meanwhile, however long that takes: listening starts once they have, and
- * stopping never waits for them. They load again when listening starts again after they could not
- * (an unmute or a resume), and on the next capture start.
+ * stopping never waits for them. After they could not, they load again at the next pause, mute,
+ * resume or unmute, and on the next capture start.
  */
 export const startSpeechCapture = async (
   track: MediaStreamTrack,
@@ -221,19 +219,19 @@ export const startSpeechCapture = async (
         listeningSince = context.currentTime;
         void step(follow);
       },
-      // Nothing is captured until listening starts again, which loads them again.
+      // Nothing is captured until the next pause, mute, resume or unmute loads them again.
       () => {
         loading = false;
       }
     );
   };
   load();
-  /** Follows a pause or mute asked for; listening again loads what could not load before. */
+  /** Follows a pause or mute asked for, and loads again what could not load before. */
   const set = (wanted: { paused: boolean; muted: boolean }) => {
     if (wanted.paused === paused && wanted.muted === muted) return;
     ({ paused, muted } = wanted);
     void step((detector) => follow(detector, wanted));
-    if (!loading && !stopping && !paused && !muted) load();
+    if (!loading && !stopping) load();
   };
 
   // A suspended context hears nothing. Autoplay rules may keep it suspended until the person uses
