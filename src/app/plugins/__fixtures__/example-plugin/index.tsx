@@ -58,7 +58,9 @@
 // plugin (e2e/fixtures/sample-plugin/routes.py) as the signed-in user: "Say hello" asks for the
 // backend's hello, and a websocket echoes what "Echo" sends, opened again unless the user left.
 // "Show square" shows the image a route answers, and "Upload file" sends a file to a route with
-// its progress, "Sent: <bytes> of <bytes>", and then the size the route answers.
+// its progress, "Sent: <bytes> of <bytes>", and then the size the route answers. While the room's
+// server is still being worked out, it says "Looking for a MindRoom server", and only then "No
+// MindRoom server" in a room without one.
 // Its panel names the sender of the greeting it shows by the name the app shows for them, with their
 // user ID when another member shows the same name (by their user ID when they have no name), and
 // their name opens their profile card
@@ -116,7 +118,7 @@ import {
   useRoomNavigate,
   useShownThread,
 } from '@mindroom/client-sdk/room';
-import { MindroomServerError, useMindroomServer } from '@mindroom/client-sdk/server';
+import { MindroomServerError, useMindroomServerStatus } from '@mindroom/client-sdk/server';
 import {
   Dialog,
   Header,
@@ -288,7 +290,7 @@ function PostingRight({ room }: { room: Room }) {
 }
 
 function ServerGreeting({ roomId }: { roomId: string }) {
-  const server = useMindroomServer(roomId);
+  const { server, pending } = useMindroomServerStatus(roomId);
   const routes = `/api/plugins/e2e-sample/rooms/${encodeURIComponent(roomId)}`;
   const [hello, setHello] = useState<string>();
   const [socketOpen, setSocketOpen] = useState(false);
@@ -343,6 +345,7 @@ function ServerGreeting({ roomId }: { roomId: string }) {
       setSocketOpen(false);
     };
   }, [server, routes]);
+  if (pending) return <p>Looking for a MindRoom server</p>;
   if (!server) return <p>No MindRoom server</p>;
   const sayHello = () => {
     server.request<{ hello: string }>(`${routes}/hello`).then(

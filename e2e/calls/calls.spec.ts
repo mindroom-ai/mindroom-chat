@@ -2,6 +2,7 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { buildLoginPath } from '../env';
 import type * as Livekit from 'livekit-client';
+import { roomMoreOptions } from '../helpers/roomMenu';
 import { defined } from '../../src/test/utils/defined';
 
 // Calls over MatrixRTC and LiveKit between real browser sessions with fake microphones and
@@ -12,12 +13,12 @@ import { defined } from '../../src/test/utils/defined';
 // start; a second tab of the same session, which answers busy (on Join, on two Joins at the same
 // moment, and on a ring's Answer); a call to a MindRoom agent, which runs in the agent call room
 // with the conversation as its origin; an encrypted agent call whose agent hears the caller
-// although the session's own send of the caller's key fails, and again when called again; a
-// call whose panel could not load, ended from that panel's failure view; and a group call that
-// plays and sends sound only between its members, not to a device on its media server that is
-// not in the call (until it joins, and again once it leaves the room). Needs the slot's LiveKit
-// server and authorization service (scripts/e2e-rtc.sh), which --rtc starts before the slot's
-// homeserver and stops afterwards:
+// although the session's own send of the caller's key fails, and again when called again; a call
+// whose panel could not load, ended from that panel's failure view; a call that ends when its
+// room is left; and a group call that plays and sends sound only between its members, not to a
+// device on its media server that is not in the call (until it joins, and again once it leaves
+// the room). Needs the slot's LiveKit server and authorization service (scripts/e2e-rtc.sh),
+// which --rtc starts before the slot's homeserver and stops afterwards:
 //   scripts/e2e-slot.sh <slot> --rtc npx playwright test e2e/calls/calls.spec.ts
 // scripts/e2e-suite.sh gives --rtc to every spec that names scripts/e2e-rtc.sh, as this one does.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
@@ -422,6 +423,44 @@ test.describe('calls', () => {
     await expect(bobPage.locator('[data-call-tab]')).toHaveCount(0);
     await expect(unavailable.getByRole('button', { name: 'End' })).toHaveCount(0);
     await callPanel(alicePage).getByRole('button', { name: 'End' }).click();
+  });
+
+  test("leaving the room ends this device's call in it", async ({ browser }) => {
+    const alice = await register(`aliceq${RUN}`, 'Alice Leaves');
+    const bob = await register(`bobq${RUN}`, 'Bob Stays');
+    const roomId = await createDirectChat(alice, bob, false);
+    const alicePage = await signIn(browser, `aliceq${RUN}`, recordMediaTracks);
+    const bobPage = await signIn(browser, `bobq${RUN}`);
+    await openRoom(alicePage, roomId);
+    await bobPage.goto('/home/');
+
+    await alicePage.locator('[data-room-call-button]').click();
+    await callPanel(alicePage).getByRole('button', { name: 'Join', exact: true }).click();
+    const ring = bobPage.getByRole('alertdialog', { name: 'Incoming Call' });
+    await expect(ring).toBeVisible({ timeout: 60_000 });
+    await ring.getByRole('button', { name: 'Answer' }).click();
+    await expect(tileOf(bobPage, alice.userId)).toHaveAttribute('data-connected', 'true', {
+      timeout: 60_000,
+    });
+    await expect.poll(() => remoteSoundLevel(bobPage), { timeout: 60_000 }).toBeGreaterThan(0.05);
+    await expect.poll(() => liveMediaTracks(alicePage)).toBeGreaterThan(0);
+
+    // Alice leaves the room from its menu while she is in its call.
+    await roomMoreOptions(alicePage).click();
+    await alicePage.getByRole('menuitem', { name: 'Leave Room', exact: true }).click();
+    await alicePage
+      .getByRole('alertdialog')
+      .getByRole('button', { name: 'Leave', exact: true })
+      .click();
+
+    // Her call ends with the room: no call left in the rail, no call window, and her microphone
+    // is released. Bob sees her leave the call and hears her no more.
+    await expect(alicePage.locator('[data-call-tab]')).toHaveCount(0, { timeout: 30_000 });
+    await expect(alicePage.getByTestId('call-window')).toHaveCount(0);
+    await expect.poll(() => liveMediaTracks(alicePage)).toBe(0);
+    await expect(tileOf(bobPage, alice.userId)).toHaveCount(0, { timeout: 30_000 });
+    await expect.poll(() => remoteSoundLevel(bobPage), { timeout: 30_000 }).toBe(0);
+    await callPanel(bobPage).getByRole('button', { name: 'End' }).click();
   });
 
   test('members join a group room call once its admin lets them, and see a shared screen', async ({

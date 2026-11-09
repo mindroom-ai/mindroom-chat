@@ -1,24 +1,28 @@
 import { useMemo } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
+import { useMemberListSettled } from '../matrix/hooks/useMemberListSettled';
 import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
 import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import { useClientConfig } from '../config/useClientConfig';
-import { useBindsOpenIdTokens, useRoomAgentServers } from './useAgentServers';
+import { useOpenIdBinding, useRoomAgentServers } from './useAgentServers';
 import { resolveComputerApiUrl } from './api';
 
 /**
  * The room's MindRoom server: the one the room's agents published while the homeserver binds
  * tokens to it (`discovered`), else the deployment's. Never this device's choice of server for
  * agents' computers, since call transcripts and plugin routes need the MindRoom whose router is in
- * the room. None in a room without a MindRoom agent.
+ * the room. None in a room without a MindRoom agent. `pending` while the room's member list or the
+ * homeserver's answer on binding tokens is still out, which can change it.
  */
 export const useRoomMindroomServer = (mx: MatrixClient, roomId: string) => {
-  const bindsTokens = useBindsOpenIdTokens();
+  const binding = useOpenIdBinding();
   // A room the client does not know yet has no agent; its members render again once it does.
-  const published = useRoomAgentServers(mx.getRoom(roomId))[0]?.apiUrl;
+  const room = mx.getRoom(roomId);
+  const published = useRoomAgentServers(room)[0]?.apiUrl;
   // An unusable deployment value counts as unset, as it does in Settings.
   const deploymentUrl = resolveComputerApiUrl(useClientConfig().mindroom?.computers?.apiUrl);
   const members = useRoomMembers(mx, roomId);
+  const membersSettled = useMemberListSettled(room);
   const hasAgent = useMemo(
     () =>
       members.some(
@@ -26,7 +30,11 @@ export const useRoomMindroomServer = (mx: MatrixClient, roomId: string) => {
       ),
     [members]
   );
-  const discovered = bindsTokens && !!published;
+  const discovered = binding === true && !!published;
   const apiUrl = discovered ? published : deploymentUrl;
-  return { apiUrl: hasAgent ? apiUrl : undefined, discovered };
+  return {
+    apiUrl: hasAgent ? apiUrl : undefined,
+    discovered,
+    pending: binding === undefined || !membersSettled,
+  };
 };

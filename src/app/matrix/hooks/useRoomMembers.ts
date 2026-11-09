@@ -17,16 +17,16 @@ const knownMembers = (client: MatrixClient, roomId: string): RoomMember[] =>
 /**
  * The members of a room, following membership, name and power changes. Starts with the members
  * the client already knows and loads the full list in the background (lazy-loaded rooms), once
- * the client knows the room.
+ * the client knows the room. After a switch to another room, never the previous room's.
  */
 export const useRoomMembers = (mx: MatrixClient, roomId: string): RoomMember[] => {
-  const [members, setMembers] = useState(() => knownMembers(mx, roomId));
+  const [members, setMembers] = useState(() => ({ roomId, list: knownMembers(mx, roomId) }));
 
   useEffect(() => {
     let disposed = false;
     const refresh = () => {
       if (disposed) return;
-      setMembers(knownMembers(mx, roomId));
+      setMembers({ roomId, list: knownMembers(mx, roomId) });
     };
     const loadMembers = (room: Room | null) => {
       refresh();
@@ -62,5 +62,6 @@ export const useRoomMembers = (mx: MatrixClient, roomId: string): RoomMember[] =
     };
   }, [mx, roomId]);
 
-  return members;
+  // Until the effect reads the new room's members, the state holds the previous room's.
+  return members.roomId === roomId ? members.list : knownMembers(mx, roomId);
 };
