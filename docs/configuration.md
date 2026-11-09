@@ -237,7 +237,7 @@ location = /errors/envelope {
 
 Read only by the iOS app. Push stays off unless `enabled` is `true`, `appId` is set and `gatewayUrl` is an HTTPS URL. The values go into the Matrix pusher the app registers with the homeserver.
 
-Each account's pusher also puts the account's random tag on the device into its pushes (`mindroom_account` in the pusher's `default_payload`, which Sygnal merges into each push). Tapping a push of a signed-in account that is not the active one makes that account active and opens the message there. An account's pusher gets the tag the next time the account is active in the app.
+Each account's pusher also puts the account's random tag on the device into its pushes (`mindroom_account` in the pusher's `default_payload`, which Sygnal merges into each push). Tapping a push of a signed-in account that is not the active one makes that account active and opens the message there. An account's pusher gets the tag the next time the account is active in the app. A tapped push opens its message as a page opened from outside the app: the back chevron of the thread it opens leads to the thread's room, and the room's to its list, not to the page the app was left on.
 
 | Key | Type | Default | Effect |
 |---|---|---|---|

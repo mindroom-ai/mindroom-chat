@@ -1,9 +1,21 @@
+import React from 'react';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import {
+  MemoryRouter,
+  useNavigate,
+  type NavigateFunction,
+  type NavigateOptions,
+} from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import {
   advanceHistoryStack,
   emptyHistoryStack,
   findHistoryOrigin,
+  OPENED_FROM_OUTSIDE_STATE,
+  previousHistoryOrigin,
+  previousHistoryPathname,
   showsRoom,
+  useHistoryStackRecorder,
   type HistoryStack,
 } from './historyStack';
 
@@ -46,6 +58,87 @@ describe('advanceHistoryStack', () => {
 
   it('starts over at an entry it has not seen, so it never guesses what came before', () => {
     expect(previous(walk(['home', 'POP'], ['list', 'PUSH'], ['unknown', 'POP']))).toBeUndefined();
+  });
+
+  it('starts over at a page opened from outside the app, and keeps nothing before it on a replace', () => {
+    const opened = advanceHistoryStack(
+      walk(['home', 'POP'], ['dm', 'PUSH']),
+      entry('thread'),
+      'PUSH',
+      true
+    );
+    expect(opened.entries.map(({ key }) => key)).toEqual(['thread']);
+    const redirected = advanceHistoryStack(opened, entry('reply'), 'REPLACE');
+    expect(redirected.entries.map(({ key }) => key)).toEqual(['reply']);
+    expect(previous(advanceHistoryStack(redirected, entry('next'), 'PUSH'))).toBe('/reply/');
+  });
+
+  it('starts over at a page another account shows', () => {
+    const as = (key: string, sessionId: string) => ({ ...entry(key), sessionId });
+    const first = advanceHistoryStack(
+      advanceHistoryStack(emptyHistoryStack, as('home', 'a'), 'POP'),
+      as('room', 'a'),
+      'PUSH'
+    );
+    expect(previous(first)).toBe('/home/');
+    expect(previous(advanceHistoryStack(first, as('other', 'b'), 'PUSH'))).toBeUndefined();
+    expect(previous(advanceHistoryStack(first, as('other', 'b'), 'REPLACE'))).toBeUndefined();
+  });
+});
+
+describe('useHistoryStackRecorder', () => {
+  // The stack is the module's own: each test records under an account of its own, which starts it
+  // over.
+  const record = async (sessionId: string) => {
+    let navigate: NavigateFunction | undefined;
+    function Recorder({ session }: { session: string }) {
+      useHistoryStackRecorder(session);
+      navigate = useNavigate();
+      return null;
+    }
+    const element = (session: string) =>
+      React.createElement(
+        MemoryRouter,
+        { initialEntries: ['/home/'] },
+        React.createElement(Recorder, { session })
+      );
+    let renderer: ReactTestRenderer | undefined;
+    await act(async () => {
+      renderer = create(element(sessionId));
+    });
+    return {
+      go: (to: string, options?: NavigateOptions, session = sessionId) =>
+        act(async () => {
+          renderer?.update(element(session));
+          navigate?.(to, options);
+        }),
+      unmount: () => renderer?.unmount(),
+    };
+  };
+
+  it('keeps no page before one a navigation opened from outside the app', async () => {
+    const router = await record('@outside:example.org');
+    await router.go('/home/!dm:example.org/');
+    expect(previousHistoryPathname()).toBe('/home/');
+    await router.go('/home/!room:example.org/%24reply', { state: OPENED_FROM_OUTSIDE_STATE });
+    expect(previousHistoryPathname()).toBeUndefined();
+    expect(previousHistoryOrigin(() => true)).toBeUndefined();
+    await router.go('/home/!room:example.org/%24reply?threadId=%24root', { replace: true });
+    expect(previousHistoryOrigin(() => true)).toBeUndefined();
+    await router.go('/home/!other:example.org/');
+    expect(previousHistoryPathname()).toBe('/home/!room:example.org/%24reply');
+    router.unmount();
+  });
+
+  it('keeps no page of the account that was active before', async () => {
+    const router = await record('@first:example.org');
+    await router.go('/home/!first:example.org/');
+    expect(previousHistoryPathname()).toBe('/home/');
+    await router.go('/home/!second:example.org/', undefined, '@second:example.org');
+    expect(previousHistoryPathname()).toBeUndefined();
+    await router.go('/home/!second-other:example.org/', undefined, '@second:example.org');
+    expect(previousHistoryPathname()).toBe('/home/!second:example.org/');
+    router.unmount();
   });
 });
 

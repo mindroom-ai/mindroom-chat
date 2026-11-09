@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto';
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { OPENED_FROM_OUTSIDE_STATE } from '../../routes/historyStack';
 import { NativeIOSPushOpenFeature } from './IOSPushFeature';
 
 type ActionListener = (action: { notification: { data: unknown } }) => void;
@@ -54,6 +55,9 @@ vi.mock('../../matrix/ClientStartupContext', () => ({
   useClientStartupContext: () => ({ hasCompletedInitialSync: state.hasCompletedInitialSync }),
 }));
 
+// A tapped push opens its message as a page opened from outside the app: its back buttons lead to
+// its room and the room's list, not to the page the app was left on.
+const outside = { state: OPENED_FROM_OUTSIDE_STATE };
 const tap = (data: unknown) => act(async () => state.onAction?.({ notification: { data } }));
 const mount = async (): Promise<ReactTestRenderer> => {
   let renderer: ReactTestRenderer | undefined;
@@ -82,7 +86,7 @@ describe('NativeIOSPushOpenFeature', () => {
     await act(async () => renderer.update(React.createElement(NativeIOSPushOpenFeature)));
 
     expect(state.navigateRoom).toHaveBeenCalledTimes(1);
-    expect(state.navigateRoom).toHaveBeenCalledWith('!joined:example', '$reply');
+    expect(state.navigateRoom).toHaveBeenCalledWith('!joined:example', '$reply', outside);
     renderer.unmount();
   });
 
@@ -103,7 +107,7 @@ describe('NativeIOSPushOpenFeature', () => {
     await tap({ aps: {}, room_id: '!joined:example', event_id: '$own', mindroom_account: 'tag-b' });
 
     expect(state.setActiveSession).not.toHaveBeenCalled();
-    expect(state.navigateRoom).toHaveBeenCalledWith('!joined:example', '$own');
+    expect(state.navigateRoom).toHaveBeenCalledWith('!joined:example', '$own', outside);
     renderer.unmount();
   });
 
@@ -132,7 +136,7 @@ describe('NativeIOSPushOpenFeature', () => {
     await act(async () => accountA.update(React.createElement(NativeIOSPushOpenFeature)));
 
     expect(state.navigateRoom).toHaveBeenCalledTimes(1);
-    expect(state.navigateRoom).toHaveBeenCalledWith('!joined:example', '$for-a');
+    expect(state.navigateRoom).toHaveBeenCalledWith('!joined:example', '$for-a', outside);
     accountA.unmount();
 
     // The push opens once: mounting account A again opens nothing.
@@ -150,7 +154,7 @@ describe('NativeIOSPushOpenFeature', () => {
 
     expect(state.setActiveSession).toHaveBeenCalledWith('session-a');
     expect(state.navigate).not.toHaveBeenCalled();
-    expect(state.navigateRoom).toHaveBeenCalledWith('!joined:example', undefined);
+    expect(state.navigateRoom).toHaveBeenCalledWith('!joined:example', undefined, outside);
     renderer.unmount();
   });
 });

@@ -1,24 +1,48 @@
 import { useEffect } from 'react';
 import { useLocation, useNavigationType, type NavigationType, type Path } from 'react-router-dom';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { decodeRouteParam } from './pathUtils';
 import { DIRECT_PATH, HOME_PATH } from './paths';
 
 /** A page of this tab's history: its path and its query. */
 export type HistoryPage = { pathname: string; search: string };
 
-type HistoryEntry = HistoryPage & { key: string; hash: string };
+/** An entry, with the account active when it was shown (none before an account is). */
+type HistoryEntry = HistoryPage & { key: string; hash: string; sessionId?: string };
 
 /** The entries of this tab's history the app has shown, and which one is current. */
 export type HistoryStack = { entries: HistoryEntry[]; index: number };
 
 export const emptyHistoryStack: HistoryStack = { entries: [], index: -1 };
 
-/** The stack after the router moved to `entry` by `action`. */
+/**
+ * The navigation state of a page opened from outside the app, such as by a tapped push: what was
+ * on screen before is only where the app was left, so the page's back buttons lead to its own
+ * parents instead (a thread's room, a room's list), as they do after a reload.
+ */
+export const OPENED_FROM_OUTSIDE_STATE = { openedFromOutside: true } as const;
+
+const isOpenedFromOutside = (state: unknown): boolean =>
+  typeof state === 'object' &&
+  state !== null &&
+  (state as Record<string, unknown>).openedFromOutside === true;
+
+/**
+ * The stack after the router moved to `entry` by `action`, which `openedFromOutside` says came
+ * from outside the app.
+ */
 export const advanceHistoryStack = (
   stack: HistoryStack,
   entry: HistoryEntry,
-  action: NavigationType | `${NavigationType}`
+  action: NavigationType | `${NavigationType}`,
+  openedFromOutside = false
 ): HistoryStack => {
+  // Neither the pages of another account nor the ones the app was left on are where a page was
+  // opened from.
+  const shown = stack.entries[stack.index];
+  if (action !== 'POP' && (openedFromOutside || (shown && shown.sessionId !== entry.sessionId))) {
+    return { entries: [entry], index: 0 };
+  }
   if (action === 'PUSH') {
     const entries = [...stack.entries.slice(0, stack.index + 1), entry];
     return { entries, index: entries.length - 1 };
@@ -37,13 +61,21 @@ export const advanceHistoryStack = (
 
 let current = emptyHistoryStack;
 
-/** Keeps the stack up to date; mounted once, around every signed-in page. */
-export const useHistoryStackRecorder = (): void => {
-  const { key, pathname, search, hash } = useLocation();
+/**
+ * Keeps the stack up to date, with the account `sessionId` names as the one that shows each page;
+ * mounted once, around every signed-in page.
+ */
+export const useHistoryStackRecorder = (sessionId: string | undefined): void => {
+  const { key, pathname, search, hash, state } = useLocation();
   const action = useNavigationType();
+  const openedFromOutside = isOpenedFromOutside(state);
+  // Read as a page is shown, not recorded on a change of its own: a switch of accounts also
+  // moves to the new account's page, which is the first one it shows.
+  const sessionRef = useLatestRef(sessionId);
   useEffect(() => {
-    current = advanceHistoryStack(current, { key, pathname, search, hash }, action);
-  }, [key, pathname, search, hash, action]);
+    const entry = { key, pathname, search, hash, sessionId: sessionRef.current };
+    current = advanceHistoryStack(current, entry, action, openedFromOutside);
+  }, [key, pathname, search, hash, action, openedFromOutside, sessionRef]);
 };
 
 /**
