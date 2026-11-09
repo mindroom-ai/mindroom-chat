@@ -236,6 +236,21 @@ describe('timeline message feature', () => {
     ).toEqual([true, false, false]);
   });
 
+  it("gives a thread the usual fold baseline, whatever the room's expand-all", async () => {
+    const baseline = (renderer: ReturnType<typeof create>) =>
+      renderer.root.findAll((node) => node.props.expandAllInit !== undefined)[0]?.props
+        .expandAllInit;
+    const inRoom = await mountFeature([]);
+    act(() => inRoom.feature().toggleExpandAll());
+    expect(baseline(inRoom.renderer)).toBe(true);
+
+    // A thread has no toggle to fold them again.
+    const inThread = await mountFeature([], '$root');
+    act(() => inThread.feature().toggleExpandAll());
+    expect(inThread.feature().expandAll).toBe(true);
+    expect(baseline(inThread.renderer)).toBe(false);
+  });
+
   it('consumes live expansion candidates through the rendered collapse control', async () => {
     const event = makeEvent('$live') as unknown as MatrixEvent;
     const { feature, renderer, update } = await mountFeature([rowFor(event)]);

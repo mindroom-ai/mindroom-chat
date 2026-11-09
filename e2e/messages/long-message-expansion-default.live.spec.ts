@@ -32,9 +32,9 @@ const REPLY_COUNT = 180;
 const ANCHOR_DRIFT_BUDGET_PX = 2;
 const MIN_RIDE_TRAVEL_PX = 5_000;
 
-type SeededThread = {
+type SeededRoom = {
   roomId: string;
-  rootId: string;
+  firstId: string;
 };
 
 type AnchorSnapshot = {
@@ -43,11 +43,11 @@ type AnchorSnapshot = {
   top: number;
 };
 
-const seedLongThread = async (homeserver: string, accessToken: string): Promise<SeededThread> => {
+const seedLongMessages = async (homeserver: string, accessToken: string): Promise<SeededRoom> => {
   const roomId = await createPrivateRoom(homeserver, accessToken, {
     name: `Long-message default live proof ${Date.now()}`,
   });
-  const rootId = await sendRoomMessage(homeserver, accessToken, roomId, {
+  const firstId = await sendRoomMessage(homeserver, accessToken, roomId, {
     msgtype: 'm.text',
     body: 'Long-message expansion default live proof',
   });
@@ -68,7 +68,7 @@ const seedLongThread = async (homeserver: string, accessToken: string): Promise<
     });
   }
 
-  return { roomId, rootId };
+  return { roomId, firstId };
 };
 
 const readScrollState = (page: Page) =>
@@ -85,7 +85,7 @@ const readScrollState = (page: Page) =>
       }
       candidate = candidate.parentElement;
     }
-    if (!candidate) throw new Error('Thread scroller not found.');
+    if (!candidate) throw new Error('Timeline scroller not found.');
     const scroller = candidate;
     return {
       scrollTop: scroller.scrollTop,
@@ -121,7 +121,7 @@ const readVisibleAnchor = (page: Page): Promise<AnchorSnapshot | undefined> =>
       }
       candidate = candidate.parentElement;
     }
-    if (!candidate) throw new Error('Thread scroller not found.');
+    if (!candidate) throw new Error('Timeline scroller not found.');
     const scroller = candidate;
     const viewport = scroller.getBoundingClientRect();
     // The reader's view starts below the sticky headers, as in the app's anchor.
@@ -191,7 +191,7 @@ test.describe('live long-message expand-all and collapse-all', () => {
     const password = getRequiredEnv('E2E_DEPLOYED_PASSWORD');
     const session = await loginToMatrix(homeserver, username, password);
     await setAccountData(homeserver, session.accessToken, session.userId, SETTINGS_EVENT_TYPE, {});
-    const seeded = await seedLongThread(homeserver, session.accessToken);
+    const seeded = await seedLongMessages(homeserver, session.accessToken);
 
     await installScrollWriteProbe(page);
     // The sync status pill floats over the top of the app and comes and goes with
@@ -275,7 +275,7 @@ test.describe('live long-message expand-all and collapse-all', () => {
         }
         candidate = candidate.parentElement;
       }
-      if (!candidate) throw new Error('Thread scroller not found.');
+      if (!candidate) throw new Error('Timeline scroller not found.');
       candidate.scrollTop = candidate.scrollHeight;
       const probeWindow = window as Window & {
         __appScrollWrites?: { kind: string; value: number; t: number }[];
@@ -342,7 +342,7 @@ test.describe('live long-message expand-all and collapse-all', () => {
       productionBaseUrl: DEPLOYED_BASE_URL,
       homeserver,
       roomId: seeded.roomId,
-      rootId: seeded.rootId,
+      firstId: seeded.firstId,
       replyCount: REPLY_COUNT,
       foldedShowMoreCount,
       toggleAnchorDriftPx,
