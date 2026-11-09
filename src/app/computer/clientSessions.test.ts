@@ -133,11 +133,11 @@ describe('clientSessions', () => {
   });
 
   it.each([
-    ['published, then configured', [true, false]],
-    ['configured, then published', [false, true]],
-  ])(
+    ['published, then configured', true, false],
+    ['configured, then published', false, true],
+  ] as const)(
     'is one for an origin both configured and published (%s), which needs no binding',
-    async (_order, [first, second]) => {
+    async (_order, first, second) => {
       const server = fakeServer();
       vi.stubGlobal('fetch', server.request);
       const ann = { getSafeUserId: () => '@ann:example.org' } as MatrixClient;
