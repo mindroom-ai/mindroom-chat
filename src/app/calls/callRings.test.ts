@@ -157,6 +157,35 @@ describe('watchRings', () => {
     };
   };
 
+  /** A ring from the caller in `roomId`, sent at `ts`. */
+  const ringIn = (roomId: string, eventId: string, ts: number) =>
+    new MatrixEvent({
+      ...notification({}, '@caller:example.org', ts).event,
+      room_id: roomId,
+      event_id: eventId,
+    });
+
+  /** This account's decline, in `roomId` at `ts`, of the ring with event ID `ringEventId`. */
+  const declineIn = (roomId: string, ringEventId: string, ts: number) =>
+    new MatrixEvent({
+      type: EventType.RTCDecline,
+      room_id: roomId,
+      event_id: '$decline',
+      sender: ME,
+      origin_server_ts: ts,
+      content: { 'm.relates_to': { rel_type: 'm.reference', event_id: ringEventId } },
+    });
+
+  /** Watches `mx` for rings, writing down what it hears in order. */
+  const watchHeard = (mx: MatrixClient) => {
+    const heard: string[] = [];
+    const stop = watchRings(mx, {
+      onRing: (ring) => heard.push(`ring ${ring.eventId}`),
+      onDeclined: (ringEventId) => heard.push(`declined ${ringEventId}`),
+    });
+    return { heard, stop };
+  };
+
   it('rings for an encrypted ring once its late room key arrives', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(NOW + 1000);
@@ -181,16 +210,7 @@ describe('watchRings', () => {
     const { mx, deliver } = syncingClient();
     const onDeclined = vi.fn();
     const stop = watchRings(mx, { onRing: vi.fn(), onDeclined });
-    const decline = undecrypted(
-      new MatrixEvent({
-        type: EventType.RTCDecline,
-        room_id: '!direct:example.org',
-        event_id: '$decline',
-        sender: ME,
-        origin_server_ts: Date.now(),
-        content: { 'm.relates_to': { rel_type: 'm.reference', event_id: '$ring' } },
-      })
-    );
+    const decline = undecrypted(declineIn('!direct:example.org', '$ring', Date.now()));
 
     await deliver(decline.event);
     decline.keyArrives();
@@ -240,25 +260,10 @@ describe('watchRings', () => {
     stop();
   });
 
-  /** A ring from the caller in `roomId`, sent at `ts`. */
-  const ringIn = (roomId: string, eventId: string, ts: number) =>
-    new MatrixEvent({
-      ...notification({}, '@caller:example.org', ts).event,
-      room_id: roomId,
-      event_id: eventId,
-    });
-
   it('rings for what sync delivered before it started: in order, in rooms the user is still in, over its last two minutes', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(NOW + 10_000);
-    const decline = new MatrixEvent({
-      type: EventType.RTCDecline,
-      room_id: '!a:example.org',
-      event_id: '$decline',
-      sender: ME,
-      origin_server_ts: NOW + 1000,
-      content: { 'm.relates_to': { rel_type: 'm.reference', event_id: '$declined' } },
-    });
+    const decline = declineIn('!a:example.org', '$declined', NOW + 1000);
     // Older than any ring could last: not even decrypted.
     const history = ringIn('!a:example.org', '$history', NOW - 110_001);
     const { mx, deliver } = syncingClient(['!c:example.org']);
@@ -274,11 +279,7 @@ describe('watchRings', () => {
       // eslint-disable-next-line no-await-in-loop
       await deliver(event);
     }
-    const heard: string[] = [];
-    const stop = watchRings(mx, {
-      onRing: (ring) => heard.push(`ring ${ring.eventId}`),
-      onDeclined: (ringEventId) => heard.push(`declined ${ringEventId}`),
-    });
+    const { heard, stop } = watchHeard(mx);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     // The decline follows the ring it says no to, and the newest ring comes last, so it shows.
@@ -304,16 +305,18 @@ describe('watchRings', () => {
     };
   };
 
-  it('rings for a ring sync delivered before it started once its late room key arrives', async () => {
-    const late = undecrypted(ringIn('!a:example.org', '$late', Date.now()));
+  it('rings for rings sync delivered before it started once their decryption ends or their late room key arrives', async () => {
+    const decrypting = ringIn('!a:example.org', '$decrypting', Date.now());
+    const late = undecrypted(ringIn('!b:example.org', '$late', Date.now()));
     const { mx, deliver } = syncingClient();
+    const decrypted = decryptingUntil(mx, [decrypting]);
+    await deliver(decrypting);
     await deliver(late.event);
-    const onRing = vi.fn();
-    const stop = watchRings(mx, { onRing, onDeclined: vi.fn() });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    const { heard, stop } = watchHeard(mx);
+    await decrypted(decrypting);
     late.keyArrives();
 
-    expect(onRing).toHaveBeenCalledWith(expect.objectContaining({ eventId: '$late' }));
+    expect(heard).toEqual(['ring $decrypting', 'ring $late']);
     stop();
   });
 
@@ -325,25 +328,14 @@ describe('watchRings', () => {
     const newer = ringIn('!b:example.org', '$newer', NOW + 2000);
     const newestKeyLate = undecrypted(ringIn('!c:example.org', '$newestKeyLate', NOW + 2500));
     const declinedKeyLate = undecrypted(ringIn('!d:example.org', '$declinedKeyLate', NOW + 3000));
-    const decline = new MatrixEvent({
-      type: EventType.RTCDecline,
-      room_id: '!d:example.org',
-      event_id: '$decline',
-      sender: ME,
-      origin_server_ts: NOW + 4000,
-      content: { 'm.relates_to': { rel_type: 'm.reference', event_id: '$declinedKeyLate' } },
-    });
+    const decline = declineIn('!d:example.org', '$declinedKeyLate', NOW + 4000);
     const { mx, deliver } = syncingClient();
     const decrypted = decryptingUntil(mx, [older]);
     for (const event of [older, newer, newestKeyLate.event, declinedKeyLate.event, decline]) {
       // eslint-disable-next-line no-await-in-loop
       await deliver(event);
     }
-    const heard: string[] = [];
-    const stop = watchRings(mx, {
-      onRing: (ring) => heard.push(`ring ${ring.eventId}`),
-      onDeclined: (ringEventId) => heard.push(`declined ${ringEventId}`),
-    });
+    const { heard, stop } = watchHeard(mx);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     declinedKeyLate.keyArrives();
@@ -357,30 +349,17 @@ describe('watchRings', () => {
     stop();
   });
 
-  it('rings for a ring sync delivers whose decryption ends after a newer ring, as before, unless declined meanwhile', async () => {
+  it('rings for a ring sync delivers live whose decryption ends after a newer ring, unless declined meanwhile', async () => {
     const older = ringIn('!a:example.org', '$older', Date.now());
     const declined = ringIn('!b:example.org', '$declined', Date.now());
     const { mx, deliver } = syncingClient();
     const decrypted = decryptingUntil(mx, [older, declined]);
-    const heard: string[] = [];
-    const stop = watchRings(mx, {
-      onRing: (ring) => heard.push(`ring ${ring.eventId}`),
-      onDeclined: (ringEventId) => heard.push(`declined ${ringEventId}`),
-    });
+    const { heard, stop } = watchHeard(mx);
 
     await deliver(older);
     await deliver(declined);
     await deliver(ringIn('!c:example.org', '$newer', Date.now()));
-    await deliver(
-      new MatrixEvent({
-        type: EventType.RTCDecline,
-        room_id: '!b:example.org',
-        event_id: '$decline',
-        sender: ME,
-        origin_server_ts: Date.now(),
-        content: { 'm.relates_to': { rel_type: 'm.reference', event_id: '$declined' } },
-      })
-    );
+    await deliver(declineIn('!b:example.org', '$declined', Date.now()));
     await decrypted(older);
     await decrypted(declined);
 
@@ -391,14 +370,10 @@ describe('watchRings', () => {
   it('reads each event once, whether sync delivered it before or after it started', async () => {
     const { mx, deliver } = syncingClient();
     await deliver(ringIn('!a:example.org', '$before', Date.now()));
-    const heard: string[] = [];
-    const stop = watchRings(mx, {
-      onRing: (ring) => heard.push(ring.eventId),
-      onDeclined: vi.fn(),
-    });
+    const { heard, stop } = watchHeard(mx);
     await deliver(ringIn('!b:example.org', '$after', Date.now()));
 
-    expect(heard).toEqual(['$before', '$after']);
+    expect(heard).toEqual(['ring $before', 'ring $after']);
     stop();
   });
 });
