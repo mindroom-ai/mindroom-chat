@@ -406,6 +406,23 @@ describe('startSpeechCapture', () => {
     expect((await framesOf(defined(stretches[0], 'the stretch')))[0]).toBe(314);
   });
 
+  it('cuts nothing in the quiet after a pause, and keeps the next stretch whole', async () => {
+    const { capture, hear, stretches, vad } = await start();
+    await hear(50, SPEECH);
+    capture.setPaused(true);
+    await settle();
+    capture.setPaused(false);
+    await settle();
+    // Half a minute of quiet, then speech.
+    await hear(300, QUIET);
+    await hear(10, SPEECH);
+    await hear(20, QUIET);
+    expect(vad.pauses).toBe(1);
+    expect(stretches).toHaveLength(1);
+    // With the 800 ms before the speech: frame 351 is its first.
+    expect((await framesOf(defined(stretches[0], 'the stretch')))[0]).toBe(351 - 8);
+  });
+
   it('pauses and resumes in the order asked, however fast', async () => {
     const { capture, hear, stretches, vad } = await start();
     capture.setPaused(true);
