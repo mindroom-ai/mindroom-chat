@@ -114,6 +114,16 @@ it('keeps those of a stored login whose user ID starts with the logged-out one',
   expect([...values.keys()]).toEqual([SESSION_STORE_KEY, ...kept]);
 });
 
+it('removes those of a logged-out user ID that starts with a stored one', () => {
+  const values = stubLocalStorage();
+  const userId = '@alice:example.org';
+  putSession({ baseUrl: 'https://example.org', userId, deviceId: 'DEVICE', accessToken: 't' });
+  const kept = seed(values, perPanelOrDevice(userId));
+  seed(values, perPanelOrDevice('@alice:example.org:8448'));
+  clearUserUiState('@alice:example.org:8448');
+  expect([...values.keys()]).toEqual([SESSION_STORE_KEY, ...kept]);
+});
+
 vi.mock('../../notifications/push/iosPush', () => ({
   IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX: 'mindroom_ios_push_',
   clearIOSPushState: vi.fn(),
