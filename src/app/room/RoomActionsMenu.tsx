@@ -53,8 +53,8 @@ function PluginDialog({ tag, dialog, close }: PluginDialogProps & { tag: string 
  * A room's menu, the same wherever it opens: the room's actions (`ROOM_ACTIONS`), with the
  * entries client plugins add after their first group, in a group of their own, and their critical
  * ones at the end of the last group, after Leave; all of them after the open room's own entries
- * when the room header opens it. Rows are 44 px on touch screens. The ref reaches the menu element,
- * which the focus trap around it needs to close on Escape and outside clicks.
+ * when the room header opens it. Its rows are as tall as a message menu's. The ref reaches the
+ * menu element, which the focus trap around it needs to close on Escape and outside clicks.
  */
 export const RoomActionsMenu = forwardRef<HTMLDivElement, RoomActionsMenuProps>(
   function RoomActionsMenu({ roomEntries, ...actionProps }, ref) {
