@@ -183,6 +183,76 @@ describe('useCallActions endCall', () => {
   });
 });
 
+describe('useCallActions leaveRoom', () => {
+  /** This device's call in `!callroom`, which notes when its membership is withdrawn. */
+  const callThatNotes = (steps: string[], leave = async () => undefined) =>
+    ({
+      kind: 'room',
+      call: {
+        room: { roomId: '!callroom:calls.test' },
+        leave: vi.fn(async () => {
+          await leave();
+          steps.push('call left');
+        }),
+      },
+      onEnded: vi.fn(async () => undefined),
+    } as unknown as ActiveCall);
+  const clientThatNotes = (steps: string[]) =>
+    ({
+      leave: vi.fn(async (roomId: string) => {
+        steps.push(`left ${roomId}`);
+        return {};
+      }),
+    } as unknown as MatrixClient);
+
+  it("ends this device's call in the room before leaving the room, which would refuse its withdrawal", async () => {
+    const store = createStore();
+    const steps: string[] = [];
+    const active = callThatNotes(steps);
+    store.set(activeCallAtom, active);
+
+    await actionsIn(store, clientThatNotes(steps)).leaveRoom('!callroom:calls.test');
+
+    expect(steps).toEqual(['call left', 'left !callroom:calls.test']);
+    expect(active.onEnded).toHaveBeenCalledTimes(1);
+    expect(store.get(activeCallAtom)).toBeUndefined();
+  });
+
+  it('leaves the room although leaving its call failed', async () => {
+    const store = createStore();
+    const steps: string[] = [];
+    store.set(
+      activeCallAtom,
+      callThatNotes(steps, async () => Promise.reject(new Error('LiveKit gone')))
+    );
+
+    await actionsIn(store, clientThatNotes(steps)).leaveRoom('!callroom:calls.test');
+
+    expect(steps).toEqual(['left !callroom:calls.test']);
+    expect(store.get(activeCallAtom)).toBeUndefined();
+  });
+
+  // An agent call's membership is in its call room, so leaving its conversation needs no wait;
+  // the call ends there once the leave lands (`CallWindowHost`).
+  it("leaves another room, or an agent call's conversation, without ending the call first", async () => {
+    const store = createStore();
+    const steps: string[] = [];
+    const active = {
+      ...callThatNotes(steps),
+      kind: 'agent',
+      origin: { roomId: '!planning:calls.test' },
+    } as ActiveCall;
+    store.set(activeCallAtom, active);
+    const actions = actionsIn(store, clientThatNotes(steps));
+
+    await actions.leaveRoom('!other:calls.test');
+    await actions.leaveRoom('!planning:calls.test');
+
+    expect(steps).toEqual(['left !other:calls.test', 'left !planning:calls.test']);
+    expect(store.get(activeCallAtom)).toBe(active);
+  });
+});
+
 /**
  * A signed-in account's running client, alone in its session (no other tab holds its lock), in
  * every room but the ones a test takes it out of (`out`: left, or forgotten as `null`).

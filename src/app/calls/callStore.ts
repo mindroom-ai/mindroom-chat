@@ -115,6 +115,20 @@ const forgetEndedCall = (store: Store, ended: ActiveCall): void => {
   closeAgentCallPanel(store, ended);
 };
 
+/**
+ * Leaves the call, waiting for its membership to be withdrawn (or the wait to time out), then
+ * forgets it. A leave that fails still ends the call here, or every later start would answer
+ * `busy`.
+ */
+const endActiveCall = async (store: Store, active: ActiveCall): Promise<void> => {
+  try {
+    await active.call.leave();
+  } finally {
+    await active.onEnded?.().catch(() => undefined);
+    if (store.get(activeCallAtom) === active) forgetEndedCall(store, active);
+  }
+};
+
 /** Leaves the active call without waiting and forgets it, so the next start finds none. */
 export const dropActiveCall = (store: Store): void => {
   const active = store.get(activeCallAtom);
@@ -246,24 +260,32 @@ const newestEventTs = (room: Room): number | undefined =>
   room.getLiveTimeline().getEvents().at(-1)?.getTs();
 
 /**
- * Starting and ending the call. Starting while another call is active or starting, in this tab or
- * another tab of the same session, does nothing and answers `busy`. The call engine and LiveKit
- * load on first use.
+ * Starting and ending the call, and leaving a room, which ends this device's call there first.
+ * Starting while another call is active or starting, in this tab or another tab of the same
+ * session, does nothing and answers `busy`. The call engine and LiveKit load on first use.
  */
 export const useCallActions = (mx: MatrixClient) => {
   const store = useStore();
 
   const endCall = useCallback(async () => {
     const active = store.get(activeCallAtom);
-    if (!active) return;
-    // A leave that fails still ends the call here, or every later start would answer `busy`.
-    try {
-      await active.call.leave();
-    } finally {
-      await active.onEnded?.().catch(() => undefined);
-      if (store.get(activeCallAtom) === active) forgetEndedCall(store, active);
-    }
+    if (active) await endActiveCall(store, active);
   }, [store]);
+
+  /**
+   * Leaves a room, ending this device's call in it first: once the room is left, the server refuses
+   * the withdrawal of the call's membership, which would stay until it expires.
+   */
+  const leaveRoom = useCallback(
+    async (roomId: string) => {
+      const active = store.get(activeCallAtom);
+      if (active?.call.room.roomId === roomId) {
+        await endActiveCall(store, active).catch(() => undefined);
+      }
+      await mx.leave(roomId);
+    },
+    [mx, store]
+  );
 
   /** Makes the call and makes it the active one, or answers why it cannot start. */
   const makeCall = useCallback(
@@ -361,5 +383,5 @@ export const useCallActions = (mx: MatrixClient) => {
   /** Closes a call that failed to start, so another can begin. */
   const dismissCall = useCallback(() => dropActiveCall(store), [store]);
 
-  return { startCall, endCall, dismissCall };
+  return { startCall, endCall, dismissCall, leaveRoom };
 };

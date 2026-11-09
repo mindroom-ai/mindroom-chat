@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Direction, EventType, type IRoomEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { useOptionalClientConfig } from '../../config/useClientConfig';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { useCallActions } from '../../calls/callStore';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import {
   addRoomIdToMDirect,
@@ -70,6 +71,8 @@ export type CommandContext = {
   room: Room;
   openRoom: (roomId: string) => void;
   openPath: (path: string) => void;
+  /** Leaves a room, ending this device's call in it first (`useCallActions`). */
+  leaveRoom: (roomId: string) => Promise<void>;
 };
 
 type CommandAction = (context: CommandContext, args: string) => Promise<void>;
@@ -293,8 +296,8 @@ const ACTIONS: Partial<Record<Command, CommandAction>> = {
       if (joined[0]) openRoom(joined[0]);
     });
   },
-  [Command.Leave]: async ({ mx, room, openPath }) => {
-    await mx.leave(room.roomId);
+  [Command.Leave]: async ({ room, leaveRoom, openPath }) => {
+    await leaveRoom(room.roomId);
     openPath(getHomePath());
   },
   [Command.Invite]: moderate([], (mx, roomId, userId, reason) => mx.invite(roomId, userId, reason)),
@@ -381,6 +384,7 @@ export const useCommands = (room: Room, threadId?: string): Record<string, Slash
   const goTo = useNavigate();
   const { t } = useTranslation();
   const pluginCommands = usePluginSlashCommands(registeredPlugins, useOptionalClientConfig());
+  const { leaveRoom } = useCallActions(client);
 
   return useMemo(() => {
     const context: CommandContext = {
@@ -388,6 +392,7 @@ export const useCommands = (room: Room, threadId?: string): Record<string, Slash
       room,
       openRoom: (roomId) => navigateRoom(roomId),
       openPath: (path) => goTo(path),
+      leaveRoom,
     };
     const entries = (Object.keys(Command) as Array<keyof typeof Command>).map(
       (key): [string, SlashCommand] => {
@@ -413,5 +418,5 @@ export const useCommands = (room: Room, threadId?: string): Record<string, Slash
       }
     });
     return commands;
-  }, [client, goTo, navigateRoom, pluginCommands, room, t, threadId]);
+  }, [client, goTo, leaveRoom, navigateRoom, pluginCommands, room, t, threadId]);
 };
