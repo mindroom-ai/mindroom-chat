@@ -23,6 +23,7 @@ import {
   type CallWindowFrame,
 } from './window/callWindowFrame';
 import { callTranscriptionAtom, liveTranscriptAtom } from './transcription/transcriptionState';
+import { hasShortcutHandler, runShortcut } from '../shortcuts/useShortcut';
 import {
   clearCallWindowStore,
   getCallWindowSettingsAtom,
@@ -773,6 +774,67 @@ describe("the focus after the rail's call button", () => {
     pressRail();
     expect(callWindow.hasAttribute('data-bar')).toBe(false);
     expect(document.activeElement).toBe(handle());
+  });
+});
+
+describe('the shortcut to the call view', () => {
+  /** ⌘⇧L or Ctrl+Shift+L, as the app's one window listener hands it on (ShortcutRoot). */
+  const goToCall = () => {
+    let acted = false;
+    act(() => {
+      acted = runShortcut('callView', new KeyboardEvent('keydown', { key: 'L' }));
+    });
+    return acted;
+  };
+  /** The focus is on the page, far from the call view: in the composer, say. */
+  const typing = () => {
+    const composer = document.createElement('textarea');
+    document.body.prepend(composer);
+    composer.focus();
+    return composer;
+  };
+  afterEach(() => document.querySelector('textarea')?.remove());
+
+  it("goes to the floating window's handle, also while it is minimized to its bar", () => {
+    roomCall([me, person('@ana:panel.test')]);
+    const { rerender } = renderPanel({ frame: frame() });
+    typing();
+    expect(goToCall()).toBe(true);
+    expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Move call window' }));
+
+    rerender(panel({ frame: frame(true) }));
+    typing();
+    expect(goToCall()).toBe(true);
+    expect(document.activeElement).toBe(
+      screen.getByRole('group', { name: 'Move minimized call window' })
+    );
+  });
+
+  it.each(['Desktop', 'Mobile'] as const)(
+    "goes to the title of the call view in the room's side panel (%s)",
+    (size) => {
+      roomCall([me, person('@ana:panel.test')]);
+      renderPanel({ size });
+      typing();
+      expect(goToCall()).toBe(true);
+      expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Standup' }));
+    }
+  );
+
+  it('leaves the key to the browser while no call view shows, or when it cannot take the focus', () => {
+    roomCall([me, person('@ana:panel.test')]);
+    expect(hasShortcutHandler('callView')).toBe(false);
+
+    // The docked panel folded to its tab at the room's edge shows nothing to focus.
+    renderPanel();
+    const title = screen.getByRole('heading', { name: 'Standup' });
+    vi.spyOn(title, 'focus').mockImplementation(() => undefined);
+    const composer = typing();
+    expect(goToCall()).toBe(false);
+    expect(document.activeElement).toBe(composer);
+
+    cleanup();
+    expect(hasShortcutHandler('callView')).toBe(false);
   });
 });
 

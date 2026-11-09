@@ -14,9 +14,10 @@ import { defined } from '../../src/test/utils/defined';
 // disposable homeserver: the room header's call button opens it on the call's prescreen, its title
 // bar moves it and its bottom end corner sizes it, Minimize turns it into a one-line bar and Expand
 // gives the height back, Dock puts the call view in the room's side column and Float brings the
-// window back where it was, it stays while another room opens, and after a reload it opens again
-// in the same place. The homeserver names a call service, so the app offers calls; nothing joins a
-// call, so the service is never reached. A joined call in the window is e2e/calls/calls.spec.ts's.
+// window back where it was, Ctrl+Shift+L goes from the room list to the call view wherever it is,
+// it stays while another room opens, and after a reload it opens again in the same place. The
+// homeserver names a call service, so the app offers calls; nothing joins a call, so the service is
+// never reached. A joined call in the window is e2e/calls/calls.spec.ts's.
 
 const VIEWPORT = { width: 1440, height: 900 };
 test.use({ viewport: VIEWPORT });
@@ -40,6 +41,16 @@ const boxOf = async (locator: Locator): Promise<Box> => {
  */
 const expectWindowAt = (callWindow: Locator, box: Box) =>
   expect.poll(() => boxOf(callWindow), { message: 'the call window box' }).toEqual(box);
+
+/**
+ * From the room list, far before the call view in Tab order, Ctrl+Shift+L (⌘⇧L on Apple devices)
+ * puts the focus on `target`, in the call view.
+ */
+const expectShortcutFocuses = async (page: Page, from: string, target: Locator) => {
+  await page.getByRole('link', { name: from, exact: true }).first().focus();
+  await page.keyboard.press('Control+Shift+L');
+  await expect(target).toBeFocused();
+};
 
 /** Presses the mouse at the middle of `grip`, moves it by `by` in a few steps, and lets go. */
 const dragBy = async (page: Page, grip: Box, by: { x: number; y: number }) => {
@@ -94,10 +105,12 @@ test('the call window moves, resizes, minimizes, docks and stays put', async ({
     height: 480,
   };
   await expectWindowAt(callWindow, box);
+  const handle = callWindow.getByRole('group', { name: 'Move call window' });
+  await expectShortcutFocuses(page, callRoom, handle);
 
   // The title bar moves the window by as much as the pointer went. It is pressed near its start,
   // on the title, away from its buttons and the grips along the window's edges.
-  const titleBar = await boxOf(callWindow.getByRole('group', { name: 'Move call window' }));
+  const titleBar = await boxOf(handle);
   await dragBy(page, { ...titleBar, width: 80 }, { x: -200, y: -150 });
   box = { ...box, x: box.x - 200, y: box.y - 150 };
   await expectWindowAt(callWindow, box);
@@ -115,6 +128,7 @@ test('the call window moves, resizes, minimizes, docks and stays put', async ({
   await expectWindowAt(callWindow, { ...box, y: box.y + box.height - 56, height: 56 });
   const bar = callWindow.getByRole('group', { name: 'Move minimized call window' });
   await expect(bar.getByRole('button', { name: 'Close call view', exact: true })).toBeVisible();
+  await expectShortcutFocuses(page, callRoom, bar);
   await callView.getByRole('button', { name: 'Expand', exact: true }).click();
   await expect(callWindow).not.toHaveAttribute('data-bar');
   await expectWindowAt(callWindow, box);
@@ -124,11 +138,13 @@ test('the call window moves, resizes, minimizes, docks and stays put', async ({
   await callView.getByRole('button', { name: 'Dock to the side', exact: true }).click();
   await expect(sidePanel.getByTestId('call-panel')).toContainText('Be the first to hop in');
   await expect(callWindow).toHaveCount(0);
-  await expect(sidePanel.getByRole('heading', { name: callRoom, exact: true })).toBeFocused();
+  const dockedTitle = sidePanel.getByRole('heading', { name: callRoom, exact: true });
+  await expect(dockedTitle).toBeFocused();
+  await expectShortcutFocuses(page, callRoom, dockedTitle);
   await sidePanel.getByRole('button', { name: 'Float', exact: true }).click();
   await expect(sidePanel).toHaveCount(0);
   await expectWindowAt(callWindow, box);
-  await expect(callWindow.getByRole('group', { name: 'Move call window' })).toBeFocused();
+  await expect(handle).toBeFocused();
 
   // Another room opens: the window stays, in its place, on the first room's call.
   await page.getByRole('link', { name: otherRoom, exact: true }).first().click();

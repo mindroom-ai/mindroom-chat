@@ -11,6 +11,7 @@ import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { getViewedPlace } from '../navigation/viewedPlace';
 import { IconTooltip } from '../ui/IconTooltip';
 import { ExpandIcon } from '../ui/panels/panelIcons';
+import { useShortcut } from '../shortcuts/useShortcut';
 import type { CallParticipant } from './RoomCall';
 import { callPanelRoomAtom, type CallOrigin } from './callStore';
 import { CallMemberAvatar, useCallMemberProfile } from './CallTile';
@@ -222,6 +223,16 @@ export function CallViewChrome(props: CallViewChromeProps) {
     if (focused && focused !== document.body && focused !== handOff.from) return;
     (place === 'window' ? handleRef : titleRef).current?.focus();
   }, [handOff, place, setHandOff]);
+
+  // ⌘⇧L or Ctrl+Shift+L goes to the call view, which Tab reaches last: the window's handle, or
+  // the docked panel's title. A panel folded to its tab shows nothing to focus, so the key stays
+  // the browser's.
+  useShortcut('callView', () => {
+    const target = (frame ? handleRef : titleRef).current;
+    if (!target) return false;
+    target.focus();
+    return document.activeElement === target;
+  });
 
   return (
     <Shell
