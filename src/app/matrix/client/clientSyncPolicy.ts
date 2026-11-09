@@ -14,6 +14,7 @@ import { keepStreamingRepliesChecked } from './streamingReplies';
 import { keepEncryptedRoomCounts } from './encryptedRoomCounts';
 import { keepSyncedEdits } from './syncedEdits';
 import { keepUnsentMessages } from './unsentMessages';
+import { recordRecentLiveEvents } from './recentLiveEvents';
 
 // How the client syncs. The startup orchestrator (src/app/account/lifecycle/initMatrix.ts) creates
 // the client and its stores; the app shell (src/app/shell/ClientRoot.tsx) then calls `startClient`
@@ -102,6 +103,8 @@ export const startClient = async (
     keepUnthreadedReceiptEvents(mx);
     keepEncryptedRoomCounts(mx);
     keepUnsentMessages(mx);
+    // Before the first sync, whose rings may come before the pages that watch for them load.
+    recordRecentLiveEvents(mx);
   }
   const policy: Partial<IStartClientOpts> = {
     threadSupport: true,

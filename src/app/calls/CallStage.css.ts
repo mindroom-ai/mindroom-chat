@@ -13,7 +13,8 @@ import { STAGE_PADDING, TILE_GAP } from './stageLayout';
 
 // The stage answers its own height: a short window drops the voice stage's status line first,
 // then the names, then the bars, so the faces keep their room. Each height is what the voice
-// stage needs with that part (a 64 px face with a line under it, 24 px bars, 12 px gaps).
+// stage needs with that part (a 64 px face with a line under it, 24 px bars, 12 px gaps). Shorter
+// still, the faces shrink to the stage's height, down to FACE_MIN.
 const stage = createContainer();
 const HIDES_STATUS = `${stage} (max-height: 160px)`;
 const HIDES_NAMES = `${stage} (max-height: 128px)`;
@@ -22,8 +23,13 @@ const hiddenWhen = (query: string): StyleRule => ({
   '@container': { [query]: { display: 'none' } },
 });
 
-/** Even a body crowded with notices leaves the stage a face's height. */
-const STAGE_MIN_HEIGHT = toRem(80);
+/** The smallest a voice stage's face gets in a short stage. */
+const FACE_MIN = 24;
+/**
+ * Even a body crowded with notices, or a short window over the transcript (WindowTranscript.css.ts),
+ * leaves the stage the smallest face's height.
+ */
+export const STAGE_MIN_HEIGHT = toRem(FACE_MIN + 2 * STAGE_PADDING);
 /** Speaker view's faces sit inside the tile in focus as far as that tile sits inside the stage. */
 const FACE_EDGE = toRem(STAGE_PADDING);
 /** The inset is measured from the stage, so twice as far: inside the tile in focus by as much. */
@@ -180,10 +186,16 @@ const faceAvatar = style({
   },
 });
 
+/** A face `size` px across, smaller in a stage shorter than that, but not under FACE_MIN. */
+const faceSize = (size: number): StyleRule => {
+  const side = `clamp(${toRem(FACE_MIN)}, 100cqh, ${toRem(size)})`;
+  return { selectors: { '&&': { width: side, height: side } } };
+};
+
 // 64 px for the one other person, 48 px each for more; folds sizes stop short of both.
 export const VoiceAvatar = styleVariants({
-  solo: [faceAvatar, { selectors: { '&&': { width: toRem(64), height: toRem(64) } } }],
-  group: [faceAvatar, { selectors: { '&&': { width: toRem(48), height: toRem(48) } } }],
+  solo: [faceAvatar, faceSize(64)],
+  group: [faceAvatar, faceSize(48)],
 });
 
 // A muted microphone, in the red of the microphone control while off.
