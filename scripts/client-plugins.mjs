@@ -19,7 +19,7 @@ import { normalizePath, searchForWorkspaceRoot } from 'vite';
  * `apiVersion`, the one it needs. Version 1 had no SDK; each later addition to the SDK (an export,
  * a contribution kind in `ClientPlugin`, or a field of the declaration) raises it.
  */
-const CLIENT_PLUGIN_API_VERSION = 38;
+const CLIENT_PLUGIN_API_VERSION = 40;
 
 /** The SDK's subpaths a build resolves, which plugins import, and the modules they are. */
 export const CLIENT_SDK_ALIAS = {
