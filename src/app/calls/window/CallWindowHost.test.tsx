@@ -277,8 +277,13 @@ describe('CallWindowHost', () => {
     expect(store.get(callPanelRoomAtom)).toBeUndefined();
   });
 
-  const callIn = (roomId: string) =>
-    ({ call: { room: { roomId } }, kind: 'room' } as unknown as ActiveCall);
+  /** A call this device is in, in `roomId` or as an agent call from `origin`, in `phase`. */
+  const callIn = (roomId: string, origin?: string, phase = 'connected') =>
+    ({
+      call: { room: { roomId }, leave: vi.fn(async () => undefined), getState: () => ({ phase }) },
+      kind: origin ? 'agent' : 'room',
+      origin: origin ? { roomId: origin } : undefined,
+    } as unknown as ActiveCall);
 
   it('expands a stored bar when a call starts in the room it shows, and only there', () => {
     const store = createStore();
@@ -305,8 +310,7 @@ describe('CallWindowHost', () => {
     renderHost(store);
     settle(store, { mode: 'floating', rect: bar, expandedHeight: 300 });
 
-    const agentCall = { ...callIn('!agent:host.test'), kind: 'agent', origin: { roomId: LOBBY } };
-    act(() => store.set(activeCallAtom, agentCall as ActiveCall));
+    act(() => store.set(activeCallAtom, callIn('!agent:host.test', LOBBY)));
     expect(stored().rect).toEqual(expanded);
   });
 
@@ -379,8 +383,7 @@ describe('CallWindowHost', () => {
 
     it('goes to the call button when an agent call takes its window away with it', async () => {
       const store = createStore();
-      const agentCall = { ...callIn('!agent:host.test'), kind: 'agent', origin: { roomId: LOBBY } };
-      store.set(activeCallAtom, agentCall as ActiveCall);
+      store.set(activeCallAtom, callIn('!agent:host.test', LOBBY));
       store.set(callPanelRoomAtom, LOBBY);
       renderHost(store, 'Desktop', page(true));
       await screen.findByTestId('call-panel');
@@ -428,10 +431,78 @@ describe('CallWindowHost', () => {
     });
   });
 
+  it.each(['Desktop', 'Mobile'] as const)(
+    'ends the call shown in a room the person leaves, is banned from or forgets (%s)',
+    (size) => {
+      const store = createStore();
+      const active = callIn(LOBBY);
+      store.set(activeCallAtom, active);
+      renderHost(store, size);
+
+      // Another room going, or the person's own join, leaves the call alone.
+      emit('Room.myMembership', rooms.get(DESK), 'leave', 'join');
+      emit('deleteRoom', DESK);
+      emit('Room.myMembership', rooms.get(LOBBY), 'join', 'invite');
+      expect(store.get(activeCallAtom)).toBe(active);
+      expect(active.call.leave).not.toHaveBeenCalled();
+
+      // Left (or kicked): the call ends here, its media with it.
+      emit('Room.myMembership', rooms.get(LOBBY), 'leave', 'join');
+      expect(active.call.leave).toHaveBeenCalledTimes(1);
+      expect(store.get(activeCallAtom)).toBeUndefined();
+
+      const banned = callIn(LOBBY);
+      act(() => store.set(activeCallAtom, banned));
+      emit('Room.myMembership', rooms.get(LOBBY), 'ban', 'join');
+      expect(banned.call.leave).toHaveBeenCalledTimes(1);
+      expect(store.get(activeCallAtom)).toBeUndefined();
+
+      const forgotten = callIn(LOBBY);
+      act(() => store.set(activeCallAtom, forgotten));
+      emit('deleteRoom', LOBBY);
+      expect(forgotten.call.leave).toHaveBeenCalledTimes(1);
+      expect(store.get(activeCallAtom)).toBeUndefined();
+    }
+  );
+
+  it('ends an agent call with its conversation or its call room, a failed one too, but not one End left', () => {
+    const store = createStore();
+    const agentCall = callIn('!agent:host.test', DESK);
+    store.set(activeCallAtom, agentCall);
+    store.set(callPanelRoomAtom, DESK);
+    renderHost(store);
+
+    // The conversation it is about, where its call view shows.
+    emit('deleteRoom', DESK);
+    expect(agentCall.call.leave).toHaveBeenCalledTimes(1);
+    expect(store.get(activeCallAtom)).toBeUndefined();
+    expect(callWindow()).toBeNull();
+
+    const inCallRoom = callIn('!agent:host.test', LOBBY);
+    act(() => store.set(activeCallAtom, inCallRoom));
+    emit('Room.myMembership', { roomId: '!agent:host.test' }, 'leave', 'join');
+    expect(inCallRoom.call.leave).toHaveBeenCalledTimes(1);
+    expect(store.get(activeCallAtom)).toBeUndefined();
+
+    // A call that failed waits for Dismiss in its view, which goes with the room.
+    const failed = callIn('!agent:host.test', LOBBY, 'failed');
+    act(() => store.set(activeCallAtom, failed));
+    emit('Room.myMembership', rooms.get(LOBBY), 'leave', 'join');
+    expect(failed.call.leave).toHaveBeenCalledTimes(1);
+    expect(store.get(activeCallAtom)).toBeUndefined();
+
+    // End left this call already and still runs what follows, such as leaving an old agent call
+    // room; it forgets the call itself once that is done.
+    const ending = callIn('!agent:host.test', LOBBY, 'ended');
+    act(() => store.set(activeCallAtom, ending));
+    emit('Room.myMembership', { roomId: '!agent:host.test' }, 'leave', 'join');
+    expect(ending.call.leave).not.toHaveBeenCalled();
+    expect(store.get(activeCallAtom)).toBe(ending);
+  });
+
   it('closes when an agent call started from the room it shows ends', () => {
     const store = createStore();
-    const agentCall = { ...callIn('!agent:host.test'), kind: 'agent', origin: { roomId: LOBBY } };
-    store.set(activeCallAtom, agentCall as ActiveCall);
+    store.set(activeCallAtom, callIn('!agent:host.test', LOBBY));
     store.set(callPanelRoomAtom, LOBBY);
     renderHost(store);
     act(() => store.set(activeCallAtom, undefined));

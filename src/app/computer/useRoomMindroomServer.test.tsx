@@ -19,12 +19,12 @@ const state = vi.hoisted(() => ({
   members: [] as { userId: string; membership: string }[],
 }));
 
-const ROOM = vi.hoisted(() => ({ roomId: '!room:example.org' }));
+const ROOM = vi.hoisted(() => ({ roomId: '!room:example.org', membersLoaded: () => true }));
 
 vi.mock('./useAgentServers', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./useAgentServers')>();
   return {
-    useBindsOpenIdTokens: () => state.bindsTokens ?? actual.useBindsOpenIdTokens(),
+    useOpenIdBinding: () => state.bindsTokens ?? actual.useOpenIdBinding(),
     useRoomAgentServers: (room: unknown) =>
       room === ROOM && state.published ? [{ apiUrl: state.published }] : [],
   };
@@ -62,14 +62,26 @@ describe('useRoomMindroomServer', () => {
   describe.each([null, 'https://other.example.org', ''])('with the preference %j', (preference) => {
     it("is the room's published server while the homeserver binds tokens to it", () => {
       state.published = PUBLISHED;
-      expect(server(preference, DEPLOYMENT)).toEqual({ apiUrl: PUBLISHED, discovered: true });
+      expect(server(preference, DEPLOYMENT)).toEqual({
+        apiUrl: PUBLISHED,
+        discovered: true,
+        pending: false,
+      });
     });
 
     it("is the deployment's server when none is published or tokens are not bound", () => {
-      expect(server(preference, DEPLOYMENT)).toEqual({ apiUrl: DEPLOYMENT, discovered: false });
+      expect(server(preference, DEPLOYMENT)).toEqual({
+        apiUrl: DEPLOYMENT,
+        discovered: false,
+        pending: false,
+      });
       state.published = PUBLISHED;
       state.bindsTokens = false;
-      expect(server(preference, DEPLOYMENT)).toEqual({ apiUrl: DEPLOYMENT, discovered: false });
+      expect(server(preference, DEPLOYMENT)).toEqual({
+        apiUrl: DEPLOYMENT,
+        discovered: false,
+        pending: false,
+      });
     });
 
     it('is none without either, or in a room without a MindRoom agent', () => {
@@ -104,10 +116,12 @@ describe('useRoomMindroomServer', () => {
 
     // The page's first check is still unanswered on the first render.
     const first = mount();
-    expect(first.seen[0]).toEqual({ apiUrl: DEPLOYMENT, discovered: false });
-    await waitFor(() => expect(first.seen.at(-1)).toEqual({ apiUrl: PUBLISHED, discovered: true }));
+    expect(first.seen[0]).toEqual({ apiUrl: DEPLOYMENT, discovered: false, pending: true });
+    await waitFor(() =>
+      expect(first.seen.at(-1)).toEqual({ apiUrl: PUBLISHED, discovered: true, pending: false })
+    );
     first.unmount();
 
-    expect(mount().seen[0]).toEqual({ apiUrl: PUBLISHED, discovered: true });
+    expect(mount().seen[0]).toEqual({ apiUrl: PUBLISHED, discovered: true, pending: false });
   });
 });
