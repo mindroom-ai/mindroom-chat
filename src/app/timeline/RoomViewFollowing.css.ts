@@ -2,13 +2,17 @@ import { style } from '@vanilla-extract/css';
 import { shortViewport } from '../ui/styles/shortViewport';
 import { color, config, toRem } from 'folds';
 
+const stripHeight = toRem(28);
+
 // The row under the composer. It keeps its height while empty, so the composer never moves
-// when someone starts or stops following.
+// when someone starts or stops following. Above a home indicator it lies in the bottom safe area,
+// which the footer keeps below it, so the composer rests on that area instead of a row higher.
 export const FollowingStrip = style({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'flex-end',
-  minBlockSize: toRem(28),
+  minBlockSize: stripHeight,
+  marginBlockEnd: `calc(-1 * min(env(safe-area-inset-bottom, 0px), ${stripHeight}))`,
   paddingInline: config.space.S400,
   minWidth: 0,
   // Short landscape phones give the row's height to the messages (after the display above).
