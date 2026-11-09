@@ -48,7 +48,7 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('../../computer/useRoomMindroomServer', () => ({
-  useRoomMindroomServer: () => ({ apiUrl: state.apiUrl, discovered: true }),
+  useRoomMindroomServer: () => ({ apiUrl: state.apiUrl }),
 }));
 vi.mock('./liveCallPoll', () => ({
   pollLiveCall: (

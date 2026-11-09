@@ -52,9 +52,9 @@ it("ends each of the account's MindRoom sessions at sign-out, before the page re
     stopClient: () => undefined,
     clearStores: () => Promise.resolve(),
   } as unknown as MatrixClient;
-  const one = clientSessions(mx, 'https://one.example.org', true);
+  const one = clientSessions(mx, 'https://one.example.org');
   await one.send('/api/plugins');
-  await clientSessions(mx, 'https://two.example.org', false).send('/api/plugins');
+  await clientSessions(mx, 'https://two.example.org').send('/api/plugins');
   // A call's leave, which must still have the session, answers a little later.
   one.beforeRevoke(
     () =>

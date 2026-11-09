@@ -66,7 +66,7 @@ const failures = vi.hoisted(() => ({
 }));
 vi.mock('./agent/useCallFailureNotice', () => ({ useCallFailureNotice: () => failures.visible }));
 vi.mock('../computer/useRoomMindroomServer', () => ({
-  useRoomMindroomServer: () => ({ apiUrl: undefined, discovered: false }),
+  useRoomMindroomServer: () => ({ apiUrl: undefined }),
 }));
 vi.mock('./callSupport', () => ({
   browserSharesScreens: () => true,

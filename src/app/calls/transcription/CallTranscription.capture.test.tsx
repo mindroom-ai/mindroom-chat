@@ -41,7 +41,7 @@ vi.mock('./speechCapture', () => ({
   },
 }));
 vi.mock('../../computer/useRoomMindroomServer', () => ({
-  useRoomMindroomServer: () => ({ apiUrl: 'https://mindroom.example.org', discovered: true }),
+  useRoomMindroomServer: () => ({ apiUrl: 'https://mindroom.example.org' }),
 }));
 const mx = vi.hoisted(() => ({}));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));

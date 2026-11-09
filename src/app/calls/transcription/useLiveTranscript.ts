@@ -41,8 +41,8 @@ type LastRead = { client: TranscriptionClient; roomId: string; lineId?: string }
  */
 const clients = new WeakMap<ClientSessions, TranscriptionClient>();
 
-const sharedClient = (mx: MatrixClient, apiUrl: string, discovered: boolean) => {
-  const sessions = clientSessions(mx, apiUrl, discovered);
+const sharedClient = (mx: MatrixClient, apiUrl: string) => {
+  const sessions = clientSessions(mx, apiUrl);
   const client = clients.get(sessions) ?? new TranscriptionClient(sessions);
   clients.set(sessions, client);
   return client;
@@ -69,11 +69,8 @@ const useLiveCallReads = (
   const mx = useMatrixClient();
   const reading = usePageShown() && wanted;
   const { roomId } = room;
-  const { apiUrl, discovered } = useRoomMindroomServer(mx, roomId);
-  const client = useMemo(
-    () => (apiUrl ? sharedClient(mx, apiUrl, discovered) : undefined),
-    [apiUrl, discovered, mx]
-  );
+  const { apiUrl } = useRoomMindroomServer(mx, roomId);
+  const client = useMemo(() => (apiUrl ? sharedClient(mx, apiUrl) : undefined), [apiUrl, mx]);
   const [view, setView] = useState<ReadView>({ state: 'loading' });
   const lastRead = useRef<LastRead>();
   useEffect(() => {

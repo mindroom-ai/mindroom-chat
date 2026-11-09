@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getDefaultStore } from 'jotai';
 import type { IOpenIDToken, MatrixClient } from 'matrix-js-sdk';
+import type { ClientConfig } from '../config/useClientConfig';
 import { requestAudienceOpenIdToken } from '../matrix/openidAudience';
 import {
   ClientSessions,
@@ -7,6 +9,7 @@ import {
   clientSessions,
   revokeClientSessions,
 } from './clientSessions';
+import { computerServicePreferenceAtom } from './computerServiceSettings';
 
 const API_URL = 'https://mindroom.example.org';
 const NOW = Date.UTC(2026, 10, 7, 9, 30);
@@ -22,6 +25,13 @@ const TOKEN = vi.hoisted(
 vi.mock('../matrix/openidAudience', () => ({
   requestAudienceOpenIdToken: vi.fn(async () => TOKEN),
 }));
+const config = vi.hoisted(() => ({ current: undefined as ClientConfig | undefined }));
+vi.mock('../config/useClientConfig', () => ({ getClientConfig: () => config.current }));
+// The person's choice in Settings, without the device storage it is kept in.
+vi.mock('./computerServiceSettings', async () => {
+  const { atom } = await import('jotai');
+  return { computerServicePreferenceAtom: atom<string | null>(null) };
+});
 
 type Sent = { url: string; init: RequestInit };
 
@@ -100,6 +110,8 @@ const sessions = (server: ReturnType<typeof fakeServer>, apiUrl = API_URL) =>
   new ClientSessions({ apiUrl, getOpenIdToken: async () => TOKEN, request: server.request });
 
 beforeEach(() => {
+  config.current = undefined;
+  getDefaultStore().set(computerServicePreferenceAtom, null);
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
   FakeSocket.made = [];
@@ -118,21 +130,64 @@ describe('clientSessions', () => {
     const ann = { getSafeUserId: () => '@ann:example.org' } as MatrixClient;
     const bob = { getSafeUserId: () => '@bob:example.org' } as MatrixClient;
 
-    const published = clientSessions(ann, API_URL, true);
-    expect(clientSessions(ann, API_URL, true)).toBe(published);
-    expect(clientSessions(bob, API_URL, true)).not.toBe(published);
-    expect(clientSessions(ann, 'https://other.example.org', true)).not.toBe(published);
+    const published = clientSessions(ann, API_URL);
+    expect(clientSessions(ann, API_URL)).toBe(published);
+    expect(clientSessions(bob, API_URL)).not.toBe(published);
+    expect(clientSessions(ann, 'https://other.example.org')).not.toBe(published);
 
     await published.send('/api/plugins');
-    await clientSessions(ann, API_URL, true).send('/api/plugins');
+    await clientSessions(ann, API_URL).send('/api/plugins');
     expect(server.signIns()).toBe(1);
     // An origin the room's agents published gets a token only while the homeserver binds it.
     expect(requestAudienceOpenIdToken).toHaveBeenLastCalledWith(ann, API_URL, {
       requireBinding: true,
     });
-    await clientSessions(ann, API_URL, false).send('/api/plugins');
+  });
+
+  it.each([
+    {
+      where: "the deployment's",
+      configure: () => {
+        config.current = { mindroom: { computers: { apiUrl: `${API_URL}/` } } };
+      },
+    },
+    {
+      where: 'the one in Settings',
+      configure: () => getDefaultStore().set(computerServicePreferenceAtom, API_URL),
+    },
+  ])(
+    'signs in once, without the binding check, to a server the agents publish that is $where',
+    async ({ configure }) => {
+      const server = fakeServer();
+      vi.stubGlobal('fetch', server.request);
+      const ann = { getSafeUserId: () => '@ann:example.org' } as MatrixClient;
+      configure();
+
+      await clientSessions(ann, API_URL).send('/api/plugins');
+      await clientSessions(ann, API_URL).send('/api/plugins');
+
+      expect(server.signIns()).toBe(1);
+      expect(requestAudienceOpenIdToken).toHaveBeenLastCalledWith(ann, API_URL, {
+        requireBinding: false,
+      });
+    }
+  );
+
+  it('asks for the binding check again once the server is no longer the one in Settings', async () => {
+    const server = fakeServer();
+    vi.stubGlobal('fetch', server.request);
+    const ann = { getSafeUserId: () => '@ann:example.org' } as MatrixClient;
+    getDefaultStore().set(computerServicePreferenceAtom, API_URL);
+    await clientSessions(ann, API_URL).send('/api/plugins');
+
+    // Settings reset, so only the room's agents still publish it; the session then runs out.
+    getDefaultStore().set(computerServicePreferenceAtom, null);
+    vi.setSystemTime(NOW + 3_600_000);
+    await clientSessions(ann, API_URL).send('/api/plugins');
+
+    expect(server.signIns()).toBe(2);
     expect(requestAudienceOpenIdToken).toHaveBeenLastCalledWith(ann, API_URL, {
-      requireBinding: false,
+      requireBinding: true,
     });
   });
 
@@ -141,11 +196,11 @@ describe('clientSessions', () => {
     vi.stubGlobal('fetch', server.request);
     const ann = { getSafeUserId: () => '@ann:example.org' } as MatrixClient;
     const bob = { getSafeUserId: () => '@bob:example.org' } as MatrixClient;
-    await clientSessions(ann, API_URL, true).send('/api/plugins');
-    await clientSessions(ann, 'https://other.example.org', false).send('/api/plugins');
-    await clientSessions(bob, API_URL, true).send('/api/plugins');
+    await clientSessions(ann, API_URL).send('/api/plugins');
+    await clientSessions(ann, 'https://other.example.org').send('/api/plugins');
+    await clientSessions(bob, API_URL).send('/api/plugins');
     // A server the account has not signed in to yet has nothing to end.
-    clientSessions(ann, 'https://unused.example.org', false);
+    clientSessions(ann, 'https://unused.example.org');
     server.sent.length = 0;
 
     await revokeClientSessions(ann);
@@ -160,7 +215,7 @@ describe('clientSessions', () => {
     });
     // The page is about to reload: nothing signs in again.
     server.sent.length = 0;
-    await expect(clientSessions(ann, API_URL, true).send('/api/plugins')).rejects.toMatchObject({
+    await expect(clientSessions(ann, API_URL).send('/api/plugins')).rejects.toMatchObject({
       status: 0,
     });
     expect(server.sent).toEqual([]);

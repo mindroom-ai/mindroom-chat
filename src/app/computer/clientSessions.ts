@@ -1,5 +1,9 @@
 import { ConnectionError, HTTPError, type IOpenIDToken, type MatrixClient } from 'matrix-js-sdk';
+import { getClientConfig } from '../config/useClientConfig';
+import { getImperativeJotaiStore } from '../lib/state/jotaiStore';
 import { requestAudienceOpenIdToken } from '../matrix/openidAudience';
+import { resolveComputerApiUrl } from './api';
+import { computerServicePreferenceAtom } from './computerServiceSettings';
 
 const SESSIONS_PATH = '/api/client-sessions';
 /** A session is renewed this long before the server lets it run out. */
@@ -315,30 +319,36 @@ export class ClientSessions {
   }
 }
 
-/** Each account's sessions, one per server URL and whether the room's agents published it. */
+/** Each account's sessions, one per server URL. */
 const shared = new WeakMap<MatrixClient, Map<string, ClientSessions>>();
 
 /**
- * The account's client session with the MindRoom server at `apiUrl`, shared by every caller that
- * passes the same `apiUrl` and `discovered`.
- * `discovered`: an origin the room's agents published, whose tokens only a homeserver that binds
- * them may give.
+ * Whether `apiUrl` is a MindRoom server configured now: the deployment's
+ * (`mindroom.computers.apiUrl`) or the person's in Settings. Any other is one only the room's agents
+ * published, whose tokens only a homeserver that binds them may give.
  */
-export const clientSessions = (
-  mx: MatrixClient,
-  apiUrl: string,
-  discovered: boolean
-): ClientSessions => {
+const isConfigured = (apiUrl: string): boolean =>
+  [
+    getClientConfig()?.mindroom?.computers?.apiUrl,
+    getImperativeJotaiStore().get(computerServicePreferenceAtom),
+  ].some((url) => resolveComputerApiUrl(url ?? undefined) === apiUrl);
+
+/**
+ * The account's client session with the MindRoom server at `apiUrl`, shared by every caller that
+ * passes the same `apiUrl`. Each sign-in asks for a token the homeserver binds unless the server is
+ * configured at that moment.
+ */
+export const clientSessions = (mx: MatrixClient, apiUrl: string): ClientSessions => {
   const servers = shared.get(mx) ?? new Map<string, ClientSessions>();
   shared.set(mx, servers);
-  const key = `${discovered ? 'discovered' : 'configured'} ${apiUrl}`;
   const sessions =
-    servers.get(key) ??
+    servers.get(apiUrl) ??
     new ClientSessions({
       apiUrl,
-      getOpenIdToken: () => requestAudienceOpenIdToken(mx, apiUrl, { requireBinding: discovered }),
+      getOpenIdToken: () =>
+        requestAudienceOpenIdToken(mx, apiUrl, { requireBinding: !isConfigured(apiUrl) }),
     });
-  servers.set(key, sessions);
+  servers.set(apiUrl, sessions);
   return sessions;
 };
 

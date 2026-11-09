@@ -30,7 +30,7 @@ const ROOM_ID = '!room:example.org';
 /** Each time something reads the live call on its own, which the window never does. */
 const polls = vi.hoisted(() => ({ count: 0 }));
 vi.mock('../../computer/useRoomMindroomServer', () => ({
-  useRoomMindroomServer: () => ({ apiUrl: 'https://mindroom.example.org', discovered: true }),
+  useRoomMindroomServer: () => ({ apiUrl: 'https://mindroom.example.org' }),
 }));
 vi.mock('../transcription/liveCallPoll', () => ({
   pollLiveCall: () => {

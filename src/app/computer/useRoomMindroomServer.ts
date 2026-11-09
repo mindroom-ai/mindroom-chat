@@ -9,7 +9,7 @@ import { resolveComputerApiUrl } from './api';
 
 /**
  * The room's MindRoom server: the one the room's agents published while the homeserver binds
- * tokens to it (`discovered`), else the deployment's. Never this device's choice of server for
+ * tokens to it, else the deployment's. Never this device's choice of server for
  * agents' computers, since call transcripts and plugin routes need the MindRoom whose router is in
  * the room. None in a room without a MindRoom agent. `pending` while the room's member list or the
  * homeserver's answer on binding tokens is still out, which can change it.
@@ -30,11 +30,9 @@ export const useRoomMindroomServer = (mx: MatrixClient, roomId: string) => {
       ),
     [members]
   );
-  const discovered = binding === true && !!published;
-  const apiUrl = discovered ? published : deploymentUrl;
+  const apiUrl = binding === true && published ? published : deploymentUrl;
   return {
     apiUrl: hasAgent ? apiUrl : undefined,
-    discovered,
     pending: binding === undefined || !membersSettled,
   };
 };
