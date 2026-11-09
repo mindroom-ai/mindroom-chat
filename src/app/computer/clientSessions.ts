@@ -178,11 +178,11 @@ export class ClientSessions {
    */
   private currentSession(signal?: AbortSignal): Promise<ClientSession> {
     if (this.revoked) return Promise.reject(noAnswer('Signed out of MindRoom.'));
-    // Before a sign-in starts that no one would wait for.
-    if (signal?.aborted) return Promise.reject(cancelled());
     if (this.session && this.session.expiresAt - SESSION_RENEW_MARGIN_MS > Date.now()) {
       return Promise.resolve(this.session);
     }
+    // Before a sign-in starts that no one would wait for.
+    if (signal?.aborted) return Promise.reject(cancelled());
     this.session = undefined;
     if (!this.signingIn) {
       const signingIn: Promise<ClientSession> = this.signIn()
