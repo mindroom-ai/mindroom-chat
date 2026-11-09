@@ -135,6 +135,8 @@ it('removes the keys of a logged-out account whose user ID extends a kept one', 
     `mindroom.members.width:${alice}`,
     `mindroom.panel.width:${alice}:example.panel`,
     pendingRoamingSettingsKey(alice, '8448'),
+    // Named after both: Alice's own panel, whose ID ends in the longer user ID.
+    `mindroom.panel.width:${alice}:notes/contact:${aliceOnPort}`,
   ];
   aliceKeys.forEach((key) => values.set(key, '1'));
   seedUserUiKeys(values, aliceOnPort);
