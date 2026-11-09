@@ -3,11 +3,11 @@ import {
   DEFAULT_MINDROOM_DOCS_URL,
   getConnectionRevokedAt,
   getMindroomDocsUrl,
-  getWelcomeSetupFirstSeenStorageKey,
   isConnectionRevoked,
   resolveProvisioningRequest,
   shouldShowWelcomeSetupPrompt,
 } from './provisioning';
+import { getWelcomeSetupFirstSeenStorageKey } from '../preferences/accountStorageKeys';
 
 describe('local mindroom helpers', () => {
   it('falls back to default docs url when value is empty', () => {

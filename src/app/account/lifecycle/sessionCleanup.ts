@@ -12,7 +12,16 @@ import { clearCrossRoomThreadFiltersStore } from '../../threads/cross-room/cross
 import { clearRoomThreadFiltersStore } from '../../threads/overview/roomThreadFilterState';
 import { clearRoomViewModeStore } from '../../navigation/roomViewMode';
 import { clearThreadSummarySharedState } from '../../event-store/threads/threadSummaryState';
-import { getSafeLocalStorage, removeStorageItemSafe } from '../../lib/safeLocalStorage';
+import {
+  getSafeLocalStorage,
+  getStorageKeysSafe,
+  removeStorageItemSafe,
+} from '../../lib/safeLocalStorage';
+import {
+  accountStorageKeyPrefixes,
+  accountStorageKeys,
+} from '../../preferences/accountStorageKeys';
+import { listSessions } from '../../matrix/session/sessions';
 import { clearSeenThreadRoots } from '../../matrix/seenThreadRoots';
 import { clearClosedNavCategoriesStore } from '../../ui/nav/closedNavCategories';
 import { clearSyncFilterIds } from '../../matrix/client/clientSyncPolicy';
@@ -99,6 +108,20 @@ export const clearUserUiState = (userId: string): void => {
   clearClosedNavCategoriesStore(userId);
   clearSyncFilterIds(userId);
   clearNotified(userId);
+  // The keys of preferences/accountStorageKeys.ts, whose builders also write them. A new key kept
+  // per account gets its builder there and goes in `accountStorageKeys` or its prefixes.
+  const storage = getSafeLocalStorage();
+  accountStorageKeys(userId).forEach((key) => removeStorageItemSafe(storage, key));
+  // A prefix of `@a:example.org` also starts the keys of `@a:example.org:8448`: those stay while
+  // that login does.
+  const prefixes = accountStorageKeyPrefixes(userId);
+  const keptPrefixes = listSessions()
+    .filter((session) => session.userId.length > userId.length)
+    .flatMap((session) => accountStorageKeyPrefixes(session.userId));
+  getStorageKeysSafe(storage)
+    .filter((key) => prefixes.some((prefix) => key.startsWith(prefix)))
+    .filter((key) => !keptPrefixes.some((prefix) => key.startsWith(prefix)))
+    .forEach((key) => removeStorageItemSafe(storage, key));
 };
 
 export const clearSessionUiState = (sessionId: string): void => {

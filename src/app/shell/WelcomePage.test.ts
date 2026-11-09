@@ -8,7 +8,7 @@ import { WelcomePage } from './WelcomePage';
 import { useClientConfig } from '../config/useClientConfig';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { getLocalMindroomConnections } from '../local-mindroom/api';
-import { getWelcomeSetupFirstSeenStorageKey } from '../local-mindroom/provisioning';
+import { getWelcomeSetupFirstSeenStorageKey } from '../preferences/accountStorageKeys';
 import { LOCAL_MINDROOM_SETTINGS_PAGE } from '../local-mindroom/settingsPage';
 import { settingsModalAtom } from '../navigation/settingsModal';
 

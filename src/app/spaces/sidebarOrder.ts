@@ -4,6 +4,7 @@ import {
   getLocalStorageItem,
   setLocalStorageItem,
 } from '../lib/state/atomWithLocalStorage';
+import { spaceOrderStorageKey } from '../preferences/accountStorageKeys';
 
 export type SpaceOrderState = string[];
 
@@ -13,8 +14,6 @@ export type SpaceOrderAction = {
 };
 
 export type SpaceOrderAtom = WritableAtom<SpaceOrderState, [SpaceOrderAction], undefined>;
-
-export const SPACE_ORDER_STORAGE_KEY_PREFIX = 'mindroom.sidebar.spaceOrder:';
 
 const uniqueStrings = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
@@ -30,9 +29,8 @@ const uniqueStrings = (value: unknown): string[] => {
 const readStringArray = (key: string): string[] => uniqueStrings(getLocalStorageItem<unknown>(key, []));
 
 export const makeSpaceOrderAtom = (userId: string): SpaceOrderAtom => {
-  const storeKey = `${SPACE_ORDER_STORAGE_KEY_PREFIX}${userId}`;
   const baseSpaceOrderAtom = atomWithLocalStorage<SpaceOrderState>(
-    storeKey,
+    spaceOrderStorageKey(userId),
     readStringArray,
     setLocalStorageItem
   );

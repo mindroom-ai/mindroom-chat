@@ -8,8 +8,8 @@ import { useClientConfig } from '../config/useClientConfig';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { MINDROOM_CLIENT_BRANDING, getWelcomePageContent } from '../ui/branding/clientBranding';
 import { getLocalMindroomConnections } from '../local-mindroom/api';
+import { getWelcomeSetupFirstSeenStorageKey } from '../preferences/accountStorageKeys';
 import {
-  getWelcomeSetupFirstSeenStorageKey,
   isConnectionRevoked,
   resolveProvisioningRequest,
   shouldShowWelcomeSetupPrompt,

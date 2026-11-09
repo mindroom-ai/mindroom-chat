@@ -13,6 +13,12 @@ import { clearRoomThreadFiltersStore } from '../../threads/overview/roomThreadFi
 import { clearRoomViewModeStore } from '../../navigation/roomViewMode';
 import { clearThreadSummarySharedState } from '../../event-store/threads/threadSummaryState';
 import {
+  accountStorageKeys,
+  pluginPanelWidthStorageKey,
+} from '../../preferences/accountStorageKeys';
+import { pendingRoamingSettingsKey } from '../../preferences/roamingSettings';
+import { SESSION_STORE_KEY, putSession } from '../../matrix/session/sessions';
+import {
   deleteCacheStoreDb,
   getCacheStoreDbName,
   getLegacyRoomEventCacheDbName,
@@ -38,7 +44,7 @@ vi.mock('../../event-store/cache/attachmentRepository', () => ({
   clearAttachmentRepositoryMemory: vi.fn(),
 }));
 
-it('removes only the logged-out account composer drafts from storage and memory', () => {
+const stubLocalStorage = (): Map<string, string> => {
   const values = new Map<string, string>();
   vi.stubGlobal('localStorage', {
     getItem: (key: string) => values.get(key) ?? null,
@@ -49,6 +55,15 @@ it('removes only the logged-out account composer drafts from storage and memory'
       return values.size;
     },
   });
+  return values;
+};
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+it('removes only the logged-out account composer drafts from storage and memory', () => {
+  const values = stubLocalStorage();
   const aliceKey = getRoomInputDraftKey('@draft-alice:example.org', '!room:example.org', '$root');
   const bobKey = getRoomInputDraftKey('@draft-bob:example.org', '!room:example.org', '$root');
   const store = createStore();
@@ -61,7 +76,52 @@ it('removes only the logged-out account composer drafts from storage and memory'
   expect(store.get(roomIdToMsgDraftAtomFamily(bobKey))).toEqual(draft);
   roomIdToMsgDraftAtomFamily.remove(aliceKey);
   expect(createStore().get(roomIdToMsgDraftAtomFamily(aliceKey))).toEqual([]);
-  vi.unstubAllGlobals();
+});
+
+const seed = (values: Map<string, string>, keys: string[]): string[] => {
+  keys.forEach((key) => values.set(key, '1'));
+  return keys;
+};
+
+it('removes the keys each module keeps for the logged-out account, and no other account', () => {
+  const values = stubLocalStorage();
+  seed(values, accountStorageKeys('@alice:example.org'));
+  const bobKeys = seed(values, accountStorageKeys('@bob:example.org'));
+  clearUserUiState('@alice:example.org');
+  expect([...values.keys()]).toEqual(bobKeys);
+});
+
+const perPanelOrDevice = (userId: string) => [
+  pluginPanelWidthStorageKey(userId, 'notes/list'),
+  pendingRoamingSettingsKey(userId, 'DEVICE'),
+];
+
+it('removes the logged-out account plugin panel widths and pending settings edits', () => {
+  const values = stubLocalStorage();
+  seed(values, perPanelOrDevice('@alice:example.org'));
+  const bobKeys = seed(values, perPanelOrDevice('@bob:example.org'));
+  clearUserUiState('@alice:example.org');
+  expect([...values.keys()]).toEqual(bobKeys);
+});
+
+it('keeps those of a stored login whose user ID starts with the logged-out one', () => {
+  const values = stubLocalStorage();
+  const userId = '@alice:example.org:8448';
+  putSession({ baseUrl: 'https://example.org', userId, deviceId: 'DEVICE', accessToken: 't' });
+  seed(values, perPanelOrDevice('@alice:example.org'));
+  const kept = seed(values, perPanelOrDevice(userId));
+  clearUserUiState('@alice:example.org');
+  expect([...values.keys()]).toEqual([SESSION_STORE_KEY, ...kept]);
+});
+
+it('removes those of a logged-out user ID that starts with a stored one', () => {
+  const values = stubLocalStorage();
+  const userId = '@alice:example.org';
+  putSession({ baseUrl: 'https://example.org', userId, deviceId: 'DEVICE', accessToken: 't' });
+  const kept = seed(values, perPanelOrDevice(userId));
+  seed(values, perPanelOrDevice('@alice:example.org:8448'));
+  clearUserUiState('@alice:example.org:8448');
+  expect([...values.keys()]).toEqual([SESSION_STORE_KEY, ...kept]);
 });
 
 vi.mock('../../notifications/push/iosPush', () => ({
@@ -219,8 +279,6 @@ describe('MindRoom session cleanup', () => {
     clearSessionUiState('session-a');
     clearSessionNativeState('session-a');
     clearInMemoryCaches();
-
-    vi.unstubAllGlobals();
 
     expect(removeItem).toHaveBeenCalledWith('lastOpenThread@alice:example.com');
     expect(vi.mocked(clearRoomThreadFiltersStore)).toHaveBeenCalledWith('@alice:example.com');

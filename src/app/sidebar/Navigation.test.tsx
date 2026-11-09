@@ -11,7 +11,7 @@ import { makeNavToActivePathAtom } from '../routes/navToActivePath';
 import { SpaceProvider } from '../matrix/hooks/useSpace';
 import { useNavToActivePathMapper } from '../routes/useNavToActivePathMapper';
 import { getScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
-import { getDesktopPageNavCollapsedStorageKey } from './desktopPageNavState';
+import { getDesktopPageNavCollapsedStorageKey } from '../preferences/accountStorageKeys';
 import {
   NavigationProvider,
   SectionPageRoot,
