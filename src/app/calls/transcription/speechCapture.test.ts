@@ -2,7 +2,7 @@ import { setTimeout as wait } from 'node:timers/promises';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RealTimeVADOptions } from '@ricky0123/vad-web';
 import type { FrameProcessorEvent } from '@ricky0123/vad-web/dist/frame-processor';
-import { startSpeechCapture, type SpeechStretch } from './speechCapture';
+import { startSpeechCapture, type SpeechCapture, type SpeechStretch } from './speechCapture';
 import { defined } from '../../../test/utils/defined';
 
 // The voice-activity detector without its model: MicVAD as its documentation describes it, on the
@@ -633,6 +633,24 @@ describe('startSpeechCapture', () => {
     // From the second frame heard after unmuting (the first is dropped).
     expect((await framesOf(defined(stretches[1], 'the stretch')))[0]).toBe(62);
   });
+
+  it.each([
+    ['mute', (capture: SpeechCapture) => capture.setMuted(true)],
+    ['pause', (capture: SpeechCapture) => capture.setPaused(true)],
+  ])(
+    'stays off after a %s asked for just before the first frame after a resume',
+    async (_, stop) => {
+      const { capture, hear, vad } = await start();
+      capture.setMuted(true);
+      await settle();
+      capture.setMuted(false);
+      await settle();
+      // The frame that drops itself arrives after the next mute or pause was asked for.
+      stop(capture);
+      await hear(1, QUIET);
+      expect(vad.listening).toBe(false);
+    }
+  );
 
   it('stays paused on unmute while a pause holds, and drops nothing more on mute', async () => {
     const { capture, hear, stretches, vad } = await start();

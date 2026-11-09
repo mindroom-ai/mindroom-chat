@@ -129,10 +129,10 @@ export const startSpeechCapture = async (
     }
   };
   // Pausing drops that first frame, as a pause drops what it cuts into, and what the worklet keeps
-  // this time was heard after the resume.
+  // this time was heard after the resume. A pause or mute asked for meanwhile holds.
   const dropFirstFrame = async (detector: MicVAD) => {
     await follow(detector, { paused: true, muted: false });
-    await follow(detector, { paused: false, muted: false });
+    await follow(detector);
     resumed = false;
   };
   // Listening goes on at once, so the samples heard go on counting.
