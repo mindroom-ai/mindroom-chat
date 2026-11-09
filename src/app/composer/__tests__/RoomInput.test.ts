@@ -936,15 +936,16 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('mounts the thread model picker in the top slot for a thread', async () => {
+  it('mounts the thread model picker at the start of the controls for a thread', async () => {
     const { renderer } = await renderRoomInput(createStore(), { threadId: '$thread' });
 
     const top = renderer.root.findByProps({ 'data-room-input-slot': 'top' });
     const before = renderer.root.findByProps({ 'data-room-input-slot': 'before' });
 
     expect(modelPickerState.props.at(-1)).toEqual(expect.objectContaining({ threadId: '$thread' }));
-    expect(top.findAllByProps({ 'aria-label': 'Model picker seam' })).toHaveLength(1);
-    expect(before.findAllByProps({ 'aria-label': 'Model picker seam' })).toHaveLength(0);
+    expect(top.findAllByProps({ 'aria-label': 'Model picker seam' })).toHaveLength(0);
+    const buttons = before.findAll((node) => node.type === 'button');
+    expect(buttons[0]?.props['aria-label']).toBe('Model picker seam');
 
     renderer.unmount();
   });

@@ -1,5 +1,6 @@
-import { type StyleRule, globalStyle, style } from '@vanilla-extract/css';
+import { type StyleRule, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { touchTarget } from '../ui/styles/touchTarget';
 
 const blend = {
   color: 'inherit',
@@ -15,134 +16,51 @@ const control = {
 } as const;
 
 // Secondary text: dimmed rather than recolored, so it follows the surface it sits on.
-const muted: StyleRule = { opacity: config.opacity.P400 };
+const muted: StyleRule = { opacity: config.opacity.P300 };
 
 const hairline = (tone: string) => `${config.borderWidth.B300} solid ${tone}`;
 
 const column: StyleRule = { display: 'flex', flexDirection: 'column' };
 
-const centeredRow = (gap: string, display: 'flex' | 'inline-flex' = 'flex'): StyleRule => ({
-  display,
+const centeredRow = (gap: string): StyleRule => ({
+  display: 'flex',
   alignItems: 'center',
   gap,
 });
 
 const ellipsis: StyleRule = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 
-// The font size and the line height of one folds type scale step.
-const typeScale = (step: keyof typeof config.fontSize): StyleRule => ({
-  fontSize: config.fontSize[step],
-  lineHeight: config.lineHeight[step],
-});
-
-// A small square that centers its icon, for icon buttons and the icon of an option.
-const tile: StyleRule = {
-  flexShrink: 0,
-  display: 'inline-grid',
-  placeItems: 'center',
-  width: toRem(28),
-  height: toRem(28),
-  borderRadius: config.radii.R300,
-};
-
-const outlined = {
+// Text fields and selects of the picker.
+const field = {
   color: color.SurfaceVariant.OnContainer,
   border: hairline(color.SurfaceVariant.ContainerLine),
+  backgroundColor: color.SurfaceVariant.Container,
 } as const;
 
-// Text fields and selects of the picker.
-const field = { ...outlined, backgroundColor: color.SurfaceVariant.Container } as const;
-
 // A hover fill and a focus ring in the colors of the control's tone.
-const hoverAndFocus = (fill: string, ring: string, focusExtras: StyleRule = {}) =>
+const hoverAndFocus = (fill: string, ring: string) =>
   ({
     '&:hover': { backgroundColor: fill },
-    '&:focus-visible': { outline: `2px solid ${ring}`, ...focusExtras },
+    '&:focus-visible': { outline: `2px solid ${ring}` },
   } as const);
 
-// The desktop popover above the composer's model trigger.
+// The menu above the model button, the message menu's glass and rows. Its rows scroll inside it.
 export const Panel = style([
   column,
   {
-    width: toRem(360),
-    maxWidth: 'calc(100vw - 2rem)',
-    height: `min(${toRem(480)}, 70vh)`,
-    borderRadius: config.radii.R500,
-    overflow: 'hidden',
-    boxShadow: config.shadow.E300,
+    width: toRem(272),
+    maxWidth: `calc(100vw - ${toRem(32)})`,
   },
 ]);
 
-// On phones the panel fills the bottom sheet instead of floating.
-export const MobilePanel = style({
-  width: '100%',
-  maxWidth: '100%',
-  height: '100%',
-  maxHeight: '100%',
-  borderRadius: 0,
-  boxShadow: 'none',
-});
-
-// The sheet's Modal holds the focus trap's wrapper; that wrapper passes the sheet's height on, so
-// the panel inside stays as tall as the sheet and its results scroll beneath the controls.
-globalStyle(`${MobilePanel}:not(${Panel}) > div`, { height: '100%', minHeight: 0 });
-
-export const MobileContainer = style({
-  position: 'fixed',
-  inset: 0,
-  display: 'flex',
-  alignItems: 'flex-end',
-  justifyContent: 'center',
-  padding: `${config.space.S400} 0 0`,
-  paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-  pointerEvents: 'none',
-});
-
-globalStyle(`${MobileContainer} > *`, { pointerEvents: 'auto', maxHeight: '85vh', width: '100%' });
-
+// The filter field, runtime chooser and status above the rows, which stay while the rows scroll.
 export const Controls = style([
   column,
   {
-    alignItems: 'stretch',
     flex: 'none',
-    rowGap: config.space.S200,
-    padding: config.space.S300,
-    borderBottom: hairline(color.Surface.ContainerLine),
-    // The title, search and runtime rows set the height, not the folds Header size.
-    selectors: { '&&': { height: 'auto' } },
-  },
-]);
-
-export const Header = style({
-  display: 'flex',
-  alignItems: 'flex-start',
-  gap: config.space.S200,
-});
-
-export const HeaderText = style([
-  column,
-  {
-    flex: '1 1 auto',
-    minWidth: 0,
     gap: config.space.S100,
-  },
-]);
-
-export const Title = style({
-  ...typeScale('H6'),
-  fontWeight: config.fontWeight.W600,
-});
-
-export const Subtitle = style({
-  ...typeScale('T200'),
-  ...muted,
-});
-
-export const IconButton = style([
-  control,
-  tile,
-  {
-    selectors: hoverAndFocus(color.SurfaceVariant.ContainerHover, color.Primary.Main),
+    paddingBlockStart: config.space.S100,
+    paddingInline: config.space.S100,
   },
 ]);
 
@@ -150,13 +68,16 @@ export const SearchRow = style([
   centeredRow(config.space.S200),
   field,
   {
-    padding: `0 ${config.space.S200}`,
-    borderRadius: config.radii.R400,
+    height: toRem(32),
+    paddingInline: config.space.S200,
+    borderRadius: config.radii.R300,
     selectors: {
       '&:focus-within': { borderColor: color.Primary.Main },
     },
   },
 ]);
+
+export const SearchIcon = style([muted, { flexShrink: 0 }]);
 
 export const SearchInput = style({
   ...blend,
@@ -165,20 +86,19 @@ export const SearchInput = style({
   border: 'none',
   outline: 'none',
   fontSize: config.fontSize.T300,
-  padding: `${config.space.S100} 0`,
+  padding: 0,
+  selectors: { '&::placeholder': { color: 'inherit', opacity: config.opacity.Placeholder } },
 });
 
 export const RuntimeRow = style([
   centeredRow(config.space.S200),
   {
+    paddingInline: config.space.S200,
     fontSize: config.fontSize.T200,
   },
 ]);
 
-export const RuntimeLabel = style({
-  flexShrink: 0,
-  ...muted,
-});
+export const RuntimeLabel = style([muted, { flexShrink: 0 }]);
 
 export const RuntimeSelect = style([
   field,
@@ -186,16 +106,19 @@ export const RuntimeSelect = style([
     flex: '1 1 auto',
     minWidth: 0,
     font: 'inherit',
-    padding: `${config.space.S100} ${config.space.S200}`,
+    paddingBlock: config.space.S100,
+    paddingInline: config.space.S200,
     borderRadius: config.radii.R300,
   },
 ]);
 
 export const StatusRow = style([
   centeredRow(config.space.S200),
+  muted,
   {
+    paddingBlock: config.space.S100,
+    paddingInline: config.space.S200,
     fontSize: config.fontSize.T200,
-    ...muted,
   },
 ]);
 
@@ -209,7 +132,7 @@ export const Error = style([
     paddingInline: config.space.S300,
     color: danger.OnContainer,
     backgroundColor: danger.Container,
-    borderRadius: config.radii.R400,
+    borderRadius: config.radii.R300,
     fontSize: config.fontSize.T200,
   },
 ]);
@@ -230,40 +153,55 @@ export const TextButton = style([
   },
 ]);
 
-export const Results = style({
-  padding: config.space.S200,
-});
+// The highlight shows the row the keys are on; the list itself draws no focus ring.
+export const Results = style([
+  column,
+  {
+    gap: config.space.S100,
+    padding: config.space.S100,
+    outline: 'none',
+  },
+]);
 
-export const Group = style({
-  display: 'flex',
-  flexDirection: 'column',
-  selectors: { '& + &': { marginTop: config.space.S200 } },
-});
+export const Group = style([column, { gap: config.space.S100 }]);
 
-export const GroupTitle = style({
-  padding: `${config.space.S200} ${config.space.S200} ${config.space.S100}`,
-  fontSize: config.fontSize.O400,
-  fontWeight: config.fontWeight.W500,
-  letterSpacing: '0.04em',
-  textTransform: 'uppercase',
-  ...muted,
-});
+export const GroupTitle = style([
+  muted,
+  {
+    paddingBlockStart: config.space.S200,
+    paddingInline: config.space.S300,
+    fontSize: config.fontSize.O400,
+    lineHeight: toRem(16),
+    fontWeight: config.fontWeight.W500,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+  },
+]);
 
+// Two lines, 48 px tall, so a row is a finger's height on a phone too.
 export const Option = style({
   display: 'flex',
   alignItems: 'center',
-  gap: config.space.S300,
-  padding: `${config.space.S200} ${config.space.S200}`,
-  borderRadius: config.radii.R400,
+  gap: config.space.S200,
+  paddingBlock: toRem(6),
+  paddingInlineStart: config.space.S300,
+  paddingInlineEnd: config.space.S200,
+  borderRadius: config.radii.R300,
   cursor: 'pointer',
   selectors: {
-    '&[data-active="true"]': { backgroundColor: color.SurfaceVariant.ContainerHover },
-    '&[aria-selected="true"]': { color: color.Primary.Main },
+    '&[data-active="true"]': { backgroundColor: color.Surface.ContainerHover },
     '&[aria-disabled="true"]': { cursor: 'default', opacity: config.opacity.Disabled },
   },
 });
 
-export const OptionIcon = style([tile, { overflow: 'hidden' }]);
+export const OptionIcon = style({
+  flexShrink: 0,
+  display: 'inline-grid',
+  placeItems: 'center',
+  width: toRem(20),
+  height: toRem(20),
+  overflow: 'hidden',
+});
 
 export const IconImage = style({
   display: 'block',
@@ -282,16 +220,20 @@ export const OptionText = style([
 export const OptionTitle = style([
   ellipsis,
   {
-    ...typeScale('T300'),
-    fontWeight: config.fontWeight.W500,
+    fontSize: config.fontSize.T300,
+    lineHeight: toRem(20),
+    selectors: {
+      [`[aria-selected="true"] > ${OptionText} > &`]: { fontWeight: config.fontWeight.W500 },
+    },
   },
 ]);
 
 export const OptionDetail = style([
   ellipsis,
+  muted,
   {
-    ...typeScale('T200'),
-    ...muted,
+    fontSize: config.fontSize.T200,
+    lineHeight: toRem(16),
   },
 ]);
 
@@ -300,63 +242,67 @@ export const Check = style({
   color: color.Primary.Main,
 });
 
-export const Empty = style({
-  padding: config.space.S400,
-  textAlign: 'center',
-  fontSize: config.fontSize.T300,
-  ...muted,
-});
-
-// Under the results: which models the room inherits, or that the choice applies to new replies.
-export const Footer = style({
-  flex: 'none',
-  paddingBlock: config.space.S200,
-  paddingInline: config.space.S300,
-  paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
-  borderTop: hairline(color.Surface.ContainerLine),
-});
-
-export const FooterText = style({
-  fontSize: config.fontSize.T200,
-  ...muted,
-});
-
-// The composer's row above the editor that names the thread's model.
-export const ComposerRow = style([
-  centeredRow(config.space.S200),
+export const Empty = style([
+  muted,
   {
-    minWidth: 0,
-    padding: `${config.space.S100} ${config.space.S200} 0`,
+    padding: config.space.S400,
+    textAlign: 'center',
+    fontSize: config.fontSize.T300,
   },
 ]);
 
-export const ScopeLabel = style({
-  flexShrink: 0,
-  fontSize: config.fontSize.T200,
-  ...muted,
-});
+const triggerSize = toRem(32);
 
+// The button at the start of the composer: the provider's logo alone, without the glass of the
+// buttons after it, the same 32 px square and 44 px to a finger.
 export const Trigger = style([
   control,
-  outlined,
-  centeredRow(config.space.S100, 'inline-flex'),
-  typeScale('T200'),
+  touchTarget('2px'),
   {
-    minWidth: 0,
-    maxWidth: '100%',
-    padding: `${toRem(2)} ${config.space.S200}`,
-    borderRadius: config.radii.Pill,
+    position: 'relative',
+    flexShrink: 0,
+    display: 'inline-grid',
+    placeItems: 'center',
+    inlineSize: triggerSize,
+    padding: 0,
+    blockSize: triggerSize,
+    borderRadius: config.radii.R300,
+    color: color.SurfaceVariant.OnContainer,
     selectors: {
-      ...hoverAndFocus(color.SurfaceVariant.ContainerHover, color.Primary.Main, {
-        outlineOffset: 1,
-      }),
+      ...hoverAndFocus(color.SurfaceVariant.ContainerHover, color.Primary.Main),
       '&[aria-expanded="true"]': { backgroundColor: color.SurfaceVariant.ContainerActive },
     },
   },
 ]);
 
+// The logo stays quiet until the button is pointed at, focused or open.
 export const TriggerIcon = style({
-  flexShrink: 0,
+  opacity: config.opacity.P300,
+  selectors: {
+    [`${Trigger}:hover &`]: { opacity: 1 },
+    [`${Trigger}:focus-visible &`]: { opacity: 1 },
+    [`${Trigger}[aria-expanded="true"] &`]: { opacity: 1 },
+  },
 });
 
-export const TriggerLabel = style([ellipsis, { minWidth: 0 }]);
+// The hairline between the model button and the composer's other buttons.
+export const TriggerDivider = style({
+  flexShrink: 0,
+  width: config.borderWidth.B300,
+  height: toRem(20),
+  backgroundColor: color.SurfaceVariant.ContainerLine,
+});
+
+// The model's name in the button, for screen readers and the text a test reads; the tooltip
+// shows it.
+export const VisuallyHidden = style({
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
+});

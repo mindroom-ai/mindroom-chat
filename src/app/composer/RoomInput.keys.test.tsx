@@ -57,9 +57,14 @@ vi.mock('../editor/output', () => ({
   trimCustomHtml: (value: string) => value,
 }));
 vi.mock('../editor/Editor', () => ({
-  CustomEditor: (props: EditorProps & { top?: React.ReactNode }) => {
+  CustomEditor: (props: EditorProps & { top?: React.ReactNode; before?: React.ReactNode }) => {
     state.editorProps = props;
-    return <>{props.top}</>;
+    return (
+      <>
+        {props.top}
+        {props.before}
+      </>
+    );
   },
 }));
 vi.mock('../editor/autocomplete/autocompleteQuery', async (importOriginal) => {

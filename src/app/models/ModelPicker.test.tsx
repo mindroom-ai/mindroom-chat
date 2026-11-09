@@ -5,7 +5,7 @@ import { act } from 'react-dom/test-utils';
 import { createRoot, Root } from 'react-dom/client';
 import { Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ScreenSize } from '../lib/hooks/useScreenSize';
+import type { ModelCatalogEntry } from './modelProtocol';
 import type { ModelPickerState } from './useModelPicker';
 import { ModelPicker, ThreadModelPicker } from './ModelPicker';
 import { ModelIcon } from './ModelIcon';
@@ -13,44 +13,19 @@ import { ModelIcon } from './ModelIcon';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const mocks = vi.hoisted(() => ({
-  screenSize: 'Desktop',
   useModelPicker: vi.fn(),
   mxcUrlToHttp: vi.fn(() => 'https://matrix.example/media/icon'),
 }));
 
-vi.mock('../ui/page/PageScroll', () => ({
-  PageScroll: ({
-    header,
-    children,
-    scrollRef,
-  }: {
-    header?: React.ReactNode;
-    children: React.ReactNode;
-    scrollRef?: React.RefObject<HTMLDivElement>;
-  }) => (
-    <div ref={scrollRef}>
-      {header}
-      {children}
-    </div>
-  ),
-}));
 vi.mock('./ModelPicker.css', () => ({
   Check: 'Check',
-  ComposerRow: 'ComposerRow',
   Controls: 'Controls',
   Empty: 'Empty',
   Error: 'Error',
   ErrorActions: 'ErrorActions',
-  Footer: 'Footer',
-  FooterText: 'FooterText',
   Group: 'Group',
   GroupTitle: 'GroupTitle',
-  Header: 'Header',
-  HeaderText: 'HeaderText',
-  IconButton: 'IconButton',
   IconImage: 'IconImage',
-  MobileContainer: 'MobileContainer',
-  MobilePanel: 'MobilePanel',
   Option: 'Option',
   OptionDetail: 'OptionDetail',
   OptionIcon: 'OptionIcon',
@@ -61,16 +36,15 @@ vi.mock('./ModelPicker.css', () => ({
   RuntimeLabel: 'RuntimeLabel',
   RuntimeRow: 'RuntimeRow',
   RuntimeSelect: 'RuntimeSelect',
-  ScopeLabel: 'ScopeLabel',
+  SearchIcon: 'SearchIcon',
   SearchInput: 'SearchInput',
   SearchRow: 'SearchRow',
   StatusRow: 'StatusRow',
-  Subtitle: 'Subtitle',
   TextButton: 'TextButton',
-  Title: 'Title',
   Trigger: 'Trigger',
+  TriggerDivider: 'TriggerDivider',
   TriggerIcon: 'TriggerIcon',
-  TriggerLabel: 'TriggerLabel',
+  VisuallyHidden: 'VisuallyHidden',
 }));
 
 vi.mock('react-i18next', () => ({
@@ -80,27 +54,18 @@ vi.mock('react-i18next', () => ({
         'mindroomUi.models.modelPicker.chooseModel': 'Choose model',
         'mindroomUi.models.modelPicker.roomDefault': 'Room default',
         'mindroomUi.models.modelPicker.modelForThread': 'Model for this thread',
-        'mindroomUi.models.modelPicker.appliesToThread':
-          'Applies to all agents and teams for future replies in this thread.',
         'mindroomUi.models.modelPicker.search': 'Search models',
-        'mindroomUi.models.modelPicker.close': 'Close model picker',
-        'mindroomUi.models.modelPicker.useRoomDefault': 'Use room default',
         'mindroomUi.models.modelPicker.roomDefaultDescription':
           'Let each agent use its configured model.',
         'mindroomUi.models.modelPicker.models': 'Models',
         'mindroomUi.models.modelPicker.runtime': 'Runtime',
         'mindroomUi.models.modelPicker.chooseRuntime': 'Choose a runtime',
-        'mindroomUi.models.modelPicker.refresh': 'Refresh models',
         'mindroomUi.models.modelPicker.retry': 'Retry',
         'mindroomUi.models.modelPicker.loading': 'Loading models',
         'mindroomUi.models.modelPicker.pending': 'Waiting for model change',
         'mindroomUi.models.modelPicker.noResults': 'No matching models',
         'mindroomUi.models.modelPicker.commandFallback':
           'You can still send !model with a model key in this thread.',
-        'mindroomUi.models.modelPicker.inheritedModels': `Room defaults by agent: ${String(
-          options?.models
-        )}`,
-        'mindroomUi.models.modelPicker.futureReplies': 'Changes apply to future replies.',
         'mindroomUi.models.modelPicker.runtimeLabel': `${String(options?.userId)} on ${String(
           options?.deviceId
         )}`,
@@ -112,11 +77,6 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('folds', async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  Modal: ({ children, className }: { children?: React.ReactNode; className?: string }) => (
-    <div className={className}>{children}</div>
-  ),
-  Overlay: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
-  OverlayBackdrop: () => <div />,
   PopOut: ({ children, content }: { children?: React.ReactNode; content?: React.ReactNode }) => (
     <div>
       {children}
@@ -127,61 +87,34 @@ vi.mock('folds', async (importOriginal) => ({
 }));
 
 vi.mock('../ui/glass/GlassPrimitives', () => ({
-  Header: ({ children, className }: { children?: React.ReactNode; className?: string }) => (
-    <div className={className}>{children}</div>
+  Menu: React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+    ({ children, ...props }, ref) => (
+      <div ref={ref} data-glass-menu="" {...props}>
+        {children}
+      </div>
+    )
   ),
-  Surface: ({
+}));
+
+vi.mock('../ui/IconTooltip', () => ({
+  IconTooltip: ({
+    label,
+    hint,
     children,
-    appearance = 'glass',
-    level = 'overlay',
-    variant = 'Surface',
-    ...props
-  }: React.HTMLAttributes<HTMLDivElement> & {
-    appearance?: string;
-    level?: string;
-    variant?: string;
+  }: {
+    label: string;
+    hint?: string;
+    children: (ref: () => void) => React.ReactNode;
   }) => (
-    <div
-      data-shared-surface={appearance}
-      data-surface-level={level}
-      data-surface-variant={variant}
-      {...props}
-    >
-      {children}
-    </div>
-  ),
-  Modal: ({
-    children,
-    appearance = 'glass',
-    variant = 'Surface',
-    size,
-    flexHeight,
-    ...props
-  }: React.HTMLAttributes<HTMLDivElement> & {
-    appearance?: string;
-    variant?: string;
-    size?: string;
-    flexHeight?: boolean;
-  }) => (
-    <div
-      data-shared-modal={appearance}
-      data-modal-variant={variant}
-      data-modal-size={size}
-      data-modal-flex-height={flexHeight ? 'true' : undefined}
-      {...props}
-    >
-      {children}
-    </div>
+    <>
+      {children(() => undefined)}
+      <span data-tooltip-label={label} data-tooltip-hint={hint} />
+    </>
   ),
 }));
 
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-
-vi.mock('../lib/hooks/useScreenSize', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  useScreenSizeContext: () => mocks.screenSize,
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
@@ -245,6 +178,17 @@ const createState = (patch: Partial<ModelPickerState> = {}): ModelPickerState =>
   ...patch,
 });
 
+/** A catalog long enough to get the filter field: the three models and six more. */
+const longCatalog = (): ModelCatalogEntry[] => [
+  ...createState().models,
+  ...Array.from({ length: 6 }, (_, index) => ({
+    key: `studio-${index + 1}`,
+    display_name: `Studio model ${index + 1}`,
+    provider: 'Studio',
+    id: `studio-model-${index + 1}`,
+  })),
+];
+
 const click = (element: Element) => {
   act(() => element.dispatchEvent(new MouseEvent('click', { bubbles: true })));
 };
@@ -261,12 +205,21 @@ const keyDown = (element: Element, key: string) => {
   act(() => element.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })));
 };
 
-describe('responsive model picker', () => {
+describe('composer model picker', () => {
   let container: HTMLDivElement;
   let root: Root;
 
+  const trigger = () => container.querySelector('button[aria-label="Choose model"]')!;
+  const list = () => container.querySelector('[role="listbox"]');
+  const search = () => container.querySelector('input[role="searchbox"]') as HTMLInputElement;
+  const options = () => [...container.querySelectorAll('[role="option"]')];
+  const optionNamed = (text: string) => options().find((row) => row.textContent?.includes(text))!;
+  const open = (state: ModelPickerState) => {
+    act(() => root.render(<ModelPicker state={state} />));
+    click(trigger());
+  };
+
   beforeEach(() => {
-    mocks.screenSize = ScreenSize.Desktop;
     mocks.useModelPicker.mockReset();
     mocks.mxcUrlToHttp.mockClear();
     container = document.createElement('div');
@@ -295,39 +248,136 @@ describe('responsive model picker', () => {
       act(() => root.render(<ThreadModelPicker room={{} as Room} threadId="$thread" />));
 
       expect(container.querySelector('button[aria-label="Choose model"]')).toBeNull();
+      expect(container.querySelector('.TriggerDivider')).toBeNull();
     }
   );
 
-  it('searches display name, stable key, and provider while grouping visible models', () => {
+  it('sets the button off from the buttons after it in a thread', () => {
+    mocks.useModelPicker.mockReturnValue(createState());
+
+    act(() => root.render(<ThreadModelPicker room={{} as Room} threadId="$thread" />));
+
+    expect(trigger()).not.toBeNull();
+    expect(container.lastElementChild?.className).toBe('TriggerDivider');
+    expect(container.lastElementChild?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('shows the logo of the model the thread uses', () => {
+    act(() => root.render(<ModelPicker state={createState({ override: 'reset' })} />));
+
+    const path = trigger().querySelector('svg path');
+    expect(path?.getAttribute('d')).toMatch(/^M17\.3041/);
+    expect(trigger().querySelector('img')).toBeNull();
+  });
+
+  it("shows the logo of the room default's model when every agent uses it", () => {
     act(() => root.render(<ModelPicker state={createState()} />));
-    click(container.querySelector('button[aria-label="Choose model"]')!);
 
-    const search = container.querySelector('input[role="searchbox"]') as HTMLInputElement;
-    expect(search).toBe(document.activeElement);
+    expect(trigger().querySelector('img')?.getAttribute('src')).toBe(
+      'https://matrix.example/media/icon'
+    );
+  });
 
-    input(search, 'quick');
-    expect(container.querySelector('[role="option"]')?.textContent).toContain('Quick helper');
-    expect(container.querySelectorAll('[role="option"]')).toHaveLength(1);
+  it('shows a generic mark while the agents fall back to different models', () => {
+    const state = createState({
+      inherited: [
+        { entity: 'assistant', model: 'fast' },
+        { entity: 'reviewer', model: 'reset' },
+      ],
+    });
+    act(() => root.render(<ModelPicker state={state} />));
 
-    input(search, 'reset');
-    expect(container.querySelector('[role="option"]')?.textContent).toContain('Deep reasoning');
+    expect(trigger().querySelector('svg')?.getAttribute('class')).toContain('tabler-icon-sparkles');
+  });
 
-    input(search, 'local');
-    expect(container.querySelector('[role="group"]')?.textContent).toContain('Local');
-    expect(container.querySelector('[role="option"]')?.textContent).toContain('Named default');
+  it('names the trigger "Choose model" followed by the model label it shows', () => {
+    act(() => root.render(<ModelPicker state={createState({ override: 'reset' })} />));
+
+    const [self, label, ...rest] = (trigger().getAttribute('aria-labelledby') ?? '').split(' ');
+
+    expect(self).toBe(trigger().id);
+    expect(document.getElementById(label!)?.textContent).toBe('Deep reasoning');
+    expect(rest).toEqual([]);
+    expect(trigger().hasAttribute('aria-describedby')).toBe(false);
+    const tooltip = container.querySelector('[data-tooltip-label]')!;
+    expect(tooltip.getAttribute('data-tooltip-label')).toBe('Choose model');
+    expect(tooltip.getAttribute('data-tooltip-hint')).toBe('Deep reasoning');
+  });
+
+  it('opens a glass menu named for the thread, with no filter field for a short catalog', () => {
+    open(createState());
+
+    const menu = container.querySelector('[role="dialog"]')!;
+    expect(menu.getAttribute('aria-label')).toBe('Model for this thread');
+    expect(menu.hasAttribute('data-glass-menu')).toBe(true);
+    expect(search()).toBeNull();
+    expect(list()).toBe(document.activeElement);
+    expect(trigger().getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('lists each model by name over its model ID, under its provider, and checks the current one', () => {
+    open(createState({ override: 'reset' }));
+
+    const reasoning = optionNamed('Deep reasoning');
+    expect(reasoning.querySelector('.OptionDetail')?.textContent).toBe('reasoning-model');
+    expect(reasoning.closest('[role="group"]')?.getAttribute('aria-label')).toBe('Anthropic');
+    expect(reasoning.getAttribute('aria-selected')).toBe('true');
+    expect(reasoning.querySelector('.Check')).not.toBeNull();
+    expect(optionNamed('Quick helper').querySelector('.Check')).toBeNull();
+  });
+
+  it('says under "Room default" which model each agent falls back to', () => {
+    open(
+      createState({
+        override: 'reset',
+        inherited: [
+          { entity: 'assistant', model: 'fast' },
+          { entity: 'reviewer', model: 'legacy-key' },
+        ],
+      })
+    );
+
+    expect(optionNamed('Room default').querySelector('.OptionDetail')?.textContent).toBe(
+      'assistant: Quick helper, reviewer: legacy-key'
+    );
+  });
+
+  it('explains "Room default" before the router names the fallback models', () => {
+    open(createState({ inherited: [] }));
+
+    expect(optionNamed('Room default').querySelector('.OptionDetail')?.textContent).toBe(
+      'Let each agent use its configured model.'
+    );
+  });
+
+  it('starts on the current model, so Enter keeps it', () => {
+    const state = createState({ override: 'reset' });
+    open(state);
+
+    keyDown(list()!, 'Enter');
+
+    expect(state.selectModel).toHaveBeenCalledWith('reset');
+  });
+
+  it('supports arrow selection, Enter, and Escape from the list', () => {
+    const state = createState();
+    open(state);
+
+    keyDown(list()!, 'ArrowDown');
+    keyDown(list()!, 'Enter');
+    expect(state.selectModel).toHaveBeenCalledWith('fast');
+
+    keyDown(list()!, 'Escape');
+    expect(list()).toBeNull();
+    expect(trigger()).toBe(document.activeElement);
   });
 
   it('keeps room reset distinct from selecting a model whose stable key is default', () => {
     const state = createState({ override: 'default' });
-    act(() => root.render(<ModelPicker state={state} />));
-    click(container.querySelector('button[aria-label="Choose model"]')!);
+    open(state);
 
-    const defaultAction = [...container.querySelectorAll('[role="option"]')].find((option) =>
-      option.textContent?.includes('Use room default')
-    )!;
-    const namedDefault = [...container.querySelectorAll('[role="option"]')].find((option) =>
-      option.textContent?.includes('Named default')
-    )!;
+    const defaultAction = optionNamed('Room default');
+    const namedDefault = optionNamed('Named default');
 
     expect(defaultAction.getAttribute('aria-selected')).toBe('false');
     expect(namedDefault.getAttribute('aria-selected')).toBe('true');
@@ -335,6 +385,9 @@ describe('responsive model picker', () => {
     click(namedDefault);
     expect(state.selectModel).toHaveBeenCalledWith('default');
     expect(state.resetToRoomDefault).not.toHaveBeenCalled();
+
+    click(defaultAction);
+    expect(state.resetToRoomDefault).toHaveBeenCalledOnce();
   });
 
   it('sets a configured model whose key matches the room-default DOM identity', () => {
@@ -348,14 +401,9 @@ describe('responsive model picker', () => {
         },
       ],
     });
-    act(() => root.render(<ModelPicker state={state} />));
-    click(container.querySelector('button[aria-label="Choose model"]')!);
+    open(state);
 
-    click(
-      [...container.querySelectorAll('[role="option"]')].find((option) =>
-        option.textContent?.includes('Configured fallback')
-      )!
-    );
+    click(optionNamed('Configured fallback'));
 
     expect(state.selectModel).toHaveBeenCalledWith('room-default');
     expect(state.resetToRoomDefault).not.toHaveBeenCalled();
@@ -369,38 +417,61 @@ describe('responsive model picker', () => {
         { key: 'c', display_name: 'Charlie', provider: 'OpenAI', id: 'c-model' },
       ],
     });
-    act(() => root.render(<ModelPicker state={state} />));
-    click(container.querySelector('button[aria-label="Choose model"]')!);
+    open(state);
 
-    const rendered = [...container.querySelectorAll('[role="option"]')].map(
-      (option) => option.textContent
-    );
+    const rendered = options().map((option) => option.textContent);
     expect(rendered[1]).toContain('Alpha');
     expect(rendered[2]).toContain('Charlie');
 
-    const search = container.querySelector('input[role="searchbox"]')!;
-    keyDown(search, 'ArrowDown');
-    keyDown(search, 'ArrowDown');
-    keyDown(search, 'Enter');
+    keyDown(list()!, 'ArrowDown');
+    keyDown(list()!, 'ArrowDown');
+    keyDown(list()!, 'Enter');
 
     expect(state.selectModel).toHaveBeenCalledWith('c');
   });
 
-  it('supports arrow selection, Enter, and Escape from the searchbox', () => {
-    const state = createState();
-    act(() => root.render(<ModelPicker state={state} />));
-    click(container.querySelector('button[aria-label="Choose model"]')!);
+  it('adds a filter field past eight models, matching name, key, provider and model ID', () => {
+    open(createState({ models: longCatalog() }));
 
-    const search = container.querySelector('input[role="searchbox"]')!;
-    keyDown(search, 'ArrowDown');
-    keyDown(search, 'Enter');
-    expect(state.selectModel).toHaveBeenCalledWith('fast');
+    expect(search()).toBe(document.activeElement);
+    expect(search().getAttribute('placeholder')).toBe('Search models');
+    expect(list()?.getAttribute('tabindex')).toBe('-1');
 
-    keyDown(search, 'Escape');
-    expect(container.querySelector('input[role="searchbox"]')).toBeNull();
-    expect(container.querySelector('button[aria-label="Choose model"]')).toBe(
-      document.activeElement
-    );
+    input(search(), 'quick');
+    expect(options().map((option) => option.textContent)).toEqual([
+      expect.stringContaining('Quick helper'),
+    ]);
+
+    input(search(), 'reset');
+    expect(options()[0]?.textContent).toContain('Deep reasoning');
+
+    input(search(), 'studio-model-6');
+    expect(options()).toHaveLength(1);
+    expect(options()[0]?.textContent).toContain('Studio model 6');
+
+    input(search(), 'local');
+    expect(container.querySelector('[role="group"]')?.textContent).toContain('Local');
+    expect(options()[0]?.textContent).toContain('Named default');
+
+    input(search(), 'no such model');
+    expect(container.textContent).toContain('No matching models');
+  });
+
+  it('picks the first match with Enter and moves with the arrows from the filter field', () => {
+    const state = createState({ models: longCatalog() });
+    open(state);
+
+    input(search(), 'studio');
+    expect(search().getAttribute('aria-activedescendant')).toBe(options()[0]?.id);
+    keyDown(search(), 'ArrowDown');
+    expect(search().getAttribute('aria-activedescendant')).toBe(options()[1]?.id);
+    keyDown(search(), 'ArrowUp');
+    keyDown(search(), 'Enter');
+    expect(state.selectModel).toHaveBeenCalledWith('studio-1');
+
+    keyDown(search(), 'Escape');
+    expect(search()).toBeNull();
+    expect(trigger()).toBe(document.activeElement);
   });
 
   it('shows an explicit readable chooser when multiple runtimes answer', () => {
@@ -416,8 +487,7 @@ describe('responsive model picker', () => {
       canMutate: false,
       models: [],
     });
-    act(() => root.render(<ModelPicker state={state} />));
-    click(container.querySelector('button[aria-label="Choose model"]')!);
+    open(state);
 
     const chooser = container.querySelector('select[aria-label="Runtime"]') as HTMLSelectElement;
     expect(chooser.textContent).toContain('@runtime:example.org on DESKTOP');
@@ -430,20 +500,19 @@ describe('responsive model picker', () => {
     expect(state.chooseRuntime).toHaveBeenCalledWith('runtime-two');
   });
 
-  it('keeps refresh and dismissal available while a command is pending', () => {
+  it('refreshes on opening and keeps dismissal available while a command is pending', () => {
     const state = createState({ pending: true, loading: true, canMutate: false });
-    act(() => root.render(<ModelPicker state={state} />));
-    click(container.querySelector('button[aria-label="Choose model"]')!);
+    open(state);
 
-    const refresh = container.querySelector('button[aria-label="Refresh models"]')!;
-    expect(refresh.hasAttribute('disabled')).toBe(false);
-    click(refresh);
-    expect(state.refresh).toHaveBeenCalledTimes(2);
+    expect(state.refresh).toHaveBeenCalledOnce();
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      'Waiting for model change'
+    );
     expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
-    expect(container.querySelector('[role="option"]')?.getAttribute('aria-disabled')).toBe('true');
+    expect(options()[0]?.getAttribute('aria-disabled')).toBe('true');
 
-    click(container.querySelector('button[aria-label="Close model picker"]')!);
-    expect(container.querySelector('input[role="searchbox"]')).toBeNull();
+    keyDown(list()!, 'Escape');
+    expect(list()).toBeNull();
   });
 
   it('uses controller availability for model and reset activation while recovery is blocked', () => {
@@ -453,79 +522,65 @@ describe('responsive model picker', () => {
       loading: false,
       error: 'Recovery unavailable.',
     });
-    act(() => root.render(<ModelPicker state={state} />));
-    click(container.querySelector('button[aria-label="Choose model"]')!);
-    const options = [...container.querySelectorAll('[role="option"]')];
-    expect(options.every((option) => option.getAttribute('aria-disabled') === 'true')).toBe(true);
+    open(state);
+    expect(options().every((option) => option.getAttribute('aria-disabled') === 'true')).toBe(true);
     expect(container.querySelector('[role="progressbar"]')).toBeNull();
-    options.forEach(click);
-    let search = container.querySelector('input[role="searchbox"]')!;
-    keyDown(search, 'Enter');
-    keyDown(search, 'ArrowDown');
-    keyDown(search, 'Enter');
+    options().forEach(click);
+    keyDown(list()!, 'Enter');
+    keyDown(list()!, 'ArrowDown');
+    keyDown(list()!, 'Enter');
     expect(state.selectModel).not.toHaveBeenCalled();
     expect(state.resetToRoomDefault).not.toHaveBeenCalled();
-    click(container.querySelector('button[aria-label="Refresh models"]')!);
     click(container.querySelector('button[aria-label="Retry"]')!);
-    expect(state.refresh).toHaveBeenCalledTimes(3);
-    keyDown(search, 'Escape');
-    expect(container.querySelector('input[role="searchbox"]')).toBeNull();
-    click(container.querySelector('button[aria-label="Choose model"]')!);
+    expect(state.refresh).toHaveBeenCalledTimes(2);
+    keyDown(list()!, 'Escape');
+    expect(list()).toBeNull();
+    click(trigger());
     act(() => root.render(<ModelPicker state={{ ...state, canMutate: true }} />));
-    expect(
-      [...container.querySelectorAll('[role="option"]')].every(
-        (option) => option.getAttribute('aria-disabled') === 'false'
-      )
-    ).toBe(true);
-    search = container.querySelector('input[role="searchbox"]')!;
-    keyDown(search, 'Enter');
-    keyDown(search, 'ArrowDown');
-    keyDown(search, 'Enter');
+    expect(options().every((option) => option.getAttribute('aria-disabled') === 'false')).toBe(
+      true
+    );
+    keyDown(list()!, 'Enter');
+    keyDown(list()!, 'ArrowDown');
+    keyDown(list()!, 'Enter');
     expect(state.resetToRoomDefault).toHaveBeenCalledOnce();
     expect(state.selectModel).toHaveBeenCalledWith('fast');
   });
 
   it('keeps an error open with retry and readable command fallback', () => {
     const state = createState({ error: 'Model discovery unavailable.' });
-    act(() => root.render(<ModelPicker state={state} />));
-    click(container.querySelector('button[aria-label="Choose model"]')!);
+    open(state);
 
-    expect(container.textContent).toContain('Model discovery unavailable.');
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      'Model discovery unavailable.'
+    );
     expect(container.textContent).toContain('You can still send !model with a model key');
     click(container.querySelector('button[aria-label="Retry"]')!);
     expect(state.refresh).toHaveBeenCalledTimes(2);
   });
 
-  it('shows each inherited room default while an override is selected', () => {
-    const state = createState({
-      override: 'reset',
-      inherited: [
-        { entity: 'assistant', model: 'fast' },
-        { entity: 'reviewer', model: 'legacy-key' },
-      ],
-    });
-    act(() => root.render(<ModelPicker state={state} />));
-    click(container.querySelector('button[aria-label="Choose model"]')!);
+  it('closes once the router applies the chosen model', () => {
+    const state = createState();
+    open(state);
+    click(optionNamed('Quick helper'));
 
-    expect(container.textContent).toContain(
-      'Room defaults by agent: assistant: Quick helper, reviewer: legacy-key'
-    );
+    act(() => root.render(<ModelPicker state={{ ...state, pending: true, canMutate: false }} />));
+    expect(list()).not.toBeNull();
+    act(() => root.render(<ModelPicker state={{ ...state, override: 'fast' }} />));
+
+    expect(list()).toBeNull();
+    expect(trigger()).toBe(document.activeElement);
   });
 
   it('does not steal focus when a dismissed pending command later succeeds', () => {
     const state = createState();
     const outside = document.createElement('input');
     document.body.append(outside);
-    act(() => root.render(<ModelPicker state={state} />));
-    click(container.querySelector('button[aria-label="Choose model"]')!);
-    click(
-      [...container.querySelectorAll('[role="option"]')].find((option) =>
-        option.textContent?.includes('Quick helper')
-      )!
-    );
+    open(state);
+    click(optionNamed('Quick helper'));
 
     act(() => root.render(<ModelPicker state={{ ...state, pending: true, canMutate: false }} />));
-    click(container.querySelector('button[aria-label="Close model picker"]')!);
+    keyDown(list()!, 'Escape');
     outside.focus();
     act(() => root.render(<ModelPicker state={{ ...state, pending: false }} />));
 
@@ -534,94 +589,40 @@ describe('responsive model picker', () => {
 
   it('does not let a command acknowledged while dismissed close a later opening', () => {
     const state = createState();
-    act(() => root.render(<ModelPicker state={state} />));
-    click(container.querySelector('button[aria-label="Choose model"]')!);
-    click(
-      [...container.querySelectorAll('[role="option"]')].find((option) =>
-        option.textContent?.includes('Quick helper')
-      )!
-    );
+    open(state);
+    click(optionNamed('Quick helper'));
 
     act(() => root.render(<ModelPicker state={{ ...state, pending: true, canMutate: false }} />));
-    click(container.querySelector('button[aria-label="Close model picker"]')!);
+    keyDown(list()!, 'Escape');
     act(() => root.render(<ModelPicker state={{ ...state, pending: false }} />));
-    click(container.querySelector('button[aria-label="Choose model"]')!);
+    click(trigger());
 
-    expect(container.querySelector('input[role="searchbox"]')).not.toBeNull();
+    expect(list()).not.toBeNull();
   });
 
   it('does not let a dismissed command close a reopening when its acknowledgement arrives', () => {
     const state = createState();
-    act(() => root.render(<ModelPicker state={state} />));
-    click(container.querySelector('button[aria-label="Choose model"]')!);
-    click(
-      [...container.querySelectorAll('[role="option"]')].find((option) =>
-        option.textContent?.includes('Quick helper')
-      )!
-    );
+    open(state);
+    click(optionNamed('Quick helper'));
 
     act(() => root.render(<ModelPicker state={{ ...state, pending: true, canMutate: false }} />));
-    click(container.querySelector('button[aria-label="Close model picker"]')!);
-    click(container.querySelector('button[aria-label="Choose model"]')!);
-    expect(container.querySelector('input[role="searchbox"]')).not.toBeNull();
+    keyDown(list()!, 'Escape');
+    click(trigger());
+    expect(list()).not.toBeNull();
 
     act(() => root.render(<ModelPicker state={{ ...state, pending: false }} />));
 
-    expect(container.querySelector('input[role="searchbox"]')).not.toBeNull();
+    expect(list()).not.toBeNull();
   });
 
   it('closes as the conversation it is in hides', () => {
     const state = createState();
-    act(() => root.render(<ModelPicker state={state} />));
-    click(container.querySelector('button[aria-label="Choose model"]')!);
-    expect(container.querySelector('input[role="searchbox"]')).not.toBeNull();
+    open(state);
+    expect(list()).not.toBeNull();
 
     act(() => root.render(<ModelPicker state={state} conversationHidden />));
 
-    expect(container.querySelector('input[role="searchbox"]')).toBeNull();
-  });
-
-  it('names the trigger "Choose model" followed by the model label it shows', () => {
-    act(() => root.render(<ModelPicker state={createState({ override: 'reset' })} />));
-
-    const trigger = container.querySelector('button[aria-label="Choose model"]')!;
-    const [self, label, ...rest] = (trigger.getAttribute('aria-labelledby') ?? '').split(' ');
-
-    expect(self).toBe(trigger.id);
-    expect(document.getElementById(label!)?.textContent).toBe('Deep reasoning');
-    expect(rest).toEqual([]);
-    expect(trigger.hasAttribute('aria-describedby')).toBe(false);
-  });
-
-  it('states that future thread replies use the selection for all agents and teams', () => {
-    act(() => root.render(<ModelPicker state={createState()} />));
-    click(container.querySelector('button[aria-label="Choose model"]')!);
-
-    expect(container.textContent).toContain(
-      'Applies to all agents and teams for future replies in this thread.'
-    );
-  });
-
-  it('uses the shared glass surface owner for the desktop panel', () => {
-    act(() => root.render(<ModelPicker state={createState()} />));
-    click(container.querySelector('button[aria-label="Choose model"]')!);
-
-    const panel = container.querySelector('[data-model-picker-sheet="desktop"]')!;
-    expect(panel.getAttribute('data-shared-surface')).toBe('glass');
-    expect(panel.getAttribute('data-surface-level')).toBe('overlay');
-    expect(panel.getAttribute('data-surface-variant')).toBe('Surface');
-  });
-
-  it('uses a bottom sheet presentation on mobile', () => {
-    mocks.screenSize = ScreenSize.Mobile;
-    act(() => root.render(<ModelPicker state={createState()} />));
-    click(container.querySelector('button[aria-label="Choose model"]')!);
-
-    expect(container.querySelector('[data-model-picker-sheet="mobile"]')).not.toBeNull();
-    expect(container.querySelector('[data-shared-modal="glass"]')).not.toBeNull();
-    expect(
-      container.querySelector('[data-model-picker-sheet="mobile"][data-shared-surface="inherit"]')
-    ).not.toBeNull();
+    expect(list()).toBeNull();
   });
 
   it('loads custom icons through authenticated Matrix media and falls back on image error', () => {
