@@ -17,7 +17,6 @@ import {
   untilAborted,
   type ClientSessions,
 } from '../app/computer/clientSessions';
-import type { ComputerAgent } from '../app/computer/types';
 import { useRoomAgentServers } from '../app/computer/useAgentServers';
 import { useRoomComputer } from '../app/computer/useRoomComputer';
 import { useRoomMindroomServer } from '../app/computer/useRoomMindroomServer';
@@ -29,7 +28,7 @@ export { ComputerApiError, MindroomServerError };
 export type { ComputerSessionClient };
 export type { ComputerStatus, ComputerStreamConnection } from '../app/computer/types';
 
-/** A room's MindRoom server, which `useMindroomServer` gives. */
+/** A MindRoom server: the room's, which `useMindroomServer` gives, or an agent's own. */
 export type MindroomServer = {
   /** The server's origin, such as `https://mindroom.example.org`. */
   origin: string;
@@ -88,19 +87,21 @@ const request = async <T>(sessions: ClientSessions, path: string, init?: Request
   return body as T;
 };
 
+/** The `MindroomServer` at `apiUrl`, over the account's one session there. */
+const serverAt = (mx: MatrixClient, apiUrl: string, discovered: boolean): MindroomServer => {
+  const sessions = clientSessions(mx, apiUrl, discovered);
+  return {
+    origin: apiUrl,
+    request: <T>(path: string, init?: RequestInit) => request<T>(sessions, path, init),
+    send: (path, init) => sessions.send(path, init),
+    openSocket: (path) => sessions.openSocket(path),
+    token: (options) => sessions.token(options),
+  };
+};
+
 /** The `MindroomServer` at `apiUrl`, or undefined without one. */
 const useServer = (mx: MatrixClient, apiUrl: string | undefined, discovered: boolean) =>
-  useMemo((): MindroomServer | undefined => {
-    if (!apiUrl) return undefined;
-    const sessions = clientSessions(mx, apiUrl, discovered);
-    return {
-      origin: apiUrl,
-      request: <T>(path: string, init?: RequestInit) => request<T>(sessions, path, init),
-      send: (path, init) => sessions.send(path, init),
-      openSocket: (path) => sessions.openSocket(path),
-      token: (options) => sessions.token(options),
-    };
-  }, [apiUrl, discovered, mx]);
+  useMemo(() => (apiUrl ? serverAt(mx, apiUrl, discovered) : undefined), [apiUrl, discovered, mx]);
 
 /**
  * The MindRoom server of the room `roomId`, by the rule call transcripts use: the one the room's
@@ -142,6 +143,15 @@ export type RoomComputer = {
   /** The agent's name in the room, or its user ID without one. */
   name: string;
   /**
+   * The agent's own MindRoom server, the one `openSession` signs in to: with a computer server set
+   * for every agent (the person's in Settings, else `mindroom.computers.apiUrl`), that one;
+   * without one, the server the agent published, with a session for a token bound to it. In a
+   * room whose agents publish different servers, it is the one for this agent's routes and
+   * websockets, where `useMindroomServer` gives one server for the whole room. It shares the
+   * account's session with that server with every caller that signs in there with the same binding.
+   */
+  server: MindroomServer;
+  /**
    * Opens a session on the agent's computer as the room's computer panel does, once: a sign-in
    * token for the computer's server, then a session for this room and agent, which starts in
    * `view` mode. Resolves with the session: its `status` (`state` `starting`, `ready` or
@@ -158,32 +168,24 @@ export type RoomComputer = {
 };
 
 /**
- * A session on `agent`'s computer: on its own server, which needs a token bound to it, else on the
- * room's `apiUrl`.
+ * A session on the computer of `agentUserId` at `serverUrl`, with a token bound to that server when
+ * the agent published it (`discovered`).
  */
 const openSession = async (
   mx: MatrixClient,
   roomId: string,
-  agent: ComputerAgent,
-  apiUrl: string,
+  agentUserId: string,
+  serverUrl: string,
+  discovered: boolean,
   signal?: AbortSignal
 ) => {
   if (signal?.aborted) throw new ComputerApiError('Computer request cancelled.', 0);
-  const serverUrl = agent.serverUrl ?? apiUrl;
-  const token = requestAudienceOpenIdToken(mx, serverUrl, {
-    requireBinding: agent.serverUrl !== undefined,
-  });
+  const token = requestAudienceOpenIdToken(mx, serverUrl, { requireBinding: discovered });
   const openIdToken = await untilAborted(token, signal).catch((error: unknown) => {
     const refusal = tokenError(error);
     throw new ComputerApiError(refusal.message, refusal.status);
   });
-  return createComputerSession({
-    apiUrl: serverUrl,
-    agentUserId: agent.userId,
-    openIdToken,
-    roomId,
-    signal,
-  });
+  return createComputerSession({ apiUrl: serverUrl, agentUserId, openIdToken, roomId, signal });
 };
 
 /**
@@ -202,11 +204,17 @@ export const useRoomComputers = (roomId: string): RoomComputer[] => {
     () =>
       // An agent the room lists always has a server: its own, or the one set for every agent.
       apiUrl
-        ? agents.map((agent) => ({
-            userId: agent.userId,
-            name: agent.name,
-            openSession: (signal?: AbortSignal) => openSession(mx, roomId, agent, apiUrl, signal),
-          }))
+        ? agents.map(({ userId, name, serverUrl }) => {
+            const discovered = serverUrl !== undefined;
+            const url = serverUrl ?? apiUrl;
+            return {
+              userId,
+              name,
+              server: serverAt(mx, url, discovered),
+              openSession: (signal?: AbortSignal) =>
+                openSession(mx, roomId, userId, url, discovered, signal),
+            };
+          })
         : [],
     [agents, apiUrl, mx, roomId]
   );
