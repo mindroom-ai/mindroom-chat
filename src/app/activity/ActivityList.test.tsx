@@ -68,6 +68,7 @@ const threadRow = (
     name: 'Launch War Room',
     getCanonicalAlias: () => null,
     membersLoaded: () => true,
+    getJoinedMembers: () => [{ userId: '@mindroom_code:x', name: 'Code' }],
   });
   return {
     type: 'thread',
@@ -91,8 +92,9 @@ const threadRow = (
 
 const approvalRecord = {
   eventId: '$ask',
-  sender: '@mindroom_code:x',
+  sender: '@mindroom_router:x',
   approval: {
+    agentName: 'code',
     toolName: 'run_shell_command',
     arguments: { command: 'npm run deploy:staging' },
     approvable: true,
@@ -110,11 +112,12 @@ const question = {
 };
 
 const ROWS: ActivityRow[] = [
+  // The router posts approval cards; the row names the agent that asks.
   threadRow(
     'a',
     'approval',
     { pendingApproval: approvalRecord },
-    { actorIds: ['@mindroom_code:x'] }
+    { actorIds: ['@mindroom_router:x'] }
   ),
   threadRow('q', 'question', { pendingQuestion: question }, { actorIds: ['@mindroom_mind:x'] }),
   threadRow(

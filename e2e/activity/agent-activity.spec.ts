@@ -126,8 +126,10 @@ test('a held tool call is approved from its Activity row and then runs', async (
   const popover = await openActivity(page);
   const row = rowOf(popover, word);
   await expect(row).toHaveAttribute('data-activity-row', 'approval', { timeout: 60_000 });
+  // The router posts the card; the row names the agent that asks.
+  await expect(row).toContainText('Helper needs approval');
   await expect(row).toContainText('echo needs-approval: deploy the stub');
-  await row.getByRole('button', { name: 'Approve' }).click();
+  await row.getByRole('button', { name: 'Approve', exact: true }).click();
   await expect(row).toContainText('Approved');
 
   await waitForThreadEvent(

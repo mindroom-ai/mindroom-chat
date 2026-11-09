@@ -52,6 +52,8 @@ export const SIGNAL_EVENT_LIMIT = 40;
 /** A reply whose last edit came this long after it tells that its run finished. */
 export const FINISHED_AFTER_MS = 60_000;
 
+/** Who wrote the message an agent relays (MindRoom's router handoff). */
+const ORIGINAL_SENDER_KEY = 'com.mindroom.original_sender';
 /** Agent question content (MindRoom's `interactive_prompt_content`). */
 const INTERACTIVE_KEY = 'io.mindroom.interactive';
 const PREVIEW_LENGTH = 240;
@@ -214,7 +216,12 @@ export const readThreadSignals = (
   const isUnread = (shown: Shown) =>
     shown.event.getSender() !== userId &&
     (readUpToTs === undefined || (shown.editTs ?? shown.event.getTs()) > readUpToTs);
-  const counted = replies.map((event) => shownOf(event, thread)).filter(countsAsNews);
+  // An agent's relay of someone's message (the router's handoff) echoes words already counted.
+  const isRelay = ({ event, content }: Shown) =>
+    isAgent(event.getSender()) && typeof content[ORIGINAL_SENDER_KEY] === 'string';
+  const counted = replies
+    .map((event) => shownOf(event, thread))
+    .filter((shown) => countsAsNews(shown) && !isRelay(shown));
   const unread = counted.filter(isUnread);
   const newest = counted.at(-1);
 

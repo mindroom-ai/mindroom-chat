@@ -22,6 +22,7 @@ import {
 import type { ActivityRow, ActivityThreadRow } from './activityRows';
 import { needsYou } from './activityRows';
 import { answerApproval, answerQuestion } from './activityActions';
+import { agentMember } from '../approvals/approvalPeople';
 import * as css from './ActivityList.css';
 
 const sentence = (t: TFunction, row: ActivityRow, names: string[]): string => {
@@ -249,7 +250,14 @@ export const ActivityRowItem = memo(function ActivityRowItem({
   const { t } = useTranslation();
   const useAuthentication = useMediaAuthentication();
   const time = useRelativeTime(row.ts, 'compact');
-  const actorIds = row.type === 'thread' ? row.actorIds : row.inviterId ? [row.inviterId] : [];
+  // The router posts approval cards; the row names the agent that asks, as the thread's card does.
+  const asking =
+    row.kind === 'approval' && row.signals.pendingApproval && room
+      ? agentMember(room, row.signals.pendingApproval.approval.agentName)?.userId
+      : undefined;
+  let actorIds = row.type === 'thread' ? row.actorIds : [];
+  if (row.type === 'invite') actorIds = row.inviterId ? [row.inviterId] : [];
+  if (asking) actorIds = [asking];
   const names = actorIds.map((userId) => threadActorName(mx, room, userId));
   const own = row.kind === 'reply' && actorIds.length === 1 && actorIds[0] === mx.getUserId();
   const lead = actorIds[0];

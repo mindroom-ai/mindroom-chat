@@ -407,6 +407,26 @@ describe('readThreadSignals in a loaded thread with edits', () => {
     expect(signals.newSenderIds).toEqual([]);
   });
 
+  it('never counts the router relaying a message, an echo of what someone wrote', async () => {
+    const ROUTER = '@mindroom_router:example.org';
+    const { room } = await setup(ME, [
+      event({
+        id: '$relay',
+        ts: 2000,
+        sender: ROUTER,
+        content: {
+          body: '@mindroom_code:example.org plan the launch',
+          'com.mindroom.original_sender': ME,
+          'com.mindroom.source_kind': 'trusted_internal_relay',
+        },
+      }),
+      event({ id: '$answer', ts: 3000, sender: AGENT }),
+    ]);
+    const signals = readThreadSignals(room, ROOT, ME, NOW);
+    expect(signals.newCount).toBe(1);
+    expect(signals.newSenderIds).toEqual([AGENT]);
+  });
+
   it('drops an approval once it expired', async () => {
     const ask = approval('$ask', 2000, null);
     ask.getContent().expires_at = new Date(NOW - 1000).toISOString();
