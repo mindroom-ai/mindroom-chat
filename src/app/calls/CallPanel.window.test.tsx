@@ -1126,6 +1126,23 @@ describe('the live transcript in the window', () => {
     expect(document.querySelector('[data-call-stage]')).not.toBeNull();
   });
 
+  it("leaves the focus the rail's call button hands the window to its handle, not the transcript", () => {
+    roomCall([me, person('@ana:panel.test')]);
+    transcribed();
+    renderPanel({ frame: frame() });
+    render(
+      <Provider store={store}>
+        <ScreenSizeProvider value="Desktop">
+          <ActiveCallTab active={calls.active!} />
+        </ScreenSizeProvider>
+      </Provider>
+    );
+    const rail = screen.getByRole('button', { name: 'Return to the call in Standup' });
+    rail.focus();
+    fireEvent.click(rail);
+    expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Move call window' }));
+  });
+
   it('shows neither in the bar nor in the docked panel', () => {
     roomCall([me, person('@ana:panel.test')]);
     transcribed();
