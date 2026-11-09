@@ -24,7 +24,12 @@ import {
   type UserConfig,
 } from 'vite';
 import { afterAll, describe, expect, it } from 'vitest';
-import { clientPlugins, pluginOwner, readClientPlugins } from '../../scripts/client-plugins.mjs';
+import {
+  CLIENT_PLUGIN_API_VERSION,
+  clientPlugins,
+  pluginOwner,
+  readClientPlugins,
+} from '../../scripts/client-plugins.mjs';
 import { onePackageCopyPerVersion } from '../../scripts/package-copies.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
@@ -162,8 +167,10 @@ describe('readClientPlugins', () => {
     ],
     [
       'a plugin that needs a newer client SDK',
-      () => pluginDir(declaring({ apiVersion: 41 })),
-      /plugin "some-plugin" needs client SDK apiVersion 41; this client provides 40/,
+      () => pluginDir(declaring({ apiVersion: CLIENT_PLUGIN_API_VERSION + 1 })),
+      `plugin "some-plugin" needs client SDK apiVersion ${
+        CLIENT_PLUGIN_API_VERSION + 1
+      }; this client provides ${CLIENT_PLUGIN_API_VERSION}`,
     ],
     [
       'an apiVersion that is not a number',
