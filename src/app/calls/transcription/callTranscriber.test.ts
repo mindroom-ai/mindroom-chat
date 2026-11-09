@@ -7,6 +7,12 @@ import { startSpeechCapture, type SpeechCapture, type SpeechStretch } from './sp
 import type { LiveUpdate } from './transcriptionState';
 import { defined } from '../../../test/utils/defined';
 
+// The speech model, which one test loads through the real capture: it never finishes loading.
+vi.mock('@ricky0123/vad-web', () => ({
+  MicVAD: { new: () => new Promise(() => undefined) },
+  utils: {},
+}));
+
 const API_URL = 'https://mindroom.example.org';
 const ROOM_ID = '!room:example.org';
 const OTHER_ROOM_ID = '!other:example.org';
@@ -78,7 +84,7 @@ type FakeCapture = SpeechCapture & {
   onStretch: (stretch: SpeechStretch) => void;
   paused: boolean;
   stopped: boolean;
-  /** What the worklet still holds; stopping hands it on. */
+  /** What the capture still holds; stopping hands it on. */
   inProgress?: SpeechStretch;
 };
 
@@ -747,7 +753,7 @@ describe('CallTranscriber microphone', () => {
 
   it('tries again with the next microphone when listening could not start', async () => {
     const t = setup();
-    t.startCapture.mockRejectedValueOnce(new Error('worklet blocked'));
+    t.startCapture.mockRejectedValueOnce(new Error('capture blocked'));
     t.transcriber.setMicrophone(MIC_A);
     t.transcriber.start();
     await advance();
@@ -1112,14 +1118,14 @@ describe('CallTranscriber ending', () => {
     expect(second.log[0]).toBe('calls.join');
   });
 
-  it('leaves, and lets the next join go, when the speech worklet never loads', async () => {
+  it('leaves, and lets the next join go, when the speech model never loads', async () => {
     const contexts: Array<{ closed: boolean }> = [];
     vi.stubGlobal(
       'AudioContext',
       class {
         closed = false;
 
-        audioWorklet = { addModule: () => new Promise(() => undefined) };
+        state = 'running';
 
         constructor() {
           contexts.push(this);
@@ -1130,13 +1136,16 @@ describe('CallTranscriber ending', () => {
         }
       }
     );
+    // The page, where the capture listens for clicks and key presses.
+    vi.stubGlobal('window', new EventTarget());
     try {
       const first = setup({ listen: startSpeechCapture });
       first.transcriber.setMicrophone(MIC_A);
       first.transcriber.start();
       await advance();
+      // The leave does not wait for the model.
       void first.transcriber.end();
-      await advance(10_000);
+      await advance();
       expect(first.steps()).toEqual(['calls.join', 'leave']);
       expect(contexts.map(({ closed }) => closed)).toEqual([true]);
 

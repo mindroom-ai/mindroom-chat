@@ -357,7 +357,7 @@ export class CallTranscriber {
     try {
       capture = await this.startCapture(wanted, (stretch) => this.queue(stretch));
     } catch {
-      // The worklet could not load; the next change of microphone tries again.
+      // Capture could not start; the next change of microphone tries again.
       return;
     }
     capture.setPaused(this.paused);

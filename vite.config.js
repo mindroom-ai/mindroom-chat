@@ -1,5 +1,6 @@
 // @ts-check
-import { readdirSync, realpathSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readdirSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
@@ -20,6 +21,48 @@ import { onePackageCopyPerVersion } from './scripts/package-copies.mjs';
 import { startupPrecache } from './scripts/precache-plan.mjs';
 import { thirdPartyNoticesPlugin } from './scripts/third-party-notices.mjs';
 import { mindroomBuildAssets } from './scripts/vite-build-assets.mjs';
+
+// Call transcription's speech detector (src/app/calls/transcription/speechCapture.ts):
+// @ricky0123/vad-web loads its AudioWorklet and its default model, Silero VAD, and onnxruntime-web
+// its WebAssembly, each by a fixed name from one directory. A hash of the files names that
+// directory, so it may be cached for good like the rest of assets/. The runtime's module goes as
+// .js: nginx, among other static hosts, has no JavaScript type for .mjs.
+const SPEECH_MODEL_FILES = [
+  { file: '@ricky0123/vad-web/dist/vad.worklet.bundle.min.js', type: 'text/javascript' },
+  { file: '@ricky0123/vad-web/dist/silero_vad_legacy.onnx', type: 'application/octet-stream' },
+  { file: 'onnxruntime-web/dist/ort-wasm-simd-threaded.wasm', type: 'application/wasm' },
+  { file: 'onnxruntime-web/dist/ort-wasm-simd-threaded.mjs', type: 'text/javascript' },
+].map(({ file, type }) => ({
+  source: readFileSync(new URL(`node_modules/${file}`, import.meta.url)),
+  name: path.basename(file).replace(/\.mjs$/, '.js'),
+  type,
+}));
+const speechModelHash = createHash('sha256');
+SPEECH_MODEL_FILES.forEach(({ source }) => speechModelHash.update(source));
+const SPEECH_MODEL_DIR = `assets/speech-model-${speechModelHash.digest('hex').slice(0, 12)}`;
+
+/**
+ * Emits the speech model's files into the bundle, so they are in the build inventory the service
+ * worker keeps its copies by, and the dev server answers them.
+ * @returns {import('vite').Plugin}
+ */
+const speechModelFiles = () => ({
+  name: 'speech-model-files',
+  generateBundle() {
+    SPEECH_MODEL_FILES.forEach(({ source, name }) =>
+      this.emitFile({ type: 'asset', fileName: `${SPEECH_MODEL_DIR}/${name}`, source })
+    );
+  },
+  configureServer(server) {
+    server.middlewares.use(`/${SPEECH_MODEL_DIR}`, (request, response, next) => {
+      // The runtime's module is imported with Vite's `?import` query in development.
+      const file = SPEECH_MODEL_FILES.find(({ name }) => request.url?.split('?')[0] === `/${name}`);
+      if (!file) return next();
+      response.setHeader('Content-Type', file.type);
+      return response.end(file.source);
+    });
+  },
+});
 
 /**
  * Files copied verbatim into the build output (and served by the dev server).
@@ -44,7 +87,13 @@ export const copyFiles = {
 // The service worker precaches the SPA shell. Some files must stay network-fresh
 // so a deployment can change them without rebuilding the bundle, and the
 // authentication recovery script also serves shells cached by older workers.
-const precacheGlobIgnores = ['runtime-config.js', 'authentication-recovery.js', 'version.json'];
+// The speech model's files load only when a call is transcribed, and are kept then.
+const precacheGlobIgnores = [
+  'runtime-config.js',
+  'authentication-recovery.js',
+  'version.json',
+  `${SPEECH_MODEL_DIR}/**`,
+];
 
 // The Lane C string overlays (src/app/i18n/localeAdditions.ts): one JSON file per language, in the
 // folder of the English one (named by a file, which the move codemod rewrites).
@@ -146,6 +195,7 @@ const repository = fileURLToPath(new URL('.', import.meta.url));
 const pluginDirs = pluginDirectories(process.env.E2E_PLUGIN_DIRS, repository);
 
 export default defineConfig({
+  define: { __MINDROOM_SPEECH_MODEL__: JSON.stringify(SPEECH_MODEL_DIR) },
   ...(slotPort ? { cacheDir: `node_modules/.vite-slot-${slotPort}` } : {}),
   plugins: [
     // Only active when Playwright starts the dev server (see playwright.config.ts).
@@ -168,6 +218,8 @@ export default defineConfig({
       : [
           viteStaticCopy(copyFiles),
           thirdPartyNoticesPlugin(),
+          // Before startup.plugin, which reads the bundle's inventory.
+          speechModelFiles(),
           startup.plugin,
           serviceWorkerPlugin,
         ]),

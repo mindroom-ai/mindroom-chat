@@ -82,6 +82,20 @@ KaTeX fonts
   KaTeX_Size2, KaTeX_Size3, KaTeX_Size4 and KaTeX_Typewriter. They are
   included unmodified. License text: licenses/KaTeX-fonts-OFL-1.1.txt.
 
+Voice-activity detector
+  Call transcription finds speech with @ricky0123/vad-web 0.0.31
+  (https://github.com/ricky0123/vad), Copyright (c) 2022-present ricky0123,
+  ISC License, and the Silero VAD model it ships, Copyright (c)
+  2020-present Silero Team, MIT License, run by onnxruntime-web 1.31.1
+  (https://github.com/microsoft/onnxruntime), Copyright (c) Microsoft
+  Corporation, MIT License. The build copies the wrapper's AudioWorklet, the
+  model and the runtime's WebAssembly unmodified into assets/
+  (vite.config.js). The npm packages carry no license texts: the wrapper's
+  and the model's, as the wrapper's repository gives them, are in
+  licenses/vad-web-ISC-and-Silero-VAD-MIT.txt, the runtime's in
+  licenses/onnxruntime-MIT.txt, and the notices of what the runtime builds
+  in are its repository's ThirdPartyNotices.txt (tag v1.31.1).
+
 T3 Code timeline minimap
   src/app/timeline/TimelineMinimap.tsx is a port of the timeline
   minimap of T3 Code (https://github.com/pingdotgg/t3code,
