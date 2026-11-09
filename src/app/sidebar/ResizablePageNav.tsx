@@ -6,6 +6,7 @@ import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useDesktopPageNav } from './desktopPageNavState';
 import { ResizablePanel } from '../ui/panels/ResizablePanel';
 import { NoticeSlot } from '../ui/noticeSlots';
+import { pageNavWidthStorageKey } from '../preferences/accountStorageKeys';
 
 export function ResizablePageNav({
   children,
@@ -19,7 +20,7 @@ export function ResizablePageNav({
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   return (
     <ResizablePanel
-      storageKey={`mindroom.pageNav.width:${userId}`}
+      storageKey={pageNavWidthStorageKey(userId)}
       fullWidth={mobile}
       resizeLabel={t('mindroomUi.sidebar.resizeNavigationPanel')}
       collapseLabel={t('sharedUi.mindroomNavigation.collapseNavigationPanel')}

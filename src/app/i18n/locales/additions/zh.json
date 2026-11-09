@@ -732,7 +732,8 @@
       "resolveThread": "解决或重新打开当前讨论串",
       "newLine": "换行",
       "editLast": "编辑你的最后一条消息（输入框为空时）",
-      "inlineCode": "行内代码"
+      "inlineCode": "行内代码",
+      "callView": "转到通话"
     }
   },
   "thread": {
