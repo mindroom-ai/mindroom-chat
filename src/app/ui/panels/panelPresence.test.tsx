@@ -1,15 +1,27 @@
 import { createContext, type ReactElement, useContext, useLayoutEffect, useState } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
-import { type PanelPresence, usePanelForm, usePanelPresence, usePanelSlot } from './panelPresence';
+import {
+  type PanelPresence,
+  type PanelRegistration,
+  usePanelForm,
+  usePanelPresence,
+  usePanelSlot,
+} from './panelPresence';
 
 let presence: PanelPresence | undefined;
+/** Each moving panel's registration, by name, as it last registered. */
+const registrations: Record<string, PanelRegistration | undefined> = {};
 
 /** A panel that moves: it registers with its slot and reports the slot's phase. */
 function Mover({ name }: { name: string }) {
   presence = usePanelPresence();
   const register = presence?.register;
-  useLayoutEffect(() => register?.(), [register]);
+  useLayoutEffect(() => {
+    const own = register?.();
+    registrations[name] = own;
+    return own;
+  }, [name, register]);
   return <span data-panel={name} />;
 }
 
@@ -77,74 +89,24 @@ describe('usePanelSlot', () => {
     expect(shown(renderer)).toEqual([]);
   });
 
-  it("ends a panel's exit with a done it kept from before it closed", () => {
+  it("ends a panel's exit with its registration's done, also one it kept from before it closed", () => {
     const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
-    const kept = presence?.done;
+    const kept = registrations.members?.done;
     update(undefined);
     act(() => kept?.());
     expect(shown(renderer)).toEqual([]);
   });
 
-  it("ends no other panel's exit with a done kept by a panel that has gone before it closed", () => {
-    const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
-    const kept = presence?.done;
-    update(<Mover key="computer" name="computer" />);
-    update(undefined);
-    act(() => kept?.());
-    expect(shown(renderer)).toEqual(['computer']);
-  });
-
-  it('ends the exit of a panel turned around with a done it kept from before it first closed', () => {
-    const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
-    const kept = presence?.done;
-    update(undefined);
-    update(<Mover key="members" name="members" />);
-    update(undefined);
-    act(() => kept?.());
-    expect(shown(renderer)).toEqual([]);
-  });
-
-  it('ends no exit of the same panel opened anew with a done it kept before it went', () => {
-    const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
-    const kept = presence?.done;
-    update(<Mover key="computer" name="computer" />);
-    update(<Mover key="members" name="members" />);
-    update(undefined);
-    act(() => kept?.());
-    expect(shown(renderer)).toEqual(['members']);
-  });
-
-  it('ends no later exit of a panel turned around with the done of its earlier exit', () => {
+  it('ends no later exit with the done of a moving panel that has gone', () => {
     const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
     update(undefined);
-    const earlier = presence?.done;
-    update(<Mover key="members" name="members" />);
-    update(undefined);
-    act(() => earlier?.());
-    expect(shown(renderer)).toEqual(['members']);
-  });
-
-  it('ends no later exit with the done of a panel that has gone', () => {
-    const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
-    update(undefined);
-    const gone = presence?.done;
+    const gone = registrations.members?.done;
     // Another panel takes the closing one's place and closes too, before the first one's motion ends.
     update(<Mover key="computer" name="computer" />);
     update(undefined);
     act(() => gone?.());
     expect(shown(renderer)).toEqual(['computer']);
-    act(() => presence?.done());
-    expect(shown(renderer)).toEqual([]);
-  });
-
-  it('still ends a later exit whose moving panel goes after the done of a panel that has gone', () => {
-    const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
-    update(undefined);
-    const gone = presence?.done;
-    update(<Failing key="card" />);
-    update(undefined);
-    act(() => gone?.());
-    act(() => fail?.());
+    act(() => registrations.computer?.done());
     expect(shown(renderer)).toEqual([]);
   });
 
@@ -152,13 +114,34 @@ describe('usePanelSlot', () => {
     const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
     update(undefined);
     const finished = Promise.resolve();
-    void finished.then(presence?.done);
+    void finished.then(registrations.members?.done);
     update(<Mover key="computer" name="computer" />);
     update(undefined);
     await act(async () => {
       await finished;
     });
     expect(shown(renderer)).toEqual(['computer']);
+  });
+
+  it('ends no exit of the same panel opened anew with the done of its earlier moving panel', () => {
+    const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
+    const kept = registrations.members?.done;
+    update(<Mover key="computer" name="computer" />);
+    update(<Mover key="members" name="members" />);
+    update(undefined);
+    act(() => kept?.());
+    expect(shown(renderer)).toEqual(['members']);
+  });
+
+  it('ends no exit with the done of a moving panel that another took the place of in the same panel', () => {
+    const { renderer, update } = renderSlot(<Remounting key="card" />);
+    const kept = registrations.card?.done;
+    act(() => remount?.());
+    update(undefined);
+    act(() => kept?.());
+    expect(shown(renderer)).toEqual(['card']);
+    act(() => registrations.card?.done());
+    expect(shown(renderer)).toEqual([]);
   });
 
   it('ends the exit when its moving panel goes before it is done, such as for a failure', () => {
@@ -226,6 +209,14 @@ function PhaseMover() {
 }
 
 let fail: (() => void) | undefined;
+let remount: (() => void) | undefined;
+
+/** A panel whose moving part is mounted anew (as after a failure it recovered from). */
+function Remounting() {
+  const [mounts, setMounts] = useState(0);
+  remount = () => setMounts((count) => count + 1);
+  return <Mover key={mounts} name="card" />;
+}
 
 /** A moving panel that something else (a failure) can take the place of while it shows. */
 function Failing() {

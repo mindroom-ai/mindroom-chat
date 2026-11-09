@@ -21,19 +21,23 @@ const PANEL_MOTION_EASING = 'cubic-bezier(0.2, 0, 0, 1)';
  */
 export type PanelPhase = 'shown' | 'enter' | 'swap' | 'exit';
 
+/**
+ * What `register()` gives a moving panel: called, it unregisters; its `done` is the place's `done`
+ * while registered, and ends nothing after. A motion that ends after its panel has gone (another
+ * panel took the place, which may close in turn) so leaves the next panel's exit alone.
+ */
+export type PanelRegistration = (() => void) & { done: () => void };
+
 export type PanelPresence = {
   phase: PanelPhase;
-  /**
-   * The closing panel has finished moving out (or does not move), so it may go. It ends only its
-   * own panel's exit: one kept from an earlier exit, or by a panel that has gone (also when it
-   * was opened again since), ends none that follows.
-   */
+  /** The closing panel has finished moving out (or does not move), so it may go. */
   done: () => void;
   /**
-   * A moving panel announces itself while mounted; it then calls `done` when it has closed. One
-   * that goes first while it closes (a failure took its place) lets the place end its exit.
+   * A moving panel announces itself while mounted; it then calls the registration's `done` when it
+   * has closed. One that goes first while it closes (a failure took its place) lets the place end
+   * its exit.
    */
-  register: () => () => void;
+  register: () => PanelRegistration;
   /**
    * The width the last panel in this place had when it left, which a swapped-in panel starts from:
    * the room's own panels set it as they go, and a moving panel may too.
@@ -52,11 +56,6 @@ type Slot = {
   /** The key of the panel on screen, which stays while it closes. */
   shownKey?: string;
   phase: PanelPhase;
-  /**
-   * Made anew as a panel mounts here, and kept while it stays mounted (as it closes or turns
-   * around), so a `done` it kept from before it closed ends only its own exit.
-   */
-  mount?: object;
 };
 
 /** Whether the panel on screen is closing: none is asked for, and it has not yet gone. */
@@ -79,56 +78,53 @@ export function usePanelSlot(
     key,
     shownKey: key,
     phase: opening && panel ? 'enter' : 'shown',
-    mount: {},
   });
   if (slot.key !== key) {
     let phase: PanelPhase = 'exit';
     if (key !== undefined) {
       phase = slot.shownKey === undefined || slot.shownKey === key ? 'enter' : 'swap';
     }
-    const mount = key === undefined || key === slot.shownKey ? slot.mount : {};
-    setSlot({ key, shownKey: key ?? slot.shownKey, phase, mount });
+    setSlot({ key, shownKey: key ?? slot.shownKey, phase });
   }
   const lastPanel = useRef(panel);
   useLayoutEffect(() => {
     if (panel) lastPanel.current = panel;
   });
   const lastWidth = useRef<number>();
-  /** The slot of the panel closing at the last commit, until that exit ends. */
-  const closingRef = useRef<Slot>();
-  /**
-   * Ends the current exit if `from` is its slot or, for a `done` kept from before the panel
-   * closed, a slot of that panel's mount open. Once the panel has gone, a later `done` (from its
-   * last mover as it goes, or from a motion of a panel that another took the place of, which may
-   * close in turn) changes nothing.
-   */
-  const end = useCallback((from: Slot) => {
-    const ends = (current: Slot) =>
-      isClosing(current) &&
-      (current === from || (!isClosing(from) && current.mount === from.mount));
-    if (closingRef.current && ends(closingRef.current)) closingRef.current = undefined;
-    setSlot((current) => (ends(current) ? { phase: 'shown' } : current));
+  /** Whether the panel was closing at the last commit, until `done`. */
+  const closingRef = useRef(false);
+  const done = useCallback(() => {
+    closingRef.current = false;
+    // Once the panel has gone, a later `done` (from its last mover as it goes) changes nothing.
+    setSlot((current) => (isClosing(current) ? { phase: 'shown' } : current));
   }, []);
   const movers = useRef(0);
   const register = useCallback(() => {
     movers.current += 1;
-    return () => {
+    let registered = true;
+    const unregister = () => {
+      registered = false;
       movers.current -= 1;
       // The last moving panel went while it closed without calling `done` (a failure took its
       // place), so nothing would end the exit.
-      if (movers.current === 0 && closingRef.current) end(closingRef.current);
+      if (movers.current === 0 && closingRef.current) done();
     };
-  }, [end]);
+    return Object.assign(unregister, {
+      done: () => {
+        if (registered) done();
+      },
+    });
+  }, [done]);
   // Runs after the panel's own effects: with no moving panel inside (a canvas without its
   // content, or other content), what closes leaves at once.
+  const closing = isClosing(slot);
   useLayoutEffect(() => {
-    const closing = isClosing(slot);
-    closingRef.current = closing ? slot : undefined;
-    if (closing && movers.current === 0) end(slot);
-  }, [end, slot]);
+    closingRef.current = closing;
+    if (closing && movers.current === 0) done();
+  }, [closing, done]);
   const value = useMemo(
-    () => ({ phase: slot.phase, done: () => end(slot), register, lastWidth }),
-    [end, register, slot]
+    () => ({ phase: slot.phase, done, register, lastWidth }),
+    [slot.phase, done, register]
   );
   const shown = panel ?? (slot.shownKey === undefined ? undefined : lastPanel.current);
   return (

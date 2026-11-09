@@ -162,6 +162,7 @@ import {
   useScreenSize,
   useThemeKind,
   type PanelPhase,
+  type PanelRegistration,
 } from '@mindroom/client-sdk/ui';
 
 /** The drag type of the item its panel offers, which the room header takes. */
@@ -810,10 +811,12 @@ function useCardMotion(box: RefObject<HTMLElement>, moves: boolean) {
   const register = presence?.register;
   const lastWidth = presence?.lastWidth;
   const moving = useRef(moves);
+  const registration = useRef<PanelRegistration>();
   useLayoutEffect(() => {
-    const unregister = register?.();
+    const own = register?.();
+    registration.current = own;
     return () => {
-      unregister?.();
+      own?.();
       // As from a room's panel, a panel that takes the card's place moves on from its width if it
       // moved: the box on the page as it goes, which React lets go of only after this (hidden and
       // shown again, it has a new box).
@@ -822,7 +825,6 @@ function useCardMotion(box: RefObject<HTMLElement>, moves: boolean) {
     };
   }, [box, lastWidth, register]);
   const phase = presence?.phase ?? 'shown';
-  const done = presence?.done;
   const phaseSeen = useRef<PanelPhase>('shown');
   const motion = useRef<Animation>();
   useLayoutEffect(() => {
@@ -845,9 +847,11 @@ function useCardMotion(box: RefObject<HTMLElement>, moves: boolean) {
           : animatePanel(element, size(now ?? from), size(width), false);
     }
     if (phase !== 'exit') return;
+    // Its registration's `done`, which ends nothing once the card has gone.
+    const done = registration.current?.done;
     if (motion.current) void motion.current.finished.then(done, () => undefined);
     else done?.();
-  }, [box, done, lastWidth, moves, phase]);
+  }, [box, lastWidth, moves, phase]);
 }
 
 /**

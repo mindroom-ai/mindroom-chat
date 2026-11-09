@@ -34,6 +34,7 @@ import {
   useScreenSize,
   useThemeKind,
   type PanelPresence,
+  type PanelRegistration,
 } from './ui';
 
 // The test setup stands folds' plain components in for the glass ones; compare the real modules.
@@ -271,8 +272,9 @@ describe('usePanelPresence', () => {
     vi.restoreAllMocks();
   });
 
-  /** The panel's place as it last rendered, and what makes it fail. */
+  /** The panel's place as it last rendered, the last registration with it, and what makes it fail. */
   let place: PanelPresence | undefined;
+  let registration: PanelRegistration | undefined;
   let fail: (() => void) | undefined;
 
   /** An own-frame panel that moves: it registers with its place. */
@@ -282,7 +284,10 @@ describe('usePanelPresence', () => {
     place = presence;
     fail = () => setFailed(true);
     const register = presence?.register;
-    useLayoutEffect(() => register?.(), [register]);
+    useLayoutEffect(() => {
+      registration = register?.();
+      return registration;
+    }, [register]);
     if (failed) throw new Error('Example card failed');
     return <p>Example card</p>;
   }
@@ -336,14 +341,14 @@ describe('usePanelPresence', () => {
     const { container, setOpen } = renderPlace(MovingCard);
     setOpen('first');
     setOpen();
-    const firstDone = place?.done;
+    const firstDone = registration?.done;
     setOpen('second');
     setOpen();
     expect(place?.phase).toBe('exit');
     // The first card's motion ends only now, after the second card started to close.
     act(() => firstDone?.());
     expect(container.textContent).toBe('Example card');
-    act(() => place?.done());
+    act(() => registration?.done());
     expect(container.textContent).toBe('');
   });
 

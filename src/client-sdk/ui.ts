@@ -24,7 +24,12 @@ export { pdfFrameUrl } from '../app/messages/viewers/pdfFrame';
 // A side panel that draws its own frame moves in and out as the room's panels do: its phase in the
 // room's panel place, which waits for it once it registers, and the room's motion of a panel's width.
 export { animatePanel, usePanelPresence } from '../app/ui/panels/panelPresence';
-export type { PanelPhase, PanelPresence, PanelSize } from '../app/ui/panels/panelPresence';
+export type {
+  PanelPhase,
+  PanelPresence,
+  PanelRegistration,
+  PanelSize,
+} from '../app/ui/panels/panelPresence';
 
 // The kind of the theme on the page, which the app marks on the root element as it applies one.
 const appliedThemeKind = (): ThemeKind =>
