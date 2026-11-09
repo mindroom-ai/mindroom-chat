@@ -80,8 +80,10 @@ export const startSpeechCapture = async (
   };
   // Each pause or resume as it was asked for, in order: a pause drops the stretch in progress.
   const follow = async (detector: MicVAD, pause = paused) => {
-    if (pause) await detector.pause();
-    else if (!detector.listening) {
+    if (pause) {
+      await detector.pause();
+      spoken = 0;
+    } else if (!detector.listening) {
       await detector.start();
       listeningSince = context.currentTime;
       heard = 0;

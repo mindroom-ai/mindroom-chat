@@ -390,6 +390,22 @@ describe('startSpeechCapture', () => {
     expect(stretches).toEqual([]);
   });
 
+  it('starts counting towards the cut again after a pause', async () => {
+    const { capture, hear, stretches } = await start();
+    await hear(10, QUIET);
+    // A pause one frame before the cut comes due drops the stretch in progress.
+    await hear(303, SPEECH);
+    capture.setPaused(true);
+    await settle();
+    capture.setPaused(false);
+    await settle();
+    await hear(10, SPEECH);
+    await hear(20, QUIET);
+    expect(stretches).toHaveLength(1);
+    // From the first frame heard after the resume.
+    expect((await framesOf(defined(stretches[0], 'the stretch')))[0]).toBe(314);
+  });
+
   it('pauses and resumes in the order asked, however fast', async () => {
     const { capture, hear, stretches, vad } = await start();
     capture.setPaused(true);
