@@ -517,11 +517,11 @@ describe('CollapsibleMessage', () => {
       getBoundingClientRect: () => ({ bottom: 200 }),
     } as unknown as MockContentElement;
     const link = { tagName: 'A' };
-    const click = (clientY: number, onLink = false) => ({
-      clientY,
-      target: { closest: () => (onLink ? link : null) },
-      currentTarget: { contains: (node: unknown) => node === link },
-    });
+    const click = (clientY: number, onLink = false, inPortal = false) => {
+      const target = { closest: () => (onLink ? link : null) };
+      const inside = new Set<unknown>(inPortal ? [] : [target, link]);
+      return { clientY, target, currentTarget: { contains: (node: unknown) => inside.has(node) } };
+    };
     const getContainer = (renderer: ReactTestRenderer) =>
       renderer.root.find(
         (node) => node.type === 'div' && node.props.className === 'collapsible-container'
@@ -532,6 +532,9 @@ describe('CollapsibleMessage', () => {
     act(() => getContainer(renderer).props.onClick(click(120)));
     expect(expanded()).toBe(false);
     act(() => getContainer(renderer).props.onClick(click(180, true)));
+    expect(expanded()).toBe(false);
+    // A click in a portal the message opened, such as an image viewer, reaches it through React.
+    act(() => getContainer(renderer).props.onClick(click(180, false, true)));
     expect(expanded()).toBe(false);
     // A drag that selected text ends in a click too.
     vi.stubGlobal('getSelection', () => ({ isCollapsed: false }));

@@ -370,7 +370,8 @@ export function CollapsibleMessage({
   const handleFadeClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       const content = contentRef.current;
-      if (!content) return;
+      // React passes on clicks from the message's portals too, such as an image viewer's.
+      if (!content || !event.currentTarget.contains(event.target as Node)) return;
       const ownControl = (event.target as Element).closest(OWN_CLICK);
       if (ownControl && event.currentTarget.contains(ownControl)) return;
       if (globalThis.getSelection?.()?.isCollapsed === false) return;

@@ -130,6 +130,15 @@ for (const surface of ['room', 'thread'] as const) {
         await expectClearControl();
         await collapse.click();
         await expect(expand).toBeVisible();
+        // A click on the folded message's faded last lines unfolds it too; one above them does
+        // not. Both land at the text's start, away from the button.
+        await content.scrollIntoViewIfNeeded();
+        const folded = (await content.boundingBox())!;
+        const em = await content.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+        await page.mouse.click(folded.x + 24, folded.y + folded.height - 5 * em);
+        await expect(expand).toBeVisible();
+        await page.mouse.click(folded.x + 24, folded.y + folded.height - em);
+        await expect(collapse).toBeVisible();
       } finally {
         try {
           await matrixFetch(homeserver, `/rooms/${encodeURIComponent(fixture.roomId)}/leave`, {
