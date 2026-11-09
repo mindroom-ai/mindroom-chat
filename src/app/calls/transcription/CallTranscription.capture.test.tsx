@@ -35,6 +35,7 @@ vi.mock('./speechCapture', () => ({
       setPaused: (paused: boolean) => {
         capture.paused = paused;
       },
+      setMuted: () => undefined,
       stop: async () => undefined,
     };
   },

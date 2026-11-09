@@ -339,7 +339,10 @@ export class CallTranscriber {
       .catch(() => undefined);
   }
 
-  /** Starts, stops or switches the capture to what is wanted now, after the steps before. */
+  /**
+   * Starts, stops or switches the capture to what is wanted now, after the steps before. A mute
+   * keeps it, with its model loaded, for the microphone to come back.
+   */
   private updateCapture(): void {
     if (this.status !== 'transcribing') this.uploadGeneration += 1;
     this.captureSteps = this.captureSteps.then(() => this.applyCapture()).catch(() => undefined);
@@ -347,8 +350,12 @@ export class CallTranscriber {
 
   private async applyCapture(): Promise<void> {
     const wanted = this.wantedTrack();
-    if (this.capture?.track === wanted) return;
     const current = this.capture;
+    const muted = !this.track && this.status === 'transcribing' && !this.ending;
+    if (current && (muted || current.track === wanted)) {
+      current.capture.setMuted(muted);
+      return;
+    }
     this.capture = undefined;
     // Stopping hands on the stretch in progress: sent while transcribing, dropped otherwise.
     if (current) await current.capture.stop();
