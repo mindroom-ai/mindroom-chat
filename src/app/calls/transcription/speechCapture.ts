@@ -114,6 +114,12 @@ export const startSpeechCapture = async (
     getStream: async () => new MediaStream([track]),
     pauseStream: async () => undefined,
     resumeStream: async (stream) => stream,
+    // The wrapper's worklet reads the first channel only: a stereo microphone is mixed to one.
+    workletOptions: {
+      channelCount: 1,
+      channelCountMode: 'explicit',
+      channelInterpretation: 'speakers',
+    },
     baseAssetPath: directory,
     ortConfig: (ort) => {
       // As the wrapper's default ortConfig, which this one replaces, sets it.

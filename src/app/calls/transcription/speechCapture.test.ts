@@ -267,7 +267,14 @@ describe('startSpeechCapture', () => {
       'ortConfig',
       'pauseStream',
       'resumeStream',
+      'workletOptions',
     ]);
+    // The wrapper's worklet reads the first channel only: the microphone reaches it mixed to one.
+    expect(options.workletOptions).toEqual({
+      channelCount: 1,
+      channelCountMode: 'explicit',
+      channelInterpretation: 'speakers',
+    });
     // Same origin: the worklet, the model and the runtime's files come from one directory here.
     const base = defined(options.baseAssetPath, 'baseAssetPath');
     expect(base).toMatch(/^\/assets\/speech-model[^/]*\/$/);
