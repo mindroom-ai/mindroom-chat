@@ -127,12 +127,14 @@ it('removes the keys of a logged-out account whose user ID extends a kept one', 
   putSession({
     baseUrl: 'https://example.org',
     userId: alice,
-    deviceId: 'DEVICE',
+    // A device ID can be any text, also one that reads as the rest of the longer user ID.
+    deviceId: '8448',
     accessToken: 't',
   });
   const aliceKeys = [
     `mindroom.members.width:${alice}`,
     `mindroom.panel.width:${alice}:example.panel`,
+    pendingRoamingSettingsKey(alice, '8448'),
   ];
   aliceKeys.forEach((key) => values.set(key, '1'));
   seedUserUiKeys(values, aliceOnPort);

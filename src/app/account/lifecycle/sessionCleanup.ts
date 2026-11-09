@@ -6,6 +6,7 @@ import { clearSavedVoiceDraft } from '../../composer/voice/savedVoiceDraft';
 import { clearIOSPushState } from '../../notifications/push/iosPush';
 import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads';
 import { clearRecentlyOpenedPanelHeightStore } from '../../preferences/recentlyOpenedPanelHeight';
+import { pendingRoamingSettingsKey } from '../../preferences/roamingSettings';
 import { clearCallWindowStore } from '../../calls/window/callWindowState';
 import { clearThreadSidebarPreferencesStore } from '../../threads/cross-room/threadSidebarPreferences';
 import { clearCrossRoomThreadFiltersStore } from '../../threads/cross-room/crossRoomThreadFilters';
@@ -110,13 +111,15 @@ export const clearUserUiState = (userId: string): void => {
   clearNotified(userId);
   // Every key named after the account goes too, whichever module wrote it, but not one that also
   // names a login this browser keeps. A key named after two user IDs, one the start of the other
-  // (`@a:example.org` and `@a:example.org:8448`), is the longer one's. A plugin of another account
-  // keeps its values under that account's encoded ID and keys of its own.
-  const kept = listSessions().map((session) => session.userId);
+  // (`@a:example.org` and `@a:example.org:8448`), is the longer one's, except a kept login's
+  // pending settings edits, whose device ID may read as the rest of the longer ID. A plugin of
+  // another account keeps its values under that account's encoded ID and keys of its own.
+  const sessions = listSessions();
   const keeps = (key: string) =>
-    kept.some(
-      (other) =>
+    sessions.some(
+      ({ userId: other, deviceId }) =>
         (isNamedAfter(key, other) && !userId.startsWith(`${other}:`)) ||
+        key === pendingRoamingSettingsKey(other, deviceId) ||
         key.includes(encodeURIComponent(other))
     );
   const storage = getSafeLocalStorage();
