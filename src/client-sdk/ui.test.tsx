@@ -331,6 +331,48 @@ describe('usePanelPresence', () => {
     expect(container.textContent).toBe('');
   });
 
+  it('keeps the next own-frame panel until it is done when one swapped out mid-exit finishes moving', () => {
+    /** The place as each card last rendered. */
+    const seen: Record<string, PanelPresence | undefined> = {};
+    function Card({ name }: { name: string }) {
+      const presence = usePanelPresence();
+      seen[name] = presence;
+      const register = presence?.register;
+      useLayoutEffect(() => register?.(), [register]);
+      return <p>{name}</p>;
+    }
+    const cards = { first: () => <Card name="first" />, second: () => <Card name="second" /> };
+    function Place({ open }: { open?: keyof typeof cards }) {
+      const card = open && (
+        <PluginSidePanel
+          key={open}
+          panel={{
+            id: `example/${open}`,
+            tag: 'example@1.0.0',
+            label: open,
+            Component: cards[open],
+            frame: 'own',
+          }}
+          roomId="!lobby:example.org"
+          request={undefined}
+          onClose={() => undefined}
+        />
+      );
+      return <>{usePanelSlot(card || undefined)}</>;
+    }
+    const { container, rerender } = render(<Place open="first" />);
+    rerender(<Place />);
+    const firstDone = seen.first?.done;
+    rerender(<Place open="second" />);
+    rerender(<Place />);
+    expect(seen.second?.phase).toBe('exit');
+    // The first card's motion ends only now, after the second card started to close.
+    act(() => firstDone?.());
+    expect(container.textContent).toBe('second');
+    act(() => seen.second?.done());
+    expect(container.textContent).toBe('');
+  });
+
   it('empties the place when the panel fails as it moves out, and opens it again', () => {
     // React and the panel's boundary log the failure.
     vi.spyOn(console, 'error').mockImplementation(() => undefined);

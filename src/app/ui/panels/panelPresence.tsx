@@ -23,7 +23,10 @@ export type PanelPhase = 'shown' | 'enter' | 'swap' | 'exit';
 
 export type PanelPresence = {
   phase: PanelPhase;
-  /** The closing panel has finished moving out (or does not move), so it may go. */
+  /**
+   * The closing panel has finished moving out (or does not move), so it may go. It ends only the
+   * exit it came with: one kept from an earlier exit ends none that follows.
+   */
   done: () => void;
   /**
    * A moving panel announces itself while mounted; it then calls `done` when it has closed. One
@@ -83,13 +86,18 @@ export function usePanelSlot(
     if (panel) lastPanel.current = panel;
   });
   const lastWidth = useRef<number>();
-  /** Whether the panel was closing at the last commit, until `done`. */
-  const closingRef = useRef(false);
-  const done = useCallback(() => {
-    closingRef.current = false;
-    // Once the panel has gone, a later `done` (from its last mover as it goes) changes nothing.
-    setSlot((current) => (isClosing(current) ? { phase: 'shown' } : current));
+  /** The slot of the panel closing at the last commit, until `done`. */
+  const closingRef = useRef<Slot>();
+  /**
+   * Ends the exit `exit` is the slot of, while it is the current one. Once the panel has gone, a
+   * later `done` (from its last mover as it goes, or from a motion of a panel that another took
+   * the place of, which may close in turn) changes nothing.
+   */
+  const end = useCallback((exit: Slot) => {
+    if (closingRef.current === exit) closingRef.current = undefined;
+    setSlot((current) => (current === exit && isClosing(current) ? { phase: 'shown' } : current));
   }, []);
+  const done = useCallback(() => end(slot), [end, slot]);
   const movers = useRef(0);
   const register = useCallback(() => {
     movers.current += 1;
@@ -97,16 +105,16 @@ export function usePanelSlot(
       movers.current -= 1;
       // The last moving panel went while it closed without calling `done` (a failure took its
       // place), so nothing would end the exit.
-      if (movers.current === 0 && closingRef.current) done();
+      if (movers.current === 0 && closingRef.current) end(closingRef.current);
     };
-  }, [done]);
+  }, [end]);
   // Runs after the panel's own effects: with no moving panel inside (a canvas without its
   // content, or other content), what closes leaves at once.
   const closing = isClosing(slot);
   useLayoutEffect(() => {
-    closingRef.current = closing;
+    closingRef.current = closing ? slot : undefined;
     if (closing && movers.current === 0) done();
-  }, [closing, done]);
+  }, [closing, done, slot]);
   const value = useMemo(
     () => ({ phase: slot.phase, done, register, lastWidth }),
     [slot.phase, done, register]

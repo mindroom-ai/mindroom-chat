@@ -77,6 +77,32 @@ describe('usePanelSlot', () => {
     expect(shown(renderer)).toEqual([]);
   });
 
+  it('ends no later exit with the done of a panel that has gone', () => {
+    const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
+    update(undefined);
+    const gone = presence?.done;
+    // Another panel takes the closing one's place and closes too, before the first one's motion ends.
+    update(<Mover key="computer" name="computer" />);
+    update(undefined);
+    act(() => gone?.());
+    expect(shown(renderer)).toEqual(['computer']);
+    act(() => presence?.done());
+    expect(shown(renderer)).toEqual([]);
+  });
+
+  it('ends no later exit with a done that a finished motion queued before its panel went', async () => {
+    const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
+    update(undefined);
+    const finished = Promise.resolve();
+    void finished.then(presence?.done);
+    update(<Mover key="computer" name="computer" />);
+    update(undefined);
+    await act(async () => {
+      await finished;
+    });
+    expect(shown(renderer)).toEqual(['computer']);
+  });
+
   it('ends the exit when its moving panel goes before it is done, such as for a failure', () => {
     const { renderer, update } = renderSlot();
     update(<Failing key="card" />);

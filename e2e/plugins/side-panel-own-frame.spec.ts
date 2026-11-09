@@ -313,3 +313,72 @@ test("the example plugin's own-frame card moves in and out as the room's panels 
     expect(await motions()).toHaveLength(moved);
   });
 });
+
+test("a panel swapped out as it moves out leaves the next panel's exit alone, the card's and the members'", async ({
+  browser,
+}) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+  test.setTimeout(5 * 60_000);
+  await withPanelRoom(browser, async (page) => {
+    const conversation = roomHeader(page);
+    const members = panelLocator(page, 'members');
+    // Each motion of the card's box and of the members panel is held at its start, so the test
+    // decides when each ends, also after its panel has gone.
+    await page.evaluate(() => {
+      const animate = Element.prototype.animate;
+      const held: Record<string, Animation[]> = { card: [], members: [] };
+      (window as unknown as { heldMotions: typeof held }).heldMotions = held;
+      Element.prototype.animate = function hold(this: Element, ...args) {
+        const animation = animate.apply(this, args);
+        const which = this.matches('[data-example-card-box]')
+          ? 'card'
+          : this.matches('[data-testid="resizable-members-panel"]') && 'members';
+        if (which) {
+          animation.pause();
+          held[which]!.push(animation);
+        }
+        return animation;
+      };
+    });
+    /** Ends the last motion of the card's box or of the members panel, and lets the room render. */
+    const finish = (which: 'card' | 'members') =>
+      page.evaluate(async (name) => {
+        const { heldMotions } = window as unknown as { heldMotions: Record<string, Animation[]> };
+        heldMotions[name]!.at(-1)!.finish();
+        const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+        await frame();
+        await frame();
+      }, which);
+    const showMembers = () =>
+      conversation.getByRole('button', { name: 'Show Members', exact: true }).click();
+    const hideMembers = () =>
+      conversation.getByRole('button', { name: 'Hide Members', exact: true }).click();
+
+    // The members, which a new account shows, start to move out; the card takes their place and
+    // starts to move out too. The members' motion ends only then, and ends nothing of the card's.
+    await expect(members).toBeVisible();
+    await hideMembers();
+    await toggleCard(page, false);
+    await expect(members).toHaveCount(0);
+    await finish('card');
+    await toggleCard(page, true);
+    await finish('members');
+    expect(await card(page).count()).toBe(1);
+    await finish('card');
+    await expect(card(page)).toHaveCount(0);
+
+    // The other way round: the card moves out, the members take its place and move out, and the
+    // card's motion, which ends only then, ends nothing of theirs.
+    await toggleCard(page, false);
+    await finish('card');
+    await toggleCard(page, true);
+    await showMembers();
+    await expect(card(page)).toHaveCount(0);
+    await finish('members');
+    await hideMembers();
+    await finish('card');
+    expect(await members.count()).toBe(1);
+    await finish('members');
+    await expect(members).toHaveCount(0);
+  });
+});
