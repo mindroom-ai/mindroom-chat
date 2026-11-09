@@ -9,14 +9,26 @@ import { createElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../app/config/useClientConfig';
 import i18n from '../app/i18n/i18n';
+import { ScreenSize, ScreenSizeProvider } from '../app/lib/hooks/useScreenSize';
 import { MatrixClientProvider } from '../app/matrix/hooks/useMatrixClient';
 import { putSession } from '../app/matrix/session/sessions';
 import { registerPluginTranslations } from '../app/plugins/pluginTranslations';
 import type { ClientPlugin } from '../app/plugins/registry';
+import type { ThemeKind } from '../app/theme/useTheme';
 import { PanelFrameProvider, type PanelFrame } from '../app/ui/panels/panelFrameContext';
 
 // The app's vitest has no globals, so React Testing Library does not unmount after each test itself.
 afterEach(cleanup);
+
+// The root element's theme kind mark before a test's `themeKind` replaced it, put back after the test.
+let markBefore: { kind: string | undefined } | undefined;
+afterEach(() => {
+  if (!markBefore) return;
+  const { dataset } = document.documentElement;
+  if (markBefore.kind === undefined) delete dataset.themeKind;
+  else dataset.themeKind = markBefore.kind;
+  markBefore = undefined;
+});
 
 /** The stand-in's homeserver. */
 const HOMESERVER = 'https://example.org';
@@ -37,16 +49,18 @@ const standIn = {
 
 /**
  * Renders `ui`, made of the components of the plugin `id`, into the document with what the SDK's
- * config, translation, storage, Matrix and panel frame hooks need: `config` is the plugin's
- * section of config.json (`plugins.<id>`, what `usePluginConfig` reads), `usePluginTranslation`
- * translates into `language` (default English) with the strings of `plugin`, its entry's default
- * export, `useMatrixClient` returns `client`, the signed-in account's (default a stand-in that has
- * `getSafeUserId`, builds media URLs on `https://example.org` and knows no room),
- * `usePluginStorage` keeps values in the document's localStorage, for the rest of the test file,
- * for that account, signed in there, and `usePanelFrame` returns `frame`, as the app gives it to a
- * side panel with `frame: 'own'` (default none). A component that needs more of the app, such as a
- * router for `usePluginRouteHref` or the app's query client, gets it from `ui`. The test file needs
- * `// @vitest-environment jsdom`.
+ * config, translation, storage, Matrix, panel frame, screen size and theme kind hooks need:
+ * `config` is the plugin's section of config.json (`plugins.<id>`, what `usePluginConfig` reads),
+ * `usePluginTranslation` translates into `language` (default English) with the strings of `plugin`,
+ * its entry's default export, `useMatrixClient` returns `client`, the signed-in account's (default
+ * a stand-in that has `getSafeUserId`, builds media URLs on `https://example.org` and knows no
+ * room), `usePluginStorage` keeps values in the document's localStorage, for the rest of the test
+ * file, for that account, signed in there, and `usePanelFrame` returns `frame`, as the app gives it
+ * to a side panel with `frame: 'own'` (default none). `useScreenSize` returns `screenSize` (default
+ * `Desktop`), and `useThemeKind` returns `themeKind`, which marks the document's root element as
+ * the app marks it, until the test ends (default the kind marked there, `light` when none is). A
+ * component that needs more of the app, such as a router for `usePluginRouteHref` or the app's
+ * query client, gets it from `ui`. The test file needs `// @vitest-environment jsdom`.
  */
 export const renderPluginComponent = async (
   ui: ReactElement,
@@ -57,6 +71,8 @@ export const renderPluginComponent = async (
     language = 'en',
     client = standIn,
     frame,
+    screenSize = ScreenSize.Desktop,
+    themeKind,
   }: {
     id: string;
     plugin: ClientPlugin;
@@ -64,6 +80,8 @@ export const renderPluginComponent = async (
     language?: string;
     client?: MatrixClient;
     frame?: PanelFrame;
+    screenSize?: ScreenSize;
+    themeKind?: ThemeKind;
   }
 ) => {
   registerPluginTranslations(id, plugin.translations);
@@ -75,6 +93,11 @@ export const renderPluginComponent = async (
     deviceId: 'PLUGINTEST',
     accessToken: 'plugin-test',
   });
+  if (themeKind) {
+    const { dataset } = document.documentElement;
+    markBefore ??= { kind: dataset.themeKind };
+    dataset.themeKind = themeKind;
+  }
   const clientConfig = { plugins: { [id]: config } } as unknown as ClientConfig;
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(
@@ -83,7 +106,11 @@ export const renderPluginComponent = async (
       createElement(
         ClientConfigProvider,
         { value: clientConfig },
-        createElement(PanelFrameProvider, { value: frame }, children)
+        createElement(
+          PanelFrameProvider,
+          { value: frame },
+          createElement(ScreenSizeProvider, { value: screenSize }, children)
+        )
       )
     );
   return render(ui, { wrapper });
