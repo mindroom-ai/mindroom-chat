@@ -57,6 +57,10 @@ const stubLocalStorage = (): Map<string, string> => {
   return values;
 };
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 it('removes only the logged-out account composer drafts from storage and memory', () => {
   const values = stubLocalStorage();
   const aliceKey = getRoomInputDraftKey('@draft-alice:example.org', '!room:example.org', '$root');
@@ -71,12 +75,11 @@ it('removes only the logged-out account composer drafts from storage and memory'
   expect(store.get(roomIdToMsgDraftAtomFamily(bobKey))).toEqual(draft);
   roomIdToMsgDraftAtomFamily.remove(aliceKey);
   expect(createStore().get(roomIdToMsgDraftAtomFamily(aliceKey))).toEqual([]);
-  vi.unstubAllGlobals();
 });
 
 it('removes every key named after the logged-out account, whichever part of the app wrote it', () => {
   const values = stubLocalStorage();
-  const keysOf = (userId: string) => {
+  const seedUserUiKeys = (userId: string) => {
     createStore().set(makeSpaceOrderAtom(userId), {
       type: 'REORDER',
       order: ['!space:example.org'],
@@ -91,11 +94,10 @@ it('removes every key named after the logged-out account, whichever part of the 
     keys.forEach((key) => values.set(key, '1'));
     return [`${SPACE_ORDER_STORAGE_KEY_PREFIX}${userId}`, ...keys];
   };
-  keysOf('@alice:example.org');
-  const bobKeys = keysOf('@bob:example.org');
+  seedUserUiKeys('@alice:example.org');
+  const bobKeys = seedUserUiKeys('@bob:example.org');
   clearUserUiState('@alice:example.org');
   expect([...values.keys()]).toEqual(bobKeys);
-  vi.unstubAllGlobals();
 });
 
 it('keeps the keys of logins this browser keeps, also ones that name the logged-out account', () => {
@@ -107,6 +109,7 @@ it('keeps the keys of logins this browser keeps, also ones that name the logged-
     putSession({ baseUrl: 'https://example.org', userId, deviceId: 'DEVICE', accessToken: 't' })
   );
   const keys = [
+    `mindroom.members.width:${aliceOnPort}`,
     `mindroom.panel.width:${aliceOnPort}:example.panel`,
     pendingRoamingSettingsKey(aliceOnPort, 'DEVICE'),
     // A value Bob's plugin keeps under a key of its own that names Alice.
@@ -116,7 +119,6 @@ it('keeps the keys of logins this browser keeps, also ones that name the logged-
   values.set(`mindroom.panel.width:${alice}:example.panel`, '1');
   clearUserUiState(alice);
   expect([...values.keys()]).toEqual([SESSION_STORE_KEY, ...keys]);
-  vi.unstubAllGlobals();
 });
 
 vi.mock('../../notifications/push/iosPush', () => ({
@@ -274,8 +276,6 @@ describe('MindRoom session cleanup', () => {
     clearSessionUiState('session-a');
     clearSessionNativeState('session-a');
     clearInMemoryCaches();
-
-    vi.unstubAllGlobals();
 
     expect(removeItem).toHaveBeenCalledWith('lastOpenThread@alice:example.com');
     expect(vi.mocked(clearRoomThreadFiltersStore)).toHaveBeenCalledWith('@alice:example.com');
