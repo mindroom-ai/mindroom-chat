@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { ReactNode } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MessageLinkCardProps } from '../plugins/messageLinks';
 import type { RegisteredPlugin } from '../plugins/registry';
@@ -8,8 +8,22 @@ import { CheckedMessageLink } from '../rich-text/CheckedMessageLink';
 import { MessageLinkCards } from './MessageLinkCards';
 
 // jsdom lays nothing out, so a focus trap finds nothing it could focus and throws.
+// Its options are kept, so a test can run the trap's deactivation: the trap would then move focus
+// to the element it saved on activation (here `returnTarget`) when `returnFocusOnDeactivate` is on.
 vi.mock('focus-trap-react', () => ({
-  default: ({ children }: { children: ReactNode }) => children,
+  default: ({
+    children,
+    focusTrapOptions,
+  }: {
+    children: ReactNode;
+    focusTrapOptions: { returnFocusOnDeactivate?: boolean; onDeactivate?: () => void };
+  }) => {
+    mocks.deactivate = () => {
+      focusTrapOptions.onDeactivate?.();
+      if (focusTrapOptions.returnFocusOnDeactivate) mocks.returnTarget?.focus();
+    };
+    return children;
+  },
 }));
 vi.mock('react-i18next', async (importOriginal) => {
   const { translateFromEn } = await import('../../test/utils/i18n');
@@ -19,6 +33,8 @@ vi.mock('react-i18next', async (importOriginal) => {
 const mocks = vi.hoisted(() => ({
   reportBoundaryError: vi.fn(),
   position: undefined as string | undefined,
+  deactivate: undefined as (() => void) | undefined,
+  returnTarget: undefined as HTMLElement | undefined,
 }));
 // Records where the card is asked to open.
 vi.mock('../ui/directional', async (importOriginal) => ({
@@ -35,6 +51,7 @@ vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) 
 
 function Card({ href, roomId, close }: MessageLinkCardProps) {
   if (href.endsWith('/broken')) throw new Error('boom');
+  if (href.endsWith('/slow')) throw new Promise(() => undefined);
   return (
     <div>
       <span>{`card ${href} in ${roomId}`}</span>
@@ -57,6 +74,7 @@ const renderCards = (roomId = '!a:x') => {
       <CheckedMessageLink href="https://github.com/o/r/pull/1">One</CheckedMessageLink>
       <CheckedMessageLink href="https://github.com/o/r/pull/2">Two</CheckedMessageLink>
       <CheckedMessageLink href="https://github.com/o/r/broken">Broken</CheckedMessageLink>
+      <CheckedMessageLink href="https://github.com/o/r/slow">Slow</CheckedMessageLink>
       <CheckedMessageLink href="https://other.example/page">Other</CheckedMessageLink>
     </MessageLinkCards>
   );
@@ -68,6 +86,8 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   mocks.reportBoundaryError.mockClear();
+  mocks.deactivate = undefined;
+  mocks.returnTarget = undefined;
 });
 
 describe('MessageLinkCards', () => {
@@ -103,6 +123,26 @@ describe('MessageLinkCards', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close card' }));
     expect(screen.queryByText(/^card /)).toBeNull();
     expect(document.activeElement).toBe(link);
+  });
+
+  it('Escape leaves focus on the link, not on what the trap saved', () => {
+    renderCards();
+    const link = screen.getByRole('link', { name: 'One' });
+    const other = screen.getByRole('link', { name: 'Two' });
+    mocks.returnTarget = other;
+    fireEvent.click(link);
+    act(() => mocks.deactivate?.());
+    expect(screen.queryByText(/^card /)).toBeNull();
+    expect(document.activeElement).toBe(link);
+  });
+
+  it('a card that suspends leaves the room content showing', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    renderCards();
+    fireEvent.click(screen.getByRole('link', { name: 'Slow' }));
+    expect(screen.getByRole('link', { name: 'One' })).toBeTruthy();
+    expect(mocks.reportBoundaryError).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
   });
 
   it("another link's card takes the place of the first", () => {

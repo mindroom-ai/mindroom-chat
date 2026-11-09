@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import FocusTrap from 'focus-trap-react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
@@ -62,7 +62,9 @@ export function MessageLinkCards({
       <FocusTrap
         focusTrapOptions={{
           initialFocus: false,
-          returnFocusOnDeactivate: true,
+          // close() returns focus to the link; the trap's own target may be another element, as a
+          // click does not focus a link in WebKit.
+          returnFocusOnDeactivate: false,
           clickOutsideDeactivates: true,
           escapeDeactivates: true,
           onDeactivate: close,
@@ -77,7 +79,9 @@ export function MessageLinkCards({
               close();
             }}
           >
-            <card.Component href={href} roomId={roomId} close={close} />
+            <Suspense fallback={null}>
+              <card.Component href={href} roomId={roomId} close={close} />
+            </Suspense>
           </ErrorBoundary>
         </Menu>
       </FocusTrap>
