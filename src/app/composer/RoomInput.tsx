@@ -298,6 +298,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // A phone row keeps voice and Send beside the text; Attach, Formatting and Emoji move into a
     // "More actions" menu, so the text gets their width.
     const phone = useScreenSizeContext() === ScreenSize.Mobile;
+    // A thread's model button starts the row, on phones too: its provider's logo, and a menu.
+    const modelPicker = (
+      <ThreadModelPicker room={room} threadId={threadId} conversationHidden={conversationHidden} />
+    );
     // Phones reach stickers through the emoji board's tabs instead of a button of their own.
     const imagePackRooms = useImagePackRooms(roomId, useAtomValue(roomToParentsAtom));
     const mountedRef = useRef(true);
@@ -732,11 +736,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           onPaste={attachments.onPaste}
           top={
             <>
-              <ThreadModelPicker
-                room={room}
-                threadId={threadId}
-                conversationHidden={conversationHidden}
-              />
               {replyDraft ? (
                 <RoomInputReplyPreview
                   room={room}
@@ -755,6 +754,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           before={
             phone ? (
               <>
+                {modelPicker}
                 <ComposerActionsMenu
                   formattingOpen={formattingOpen}
                   onAttach={attachments.pickFiles}
@@ -765,6 +765,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
               </>
             ) : (
               <>
+                {modelPicker}
                 <ComposerIconButton
                   label={attachLabel}
                   icon={Icons.PlusCircle}
