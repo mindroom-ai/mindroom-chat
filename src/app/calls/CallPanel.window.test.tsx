@@ -1143,6 +1143,15 @@ describe('the live transcript in the window', () => {
     expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Move call window' }));
   });
 
+  it("names the transcript without a landmark of its own: the window is the call view's one", () => {
+    roomCall([me, person('@ana:panel.test')]);
+    transcribed();
+    renderInWindow();
+    expect(transcript()).not.toBeNull();
+    expect(screen.getAllByRole('region')).toEqual([screen.getByTestId('call-window')]);
+    expect(screen.getByRole('group', { name: 'Live transcript' })).toBe(transcript());
+  });
+
   it('shows neither in the bar nor in the docked panel', () => {
     roomCall([me, person('@ana:panel.test')]);
     transcribed();

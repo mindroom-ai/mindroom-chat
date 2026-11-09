@@ -422,7 +422,7 @@ describe('CallRow', () => {
     press(button('Transcript'));
     const pane = document.querySelector('[data-call-window-transcript]');
     expect(document.activeElement).toBe(pane);
-    expect(pane?.getAttribute('role')).toBe('region');
+    expect(pane?.getAttribute('role')).toBe('group');
     expect(pane?.getAttribute('aria-label')).toBe('Live transcript');
   });
 

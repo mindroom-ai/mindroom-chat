@@ -172,7 +172,8 @@ type TranscriptProps = {
 /**
  * The transcript beside or under the stage, at `grow` of the body. Too short a window shows only
  * its latest line as a subtitle, and the transcript stays out of sight for screen readers, whose
- * log announces new lines as it does in every other layout.
+ * log announces new lines as it does in every other layout. It is a named group, which says what
+ * it is when it takes the focus; the window is the call view's one landmark.
  */
 function Transcript({ room, layout, grow, paneRef }: TranscriptProps) {
   const { t } = useTranslation();
@@ -199,7 +200,7 @@ function Transcript({ room, layout, grow, paneRef }: TranscriptProps) {
         ref={paneRef}
         className={subtitle ? css.PaneUnseen : css.Pane}
         style={grow === undefined ? undefined : { flexGrow: grow }}
-        role="region"
+        role="group"
         aria-label={t('featureUi.calls.transcription.liveTranscript')}
         tabIndex={-1}
         data-call-window-transcript=""

@@ -235,7 +235,7 @@ describe('the live transcript in the floating window', () => {
     act(() => store.set(focusHandOffAtom, { to: 'transcript', from: stage }));
     expect(document.activeElement).toBe(stage);
     act(() => showTranscript());
-    expect(document.activeElement).toBe(screen.getByRole('region', { name: 'Live transcript' }));
+    expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Live transcript' }));
     expect(store.get(focusHandOffAtom)).toBeUndefined();
   });
 
@@ -244,7 +244,7 @@ describe('the live transcript in the floating window', () => {
     showTranscript();
     const { rerender } = render(windowWith({ width: 400, height: 480 }));
     const handle = document.querySelector<HTMLElement>('[data-call-window-handle]');
-    const pane = () => screen.getByRole('region', { name: 'Live transcript' });
+    const pane = () => screen.getByRole('group', { name: 'Live transcript' });
     // The transcript's scroll box, which Chromium lets Tab reach from the pane.
     const scroller = () => {
       const box = pane().firstElementChild as HTMLElement;
