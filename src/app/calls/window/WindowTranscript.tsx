@@ -178,8 +178,8 @@ type TranscriptProps = {
 /**
  * The transcript beside or under the stage, at `grow` of the body. Too short a window shows only
  * its latest line as a subtitle, and the transcript stays out of sight for screen readers, whose
- * log announces new lines as it does in every other layout. Its scroll box is a named group, which
- * says what it is when it takes the focus; the window is the call view's one landmark.
+ * log announces new lines as it does in every other layout. Shown, its scroll box is a named group,
+ * which says what it is when it takes the focus; the window is the call view's one landmark.
  */
 function Transcript({ room, layout, grow, paneRef }: TranscriptProps) {
   const { t } = useTranslation();
@@ -208,7 +208,8 @@ function Transcript({ room, layout, grow, paneRef }: TranscriptProps) {
           view={view}
           className={css.PaneBody}
           members={false}
-          label={t('featureUi.calls.transcription.liveTranscript')}
+          // Out of sight under the subtitle, it takes no focus; its log still announces each line.
+          label={subtitle ? undefined : t('featureUi.calls.transcription.liveTranscript')}
         />
       </div>
       {subtitle && <Subtitle room={room} line={lines[lines.length - 1]} />}

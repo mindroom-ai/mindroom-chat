@@ -334,7 +334,7 @@ test('the transcript keeps its newest line in view through layout changes, unles
 });
 
 test('the keys scroll the transcript after a click in it, and Tab reaches it', async ({ page }) => {
-  const { pane, log } = await openWindow(page, 400, 640);
+  const { pane, log, divider } = await openWindow(page, 400, 640);
   const end = (await scrollOf(log)).top;
   expect(end).toBeGreaterThan(0);
 
@@ -344,10 +344,12 @@ test('the keys scroll the transcript after a click in it, and Tab reaches it', a
   await page.keyboard.press('PageUp');
   await expect.poll(async () => (await scrollOf(log)).top).toBe(0);
 
-  // The box itself takes the focus, named, so the keys reach it from Tab too.
+  // The box itself takes the focus, named, and Tab reaches it from the divider before it.
   const transcript = pane.getByRole('group', { name: 'Live transcript' });
-  await expect(transcript).toHaveJSProperty('tabIndex', 0);
+  await expect(transcript).toBeFocused();
+  await divider.focus();
+  await page.keyboard.press('Tab');
+  await expect(transcript).toBeFocused();
   await page.keyboard.press('End');
   await expect.poll(async () => (await scrollOf(log)).fromEnd).toBeLessThan(2);
-  await expect(log).toBeFocused();
 });

@@ -380,6 +380,20 @@ describe('the live transcript in the floating window', () => {
     expect(screen.getByRole('log')).toBe(log);
   });
 
+  it('keeps the transcript out of sight out of the Tab order in the subtitle layout, its log still read', () => {
+    inCall();
+    showTranscript();
+    const { rerender } = render(windowWith({ width: 400, height: 480 }));
+    const box = () => document.querySelector<HTMLElement>('[data-call-window-transcript] > div')!;
+    expect(box().tabIndex).toBe(0);
+
+    rerender(windowWith({ width: 400, height: 300 }));
+    expect(layout()).toBe('subtitle');
+    expect(box().hasAttribute('tabindex')).toBe(false);
+    expect(box().getAttribute('role')).toBeNull();
+    expect(screen.getByRole('log')).toBeTruthy();
+  });
+
   it('shows a gap as the latest line in the subtitle, and nothing before anyone spoke', () => {
     inCall('transcribing', [speech('l1', USER, 'Hello.'), { ...LINES[1]!, id: 'l2' }]);
     showTranscript();

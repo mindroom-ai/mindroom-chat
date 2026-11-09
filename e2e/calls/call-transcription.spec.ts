@@ -237,8 +237,7 @@ test("two people in a call are transcribed under their names, Pause leaves a gap
     const callWindow = page.getByTestId('call-window');
     const inWindow = callWindow.locator('[data-call-window-transcript]');
     await expect(inWindow).toContainText('This call is transcribed.');
-    await expect(inWindow).toBeFocused();
-    await expect(inWindow).toHaveAccessibleName('Live transcript');
+    await expect(inWindow.getByRole('group', { name: 'Live transcript' })).toBeFocused();
     await expect(callWindow.locator('[data-call-transcript-layout]')).toHaveAttribute(
       'data-call-transcript-layout',
       'stacked'
