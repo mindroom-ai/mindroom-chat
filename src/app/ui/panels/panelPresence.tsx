@@ -25,8 +25,7 @@ export type PanelPresence = {
   phase: PanelPhase;
   /**
    * The closing panel has finished moving out (or does not move), so it may go. It ends only its
-   * own panel's exit: one kept from an earlier exit, or by a panel that has gone, ends none that
-   * follows.
+   * own panel's exit: one kept from an earlier exit, or by another panel, ends none that follows.
    */
   done: () => void;
   /**
