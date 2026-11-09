@@ -63,6 +63,12 @@
 // its progress, "Sent: <bytes> of <bytes>", and then the size the route answers. While the room's
 // server is still being worked out, it says "Looking for a MindRoom server", and only then "No
 // MindRoom server" in a room without one.
+// In a room whose agents have a computer, by the rule of the room's own computer button, its panel
+// names them after "Agents with a computer:", and "Open computer of <name>" opens a session on one:
+// "Computer session: starting" until the server has it, then its state and mode ("ready, view").
+// "Take computer control" opens the screen's stream and takes control ("ready, control"), "Release
+// computer control" gives it back, and "End computer session" ends it on the server ("ended"), as
+// the panel does when it goes or shows another room. A refusal shows "failed (<status>)".
 // Its panel names the sender of the greeting it shows by the name the app shows for them, with their
 // user ID when another member shows the same name (by their user ID when they have no name), and
 // their name opens their profile card
@@ -127,7 +133,15 @@ import {
   useRoomNavigate,
   useShownThread,
 } from '@mindroom/client-sdk/room';
-import { MindroomServerError, useMindroomServerStatus } from '@mindroom/client-sdk/server';
+import {
+  ComputerApiError,
+  MindroomServerError,
+  useMindroomServerStatus,
+  useRoomComputers,
+  type ComputerSessionClient,
+  type ComputerStatus,
+  type RoomComputer,
+} from '@mindroom/client-sdk/server';
 import {
   animatePanel,
   Dialog,
@@ -444,6 +458,100 @@ function ServerGreeting({ roomId }: { roomId: string }) {
 }
 
 /**
+ * The room's agents with a computer, and a session on the one chosen: its state and mode, control
+ * taken (through the screen's stream, which control needs open) and released, and its end, also
+ * when the panel goes. Nothing in a room without one.
+ */
+function RoomComputers({ roomId }: { roomId: string }) {
+  const computers = useRoomComputers(roomId);
+  const [session, setSession] = useState<ComputerSessionClient>();
+  const [line, setLine] = useState<string>();
+  const shown = useRef<{ session?: ComputerSessionClient; stream?: WebSocket }>({});
+  // Aborted as the panel goes, so a session still opening then never arrives.
+  const leaving = useRef<AbortSignal>();
+  useEffect(() => {
+    const gone = new AbortController();
+    leaving.current = gone.signal;
+    return () => {
+      gone.abort();
+      shown.current.stream?.close();
+      shown.current.session?.dispose().catch(() => undefined);
+    };
+  }, []);
+  if (computers.length === 0) return null;
+  const show = (status: ComputerStatus) => setLine(`${status.state}, ${status.mode}`);
+  const fail = (error: unknown) =>
+    setLine(`failed (${error instanceof ComputerApiError ? error.status : 'error'})`);
+  const open = async (computer: RoomComputer) => {
+    setLine('starting');
+    const signal = leaving.current;
+    try {
+      const opened = await computer.openSession(signal);
+      if (signal?.aborted) {
+        opened.dispose().catch(() => undefined);
+        return;
+      }
+      shown.current.session = opened;
+      setSession(opened);
+      show(opened.status);
+    } catch (error) {
+      fail(error);
+    }
+  };
+  // Releasing control closes the stream on the server, so each take opens one.
+  const takeControl = async (current: ComputerSessionClient) => {
+    try {
+      shown.current.stream?.close();
+      const { url, protocols } = await current.createStream();
+      const stream = new WebSocket(url, protocols);
+      shown.current.stream = stream;
+      await new Promise((resolve, reject) => {
+        stream.addEventListener('open', resolve);
+        stream.addEventListener('close', () => reject(new Error('closed')));
+      });
+      show(await current.control('take'));
+    } catch (error) {
+      fail(error);
+    }
+  };
+  const end = async (current: ComputerSessionClient) => {
+    shown.current.stream?.close();
+    shown.current = {};
+    setSession(undefined);
+    await current.dispose().then(() => setLine('ended'), fail);
+  };
+  return (
+    <>
+      <p>Agents with a computer: {computers.map(({ name }) => name).join(', ')}</p>
+      {computers.map((computer) => (
+        <button
+          key={computer.userId}
+          type="button"
+          disabled={session !== undefined || line === 'starting'}
+          onClick={() => void open(computer)}
+        >
+          Open computer of {computer.name}
+        </button>
+      ))}
+      {line !== undefined && <p>Computer session: {line}</p>}
+      {session && (
+        <>
+          <button type="button" onClick={() => void takeControl(session)}>
+            Take computer control
+          </button>
+          <button type="button" onClick={() => void session.control('release').then(show, fail)}>
+            Release computer control
+          </button>
+          <button type="button" onClick={() => void end(session)}>
+            End computer session
+          </button>
+        </>
+      )}
+    </>
+  );
+}
+
+/**
  * A greeting's text as the app renders an agent's reply, Markdown with its HTML sanitized, and with
  * the room's members by name; plain until the app's Markdown renderer has loaded.
  */
@@ -671,6 +779,8 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
         Example item
       </p>
       <ServerGreeting roomId={roomId} />
+      {/* A session belongs to its room, so another room's panel starts without one. */}
+      <RoomComputers key={roomId} roomId={roomId} />
       {room && (
         <div data-example-plugin-own-card>
           <UserProfileCard room={room} userId={client.getSafeUserId()} onDone={() => undefined} />
