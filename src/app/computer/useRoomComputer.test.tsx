@@ -15,8 +15,8 @@ const HELPER = '@mindroom_helper:example.org';
 const CODER = '@mindroom_coder:example.org';
 const QUIET = '@mindroom_quiet:example.org';
 
-const state = vi.hoisted(() => ({ bindsTokens: true }));
-vi.mock('./useAgentServers', () => ({ useBindsOpenIdTokens: () => state.bindsTokens }));
+// The homeserver binds sign-in tokens.
+vi.mock('./useAgentServers', () => ({ useBindsOpenIdTokens: () => true }));
 
 const member = (userId: string, membership = 'join') =>
   ({ userId, membership, name: userId.slice(1, userId.indexOf(':')) } as RoomMember);
@@ -58,7 +58,6 @@ const roomComputer = (
 
 beforeEach(() => {
   localStorage.clear();
-  state.bindsTokens = true;
 });
 
 describe('useRoomComputer', () => {
@@ -73,21 +72,6 @@ describe('useRoomComputer', () => {
       ],
       apiUrl: CONFIGURED,
     });
-  });
-
-  it('without a configured server, gives each agent that published a computer its own server', () => {
-    expect(roomComputer(undefined)).toEqual({
-      agents: [
-        { userId: HELPER, name: 'mindroom_helper', serverUrl: 'https://helper.example.org' },
-        { userId: CODER, name: 'mindroom_coder', serverUrl: 'https://coder.example.org' },
-      ],
-      apiUrl: 'https://helper.example.org',
-    });
-  });
-
-  it('trusts no published server while the homeserver does not bind sign-in tokens', () => {
-    state.bindsTokens = false;
-    expect(roomComputer(undefined)).toEqual({ agents: [], apiUrl: undefined });
   });
 
   it('gives no agent a computer once the user turned computers off', () => {

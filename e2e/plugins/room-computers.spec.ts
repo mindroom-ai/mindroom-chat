@@ -24,10 +24,13 @@ test("a plugin's panel lists the room's agents with a computer, and opens, contr
   stack,
 }) => {
   await routeClientConfig(page, stack);
+  const createsSession = (request: Request) =>
+    request.method() === 'POST' && request.url() === `${stack.apiUrl}/api/computers/sessions`;
+  // Every session, the plugin's and the computer panel's, is for the helper in the lobby.
+  const target = { room_id: stack.rooms.lobby, agent_user_id: stack.agents.helper };
   const created: Request[] = [];
   page.on('request', (request) => {
-    if (request.method() === 'POST' && request.url() === `${stack.apiUrl}/api/computers/sessions`)
-      created.push(request);
+    if (createsSession(request)) created.push(request);
   });
   const panel = page.getByRole('region', { name: 'Example panel', exact: true });
   await openLobby(page, stack);
@@ -36,20 +39,14 @@ test("a plugin's panel lists the room's agents with a computer, and opens, contr
     timeout: 60_000,
   });
 
-  const opened = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' &&
-      response.url() === `${stack.apiUrl}/api/computers/sessions`,
-    { timeout: 600_000 }
-  );
+  const opened = page.waitForResponse((response) => createsSession(response.request()), {
+    timeout: 600_000,
+  });
   await panel.getByRole('button', { name: 'Open computer of Helper', exact: true }).click();
   await expect(panel.getByText('Computer session: starting', { exact: true })).toBeVisible();
   const session = (await (await opened).json()) as { session_id: string; session_token: string };
   await expect(panel.getByText('Computer session: ready, view', { exact: true })).toBeVisible();
-  expect(created[0]?.postDataJSON()).toMatchObject({
-    room_id: stack.rooms.lobby,
-    agent_user_id: stack.agents.helper,
-  });
+  expect(created[0]?.postDataJSON()).toMatchObject(target);
 
   await panel.getByRole('button', { name: 'Take computer control', exact: true }).click();
   await expect(panel.getByText('Computer session: ready, control', { exact: true })).toBeVisible({
@@ -80,8 +77,5 @@ test("a plugin's panel lists the room's agents with a computer, and opens, contr
     timeout: 300_000,
   });
   expect(created).toHaveLength(2);
-  expect(created[1]?.postDataJSON()).toMatchObject({
-    room_id: stack.rooms.lobby,
-    agent_user_id: stack.agents.helper,
-  });
+  expect(created[1]?.postDataJSON()).toMatchObject(target);
 });
