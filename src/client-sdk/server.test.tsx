@@ -502,27 +502,34 @@ describe('useRoomComputers', () => {
   it("opens a session with a bound token for an agent's own server, an unbound one for the configured server", async () => {
     const answers = fakeFetch();
     answers.route.mockImplementation(() => json({ ...SESSION, session_token: 'viewer' }));
+    // Each agent's computer on its own server: the coder's is not the one the room found first.
+    const coderServer = 'https://coder.example.org';
+    state.servers = [
+      { agentUserId: HELPER.userId, apiUrl: PUBLISHED, computer: true, ts: 2 },
+      { agentUserId: CODER.userId, apiUrl: coderServer, computer: true, ts: 1 },
+    ];
 
-    const session = await computers()[0].openSession();
+    const [, coder] = computers();
+    const session = await coder.openSession();
     expect(session.status).toEqual(SESSION);
-    const [onConfigured] = computers(DEPLOYMENT).filter(({ userId }) => userId === HELPER.userId);
+    const [onConfigured] = computers(DEPLOYMENT).filter(({ userId }) => userId === CODER.userId);
     const stop = new AbortController();
     await onConfigured.openSession(stop.signal);
     expect(answers.last()?.init.signal).toBe(stop.signal);
 
     expect(openId.requestToken.mock.calls).toEqual([
-      [mx, PUBLISHED, { requireBinding: true }],
+      [mx, coderServer, { requireBinding: true }],
       [mx, DEPLOYMENT, { requireBinding: false }],
     ]);
     expect(answers.routes()).toEqual([
-      `${PUBLISHED}/api/computers/sessions`,
+      `${coderServer}/api/computers/sessions`,
       `${DEPLOYMENT}/api/computers/sessions`,
     ]);
     const created = JSON.parse(String(answers.last()?.init.body));
     expect(created).toEqual({
       openid_token: OPENID_TOKEN,
       room_id: ROOM_ID,
-      agent_user_id: HELPER.userId,
+      agent_user_id: CODER.userId,
     });
   });
 
