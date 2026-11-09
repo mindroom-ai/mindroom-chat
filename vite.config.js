@@ -1,5 +1,6 @@
 // @ts-check
-import { readdirSync, realpathSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readdirSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
@@ -21,6 +22,23 @@ import { startupPrecache } from './scripts/precache-plan.mjs';
 import { thirdPartyNoticesPlugin } from './scripts/third-party-notices.mjs';
 import { mindroomBuildAssets } from './scripts/vite-build-assets.mjs';
 
+// Call transcription's speech detector (src/app/calls/transcription/speechCapture.ts):
+// @ricky0123/vad-web loads its AudioWorklet and its default model, Silero VAD, and onnxruntime-web
+// its WebAssembly, each by a fixed name from one directory. A hash of the files names that
+// directory, so it may be cached for good like the rest of assets/. The runtime's module is copied
+// as .js: nginx, among other static hosts, has no JavaScript type for .mjs.
+const SPEECH_MODEL_FILES = [
+  ['@ricky0123/vad-web/dist/vad.worklet.bundle.min.js'],
+  ['@ricky0123/vad-web/dist/silero_vad_legacy.onnx'],
+  ['onnxruntime-web/dist/ort-wasm-simd-threaded.wasm'],
+  ['onnxruntime-web/dist/ort-wasm-simd-threaded.mjs', 'ort-wasm-simd-threaded.js'],
+].map(([file, rename]) => ({ src: `node_modules/${file}`, rename }));
+const speechModelHash = createHash('sha256');
+SPEECH_MODEL_FILES.forEach(({ src }) =>
+  speechModelHash.update(readFileSync(new URL(src, import.meta.url)))
+);
+const SPEECH_MODEL_DIR = `assets/speech-model-${speechModelHash.digest('hex').slice(0, 12)}`;
+
 /**
  * Files copied verbatim into the build output (and served by the dev server).
  * Lane P tests import this object to assert what ships, so keep it a plain
@@ -38,6 +56,7 @@ export const copyFiles = {
     // ported code); thirdPartyNoticesPlugin adds the npm dependencies' THIRD_PARTY_NOTICES.txt.
     // Under public/, so the service worker never answers them with the app shell.
     { src: ['LICENSE', 'NOTICE', 'licenses/*'], dest: 'public/licenses' },
+    ...SPEECH_MODEL_FILES.map(({ src, rename }) => ({ src, dest: SPEECH_MODEL_DIR, rename })),
   ],
 };
 
@@ -146,6 +165,7 @@ const repository = fileURLToPath(new URL('.', import.meta.url));
 const pluginDirs = pluginDirectories(process.env.E2E_PLUGIN_DIRS, repository);
 
 export default defineConfig({
+  define: { __MINDROOM_SPEECH_MODEL__: JSON.stringify(SPEECH_MODEL_DIR) },
   ...(slotPort ? { cacheDir: `node_modules/.vite-slot-${slotPort}` } : {}),
   plugins: [
     // Only active when Playwright starts the dev server (see playwright.config.ts).

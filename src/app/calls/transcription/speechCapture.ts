@@ -1,14 +1,34 @@
-import { APP_BUILD_VERSION } from '../../config/appVersion';
+import type { MicVAD, RealTimeVADOptions } from '@ricky0123/vad-web';
 import { appUrl } from '../../lib/basePath';
 
-/** Speech is sent as 16 kHz mono 16-bit PCM, the rate the worklet posts. */
+/** The model hears 16 kHz mono audio, and stretches are sent at that rate. */
 const SAMPLE_RATE = 16000;
-/** How long `stop` waits for the worklet to hand on the stretch in progress. */
-const FLUSH_TIMEOUT_MS = 1000;
-/** A worklet not loaded after this long failed to load, so ending a call never waits on it. */
-const LOAD_TIMEOUT_MS = 10_000;
+/**
+ * MindRoom refuses a stretch longer than 30 seconds (`_MAX_SPEECH_SECONDS` in
+ * src/mindroom/call_transcripts/service.py), so talk that goes on longer is cut into stretches of
+ * at most that.
+ */
+const LONGEST_STRETCH_SECONDS = 30;
+/**
+ * The model and its runtime (about 17 MB on the first call, kept by the browser after) not loaded
+ * after this long failed to load, so ending a call never waits on them.
+ */
+const LOAD_TIMEOUT_MS = 30_000;
 /** What a person does that lets a page start sound (browsers' autoplay rules). */
 const USER_GESTURES = ['pointerdown', 'pointerup', 'click', 'keydown', 'touchend'] as const;
+
+declare const __MINDROOM_SPEECH_MODEL__: string;
+
+/**
+ * The directory of the build that holds the detector's AudioWorklet, the model and the runtime's
+ * WebAssembly (vite.config.js names it); unit tests run without the build's constants.
+ */
+const modelDirectory = () =>
+  `${appUrl(
+    typeof __MINDROOM_SPEECH_MODEL__ === 'string'
+      ? __MINDROOM_SPEECH_MODEL__
+      : 'assets/speech-model'
+  )}/`;
 
 /** One stretch of speech from this device's microphone. */
 export type SpeechStretch = {
@@ -27,80 +47,120 @@ export type SpeechCapture = {
   stop: () => Promise<void>;
 };
 
-/** What public/calls/speech-worklet.js posts. */
-type WorkletMessage =
-  | { type: 'stretch'; samples: Int16Array; startTime: number }
-  | { type: 'flushed' };
-
 /**
- * The worklet's file is in public/, so its name stays the same from one build to the next; the
- * URL names the build, so a page never runs an earlier build's copy from a long-lived cache.
- */
-const workletUrl = () =>
-  `${appUrl('calls/speech-worklet.js')}?v=${encodeURIComponent(APP_BUILD_VERSION)}`;
-
-/** `samples` (16 kHz mono) as a WAV file. */
-export const encodeWav = (samples: Int16Array): Blob => {
-  const view = new DataView(new ArrayBuffer(44 + samples.length * 2));
-  const write = (offset: number, text: string) =>
-    [...text].forEach((character, index) => view.setUint8(offset + index, character.charCodeAt(0)));
-  write(0, 'RIFF');
-  view.setUint32(4, 36 + samples.length * 2, true);
-  write(8, 'WAVEfmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // PCM
-  view.setUint16(22, 1, true); // mono
-  view.setUint32(24, SAMPLE_RATE, true);
-  view.setUint32(28, SAMPLE_RATE * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  write(36, 'data');
-  view.setUint32(40, samples.length * 2, true);
-  samples.forEach((sample, index) => view.setInt16(44 + index * 2, sample, true));
-  return new Blob([view.buffer], { type: 'audio/wav' });
-};
-
-/**
- * Listens to `track` (the microphone this device publishes to the call) and calls `onStretch`
- * with each stretch of speech found in it. Rejects when the worklet cannot be loaded, or has not
- * loaded after 10 seconds.
+ * Listens to `track` (the microphone this device publishes to the call) with the Silero VAD model,
+ * through @ricky0123/vad-web with its default model and settings, and calls `onStretch` with each
+ * stretch of speech it finds. Rejects when the model cannot be loaded, or has not loaded after 30
+ * seconds.
  */
 export const startSpeechCapture = async (
   track: MediaStreamTrack,
   onStretch: (stretch: SpeechStretch) => void
 ): Promise<SpeechCapture> => {
   // The context runs at the rate the browser chooses, which a microphone source needs in some
-  // browsers; the worklet lowers it to 16 kHz.
+  // browsers; the wrapper's worklet brings it down to 16 kHz.
   const context = new AudioContext();
-  let node: AudioWorkletNode;
+  const directory = modelDirectory();
+  let encodeWav: ((samples: Float32Array, format: number) => ArrayBuffer) | undefined;
+  let vad: MicVAD | undefined;
+  let paused = false;
+  let stopped = false;
+  /** Whether a stretch is in progress, and how many frames since its speech started. */
+  let speaking = false;
+  let spoken = 0;
+
+  /** Pausing, resuming, cutting and stopping, one after the other. */
+  let steps = Promise.resolve();
+  const step = (run: (detector: MicVAD) => Promise<void>) => {
+    steps = steps.then(() => (vad ? run(vad) : undefined)).catch(() => undefined);
+    return steps;
+  };
+  const follow = async (detector: MicVAD) => {
+    if (paused) await detector.pause();
+    else await detector.start();
+  };
+  // Pausing with submitUserSpeechOnPause hands on the stretch in progress instead of dropping it.
+  const cut = async (detector: MicVAD) => {
+    detector.setOptions({ submitUserSpeechOnPause: true });
+    await detector.pause();
+    detector.setOptions({ submitUserSpeechOnPause: false });
+    await follow(detector);
+  };
+
+  const options: Partial<RealTimeVADOptions> = {
+    audioContext: context,
+    // The microphone is the call's: pausing only lets go of it, and the same track comes back.
+    getStream: async () => new MediaStream([track]),
+    pauseStream: async () => undefined,
+    resumeStream: async (stream) => stream,
+    baseAssetPath: directory,
+    ortConfig: (ort) => {
+      // The wrapper's own setting, which these options replace.
+      ort.env.logLevel = 'error';
+      // The runtime's module is copied as .js, which static hosts serve as JavaScript.
+      ort.env.wasm.wasmPaths = {
+        mjs: `${directory}ort-wasm-simd-threaded.js`,
+        wasm: `${directory}ort-wasm-simd-threaded.wasm`,
+      };
+    },
+    onSpeechStart: () => {
+      speaking = true;
+      spoken = 1;
+    },
+    onFrameProcessed: (_probabilities, frame) => {
+      if (!speaking || !vad) return;
+      spoken += 1;
+      // The stretch holds up to preSpeechPadMs before its speech, and every frame since. It ends
+      // with this frame when the next would take it past the limit.
+      const padFrames = Math.floor(
+        vad.options.preSpeechPadMs / ((frame.length / SAMPLE_RATE) * 1000)
+      );
+      if ((padFrames + spoken + 1) * frame.length > LONGEST_STRETCH_SECONDS * SAMPLE_RATE) {
+        speaking = false;
+        void step(cut);
+      }
+    },
+    onVADMisfire: () => {
+      speaking = false;
+    },
+    onSpeechEnd: (audio) => {
+      speaking = false;
+      // A stretch the detector ends as a pause starts is dropped.
+      if (paused || stopped || !encodeWav) return;
+      const seconds = audio.length / SAMPLE_RATE;
+      onStretch({
+        // Format 1 is 16-bit PCM, which MindRoom takes.
+        wav: new Blob([encodeWav(audio, 1)], { type: 'audio/wav' }),
+        startedAt: new Date(Date.now() - seconds * 1000),
+        seconds,
+      });
+    },
+  };
+
   let loadTimer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await Promise.race([
-      context.audioWorklet.addModule(workletUrl()),
+    vad = await Promise.race([
+      (async () => {
+        const { MicVAD, utils } = await import('@ricky0123/vad-web');
+        encodeWav = (samples, format) => utils.encodeWAV(samples, format, SAMPLE_RATE, 1, 16);
+        return MicVAD.new(options);
+      })(),
       new Promise<never>((_resolve, reject) => {
         loadTimer = setTimeout(
-          () => reject(new Error('The speech worklet did not load in time.')),
+          () => reject(new Error('The speech model did not load in time.')),
           LOAD_TIMEOUT_MS
         );
       }),
     ]).finally(() => clearTimeout(loadTimer));
-    node = new AudioWorkletNode(context, 'speech-finder', {
-      outputChannelCount: [1],
-      channelCount: 1,
-      channelCountMode: 'explicit',
-      channelInterpretation: 'speakers',
-    });
   } catch (error) {
+    stopped = true;
     await context.close().catch(() => undefined);
     throw error;
   }
-  const source = context.createMediaStreamSource(new MediaStream([track]));
-  source.connect(node);
-  // The worklet writes only silence; reaching the speakers keeps every browser running it.
-  node.connect(context.destination);
+
   // A suspended context hears nothing. Autoplay rules may keep it suspended until the person uses
-  // the page (a call taken up again after a reload starts without a click), and a phone may suspend
-  // it later (a call to the phone itself), so it asks again then and at every click or key press.
+  // the page (a call taken up again after a reload starts without a click), and a phone may
+  // suspend it later (a call to the phone itself), so it asks again then and at each click or key.
   const keepRunning = () => {
     if (context.state !== 'running') context.resume().catch(() => undefined);
   };
@@ -108,52 +168,26 @@ export const startSpeechCapture = async (
   context.onstatechange = keepRunning;
   USER_GESTURES.forEach((type) => window.addEventListener(type, keepRunning, { capture: true }));
 
-  let paused = false;
-  let stopped = false;
-  let flushed: (() => void) | undefined;
   let stopping: Promise<void> | undefined;
-
-  node.port.onmessage = ({ data }: MessageEvent<WorkletMessage>) => {
-    if (data.type === 'flushed') {
-      flushed?.();
-      return;
-    }
-    // A stretch posted just before a pause reached the worklet is dropped too.
-    if (stopped || paused) return;
-    onStretch({
-      wav: encodeWav(data.samples),
-      startedAt: new Date(Date.now() - (context.currentTime - data.startTime) * 1000),
-      seconds: data.samples.length / SAMPLE_RATE,
-    });
-  };
-
-  const finish = async () => {
-    await new Promise<void>((resolve) => {
-      const timeout = setTimeout(resolve, FLUSH_TIMEOUT_MS);
-      flushed = () => {
-        clearTimeout(timeout);
-        resolve();
-      };
-      node.port.postMessage({ type: 'flush' });
-    });
-    stopped = true;
-    node.port.onmessage = null;
-    context.onstatechange = null;
-    USER_GESTURES.forEach((type) =>
-      window.removeEventListener(type, keepRunning, { capture: true })
-    );
-    source.disconnect();
-    node.disconnect();
-    await context.close().catch(() => undefined);
-  };
-
   return {
     setPaused: (value) => {
       paused = value;
-      node.port.postMessage({ type: 'pause', paused: value });
+      void step(follow);
     },
     stop: () => {
-      stopping ??= finish();
+      stopping ??= step(async (detector) => {
+        try {
+          detector.setOptions({ submitUserSpeechOnPause: true });
+          await detector.destroy();
+        } finally {
+          stopped = true;
+          context.onstatechange = null;
+          USER_GESTURES.forEach((type) =>
+            window.removeEventListener(type, keepRunning, { capture: true })
+          );
+          await context.close().catch(() => undefined);
+        }
+      });
       return stopping;
     },
   };
