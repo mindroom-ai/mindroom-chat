@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { KnownMembership } from 'matrix-js-sdk';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { useNavigate } from 'react-router-dom';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useClientConfig } from '../../config/useClientConfig';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { useActiveSession } from '../../matrix/session/useSessionStore';
+import { setActiveSession, type StoredSession } from '../../matrix/session/sessions';
+import { resolveSessionRestorePath } from '../../routes/sessionRouteRestore';
 import { useClientStartupContext } from '../../matrix/ClientStartupContext';
 import {
   cloudflareAccessAllowsPush,
@@ -15,6 +18,8 @@ import {
 import {
   checkIOSPushPermission,
   disableIOSPushPusher,
+  findIOSPushAccount,
+  IOS_PUSH_ACCOUNT_KEY,
   isNativeIOSPlatform,
   registerIOSPush,
   resolveIOSPushConfig,
@@ -93,36 +98,79 @@ export function NativeIOSPushFeature() {
   return null;
 }
 
-type PushTarget = { roomId: string; eventId?: string };
+type PushTarget = { roomId: string; eventId?: string; accountTag?: string };
 
 const readPushTarget = (data: unknown): PushTarget | undefined => {
   if (!data || typeof data !== 'object') return undefined;
-  const { room_id: roomId, event_id: eventId } = data as Record<string, unknown>;
+  const {
+    room_id: roomId,
+    event_id: eventId,
+    [IOS_PUSH_ACCOUNT_KEY]: accountTag,
+  } = data as Record<string, unknown>;
   if (typeof roomId !== 'string' || !roomId.startsWith('!')) return undefined;
-  return { roomId, eventId: typeof eventId === 'string' ? eventId : undefined };
+  return {
+    roomId,
+    eventId: typeof eventId === 'string' ? eventId : undefined,
+    accountTag: typeof accountTag === 'string' ? accountTag : undefined,
+  };
+};
+
+/** The push that made another account active, until that account's pages mount and take it. */
+let switchedPush: { sessionId: string; target: PushTarget } | undefined;
+
+/** Makes the stored account a push is for active when it is not; returns it once it is. */
+const switchToPushAccount = (
+  target: PushTarget,
+  activeSessionId: string | undefined
+): StoredSession | undefined => {
+  const owner = target.accountTag ? findIOSPushAccount(target.accountTag) : undefined;
+  if (!owner || owner.sessionId === activeSessionId) return undefined;
+  try {
+    return setActiveSession(owner.sessionId) ? owner : undefined;
+  } catch {
+    return undefined;
+  }
 };
 
 /**
  * On the iOS app, opens the message of a tapped push notification once the first sync is done.
- * A push for a room this account is not in (another account's, or a room left) is ignored.
+ * A push of another signed-in account makes that account active and opens there. A push for a
+ * room this account is not in (an account signed out, a room left) is ignored.
  */
 export function NativeIOSPushOpenFeature() {
   const mx = useMatrixClient();
+  const navigate = useNavigate();
+  const sessionId = useActiveSession()?.sessionId;
   const { navigateRoom } = useRoomNavigate();
   const { hasCompletedInitialSync } = useClientStartupContext();
   const [target, setTarget] = useState<PushTarget>();
+  const latest = useLatestRef({ navigate, sessionId });
   const native = isNativeIOSPlatform();
 
   useEffect(() => {
     if (!native) return undefined;
     const handle = PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
       const next = readPushTarget(action.notification.data);
-      if (next) setTarget(next);
+      if (!next) return;
+      const owner = switchToPushAccount(next, latest.current.sessionId);
+      if (!owner) {
+        setTarget(next);
+        return;
+      }
+      // The switch mounts the account's pages anew, which open the push after its first sync.
+      switchedPush = { sessionId: owner.sessionId, target: next };
+      latest.current.navigate(resolveSessionRestorePath(owner.lastKnownPath));
     });
     return () => {
       handle.then((listener) => listener.remove()).catch(() => undefined);
     };
-  }, [native]);
+  }, [latest, native]);
+
+  useEffect(() => {
+    if (!sessionId || switchedPush?.sessionId !== sessionId) return;
+    setTarget(switchedPush.target);
+    switchedPush = undefined;
+  }, [sessionId]);
 
   useEffect(() => {
     if (!target || !hasCompletedInitialSync) return;

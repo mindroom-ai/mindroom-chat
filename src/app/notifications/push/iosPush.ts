@@ -2,8 +2,16 @@ import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import type { IPusherRequest, MatrixClient } from 'matrix-js-sdk';
 import { ClientConfig } from '../../config/useClientConfig';
-import { getActiveSession, getSessionScopedStorageKey } from '../../matrix/session/sessions';
+import {
+  getActiveSession,
+  getSessionScopedStorageKey,
+  listSessions,
+  type StoredSession,
+} from '../../matrix/session/sessions';
 import { hasCloudflareAccess } from '../../native/cloudflareAccess';
+
+/** The push payload key of the account a push is for; see `findIOSPushAccount`. */
+export const IOS_PUSH_ACCOUNT_KEY = 'mindroom_account';
 
 type IOSPushDefaultPayload = {
   aps: {
@@ -13,6 +21,7 @@ type IOSPushDefaultPayload = {
     };
     sound: 'default';
   };
+  [IOS_PUSH_ACCOUNT_KEY]: string;
 };
 
 type MatrixPusherRequest = Omit<IPusherRequest, 'data'> & {
@@ -163,6 +172,11 @@ export const subscribeToIOSPushState = (listener: () => void): (() => void) => {
   };
 };
 
+/**
+ * The account's random push tag on this device. It is the pusher's `profile_tag` unless the
+ * deployment configures one, and every push of the account carries it under
+ * `IOS_PUSH_ACCOUNT_KEY`.
+ */
 export const getOrCreateIOSPushProfileTag = (sessionId?: string): string => {
   const storageKey = resolveScopedStorageKey(PUSH_PROFILE_TAG_STORAGE_KEY, sessionId);
   const stored = trimConfigValue(readStorage(storageKey));
@@ -172,6 +186,15 @@ export const getOrCreateIOSPushProfileTag = (sessionId?: string): string => {
   writeStorage(storageKey, generated);
   return generated;
 };
+
+/** The stored account whose pushes carry `accountTag`, as `getOrCreateIOSPushProfileTag` made it. */
+export const findIOSPushAccount = (accountTag: string): StoredSession | undefined =>
+  listSessions().find(
+    (session) =>
+      trimConfigValue(
+        readStorage(getSessionScopedStorageKey(session.sessionId, PUSH_PROFILE_TAG_STORAGE_KEY))
+      ) === accountTag
+  );
 
 export const resolveIOSPushConfig = (
   clientConfig: ClientConfig,
@@ -202,9 +225,12 @@ export const resolveIOSPushConfig = (
 
 export const buildIOSPushPusherRequest = (
   token: string,
-  pushConfig: IOSPushConfig
+  pushConfig: IOSPushConfig,
+  accountTag: string
 ): MatrixPusherRequest => {
   const defaultPayload: IOSPushDefaultPayload = {
+    // Sygnal merges the push's room and event IDs into this payload, so a tap knows the account.
+    [IOS_PUSH_ACCOUNT_KEY]: accountTag,
     aps: {
       sound: 'default',
       // Sygnal adds loc-key/loc-args for full pushes; a default body would mask that preview.
@@ -327,9 +353,16 @@ export const upsertIOSPushPusher = async (
     await disablePusherByToken(mx, pushConfig.appId, previousToken);
   }
 
-  // A private server's pushes carry only event and room IDs past the public gateway.
+  // A private server's pushes carry only event and room IDs (and the account's random tag) past
+  // the public gateway.
   const format = hasCloudflareAccess(mx.getHomeserverUrl()) ? 'event_id_only' : pushConfig.format;
-  await mx.setPusher(buildIOSPushPusherRequest(normalizedToken, { ...pushConfig, format }));
+  await mx.setPusher(
+    buildIOSPushPusherRequest(
+      normalizedToken,
+      { ...pushConfig, format },
+      getOrCreateIOSPushProfileTag(sessionId)
+    )
+  );
   setStoredIOSPushToken(normalizedToken, sessionId);
 };
 
