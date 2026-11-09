@@ -351,7 +351,7 @@ export class CallTranscriber {
   private async applyCapture(): Promise<void> {
     const wanted = this.wantedTrack();
     const current = this.capture;
-    const muted = !this.track && this.status === 'transcribing';
+    const muted = !this.track && this.status === 'transcribing' && !this.ending;
     if (current && (muted || current.track === wanted)) {
       current.capture.setMuted(muted);
       return;

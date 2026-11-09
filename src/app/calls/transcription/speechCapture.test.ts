@@ -228,6 +228,18 @@ const start = async () => {
   return { capture, vad, hear, pass, stretches, track, stopTrack: stop };
 };
 
+/** A capture whose model could not load; `loads` counts its loads. */
+const startOffline = async () => {
+  detector.loading = () => Promise.reject(new Error('offline'));
+  const { track } = microphone();
+  const entered = entering();
+  const capture = await startSpeechCapture(track, () => undefined);
+  const context = FakeAudioContext.last;
+  await entered;
+  await settle();
+  return { capture, loads: () => detector.attempts.filter((made) => made === context).length };
+};
+
 /** The numbers of the frames a stretch holds, from its 16-bit samples. */
 const framesOf = async (stretch: SpeechStretch) => {
   const view = new DataView(await stretch.wav.arrayBuffer());
@@ -549,12 +561,7 @@ describe('startSpeechCapture', () => {
   });
 
   it('captures nothing when the model cannot load, and still lets go on stop', async () => {
-    detector.loading = () => Promise.reject(new Error('no model'));
-    const { track } = microphone();
-    const entered = entering();
-    const capture = await startSpeechCapture(track, () => undefined);
-    await entered;
-    await settle();
+    const { capture } = await startOffline();
     expect(detector.made).toEqual([]);
     detector.loading = () => Promise.resolve();
     capture.setPaused(true);
@@ -566,15 +573,7 @@ describe('startSpeechCapture', () => {
   });
 
   it('loads nothing more once stopped', async () => {
-    detector.loading = () => Promise.reject(new Error('offline'));
-    const { track } = microphone();
-    const entered = entering();
-    const capture = await startSpeechCapture(track, () => undefined);
-    const context = FakeAudioContext.last;
-    /** This capture's loads. */
-    const loads = () => detector.attempts.filter((made) => made === context).length;
-    await entered;
-    await settle();
+    const { capture, loads } = await startOffline();
     await capture.stop();
     capture.setMuted(true);
     await idle();
@@ -651,15 +650,7 @@ describe('startSpeechCapture', () => {
   });
 
   it('loads the model again on the next mute or unmute when it could not load', async () => {
-    detector.loading = () => Promise.reject(new Error('offline'));
-    const { track } = microphone();
-    const entered = entering();
-    const capture = await startSpeechCapture(track, () => undefined);
-    const context = FakeAudioContext.last;
-    /** This capture's loads. */
-    const loads = () => detector.attempts.filter((made) => made === context).length;
-    await entered;
-    await settle();
+    const { capture, loads } = await startOffline();
 
     // Told what it is already (each read of the call says so again), it does not load again.
     capture.setMuted(false);
@@ -667,12 +658,13 @@ describe('startSpeechCapture', () => {
     await idle();
     expect(loads()).toBe(1);
 
+    // A mute and an unmute in a row load it once.
     detector.loading = () => Promise.resolve();
     const made = making();
     capture.setMuted(true);
-    await made;
     capture.setMuted(false);
-    await settle();
+    await made;
+    await idle();
     expect(loads()).toBe(2);
     expect(defined(detector.made[0], 'the detector').listening).toBe(true);
   });

@@ -7,9 +7,17 @@ import { startSpeechCapture, type SpeechCapture, type SpeechStretch } from './sp
 import type { LiveUpdate } from './transcriptionState';
 import { defined } from '../../../test/utils/defined';
 
-// The speech model, which one test loads through the real capture: it never finishes loading.
+// The speech model, which one test loads through the real capture: its runtime loads, and the
+// model never finishes loading.
+vi.mock('/assets/speech-model/ort-wasm-simd-threaded.js', () => ({}));
+const model = vi.hoisted(() => ({ asked: 0 }));
 vi.mock('@ricky0123/vad-web', () => ({
-  MicVAD: { new: () => new Promise(() => undefined) },
+  MicVAD: {
+    new: () => {
+      model.asked += 1;
+      return new Promise(() => undefined);
+    },
+  },
   utils: {},
 }));
 
@@ -94,7 +102,8 @@ const transcribers: CallTranscriber[] = [];
 /**
  * A transcriber with a fake MindRoom server and a fake microphone capture. `log` records, in
  * order, the requests to the call routes (`calls.join`, `speech <second>`, `pause <paused>`,
- * `leave`, `calls.live`) and the capture's steps (`listen <track>`, `stop <track>`).
+ * `leave`, `calls.live`) and the capture's steps (`listen <track>`, `stop <track>`,
+ * `mute <track>`, `unmute <track>`).
  */
 const setup = ({
   roomId = ROOM_ID,
@@ -757,6 +766,24 @@ describe('CallTranscriber microphone', () => {
     expect(t.capture(1).stopped).toBe(true);
   });
 
+  it('stops the capture a switch starts while the call ends muted', async () => {
+    const t = setup();
+    t.transcriber.setMicrophone(MIC_A);
+    t.transcriber.start();
+    await advance();
+    // Switching: the old capture takes a while to stop, and meanwhile the person mutes and leaves.
+    const stopped = pending<void>();
+    t.capture().stop.mockImplementationOnce(() => stopped.promise);
+    t.transcriber.setMicrophone(MIC_B);
+    await advance();
+    t.transcriber.setMicrophone(undefined);
+    const ending = t.transcriber.end();
+    stopped.resolve();
+    await ending;
+    expect(t.capture(1).track).toBe(MIC_B);
+    expect(t.capture(1).stopped).toBe(true);
+  });
+
   it('pauses listening at once for a request pressed here, and a capture that starts later starts paused', async () => {
     const t = setup();
     t.transcriber.setMicrophone(MIC_A);
@@ -1181,11 +1208,13 @@ describe('CallTranscriber ending', () => {
     );
     // The page, where the capture listens for clicks and key presses.
     vi.stubGlobal('window', new EventTarget());
+    vi.stubGlobal('fetch', async () => new Response(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0])));
     try {
       const first = setup({ listen: startSpeechCapture });
       first.transcriber.setMicrophone(MIC_A);
       first.transcriber.start();
       await advance();
+      await vi.waitFor(() => expect(model.asked).toBe(1));
       // The leave does not wait for the model.
       void first.transcriber.end();
       await advance();

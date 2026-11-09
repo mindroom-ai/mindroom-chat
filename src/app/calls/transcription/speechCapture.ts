@@ -84,8 +84,8 @@ export const startSpeechCapture = async (
   /** 16 kHz mono 16-bit PCM, which MindRoom takes; set as the wrapper loads, before it hears. */
   let wavOf: (samples: Float32Array) => Blob;
   let vad: MicVAD | undefined;
-  /** The model and runtime are loading or loaded. */
-  let loading = false;
+  /** The model or the runtime could not load. */
+  let loadFailed = false;
   let paused = false;
   let muted = false;
   let stopping: Promise<void> | undefined;
@@ -191,7 +191,7 @@ export const startSpeechCapture = async (
   };
 
   const load = () => {
-    loading = true;
+    loadFailed = false;
     void (async () => {
       const { MicVAD, utils } = await import('@ricky0123/vad-web');
       wavOf = (samples) =>
@@ -221,7 +221,7 @@ export const startSpeechCapture = async (
       },
       // Nothing is captured until the next pause, mute, resume or unmute loads them again.
       () => {
-        loading = false;
+        loadFailed = true;
       }
     );
   };
@@ -231,7 +231,7 @@ export const startSpeechCapture = async (
     if (wanted.paused === paused && wanted.muted === muted) return;
     ({ paused, muted } = wanted);
     void step((detector) => follow(detector, wanted));
-    if (!loading && !stopping) load();
+    if (loadFailed && !stopping) load();
   };
 
   // A suspended context hears nothing. Autoplay rules may keep it suspended until the person uses
