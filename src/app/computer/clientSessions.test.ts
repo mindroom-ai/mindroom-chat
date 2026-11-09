@@ -130,11 +130,30 @@ describe('clientSessions', () => {
     expect(requestAudienceOpenIdToken).toHaveBeenLastCalledWith(ann, API_URL, {
       requireBinding: true,
     });
-    await clientSessions(ann, API_URL, false).send('/api/plugins');
-    expect(requestAudienceOpenIdToken).toHaveBeenLastCalledWith(ann, API_URL, {
-      requireBinding: false,
-    });
   });
+
+  it.each([
+    ['published, then configured', [true, false]],
+    ['configured, then published', [false, true]],
+  ])(
+    'is one for an origin both configured and published (%s), which needs no binding',
+    async (_order, [first, second]) => {
+      const server = fakeServer();
+      vi.stubGlobal('fetch', server.request);
+      const ann = { getSafeUserId: () => '@ann:example.org' } as MatrixClient;
+
+      const sessions = clientSessions(ann, API_URL, first);
+      expect(clientSessions(ann, API_URL, second)).toBe(sessions);
+      await sessions.send('/api/plugins');
+      await clientSessions(ann, API_URL, true).send('/api/plugins');
+
+      expect(server.signIns()).toBe(1);
+      // The person's or the deployment's server takes a token without the homeserver binding it.
+      expect(requestAudienceOpenIdToken).toHaveBeenLastCalledWith(ann, API_URL, {
+        requireBinding: false,
+      });
+    }
+  );
 
   it('ends at sign-out each session the account holds, and only those', async () => {
     const server = fakeServer();

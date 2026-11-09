@@ -315,34 +315,48 @@ export class ClientSessions {
   }
 }
 
-/** Each account's sessions, one per server URL and whether the room's agents published it. */
-const shared = new WeakMap<MatrixClient, Map<string, ClientSessions>>();
+/**
+ * Each account's sessions, one per server URL, and the URLs a caller passed as the configured
+ * server rather than only as one the room's agents published.
+ */
+const shared = new WeakMap<
+  MatrixClient,
+  { servers: Map<string, ClientSessions>; configured: Set<string> }
+>();
 
 /**
  * The account's client session with the MindRoom server at `apiUrl`, shared by every caller that
- * passes the same `apiUrl` and `discovered`.
+ * passes the same `apiUrl`.
  * `discovered`: an origin the room's agents published, whose tokens only a homeserver that binds
- * them may give.
+ * them may give, unless a caller also passed it as the configured server.
  */
 export const clientSessions = (
   mx: MatrixClient,
   apiUrl: string,
   discovered: boolean
 ): ClientSessions => {
-  const servers = shared.get(mx) ?? new Map<string, ClientSessions>();
-  shared.set(mx, servers);
-  const key = `${discovered ? 'discovered' : 'configured'} ${apiUrl}`;
+  const account = shared.get(mx) ?? {
+    servers: new Map<string, ClientSessions>(),
+    configured: new Set<string>(),
+  };
+  shared.set(mx, account);
+  if (!discovered) account.configured.add(apiUrl);
   const sessions =
-    servers.get(key) ??
+    account.servers.get(apiUrl) ??
     new ClientSessions({
       apiUrl,
-      getOpenIdToken: () => requestAudienceOpenIdToken(mx, apiUrl, { requireBinding: discovered }),
+      getOpenIdToken: () =>
+        requestAudienceOpenIdToken(mx, apiUrl, {
+          requireBinding: !account.configured.has(apiUrl),
+        }),
     });
-  servers.set(key, sessions);
+  account.servers.set(apiUrl, sessions);
   return sessions;
 };
 
 /** Ends every client session the account holds, as at sign-out. */
 export const revokeClientSessions = async (mx: MatrixClient): Promise<void> => {
-  await Promise.all([...(shared.get(mx)?.values() ?? [])].map((sessions) => sessions.revoke()));
+  await Promise.all(
+    [...(shared.get(mx)?.servers.values() ?? [])].map((sessions) => sessions.revoke())
+  );
 };

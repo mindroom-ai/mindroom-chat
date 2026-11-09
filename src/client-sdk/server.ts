@@ -148,7 +148,7 @@ export type RoomComputer = {
    * without one, the server the agent published, with a session for a token bound to it. In a
    * room whose agents publish different servers, it is the one for this agent's routes and
    * websockets, where `useMindroomServer` gives one server for the whole room. It shares the
-   * account's session with that server with every caller that signs in there with the same binding.
+   * account's session with that server with every caller that signs in there.
    */
   server: MindroomServer;
   /**
