@@ -22,12 +22,16 @@ function CurrentPath() {
   return <output aria-label="Current path">{useLocation().pathname}</output>;
 }
 
-const renderTab = (screenSize: ScreenSize, path = '/home/') => {
+const renderTab = (
+  screenSize: ScreenSize,
+  path = '/home/',
+  onSelect?: (selected: boolean) => boolean
+) => {
   render(
     <Provider store={createStore()}>
       <ScreenSizeProvider value={screenSize}>
         <MemoryRouter initialEntries={[path]}>
-          <ActivityTab />
+          <ActivityTab onSelect={onSelect} />
           <CurrentPath />
         </MemoryRouter>
       </ScreenSizeProvider>
@@ -69,6 +73,16 @@ describe('the rail Activity bell', () => {
     renderTab(ScreenSize.Desktop);
     fireEvent.click(bell());
     fireEvent.click(screen.getByRole('button', { name: 'Open as page' }));
+    expect(currentPath()).toBe('/activity/');
+  });
+
+  it('opens the navigation panel it hid with the page, so the list shows beside it', () => {
+    const onSelect = vi.fn(() => false);
+    renderTab(ScreenSize.Desktop, '/home/', onSelect);
+    fireEvent.click(bell());
+    expect(onSelect).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Open as page' }));
+    expect(onSelect).toHaveBeenCalledWith(false);
     expect(currentPath()).toBe('/activity/');
   });
 

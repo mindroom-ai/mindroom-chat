@@ -75,6 +75,13 @@ describe('buildActivityRows', () => {
     expect(rows.map((row) => [row.key, row.unread])).toEqual([['recent', false]]);
   });
 
+  it('keeps an older thread while it waits for the user', () => {
+    const old = { lastActivityTs: NOW - ACTIVITY_READ_WINDOW_MS - DAY };
+    const question = { eventId: '$q', senderId: '@mindroom_mind:x', text: 'q', options: [] };
+    const { rows } = build([[entry('asks', old), { pendingQuestion: question }]]);
+    expect(kinds(rows)).toEqual(['asks:question']);
+  });
+
   it('lists a thread the user is not part of only when it names them or waits for them', () => {
     const { rows } = build([
       [entry('named', { isInvolved: false }), { mentionedMe: true, newCount: 1 }],

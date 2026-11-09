@@ -79,7 +79,7 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
               {shown.search && !phone && <SearchTab />}
               <UnverifiedTab />
               {shown.localMindroom && <LocalMindroomTab />}
-              <ActivityTab />
+              <ActivityTab onSelect={onPageNavSelect} />
               <SettingsTab />
             </SidebarStack>
             {footer && (

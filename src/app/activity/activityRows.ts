@@ -92,9 +92,10 @@ export const buildActivityRows = ({
   let hiddenAutomations = 0;
   for (const entry of entries) {
     const recent = now - entry.lastActivityTs <= ACTIVITY_READ_WINDOW_MS;
-    if (!recent && !entry.isUnread) continue;
     const threadSignals = signals(entry);
     const waits = !!threadSignals.pendingApproval || !!threadSignals.pendingQuestion;
+    // What waits for the person stays however old; other read threads leave after the window.
+    if (!recent && !entry.isUnread && !waits) continue;
     const named = threadSignals.mentionedMe;
     const unread = waits || threadSignals.newCount > 0;
     if (!waits && !named) {
