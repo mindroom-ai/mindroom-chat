@@ -375,9 +375,9 @@ describe('startSpeechCapture', () => {
     await hear(20, QUIET);
     expect(stretches).toHaveLength(1);
     const numbers = await framesOf(defined(stretches[0], 'the stretch'));
-    // Only what was said once it resumed, dated from its first frame.
-    expect(numbers[0]).toBe(81);
-    expect(defined(stretches[0], 'the stretch').startedAt.getTime()).toBe(NOW + (80 * FRAME) / 16);
+    // Only what was said once it resumed, from its second frame (the first is dropped), dated so.
+    expect(numbers[0]).toBe(82);
+    expect(defined(stretches[0], 'the stretch').startedAt.getTime()).toBe(NOW + (81 * FRAME) / 16);
   });
 
   it('drops the stretch in progress on a pause, even one resumed at once', async () => {
@@ -402,8 +402,8 @@ describe('startSpeechCapture', () => {
     await hear(10, SPEECH);
     await hear(20, QUIET);
     expect(stretches).toHaveLength(1);
-    // From the first frame heard after the resume.
-    expect((await framesOf(defined(stretches[0], 'the stretch')))[0]).toBe(314);
+    // From the second frame heard after the resume (the first is dropped).
+    expect((await framesOf(defined(stretches[0], 'the stretch')))[0]).toBe(315);
   });
 
   it('cuts nothing in the quiet after a pause, and keeps the next stretch whole', async () => {
@@ -417,10 +417,26 @@ describe('startSpeechCapture', () => {
     await hear(300, QUIET);
     await hear(10, SPEECH);
     await hear(20, QUIET);
-    expect(vad.pauses).toBe(1);
+    // The person's pause, and the one that drops the first frame after the resume.
+    expect(vad.pauses).toBe(2);
     expect(stretches).toHaveLength(1);
     // With the 800 ms before the speech: frame 351 is its first.
     expect((await framesOf(defined(stretches[0], 'the stretch')))[0]).toBe(351 - 8);
+  });
+
+  it('drops the first frame after a resume, which can hold audio from before the pause', async () => {
+    const { capture, hear, stretches } = await start();
+    await hear(20, SPEECH);
+    capture.setPaused(true);
+    await settle();
+    capture.setPaused(false);
+    await settle();
+    await hear(10, SPEECH);
+    await hear(20, QUIET);
+    expect(stretches).toHaveLength(1);
+    const stretch = defined(stretches[0], 'the stretch');
+    expect((await framesOf(stretch))[0]).toBe(22);
+    expect(stretch.startedAt.getTime()).toBe(NOW + (21 * FRAME) / 16);
   });
 
   it('pauses and resumes in the order asked, however fast', async () => {

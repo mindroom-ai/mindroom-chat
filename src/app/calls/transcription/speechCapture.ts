@@ -65,6 +65,11 @@ export const startSpeechCapture = async (
    */
   let listeningSince = 0;
   let heard = 0;
+  /**
+   * Listening resumed after a pause. The wrapper's worklet keeps the part of a frame it heard as the
+   * pause came, so the first frame after the resume starts with audio from before it.
+   */
+  let resumed = false;
 
   /** Pausing, resuming, cutting and stopping, one after the other. */
   let steps = Promise.resolve();
@@ -87,7 +92,15 @@ export const startSpeechCapture = async (
       await detector.start();
       listeningSince = context.currentTime;
       heard = 0;
+      resumed = true;
     }
+  };
+  // Pausing drops that first frame, as a pause drops what it cuts into, and what the worklet keeps
+  // this time was heard after the resume.
+  const dropFirstFrame = async (detector: MicVAD) => {
+    await follow(detector, true);
+    await follow(detector, false);
+    resumed = false;
   };
   // Listening goes on at once, so the samples heard go on counting.
   const cut = async (detector: MicVAD) => {
@@ -116,6 +129,10 @@ export const startSpeechCapture = async (
     },
     onFrameProcessed: (_probabilities, frame) => {
       heard += frame.length;
+      if (resumed) {
+        void step(dropFirstFrame);
+        return;
+      }
       if (!spoken || !vad) return;
       spoken += 1;
       // The stretch holds up to preSpeechPadMs before its speech, and every frame since. It ends

@@ -124,13 +124,15 @@ IDs whose apps are in the call now), `pausedBy` (user ID, or null when not pause
   microphone, brought down to 16 kHz mono, for how likely it is to be someone talking, so typing, a fan or a door at
   the level of a voice does not count. It runs in the browser through `@ricky0123/vad-web` on the WebAssembly build of
   `onnxruntime-web`, with that wrapper's default model (`legacy`) and settings, none tuned here: speech begins at a
-  rating of 0.3, ends after 1400 ms rated below 0.25, keeps the 800 ms before it, and a stretch with less than 400 ms of
-  speech is dropped. The one setting of the app's own is the longest stretch, 30 seconds, the server's limit
+  rating of 0.3, ends after 14 frames (1344 ms; `redemptionMs` 1400) rated below 0.25, keeps the 8 frames (768 ms;
+  `preSpeechPadMs` 800) before it, and a stretch with fewer than 4 frames (384 ms; `minSpeechMs` 400) of speech is
+  dropped. The one setting of the app's own is the longest stretch, 30 seconds, the server's limit
   (`too-large` above it): longer talk goes on in the next stretch. Stretches are sent as 16 kHz mono 16-bit WAV. The
   model (about 1.8 MB) and the runtime (about 15 MB) load from the app's own origin when capture starts, never with the
   first page; listening begins once they have loaded, however long that takes, and ending a call never waits for them.
   They sit under `assets/` in a directory named by a hash of their contents, so the browser may keep them for good.
-  Nothing is captured while paused.
+  Nothing is captured while paused, and the first frame after a resume is dropped: the wrapper's worklet starts it with
+  audio from before the pause.
 - **Status.** Once a call route has answered in this call, if the server becomes unreachable or answers 5xx, the call
   goes on, the controls say "Transcripts are unavailable", nothing is sent, and the heartbeat keeps trying; the first
   answered heartbeat resumes. A live read that fails or takes longer than 10 seconds counts the same, and polling goes on. Before any call route has answered (for example a server that predates this feature,
