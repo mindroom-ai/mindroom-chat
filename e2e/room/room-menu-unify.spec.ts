@@ -46,7 +46,8 @@ import { launchWebKit } from '../helpers/webkit';
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const ENGINES = ['chromium', ...(WEBKIT ? ['webkit'] : [])] as const;
 type Engine = (typeof ENGINES)[number];
-const TARGET = 44;
+/** A message menu's row (MenuEntry: folds' MenuItem, size 300), which a room menu's rows match. */
+const MENU_ROW = 32;
 const NO_INVITE = "You don't have permission to invite";
 const NO_SEARCH = 'Not available in encrypted rooms';
 
@@ -225,16 +226,24 @@ const readMenu = (menu: Locator): Promise<Item[]> =>
     }));
   });
 
-/** The rows of the open room menu shorter than a 44 px touch target, by name and height. */
-const shortRows = (menu: Locator) =>
-  menu.evaluate((element, target) => {
+/**
+ * The rows of the open room menu not as tall as a message menu's, by name and height. A row that
+ * says why it is disabled may take a second line.
+ */
+const oddRows = (menu: Locator) =>
+  menu.evaluate((element, rowHeight) => {
     const rows = Array.from(
       element.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"]')
     ).filter((row) => row.closest('[role="menu"]') === element);
     return rows
-      .map((row) => [row.textContent?.trim() ?? '', row.getBoundingClientRect().height] as const)
-      .filter(([, height]) => height < target - 0.5);
-  }, TARGET);
+      .filter((row) => {
+        const { height } = row.getBoundingClientRect();
+        return row.hasAttribute('aria-describedby')
+          ? height < rowHeight - 0.5
+          : Math.abs(height - rowHeight) > 0.5;
+      })
+      .map((row) => [row.textContent?.trim() ?? '', row.getBoundingClientRect().height] as const);
+  }, MENU_ROW);
 
 const sidebarLink = (page: Page, roomId: string) =>
   page.locator(`a[href*="${encodeURIComponent(roomId)}"]`).first();
@@ -326,7 +335,7 @@ const readAllMenus = async (
     await shot(page, testInfo, `${tag}-${room.key}-${entry}`);
     seen[entry] = await readMenu(roomMenu(page));
     if (phone) {
-      for (const [name, height] of await shortRows(roomMenu(page))) {
+      for (const [name, height] of await oddRows(roomMenu(page))) {
         problems.push(`${entry} "${name}" is ${Math.round(height)} px tall`);
       }
     }
@@ -366,7 +375,7 @@ const checkSame = (room: Case, { seen, problems }: Read, tag: string) => {
   expect(unknown, `${where}: header-only entries depend on the open room`).toEqual([]);
   expect(
     problems,
-    `${where}: rows under ${TARGET} px on a touch screen, menus Escape left open`
+    `${where}: rows not ${MENU_ROW} px tall on a touch screen, menus Escape left open`
   ).toEqual([]);
 };
 
