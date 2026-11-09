@@ -8,6 +8,7 @@ import {
   type RoomEventHandlerMap,
 } from 'matrix-js-sdk';
 import { createDecryptionWaits } from '../matrix/decryptionWaits';
+import { RECENT_LIVE_EVENTS_MS, takeRecentLiveEvents } from '../matrix/client/recentLiveEvents';
 import { matchesEnum } from '../lib/matchesEnum';
 
 /** A ring this device has not answered yet. */
@@ -21,8 +22,11 @@ export type IncomingRing = {
 
 /** A notification ring lasts this long when it names no lifetime (MSC4075's default). */
 const DEFAULT_RING_LIFETIME_MS = 30_000;
-/** A ring that claims to last longer is cut to this, so a stuck ring cannot stay forever. */
-const MAX_RING_LIFETIME_MS = 120_000;
+/**
+ * A ring that claims to last longer is cut to this, so a stuck ring cannot stay forever; the
+ * recorder that starts with the client keeps events as long.
+ */
+const MAX_RING_LIFETIME_MS = RECENT_LIVE_EVENTS_MS;
 
 /**
  * Whether `event` is a call's ring (`org.matrix.msc4075.rtc.notification` of type `ring`), and
@@ -100,7 +104,7 @@ export type RingWatcher = {
 
 /**
  * Follows the rings and declines that sync delivers to this account, starting with those it
- * delivered in the last {@link MAX_RING_LIFETIME_MS} before this started. An encrypted one whose
+ * delivered before this started, as the client's recorder kept them. An encrypted one whose
  * room key comes late (to-device lag, a forwarded or backed-up key) is read when the SDK decrypts it
  * again: a failed attempt announces itself as decrypted too, so the wait lasts until an attempt
  * works or no ring sent then could still be ringing. Returns what stops following.
@@ -110,13 +114,14 @@ export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void)
   let stopped = false;
   const decryptions = createDecryptionWaits();
   // A ring read after its decline (its room key came late) does not ring. The catch-up below reads
-  // rings as their decryption ends: one older than a caught-up ring that rang, or read once a ring
-  // sync delivered since has rung, would replace a newer ring, and does not ring either.
+  // rings as their decryption ends: one that sync delivered before a caught-up ring that rang, or
+  // read once a ring sync delivered since has rung, would replace a newer ring, and does not ring.
   const declinedRings = new Set<string>();
   let liveRing = false;
-  let newestCaughtUp = Number.NEGATIVE_INFINITY;
+  let newestCaughtUp = -1;
 
-  const read = (event: MatrixEvent, caughtUp: boolean) => {
+  /** `caughtUpAt` places a caught-up event in the order sync delivered them. */
+  const read = (event: MatrixEvent, caughtUpAt?: number) => {
     const declined = declinedRingId(event, myUserId);
     if (declined) {
       declinedRings.add(declined);
@@ -125,22 +130,23 @@ export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void)
     }
     const ring = readRing(event, myUserId);
     if (!ring || declinedRings.has(ring.eventId)) return;
-    if (caughtUp) {
-      if (liveRing || event.getTs() < newestCaughtUp) return;
-      newestCaughtUp = event.getTs();
-    } else liveRing = true;
+    if (caughtUpAt === undefined) liveRing = true;
+    else {
+      if (liveRing || caughtUpAt < newestCaughtUp) return;
+      newestCaughtUp = caughtUpAt;
+    }
     watcher.onRing(ring);
   };
 
-  const consider = async (event: MatrixEvent, caughtUp = false) => {
+  const consider = async (event: MatrixEvent, caughtUpAt?: number) => {
     await mx.decryptEventIfNeeded(event).catch(() => undefined);
     if (stopped) return;
     if (!event.isDecryptionFailure()) {
-      read(event, caughtUp);
+      read(event, caughtUpAt);
       return;
     }
     const left = MAX_RING_LIFETIME_MS - (Date.now() - event.getTs());
-    decryptions.wait(event, left, () => read(event, caughtUp));
+    decryptions.wait(event, left, () => read(event, caughtUpAt));
   };
 
   const onTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (event, _room, older, gone, at) => {
@@ -149,18 +155,15 @@ export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void)
     consider(event).catch(() => undefined);
   };
   mx.on(RoomEvent.Timeline, onTimeline);
-  // Sync may have delivered rings before this started, while the app's pages still loaded: the
-  // recent events of the rooms the user is in are read too, oldest first, so a decline follows
-  // the ring it says no to and the newest ring shows. The SDK announces each event as it adds it,
-  // so none of these reaches the listener again.
-  const recent = Date.now() - MAX_RING_LIFETIME_MS;
-  mx.getRooms()
-    .filter((room) => matchesEnum(room.getMyMembership(), KnownMembership.Join))
-    .flatMap((room) => room.getLiveTimeline().getEvents())
-    .filter((event) => event.getTs() > recent)
-    .sort((a, b) => a.getTs() - b.getTs())
-    .forEach((event) => {
-      consider(event, true).catch(() => undefined);
+  // Sync may have delivered rings before this started, while the app's pages still loaded. Taken
+  // in the same step as the subscription, none of them reaches the listener too. Rings of rooms the
+  // user has left since do not ring.
+  takeRecentLiveEvents(mx)
+    .filter((event) =>
+      matchesEnum(mx.getRoom(event.getRoomId())?.getMyMembership(), KnownMembership.Join)
+    )
+    .forEach((event, index) => {
+      consider(event, index).catch(() => undefined);
     });
   return () => {
     stopped = true;
