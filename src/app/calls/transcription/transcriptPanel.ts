@@ -2,7 +2,11 @@ import { useCallback } from 'react';
 import { atom, useAtomValue, useStore } from 'jotai';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { callPanelRoomAtom, useActiveCall, useInCall } from '../callStore';
-import { getCallWindowTranscriptAtom, useCallViewFloats } from '../window/callWindowState';
+import {
+  focusHandOffAtom,
+  getCallWindowTranscriptAtom,
+  useCallViewFloats,
+} from '../window/callWindowState';
 import { callTranscriptionAtom } from './transcriptionState';
 
 type Store = ReturnType<typeof useStore>;
@@ -14,13 +18,6 @@ type Store = ReturnType<typeof useStore>;
 export type TranscriptPanel = { roomId: string; replacedCall: boolean };
 
 export const transcriptPanelAtom = atom<TranscriptPanel | undefined>(undefined);
-
-/**
- * The focus the call's row hands to the live transcript it shows in the floating window, as Dock
- * and Float hand theirs to the call view: the transcript takes it from `from`, the row's
- * Transcript, as it shows, unless the person moved the focus on meanwhile.
- */
-export const windowTranscriptFocusAtom = atom<{ from: Element | null } | undefined>(undefined);
 
 /**
  * Shows the room's live transcript in its side panel, in place of its call panel if that is open
@@ -115,7 +112,7 @@ export const useCallTranscript = (roomId: string) => {
         inWindow: inWindow ? { userId, toggle } : undefined,
       });
       if (inWindow && !toggle)
-        store.set(windowTranscriptFocusAtom, { from: document.activeElement });
+        store.set(focusHandOffAtom, { to: 'transcript', from: document.activeElement });
     },
     [floats, inWindow, roomId, store, userId]
   );

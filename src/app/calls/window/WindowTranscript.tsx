@@ -10,13 +10,14 @@ import { textDirection } from '../../ui/directional';
 import type { TranscriptLine } from '../transcription/api';
 import { GAP_KEYS, LiveTranscriptBody } from '../transcription/LiveTranscriptBody';
 import { callTranscriptionAtom } from '../transcription/transcriptionState';
-import {
-  dismissTranscriptPanel,
-  windowTranscriptFocusAtom,
-} from '../transcription/transcriptPanel';
+import { dismissTranscriptPanel } from '../transcription/transcriptPanel';
 import { useLiveTranscript } from '../transcription/useLiveTranscript';
 import { useCallWindowSize } from './callWindowFrame';
-import { getCallWindowSplitAtom, getCallWindowTranscriptAtom } from './callWindowState';
+import {
+  focusHandOffAtom,
+  getCallWindowSplitAtom,
+  getCallWindowTranscriptAtom,
+} from './callWindowState';
 import { MAX_TRANSCRIPT_SPLIT, MIN_TRANSCRIPT_SPLIT, transcriptLayout } from './transcriptLayout';
 import { splitFromPointer, stepSplit, type TranscriptLayout } from './transcriptLayout';
 import * as css from './WindowTranscript.css';
@@ -230,16 +231,16 @@ export function WindowTranscript({ room, children }: { room: Room; children: Rea
   // The row's Transcript, outside the window, hands its focus to the transcript it opened here; one
   // that shows on its own (the controls' switch, left on for a call just joined) takes none. The
   // subtitle's transcript is out of sight, so there the focus goes to the window's handle.
-  const [focusRequest, setFocusRequest] = useAtom(windowTranscriptFocusAtom);
+  const [handOff, setHandOff] = useAtom(focusHandOffAtom);
   const paneRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!focusRequest || !layout) return;
-    setFocusRequest(undefined);
+    if (handOff?.to !== 'transcript' || !layout) return;
+    setHandOff(undefined);
     const focused = document.activeElement;
-    if (focused && focused !== document.body && focused !== focusRequest.from) return;
+    if (focused && focused !== document.body && focused !== handOff.from) return;
     if (layout === 'subtitle') focusWindowHandle();
     else paneRef.current?.focus();
-  }, [focusRequest, layout, setFocusRequest]);
+  }, [handOff, layout, setHandOff]);
   const [split, setSplit] = useAtom(getCallWindowSplitAtom(userId));
   const [dragged, setDragged] = useState<number>();
   const boxRef = useRef<HTMLDivElement>(null);

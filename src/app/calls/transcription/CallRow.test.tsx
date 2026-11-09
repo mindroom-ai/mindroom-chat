@@ -9,10 +9,11 @@ import { TranscriptionControls } from './TranscriptionControls';
 import { useLiveTranscript, type LiveTranscriptView } from './useLiveTranscript';
 import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from '../callStore';
 import { callTranscriptionAtom, liveTranscriptAtom } from './transcriptionState';
-import { transcriptPanelAtom, windowTranscriptFocusAtom } from './transcriptPanel';
+import { transcriptPanelAtom } from './transcriptPanel';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import {
   clearCallWindowStore,
+  focusHandOffAtom,
   getCallWindowSettingsAtom,
   minimizedSettings,
 } from '../window/callWindowState';
@@ -444,7 +445,7 @@ describe('CallRow', () => {
     renderBesideWindow(store, { width: 400, height: 480 });
     expect(document.activeElement).toBe(elsewhere);
     // The press is done with: no transcript shown later takes the focus for it.
-    expect(store.get(windowTranscriptFocusAtom)).toBeUndefined();
+    expect(store.get(focusHandOffAtom)).toBeUndefined();
     elsewhere.remove();
   });
 

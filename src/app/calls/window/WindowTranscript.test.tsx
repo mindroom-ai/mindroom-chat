@@ -10,9 +10,13 @@ import {
   liveTranscriptAtom,
   type TranscriptionStatus,
 } from '../transcription/transcriptionState';
-import { transcriptPanelAtom, windowTranscriptFocusAtom } from '../transcription/transcriptPanel';
+import { transcriptPanelAtom } from '../transcription/transcriptPanel';
 import { CallWindowSizeContext, type CallWindowSize } from './callWindowFrame';
-import { clearCallWindowStore, getCallWindowSettingsAtom } from './callWindowState';
+import {
+  clearCallWindowStore,
+  focusHandOffAtom,
+  getCallWindowSettingsAtom,
+} from './callWindowState';
 import { WindowTranscript } from './WindowTranscript';
 
 // The live transcript inside the floating window: under the stage, beside it, or its latest line
@@ -228,11 +232,11 @@ describe('the live transcript in the floating window', () => {
 
     // Handed while the transcript does not show, the focus waits for it.
     act(() => store.set(getCallWindowSettingsAtom(USER), { mode: 'floating', transcript: false }));
-    act(() => store.set(windowTranscriptFocusAtom, { from: stage }));
+    act(() => store.set(focusHandOffAtom, { to: 'transcript', from: stage }));
     expect(document.activeElement).toBe(stage);
     act(() => showTranscript());
     expect(document.activeElement).toBe(screen.getByRole('region', { name: 'Live transcript' }));
-    expect(store.get(windowTranscriptFocusAtom)).toBeUndefined();
+    expect(store.get(focusHandOffAtom)).toBeUndefined();
   });
 
   it("hands the focus the transcript had to the window's handle when it goes out of sight or away", () => {

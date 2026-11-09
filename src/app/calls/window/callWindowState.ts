@@ -188,10 +188,11 @@ export const useCallViewFloats = (): boolean => {
 /**
  * Dock and Float move the call view to the other place, where it mounts anew, and the rail's call
  * button opens the floating window or brings it out of its bar: the focus their button had goes
- * to the title bar there (`to`) rather than to the page or staying on the rail. `from` is that
- * button, which may stay a moment while the docked panel it was in moves out.
+ * to the title bar there (`to`) rather than to the page or staying on the rail. The call row's
+ * Transcript hands its focus to the live transcript it opens in the window (`transcript`). `from`
+ * is that button, which may stay a moment while the docked panel it was in moves out.
  */
-export type FocusHandOff = { to: 'window' | 'panel'; from: Element | null };
+export type FocusHandOff = { to: 'window' | 'panel' | 'transcript'; from: Element | null };
 export const focusHandOffAtom = atom<FocusHandOff | undefined>(undefined);
 
 /** Whether the account's floating window is minimized to its bar. */
