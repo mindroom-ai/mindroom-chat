@@ -42,6 +42,7 @@ vi.mock('livekit-client', async () => {
       setMicrophoneEnabled: vi.fn(async () => undefined),
       setCameraEnabled: vi.fn(async () => undefined),
       setScreenShareEnabled: vi.fn(async () => undefined),
+      setTrackSubscriptionPermissions: vi.fn(),
     };
 
     constructor(readonly options: unknown) {
@@ -168,11 +169,13 @@ type FakeMediaRoom = EventEmitter & {
   connect: ReturnType<typeof vi.fn>;
   disconnect: ReturnType<typeof vi.fn>;
   setE2EEEnabled: ReturnType<typeof vi.fn>;
+  remoteParticipants: Map<string, unknown>;
   localParticipant: {
     getTrackPublication: ReturnType<typeof vi.fn>;
     trackPublications: Map<string, unknown>;
     setMicrophoneEnabled: ReturnType<typeof vi.fn>;
     setCameraEnabled: ReturnType<typeof vi.fn>;
+    setTrackSubscriptionPermissions: ReturnType<typeof vi.fn>;
   };
   switchActiveDevice: ReturnType<typeof vi.fn>;
 };
@@ -838,5 +841,101 @@ describe('RoomCall media keys', () => {
     onlyMediaRoom().emit('ParticipantConnected', { identity: OTHER_IDENTITY });
 
     expect(sendCallKey).not.toHaveBeenCalled();
+  });
+});
+
+const CAROL = '@carol:calls.test';
+const CAROL_DEVICE = 'CAROLDEVICE';
+const CAROL_IDENTITY = `${CAROL}:${CAROL_DEVICE}`;
+
+/** A remote audio track as LiveKit hands it over: each attach makes one more element. */
+const remoteAudioTrack = () => {
+  const track = {
+    kind: 'audio',
+    attachedElements: [] as HTMLMediaElement[],
+    attach: () => {
+      const element = document.createElement('audio');
+      track.attachedElements.push(element);
+      return element;
+    },
+    detach: () => track.attachedElements.splice(0),
+  };
+  return track;
+};
+
+/** A device on the media server that publishes one audio track, and its subscription to it. */
+const remoteDevice = (media: FakeMediaRoom, identity: string) => {
+  const track = remoteAudioTrack();
+  const publication = { trackSid: `TR_${identity}`, track };
+  const participant = {
+    identity,
+    audioTrackPublications: new Map([[publication.trackSid, publication]]),
+    getTrackPublication: () => undefined,
+  };
+  media.remoteParticipants.set(identity, participant);
+  return { subscribe: () => media.emit('TrackSubscribed', track, publication, participant) };
+};
+
+const playing = () => document.querySelectorAll('[data-call-audio] audio').length;
+
+describe("RoomCall members' media", () => {
+  it('plays the sound of a device only while it is a member of the call', async () => {
+    const { call, session } = setup();
+    await call.join();
+    const media = onlyMediaRoom();
+
+    // A device on the media server that is not in the call is not heard.
+    remoteDevice(media, CAROL_IDENTITY).subscribe();
+    expect(playing()).toBe(0);
+
+    // A member's media that arrives before its membership plays once the membership does.
+    remoteDevice(media, OTHER_IDENTITY).subscribe();
+    expect(playing()).toBe(0);
+    session.setMemberships([membership(ME, DEVICE), membership(OTHER, OTHER_DEVICE)]);
+    expect(playing()).toBe(1);
+    session.setMemberships([membership(ME, DEVICE), membership(OTHER, OTHER_DEVICE)]);
+    expect(playing()).toBe(1);
+
+    // Once its membership is gone (it left the call, or the room) it is not heard any more.
+    session.setMemberships([membership(ME, DEVICE)]);
+    expect(playing()).toBe(0);
+  });
+
+  it("plays a member's sound as soon as it arrives", async () => {
+    const { call, session } = setup();
+    session.memberships = [membership(OTHER, OTHER_DEVICE)];
+    await call.join();
+
+    remoteDevice(onlyMediaRoom(), OTHER_IDENTITY).subscribe();
+
+    expect(playing()).toBe(1);
+  });
+
+  it('lets only the members of the call receive its media, from before its microphone opens', async () => {
+    const sentWhile: string[] = [];
+    fakes.connect = async (room) => {
+      const media = room as FakeMediaRoom;
+      media.localParticipant.setTrackSubscriptionPermissions.mockImplementation(() => {
+        sentWhile.push(media.state);
+      });
+    };
+    const { call, session } = setup();
+    session.memberships = [membership(OTHER, OTHER_DEVICE)];
+    await call.join();
+    const { localParticipant } = onlyMediaRoom();
+    const permissions = localParticipant.setTrackSubscriptionPermissions;
+    const allowed = (...identities: string[]) =>
+      identities.map((participantIdentity) => ({ participantIdentity, allowAll: true }));
+
+    expect(permissions).toHaveBeenLastCalledWith(false, allowed(OTHER_IDENTITY));
+    expect(sentWhile.at(-1)).toBe('connected');
+    expect(permissions.mock.invocationCallOrder.at(-1)).toBeLessThan(
+      defined(localParticipant.setMicrophoneEnabled.mock.invocationCallOrder[0], 'the microphone')
+    );
+
+    session.setMemberships([membership(OTHER, OTHER_DEVICE), membership(CAROL, CAROL_DEVICE)]);
+    expect(permissions).toHaveBeenLastCalledWith(false, allowed(OTHER_IDENTITY, CAROL_IDENTITY));
+    session.setMemberships([membership(CAROL, CAROL_DEVICE)]);
+    expect(permissions).toHaveBeenLastCalledWith(false, allowed(CAROL_IDENTITY));
   });
 });

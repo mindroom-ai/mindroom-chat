@@ -314,10 +314,39 @@ export class RoomCall {
     track.detach().forEach((element) => element.remove());
   }
 
+  /** The media identities of the call's members, as their tiles show them. */
+  private memberIdentities(): Set<string> {
+    return new Set(activeMemberships(this.session).map(membershipIdentity));
+  }
+
+  /**
+   * Plays the sound of the call's members only, and lets only them receive this device's tracks:
+   * a device on the media server that is not (or no longer, or not yet) a member is neither heard
+   * nor sent anything.
+   */
+  private followMembers() {
+    const media = this.media;
+    if (!media) return;
+    const members = this.memberIdentities();
+    // Kept by LiveKit and sent again after a reconnect.
+    media.localParticipant.setTrackSubscriptionPermissions(
+      false,
+      [...members].map((participantIdentity) => ({ participantIdentity, allowAll: true }))
+    );
+    media.remoteParticipants.forEach((participant) => {
+      const member = members.has(participant.identity);
+      participant.audioTrackPublications.forEach(({ track }) => {
+        if (!track) return;
+        if (!member) this.detachAudio(track);
+        else if (track.attachedElements.length === 0) this.attachAudio(track);
+      });
+    });
+  }
+
   private watchMedia(media: MediaRoom) {
     media
-      .on(RoomEvent.TrackSubscribed, (track) => {
-        this.attachAudio(track);
+      .on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
+        if (this.memberIdentities().has(participant.identity)) this.attachAudio(track);
         this.refresh();
       })
       .on(RoomEvent.TrackUnsubscribed, (track) => {
@@ -349,6 +378,7 @@ export class RoomCall {
   }
 
   private onMemberships = () => {
+    this.followMembers();
     this.refresh();
     this.resendOwnKey();
   };
@@ -560,6 +590,8 @@ export class RoomCall {
       return;
     }
     this.update({ phase: 'connected' });
+    // Before this device publishes anything.
+    this.followMembers();
     // LiveKit takes up the keys set before it connected with the newest index of any member as
     // current; this device's own key is set again so its media goes out with that one.
     const own = this.ownKey;
