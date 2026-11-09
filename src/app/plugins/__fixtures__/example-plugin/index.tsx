@@ -467,21 +467,30 @@ function RoomComputers({ roomId }: { roomId: string }) {
   const [session, setSession] = useState<ComputerSessionClient>();
   const [line, setLine] = useState<string>();
   const shown = useRef<{ session?: ComputerSessionClient; stream?: WebSocket }>({});
-  useEffect(
-    () => () => {
+  // Aborted as the panel goes, so a session still opening then never arrives.
+  const leaving = useRef<AbortSignal>();
+  useEffect(() => {
+    const gone = new AbortController();
+    leaving.current = gone.signal;
+    return () => {
+      gone.abort();
       shown.current.stream?.close();
       shown.current.session?.dispose().catch(() => undefined);
-    },
-    []
-  );
+    };
+  }, []);
   if (computers.length === 0) return null;
   const show = (status: ComputerStatus) => setLine(`${status.state}, ${status.mode}`);
   const fail = (error: unknown) =>
     setLine(`failed (${error instanceof ComputerApiError ? error.status : 'error'})`);
   const open = async (computer: RoomComputer) => {
     setLine('starting');
+    const signal = leaving.current;
     try {
-      const opened = await computer.openSession();
+      const opened = await computer.openSession(signal);
+      if (signal?.aborted) {
+        opened.dispose().catch(() => undefined);
+        return;
+      }
       shown.current.session = opened;
       setSession(opened);
       show(opened.status);
@@ -492,6 +501,7 @@ function RoomComputers({ roomId }: { roomId: string }) {
   // Releasing control closes the stream on the server, so each take opens one.
   const takeControl = async (current: ComputerSessionClient) => {
     try {
+      shown.current.stream?.close();
       const { url, protocols } = await current.createStream();
       const stream = new WebSocket(url, protocols);
       shown.current.stream = stream;
@@ -517,7 +527,7 @@ function RoomComputers({ roomId }: { roomId: string }) {
         <button
           key={computer.userId}
           type="button"
-          disabled={session !== undefined}
+          disabled={session !== undefined || line === 'starting'}
           onClick={() => void open(computer)}
         >
           Open computer of {computer.name}

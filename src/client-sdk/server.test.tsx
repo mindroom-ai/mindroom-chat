@@ -565,4 +565,16 @@ describe('useRoomComputers', () => {
     });
     expect(answers.routes()).toHaveLength(1);
   });
+
+  it('rejects with status 0 once its signal aborts while the homeserver gives no token', async () => {
+    const answers = fakeFetch();
+    openId.requestToken.mockReturnValueOnce(new Promise(() => undefined));
+    const stop = new AbortController();
+
+    const opening = computerOf(computers(), HELPER.userId).openSession(stop.signal);
+    stop.abort();
+
+    await expect(opening).rejects.toMatchObject({ name: 'ComputerApiError', status: 0 });
+    expect(answers.routes()).toEqual([]);
+  });
 });

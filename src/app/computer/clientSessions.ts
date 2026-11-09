@@ -33,7 +33,7 @@ export class MindroomServerError extends Error {
 const noAnswer = (message: string) => new MindroomServerError(message, 0);
 
 /** Rejects as soon as `signal` aborts, for steps that cannot be cancelled themselves. */
-const untilAborted = <T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> => {
+export const untilAborted = <T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> => {
   if (!signal) return promise;
   if (signal.aborted) return Promise.reject(noAnswer('MindRoom request cancelled.'));
   return new Promise<T>((resolve, reject) => {

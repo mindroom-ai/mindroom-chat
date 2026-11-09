@@ -14,6 +14,7 @@ import {
   MindroomServerError,
   clientSessions,
   tokenError,
+  untilAborted,
   type ClientSessions,
 } from '../app/computer/clientSessions';
 import type { ComputerAgent } from '../app/computer/types';
@@ -147,8 +148,9 @@ export type RoomComputer = {
    * `stopped`, `mode` `view` or `control`), `refreshStatus()`, `createStream()` (the URL and
    * subprotocols of the screen's RFB websocket, which `control('take')` needs open), `control()`
    * with `take`, `release` or `stop`, and `dispose()`, which ends it on the server; each method
-   * takes a `signal`. Rejects with `ComputerApiError`, `status` 0 when the homeserver or the server gave no
-   * answer or `signal` aborted, 403 when the homeserver will not sign in there, else the server's
+   * takes a `signal`. Rejects with `ComputerApiError`, `status` 0 when the homeserver could not
+   * give a sign-in token, the server gave no answer or `signal` aborted, 403 when the homeserver
+   * will not sign in there (it binds no tokens to a server the agent published), else the server's
    * refusal. Retrying, reconnecting a stream and ending a session the plugin no longer shows are
    * the plugin's.
    */
@@ -163,9 +165,10 @@ const openSession = async (
   apiUrl: string,
   signal?: AbortSignal
 ) => {
-  const openIdToken = await requestAudienceOpenIdToken(mx, apiUrl, {
+  const token = requestAudienceOpenIdToken(mx, apiUrl, {
     requireBinding: agent.serverUrl !== undefined,
-  }).catch((error: unknown) => {
+  });
+  const openIdToken = await untilAborted(token, signal).catch((error: unknown) => {
     const refusal = tokenError(error);
     throw new ComputerApiError(refusal.message, refusal.status);
   });

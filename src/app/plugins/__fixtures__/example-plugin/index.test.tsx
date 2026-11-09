@@ -329,6 +329,7 @@ describe('example plugin', () => {
     ]);
     client.store.storeRoom(room);
     let created: (answer: Response) => void = () => undefined;
+    let opening: AbortSignal | null | undefined;
     const sent: string[] = [];
     vi.stubGlobal('fetch', async (input: RequestInfo | URL, init: RequestInit = {}) => {
       const url = String(input);
@@ -345,6 +346,7 @@ describe('example plugin', () => {
       if (!url.startsWith(`${api}/api/computers/`)) return new Response(null, { status: 404 });
       sent.push(`${init.method} ${url}`);
       if (init.method === 'DELETE') return new Response(null, { status: 204 });
+      opening = init.signal;
       return new Promise<Response>((resolve) => {
         created = resolve;
       });
@@ -357,8 +359,11 @@ describe('example plugin', () => {
     );
 
     await view.findByText(`Agents with a computer: ${agent}`);
-    fireEvent.click(view.getByRole('button', { name: `Open computer of ${agent}` }));
+    const openButton = view.getByRole('button', { name: `Open computer of ${agent}` });
+    fireEvent.click(openButton);
     await view.findByText('Computer session: starting');
+    // A second session cannot start while the first one does.
+    expect(openButton).toHaveProperty('disabled', true);
     await waitFor(() => expect(sent).toEqual([`POST ${api}/api/computers/sessions`]));
     created(
       Response.json({
@@ -373,6 +378,17 @@ describe('example plugin', () => {
     fireEvent.click(view.getByRole('button', { name: 'End computer session' }));
     await view.findByText('Computer session: ended');
     expect(sent.at(-1)).toBe(`DELETE ${api}/api/computers/sessions/s1`);
+
+    // A session still opening as the panel goes is called off.
+    fireEvent.click(openButton);
+    await waitFor(() => expect(sent).toHaveLength(3));
+    view.unmount();
+    expect(opening?.aborted).toBe(true);
+    // One the server still gives then ends at once.
+    created(
+      Response.json({ session_id: 's2', session_token: 'late', state: 'ready', mode: 'view' })
+    );
+    await waitFor(() => expect(sent.at(-1)).toBe(`DELETE ${api}/api/computers/sessions/s2`));
   });
 
   it("says in its own-frame card the app's theme kind and screen size, and previews a PDF it builds", async () => {
