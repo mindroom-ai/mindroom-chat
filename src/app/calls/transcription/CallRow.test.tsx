@@ -193,7 +193,7 @@ const renderBesideWindow = (store: ReturnType<typeof createStore>, size?: CallWi
 };
 
 /** Presses the button as a keyboard does: the focus is on it first. */
-const press = (target: HTMLButtonElement | undefined) => {
+const press = (target: HTMLButtonElement | null | undefined) => {
   act(() => target?.focus());
   act(() => target?.click());
 };
@@ -415,7 +415,6 @@ describe('CallRow', () => {
   });
 
   it("moves the focus from its Transcript into the window's transcript, which says what it is", () => {
-    state.selectedRoom = undefined;
     const store = inCall();
     renderBesideWindow(store, { width: 400, height: 480 });
 
@@ -464,7 +463,7 @@ describe('CallRow', () => {
     const toggle = container.querySelector<HTMLButtonElement>(
       'button[aria-label="Live transcript"]'
     );
-    press(toggle ?? undefined);
+    press(toggle);
     expect(store.get(settings()).transcript).toBe(true);
     expect(document.activeElement).toBe(toggle);
   });

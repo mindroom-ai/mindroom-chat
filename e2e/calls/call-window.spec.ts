@@ -48,7 +48,7 @@ const expectWindowAt = (callWindow: Locator, box: Box) =>
  */
 const expectShortcutFocuses = async (page: Page, from: string, target: Locator) => {
   await page.getByRole('link', { name: from, exact: true }).first().focus();
-  await page.keyboard.press('Control+Shift+L');
+  await page.keyboard.press('ControlOrMeta+Shift+L');
   await expect(target).toBeFocused();
 };
 

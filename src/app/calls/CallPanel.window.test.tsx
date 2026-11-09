@@ -214,6 +214,21 @@ const renderInWindow = () =>
     </Provider>
   );
 
+/** The rail's call button, for the call in `calls.active`, and a press of it from the keyboard. */
+const rail = () => screen.getByRole('button', { name: 'Return to the call in Standup' });
+const pressRail = () => {
+  rail().focus();
+  fireEvent.click(rail());
+};
+const renderRail = () =>
+  render(
+    <Provider store={store}>
+      <ScreenSizeProvider value="Desktop">
+        <ActiveCallTab active={calls.active!} />
+      </ScreenSizeProvider>
+    </Provider>
+  );
+
 const button = (name: string) => screen.queryByRole('button', { name });
 // fireEvent runs in act already.
 const press = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
@@ -731,19 +746,6 @@ describe('the focus after Dock and Float', () => {
 
 describe("the focus after the rail's call button", () => {
   const handle = () => screen.getByRole('group', { name: 'Move call window' });
-  const rail = () => screen.getByRole('button', { name: 'Return to the call in Standup' });
-  const pressRail = () => {
-    rail().focus();
-    fireEvent.click(rail());
-  };
-  const renderRail = () =>
-    render(
-      <Provider store={store}>
-        <ScreenSizeProvider value="Desktop">
-          <ActiveCallTab active={calls.active!} />
-        </ScreenSizeProvider>
-      </Provider>
-    );
 
   it("goes to the window's handle when the button opens the window", () => {
     roomCall([me, person('@ana:panel.test')]);
@@ -793,7 +795,7 @@ describe('the shortcut to the call view', () => {
     composer.focus();
     return composer;
   };
-  afterEach(() => document.querySelector('textarea')?.remove());
+  afterEach(() => document.querySelectorAll('textarea').forEach((composer) => composer.remove()));
 
   it("goes to the floating window's handle, also while it is minimized to its bar", () => {
     roomCall([me, person('@ana:panel.test')]);
@@ -1130,16 +1132,8 @@ describe('the live transcript in the window', () => {
     roomCall([me, person('@ana:panel.test')]);
     transcribed();
     renderPanel({ frame: frame() });
-    render(
-      <Provider store={store}>
-        <ScreenSizeProvider value="Desktop">
-          <ActiveCallTab active={calls.active!} />
-        </ScreenSizeProvider>
-      </Provider>
-    );
-    const rail = screen.getByRole('button', { name: 'Return to the call in Standup' });
-    rail.focus();
-    fireEvent.click(rail);
+    renderRail();
+    pressRail();
     expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Move call window' }));
   });
 
