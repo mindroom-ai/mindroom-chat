@@ -29,6 +29,7 @@ const plugin = (id: string, headerActions: HeaderAction[]): RegisteredPlugin => 
   headerActions,
   slashCommands: [],
   roomActions: [],
+  messageLinks: [],
 });
 
 describe('usePluginHeaderActions', () => {
