@@ -7,6 +7,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useRoomName } from '../matrix/hooks/useRoomMeta';
 import { useLoadedRoomMembers } from '../matrix/hooks/useLoadedRoomMembers';
+import { useMemberListSettled } from '../matrix/hooks/useMemberListSettled';
 import { getSenderName } from '../matrix/room';
 import { NameWithUserId } from '../matrix/NameWithUserId';
 import { mDirectAtom } from '../matrix/state/mDirectList';
@@ -60,27 +61,6 @@ export const useRingLine = (
 const windowHasFocus = (): boolean => document.visibilityState === 'visible' && document.hasFocus();
 
 /**
- * Whether the room's member list has loaded, or failed to. A system notification cannot change
- * its text once shown, so a ring's waits for the list, as a message's does, and names the caller
- * the way the ring card does once the list is there; if the list cannot load, the user ID stays.
- */
-const useMemberListSettled = (room: Room): boolean => {
-  const [settled, setSettled] = useState<Room>();
-  useEffect(() => {
-    if (room.membersLoaded()) return undefined;
-    let disposed = false;
-    const settle = () => {
-      if (!disposed) setSettled(room);
-    };
-    room.loadMembersIfNeeded().then(settle, settle);
-    return () => {
-      disposed = true;
-    };
-  }, [room]);
-  return room.membersLoaded() || settled === room;
-};
-
-/**
  * While a ring shows: the ringtone (when notification sounds are on) and, when the window is in
  * the background and `notify` is set, a system notification (when desktop notifications are on
  * and allowed) that brings the window and the ring forward. Both stop with the ring.
@@ -131,6 +111,9 @@ function RingAlerts({
 export function RingCard({ room, ring, onAnswer, onDecline, onIgnore, onOpen }: RingCardProps) {
   const { t } = useTranslation();
   const { caller, line } = useRingLine(room, ring);
+  // A system notification cannot change its text once shown, so a ring's waits for the member
+  // list, as a message's does, and names the caller the way the ring card does once the list is
+  // there; if the list cannot load, the user ID stays.
   const membersSettled = useMemberListSettled(room);
   return (
     <Surface

@@ -283,12 +283,16 @@ export const openLobby = async (page: Page, stack: AgentStack): Promise<void> =>
   await expect(composer(page)).toBeVisible({ timeout: 90_000 });
 };
 
-/** Moves the loaded client to a thread of the lobby, as a link inside the app would. */
-export const showThread = async (page: Page, stack: AgentStack, rootId: string): Promise<void> => {
-  await page.evaluate((url) => {
+/** Moves the loaded client to `path`, as a link inside the app would. */
+export const showPath = (page: Page, path: string): Promise<void> =>
+  page.evaluate((url) => {
     window.history.pushState(null, '', url);
     window.dispatchEvent(new PopStateEvent('popstate'));
-  }, threadUrl(stack, rootId));
+  }, path);
+
+/** Moves the loaded client to a thread of the lobby, as a link inside the app would. */
+export const showThread = async (page: Page, stack: AgentStack, rootId: string): Promise<void> => {
+  await showPath(page, threadUrl(stack, rootId));
   await expectThreadShown(page, rootId);
 };
 
