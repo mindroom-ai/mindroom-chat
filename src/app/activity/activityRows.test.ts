@@ -75,6 +75,15 @@ describe('buildActivityRows', () => {
     expect(rows.map((row) => [row.key, row.unread])).toEqual([['recent', false]]);
   });
 
+  it('leaves out older threads with unread replies, unless they name the user', () => {
+    const old = { lastActivityTs: NOW - ACTIVITY_READ_WINDOW_MS - DAY, isUnread: true };
+    const { rows } = build([
+      [entry('stale', old), { newCount: 3, newSenderIds: ['@mindroom_mind:x'] }],
+      [entry('named', old), { newCount: 1, mentionedMe: true }],
+    ]);
+    expect(kinds(rows)).toEqual(['named:mention']);
+  });
+
   it('keeps an older thread while it waits for the user', () => {
     const old = { lastActivityTs: NOW - ACTIVITY_READ_WINDOW_MS - DAY };
     const question = { eventId: '$q', senderId: '@mindroom_mind:x', text: 'q', options: [] };

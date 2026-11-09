@@ -71,8 +71,7 @@ const compareRows = (a: ActivityRow, b: ActivityRow): number =>
 
 /**
  * Activity's rows: a thread that waits for the person or names them, and a thread they take part
- * in that has news or had activity in the last `ACTIVITY_READ_WINDOW_MS`, one row each; then the
- * invites. A thread an agent runs alone (an automation) is only counted, unless it names them, it
+ * in with activity in the last `ACTIVITY_READ_WINDOW_MS`, one row each; then the invites. A thread an agent runs alone (an automation) is only counted, unless it names them, it
  * waits for them, or `showAutomations` lists it.
  */
 export const buildActivityRows = ({
@@ -94,18 +93,18 @@ export const buildActivityRows = ({
     const recent = now - entry.lastActivityTs <= ACTIVITY_READ_WINDOW_MS;
     const threadSignals = signals(entry);
     const waits = !!threadSignals.pendingApproval || !!threadSignals.pendingQuestion;
-    // What waits for the person stays however old; other read threads leave after the window.
-    if (!recent && !entry.isUnread && !waits) continue;
     const named = threadSignals.mentionedMe;
-    const unread = waits || threadSignals.newCount > 0;
+    // What waits for the person or names them stays however old; the rest leaves after the window.
     if (!waits && !named) {
+      if (!recent) continue;
       if (threadSignals.automation && !entry.isInvolved) {
         if (!showAutomations) {
           hiddenAutomations += 1;
           continue;
         }
-      } else if (!entry.isInvolved || (!unread && !recent)) continue;
+      } else if (!entry.isInvolved) continue;
     }
+    const unread = waits || threadSignals.newCount > 0;
     const kind = threadKind(threadSignals);
     rows.push({
       type: 'thread',
