@@ -90,6 +90,17 @@ describe('usePanelSlot', () => {
     expect(shown(renderer)).toEqual([]);
   });
 
+  it('still ends a later exit whose moving panel goes after the done of a panel that has gone', () => {
+    const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
+    update(undefined);
+    const gone = presence?.done;
+    update(<Failing key="card" />);
+    update(undefined);
+    act(() => gone?.());
+    act(() => fail?.());
+    expect(shown(renderer)).toEqual([]);
+  });
+
   it('ends no later exit with a done that a finished motion queued before its panel went', async () => {
     const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
     update(undefined);
