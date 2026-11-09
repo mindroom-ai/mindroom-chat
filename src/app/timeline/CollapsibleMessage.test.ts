@@ -8,6 +8,7 @@ vi.mock('./CollapsibleMessage.css', () => ({
   CollapsibleFooter: 'collapsible-footer',
   CollapsibleStickyFooter: 'collapsible-sticky-footer',
   CollapsiblePill: 'collapsible-pill',
+  CollapsedFade: 'collapsed-fade',
 }));
 
 import {
@@ -507,6 +508,30 @@ describe('CollapsibleMessage', () => {
     act(() => {
       renderer.unmount();
     });
+  });
+
+  it('unfolds from a click on the faded lines, which only a folded message has', () => {
+    const findFades = (renderer: ReactTestRenderer) =>
+      renderer.root.findAll(
+        (node) => node.type === 'div' && node.props.className === 'collapsed-fade'
+      );
+    const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
+    const [fade] = findFades(renderer);
+    // A pointer target only: the pill stays the one control assistive technology meets.
+    expect(fade?.props['aria-hidden']).toBe(true);
+
+    act(() => fade?.props.onClick());
+
+    expect(getContentContainer(renderer).props['data-expanded']).toBe(true);
+    expect(findFades(renderer)).toHaveLength(0);
+    act(() => renderer.unmount());
+
+    const short = renderCollapsibleMessage(
+      { collapseMode: 'default' },
+      { clientHeight: 40, scrollHeight: 40 }
+    );
+    expect(findFades(short)).toHaveLength(0);
+    act(() => short.unmount());
   });
 
   it('content wrapper has no click handler when collapsed (nested interactive elements safe)', () => {

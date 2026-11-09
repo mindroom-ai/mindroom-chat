@@ -136,6 +136,7 @@ vi.mock('../../timeline/CollapsibleMessage.css', () => ({
   CollapsibleFooter: 'collapsible-footer',
   CollapsibleStickyFooter: 'collapsible-sticky-footer',
   CollapsiblePill: 'collapsible-pill',
+  CollapsedFade: 'collapsed-fade',
 }));
 vi.mock('../MessageExtras', () => ({
   MessageExtras: () => null,

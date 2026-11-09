@@ -4,7 +4,9 @@ import { color, config, toRem } from 'folds';
 import { footerInset } from '../ui/styles/RoomOverlay.css';
 import { glassFloating, glassSurface } from '../ui/styles/Glass.css';
 
-const collapsedMask = 'linear-gradient(to bottom, black calc(100% - 4em), transparent)';
+// A folded message fades out over its last 4em.
+const fadeHeight = '4em';
+const collapsedMask = `linear-gradient(to bottom, black calc(100% - ${fadeHeight}), transparent)`;
 
 export const CollapsibleContainer = style({
   display: 'grid',
@@ -18,6 +20,15 @@ export const CollapsibleContent = recipe({
       true: { maskImage: collapsedMask, WebkitMaskImage: collapsedMask },
     },
   },
+});
+
+// The faded lines of a folded message: a tap there unfolds it, as Show full message does.
+export const CollapsedFade = style({
+  gridArea: '1 / 1',
+  alignSelf: 'end',
+  blockSize: fadeHeight,
+  cursor: 'pointer',
+  zIndex: 1,
 });
 
 const footerBase = style({

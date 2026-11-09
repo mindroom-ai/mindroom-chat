@@ -392,6 +392,9 @@ export function CollapsibleMessage({
       >
         {renderedChildren}
       </div>
+      {/* The pill is the control that keyboards and screen readers reach; the fade is a larger
+          target for a pointer. */}
+      {isCollapsed && <div aria-hidden className={css.CollapsedFade} onClick={handleExpandClick} />}
       {showToggle && (
         <div
           data-message-disclosure=""
