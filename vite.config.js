@@ -28,11 +28,11 @@ import { mindroomBuildAssets } from './scripts/vite-build-assets.mjs';
 // directory, so it may be cached for good like the rest of assets/. The runtime's module goes as
 // .js: nginx, among other static hosts, has no JavaScript type for .mjs.
 const SPEECH_MODEL_FILES = [
-  ['@ricky0123/vad-web/dist/vad.worklet.bundle.min.js', 'text/javascript'],
-  ['@ricky0123/vad-web/dist/silero_vad_legacy.onnx', 'application/octet-stream'],
-  ['onnxruntime-web/dist/ort-wasm-simd-threaded.wasm', 'application/wasm'],
-  ['onnxruntime-web/dist/ort-wasm-simd-threaded.mjs', 'text/javascript'],
-].map(([file, type]) => ({
+  { file: '@ricky0123/vad-web/dist/vad.worklet.bundle.min.js', type: 'text/javascript' },
+  { file: '@ricky0123/vad-web/dist/silero_vad_legacy.onnx', type: 'application/octet-stream' },
+  { file: 'onnxruntime-web/dist/ort-wasm-simd-threaded.wasm', type: 'application/wasm' },
+  { file: 'onnxruntime-web/dist/ort-wasm-simd-threaded.mjs', type: 'text/javascript' },
+].map(({ file, type }) => ({
   source: readFileSync(new URL(`node_modules/${file}`, import.meta.url)),
   name: path.basename(file).replace(/\.mjs$/, '.js'),
   type,
@@ -55,7 +55,8 @@ const speechModelFiles = () => ({
   },
   configureServer(server) {
     server.middlewares.use(`/${SPEECH_MODEL_DIR}`, (request, response, next) => {
-      const file = SPEECH_MODEL_FILES.find(({ name }) => request.url === `/${name}`);
+      // The runtime's module is imported with Vite's `?import` query in development.
+      const file = SPEECH_MODEL_FILES.find(({ name }) => request.url?.split('?')[0] === `/${name}`);
       if (!file) return next();
       response.setHeader('Content-Type', file.type);
       return response.end(file.source);
