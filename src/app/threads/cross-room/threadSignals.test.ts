@@ -1,6 +1,14 @@
-import { createClient, MatrixEvent, ReceiptType, RelationType, Room } from 'matrix-js-sdk';
+import {
+  ClientEvent,
+  createClient,
+  MatrixEvent,
+  ReceiptType,
+  RelationType,
+  Room,
+} from 'matrix-js-sdk';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
 import { FINISHED_AFTER_MS, isCountedReply, readThreadSignals } from './threadSignals';
 
 const ROOM_ID = '!signals:example.org';
@@ -155,6 +163,19 @@ describe('readThreadSignals', () => {
 
     expect(signals.newCount).toBe(0);
     expect(signals.lastReply?.eventId).toBe('$reply');
+  });
+
+  it('previews an agent reply by its words, its tool calls counted, not written out', async () => {
+    const body = '🔧 `job` [1]\n🔧 `read_file` [2]\nHere is the **reply** to the licensor.';
+    const { room } = await setup(ME, [
+      event({ id: '$r', ts: 2000, sender: AGENT, content: { body } }),
+    ]);
+
+    expect(readThreadSignals(room, ROOT, ME, NOW).lastReply?.preview).toEqual({
+      kind: 'text',
+      text: expect.stringContaining('Here is the reply to the licensor.'),
+      localization: { kind: 'tools', count: 2, prose: 'Here is the reply to the licensor.' },
+    });
   });
 
   it('previews voice, image and file messages by their kind', async () => {
@@ -445,6 +466,30 @@ describe('readThreadSignals in a loaded thread with edits', () => {
     const signals = readThreadSignals(room, ROOT, ME, NOW);
     expect(signals.newCount).toBe(1);
     expect(signals.newSenderIds).toEqual([AGENT]);
+  });
+
+  it('takes an approval for answered once the edit resolving it syncs, in a thread not opened', async () => {
+    const { mx, room } = await setup(ME, [approval('$ask', 2000, null)]);
+    const stop = keepSyncedEdits(mx);
+    // MindRoom resolves a card by editing it; a thread not opened holds the edit back.
+    const { 'm.relates_to': _thread, ...card } = approval('$ask', 2000, null).getContent();
+    mx.emit(
+      ClientEvent.Event,
+      new MatrixEvent({
+        type: 'io.mindroom.tool_approval',
+        event_id: '$ask-resolved',
+        room_id: ROOM_ID,
+        sender: AGENT,
+        origin_server_ts: 3000,
+        content: {
+          'm.new_content': { ...card, status: 'approved' },
+          'm.relates_to': { rel_type: RelationType.Replace, event_id: '$ask' },
+        },
+      })
+    );
+
+    expect(readThreadSignals(room, ROOT, ME, NOW).pendingApproval).toBeUndefined();
+    stop();
   });
 
   it('drops an approval once it expired', async () => {

@@ -2,8 +2,14 @@ import { EventType, MatrixEvent, NotificationCountType, RelationType, Room } fro
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { canSubmitApprovalDecision } from '../../approvals/approvalActions';
 import { getThreadReadState } from '../../event-store/threads/roomThreadList';
+import {
+  getThreadMessagePreviewText,
+  getThreadPreviewLocalization,
+  type ThreadPreviewLocalization,
+} from '../../event-store/threads/threadMessagePreview';
 import { threadReceiptNamesEvent } from '../../event-store/threads/streamFinish';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
+import { getSyncedEdit } from '../../matrix/client/syncedEdits';
 import { getAiRunInfo, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
 import { isCallRowEvent } from '../../matrix/protocol/callRow';
 import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
@@ -13,10 +19,11 @@ import {
   type ThreadApprovalRecord,
 } from '../../matrix/protocol/threadApprovalModel';
 import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
+import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
 import { getEditedEvent } from '../../matrix/room';
 
 export type ThreadPreview =
-  | { kind: 'text'; text: string }
+  | { kind: 'text'; text: string; localization?: ThreadPreviewLocalization }
   | { kind: 'voice' | 'image' | 'video' | 'file' };
 export type ThreadReply = { eventId: string; senderId: string; ts: number; preview: ThreadPreview };
 export type ThreadQuestion = {
@@ -123,8 +130,14 @@ const previewOf = (content: Record<string, unknown>): ThreadPreview => {
     case 'm.file':
       return { kind: 'file' };
     default: {
-      const body = typeof content.body === 'string' ? content.body : '';
-      return { kind: 'text', text: body.replace(/\s+/g, ' ').trim().slice(0, PREVIEW_LENGTH) };
+      // As the rest of the app previews it: tool calls counted, Markdown and reply quotes dropped.
+      const text = getThreadMessagePreviewText(content) ?? '';
+      const localization = getThreadPreviewLocalization(content, text);
+      return {
+        kind: 'text',
+        text: text.slice(0, PREVIEW_LENGTH),
+        ...(localization ? { localization } : {}),
+      };
     }
   }
 };
@@ -244,7 +257,21 @@ export const readThreadSignals = (
   const unread = counted.filter(isUnread);
   const newest = counted.at(-1);
 
-  const pendingApproval = collectThreadApprovals(all, room.roomId, rootId, now)
+  // MindRoom answers a card by editing it, which a thread not opened holds back: the edits the
+  // sync brought count too.
+  const syncedCardEdits = all.flatMap((event) => {
+    const edit =
+      event.getType() === MINDROOM_TOOL_APPROVAL_EVENT
+        ? getSyncedEdit(event.getId() ?? '')
+        : undefined;
+    return edit && !all.includes(edit) ? [edit] : [];
+  });
+  const pendingApproval = collectThreadApprovals(
+    [...all, ...syncedCardEdits],
+    room.roomId,
+    rootId,
+    now
+  )
     .filter(
       (record) =>
         isAgent(record.sender) &&

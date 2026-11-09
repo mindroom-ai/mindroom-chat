@@ -4,8 +4,9 @@ import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
 import type { ThreadSignals } from './threadSignals';
 import { createThreadSignalsReader } from './threadSignalsReader';
 
-const mocks = vi.hoisted(() => ({ read: vi.fn() }));
+const mocks = vi.hoisted(() => ({ read: vi.fn(), syncedEdit: vi.fn() }));
 vi.mock('./threadSignals', () => ({ readThreadSignals: mocks.read }));
+vi.mock('../../matrix/client/syncedEdits', () => ({ getSyncedEdit: mocks.syncedEdit }));
 
 const NOW = Date.UTC(2026, 10, 9, 12);
 const quiet: ThreadSignals = {
@@ -15,8 +16,14 @@ const quiet: ThreadSignals = {
   automation: false,
 };
 
-const entry = (generation = 1) =>
-  ({ key: 'k', roomId: '!r:x', threadRootId: '$root', generation } as CrossRoomThreadIndexEntry);
+const entry = (generation = 1, isInvolved = true) =>
+  ({
+    key: 'k',
+    roomId: '!r:x',
+    threadRootId: '$root',
+    generation,
+    isInvolved,
+  } as CrossRoomThreadIndexEntry);
 
 const makeRoom = () => {
   const thread = { events: [{ getId: () => '$a' }] };
@@ -32,7 +39,10 @@ const makeRoom = () => {
   return { room, thread, reactions };
 };
 
-afterEach(() => mocks.read.mockReset());
+afterEach(() => {
+  mocks.read.mockReset();
+  mocks.syncedEdit.mockReset();
+});
 
 describe('createThreadSignalsReader', () => {
   it('reads a thread once while nothing about it changes', () => {
@@ -72,6 +82,25 @@ describe('createThreadSignalsReader', () => {
     expect(mocks.read).toHaveBeenCalledTimes(2);
   });
 
+  it('reads again when the card of a waiting approval is edited outside the loaded thread', () => {
+    const approval = {
+      eventId: '$ask',
+      wireStatus: 'pending',
+      approval: { status: 'pending', expiresAt: new Date(NOW + 600_000).toISOString() },
+    };
+    mocks.read.mockReturnValue({ ...quiet, pendingApproval: approval });
+    const { room } = makeRoom();
+    const reader = createThreadSignalsReader();
+    reader.read(room, entry(), '@me:x', NOW);
+    reader.read(room, entry(), '@me:x', NOW);
+    expect(mocks.read).toHaveBeenCalledTimes(1);
+    mocks.syncedEdit.mockImplementation((id: string) =>
+      id === '$ask' ? { getId: () => '$ask-resolved' } : undefined
+    );
+    reader.read(room, entry(), '@me:x', NOW);
+    expect(mocks.read).toHaveBeenCalledTimes(2);
+  });
+
   it('reads again when a reaction lands on the question it waits on', () => {
     mocks.read.mockReturnValue({
       ...quiet,
@@ -83,6 +112,19 @@ describe('createThreadSignalsReader', () => {
     reactions.push({});
     reader.read(room, entry(), '@me:x', NOW);
     expect(mocks.read).toHaveBeenCalledTimes(2);
+  });
+
+  it('asks the user only the questions of threads they take part in', () => {
+    const question = { eventId: '$q', senderId: '@mindroom_a:x', text: 'q', options: [] };
+    mocks.read.mockReturnValue({ ...quiet, pendingQuestion: question });
+    const { room } = makeRoom();
+    // Someone else's thread in a shared room: the agent asks them, not the user.
+    expect(
+      createThreadSignalsReader().read(room, entry(1, false), '@me:x', NOW).pendingQuestion
+    ).toBeUndefined();
+    expect(createThreadSignalsReader().read(room, entry(), '@me:x', NOW).pendingQuestion).toBe(
+      question
+    );
   });
 
   it('forgets threads the index no longer lists', () => {

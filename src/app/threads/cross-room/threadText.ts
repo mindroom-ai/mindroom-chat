@@ -3,6 +3,7 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { getMxIdLocalPart } from '../../matrix/matrix';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { getMemberRawDisplayName, getSenderName } from '../../matrix/room';
+import { localizeThreadPreview } from '../../event-store/threads/threadMessagePreview';
 import { revealDirectionControls } from '../../ui/directional';
 import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
 import type { ThreadPreview } from './threadSignals';
@@ -27,7 +28,7 @@ export const threadActorName = (mx: MatrixClient, room: Room | null, userId: str
  */
 export const threadPreviewText = (t: TFunction, preview: ThreadPreview): string =>
   preview.kind === 'text'
-    ? revealDirectionControls(preview.text)
+    ? localizeThreadPreview(preview.text, preview.localization, t) ?? ''
     : t(`threadPreview.${preview.kind}`);
 
 /** A thread's title in the cross-room lists: its AI title, else its first message, controls written out. */

@@ -279,6 +279,32 @@ describe('ActivityList', () => {
     expect(mocks.markActivityRowsRead).toHaveBeenCalledWith(mx, ROWS, false);
   });
 
+  it('previews an agent reply with its tool calls as a count', () => {
+    // The stored text is the source's; the row writes the tool count in the user's language.
+    const text = 'stored preview';
+    renderList({
+      rows: [
+        threadRow('tools', 'reply', {
+          newCount: 1,
+          lastReply: {
+            eventId: '$t',
+            senderId: '@mindroom_mind:x',
+            ts: NOW,
+            preview: {
+              kind: 'text',
+              text,
+              localization: { kind: 'tools', count: 2, prose: 'Here is the reply' },
+            },
+          },
+        }),
+      ],
+      hiddenAutomations: 0,
+    });
+    expect(
+      within(rowByTitle('Thread tools')).getByText('🔧 2 tools · Here is the reply')
+    ).toBeTruthy();
+  });
+
   it('says You replied when the user wrote last', () => {
     renderList({
       rows: [threadRow('own', 'reply', {}, { unread: false, actorIds: ['@alice:x'] })],

@@ -1,5 +1,6 @@
 import { EventType, RelationType } from 'matrix-js-sdk';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { getSyncedEdit } from '../../matrix/client/syncedEdits';
 import { isPendingApproval } from '../../matrix/protocol/threadApprovalModel';
 import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
 import { readThreadSignals, type ThreadSignals } from './threadSignals';
@@ -27,22 +28,31 @@ const reactionCount = (room: Room, eventId: string): number =>
 /**
  * A cache of thread signals. An index entry's `generation` misses changes the signals see: a
  * reaction or an approval card's edit in the loaded thread, a reaction on the question it waits
- * on, and the clock that expires an approval; the cache key holds those too.
+ * on, the edit that answers its waiting approval, and the clock that expires an approval; the
+ * cache key holds those too.
  */
 export const createThreadSignalsReader = (): ThreadSignalsReader => {
   const cache = new Map<string, Cached>();
   return {
     read: (room, entry, userId, now) => {
       const events = room.getThread(entry.threadRootId)?.events ?? [];
+      const base = `${entry.generation}:${events.length}:${events.at(-1)?.getId() ?? ''}`;
+      // What a thread waits on adds to its key: reactions on the question, the card's synced edit.
+      const keyOf = ({ pendingQuestion, pendingApproval }: ThreadSignals) =>
+        [
+          base,
+          pendingQuestion ? reactionCount(room, pendingQuestion.eventId) : '',
+          pendingApproval ? getSyncedEdit(pendingApproval.eventId)?.getId() ?? '' : '',
+        ].join(':');
       const previous = cache.get(entry.key);
-      let key = `${entry.generation}:${events.length}:${events.at(-1)?.getId() ?? ''}`;
-      const question = previous?.signals.pendingQuestion;
-      if (question) key += `:${reactionCount(room, question.eventId)}`;
       const approval = previous?.signals.pendingApproval;
       const expired = !!approval && !isPendingApproval(approval, now);
-      if (previous && previous.key === key && !expired) return previous.signals;
-      const signals = readThreadSignals(room, entry.threadRootId, userId, now);
-      cache.set(entry.key, { key, signals });
+      if (previous && previous.key === keyOf(previous.signals) && !expired) return previous.signals;
+      const read = readThreadSignals(room, entry.threadRootId, userId, now);
+      // An agent asks whoever it talks with: in a thread the user takes no part in, not them.
+      const { pendingQuestion: _theirs, ...others } = read;
+      const signals = entry.isInvolved ? read : others;
+      cache.set(entry.key, { key: keyOf(signals), signals });
       return signals;
     },
     prune: (keep) => {
