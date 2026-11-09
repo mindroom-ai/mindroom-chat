@@ -58,9 +58,10 @@ afterEach(() => {
 /**
  * A scroller whose visible rows start at y=100 (its scroll padding), with an `[+all]`-like
  * control from y=110 to 130 at the right, and a row at `rowTop` whose toolbar normally sits 30 px
- * above it at the right edge.
+ * above it at the right edge. With `senderRight`, the row has a sender line from 4 to 26 px into it,
+ * from x=60 to `senderRight`.
  */
-const renderRow = (rowTop: number, overlayLeft = 900) => {
+const renderRow = (rowTop: number, overlayLeft = 900, senderRight?: number) => {
   const seen: Array<number | undefined> = [];
   function Row() {
     const rowRef = useRef<HTMLDivElement>(null);
@@ -72,6 +73,7 @@ const renderRow = (rowTop: number, overlayLeft = 900) => {
         <div {...{ [TIMELINE_OVERLAY_ATTRIBUTE]: '' }} data-testid="overlay" />
         <div ref={rowRef} data-testid="row">
           <div ref={toolbarRef} data-testid="toolbar" />
+          {senderRight !== undefined && <div data-message-sender-line="" data-testid="sender" />}
         </div>
       </div>
     );
@@ -81,6 +83,7 @@ const renderRow = (rowTop: number, overlayLeft = 900) => {
     overlay: { top: 110, bottom: 130, left: overlayLeft, right: overlayLeft + 50 },
     row: { top: rowTop, bottom: rowTop + 80, left: 0, right: 1000 },
     toolbar: { top: rowTop - 30, bottom: rowTop + 6, left: 850, right: 1000 },
+    sender: { top: rowTop + 4, bottom: rowTop + 26, left: 60, right: senderRight ?? 0 },
   };
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(
     this: HTMLElement
@@ -112,6 +115,33 @@ describe('useToolbarClearance', () => {
     expect(renderRow(140)).toBe(-2);
   });
 
+  it('moves the toolbar of the row under the [+all] toggle below its sender line too', () => {
+    // The sender line ends at 166, plus an 8 px gap; the row starts at 140.
+    expect(renderRow(140, 900, 1000)).toBe(34);
+    // A sender line that ends before the toolbar's span starts, as in Compact, is no reason.
+    expect(renderRow(140, 900, 800)).toBe(-2);
+  });
+
+  it('places the toolbar again when the sender line changes size', () => {
+    const observed: Element[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe(element: Element) {
+          observed.push(element);
+        }
+
+        disconnect() {}
+      }
+    );
+    renderRow(140, 900, 1000);
+    vi.unstubAllGlobals();
+    expect(observed.map((element) => (element as HTMLElement).dataset.testid)).toEqual([
+      'row',
+      'sender',
+    ]);
+  });
+
   it('moves the toolbar of a row under the sticky header into the visible part of the row', () => {
     // No overlay over the toolbar; the visible rows start at 100.
     expect(renderRow(90, 100)).toBe(10);
@@ -138,5 +168,39 @@ describe('toolbarOffset', () => {
     // onto the row's own button; it goes up, 8 px clear of that button, instead.
     expect(place(40)).toBe(14);
     expect(place(40, [{ top: 20, bottom: 52, ownRow: true }])).toBe(-30);
+  });
+
+  describe('with the sender line of its row from 4 to 26 px', () => {
+    const sender = { top: 4, bottom: 26 };
+    const placeWithSender = (covered: number, folds: Parameters<typeof toolbarOffset>[4] = []) =>
+      toolbarOffset(-36, covered, 60, 42, folds, sender);
+
+    it('keeps the usual place, which ends just inside the row', () => {
+      expect(placeWithSender(-200)).toBeUndefined();
+    });
+
+    it('moves below the sender line when the fold button of the message above pushes it down', () => {
+      // Under Show less it would cover the end of the sender line, with the time and the reply
+      // details button; it goes 8 px below the line instead.
+      expect(placeWithSender(-200, [{ top: -46, bottom: -14, ownRow: false }])).toBe(34);
+    });
+
+    it('moves below the sender line when what floats over the timeline pushes it down', () => {
+      expect(placeWithSender(10)).toBe(34);
+    });
+
+    it('ignores a sender line hidden under the header', () => {
+      expect(placeWithSender(40)).toBe(14);
+    });
+
+    it('stays under the fold button above when its own Show less is below the sender line', () => {
+      // A long row's own Show less sticks to the bottom of the view, here 60 px into the row,
+      // where the toolbar below the sender line would cover it.
+      const folds = [
+        { top: -46, bottom: -14, ownRow: false },
+        { top: 60, bottom: 92, ownRow: true },
+      ];
+      expect(toolbarOffset(-36, -200, 400, 42, folds, sender)).toBe(-6);
+    });
   });
 });
