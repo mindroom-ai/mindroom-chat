@@ -1,4 +1,5 @@
 import type { NavigateOptions, Path } from 'react-router-dom';
+import { getActiveSession } from '../matrix/session/sessions';
 import { isNativeIOS } from '../native/nativeSso';
 import {
   setRoomThreadExitTargetForHistoryState,
@@ -23,6 +24,8 @@ export type RoomThreadNavigationOptions = {
   getHistoryState?: () => unknown;
   schedule?: (callback: () => void) => void;
   isNativeIOSDevice?: () => boolean;
+  /** The active account, which the exit target records as the one that opened the thread. */
+  getSessionId?: () => string | undefined;
 };
 
 const afterNextPaint = (callback: () => void) => {
@@ -43,6 +46,7 @@ export const navigateToRoomThread = ({
   getHistoryState = () => window.history.state,
   schedule = afterNextPaint,
   isNativeIOSDevice = isNativeIOS,
+  getSessionId = () => getActiveSession()?.sessionId,
 }: RoomThreadNavigationOptions): void => {
   const seededExitTarget = !opts?.replace;
   const exitTarget = seededExitTarget
@@ -51,6 +55,7 @@ export const navigateToRoomThread = ({
         roomId,
         threadId,
         useHistoryBack: !isNativeIOSDevice(),
+        sessionId: getSessionId(),
       }
     : undefined;
   const nextOpts = exitTarget

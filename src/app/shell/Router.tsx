@@ -11,6 +11,7 @@ import type { ClientConfig } from '../config/useClientConfig';
 import { ConnectPage } from '../local-mindroom/ConnectPage';
 import { setAfterLoginRedirectPath } from '../routes/afterLoginRedirectPath';
 import { useHistoryStackRecorder } from '../routes/historyStack';
+import { useActiveSession } from '../matrix/session/useSessionStore';
 import {
   resolveProtectedRouteRedirect,
   resolveRootRouteRedirect,
@@ -179,7 +180,7 @@ function ProtectedRoutes({ hashRouter }: { hashRouter: ClientConfig['hashRouter'
 
 /** Follows the history entries the signed-in pages show, for their back buttons. */
 function HistoryStackRecorder() {
-  useHistoryStackRecorder();
+  useHistoryStackRecorder(useActiveSession()?.sessionId);
   return null;
 }
 

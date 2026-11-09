@@ -22,7 +22,7 @@ afterEach(cleanup);
  */
 function Thread() {
   // As in the app, whose signed-in pages all sit inside the recorder.
-  useHistoryStackRecorder();
+  useHistoryStackRecorder(undefined);
   const { pathname, search } = useLocation();
   const { navigatePath, navigateRoomThread } = useRoomNavigate();
   const back = () => {
