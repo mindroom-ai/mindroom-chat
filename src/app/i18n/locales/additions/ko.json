@@ -739,9 +739,6 @@
   "thread": {
     "back": "뒤로"
   },
-  "nav": {
-    "activity": "활동"
-  },
   "activity": {
     "title": "활동",
     "unreadOnly": "읽지 않음",

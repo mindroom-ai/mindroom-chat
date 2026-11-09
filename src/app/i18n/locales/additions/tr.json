@@ -750,9 +750,6 @@
   "thread": {
     "back": "Geri"
   },
-  "nav": {
-    "activity": "Etkinlik"
-  },
   "activity": {
     "title": "Etkinlik",
     "unreadOnly": "Okunmamış",

@@ -761,9 +761,6 @@
   "thread": {
     "back": "Voltar"
   },
-  "nav": {
-    "activity": "Atividade"
-  },
   "activity": {
     "title": "Atividade",
     "unreadOnly": "Não lidos",

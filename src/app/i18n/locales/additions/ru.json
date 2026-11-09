@@ -772,9 +772,6 @@
   "thread": {
     "back": "Назад"
   },
-  "nav": {
-    "activity": "Активность"
-  },
   "activity": {
     "title": "Активность",
     "unreadOnly": "Непрочитанные",

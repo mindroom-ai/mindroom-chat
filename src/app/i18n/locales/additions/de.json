@@ -750,9 +750,6 @@
   "thread": {
     "back": "Zurück"
   },
-  "nav": {
-    "activity": "Aktivität"
-  },
   "activity": {
     "title": "Aktivität",
     "unreadOnly": "Ungelesen",

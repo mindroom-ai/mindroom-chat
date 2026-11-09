@@ -761,9 +761,6 @@
   "thread": {
     "back": "Indietro"
   },
-  "nav": {
-    "activity": "Attività"
-  },
   "activity": {
     "title": "Attività",
     "unreadOnly": "Non letti",

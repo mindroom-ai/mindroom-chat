@@ -761,9 +761,6 @@
   "thread": {
     "back": "Retour"
   },
-  "nav": {
-    "activity": "Activité"
-  },
   "activity": {
     "title": "Activité",
     "unreadOnly": "Non lus",

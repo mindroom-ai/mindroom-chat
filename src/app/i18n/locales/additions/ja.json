@@ -739,9 +739,6 @@
   "thread": {
     "back": "戻る"
   },
-  "nav": {
-    "activity": "アクティビティ"
-  },
   "activity": {
     "title": "アクティビティ",
     "unreadOnly": "未読",

@@ -228,7 +228,7 @@ export const createRouter = (clientConfig: ClientConfig) => {
           <Route path={DIRECT_ROOM_PATH} element={<RoomPage />} />
         </Route>
         <Route path={SETTINGS_PATH} element={<SettingsDeepLink />} />
-        <Route path={THREADS_PATH} element={<SectionPage navId="threads" nav={<ThreadsNav />} />}>
+        <Route path={THREADS_PATH} element={<SectionPage nav={<ThreadsNav />} />}>
           <Route index element={<SectionIndex page={<ThreadsEmpty />} />} />
           <Route path={THREADS_ROOM_PATH} element={<RoomPage />} />
         </Route>
@@ -251,10 +251,7 @@ export const createRouter = (clientConfig: ClientConfig) => {
           <Route index element={<PluginPageRoute />} />
           <Route path="*" element={<PluginPageRoute />} />
         </Route>
-        <Route
-          path={ACTIVITY_PATH}
-          element={<SectionPage navId="activity" nav={<ActivityNav />} />}
-        >
+        <Route path={ACTIVITY_PATH} element={<SectionPage nav={<ActivityNav />} />}>
           <Route index element={<SectionIndex page={<ActivityEmpty />} />} />
           <Route path={ACTIVITY_INVITES_PATH} element={<Invites />} />
           <Route path={ACTIVITY_ROOM_PATH} element={<RoomPage />} />

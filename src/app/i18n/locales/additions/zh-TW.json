@@ -739,9 +739,6 @@
   "thread": {
     "back": "返回"
   },
-  "nav": {
-    "activity": "動態"
-  },
   "activity": {
     "title": "動態",
     "unreadOnly": "未讀",
