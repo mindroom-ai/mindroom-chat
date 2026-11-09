@@ -144,11 +144,12 @@ export type RoomComputer = {
   /** The agent's name in the room, or its user ID without one. */
   name: string;
   /**
-   * The agent's own MindRoom server, the one `openSession` signs in to: the server the agent
-   * published, with a session for a token bound to it, else the computer server set for every
-   * agent. In a room whose agents publish different servers, it is the one for this agent's
-   * routes and websockets, where `useMindroomServer` gives one server for the whole room. It
-   * shares the account's one session with that server.
+   * The agent's own MindRoom server, the one `openSession` signs in to: with a computer server set
+   * for every agent (the person's in Settings, else `mindroom.computers.apiUrl`), that one;
+   * without one, the server the agent published, with a session for a token bound to it. In a
+   * room whose agents publish different servers, it is the one for this agent's routes and
+   * websockets, where `useMindroomServer` gives one server for the whole room. It shares the
+   * account's one session with that server.
    */
   server: MindroomServer;
   /**
