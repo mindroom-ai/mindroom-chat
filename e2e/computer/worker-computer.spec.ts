@@ -68,7 +68,7 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
       encodeURIComponent(fixture.thread_id)
   );
   // No agent showed this computer, so only the room menu offers it; the header button follows once it is open.
-  const showComputer = page.getByRole('button', { name: 'Show Computer', exact: true });
+  const showComputer = page.getByRole('menuitem', { name: 'Show Computer', exact: true });
   const showComputerFromMenu = async () => {
     await page.getByRole('button', { name: 'More Options', exact: true }).click();
     await showComputer.click();
