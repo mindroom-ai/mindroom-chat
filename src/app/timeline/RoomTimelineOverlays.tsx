@@ -192,10 +192,10 @@ function ExpandAllButton({ expanded, onToggle }: ExpandAllProps) {
 }
 
 /**
- * The toggle takes a line of its own above the rows, in the room and in a thread, where it sits
- * under the banner at the top and scrolls away with the rows, so it never covers one. It sits at
- * the line's end; `atStart` moves it to the line's start, in the column a phone's unread pills
- * keep clear (`EXPAND_ALL_START_COLUMN`), without changing the line's height.
+ * The toggle takes a line of its own above the room's rows (a thread has none) and scrolls away
+ * with them, so it never covers one. It sits at the line's end; `atStart` moves it to the line's
+ * start, in the column a phone's unread pills keep clear (`EXPAND_ALL_START_COLUMN`), without
+ * changing the line's height.
  */
 export function ExpandAllLine({
   atStart = false,

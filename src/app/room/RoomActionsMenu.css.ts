@@ -1,19 +1,13 @@
-import { globalStyle, style } from '@vanilla-extract/css';
+import { style } from '@vanilla-extract/css';
 
-// On a touch screen each row of a room's menu is a full 44 px target, and the menu scrolls when
-// its rows outgrow the window (a phone's room menu also holds what its header leaves out).
-const touch = '(pointer: coarse)';
-
+// On a touch screen the menu scrolls when its rows outgrow the window (a phone's room menu also
+// holds what its header leaves out). Its rows keep the height of a message's menu rows.
 export const RoomMenu = style({
   '@media': {
-    [touch]: {
+    '(pointer: coarse)': {
       maxHeight: 'calc(100dvh - 4.5rem)',
       overflowY: 'auto',
       overscrollBehavior: 'contain',
     },
   },
-});
-
-globalStyle(`${RoomMenu} :is([role="menuitem"], [role="menuitemcheckbox"])`, {
-  '@media': { [touch]: { minHeight: '44px' } },
 });

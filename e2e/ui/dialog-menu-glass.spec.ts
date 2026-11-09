@@ -133,28 +133,36 @@ for (const theme of ['silver', 'dark']) {
     for (const width of [390, 900]) {
       await page.setViewportSize({ width, height: 620 });
       await page.goto(`/e2e/fixtures/glass-surfaces.html?menus&theme=${theme}`);
-      await page.getByRole('button', { name: /^Choose model / }).click();
+      const trigger = page.getByRole('button', { name: /^Choose model / });
+      await trigger.click();
       const dialog = page.getByRole('dialog', { name: 'Model for this thread' });
-      const title = dialog.locator('[data-glass-flat="true"]').first();
-      const scroll = await expectFloatingNavHeader(title, { inheritsPanelTint: true });
-      const search = dialog.getByRole('searchbox');
+      // A compact menu above its button, inside the window.
+      const menu = (await dialog.boundingBox())!;
+      const button = (await trigger.boundingBox())!;
+      expect(menu.y + menu.height).toBeLessThanOrEqual(button.y);
+      expect(menu.x).toBeGreaterThanOrEqual(0);
+      expect(menu.x + menu.width).toBeLessThanOrEqual(width);
+      expect(menu.width).toBeLessThanOrEqual(272);
+      // 24 models: a filter field above them, which keeps focus and stays while they scroll.
+      const search = dialog.getByRole('searchbox', { name: 'Search models' });
       await expect(search).toBeFocused();
-      const track = scroll.getByRole('scrollbar');
-      const bounds = (await track.boundingBox())!;
-      await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height * 0.8);
-      expect(await scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(100);
+      const field = (await search.boundingBox())!;
+      const last = dialog.getByRole('option', { name: /^Studio model 24 / });
+      await page.mouse.move(menu.x + menu.width / 2, menu.y + menu.height - 24);
+      await expect
+        .poll(async () => {
+          await page.mouse.wheel(0, 400);
+          const row = (await last.boundingBox())!;
+          return row.y + row.height <= menu.y + menu.height;
+        })
+        .toBe(true);
+      expect((await search.boundingBox())!.y).toBe(field.y);
       await expect(search).toBeFocused();
       await page.keyboard.press('ArrowDown');
       const activeId = await search.getAttribute('aria-activedescendant');
       const option = page.locator(`[id="${activeId}"]`);
       await expect(option).toBeInViewport({ ratio: 1 });
-      expect((await option.boundingBox())!.y).toBeGreaterThanOrEqual(
-        (await title.boundingBox())!.y + (await title.boundingBox())!.height - 1
-      );
-      await scroll.evaluate((element) => {
-        element.scrollTop = 160;
-      });
-      await expectFloatingNavHeader(title, { inheritsPanelTint: true });
+      expect((await option.boundingBox())!.y).toBeGreaterThanOrEqual(field.y + field.height);
       await page.mouse.move(1, 1);
       await page.screenshot({ path: testInfo.outputPath(`models-${width}.png`), scale: 'css' });
       await search.fill('Studio model 24');
@@ -166,8 +174,28 @@ for (const theme of ['silver', 'dark']) {
       );
       await page.keyboard.press('Enter');
       await expect(page.locator('output')).toHaveText('model-24');
-      await dialog.getByRole('button', { name: 'Close model picker' }).click();
-      await expect(page.getByRole('button', { name: /^Choose model / })).toBeFocused();
+      const aboveButton = async () => {
+        const shrunk = (await dialog.boundingBox())!;
+        return shrunk.y >= 0 && shrunk.y + shrunk.height <= (await trigger.boundingBox())!.y;
+      };
+      // A phone's keyboard shrinks the window under the open menu, which stays above its button.
+      await page.setViewportSize({ width, height: 420 });
+      await expect.poll(aboveButton).toBe(true);
+      // Where it pans only the visual viewport, useMobileKeyboardViewportFix shortens #root a
+      // frame later. With the button at the foot of #root, as the composer is, the menu follows.
+      await page.setViewportSize({ width, height: 620 });
+      await trigger.evaluate((button) => {
+        document.getElementById('root')!.style.position = 'relative';
+        button.closest<HTMLElement>('div[style*="fixed"]')!.style.position = 'absolute';
+      });
+      await page.evaluate(() =>
+        document.documentElement.style.setProperty('--app-height', '360px')
+      );
+      await expect.poll(async () => (await trigger.boundingBox())!.y).toBeLessThan(360);
+      await expect.poll(aboveButton).toBe(true);
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+      await expect(trigger).toBeFocused();
     }
 
     await page.setViewportSize({ width: 390, height: 480 });

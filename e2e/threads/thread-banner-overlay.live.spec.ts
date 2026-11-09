@@ -159,25 +159,11 @@ for (const viewport of [
         initialBanner!
       );
       expect(rowsBehindBanner, 'rendered messages continue behind the glass').toBeGreaterThan(0);
-      // [+all] takes a line of its own above the first row and scrolls away with the rows, so no
-      // message passes beneath it (live-test L8-F002: it used to float over their text).
-      const expansionButton = page.getByRole('button', {
-        name: /^(Expand|Collapse) all long messages$/,
-      });
-      const expansionBox = (await expansionButton.boundingBox())!;
-      const rowsBehindExpansion = await page.locator('[data-message-item]').evaluateAll(
-        (rows, box) =>
-          rows.filter((row) => {
-            const rect = row.getBoundingClientRect();
-            return rect.top < box.y + box.height && rect.bottom > box.y;
-          }).length,
-        expansionBox
-      );
-      expect(rowsBehindExpansion, 'no message scrolls beneath [+all]').toBe(0);
-      expect(
-        expansionBox.y + expansionBox.height,
-        '[+all] scrolled away under the summary'
-      ).toBeLessThanOrEqual(initialBanner!.y + initialBanner!.height);
+      // A thread has no [+all] line over its rows (live-test L8-F002: it used to float over
+      // their text, then took a line of its own; now only the room has it).
+      await expect(
+        page.getByRole('button', { name: /^(Expand|Collapse) all long messages$/ })
+      ).toHaveCount(0);
       const footer = page.locator('[data-room-footer]');
       const emptyFooterHeight = (await footer.boundingBox())!.height;
       const clearComposer = async () => {
@@ -240,9 +226,6 @@ for (const viewport of [
 
       await scroll.getByRole('scrollbar').hover();
       await page.screenshot({ path: testInfo.outputPath('scrollbar-bottom.png') });
-      const expansionLabel = await expansionButton.textContent();
-      await expansionButton.click();
-      await expect(expansionButton).not.toHaveText(expansionLabel!);
       await banner.getByRole('button', { name: 'Resolve', exact: true }).click();
       await expect(banner.getByRole('button', { name: 'Resolved', exact: true })).toBeVisible();
       if (viewport.width === 390) {

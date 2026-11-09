@@ -23,7 +23,9 @@ const shot = async (page: Page, name: string) => {
     await page.screenshot({ path: `${process.env.AGENT_UI_SHOTS}/${name}.png` });
 };
 
-const named = (name: string): RegExp => new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+// A model's own row starts with its name; "Room default" names the models the agents fall back to.
+const named = (name: string): RegExp =>
+  new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
 
 test('a thread switches to another model from the picker, and the choice survives a reload', async ({
   page,

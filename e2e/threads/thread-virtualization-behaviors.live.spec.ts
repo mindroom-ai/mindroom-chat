@@ -16,7 +16,7 @@ import { loadAllOlderThreadMessages } from '../helpers/threadTimeline';
  *  - open-at-latest lands the viewport at the newest reply
  *  - streaming edits must NOT yank a user who scrolled up back to the bottom
  *  - clicking a reply quote targeting a loaded-but-unmounted row scrolls to it
- *  - expand-all applies to rows that mount only after scrolling
+ *  - a thread has no expand-all toggle, and the room's does not unfold its replies
  *  - a manually expanded row stays expanded after a virtualized remount
  */
 
@@ -386,7 +386,9 @@ test.describe('virtualized thread behaviors', () => {
     await expect(earlyRow).toBeInViewport({ timeout: 10_000 });
   });
 
-  test('expand-all applies to rows mounted after scrolling', async ({ page }) => {
+  test("a thread has no expand-all, and the room's leaves its long replies folded", async ({
+    page,
+  }) => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
@@ -398,33 +400,28 @@ test.describe('virtualized thread behaviors', () => {
       'io.mindroom.settings',
       {}
     );
-    const seeded = await seedThread(homeserver, session.accessToken, { longBodies: true });
+    const seeded = await seedThread(homeserver, session.accessToken, {
+      longBodies: true,
+      replyCount: 30,
+    });
 
     await loginWithPassword(page, { homeserver, username, password });
-    await openThread(page, seeded);
+    await page.goto(`/home/${encodeURIComponent(seeded.roomId)}`);
+    const expandAll = page.getByRole('button', { name: 'Expand all long messages', exact: true });
+    const bulkToggle = page.getByRole('button', { name: /^(Expand|Collapse) all long messages$/ });
+    await expandAll.click({ timeout: 60_000 });
+    await expect(
+      page.getByRole('button', { name: 'Collapse all long messages', exact: true })
+    ).toBeVisible();
 
-    // Sanity: long bodies start collapsed.
+    // Opened in place, so the room's unfolded baseline is still set.
+    await page.locator(`[data-thread-root-id="${seeded.rootId}"]`).first().click();
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('[data-message-item] [data-expanded="false"]').first()).toBeVisible({
       timeout: 15_000,
     });
-
-    await page.getByRole('button', { name: 'Expand all long messages' }).click();
-    await page.waitForTimeout(500);
-    expect(await page.locator('[data-message-item] [data-expanded="false"]').count()).toBe(0);
-
-    // Scroll far up so fresh rows mount outside the original window.
-    const timeline = page.locator('[data-message-item]').first();
-    await timeline.hover();
-    for (let i = 0; i < 25; i += 1) {
-      // eslint-disable-next-line no-await-in-loop
-      await page.mouse.wheel(0, -1600);
-      // eslint-disable-next-line no-await-in-loop
-      await page.waitForTimeout(80);
-    }
-    await page.waitForTimeout(800);
-
-    expect(await page.locator('[data-message-item]').count()).toBeGreaterThan(0);
-    expect(await page.locator('[data-message-item] [data-expanded="false"]').count()).toBe(0);
+    await expect(page.locator('[data-message-item] [data-expanded="true"]')).toHaveCount(0);
+    await expect(bulkToggle).toHaveCount(0);
   });
 
   test('manual Show full message survives scrolling out of and back into the virtual window', async ({

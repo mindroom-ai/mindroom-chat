@@ -246,7 +246,7 @@ export class ModelController {
     )
       return;
     if (this.queries.size >= 8) {
-      this.publish(scope, { error: 'Model discovery is busy. Try refresh.' });
+      this.publish(scope, { error: 'Model discovery is busy. Try again.' });
       return;
     }
     scope.generation += 1;
@@ -308,7 +308,7 @@ export class ModelController {
       this.publish(scope, {
         loading: false,
         ...(scope.snapshot.eligible || scope.needsRefresh
-          ? { error: 'Model discovery unavailable. Refresh or use !model.' }
+          ? { error: 'Model discovery unavailable. Retry or use !model.' }
           : {}),
       });
       return;
@@ -619,7 +619,7 @@ export class ModelController {
     } else {
       this.publish(scope, {
         pending: !!scope.send,
-        error: result.error ?? 'Model selection rejected. Refresh or use !model.',
+        error: result.error ?? 'Model selection rejected. Retry or use !model.',
       });
     }
   }
@@ -632,7 +632,7 @@ export class ModelController {
     scope.needsRefresh = true;
     this.publish(scope, {
       pending: !!scope.send,
-      error: 'Model selection unconfirmed. Refresh before trying again.',
+      error: 'Model selection unconfirmed. Try again once the models reload.',
     });
     this.refresh(scope.room, scope.threadId);
   }

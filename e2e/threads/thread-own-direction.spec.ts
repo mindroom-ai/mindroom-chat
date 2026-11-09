@@ -16,9 +16,10 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // A thread's title, its preview and the banner's summary are text people and agents wrote, so in
 // a right-to-left interface an English line keeps its own direction: it is cut at its end, not
 // at its start, and a closing question mark stays at its end. A card's title and preview line
-// up with their own start, so a wrapped English title's lines all start at the left. The [+all] toggle under the banner
-// reads as written, and so does an approval card's tool identifier. Checked on a phone and a
-// desktop, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
+// up with their own start, so a wrapped English title's lines all start at the left. The [+all]
+// toggle of the room's Threads view reads as written, and so does an approval card's tool
+// identifier. Checked on a phone and a desktop, in Chromium and, when
+// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'thread-own-direction-spec-password';
 const RUN = Date.now().toString(36);
@@ -240,14 +241,13 @@ const check = async (browser: Browser, engine: string, phone: boolean, baseURL?:
     });
   }
 
-  await page.goto(
-    `/home/${encodeURIComponent(world.roomId)}?threadId=${encodeURIComponent(world.rootId)}`
+  // The fold toggle above the room's rows in its Threads view (the cards and a thread have none)
+  // is a token, [+all]: its plus stays before the word.
+  await page.evaluate(
+    (id) => localStorage.setItem(`roomViewMode:${id}`, JSON.stringify('threaded')),
+    world.roomId
   );
-  const summary = page.locator('[data-thread-context-summary]');
-  await expect(summary).toHaveText(SUMMARY, { timeout: 30_000 });
-  expect(await placement(summary)).toMatchObject({ direction: 'ltr', firstCharInside: true });
-
-  // The fold toggle under the banner is a token, [+all]: its plus stays before the word.
+  await page.goto(`/home/${encodeURIComponent(world.roomId)}`);
   const toggle = page.getByRole('button', { name: 'توسيع كل الرسائل الطويلة' }); // Expand all long messages
   await expect(toggle).toBeVisible();
   const order = await toggle.evaluate((element) => {
@@ -263,6 +263,13 @@ const check = async (browser: Browser, engine: string, phone: boolean, baseURL?:
   expect(order, 'the characters of [+all] from left to right').toEqual(
     [...order].sort((a, b) => a - b)
   );
+
+  await page.goto(
+    `/home/${encodeURIComponent(world.roomId)}?threadId=${encodeURIComponent(world.rootId)}`
+  );
+  const summary = page.locator('[data-thread-context-summary]');
+  await expect(summary).toHaveText(SUMMARY, { timeout: 30_000 });
+  expect(await placement(summary)).toMatchObject({ direction: 'ltr', firstCharInside: true });
 
   // The approval card names the tool by its identifier too, which keeps its start in view.
   await page.getByRole('button', { name: /^مراجعة/ }).click();

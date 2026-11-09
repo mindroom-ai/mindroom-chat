@@ -12,6 +12,10 @@ import { countCacheProbe } from '../event-store/cache/cacheProbe';
 import * as css from './CollapsibleMessage.css';
 
 const MAX_HEIGHT = '11em';
+/** How far up from its bottom a folded message fades out, in em (the mask in its CSS). */
+const FADE_EM = 4;
+/** What keeps its own click in a folded message's faded lines. */
+const OWN_CLICK = 'a, button, input, select, textarea, summary, [role="button"], [role="link"]';
 
 // The owning timeline's expand/collapse-all baseline, scoped to that timeline
 // instance. Newly mounted rows read it render-purely as their initial expanded
@@ -361,6 +365,23 @@ export function CollapsibleMessage({
     setManualExpanded(true);
   }, [setManualExpanded]);
 
+  // A click on the faded lines of a folded message unfolds it, unless it lands on a link or
+  // button there or ends a text selection.
+  const handleFadeClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const content = contentRef.current;
+      // React passes on clicks from the message's portals too, such as an image viewer's.
+      if (!content || !event.currentTarget.contains(event.target as Node)) return;
+      const ownControl = (event.target as Element).closest(OWN_CLICK);
+      if (ownControl && event.currentTarget.contains(ownControl)) return;
+      if (globalThis.getSelection?.()?.isCollapsed === false) return;
+      const fontSize = Number.parseFloat(globalThis.getComputedStyle(content).fontSize);
+      if (event.clientY < content.getBoundingClientRect().bottom - FADE_EM * fontSize) return;
+      setManualExpanded(true);
+    },
+    [setManualExpanded]
+  );
+
   const handleCollapseClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -379,7 +400,10 @@ export function CollapsibleMessage({
       : children;
 
   return (
-    <div className={css.CollapsibleContainer}>
+    // The pill is the control keyboards and screen readers use; a click on the faded lines is a
+    // larger target for a pointer.
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+    <div className={css.CollapsibleContainer} onClick={isCollapsed ? handleFadeClick : undefined}>
       <div
         id={contentId}
         ref={contentRef}

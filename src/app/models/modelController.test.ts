@@ -672,7 +672,9 @@ describe('model mutation acknowledgement', () => {
     await flush();
     await flush();
     expect(sends).toHaveLength(1);
-    expect(h.snapshot().error).toBe('Model selection unconfirmed. Refresh before trying again.');
+    expect(h.snapshot().error).toBe(
+      'Model selection unconfirmed. Try again once the models reload.'
+    );
   });
   it('sends reset without a model key and applies only a confirmed null override', async () => {
     const h = setup();

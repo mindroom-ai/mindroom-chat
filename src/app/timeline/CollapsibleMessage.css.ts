@@ -4,6 +4,8 @@ import { color, config, toRem } from 'folds';
 import { footerInset } from '../ui/styles/RoomOverlay.css';
 import { glassFloating, glassSurface } from '../ui/styles/Glass.css';
 
+// A folded message fades out over its last 4em, where a click unfolds it (FADE_EM in
+// CollapsibleMessage.tsx).
 const collapsedMask = 'linear-gradient(to bottom, black calc(100% - 4em), transparent)';
 
 export const CollapsibleContainer = style({
