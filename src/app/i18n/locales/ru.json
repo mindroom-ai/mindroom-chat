@@ -40,7 +40,9 @@
       "silver": "Серебристая",
       "dark": "Тёмная",
       "midnight": "Полночь",
-      "butter": "Сливочная"
+      "butter": "Сливочная",
+      "green": "Зелёная",
+      "orange": "Оранжевая"
     },
     "prefetchScope": {
       "allRooms": "Все комнаты",

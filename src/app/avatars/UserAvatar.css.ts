@@ -29,4 +29,6 @@ const swatchVars = (kind: 'light' | 'dark'): Record<string, string> => {
 };
 
 globalStyle(':root', { vars: swatchVars('light') });
-globalStyle('.dark-theme, .midnight-theme, .butter-theme', { vars: swatchVars('dark') });
+globalStyle('.dark-theme, .midnight-theme, .butter-theme, .green-theme, .orange-theme', {
+  vars: swatchVars('dark'),
+});

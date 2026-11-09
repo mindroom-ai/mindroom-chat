@@ -43,7 +43,7 @@ A company can put its own logo, name and footer on the signed-out pages without 
 |---|---|---|---|
 | `branding.title` | string | `MindRoom Chat` | The name beside the logo in the card's header (the page's heading), in the loading screens' line and at their bottom, and in the browser tab, where a signed-in account adds its unread count in front. Without it the tab keeps `MindRoom`. A title too long for the header ends in an ellipsis. An empty title (`""`) shows no name beside the logo, for a wordmark logo that shows it already: the logo alone is the page's heading, which screen readers name by the logo's `alt` text, and that text is the name, which the loading screens and the tab then show (with the default logo it stays `MindRoom Chat`, and the tab keeps `MindRoom`). |
 | `branding.logo.src` | string (URL) | the MindRoom Chat logo | The logo in the card's header: an `https` URL, or a path on the app's own origin such as `/branding/logo.svg`, served beside `config.json`. Shown 28 pixels high and as wide as its proportions make it, up to 160 pixels. It is loaded without a referrer; if it does not load, the default logo is shown. |
-| `branding.logo.srcDark` | string (URL) | `src` | The logo in dark themes, under the same rules. Signed out, the app follows the system's light or dark setting. |
+| `branding.logo.srcDark` | string (URL) | `src` | The logo in dark themes, under the same rules. Signed out, the app shows `defaultTheme` (below), else follows the system's light or dark setting. |
 | `branding.logo.alt` | string | `MindRoom Chat Logo` | Required with `src`: what screen readers say for the logo. |
 | `branding.footer.text` | string, or a list of strings and `{label, url}` links | none | A line under the card, before the credits. A list is read in order as one line, its links inside the text, each opened in a new tab, with `url` an absolute `http`, `https` or `mailto` address: `[{"label": "Example", "url": "https://example.com/source"}, " by ", {"label": "Example Co", "url": "https://www.example.com"}]` shows "Example by Example Co" with both names linked. Text keeps its spaces as written. Markup is shown as written, not rendered. |
 | `branding.footer.links` | `{label, url}[]` | `[]` | Links after the Support, Privacy and Terms links, each opened in a new tab. `url` must be an absolute `http`, `https` or `mailto` address. |
@@ -102,6 +102,12 @@ config:
           - label: Imprint
             url: https://www.example.com/imprint
 ```
+
+### Theme
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `defaultTheme` | string | none | The theme shown on the signed-out pages, and to everyone who has not picked a theme in Settings, Appearance, whatever the system's light or dark setting: `light`, `silver`, `dark`, `midnight`, `butter`, `green` or `orange`. A person who picked a theme keeps it; there it stands in for an unpicked fixed theme and for the unpicked light or dark theme of its own kind (`green` for the dark one). Turning System Theme on keeps it as that pick. Any other value is ignored: the app follows the system's light or dark setting with the Light and Dark themes. The first screens use the configuration loaded at the previous start, so on a browser's very first start the theme changes once `config.json` has loaded. |
 
 ### Routing
 

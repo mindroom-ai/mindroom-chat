@@ -40,7 +40,9 @@
       "silver": "Gümüş",
       "dark": "Koyu",
       "midnight": "Gece yarısı",
-      "butter": "Tereyağı"
+      "butter": "Tereyağı",
+      "green": "Yeşil",
+      "orange": "Turuncu"
     },
     "prefetchScope": {
       "allRooms": "Tüm odalar",

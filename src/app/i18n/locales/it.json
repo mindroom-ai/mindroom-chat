@@ -40,7 +40,9 @@
       "silver": "Argento",
       "dark": "Scuro",
       "midnight": "Mezzanotte",
-      "butter": "Burro"
+      "butter": "Burro",
+      "green": "Verde",
+      "orange": "Arancione"
     },
     "prefetchScope": {
       "allRooms": "Tutte le stanze",

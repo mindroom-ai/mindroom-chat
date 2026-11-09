@@ -40,7 +40,9 @@
       "silver": "Perak",
       "dark": "Gelap",
       "midnight": "Tengah malam",
-      "butter": "Mentega"
+      "butter": "Mentega",
+      "green": "Hijau",
+      "orange": "Oranye"
     },
     "prefetchScope": {
       "allRooms": "Semua ruang",

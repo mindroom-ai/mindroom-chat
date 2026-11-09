@@ -140,7 +140,7 @@ const railButtonFill = (tone: string, percent: number) =>
 const pressed = `${sidebarItemRoot} &&:active`;
 
 /** The theme classes whose palettes are dark. */
-const darkThemes = ':is(.dark-theme, .midnight-theme, .butter-theme)';
+const darkThemes = ':is(.dark-theme, .midnight-theme, .butter-theme, .green-theme, .orange-theme)';
 
 /** A raised rail button that is hovered, focused or has its menu open, under `scope`. */
 const raisedEngaged = (scope: string) =>

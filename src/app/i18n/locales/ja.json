@@ -40,7 +40,9 @@
       "silver": "シルバー",
       "dark": "ダーク",
       "midnight": "ミッドナイト",
-      "butter": "バター"
+      "butter": "バター",
+      "green": "グリーン",
+      "orange": "オレンジ"
     },
     "prefetchScope": {
       "allRooms": "すべてのルーム",

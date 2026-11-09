@@ -40,7 +40,9 @@
       "silver": "銀",
       "dark": "深色",
       "midnight": "午夜",
-      "butter": "奶油色"
+      "butter": "奶油色",
+      "green": "綠色",
+      "orange": "橘色"
     },
     "prefetchScope": {
       "allRooms": "所有房間",

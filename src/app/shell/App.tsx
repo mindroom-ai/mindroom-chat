@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useLayoutEffect, useState } from 'react';
-import { Provider as JotaiProvider } from 'jotai';
+import { Provider as JotaiProvider, useSetAtom } from 'jotai';
 import { RouterProvider } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -7,7 +7,13 @@ import { ClientConfigLoader } from '../config/ClientConfigLoader';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import { ScreenSizeProvider, useScreenSize } from '../lib/hooks/useScreenSize';
 import { useActiveSession } from '../matrix/session/useSessionStore';
-import { ThemeContextProvider, useSystemDefaultTheme, useTheme } from '../theme/useTheme';
+import {
+  ThemeContextProvider,
+  deploymentDefaultTheme,
+  deploymentThemeAtom,
+  useSignedOutTheme,
+  useTheme,
+} from '../theme/useTheme';
 import { usePageZoom } from '../theme/usePageZoom';
 import { useMobileKeyboardViewportFix } from '../native/useMobileKeyboardViewportFix';
 import { appJotaiStore, setImperativeJotaiStore } from '../lib/state/jotaiStore';
@@ -29,13 +35,14 @@ setImperativeJotaiStore(appJotaiStore);
 /**
  * Applies the theme to the document whenever it changes (a new setting, the system switching
  * between light and dark, signing in or out) and provides it to the app. Signed out, the app
- * follows the system as the startup theme does; signed in, it uses the theme settings.
+ * shows the deployment's default theme or follows the system, as the startup theme does; signed
+ * in, it uses the theme settings.
  */
 export function AppTheme({ children }: { children: ReactNode }) {
   const signedIn = !!useActiveSession();
   const settingsTheme = useTheme();
-  const systemTheme = useSystemDefaultTheme();
-  const theme = signedIn ? settingsTheme : systemTheme;
+  const signedOutTheme = useSignedOutTheme();
+  const theme = signedIn ? settingsTheme : signedOutTheme;
   usePageZoom();
 
   useEffect(() => {
@@ -58,6 +65,12 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
   useLayoutEffect(() => {
     if (pageTitle !== undefined) document.title = pageTitle;
   }, [pageTitle]);
+  // The configured default theme, which the theme above had from the configuration loaded last.
+  const setDeploymentTheme = useSetAtom(deploymentThemeAtom);
+  const deploymentTheme = deploymentDefaultTheme(clientConfig);
+  useLayoutEffect(() => {
+    setDeploymentTheme(deploymentTheme);
+  }, [setDeploymentTheme, deploymentTheme]);
   return (
     <ScreenSizeProvider value={screenSize}>
       <RouterProvider router={router} />

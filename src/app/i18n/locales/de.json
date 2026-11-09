@@ -40,7 +40,9 @@
       "silver": "Silber",
       "dark": "Dunkel",
       "midnight": "Mitternacht",
-      "butter": "Butter"
+      "butter": "Butter",
+      "green": "Grün",
+      "orange": "Orange"
     },
     "prefetchScope": {
       "allRooms": "Alle Räume",

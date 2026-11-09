@@ -40,7 +40,9 @@
       "silver": "실버",
       "dark": "다크",
       "midnight": "미드나이트",
-      "butter": "버터"
+      "butter": "버터",
+      "green": "그린",
+      "orange": "오렌지"
     },
     "prefetchScope": {
       "allRooms": "모든 방",

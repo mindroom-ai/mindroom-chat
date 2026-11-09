@@ -40,7 +40,9 @@
       "silver": "فضي",
       "dark": "داكن",
       "midnight": "منتصف الليل",
-      "butter": "زبدة"
+      "butter": "زبدة",
+      "green": "أخضر",
+      "orange": "برتقالي"
     },
     "prefetchScope": {
       "allRooms": "كل الغرف",

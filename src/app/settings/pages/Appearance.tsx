@@ -1,4 +1,5 @@
 import { Switch } from 'folds';
+import { useAtomValue, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { SettingTile } from '../../ui/SettingTile';
 import { useSetting } from '../../preferences/useSetting';
@@ -8,7 +9,7 @@ import {
   PAGE_ZOOM_DEFAULT,
   settingsAtom,
 } from '../../preferences/settings';
-import { THEMES, ThemeKind } from '../../theme/useTheme';
+import { THEMES, ThemeKind, deploymentThemeAtom, themeSettingsAtom } from '../../theme/useTheme';
 import { SettingsPageFrame, type SettingsPageProps } from '../../ui/settings/SettingsPageFrame';
 import { SettingsSection } from '../../ui/settings/SettingsSection';
 import { AdvancedFold } from '../../ui/settings/AdvancedFold';
@@ -20,6 +21,8 @@ const THEME_LABEL_KEYS = {
   'dark-theme': 'options.themeName.dark',
   'midnight-theme': 'options.themeName.midnight',
   'butter-theme': 'options.themeName.butter',
+  'green-theme': 'options.themeName.green',
+  'orange-theme': 'options.themeName.orange',
 } as const;
 
 type ThemeLabelKey = (typeof THEME_LABEL_KEYS)[keyof typeof THEME_LABEL_KEYS];
@@ -87,7 +90,17 @@ const SYSTEM_PICKS: ThemePick[] = [
 /** One theme picker tile; the fixed theme explains when it applies. */
 function ThemePickTile({ pick }: { pick: ThemePick }) {
   const { t } = useTranslation();
-  const [picked, setPicked] = useSetting(settingsAtom, pick.key);
+  const store = useStore();
+  // What applies, the deployment's default theme included (`effectiveThemeSettings`).
+  const picked = useAtomValue(themeSettingsAtom)[pick.key];
+  // A fixed pick turns the system theme off too: the stored switch may still be on while the
+  // deployment's default theme showed as the fixed one.
+  const setPicked = (themeId: string) =>
+    store.set(settingsAtom, {
+      ...store.get(settingsAtom),
+      [pick.key]: themeId,
+      ...(pick.kind === undefined ? { useSystemTheme: false } : {}),
+    });
   const title = t(pick.titleKey);
   const offered = THEMES.filter((theme) => pick.kind === undefined || theme.kind === pick.kind);
 
@@ -112,7 +125,20 @@ function ThemePickTile({ pick }: { pick: ThemePick }) {
 
 function ThemeSection() {
   const { t } = useTranslation();
-  const [followSystem, setFollowSystem] = useSetting(settingsAtom, 'useSystemTheme');
+  const store = useStore();
+  const followSystem = useAtomValue(themeSettingsAtom).useSystemTheme;
+  // Turned on, the deployment's default theme becomes the pick of its kind, so the switch applies
+  // where it was the fixed theme only because no theme had been picked.
+  const setFollowSystem = (on: boolean) => {
+    const settings = store.get(settingsAtom);
+    const deploymentTheme = store.get(deploymentThemeAtom);
+    const kindPick = deploymentTheme?.kind === ThemeKind.Dark ? 'darkThemeId' : 'lightThemeId';
+    store.set(settingsAtom, {
+      ...settings,
+      useSystemTheme: on,
+      ...(on && deploymentTheme ? { [kindPick]: settings[kindPick] ?? deploymentTheme.id } : {}),
+    });
+  };
   const systemTitle = t('settings.general.appearance.systemTheme');
 
   return (

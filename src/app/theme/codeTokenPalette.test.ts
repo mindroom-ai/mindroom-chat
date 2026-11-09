@@ -21,7 +21,7 @@ const codeBackgrounds = (): Map<string, string> => {
 };
 
 const LIGHT_PALETTES = ['light', 'silver'];
-const DARK_PALETTES = ['dark', 'midnight', 'butter'];
+const DARK_PALETTES = ['dark', 'midnight', 'butter', 'green', 'orange'];
 
 const expectReadable = (colors: CodeTokenColors, background: string, palette: string) => {
   Object.entries(colors).forEach(([role, value]) => {

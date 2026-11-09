@@ -3,7 +3,7 @@ import { style } from '@vanilla-extract/css';
 // No folds tokens here: the SSO button tests replace folds with plain elements, and these
 // classes load in them as they are.
 
-const darkThemes = ':is(.dark-theme, .midnight-theme, .butter-theme)';
+const darkThemes = ':is(.dark-theme, .midnight-theme, .butter-theme, .green-theme, .orange-theme)';
 
 /** A provider's mark in front of its button label, sized to the label's line. */
 export const ProviderMark = style({
