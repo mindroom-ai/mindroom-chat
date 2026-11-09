@@ -77,6 +77,12 @@ import { PluginSidePanel } from './PluginSidePanel';
 import { usePluginPanel } from './usePluginPanel';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { useAlive } from '../lib/hooks/useAlive';
+import {
+  callTranscriptWidthStorageKey,
+  callWidthStorageKey,
+  computerWidthStorageKey,
+  pluginPanelWidthStorageKey,
+} from '../preferences/accountStorageKeys';
 
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;
@@ -303,7 +309,7 @@ function RoomContent() {
     render: () => (
       <ResizablePanel
         side="end"
-        storageKey={`mindroom.call.width:${ownUserId}`}
+        storageKey={callWidthStorageKey(ownUserId)}
         defaultWidth={CALL_DEFAULT_WIDTH}
         minContentWidth={CONVERSATION_MIN_WIDTH}
         maxPanelWidth={CALL_MAX_WIDTH}
@@ -335,7 +341,7 @@ function RoomContent() {
         computerTarget.apiUrl && (
           <ResizablePanel
             side="end"
-            storageKey={`mindroom.computer.width:${ownUserId}`}
+            storageKey={computerWidthStorageKey(ownUserId)}
             defaultWidth={COMPUTER_DEFAULT_WIDTH}
             minContentWidth={CONVERSATION_MIN_WIDTH}
             maxPanelWidth={COMPUTER_MAX_WIDTH}
@@ -394,7 +400,7 @@ function RoomContent() {
       render: () => (
         <ResizablePanel
           side="end"
-          storageKey={`mindroom.callTranscript.width:${ownUserId}`}
+          storageKey={callTranscriptWidthStorageKey(ownUserId)}
           defaultWidth={CALL_DEFAULT_WIDTH}
           minContentWidth={CONVERSATION_MIN_WIDTH}
           maxPanelWidth={TRANSCRIPT_MAX_WIDTH}
@@ -433,7 +439,7 @@ function RoomContent() {
           return (
             <ResizablePanel
               side="end"
-              storageKey={`mindroom.panel.width:${ownUserId}:${panel.id}`}
+              storageKey={pluginPanelWidthStorageKey(ownUserId, panel.id)}
               defaultWidth={CALL_DEFAULT_WIDTH}
               minContentWidth={CONVERSATION_MIN_WIDTH}
               maxPanelWidth={CALL_MAX_WIDTH}

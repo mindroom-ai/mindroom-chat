@@ -6,7 +6,6 @@ import { clearSavedVoiceDraft } from '../../composer/voice/savedVoiceDraft';
 import { clearIOSPushState } from '../../notifications/push/iosPush';
 import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads';
 import { clearRecentlyOpenedPanelHeightStore } from '../../preferences/recentlyOpenedPanelHeight';
-import { pendingRoamingSettingsKey } from '../../preferences/roamingSettings';
 import { clearCallWindowStore } from '../../calls/window/callWindowState';
 import { clearThreadSidebarPreferencesStore } from '../../threads/cross-room/threadSidebarPreferences';
 import { clearCrossRoomThreadFiltersStore } from '../../threads/cross-room/crossRoomThreadFilters';
@@ -18,8 +17,12 @@ import {
   getStorageKeysSafe,
   removeStorageItemSafe,
 } from '../../lib/safeLocalStorage';
-import { clearSeenThreadRoots } from '../../matrix/seenThreadRoots';
+import {
+  accountStorageKeyPrefixes,
+  accountStorageKeys,
+} from '../../preferences/accountStorageKeys';
 import { listSessions } from '../../matrix/session/sessions';
+import { clearSeenThreadRoots } from '../../matrix/seenThreadRoots';
 import { clearClosedNavCategoriesStore } from '../../ui/nav/closedNavCategories';
 import { clearSyncFilterIds } from '../../matrix/client/clientSyncPolicy';
 import { clearNotified } from '../../notifications/notifiedOnce';
@@ -90,10 +93,6 @@ export const deleteSessionCaches = async (sessionId: string): Promise<void> => {
 // localStorage key may still exist on installs that ran older builds.
 const LEGACY_LAST_OPEN_THREAD_STORE_PREFIX = 'lastOpenThread';
 
-/** Whether a localStorage key names an account: `:<user ID>` at its end or before another `:`. */
-const isNamedAfter = (key: string, userId: string): boolean =>
-  key.endsWith(`:${userId}`) || key.includes(`:${userId}:`);
-
 export const clearUserUiState = (userId: string): void => {
   clearRoomInputDrafts(userId);
   clearUnsentMessages(userId);
@@ -109,25 +108,19 @@ export const clearUserUiState = (userId: string): void => {
   clearClosedNavCategoriesStore(userId);
   clearSyncFilterIds(userId);
   clearNotified(userId);
-  // Every key named after the account goes too, whichever module wrote it, but not one that also
-  // names a login this browser keeps. Where the account's user ID extends a kept one
-  // (`@a:example.org:8448` and `@a:example.org`), the kept ID inside the longer one does not count,
-  // except in a kept login's pending settings edits key, whose device ID may read as the rest of
-  // the longer ID. A plugin of another account keeps its values under that account's encoded ID
-  // and keys of its own.
-  const sessions = listSessions();
-  const keeps = (key: string) =>
-    sessions.some(({ userId: other, deviceId }) => {
-      const rest = userId.startsWith(`${other}:`) ? key.replaceAll(`:${userId}`, '') : key;
-      return (
-        isNamedAfter(rest, other) ||
-        key === pendingRoamingSettingsKey(other, deviceId) ||
-        key.includes(encodeURIComponent(other))
-      );
-    });
+  // The keys of preferences/accountStorageKeys.ts, whose builders also write them. A new key kept
+  // per account gets its builder there and goes in `accountStorageKeys` or its prefixes.
   const storage = getSafeLocalStorage();
+  accountStorageKeys(userId).forEach((key) => removeStorageItemSafe(storage, key));
+  // A prefix of `@a:example.org` also starts the keys of `@a:example.org:8448`: those stay while
+  // that login does.
+  const prefixes = accountStorageKeyPrefixes(userId);
+  const keptPrefixes = listSessions()
+    .filter((session) => session.userId.length > userId.length)
+    .flatMap((session) => accountStorageKeyPrefixes(session.userId));
   getStorageKeysSafe(storage)
-    .filter((key) => isNamedAfter(key, userId) && !keeps(key))
+    .filter((key) => prefixes.some((prefix) => key.startsWith(prefix)))
+    .filter((key) => !keptPrefixes.some((prefix) => key.startsWith(prefix)))
     .forEach((key) => removeStorageItemSafe(storage, key));
 };
 

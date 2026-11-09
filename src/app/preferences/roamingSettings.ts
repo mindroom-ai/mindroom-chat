@@ -170,9 +170,13 @@ export const pendingRoamingSettingsAtom = atom<PendingRoamingSettings>({ values:
 
 const PENDING_KEY_PREFIX = 'roamingSettingsPending:';
 
+/** The start of the keys of the account's pending edits, one per device. */
+export const pendingRoamingSettingsKeyPrefix = (userId: string): string =>
+  `${PENDING_KEY_PREFIX}${userId}:`;
+
 /** A new login gets a new device ID, so an edit left by an earlier login never reaches a later one. */
 export const pendingRoamingSettingsKey = (userId: string, deviceId: string): string =>
-  `${PENDING_KEY_PREFIX}${userId}:${deviceId}`;
+  `${pendingRoamingSettingsKeyPrefix(userId)}${deviceId}`;
 
 /** The edits saved under `storageKey`, without keys that no longer roam or values of the wrong type. */
 export const loadPendingRoamingSettings = (storageKey: string): Partial<RoamingSettings> => {

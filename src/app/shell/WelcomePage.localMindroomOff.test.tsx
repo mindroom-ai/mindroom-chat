@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type ClientConfig, useClientConfig } from '../config/useClientConfig';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { getLocalMindroomConnections } from '../local-mindroom/api';
-import { getWelcomeSetupFirstSeenStorageKey } from '../local-mindroom/provisioning';
+import { getWelcomeSetupFirstSeenStorageKey } from '../preferences/accountStorageKeys';
 import { WelcomePage } from './WelcomePage';
 
 vi.mock('../config/useClientConfig', () => ({ useClientConfig: vi.fn() }));
