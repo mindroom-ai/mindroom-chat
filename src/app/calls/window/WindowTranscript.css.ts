@@ -12,8 +12,11 @@ const DIVIDER_GRIP = toRem(12);
 const DIVIDER_TOUCH_GRIP = toRem(20);
 /** Keyboard focus rings the whole grip, thicker than the line a pointer over it marks. */
 const DIVIDER_FOCUS_RING = toRem(2);
-/** Even under a short window the stage keeps a face's height, as it does alone (CallStage.css.ts). */
-const STAGE_MIN_HEIGHT = toRem(80);
+/**
+ * Even under a short window the stage keeps the smallest face's height, as it does alone
+ * (CallStage.css.ts).
+ */
+const STAGE_MIN_HEIGHT = toRem(40);
 /** Read out, never seen: a box of one pixel, clipped away. */
 const UNSEEN = toRem(1);
 /** The subtitle shows the latest line in at most this many lines of text, cut short after. */

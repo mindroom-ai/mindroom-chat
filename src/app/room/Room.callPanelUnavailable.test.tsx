@@ -31,7 +31,8 @@ const { mx, room } = vi.hoisted(() => {
   };
 });
 
-vi.mock('react-router-dom', () => ({
+vi.mock('react-router-dom', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router-dom')>()),
   useLocation: () => ({ pathname: '/home/', search: '', hash: '' }),
   useParams: () => ({}),
   useSearchParams: () => [new URLSearchParams()],
@@ -55,9 +56,8 @@ vi.mock('../computer/useAgentServers', () => ({
 vi.mock('../navigation/useRoomViewMode', () => ({
   useRoomViewMode: () => ({ viewMode: 'threaded', setViewMode: () => undefined }),
 }));
-vi.mock('../navigation/useRoomNavigate', () => ({
-  useRoomNavigate: () => ({ navigateRoom: () => undefined, navigateRoomThread: () => undefined }),
-}));
+const navigate = vi.hoisted(() => ({ navigateRoom: vi.fn(), navigateRoomThread: vi.fn() }));
+vi.mock('../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navigate }));
 
 importBeforeTests(() => import('./Room'));
 
@@ -182,6 +182,28 @@ describe('the call panel when its code cannot load', () => {
     expect(callWindow.getAttribute('data-bar')).toBeNull();
     expect(callWindow.textContent).toContain("This couldn't load");
     expect(within(callWindow).getByRole('button', { name: 'End' })).toBeTruthy();
+  });
+
+  it("docks an agent call's view into the thread the call started from", async () => {
+    const { call } = liveCall('!agent-call:example.org');
+    const origin = { roomId: room.roomId, threadId: '$thread' };
+    const store = await renderRoomWithCallPanel({ call, kind: 'agent', origin }, 'window');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dock to the side' }));
+
+    expect(store.get(getCallWindowSettingsAtom(mx.getSafeUserId())).mode).toBe('docked');
+    expect(navigate.navigateRoomThread).toHaveBeenCalledWith(room.roomId, '$thread');
+  });
+
+  it("docks a room's view into the room, not into the thread of an agent call elsewhere", async () => {
+    const { call } = liveCall('!agent-call:example.org');
+    const origin = { roomId: '!elsewhere:example.org', threadId: '$thread' };
+    await renderRoomWithCallPanel({ call, kind: 'agent', origin }, 'window');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dock to the side' }));
+
+    expect(navigate.navigateRoom).toHaveBeenCalledWith(room.roomId);
+    expect(navigate.navigateRoomThread).not.toHaveBeenCalled();
   });
 
   it('shows no title bar of its own in the side panel', async () => {
