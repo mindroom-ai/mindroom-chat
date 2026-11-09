@@ -15,6 +15,8 @@ const SPEECH = readFileSync(new URL('../fixtures/agent-call-question.wav', impor
 /** The wrapper's defaults: the 800 ms kept before speech, the 1400 ms of quiet that end it. */
 const BEFORE = 0.8;
 const AFTER = 1.4;
+/** Seconds of silence before each recording: the model loads meanwhile, as when a call starts. */
+const LEAD = 4;
 
 test.use({
   launchOptions: {
@@ -97,8 +99,7 @@ test('finds a spoken question as one stretch, from the speech files this app ser
   page,
   baseURL,
 }) => {
-  const lead = 1.5;
-  const { stretches, files } = await findSpeech(page, SPEECH, lead);
+  const { stretches, files } = await findSpeech(page, SPEECH, LEAD);
   // The model and the runtime's module and WebAssembly, from this app's own build.
   const model = files.map((url) => url.replace(/\/assets\/speech-model-[0-9a-f]+\//, '/model/'));
   expect(model.sort()).toEqual([
@@ -111,19 +112,19 @@ test('finds a spoken question as one stretch, from the speech files this app ser
   // Its words and the defaults' margins, and no more; heard where the recording played.
   expect(stretch.seconds).toBeGreaterThan(4);
   expect(stretch.seconds).toBeLessThan(4.45 + BEFORE + AFTER + 0.3);
-  expect(stretch.from).toBeGreaterThan(lead - BEFORE - 0.5);
-  expect(stretch.from).toBeLessThan(lead + 0.5);
+  expect(stretch.from).toBeGreaterThan(LEAD - BEFORE - 0.5);
+  expect(stretch.from).toBeLessThan(LEAD + 0.5);
 });
 
 test('finds no speech in typing, a fan and knocks on a door', async ({ page }) => {
-  const { stretches } = await findSpeech(page, noise(), 0.5);
+  const { stretches } = await findSpeech(page, noise(), LEAD);
   expect(stretches).toEqual([]);
 });
 
 test('finds the spoken question in WebKit too', async ({ baseURL }) => {
   test.skip(!WEBKIT_EXECUTABLE, 'needs PLAYWRIGHT_WEBKIT_EXECUTABLE');
   await onWebKitPage({ baseURL }, async (page) => {
-    const { stretches } = await findSpeech(page, SPEECH, 1.5);
+    const { stretches } = await findSpeech(page, SPEECH, LEAD);
     expect(stretches).toHaveLength(1);
     expect(stretches[0]?.seconds).toBeGreaterThan(4);
   });
