@@ -79,7 +79,7 @@ const findSpeech = async (
   page: import('@playwright/test').Page,
   recording: Buffer,
   lead: number
-): Promise<{ stretches: FoundStretch[]; origins: string[] }> => {
+): Promise<{ stretches: FoundStretch[]; files: string[] }> => {
   const files: string[] = [];
   page.on('request', (request) => files.push(request.url()));
   await page.goto('/e2e/fixtures/speech-capture.html');
@@ -87,11 +87,8 @@ const findSpeech = async (
     recording.toString('base64'),
     lead,
   ] as const);
-  const model = files.filter((url) => /\.(onnx|wasm)$|ort-wasm|vad\.worklet/.test(url));
-  expect(model.length, 'the model, the runtime and the worklet were loaded').toBeGreaterThanOrEqual(
-    4
-  );
-  return { stretches, origins: [...new Set(model.map((url) => new URL(url).origin))] };
+  // The worklet loads too, through a request the page's events do not show.
+  return { stretches, files: files.filter((url) => /\.onnx$|\/ort-/.test(url)) };
 };
 
 test('finds a spoken question as one stretch, from the speech files this app serves', async ({
@@ -99,8 +96,14 @@ test('finds a spoken question as one stretch, from the speech files this app ser
   baseURL,
 }) => {
   const lead = 1.5;
-  const { stretches, origins } = await findSpeech(page, SPEECH, lead);
-  expect(origins).toEqual([new URL(baseURL ?? '').origin]);
+  const { stretches, files } = await findSpeech(page, SPEECH, lead);
+  // The model and the runtime's module and WebAssembly, from this app's own build.
+  const model = files.map((url) => url.replace(/\/assets\/speech-model-[0-9a-f]+\//, '/model/'));
+  expect(model.sort()).toEqual([
+    `${baseURL}/model/ort-wasm-simd-threaded.js`,
+    `${baseURL}/model/ort-wasm-simd-threaded.wasm`,
+    `${baseURL}/model/silero_vad_legacy.onnx`,
+  ]);
   expect(stretches).toHaveLength(1);
   const [stretch] = stretches as [FoundStretch];
   // Its words and the defaults' margins, and no more; heard where the recording played.
