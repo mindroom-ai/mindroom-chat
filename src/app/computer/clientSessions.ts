@@ -33,7 +33,7 @@ export class MindroomServerError extends Error {
 const noAnswer = (message: string) => new MindroomServerError(message, 0);
 
 /** Rejects as soon as `signal` aborts, for steps that cannot be cancelled themselves. */
-const untilAborted = <T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> => {
+export const untilAborted = <T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> => {
   if (!signal) return promise;
   if (signal.aborted) return Promise.reject(noAnswer('MindRoom request cancelled.'));
   return new Promise<T>((resolve, reject) => {
@@ -57,7 +57,7 @@ const untilAborted = <T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> 
  * answer later. One that refused for good, such as one that does not bind tokens to their audience,
  * never lets MindRoom sign this person in.
  */
-const tokenError = (error: unknown): MindroomServerError => {
+export const tokenError = (error: unknown): MindroomServerError => {
   if (error instanceof MindroomServerError) return error;
   if (error instanceof ConnectionError || error instanceof HTTPError)
     return noAnswer('The homeserver could not give a sign-in token.');

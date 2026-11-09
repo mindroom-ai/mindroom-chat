@@ -27,7 +27,7 @@ import { settingsAtom } from '../preferences/settings';
 import { settingsModalAtom } from '../navigation/settingsModal';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { MembersDrawer } from '../members/MembersDrawer';
-import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
+import { hasActiveMindroomAgent } from '../matrix/protocol/agentIdentity';
 import { useMembersDrawer } from '../members/useMembersDrawer';
 import { ResizableMembersPanel } from '../members/ResizableMembersPanel';
 import { PanelRow, useMembersOverlay } from '../members/PanelRow';
@@ -43,10 +43,9 @@ import {
 } from '../plugins/sidePanels';
 import { usePluginHeaderActions } from '../plugins/headerActions';
 import { ComputerPanel } from '../computer/ComputerPanel';
-import type { ComputerAgent } from '../computer/types';
-import { useComputerApiUrl } from '../computer/useComputerApiUrl';
 import { useRoomComputerState } from '../computer/useRoomComputerState';
-import { useBindsOpenIdTokens, useRoomAgentServers } from '../computer/useAgentServers';
+import { useRoomAgentServers } from '../computer/useAgentServers';
+import { useRoomComputer } from '../computer/useRoomComputer';
 import { RoomCanvasPanel } from '../canvas/RoomCanvasPanel';
 import {
   useComputerShown,
@@ -132,44 +131,6 @@ type PanelEntry = RoomPanel & {
   render: () => ReactNode;
   /** Opens it in its own state, for the header's toggle; panels opened otherwise have none. */
   show?: () => void;
-};
-
-/** The computer agents of the room and the server each one runs on. */
-const useRoomComputer = (
-  members: ReturnType<typeof useRoomMembers>,
-  roomServers: ReturnType<typeof useRoomAgentServers>,
-  myUserId: string
-) => {
-  const bindsOpenIdTokens = useBindsOpenIdTokens();
-  const publishedComputer = bindsOpenIdTokens
-    ? roomServers.find((server) => server.computer)?.apiUrl
-    : undefined;
-  const configuredApiUrl = useComputerApiUrl();
-  const discoveredApiUrl = useComputerApiUrl(publishedComputer);
-  const apiUrl = configuredApiUrl ?? discoveredApiUrl;
-
-  const agents = useMemo<ComputerAgent[]>(() => {
-    // With no server to reach, as when the user turned computers off, no agent's computer opens.
-    if (!apiUrl) return [];
-    const joinedAgents = members.filter(
-      (member) =>
-        member.membership === 'join' &&
-        member.userId !== myUserId &&
-        isMindroomAgentUserId(member.userId)
-    );
-    return joinedAgents.flatMap((member) => {
-      const published = roomServers.find((server) => server.agentUserId === member.userId);
-      const name = (member as { name?: string }).name ?? member.userId;
-      if (configuredApiUrl) {
-        // A configured server serves every agent but the ones whose MindRoom says it has none.
-        return published && !published.computer ? [] : [{ userId: member.userId, name }];
-      }
-      if (!bindsOpenIdTokens || !published?.computer) return [];
-      return [{ userId: member.userId, name, serverUrl: published.apiUrl }];
-    });
-  }, [apiUrl, bindsOpenIdTokens, configuredApiUrl, members, myUserId, roomServers]);
-
-  return { agents, apiUrl: agents.length > 0 ? apiUrl : undefined };
 };
 
 /** What the room's URL asks for: an event, a thread, and whether to show the event in place. */
