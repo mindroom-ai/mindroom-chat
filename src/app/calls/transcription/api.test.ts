@@ -222,9 +222,6 @@ describe('TranscriptionClient sessions', () => {
 describe('TranscriptionClient routes', () => {
   it('joins the room the call is in, and leaves the call by its id', async () => {
     const server = fakeServer();
-    server.route.mockImplementation((url) =>
-      url.endsWith('/call') ? json({ call: CALL }) : json({})
-    );
     const { api } = client(server);
 
     await api.join(ROOM_ID);
@@ -276,9 +273,6 @@ describe('TranscriptionClient routes', () => {
 
   it('cancels each route with the signal it was given', async () => {
     const server = fakeServer();
-    server.route.mockImplementation((_url, init) =>
-      init.method === 'GET' ? json({ call: null, lines: [], names: {} }) : json({ call: CALL })
-    );
     const { api } = client(server);
     const { signal } = new AbortController();
 

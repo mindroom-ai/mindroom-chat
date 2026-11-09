@@ -181,9 +181,6 @@ describe('useMindroomServer', () => {
 
   it('shares one sign-in between every plugin and call transcripts', async () => {
     const answers = fakeFetch();
-    answers.route.mockImplementation((url) =>
-      url.includes('/call-transcripts/') ? json({ call: null, lines: [], names: {} }) : json({})
-    );
 
     await Promise.all([
       published().request('/api/plugins/notes/rooms/x/hello'),
