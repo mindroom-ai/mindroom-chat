@@ -1,9 +1,10 @@
 import { Fragment, useCallback, useMemo, useState } from 'react';
-import { useAtom } from 'jotai';
+import { useAtom, useAtomValue } from 'jotai';
 import { Button, Chip, Icon, IconButton, Icons, Switch, Text } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { allInvitesAtom } from '../matrix/state/inviteList';
 import { useLoadedRoomMembers } from '../matrix/hooks/useLoadedRoomMembers';
 import { getCanonicalAliasOrRoomId } from '../matrix/matrix';
 import { settingsAtom } from '../preferences/settings';
@@ -62,7 +63,8 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
       ) as Record<ActivityTab, number>,
     [rows]
   );
-  const hasInvites = rows.some((row) => row.type === 'invite');
+  // Every pending invite, also those Activity leaves out as spam: the list sorts them.
+  const hasInvites = useAtomValue(allInvitesAtom).length > 0;
   // Senders are named from the member lists, which a room the user has not opened lacks.
   const namesVersion = useLoadedRoomMembers(
     mx,

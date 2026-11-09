@@ -7,6 +7,7 @@ import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomT
 import type { ThreadApprovalRecord } from '../matrix/protocol/threadApprovalModel';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
+import { allInvitesAtom } from '../matrix/state/inviteList';
 import type { ActivityRow, ActivityRowsResult } from './activityRows';
 import { activityRowsAtom, activityShowAutomationsAtom } from './activityState';
 import { ActivityList } from './ActivityList';
@@ -210,6 +211,25 @@ describe('ActivityList', () => {
     expect(within(rowByTitle('Thread a')).getByText("Couldn't send. Try again.")).toBeTruthy();
   });
 
+  it('offers the next waiting approval of a thread once the first is answered', async () => {
+    mocks.answerApproval.mockResolvedValue(undefined);
+    const store = renderList({ rows: ROWS, hiddenAutomations: 0 });
+    await act(async () =>
+      fireEvent.click(within(rowByTitle('Thread a')).getByRole('button', { name: 'Approve' }))
+    );
+    expect(within(rowByTitle('Thread a')).getByText('Approved')).toBeTruthy();
+    const next = { ...approvalRecord, eventId: '$ask-earlier' } as ThreadApprovalRecord;
+    const [first, ...rest] = ROWS;
+    const moved = first as Extract<ActivityRow, { type: 'thread' }>;
+    act(() =>
+      store.set(activityRowsAtom, {
+        rows: [{ ...moved, signals: { ...moved.signals, pendingApproval: next } }, ...rest],
+        hiddenAutomations: 0,
+      })
+    );
+    expect(within(rowByTitle('Thread a')).getByRole('button', { name: 'Approve' })).toBeTruthy();
+  });
+
   it('answers a question with the option picked', async () => {
     mocks.answerQuestion.mockResolvedValue(undefined);
     renderList({ rows: ROWS, hiddenAutomations: 0 });
@@ -311,6 +331,13 @@ describe('ActivityList', () => {
     });
     const row = screen.getByText('Partner Pilot').closest('[data-activity-row]') as HTMLElement;
     expect(row.textContent).not.toMatch(/1969|1970/);
+  });
+
+  it('keeps the invite list in reach when every pending invite is one Activity leaves out', () => {
+    const store = renderList({ rows: [], hiddenAutomations: 0 });
+    act(() => store.set(allInvitesAtom, { type: 'INITIALIZE', rooms: ['!spam:x'] }));
+    fireEvent.click(screen.getByRole('button', { name: 'All invites' }));
+    expect(screen.getByLabelText('Current path').textContent).toBe('/activity/invites/');
   });
 
   it('says when nothing is left', () => {

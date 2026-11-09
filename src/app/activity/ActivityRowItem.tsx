@@ -82,6 +82,12 @@ type ActionState =
   | { status: 'done'; label: string };
 
 /** The answer buttons of a row that waits for one, with their sending state and error. */
+/** What a row's buttons answer, so a row that comes to wait on something else starts afresh. */
+const actionTarget = (row: ActivityRow): string => {
+  if (row.type === 'invite') return row.roomId;
+  return row.signals.pendingApproval?.eventId ?? row.signals.pendingQuestion?.eventId ?? '';
+};
+
 function RowActions({
   row,
   room,
@@ -356,7 +362,8 @@ export const ActivityRowItem = memo(function ActivityRowItem({
             </span>
           )}
         </button>
-        <RowActions row={row} room={room} onDetails={() => onOpen(row)} />
+        {/* A thread can wait on another approval or question once one is answered. */}
+        <RowActions key={actionTarget(row)} row={row} room={room} onDetails={() => onOpen(row)} />
       </div>
     </div>
   );
