@@ -94,6 +94,36 @@ describe('usePanelSlot', () => {
     expect(shown(renderer)).toEqual(['computer']);
   });
 
+  it('ends the exit of a panel turned around with a done it kept from before it first closed', () => {
+    const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
+    const kept = presence?.done;
+    update(undefined);
+    update(<Mover key="members" name="members" />);
+    update(undefined);
+    act(() => kept?.());
+    expect(shown(renderer)).toEqual([]);
+  });
+
+  it('ends no exit of the same panel opened anew with a done it kept before it went', () => {
+    const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
+    const kept = presence?.done;
+    update(<Mover key="computer" name="computer" />);
+    update(<Mover key="members" name="members" />);
+    update(undefined);
+    act(() => kept?.());
+    expect(shown(renderer)).toEqual(['members']);
+  });
+
+  it('ends no later exit of a panel turned around with the done of its earlier exit', () => {
+    const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
+    update(undefined);
+    const earlier = presence?.done;
+    update(<Mover key="members" name="members" />);
+    update(undefined);
+    act(() => earlier?.());
+    expect(shown(renderer)).toEqual(['members']);
+  });
+
   it('ends no later exit with the done of a panel that has gone', () => {
     const { renderer, update } = renderSlot(<Mover key="members" name="members" />);
     update(undefined);

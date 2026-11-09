@@ -25,7 +25,8 @@ export type PanelPresence = {
   phase: PanelPhase;
   /**
    * The closing panel has finished moving out (or does not move), so it may go. It ends only its
-   * own panel's exit: one kept from an earlier exit, or by another panel, ends none that follows.
+   * own panel's exit: one kept from an earlier exit, or by a panel that has gone (also when it
+   * was opened again since), ends none that follows.
    */
   done: () => void;
   /**
@@ -51,6 +52,11 @@ type Slot = {
   /** The key of the panel on screen, which stays while it closes. */
   shownKey?: string;
   phase: PanelPhase;
+  /**
+   * Made anew as a panel mounts here, and kept while it stays mounted (as it closes or turns
+   * around), so a `done` it kept from before it closed ends only its own exit.
+   */
+  mount?: object;
 };
 
 /** Whether the panel on screen is closing: none is asked for, and it has not yet gone. */
@@ -73,13 +79,15 @@ export function usePanelSlot(
     key,
     shownKey: key,
     phase: opening && panel ? 'enter' : 'shown',
+    mount: {},
   });
   if (slot.key !== key) {
     let phase: PanelPhase = 'exit';
     if (key !== undefined) {
       phase = slot.shownKey === undefined || slot.shownKey === key ? 'enter' : 'swap';
     }
-    setSlot({ key, shownKey: key ?? slot.shownKey, phase });
+    const mount = key === undefined || key === slot.shownKey ? slot.mount : {};
+    setSlot({ key, shownKey: key ?? slot.shownKey, phase, mount });
   }
   const lastPanel = useRef(panel);
   useLayoutEffect(() => {
@@ -90,13 +98,14 @@ export function usePanelSlot(
   const closingRef = useRef<Slot>();
   /**
    * Ends the current exit if `from` is its slot or, for a `done` kept from before the panel
-   * closed, the slot of that panel open. Once the panel has gone, a later `done` (from its last
-   * mover as it goes, or from a motion of a panel that another took the place of, which may close
-   * in turn) changes nothing.
+   * closed, a slot of that panel's mount open. Once the panel has gone, a later `done` (from its
+   * last mover as it goes, or from a motion of a panel that another took the place of, which may
+   * close in turn) changes nothing.
    */
   const end = useCallback((from: Slot) => {
     const ends = (current: Slot) =>
-      isClosing(current) && (current === from || current.shownKey === from.key);
+      isClosing(current) &&
+      (current === from || (!isClosing(from) && current.mount === from.mount));
     if (closingRef.current && ends(closingRef.current)) closingRef.current = undefined;
     setSlot((current) => (ends(current) ? { phase: 'shown' } : current));
   }, []);
