@@ -48,7 +48,10 @@ vi.mock('../matrix/hooks/usePowerLevels', () => ({
   PowerLevelsContextProvider: ({ children }: { children: React.ReactNode }) => children,
   usePowerLevels: () => ({}),
 }));
-vi.mock('../config/useClientConfig', () => ({ useClientConfig: () => ({ mindroom: {} }) }));
+vi.mock('../config/useClientConfig', () => ({
+  useClientConfig: () => ({ mindroom: {} }),
+  useOptionalClientConfig: () => ({ mindroom: {} }),
+}));
 vi.mock('../computer/useAgentServers', () => ({
   useRoomAgentServers: () => [],
   useBindsOpenIdTokens: () => false,
