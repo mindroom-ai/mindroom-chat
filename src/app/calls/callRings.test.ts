@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   EventType,
+  KnownMembership,
   MatrixEvent,
   MatrixEventEvent,
   RoomEvent,
@@ -108,11 +109,22 @@ describe('watchRings', () => {
     vi.useRealTimers();
   });
 
-  /** A client that delivers events live from sync; decryption has already run on them. */
-  const syncingClient = () => {
+  /** A room as the client holds it: what its live timeline has, and whether the user is in it. */
+  type HeldRoom = { events: MatrixEvent[]; membership?: KnownMembership };
+
+  /**
+   * A client that delivers events live from sync, and holds `rooms` with what sync delivered
+   * before; decryption has already run on them.
+   */
+  const syncingClient = (rooms: HeldRoom[] = []) => {
     const mx = Object.assign(new EventEmitter(), {
       getSafeUserId: () => ME,
       decryptEventIfNeeded: vi.fn(async () => undefined),
+      getRooms: () =>
+        rooms.map(({ events, membership = KnownMembership.Join }) => ({
+          getMyMembership: () => membership,
+          getLiveTimeline: () => ({ getEvents: () => events }),
+        })),
     });
     const deliver = async (event: MatrixEvent) => {
       mx.emit(RoomEvent.Timeline, event, undefined, false, false, { liveEvent: true });
@@ -222,6 +234,76 @@ describe('watchRings', () => {
       notification({ notification_type: 'notification' }, '@caller:example.org', Date.now())
     );
     expect(onRing).not.toHaveBeenCalled();
+    await deliver(ring);
+
+    expect(onRing).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  /** A ring from the caller in `roomId`, sent at `ts`. */
+  const ringIn = (roomId: string, eventId: string, ts: number) =>
+    new MatrixEvent({
+      ...notification({}, '@caller:example.org', ts).event,
+      room_id: roomId,
+      event_id: eventId,
+    });
+
+  it('rings for what sync delivered before it started: oldest first, in rooms the user is in, over its last two minutes', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW + 10_000);
+    const decline = new MatrixEvent({
+      type: EventType.RTCDecline,
+      room_id: '!a:example.org',
+      event_id: '$decline',
+      sender: ME,
+      origin_server_ts: NOW + 1000,
+      content: { 'm.relates_to': { rel_type: 'm.reference', event_id: '$declined' } },
+    });
+    // Older than any ring could last: not even decrypted.
+    const history = ringIn('!a:example.org', '$history', NOW - 110_001);
+    const { mx } = syncingClient([
+      {
+        events: [
+          history,
+          ringIn('!a:example.org', '$declined', NOW),
+          decline,
+          ringIn('!a:example.org', '$newest', NOW + 5000),
+        ],
+      },
+      {
+        events: [
+          ringIn('!b:example.org', '$over', NOW - 30_000),
+          ringIn('!b:example.org', '$older', NOW + 2000),
+        ],
+      },
+      {
+        events: [ringIn('!c:example.org', '$left', NOW + 6000)],
+        membership: KnownMembership.Leave,
+      },
+    ]);
+    const heard: string[] = [];
+    const stop = watchRings(mx, {
+      onRing: (ring) => heard.push(`ring ${ring.eventId}`),
+      onDeclined: (ringEventId) => heard.push(`declined ${ringEventId}`),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // The decline follows the ring it says no to, and the newest ring comes last, so it shows.
+    expect(heard).toEqual(['ring $declined', 'declined $declined', 'ring $older', 'ring $newest']);
+    expect(mx.decryptEventIfNeeded).not.toHaveBeenCalledWith(history);
+    expect(mx.decryptEventIfNeeded).toHaveBeenCalledTimes(5);
+    stop();
+  });
+
+  it('reads an event once: what sync delivers after it started is not read again', async () => {
+    const events: MatrixEvent[] = [];
+    const { mx, deliver } = syncingClient([{ events }]);
+    const onRing = vi.fn();
+    const stop = watchRings(mx, { onRing, onDeclined: vi.fn() });
+    const ring = ringIn('!a:example.org', '$ring', Date.now());
+
+    // The SDK adds an event to the timeline and announces it in one step.
+    events.push(ring);
     await deliver(ring);
 
     expect(onRing).toHaveBeenCalledTimes(1);

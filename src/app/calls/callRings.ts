@@ -1,5 +1,6 @@
 import {
   EventType,
+  KnownMembership,
   RelationType,
   RoomEvent,
   type MatrixClient,
@@ -98,8 +99,9 @@ export type RingWatcher = {
 };
 
 /**
- * Follows the rings and declines that sync delivers to this account. An encrypted one whose room
- * key comes late (to-device lag, a forwarded or backed-up key) is read when the SDK decrypts it
+ * Follows the rings and declines that sync delivers to this account, starting with those it
+ * delivered in the last {@link MAX_RING_LIFETIME_MS} before this started. An encrypted one whose
+ * room key comes late (to-device lag, a forwarded or backed-up key) is read when the SDK decrypts it
  * again: a failed attempt announces itself as decrypted too, so the wait lasts until an attempt
  * works or no ring sent then could still be ringing. Returns what stops following.
  */
@@ -134,6 +136,19 @@ export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void)
     consider(event).catch(() => undefined);
   };
   mx.on(RoomEvent.Timeline, onTimeline);
+  // Sync may have delivered rings before this started, while the app's pages still loaded: the
+  // recent events of the rooms the user is in are read too, oldest first, so a decline follows
+  // the ring it says no to and the newest ring shows. The SDK announces each event as it adds it,
+  // so none of these reaches the listener again.
+  const recent = Date.now() - MAX_RING_LIFETIME_MS;
+  mx.getRooms()
+    .filter((room) => matchesEnum(room.getMyMembership(), KnownMembership.Join))
+    .flatMap((room) => room.getLiveTimeline().getEvents())
+    .filter((event) => event.getTs() > recent)
+    .sort((a, b) => a.getTs() - b.getTs())
+    .forEach((event) => {
+      consider(event).catch(() => undefined);
+    });
   return () => {
     stopped = true;
     decryptions.stop();
