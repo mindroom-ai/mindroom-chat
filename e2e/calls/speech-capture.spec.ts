@@ -101,7 +101,10 @@ test('finds a spoken question as one stretch, from the speech files this app ser
 }) => {
   const { stretches, files } = await findSpeech(page, [SPEECH]);
   // The model and the runtime's module and WebAssembly, from this app's own build.
-  const model = files.map((url) => url.replace(/\/assets\/speech-model-[0-9a-f]+\//, '/model/'));
+  // The dev server's module import adds a query.
+  const model = files.map((url) =>
+    url.replace(/\/assets\/speech-model-[0-9a-f]+\//, '/model/').replace(/\?.*/, '')
+  );
   expect(model.sort()).toEqual([
     `${baseURL}/model/ort-wasm-simd-threaded.js`,
     `${baseURL}/model/ort-wasm-simd-threaded.wasm`,
