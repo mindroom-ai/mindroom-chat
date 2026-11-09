@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildIOSPushPusherRequest,
   clearIOSPushState,
+  findIOSPushAccount,
   getIOSPushEnabled,
   getStoredIOSPushToken,
   migrateLegacyIOSPushEnabled,
@@ -10,6 +11,7 @@ import {
   upsertIOSPushPusher,
 } from './iosPush';
 import { hasCloudflareAccess } from '../../native/cloudflareAccess';
+import { SESSION_STORE_KEY } from '../../matrix/session/sessions';
 
 vi.mock('../../native/cloudflareAccess', () => ({ hasCloudflareAccess: vi.fn(() => false) }));
 
@@ -335,16 +337,20 @@ describe('resolveIOSPushConfig', () => {
 
 describe('buildIOSPushPusherRequest', () => {
   it('builds a visible fallback for event-id-only pushes', () => {
-    const request = buildIOSPushPusherRequest('token-123', {
-      appId: 'com.mindroom-ios',
-      gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
-      appDisplayName: 'MindRoom Chat iOS',
-      deviceDisplayName: 'iPhone',
-      profileTag: 'profile-1',
-      append: true,
-      format: 'event_id_only',
-      lang: 'en',
-    });
+    const request = buildIOSPushPusherRequest(
+      'token-123',
+      {
+        appId: 'com.mindroom-ios',
+        gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+        appDisplayName: 'MindRoom Chat iOS',
+        deviceDisplayName: 'iPhone',
+        profileTag: 'profile-1',
+        append: true,
+        format: 'event_id_only',
+        lang: 'en',
+      },
+      'account-tag'
+    );
 
     expect(request).toEqual({
       kind: 'http',
@@ -359,6 +365,7 @@ describe('buildIOSPushPusherRequest', () => {
         url: 'https://push.example.com/_matrix/push/v1/notify',
         format: 'event_id_only',
         default_payload: {
+          mindroom_account: 'account-tag',
           aps: {
             alert: {
               title: 'MindRoom Chat iOS',
@@ -372,21 +379,26 @@ describe('buildIOSPushPusherRequest', () => {
   });
 
   it('leaves the full-format alert to Sygnal for sender and message previews', () => {
-    const request = buildIOSPushPusherRequest('token-123', {
-      appId: 'com.mindroom-ios',
-      gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
-      appDisplayName: 'MindRoom Chat iOS',
-      deviceDisplayName: 'iPhone',
-      profileTag: 'profile-1',
-      append: true,
-      format: 'full',
-      lang: 'en',
-    });
+    const request = buildIOSPushPusherRequest(
+      'token-123',
+      {
+        appId: 'com.mindroom-ios',
+        gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+        appDisplayName: 'MindRoom Chat iOS',
+        deviceDisplayName: 'iPhone',
+        profileTag: 'profile-1',
+        append: true,
+        format: 'full',
+        lang: 'en',
+      },
+      'account-tag'
+    );
 
     expect(request.data).toEqual({
       url: 'https://push.example.com/_matrix/push/v1/notify',
       format: 'full',
       default_payload: {
+        mindroom_account: 'account-tag',
         aps: {
           sound: 'default',
         },
@@ -396,6 +408,71 @@ describe('buildIOSPushPusherRequest', () => {
 });
 
 describe('upsertIOSPushPusher', () => {
+  it("tags the pushes with the account's own random tag, whatever profile tag is configured", async () => {
+    const storage = new Map<string, string>([
+      [
+        SESSION_STORE_KEY,
+        JSON.stringify({
+          version: 1,
+          sessions: [
+            { sessionId: 'session-a', baseUrl: 'https://a.example', userId: '@a:a.example' },
+            { sessionId: 'session-b', baseUrl: 'https://b.example', userId: '@b:b.example' },
+          ].map((session) => ({ ...session, deviceId: 'D', accessToken: 't', lastUsedAt: 1 })),
+          activeSessionId: 'session-b',
+        }),
+      ],
+    ]);
+    const localStorageMock = {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value);
+      },
+      removeItem: (key: string) => {
+        storage.delete(key);
+      },
+    };
+    Object.defineProperty(globalThis, 'window', {
+      value: { localStorage: localStorageMock, dispatchEvent: () => true },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
+    });
+    const mx = { setPusher: vi.fn(), getHomeserverUrl: () => 'https://a.example' };
+    const pushConfig = {
+      appId: 'chat.example',
+      gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+      appDisplayName: 'Chat',
+      deviceDisplayName: 'iPhone',
+      profileTag: 'configured-for-everyone',
+      append: true,
+      format: 'full' as const,
+      lang: 'en',
+    };
+
+    await upsertIOSPushPusher(mx, pushConfig, 'apns-token', 'session-a');
+    await upsertIOSPushPusher(mx, pushConfig, 'apns-token', 'session-b');
+
+    const tags = mx.setPusher.mock.calls.map(
+      ([request]) =>
+        (request as { data: { default_payload: Record<string, unknown> } }).data.default_payload
+          .mindroom_account
+    );
+    expect(tags[0]).toEqual(expect.any(String));
+    expect(tags[1]).toEqual(expect.any(String));
+    expect(tags[0]).not.toBe(tags[1]);
+    expect(mx.setPusher.mock.calls[0]?.[0]).toMatchObject({
+      profile_tag: 'configured-for-everyone',
+    });
+    expect(findIOSPushAccount(tags[0] as string)?.sessionId).toBe('session-a');
+    expect(findIOSPushAccount(tags[1] as string)?.sessionId).toBe('session-b');
+    expect(findIOSPushAccount('unknown')).toBeUndefined();
+
+    Reflect.deleteProperty(globalThis, 'window');
+    Reflect.deleteProperty(globalThis, 'localStorage');
+  });
+
   it('keeps the configured format for a server without Cloudflare Access', async () => {
     vi.mocked(hasCloudflareAccess).mockReturnValue(false);
     const mx = { setPusher: vi.fn(), getHomeserverUrl: () => 'https://public.example' };
@@ -445,6 +522,7 @@ describe('upsertIOSPushPusher', () => {
           format: 'event_id_only',
           default_payload: {
             aps: { sound: 'default', alert: { title: 'Chat', body: 'New message' } },
+            mindroom_account: expect.any(String),
           },
         }),
       })
