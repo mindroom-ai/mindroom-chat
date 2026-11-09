@@ -122,6 +122,26 @@ describe('useToolbarClearance', () => {
     expect(renderRow(140, 900, 800)).toBe(-2);
   });
 
+  it('places the toolbar again when the sender line changes size', () => {
+    const observed: Element[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe(element: Element) {
+          observed.push(element);
+        }
+
+        disconnect() {}
+      }
+    );
+    renderRow(140, 900, 1000);
+    vi.unstubAllGlobals();
+    expect(observed.map((element) => (element as HTMLElement).dataset.testid)).toEqual([
+      'row',
+      'sender',
+    ]);
+  });
+
   it('moves the toolbar of a row under the sticky header into the visible part of the row', () => {
     // No overlay over the toolbar; the visible rows start at 100.
     expect(renderRow(90, 100)).toBe(10);

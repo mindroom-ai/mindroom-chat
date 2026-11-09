@@ -172,9 +172,12 @@ export const useToolbarClearance = (
       if (!frame) frame = requestAnimationFrame(place);
     };
     scroller.addEventListener('scroll', schedule, { passive: true });
-    // Folding or unfolding the row moves its own fold button.
+    // Folding or unfolding the row moves its own fold button. A reply's run details arriving with
+    // a later edit widen its sender line, which in Compact can then reach under the toolbar.
     const resize = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(schedule);
     resize?.observe(row);
+    const senderLine = row.querySelector(SENDER_LINE);
+    if (senderLine) resize?.observe(senderLine);
     return () => {
       scroller.removeEventListener('scroll', schedule);
       resize?.disconnect();
