@@ -26,17 +26,22 @@ const entry = (generation = 1, isInvolved = true) =>
   } as CrossRoomThreadIndexEntry);
 
 const makeRoom = () => {
-  const thread = { events: [{ getId: () => '$a' }] };
+  const receipt = { eventId: '$a' };
+  const thread = {
+    events: [{ getId: () => '$a' }],
+    getReadReceiptForUserId: () => receipt,
+  };
   const reactions: unknown[] = [];
   const room = {
     getThread: () => thread,
+    getReadReceiptForUserId: () => null,
     getUnfilteredTimelineSet: () => ({
       relations: {
         getChildEventsForEvent: () => ({ getRelations: () => reactions }),
       },
     }),
   } as unknown as Room;
-  return { room, thread, reactions };
+  return { room, thread, reactions, receipt };
 };
 
 afterEach(() => {
@@ -62,6 +67,18 @@ describe('createThreadSignalsReader', () => {
     const reader = createThreadSignalsReader();
     reader.read(room, entry(), '@me:x', NOW);
     thread.events.push({ getId: () => '$reaction' });
+    reader.read(room, entry(), '@me:x', NOW);
+    expect(mocks.read).toHaveBeenCalledTimes(2);
+  });
+
+  it('reads again when the user reads further in the thread, also on another device', () => {
+    mocks.read.mockReturnValue(quiet);
+    const { room, receipt } = makeRoom();
+    const reader = createThreadSignalsReader();
+    reader.read(room, entry(), '@me:x', NOW);
+    reader.read(room, entry(), '@me:x', NOW);
+    expect(mocks.read).toHaveBeenCalledTimes(1);
+    receipt.eventId = '$b';
     reader.read(room, entry(), '@me:x', NOW);
     expect(mocks.read).toHaveBeenCalledTimes(2);
   });

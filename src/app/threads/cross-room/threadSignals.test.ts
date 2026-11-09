@@ -377,6 +377,24 @@ describe('readThreadSignals in a loaded thread with edits', () => {
     });
   });
 
+  it('takes a corrected reply for read once the user read it, as the thread list does', async () => {
+    // An agent fixes a typo in a reply the user already read: the receipt stays on the reply.
+    const { room } = await setup(
+      ME,
+      [
+        event({ id: '$r', ts: 2000, sender: AGENT, content: { body: 'Leave at 7:54' } }),
+        edit('$fix', '$r', 3000, { body: 'Leave at 7:45' }),
+      ],
+      { opened: true }
+    );
+    readUpTo(room, '$r', 2500);
+
+    const signals = readThreadSignals(room, ROOT, ME, NOW);
+
+    expect(signals.lastReply).toMatchObject({ preview: { text: 'Leave at 7:45' } });
+    expect(signals.newCount).toBe(0);
+  });
+
   it('takes a streamed reply for read when the receipt names its bundled finishing edit', async () => {
     // After a reload or on another device: the thread holds the reply with its edit bundled.
     const reply = event({ id: '$r', ts: 2000, sender: AGENT, content: { body: 'Thinking...' } });

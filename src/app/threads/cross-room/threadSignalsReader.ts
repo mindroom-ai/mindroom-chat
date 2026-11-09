@@ -1,4 +1,4 @@
-import { EventType, RelationType } from 'matrix-js-sdk';
+import { EventType, ReceiptType, RelationType } from 'matrix-js-sdk';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { getSyncedEdit } from '../../matrix/client/syncedEdits';
 import { isPendingApproval } from '../../matrix/protocol/threadApprovalModel';
@@ -25,18 +25,35 @@ const reactionCount = (room: Room, eventId: string): number =>
     .relations.getChildEventsForEvent(eventId, RelationType.Annotation, EventType.Reaction)
     ?.getRelations().length ?? 0;
 
+/** The events the user's receipts name, in the thread and unthreaded, public and private. */
+const receiptsOf = (room: Room, rootId: string, userId: string): string => {
+  const thread = room.getThread(rootId);
+  return [ReceiptType.Read, ReceiptType.ReadPrivate]
+    .flatMap((type) => [
+      thread?.getReadReceiptForUserId(userId, false, type)?.eventId ?? '',
+      room.getReadReceiptForUserId(userId, false, type)?.eventId ?? '',
+    ])
+    .join(',');
+};
+
 /**
  * A cache of thread signals. An index entry's `generation` misses changes the signals see: a
  * reaction or an approval card's edit in the loaded thread, a reaction on the question it waits
- * on, the edit that answers its waiting approval, and the clock that expires an approval; the
- * cache key holds those too.
+ * on, the edit that answers its waiting approval, the user's receipts (a read on another device
+ * that leaves the thread unread), and the clock that expires an approval; the cache key holds
+ * those too.
  */
 export const createThreadSignalsReader = (): ThreadSignalsReader => {
   const cache = new Map<string, Cached>();
   return {
     read: (room, entry, userId, now) => {
       const events = room.getThread(entry.threadRootId)?.events ?? [];
-      const base = `${entry.generation}:${events.length}:${events.at(-1)?.getId() ?? ''}`;
+      const base = [
+        entry.generation,
+        events.length,
+        events.at(-1)?.getId() ?? '',
+        receiptsOf(room, entry.threadRootId, userId),
+      ].join(':');
       // What a thread waits on adds to its key: reactions on the question, the card's synced edit.
       const keyOf = ({ pendingQuestion, pendingApproval }: ThreadSignals) =>
         [

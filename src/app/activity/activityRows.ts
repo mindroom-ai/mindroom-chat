@@ -104,7 +104,8 @@ export const buildActivityRows = ({
         }
       } else if (!entry.isInvolved) continue;
     }
-    const unread = waits || threadSignals.newCount > 0;
+    // A mention is unread by its signal: it may sit in the root, which no reply count holds.
+    const unread = waits || named || threadSignals.newCount > 0;
     const kind = threadKind(threadSignals);
     rows.push({
       type: 'thread',

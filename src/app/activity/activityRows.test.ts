@@ -84,6 +84,11 @@ describe('buildActivityRows', () => {
     expect(kinds(rows)).toEqual(['named:mention']);
   });
 
+  it('calls a thread whose root names the user unread, though no reply is new', () => {
+    const { rows } = build([[entry('root'), { mentionedMe: true, newCount: 0 }]]);
+    expect(rows.map((row) => [row.key, row.kind, row.unread])).toEqual([['root', 'mention', true]]);
+  });
+
   it('keeps an older thread while it waits for the user', () => {
     const old = { lastActivityTs: NOW - ACTIVITY_READ_WINDOW_MS - DAY };
     const question = { eventId: '$q', senderId: '@mindroom_mind:x', text: 'q', options: [] };

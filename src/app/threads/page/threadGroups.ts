@@ -28,7 +28,7 @@ const groupOf = (
 ): ThreadGroupId | undefined => {
   if (signals.pendingApproval || signals.pendingQuestion) return 'needsYou';
   if (signals.automation && !entry.isInvolved) return scope === 'all' ? 'automations' : undefined;
-  if (signals.newCount > 0) return 'unread';
+  if (signals.newCount > 0 || signals.mentionedMe) return 'unread';
   if (entry.threadRecord.status.isStreaming) return 'working';
   return 'recent';
 };

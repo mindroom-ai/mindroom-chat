@@ -66,6 +66,11 @@ describe('groupThreads', () => {
     ]);
   });
 
+  it('takes a thread whose root names the user for unread, though no reply is new', () => {
+    const groups = groupThreads([item('named', {}, { mentionedMe: true })], 'following', ME, '');
+    expect(shape(groups)).toEqual([['unread', ['named']]]);
+  });
+
   it('keeps Mine to threads the user started and Following to threads they take part in', () => {
     const items = [
       item('mine', {}),

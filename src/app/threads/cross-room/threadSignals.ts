@@ -7,7 +7,7 @@ import {
   getThreadPreviewLocalization,
   type ThreadPreviewLocalization,
 } from '../../event-store/threads/threadMessagePreview';
-import { threadReceiptNamesEvent } from '../../event-store/threads/streamFinish';
+import { getFinishingEdit, threadReceiptNamesEvent } from '../../event-store/threads/streamFinish';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { getSyncedEdit } from '../../matrix/client/syncedEdits';
 import { getAiRunInfo, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
@@ -251,9 +251,11 @@ export const readThreadSignals = (
         : upTo,
     getThreadReadState(thread, userId)?.readUpToTs
   );
+  // A reply is as new as the edit that finished its stream, if one did; a correction is no news.
+  const newAt = ({ event }: Shown) =>
+    getFinishingEdit(event, thread ?? undefined)?.getTs() ?? event.getTs();
   const isUnread = (shown: Shown) =>
-    shown.event.getSender() !== userId &&
-    (readUpToTs === undefined || (shown.editTs ?? shown.event.getTs()) > readUpToTs);
+    shown.event.getSender() !== userId && (readUpToTs === undefined || newAt(shown) > readUpToTs);
   const unread = counted.filter(isUnread);
   const newest = counted.at(-1);
 
