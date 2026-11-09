@@ -1,4 +1,4 @@
-import { createContext, type ReactElement, useContext, useLayoutEffect } from 'react';
+import { createContext, type ReactElement, useContext, useLayoutEffect, useState } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
 import { type PanelPresence, usePanelForm, usePanelPresence, usePanelSlot } from './panelPresence';
@@ -13,7 +13,14 @@ function Mover({ name }: { name: string }) {
   return <span data-panel={name} />;
 }
 
+let slotRenders = 0;
+let slotCommits = 0;
+
 function Slot({ panel }: { panel?: ReactElement }) {
+  slotRenders += 1;
+  useLayoutEffect(() => {
+    slotCommits += 1;
+  });
   return <>{usePanelSlot(panel)}</>;
 }
 
@@ -69,7 +76,79 @@ describe('usePanelSlot', () => {
     update(undefined);
     expect(shown(renderer)).toEqual([]);
   });
+
+  it('ends the exit when its moving panel goes before it is done, such as for a failure', () => {
+    const { renderer, update } = renderSlot();
+    update(<Failing key="card" />);
+    update(undefined);
+    expect(presence?.phase).toBe('exit');
+    act(() => fail?.());
+    expect(shown(renderer)).toEqual([]);
+  });
+
+  it('keeps an open panel whose moving panel goes', () => {
+    const { renderer, update } = renderSlot();
+    update(<Failing key="card" />);
+    act(() => fail?.());
+    expect(shown(renderer)).toEqual(['failed']);
+  });
+
+  it('waits for a moving panel that registers again as it starts to close', () => {
+    const { renderer, update } = renderSlot();
+    update(<PhaseMover key="card" />);
+    update(undefined);
+    expect(shown(renderer)).toEqual(['card']);
+    act(() => presence?.done());
+    expect(shown(renderer)).toEqual([]);
+  });
+
+  it('renders once as its moving panel finishes closing', () => {
+    const { update } = renderSlot();
+    update(<Mover key="members" name="members" />);
+    update(undefined);
+    slotRenders = 0;
+    act(() => presence?.done());
+    expect(slotRenders).toBe(1);
+  });
+
+  it('changes only as it closes and as it is done, when its moving panel stays still', () => {
+    const { renderer, update } = renderSlot(<StillMover key="members" />);
+    slotCommits = 0;
+    update(undefined);
+    expect(shown(renderer)).toEqual([]);
+    expect(slotCommits).toBe(2);
+  });
 });
+
+/** A moving panel that stays still (such as one that fills the room): done as soon as it closes. */
+function StillMover() {
+  const own = usePanelPresence();
+  const register = own?.register;
+  useLayoutEffect(() => register?.(), [register]);
+  const closing = own?.phase === 'exit';
+  const done = own?.done;
+  useLayoutEffect(() => {
+    if (closing) done?.();
+  }, [closing, done]);
+  return <span data-panel="still" />;
+}
+
+/** A moving panel that registers anew with each phase it gets. */
+function PhaseMover() {
+  const own = usePanelPresence();
+  presence = own;
+  useLayoutEffect(() => own?.register(), [own]);
+  return <span data-panel="card" />;
+}
+
+let fail: (() => void) | undefined;
+
+/** A moving panel that something else (a failure) can take the place of while it shows. */
+function Failing() {
+  const [failed, setFailed] = useState(false);
+  fail = () => setFailed(true);
+  return failed ? <span data-panel="failed" /> : <Mover name="card" />;
+}
 
 /** The form the layout asks panels for: beside the content or over it. */
 const LayoutForm = createContext<'beside' | 'over'>('beside');

@@ -2,12 +2,18 @@
 // The example plugin's test, written as a plugin outside this repository writes one: it imports the
 // app only through the client SDK, `/testing` included, and runs in the app's vitest.
 import { createRef, type ReactNode } from 'react';
-import { fireEvent, waitFor } from '@testing-library/react';
+import { act, fireEvent, waitFor } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { commandUsage, usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
+import {
+  commandUsage,
+  usePluginStorage,
+  type PanelFrame,
+  type PluginEvent,
+} from '@mindroom/client-sdk/core';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
+import type { PanelPresence } from '@mindroom/client-sdk/ui';
 import plugin from './index';
 
 // jsdom lays nothing out, so a focus trap finds nothing it could focus and throws; its menu's trap
@@ -15,6 +21,21 @@ import plugin from './index';
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: ReactNode }) => children,
 }));
+
+// The room's panel place around the card and the screen size, which the app provides; outside it
+// there is no place, and the size is the SDK's own answer.
+const place = vi.hoisted(() => ({
+  presence: undefined as PanelPresence | undefined,
+  screenSize: undefined as 'Desktop' | 'Mobile' | undefined,
+}));
+vi.mock('@mindroom/client-sdk/ui', async (importOriginal) => {
+  const ui = await importOriginal<typeof import('@mindroom/client-sdk/ui')>();
+  return {
+    ...ui,
+    usePanelPresence: () => place.presence,
+    useScreenSize: () => place.screenSize ?? ui.useScreenSize(),
+  };
+});
 
 /**
  * A drag event as the browser fires it, carrying `data` (format to text), which a drag start fills
@@ -327,6 +348,74 @@ describe('example plugin', () => {
     view.unmount();
     expect(revoked).toEqual([objectUrl]);
   });
+
+  it.each([
+    ['beside the conversation', 'beside', 'Desktop', true],
+    ['filling the room', 'filled', 'Desktop', false],
+    ['on a phone', 'beside', 'Mobile', false],
+  ] as const)(
+    "registers its own-frame card with the room's panel place and closes it %s, moving it out first and handing on its width only beside the conversation",
+    async (_where, layout, screenSize, moves) => {
+      const card = plugin.sidePanels?.find(({ id }) => id === 'card');
+      if (!card) throw new Error('the example plugin has no card');
+      // jsdom lays nothing out and has no Web Animations: the card's box is 336 px wide on the page
+      // (none off it), and its motion ends when the test says.
+      const offsetWidth = vi
+        .spyOn(HTMLElement.prototype, 'offsetWidth', 'get')
+        .mockImplementation(function width(this: HTMLElement) {
+          return this.isConnected ? 336 : 0;
+        });
+      let finish = () => {};
+      const animate = vi.fn(() => ({
+        playState: 'running',
+        cancel: () => undefined,
+        finished: new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+      }));
+      Object.defineProperty(HTMLElement.prototype, 'animate', {
+        value: animate,
+        configurable: true,
+      });
+      const unregister = vi.fn();
+      const presence: PanelPresence = {
+        phase: 'shown',
+        register: vi.fn(() => unregister),
+        done: vi.fn(),
+        lastWidth: { current: undefined },
+      };
+      place.presence = presence;
+      place.screenSize = screenSize;
+      try {
+        const ui = () => <card.Component roomId="!lobby:example.org" />;
+        const frame: PanelFrame = {
+          label: 'Example card',
+          layout: 'folded',
+          setLayout: () => undefined,
+        };
+        const view = await renderPluginComponent(ui(), { id: 'example', plugin, frame });
+        expect(presence.register).toHaveBeenCalledTimes(1);
+        // Shown from its tab, the card has its box, and moves if it does, only from now on.
+        frame.layout = layout;
+        view.rerender(ui());
+        place.presence = { ...presence, phase: 'exit' };
+        view.rerender(ui());
+        expect(animate).toHaveBeenCalledTimes(moves ? 1 : 0);
+        expect(presence.done).toHaveBeenCalledTimes(moves ? 0 : 1);
+        await act(async () => finish());
+        expect(presence.done).toHaveBeenCalledTimes(1);
+        view.unmount();
+        expect(unregister).toHaveBeenCalledTimes(1);
+        // A panel that takes its place moves on from the width of its box on the page, if it moved.
+        expect(presence.lastWidth.current).toBe(moves ? 336 : undefined);
+      } finally {
+        place.presence = undefined;
+        place.screenSize = undefined;
+        delete (HTMLElement.prototype as { animate?: unknown }).animate;
+        offsetWidth.mockRestore();
+      }
+    }
+  );
 
   it("says in its panel whether the account may post in the room, from the room's levels", async () => {
     const [panel] = plugin.sidePanels ?? [];
