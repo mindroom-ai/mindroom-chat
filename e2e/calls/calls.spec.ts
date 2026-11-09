@@ -1149,4 +1149,80 @@ test.describe('calls', () => {
       await callPanel(page).getByRole('button', { name: 'End' }).click();
     }
   });
+
+  test("leaving the room withdraws this device's call membership before the leave, from the room menu and with /leave", async ({
+    browser,
+  }) => {
+    const alice = await register(`alicew${RUN}`, 'Alice Withdraws');
+    const bob = await register(`bobw${RUN}`, 'Bob Watches');
+    const alicePage = await signIn(browser, `alicew${RUN}`);
+    const bobPage = await signIn(browser, `bobw${RUN}`);
+    await bobPage.goto('/home/');
+
+    /** The content of each call membership of Alice's in the room, as Bob reads it. */
+    const aliceMemberships = async (roomId: string) =>
+      (
+        await matrix<{ type: string; sender: string; content: object }[]>(
+          `/rooms/${encodeURIComponent(roomId)}/state`,
+          { token: bob.token }
+        )
+      )
+        .filter(
+          (event) =>
+            event.type === 'org.matrix.msc3401.call.member' && event.sender === alice.userId
+        )
+        .map((event) => event.content);
+    const aliceInRoom = async (roomId: string) =>
+      (
+        await matrix<{ membership: string }>(
+          `/rooms/${encodeURIComponent(roomId)}/state/m.room.member/${encodeURIComponent(
+            alice.userId
+          )}`,
+          { token: bob.token }
+        )
+      ).membership;
+
+    /** Alice calls Bob in a new direct chat, then leaves the chat with `leave`. */
+    const leaveDuringCall = async (leave: () => Promise<void>) => {
+      const roomId = await createDirectChat(alice, bob, false);
+      await openRoom(alicePage, roomId);
+      await alicePage.locator('[data-room-call-button]').click();
+      await callPanel(alicePage).getByRole('button', { name: 'Join', exact: true }).click();
+      const ring = bobPage.getByRole('alertdialog', { name: 'Incoming Call' });
+      await expect(ring).toBeVisible({ timeout: 60_000 });
+      await ring.getByRole('button', { name: 'Answer' }).click();
+      await expect(tileOf(bobPage, alice.userId)).toHaveAttribute('data-connected', 'true', {
+        timeout: 60_000,
+      });
+      const [joined] = await aliceMemberships(roomId);
+      expect(Object.keys(joined ?? {}).length).toBeGreaterThan(0);
+
+      await leave();
+
+      // Her membership was withdrawn while she was still in the room (the server refuses it
+      // after the leave): Bob, and whoever sees her join the room again, finds her in no call.
+      await expect(tileOf(bobPage, alice.userId)).toHaveCount(0, { timeout: 30_000 });
+      await expect.poll(() => aliceInRoom(roomId), { timeout: 30_000 }).toBe('leave');
+      expect(await aliceMemberships(roomId)).toEqual([{}]);
+      await expect(alicePage.locator('[data-call-tab]')).toHaveCount(0);
+      await callPanel(bobPage).getByRole('button', { name: 'End' }).click();
+    };
+
+    await leaveDuringCall(async () => {
+      await roomMoreOptions(alicePage).click();
+      await alicePage.getByRole('menuitem', { name: 'Leave Room', exact: true }).click();
+      await alicePage
+        .getByRole('alertdialog')
+        .getByRole('button', { name: 'Leave', exact: true })
+        .click();
+    });
+    await leaveDuringCall(async () => {
+      await alicePage.locator('[data-editable-name="RoomInput"]').click();
+      await alicePage.keyboard.type('/leave');
+      // Tab takes the command from the command menu, which would otherwise take the Enter.
+      await alicePage.keyboard.press('Tab');
+      await expect(alicePage.locator('[data-slash-command]')).toHaveCount(0);
+      await alicePage.keyboard.press('Enter');
+    });
+  });
 });

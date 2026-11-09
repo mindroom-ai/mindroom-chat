@@ -20,6 +20,7 @@ import {
 import { Dialog, Header, IconButton } from '../ui/glass/GlassPrimitives';
 import { SettingTile } from '../ui/SettingTile';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { useCallActions } from '../calls/callStore';
 import { useAlive } from '../lib/hooks/useAlive';
 import { stopPropagation } from '../lib/keyboard';
 import { describeKnownError } from '../lib/describeError';
@@ -56,6 +57,7 @@ const promptTrap = (dismiss: () => void): FocusTrapOptions => ({
 export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromptProps) {
   const { t } = useTranslation();
   const client = useMatrixClient();
+  const { leaveRoom } = useCallActions(client);
   const isMounted = useAlive();
   const [leaveState, setLeaveState] = useState<LeaveState>({ kind: 'idle' });
   const [forget, setForget] = useState(false);
@@ -64,7 +66,7 @@ export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromp
   const confirmLeave = () => {
     if (leaving) return;
     setLeaveState({ kind: 'leaving' });
-    const done = client.leave(roomId);
+    const done = leaveRoom(roomId);
     (forget ? done.then(() => client.forget(roomId)) : done).then(
       () => {
         if (isMounted()) onLeft();

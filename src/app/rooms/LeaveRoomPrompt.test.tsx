@@ -4,7 +4,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixError } from 'matrix-js-sdk';
+import { createStore, Provider } from 'jotai';
 import { LeaveRoomPrompt } from './LeaveRoomPrompt';
+import { activeCallAtom, type ActiveCall } from '../calls/callStore';
 
 const leave = vi.fn();
 const forget = vi.fn();
@@ -32,9 +34,13 @@ describe('LeaveRoomPrompt', () => {
     forget.mockReset();
   });
 
-  const show = (onLeft = vi.fn(), requestClose = vi.fn()) => {
+  const show = (onLeft = vi.fn(), requestClose = vi.fn(), store = createStore()) => {
     act(() =>
-      root.render(<LeaveRoomPrompt roomId="!r:test" onLeft={onLeft} requestClose={requestClose} />)
+      root.render(
+        <Provider store={store}>
+          <LeaveRoomPrompt roomId="!r:test" onLeft={onLeft} requestClose={requestClose} />
+        </Provider>
+      )
     );
     const leaveButton = [...document.querySelectorAll('button')].find(
       (button) => button.textContent === 'Leave'
@@ -52,6 +58,31 @@ describe('LeaveRoomPrompt', () => {
     await act(async () => leaveButton.click());
 
     expect(leave).toHaveBeenCalledWith('!r:test');
+    expect(onLeft).toHaveBeenCalledOnce();
+  });
+
+  it("ends this device's call in the room before leaving it, so its membership is withdrawn", async () => {
+    const steps: string[] = [];
+    const store = createStore();
+    store.set(activeCallAtom, {
+      kind: 'room',
+      call: {
+        room: { roomId: '!r:test' },
+        leave: vi.fn(async () => {
+          steps.push('call left');
+        }),
+      },
+    } as unknown as ActiveCall);
+    leave.mockImplementation(async () => {
+      steps.push('room left');
+      return {};
+    });
+    const { onLeft, leaveButton } = show(vi.fn(), vi.fn(), store);
+
+    await act(async () => leaveButton.click());
+
+    expect(steps).toEqual(['call left', 'room left']);
+    expect(store.get(activeCallAtom)).toBeUndefined();
     expect(onLeft).toHaveBeenCalledOnce();
   });
 

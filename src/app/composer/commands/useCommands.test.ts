@@ -56,6 +56,7 @@ const contextFor = (mx: unknown, room: Room): CommandContext => ({
   room,
   openRoom: vi.fn(),
   openPath: vi.fn(),
+  leaveRoom: vi.fn(async () => undefined),
 });
 
 const refusalOf = (promise: Promise<unknown>) =>
@@ -156,11 +157,12 @@ describe('slash commands', () => {
     expect(context.openRoom).toHaveBeenCalledWith('!joined-#lobby:far.org');
   });
 
-  it('leaves the room and goes Home', async () => {
+  it("leaves the room, ending this device's call in it first, and goes Home", async () => {
     const { mx } = fakeClient();
     const context = contextFor(mx, fakeRoom(members));
     await runCommandAction(Command.Leave, context, '');
-    expect(mx.leave).toHaveBeenCalledWith('!room:home.org');
+    expect(context.leaveRoom).toHaveBeenCalledWith('!room:home.org');
+    expect(mx.leave).not.toHaveBeenCalled();
     expect(context.openPath).toHaveBeenCalledWith('/home/');
   });
 
