@@ -141,6 +141,12 @@ export type ClientConfig = {
   allowCustomHomeservers?: boolean;
   auth?: AuthConfig;
   branding?: BrandingConfig;
+  /**
+   * The theme people see until they pick one in Settings, Appearance, and on the signed-out pages:
+   * a theme's name, such as `green`; any other value keeps the light or dark theme the system's
+   * preference picks.
+   */
+  defaultTheme?: string;
 
   hashRouter?: HashRouterConfig;
   featuredCommunities?: FeaturedCommunitiesConfig;

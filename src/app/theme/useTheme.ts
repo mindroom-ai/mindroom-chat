@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { useSetting } from '../preferences/useSetting';
-import { settingsAtom } from '../preferences/settings';
+import { atom, useAtomValue } from 'jotai';
+import { type Settings, settingsAtom } from '../preferences/settings';
+import { readCachedClientConfig } from '../config/ClientConfigLoader';
+import type { ClientConfig } from '../config/useClientConfig';
 import * as palettes from './colors.css';
 import { roundedRadii } from './config.css';
 
@@ -49,6 +51,56 @@ export const THEMES: Theme[] = [
 const getThemeById = (themeId: string | undefined): Theme | undefined =>
   THEMES.find((theme) => theme.id === themeId);
 
+/** The theme `config.json` names as `defaultTheme` (`"green"` for `green-theme`), if there is one. */
+export const deploymentDefaultTheme = (config: ClientConfig | undefined): Theme | undefined => {
+  const name: unknown = config?.defaultTheme;
+  return typeof name === 'string' ? getThemeById(`${name}-theme`) : undefined;
+};
+
+type ThemeSettings = Pick<Settings, 'useSystemTheme' | 'themeId' | 'lightThemeId' | 'darkThemeId'>;
+
+/**
+ * The theme settings in effect under the deployment's default theme. Without a theme pick (no
+ * fixed, light or dark theme stored) it is the fixed theme, whatever the system's preference: the
+ * stored `useSystemTheme` is no choice, as every write of the settings stores it. With a pick, it
+ * stands in for the unset fixed pick and for the unset pick of its own kind.
+ */
+export const effectiveThemeSettings = <T extends ThemeSettings>(
+  settings: T,
+  deploymentTheme: Theme | undefined
+): T => {
+  if (!deploymentTheme) return settings;
+  if (!settings.themeId && !settings.lightThemeId && !settings.darkThemeId) {
+    return { ...settings, useSystemTheme: false, themeId: deploymentTheme.id };
+  }
+  const kindPick = deploymentTheme.kind === ThemeKind.Dark ? 'darkThemeId' : 'lightThemeId';
+  return {
+    ...settings,
+    themeId: settings.themeId ?? deploymentTheme.id,
+    [kindPick]: settings[kindPick] ?? deploymentTheme.id,
+  };
+};
+
+const NOT_SET = Symbol('not set');
+const setDeploymentThemeAtom = atom<Theme | undefined | typeof NOT_SET>(NOT_SET);
+
+/**
+ * The deployment's default theme: from the configuration this browser loaded last until the app
+ * shell sets the fresh one, so the first screens already show it.
+ */
+export const deploymentThemeAtom = atom(
+  (get) => {
+    const set = get(setDeploymentThemeAtom);
+    return set === NOT_SET ? deploymentDefaultTheme(readCachedClientConfig()) : set;
+  },
+  (_get, set, theme: Theme | undefined) => set(setDeploymentThemeAtom, theme)
+);
+
+/** The settings with the theme settings in effect (`effectiveThemeSettings`). */
+export const themeSettingsAtom = atom((get) =>
+  effectiveThemeSettings(get(settingsAtom), get(deploymentThemeAtom))
+);
+
 const DARK_SCHEME_QUERY = '(prefers-color-scheme: dark)';
 
 const readSystemThemeKind = (): ThemeKind =>
@@ -74,20 +126,24 @@ const useSystemThemeKind = (): ThemeKind => {
   return kind;
 };
 
-/** The default light or dark theme for the system's current preference, following changes. */
-export const useSystemDefaultTheme = (): Theme =>
-  useSystemThemeKind() === ThemeKind.Dark ? DarkTheme : LightTheme;
+/**
+ * The theme of the signed-out pages: the deployment's default theme, else the light or dark theme
+ * for the system's current preference, following changes.
+ */
+export const useSignedOutTheme = (): Theme => {
+  const systemKind = useSystemThemeKind();
+  const deploymentTheme = useAtomValue(deploymentThemeAtom);
+  return deploymentTheme ?? (systemKind === ThemeKind.Dark ? DarkTheme : LightTheme);
+};
 
 /**
- * The theme the settings select: the fixed theme, or with "use system theme" the light or dark
- * theme picked for the system's current preference.
+ * The theme the settings select (with the deployment's default, `effectiveThemeSettings`): the
+ * fixed theme, or with "use system theme" the light or dark theme picked for the system's current
+ * preference.
  */
 const useActiveTheme = (): Theme => {
   const systemKind = useSystemThemeKind();
-  const [themeId] = useSetting(settingsAtom, 'themeId');
-  const [useSystemTheme] = useSetting(settingsAtom, 'useSystemTheme');
-  const [lightThemeId] = useSetting(settingsAtom, 'lightThemeId');
-  const [darkThemeId] = useSetting(settingsAtom, 'darkThemeId');
+  const { themeId, useSystemTheme, lightThemeId, darkThemeId } = useAtomValue(themeSettingsAtom);
 
   return useMemo(() => {
     if (!useSystemTheme) return getThemeById(themeId) ?? LightTheme;

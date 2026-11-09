@@ -7,13 +7,16 @@ const statusBarTheme = vi.hoisted(() => ({
   syncNativeStatusBarTheme: vi.fn(),
 }));
 
-vi.mock('./useTheme', () => {
+vi.mock('./useTheme', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./useTheme')>();
   const ThemeKind = {
     Light: 'light',
     Dark: 'dark',
   };
 
   return {
+    deploymentDefaultTheme: actual.deploymentDefaultTheme,
+    effectiveThemeSettings: actual.effectiveThemeSettings,
     ThemeKind,
     LightTheme: {
       id: 'light-theme',
@@ -90,6 +93,10 @@ const setStoredSettings = (value: unknown) => {
   window.localStorage.setItem('settings', JSON.stringify(value));
 };
 
+// What ClientConfigLoader cached from the last config.json it loaded.
+const setCachedConfig = (config: object) =>
+  window.localStorage.setItem('io.mindroom.client-config:/config.json', JSON.stringify(config));
+
 const setStoredSessionStore = (value: unknown) => {
   if (typeof value === 'string') {
     window.localStorage.setItem(SESSION_STORE_KEY, value);
@@ -119,6 +126,43 @@ describe('themeBootstrap', () => {
   afterEach(() => {
     delete window.__INITIAL_THEME__;
     vi.restoreAllMocks();
+  });
+
+  describe("with the deployment's default theme", () => {
+    beforeEach(() => setCachedConfig({ defaultTheme: 'green' }));
+
+    it('shows it signed out, whatever the system prefers', () => {
+      expect(resolveInitialTheme().themeId).toBe('green-theme');
+      setMatchMedia(true);
+      expect(resolveInitialTheme('/login').themeId).toBe('green-theme');
+    });
+
+    it('shows it signed in until a theme is picked, though the stored switch follows the system', () => {
+      setStoredSessionStore(ACTIVE_SESSION_STORE);
+      setStoredSettings({ useSystemTheme: true, isPeopleDrawer: false });
+
+      expect(resolveInitialTheme('/').themeId).toBe('green-theme');
+    });
+
+    it('keeps a picked theme, and fills the unset pick of its kind', () => {
+      setStoredSessionStore(ACTIVE_SESSION_STORE);
+      setStoredSettings({ useSystemTheme: true, lightThemeId: 'silver-theme' });
+      expect(resolveInitialTheme('/').themeId).toBe('silver-theme');
+
+      setMatchMedia(true);
+      expect(resolveInitialTheme('/').themeId).toBe('green-theme');
+
+      setStoredSettings({ useSystemTheme: false, themeId: 'dark-theme' });
+      expect(resolveInitialTheme('/').themeId).toBe('dark-theme');
+    });
+
+    it('is ignored when it names no theme', () => {
+      setCachedConfig({ defaultTheme: 'chartreuse' });
+      setStoredSessionStore(ACTIVE_SESSION_STORE);
+      setStoredSettings({ useSystemTheme: true });
+
+      expect(resolveInitialTheme('/').themeId).toBe('light-theme');
+    });
   });
 
   it('defaults to dark-theme when storage is empty and the system theme is dark', () => {

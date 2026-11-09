@@ -9,7 +9,10 @@ import {
   SilverTheme,
   type Theme,
   ThemeKind,
+  deploymentDefaultTheme,
+  effectiveThemeSettings,
 } from './useTheme';
+import { readCachedClientConfig } from '../config/ClientConfigLoader';
 import { MINDROOM_SESSION_STORE_KEY } from '../lib/sessionStoreConfig';
 import { syncNativeStatusBarTheme } from './statusBarTheme';
 import { getSettings } from '../preferences/settings';
@@ -26,7 +29,7 @@ const THEME_IDS = [
   GreenTheme.id,
   OrangeTheme.id,
 ] as const;
-type ThemeId = typeof THEME_IDS[number];
+type ThemeId = (typeof THEME_IDS)[number];
 type ThemeScheme = 'light' | 'dark';
 
 type ThemeLike = Pick<Theme, 'id' | 'kind' | 'classNames'>;
@@ -159,8 +162,8 @@ const hasActiveStoredSession = (): boolean => {
   }
 };
 
-const resolveStoredThemeSettings = (): ResolvedTheme => {
-  const settings = getSettings();
+const resolveStoredThemeSettings = (deploymentTheme: Theme | undefined): ResolvedTheme => {
+  const settings = effectiveThemeSettings(getSettings(), deploymentTheme);
 
   if (!settings.useSystemTheme) {
     return RESOLVED_THEME_MAP[resolveThemeId(settings.themeId, LightTheme.id)];
@@ -186,20 +189,23 @@ const setMetaContent = (name: string, content: string): void => {
 };
 
 // ISSUE-087: the startup theme, which src/index.tsx applies through applyAppTheme() before the
-// app first renders.
+// app first renders. The deployment's default theme comes from the configuration this browser
+// loaded last, as the app's first render has it (`deploymentThemeAtom`).
 export const resolveInitialTheme = (
   pathname = typeof window !== 'undefined' ? window.location.pathname : undefined,
   hash = typeof window !== 'undefined' ? window.location.hash : undefined
 ): ResolvedTheme => {
+  const deploymentTheme = deploymentDefaultTheme(readCachedClientConfig());
   if (isUnauthRouteUrl(pathname, hash) || !hasActiveStoredSession()) {
-    return prefersDarkMode() ? RESOLVED_THEME_MAP[DarkTheme.id] : RESOLVED_THEME_MAP[LightTheme.id];
+    const systemThemeId = prefersDarkMode() ? DarkTheme.id : LightTheme.id;
+    return RESOLVED_THEME_MAP[resolveThemeId(deploymentTheme?.id, systemThemeId)];
   }
 
   if (typeof window !== 'undefined' && isThemeId(window.__INITIAL_THEME__)) {
     return RESOLVED_THEME_MAP[window.__INITIAL_THEME__];
   }
 
-  return resolveStoredThemeSettings();
+  return resolveStoredThemeSettings(deploymentTheme);
 };
 
 export const applyThemeToDom = (theme: ThemeLike | ResolvedTheme): void => {

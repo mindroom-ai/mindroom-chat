@@ -3,7 +3,15 @@ import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { Provider as JotaiProvider, createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DarkTheme, LightTheme, MidnightTheme, SilverTheme, useTheme } from '../theme/useTheme';
+import {
+  DarkTheme,
+  GreenTheme,
+  LightTheme,
+  MidnightTheme,
+  SilverTheme,
+  deploymentThemeAtom,
+  useTheme,
+} from '../theme/useTheme';
 import { getSettings, settingsAtom } from '../preferences/settings';
 import { putSession, removeSession } from '../matrix/session/sessions';
 import { applyAppTheme } from '../theme/appliedTheme';
@@ -29,6 +37,7 @@ vi.mock('./Router', () => ({
 
 vi.mock('../config/ClientConfigLoader', () => ({
   ClientConfigLoader: () => null,
+  readCachedClientConfig: () => undefined,
 }));
 
 vi.mock('../notifications/notices/NoticeBanners', () => ({
@@ -162,5 +171,24 @@ describe('AppTheme', () => {
       removeSession(sessionId);
     });
     expect(lastApplied()).toBe(DarkTheme);
+  });
+
+  it("shows the deployment's default theme signed out and until a theme is picked", () => {
+    installColorScheme(false);
+    const store = createStore();
+    store.set(deploymentThemeAtom, GreenTheme);
+    store.set(settingsAtom, { ...getSettings(), useSystemTheme: true });
+    renderTheme(store);
+    expect(lastApplied()).toBe(GreenTheme);
+
+    act(() => {
+      signIn();
+    });
+    expect(lastApplied()).toBe(GreenTheme);
+
+    act(() => {
+      store.set(settingsAtom, { ...store.get(settingsAtom), lightThemeId: SilverTheme.id });
+    });
+    expect(lastApplied()).toBe(SilverTheme);
   });
 });
