@@ -2,6 +2,7 @@ import { EventType, MatrixEvent, NotificationCountType, RelationType, Room } fro
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { canSubmitApprovalDecision } from '../../approvals/approvalActions';
 import { getThreadReadState } from '../../event-store/threads/roomThreadList';
+import { threadReceiptNamesEvent } from '../../event-store/threads/streamFinish';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { getAiRunInfo, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
 import { isCallRowEvent } from '../../matrix/protocol/callRow';
@@ -71,7 +72,12 @@ const isFirstOrder = (event: MatrixEvent): boolean => {
 };
 
 /** What a message says now: its newest readable edit by its sender, else itself. */
-type Shown = { event: MatrixEvent; content: Record<string, unknown>; editTs?: number };
+type Shown = {
+  event: MatrixEvent;
+  content: Record<string, unknown>;
+  editTs?: number;
+  editId?: string;
+};
 
 const shownOf = (event: MatrixEvent, thread: Thread | null | undefined): Shown => {
   const id = event.getId();
@@ -83,6 +89,7 @@ const shownOf = (event: MatrixEvent, thread: Thread | null | undefined): Shown =
     event,
     content: isRecord(newContent) ? newContent : editContent,
     editTs: edit.getTs(),
+    editId: edit.getId(),
   };
 };
 
@@ -212,16 +219,28 @@ export const readThreadSignals = (
   const { thread, all, root, replies } = threadEvents(room, rootId);
   const isAgent = (senderId: string | undefined) =>
     isMindroomAgentUserIdForViewer(senderId, userId);
-  const readUpToTs = getThreadReadState(thread, userId)?.readUpToTs;
-  const isUnread = (shown: Shown) =>
-    shown.event.getSender() !== userId &&
-    (readUpToTs === undefined || (shown.editTs ?? shown.event.getTs()) > readUpToTs);
   // An agent's relay of someone's message (the router's handoff) echoes words already counted.
   const isRelay = ({ event, content }: Shown) =>
     isAgent(event.getSender()) && typeof content[ORIGINAL_SENDER_KEY] === 'string';
   const counted = replies
     .map((event) => shownOf(event, thread))
     .filter((shown) => countsAsNews(shown) && !isRelay(shown));
+  // A receipt can name a reply's edit that the server bundled with it, outside the thread's
+  // timeline (after a reload, on another device): it reads up to that edit.
+  const readUpToTs = counted.reduce(
+    (upTo, { editId, editTs }) =>
+      thread &&
+      editId &&
+      editTs !== undefined &&
+      (upTo === undefined || editTs > upTo) &&
+      threadReceiptNamesEvent(thread, userId, editId)
+        ? editTs
+        : upTo,
+    getThreadReadState(thread, userId)?.readUpToTs
+  );
+  const isUnread = (shown: Shown) =>
+    shown.event.getSender() !== userId &&
+    (readUpToTs === undefined || (shown.editTs ?? shown.event.getTs()) > readUpToTs);
   const unread = counted.filter(isUnread);
   const newest = counted.at(-1);
 
