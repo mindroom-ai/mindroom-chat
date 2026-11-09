@@ -296,7 +296,8 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
     BANNER.map((name) => button(banner, name)),
     `${engine} thread banner`
   );
-  await expectRow([all], `${engine} [+all] under the banner`);
+  // A thread has no [+all] line.
+  await expect(all).toHaveCount(0);
 
   if (SHOTS) {
     // What a full 44 px width would look like: 12 px between the buttons instead of 4.

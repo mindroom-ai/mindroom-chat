@@ -63,13 +63,8 @@ const seedLongThread = async (homeserver: string, accessToken: string): Promise<
     // eslint-disable-next-line no-await-in-loop
     await sendRoomMessage(homeserver, accessToken, roomId, {
       msgtype: 'm.text',
+      // In the room, not a thread: only the room has the expand-all toggle.
       body: `Long live reply ${reply}\n${lines}`,
-      'm.relates_to': {
-        rel_type: 'm.thread',
-        event_id: rootId,
-        is_falling_back: true,
-        'm.in_reply_to': { event_id: rootId },
-      },
     });
   }
 
@@ -209,9 +204,7 @@ test.describe('live long-message expand-all and collapse-all', () => {
       });
     });
     await loginWithPassword(page, { homeserver, username, password });
-    await page.goto(
-      `/home/${encodeURIComponent(seeded.roomId)}?threadId=${encodeURIComponent(seeded.rootId)}`
-    );
+    await page.goto(`/home/${encodeURIComponent(seeded.roomId)}`);
     await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
     await page.waitForTimeout(3_000);
 
