@@ -295,7 +295,7 @@ describe('watchRings', () => {
     stop();
   });
 
-  it('never lets a ring read late replace a ring that came after it, nor ring after its decline', async () => {
+  it('drops a ring the catch-up reads after a newer ring has rung, and never rings a declined one', async () => {
     // The SDK is still decrypting one ring; another waits for its room key, and is declined.
     let decrypted = () => {};
     const late = ringIn('!a:example.org', '$late', Date.now());
@@ -331,6 +331,32 @@ describe('watchRings', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(heard).toEqual(['declined $declinedLate', 'ring $new']);
+    stop();
+  });
+
+  it('rings for a ring sync delivers whose decryption ends after a newer ring, as before', async () => {
+    let decrypted = () => {};
+    const older = ringIn('!a:example.org', '$older', Date.now());
+    const { mx, deliver } = syncingClient();
+    vi.mocked(mx.decryptEventIfNeeded).mockImplementation((event) =>
+      event === older
+        ? new Promise<void>((resolve) => {
+            decrypted = resolve;
+          })
+        : Promise.resolve()
+    );
+    const heard: string[] = [];
+    const stop = watchRings(mx, {
+      onRing: (ring) => heard.push(`ring ${ring.eventId}`),
+      onDeclined: vi.fn(),
+    });
+
+    await deliver(older);
+    await deliver(ringIn('!b:example.org', '$newer', Date.now()));
+    decrypted();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(heard).toEqual(['ring $newer', 'ring $older']);
     stop();
   });
 

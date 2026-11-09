@@ -109,13 +109,12 @@ export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void)
   const myUserId = mx.getSafeUserId();
   let stopped = false;
   const decryptions = createDecryptionWaits();
-  // Events are read in the order they reach this, but one whose room key comes late is read later:
-  // such a ring never replaces a ring that reached this after it, nor rings after its decline.
-  let reached = 0;
-  let newestRing = 0;
+  // A ring read after its decline (its room key came late) does not ring. Nor does one the catch-up
+  // below reads once a ring sync delivered since has rung: it would replace the newer ring.
   const declinedRings = new Set<string>();
+  let liveRing = false;
 
-  const read = (event: MatrixEvent, order: number) => {
+  const read = (event: MatrixEvent, caughtUp: boolean) => {
     const declined = declinedRingId(event, myUserId);
     if (declined) {
       declinedRings.add(declined);
@@ -123,22 +122,20 @@ export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void)
       return;
     }
     const ring = readRing(event, myUserId);
-    if (!ring || order < newestRing || declinedRings.has(ring.eventId)) return;
-    newestRing = order;
+    if (!ring || declinedRings.has(ring.eventId) || (caughtUp && liveRing)) return;
+    if (!caughtUp) liveRing = true;
     watcher.onRing(ring);
   };
 
-  const consider = async (event: MatrixEvent) => {
-    reached += 1;
-    const order = reached;
+  const consider = async (event: MatrixEvent, caughtUp = false) => {
     await mx.decryptEventIfNeeded(event).catch(() => undefined);
     if (stopped) return;
     if (!event.isDecryptionFailure()) {
-      read(event, order);
+      read(event, caughtUp);
       return;
     }
     const left = MAX_RING_LIFETIME_MS - (Date.now() - event.getTs());
-    decryptions.wait(event, left, () => read(event, order));
+    decryptions.wait(event, left, () => read(event, caughtUp));
   };
 
   const onTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (event, _room, older, gone, at) => {
@@ -158,7 +155,7 @@ export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void)
     .filter((event) => event.getTs() > recent)
     .sort((a, b) => a.getTs() - b.getTs())
     .forEach((event) => {
-      consider(event).catch(() => undefined);
+      consider(event, true).catch(() => undefined);
     });
   return () => {
     stopped = true;
