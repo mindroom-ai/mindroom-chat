@@ -1,7 +1,17 @@
 import type { Page, Request } from '@playwright/test';
 import { logoutActiveAccount } from '../helpers/accounts';
-import { expect, openLobby, openNewSession, test, type AgentStack } from '../helpers/agentStack';
-import { matrixFetch } from '../helpers/matrix';
+import {
+  composer,
+  expect,
+  openLobby,
+  openNewSession,
+  routeClientConfig,
+  showPath,
+  test,
+  uniqueWord,
+  type AgentStack,
+} from '../helpers/agentStack';
+import { createPrivateRoom, matrixFetch } from '../helpers/matrix';
 import { roomHeader } from '../helpers/roomMenu';
 
 // The client SDK's `server` subpath end to end: a production build with the example client plugin
@@ -11,7 +21,9 @@ import { roomHeader } from '../helpers/roomMenu';
 // upload that reports its progress share one sign-in. Once the user signed in eight more times
 // elsewhere, MindRoom ends the page's session: the socket closes with 4401, the panel opens it
 // again, and the next request answers after one new sign-in. Signing out ends the page's session at
-// once. Needs both plugins:
+// once. The panel waits while the room's server is still being worked out, so it never reaches a
+// configured server where the agents published theirs, and says there is none only once it knows.
+// Needs both plugins:
 //   MINDROOM_CLIENT_PLUGINS=$PWD/src/app/plugins/__fixtures__/example-plugin \
 //   E2E_PLUGIN_DIRS=e2e/fixtures/sample-plugin \
 //     scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/plugins/mindroom-server.spec.ts
@@ -138,4 +150,67 @@ test("a plugin's panel calls its MindRoom routes and websocket, signs in again, 
       .map(({ bearer: sent }) => sent)
   ).toEqual([bearer]);
   await page.context().close();
+});
+
+// A configured server (`mindroom.computers.apiUrl`) that nothing answers on.
+const CONFIGURED = 'http://127.0.0.1:29599';
+
+/** Each line the panel's greeting showed in the page's current load, in order. */
+const greetingLines = (page: Page) =>
+  page.evaluate(() => (window as unknown as { greetingLines: string[] }).greetingLines);
+
+test("a plugin's panel waits for the room's server: the published one, never the configured one, and none only once the members are in", async ({
+  page,
+  stack,
+}) => {
+  await routeClientConfig(page, stack, { computers: { apiUrl: CONFIGURED } });
+  const requests = serverRequests(page, stack);
+  const configured: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().startsWith(CONFIGURED)) configured.push(request.url());
+  });
+  await page.addInitScript(() => {
+    const lines: string[] = [];
+    (window as unknown as { greetingLines: string[] }).greetingLines = lines;
+    new MutationObserver(() => {
+      const shown = [...document.querySelectorAll('p')]
+        .map((line) => line.textContent ?? '')
+        .find((text) => /MindRoom server/.test(text));
+      if (shown !== undefined && shown !== lines.at(-1)) lines.push(shown);
+    }).observe(document, { childList: true, subtree: true, characterData: true });
+  });
+  const panel = page.getByRole('region', { name: 'Example panel', exact: true });
+  const published = `MindRoom server: ${stack.apiUrl}`;
+  const empty = await createPrivateRoom(stack.homeserver, stack.tester.accessToken, {
+    name: uniqueWord('noagent'),
+    topic: 'A room without an agent',
+  });
+
+  // The panel stays open in the lobby, so it opens again at the start of a load there, before the
+  // homeserver answered whether it binds sign-in tokens.
+  await openLobby(page, stack);
+  await roomHeader(page).getByRole('button', { name: 'Example panel', exact: true }).click();
+  await expect(panel.getByText(published)).toBeVisible({ timeout: 60_000 });
+  await page.reload();
+  await expect(panel.getByText(published)).toBeVisible({ timeout: 90_000 });
+  // Soft, as the checks below, so a run on a client without the wait reports each difference.
+  const reloaded = await greetingLines(page);
+  expect.soft(reloaded).not.toContain('No MindRoom server');
+  expect.soft(reloaded.filter((line) => line.startsWith('MindRoom server:'))).toEqual([published]);
+
+  // A load that starts in a room without an agent, then switches into the lobby, whose members it
+  // has not loaded yet.
+  await page.goto(`/home/${encodeURIComponent(empty)}`);
+  await expect(composer(page)).toBeVisible({ timeout: 90_000 });
+  await roomHeader(page).getByRole('button', { name: 'Example panel', exact: true }).click();
+  await expect(panel.getByText('No MindRoom server')).toBeVisible({ timeout: 60_000 });
+  const before = (await greetingLines(page)).length;
+  await showPath(page, `/home/${encodeURIComponent(stack.rooms.lobby)}`);
+  await expect(panel.getByText(published)).toBeVisible({ timeout: 60_000 });
+  expect.soft((await greetingLines(page)).slice(before)).not.toContain('No MindRoom server');
+
+  // One sign-in for each of the three loads that showed the lobby's server, all at that server; the
+  // last one asks the homeserver for a token first.
+  await expect.poll(() => requests.signIns()).toBe(3);
+  expect(configured).toEqual([]);
 });
