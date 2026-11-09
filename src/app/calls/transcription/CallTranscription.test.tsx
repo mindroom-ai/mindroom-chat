@@ -80,7 +80,7 @@ vi.mock('./callTranscriber', () => ({
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
 vi.mock('../../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => room.members }));
 vi.mock('../../computer/useAgentServers', () => ({
-  useBindsOpenIdTokens: () => room.bindsTokens,
+  useOpenIdBinding: () => room.bindsTokens,
   useRoomAgentServers: () => room.servers,
 }));
 vi.mock('../../config/useClientConfig', () => ({

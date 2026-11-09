@@ -39,10 +39,13 @@ const bindingChecks = new WeakMap<
   { check: Promise<boolean | undefined>; binds?: boolean }
 >();
 
-/** Whether the homeserver binds OpenID tokens, asked once per client, so Chat may offer the origins agents publish. */
-export const useBindsOpenIdTokens = (): boolean => {
+/**
+ * The homeserver's answer on whether it binds OpenID tokens, asked once per client: undefined until
+ * it answers, and false after a check that could not reach it.
+ */
+export const useOpenIdBinding = (): boolean | undefined => {
   const mx = useMatrixClient();
-  const [binds, setBinds] = useState(() => bindingChecks.get(mx)?.binds === true);
+  const [binds, setBinds] = useState(() => bindingChecks.get(mx)?.binds);
   useEffect(() => {
     let current = true;
     const binding = bindingChecks.get(mx) ?? { check: readOpenIdBinding(mx) };
@@ -58,6 +61,9 @@ export const useBindsOpenIdTokens = (): boolean => {
   }, [mx]);
   return binds;
 };
+
+/** Whether the homeserver binds OpenID tokens, asked once per client, so Chat may offer the origins agents publish. */
+export const useBindsOpenIdTokens = (): boolean => useOpenIdBinding() === true;
 
 /** The servers of the room's agents, read again when one changes or an agent's membership does. */
 export const useRoomAgentServers = (room: Room | null): AgentServer[] =>

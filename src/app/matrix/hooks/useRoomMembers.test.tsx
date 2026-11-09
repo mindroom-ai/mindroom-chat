@@ -54,10 +54,10 @@ function UseRoomMembersProbe({ mx, roomId }: UseRoomMembersProbeProps) {
 
 const mountedRenderers = new Set<ReactTestRenderer>();
 
-const createRoomMembersRenderer = (mx: MatrixClient, roomId: string): ReactTestRenderer => {
+const renderProbe = (probe: React.ReactElement): ReactTestRenderer => {
   let renderer: ReactTestRenderer | undefined;
   act(() => {
-    renderer = create(<UseRoomMembersProbe mx={mx} roomId={roomId} />);
+    renderer = create(probe);
   });
   expect(renderer).toBeDefined();
   mountedRenderers.add(renderer as ReactTestRenderer);
@@ -99,12 +99,8 @@ describe('useRoomMembers', () => {
     const mx = Object.assign(new EventEmitter(), {
       getRoom: vi.fn(() => room),
     }) as unknown as MatrixClient;
-    let renderer: ReactTestRenderer | undefined;
-    act(() => {
-      renderer = create(<UseRoomMemberNamesProbe mx={mx} roomId={roomId} />);
-    });
-    mountedRenderers.add(renderer as ReactTestRenderer);
-    expect(readOutputText(renderer as ReactTestRenderer)).toBe('Helper');
+    const renderer = renderProbe(<UseRoomMemberNamesProbe mx={mx} roomId={roomId} />);
+    expect(readOutputText(renderer)).toBe('Helper');
 
     // The SDK updates the member in place, then emits Name (and not Membership).
     agent.name = 'Research Helper';
@@ -117,7 +113,40 @@ describe('useRoomMembers', () => {
       );
     });
 
-    expect(readOutputText(renderer as ReactTestRenderer)).toBe('Research Helper');
+    expect(readOutputText(renderer)).toBe('Research Helper');
+  });
+
+  it("never gives the previous room's members after a switch to another room", () => {
+    const rooms = new Map(
+      ['a', 'b'].map((letter) => [
+        `!${letter}:example.org`,
+        {
+          roomId: `!${letter}:example.org`,
+          getMembers: () => [createMember(`@member-of-${letter}:example.org`)],
+          loadMembersIfNeeded: () => deferred<void>().promise,
+        } as unknown as Room,
+      ])
+    );
+    const mx = Object.assign(new EventEmitter(), {
+      getRoom: (roomId: string) => rooms.get(roomId) ?? null,
+    }) as unknown as MatrixClient;
+    const seen: string[] = [];
+    function Probe({ roomId }: { roomId: string }) {
+      seen.push(
+        useRoomMembers(mx, roomId)
+          .map((member) => member.userId)
+          .join(',')
+      );
+      return null;
+    }
+    const renderer = renderProbe(<Probe roomId="!a:example.org" />);
+    seen.length = 0;
+
+    act(() => {
+      renderer.update(<Probe roomId="!b:example.org" />);
+    });
+
+    expect(new Set(seen)).toEqual(new Set(['@member-of-b:example.org']));
   });
 
   it('publishes live membership updates while full member load is still pending', async () => {
@@ -136,7 +165,7 @@ describe('useRoomMembers', () => {
       getRoom: vi.fn(() => room),
     }) as unknown as MatrixClient;
 
-    const renderer = createRoomMembersRenderer(mx, roomId);
+    const renderer = renderProbe(<UseRoomMembersProbe mx={mx} roomId={roomId} />);
 
     expect(readOutputText(renderer)).toBe('@alice:example.org');
 
@@ -184,7 +213,7 @@ describe('useRoomMembers', () => {
     }) as unknown as MatrixClient;
     const emitter = mx as unknown as EventEmitter;
 
-    const renderer = createRoomMembersRenderer(mx, roomId);
+    const renderer = renderProbe(<UseRoomMembersProbe mx={mx} roomId={roomId} />);
     expect(readOutputText(renderer)).toBe('');
 
     act(() => {
@@ -224,7 +253,7 @@ describe('useRoomMembers', () => {
       getRoom: vi.fn(() => room),
     }) as unknown as MatrixClient;
 
-    const renderer = createRoomMembersRenderer(mx, roomId);
+    const renderer = renderProbe(<UseRoomMembersProbe mx={mx} roomId={roomId} />);
 
     expect(readOutputText(renderer)).toBe('@alice:example.org');
 
