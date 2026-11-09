@@ -57,6 +57,20 @@ const stubLocalStorage = (): Map<string, string> => {
   return values;
 };
 
+/** Writes keys named after `userId` as the app does, and returns them. */
+const seedUserUiKeys = (values: Map<string, string>, userId: string): string[] => {
+  createStore().set(makeSpaceOrderAtom(userId), { type: 'REORDER', order: ['!space:example.org'] });
+  const keys = [
+    getDesktopPageNavCollapsedStorageKey(userId),
+    getWelcomeSetupFirstSeenStorageKey(userId),
+    `mindroom.members.width:${userId}`,
+    `mindroom.panel.width:${userId}:example.panel`,
+    pendingRoamingSettingsKey(userId, 'DEVICE'),
+  ];
+  keys.forEach((key) => values.set(key, '1'));
+  return [`${SPACE_ORDER_STORAGE_KEY_PREFIX}${userId}`, ...keys];
+};
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -79,23 +93,8 @@ it('removes only the logged-out account composer drafts from storage and memory'
 
 it('removes every key named after the logged-out account, whichever part of the app wrote it', () => {
   const values = stubLocalStorage();
-  const seedUserUiKeys = (userId: string) => {
-    createStore().set(makeSpaceOrderAtom(userId), {
-      type: 'REORDER',
-      order: ['!space:example.org'],
-    });
-    const keys = [
-      getDesktopPageNavCollapsedStorageKey(userId),
-      getWelcomeSetupFirstSeenStorageKey(userId),
-      `mindroom.members.width:${userId}`,
-      `mindroom.panel.width:${userId}:example.panel`,
-      pendingRoamingSettingsKey(userId, 'DEVICE'),
-    ];
-    keys.forEach((key) => values.set(key, '1'));
-    return [`${SPACE_ORDER_STORAGE_KEY_PREFIX}${userId}`, ...keys];
-  };
-  seedUserUiKeys('@alice:example.org');
-  const bobKeys = seedUserUiKeys('@bob:example.org');
+  seedUserUiKeys(values, '@alice:example.org');
+  const bobKeys = seedUserUiKeys(values, '@bob:example.org');
   clearUserUiState('@alice:example.org');
   expect([...values.keys()]).toEqual(bobKeys);
 });
@@ -119,6 +118,26 @@ it('keeps the keys of logins this browser keeps, also ones that name the logged-
   values.set(`mindroom.panel.width:${alice}:example.panel`, '1');
   clearUserUiState(alice);
   expect([...values.keys()]).toEqual([SESSION_STORE_KEY, ...keys]);
+});
+
+it('removes the keys of a logged-out account whose user ID extends a kept one', () => {
+  const values = stubLocalStorage();
+  const alice = '@alice:example.org';
+  const aliceOnPort = '@alice:example.org:8448';
+  putSession({
+    baseUrl: 'https://example.org',
+    userId: alice,
+    deviceId: 'DEVICE',
+    accessToken: 't',
+  });
+  const aliceKeys = [
+    `mindroom.members.width:${alice}`,
+    `mindroom.panel.width:${alice}:example.panel`,
+  ];
+  aliceKeys.forEach((key) => values.set(key, '1'));
+  seedUserUiKeys(values, aliceOnPort);
+  clearUserUiState(aliceOnPort);
+  expect([...values.keys()]).toEqual([SESSION_STORE_KEY, ...aliceKeys]);
 });
 
 vi.mock('../../notifications/push/iosPush', () => ({
