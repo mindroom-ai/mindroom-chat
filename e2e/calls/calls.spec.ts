@@ -1205,7 +1205,9 @@ test.describe('calls', () => {
       await expect.poll(() => aliceInRoom(roomId), { timeout: 30_000 }).toBe('leave');
       expect(await aliceMemberships(roomId)).toEqual([{}]);
       await expect(alicePage.locator('[data-call-tab]')).toHaveCount(0);
+      // Bob's call is over before the next one rings him.
       await callPanel(bobPage).getByRole('button', { name: 'End' }).click();
+      await expect(bobPage.locator('[data-call-tab]')).toHaveCount(0, { timeout: 30_000 });
     };
 
     await leaveDuringCall(async () => {
