@@ -223,7 +223,7 @@ describe('TranscriptionClient routes', () => {
   it('joins the room the call is in, and leaves the call by its id', async () => {
     const server = fakeServer();
     server.route.mockImplementation((url) =>
-      url.endsWith('calls.join') ? json({ call: CALL }) : json({})
+      url.endsWith('/call') ? json({ call: CALL }) : json({})
     );
     const { api } = client(server);
 
@@ -231,7 +231,7 @@ describe('TranscriptionClient routes', () => {
     await api.leave('call/1');
 
     expect(server.calls().map(({ url, init }) => `${init.method} ${url}`)).toEqual([
-      `POST ${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/calls.join`,
+      `POST ${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/call`,
       `POST ${API_URL}/api/call-transcripts/v1/calls/call%2F1/leave`,
     ]);
   });
@@ -276,8 +276,8 @@ describe('TranscriptionClient routes', () => {
 
   it('cancels each route with the signal it was given', async () => {
     const server = fakeServer();
-    server.route.mockImplementation((url) =>
-      url.includes('calls.live') ? json({ call: null, lines: [], names: {} }) : json({ call: CALL })
+    server.route.mockImplementation((_url, init) =>
+      init.method === 'GET' ? json({ call: null, lines: [], names: {} }) : json({ call: CALL })
     );
     const { api } = client(server);
     const { signal } = new AbortController();
@@ -300,10 +300,8 @@ describe('TranscriptionClient routes', () => {
   it('pauses and resumes the call, and reads the live call after a line', async () => {
     const server = fakeServer();
     const live = { call: CALL, lines: [LINE], names: { '@ann:example.org': 'Ann' } };
-    server.route.mockImplementation((url) =>
-      url.includes('calls.live')
-        ? json(live)
-        : json({ call: { ...CALL, pausedBy: '@ann:example.org' } })
+    server.route.mockImplementation((_url, init) =>
+      init.method === 'GET' ? json(live) : json({ call: { ...CALL, pausedBy: '@ann:example.org' } })
     );
     const { api } = client(server);
 
@@ -321,11 +319,9 @@ describe('TranscriptionClient routes', () => {
     expect(JSON.parse(String(resume?.init.body))).toEqual({ paused: false });
     expect(new Headers(pause?.init.headers).get('Content-Type')).toBe('application/json');
     expect(read?.init.method).toBe('GET');
-    expect(read?.url).toBe(
-      `${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/calls.live`
-    );
+    expect(read?.url).toBe(`${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/call`);
     expect(readAfter?.url).toBe(
-      `${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/calls.live?after=line%201`
+      `${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/call?after=line%201`
     );
   });
 });

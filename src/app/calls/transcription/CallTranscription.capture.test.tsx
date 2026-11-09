@@ -83,18 +83,19 @@ describe('CallTranscription with its transcriber', () => {
     const sent: string[] = [];
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
         const url = String(input);
         if (url.endsWith('/api/client-sessions')) {
           return json({ session_token: 'session', expires_at: Date.now() / 1000 + 3600 });
         }
-        const route = url.slice(url.lastIndexOf('/') + 1).replace(/\?.*/, '');
+        const segment = url.slice(url.lastIndexOf('/') + 1).replace(/\?.*/, '');
+        const route = segment === 'call' ? (init.method === 'POST' ? 'join' : 'live') : segment;
         sent.push(route);
-        if (route === 'calls.join') return join.promise;
-        if (route === 'calls.live' && sent.indexOf('calls.live') === sent.length - 1) {
+        if (route === 'join') return join.promise;
+        if (route === 'live' && sent.indexOf('live') === sent.length - 1) {
           return read.promise;
         }
-        return json(route === 'calls.live' ? { call: CALL, lines: [], names: {} } : {});
+        return json(route === 'live' ? { call: CALL, lines: [], names: {} } : {});
       })
     );
     const state: CallState = {
@@ -124,13 +125,13 @@ describe('CallTranscription with its transcriber', () => {
         </Provider>
       )
     );
-    await act(() => vi.waitFor(() => expect(sent).toContain('calls.join')));
+    await act(() => vi.waitFor(() => expect(sent).toContain('join')));
 
     // The join says the call is paused; a read sent after it says it resumed. Both arrive before
     // the controls show either.
     await act(async () => {
       join.resolve(json({ call: { ...CALL, pausedBy: '@bob:example.org' } }));
-      await vi.waitFor(() => expect(sent).toContain('calls.live'));
+      await vi.waitFor(() => expect(sent).toContain('live'));
       await vi.waitFor(() => expect(capture.started).toBe(1));
       read.resolve(json({ call: CALL, lines: [], names: {} }));
       await new Promise((resolve) => setTimeout(resolve, 50));
