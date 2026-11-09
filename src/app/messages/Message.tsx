@@ -24,6 +24,7 @@ import {
   Line,
   Text,
   color,
+  config,
   type IconSrc,
   type RectCords,
 } from 'folds';
@@ -570,6 +571,25 @@ const popOutSide = (anchor: RectCords): 'Top' | 'Bottom' =>
     ? 'Top'
     : 'Bottom';
 
+/** The gap between a message's pop-out and its anchor. */
+const POP_OUT_OFFSET = 4;
+
+/**
+ * The tallest a pop-out on `side` of `anchor` may be: the room between the anchor and the window's
+ * edge, less the status bar or the home indicator a phone draws the page under, and a margin.
+ * folds puts a pop-out that does not fit on its side beside the anchor, from where one taller than
+ * the window, such as a phone's menu with the keyboard out, reaches under the status bar. Kept to
+ * this height it fits on its side, and scrolls.
+ */
+const popOutMaxHeight = (anchor: RectCords, side: 'Top' | 'Bottom'): string => {
+  const margin = config.space.S200;
+  if (side === 'Top') {
+    return `calc(${anchor.y - POP_OUT_OFFSET}px - env(safe-area-inset-top, 0px) - ${margin})`;
+  }
+  const below = anchor.y + anchor.height + POP_OUT_OFFSET;
+  return `calc(100dvh - ${below}px - env(safe-area-inset-bottom, 0px) - ${margin})`;
+};
+
 /** A zero-size anchor at one viewport point, so a pop-out opens next to the pointer. */
 const pointRect = (left: number, top: number): RectCords => ({
   x: left,
@@ -697,6 +717,8 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     const canEdit = !!onEditId && confirmed && canEditEvent(client, mEvent);
     const startEdit = () => onEditId?.(eventId);
     const dismissMenu = () => setMenuAnchor(undefined);
+    const menuSide = menuAnchor ? popOutSide(menuAnchor) : 'Bottom';
+    const emojiSide = emojiAnchor ? popOutSide(emojiAnchor) : 'Bottom';
     // A right click opens the message's menu where the pointer is. A menu key has no press before
     // it, so text selected then is the reader's. Right clicks inside the row's own pop-outs and
     // the dialogs their entries open, which React passes up through their portals, are not the
@@ -826,7 +848,13 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
             },
           }}
         >
-          <Menu style={menuShown ? undefined : { display: 'none' }}>
+          <Menu
+            style={{
+              maxHeight: popOutMaxHeight(menuAnchor, menuSide),
+              overflowY: 'auto',
+              display: menuShown ? undefined : 'none',
+            }}
+          >
             <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
               {canSendReaction && confirmed && onReactionToggle && (
                 <MessageQuickReactions
@@ -918,12 +946,13 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       const emojiBoard = emojiAnchor && onReactionToggle && (
         <PopOut
           anchor={emojiAnchor}
-          position={popOutSide(emojiAnchor)}
+          position={emojiSide}
           align="End"
-          offset={4}
+          offset={POP_OUT_OFFSET}
           content={
             <EmojiBoard
               imagePackRooms={imagePackRooms}
+              maxHeight={popOutMaxHeight(emojiAnchor, emojiSide)}
               requestClose={() => setEmojiAnchor(undefined)}
               returnFocusOnDeactivate
               onEmojiSelect={(unicode, shortcode) => {
@@ -987,9 +1016,9 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
               )}
               <PopOut
                 anchor={menuAnchor}
-                position={menuAnchor ? popOutSide(menuAnchor) : 'Bottom'}
+                position={menuSide}
                 align="End"
-                offset={4}
+                offset={POP_OUT_OFFSET}
                 content={
                   <DialogOpenerContext.Provider value={hideMenu}>
                     {menu}

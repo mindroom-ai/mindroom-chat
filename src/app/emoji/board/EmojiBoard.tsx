@@ -183,6 +183,8 @@ type EmojiBoardProps = EmojiPickHandlers & {
   keepOpenOnSelect?: boolean;
   returnFocusOnDeactivate?: boolean;
   requestClose: () => void;
+  /** The tallest the board may be, as a CSS length: the room its pop-out has. Its groups scroll. */
+  maxHeight?: string;
 };
 
 /** Emoji and sticker picker with search, recent emoji, custom packs, and adding a custom emoji. */
@@ -198,6 +200,7 @@ export function EmojiBoard(props: EmojiBoardProps) {
     keepOpenOnSelect,
     returnFocusOnDeactivate,
     requestClose,
+    maxHeight,
   } = props;
   const client = useMatrixClient();
   const authMedia = useMediaAuthentication();
@@ -491,7 +494,7 @@ export function EmojiBoard(props: EmojiBoardProps) {
 
   return (
     <FocusTrap focusTrapOptions={makeTrapOptions(requestClose, returnFocusOnDeactivate)}>
-      <Box className={css.Base}>
+      <Box className={css.Base} style={{ maxHeight }}>
         <Box direction="Column" grow="Yes" style={{ minWidth: 0 }}>
           {content}
         </Box>
