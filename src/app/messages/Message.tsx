@@ -857,7 +857,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
               flexDirection: 'column',
             }}
           >
-            <Scroll size="300" hideTrack visibility="Hover">
+            <Scroll size="300" hideTrack visibility="Hover" style={{ overflowY: 'auto' }}>
               <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
                 {canSendReaction && confirmed && onReactionToggle && (
                   <MessageQuickReactions
