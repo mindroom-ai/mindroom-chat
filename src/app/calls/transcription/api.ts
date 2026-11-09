@@ -113,10 +113,13 @@ export class TranscriptionClient {
     }
   }
 
-  /** Joins the room's live call, starting it if there is none; also the heartbeat. */
+  /**
+   * Puts this person in the room's live call, starting one if there is none; sent again while in
+   * it, it is the heartbeat.
+   */
   async join(roomId: string, signal?: AbortSignal): Promise<TranscriptCall> {
     const { call } = await this.sendJson<{ call: TranscriptCall }>(
-      `/rooms/${encodeURIComponent(roomId)}/calls.join`,
+      `/rooms/${encodeURIComponent(roomId)}/call`,
       { method: 'POST', signal }
     );
     return call;
@@ -169,7 +172,7 @@ export class TranscriptionClient {
   /** The room's live call, with its lines after the line `after` (all of them without it). */
   live(roomId: string, after?: string, signal?: AbortSignal): Promise<LiveCall> {
     const query = after === undefined ? '' : `?after=${encodeURIComponent(after)}`;
-    return this.sendJson<LiveCall>(`/rooms/${encodeURIComponent(roomId)}/calls.live${query}`, {
+    return this.sendJson<LiveCall>(`/rooms/${encodeURIComponent(roomId)}/call${query}`, {
       method: 'GET',
       signal,
     });

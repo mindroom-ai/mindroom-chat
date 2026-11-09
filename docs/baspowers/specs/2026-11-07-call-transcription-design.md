@@ -51,7 +51,7 @@ and its message is given up). Turned back on, calls go on as before.
 ### A call
 
 - A call belongs to one Matrix room; a room has at most one live call. Two people starting at once get the same call.
-- **Who is in it.** A person is in the call while their app checks in (`calls.join`, `pause` or `speech` for the call)
+- **Who is in it.** A person is in the call while their app checks in (`POST /rooms/{room_id}/call`, `pause` or `speech`)
   at least every 60 seconds; apps send a heartbeat every 20 seconds. An app that leaves is out at once. Only people
   whose apps take part are in the call: people on other Matrix apps are neither listed nor transcribed. MatrixRTC
   membership is not consulted.
@@ -100,11 +100,11 @@ Under `/api/call-transcripts/v1`, with MindRoom's client sessions (`Authorizatio
 
 | Route | Answer |
 | --- | --- |
-| `POST /rooms/{room_id}/calls.join` | `{"call": Call}`: the live call, started if none; also the heartbeat |
+| `POST /rooms/{room_id}/call` | `{"call": Call}`: the live call, started if none; also the heartbeat |
 | `POST /calls/{call_id}/leave` | `{}` |
 | `POST /calls/{call_id}/pause` `{"paused": bool}` | `{"call": Call}` |
 | `POST /calls/{call_id}/speech` multipart `audio` (WAV), `startedAt` (ISO time) | `{"line": Line \| null}` (a line, a gap, or null when no words were heard) |
-| `GET /rooms/{room_id}/calls.live?after=<line id>` | `{"call": Call \| null, "lines": [Line], "names": {userId: displayName \| null}}`; `lines` are those after `after` (all without it) |
+| `GET /rooms/{room_id}/call?after=<line id>` | `{"call": Call \| null, "lines": [Line], "names": {userId: displayName \| null}}`; `lines` are those after `after` (all without it) |
 
 `Call`: `id`, `roomId`, `rowEventId` (null until posted), `startedAt`, `endedAt` (null while live), `members` (user
 IDs whose apps are in the call now), `pausedBy` (user ID, or null when not paused). `Line`: `id`,
@@ -118,7 +118,7 @@ IDs whose apps are in the call now), `pausedBy` (user ID, or null when not pause
   speech in the microphone track it publishes, and uploads each stretch. A muted microphone sends nothing. Switching
   microphones follows the new track. When the call ends on this device: stop listening, let queued uploads finish
   (each gives up after 30 seconds), then leave; a new join to the same room waits for that leave. A refused stretch
-  (`too-many-requests`) is retried once after `Retry-After` (at most 10 s). While in the call it reads `calls.live`
+  (`too-many-requests`) is retried once after `Retry-After` (at most 10 s). While in the call it reads `GET /rooms/{room_id}/call`
   every 2 seconds (with `after`) for new lines and the paused state.
 - **Finding speech.** A trained voice-activity model, Silero VAD, decides what is speech: it rates each 96 ms of the
   microphone, brought down to 16 kHz mono, for how likely it is to be someone talking, so typing, a fan or a door at

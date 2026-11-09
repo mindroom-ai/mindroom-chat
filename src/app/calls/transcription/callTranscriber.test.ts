@@ -101,8 +101,8 @@ const transcribers: CallTranscriber[] = [];
 
 /**
  * A transcriber with a fake MindRoom server and a fake microphone capture. `log` records, in
- * order, the requests to the call routes (`calls.join`, `speech <second>`, `pause <paused>`,
- * `leave`, `calls.live`) and the capture's steps (`listen <track>`, `stop <track>`,
+ * order, the requests to the call routes (`join` and `live` for the room's call, `speech <second>`,
+ * `pause <paused>`, `leave`) and the capture's steps (`listen <track>`, `stop <track>`,
  * `mute <track>`, `unmute <track>`).
  */
 const setup = ({
@@ -142,7 +142,8 @@ const setup = ({
     }
     if (url === `${API_URL}/api/client-sessions`) return server.session();
     urls.push(url);
-    const route = url.slice(url.lastIndexOf('/') + 1).replace(/\?.*/, '');
+    const segment = url.slice(url.lastIndexOf('/') + 1).replace(/\?.*/, '');
+    const route = segment === 'call' ? (init.method === 'POST' ? 'join' : 'live') : segment;
     if (route === 'speech') {
       const startedAt = (init.body as FormData).get('startedAt');
       log.push(`speech ${(Date.parse(String(startedAt)) - NOW) / 1000}`);
@@ -154,9 +155,9 @@ const setup = ({
       return server.pause(init);
     }
     log.push(route);
-    if (route === 'calls.join') return server.join(init);
+    if (route === 'join') return server.join(init);
     if (route === 'leave') return server.leave(init);
-    if (route === 'calls.live') return server.live(url);
+    if (route === 'live') return server.live(url);
     throw new Error(`unexpected request ${url}`);
   });
   const captures: FakeCapture[] = [];
@@ -208,9 +209,9 @@ const setup = ({
   const capture = (index = 0) => defined(captures[index], `capture ${index}`);
   const speeches = () => log.filter((entry) => entry.startsWith('speech'));
   /** The log without the reads of the live call, which run beside everything else. */
-  const steps = () => log.filter((entry) => entry !== 'calls.live');
-  const joins = () => log.filter((entry) => entry === 'calls.join').length;
-  const reads = () => log.filter((entry) => entry === 'calls.live').length;
+  const steps = () => log.filter((entry) => entry !== 'live');
+  const joins = () => log.filter((entry) => entry === 'join').length;
+  const reads = () => log.filter((entry) => entry === 'live').length;
   const pauses = () => log.filter((entry) => entry.startsWith('pause'));
   return {
     transcriber,
@@ -253,10 +254,8 @@ describe('CallTranscriber joining', () => {
     t.transcriber.start();
     await advance();
 
-    expect(t.log).toEqual(['calls.join', 'calls.live']);
-    expect(t.urls[0]).toBe(
-      `${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/calls.join`
-    );
+    expect(t.log).toEqual(['join', 'live']);
+    expect(t.urls[0]).toBe(`${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/call`);
     expect(t.statuses).toEqual(['transcribing']);
 
     await advance(19_999);
@@ -295,13 +294,7 @@ describe('CallTranscriber joining', () => {
 
       await advance(20_000);
       expect(t.statuses).toEqual(['transcribing']);
-      expect(t.steps()).toEqual([
-        'calls.join',
-        'calls.join',
-        'calls.join',
-        'calls.join',
-        'listen mic-a',
-      ]);
+      expect(t.steps()).toEqual(['join', 'join', 'join', 'join', 'listen mic-a']);
       expect(t.reads()).toBe(1);
     }
   );
@@ -377,11 +370,11 @@ describe('CallTranscriber in a room MindRoom does not transcribe', () => {
       await advance(60_000);
 
       expect(t.statuses).toEqual(['off']);
-      expect(t.log).toEqual(['calls.join']);
+      expect(t.log).toEqual(['join']);
       expect(t.startCapture).not.toHaveBeenCalled();
 
       await t.transcriber.end();
-      expect(t.log).toEqual(['calls.join']);
+      expect(t.log).toEqual(['join']);
     }
   );
 
@@ -846,16 +839,14 @@ describe('CallTranscriber live call', () => {
       { type: 'call', call: CALL },
       { type: 'live', live },
     ]);
-    expect(t.urls.at(-1)).toBe(
-      `${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/calls.live`
-    );
+    expect(t.urls.at(-1)).toBe(`${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/call`);
 
     await advance(1_999);
     expect(t.reads()).toBe(1);
     await advance(1);
     expect(t.reads()).toBe(2);
     expect(t.urls.at(-1)).toBe(
-      `${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/calls.live?after=line-1`
+      `${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/call?after=line-1`
     );
 
     await t.transcriber.end();
@@ -986,7 +977,7 @@ describe('CallTranscriber ending', () => {
       ended = true;
     });
     await advance();
-    expect(t.steps()).toEqual(['calls.join', 'listen mic-a', 'speech 1', 'stop mic-a']);
+    expect(t.steps()).toEqual(['join', 'listen mic-a', 'speech 1', 'stop mic-a']);
     expect(ended).toBe(false);
 
     upload.resolve(json({ line: LINE }));
@@ -999,8 +990,8 @@ describe('CallTranscriber ending', () => {
     // Nothing after the leave: no check-ins, no reads.
     await advance(60_000);
     expect(t.log).toEqual([
-      'calls.join',
-      'calls.live',
+      'join',
+      'live',
       'listen mic-a',
       'speech 1',
       'stop mic-a',
@@ -1022,7 +1013,7 @@ describe('CallTranscriber ending', () => {
     await advance();
 
     void t.transcriber.leaveNow();
-    expect(t.steps()).toEqual(['calls.join', 'listen mic-a', 'speech 1', 'leave', 'stop mic-a']);
+    expect(t.steps()).toEqual(['join', 'listen mic-a', 'speech 1', 'leave', 'stop mic-a']);
     const init = defined(t.server.leave.mock.calls[0], 'the leave')[0];
     expect(init.keepalive).toBe(true);
     expect(new Headers(init.headers).get('Authorization')).toBe('Bearer session');
@@ -1032,7 +1023,7 @@ describe('CallTranscriber ending', () => {
     upload.resolve(json({ line: LINE }));
     await t.transcriber.end();
     await advance(60_000);
-    expect(t.steps()).toEqual(['calls.join', 'listen mic-a', 'speech 1', 'leave', 'stop mic-a']);
+    expect(t.steps()).toEqual(['join', 'listen mic-a', 'speech 1', 'leave', 'stop mic-a']);
   });
 
   it('finishes its uploads and leaves before sign-out ends the session, once ending', async () => {
@@ -1054,7 +1045,7 @@ describe('CallTranscriber ending', () => {
     await ending;
     await revoked;
     expect(t.steps()).toEqual([
-      'calls.join',
+      'join',
       'listen mic-a',
       'speech 1',
       'stop mic-a',
@@ -1091,17 +1082,17 @@ describe('CallTranscriber ending', () => {
 
     const revoked = t.sessions.revoke();
     await advance();
-    expect(t.steps()).toEqual(['calls.join', 'listen mic-a', 'leave', 'stop mic-a']);
+    expect(t.steps()).toEqual(['join', 'listen mic-a', 'leave', 'stop mic-a']);
     left.resolve(json({}));
     await revoked;
-    expect(t.steps()).toEqual(['calls.join', 'listen mic-a', 'leave', 'stop mic-a', 'revoke']);
+    expect(t.steps()).toEqual(['join', 'listen mic-a', 'leave', 'stop mic-a', 'revoke']);
 
     const ended = setup({ roomId: OTHER_ROOM_ID });
     ended.transcriber.start();
     await advance();
     await ended.transcriber.end();
     await ended.sessions.revoke();
-    expect(ended.steps()).toEqual(['calls.join', 'leave', 'revoke']);
+    expect(ended.steps()).toEqual(['join', 'leave', 'revoke']);
   });
 
   it('stops listening at once, before a check-in on its way answers', async () => {
@@ -1117,7 +1108,7 @@ describe('CallTranscriber ending', () => {
     const ending = t.transcriber.end();
     expect(t.capture().stop).toHaveBeenCalledTimes(1);
     await advance();
-    expect(t.steps()).toEqual(['calls.join', 'listen mic-a', 'calls.join', 'stop mic-a']);
+    expect(t.steps()).toEqual(['join', 'listen mic-a', 'join', 'stop mic-a']);
 
     answer.resolve(json({ call: CALL }));
     await ending;
@@ -1157,11 +1148,11 @@ describe('CallTranscriber ending', () => {
 
     const ending = t.transcriber.end();
     await advance();
-    expect(t.log).toEqual(['calls.join']);
+    expect(t.log).toEqual(['join']);
 
     answer.resolve(json({ call: CALL }));
     await ending;
-    expect(t.log).toEqual(['calls.join', 'leave']);
+    expect(t.log).toEqual(['join', 'leave']);
   });
 
   it('makes a new join to the same room wait for the leave', async () => {
@@ -1185,7 +1176,7 @@ describe('CallTranscriber ending', () => {
     leave.resolve(json({}));
     await firstEnding;
     await advance();
-    expect(second.log[0]).toBe('calls.join');
+    expect(second.log[0]).toBe('join');
   });
 
   it('leaves, and lets the next join go, when the speech model never loads', async () => {
@@ -1218,7 +1209,7 @@ describe('CallTranscriber ending', () => {
       // The leave does not wait for the model.
       void first.transcriber.end();
       await advance();
-      expect(first.steps()).toEqual(['calls.join', 'leave']);
+      expect(first.steps()).toEqual(['join', 'leave']);
       expect(contexts.map(({ closed }) => closed)).toEqual([true]);
 
       const second = setup();
@@ -1256,6 +1247,6 @@ describe('CallTranscriber ending', () => {
 
     await t.transcriber.end();
     // It never joined, so there is no call to leave.
-    expect(t.log).toEqual(['calls.join']);
+    expect(t.log).toEqual(['join']);
   });
 });
