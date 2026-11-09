@@ -114,14 +114,13 @@ export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void)
   let stopped = false;
   const decryptions = createDecryptionWaits();
   // A ring read after its decline (its room key came late) does not ring. The catch-up below reads
-  // rings as their decryption ends: one that sync delivered before a caught-up ring that rang, or
-  // read once a ring sync delivered since has rung, would replace a newer ring, and does not ring.
+  // rings as their decryption ends: one that sync delivered before a ring that rang would replace a
+  // newer ring, and does not ring either. Live rings all come after the caught-up ones.
   const declinedRings = new Set<string>();
-  let liveRing = false;
-  let newestCaughtUp = -1;
+  let newestRung = -1;
 
-  /** `caughtUpAt` places a caught-up event in the order sync delivered them. */
-  const read = (event: MatrixEvent, caughtUpAt?: number) => {
+  /** `deliveredAt` places a caught-up event in the order sync delivered them. */
+  const read = (event: MatrixEvent, deliveredAt = Infinity) => {
     const declined = declinedRingId(event, myUserId);
     if (declined) {
       declinedRings.add(declined);
@@ -129,24 +128,20 @@ export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void)
       return;
     }
     const ring = readRing(event, myUserId);
-    if (!ring || declinedRings.has(ring.eventId)) return;
-    if (caughtUpAt === undefined) liveRing = true;
-    else {
-      if (liveRing || caughtUpAt < newestCaughtUp) return;
-      newestCaughtUp = caughtUpAt;
-    }
+    if (!ring || declinedRings.has(ring.eventId) || deliveredAt < newestRung) return;
+    newestRung = deliveredAt;
     watcher.onRing(ring);
   };
 
-  const consider = async (event: MatrixEvent, caughtUpAt?: number) => {
+  const consider = async (event: MatrixEvent, deliveredAt?: number) => {
     await mx.decryptEventIfNeeded(event).catch(() => undefined);
     if (stopped) return;
     if (!event.isDecryptionFailure()) {
-      read(event, caughtUpAt);
+      read(event, deliveredAt);
       return;
     }
     const left = MAX_RING_LIFETIME_MS - (Date.now() - event.getTs());
-    decryptions.wait(event, left, () => read(event, caughtUpAt));
+    decryptions.wait(event, left, () => read(event, deliveredAt));
   };
 
   const onTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (event, _room, older, gone, at) => {
