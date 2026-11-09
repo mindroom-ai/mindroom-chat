@@ -297,7 +297,8 @@ export class RoomCall {
   }
 
   private attachAudio(track: RemoteTrack) {
-    if (track.kind !== Track.Kind.Audio) return;
+    // Once: a membership change can find a track before LiveKit reports its subscription.
+    if (track.kind !== Track.Kind.Audio || track.attachedElements.length > 0) return;
     if (!this.audioHost) {
       const host = document.createElement('div');
       host.hidden = true;
@@ -337,8 +338,8 @@ export class RoomCall {
       const member = members.has(participant.identity);
       participant.audioTrackPublications.forEach(({ track }) => {
         if (!track) return;
-        if (!member) this.detachAudio(track);
-        else if (track.attachedElements.length === 0) this.attachAudio(track);
+        if (member) this.attachAudio(track);
+        else this.detachAudio(track);
       });
     });
   }

@@ -901,6 +901,19 @@ describe("RoomCall members' media", () => {
     expect(playing()).toBe(0);
   });
 
+  it("plays a member's sound once when LiveKit reports its subscription after the membership found it", async () => {
+    const { call, session } = setup();
+    await call.join();
+    // While its connection resumes, LiveKit sets the subscribed track and reports it only later.
+    const device = remoteDevice(onlyMediaRoom(), OTHER_IDENTITY);
+    session.setMemberships([membership(ME, DEVICE), membership(OTHER, OTHER_DEVICE)]);
+    expect(playing()).toBe(1);
+
+    device.subscribe();
+
+    expect(playing()).toBe(1);
+  });
+
   it("plays a member's sound as soon as it arrives", async () => {
     const { call, session } = setup();
     session.memberships = [membership(OTHER, OTHER_DEVICE)];

@@ -1036,13 +1036,13 @@ test.describe('calls', () => {
       { token: eve.token, body: {} }
     );
     const service = defined(process.env.E2E_LIVEKIT_SERVICE_URL, 'the call service');
-    const grant = (await (
-      await fetch(`${service}/sfu/get`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ room: roomId, device_id: eveDevice, openid_token: openIdToken }),
-      })
-    ).json()) as { url: string; jwt: string };
+    const granted = await fetch(`${service}/sfu/get`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ room: roomId, device_id: eveDevice, openid_token: openIdToken }),
+    });
+    expect(granted.ok, `the call service answered ${granted.status}`).toBe(true);
+    const grant = (await granted.json()) as { url: string; jwt: string };
     const evePage = await (await browser.newContext({ permissions: ['microphone'] })).newPage();
     await evePage.goto(`${HOMESERVER}/_matrix/client/versions`);
     await evePage.addScriptTag({ path: 'node_modules/livekit-client/dist/livekit-client.umd.js' });
