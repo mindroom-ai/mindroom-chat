@@ -51,9 +51,6 @@ export const resolveProvisioningRequest = ({
   };
 };
 
-export const getWelcomeSetupFirstSeenStorageKey = (userId: string): string =>
-  `mindroom_welcome_setup_first_seen_at::${userId}`;
-
 export type WelcomeSetupPromptState = {
   activeConnectionCount: number;
   firstSeenAtMs: number | undefined;

@@ -1,6 +1,7 @@
 import { createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SPACE_ORDER_STORAGE_KEY_PREFIX, makeSpaceOrderAtom } from './sidebarOrder';
+import { makeSpaceOrderAtom } from './sidebarOrder';
+import { spaceOrderStorageKey } from '../preferences/accountStorageKeys';
 
 type StorageListener = (event: StorageEvent) => void;
 
@@ -55,7 +56,7 @@ describe('sidebarOrder', () => {
     store.set(atom, { type: 'REORDER', order: ['!space-b', '!space-a', '!space-b'] });
 
     expect(store.get(atom)).toEqual(['!space-b', '!space-a']);
-    expect(storageState.get(`${SPACE_ORDER_STORAGE_KEY_PREFIX}@alice:example.org`)).toBe(
+    expect(storageState.get(spaceOrderStorageKey('@alice:example.org'))).toBe(
       '["!space-b","!space-a"]'
     );
 
@@ -63,7 +64,7 @@ describe('sidebarOrder', () => {
   });
 
   it('hydrates localStorage and applies storage events while mounted', () => {
-    const key = `${SPACE_ORDER_STORAGE_KEY_PREFIX}@alice:example.org`;
+    const key = spaceOrderStorageKey('@alice:example.org');
     storageState.set(key, '["!space-a"]');
 
     const atom = makeSpaceOrderAtom('@alice:example.org');
