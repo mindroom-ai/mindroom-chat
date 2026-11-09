@@ -466,6 +466,12 @@ describe('useRoomComputers', () => {
   const HELPER = { userId: '@mindroom_helper:example.org', membership: 'join', name: 'Helper' };
   const CODER = { userId: '@mindroom_coder:example.org', membership: 'join', name: 'Coder' };
   const SESSION = { session_id: 's1', state: 'ready', mode: 'view', expires_at: 2 };
+  const CODER_SERVER = 'https://coder.example.org';
+  /** The helper's MindRoom and the coder's at `coderServer`, each with a computer. */
+  const bothComputers = (coderServer = CODER_SERVER): AgentServer[] => [
+    { agentUserId: HELPER.userId, apiUrl: PUBLISHED, computer: true, ts: 2 },
+    { agentUserId: CODER.userId, apiUrl: coderServer, computer: true, ts: 1 },
+  ];
 
   /** What `useRoomComputers(ROOM_ID)` gives, with `deploymentUrl` in config.json. */
   const computers = (deploymentUrl?: string) =>
@@ -484,7 +490,7 @@ describe('useRoomComputers', () => {
     // The helper's MindRoom has a computer and the coder's has none; the router publishes nothing.
     state.servers = [
       { agentUserId: HELPER.userId, apiUrl: PUBLISHED, computer: true, ts: 2 },
-      { agentUserId: CODER.userId, apiUrl: 'https://coder.example.org', computer: false, ts: 1 },
+      { agentUserId: CODER.userId, apiUrl: CODER_SERVER, computer: false, ts: 1 },
     ];
   });
 
@@ -512,11 +518,7 @@ describe('useRoomComputers', () => {
     const answers = fakeFetch();
     answers.route.mockImplementation(() => json({ ...SESSION, session_token: 'viewer' }));
     // Each agent's computer on its own server: the coder's is not the one the room found first.
-    const coderServer = 'https://coder.example.org';
-    state.servers = [
-      { agentUserId: HELPER.userId, apiUrl: PUBLISHED, computer: true, ts: 2 },
-      { agentUserId: CODER.userId, apiUrl: coderServer, computer: true, ts: 1 },
-    ];
+    state.servers = bothComputers();
 
     const session = await computerOf(computers(), CODER.userId).openSession();
     expect(session.status).toEqual(SESSION);
@@ -525,11 +527,11 @@ describe('useRoomComputers', () => {
     expect(answers.last()?.init.signal).toBe(stop.signal);
 
     expect(openId.requestToken.mock.calls).toEqual([
-      [mx, coderServer, { requireBinding: true }],
+      [mx, CODER_SERVER, { requireBinding: true }],
       [mx, DEPLOYMENT, { requireBinding: false }],
     ]);
     expect(answers.routes()).toEqual([
-      `${coderServer}/api/computers/sessions`,
+      `${CODER_SERVER}/api/computers/sessions`,
       `${DEPLOYMENT}/api/computers/sessions`,
     ]);
     const created = JSON.parse(String(answers.last()?.init.body));
@@ -552,25 +554,21 @@ describe('useRoomComputers', () => {
         }
       }
     );
-    const coderServer = 'https://coder.example.org';
-    state.servers = [
-      { agentUserId: HELPER.userId, apiUrl: PUBLISHED, computer: true, ts: 2 },
-      { agentUserId: CODER.userId, apiUrl: coderServer, computer: true, ts: 1 },
-    ];
+    state.servers = bothComputers();
     const found = computers();
     const helper = computerOf(found, HELPER.userId).server;
     const coder = computerOf(found, CODER.userId).server;
 
-    expect([helper.origin, coder.origin]).toEqual([PUBLISHED, coderServer]);
+    expect([helper.origin, coder.origin]).toEqual([PUBLISHED, CODER_SERVER]);
     await coder.request('/api/plugins');
     await helper.openSocket('/api/plugins/notes/live');
 
     expect(openId.requestToken.mock.calls).toEqual([
-      [mx, coderServer, { requireBinding: true }],
+      [mx, CODER_SERVER, { requireBinding: true }],
       [mx, PUBLISHED, { requireBinding: true }],
     ]);
-    expect(answers.signInOrigins()).toEqual([coderServer, PUBLISHED]);
-    expect(answers.routes()).toEqual([`${coderServer}/api/plugins`]);
+    expect(answers.signInOrigins()).toEqual([CODER_SERVER, PUBLISHED]);
+    expect(answers.routes()).toEqual([`${CODER_SERVER}/api/plugins`]);
     expect(sockets).toEqual([
       {
         url: 'wss://published.example.org/api/plugins/notes/live',
@@ -581,10 +579,7 @@ describe('useRoomComputers', () => {
 
   it('gives every agent the configured server, with an unbound session, when config.json names one', async () => {
     const answers = fakeFetch();
-    state.servers = [
-      { agentUserId: HELPER.userId, apiUrl: PUBLISHED, computer: true, ts: 2 },
-      { agentUserId: CODER.userId, apiUrl: 'https://coder.example.org', computer: true, ts: 1 },
-    ];
+    state.servers = bothComputers();
     const found = computers(DEPLOYMENT);
 
     expect(found.map(({ server }) => server.origin)).toEqual([DEPLOYMENT, DEPLOYMENT, DEPLOYMENT]);
@@ -597,11 +592,7 @@ describe('useRoomComputers', () => {
 
   it("shares the account's one session with each server: between agents, renders and the room's server", async () => {
     const answers = fakeFetch();
-    state.servers = [
-      { agentUserId: HELPER.userId, apiUrl: PUBLISHED, computer: true, ts: 2 },
-      { agentUserId: CODER.userId, apiUrl: PUBLISHED, computer: true, ts: 1 },
-    ];
-    state.published = PUBLISHED;
+    state.servers = bothComputers(PUBLISHED);
     const before = computerOf(computers(), HELPER.userId).server;
 
     await Promise.all([
