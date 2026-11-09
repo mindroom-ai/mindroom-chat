@@ -94,7 +94,7 @@ export const startSpeechCapture = async (
     // onSpeechEnd drops it when the person paused.
     submitUserSpeechOnPause: true,
     ortConfig: (ort) => {
-      // The wrapper's own setting, which these options replace.
+      // As the wrapper's default ortConfig, which this one replaces, sets it.
       ort.env.logLevel = 'error';
       // The runtime's module is copied as .js, which static hosts serve as JavaScript.
       ort.env.wasm.wasmPaths = {
