@@ -754,7 +754,8 @@
       "resolveThread": "Resolver ou reabrir o tópico aberto",
       "newLine": "Nova linha",
       "editLast": "Editar a sua última mensagem (com a caixa vazia)",
-      "inlineCode": "Código em linha"
+      "inlineCode": "Código em linha",
+      "callView": "Ir para a chamada"
     }
   },
   "thread": {

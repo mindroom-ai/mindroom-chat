@@ -743,7 +743,8 @@
       "resolveThread": "Açık konuyu çözüldü işaretle veya yeniden aç",
       "newLine": "Yeni satır",
       "editLast": "Son mesajını düzenle (boş mesaj kutusunda)",
-      "inlineCode": "Satır içi kod"
+      "inlineCode": "Satır içi kod",
+      "callView": "Aramaya git"
     }
   },
   "thread": {

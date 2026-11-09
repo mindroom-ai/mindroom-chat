@@ -732,7 +732,8 @@
       "resolveThread": "解決或重新開啟目前的討論串",
       "newLine": "換行",
       "editLast": "編輯你的最後一則訊息（輸入框為空時）",
-      "inlineCode": "行內程式碼"
+      "inlineCode": "行內程式碼",
+      "callView": "前往通話"
     }
   },
   "thread": {

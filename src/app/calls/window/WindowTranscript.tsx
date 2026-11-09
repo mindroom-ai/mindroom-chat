@@ -13,7 +13,11 @@ import { callTranscriptionAtom } from '../transcription/transcriptionState';
 import { dismissTranscriptPanel } from '../transcription/transcriptPanel';
 import { useLiveTranscript } from '../transcription/useLiveTranscript';
 import { useCallWindowSize } from './callWindowFrame';
-import { getCallWindowSplitAtom, getCallWindowTranscriptAtom } from './callWindowState';
+import {
+  getCallWindowSplitAtom,
+  getCallWindowTranscriptAtom,
+  useFocusHandOff,
+} from './callWindowState';
 import { MAX_TRANSCRIPT_SPLIT, MIN_TRANSCRIPT_SPLIT, transcriptLayout } from './transcriptLayout';
 import { splitFromPointer, stepSplit, type TranscriptLayout } from './transcriptLayout';
 import * as css from './WindowTranscript.css';
@@ -25,6 +29,22 @@ const percent = (share: number): number => Math.round(share * 100);
 
 const rightToLeft = (element: Element | null): boolean =>
   !!element && getComputedStyle(element).direction === 'rtl';
+
+/** One floating window shows at a time, and the transcript and its divider are only ever in it. */
+const focusWindowHandle = () =>
+  document.querySelector<HTMLElement>('[data-call-window-handle]')?.focus();
+
+/**
+ * The focus in the element of `ref` goes to the window's handle when the element leaves the page,
+ * rather than to the page: before it does, while it still has the focus to tell.
+ */
+const useFocusHandleOnLeave = (ref: RefObject<HTMLElement>) =>
+  useLayoutEffect(() => {
+    const element = ref.current;
+    return () => {
+      if (element?.contains(document.activeElement)) focusWindowHandle();
+    };
+  }, [ref]);
 
 /**
  * Where the live transcript sits in the window now: by the window's size, while the account shows
@@ -62,17 +82,9 @@ function Divider({ layout, share, boxRef, onDrag, onSet }: DividerProps) {
   // A drag the divider goes away during (the window turned short, the transcript hidden) ends
   // with it, unsaved; its pointer capture went with the element.
   useEffect(() => () => onDrag(undefined), [onDrag]);
-  // The focus it had then goes to the window's handle, as Minimize's and Expand's does, rather
-  // than to the page. Before it leaves the page, while it still has the focus to tell.
+  // The focus it had then goes to the window's handle, as Minimize's and Expand's does.
   const ref = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const element = ref.current;
-    return () => {
-      if (!element || element !== document.activeElement) return;
-      // One floating window shows at a time, and the divider is only ever in it.
-      document.querySelector<HTMLElement>('[data-call-window-handle]')?.focus();
-    };
-  }, []);
+  useFocusHandleOnLeave(ref);
   const stage = percent(share);
   const follow = (event: PointerEvent<HTMLElement>) => {
     const box = boxRef.current;
@@ -156,26 +168,49 @@ function Subtitle({ room, line }: { room: Room; line: TranscriptLine | undefined
   );
 }
 
-type TranscriptProps = { room: Room; layout: TranscriptLayout; grow: number | undefined };
+type TranscriptProps = {
+  room: Room;
+  layout: TranscriptLayout;
+  grow: number | undefined;
+  paneRef: RefObject<HTMLDivElement>;
+};
 
 /**
  * The transcript beside or under the stage, at `grow` of the body. Too short a window shows only
  * its latest line as a subtitle, and the transcript stays out of sight for screen readers, whose
- * log announces new lines as it does in every other layout.
+ * log announces new lines as it does in every other layout. Shown, its scroll box is a named group,
+ * which says what it is when it takes the focus; the window is the call view's one landmark.
  */
-function Transcript({ room, layout, grow }: TranscriptProps) {
+function Transcript({ room, layout, grow, paneRef }: TranscriptProps) {
+  const { t } = useTranslation();
   // It is this device's call: its transcriber reads it, and the window only shows what it read.
   const view = useLiveTranscript(room, READ_MS, false);
   const lines = view.live?.lines ?? [];
   const subtitle = layout === 'subtitle';
+  // The focus the pane or its scroll box had goes to the window's handle, as the divider's does,
+  // when the pane goes out of sight (the subtitle layout), once React has put back the focus its
+  // commit kept...
+  useLayoutEffect(() => {
+    if (subtitle && paneRef.current?.contains(document.activeElement)) focusWindowHandle();
+  }, [paneRef, subtitle]);
+  // ...and when it leaves the page.
+  useFocusHandleOnLeave(paneRef);
   return (
     <>
       <div
+        ref={paneRef}
         className={subtitle ? css.PaneUnseen : css.Pane}
         style={grow === undefined ? undefined : { flexGrow: grow }}
         data-call-window-transcript=""
       >
-        <LiveTranscriptBody room={room} view={view} className={css.PaneBody} members={false} />
+        <LiveTranscriptBody
+          room={room}
+          view={view}
+          className={css.PaneBody}
+          members={false}
+          // Out of sight under the subtitle, it takes no focus; its log still announces each line.
+          label={subtitle ? undefined : t('featureUi.calls.transcription.liveTranscript')}
+        />
       </div>
       {subtitle && <Subtitle room={room} line={lines[lines.length - 1]} />}
     </>
@@ -199,6 +234,15 @@ export function WindowTranscript({ room, children }: { room: Room; children: Rea
   useEffect(() => {
     if (shows) dismissTranscriptPanel(store, roomId);
   }, [roomId, shows, store]);
+  // The row's Transcript, outside the window, hands its focus to the transcript it opened here; one
+  // that shows on its own (the controls' switch, left on for a call just joined) takes none. The
+  // subtitle's transcript is out of sight, so there the focus goes to the window's handle.
+  const paneRef = useRef<HTMLDivElement>(null);
+  useFocusHandOff(layout ? 'transcript' : undefined, () => {
+    if (layout === 'subtitle') focusWindowHandle();
+    // The pane holds only the transcript's scroll box, which takes the focus and the keys.
+    else (paneRef.current?.firstElementChild as HTMLElement | null)?.focus();
+  });
   const [split, setSplit] = useAtom(getCallWindowSplitAtom(userId));
   const [dragged, setDragged] = useState<number>();
   const boxRef = useRef<HTMLDivElement>(null);
@@ -219,7 +263,14 @@ export function WindowTranscript({ room, children }: { room: Room; children: Rea
           onSet={setSplit}
         />
       )}
-      {layout && <Transcript room={room} layout={layout} grow={shared && 100 - stagePercent} />}
+      {layout && (
+        <Transcript
+          room={room}
+          layout={layout}
+          grow={shared && 100 - stagePercent}
+          paneRef={paneRef}
+        />
+      )}
     </div>
   );
 }

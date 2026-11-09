@@ -12,7 +12,11 @@ import {
 } from '../transcription/transcriptionState';
 import { transcriptPanelAtom } from '../transcription/transcriptPanel';
 import { CallWindowSizeContext, type CallWindowSize } from './callWindowFrame';
-import { clearCallWindowStore, getCallWindowSettingsAtom } from './callWindowState';
+import {
+  clearCallWindowStore,
+  focusHandOffAtom,
+  getCallWindowSettingsAtom,
+} from './callWindowState';
 import { WindowTranscript } from './WindowTranscript';
 
 // The live transcript inside the floating window: under the stage, beside it, or its latest line
@@ -217,6 +221,64 @@ describe('the live transcript in the floating window', () => {
     expect(layout()).toBeUndefined();
   });
 
+  it('takes no focus when it shows on its own, only the focus a row hands it, once it shows', () => {
+    inCall();
+    render(windowWith({ width: 400, height: 480 }));
+    const stage = document.querySelector<HTMLElement>('[data-stage]')!;
+    act(() => stage.focus());
+    act(() => showTranscript());
+    expect(layout()).toBe('stacked');
+    expect(document.activeElement).toBe(stage);
+
+    // Handed while the transcript does not show, the focus waits for it.
+    act(() => store.set(getCallWindowSettingsAtom(USER), { mode: 'floating', transcript: false }));
+    act(() => store.set(focusHandOffAtom, { to: 'transcript', from: stage }));
+    expect(document.activeElement).toBe(stage);
+    act(() => showTranscript());
+    expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Live transcript' }));
+    expect(store.get(focusHandOffAtom)).toBeUndefined();
+  });
+
+  it("hands the focus the transcript had to the window's handle when it goes out of sight or away", () => {
+    inCall();
+    showTranscript();
+    const { rerender } = render(windowWith({ width: 400, height: 480 }));
+    const handle = document.querySelector<HTMLElement>('[data-call-window-handle]');
+    const pane = () => screen.getByRole('group', { name: 'Live transcript' });
+    // Something focusable in the transcript, as a link in a line would be.
+    const inside = () => {
+      const box = pane().firstElementChild as HTMLElement;
+      box.tabIndex = -1;
+      return box;
+    };
+
+    // The window turned too short for more than the subtitle.
+    act(() => pane().focus());
+    rerender(windowWith({ width: 400, height: 300 }));
+    expect(layout()).toBe('subtitle');
+    expect(document.activeElement).toBe(handle);
+    rerender(windowWith({ width: 400, height: 480 }));
+    act(() => inside().focus());
+    rerender(windowWith({ width: 400, height: 300 }));
+    expect(document.activeElement).toBe(handle);
+
+    // MindRoom stopped transcribing the call.
+    rerender(windowWith({ width: 400, height: 480 }));
+    act(() => inside().focus());
+    act(() => store.set(callTranscriptionAtom, undefined));
+    expect(layout()).toBeUndefined();
+    expect(document.activeElement).toBe(handle);
+
+    // Focus elsewhere stays there.
+    act(() => store.set(callTranscriptionAtom, { roomId: ROOM_ID, status: 'transcribing' }));
+    const stage = document.querySelector<HTMLElement>('[data-stage]')!;
+    act(() => stage.focus());
+    rerender(windowWith({ width: 400, height: 300 }));
+    expect(document.activeElement).toBe(stage);
+    act(() => store.set(callTranscriptionAtom, undefined));
+    expect(document.activeElement).toBe(stage);
+  });
+
   it("closes the room's side transcript once it shows, so the lines show and are read out once", () => {
     // Opened from the call's row before joining, with the window's transcript left on: it shows
     // once MindRoom answers for the call.
@@ -316,6 +378,20 @@ describe('the live transcript in the floating window', () => {
     rerender(windowWith({ width: 700, height: 480 }));
     expect(layout()).toBe('side');
     expect(screen.getByRole('log')).toBe(log);
+  });
+
+  it('keeps the transcript out of sight out of the Tab order in the subtitle layout, its log still read', () => {
+    inCall();
+    showTranscript();
+    const { rerender } = render(windowWith({ width: 400, height: 480 }));
+    const box = () => document.querySelector<HTMLElement>('[data-call-window-transcript] > div')!;
+    expect(box().tabIndex).toBe(0);
+
+    rerender(windowWith({ width: 400, height: 300 }));
+    expect(layout()).toBe('subtitle');
+    expect(box().hasAttribute('tabindex')).toBe(false);
+    expect(box().getAttribute('role')).toBeNull();
+    expect(screen.getByRole('log')).toBeTruthy();
   });
 
   it('shows a gap as the latest line in the subtitle, and nothing before anyone spoke', () => {
