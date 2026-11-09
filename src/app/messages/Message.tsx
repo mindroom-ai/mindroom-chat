@@ -776,6 +776,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       const header = (
         <Box
           className={css.SenderLine}
+          data-message-sender-line=""
           gap="300"
           justifyContent="SpaceBetween"
           alignItems="Center"
