@@ -24,6 +24,8 @@ const detector = vi.hoisted(() => ({
     options: Partial<RealTimeVADOptions>;
     listening: boolean;
     destroyed: boolean;
+    /** How often it was paused. */
+    pauses: number;
     hear: (probability: number) => Promise<void>;
   }>,
   /** What `MicVAD.new` waits for before it is ready: the model and runtime loading. */
@@ -45,6 +47,8 @@ vi.mock('@ricky0123/vad-web', async () => {
     listening = true;
 
     destroyed = false;
+
+    pauses = 0;
 
     private heard = 0;
 
@@ -95,6 +99,7 @@ vi.mock('@ricky0123/vad-web', async () => {
     pause = async () => {
       if (!this.listening) return;
       this.listening = false;
+      this.pauses += 1;
       await this.options.pauseStream?.(new MediaStream());
       this.frames.pause(this.handle);
     };
@@ -223,16 +228,15 @@ describe('startSpeechCapture', () => {
       Object.keys(options)
         .filter((key) => !key.startsWith('on'))
         .sort()
-    ).toEqual(
-      [
-        'audioContext',
-        'baseAssetPath',
-        'getStream',
-        'ortConfig',
-        'pauseStream',
-        'resumeStream',
-      ].sort()
-    );
+    ).toEqual([
+      'audioContext',
+      'baseAssetPath',
+      'getStream',
+      'ortConfig',
+      'pauseStream',
+      'resumeStream',
+      'submitUserSpeechOnPause',
+    ]);
     // Same origin: the worklet, the model and the runtime's files come from one directory here.
     const base = defined(options.baseAssetPath, 'baseAssetPath');
     expect(base).toMatch(/^\/assets\/speech-model[^/]*\/$/);
@@ -306,16 +310,29 @@ describe('startSpeechCapture', () => {
   });
 
   it('pauses and resumes in the order asked, however fast', async () => {
-    const { capture, vad } = await start();
+    const { capture, hear, stretches, vad } = await start();
     capture.setPaused(true);
     capture.setPaused(false);
     capture.setPaused(true);
     capture.setPaused(false);
     await settle();
     expect(vad.listening).toBe(true);
+    // Listening for real: what is said now is found.
+    await hear(10, SPEECH);
+    await hear(20, QUIET);
+    expect(stretches).toHaveLength(1);
     capture.setPaused(true);
     await settle();
     expect(vad.listening).toBe(false);
+  });
+
+  it('counts a sound too short for speech towards no cut', async () => {
+    const { hear, stretches, vad } = await start();
+    // Three frames of speech are less than the 400 ms a stretch needs; 32 seconds of quiet follow.
+    await hear(3, SPEECH);
+    await hear(330, QUIET);
+    expect(stretches).toEqual([]);
+    expect(vad.pauses).toBe(0);
   });
 
   it('on stop, hands on the stretch in progress, then lets go of the call’s microphone without stopping it', async () => {

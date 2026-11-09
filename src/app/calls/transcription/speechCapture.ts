@@ -64,7 +64,6 @@ export const startSpeechCapture = async (
   let encodeWav: ((samples: Float32Array, format: number) => ArrayBuffer) | undefined;
   let vad: MicVAD | undefined;
   let paused = false;
-  let stopped = false;
   /** Whether a stretch is in progress, and how many frames since its speech started. */
   let speaking = false;
   let spoken = 0;
@@ -79,11 +78,8 @@ export const startSpeechCapture = async (
     if (paused) await detector.pause();
     else await detector.start();
   };
-  // Pausing with submitUserSpeechOnPause hands on the stretch in progress instead of dropping it.
   const cut = async (detector: MicVAD) => {
-    detector.setOptions({ submitUserSpeechOnPause: true });
     await detector.pause();
-    detector.setOptions({ submitUserSpeechOnPause: false });
     await follow(detector);
   };
 
@@ -94,6 +90,9 @@ export const startSpeechCapture = async (
     pauseStream: async () => undefined,
     resumeStream: async (stream) => stream,
     baseAssetPath: directory,
+    // Pausing ends the stretch in progress as speech ends would: a cut or a stop hands it on, and
+    // onSpeechEnd drops it when the person paused.
+    submitUserSpeechOnPause: true,
     ortConfig: (ort) => {
       // The wrapper's own setting, which these options replace.
       ort.env.logLevel = 'error';
@@ -116,7 +115,6 @@ export const startSpeechCapture = async (
         vad.options.preSpeechPadMs / ((frame.length / SAMPLE_RATE) * 1000)
       );
       if ((padFrames + spoken + 1) * frame.length > LONGEST_STRETCH_SECONDS * SAMPLE_RATE) {
-        speaking = false;
         void step(cut);
       }
     },
@@ -125,8 +123,7 @@ export const startSpeechCapture = async (
     },
     onSpeechEnd: (audio) => {
       speaking = false;
-      // A stretch the detector ends as a pause starts is dropped.
-      if (paused || stopped || !encodeWav) return;
+      if (paused || !encodeWav) return;
       const seconds = audio.length / SAMPLE_RATE;
       onStretch({
         // Format 1 is 16-bit PCM, which MindRoom takes.
@@ -153,7 +150,6 @@ export const startSpeechCapture = async (
       }),
     ]).finally(() => clearTimeout(loadTimer));
   } catch (error) {
-    stopped = true;
     await context.close().catch(() => undefined);
     throw error;
   }
@@ -177,10 +173,8 @@ export const startSpeechCapture = async (
     stop: () => {
       stopping ??= step(async (detector) => {
         try {
-          detector.setOptions({ submitUserSpeechOnPause: true });
           await detector.destroy();
         } finally {
-          stopped = true;
           context.onstatechange = null;
           USER_GESTURES.forEach((type) =>
             window.removeEventListener(type, keepRunning, { capture: true })
