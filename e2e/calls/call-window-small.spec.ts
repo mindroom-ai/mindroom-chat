@@ -170,7 +170,7 @@ test('a call view that could not load keeps the window that moves, minimizes and
   // loaded call view.
   await page.locator('body').click({ position: { x: 600, y: 300 } });
   await expect(titleBar).not.toBeFocused();
-  await page.keyboard.press('Control+Shift+L');
+  await page.keyboard.press('ControlOrMeta+Shift+L');
   await expect(titleBar).toBeFocused();
 
   // Close closes the window.
