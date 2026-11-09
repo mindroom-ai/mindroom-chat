@@ -166,8 +166,8 @@ export type RoomComputer = {
    * give a sign-in token, the server gave no answer or `signal` aborted, 403 when the homeserver
    * will not sign in there (it binds no tokens to a server the agent published), else the server's
    * refusal. Retrying, reconnecting a stream and ending a session the plugin no longer shows are
-   * the plugin's. It stays the same function while the agent stays listed in the same room with
-   * that server and the token's binding.
+   * the plugin's. For one caller of `useRoomComputers`, it stays the same function while the agent
+   * stays listed in the same room with that server and the token's binding.
    */
   openSession: (signal?: AbortSignal) => Promise<ComputerSessionClient>;
 };
