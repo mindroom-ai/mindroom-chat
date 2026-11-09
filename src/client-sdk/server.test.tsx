@@ -566,6 +566,18 @@ describe('useRoomComputers', () => {
     expect(answers.routes()).toHaveLength(1);
   });
 
+  it('asks for no token when its signal aborted before the call', async () => {
+    const answers = fakeFetch();
+    const stop = new AbortController();
+    stop.abort();
+
+    await expect(
+      computerOf(computers(), HELPER.userId).openSession(stop.signal)
+    ).rejects.toMatchObject({ name: 'ComputerApiError', status: 0 });
+    expect(openId.requestToken).not.toHaveBeenCalled();
+    expect(answers.routes()).toEqual([]);
+  });
+
   it('rejects with status 0 once its signal aborts while the homeserver gives no token', async () => {
     const answers = fakeFetch();
     openId.requestToken.mockReturnValueOnce(new Promise(() => undefined));

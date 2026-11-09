@@ -157,7 +157,10 @@ export type RoomComputer = {
   openSession: (signal?: AbortSignal) => Promise<ComputerSessionClient>;
 };
 
-/** A session on `agent`'s computer at `apiUrl`; a token for a server the agent published needs binding. */
+/**
+ * A session on `agent`'s computer: on its own server, which needs a token bound to it, else on the
+ * room's `apiUrl`.
+ */
 const openSession = async (
   mx: MatrixClient,
   roomId: string,
@@ -165,14 +168,22 @@ const openSession = async (
   apiUrl: string,
   signal?: AbortSignal
 ) => {
-  const token = requestAudienceOpenIdToken(mx, apiUrl, {
+  if (signal?.aborted) throw new ComputerApiError('Computer request cancelled.', 0);
+  const serverUrl = agent.serverUrl ?? apiUrl;
+  const token = requestAudienceOpenIdToken(mx, serverUrl, {
     requireBinding: agent.serverUrl !== undefined,
   });
   const openIdToken = await untilAborted(token, signal).catch((error: unknown) => {
     const refusal = tokenError(error);
     throw new ComputerApiError(refusal.message, refusal.status);
   });
-  return createComputerSession({ apiUrl, agentUserId: agent.userId, openIdToken, roomId, signal });
+  return createComputerSession({
+    apiUrl: serverUrl,
+    agentUserId: agent.userId,
+    openIdToken,
+    roomId,
+    signal,
+  });
 };
 
 /**
@@ -194,8 +205,7 @@ export const useRoomComputers = (roomId: string): RoomComputer[] => {
         ? agents.map((agent) => ({
             userId: agent.userId,
             name: agent.name,
-            openSession: (signal?: AbortSignal) =>
-              openSession(mx, roomId, agent, agent.serverUrl ?? apiUrl, signal),
+            openSession: (signal?: AbortSignal) => openSession(mx, roomId, agent, apiUrl, signal),
           }))
         : [],
     [agents, apiUrl, mx, roomId]
