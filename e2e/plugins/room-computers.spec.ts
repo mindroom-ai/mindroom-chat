@@ -74,7 +74,7 @@ test("a plugin's panel lists the room's agents with a computer, and opens, contr
 
   // The room's own computer button still finds the same agent.
   await roomMoreOptions(page).click();
-  await page.getByRole('button', { name: 'Show Computer', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Show Computer', exact: true }).click();
   const computerPanel = page.getByRole('complementary', { name: 'Computer panel' });
   await expect(computerPanel.getByText('Watch mode', { exact: true })).toBeVisible({
     timeout: 300_000,
