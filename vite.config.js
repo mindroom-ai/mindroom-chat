@@ -25,19 +25,43 @@ import { mindroomBuildAssets } from './scripts/vite-build-assets.mjs';
 // Call transcription's speech detector (src/app/calls/transcription/speechCapture.ts):
 // @ricky0123/vad-web loads its AudioWorklet and its default model, Silero VAD, and onnxruntime-web
 // its WebAssembly, each by a fixed name from one directory. A hash of the files names that
-// directory, so it may be cached for good like the rest of assets/. The runtime's module is copied
-// as .js: nginx, among other static hosts, has no JavaScript type for .mjs.
+// directory, so it may be cached for good like the rest of assets/. The runtime's module goes as
+// .js: nginx, among other static hosts, has no JavaScript type for .mjs.
 const SPEECH_MODEL_FILES = [
-  ['@ricky0123/vad-web/dist/vad.worklet.bundle.min.js'],
-  ['@ricky0123/vad-web/dist/silero_vad_legacy.onnx'],
-  ['onnxruntime-web/dist/ort-wasm-simd-threaded.wasm'],
-  ['onnxruntime-web/dist/ort-wasm-simd-threaded.mjs', 'ort-wasm-simd-threaded.js'],
-].map(([file, rename]) => ({ src: `node_modules/${file}`, rename }));
+  ['@ricky0123/vad-web/dist/vad.worklet.bundle.min.js', 'text/javascript'],
+  ['@ricky0123/vad-web/dist/silero_vad_legacy.onnx', 'application/octet-stream'],
+  ['onnxruntime-web/dist/ort-wasm-simd-threaded.wasm', 'application/wasm'],
+  ['onnxruntime-web/dist/ort-wasm-simd-threaded.mjs', 'text/javascript'],
+].map(([file, type]) => ({
+  source: readFileSync(new URL(`node_modules/${file}`, import.meta.url)),
+  name: path.basename(file).replace(/\.mjs$/, '.js'),
+  type,
+}));
 const speechModelHash = createHash('sha256');
-SPEECH_MODEL_FILES.forEach(({ src }) =>
-  speechModelHash.update(readFileSync(new URL(src, import.meta.url)))
-);
+SPEECH_MODEL_FILES.forEach(({ source }) => speechModelHash.update(source));
 const SPEECH_MODEL_DIR = `assets/speech-model-${speechModelHash.digest('hex').slice(0, 12)}`;
+
+/**
+ * Emits the speech model's files into the bundle, so they are in the build inventory the service
+ * worker keeps its copies by, and the dev server answers them.
+ * @returns {import('vite').Plugin}
+ */
+const speechModelFiles = () => ({
+  name: 'speech-model-files',
+  generateBundle() {
+    SPEECH_MODEL_FILES.forEach(({ source, name }) =>
+      this.emitFile({ type: 'asset', fileName: `${SPEECH_MODEL_DIR}/${name}`, source })
+    );
+  },
+  configureServer(server) {
+    server.middlewares.use(`/${SPEECH_MODEL_DIR}`, (request, response, next) => {
+      const file = SPEECH_MODEL_FILES.find(({ name }) => request.url === `/${name}`);
+      if (!file) return next();
+      response.setHeader('Content-Type', file.type);
+      return response.end(file.source);
+    });
+  },
+});
 
 /**
  * Files copied verbatim into the build output (and served by the dev server).
@@ -56,7 +80,6 @@ export const copyFiles = {
     // ported code); thirdPartyNoticesPlugin adds the npm dependencies' THIRD_PARTY_NOTICES.txt.
     // Under public/, so the service worker never answers them with the app shell.
     { src: ['LICENSE', 'NOTICE', 'licenses/*'], dest: 'public/licenses' },
-    ...SPEECH_MODEL_FILES.map(({ src, rename }) => ({ src, dest: SPEECH_MODEL_DIR, rename })),
   ],
 };
 
@@ -194,6 +217,8 @@ export default defineConfig({
       : [
           viteStaticCopy(copyFiles),
           thirdPartyNoticesPlugin(),
+          // Before startup.plugin, which reads the bundle's inventory.
+          speechModelFiles(),
           startup.plugin,
           serviceWorkerPlugin,
         ]),
