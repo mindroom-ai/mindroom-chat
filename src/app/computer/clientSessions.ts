@@ -31,13 +31,14 @@ export class MindroomServerError extends Error {
 }
 
 const noAnswer = (message: string) => new MindroomServerError(message, 0);
+const cancelled = () => noAnswer('MindRoom request cancelled.');
 
 /** Rejects as soon as `signal` aborts, for steps that cannot be cancelled themselves. */
 export const untilAborted = <T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> => {
   if (!signal) return promise;
-  if (signal.aborted) return Promise.reject(noAnswer('MindRoom request cancelled.'));
+  if (signal.aborted) return Promise.reject(cancelled());
   return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(noAnswer('MindRoom request cancelled.'));
+    const onAbort = () => reject(cancelled());
     signal.addEventListener('abort', onAbort, { once: true });
     promise.then(
       (value) => {
@@ -180,6 +181,8 @@ export class ClientSessions {
     if (this.session && this.session.expiresAt - SESSION_RENEW_MARGIN_MS > Date.now()) {
       return Promise.resolve(this.session);
     }
+    // Before a sign-in starts that no one would wait for.
+    if (signal?.aborted) return Promise.reject(cancelled());
     this.session = undefined;
     if (!this.signingIn) {
       const signingIn: Promise<ClientSession> = this.signIn()
