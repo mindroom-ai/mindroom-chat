@@ -23,6 +23,7 @@ import {
   type CallWindowFrame,
 } from './window/callWindowFrame';
 import { callTranscriptionAtom, liveTranscriptAtom } from './transcription/transcriptionState';
+import { transcriptPanelAtom } from './transcription/transcriptPanel';
 import { hasShortcutHandler, runShortcut } from '../shortcuts/useShortcut';
 import {
   clearCallWindowStore,
@@ -1144,6 +1145,18 @@ describe('the live transcript in the window', () => {
     expect(transcript()).not.toBeNull();
     expect(screen.getAllByRole('region')).toEqual([screen.getByTestId('call-window')]);
     expect(screen.getByRole('group', { name: 'Live transcript' })).toBe(transcript());
+  });
+
+  it("hides with its switch, leaving the room's side transcript alone", () => {
+    roomCall([me, person('@ana:panel.test')]);
+    transcribed();
+    renderPanel({ frame: frame() });
+    const side = { roomId: room.roomId, replacedCall: false };
+    act(() => store.set(transcriptPanelAtom, side));
+
+    press('Live transcript');
+    expect(settings().transcript).toBe(false);
+    expect(store.get(transcriptPanelAtom)).toEqual(side);
   });
 
   it('shows neither in the bar nor in the docked panel', () => {
