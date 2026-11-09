@@ -1,16 +1,19 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
-import type { IOpenIDToken, MatrixClient, Room } from 'matrix-js-sdk';
+import { ConnectionError, type IOpenIDToken, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { useEffect, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TranscriptionClient } from '../app/calls/transcription/api';
+import type { AgentServer } from '../app/computer/agentServer';
 import { clientSessions } from '../app/computer/clientSessions';
 import { ClientConfigProvider } from '../app/config/useClientConfig';
 import { MatrixClientProvider } from '../app/matrix/hooks/useMatrixClient';
 import {
+  ComputerApiError,
   MindroomServerError,
   useMindroomServer,
   useMindroomServerStatus,
+  useRoomComputers,
   type MindroomServer,
 } from './server';
 
@@ -24,24 +27,31 @@ const state = vi.hoisted(() => ({
   bindsTokens: true as boolean | undefined,
   binding: Promise.resolve(true as boolean | undefined),
   published: undefined as string | undefined,
-  members: [] as { userId: string; membership: string }[],
+  // The servers the room's agents published, in full, where a test needs more than `published`.
+  servers: undefined as AgentServer[] | undefined,
+  members: [] as { userId: string; membership: string; name?: string }[],
 }));
 vi.mock('../app/computer/useAgentServers', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../app/computer/useAgentServers')>();
+  const useOpenIdBinding = () => state.bindsTokens ?? actual.useOpenIdBinding();
   return {
-    useOpenIdBinding: () => state.bindsTokens ?? actual.useOpenIdBinding(),
-    useRoomAgentServers: () => (state.published ? [{ apiUrl: state.published }] : []),
+    useOpenIdBinding,
+    useBindsOpenIdTokens: () => useOpenIdBinding() === true,
+    useRoomAgentServers: () =>
+      state.servers ?? (state.published ? [{ apiUrl: state.published }] : []),
   };
 });
 vi.mock('../app/matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => state.members }));
+const OPENID_TOKEN: IOpenIDToken = {
+  access_token: 'openid',
+  token_type: 'Bearer',
+  matrix_server_name: 'example.org',
+  expires_in: 3600,
+};
+const openId = vi.hoisted(() => ({ requestToken: vi.fn() }));
 vi.mock('../app/matrix/openidAudience', () => ({
   readOpenIdBinding: () => state.binding,
-  requestAudienceOpenIdToken: async (): Promise<IOpenIDToken> => ({
-    access_token: 'openid',
-    token_type: 'Bearer',
-    matrix_server_name: 'example.org',
-    expires_in: 3600,
-  }),
+  requestAudienceOpenIdToken: openId.requestToken,
 }));
 
 const json = (body: unknown, status = 200) =>
@@ -117,7 +127,10 @@ beforeEach(() => {
   mx = { getRoom: () => null, getSafeUserId: () => '@ann:example.org' } as unknown as MatrixClient;
   state.bindsTokens = true;
   state.published = undefined;
+  state.servers = undefined;
   state.members = [AGENT];
+  openId.requestToken.mockReset();
+  openId.requestToken.mockResolvedValue(OPENID_TOKEN);
 });
 
 afterEach(() => {
@@ -448,5 +461,91 @@ describe('MindroomServer.token', () => {
     stop.abort();
 
     await expect(asked).rejects.toMatchObject({ status: 0 });
+  });
+});
+
+describe('useRoomComputers', () => {
+  const HELPER = { userId: '@mindroom_helper:example.org', membership: 'join', name: 'Helper' };
+  const CODER = { userId: '@mindroom_coder:example.org', membership: 'join', name: 'Coder' };
+  const SESSION = { session_id: 's1', state: 'ready', mode: 'view', expires_at: 2 };
+
+  /** What `useRoomComputers(ROOM_ID)` gives, with `deploymentUrl` in config.json. */
+  const computers = (deploymentUrl?: string) =>
+    renderHook(() => useRoomComputers(ROOM_ID), { wrapper: signedIn(deploymentUrl) }).result
+      .current;
+
+  beforeEach(() => {
+    state.members = [AGENT, HELPER, CODER, { userId: '@ann:example.org', membership: 'join' }];
+    // The helper's MindRoom has a computer and the coder's has none; the router publishes nothing.
+    state.servers = [
+      { agentUserId: HELPER.userId, apiUrl: PUBLISHED, computer: true, ts: 2 },
+      { agentUserId: CODER.userId, apiUrl: 'https://coder.example.org', computer: false, ts: 1 },
+    ];
+  });
+
+  it('lists every agent a configured server serves but one whose MindRoom has no computer', () => {
+    const found = computers(DEPLOYMENT);
+    expect(found.map(({ userId, name }) => ({ userId, name }))).toEqual([
+      { userId: AGENT.userId, name: AGENT.userId },
+      { userId: HELPER.userId, name: 'Helper' },
+    ]);
+    // Which server each runs on stays inside the SDK.
+    expect(Object.keys(found[0]).sort()).toEqual(['name', 'openSession', 'userId']);
+  });
+
+  it('lists, without one, only the agents that published a computer, while the homeserver binds tokens', () => {
+    expect(computers().map(({ userId }) => userId)).toEqual([HELPER.userId]);
+    state.bindsTokens = false;
+    expect(computers()).toEqual([]);
+  });
+
+  it("opens a session with a bound token for an agent's own server, an unbound one for the configured server", async () => {
+    const answers = fakeFetch();
+    answers.route.mockImplementation(() => json({ ...SESSION, session_token: 'viewer' }));
+
+    const session = await computers()[0].openSession();
+    expect(session.status).toEqual(SESSION);
+    const [onConfigured] = computers(DEPLOYMENT).filter(({ userId }) => userId === HELPER.userId);
+    const stop = new AbortController();
+    await onConfigured.openSession(stop.signal);
+    expect(answers.last()?.init.signal).toBe(stop.signal);
+
+    expect(openId.requestToken.mock.calls).toEqual([
+      [mx, PUBLISHED, { requireBinding: true }],
+      [mx, DEPLOYMENT, { requireBinding: false }],
+    ]);
+    expect(answers.routes()).toEqual([
+      `${PUBLISHED}/api/computers/sessions`,
+      `${DEPLOYMENT}/api/computers/sessions`,
+    ]);
+    const created = JSON.parse(String(answers.last()?.init.body));
+    expect(created).toEqual({
+      openid_token: OPENID_TOKEN,
+      room_id: ROOM_ID,
+      agent_user_id: HELPER.userId,
+    });
+  });
+
+  it('rejects with ComputerApiError and its status when the server or the homeserver refuses', async () => {
+    const answers = fakeFetch();
+    answers.route.mockImplementation(() => json({ detail: 'Not in this room.' }, 403));
+    const [helper] = computers();
+
+    const refused = helper.openSession();
+    await expect(refused).rejects.toBeInstanceOf(ComputerApiError);
+    await expect(refused).rejects.toMatchObject({ status: 403, message: 'Not in this room.' });
+
+    // A homeserver that cannot be reached gives no answer; one that will not sign in refuses.
+    openId.requestToken.mockRejectedValueOnce(new ConnectionError('offline'));
+    await expect(helper.openSession()).rejects.toMatchObject({
+      name: 'ComputerApiError',
+      status: 0,
+    });
+    openId.requestToken.mockRejectedValueOnce(new Error('does not bind sign-in tokens'));
+    await expect(helper.openSession()).rejects.toMatchObject({
+      name: 'ComputerApiError',
+      status: 403,
+    });
+    expect(answers.routes()).toHaveLength(1);
   });
 });
