@@ -49,16 +49,16 @@ const standIn = {
 
 /**
  * Renders `ui`, made of the components of the plugin `id`, into the document with what the SDK's
- * config, translation, storage, Matrix and panel frame hooks need: `config` is the plugin's
- * section of config.json (`plugins.<id>`, what `usePluginConfig` reads), `usePluginTranslation`
- * translates into `language` (default English) with the strings of `plugin`, its entry's default
- * export, `useMatrixClient` returns `client`, the signed-in account's (default a stand-in that has
- * `getSafeUserId`, builds media URLs on `https://example.org` and knows no room),
- * `usePluginStorage` keeps values in the document's localStorage, for the rest of the test file,
- * for that account, signed in there, and `usePanelFrame` returns `frame`, as the app gives it to a
- * side panel with `frame: 'own'` (default none). `useScreenSize` returns `screenSize` (default
- * `Desktop`), and `useThemeKind` returns `themeKind`, which marks the document's root element as the
- * app marks it, until the test ends (default the kind marked there, `light` when none is). A
+ * config, translation, storage, Matrix, panel frame, screen size and theme kind hooks need:
+ * `config` is the plugin's section of config.json (`plugins.<id>`, what `usePluginConfig` reads),
+ * `usePluginTranslation` translates into `language` (default English) with the strings of `plugin`,
+ * its entry's default export, `useMatrixClient` returns `client`, the signed-in account's (default
+ * a stand-in that has `getSafeUserId`, builds media URLs on `https://example.org` and knows no
+ * room), `usePluginStorage` keeps values in the document's localStorage, for the rest of the test
+ * file, for that account, signed in there, and `usePanelFrame` returns `frame`, as the app gives it
+ * to a side panel with `frame: 'own'` (default none). `useScreenSize` returns `screenSize` (default
+ * `Desktop`), and `useThemeKind` returns `themeKind`, which marks the document's root element as
+ * the app marks it, until the test ends (default the kind marked there, `light` when none is). A
  * component that needs more of the app, such as a router for `usePluginRouteHref` or the app's
  * query client, gets it from `ui`. The test file needs `// @vitest-environment jsdom`.
  */
