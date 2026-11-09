@@ -66,3 +66,15 @@ for size in 16 32 128 256 512; do
 done
 
 echo "Generated iOS and Mac AppIcon assets in $ICON_DIR"
+
+# The launch screen: App/Base.lproj/LaunchScreen.storyboard centres the M on black, half the
+# screen's shorter side wide and at most 230 points, the 690-pixel source at 3x.
+SPLASH_DIR="ios/App/App/Assets.xcassets/Splash.imageset"
+MARK="public/res/branding/mindroom-logo.png"
+for scale in 1 2 3; do
+  suffix=$([[ $scale == 1 ]] && echo "" || echo "@${scale}x")
+  "${CONVERT[@]}" "$MARK" -resize "$((230 * scale))x" -strip \
+    -define png:exclude-chunks=date,time,tIME "PNG32:$SPLASH_DIR/splash${suffix}.png"
+done
+
+echo "Generated the launch screen's M in $SPLASH_DIR"
