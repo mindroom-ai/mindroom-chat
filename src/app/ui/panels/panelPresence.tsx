@@ -24,7 +24,8 @@ export type PanelPhase = 'shown' | 'enter' | 'swap' | 'exit';
 /**
  * What `register()` gives a moving panel: called, it unregisters; its `done` is the place's `done`
  * while registered, and ends nothing after. A motion that ends after its panel has gone (another
- * panel took the place, which may close in turn) so leaves the next panel's exit alone.
+ * panel took the place, which may close in turn) so leaves the next panel's exit alone. Call it
+ * only for the exit you are animating; a kept `done` from an earlier exit is not supported.
  */
 export type PanelRegistration = (() => void) & { done: () => void };
 
