@@ -58,9 +58,10 @@ afterEach(() => {
 /**
  * A scroller whose visible rows start at y=100 (its scroll padding), with an `[+all]`-like
  * control from y=110 to 130 at the right, and a row at `rowTop` whose toolbar normally sits 30 px
- * above it at the right edge. With `withSender`, the row has a sender line from 4 to 26 px into it.
+ * above it at the right edge. With `senderRight`, the row has a sender line from 4 to 26 px into it,
+ * from x=60 to `senderRight`.
  */
-const renderRow = (rowTop: number, overlayLeft = 900, withSender = false) => {
+const renderRow = (rowTop: number, overlayLeft = 900, senderRight?: number) => {
   const seen: Array<number | undefined> = [];
   function Row() {
     const rowRef = useRef<HTMLDivElement>(null);
@@ -72,7 +73,7 @@ const renderRow = (rowTop: number, overlayLeft = 900, withSender = false) => {
         <div {...{ [TIMELINE_OVERLAY_ATTRIBUTE]: '' }} data-testid="overlay" />
         <div ref={rowRef} data-testid="row">
           <div ref={toolbarRef} data-testid="toolbar" />
-          {withSender && <div data-message-sender-line="" data-testid="sender" />}
+          {senderRight !== undefined && <div data-message-sender-line="" data-testid="sender" />}
         </div>
       </div>
     );
@@ -82,7 +83,7 @@ const renderRow = (rowTop: number, overlayLeft = 900, withSender = false) => {
     overlay: { top: 110, bottom: 130, left: overlayLeft, right: overlayLeft + 50 },
     row: { top: rowTop, bottom: rowTop + 80, left: 0, right: 1000 },
     toolbar: { top: rowTop - 30, bottom: rowTop + 6, left: 850, right: 1000 },
-    sender: { top: rowTop + 4, bottom: rowTop + 26, left: 60, right: 1000 },
+    sender: { top: rowTop + 4, bottom: rowTop + 26, left: 60, right: senderRight ?? 0 },
   };
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(
     this: HTMLElement
@@ -116,7 +117,9 @@ describe('useToolbarClearance', () => {
 
   it('moves the toolbar of the row under the [+all] toggle below its sender line too', () => {
     // The sender line ends at 166, plus an 8 px gap; the row starts at 140.
-    expect(renderRow(140, 900, true)).toBe(34);
+    expect(renderRow(140, 900, 1000)).toBe(34);
+    // A sender line that ends before the toolbar's span starts, as in Compact, is no reason.
+    expect(renderRow(140, 900, 800)).toBe(-2);
   });
 
   it('moves the toolbar of a row under the sticky header into the visible part of the row', () => {
@@ -168,6 +171,16 @@ describe('toolbarOffset', () => {
 
     it('ignores a sender line hidden under the header', () => {
       expect(placeWithSender(40)).toBe(14);
+    });
+
+    it('stays under the fold button above when its own Show less is below the sender line', () => {
+      // A long row's own Show less sticks to the bottom of the view, here 60 px into the row,
+      // where the toolbar below the sender line would cover it.
+      const folds = [
+        { top: -46, bottom: -14, ownRow: false },
+        { top: 60, bottom: 92, ownRow: true },
+      ];
+      expect(toolbarOffset(-36, -200, 400, 42, folds, sender)).toBe(-6);
     });
   });
 });

@@ -80,19 +80,22 @@ export const toolbarOffset = (
   folds: FoldSpan[],
   senderLine?: { top: number; bottom: number }
 ): number | undefined => {
+  const nearFold = (at: number, fold: FoldSpan) =>
+    at < fold.bottom + CONTROL_GAP_PX && at + height > fold.top - CONTROL_GAP_PX;
   // Below the header and the controls under it, but no lower than 4 px above the row's bottom.
   let top = covered > usual + 0.5 ? Math.min(covered, rowHeight - ROW_END_GAP_PX - height) : usual;
   [...folds]
     .sort((a, b) => a.top - b.top)
     .forEach((fold) => {
-      if (top < fold.bottom + CONTROL_GAP_PX && top + height > fold.top - CONTROL_GAP_PX) {
+      if (nearFold(top, fold)) {
         // The fold button of the long message above pushes the toolbar down into its row; the
         // row's own, at its bottom, pushes it up.
         top = fold.ownRow ? fold.top - CONTROL_GAP_PX - height : fold.bottom + CONTROL_GAP_PX;
       }
     });
   // Moved down into its row, it goes on below the row's sender line where that shows, so the
-  // name, the time and the reply details button stay in reach. In its usual place it ends a few
+  // name, the time and the reply details button stay in reach, unless a fold button is there (a
+  // long row's own Show less sticks to the bottom of the view). In its usual place it ends a few
   // pixels into the row, above the line's text.
   if (
     senderLine &&
@@ -101,7 +104,8 @@ export const toolbarOffset = (
     top < senderLine.bottom &&
     top + height > senderLine.top
   ) {
-    top = senderLine.bottom + CONTROL_GAP_PX;
+    const below = senderLine.bottom + CONTROL_GAP_PX;
+    if (!folds.some((fold) => nearFold(below, fold))) top = below;
   }
   return Math.abs(top - usual) > 0.5 ? Math.round(top) : undefined;
 };

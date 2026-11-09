@@ -11,8 +11,9 @@ import { createPrivateRoom, joinRoom, loginToMatrix, sendRoomMessage } from '../
 // The hover toolbar of a message is a glass pill of quiet icon buttons: every button 32 px
 // square and transparent until hovered, 2 px apart, inside an even 4 px of padding and the
 // pill's 1 px rim, with corners concentric to the buttons'. Under a thread's banner it keeps
-// below the `[+all]` toggle and the first row's sender line, 8 px clear of it. Set MESSAGE_TOOLBAR_SHOTS=<directory> to also save close crops
-// at rest and with a button hovered, in dark and light themes.
+// below the `[+all]` toggle and the first row's sender line, 8 px clear of it. Set
+// MESSAGE_TOOLBAR_SHOTS=<directory> to also save close crops at rest and with a button hovered,
+// in dark and light themes.
 const SHOTS = process.env.MESSAGE_TOOLBAR_SHOTS;
 
 const ROOT = 'Which of these should we ship first?';
@@ -327,14 +328,13 @@ test.describe('message hover toolbar', () => {
   // A long message folds behind a Show full message button at the end of its bottom edge, and
   // shows Show less there once unfolded. That corner is where the toolbar of the row below
   // floats, and where a long row's own toolbar ends up when the row is scrolled up under the
-  // header. In both places the toolbar keeps 8 px clear of the button. In the thread, the row
-  // below is an agent's reply, whose sender line, with its Reply details button, the toolbar
-  // keeps clear of as well.
+  // header. In both places the toolbar keeps 8 px clear of the button. With the local agent
+  // account, the thread's row below is an agent's reply, whose sender line, with its Reply details
+  // button, the toolbar keeps clear of as well.
   test('keeps clear of the fold button of a long message', async ({ page }) => {
     test.setTimeout(480_000);
     const agentUsername = process.env.E2E_AGENT_USERNAME;
     const agentPassword = process.env.E2E_AGENT_PASSWORD;
-    test.skip(!agentUsername || !agentPassword, 'Requires a local MindRoom agent account');
     const homeserver = getHomeserver();
     const credentials = getPrimaryCredentials();
     const { accessToken } = await loginToMatrix(
@@ -342,19 +342,24 @@ test.describe('message hover toolbar', () => {
       credentials.username,
       credentials.password
     );
-    const agent = await loginToMatrix(homeserver, agentUsername!, agentPassword!);
+    const agent =
+      agentUsername && agentPassword
+        ? await loginToMatrix(homeserver, agentUsername, agentPassword)
+        : undefined;
     const roomId = await createPrivateRoom(homeserver, accessToken, {
       name: `Fold ${Date.now()}`,
       topic: 'Long messages and the hover toolbar',
     });
     // The agent's own room: with an agent in it, a room opens in Compact, where its messages are
     // thread cards.
-    const agentRoomId = await createPrivateRoom(homeserver, accessToken, {
-      name: `Fold with an agent ${Date.now()}`,
-      topic: 'Long messages and the hover toolbar',
-      invite: [agent.userId],
-    });
-    await joinRoom(homeserver, agent.accessToken, agentRoomId);
+    const agentRoomId = agent
+      ? await createPrivateRoom(homeserver, accessToken, {
+          name: `Fold with an agent ${Date.now()}`,
+          topic: 'Long messages and the hover toolbar',
+          invite: [agent.userId],
+        })
+      : roomId;
+    if (agent) await joinRoom(homeserver, agent.accessToken, agentRoomId);
     const longBody = (title: string) =>
       [title, ...Array.from({ length: 24 }, (_, i) => `Step ${i + 1} of the plan.`)].join('\n');
     const send = (room: string, body: string, extra: object = {}, token = accessToken) =>
@@ -372,8 +377,8 @@ test.describe('message hover toolbar', () => {
     await send(
       agentRoomId,
       'A short answer in the thread.',
-      { ...thread, 'io.mindroom.ai_run': { version: 1, status: 'completed' } },
-      agent.accessToken
+      agent ? { ...thread, 'io.mindroom.ai_run': { version: 1, status: 'completed' } } : thread,
+      agent?.accessToken
     );
     await send(roomId, longBody('The room plan'));
     await send(roomId, 'A short note in the room.');
@@ -405,7 +410,7 @@ test.describe('message hover toolbar', () => {
         `/home/${encodeURIComponent(agentRoomId)}?threadId=${encodeURIComponent(rootId)}`,
         'The thread plan',
         'A short answer in the thread.',
-        true,
+        !!agent,
       ],
       [
         'room',
