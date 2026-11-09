@@ -6,7 +6,7 @@ import { fireEvent, waitFor } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
+import { commandUsage, usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
 import plugin from './index';
 
@@ -141,7 +141,7 @@ describe('example plugin', () => {
     expect((await renderGreeting()).queryByRole('button', { name: 'Show in panel' })).toBeNull();
   });
 
-  it("names its greeting's sender by their name in the room, and shows the account's own profile card", async () => {
+  it("names its greeting's sender as the app names them in the room, apart from a member of the same name, and shows the account's own profile card", async () => {
     const [panel] = plugin.sidePanels ?? [];
     if (!panel) throw new Error('the example plugin has no side panel');
     const userId = '@ada:example.org';
@@ -151,6 +151,7 @@ describe('example plugin', () => {
       [
         [userId, 'Ada Lovelace'],
         [greeting.sender, 'Helper'],
+        ['@helper:example.org', 'Helper'],
       ].map(
         ([member, displayname]) =>
           new MatrixEvent({
@@ -171,7 +172,9 @@ describe('example plugin', () => {
       { id: 'example', plugin, client }
     );
     // The name is a button, which opens the app's floating card of the sender.
-    expect(await view.findByRole('button', { name: 'Helper' })).toBeTruthy();
+    expect(
+      await view.findByRole('button', { name: `Helper (\u2066${greeting.sender}\u2069)` })
+    ).toBeTruthy();
     // The card the app shows for the account, in the panel itself.
     expect(view.getByRole('heading', { name: 'Ada Lovelace' })).toBeTruthy();
     expect(view.getByText(userId)).toBeTruthy();
@@ -287,6 +290,44 @@ describe('example plugin', () => {
     expect(view.getAllByText('No MindRoom server')).toHaveLength(2);
   });
 
+  it("says in its own-frame card the app's theme kind and screen size, and previews a PDF it builds", async () => {
+    const card = plugin.sidePanels?.find(({ id }) => id === 'card');
+    if (!card) throw new Error('the example plugin has no card');
+    const objectUrl = 'blob:https://example.org/0b5e-4c1d';
+    const created: Blob[] = [];
+    const revoked: string[] = [];
+    // jsdom makes no object URLs.
+    vi.stubGlobal(
+      'URL',
+      class extends URL {
+        static override createObjectURL = (blob: Blob) => {
+          created.push(blob);
+          return objectUrl;
+        };
+
+        static override revokeObjectURL = (url: string) => {
+          revoked.push(url);
+        };
+      }
+    );
+    const view = await renderPluginComponent(<card.Component roomId="!lobby:example.org" />, {
+      id: 'example',
+      plugin,
+      frame: { label: 'Example card', layout: 'beside', setLayout: () => undefined },
+    });
+    // Outside the app no theme is on the page and nothing lays out by size: light, and Desktop.
+    expect(view.getByText('Theme: light')).toBeTruthy();
+    expect(view.getByText('Screen: Desktop')).toBeTruthy();
+
+    fireEvent.click(view.getByRole('button', { name: 'Show example PDF' }));
+    expect(created.map(({ type }) => type)).toEqual(['application/pdf']);
+    expect(view.getByTitle('Example PDF').getAttribute('src')).toBe(
+      `/pdf-frame.html#${encodeURIComponent(objectUrl)}`
+    );
+    view.unmount();
+    expect(revoked).toEqual([objectUrl]);
+  });
+
   it("says in its panel whether the account may post in the room, from the room's levels", async () => {
     const [panel] = plugin.sidePanels ?? [];
     if (!panel) throw new Error('the example plugin has no side panel');
@@ -358,9 +399,9 @@ describe('example plugin', () => {
     expect(view.getByText('From @bob:example.org').querySelector('img')).toBeNull();
   });
 
-  it('greets the room or the thread with the text typed after /greet, and asks for some without it', async () => {
-    const [greet] = plugin.slashCommands ?? [];
-    if (!greet) throw new Error('the example plugin has no slash command');
+  it('greets the room or the thread with the text typed after /greet, and refuses with its usage without it', async () => {
+    const greet = plugin.slashCommands?.find(({ name }) => name === 'greet');
+    if (!greet) throw new Error('the example plugin has no /greet');
     const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
     const sent = vi.spyOn(client, 'sendNotice').mockResolvedValue({ event_id: '$greeting' });
     const room = new Room('!lobby:example.org', client, '@ada:example.org');
@@ -377,14 +418,12 @@ describe('example plugin', () => {
       '$root:example.org',
       'Example greeting: Hello thread'
     );
-    await expect(async () => greet.run({ room, args: '  ' })).rejects.toThrow(
-      'Type a greeting after /greet.'
-    );
+    await expect(async () => greet.run({ room, args: '  ' })).rejects.toStrictEqual(commandUsage());
     expect(sent).toHaveBeenCalledTimes(2);
   });
 
-  it('creates a sub-room of the room called the name typed after /subroom, and asks for one without it', async () => {
-    const [, subroom] = plugin.slashCommands ?? [];
+  it('creates a sub-room of the room called the name typed after /subroom, and refuses with its usage without it', async () => {
+    const subroom = plugin.slashCommands?.find(({ name }) => name === 'subroom');
     if (!subroom) throw new Error('the example plugin has no /subroom');
     const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
     const created = vi
@@ -403,10 +442,61 @@ describe('example plugin', () => {
       expect.anything(),
       '!ideas:example.org'
     );
-    await expect(async () => subroom.run({ room, args: '  ' })).rejects.toThrow(
-      'Type a name after /subroom.'
+    await expect(async () => subroom.run({ room, args: '  ' })).rejects.toStrictEqual(
+      commandUsage()
     );
     expect(created).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses /subroom in a space, where the room menu offers no New Sub-room, and creates nothing', async () => {
+    const subroom = plugin.slashCommands?.find(({ name }) => name === 'subroom');
+    if (!subroom) throw new Error('the example plugin has no /subroom');
+    const userId = '@ada:example.org';
+    const client = createClient({ baseUrl: 'https://example.org', userId });
+    const created = vi.spyOn(client, 'createRoom');
+    const space = new Room('!estate:example.org', client, userId);
+    space.currentState.setStateEvents([
+      new MatrixEvent({
+        type: 'm.room.create',
+        room_id: space.roomId,
+        sender: userId,
+        state_key: '',
+        content: { type: 'm.space' },
+      }),
+    ]);
+    await renderPluginComponent(<></>, { id: 'example', plugin });
+
+    await expect(async () => subroom.run({ room: space, args: 'Ideas' })).rejects.toThrow(
+      'Sub-rooms go in chat rooms, not in spaces or direct chats.'
+    );
+    expect(created).not.toHaveBeenCalled();
+  });
+
+  it("sets the room's topic to the text typed after /topic once the room's levels let the account, and refuses before", async () => {
+    const topic = plugin.slashCommands?.find(({ name }) => name === 'topic');
+    if (!topic) throw new Error('the example plugin has no /topic');
+    const userId = '@ada:example.org';
+    const client = createClient({ baseUrl: 'https://example.org', userId });
+    const set = vi.spyOn(client, 'setRoomTopic').mockResolvedValue({ event_id: '$topic' });
+    const room = new Room('!lobby:example.org', client, userId);
+    const levels = (level: number) =>
+      new MatrixEvent({
+        type: 'm.room.power_levels',
+        room_id: room.roomId,
+        sender: '@moderator:example.org',
+        state_key: '',
+        content: { users: { '@moderator:example.org': 50, [userId]: level }, state_default: 50 },
+      });
+
+    room.currentState.setStateEvents([levels(0)]);
+    await expect(async () => topic.run({ room, args: 'Plans' })).rejects.toThrow(
+      "You may not change this room's topic."
+    );
+    expect(set).not.toHaveBeenCalled();
+    // A moderator raised the account's level.
+    room.currentState.setStateEvents([levels(50)]);
+    await topic.run({ room, args: 'Plans' });
+    expect(set).toHaveBeenCalledWith('!lobby:example.org', 'Plans');
   });
 
   it("draws its panel's rows, menu and dialog with the app's own pieces from the ui subpath", async () => {

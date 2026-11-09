@@ -175,6 +175,18 @@ describe('getCallWindowSettingsAtom', () => {
     expect(store.get(atom)).toEqual({ mode: 'docked' });
     unsubscribe();
   });
+
+  it('shows what another tab stored while another account showed here, once back', () => {
+    const store = createStore();
+    const atom = getCallWindowSettingsAtom(USER);
+    store.sub(atom, () => undefined)();
+    localStorage.setItem(callWindowStorageKey(USER), JSON.stringify({ mode: 'docked' }));
+    window.dispatchEvent(new StorageEvent('storage', { key: callWindowStorageKey(USER) }));
+
+    const unsubscribe = store.sub(atom, () => undefined);
+    expect(store.get(atom)).toEqual({ mode: 'docked' });
+    unsubscribe();
+  });
 });
 
 describe('minimize and expand', () => {

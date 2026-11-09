@@ -7,10 +7,11 @@ import { roomHeader } from '../helpers/roomMenu';
 // The client SDK's `server` subpath end to end: a production build with the example client plugin
 // (src/app/plugins/__fixtures__/example-plugin) against the agent stack with --client-sessions and
 // the sample MindRoom plugin (e2e/fixtures/sample-plugin), whose routes the example's panel calls in
-// the stack's lobby as the signed-in user. Its hello and its websocket share one sign-in. Once the
-// user signed in eight more times elsewhere, MindRoom ends the page's session: the socket closes
-// with 4401, the panel opens it again, and the next request answers after one new sign-in. Signing
-// out ends the page's session at once. Needs both plugins:
+// the stack's lobby as the signed-in user. Its hello, its websocket, an image a route answers and an
+// upload that reports its progress share one sign-in. Once the user signed in eight more times
+// elsewhere, MindRoom ends the page's session: the socket closes with 4401, the panel opens it
+// again, and the next request answers after one new sign-in. Signing out ends the page's session at
+// once. Needs both plugins:
 //   MINDROOM_CLIENT_PLUGINS=$PWD/src/app/plugins/__fixtures__/example-plugin \
 //   E2E_PLUGIN_DIRS=e2e/fixtures/sample-plugin \
 //     scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/plugins/mindroom-server.spec.ts
@@ -90,6 +91,21 @@ test("a plugin's panel calls its MindRoom routes and websocket, signs in again, 
   await panel.getByRole('textbox', { name: 'Echo text' }).fill('ping');
   await panel.getByRole('button', { name: 'Echo', exact: true }).click();
   await expect(panel.getByText(`Echo: ${stack.tester.userId}: ping`)).toBeVisible();
+  await panel.getByRole('button', { name: 'Show square', exact: true }).click();
+  await expect(panel.getByRole('img', { name: 'Square from MindRoom' })).toHaveJSProperty(
+    'naturalWidth',
+    16
+  );
+  const upload = Buffer.alloc(2_000_000, 'a');
+  await panel
+    .getByLabel('Upload file')
+    .setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: upload });
+  await expect(panel.getByText(`Uploaded: ${upload.length} bytes`)).toBeVisible();
+  // The last progress counts every byte of the multipart body, more than the file.
+  const progress = (await panel.getByText(/^Sent: \d+ of \d+$/).textContent()) ?? '';
+  const [loaded, total] = (progress.match(/\d+/g) ?? []).map(Number);
+  expect(loaded).toBe(total);
+  expect(total).toBeGreaterThan(upload.length);
   expect(await requests.signIns()).toBe(1);
 
   // MindRoom keeps eight sessions per user, so eight more end the page's.

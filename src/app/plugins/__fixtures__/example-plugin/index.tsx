@@ -21,7 +21,10 @@
 // A second side panel, "Example card", toggled from the room menu, draws its own frame: a plain
 // card, 320 px wide beside the conversation and as wide as the room when it fills it or on a phone,
 // with "Fill example card" ("Shrink example card" while it fills the room) and "Hide example card",
-// which leaves only its tab, "Show example card", at the room's edge.
+// which leaves only its tab, "Show example card", at the room's edge. The card says the kind of the
+// app's theme ("Theme: light" or "Theme: dark") and the screen size the app lays out by ("Screen:
+// Mobile", "Tablet" or "Desktop"), each as it changes, and "Show example PDF" previews a one-page
+// PDF it builds as a blob, in the browser's viewer in the card.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg); its build module (build.mjs) writes "Example banner" in place of a marker, which
 // unit tests, where no build module runs, show as it is. The banner also has a button, "Show
@@ -29,6 +32,8 @@
 // Close button or Escape closes it. Its panel also offers "Example item" to drag, in a drag type of
 // its own, and the banner shows "Dropped: <text>" when one lands anywhere on the room header. Like a
 // plugin outside this repository, it imports the app only through the client SDK.
+// While the room shows a thread, the banner also says "Thread: <root event ID>", that thread's root
+// also when the room's address names a reply in it, and nothing in the room's own timeline.
 // A header action, "Wave" ("Winken" in German), shows in the room header's row, except on phones,
 // where it goes in the room menu, and says where it ran in an alert.
 // Its storage notes each greeting the signed-in account saw, when it shows and when it goes, and a
@@ -38,9 +43,13 @@
 // room and that thread, opens either, opens the room at the thread's root, opens the room in place
 // of itself, and reloads the page into a new version.
 // Its slash command, `/greet <text>`, sends the notice "Example greeting: <text>" to the room, or in a
-// thread's composer to that thread, through the room's client, and fails without a text. Its slash
-// command `/subroom <name>` creates a sub-room of the room called <name>, as New Sub-room does, and
-// fails without a name.
+// thread's composer to that thread, through the room's client, and refuses with its usage without a
+// text, which the composer shows with its description. Its slash command `/subroom <name>` creates a
+// sub-room of the room called <name>, as New Sub-room does, and refuses with its usage without a
+// name, and fails in a space or a direct chat, where the room menu offers no New Sub-room. Its slash
+// command `/topic <text>` sets the room's topic to <text> (without a text, clears it), and fails
+// without sending anything where the room's levels, as they are when it runs, do not let the account.
+// Its panel names the chat rooms its room is a sub-room of, as the room menu's Remove from does.
 // Every room's menu but a space's lists its entry "Example room info" ("Beispiel-Rauminfo" in
 // German), whose dialog says "Example dialog of <room name>" until its Close button closes it.
 // Every room's menu also lists, after Leave and drawn as Leave is, its critical entry "Example
@@ -48,7 +57,11 @@
 // In a room with a MindRoom server, its panel also talks to the routes of e2e's sample MindRoom
 // plugin (e2e/fixtures/sample-plugin/routes.py) as the signed-in user: "Say hello" asks for the
 // backend's hello, and a websocket echoes what "Echo" sends, opened again unless the user left.
-// Its panel names the sender of the greeting it shows, and their name opens their profile card
+// "Show square" shows the image a route answers, and "Upload file" sends a file to a route with
+// its progress, "Sent: <bytes> of <bytes>", and then the size the route answers.
+// Its panel names the sender of the greeting it shows by the name the app shows for them, with their
+// user ID when another member shows the same name (by their user ID when they have no name), and
+// their name opens their profile card
 // beside the panel, as a mention pill opens one; under it, the panel shows the signed-in person's
 // card itself. It shows the greeting's text as the app renders an agent's reply, as Markdown whose
 // HTML the app sanitized, with the Matrix IDs of the room's members replaced by their names.
@@ -69,6 +82,7 @@ import {
 } from 'folds';
 import { KnownMembership, type Room } from 'matrix-js-sdk';
 import {
+  commandUsage,
   pluginPublicUrl,
   reloadForNewVersion,
   usePanelFrame,
@@ -82,6 +96,8 @@ import {
   type PluginPageProps,
 } from '@mindroom/client-sdk/core';
 import {
+  getMemberDisplayName,
+  getRoomPermissions,
   hasActiveMindroomAgent,
   isMindroomAgentUserId,
   mxcUrlToHttp,
@@ -92,10 +108,13 @@ import {
 } from '@mindroom/client-sdk/matrix';
 import {
   createSubRoom,
+  offersSubRooms,
   UserProfileCard,
   useOpenUserProfile,
+  useParentRooms,
   useRoomHref,
   useRoomNavigate,
+  useShownThread,
 } from '@mindroom/client-sdk/room';
 import { MindroomServerError, useMindroomServer } from '@mindroom/client-sdk/server';
 import {
@@ -110,8 +129,11 @@ import {
   NavItem,
   NavItemContent,
   PopOut,
+  pdfFrameUrl,
   replaceMatrixUserIdsWithDisplayNames,
   useMarkdownHtml,
+  useScreenSize,
+  useThemeKind,
 } from '@mindroom/client-sdk/ui';
 
 /** The drag type of the item its panel offers, which the room header takes. */
@@ -186,6 +208,7 @@ function Greeting({ event }: { event: PluginEvent }) {
 }
 
 function RoomBanner({ room, headerRef }: { room: Room; headerRef: RefObject<HTMLElement> }) {
+  const thread = useShownThread();
   const [dropped, setDropped] = useState<string>();
   // The header's element is set by the time effects run; a drag of its item may drop anywhere on it.
   useEffect(() => {
@@ -210,6 +233,7 @@ function RoomBanner({ room, headerRef }: { room: Room; headerRef: RefObject<HTML
         style={{ marginInlineEnd: 8, verticalAlign: 'middle' }}
       />
       EXAMPLE_BANNER in {room.name}
+      {thread !== undefined && <div data-example-plugin-thread>Thread: {thread}</div>}
       {dropped !== undefined && <div data-example-plugin-dropped>Dropped: {dropped}</div>}
     </div>
   );
@@ -271,7 +295,17 @@ function ServerGreeting({ roomId }: { roomId: string }) {
   const [lastClose, setLastClose] = useState<number>();
   const [echo, setEcho] = useState<string>();
   const [text, setText] = useState('');
+  const [square, setSquare] = useState<string>();
+  const [squareFailed, setSquareFailed] = useState<number>();
+  const [sent, setSent] = useState<{ loaded: number; total: number }>();
+  const [uploaded, setUploaded] = useState<string>();
   const socket = useRef<WebSocket>();
+  useEffect(
+    () => () => {
+      if (square) URL.revokeObjectURL(square);
+    },
+    [square]
+  );
   useEffect(() => {
     if (!server) return undefined;
     let mounted = true;
@@ -317,6 +351,42 @@ function ServerGreeting({ roomId }: { roomId: string }) {
         setHello(`failed (${error instanceof MindroomServerError ? error.status : 'error'})`)
     );
   };
+  const showSquare = async () => {
+    try {
+      const response = await server.send(`${routes}/square.png`);
+      if (!response.ok) setSquareFailed(response.status);
+      else setSquare(URL.createObjectURL(await response.blob()));
+    } catch {
+      setSquareFailed(0);
+    }
+  };
+  // `fetch` reports no upload progress, so the upload goes through XMLHttpRequest with the
+  // session's token, asked for anew after a 401.
+  const post = (file: File, token: string) =>
+    new Promise<XMLHttpRequest>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${server.origin}${routes}/upload`);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.upload.addEventListener('progress', ({ loaded, total }) => setSent({ loaded, total }));
+      xhr.addEventListener('load', () => resolve(xhr));
+      xhr.addEventListener('error', () => reject(new Error('No answer')));
+      const body = new FormData();
+      body.append('file', file);
+      xhr.send(body);
+    });
+  const uploadFile = async (file: File) => {
+    setUploaded(undefined);
+    try {
+      const token = await server.token();
+      let xhr = await post(file, token);
+      if (xhr.status === 401) xhr = await post(file, await server.token({ refused: token }));
+      if (xhr.status !== 200) throw new Error(String(xhr.status));
+      const answer = JSON.parse(xhr.responseText) as { size: number };
+      setUploaded(`${answer.size} bytes`);
+    } catch (error) {
+      setUploaded(`failed (${error instanceof Error ? error.message : 'error'})`);
+    }
+  };
   return (
     <>
       <p>MindRoom server: {server.origin}</p>
@@ -335,6 +405,25 @@ function ServerGreeting({ roomId }: { roomId: string }) {
         Echo
       </button>
       {echo !== undefined && <p>Echo: {echo}</p>}
+      <button type="button" onClick={() => void showSquare()}>
+        Show square
+      </button>
+      {square !== undefined && <img src={square} alt="Square from MindRoom" width={32} />}
+      {squareFailed !== undefined && <p>Square failed: {squareFailed}</p>}
+      <input
+        type="file"
+        aria-label="Upload file"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void uploadFile(file);
+        }}
+      />
+      {sent !== undefined && (
+        <p>
+          Sent: {sent.loaded} of {sent.total}
+        </p>
+      )}
+      {uploaded !== undefined && <p>Uploaded: {uploaded}</p>}
     </>
   );
 }
@@ -387,11 +476,60 @@ function FetchedGreeting({ roomId, eventId }: { roomId: string; eventId: string 
               openUserProfile(roomId, sender, event.currentTarget.getBoundingClientRect(), 'Left')
             }
           >
-            {room?.getMember(sender)?.name ?? sender}
+            {(room && getMemberDisplayName(room, sender)) ?? sender}
           </button>
         </p>
       )}
     </>
+  );
+}
+
+/** A one-page PDF that says "Example PDF", with the cross-reference table a viewer reads. */
+const examplePdf = (): Blob => {
+  const text = 'BT /F1 24 Tf 24 40 Td (Example PDF) Tj ET';
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 240 100] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${text.length} >>\nstream\n${text}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = objects.map((body, index) => {
+    const offset = pdf.length;
+    pdf += `${index + 1} 0 obj\n${body}\nendobj\n`;
+    return `${String(offset).padStart(10, '0')} 00000 n \n`;
+  });
+  const size = objects.length + 1;
+  const xref = pdf.length;
+  pdf += `xref\n0 ${size}\n0000000000 65535 f \n${offsets.join('')}`;
+  pdf += `trailer\n<< /Size ${size} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new Blob([pdf], { type: 'application/pdf' });
+};
+
+/** Its PDF, built as a blob, in the browser's viewer through the app's frame page. */
+function ExamplePdf() {
+  const [objectUrl, setObjectUrl] = useState<string>();
+  useEffect(
+    () => () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    },
+    [objectUrl]
+  );
+  const frameUrl = objectUrl && pdfFrameUrl(objectUrl);
+  if (!frameUrl) {
+    return (
+      <button type="button" onClick={() => setObjectUrl(URL.createObjectURL(examplePdf()))}>
+        Show example PDF
+      </button>
+    );
+  }
+  return (
+    <iframe
+      title="Example PDF"
+      src={frameUrl}
+      style={{ display: 'block', width: '100%', height: 240, border: 'none' }}
+    />
   );
 }
 
@@ -462,6 +600,13 @@ function ExampleMenu({ onShowDialog, onClear }: { onShowDialog: () => void; onCl
   );
 }
 
+/** The chat rooms `room` is a sub-room of, which it follows as their lists change. */
+function ParentRooms({ room }: { room: Room }) {
+  const parents = useParentRooms(room);
+  if (parents.length === 0) return null;
+  return <p>Sub-room of {parents.map(({ name }) => name).join(', ')}</p>;
+}
+
 function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }) {
   const client = useMatrixClient();
   const members = useRoomMembers(client, roomId);
@@ -502,6 +647,7 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
         agent
       </p>
       {room && <PostingRight room={room} />}
+      {room && <ParentRooms room={room} />}
       {typeof request === 'string' && (
         <FetchedGreeting key={request} roomId={roomId} eventId={request} />
       )}
@@ -523,9 +669,14 @@ const CARD_CSS = `[data-example-card] { flex: 0 0 320px; }
 [data-example-card][data-filled] { flex: 1 1 0; }
 @media (max-width: 750px) { [data-example-card] { flex: 1 1 0; } }`;
 
-/** The panel that draws its own frame: a card with Fill and Hide, and a tab while hidden. */
+/**
+ * The panel that draws its own frame: a card with Fill and Hide, the app's theme kind and screen
+ * size, and its PDF, and a tab while hidden.
+ */
 function ExampleCard() {
   const frame = usePanelFrame();
+  const themeKind = useThemeKind();
+  const screenSize = useScreenSize();
   if (!frame) return null;
   const { layout, setLayout } = frame;
   const look = {
@@ -563,6 +714,9 @@ function ExampleCard() {
       <button type="button" onClick={() => setLayout('folded')}>
         Hide example card
       </button>
+      <p>Theme: {themeKind}</p>
+      <p>Screen: {screenSize}</p>
+      <ExamplePdf />
     </section>
   );
 }
@@ -672,10 +826,20 @@ const plugin: ClientPlugin = {
   ],
   slashCommands: [
     {
+      name: 'topic',
+      description: 'topic',
+      run: async ({ room, args }) => {
+        if (!getRoomPermissions(room).stateEvent('m.room.topic', room.client.getSafeUserId())) {
+          throw new Error("You may not change this room's topic.");
+        }
+        await room.client.setRoomTopic(room.roomId, args.trim());
+      },
+    },
+    {
       name: 'greet',
       description: 'greet',
       run: async ({ room, args, threadId }) => {
-        if (!args.trim()) throw new Error('Type a greeting after /greet.');
+        if (!args.trim()) throw commandUsage();
         await room.client.sendNotice(room.roomId, threadId ?? null, `Example greeting: ${args}`);
       },
     },
@@ -683,7 +847,10 @@ const plugin: ClientPlugin = {
       name: 'subroom',
       description: 'subroom',
       run: async ({ room, args }) => {
-        if (!args.trim()) throw new Error('Type a name after /subroom.');
+        if (!offersSubRooms(room)) {
+          throw new Error('Sub-rooms go in chat rooms, not in spaces or direct chats.');
+        }
+        if (!args.trim()) throw commandUsage();
         await createSubRoom(room, { name: args });
       },
     },
@@ -714,6 +881,7 @@ const plugin: ClientPlugin = {
       wave: 'Wave',
       greet: 'Send the room a greeting. Example: /greet Hello',
       subroom: 'Create a sub-room of this room. Example: /subroom Ideas',
+      topic: "Set this room's topic, where you may. Example: /topic Plans for today",
       roomInfo: 'Example room info',
       roomRemoval: 'Example removal',
     },

@@ -453,6 +453,20 @@ export const addRoomToSpace = async (
   await sendStateEvent(homeserver, accessToken, roomId, 'm.space.parent', spaceId, content);
 };
 
+/** The rooms `parentId` lists under it (`m.space.child` with servers). */
+export const listedRooms = async (
+  homeserver: string,
+  accessToken: string,
+  parentId: string
+): Promise<string[]> => {
+  const state = await matrixFetch<
+    { type: string; state_key: string; content: { via?: unknown } }[]
+  >(homeserver, `/rooms/${encodeURIComponent(parentId)}/state`, { accessToken });
+  return state
+    .filter((event) => event.type === 'm.space.child' && Array.isArray(event.content.via))
+    .map((event) => event.state_key);
+};
+
 export const setAccountData = async (
   homeserver: string,
   accessToken: string,

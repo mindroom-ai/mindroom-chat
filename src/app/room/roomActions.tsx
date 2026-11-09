@@ -2,7 +2,6 @@ import { lazy, type ComponentType, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { Room } from 'matrix-js-sdk';
-import { useAtomValue } from 'jotai';
 import { Icons, Spinner } from 'folds';
 import { MenuEntry } from '../ui/MenuEntry';
 import { MarkRoomReadMenuItem } from '../notifications/MarkRoomReadMenuItem';
@@ -19,8 +18,7 @@ import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
-import { roomToParentsAtom } from '../matrix/state/roomToParents';
-import { mDirectAtom } from '../matrix/state/mDirectList';
+import { useOffersSubRooms, useParentRooms } from '../matrix/state/subRooms';
 import { useListRoomsRefusal } from '../rooms/create/useListRoomsRefusal';
 import { useOpenRoomSettings } from '../navigation/useRoomSettingsState';
 import { getCanonicalAliasOrRoomId, isRoomAlias } from '../matrix/matrix';
@@ -124,15 +122,12 @@ function InviteEntry({ room, close, showDialog }: RoomActionProps) {
   );
 }
 
-/**
- * Opens New Sub-room for a chat room. A space lists its rooms in its lobby instead, and a direct
- * chat's partner would find no list to join its sub-rooms from.
- */
+/** Opens New Sub-room in a room that takes sub-rooms. */
 function NewSubRoomEntry({ room, spaceId, close, showDialog }: RoomActionProps) {
   const { t } = useTranslation();
   const refusal = useListRoomsRefusal(room);
-  const direct = useAtomValue(mDirectAtom).has(room.roomId);
-  if (room.isSpaceRoom() || direct) return null;
+  const offered = useOffersSubRooms(room);
+  if (!offered) return null;
   return (
     <MenuEntry
       icon={Icons.Plus}
@@ -185,17 +180,11 @@ function TakeOffParentEntry({
 
 /** Remove from, for each chat room the room is a sub-room of. */
 function TakeOffEntry({ room, close }: RoomActionProps) {
-  const client = useMatrixClient();
-  const parents = [...(useAtomValue(roomToParentsAtom).get(room.roomId) ?? [])].flatMap(
-    (roomId) => client.getRoom(roomId) ?? []
-  );
   return (
     <>
-      {parents
-        .filter((parent) => !parent.isSpaceRoom())
-        .map((parent) => (
-          <TakeOffParentEntry key={parent.roomId} room={room} parent={parent} close={close} />
-        ))}
+      {useParentRooms(room).map((parent) => (
+        <TakeOffParentEntry key={parent.roomId} room={room} parent={parent} close={close} />
+      ))}
     </>
   );
 }

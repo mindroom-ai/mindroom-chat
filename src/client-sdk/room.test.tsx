@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import type FocusTrap from 'focus-trap-react';
-import { Provider as StoreProvider } from 'jotai';
-import { createClient, KnownMembership, MatrixEvent, Room, type MatrixClient } from 'matrix-js-sdk';
+import { getDefaultStore, Provider as StoreProvider } from 'jotai';
+import {
+  createClient,
+  KnownMembership,
+  MatrixEvent,
+  Room,
+  RoomStateEvent,
+  type MatrixClient,
+} from 'matrix-js-sdk';
 import type { ComponentProps, MouseEvent, ReactNode } from 'react';
 import {
   BrowserRouter,
@@ -15,12 +22,18 @@ import {
 } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../app/matrix/hooks/useMatrixClient';
+import { useBindMDirectAtom } from '../app/matrix/state/mDirectList';
+import { roomToParentsAtom, useBindRoomToParentsAtom } from '../app/matrix/state/roomToParents';
 import { UserRoomProfileRenderer } from '../app/members/profile/UserRoomProfileRenderer';
 import {
+  getParentRooms,
+  offersSubRooms,
   UserProfileCard,
   useOpenUserProfile,
+  useParentRooms,
   useRoomHref,
   useRoomNavigate,
+  useShownThread,
   type RoomNavigate,
 } from './room';
 
@@ -352,5 +365,136 @@ describe('useOpenUserProfile and UserProfileCard', () => {
     view.rerender(inApp(account, card(CAROL)));
     expect(screen.getByRole('heading', { name: 'Carol' })).toBeTruthy();
     expect(screen.queryByRole('textbox', { name: 'Reason (Optional)' })).toBeNull();
+  });
+});
+
+describe('useParentRooms, getParentRooms and offersSubRooms', () => {
+  const ME = '@ada:example.org';
+  const GARDEN = '!garden:example.org';
+  const ESTATE = '!estate:example.org';
+  const IDEAS = '!ideas:example.org';
+  const WITH_BOB = '!with-bob:example.org';
+  const VIA = { via: ['example.org'] };
+
+  const stateEvent = (roomId: string, type: string, stateKey: string, content: object) =>
+    new MatrixEvent({
+      type,
+      state_key: stateKey,
+      sender: ME,
+      room_id: roomId,
+      event_id: `$${roomId}-${type}-${stateKey}-${JSON.stringify(content)}`,
+      content,
+    });
+
+  /**
+   * Ada's client, in which the chat room Garden and the space Estate both list Ideas, which names
+   * Garden as its parent, and her direct chat with Bob; the rooms' events reach the client as
+   * sync's do.
+   */
+  const signedIn = () => {
+    const account = createClient({ baseUrl: 'https://example.org', userId: ME });
+    const joined = (roomId: string, state: MatrixEvent[]) => {
+      const room = new Room(roomId, account, ME);
+      room.currentState.setStateEvents(state);
+      room.updateMyMembership(KnownMembership.Join);
+      account.reEmitter.reEmit(room, [RoomStateEvent.Events]);
+      account.store.storeRoom(room);
+      return room;
+    };
+    const garden = joined(GARDEN, [stateEvent(GARDEN, 'm.space.child', IDEAS, VIA)]);
+    const estate = joined(ESTATE, [
+      stateEvent(ESTATE, 'm.room.create', '', { type: 'm.space' }),
+      stateEvent(ESTATE, 'm.space.child', IDEAS, VIA),
+    ]);
+    const ideas = joined(IDEAS, [
+      stateEvent(IDEAS, 'm.space.parent', GARDEN, { canonical: true, ...VIA }),
+    ]);
+    const withBob = joined(WITH_BOB, []);
+    account.store.storeAccountDataEvents([
+      new MatrixEvent({ type: 'm.direct', content: { '@bob:example.org': [WITH_BOB] } }),
+    ]);
+    return { account, garden, estate, ideas, withBob };
+  };
+
+  /** The app's own map of parents and list of direct chats for `account`, as the app keeps them. */
+  function AppState({ account }: { account: MatrixClient }) {
+    useBindRoomToParentsAtom(account);
+    useBindMDirectAtom(account);
+    return null;
+  }
+  /** A plugin's list of the rooms `room` is a sub-room of. */
+  function Parents({ room }: { room: Room }) {
+    return (
+      <output>
+        {useParentRooms(room)
+          .map(({ roomId }) => roomId)
+          .join(' ')}
+      </output>
+    );
+  }
+  const renderParents = (account: MatrixClient, room: Room) =>
+    render(
+      <>
+        <AppState account={account} />
+        <Parents room={room} />
+      </>
+    );
+  const shown = () => screen.getByRole('status').textContent;
+  const readOnce = (room: Room) => getParentRooms(room).map(({ roomId }) => roomId);
+
+  it('lists the chat room a room is a sub-room of, not the space that lists it too', () => {
+    const { account, ideas } = signedIn();
+    renderParents(account, ideas);
+    expect(shown()).toBe(GARDEN);
+    expect(readOnce(ideas)).toEqual([GARDEN]);
+  });
+
+  it('leaves out a parent the client does not have', () => {
+    const { account, ideas } = signedIn();
+    renderParents(account, ideas);
+    act(() =>
+      getDefaultStore().set(roomToParentsAtom, {
+        type: 'PUT',
+        parent: '!gone:example.org',
+        children: [IDEAS],
+        chatRoom: true,
+      })
+    );
+    expect(shown()).toBe(GARDEN);
+    expect(readOnce(ideas)).toEqual([GARDEN]);
+  });
+
+  it('renders again when the parent takes the room off its list, and when it lists it again', () => {
+    const { account, garden, ideas } = signedIn();
+    renderParents(account, ideas);
+    expect(shown()).toBe(GARDEN);
+
+    act(() => {
+      garden.currentState.setStateEvents([stateEvent(GARDEN, 'm.space.child', IDEAS, {})]);
+    });
+    expect(shown()).toBe('');
+    expect(readOnce(ideas)).toEqual([]);
+
+    act(() => {
+      garden.currentState.setStateEvents([stateEvent(GARDEN, 'm.space.child', IDEAS, VIA)]);
+    });
+    expect(shown()).toBe(GARDEN);
+    expect(readOnce(ideas)).toEqual([GARDEN]);
+  });
+
+  it('offers sub-rooms in a chat room, not in a space or a direct chat', () => {
+    const { account, garden, estate, ideas, withBob } = signedIn();
+    render(<AppState account={account} />);
+    expect(offersSubRooms(garden)).toBe(true);
+    expect(offersSubRooms(ideas)).toBe(true);
+    expect(offersSubRooms(estate)).toBe(false);
+    expect(offersSubRooms(withBob)).toBe(false);
+  });
+});
+
+// In a room's page, src/app/room/Room.panelBesideThread.test.tsx reads it through the room.
+describe('useShownThread', () => {
+  it("is undefined outside a room's page", () => {
+    expect(renderHook(() => useShownThread()).result.current).toBeUndefined();
   });
 });
