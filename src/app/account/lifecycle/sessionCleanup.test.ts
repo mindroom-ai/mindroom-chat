@@ -12,6 +12,11 @@ import { clearCrossRoomThreadFiltersStore } from '../../threads/cross-room/cross
 import { clearRoomThreadFiltersStore } from '../../threads/overview/roomThreadFilterState';
 import { clearRoomViewModeStore } from '../../navigation/roomViewMode';
 import { clearThreadSummarySharedState } from '../../event-store/threads/threadSummaryState';
+import { SPACE_ORDER_STORAGE_KEY_PREFIX, makeSpaceOrderAtom } from '../../spaces/sidebarOrder';
+import { getDesktopPageNavCollapsedStorageKey } from '../../sidebar/desktopPageNavState';
+import { getWelcomeSetupFirstSeenStorageKey } from '../../local-mindroom/provisioning';
+import { pendingRoamingSettingsKey } from '../../preferences/roamingSettings';
+import { SESSION_STORE_KEY, putSession } from '../../matrix/session/sessions';
 import {
   deleteCacheStoreDb,
   getCacheStoreDbName,
@@ -38,7 +43,7 @@ vi.mock('../../event-store/cache/attachmentRepository', () => ({
   clearAttachmentRepositoryMemory: vi.fn(),
 }));
 
-it('removes only the logged-out account composer drafts from storage and memory', () => {
+const stubLocalStorage = (): Map<string, string> => {
   const values = new Map<string, string>();
   vi.stubGlobal('localStorage', {
     getItem: (key: string) => values.get(key) ?? null,
@@ -49,6 +54,11 @@ it('removes only the logged-out account composer drafts from storage and memory'
       return values.size;
     },
   });
+  return values;
+};
+
+it('removes only the logged-out account composer drafts from storage and memory', () => {
+  const values = stubLocalStorage();
   const aliceKey = getRoomInputDraftKey('@draft-alice:example.org', '!room:example.org', '$root');
   const bobKey = getRoomInputDraftKey('@draft-bob:example.org', '!room:example.org', '$root');
   const store = createStore();
@@ -61,6 +71,44 @@ it('removes only the logged-out account composer drafts from storage and memory'
   expect(store.get(roomIdToMsgDraftAtomFamily(bobKey))).toEqual(draft);
   roomIdToMsgDraftAtomFamily.remove(aliceKey);
   expect(createStore().get(roomIdToMsgDraftAtomFamily(aliceKey))).toEqual([]);
+  vi.unstubAllGlobals();
+});
+
+it('removes every key named after the logged-out account, whichever part of the app wrote it', () => {
+  const values = stubLocalStorage();
+  const keysOf = (userId: string) => {
+    createStore().set(makeSpaceOrderAtom(userId), {
+      type: 'REORDER',
+      order: ['!space:example.org'],
+    });
+    const keys = [
+      getDesktopPageNavCollapsedStorageKey(userId),
+      getWelcomeSetupFirstSeenStorageKey(userId),
+      `mindroom.members.width:${userId}`,
+      `mindroom.panel.width:${userId}:example.panel`,
+      pendingRoamingSettingsKey(userId, 'DEVICE'),
+    ];
+    keys.forEach((key) => values.set(key, '1'));
+    return [`${SPACE_ORDER_STORAGE_KEY_PREFIX}${userId}`, ...keys];
+  };
+  keysOf('@alice:example.org');
+  const bobKeys = keysOf('@bob:example.org');
+  clearUserUiState('@alice:example.org');
+  expect([...values.keys()]).toEqual(bobKeys);
+  vi.unstubAllGlobals();
+});
+
+it('keeps the keys of a stored login whose user ID starts with the logged-out one', () => {
+  const values = stubLocalStorage();
+  const userId = '@alice:example.org:8448';
+  putSession({ baseUrl: 'https://example.org:8448', userId, deviceId: 'DEVICE', accessToken: 't' });
+  const keys = [
+    `mindroom.panel.width:${userId}:example.panel`,
+    pendingRoamingSettingsKey(userId, 'DEVICE'),
+  ];
+  keys.forEach((key) => values.set(key, '1'));
+  clearUserUiState('@alice:example.org');
+  expect([...values.keys()]).toEqual([SESSION_STORE_KEY, ...keys]);
   vi.unstubAllGlobals();
 });
 

@@ -12,8 +12,13 @@ import { clearCrossRoomThreadFiltersStore } from '../../threads/cross-room/cross
 import { clearRoomThreadFiltersStore } from '../../threads/overview/roomThreadFilterState';
 import { clearRoomViewModeStore } from '../../navigation/roomViewMode';
 import { clearThreadSummarySharedState } from '../../event-store/threads/threadSummaryState';
-import { getSafeLocalStorage, removeStorageItemSafe } from '../../lib/safeLocalStorage';
+import {
+  getSafeLocalStorage,
+  getStorageKeysSafe,
+  removeStorageItemSafe,
+} from '../../lib/safeLocalStorage';
 import { clearSeenThreadRoots } from '../../matrix/seenThreadRoots';
+import { listSessions } from '../../matrix/session/sessions';
 import { clearClosedNavCategoriesStore } from '../../ui/nav/closedNavCategories';
 import { clearSyncFilterIds } from '../../matrix/client/clientSyncPolicy';
 import { clearNotified } from '../../notifications/notifiedOnce';
@@ -84,6 +89,10 @@ export const deleteSessionCaches = async (sessionId: string): Promise<void> => {
 // localStorage key may still exist on installs that ran older builds.
 const LEGACY_LAST_OPEN_THREAD_STORE_PREFIX = 'lastOpenThread';
 
+/** Whether a localStorage key is named after an account: `<name>:<user ID>[:<part>]`. */
+const isNamedAfter = (key: string, userId: string): boolean =>
+  key.endsWith(`:${userId}`) || key.includes(`:${userId}:`);
+
 export const clearUserUiState = (userId: string): void => {
   clearRoomInputDrafts(userId);
   clearUnsentMessages(userId);
@@ -99,6 +108,13 @@ export const clearUserUiState = (userId: string): void => {
   clearClosedNavCategoriesStore(userId);
   clearSyncFilterIds(userId);
   clearNotified(userId);
+  // Every key named after the account goes too, whichever module wrote it, but not one that also
+  // reads as named after a login this browser keeps: `@a:example.org` starts `@a:example.org:8448`.
+  const kept = listSessions().map((session) => session.userId);
+  const storage = getSafeLocalStorage();
+  getStorageKeysSafe(storage)
+    .filter((key) => isNamedAfter(key, userId) && !kept.some((other) => isNamedAfter(key, other)))
+    .forEach((key) => removeStorageItemSafe(storage, key));
 };
 
 export const clearSessionUiState = (sessionId: string): void => {
