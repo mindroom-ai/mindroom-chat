@@ -1,12 +1,14 @@
 import { readFileSync } from 'node:fs';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import type { FoundStretch } from '../fixtures/speech-capture';
+import { WEBKIT_EXECUTABLE, onWebKitPage } from '../helpers/webkit';
 
 // Call transcription's speech capture as it ships: the Silero VAD model, its runtime and the
 // wrapper's AudioWorklet, loaded from the files the build serves, in Chromium. The fixture page
 // plays a recording into the microphone track the capture listens to and reports the stretches it
-// found: a spoken question (e2e/fixtures/agent-call-question.wav, 4.45 s) is one stretch, and
-// typing, a fan and knocks on a door at the level of a voice are none.
+// found: a spoken question (e2e/fixtures/agent-call-question.wav, 4.45 s) is one stretch, also in
+// WebKit (the iOS app's web view), and typing, a fan and knocks on a door at the level of a voice
+// are none.
 
 const RATE = 16000;
 const SPEECH = readFileSync(new URL('../fixtures/agent-call-question.wav', import.meta.url));
@@ -76,7 +78,7 @@ const noise = () => {
 };
 
 const findSpeech = async (
-  page: import('@playwright/test').Page,
+  page: Page,
   recording: Buffer,
   lead: number
 ): Promise<{ stretches: FoundStretch[]; files: string[] }> => {
@@ -116,4 +118,13 @@ test('finds a spoken question as one stretch, from the speech files this app ser
 test('finds no speech in typing, a fan and knocks on a door', async ({ page }) => {
   const { stretches } = await findSpeech(page, noise(), 0.5);
   expect(stretches).toEqual([]);
+});
+
+test('finds the spoken question in WebKit too', async ({ baseURL }) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'needs PLAYWRIGHT_WEBKIT_EXECUTABLE');
+  await onWebKitPage({ baseURL }, async (page) => {
+    const { stretches } = await findSpeech(page, SPEECH, 1.5);
+    expect(stretches).toHaveLength(1);
+    expect(stretches[0]?.seconds).toBeGreaterThan(4);
+  });
 });
