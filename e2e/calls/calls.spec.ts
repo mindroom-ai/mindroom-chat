@@ -1025,6 +1025,13 @@ test.describe('calls', () => {
       // eslint-disable-next-line no-await-in-loop
       await expect(playing(page)).toHaveCount(2, { timeout: 60_000 });
     }
+    // Bob and Carol turn their microphones off: what Alice hears from now on comes from Eve only.
+    const alicePage = defined(pages[0], "Alice's page");
+    for (const page of pages.slice(1)) {
+      // eslint-disable-next-line no-await-in-loop
+      await callPanel(page).getByRole('button', { name: 'Turn Off Microphone' }).click();
+    }
+    await expect.poll(() => remoteSoundLevel(alicePage), { timeout: 30_000 }).toBeLessThan(0.01);
 
     // Eve, in the room but not in its call, connects to the call's media server all the same
     // with a grant of its own, publishes her microphone and plays whatever she receives.
@@ -1087,6 +1094,7 @@ test.describe('calls', () => {
       // eslint-disable-next-line no-await-in-loop
       await expect(playing(page)).toHaveCount(2);
     }
+    expect(await remoteSoundLevel(alicePage)).toBeLessThan(0.01);
     expect(await remoteSoundLevel(evePage)).toBe(0);
 
     // Once she joins the call, everyone plays her sound and she hears them.
@@ -1118,6 +1126,7 @@ test.describe('calls', () => {
       // eslint-disable-next-line no-await-in-loop
       await expect(playing(page)).toHaveCount(3);
     }
+    await expect.poll(() => remoteSoundLevel(alicePage), { timeout: 60_000 }).toBeGreaterThan(0.05);
     await expect.poll(eveMedia, { timeout: 30_000 }).toEqual({ subscribed: true, refused: 0 });
     await expect.poll(() => remoteSoundLevel(evePage), { timeout: 60_000 }).toBeGreaterThan(0.05);
 
@@ -1130,6 +1139,7 @@ test.describe('calls', () => {
       // eslint-disable-next-line no-await-in-loop
       await expect(playing(page)).toHaveCount(2);
     }
+    await expect.poll(() => remoteSoundLevel(alicePage), { timeout: 30_000 }).toBeLessThan(0.01);
     await expect.poll(eveMedia, { timeout: 30_000 }).toEqual({ subscribed: true, refused: 3 });
     await expect.poll(() => remoteSoundLevel(evePage), { timeout: 30_000 }).toBeLessThan(0.01);
 
