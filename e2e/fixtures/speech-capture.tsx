@@ -10,12 +10,29 @@ declare global {
   interface Window {
     /**
      * Plays a recording (base64) into a microphone track that the app's speech capture listens
-     * to, `lead` seconds after silence starts, lets 2.5 s of silence follow, then stops the
-     * capture; resolves with the stretches found, timed from when the silence started.
+     * to, `lead` seconds after the model's files arrived, lets 2.5 s of silence follow, then stops
+     * the capture; resolves with the stretches found, timed from when the lead began.
      */
     findSpeech: (recording: string, lead: number) => Promise<FoundStretch[]>;
   }
 }
+
+/** Resolves once the page has fetched a file whose URL ends with `name`. */
+const fetched = (name: string) =>
+  new Promise<void>((resolve) => {
+    const seen = () =>
+      performance.getEntriesByType('resource').some((entry) => entry.name.endsWith(name));
+    if (seen()) {
+      resolve();
+      return;
+    }
+    const observer = new PerformanceObserver(() => {
+      if (!seen()) return;
+      observer.disconnect();
+      resolve();
+    });
+    observer.observe({ type: 'resource' });
+  });
 
 window.findSpeech = async (recording, lead) => {
   const context = new AudioContext();
@@ -26,6 +43,7 @@ window.findSpeech = async (recording, lead) => {
   if (!track) throw new Error('The microphone has no track.');
   const stretches: SpeechStretch[] = [];
   const capture = await startSpeechCapture(track, (stretch) => stretches.push(stretch));
+  await Promise.all([fetched('silero_vad_legacy.onnx'), fetched('ort-wasm-simd-threaded.wasm')]);
   const source = context.createBufferSource();
   source.buffer = audio;
   source.connect(microphone);
