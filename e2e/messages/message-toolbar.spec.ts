@@ -11,7 +11,7 @@ import { createPrivateRoom, joinRoom, loginToMatrix, sendRoomMessage } from '../
 // The hover toolbar of a message is a glass pill of quiet icon buttons: every button 32 px
 // square and transparent until hovered, 2 px apart, inside an even 4 px of padding and the
 // pill's 1 px rim, with corners concentric to the buttons'. Under a thread's banner it keeps
-// below the `[+all]` toggle and the first row's sender line, 8 px clear of it. Set
+// below the banner and the first row's sender line, 8 px clear of it. Set
 // MESSAGE_TOOLBAR_SHOTS=<directory> to also save close crops at rest and with a button hovered,
 // in dark and light themes.
 const SHOTS = process.env.MESSAGE_TOOLBAR_SHOTS;
@@ -154,7 +154,7 @@ const pointAt = async (page: Page, target: Locator) => {
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 };
 
-/** A close crop of the toolbar, the `[+all]` toggle above it and, with `above`, its tooltip. */
+/** A close crop of the toolbar, a `[+all]` toggle above it and, with `above`, its tooltip. */
 const cropAround = ({ pill, toggle }: Geometry, above = 0) => {
   const top = Math.min(pill.top, toggle?.top ?? pill.top) - 16 - above;
   const left = pill.left - 140;
@@ -259,17 +259,16 @@ test.describe('message hover toolbar', () => {
     await expect(copyLink).toHaveCount(0);
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 
-    // The first row under the banner moves its toolbar below `[+all]`, which ends above the row,
-    // and on below the row's sender line, 8 px clear of it, so the name and the time stay in
-    // reach and the pointer never leaves the row on its way to the toolbar.
+    // The first row under the banner (a thread has no `[+all]` line) moves its toolbar into the
+    // row, below the row's sender line, 8 px clear of it, so the name and the time stay in reach
+    // and the pointer never leaves the row on its way to the toolbar.
     await firstRow.hover();
     await expect(firstRow.getByRole('button', { name: 'Reply', exact: true })).toBeVisible();
-    const underToggle = await toolbarGeometry(firstRow);
-    expectBalanced(underToggle);
-    expect(underToggle.toggle).toBeDefined();
-    expect(underToggle.sender).toBeDefined();
-    expect(underToggle.pill.top - underToggle.sender!.bottom).toBeCloseTo(TOGGLE_GAP, 0);
-    expect(underToggle.toggle!.bottom).toBeLessThanOrEqual(underToggle.row.top);
+    const underBanner = await toolbarGeometry(firstRow);
+    expectBalanced(underBanner);
+    expect(underBanner.toggle).toBeUndefined();
+    expect(underBanner.sender).toBeDefined();
+    expect(underBanner.pill.top - underBanner.sender!.bottom).toBeCloseTo(TOGGLE_GAP, 0);
     await page.mouse.move(0, 0);
 
     // Right to left: the pill sits at the row's start, the reply arrow mirrors and stays centred.
