@@ -15,13 +15,13 @@ import { useRoomAvatar, useRoomName } from '../../matrix/hooks/useRoomMeta';
 import { RoomNotificationMode } from '../../matrix/hooks/useRoomsNotificationPreferences';
 import { useRoomUnread } from '../../matrix/state/useUnread';
 import { roomToUnreadAtom } from '../../matrix/state/roomToUnread';
+import { useParentRooms } from '../../matrix/state/subRooms';
 import { mxcUrlToHttp } from '../../matrix/matrix';
 import { getDirectPartnerId, getRoomAvatarUrl } from '../../matrix/room';
 import { nameInitials } from '../../lib/common';
 import { useRoomBackgroundJobs } from '../../background-jobs/useRoomBackgroundJobs';
 import { useLongPress } from '../../lib/hooks/useLongPress';
 import { IconTooltip } from '../../ui/IconTooltip';
-import { useRoomHasMindroomAgent } from '../../navigation/useRoomViewMode';
 import { RoomActionsMenu, useRoomActionDialog } from '../../room/RoomActionsMenu';
 import type { RoomActionDialog } from '../../room/roomActions';
 
@@ -104,7 +104,7 @@ function RoomNavItemAvatar({ room, name, personAvatar, selected, quiet }: RoomNa
   const useAuthentication = useMediaAuthentication();
   const avatarMxc = useRoomAvatar(room, personAvatar);
   const isSpace = room.getType() === RoomType.Space;
-  const work = useRoomHasMindroomAgent(room.roomId, !personAvatar && !isSpace);
+  const nested = useParentRooms(room).length > 0;
 
   let src = avatarMxc
     ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, AVATAR_SIZE, AVATAR_SIZE, 'crop') ?? undefined
@@ -122,7 +122,7 @@ function RoomNavItemAvatar({ room, name, personAvatar, selected, quiet }: RoomNa
     }
     const joinRule = room.getJoinRule();
     return (
-      <RoomIcon size="100" filled={selected} joinRule={joinRule} space={isSpace} work={work} />
+      <RoomIcon size="100" filled={selected} joinRule={joinRule} space={isSpace} subRoom={nested} />
     );
   };
 

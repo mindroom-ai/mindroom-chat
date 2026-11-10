@@ -136,7 +136,7 @@ function RoomToJoinRow({ roomId, viaServers, to }: RoomToJoinRowProps) {
               <NavItemContent>
                 <Box as="span" grow="Yes" alignItems="Center" gap="200">
                   <Avatar size="200" radii="400" style={{ opacity: config.opacity.P300 }}>
-                    <RoomIcon size="100" joinRule={summary?.join_rule} />
+                    <RoomIcon size="100" joinRule={summary?.join_rule} subRoom />
                   </Avatar>
                   <Box as="span" grow="Yes">
                     <Text as="span" size="Inherit" priority="300" truncate {...ownDirectionLine}>

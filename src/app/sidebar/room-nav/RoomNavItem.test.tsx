@@ -10,7 +10,7 @@ const testState = vi.hoisted(() => ({
   directAvatarMxc: undefined as string | undefined,
   roomAvatarMxc: undefined as string | undefined,
   backgroundJobs: [] as { jobId: string }[],
-  hasAgent: false,
+  parentRooms: [] as Room[],
   setHover: undefined as ((hovering: boolean) => void) | undefined,
   matrixMxcUrlToHttp: vi.fn((mxc: string) =>
     mxc.startsWith('mxc://example.org/')
@@ -187,8 +187,8 @@ vi.mock('../../background-jobs/useRoomBackgroundJobs', () => ({
   }),
 }));
 
-vi.mock('../../navigation/useRoomViewMode', () => ({
-  useRoomHasMindroomAgent: (_roomId: string, watch: boolean) => watch && testState.hasAgent,
+vi.mock('../../matrix/state/subRooms', () => ({
+  useParentRooms: () => testState.parentRooms,
 }));
 
 vi.mock('../../matrix/matrix', () => ({
@@ -226,15 +226,15 @@ describe('RoomNavItem avatar', () => {
     testState.avatarMxc = undefined;
     testState.directAvatarMxc = undefined;
     testState.roomAvatarMxc = undefined;
-    testState.hasAgent = false;
+    testState.parentRooms = [];
     testState.matrixMxcUrlToHttp.mockClear();
   });
 
-  it('frames the icon of a room a MindRoom agent is in', () => {
-    expect(findByTestId(renderRoomNavItem(), 'room-icon')[0].props.work).toBe(false);
+  it('frames the icon of a sub-room, a room a chat room lists under it', () => {
+    expect(findByTestId(renderRoomNavItem(), 'room-icon')[0].props.subRoom).toBe(false);
 
-    testState.hasAgent = true;
-    expect(findByTestId(renderRoomNavItem(), 'room-icon')[0].props.work).toBe(true);
+    testState.parentRooms = [{ roomId: '!parent:example.org' } as Room];
+    expect(findByTestId(renderRoomNavItem(), 'room-icon')[0].props.subRoom).toBe(true);
   });
 
   it('upgrades the privacy icon to the room avatar when avatar state appears', () => {
