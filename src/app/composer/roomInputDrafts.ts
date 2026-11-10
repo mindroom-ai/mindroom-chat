@@ -396,10 +396,11 @@ const dropEveryEntry = (family: { setShouldRemove: (test: (() => boolean) | null
  * files and a voice send in progress. These are keyed by room alone, so the next account to open
  * a room both accounts are in would otherwise show them and send them as its own. Unsent
  * messages stay, since they are kept per account. A recorded voice message waiting for a retry
- * stays too: it names its account and no other one sends it.
+ * stays too: it names its account and no other one sends it. No recorder stays open.
  */
 export const forgetComposerStateOfSession = (store: JotaiStore): void => {
   dropEveryEntry(roomIdToReplyDraftAtomFamily);
   dropEveryEntry(roomIdToUploadItemsAtomFamily);
   store.set(voiceAutoSendPendingAtom, false);
+  store.set(openVoiceRecorderAtom, undefined);
 };
