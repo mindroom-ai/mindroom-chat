@@ -320,7 +320,6 @@ export const useRoomInputVoice = ({
             'create'
           );
         }
-        const ownerRoomId = liveContext.roomId;
         const liveRoomEncrypted = liveContext.room.hasEncryptionStateEvent();
         // A file removed from the composer before it goes is left out.
         const stillStaged = (item: TUploadItem): boolean =>
