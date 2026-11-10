@@ -2,7 +2,7 @@
 // The example plugin's test, written as a plugin outside this repository writes one: it imports the
 // app only through the client SDK, `/testing` included, and runs in the app's vitest.
 import { createRef, type ReactNode } from 'react';
-import { act, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import { act, fireEvent, waitFor } from '@testing-library/react';
 import { createClient, KnownMembership, MatrixEvent, Room } from 'matrix-js-sdk';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -28,43 +28,6 @@ const place = vi.hoisted(() => ({
   presence: undefined as PanelPresence | undefined,
   screenSize: undefined as 'Desktop' | 'Mobile' | undefined,
 }));
-// The thread the room's page shows and the thread panel's controls, which the room provides, and the
-// thread itself, which is the app's (e2e/plugins/thread-view.spec.ts).
-const roomPage = vi.hoisted(() => ({
-  thread: undefined as string | undefined,
-  closeThreadPanel: undefined as (() => void) | undefined,
-  profile: undefined as { roomId: string; userId: string } | undefined,
-}));
-vi.mock('@mindroom/client-sdk/core', async (importOriginal) => {
-  const core = await importOriginal<typeof import('@mindroom/client-sdk/core')>();
-  return {
-    ...core,
-    useRoomSidePanel: (pluginId: string, panelId: string) => {
-      const control = core.useRoomSidePanel(pluginId, panelId);
-      const close = panelId === 'thread' ? roomPage.closeThreadPanel : undefined;
-      return close
-        ? { isOpen: true, open: () => undefined, openBesideThread: () => undefined, close }
-        : control;
-    },
-  };
-});
-vi.mock('@mindroom/client-sdk/room', async (importOriginal) => {
-  const sdk = await importOriginal<typeof import('@mindroom/client-sdk/room')>();
-  return {
-    ...sdk,
-    useShownThread: () => {
-      const shown = sdk.useShownThread();
-      return roomPage.thread ?? shown;
-    },
-    useShownUserProfile: () => {
-      const shown = sdk.useShownUserProfile();
-      return roomPage.profile ?? shown;
-    },
-    ThreadView: ({ room: { roomId }, threadId }: { room: Room; threadId: string }) => (
-      <button type="button">{`Thread ${threadId} of ${roomId}`}</button>
-    ),
-  };
-});
 vi.mock('@mindroom/client-sdk/ui', async (importOriginal) => {
   const ui = await importOriginal<typeof import('@mindroom/client-sdk/ui')>();
   return {
@@ -112,9 +75,6 @@ describe('example plugin', () => {
   });
   afterEach(() => {
     vi.unstubAllGlobals();
-    roomPage.thread = undefined;
-    roomPage.closeThreadPanel = undefined;
-    roomPage.profile = undefined;
   });
 
   const [renderer] = plugin.messageRenderers ?? [];
@@ -200,39 +160,6 @@ describe('example plugin', () => {
     );
     expect(fetched).toHaveBeenCalledWith('!lobby:example.org', '$greeting');
     expect((await renderGreeting()).queryByRole('button', { name: 'Show in panel' })).toBeNull();
-  });
-
-  it('shows in its thread panel the thread the room showed as it opened, kept after, which an Escape the thread leaves closes unless a profile card is open', async () => {
-    const panel = plugin.sidePanels?.find(({ id }) => id === 'thread');
-    if (!panel) throw new Error('the example plugin has no thread panel');
-    const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
-    client.store.storeRoom(new Room('!lobby:example.org', client, '@ada:example.org'));
-    // A new element each time, so that a rerender renders the panel again.
-    const ui = () => <panel.Component roomId="!lobby:example.org" />;
-    const options = { id: 'example', plugin, client };
-    expect((await renderPluginComponent(ui(), options)).container.textContent).toBe(
-      'No example thread'
-    );
-    cleanup();
-
-    roomPage.thread = '$root';
-    const close = vi.fn();
-    roomPage.closeThreadPanel = close;
-    const view = await renderPluginComponent(ui(), options);
-    const thread = view.getByRole('button', { name: 'Thread $root of !lobby:example.org' });
-    roomPage.thread = '$other';
-    view.rerender(ui());
-    expect(view.getByRole('button', { name: 'Thread $root of !lobby:example.org' })).toBe(thread);
-
-    // While a profile card is open, the Escape is the card's.
-    roomPage.profile = { roomId: '!lobby:example.org', userId: '@ada:example.org' };
-    view.rerender(ui());
-    expect(fireEvent.keyDown(thread, { key: 'Escape' })).toBe(true);
-    expect(close).not.toHaveBeenCalled();
-    roomPage.profile = undefined;
-    view.rerender(ui());
-    expect(fireEvent.keyDown(thread, { key: 'Escape' })).toBe(false);
-    expect(close).toHaveBeenCalledTimes(1);
   });
 
   it("names its greeting's sender as the app names them in the room, apart from a member of the same name, and shows the account's own profile card", async () => {

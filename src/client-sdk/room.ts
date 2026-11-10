@@ -1,10 +1,9 @@
 // `@mindroom/client-sdk/room`, the client SDK's subpath for rooms and threads (docs/architecture.md
 // "Client plugins"): it opens them, links to them, names the thread a room's page shows, creates
 // sub-rooms and names the rooms a room is a sub-room of, shows a person's profile card in a room,
-// names the floating one that is open and closes it, and shows a thread on a plugin's own surface.
-// Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in
-// scripts/client-plugins.mjs.
-import { createElement, lazy, Suspense, useCallback, useContext, useMemo } from 'react';
+// and names the floating one that is open and closes it. Like `/core` it only grows, and each
+// addition raises CLIENT_PLUGIN_API_VERSION in scripts/client-plugins.mjs.
+import { createElement, useCallback, useContext, useMemo } from 'react';
 import { useHref } from 'react-router-dom';
 import type { Position, RectCords } from 'folds';
 import type { Room } from 'matrix-js-sdk';
@@ -153,22 +152,3 @@ export const useCloseUserProfile: () => () => void = useCloseUserRoomProfile;
  */
 export const UserProfileCard = (props: { room: Room; userId: string; onDone: () => void }) =>
   createElement(UserRoomProfile, { ...props, key: `${props.room.roomId}:${props.userId}` });
-
-// Plugin entries load with the app, so the thread's timeline and composer load only once a
-// `ThreadView` renders. A load that fails throws to the plugin's surface, as a side panel's own
-// failure does.
-const LazyThreadView = lazy(() =>
-  import('../app/room/ThreadView').then((module) => ({ default: module.ThreadView }))
-);
-
-/**
- * The thread `threadId` (its root's event ID) of `room` as the room's page shows it, for a plugin's
- * own surface such as its side panel: the root and its replies with the app's message actions, the
- * thread's tool approvals under them, and the composer under those while the signed-in account may
- * post in the room. It fills its parent, a flex column, and scrolls inside it; it shows nothing
- * while its code loads. An Escape that the composer and its menus do not take bubbles out of it, so
- * a plugin may close the thread on one that is not `defaultPrevented`, but not while
- * `useShownUserProfile` names a card, which its rows open and which that Escape closes.
- */
-export const ThreadView = (props: { room: Room; threadId: string }) =>
-  createElement(Suspense, { fallback: null }, createElement(LazyThreadView, props));
