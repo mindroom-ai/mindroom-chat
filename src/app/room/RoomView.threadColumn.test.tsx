@@ -251,12 +251,12 @@ const slotHeader = () => {
   const markers = screen.getAllByTestId('header-slot');
   expect(markers).toHaveLength(1);
   expect(state.slotsMounted).toBe(1);
-  const header = markers[0].closest<HTMLElement>('[data-glass-flat]');
-  expect(header).not.toBeNull();
+  const header = markers[0]?.closest<HTMLElement>('[data-glass-flat]');
+  if (!header) throw new Error('the slot shows in no header');
   // The slot's components are given the element of the header they show in.
   expect(state.slotHeader).toBe(header);
-  expect(within(header as HTMLElement).getByTestId('room-header')).toBeDefined();
-  return header as HTMLElement;
+  expect(within(header).getByTestId('room-header')).toBeDefined();
+  return header;
 };
 const inColumn = (element: Element) => !!screen.queryByTestId('thread-column')?.contains(element);
 

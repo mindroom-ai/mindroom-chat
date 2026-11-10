@@ -286,6 +286,8 @@ test("a thread's column filling the page has the banner under its own header, on
       body: `A reply in the slot thread ${RUN}`,
       'm.relates_to': { rel_type: 'm.thread', event_id: rootId, is_falling_back: true },
     });
+    // Wide enough for the thread beside the messages and the members beside both.
+    await page.setViewportSize({ width: 1600, height: 900 });
     await page.goto(roomPath(data, `?threadId=${encodeURIComponent(rootId)}`));
     const column = page.getByTestId('thread-column');
     const inColumn = column.locator('[data-example-plugin-banner]');
@@ -333,10 +335,10 @@ test("a thread's column filling the page has the banner under its own header, on
     await besideMessages();
 
     // A window too narrow for both fills the page with the column too, until it widens.
-    await page.setViewportSize({ width: 760, height: 800 });
+    await page.setViewportSize({ width: 1100, height: 900 });
     await fillingPage();
     await shot(page, 'room-header-slot-thread-narrow');
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.setViewportSize({ width: 1600, height: 900 });
     await besideMessages();
     await shot(page, 'room-header-slot-thread-beside-again');
   }));
