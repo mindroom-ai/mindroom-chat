@@ -470,7 +470,12 @@ export function RoomViewHeader({
                       {nameInitials(roomName)}
                     </Text>
                   ) : (
-                    <RoomIcon size="200" joinRule={room.getJoinRule()} filled />
+                    <RoomIcon
+                      size="200"
+                      joinRule={room.getJoinRule()}
+                      filled
+                      work={hasMindroomAgents}
+                    />
                   )
                 }
               />
