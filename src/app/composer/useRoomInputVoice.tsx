@@ -132,22 +132,25 @@ export const useRoomInputVoice = ({
     }
   }, [ownsPendingVoiceDraft]);
 
-  // Close the auto-opened recorder once the parked draft is no longer this composer's. This covers
-  // cases the hook can't observe locally:
+  // Close the recorder while a parked draft is not this composer's, and once its own goes away.
+  // This covers cases the hook can't observe locally:
   //   1. A previous mount started a retry, the user navigated away, the
   //      retry settled remotely, and we're now back in the source room
   //      with phase synced to 'sending' from the atom.
   //   2. Some other surface discarded the draft (e.g. a future global
   //      discard action).
-  //   3. A thread's own view moved to another thread, whose Send must not retry the draft.
+  //   3. A thread's own view moved to another thread, before or after its send failed: that
+  //      thread's Send must not retry the draft.
   // Without this effect, voiceRecorderOpen stays true and the capsule
   // would render with stale local state.
   const ownedPendingDraftRef = useRef(ownsPendingVoiceDraft);
   useEffect(() => {
     const ownedBefore = ownedPendingDraftRef.current;
     ownedPendingDraftRef.current = ownsPendingVoiceDraft;
-    if (ownedBefore && !ownsPendingVoiceDraft) setVoiceRecorderOpen(false);
-  }, [ownsPendingVoiceDraft]);
+    if (!ownsPendingVoiceDraft && (ownedBefore || draftBelongsToCurrentSession)) {
+      setVoiceRecorderOpen(false);
+    }
+  }, [draftBelongsToCurrentSession, ownsPendingVoiceDraft]);
 
   // One recorder is open at a time: opening one in another composer closes this one, which ends
   // its recording as leaving the room does.

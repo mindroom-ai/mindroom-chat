@@ -3954,6 +3954,22 @@ describe('RoomInput', () => {
       act(() => renderer.unmount());
     });
 
+    it('closes the recorder of its failed send once that send is discarded elsewhere', async () => {
+      const store = createStore();
+      const renderer = await renderComposers(store);
+      await openRecorder(renderer, 'view');
+      const context = voiceRecorderState.byView.get(VIEW).getSendContext();
+      await act(async () => {
+        store.set(pendingVoiceSendDraftAtom, { file: voiceFile(), duration: 900, context });
+      });
+      await act(async () => {
+        store.set(pendingVoiceSendDraftAtom, undefined);
+      });
+      expect(voiceRecorderState.byView.has(VIEW)).toBe(false);
+      expect(micOf(renderer, 'view').props.disabled).toBe(false);
+      act(() => renderer.unmount());
+    });
+
     it('closes the recorder of a failed send when its view moves to another thread', async () => {
       const store = createStore();
       const renderer = await renderComposers(store);
@@ -3976,6 +3992,28 @@ describe('RoomInput', () => {
       });
       expect(voiceRecorderState.send).not.toHaveBeenCalled();
       expect(mxState.sendMessage).not.toHaveBeenCalled();
+      act(() => renderer.unmount());
+    });
+
+    it('closes its recorder when a failed send of the thread it moved from arrives', async () => {
+      const store = createStore();
+      const renderer = await renderComposers(store);
+      await openRecorder(renderer, 'view');
+      const context = voiceRecorderState.byView.get(VIEW).getSendContext();
+      // The view moves to another thread while the recording from the first one still sends.
+      await act(async () => {
+        renderer.update(composersTree(store, { threadId: '$other-thread' }));
+      });
+      expect(voiceRecorderState.byView.has(VIEW)).toBe(true);
+
+      await act(async () => {
+        store.set(pendingVoiceSendDraftAtom, { file: voiceFile(), duration: 900, context });
+      });
+      expect(voiceRecorderState.byView.has(VIEW)).toBe(false);
+      await act(async () => {
+        await sendOf(renderer, 'view').props.onClick();
+      });
+      expect(voiceRecorderState.send).not.toHaveBeenCalled();
       act(() => renderer.unmount());
     });
 
