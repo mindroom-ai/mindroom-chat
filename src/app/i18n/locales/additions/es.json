@@ -764,6 +764,7 @@
   "activity": {
     "title": "Actividad",
     "unreadOnly": "Sin leer",
+    "unreadOnlyHint": "Mostrar solo sin leer",
     "markAllRead": "Marcar todo como leído",
     "openAsPage": "Abrir como página",
     "tabs": {
@@ -824,6 +825,9 @@
     "showAutomations": "Mostrar",
     "hideAutomations": "Ocultar ejecuciones de automatización",
     "allInvites": "Todas las invitaciones",
+    "invitesSummary_one": "{{count}} invitación",
+    "invitesSummary_many": "{{count}} invitaciones",
+    "invitesSummary_other": "{{count}} invitaciones",
     "caughtUp": "Estás al día",
     "caughtUpDescription": "Aquí aparecen las menciones, las respuestas en tus hilos y todo lo que te espera.",
     "pickTitle": "Elige algo de Actividad",

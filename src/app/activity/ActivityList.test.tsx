@@ -15,12 +15,16 @@ import { allInvitesAtom } from '../matrix/state/inviteList';
 import type { ActivityRow, ActivityRowsResult } from './activityRows';
 import { activityRowsAtom, activityShowAutomationsAtom } from './activityState';
 import { ActivityList } from './ActivityList';
+import * as css from './ActivityList.css';
 
 const NAMES: Record<string, string> = {
   '@mindroom_code:x': 'Code',
   '@mindroom_mind:x': 'Mind',
   '@maya:x': 'Maya Chen',
   '@tom:x': 'Tom Becker',
+  '@sam:x': 'Sam Rivera',
+  // A name of invisible characters only, as spam invites use.
+  '@ghost:x': '\u200b\u200b',
 };
 
 const mocks = vi.hoisted(() => ({
@@ -54,7 +58,9 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx })
 vi.mock('../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
 vi.mock('../matrix/room', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../matrix/room')>()),
-  getSenderName: (_room: unknown, userId: string) => NAMES[userId] ?? userId,
+  // Sam invited the user to a room whose members are not known: the full name carries the ID.
+  getSenderName: (_room: unknown, userId: string) =>
+    userId === '@sam:x' ? 'Sam Rivera (@sam:x)' : NAMES[userId] ?? userId,
   getMemberRawDisplayName: (_room: unknown, userId: string) => NAMES[userId],
   getMemberAvatarMxc: () => undefined,
 }));
@@ -408,6 +414,64 @@ describe('ActivityList', () => {
     expect(screen.getByText('Plan<U+202E>evil')).toBeTruthy();
     expect(screen.getByText('see invoice<U+202E>txt.exe')).toBeTruthy();
     expect(screen.getByText('Room<U+202E>odd')).toBeTruthy();
+  });
+
+  const inviteRoom = (roomId: string, name: string) =>
+    mocks.rooms.set(roomId, {
+      roomId,
+      name,
+      getCanonicalAlias: () => null,
+      membersLoaded: () => true,
+      getJoinedMembers: () => [],
+    });
+  const invite = (roomId: string, inviterId: string): ActivityRow => ({
+    type: 'invite',
+    key: `invite:${roomId}`,
+    kind: 'invite',
+    roomId,
+    inviterId,
+    unread: true,
+    ts: NOW,
+  });
+
+  it('names the inviter of an invite plainly, with the user ID on a line of its own', () => {
+    inviteRoom('!pilot:x', 'Partner Pilot');
+    renderList({ rows: [invite('!pilot:x', '@sam:x')], hiddenAutomations: 0 });
+    const row = screen.getByText('Partner Pilot').closest('[data-activity-row]') as HTMLElement;
+    expect(within(row).getByText('Sam Rivera invited you')).toBeTruthy();
+    // The ID still shows, so a copied name can be told apart, but not inside the sentence; whole,
+    // as a long ID wraps rather than hiding its server.
+    const id = within(row).getByText('@sam:x');
+    expect(id.className).toContain(css.WholeId);
+  });
+
+  it('names an inviter whose name shows nothing by their user ID', () => {
+    inviteRoom('!ghost:x', 'Free prizes');
+    renderList({ rows: [invite('!ghost:x', '@ghost:x')], hiddenAutomations: 0 });
+    expect(screen.getByText('ghost invited you')).toBeTruthy();
+  });
+
+  it('keeps one or two invites as rows of their own, with their answers', () => {
+    inviteRoom('!b1:x', 'Bridge 1');
+    inviteRoom('!b2:x', 'Bridge 2');
+    renderList({
+      rows: [invite('!b1:x', '@tom:x'), invite('!b2:x', '@tom:x')],
+      hiddenAutomations: 0,
+    });
+    expect(screen.getAllByRole('button', { name: 'Join' })).toHaveLength(2);
+    expect(screen.queryByText('2 invites')).toBeNull();
+  });
+
+  it('gathers three or more invites into one row that opens the invite list', () => {
+    const rooms = ['!a1:x', '!a2:x', '!a3:x'];
+    rooms.forEach((roomId, index) => inviteRoom(roomId, `Bridge ${index}`));
+    renderList({
+      rows: [...rooms.map((roomId) => invite(roomId, '@tom:x')), ...ROWS.slice(2)],
+      hiddenAutomations: 0,
+    });
+    expect(screen.queryByRole('button', { name: 'Join' })).toBeNull();
+    fireEvent.click(screen.getByText('3 invites'));
+    expect(screen.getByLabelText('Current path').textContent).toBe('/activity/invites/');
   });
 
   it('shows no time for an invite whose time is unknown', () => {

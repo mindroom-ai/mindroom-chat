@@ -753,6 +753,7 @@
   "activity": {
     "title": "गतिविधि",
     "unreadOnly": "अपठित",
+    "unreadOnlyHint": "केवल अपठित दिखाएँ",
     "markAllRead": "सभी को पढ़ा हुआ चिह्नित करें",
     "openAsPage": "पेज के रूप में खोलें",
     "tabs": {
@@ -808,6 +809,8 @@
     "showAutomations": "दिखाएँ",
     "hideAutomations": "ऑटोमेशन रन छिपाएँ",
     "allInvites": "सभी आमंत्रण",
+    "invitesSummary_one": "{{count}} आमंत्रण",
+    "invitesSummary_other": "{{count}} आमंत्रण",
     "caughtUp": "आपने सब कुछ देख लिया है",
     "caughtUpDescription": "उल्लेख, आपके थ्रेड में जवाब और आपकी प्रतीक्षा में रही हर चीज़ यहाँ दिखती है।",
     "pickTitle": "गतिविधि में से कुछ चुनें",
