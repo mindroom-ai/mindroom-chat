@@ -171,12 +171,13 @@ const LazyThreadView = lazy(() =>
  * shows: its composer has a reply and staged files of its own, which go with it as it unmounts,
  * shares the thread's unsent text with the page's, and records voice messages into its thread (one
  * recorder is open in the app at a time, and a failed send comes back in a view of that thread, or
- * on the page while it shows that thread in the messages' place). Read receipts and notifications
- * count the thread as seen while the view shows it, also while the room's page is behind the
- * panel, but not while its side panel is folded or under a phone's navigation drawer. Its menus,
- * and the profile card its rows open, take their Escape at the document, after it bubbled through
- * the plugin's elements; so a plugin that closes its surface on Escape listens on the window, which
- * only an Escape nothing took reaches (one that is not `defaultPrevented`).
+ * on the page while it shows that thread in the messages' place and no view of that thread is
+ * mounted). Read receipts and notifications count the thread as seen while the view shows it,
+ * also while the room's page is behind the panel, but not while its side panel is folded or under a
+ * phone's navigation drawer. Its menus, and the profile card its rows open, take their Escape at
+ * the document, after it bubbled through the plugin's elements; so a plugin that closes its surface
+ * on Escape listens on the window, which only an Escape nothing took reaches (one that is not
+ * `defaultPrevented`).
  */
 export const ThreadView = (props: { room: Room; threadId: string }) =>
   createElement(Suspense, { fallback: null }, createElement(LazyThreadView, props));
