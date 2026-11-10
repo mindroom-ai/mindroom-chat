@@ -102,7 +102,8 @@ export const useMessagePreview = (
 ): string | undefined => {
   const matched = useMessageRenderer(event, viewerId);
   // The plugin's strings for the language in use may arrive after the app's: render again then.
-  useTranslation(matched?.renderer.preview ? pluginNamespace(matched.id) : undefined);
+  // The app's typed namespaces cover its own catalog only.
+  useTranslation((matched?.renderer.preview ? pluginNamespace(matched.id) : undefined) as never);
   if (!matched?.renderer.preview || !event) return undefined;
   let text: unknown;
   try {
