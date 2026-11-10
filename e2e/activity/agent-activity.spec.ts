@@ -80,7 +80,9 @@ test('an agent question is answered from its Activity row', async ({ page, stack
   await expect(row).toHaveAttribute('data-activity-row', 'question', { timeout: 60_000 });
   await expect(row).toContainText('Which deck should I polish for Thursday?');
   await row.getByRole('button', { name: 'v3 final' }).click();
-  await expect(row).toContainText('Answered: v3 final');
+  // The row says the answer went, or, once the helper replied to it, has moved on: either way it
+  // offers no answer again.
+  await expect(row.getByRole('button', { name: 'v3 final' })).toBeHidden();
 
   // The reaction lands on the question's own message, which MindRoom reads as the answer.
   const questionId = question.event_id;
@@ -130,7 +132,8 @@ test('a held tool call is approved from its Activity row and then runs', async (
   await expect(row).toContainText('Helper needs approval');
   await expect(row).toContainText('echo needs-approval: deploy the stub');
   await row.getByRole('button', { name: 'Approve', exact: true }).click();
-  await expect(row).toContainText('Approved');
+  // "Approved", or the row of the run that followed: no Approve button again.
+  await expect(row.getByRole('button', { name: 'Approve', exact: true })).toBeHidden();
 
   await waitForThreadEvent(
     stack,

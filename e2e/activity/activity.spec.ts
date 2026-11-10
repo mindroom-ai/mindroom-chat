@@ -119,7 +119,9 @@ test('the bell lists what waits and what is new, and answers an approval in plac
   await expect(popover).toBeVisible();
   const approvalRow = popover.locator('[data-activity-row="approval"]');
   await expect(approvalRow).toContainText('needs approval', { timeout: 60_000 });
-  await expect(approvalRow).toContainText('run_shell_command npm run deploy:staging');
+  // The tool, and what it runs, as the thread's approval card shows its arguments.
+  await expect(approvalRow).toContainText('run_shell_command');
+  await expect(approvalRow).toContainText('npm run deploy:staging');
   await expect(popover.locator('[data-activity-row="reply"]')).toContainText('Leave at 7:45 AM.');
 
   await approvalRow.getByRole('button', { name: 'Approve' }).click();
