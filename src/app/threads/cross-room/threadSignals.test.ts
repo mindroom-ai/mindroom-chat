@@ -9,9 +9,13 @@ import {
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
-import { FINISHED_AFTER_MS, QUESTION_WAITS_MS, readThreadSignals } from './threadSignals';
+import {
+  FINISHED_AFTER_MS,
+  QUESTION_WAITS_MS,
+  readThreadSignals,
+  threadRootPluginEvent,
+} from './threadSignals';
 import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
-import { threadRootPluginEvent } from './threadText';
 
 const ROOM_ID = '!signals:example.org';
 const ME = '@alice:example.org';

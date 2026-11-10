@@ -26,6 +26,7 @@ import {
 } from '../../matrix/protocol/toolApproval';
 import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 import type { PluginEvent } from '../../plugins/messageRenderers';
+import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
 
 export type ThreadPreview =
   | { kind: 'text'; text: string; localization?: ThreadPreviewLocalization }
@@ -117,7 +118,7 @@ const shownOf = (event: MatrixEvent, thread: Thread | null | undefined): Shown =
 };
 
 /** A thread's message as the timeline gives it to a plugin's message renderer: its newest edit. */
-export const threadMessagePluginEvent = (
+const threadMessagePluginEvent = (
   room: Room,
   event: MatrixEvent,
   thread: Thread | null | undefined
@@ -133,6 +134,21 @@ export const threadMessagePluginEvent = (
       id ? getEditedEvent(id, event, thread?.timelineSet) : undefined
     ),
   };
+};
+
+/**
+ * The root of a thread without an AI title as a plugin's message renderer sees it, for a title
+ * from the plugin (`useMessagePreview`). Undefined with an AI title or while the root is not loaded.
+ */
+export const threadRootPluginEvent = (
+  room: Room | null,
+  entry: Pick<CrossRoomThreadIndexEntry, 'threadRecord' | 'threadRootId'>
+): PluginEvent | undefined => {
+  // The index's `summaryText` falls back to the root's text; the AI title is the presentation's.
+  if (!room || entry.threadRecord.presentation.summaryText !== undefined) return undefined;
+  const thread = room.getThread(entry.threadRootId);
+  const root = thread?.rootEvent ?? room.findEventById(entry.threadRootId);
+  return root ? threadMessagePluginEvent(room, root, thread) : undefined;
 };
 
 const countsAsNews = ({ event, content }: Shown): boolean => {

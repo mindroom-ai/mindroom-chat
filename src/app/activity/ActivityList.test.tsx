@@ -574,7 +574,7 @@ describe('ActivityList', () => {
   });
 
   it("keeps the reply's text when the plugin's preview throws or config.json turns it off", () => {
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mocks.plugins.push(
       greetingPlugin(() => {
         throw new Error('boom');
@@ -587,6 +587,7 @@ describe('ActivityList', () => {
     const off = { plugins: { example: { enabled: false } } } as unknown as ClientConfig;
     renderList({ rows: [greetingRow('off', '@mindroom_code:x')], hiddenAutomations: 0 }, true, off);
     expect(within(rowByTitle('Thread off')).getByText('Hello there')).toBeTruthy();
+    logged.mockRestore();
   });
 
   it("titles a thread without an AI title by the plugin's preview of its root", () => {

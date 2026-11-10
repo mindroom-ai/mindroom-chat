@@ -18,9 +18,9 @@ import {
   threadActorName,
   threadIndexReplyPreview,
   threadPreviewText,
-  threadRootPluginEvent,
   threadTitleText,
 } from '../cross-room/threadText';
+import { threadRootPluginEvent } from '../cross-room/threadSignals';
 import {
   groupThreads,
   type ThreadGroupId,

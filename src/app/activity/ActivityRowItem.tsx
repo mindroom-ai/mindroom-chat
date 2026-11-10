@@ -19,10 +19,10 @@ import {
   threadActorName,
   threadIndexReplyPreview,
   threadPreviewText,
-  threadRootPluginEvent,
   threadTitleText,
 } from '../threads/cross-room/threadText';
-import type { ActivityRow, ActivityThreadRow } from './activityRows';
+import { threadRootPluginEvent } from '../threads/cross-room/threadSignals';
+import type { ActivityRow } from './activityRows';
 import { needsYou } from './activityRows';
 import { answerApproval, answerQuestion } from './activityActions';
 import { agentMember } from '../approvals/approvalPeople';
@@ -250,14 +250,6 @@ function RowActions({
   );
 }
 
-const rowContext = (
-  row: ActivityThreadRow,
-  pluginTitle: string | undefined
-): { title: string; room: string } => ({
-  title: pluginTitle ?? threadTitleText(row.entry),
-  room: revealDirectionControls(row.entry.roomName),
-});
-
 /** One Activity row: who did what, a preview, the thread and room, and its answer buttons. */
 export const ActivityRowItem = memo(function ActivityRowItem({
   row,
@@ -324,7 +316,13 @@ export const ActivityRowItem = memo(function ActivityRowItem({
   } else if (row.signals.lastReply) {
     preview = replyPreview ?? threadPreviewText(t, row.signals.lastReply.preview);
   } else preview = threadIndexReplyPreview(row.entry)?.text ?? '';
-  const context = row.type === 'thread' ? rowContext(row, pluginTitle) : undefined;
+  const context =
+    row.type === 'thread'
+      ? {
+          title: pluginTitle ?? threadTitleText(row.entry),
+          room: revealDirectionControls(row.entry.roomName),
+        }
+      : undefined;
 
   return (
     <div

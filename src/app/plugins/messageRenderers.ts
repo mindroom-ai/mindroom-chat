@@ -44,6 +44,14 @@ const trusts = (trust: MessageRenderer['trust'], sender: string, viewerId: strin
   return !!server && server === getMxIdServer(viewerId);
 };
 
+/** Logs `message` with the plugin's tag, the first time only for each tag in `failed`. */
+const logOnce = (failed: Set<string>, tag: string, message: string, error: unknown): void => {
+  if (failed.has(tag)) return;
+  failed.add(tag);
+  // eslint-disable-next-line no-console
+  console.error(`[plugin ${tag}] ${message}`, error);
+};
+
 /** Tags of the plugins whose `match` threw, so each is logged once. */
 const failedMatches = new Set<string>();
 
@@ -51,11 +59,7 @@ const matches = (tag: string, renderer: MessageRenderer, event: PluginEvent): bo
   try {
     return renderer.match(event);
   } catch (error) {
-    if (!failedMatches.has(tag)) {
-      failedMatches.add(tag);
-      // eslint-disable-next-line no-console
-      console.error(`[plugin ${tag}] a message renderer's match failed; core renders it`, error);
-    }
+    logOnce(failedMatches, tag, "a message renderer's match failed; core renders it", error);
     return false;
   }
 };
@@ -104,14 +108,8 @@ export const useMessagePreview = (
   try {
     text = matched.renderer.preview(event);
   } catch (error) {
-    if (!failedPreviews.has(matched.tag)) {
-      failedPreviews.add(matched.tag);
-      // eslint-disable-next-line no-console
-      console.error(
-        `[plugin ${matched.tag}] a message renderer's preview failed; core previews it`,
-        error
-      );
-    }
+    const message = "a message renderer's preview failed; core previews it";
+    logOnce(failedPreviews, matched.tag, message, error);
     return undefined;
   }
   if (typeof text !== 'string') return undefined;
