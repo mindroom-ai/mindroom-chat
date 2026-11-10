@@ -83,6 +83,15 @@ const THREAD_COLUMN_MAX_WIDTH = 4096;
 const PAGE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
 const PAGE_ROW_STYLE: CSSProperties = { ...PAGE_STYLE, flexDirection: 'row' };
 
+// The column stacks the room's header, while it fills the page, over the thread.
+const COLUMN_STYLE: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  minHeight: 0,
+  minWidth: 0,
+};
+const COLUMN_HEADER_STYLE: CSSProperties = { position: 'relative', flexShrink: 0 };
+
 /** Where a thread shows, chosen as it opens: in the column of its own, or in the messages' place. */
 type ThreadPlace = { threadId: string; column: boolean };
 
@@ -515,16 +524,35 @@ export function RoomView({
           expandLabel={t('thread.showFull')}
           testId="thread-column"
         >
-          <ThreadView
-            room={room}
-            threadId={columnThreadId}
-            eventId={focusEventInRoom ? undefined : eventId}
-            header={threadBanner}
-            autoFocus
-            hidden={behindPanel}
-            onThreadLoadError={onThreadLoadError}
-            onUnmount={onColumnGone}
-          />
+          <div style={COLUMN_STYLE}>
+            {/* Filling the page, the column has the room's header the room area hides. */}
+            {columnFills && (
+              <div
+                data-glass-flat="true"
+                className={classNames(overlay.Header, overlay.HeaderInThread)}
+                style={COLUMN_HEADER_STYLE}
+              >
+                <SurfaceProvider value>
+                  <RoomViewHeader
+                    hasMindroomAgents={hasMindroomAgents}
+                    threadId={columnThreadId}
+                    threadFilterState={threadState.threadFilterState}
+                    {...headerProps}
+                  />
+                </SurfaceProvider>
+              </div>
+            )}
+            <ThreadView
+              room={room}
+              threadId={columnThreadId}
+              eventId={focusEventInRoom ? undefined : eventId}
+              header={threadBanner}
+              autoFocus
+              hidden={behindPanel}
+              onThreadLoadError={onThreadLoadError}
+              onUnmount={onColumnGone}
+            />
+          </div>
         </ResizablePanel>
       )}
     </Page>

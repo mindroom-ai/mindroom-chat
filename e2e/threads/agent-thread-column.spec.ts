@@ -162,6 +162,11 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await expect(column(page)).toHaveAttribute('data-filled', 'true');
   await expect(messageRow(column(page), sent.event_id)).toBeVisible();
   await expect(pageComposer(page)).toBeHidden();
+  // The room's header comes with it, its buttons in reach.
+  await expect(column(page).locator('h1')).toBeVisible();
+  await expect(
+    roomHeader(page).getByRole('button', { name: 'Example panel', exact: true })
+  ).toBeVisible();
   expect(await storedLayout(page)).toBe('"full"');
   await shot(page, 'dragged-full');
 

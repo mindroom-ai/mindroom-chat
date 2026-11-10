@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { ComponentProps, ReactNode } from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createClient, EventStatus, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Editable, Slate } from 'slate-react';
@@ -59,7 +59,7 @@ vi.mock('./useRoomViewThreadState', () => ({
     handleThreadRootDeleted: state.rootDeleted,
   }),
 }));
-vi.mock('./RoomViewHeader', () => ({ RoomViewHeader: () => null }));
+vi.mock('./RoomViewHeader', () => ({ RoomViewHeader: () => <div data-testid="room-header" /> }));
 vi.mock('./RoomHeaderSlot', () => ({ RoomHeaderSlot: () => null }));
 vi.mock('./ConversationCover', () => ({ ConversationCover: () => null }));
 vi.mock('../timeline/RoomTimeline', () => ({
@@ -268,6 +268,8 @@ it('stores each choice and opens the next thread the way chosen last', () => {
   expect(column()?.dataset.thread).toBe('$next');
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
   expect(screen.queryByRole('separator')).toBeNull();
+  // It has the room's header, which the hidden room area holds too.
+  expect(within(screen.getByTestId('thread-column')).getByTestId('room-header')).toBeDefined();
   // Filling the page, the column offers the way back, not Full or Show beside's menu entry.
   expect(screen.queryByRole('button', { name: 'Full' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Beside' })).toBeNull();
@@ -276,6 +278,7 @@ it('stores each choice and opens the next thread the way chosen last', () => {
   expect(screen.getByTestId('messages').closest('[aria-hidden="true"]')).not.toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
   expect(screen.getByTestId('messages').closest('[aria-hidden="true"]')).toBeNull();
+  expect(within(screen.getByTestId('thread-column')).queryByTestId('room-header')).toBeNull();
   expect(storedLayout()).toBe('"beside"');
   expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
   expect(getDefaultStore().get(conversationHiddenAtom)).toBe(false);
