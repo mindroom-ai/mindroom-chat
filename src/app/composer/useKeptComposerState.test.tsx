@@ -9,6 +9,7 @@ import {
   roomIdToUploadItemsAtomFamily,
   type TUploadItem,
 } from './roomInputDrafts';
+import { ConversationViewContext } from '../navigation/conversationView';
 import { useKeptComposerState } from './useKeptComposerState';
 
 const ME = '@me:example.org';
@@ -31,12 +32,17 @@ function Probe({ userId, roomId }: { userId: string; roomId: string }) {
   return null;
 }
 
-/** A composer on a new page: the in-memory atoms are gone, storage stays. */
-const openPage = (store = createStore()) => {
+/**
+ * A composer on a new page, the room page's unless `view` names another conversation view: the
+ * in-memory atoms are gone, storage stays.
+ */
+const openPage = (store = createStore(), view?: string) => {
   act(() => {
     renderer = create(
       <Provider store={store}>
-        <Probe userId={ME} roomId={ROOM} />
+        <ConversationViewContext.Provider value={view}>
+          <Probe userId={ME} roomId={ROOM} />
+        </ConversationViewContext.Provider>
       </Provider>
     );
   });
@@ -133,5 +139,19 @@ describe('useKeptComposerState', () => {
     expect(reload().get(roomIdToReplyDraftAtomFamily(ROOM))).toBeUndefined();
     expect(kept?.lostFileNames).toEqual([]);
     expect(values.size).toBe(0);
+  });
+
+  it("leaves what the room's page kept to that page in another conversation view", () => {
+    const store = openPage();
+    act(() => store.set(roomIdToReplyDraftAtomFamily(ROOM), reply));
+    keepStagedFileNames(ME, ROOM, [staged('notes.txt')]);
+    act(() => renderer?.unmount());
+    const kept0 = new Map(values);
+
+    const viewStore = openPage(createStore(), 'thread-view');
+    expect(kept?.lostFileNames).toEqual([]);
+    expect(viewStore.get(roomIdToReplyDraftAtomFamily(ROOM))).toBeUndefined();
+    act(() => kept?.dismissLostFiles());
+    expect(values).toEqual(kept0);
   });
 });

@@ -1,6 +1,7 @@
 import React, { createRef } from 'react';
 import { EventTimelineSet, MatrixEvent, type Room } from 'matrix-js-sdk';
 import { createEditor } from 'slate';
+import { ReactEditor } from 'slate-react';
 import { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { create, makeRoom } from '../test-utils/RoomTimeline.test.shared';
@@ -31,14 +32,9 @@ const timeline = (events: MatrixEvent[]) => {
   return live;
 };
 
+// The composer that shares the timeline's editor has the focus, unless a test moves it.
 beforeEach(() => {
-  Object.assign(document, {
-    activeElement: {
-      nodeName: 'DIV',
-      getAttribute: (name: string) =>
-        ({ 'data-editable-name': 'RoomInput', contenteditable: 'true' }[name]),
-    },
-  });
+  vi.spyOn(ReactEditor, 'isFocused').mockReturnValue(true);
 });
 
 const mountKeyboard = async (
@@ -181,7 +177,7 @@ describe('Up-arrow message editing', () => {
 
   it('does not edit while another input has focus', async () => {
     const keyboard = await mountKeyboard([message('$reply')], '$root');
-    Object.assign(document, { activeElement: { nodeName: 'INPUT', getAttribute: () => null } });
+    vi.mocked(ReactEditor.isFocused).mockReturnValue(false);
     expect(keyboard.pressUp().editingEventId).toBeUndefined();
   });
 });

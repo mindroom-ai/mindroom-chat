@@ -16,8 +16,10 @@ import {
 import MessageSound from '../../../public/sound/notification.ogg';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
-import { conversationOutOfSightAtom } from '../navigation/conversationCover';
-import { getViewedPlace } from '../navigation/viewedPlace';
+import { conversationHiddenAtom } from '../navigation/conversationCover';
+import { getViewedPlace, type ViewedPlace } from '../navigation/viewedPlace';
+import { shownConversationViewsAtom } from '../navigation/conversationView';
+import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { useServerSyncApplied } from '../matrix/hooks/useServerSyncApplied';
 import { useSetting } from '../preferences/useSetting';
 import { mDirectAtom } from '../matrix/state/mDirectList';
@@ -87,7 +89,8 @@ type NotifySettings = {
   desktop: boolean;
   sound: boolean;
   directRooms: Set<string>;
-  place: ReturnType<typeof getViewedPlace>;
+  /** The rooms and threads on screen: the room's page, and other views of conversations. */
+  places: readonly ViewedPlace[];
   open: (notice: MessageNotice) => void;
   t: TFunction;
 };
@@ -96,7 +99,8 @@ const windowHasFocus = (): boolean => document.visibilityState === 'visible' && 
 
 const showNotice = (client: MatrixClient, notice: MessageNotice, settings: NotifySettings) => {
   const room = client.getRoom(notice.roomId);
-  if (!room || isNoticeOnScreen(notice, settings.place, windowHasFocus())) return;
+  const focused = windowHasFocus();
+  if (!room || settings.places.some((place) => isNoticeOnScreen(notice, place, focused))) return;
 
   if (settings.sound && notice.sound) playChime(MessageSound).catch(() => undefined);
 
@@ -144,16 +148,18 @@ export function MessageNotificationsFeature() {
   const directRooms = useAtomValue(mDirectAtom);
   const [desktop] = useSetting(settingsAtom, 'showNotifications');
   const [sound] = useSetting(settingsAtom, 'isNotificationSounds');
-  // A phone's navigation drawer over the page, or a plugin's cover over the conversation, leaves no
-  // room on screen.
-  const outOfSight = useAtomValue(conversationOutOfSightAtom);
+  // A phone's navigation drawer over the page leaves no room on screen, and a plugin's cover over
+  // the conversation, or a side panel in its place, leaves only other views of conversations.
+  const hidden = useAtomValue(conversationHiddenAtom);
+  const drawerOpen = useAtomValue(phoneNavDrawerOpenAtom);
+  const views = useAtomValue(shownConversationViewsAtom);
 
   const settings = useRef<NotifySettings>();
   settings.current = {
     desktop,
     sound,
     directRooms,
-    place: outOfSight ? {} : getViewedPlace(client, location),
+    places: drawerOpen ? [] : [...(hidden ? [] : [getViewedPlace(client, location)]), ...views],
     open: (notice) => {
       if (notice.threadId) navigateRoomThread(notice.roomId, notice.threadId);
       else navigateRoom(notice.roomId);

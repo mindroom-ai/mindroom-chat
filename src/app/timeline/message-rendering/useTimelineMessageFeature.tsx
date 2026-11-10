@@ -1,5 +1,6 @@
 import React, {
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useReducer,
@@ -18,6 +19,7 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
+import { ReactEditor } from 'slate-react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useImagePackRooms } from '../../emoji/useImagePackRooms';
@@ -46,7 +48,8 @@ import { useMentionClickHandler } from '../../messages/useMentionClickHandler';
 import { useSettingValue } from '../../preferences/useSettingValue';
 import { useHour24Clock } from '../../preferences/useHour24Clock';
 import { MessageLayout, settingsAtom, type Settings } from '../../preferences/settings';
-import { roomIdToReplyDraftAtomFamily } from '../../composer/roomInputDrafts';
+import { composerReplyDraftAtom } from '../../composer/roomInputDrafts';
+import { ConversationViewContext } from '../../navigation/conversationView';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import {
   canEditEvent,
@@ -332,12 +335,12 @@ export const useTimelineMessageFeature = ({
     return latestConfirmedOwnMessage(client, room.getLiveTimeline().getEvents());
   }, [client, room]);
 
-  // Up in an empty composer edits the user's latest message, as in most chat clients.
+  // Up in an empty composer edits the user's latest message, as in most chat clients. The
+  // composer is this timeline's own (they share the editor): another view of the room has its own.
   const editLatestOnArrowUp = useCallback(
     (evt: KeyboardEvent) => {
       if (evt.key !== 'ArrowUp') return;
-      const active = document.activeElement;
-      if (active?.getAttribute('data-editable-name') !== 'RoomInput') return;
+      if (!ReactEditor.isFocused(editor)) return;
       if (!isEmptyEditor(editor)) return;
       const target = findLatestEditableEvent();
       const targetId = target?.getId();
@@ -399,7 +402,8 @@ export const useTimelineMessageFeature = ({
     [client, handleMentionClick, linkifyOpts, room.roomId, showLinkFavicons, useAuthentication]
   );
 
-  const setReplyDraft = useSetAtom(roomIdToReplyDraftAtomFamily(room.roomId));
+  const view = useContext(ConversationViewContext);
+  const setReplyDraft = useSetAtom(composerReplyDraftAtom(room.roomId, view));
   const { navigateRoomThread } = useRoomNavigate();
   const handleReplyClick = useCallback(
     (replyEventId: string, startThread = false) => {
@@ -409,11 +413,10 @@ export const useTimelineMessageFeature = ({
       if (startThread && threadIdRef.current !== reply.threadRootId) {
         navigateRoomThread(room.roomId, reply.threadRootId);
       }
-      document
-        .querySelector<HTMLElement>('[data-editable-name="RoomInput"]')
-        ?.focus({ preventScroll: true });
+      // The composer of this timeline, which shares its editor.
+      ReactEditor.focus(editor);
     },
-    [navigateRoomThread, room, setReplyDraft]
+    [editor, navigateRoomThread, room, setReplyDraft]
   );
   // The avatar or the name of a message opens the sender's profile card beside it.
   const openUserProfile = useOpenUserRoomProfile();
