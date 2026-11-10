@@ -4,12 +4,11 @@
 // names the floating one that is open and closes it, and shows a thread on a plugin's own surface.
 // Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in
 // scripts/client-plugins.mjs.
-import { createElement, Suspense, useCallback, useContext, useMemo } from 'react';
+import { createElement, lazy, Suspense, useCallback, useContext, useMemo } from 'react';
 import { useHref } from 'react-router-dom';
 import type { Position, RectCords } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { getClientConfig } from '../app/config/useClientConfig';
-import { lazyPart } from '../app/lib/lazyPart';
 import { useMatrixClient } from '../app/matrix/hooks/useMatrixClient';
 import { useRoomNavigate as useAppRoomNavigate } from '../app/navigation/useRoomNavigate';
 import { UserRoomProfile } from '../app/members/profile/UserRoomProfile';
@@ -156,8 +155,9 @@ export const UserProfileCard = (props: { room: Room; userId: string; onDone: () 
   createElement(UserRoomProfile, { ...props, key: `${props.room.roomId}:${props.userId}` });
 
 // Plugin entries load with the app, so the thread's timeline and composer load only once a
-// `ThreadView` renders.
-const LazyThreadView = lazyPart(() =>
+// `ThreadView` renders. A load that fails throws to the plugin's surface, as a side panel's own
+// failure does.
+const LazyThreadView = lazy(() =>
   import('../app/room/ThreadView').then((module) => ({ default: module.ThreadView }))
 );
 
