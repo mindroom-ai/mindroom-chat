@@ -20,7 +20,7 @@ import { roomHeader } from '../helpers/roomMenu';
 // from the column leaves the room composer's draft alone. The plugin's panel opens to the right of
 // the thread, three columns, and closing it leaves two. Dragging the column's edge over the
 // messages takes the thread to their place, where the next thread opens too, until Show beside
-// again. A plugin's page opens a thread with the SDK's `navigateRoomThread` the way chosen. A phone
+// again; text and files staged in the column go with the thread. A plugin's page opens a thread with the SDK's `navigateRoomThread` the way chosen. A phone
 // shows the thread in the messages' place whatever was chosen.
 //   MINDROOM_CLIENT_PLUGINS=$PWD/src/app/plugins/__fixtures__/example-plugin \
 //     scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/threads/agent-thread-column.spec.ts
@@ -158,13 +158,35 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await expect(messageRow(column(page), third)).toBeVisible({ timeout: 30_000 });
   await shot(page, 'next-thread-beside');
 
-  // The column's own Show in full does what the drag did.
+  // The column's own Show in full does what the drag did, and the text and the file staged in its
+  // composer go with the thread to the messages' place.
+  const unsent = `${word} not sent yet`;
+  await columnComposer(page).click();
+  await page.keyboard.type(unsent);
+  const fileName = `${word}-column.txt`;
+  const chooser = page.waitForEvent('filechooser');
+  await column(page).getByRole('button', { name: 'Attach files' }).click();
+  await (
+    await chooser
+  ).setFiles([{ name: fileName, mimeType: 'text/plain', buffer: Buffer.from('From the column.') }]);
+  await expect(column(page).getByText(fileName, { exact: true })).toBeVisible({ timeout: 20_000 });
   await banner(column(page))
     .getByRole('button', { name: 'Show the thread in full', exact: true })
     .click();
   await expect(column(page)).toHaveCount(0);
   await expect(pageComposer(page)).toBeFocused();
+  await expect(pageComposer(page)).toHaveText(unsent);
+  await expect(
+    page.locator('[data-room-footer]').getByText(fileName, { exact: true })
+  ).toBeVisible();
   expect(await storedLayout(page)).toBe('"full"');
+  await pageComposer(page).press('Enter');
+  await waitForThreadEvent(
+    stack,
+    third,
+    (event) => event.sender === stack.tester.userId && event.content.body === fileName,
+    { timeout: 60_000, description: 'the file staged in the column, sent from the full view' }
+  );
   await showBeside(page);
   await expect(column(page)).toBeVisible();
 

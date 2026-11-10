@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { ReactNode } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { createClient, Room } from 'matrix-js-sdk';
+import { createClient, EventStatus, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Editable, Slate } from 'slate-react';
 import { getDefaultStore } from 'jotai';
@@ -11,6 +11,12 @@ import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { shownConversationViewsAtom } from '../navigation/conversationView';
 import type { RoomTimelineProps } from '../timeline/RoomTimeline';
 import type { ThreadContextBannerProps } from '../threads/ThreadContextBanner';
+import {
+  composerReplyDraftAtom,
+  composerUploadItemsAtom,
+  getRoomInputDraftKey,
+  roomIdToMsgDraftAtomFamily,
+} from '../composer/roomInputDrafts';
 import { RoomView, type RoomViewProps } from './RoomView';
 
 const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
@@ -22,6 +28,9 @@ const state = vi.hoisted(() => ({
   main: undefined as RoomTimelineProps | undefined,
   exit: () => undefined as void,
   focused: [] as (string | undefined)[],
+  approvalThread: 'unset' as string | undefined,
+  columnLoadError: undefined as ((threadId: string) => void) | undefined,
+  rootDeleted: () => undefined as void,
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
@@ -42,6 +51,7 @@ vi.mock('./useRoomViewThreadState', () => ({
     viewMode: 'compact',
     effectiveThreadId: state.thread,
     handleExitThread: state.exit,
+    handleThreadRootDeleted: state.rootDeleted,
   }),
 }));
 vi.mock('./RoomViewHeader', () => ({ RoomViewHeader: () => null }));
@@ -60,7 +70,10 @@ vi.mock('../messages/FailedSendActions', () => ({
   FailedSendActions: () => <div>Root not sent</div>,
 }));
 vi.mock('../approvals/ThreadApprovalProvider', () => ({
-  ThreadApprovalProvider: ({ children }: { children: ReactNode }) => children,
+  ThreadApprovalProvider: ({ children, threadId }: { children: ReactNode; threadId?: string }) => {
+    state.approvalThread = threadId;
+    return children;
+  },
 }));
 vi.mock('../approvals/ThreadApprovalControls', () => ({ ThreadApprovalQueue: () => null }));
 vi.mock('../threads/ThreadContextBanner', () => ({
@@ -82,28 +95,45 @@ vi.mock('../threads/ThreadContextBanner', () => ({
     </div>
   ),
 }));
-vi.mock('./ThreadView', () => ({
-  ThreadView: ({
-    threadId,
-    eventId,
-    header,
-    autoFocus,
-  }: {
-    threadId: string;
-    eventId?: string;
-    header?: ReactNode;
-    autoFocus?: boolean;
-  }) => (
-    <div
-      data-testid="thread-view"
-      data-thread={threadId}
-      data-event={eventId}
-      data-autofocus={autoFocus}
-    >
-      {header}
-    </div>
-  ),
-}));
+// The column's view, whose key is COLUMN_VIEW, hands its composer over as it unmounts.
+vi.mock('./ThreadView', async () => {
+  const { useEffect, useRef } = await import('react');
+  return {
+    ThreadView: ({
+      threadId,
+      eventId,
+      header,
+      autoFocus,
+      hidden,
+      onThreadLoadError,
+      onUnmount,
+    }: {
+      threadId: string;
+      eventId?: string;
+      header?: ReactNode;
+      autoFocus?: boolean;
+      hidden?: boolean;
+      onThreadLoadError?: (threadId: string) => void;
+      onUnmount?: (view: string, threadId: string) => void;
+    }) => {
+      const last = useRef({ threadId, onUnmount });
+      last.current = { threadId, onUnmount };
+      useEffect(() => () => last.current.onUnmount?.('column', last.current.threadId), []);
+      state.columnLoadError = onThreadLoadError;
+      return (
+        <div
+          data-testid="thread-view"
+          data-thread={threadId}
+          data-event={eventId}
+          data-autofocus={autoFocus}
+          data-hidden={hidden}
+        >
+          {header}
+        </div>
+      );
+    },
+  };
+});
 // The composer is its Slate text box.
 vi.mock('../composer/RoomInput', () => ({
   RoomInput: ({ editor }: { editor: Editor }) => (
@@ -130,6 +160,7 @@ beforeEach(() => {
   state.main = undefined;
   state.exit = () => undefined;
   state.focused = [];
+  state.rootDeleted = () => undefined;
   localStorage.clear();
   vi.stubGlobal('PointerEvent', TestPointerEvent);
   vi.stubGlobal(
@@ -165,6 +196,7 @@ const storedLayout = () => localStorage.getItem(LAYOUT_KEY);
 it("opens a thread in the messages' place on first use", () => {
   renderView();
   expect(state.main?.threadId).toBe('$thread');
+  expect(state.approvalThread).toBe('$thread');
   expect(column()).toBeNull();
   // From there it can move beside them.
   expect(screen.getByRole('button', { name: 'Beside' })).toBeDefined();
@@ -181,7 +213,10 @@ it("shows the thread in its own column beside the room's messages once chosen, a
     thread: '$thread',
     event: '$reply',
     autofocus: 'true',
+    hidden: 'false',
   });
+  // The thread's approvals are the column's.
+  expect(state.approvalThread).toBeUndefined();
   expect(screen.getByRole('separator', { name: 'Resize the thread' })).toBeDefined();
 });
 
@@ -269,7 +304,7 @@ it('counts nothing more on screen while a side panel takes the place of the mess
   getDefaultStore().set(conversationBehindPanelAtom, true);
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   renderView();
-  expect(column()).not.toBeNull();
+  expect(column()?.dataset.hidden).toBe('true');
   expect(getDefaultStore().get(shownConversationViewsAtom)).toEqual([]);
 });
 
@@ -299,4 +334,75 @@ it.each([
   expect(state.main?.threadId).toBe('$thread');
   expect(column()).toBeNull();
   expect(screen.queryByRole('button', { name: 'Beside' })).toBeNull();
+});
+
+const rerenderView = (rerender: (ui: ReactNode) => void) =>
+  rerender(
+    <ScreenSizeProvider value={ScreenSize.Desktop}>
+      <RoomView room={room} onThreadLoadError={onLoadError} />
+    </ScreenSizeProvider>
+  );
+const onLoadError = vi.fn();
+
+it("gives the page's composer the column's reply and staged files as the thread takes the messages' place", () => {
+  const store = getDefaultStore();
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  renderView({ onThreadLoadError: onLoadError });
+  // A thread that does not load is the page's to handle.
+  expect(state.columnLoadError).toBe(onLoadError);
+  const reply = { userId: '@bob:example.org', eventId: '$reply', body: 'Reply' };
+  const file = new File(['x'], 'notes.txt');
+  const item = {
+    file,
+    originalFile: file,
+    encInfo: undefined,
+    metadata: { markedAsSpoiler: false },
+  };
+  act(() => {
+    store.set(composerReplyDraftAtom(room.roomId, 'column'), reply);
+    store.set(composerUploadItemsAtom(room.roomId, 'column'), { type: 'PUT', item });
+  });
+  act(() => screen.getByRole('button', { name: 'Full' }).click());
+  expect(store.get(composerReplyDraftAtom(room.roomId, undefined))).toEqual(reply);
+  expect(store.get(composerUploadItemsAtom(room.roomId, undefined))).toEqual([item]);
+  act(() => {
+    store.set(composerReplyDraftAtom(room.roomId, undefined), undefined);
+    store.set(composerUploadItemsAtom(room.roomId, undefined), { type: 'RESET' });
+  });
+});
+
+it("keeps the column's reply and files out of the room's composer when the thread closes, and moves a reply's text there when its unsent root is deleted", () => {
+  const store = getDefaultStore();
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  const local = '~!room:example.org:m2.1';
+  const threadDraft = roomIdToMsgDraftAtomFamily(
+    getRoomInputDraftKey('@alice:example.org', room.roomId, local)
+  );
+  const roomDraft = roomIdToMsgDraftAtomFamily(
+    getRoomInputDraftKey('@alice:example.org', room.roomId)
+  );
+  const text = [{ type: 'paragraph', children: [{ text: 'my reply' }] }] as never;
+  store.set(threadDraft, text);
+  const root = new MatrixEvent({ event_id: local, type: 'm.room.message', content: {} });
+  vi.spyOn(room, 'findEventById').mockReturnValue(root);
+  state.thread = local;
+  state.rootDeleted = vi.fn();
+  const { rerender } = renderView();
+  store.set(composerReplyDraftAtom(room.roomId, 'column'), {
+    userId: '@bob:example.org',
+    eventId: '$reply',
+    body: 'Reply',
+  });
+
+  root.status = EventStatus.CANCELLED;
+  act(() => {
+    room.emit(RoomEvent.LocalEchoUpdated, root, room, local);
+  });
+  expect(state.rootDeleted).toHaveBeenCalledOnce();
+  state.thread = undefined;
+  rerenderView(rerender);
+  expect(store.get(roomDraft)).toEqual(text);
+  expect(store.get(threadDraft)).toEqual([]);
+  expect(store.get(composerReplyDraftAtom(room.roomId, undefined))).toBeUndefined();
+  store.set(roomDraft, []);
 });

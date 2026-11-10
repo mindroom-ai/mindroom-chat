@@ -241,6 +241,43 @@ it('counts its thread as off screen while the side panel it is in is folded', ()
   ]);
 });
 
+it('counts its thread as off screen while hidden', () => {
+  const store = getDefaultStore();
+  const { rerender } = render(<ThreadView room={room} threadId={THREAD} hidden />);
+  expect(store.get(shownConversationViewsAtom)).toEqual([]);
+  rerender(<ThreadView room={room} threadId={THREAD} />);
+  expect(store.get(shownConversationViewsAtom)).toMatchObject([
+    { roomId: room.roomId, threadId: THREAD },
+  ]);
+});
+
+it('hands its key and latest thread to onUnmount while its reply is still there, and its load errors to the page', () => {
+  const store = getDefaultStore();
+  const onThreadLoadError = vi.fn();
+  const seen: unknown[] = [];
+  const onUnmount = vi.fn((view: string, threadId: string) =>
+    seen.push(threadId, store.get(composerReplyDraftAtom(room.roomId, view)))
+  );
+  const props = { room, onThreadLoadError, onUnmount };
+  const { rerender, unmount } = render(<ThreadView {...props} threadId={THREAD} />);
+  expect(state.timeline?.onThreadLoadError).toBe(onThreadLoadError);
+  rerender(<ThreadView {...props} threadId="$other" />);
+  const [view] = state.composerViews;
+  const reply = { userId: '@bob:example.org', eventId: '$reply', body: 'Reply' };
+  act(() => store.set(composerReplyDraftAtom(room.roomId, view), reply));
+  unmount();
+  expect(onUnmount).toHaveBeenCalledOnce();
+  expect(onUnmount).toHaveBeenCalledWith(view, '$other');
+  expect(seen).toEqual(['$other', reply]);
+});
+
+it('asks for the focus with no reply box to take it, and nothing breaks', () => {
+  state.mayPost = false;
+  render(<ThreadView room={room} threadId={THREAD} autoFocus />);
+  expect(composer()).toBeNull();
+  expect(screen.getByTestId('timeline')).toBeDefined();
+});
+
 it('asks for no approvals of a thread whose root the server has not confirmed', () => {
   render(<ThreadView room={room} threadId="~!room:example.org:m1.1" />);
   expect(state.approvals).toMatchObject({ room, threadId: undefined });

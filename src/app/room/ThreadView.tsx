@@ -38,6 +38,7 @@ import {
 import { RoomTimeline } from '../timeline/RoomTimeline';
 import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { MessageLinkCards } from './MessageLinkCards';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
 
 const NO_SUMMARIES: ReadonlyMap<string, ThreadSummaryInfo> = new Map();
 const ignore = () => undefined;
@@ -63,7 +64,9 @@ const TIMELINE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
  * (`shownConversationViewsAtom`) while its side panel is not folded. Timeline and composer share
  * one editor, as in the room view; it has no filter bar or thread summaries, the whole view takes
  * dropped files, and it adds no key handling of its own. The room page's thread column gives it
- * the thread's banner as its `header`, the event its address names, and the focus as it opens.
+ * the thread's banner as its `header`, the event its address names, the focus as it opens,
+ * `hidden` while a side panel takes the page's place, the page's handler of a thread that does not
+ * load, and `onUnmount`, which gets the view's key and thread before its reply and files go.
  */
 export function ThreadView({
   room,
@@ -71,12 +74,18 @@ export function ThreadView({
   eventId,
   header,
   autoFocus = false,
+  hidden = false,
+  onThreadLoadError,
+  onUnmount,
 }: {
   room: Room;
   threadId: string;
   eventId?: string;
   header?: ReactNode;
   autoFocus?: boolean;
+  hidden?: boolean;
+  onThreadLoadError?: (threadId: string) => void;
+  onUnmount?: (view: string, threadId: string) => void;
 }) {
   const client = useMatrixClient();
   const editor = useEditor();
@@ -91,28 +100,31 @@ export function ThreadView({
   const composerShown = !tombstone && permissions.event('m.room.message', client.getSafeUserId());
 
   // The view shows, for read receipts and notifications, while it is mounted, but not while the
-  // side panel it is in is folded to its tab, which keeps it mounted out of sight.
-  const folded = usePanelFrame()?.layout === 'folded';
+  // side panel it is in is folded to its tab, which keeps it mounted out of sight, nor while hidden.
+  const outOfSight = usePanelFrame()?.layout === 'folded' || hidden;
   const setShownViews = useSetAtom(shownConversationViewsAtom);
   const { roomId } = room;
   useEffect(() => {
-    if (folded) return undefined;
+    if (outOfSight) return undefined;
     const place = { view, roomId, threadId };
     setShownViews((shown) => [...shown, place]);
     return () => setShownViews((shown) => shown.filter((other) => other !== place));
-  }, [folded, roomId, setShownViews, threadId, view]);
+  }, [outOfSight, roomId, setShownViews, threadId, view]);
 
   // Its composer's reply and staged files, in each room it showed, go with it as it unmounts: no
   // later view finds them. Until then they stay, as a send under way may still use them.
   const roomsShown = useRef(new Set<string>()).current;
   roomsShown.add(roomId);
+  const last = useLatestRef({ threadId, onUnmount });
   useEffect(
-    () => () =>
+    () => () => {
+      last.current.onUnmount?.(view, last.current.threadId);
       roomsShown.forEach((shownRoomId) => {
         roomIdToReplyDraftAtomFamily.remove(composerStateKey(shownRoomId, view));
         roomIdToUploadItemsAtomFamily.remove(composerStateKey(shownRoomId, view));
-      }),
-    [roomsShown, view]
+      });
+    },
+    [last, roomsShown, view]
   );
 
   const focusConversation = useCallback(() => ReactEditor.focus(editor), [editor]);
@@ -138,6 +150,7 @@ export function ThreadView({
                   threadId={threadId}
                   eventId={eventId}
                   threadHeader={header}
+                  onThreadLoadError={onThreadLoadError}
                   viewMode="threaded"
                   hasMindroomAgents={hasMindroomAgents}
                   editor={editor}

@@ -8,7 +8,7 @@ import React, {
   useRef,
 } from 'react';
 import classNames from 'classnames';
-import { useAtomValue, useSetAtom } from 'jotai';
+import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { EventStatus, RoomEvent, type Room, type RoomEventHandlerMap } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
@@ -27,6 +27,13 @@ import { RoomTombstone } from './RoomTombstone';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { RoomInput } from '../composer/RoomInput';
+import {
+  composerReplyDraftAtom,
+  composerUploadItemsAtom,
+  getRoomInputDraftKey,
+  roomIdToMsgDraftAtomFamily,
+} from '../composer/roomInputDrafts';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
 import { computerOwnsKeyboardEvent } from '../computer/computerFocus';
 import { useSyncEngine } from '../event-store/engine/engineContext';
@@ -41,7 +48,10 @@ import { RoomTimeline, type RoomTimelineProps } from '../timeline/RoomTimeline';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 import { RoomHeaderSlot } from './RoomHeaderSlot';
 import { ConversationCover } from './ConversationCover';
-import { conversationHiddenAtom } from '../navigation/conversationCover';
+import {
+  conversationBehindPanelAtom,
+  conversationHiddenAtom,
+} from '../navigation/conversationCover';
 import { shownConversationViewsAtom } from '../navigation/conversationView';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
 import * as overlay from '../ui/styles/RoomOverlay.css';
@@ -246,11 +256,12 @@ export function RoomView({
   // The thread in its column, or in the messages' place.
   const columnThreadId = threadLayout.beside ? openThreadId : undefined;
   const effectiveThreadId = columnThreadId ? undefined : openThreadId;
-  const localRoot = useLocalEchoRoot(
-    room,
-    openThreadId,
-    threadState.handleThreadRootDeleted ?? ignore
-  );
+  // The unsent root deleted while its thread showed in the column (handOverColumn).
+  const deletedRoot = useRef<string>();
+  const localRoot = useLocalEchoRoot(room, openThreadId, () => {
+    deletedRoot.current = columnThreadId;
+    (threadState.handleThreadRootDeleted ?? ignore)();
+  });
   // An upgraded room takes no more messages; its notice leads to the replacement.
   const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
   // A thread whose root the server has not confirmed keeps its composer: a reply sent there
@@ -262,6 +273,8 @@ export function RoomView({
       : undefined;
   // Under a plugin's cover or behind a side panel the composer takes no keys.
   const hidden = useAtomValue(conversationHiddenAtom);
+  // A side panel in the page's place hides the thread column too; a plugin's cover leaves it.
+  const behindPanel = useAtomValue(conversationBehindPanelAtom);
   useTypeToCompose(editor, composerShown && !hidden);
   useRoomOverlayInsets(areaRef, headerRef, footerRef, dockRef, effectiveThreadId);
 
@@ -285,6 +298,30 @@ export function RoomView({
     setShownViews((shown) => [...shown, place]);
     return () => setShownViews((shown) => shown.filter((other) => other !== place));
   }, [columnThreadId, hidden, roomId, setShownViews]);
+  // The page's composer keeps its reply and staged files as it moves between the room and a thread,
+  // and takes a reply's text to the room when the thread's unsent root is deleted
+  // (useUnconfirmedRootSends). The column's composer, a view of its own, hands them to it as it
+  // goes: to the thread in the messages' place, or the text to the room.
+  const store = useStore();
+  const shownThread = useLatestRef(effectiveThreadId);
+  const handOverColumn = useCallback(
+    (view: string, columnThread: string) => {
+      if (shownThread.current === columnThread) {
+        const reply = store.get(composerReplyDraftAtom(roomId, view));
+        if (reply) store.set(composerReplyDraftAtom(roomId, undefined), reply);
+        const items = store.get(composerUploadItemsAtom(roomId, view));
+        store.set(composerUploadItemsAtom(roomId, undefined), { type: 'PUT', item: items });
+      } else if (deletedRoot.current === columnThread) {
+        const from = roomIdToMsgDraftAtomFamily(
+          getRoomInputDraftKey(myUserId, roomId, columnThread)
+        );
+        const to = roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(myUserId, roomId));
+        if (store.get(to).length === 0) store.set(to, store.get(from));
+        store.set(from, []);
+      }
+    },
+    [myUserId, roomId, shownThread, store]
+  );
   // Focus left in a thread column that closed (or took the messages' place) goes to the composer.
   const hadColumn = useRef(false);
   useEffect(() => {
@@ -381,7 +418,7 @@ export function RoomView({
           <ThreadApprovalProvider
             room={room}
             // A message not yet on the server has no approvals, and no relations to ask for.
-            threadId={focusedThreadId}
+            threadId={isConfirmedMatrixEventId(effectiveThreadId) ? effectiveThreadId : undefined}
             focusConversation={focusConversation}
           >
             <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
@@ -444,6 +481,9 @@ export function RoomView({
               />
             }
             autoFocus
+            hidden={behindPanel}
+            onThreadLoadError={onThreadLoadError}
+            onUnmount={handOverColumn}
           />
         </ResizablePanel>
       )}
