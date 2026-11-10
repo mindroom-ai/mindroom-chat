@@ -101,6 +101,11 @@ function CompactThreadCardBase({ viewModel, onClick, attachment }: CompactThread
     >
       <Box className={css.TitleRow}>
         <Text className={css.TitleText} size="B300" title={titleText} {...ownDirectionBlock}>
+          {isResolved && (
+            <span className={css.ResolvedBadge} data-compact-card-resolved-badge="true">
+              <Icon size="50" src={Icons.Check} aria-hidden="true" />
+            </span>
+          )}
           {displayTitleText}
         </Text>
         {relativeTime && (
@@ -165,7 +170,6 @@ function CompactThreadCardBase({ viewModel, onClick, attachment }: CompactThread
             data-compact-card-resolution-byline="true"
             size="T200"
           >
-            <Icon size="50" src={Icons.Check} aria-hidden="true" />
             <span className={css.ResolutionBylineLabel}>{resolvedByLabel}</span>
           </Text>
         )}
