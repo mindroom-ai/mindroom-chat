@@ -3987,7 +3987,13 @@ describe('RoomInput', () => {
           'Voice recording paused — finish or discard your unsent recording elsewhere in this room',
       });
 
-      // The page showing the thread in the messages' place offers it, as a view of the thread does.
+      // While a view of the thread is open beside it, the page leaves the recording to that view.
+      await act(async () => {
+        renderer.update(composersTree(store, {}, VIEW_THREAD));
+      });
+      expect([...voiceRecorderState.byView.keys()]).toEqual([VIEW]);
+
+      // Without one, the page showing the thread in the messages' place offers it.
       await act(async () => {
         renderer.update(composersTree(store, null, VIEW_THREAD));
       });

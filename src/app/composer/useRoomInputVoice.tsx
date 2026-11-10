@@ -1,4 +1,11 @@
-import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { IContent, MatrixClient } from 'matrix-js-sdk';
@@ -14,6 +21,7 @@ import {
   openVoiceRecorderAtom,
   pendingVoiceSendDraftAtom,
   roomUploadAtomFamily,
+  threadViewVoiceComposersAtom,
   voiceAutoSendPendingAtom,
   voiceComposerKey,
   voiceRecorderRoomAtom,
@@ -121,11 +129,22 @@ export const useRoomInputVoice = ({
   const draftKey = draftBelongsToCurrentSession
     ? voiceComposerKey(pendingVoiceSendDraft.context)
     : undefined;
-  // The room's page also offers the recording of a view of the thread it shows: on a page with no
-  // room for the thread's column, the thread shows only there.
+  // A thread view's composer, while mounted, is the one to offer its thread's recording.
+  const setThreadViewComposers = useSetAtom(threadViewVoiceComposersAtom);
+  // Before the page paints: it would show the recording for a frame.
+  useLayoutEffect(() => {
+    if (view === undefined) return undefined;
+    const entry = { key: composerKey };
+    setThreadViewComposers((entries) => [...entries, entry]);
+    return () => setThreadViewComposers((entries) => entries.filter((other) => other !== entry));
+  }, [composerKey, setThreadViewComposers, view]);
+  const threadViewComposers = useAtomValue(threadViewVoiceComposersAtom);
+  // Without one, the room's page offers it while it shows that thread: on a page with no room for
+  // the thread's column, the thread shows only there.
   const ownsPendingVoiceDraft =
     draftKey === composerKey ||
-    draftKey === voiceComposerKey({ ...composerContext, threadView: true });
+    (draftKey === voiceComposerKey({ ...composerContext, threadView: true }) &&
+      !threadViewComposers.some((entry) => entry.key === draftKey));
   const otherComposerOwnsPendingVoiceDraft = draftBelongsToCurrentSession && !ownsPendingVoiceDraft;
   // The room page keeps an open thread where it is while its recorder shows (RoomView).
   const recorderShown = view === undefined && (voiceRecorderOpen || ownsPendingVoiceDraft);

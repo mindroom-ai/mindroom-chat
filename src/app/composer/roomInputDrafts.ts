@@ -370,6 +370,9 @@ export const voiceComposerKey = ({
 /** The composer whose voice recorder is open, one at a time: opening another closes it. */
 export const openVoiceRecorderAtom = atom<symbol | undefined>(undefined);
 
+/** The composers of thread views that are mounted, by `voiceComposerKey`, each one entry. */
+export const threadViewVoiceComposersAtom = atom<readonly { key: string }[]>([]);
+
 /** The room whose page composer shows its voice recorder: recording, or a recording to send. */
 export const voiceRecorderRoomAtom = atom<string | undefined>(undefined);
 
