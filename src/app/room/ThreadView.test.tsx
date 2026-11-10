@@ -288,7 +288,7 @@ it('leaves the focus where it is when the root of its thread gets its own ID', (
 });
 
 it("hands the page its composer's focus while it is mounted", () => {
-  const focusRef: { current?: () => void } = {};
+  const focusRef: { current: (() => void) | undefined } = { current: undefined };
   const { unmount } = render(<ThreadView room={room} threadId={THREAD} focusRef={focusRef} />);
   act(() => focusRef.current?.());
   expect(document.activeElement).toBe(composer());
