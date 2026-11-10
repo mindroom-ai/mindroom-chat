@@ -1,4 +1,4 @@
-import { MutableRefObject, useContext, useEffect, useLayoutEffect } from 'react';
+import { MutableRefObject, useContext, useEffect, useLayoutEffect, useState } from 'react';
 import { useStore } from 'jotai';
 import { IContent, MatrixClient, Room } from 'matrix-js-sdk';
 import { Descendant, Editor } from 'slate';
@@ -580,7 +580,7 @@ const createSendController = (release: () => void): ComposerSendController => {
     }
   };
 
-  const controller: ComposerSendController = {
+  return {
     api: {
       hasActiveSendSession: () => sendSession !== undefined,
       processSendSession,
@@ -588,19 +588,15 @@ const createSendController = (release: () => void): ComposerSendController => {
     },
     claimed: () => sendSession?.orderedFiles ?? [],
     bind: (next) => {
+      // A composer taking over a send under way takes over the files the send claimed, those
+      // never staged (a voice message) too, so it neither drops them nor sends them twice.
+      if (sendSession && next.attachments !== composer.attachments) {
+        next.attachments.enroll(composer.attachments.snapshot().enrolled);
+      }
       composer = next;
     },
     mount: (attachments) => {
       mounted += 1;
-      // A composer that mounts while a send an earlier one started is under way claims that
-      // send's files still staged again (not those sent or removed), so it neither drops them nor
-      // sends them twice.
-      if (sendSession) {
-        const claimed = new Set(controller.claimed());
-        attachments.enroll(
-          attachments.snapshot(sendSession.roomId).staged.filter((item) => claimed.has(item.file))
-        );
-      }
       const unsubscribe = attachments.subscribe(wake);
       wake();
       return () => {
@@ -610,7 +606,6 @@ const createSendController = (release: () => void): ComposerSendController => {
       };
     },
   };
-  return controller;
 };
 
 // Each composer has one controller per store and account: the room page's (whichever room it
@@ -642,17 +637,18 @@ export const useRoomInputSendSessionController = (
   const store = useStore();
   const view = useContext(ConversationViewContext);
   const byView = controllersOf(store, options.mx);
-  let controller = byView.get(view);
-  if (!controller) {
-    const created = createSendController(() => {
-      if (byView.get(view) === created) byView.delete(view);
-    });
-    byView.set(view, created);
-    controller = created;
-  }
-  const bound = controller;
-  useLayoutEffect(() => bound.bind(options));
+  // Registered as the composer mounts, so a render React drops leaves nothing behind.
+  const [fresh] = useState(() =>
+    createSendController(() => {
+      if (byView.get(view) === fresh) byView.delete(view);
+    })
+  );
+  const controller = byView.get(view) ?? fresh;
+  useLayoutEffect(() => controller.bind(options));
   const { attachments } = options;
-  useEffect(() => bound.mount(attachments), [attachments, bound]);
-  return bound.api;
+  useEffect(() => {
+    if (!byView.has(view)) byView.set(view, controller);
+    return controller.mount(attachments);
+  }, [attachments, byView, controller, view]);
+  return controller.api;
 };

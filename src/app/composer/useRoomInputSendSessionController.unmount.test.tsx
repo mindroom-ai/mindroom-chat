@@ -5,7 +5,7 @@ import { createEditor, type Editor } from 'slate';
 import { describe, expect, it, vi } from 'vitest';
 import type { Room, UploadResponse } from 'matrix-js-sdk';
 import { roomIdToUploadItemsAtomFamily, roomUploadAtomFamily } from './roomInputDrafts';
-import type { TUploadItem } from '../matrix/state/upload';
+import { type TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { ConversationViewContext, composerStateKey } from '../navigation/conversationView';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 import {
@@ -263,6 +263,32 @@ describe('a send that outlives its composer', () => {
     act(() => again.renderer.unmount());
   });
 
+  it('lets an idle controller go with its composer, and keeps one with a send under way', async () => {
+    const store = createStore();
+    const mx = createClient();
+    const idle = mount(store, mx);
+    const idleSessions = idle.composer().sessions;
+    act(() => idle.renderer.unmount());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const next = mount(store, mx);
+    expect(next.composer().sessions).not.toBe(idleSessions);
+
+    stageUploading(store, next.composer(), stagedFile('large.bin'));
+    await act(async () => {
+      await next.composer().sessions.startSendSession();
+    });
+    const busySessions = next.composer().sessions;
+    act(() => next.renderer.unmount());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const again = mount(store, mx);
+    expect(again.composer().sessions).toBe(busySessions);
+    act(() => again.renderer.unmount());
+  });
+
   it('keeps a file removed during the send out of it after the composer mounts again', async () => {
     const store = createStore();
     const mx = createClient();
@@ -285,6 +311,47 @@ describe('a send that outlives its composer', () => {
 
     expect(bodies(mx)).toEqual(['kept.bin', 'caption']);
     expect(again.composer().sessions.hasActiveSendSession()).toBe(false);
+    act(() => again.renderer.unmount());
+  });
+
+  it('keeps a file the send holds but never staged, such as a voice message, when the composer mounts again', async () => {
+    const store = createStore();
+    const mx = createClient();
+    const first = mount(store, mx);
+    const companion = stagedFile('companion.bin');
+    act(() => first.composer().attachments.append(ROOM_ID, [companion]));
+    const voice = stagedFile('voice.ogg');
+    const ready = (item: TUploadItem) => ({
+      file: item.file,
+      status: UploadStatus.Success as const,
+      mxc: `mxc://example.org/${item.file.name}`,
+    });
+    let answerFirst!: () => void;
+    mx.sendMessage.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          answerFirst = () => resolve({ event_id: '$companion' });
+        })
+    );
+    let sent!: Promise<void>;
+    await act(async () => {
+      sent = first.composer().sessions.startSendSession({
+        batch: { fileItems: [companion, voice], uploads: [ready(companion), ready(voice)] },
+        completeWithinCall: true,
+      });
+      await Promise.resolve();
+    });
+    expect(bodies(mx)).toEqual(['companion.bin']);
+
+    // The page is left and opened again while the first file's event is still on its way.
+    act(() => first.renderer.unmount());
+    const again = mount(store, mx);
+    await act(async () => {
+      answerFirst();
+      await sent;
+    });
+
+    expect(bodies(mx)).toEqual(['companion.bin', 'voice.ogg']);
     act(() => again.renderer.unmount());
   });
 
