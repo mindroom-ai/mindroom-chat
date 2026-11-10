@@ -44,8 +44,9 @@ const mocks = vi.hoisted(() => ({
       getCanonicalAlias: () => null;
       membersLoaded: () => boolean;
       getJoinedMembers: () => { userId: string; name: string }[];
-      getThread: () => null;
-      findEventById: (eventId: string) => unknown;
+      // A thread row's room: the row reads the thread's root.
+      getThread?: () => null;
+      findEventById?: (eventId: string) => unknown;
     }
   >(),
 }));

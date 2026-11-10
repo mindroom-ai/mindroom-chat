@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
+import { MatrixEvent } from 'matrix-js-sdk';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -20,6 +21,7 @@ const state = vi.hoisted(() => ({
   items: [] as ThreadListItem[],
   listsComplete: true,
   plugins: [] as RegisteredPlugin[],
+  roots: new Map<string, MatrixEvent>(),
 }));
 vi.mock('../../plugins/registry', () => ({ registeredPlugins: state.plugins }));
 vi.mock('./useThreadListItems', () => ({ useThreadListItems: () => state.items }));
@@ -33,6 +35,8 @@ const mx = {
     roomId,
     getCanonicalAlias: () => null,
     membersLoaded: () => true,
+    getThread: () => null,
+    findEventById: (eventId: string) => state.roots.get(eventId),
   }),
 };
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
@@ -111,6 +115,7 @@ afterEach(() => {
   localStorage.clear();
   state.items = [];
   state.plugins.splice(0);
+  state.roots.clear();
 });
 
 describe('ThreadsNav', () => {
@@ -236,7 +241,7 @@ describe('ThreadsNav', () => {
     expect(screen.getByText('You: done')).toBeTruthy();
   });
 
-  it("previews a reply with the plugin that renders it, after its sender's name", () => {
+  it("previews a reply, and titles a thread without an AI title, with the plugin's preview", () => {
     const content = { msgtype: 'm.text', body: 'Hello there', 'com.example.greeting': {} };
     state.plugins.push({
       id: 'example',
@@ -245,7 +250,7 @@ describe('ThreadsNav', () => {
         {
           match: () => true,
           Component: () => null,
-          preview: () => 'Greeting: Hi',
+          preview: (event: { eventId: string }) => `Card ${event.eventId}`,
           trust: 'server',
         },
       ],
@@ -265,9 +270,15 @@ describe('ThreadsNav', () => {
           },
         }
       ),
+      item('root', ''),
     ];
+    state.roots.set(
+      '$root',
+      new MatrixEvent({ event_id: '$root', type: 'm.room.message', sender: '@tom:x', content })
+    );
     renderNav();
-    expect(screen.getByText('Tom: Greeting: Hi')).toBeTruthy();
+    expect(screen.getByText('Tom: Card $c')).toBeTruthy();
+    expect(screen.getByText('Card $root')).toBeTruthy();
   });
 
   it('writes out direction controls in titles, previews and room names', () => {
