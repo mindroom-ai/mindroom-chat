@@ -42,12 +42,15 @@ export const useTypingStatusUpdater = (
     [mx, roomId]
   );
 
+  // Ends the room's notice for all its composers, with a stop when one was on.
+  const end = useCallback(() => {
+    if (endRoomTyping(mx, roomId)) send(false);
+  }, [mx, roomId, send]);
+
   const stop = useCallback(() => {
     const typing = typingRooms.get(mx)?.get(roomId);
-    if (!typing?.composers.delete(composer) || typing.composers.size > 0) return;
-    endRoomTyping(mx, roomId);
-    send(false);
-  }, [composer, mx, roomId, send]);
+    if (typing?.composers.delete(composer) && typing.composers.size === 0) end();
+  }, [composer, end, mx, roomId]);
 
   const conversationHidden = useConversationHidden();
   useEffect(() => {
@@ -91,22 +94,17 @@ export const useTypingStatusUpdater = (
         typingRooms.set(mx, rooms);
         const room = rooms.get(roomId) ?? { composers: new Set() };
         rooms.set(roomId, room);
-        if (room.composers.has(composer)) return;
+        const first = room.composers.size === 0;
         room.composers.add(composer);
-        if (room.composers.size > 1) return;
+        if (!first) return;
         send(true);
-        room.expiry = setTimeout(() => {
-          if (endRoomTyping(mx, roomId)) send(false);
-        }, TYPING_TIMEOUT_MS);
+        room.expiry = setTimeout(end, TYPING_TIMEOUT_MS);
         return;
       }
       // The setting is the account's: it ends the room's notice, whichever composer is typing.
-      if (hidden && endRoomTyping(mx, roomId)) {
-        send(false);
-        return;
-      }
-      stop();
+      if (hidden) end();
+      else stop();
     },
-    [composer, conversationHidden, hidden, mx, roomId, send, stop]
+    [composer, conversationHidden, end, hidden, mx, roomId, send, stop]
   );
 };

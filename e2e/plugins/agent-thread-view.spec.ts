@@ -215,7 +215,7 @@ test("a plugin's panel shows a thread with its approvals and composer, as the ro
 
 /**
  * Whether the tester types in `roomId`, as the router sees it in its sync, sampled from now on;
- * `longestPause` is the longest time the router saw the tester not typing since `from`.
+ * `longestPause` is the longest time the router saw the tester not typing between `from` and `to`.
  */
 const watchTyping = (stack: AgentStack, roomId: string) => {
   const token = routerToken(stack);
@@ -258,11 +258,13 @@ const watchTyping = (stack: AgentStack, roomId: string) => {
         );
     }
   })();
+  // A failed request shows at `stop`, not as an unhandled rejection before it.
+  loop.catch(() => undefined);
   return {
     typingNow: () => changes.at(-1)?.typing ?? false,
     longestPause: (from: number, to: number) => {
       let typing = false;
-      let pausedAt: number | undefined;
+      let pausedAt = from;
       let longest = 0;
       changes.forEach(({ at, typing: now }) => {
         if (at > to) return;
@@ -272,12 +274,12 @@ const watchTyping = (stack: AgentStack, roomId: string) => {
         }
         if (typing && !now) pausedAt = at;
         if (!typing && now) {
-          longest = Math.max(longest, at - (pausedAt ?? from));
-          pausedAt = undefined;
+          longest = Math.max(longest, at - pausedAt);
+          pausedAt = from;
         }
         typing = now;
       });
-      if (!typing) longest = Math.max(longest, to - (pausedAt ?? from));
+      if (!typing) longest = Math.max(longest, to - pausedAt);
       return longest;
     },
     stop: async () => {
@@ -299,25 +301,29 @@ test("the page's and the plugin's panel's typing is one notice", async ({ page, 
   // Typing in the page's composer, then in the panel's: the others see one notice throughout,
   // also past the time a single notice expires (30 s).
   const typing = watchTyping(stack, stack.rooms.lobby);
-  await pageComposer(page).click();
-  await page.keyboard.type('t');
-  await expect.poll(typing.typingNow, { timeout: 20_000 }).toBe(true);
-  const started = Date.now();
-  for (let key = 0; key < 7; key += 1) {
-    // eslint-disable-next-line no-await-in-loop
-    await page.waitForTimeout(2_000);
-    // eslint-disable-next-line no-await-in-loop
-    await page.keyboard.type('a');
+  let started = 0;
+  try {
+    await pageComposer(page).click();
+    await page.keyboard.type('t');
+    await expect.poll(typing.typingNow, { timeout: 20_000 }).toBe(true);
+    started = Date.now();
+    for (let key = 0; key < 7; key += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await page.waitForTimeout(2_000);
+      // eslint-disable-next-line no-await-in-loop
+      await page.keyboard.type('a');
+    }
+    const box = panel.getByRole('textbox');
+    await box.click();
+    while (Date.now() - started < 45_000) {
+      // eslint-disable-next-line no-await-in-loop
+      await page.keyboard.type('b');
+      // eslint-disable-next-line no-await-in-loop
+      await page.waitForTimeout(2_000);
+    }
+  } finally {
+    await typing.stop();
   }
-  const box = panel.getByRole('textbox');
-  await box.click();
-  while (Date.now() - started < 45_000) {
-    // eslint-disable-next-line no-await-in-loop
-    await page.keyboard.type('b');
-    // eslint-disable-next-line no-await-in-loop
-    await page.waitForTimeout(2_000);
-  }
-  await typing.stop();
   // A single composer's notice also pauses once as it expires, until the next key starts it again.
   expect(typing.longestPause(started, Date.now())).toBeLessThan(6_000);
   await page.keyboard.press('ControlOrMeta+A');

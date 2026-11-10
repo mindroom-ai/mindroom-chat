@@ -966,12 +966,9 @@ describe('thread approval provider rescans', () => {
       </>
     );
     // The page's discovery finds a pending approval and repairs it; later loads stay running.
-    let discoveries = 0;
-    mocks.backfill.mockImplementation((_mx, _scheduler, _room, _thread, origins?: MatrixEvent[]) =>
-      !origins && (discoveries += 1) === 1
-        ? Promise.resolve({ events: [event()], repairedEventIds: [] })
-        : new Promise(() => undefined)
-    );
+    mocks.backfill
+      .mockImplementation(() => new Promise(() => undefined))
+      .mockResolvedValueOnce({ events: [event()], repairedEventIds: [] });
     await act(async () => {
       renderer = create(<Both view={false} />);
     });

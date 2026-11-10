@@ -25,6 +25,7 @@ import {
   enqueueThreadApprovalBackfill,
   useSyncEngine,
 } from '../event-store/engine';
+import { buildBackfillJobKey } from '../event-store/engine/backfillScheduler';
 import {
   threadApprovalJobKind,
   type ThreadApprovalHistoryError,
@@ -258,7 +259,7 @@ function ActiveThreadApprovalProvider({
     const waiters = historyWaiters.get(scheduler) ?? new Map<string, number>();
     historyWaiters.set(scheduler, waiters);
     const kind = threadApprovalJobKind(request.origins);
-    const waitKey = JSON.stringify([room.roomId, threadId, kind]);
+    const waitKey = buildBackfillJobKey(room.roomId, threadId, kind);
     waiters.set(waitKey, (waiters.get(waitKey) ?? 0) + 1);
     const setRequestError = request.origins ? setRepairError : setDiscoveryError;
     fetching.current = true;
