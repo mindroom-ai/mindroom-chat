@@ -262,6 +262,7 @@ export function RoomView({
   const { roomId } = room;
   const areaRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
+  const columnHeaderRef = useRef<HTMLDivElement>(null);
   const footerRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
@@ -471,7 +472,8 @@ export function RoomView({
               threadFilterState={threadState.threadFilterState}
               {...headerProps}
             />
-            <RoomHeaderSlot room={room} headerRef={headerRef} />
+            {/* The plugins' slot shows under the header people see: the column's as it fills. */}
+            {!columnFills && <RoomHeaderSlot room={room} headerRef={headerRef} />}
           </SurfaceProvider>
         </div>
         <div ref={conversationRef} style={CONVERSATION_STYLE}>
@@ -533,6 +535,7 @@ export function RoomView({
             {/* Filling the page, the column has the room's header the room area hides. */}
             {columnFills && (
               <div
+                ref={columnHeaderRef}
                 data-glass-flat="true"
                 className={classNames(overlay.Header, overlay.HeaderInThread)}
                 style={COLUMN_HEADER_STYLE}
@@ -544,6 +547,7 @@ export function RoomView({
                     threadFilterState={threadState.threadFilterState}
                     {...headerProps}
                   />
+                  <RoomHeaderSlot room={room} headerRef={columnHeaderRef} />
                 </SurfaceProvider>
               </div>
             )}
