@@ -55,7 +55,7 @@ import {
   conversationUnderThreadAtom,
 } from '../navigation/conversationCover';
 import { useInert } from '../lib/hooks/useInert';
-import { useShownConversationView } from '../navigation/conversationView';
+import { ROOM_MESSAGES_VIEW, useShownConversationView } from '../navigation/conversationView';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
 import * as overlay from '../ui/styles/RoomOverlay.css';
 import { SurfaceProvider } from '../ui/glass/SurfaceContext';
@@ -190,21 +190,21 @@ const focusOwnsTyping = (): boolean =>
  * before it reached the window, nor a key pressed inside an element marked `data-keeps-typing`:
  * a region that reads keys without a text field (a game, a drawing surface) carries it.
  */
-const useTypeToCompose = (editor: ReturnType<typeof useEditor>, enabled: boolean) => {
+const useTypeToCompose = (focusComposer: () => void, enabled: boolean) => {
   const handleKey = useCallback(
     (evt: KeyboardEvent) => {
       if (!enabled || evt.defaultPrevented || evt.ctrlKey || evt.metaKey || evt.altKey) return;
       if (!/^(Key[A-Z]|Digit\d)$/.test(evt.code ?? '')) return;
       // The agent's computer screen takes its own keystrokes.
       if (computerOwnsKeyboardEvent(evt) || editableActiveElement() || focusOwnsTyping()) return;
-      ReactEditor.focus(editor as ReactEditor);
+      focusComposer();
     },
-    [editor, enabled]
+    [enabled, focusComposer]
   );
   useKeyDown(window, handleKey);
   useShortcut('focusComposer', () => {
     if (!enabled || focusOwnsTyping()) return false;
-    ReactEditor.focus(editor as ReactEditor);
+    focusComposer();
     return true;
   });
 };
@@ -318,7 +318,13 @@ export function RoomView({
   const hidden = useAtomValue(conversationHiddenAtom);
   // A side panel in the page's place hides the thread column too; a plugin's cover leaves it.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
-  useTypeToCompose(editor, composerShown && !hidden);
+  // Under the column that fills the page, typing goes to the column's composer instead.
+  const columnRef = useRef<HTMLDivElement>(null);
+  const focusComposer = useCallback(() => {
+    if (!columnFills) ReactEditor.focus(editor as ReactEditor);
+    else columnRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus();
+  }, [columnFills, editor]);
+  useTypeToCompose(focusComposer, columnFills ? !behindPanel : composerShown && !hidden);
   useRoomOverlayInsets(areaRef, headerRef, footerRef, dockRef, effectiveThreadId);
 
   // The open room (and thread) keeps its history downloads; leaving the room ends them.
@@ -334,7 +340,7 @@ export function RoomView({
 
   // Beside its thread, the page shows the room's messages too, which its address does not name:
   // notifications count the room as on screen, as they do while the page shows only the room.
-  useShownConversationView(!!columnThreadId && !hidden, 'room-messages', roomId);
+  useShownConversationView(!!columnThreadId && !hidden, ROOM_MESSAGES_VIEW, roomId);
   // A reply drafted under an unsent root that is deleted goes to the room's composer, as the page's
   // own composer takes it (useUnconfirmedRootSends); the column's composer has saved it as it went.
   const store = useStore();
@@ -525,7 +531,7 @@ export function RoomView({
           expandLabel={t('thread.showFull')}
           testId="thread-column"
         >
-          <div style={COLUMN_STYLE}>
+          <div ref={columnRef} style={COLUMN_STYLE} data-thread-column>
             {/* Filling the page, the column has the room's header the room area hides. */}
             {columnFills && (
               <div
@@ -542,6 +548,9 @@ export function RoomView({
                   />
                 </SurfaceProvider>
               </div>
+            )}
+            {columnFills && (
+              <BackgroundJobsBar room={room} threadId={columnThreadId} canCancel={canCancelJobs} />
             )}
             <ThreadView
               room={room}

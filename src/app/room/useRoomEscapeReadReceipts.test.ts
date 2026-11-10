@@ -152,6 +152,34 @@ describe('useRoomEscapeReadReceipts', () => {
     act(() => renderer.unmount());
   });
 
+  it.each([
+    ['the room messages read with the focus outside the column', false],
+    ['the thread read with the focus in its column', true],
+  ])('beside the room messages, Escape marks %s', (_what, inColumn) => {
+    keyHotkeyMock.mockReturnValue(true);
+    const store = createStore();
+    store.set(shownConversationViewsAtom, [
+      { view: 'room-messages', roomId: '!room:server' },
+      { view: 'column', roomId: '!room:server', threadId: '$thread' },
+    ]);
+    vi.stubGlobal('document', {
+      activeElement: { closest: (selector: string) => (inColumn ? { selector } : null) },
+    });
+    const renderer = create(
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(Harness, { threadId: '$thread' })
+      )
+    );
+    act(() => {
+      state.handler?.({} as KeyboardEvent);
+    });
+    expect(markThreadAsReadMock).toHaveBeenCalledTimes(inColumn ? 1 : 0);
+    expect(markMainTimelineAsReadMock).toHaveBeenCalledTimes(inColumn ? 0 : 1);
+    act(() => renderer.unmount());
+  });
+
   it('marks only the main timeline read on Escape outside a thread, never the threads', () => {
     keyHotkeyMock.mockReturnValue(true);
     create(React.createElement(Harness));

@@ -70,7 +70,11 @@ vi.mock('../timeline/RoomTimeline', () => ({
 }));
 vi.mock('../timeline/typing/RoomViewTyping', () => ({ RoomViewTyping: () => null }));
 vi.mock('../timeline/RoomViewFollowing', () => ({ RoomViewFollowing: () => null }));
-vi.mock('../background-jobs/BackgroundJobsBar', () => ({ BackgroundJobsBar: () => null }));
+vi.mock('../background-jobs/BackgroundJobsBar', () => ({
+  BackgroundJobsBar: ({ threadId }: { threadId: string | null }) => (
+    <div data-testid="jobs" data-thread={threadId ?? 'room'} />
+  ),
+}));
 vi.mock('../messages/FailedSendActions', () => ({
   FailedSendActions: () => <div>Root not sent</div>,
 }));
@@ -137,6 +141,7 @@ vi.mock('./ThreadView', async () => {
           data-hidden={hidden}
         >
           {header}
+          <div contentEditable suppressContentEditableWarning tabIndex={0} aria-label="Reply" />
         </div>
       );
     },
@@ -519,4 +524,23 @@ it("opens a thread in the messages' place when the room's row is wide but the pa
   renderView();
   expect(column()).toBeNull();
   expect(state.main?.threadId).toBe('$thread');
+});
+
+it("gives the column that fills the page the thread's background jobs and the letters typed with nothing focused", () => {
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  renderView();
+  const jobs = () => screen.getAllByTestId('jobs').map((bar) => bar.dataset.thread);
+  // Beside the messages, the room's bar lists every job, the thread's too.
+  expect(jobs()).toEqual(['room']);
+  fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA' });
+  expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' }));
+  (document.activeElement as HTMLElement).blur();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Full' }));
+  expect(jobs()).toEqual(['room', '$thread']);
+  expect(within(screen.getByTestId('thread-column')).getByTestId('jobs').dataset.thread).toBe(
+    '$thread'
+  );
+  fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA' });
+  expect(document.activeElement).toBe(screen.getByLabelText('Reply'));
 });

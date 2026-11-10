@@ -26,6 +26,9 @@ export const useInConversationView = (): boolean =>
  */
 export const shownConversationViewsAtom = atom<readonly (ViewedPlace & { view: string })[]>([]);
 
+/** The room page's own messages while they show beside the thread's column (room/RoomView.tsx). */
+export const ROOM_MESSAGES_VIEW = 'room-messages';
+
 /** Lists the view `view`, which shows `roomId` (and `threadId`), while `shown` holds. */
 export const useShownConversationView = (
   shown: boolean,
