@@ -172,7 +172,12 @@ const LazyThreadView = lazy(() =>
  * while its side panel is folded or under a phone's navigation drawer. Its menus,
  * and the profile card its rows open, take their Escape at the document, after it bubbled through
  * the plugin's elements; so a plugin that closes its surface on Escape listens on the window, which
- * only an Escape nothing took reaches (one that is not `defaultPrevented`).
+ * only an Escape nothing took reaches (one that is not `defaultPrevented`). Another `room` or
+ * `threadId` starts it afresh, so a send under way finishes with the thread it started in.
  */
 export const ThreadView = (props: { room: Room; threadId: string }) =>
-  createElement(Suspense, { fallback: null }, createElement(LazyThreadView, props));
+  createElement(
+    Suspense,
+    { fallback: null },
+    createElement(LazyThreadView, { ...props, key: `${props.room.roomId}\n${props.threadId}` })
+  );
