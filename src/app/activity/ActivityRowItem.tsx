@@ -357,7 +357,8 @@ export const ActivityRowItem = memo(function ActivityRowItem({
               as="span"
               size="T200"
               priority="400"
-              className={css.Preview}
+              // An approval shows its whole command above the Approve button, never a cut one.
+              className={row.kind === 'approval' ? css.PreviewWhole : css.Preview}
               {...ownDirectionLine}
             >
               {preview}

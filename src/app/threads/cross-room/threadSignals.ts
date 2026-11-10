@@ -303,7 +303,9 @@ export const readThreadSignals = (
       ({ event }) => event.getSender() === userId && event.getTs() > askedAt
     );
     // The message it answers, or the router's relay of it, names whom the agent asks.
-    const source = all.find((event) => event.getId() === questionSourceId(newestAgentReply));
+    // The first turn of a thread answers its root, which the thread's events need not hold.
+    const sourceId = questionSourceId(newestAgentReply);
+    const source = [...all, ...(root ? [root] : [])].find((event) => event.getId() === sourceId);
     const asker = source?.getContent()[ORIGINAL_SENDER_KEY] ?? source?.getSender();
     const askedSomeoneElse = typeof asker === 'string' && asker !== userId && !isAgent(asker);
     if (

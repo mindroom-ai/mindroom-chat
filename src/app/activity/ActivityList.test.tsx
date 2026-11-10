@@ -15,6 +15,7 @@ import { allInvitesAtom } from '../matrix/state/inviteList';
 import type { ActivityRow, ActivityRowsResult } from './activityRows';
 import { activityRowsAtom, activityShowAutomationsAtom } from './activityState';
 import { ActivityList } from './ActivityList';
+import * as css from './ActivityList.css';
 
 const NAMES: Record<string, string> = {
   '@mindroom_code:x': 'Code',
@@ -234,6 +235,12 @@ describe('ActivityList', () => {
       })
     );
     expect(within(rowByTitle('Thread a')).getByRole('button', { name: 'Approve' })).toBeTruthy();
+  });
+
+  it('shows the whole command of an approval, never cut short above its Approve button', () => {
+    renderList({ rows: ROWS, hiddenAutomations: 0 });
+    const command = within(rowByTitle('Thread a')).getByText(/npm run deploy:staging/);
+    expect(command.className).not.toContain(css.Preview);
   });
 
   it('answers a question with the option picked', async () => {

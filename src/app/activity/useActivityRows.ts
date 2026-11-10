@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useAtomValue } from 'jotai';
-import { needsYou, type ActivityRowsResult } from './activityRows';
+import { needsYou, unreadCount, type ActivityRowsResult } from './activityRows';
 import { activityRowsAtom } from './activityState';
 
 /** Activity's rows, as `ActivityRowsFeature` keeps them. */
@@ -11,7 +11,7 @@ export const useActivityBadge = (): { count: number; needsYou: boolean } => {
   const { rows } = useActivityRows();
   return useMemo(
     () => ({
-      count: rows.filter((row) => row.unread).length,
+      count: unreadCount(rows),
       needsYou: rows.some(needsYou),
     }),
     [rows]

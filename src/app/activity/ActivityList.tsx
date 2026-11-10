@@ -16,6 +16,7 @@ import {
   activityDay,
   filterActivityRows,
   needsYou,
+  unreadCount,
   type ActivityRow,
   type ActivityTab,
 } from './activityRows';
@@ -57,23 +58,31 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
   const now = Date.now();
 
-  const shown = useMemo(() => filterActivityRows(rows, tab, unreadOnly), [rows, tab, unreadOnly]);
-  const unreadByTab = useMemo(
-    () =>
-      Object.fromEntries(
-        TABS.map((id) => [id, filterActivityRows(rows, id, true).length])
-      ) as Record<ActivityTab, number>,
-    [rows]
-  );
   // Every pending invite, also those Activity leaves out as spam: the list sorts them.
   const hasInvites = useAtomValue(allInvitesAtom).length > 0;
   const loading = !useAtomValue(crossRoomThreadIndexBootstrappedAtom);
   const place = getViewedPlace(mx, useLocation());
   // The row of the thread, or the invite's room, that the page shows beside the list.
-  const isCurrent = (row: ActivityRow) =>
-    row.type === 'thread'
-      ? place.roomId === row.entry.roomId && place.threadId === row.entry.threadRootId
-      : place.roomId === row.roomId && !place.threadId;
+  const { roomId: shownRoomId, threadId: shownThreadId } = place;
+  const isCurrent = useCallback(
+    (row: ActivityRow) =>
+      row.type === 'thread'
+        ? shownRoomId === row.entry.roomId && shownThreadId === row.entry.threadRootId
+        : shownRoomId === row.roomId && !shownThreadId,
+    [shownRoomId, shownThreadId]
+  );
+  // The row beside the list stays while it is read, so the list does not shift under the reader.
+  const shown = useMemo(
+    () => filterActivityRows(rows, tab, unreadOnly, isCurrent),
+    [rows, tab, unreadOnly, isCurrent]
+  );
+  const unreadByTab = useMemo(
+    () =>
+      Object.fromEntries(
+        TABS.map((id) => [id, unreadCount(filterActivityRows(rows, id, true))])
+      ) as Record<ActivityTab, number>,
+    [rows]
+  );
   // Senders are named from the member lists, which a room the user has not opened lacks.
   const namesVersion = useLoadedRoomMembers(
     mx,

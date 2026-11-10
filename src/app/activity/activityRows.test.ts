@@ -8,6 +8,7 @@ import {
   buildActivityRows,
   filterActivityRows,
   needsYou,
+  unreadCount,
   type ActivityRow,
 } from './activityRows';
 
@@ -105,14 +106,12 @@ describe('buildActivityRows', () => {
     expect(rows).toEqual([]);
   });
 
-  it('names who the index says wrote last when a mention comes only from the highlight count', () => {
-    const named = entry('hl', {
-      threadRecord: { presentation: { lastSenderId: '@mindroom_mind:x' }, status: {} },
-    } as Partial<CrossRoomThreadIndexEntry>);
-    const { rows } = build([[named, { mentionedMe: true, lastReply: undefined }]]);
-    expect(rows.map((row) => row.type === 'thread' && row.actorIds)).toEqual([
-      ['@mindroom_mind:x'],
+  it('names no mentioner for a mention known only from the highlight count', () => {
+    // Who wrote last is not who mentioned the user: the row leads with no one.
+    const { rows } = build([
+      [entry('hl'), { mentionedMe: true, newCount: 1, newSenderIds: ['@mindroom_mind:x'] }],
     ]);
+    expect(rows.map((row) => row.type === 'thread' && row.actorIds)).toEqual([[]]);
   });
 
   it('keeps an older thread while it waits for the user', () => {
@@ -147,6 +146,8 @@ describe('buildActivityRows', () => {
     const shown = build(items, { showAutomations: true });
     expect(shown.rows.map((row) => row.key).sort()).toEqual(['digest', 'ping', 'sweep']);
     expect(shown.hiddenAutomations).toBe(0);
+    // Showing them lists them; it does not make the bell count them.
+    expect(unreadCount(shown.rows)).toBe(unreadCount(hidden.rows));
   });
 
   it('does not call a thread unread when only noise came in', () => {
@@ -215,6 +216,13 @@ describe('filterActivityRows', () => {
     expect(keys('mentions')).toEqual(['m']);
     expect(keys('replies')).toEqual(['f', 'r', 'read']);
     expect(keys('needsYou')).toEqual(['invite:!inv:x', 'q']);
+  });
+
+  it('keeps a read row the page shows beside the list, also when only unread ones are asked for', () => {
+    const shown = (row: ActivityRow) => row.key === 'read';
+    expect(filterActivityRows(rows, 'replies', true, shown).map((row) => row.key)).toContain(
+      'read'
+    );
   });
 
   it('hides read rows when only unread ones are asked for', () => {

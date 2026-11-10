@@ -257,6 +257,10 @@ describe('readThreadSignals', () => {
     const { room: bobs } = await setup(ME, [event({ id: '$bob', ts: 1500 }), asks('$q', '$bob')]);
     expect(readThreadSignals(bobs, ROOT, ME, NOW).pendingQuestion).toBeUndefined();
 
+    // The first turn of Bob's thread answers its root, which the thread's events need not hold.
+    const { room: bobsRoot } = await setup(BOB, [asks('$q', ROOT)]);
+    expect(readThreadSignals(bobsRoot, ROOT, ME, NOW).pendingQuestion).toBeUndefined();
+
     // The router relays the user's message; the agent answers the relay.
     const relay = event({
       id: '$relay',

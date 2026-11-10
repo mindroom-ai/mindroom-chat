@@ -45,6 +45,18 @@ const REPLY_KINDS = new Set<ActivityKind>(['reply', 'finished', 'stopped']);
 /** Whether the row waits for an answer: an approval, a question, an invite. */
 export const needsYou = (row: ActivityRow): boolean => NEEDS_YOU_KINDS.has(row.kind);
 
+/** An automation listed only because Show is on: it neither waits for the user nor names them. */
+const isShownAutomation = (row: ActivityRow): boolean =>
+  row.type === 'thread' &&
+  row.signals.automation &&
+  !row.entry.isInvolved &&
+  !needsYou(row) &&
+  !row.signals.mentionedMe;
+
+/** How many rows are unread for the bell and the tabs; showing automations lists them, no more. */
+export const unreadCount = (rows: ActivityRow[]): number =>
+  rows.filter((row) => row.unread && !isShownAutomation(row)).length;
+
 const threadKind = (signals: ThreadSignals): ActivityThreadRow['kind'] => {
   if (signals.pendingApproval) return 'approval';
   if (signals.pendingQuestion) return 'question';
@@ -54,23 +66,18 @@ const threadKind = (signals: ThreadSignals): ActivityThreadRow['kind'] => {
   return 'reply';
 };
 
-const actorsOf = (
-  kind: ActivityThreadRow['kind'],
-  signals: ThreadSignals,
-  entry: CrossRoomThreadIndexEntry
-): string[] => {
+const actorsOf = (kind: ActivityThreadRow['kind'], signals: ThreadSignals): string[] => {
   if (kind === 'approval') return [signals.pendingApproval?.sender ?? ''];
   if (kind === 'question') return [signals.pendingQuestion?.senderId ?? ''];
   if ((kind === 'finished' || kind === 'stopped') && signals.outcome) {
     return [signals.outcome.senderId];
   }
+  // A mention known only from the highlight count: whoever wrote last need not be who named them.
+  if (kind === 'mention' && !signals.mentionedBy) return [];
   const first = signals.mentionedBy ? [signals.mentionedBy] : [];
   const actors = [...new Set([...first, ...signals.newSenderIds])].filter(Boolean);
   if (actors.length > 0) return actors;
-  if (signals.lastReply) return [signals.lastReply.senderId];
-  // A mention the highlight count tells of, from a message not loaded: the index names who wrote.
-  const indexed = entry.threadRecord.presentation.lastSenderId ?? entry.rootSenderId;
-  return indexed ? [indexed] : [];
+  return signals.lastReply ? [signals.lastReply.senderId] : [];
 };
 
 const compareRows = (a: ActivityRow, b: ActivityRow): number =>
@@ -117,7 +124,7 @@ export const buildActivityRows = ({
     const kind = threadKind(threadSignals);
     // A reply row says who replied; a thread with no counted reply has nothing to tell yet.
     if (kind === 'reply' && !threadSignals.lastReply && threadSignals.newCount === 0) continue;
-    const actorIds = actorsOf(kind, threadSignals, entry);
+    const actorIds = actorsOf(kind, threadSignals);
     rows.push({
       type: 'thread',
       key: entry.key,
@@ -148,10 +155,12 @@ export const buildActivityRows = ({
 export const filterActivityRows = (
   rows: ActivityRow[],
   tab: ActivityTab,
-  unreadOnly: boolean
+  unreadOnly: boolean,
+  /** Rows to keep though read: the one the page shows beside the list, which reading cleared. */
+  keep?: (row: ActivityRow) => boolean
 ): ActivityRow[] =>
   rows.filter((row) => {
-    if (unreadOnly && !row.unread) return false;
+    if (unreadOnly && !row.unread && !keep?.(row)) return false;
     switch (tab) {
       case 'mentions':
         return row.kind === 'mention';
