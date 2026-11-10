@@ -763,7 +763,7 @@
   },
   "activity": {
     "title": "Attività",
-    "unreadOnly": "Non letti",
+    "unreadOnly": "Solo non letti",
     "markAllRead": "Segna tutto come letto",
     "openAsPage": "Apri come pagina",
     "tabs": {
@@ -824,6 +824,9 @@
     "showAutomations": "Mostra",
     "hideAutomations": "Nascondi le esecuzioni di automazioni",
     "allInvites": "Tutti gli inviti",
+    "invitesSummary_one": "{{count}} invito",
+    "invitesSummary_many": "{{count}} inviti",
+    "invitesSummary_other": "{{count}} inviti",
     "caughtUp": "Hai visto tutto",
     "caughtUpDescription": "Qui compaiono le menzioni, le risposte nei tuoi thread e tutto ciò che ti aspetta.",
     "pickTitle": "Scegli un elemento da Attività",

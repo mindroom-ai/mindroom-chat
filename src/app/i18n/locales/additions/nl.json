@@ -752,7 +752,7 @@
   },
   "activity": {
     "title": "Activiteit",
-    "unreadOnly": "Ongelezen",
+    "unreadOnly": "Alleen ongelezen",
     "markAllRead": "Alles als gelezen markeren",
     "openAsPage": "Openen als pagina",
     "tabs": {
@@ -808,6 +808,8 @@
     "showAutomations": "Tonen",
     "hideAutomations": "Automatiseringsruns verbergen",
     "allInvites": "Alle uitnodigingen",
+    "invitesSummary_one": "{{count}} uitnodiging",
+    "invitesSummary_other": "{{count}} uitnodigingen",
     "caughtUp": "Je bent helemaal bij",
     "caughtUpDescription": "Vermeldingen, antwoorden in je threads en alles wat op je wacht, verschijnen hier.",
     "pickTitle": "Kies iets uit Activiteit",

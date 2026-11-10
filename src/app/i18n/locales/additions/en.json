@@ -752,7 +752,7 @@
   },
   "activity": {
     "title": "Activity",
-    "unreadOnly": "Unread",
+    "unreadOnly": "Unread only",
     "markAllRead": "Mark all read",
     "openAsPage": "Open as page",
     "tabs": {
@@ -808,6 +808,8 @@
     "showAutomations": "Show",
     "hideAutomations": "Hide automation runs",
     "allInvites": "All invites",
+    "invitesSummary_one": "{{count}} invite",
+    "invitesSummary_other": "{{count}} invites",
     "caughtUp": "You're all caught up",
     "caughtUpDescription": "Mentions, replies in your threads and anything that waits for you show up here.",
     "pickTitle": "Pick something from Activity",

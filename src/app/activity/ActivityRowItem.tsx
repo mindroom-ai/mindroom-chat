@@ -9,7 +9,8 @@ import { useRelativeTime } from '../i18n/useRelativeTime';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { mxcUrlToHttp } from '../matrix/mediaUrl';
-import { getMemberAvatarMxc } from '../matrix/room';
+import { getMxIdLocalPart } from '../matrix/matrix';
+import { getMemberAvatarMxc, getMemberRawDisplayName } from '../matrix/room';
 import { acceptInvite } from '../notifications/inbox/acceptInvite';
 import { declineInvite } from '../notifications/inbox/declineInvite';
 import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
@@ -278,7 +279,15 @@ export const ActivityRowItem = memo(function ActivityRowItem({
   let actorIds = row.type === 'thread' ? row.actorIds : [];
   if (row.type === 'invite') actorIds = row.inviterId ? [row.inviterId] : [];
   if (asking) actorIds = [asking];
-  const names = actorIds.map((userId) => threadActorName(mx, room, userId));
+  // An inviter is named by the invite's member event, its user ID on a line of its own: an
+  // invited room has no member list to tell a copied name apart, and the ID does that.
+  const names = actorIds.map((userId) =>
+    row.type === 'invite'
+      ? revealDirectionControls(
+          (room && getMemberRawDisplayName(room, userId)) ?? getMxIdLocalPart(userId) ?? userId
+        )
+      : threadActorName(mx, room, userId)
+  );
   const own = row.kind === 'reply' && actorIds.length === 1 && actorIds[0] === mx.getUserId();
   const lead = actorIds[0];
   const avatarMxc = room && lead ? getMemberAvatarMxc(room, lead) : undefined;
@@ -364,6 +373,11 @@ export const ActivityRowItem = memo(function ActivityRowItem({
               {...ownDirectionLine}
             >
               {preview}
+            </Text>
+          )}
+          {row.type === 'invite' && row.inviterId && (
+            <Text as="span" size="T200" priority="300" truncate>
+              {revealDirectionControls(row.inviterId)}
             </Text>
           )}
           {context && (

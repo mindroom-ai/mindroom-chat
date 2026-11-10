@@ -752,7 +752,7 @@
   },
   "activity": {
     "title": "Etkinlik",
-    "unreadOnly": "Okunmamış",
+    "unreadOnly": "Yalnızca okunmamış",
     "markAllRead": "Tümünü okundu olarak işaretle",
     "openAsPage": "Sayfa olarak aç",
     "tabs": {
@@ -808,6 +808,8 @@
     "showAutomations": "Göster",
     "hideAutomations": "Otomasyon çalıştırmalarını gizle",
     "allInvites": "Tüm davetler",
+    "invitesSummary_one": "{{count}} davet",
+    "invitesSummary_other": "{{count}} davet",
     "caughtUp": "Her şeyi gördünüz",
     "caughtUpDescription": "Bahsetmeler, konularınızdaki yanıtlar ve sizi bekleyen her şey burada görünür.",
     "pickTitle": "Etkinlikten bir öğe seçin",

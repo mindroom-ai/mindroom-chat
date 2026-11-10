@@ -763,7 +763,7 @@
   },
   "activity": {
     "title": "Activité",
-    "unreadOnly": "Non lus",
+    "unreadOnly": "Non lus seulement",
     "markAllRead": "Tout marquer comme lu",
     "openAsPage": "Ouvrir dans une page",
     "tabs": {
@@ -824,6 +824,9 @@
     "showAutomations": "Afficher",
     "hideAutomations": "Masquer les exécutions d’automatisation",
     "allInvites": "Toutes les invitations",
+    "invitesSummary_one": "{{count}} invitation",
+    "invitesSummary_many": "{{count}} invitations",
+    "invitesSummary_other": "{{count}} invitations",
     "caughtUp": "Vous êtes à jour",
     "caughtUpDescription": "Les mentions, les réponses dans vos fils et tout ce qui vous attend apparaissent ici.",
     "pickTitle": "Choisissez un élément de l’activité",

@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useMemo, useState } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
-import { Button, Chip, Icon, IconButton, Icons, Spinner, Switch, Text } from 'folds';
+import { Button, Chip, Icon, IconButton, Icons, Spinner, Switch, Text, Tooltip } from 'folds';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -12,6 +12,7 @@ import { getViewedPlace } from '../navigation/viewedPlace';
 import { settingsAtom } from '../preferences/settings';
 import { useSetting } from '../preferences/useSetting';
 import { getActivityInvitesPath, getActivityRoomPath, withSearchParam } from '../routes/pathUtils';
+import { TooltipProvider } from '../ui/directional';
 import {
   activityDay,
   filterActivityRows,
@@ -24,6 +25,7 @@ import { markActivityRowsRead } from './activityActions';
 import { activityShowAutomationsAtom, activityUnreadOnlyAtom } from './activityState';
 import { useActivityRows } from './useActivityRows';
 import { ActivityRowItem } from './ActivityRowItem';
+import { ActivityInvitesRow, INVITES_GATHERED_FROM } from './ActivityInvitesRow';
 import * as css from './ActivityList.css';
 
 const TABS: ActivityTab[] = ['all', 'mentions', 'replies', 'needsYou'];
@@ -100,6 +102,19 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
 
   const waiting = shown.filter(needsYou);
   const rest = shown.filter((row) => !needsYou(row));
+  // Many invites, often a bridge's stale ones, show as one row after what else waits.
+  const invites = waiting.flatMap((row) => (row.type === 'invite' ? [row] : []));
+  const gathered = invites.length >= INVITES_GATHERED_FROM;
+  const waitingRows = gathered ? waiting.filter((row) => row.type !== 'invite') : waiting;
+  const openInvites = () => {
+    navigate(getActivityInvitesPath());
+    onNavigate?.();
+  };
+  const tooltip = (label: string) => (
+    <Tooltip>
+      <Text size="T200">{label}</Text>
+    </Tooltip>
+  );
 
   return (
     <div className={css.List} data-activity-list={variant}>
@@ -119,23 +134,33 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
           </Text>
           <Switch value={unreadOnly} onChange={setUnreadOnly} />
         </label>
-        <IconButton
-          size="300"
-          radii="300"
-          aria-label={t('activity.markAllRead')}
-          onClick={() => void markActivityRowsRead(mx, rows, hideActivity)}
-        >
-          <Icon size="100" src={Icons.CheckTwice} />
-        </IconButton>
+        <TooltipProvider position="Bottom" offset={4} tooltip={tooltip(t('activity.markAllRead'))}>
+          {(triggerRef) => (
+            <IconButton
+              ref={triggerRef}
+              size="300"
+              radii="300"
+              aria-label={t('activity.markAllRead')}
+              onClick={() => void markActivityRowsRead(mx, rows, hideActivity)}
+            >
+              <Icon size="100" src={Icons.CheckTwice} />
+            </IconButton>
+          )}
+        </TooltipProvider>
         {onExpand && (
-          <IconButton
-            size="300"
-            radii="300"
-            aria-label={t('activity.openAsPage')}
-            onClick={onExpand}
-          >
-            <Icon size="100" src={Icons.External} />
-          </IconButton>
+          <TooltipProvider position="Bottom" offset={4} tooltip={tooltip(t('activity.openAsPage'))}>
+            {(triggerRef) => (
+              <IconButton
+                ref={triggerRef}
+                size="300"
+                radii="300"
+                aria-label={t('activity.openAsPage')}
+                onClick={onExpand}
+              >
+                <Icon size="100" src={Icons.External} />
+              </IconButton>
+            )}
+          </TooltipProvider>
         )}
       </div>
       <div className={css.Tabs} role="tablist" aria-label={t('activity.tabsLabel')}>
@@ -178,8 +203,8 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
           )}
         </div>
       ) : (
-        <div role="list">
-          {waiting.map((row) => (
+        <div role="list" className={css.Rows}>
+          {waitingRows.map((row) => (
             <div role="listitem" key={row.key}>
               <ActivityRowItem
                 row={row}
@@ -189,6 +214,11 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
               />
             </div>
           ))}
+          {gathered && (
+            <div role="listitem">
+              <ActivityInvitesRow invites={invites} onOpen={openInvites} />
+            </div>
+          )}
           {rest.map((row, index) => {
             const day = activityDay(row.ts, now);
             const previous = rest[index - 1];
@@ -246,16 +276,7 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
       )}
       {hasInvites && (
         <div className={css.Footer}>
-          <Button
-            size="300"
-            variant="Secondary"
-            fill="None"
-            radii="300"
-            onClick={() => {
-              navigate(getActivityInvitesPath());
-              onNavigate?.();
-            }}
-          >
+          <Button size="300" variant="Secondary" fill="None" radii="300" onClick={openInvites}>
             <Text size="B300">{t('activity.allInvites')}</Text>
           </Button>
         </div>

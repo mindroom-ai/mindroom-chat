@@ -32,6 +32,9 @@ export const Tabs = style({
   borderBlockEnd: hairline,
 });
 
+/** The rows, a little apart, so the tinted ones that wait for an answer read as cards. */
+export const Rows = style({ ...stack, rowGap: toRem(4) });
+
 export const Divider = style({
   paddingBlock: `${space.S300} ${space.S100}`,
   paddingInline: space.S300,

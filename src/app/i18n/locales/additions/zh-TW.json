@@ -741,7 +741,7 @@
   },
   "activity": {
     "title": "動態",
-    "unreadOnly": "未讀",
+    "unreadOnly": "僅未讀",
     "markAllRead": "全部標為已讀",
     "openAsPage": "以頁面開啟",
     "tabs": {
@@ -792,6 +792,7 @@
     "showAutomations": "顯示",
     "hideAutomations": "隱藏自動化執行",
     "allInvites": "所有邀請",
+    "invitesSummary_other": "{{count}} 個邀請",
     "caughtUp": "你已全部看完",
     "caughtUpDescription": "提及、你的討論串中的回覆以及等待你處理的所有事項都會顯示在這裡。",
     "pickTitle": "從動態中選擇一項",

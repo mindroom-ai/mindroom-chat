@@ -763,7 +763,7 @@
   },
   "activity": {
     "title": "Atividade",
-    "unreadOnly": "Não lidos",
+    "unreadOnly": "Só não lidos",
     "markAllRead": "Marcar tudo como lido",
     "openAsPage": "Abrir como página",
     "tabs": {
@@ -824,6 +824,9 @@
     "showAutomations": "Mostrar",
     "hideAutomations": "Ocultar execuções de automatização",
     "allInvites": "Todos os convites",
+    "invitesSummary_one": "{{count}} convite",
+    "invitesSummary_many": "{{count}} convites",
+    "invitesSummary_other": "{{count}} convites",
     "caughtUp": "Está tudo em dia",
     "caughtUpDescription": "As menções, as respostas nos seus tópicos e tudo o que está à sua espera aparecem aqui.",
     "pickTitle": "Escolha algo da Atividade",

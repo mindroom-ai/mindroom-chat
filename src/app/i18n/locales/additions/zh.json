@@ -741,7 +741,7 @@
   },
   "activity": {
     "title": "动态",
-    "unreadOnly": "未读",
+    "unreadOnly": "仅未读",
     "markAllRead": "全部标为已读",
     "openAsPage": "以页面打开",
     "tabs": {
@@ -792,6 +792,7 @@
     "showAutomations": "显示",
     "hideAutomations": "隐藏自动化运行",
     "allInvites": "所有邀请",
+    "invitesSummary_other": "{{count}} 个邀请",
     "caughtUp": "你已全部看完",
     "caughtUpDescription": "提及、你的讨论串中的回复以及等待你处理的所有事项都会显示在这里。",
     "pickTitle": "从动态中选择一项",

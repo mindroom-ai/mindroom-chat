@@ -741,7 +741,7 @@
   },
   "activity": {
     "title": "アクティビティ",
-    "unreadOnly": "未読",
+    "unreadOnly": "未読のみ",
     "markAllRead": "すべて既読にする",
     "openAsPage": "ページとして開く",
     "tabs": {
@@ -792,6 +792,7 @@
     "showAutomations": "表示",
     "hideAutomations": "自動化の実行を非表示",
     "allInvites": "すべての招待",
+    "invitesSummary_other": "{{count}} 件の招待",
     "caughtUp": "すべて確認しました",
     "caughtUpDescription": "メンション、自分のスレッドへの返信、あなたの対応を待っている項目がここに表示されます。",
     "pickTitle": "アクティビティから項目を選択",
