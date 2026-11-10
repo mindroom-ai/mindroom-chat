@@ -1354,10 +1354,7 @@ describe('usePinchToZoom', () => {
         wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('first'));
         wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('second'));
         expect(first.map(({ phase }) => phase)).toEqual(['start', 'move', 'end']);
-        expect(second).toEqual([
-          handed('start', 1, 0, 0),
-          handed('move', Math.exp(0.5), 0, 0),
-        ]);
+        expect(second).toEqual([handed('start', 1, 0, 0), handed('move', Math.exp(0.5), 0, 0)]);
       } finally {
         vi.useRealTimers();
       }
