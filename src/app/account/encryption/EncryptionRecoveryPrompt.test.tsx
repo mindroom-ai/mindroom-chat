@@ -236,6 +236,23 @@ describe('EncryptionRecoveryPrompt', () => {
     expect(store.get(recoveryDialogAtom)).toBeUndefined();
   });
 
+  it('leaving the last encrypted room while the server check is pending leaves the account unprompted', async () => {
+    let answer: (hasSetup: boolean) => void = () => {};
+    vi.mocked(hasServerEncryptionSetup).mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        answer = resolve;
+      })
+    );
+    const { store } = setup(NONE);
+    await act(async () => store.set(allRoomsAtom, { type: 'DELETE', roomId: ENCRYPTED_ROOM }));
+    answer(false);
+    await act(async () => {});
+    expect(store.get(recoveryDialogAtom)).toBeUndefined();
+    await act(async () => store.set(allRoomsAtom, { type: 'PUT', roomId: ENCRYPTED_ROOM }));
+    expect(store.get(recoveryDialogAtom)).toBe('setup');
+    expect(hasServerEncryptionSetup).toHaveBeenCalledTimes(2);
+  });
+
   it('a settled server check that says encryption is set up does not prompt again when the state returns to none', async () => {
     vi.mocked(hasServerEncryptionSetup).mockResolvedValue(true);
     const { store, show } = setup(NONE);

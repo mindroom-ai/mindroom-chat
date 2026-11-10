@@ -153,7 +153,7 @@ With `showEncryptionOption: false` and `defaultEncryption: false` together, the 
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
-| `encryptionRecovery.promptAtStart` | boolean | `true` | The app opens the recovery password Set up or Unlock dialog by itself once the user has joined an encrypted room (at start, or when the first one arrives); `false` stops it. The welcome page cards and Settings still offer them. |
+| `encryptionRecovery.promptAtStart` | boolean | `true` | The app opens the recovery password Set up or Unlock dialog by itself once per app start, as soon as the user has joined an encrypted room (at start, or once a room is joined or turns encryption on); `false` stops it. The welcome page cards and Settings still offer them. |
 
 ### Copy and branding
 
