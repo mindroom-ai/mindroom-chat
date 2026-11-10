@@ -1,12 +1,13 @@
+import { EventEmitter } from 'events';
+import { ClientEvent, RoomEvent } from 'matrix-js-sdk';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
 import type { ThreadSignals } from './threadSignals';
-import { createThreadSignalsReader } from './threadSignalsReader';
+import { createThreadSignalsReader, getThreadSignalsReader } from './threadSignalsReader';
 
-const mocks = vi.hoisted(() => ({ read: vi.fn(), syncedEdit: vi.fn() }));
+const mocks = vi.hoisted(() => ({ read: vi.fn() }));
 vi.mock('./threadSignals', () => ({ readThreadSignals: mocks.read }));
-vi.mock('../../matrix/client/syncedEdits', () => ({ getSyncedEdit: mocks.syncedEdit }));
 
 const NOW = Date.UTC(2026, 10, 9, 12);
 const quiet: ThreadSignals = {
@@ -26,28 +27,12 @@ const entry = (generation = 1, isInvolved = true) =>
   } as CrossRoomThreadIndexEntry);
 
 const makeRoom = () => {
-  const receipt = { eventId: '$a' };
-  const thread = {
-    events: [{ getId: () => '$a' }],
-    getReadReceiptForUserId: () => receipt,
-  };
-  const reactions: unknown[] = [];
-  const room = {
-    getThread: () => thread,
-    getReadReceiptForUserId: () => null,
-    getUnfilteredTimelineSet: () => ({
-      relations: {
-        getChildEventsForEvent: () => ({ getRelations: () => reactions }),
-      },
-    }),
-  } as unknown as Room;
-  return { room, thread, reactions, receipt };
+  const thread = { events: [{ getId: () => '$a' }] };
+  const room = { roomId: '!r:x', getThread: () => thread } as unknown as Room;
+  return { room, thread };
 };
 
-afterEach(() => {
-  mocks.read.mockReset();
-  mocks.syncedEdit.mockReset();
-});
+afterEach(() => mocks.read.mockReset());
 
 describe('createThreadSignalsReader', () => {
   it('reads a thread once while nothing about it changes', () => {
@@ -71,14 +56,15 @@ describe('createThreadSignalsReader', () => {
     expect(mocks.read).toHaveBeenCalledTimes(2);
   });
 
-  it('reads again when the user reads further in the thread, also on another device', () => {
+  it('reads again once its room heard anything: a reaction, a held-back edit, a receipt', () => {
     mocks.read.mockReturnValue(quiet);
-    const { room, receipt } = makeRoom();
-    const reader = createThreadSignalsReader();
+    const { room } = makeRoom();
+    let heard = 0;
+    const reader = createThreadSignalsReader(() => heard);
     reader.read(room, entry(), '@me:x', NOW);
     reader.read(room, entry(), '@me:x', NOW);
     expect(mocks.read).toHaveBeenCalledTimes(1);
-    receipt.eventId = '$b';
+    heard += 1;
     reader.read(room, entry(), '@me:x', NOW);
     expect(mocks.read).toHaveBeenCalledTimes(2);
   });
@@ -96,38 +82,6 @@ describe('createThreadSignalsReader', () => {
     reader.read(room, entry(), '@me:x', NOW + 10_000);
     expect(mocks.read).toHaveBeenCalledTimes(1);
     reader.read(room, entry(), '@me:x', NOW + 60_000);
-    expect(mocks.read).toHaveBeenCalledTimes(2);
-  });
-
-  it('reads again when the card of a waiting approval is edited outside the loaded thread', () => {
-    const approval = {
-      eventId: '$ask',
-      wireStatus: 'pending',
-      approval: { status: 'pending', expiresAt: new Date(NOW + 600_000).toISOString() },
-    };
-    mocks.read.mockReturnValue({ ...quiet, pendingApproval: approval });
-    const { room } = makeRoom();
-    const reader = createThreadSignalsReader();
-    reader.read(room, entry(), '@me:x', NOW);
-    reader.read(room, entry(), '@me:x', NOW);
-    expect(mocks.read).toHaveBeenCalledTimes(1);
-    mocks.syncedEdit.mockImplementation((id: string) =>
-      id === '$ask' ? { getId: () => '$ask-resolved' } : undefined
-    );
-    reader.read(room, entry(), '@me:x', NOW);
-    expect(mocks.read).toHaveBeenCalledTimes(2);
-  });
-
-  it('reads again when a reaction lands on the question it waits on', () => {
-    mocks.read.mockReturnValue({
-      ...quiet,
-      pendingQuestion: { eventId: '$q', senderId: '@mindroom_a:x', text: 'q', options: [] },
-    });
-    const { room, reactions } = makeRoom();
-    const reader = createThreadSignalsReader();
-    reader.read(room, entry(), '@me:x', NOW);
-    reactions.push({});
-    reader.read(room, entry(), '@me:x', NOW);
     expect(mocks.read).toHaveBeenCalledTimes(2);
   });
 
@@ -153,11 +107,31 @@ describe('createThreadSignalsReader', () => {
     reader.read(room, entry(), '@me:x', NOW);
     expect(mocks.read).toHaveBeenCalledTimes(2);
   });
+});
 
-  it('keeps one reader per client', async () => {
-    const { getThreadSignalsReader } = await import('./threadSignalsReader');
-    const mx = {} as MatrixClient;
+describe('getThreadSignalsReader', () => {
+  it('keeps one reader per client', () => {
+    const mx = new EventEmitter() as unknown as MatrixClient;
     expect(getThreadSignalsReader(mx)).toBe(getThreadSignalsReader(mx));
-    expect(getThreadSignalsReader({} as MatrixClient)).not.toBe(getThreadSignalsReader(mx));
+    expect(getThreadSignalsReader(new EventEmitter() as unknown as MatrixClient)).not.toBe(
+      getThreadSignalsReader(mx)
+    );
+  });
+
+  it('reads a thread again after its room heard an event or a receipt', () => {
+    mocks.read.mockReturnValue(quiet);
+    const mx = new EventEmitter();
+    const reader = getThreadSignalsReader(mx as unknown as MatrixClient);
+    const { room } = makeRoom();
+    reader.read(room, entry(), '@me:x', NOW);
+    mx.emit(ClientEvent.Event, { getRoomId: () => '!other:x' });
+    reader.read(room, entry(), '@me:x', NOW);
+    expect(mocks.read).toHaveBeenCalledTimes(1);
+    mx.emit(ClientEvent.Event, { getRoomId: () => '!r:x' });
+    reader.read(room, entry(), '@me:x', NOW);
+    expect(mocks.read).toHaveBeenCalledTimes(2);
+    mx.emit(RoomEvent.Receipt, {}, room);
+    reader.read(room, entry(), '@me:x', NOW);
+    expect(mocks.read).toHaveBeenCalledTimes(3);
   });
 });

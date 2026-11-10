@@ -81,25 +81,34 @@ export const getThreadLastActivityTs = (thread: Thread): number =>
   getLatestVisibleReply(thread)?.getTs() ?? thread.rootEvent?.getTs() ?? 0;
 
 /**
- * A thread is unread when its latest reply, not counting title notices (`isUnreadWorthyReply`), is
- * from another user and newer than the user's thread or unthreaded receipt; a main-timeline receipt
- * reads no replies. A streamed reply is as new as the edit that finished it, which a receipt naming
- * it reads.
+ * Whether `reply`, from another user, is unread by `readState`: newer than the user's thread or
+ * unthreaded receipt; a main-timeline receipt reads no replies. A streamed reply is as new as the
+ * edit that finished it, which a receipt naming it reads.
  */
-export const getThreadUnread = (thread: Thread, userId: string): boolean => {
-  const latestReply = getLatestReply(thread, isUnreadWorthyReply);
-  if (!latestReply || latestReply.getSender() === userId) return false;
-  const finish = getFinishingEdit(latestReply, thread);
+export const isReplyUnread = (
+  thread: Thread,
+  userId: string,
+  reply: MatrixEvent,
+  readState = getThreadReadState(thread, userId)
+): boolean => {
+  if (reply.getSender() === userId) return false;
+  const finish = getFinishingEdit(reply, thread);
   const finishId = finish?.getId();
   if (finishId && threadReceiptNamesEvent(thread, userId, finishId)) return false;
-  const readState = getThreadReadState(thread, userId);
   const readUpToTs = readState?.readUpToTs;
   // The finishing edit comes after its reply, though both may carry the same timestamp.
   const readUpToReply =
-    !!finish &&
-    readUpToTs === latestReply.getTs() &&
-    !!readState?.readEventIds.has(latestReply.getId() ?? '');
-  return readUpToTs === undefined || (finish ?? latestReply).getTs() > readUpToTs || readUpToReply;
+    !!finish && readUpToTs === reply.getTs() && !!readState?.readEventIds.has(reply.getId() ?? '');
+  return readUpToTs === undefined || (finish ?? reply).getTs() > readUpToTs || readUpToReply;
+};
+
+/**
+ * A thread is unread when its latest reply, not counting title notices (`isUnreadWorthyReply`), is
+ * unread (`isReplyUnread`).
+ */
+export const getThreadUnread = (thread: Thread, userId: string): boolean => {
+  const latestReply = getLatestReply(thread, isUnreadWorthyReply);
+  return !!latestReply && isReplyUnread(thread, userId, latestReply);
 };
 
 /**

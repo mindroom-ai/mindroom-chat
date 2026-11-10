@@ -1,13 +1,13 @@
 import { EventType, MatrixEvent, NotificationCountType, RelationType, Room } from 'matrix-js-sdk';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { canSubmitApprovalDecision } from '../../approvals/approvalActions';
-import { getThreadReadState } from '../../event-store/threads/roomThreadList';
+import { getThreadReadState, isReplyUnread } from '../../event-store/threads/roomThreadList';
 import {
   getThreadMessagePreviewText,
   getThreadPreviewLocalization,
   type ThreadPreviewLocalization,
 } from '../../event-store/threads/threadMessagePreview';
-import { getFinishingEdit, threadReceiptNamesEvent } from '../../event-store/threads/streamFinish';
+import { threadReceiptNamesEvent } from '../../event-store/threads/streamFinish';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { getSyncedEdit } from '../../matrix/client/syncedEdits';
 import { getAiRunInfo, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
@@ -239,7 +239,9 @@ export const readThreadSignals = (
     .map((event) => shownOf(event, thread))
     .filter((shown) => countsAsNews(shown) && !isRelay(shown));
   // A receipt can name a reply's edit that the server bundled with it, outside the thread's
-  // timeline (after a reload, on another device): it reads up to that edit.
+  // timeline (after a reload, on another device): it reads up to that edit, and so the replies
+  // before it too.
+  const readState = getThreadReadState(thread, userId);
   const readUpToTs = counted.reduce(
     (upTo, { editId, editTs }) =>
       thread &&
@@ -249,13 +251,16 @@ export const readThreadSignals = (
       threadReceiptNamesEvent(thread, userId, editId)
         ? editTs
         : upTo,
-    getThreadReadState(thread, userId)?.readUpToTs
+    readState?.readUpToTs
   );
-  // A reply is as new as the edit that finished its stream, if one did; a correction is no news.
-  const newAt = ({ event }: Shown) =>
-    getFinishingEdit(event, thread ?? undefined)?.getTs() ?? event.getTs();
-  const isUnread = (shown: Shown) =>
-    shown.event.getSender() !== userId && (readUpToTs === undefined || newAt(shown) > readUpToTs);
+  // Each reply is unread as the thread list reads its latest one.
+  const isUnread = ({ event }: Shown) =>
+    thread
+      ? isReplyUnread(thread, userId, event, {
+          readEventIds: readState?.readEventIds ?? new Set(),
+          readUpToTs,
+        })
+      : event.getSender() !== userId;
   const unread = counted.filter(isUnread);
   const newest = counted.at(-1);
 

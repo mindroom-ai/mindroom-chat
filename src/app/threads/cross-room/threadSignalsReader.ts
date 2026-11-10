@@ -1,6 +1,5 @@
-import { EventType, ReceiptType, RelationType } from 'matrix-js-sdk';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
-import { getSyncedEdit } from '../../matrix/client/syncedEdits';
+import { ClientEvent, MatrixEventEvent, RoomEvent } from 'matrix-js-sdk';
+import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { isPendingApproval } from '../../matrix/protocol/threadApprovalModel';
 import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
 import { readThreadSignals, type ThreadSignals } from './threadSignals';
@@ -19,57 +18,34 @@ export type ThreadSignalsReader = {
   prune: (keep: ReadonlySet<string>) => void;
 };
 
-const reactionCount = (room: Room, eventId: string): number =>
-  room
-    .getUnfilteredTimelineSet()
-    .relations.getChildEventsForEvent(eventId, RelationType.Annotation, EventType.Reaction)
-    ?.getRelations().length ?? 0;
-
-/** The events the user's receipts name, in the thread and unthreaded, public and private. */
-const receiptsOf = (room: Room, rootId: string, userId: string): string => {
-  const thread = room.getThread(rootId);
-  return [ReceiptType.Read, ReceiptType.ReadPrivate]
-    .flatMap((type) => [
-      thread?.getReadReceiptForUserId(userId, false, type)?.eventId ?? '',
-      room.getReadReceiptForUserId(userId, false, type)?.eventId ?? '',
-    ])
-    .join(',');
-};
-
 /**
- * A cache of thread signals. An index entry's `generation` misses changes the signals see: a
- * reaction or an approval card's edit in the loaded thread, a reaction on the question it waits
- * on, the edit that answers its waiting approval, the user's receipts (a read on another device
- * that leaves the thread unread), and the clock that expires an approval; the cache key holds
- * those too.
+ * A cache of thread signals. They depend on more than an index entry's `generation` sees: a
+ * reaction, an edit the thread holds back, a receipt from another device. So a thread is read
+ * again whenever its room heard anything since (`roomChanges`), and once a waiting approval
+ * expires.
  */
-export const createThreadSignalsReader = (): ThreadSignalsReader => {
+export const createThreadSignalsReader = (
+  roomChanges: (room: Room) => number = () => 0
+): ThreadSignalsReader => {
   const cache = new Map<string, Cached>();
   return {
     read: (room, entry, userId, now) => {
       const events = room.getThread(entry.threadRootId)?.events ?? [];
-      const base = [
+      const key = [
         entry.generation,
+        roomChanges(room),
         events.length,
         events.at(-1)?.getId() ?? '',
-        receiptsOf(room, entry.threadRootId, userId),
       ].join(':');
-      // What a thread waits on adds to its key: reactions on the question, the card's synced edit.
-      const keyOf = ({ pendingQuestion, pendingApproval }: ThreadSignals) =>
-        [
-          base,
-          pendingQuestion ? reactionCount(room, pendingQuestion.eventId) : '',
-          pendingApproval ? getSyncedEdit(pendingApproval.eventId)?.getId() ?? '' : '',
-        ].join(':');
       const previous = cache.get(entry.key);
       const approval = previous?.signals.pendingApproval;
       const expired = !!approval && !isPendingApproval(approval, now);
-      if (previous && previous.key === keyOf(previous.signals) && !expired) return previous.signals;
+      if (previous && previous.key === key && !expired) return previous.signals;
       const read = readThreadSignals(room, entry.threadRootId, userId, now);
       // An agent asks whoever it talks with: in a thread the user takes no part in, not them.
       const { pendingQuestion: _theirs, ...others } = read;
       const signals = entry.isInvolved ? read : others;
-      cache.set(entry.key, { key: keyOf(signals), signals });
+      cache.set(entry.key, { key, signals });
       return signals;
     },
     prune: (keep) => {
@@ -84,7 +60,18 @@ const readers = new WeakMap<MatrixClient, ThreadSignalsReader>();
 export const getThreadSignalsReader = (mx: MatrixClient): ThreadSignalsReader => {
   let reader = readers.get(mx);
   if (!reader) {
-    reader = createThreadSignalsReader();
+    // What the client hears, per room: events (also those a thread holds back), decryptions, local
+    // echoes and receipts.
+    const changes = new Map<string, number>();
+    const heard = (roomId: string | undefined) => {
+      if (roomId) changes.set(roomId, (changes.get(roomId) ?? 0) + 1);
+    };
+    const heardEvent = (event: MatrixEvent) => heard(event.getRoomId());
+    mx.on(ClientEvent.Event, heardEvent);
+    mx.on(MatrixEventEvent.Decrypted, heardEvent);
+    mx.on(RoomEvent.LocalEchoUpdated, heardEvent);
+    mx.on(RoomEvent.Receipt, (_receipt, room) => heard(room.roomId));
+    reader = createThreadSignalsReader((room) => changes.get(room.roomId) ?? 0);
     readers.set(mx, reader);
   }
   return reader;
