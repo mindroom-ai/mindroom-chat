@@ -1,5 +1,5 @@
 import { type CSSProperties, useCallback, useEffect, useId, useMemo, useRef } from 'react';
-import { useSetAtom, useStore } from 'jotai';
+import { useSetAtom } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { Box } from 'folds';
@@ -26,9 +26,7 @@ import {
 import {
   roomIdToReplyDraftAtomFamily,
   roomIdToUploadItemsAtomFamily,
-  roomUploadAtomFamily,
 } from '../composer/roomInputDrafts';
-import { UploadStatus } from '../matrix/state/upload';
 import { RoomTimeline } from '../timeline/RoomTimeline';
 import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { MessageLinkCards } from './MessageLinkCards';
@@ -84,24 +82,16 @@ export function ThreadView({ room, threadId }: { room: Room; threadId: string })
   }, [folded, roomId, setShownViews, threadId, view]);
 
   // Its composer's reply and staged files, in each room it showed, go with it as it unmounts: no
-  // later view finds them, and their uploads stop.
-  const store = useStore();
+  // later view finds them. Until then they stay, as a send under way may still use them.
   const roomsShown = useRef(new Set<string>()).current;
   roomsShown.add(roomId);
   useEffect(
     () => () =>
       roomsShown.forEach((shownRoomId) => {
-        const key = composerStateKey(shownRoomId, view);
-        store.get(roomIdToUploadItemsAtomFamily(key)).forEach(({ file }) => {
-          const upload = store.get(roomUploadAtomFamily(file));
-          if (upload.status !== UploadStatus.Loading) return;
-          client.cancelUpload(upload.promise);
-          store.set(roomUploadAtomFamily(file), { status: UploadStatus.Idle });
-        });
-        roomIdToReplyDraftAtomFamily.remove(key);
-        roomIdToUploadItemsAtomFamily.remove(key);
+        roomIdToReplyDraftAtomFamily.remove(composerStateKey(shownRoomId, view));
+        roomIdToUploadItemsAtomFamily.remove(composerStateKey(shownRoomId, view));
       }),
-    [client, roomsShown, store, view]
+    [roomsShown, view]
   );
 
   const focusConversation = useCallback(() => ReactEditor.focus(editor), [editor]);
