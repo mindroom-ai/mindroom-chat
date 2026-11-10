@@ -1,7 +1,13 @@
-import { useEffect } from 'react';
-import { useStore } from 'jotai';
+import { useCallback, useEffect } from 'react';
+import { useAtomValue, useStore } from 'jotai';
+import type { MatrixClient, MatrixEvent } from 'matrix-js-sdk';
 import { useClientConfig } from '../../config/useClientConfig';
+import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
+import { matchesEnum } from '../../lib/matchesEnum';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { useStateEventCallback } from '../../matrix/hooks/useStateEventCallback';
+import { allRoomsAtom } from '../../matrix/state/roomList';
+import { StateEvent } from '../../matrix/types/room';
 import { hasServerEncryptionSetup } from '../devices/serverEncryptionSetup';
 import { recoveryDialogAtom } from './recoveryDialog';
 import { useRecoveryState } from './recoveryState';
@@ -12,11 +18,29 @@ const promptedAccounts = new Set<string>();
 export const resetPromptedAccountsForTests = () => promptedAccounts.clear();
 
 /**
+ * Whether the user has joined a room with encryption on; follows joins, leaves and a joined room
+ * turning encryption on.
+ */
+const useHasEncryptedRoom = (mx: MatrixClient): boolean => {
+  const roomIds = useAtomValue(allRoomsAtom);
+  const [, refresh] = useForceUpdate();
+  const refreshOnEncryption = useCallback(
+    (event: MatrixEvent) => {
+      if (matchesEnum(event.getType(), StateEvent.RoomEncryption)) refresh();
+    },
+    [refresh]
+  );
+  useStateEventCallback(mx, refreshOnEncryption);
+  return roomIds.some((roomId) => mx.getRoom(roomId)?.hasEncryptionStateEvent() ?? false);
+};
+
+/**
  * Opens the recovery password Set up dialog (an account with no encryption setup) or Unlock
  * dialog (a new session on an account with a recovery password) by itself, once per account per
- * app start. `encryptionRecovery.promptAtStart: false` turns it off, as does encryption being
- * off by policy. It never replaces a dialog that is already open, and a session that has been
- * verified is never prompted. Renders nothing.
+ * app start, as soon as the user has joined an encrypted room: before that there is nothing to
+ * protect or unlock. `encryptionRecovery.promptAtStart: false` turns it off, as does encryption
+ * being off by policy. It never replaces a dialog that is already open, and a session that has
+ * been verified is never prompted. Renders nothing.
  */
 export function EncryptionRecoveryPrompt() {
   const mx = useMatrixClient();
@@ -25,8 +49,10 @@ export function EncryptionRecoveryPrompt() {
   const { kind } = useRecoveryState();
   const userId = mx.getSafeUserId();
   const hasCrypto = Boolean(mx.getCrypto());
+  const hasEncryptedRoom = useHasEncryptedRoom(mx);
   const enabled =
     hasCrypto &&
+    hasEncryptedRoom &&
     encryptionRecovery?.promptAtStart !== false &&
     !(createRoom?.showEncryptionOption === false && createRoom?.defaultEncryption === false);
 

@@ -160,7 +160,10 @@ export type ClientConfig = {
   };
 
   encryptionRecovery?: {
-    /** `false` stops the app from opening the recovery password Set up or Unlock dialog at start. */
+    /**
+     * `false` stops the app from opening the recovery password Set up or Unlock dialog by itself,
+     * which it does once the user has joined an encrypted room.
+     */
     promptAtStart?: boolean;
   };
 
