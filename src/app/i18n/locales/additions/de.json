@@ -753,6 +753,7 @@
   "activity": {
     "title": "Aktivität",
     "unreadOnly": "Ungelesen",
+    "unreadOnlyHint": "Nur Ungelesenes zeigen",
     "markAllRead": "Alle als gelesen markieren",
     "openAsPage": "Als Seite öffnen",
     "tabs": {
@@ -808,6 +809,8 @@
     "showAutomations": "Anzeigen",
     "hideAutomations": "Automatisierungsläufe ausblenden",
     "allInvites": "Alle Einladungen",
+    "invitesSummary_one": "{{count}} Einladung",
+    "invitesSummary_other": "{{count}} Einladungen",
     "caughtUp": "Du bist auf dem neuesten Stand",
     "caughtUpDescription": "Erwähnungen, Antworten in deinen Threads und alles, was auf dich wartet, erscheinen hier.",
     "pickTitle": "Wähle etwas aus der Aktivität",

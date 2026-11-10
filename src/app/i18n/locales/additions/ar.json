@@ -797,6 +797,7 @@
   "activity": {
     "title": "النشاط",
     "unreadOnly": "غير المقروءة",
+    "unreadOnlyHint": "إظهار غير المقروءة فقط",
     "markAllRead": "تعليم الكل كمقروء",
     "openAsPage": "فتح كصفحة",
     "tabs": {
@@ -872,6 +873,12 @@
     "showAutomations": "عرض",
     "hideAutomations": "إخفاء تشغيلات الأتمتة",
     "allInvites": "كل الدعوات",
+    "invitesSummary_zero": "دعوات: ⁨{{count}}⁩",
+    "invitesSummary_one": "دعوات: ⁨{{count}}⁩",
+    "invitesSummary_two": "دعوات: ⁨{{count}}⁩",
+    "invitesSummary_few": "دعوات: ⁨{{count}}⁩",
+    "invitesSummary_many": "دعوات: ⁨{{count}}⁩",
+    "invitesSummary_other": "دعوات: ⁨{{count}}⁩",
     "caughtUp": "لقد اطّلعت على كل شيء",
     "caughtUpDescription": "تظهر هنا الإشارات والردود في سلاسل محادثاتك وكل ما ينتظرك.",
     "pickTitle": "اختر عنصرًا من النشاط",

@@ -11,6 +11,7 @@ import { useRoomMindroomServer } from './useRoomMindroomServer';
 
 const PUBLISHED = 'https://published.example.org';
 const DEPLOYMENT = 'https://deployment.example.org';
+const OTHER = 'https://other.example.org';
 
 const state = vi.hoisted(() => ({
   // Undefined asks the homeserver, as the app does.
@@ -33,12 +34,14 @@ vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => state.m
 // The homeserver binds tokens when a test asks it.
 vi.mock('../matrix/openidAudience', () => ({ readOpenIdBinding: async () => true }));
 
-const server = (preference: string | null, deploymentUrl?: string) => {
+const server = (preference: string | null, deploymentUrl?: string, trustedApiUrls?: string[]) => {
   const store = createStore();
   store.set(computerServicePreferenceAtom, preference);
   const wrapper = ({ children }: { children: ReactNode }) => (
     <Provider store={store}>
-      <ClientConfigProvider value={{ mindroom: { computers: { apiUrl: deploymentUrl } } }}>
+      <ClientConfigProvider
+        value={{ mindroom: { computers: { apiUrl: deploymentUrl, trustedApiUrls } } }}
+      >
         {children}
       </ClientConfigProvider>
     </Provider>
@@ -60,12 +63,28 @@ describe('useRoomMindroomServer', () => {
   // This device's choice of server for agents' computers, or computers turned off, never counts:
   // call transcripts and plugin routes need the MindRoom whose router is in the room.
   describe.each([null, 'https://other.example.org', ''])('with the preference %j', (preference) => {
-    it("is the room's published server while the homeserver binds tokens to it", () => {
+    it("is the room's published server while the homeserver binds tokens to it and it is trusted", () => {
       state.published = PUBLISHED;
-      expect(server(preference, DEPLOYMENT)).toEqual({
+      expect(server(preference, DEPLOYMENT, [PUBLISHED])).toEqual({
         apiUrl: PUBLISHED,
         pending: false,
       });
+      expect(server(preference, undefined, [PUBLISHED]).apiUrl).toBe(PUBLISHED);
+    });
+
+    // Any account on the homeserver named like an agent can publish one.
+    it("keeps the deployment's server when the published one is not on the trusted list", () => {
+      state.published = PUBLISHED;
+      expect(server(preference, DEPLOYMENT)).toEqual({ apiUrl: DEPLOYMENT, pending: false });
+      expect(server(preference, DEPLOYMENT, [OTHER]).apiUrl).toBe(DEPLOYMENT);
+      expect(server(preference, undefined, [OTHER]).apiUrl).toBeUndefined();
+    });
+
+    it('is the published server, unchecked, with neither a configured server nor a list', () => {
+      state.published = PUBLISHED;
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      expect(server(preference).apiUrl).toBe(PUBLISHED);
+      warn.mockRestore();
     });
 
     it("is the deployment's server when none is published or tokens are not bound", () => {
@@ -75,7 +94,7 @@ describe('useRoomMindroomServer', () => {
       });
       state.published = PUBLISHED;
       state.bindsTokens = false;
-      expect(server(preference, DEPLOYMENT)).toEqual({
+      expect(server(preference, DEPLOYMENT, [PUBLISHED])).toEqual({
         apiUrl: DEPLOYMENT,
         pending: false,
       });
@@ -98,7 +117,9 @@ describe('useRoomMindroomServer', () => {
     } as unknown as MatrixClient;
     const wrapper = ({ children }: { children: ReactNode }) => (
       <MatrixClientProvider value={mx}>
-        <ClientConfigProvider value={{ mindroom: { computers: { apiUrl: DEPLOYMENT } } }}>
+        <ClientConfigProvider
+          value={{ mindroom: { computers: { apiUrl: DEPLOYMENT, trustedApiUrls: [PUBLISHED] } } }}
+        >
           {children}
         </ClientConfigProvider>
       </MatrixClientProvider>

@@ -1,4 +1,5 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
+import type { ClientConfig } from '../config/useClientConfig';
 import { resolveComputerApiUrl } from './api';
 
 /** Each MindRoom agent's server in a room, as state keyed by the agent's own user ID. */
@@ -45,3 +46,39 @@ export const isLoopbackOrigin = (origin: string): boolean => {
 export const distinctServerUrls = (servers: AgentServer[]): string[] => [
   ...new Set([...servers].sort((a, b) => b.ts - a.ts).map((server) => server.apiUrl)),
 ];
+
+/**
+ * The origins a published server must be on to count as one: the configured server
+ * (`mindroom.computers.apiUrl`) and those `mindroom.computers.trustedApiUrls` lists, since any
+ * account on the homeserver named like an agent can publish one. Undefined while neither is set,
+ * as in a client for any deployment, which has nothing to check a published origin against; a
+ * list that is not an array trusts none of its entries.
+ */
+export const trustedServerOrigins = (
+  computers: NonNullable<ClientConfig['mindroom']>['computers']
+): Set<string> | undefined => {
+  const apiUrl = resolveComputerApiUrl(computers?.apiUrl);
+  const listed: unknown = computers?.trustedApiUrls;
+  if (!apiUrl && listed === undefined) return undefined;
+  const urls: unknown[] = Array.isArray(listed) ? [apiUrl, ...listed] : [apiUrl];
+  return new Set(
+    urls.flatMap((url) => (typeof url === 'string' && resolveComputerApiUrl(url)) || [])
+  );
+};
+
+let warnedUnchecked = false;
+
+/** The published servers on the trusted list; all of them, with a warning, without a list. */
+export const trustedServers = (
+  servers: AgentServer[],
+  trusted: Set<string> | undefined
+): AgentServer[] => {
+  if (trusted) return servers.filter((server) => trusted.has(server.apiUrl));
+  if (servers.length > 0 && !warnedUnchecked) {
+    warnedUnchecked = true;
+    console.warn(
+      'MindRoom servers that agents publish are used unchecked: config.json sets no usable mindroom.computers.apiUrl and no mindroom.computers.trustedApiUrls.'
+    );
+  }
+  return servers;
+};

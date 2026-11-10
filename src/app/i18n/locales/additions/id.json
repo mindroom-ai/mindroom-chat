@@ -742,6 +742,7 @@
   "activity": {
     "title": "Aktivitas",
     "unreadOnly": "Belum dibaca",
+    "unreadOnlyHint": "Tampilkan hanya yang belum dibaca",
     "markAllRead": "Tandai semua dibaca",
     "openAsPage": "Buka sebagai halaman",
     "tabs": {
@@ -792,6 +793,7 @@
     "showAutomations": "Tampilkan",
     "hideAutomations": "Sembunyikan eksekusi otomatisasi",
     "allInvites": "Semua undangan",
+    "invitesSummary_other": "{{count}} undangan",
     "caughtUp": "Semua sudah Anda lihat",
     "caughtUpDescription": "Sebutan, balasan di utas Anda, dan apa pun yang menunggu Anda muncul di sini.",
     "pickTitle": "Pilih sesuatu dari Aktivitas",

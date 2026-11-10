@@ -160,11 +160,12 @@ test('a row opens its thread beside the Activity list, and reading it clears the
   // The list stays beside the thread.
   await expect(list).toBeVisible();
 
-  // With Unread on, the row of the thread beside the list stays while it shows; once the thread
-  // is left, the read row goes.
+  // With Unread on, the row of the thread beside the list stays while it shows, read once the
+  // thread view sends its receipt; once the thread is left, the read row goes.
   await list.getByRole('switch', { name: 'Unread' }).click();
   const row = list.getByText(`When should I leave for the airport ${RUN}?`);
   await expect(row).toBeVisible();
+  await expect(replyRow).not.toContainText('1 new', { timeout: 60_000 });
   await page.goBack();
   await expect(page).toHaveURL(/\/activity\/$/);
   await expect(row).toBeHidden({ timeout: 60_000 });

@@ -775,6 +775,7 @@
   "activity": {
     "title": "Активность",
     "unreadOnly": "Непрочитанные",
+    "unreadOnlyHint": "Показывать только непрочитанные",
     "markAllRead": "Отметить все прочитанными",
     "openAsPage": "Открыть как страницу",
     "tabs": {
@@ -840,6 +841,10 @@
     "showAutomations": "Показать",
     "hideAutomations": "Скрыть запуски автоматизаций",
     "allInvites": "Все приглашения",
+    "invitesSummary_one": "{{count}} приглашение",
+    "invitesSummary_few": "{{count}} приглашения",
+    "invitesSummary_many": "{{count}} приглашений",
+    "invitesSummary_other": "{{count}} приглашения",
     "caughtUp": "Вы всё просмотрели",
     "caughtUpDescription": "Здесь появляются упоминания, ответы в ваших ветках и всё, что ждёт вас.",
     "pickTitle": "Выберите что-нибудь в активности",

@@ -1,14 +1,18 @@
 import { MatrixEvent } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   MINDROOM_SERVER_EVENT,
   distinctServerUrls,
   isLoopbackOrigin,
   parseAgentServer,
   selectAgentServers,
+  trustedServerOrigins,
+  trustedServers,
 } from './agentServer';
 
 const agent = '@mindroom_code:example.org';
+
+const server = (apiUrl: string, ts = 1) => ({ agentUserId: agent, apiUrl, computer: false, ts });
 
 const serverEvent = (
   content: Record<string, unknown>,
@@ -59,12 +63,6 @@ describe('MindRoom server state', () => {
   });
 
   it('lists each origin once, newest first', () => {
-    const server = (apiUrl: string, ts: number) => ({
-      agentUserId: agent,
-      apiUrl,
-      computer: false,
-      ts,
-    });
     expect(
       distinctServerUrls([
         server('http://localhost:8765', 1),
@@ -85,5 +83,73 @@ describe('MindRoom server state', () => {
     ['https://mind.example.org', false],
   ])('tells whether %s is this device', (origin, loopback) => {
     expect(isLoopbackOrigin(origin)).toBe(loopback);
+  });
+});
+
+describe('trusted MindRoom servers', () => {
+  it('trusts the configured server and the listed ones, each read as an origin', () => {
+    expect(
+      trustedServerOrigins({
+        apiUrl: 'https://deployment.example.org/',
+        trustedApiUrls: ['https://other.example.org', ' http://localhost:8765 '],
+      })
+    ).toEqual(
+      new Set([
+        'https://deployment.example.org',
+        'https://other.example.org',
+        'http://localhost:8765',
+      ])
+    );
+  });
+
+  it('trusts only the configured server without a list', () => {
+    expect(trustedServerOrigins({ apiUrl: 'https://deployment.example.org' })).toEqual(
+      new Set(['https://deployment.example.org'])
+    );
+  });
+
+  it('checks against a list without a configured server, and trusts none from an empty or unusable one', () => {
+    expect(trustedServerOrigins({ trustedApiUrls: ['https://other.example.org'] })).toEqual(
+      new Set(['https://other.example.org'])
+    );
+    expect(trustedServerOrigins({ trustedApiUrls: [] })).toEqual(new Set());
+    expect(
+      trustedServerOrigins({ trustedApiUrls: 'https://other.example.org' as unknown as string[] })
+    ).toEqual(new Set());
+    expect(
+      trustedServerOrigins({
+        apiUrl: 'not a url',
+        trustedApiUrls: ['http://mind.example.org', 7 as unknown as string],
+      })
+    ).toEqual(new Set());
+  });
+
+  it('has nothing to check against without a configured server or a list', () => {
+    expect(trustedServerOrigins(undefined)).toBeUndefined();
+    expect(trustedServerOrigins({ apiUrl: '' })).toBeUndefined();
+  });
+
+  it('keeps only the published servers on the list', () => {
+    const servers = [
+      server('https://other.example.org', 2),
+      server('https://deployment.example.org'),
+    ];
+    expect(trustedServers(servers, new Set(['https://deployment.example.org']))).toEqual([
+      server('https://deployment.example.org'),
+    ]);
+    expect(trustedServers(servers, new Set())).toEqual([]);
+  });
+
+  it('keeps every published server without a list, and warns once that none is checked', async () => {
+    vi.resetModules();
+    const fresh = await import('./agentServer');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    expect(fresh.trustedServers([], undefined)).toEqual([]);
+    expect(warn).not.toHaveBeenCalled();
+    const servers = [server('https://other.example.org')];
+    expect(fresh.trustedServers(servers, undefined)).toBe(servers);
+    expect(fresh.trustedServers(servers, undefined)).toBe(servers);
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 });

@@ -753,6 +753,7 @@
   "activity": {
     "title": "কার্যকলাপ",
     "unreadOnly": "অপঠিত",
+    "unreadOnlyHint": "শুধু অপঠিত দেখান",
     "markAllRead": "সব পঠিত হিসেবে চিহ্নিত করুন",
     "openAsPage": "পৃষ্ঠা হিসেবে খুলুন",
     "tabs": {
@@ -808,6 +809,8 @@
     "showAutomations": "দেখান",
     "hideAutomations": "অটোমেশন রান লুকান",
     "allInvites": "সব আমন্ত্রণ",
+    "invitesSummary_one": "{{count}}টি আমন্ত্রণ",
+    "invitesSummary_other": "{{count}}টি আমন্ত্রণ",
     "caughtUp": "আপনি সব দেখে ফেলেছেন",
     "caughtUpDescription": "উল্লেখ, আপনার থ্রেডের উত্তর এবং আপনার অপেক্ষায় থাকা সবকিছু এখানে দেখা যায়।",
     "pickTitle": "কার্যকলাপ থেকে কিছু বেছে নিন",

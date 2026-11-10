@@ -32,6 +32,9 @@ export const Tabs = style({
   borderBlockEnd: hairline,
 });
 
+/** The rows, a little apart, so the tinted ones that wait for an answer read as cards. */
+export const Rows = style({ ...stack, rowGap: toRem(4) });
+
 export const Divider = style({
   paddingBlock: `${space.S300} ${space.S100}`,
   paddingInline: space.S300,
@@ -132,6 +135,9 @@ export const Grow = style({ flexGrow: 1, minInlineSize: 0 });
 
 /** The row's sentence wraps, also inside a user ID, which must show whole after a copied name. */
 export const Sentence = style({ flexGrow: 1, minInlineSize: 0, overflowWrap: 'anywhere' });
+
+/** An inviter's user ID, whole: a long one wraps rather than hide the server that tells it apart. */
+export const WholeId = style({ minInlineSize: 0, overflowWrap: 'anywhere' });
 
 export const UnreadDot = style({
   ...roundDot(8),
