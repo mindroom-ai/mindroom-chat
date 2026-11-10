@@ -31,6 +31,7 @@ const state = vi.hoisted(() => ({
   approvalThread: 'unset' as string | undefined,
   columnLoadError: undefined as ((threadId: string) => void) | undefined,
   rootDeleted: () => undefined as void,
+  resized: [] as (() => void)[],
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
@@ -106,6 +107,7 @@ vi.mock('./ThreadView', async () => {
       autoFocus,
       hidden,
       onThreadLoadError,
+      onMount,
       onUnmount,
     }: {
       threadId: string;
@@ -114,11 +116,15 @@ vi.mock('./ThreadView', async () => {
       autoFocus?: boolean;
       hidden?: boolean;
       onThreadLoadError?: (threadId: string) => void;
+      onMount?: (view: string, threadId: string) => void;
       onUnmount?: (view: string, threadId: string) => void;
     }) => {
-      const last = useRef({ threadId, onUnmount });
-      last.current = { threadId, onUnmount };
-      useEffect(() => () => last.current.onUnmount?.('column', last.current.threadId), []);
+      const last = useRef({ threadId, onMount, onUnmount });
+      last.current = { threadId, onMount, onUnmount };
+      useEffect(() => {
+        last.current.onMount?.('column', last.current.threadId);
+        return () => last.current.onUnmount?.('column', last.current.threadId);
+      }, []);
       state.columnLoadError = onThreadLoadError;
       return (
         <div
@@ -161,11 +167,16 @@ beforeEach(() => {
   state.exit = () => undefined;
   state.focused = [];
   state.rootDeleted = () => undefined;
+  state.resized = [];
   localStorage.clear();
   vi.stubGlobal('PointerEvent', TestPointerEvent);
   vi.stubGlobal(
     'ResizeObserver',
     class {
+      constructor(callback: () => void) {
+        state.resized.push(callback);
+      }
+
       observe() {}
 
       disconnect() {}
@@ -371,7 +382,7 @@ it("gives the page's composer the column's reply and staged files as the thread 
   });
 });
 
-it("keeps the column's reply and files out of the room's composer when the thread closes, and moves a reply's text there when its unsent root is deleted", () => {
+it("hands the room's composer the column's reply as the thread closes, as the page's composer keeps it, and a reply's text when its unsent root is deleted", () => {
   const store = getDefaultStore();
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   const local = '~!room:example.org:m2.1';
@@ -403,6 +414,59 @@ it("keeps the column's reply and files out of the room's composer when the threa
   rerenderView(rerender);
   expect(store.get(roomDraft)).toEqual(text);
   expect(store.get(threadDraft)).toEqual([]);
-  expect(store.get(composerReplyDraftAtom(room.roomId, undefined))).toBeUndefined();
+  expect(store.get(composerReplyDraftAtom(room.roomId, undefined))).toMatchObject({
+    eventId: '$reply',
+  });
   store.set(roomDraft, []);
+  store.set(composerReplyDraftAtom(room.roomId, undefined), undefined);
+});
+
+it("gives the column the page composer's reply and staged files as the thread leaves the messages' place for it, and only then", () => {
+  const store = getDefaultStore();
+  const reply = { userId: '@bob:example.org', eventId: '$reply', body: 'Reply' };
+  const file = new File(['x'], 'notes.txt');
+  const item = {
+    file,
+    originalFile: file,
+    encInfo: undefined,
+    metadata: { markedAsSpoiler: false },
+  };
+  const { rerender } = renderView();
+  act(() => {
+    store.set(composerReplyDraftAtom(room.roomId, undefined), reply);
+    store.set(composerUploadItemsAtom(room.roomId, undefined), { type: 'PUT', item });
+  });
+  act(() => screen.getByRole('button', { name: 'Beside' }).click());
+  expect(store.get(composerReplyDraftAtom(room.roomId, 'column'))).toEqual(reply);
+  expect(store.get(composerUploadItemsAtom(room.roomId, 'column'))).toEqual([item]);
+  expect(store.get(composerReplyDraftAtom(room.roomId, undefined))).toBeUndefined();
+  expect(store.get(composerUploadItemsAtom(room.roomId, undefined))).toEqual([]);
+
+  // A thread opened beside the room's messages takes nothing of the room's composer.
+  act(() => screen.getByRole('button', { name: 'Back' }).click());
+  state.thread = undefined;
+  rerenderView(rerender);
+  expect(store.get(composerReplyDraftAtom(room.roomId, undefined))).toEqual(reply);
+  state.thread = '$next';
+  rerenderView(rerender);
+  expect(column()?.dataset.thread).toBe('$next');
+  expect(store.get(composerReplyDraftAtom(room.roomId, undefined))).toEqual(reply);
+  expect(store.get(composerUploadItemsAtom(room.roomId, undefined))).toEqual([item]);
+  act(() => {
+    store.set(composerReplyDraftAtom(room.roomId, undefined), undefined);
+    store.set(composerUploadItemsAtom(room.roomId, undefined), { type: 'RESET' });
+  });
+});
+
+it('keeps its last answer while the page has no width, as behind a side panel that fills the room', () => {
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  const width = vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(600);
+  renderView();
+  expect(column()).toBeNull();
+  width.mockReturnValue(0);
+  act(() => state.resized.forEach((resized) => resized()));
+  expect(column()).toBeNull();
+  width.mockReturnValue(1000);
+  act(() => state.resized.forEach((resized) => resized()));
+  expect(column()).not.toBeNull();
 });

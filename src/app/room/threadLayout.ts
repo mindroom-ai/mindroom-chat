@@ -42,7 +42,10 @@ export const useThreadLayout = (pageRef: RefObject<HTMLElement>) => {
   useLayoutEffect(() => {
     const page = pageRef.current;
     if (!page) return undefined;
-    const measure = () => setWide(page.clientWidth === 0 || page.clientWidth >= BESIDE_MIN_WIDTH);
+    // No width (behind a side panel that fills the room) keeps the last answer.
+    const measure = () => {
+      if (page.clientWidth > 0) setWide(page.clientWidth >= BESIDE_MIN_WIDTH);
+    };
     measure();
     if (typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(measure);

@@ -33,7 +33,6 @@ import {
   getRoomInputDraftKey,
   roomIdToMsgDraftAtomFamily,
 } from '../composer/roomInputDrafts';
-import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
 import { computerOwnsKeyboardEvent } from '../computer/computerFocus';
 import { useSyncEngine } from '../event-store/engine/engineContext';
@@ -300,18 +299,36 @@ export function RoomView({
   }, [columnThreadId, hidden, roomId, setShownViews]);
   // The page's composer keeps its reply and staged files as it moves between the room and a thread,
   // and takes a reply's text to the room when the thread's unsent root is deleted
-  // (useUnconfirmedRootSends). The column's composer, a view of its own, hands them to it as it
-  // goes: to the thread in the messages' place, or the text to the room.
+  // (useUnconfirmedRootSends). The column's composer, a view of its own, takes them from it when
+  // the thread leaves the messages' place for the column, and hands them back as it goes, with the
+  // text of a reply under a deleted root.
   const store = useStore();
-  const shownThread = useLatestRef(effectiveThreadId);
+  const pageThread = useRef<string>();
+  useEffect(() => {
+    pageThread.current = effectiveThreadId;
+  });
+  const moveComposer = useCallback(
+    (from: string | undefined, to: string | undefined) => {
+      const reply = store.get(composerReplyDraftAtom(roomId, from));
+      if (reply) store.set(composerReplyDraftAtom(roomId, to), reply);
+      store.set(composerReplyDraftAtom(roomId, from), undefined);
+      const item = store.get(composerUploadItemsAtom(roomId, from));
+      store.set(composerUploadItemsAtom(roomId, to), { type: 'PUT', item });
+      store.set(composerUploadItemsAtom(roomId, from), { type: 'RESET' });
+    },
+    [roomId, store]
+  );
+  // The column mounts before this view's effect notes what the page shows now.
+  const takeColumn = useCallback(
+    (view: string, columnThread: string) => {
+      if (pageThread.current === columnThread) moveComposer(undefined, view);
+    },
+    [moveComposer]
+  );
   const handOverColumn = useCallback(
     (view: string, columnThread: string) => {
-      if (shownThread.current === columnThread) {
-        const reply = store.get(composerReplyDraftAtom(roomId, view));
-        if (reply) store.set(composerReplyDraftAtom(roomId, undefined), reply);
-        const items = store.get(composerUploadItemsAtom(roomId, view));
-        store.set(composerUploadItemsAtom(roomId, undefined), { type: 'PUT', item: items });
-      } else if (deletedRoot.current === columnThread) {
+      moveComposer(view, undefined);
+      if (deletedRoot.current === columnThread) {
         const from = roomIdToMsgDraftAtomFamily(
           getRoomInputDraftKey(myUserId, roomId, columnThread)
         );
@@ -320,7 +337,7 @@ export function RoomView({
         store.set(from, []);
       }
     },
-    [myUserId, roomId, shownThread, store]
+    [moveComposer, myUserId, roomId, store]
   );
   // Focus left in a thread column that closed (or took the messages' place) goes to the composer.
   const hadColumn = useRef(false);
@@ -483,6 +500,7 @@ export function RoomView({
             autoFocus
             hidden={behindPanel}
             onThreadLoadError={onThreadLoadError}
+            onMount={takeColumn}
             onUnmount={handOverColumn}
           />
         </ResizablePanel>

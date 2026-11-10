@@ -10,7 +10,7 @@ import { getDefaultStore } from 'jotai';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createClient, Room, type RoomMember } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
-import { Editable, Slate } from 'slate-react';
+import { Editable, ReactEditor, Slate } from 'slate-react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
 import { composerReplyDraftAtom, composerUploadItemsAtom } from '../composer/roomInputDrafts';
@@ -258,17 +258,32 @@ it('hands its key and latest thread to onUnmount while its reply is still there,
   const onUnmount = vi.fn((view: string, threadId: string) =>
     seen.push(threadId, store.get(composerReplyDraftAtom(room.roomId, view)))
   );
-  const props = { room, onThreadLoadError, onUnmount };
+  const onMount = vi.fn();
+  const props = { room, onThreadLoadError, onMount, onUnmount };
   const { rerender, unmount } = render(<ThreadView {...props} threadId={THREAD} />);
   expect(state.timeline?.onThreadLoadError).toBe(onThreadLoadError);
   rerender(<ThreadView {...props} threadId="$other" />);
   const [view] = state.composerViews;
+  expect(onMount).toHaveBeenCalledOnce();
+  expect(onMount).toHaveBeenCalledWith(view, THREAD);
   const reply = { userId: '@bob:example.org', eventId: '$reply', body: 'Reply' };
   act(() => store.set(composerReplyDraftAtom(room.roomId, view), reply));
   unmount();
   expect(onUnmount).toHaveBeenCalledOnce();
   expect(onUnmount).toHaveBeenCalledWith(view, '$other');
   expect(seen).toEqual(['$other', reply]);
+});
+
+it('leaves the focus where it is when the root of its thread gets its own ID', () => {
+  const focus = vi.spyOn(ReactEditor, 'focus');
+  const view = (threadId: string) => <ThreadView room={room} threadId={threadId} autoFocus />;
+  const { rerender } = render(view('~!room:example.org:m1.1'));
+  expect(focus).toHaveBeenCalledTimes(1);
+  rerender(view('$confirmed'));
+  expect(focus).toHaveBeenCalledTimes(1);
+  rerender(view('$another'));
+  expect(focus).toHaveBeenCalledTimes(2);
+  focus.mockRestore();
 });
 
 it('asks for the focus with no reply box to take it, and nothing breaks', () => {

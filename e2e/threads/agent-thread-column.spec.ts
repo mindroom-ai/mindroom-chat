@@ -20,7 +20,7 @@ import { roomHeader } from '../helpers/roomMenu';
 // from the column leaves the room composer's draft alone. The plugin's panel opens to the right of
 // the thread, three columns, and closing it leaves two. Dragging the column's edge over the
 // messages takes the thread to their place, where the next thread opens too, until Show beside
-// again; text and files staged in the column go with the thread. A plugin's page opens a thread with the SDK's `navigateRoomThread` the way chosen. A phone
+// again; text and files staged for the thread go with it both ways. A plugin's page opens a thread with the SDK's `navigateRoomThread` the way chosen. A phone
 // shows the thread in the messages' place whatever was chosen.
 //   MINDROOM_CLIENT_PLUGINS=$PWD/src/app/plugins/__fixtures__/example-plugin \
 //     scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/threads/agent-thread-column.spec.ts
@@ -151,8 +151,29 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   // The next thread opens in the messages' place too, until Show beside.
   const second = await openNewThread(page, stack, `${word}b`);
   await expect(column(page)).toHaveCount(0);
+  // A file staged for the thread in the messages' place goes with it to the column.
+  const staged = `${word}-full.txt`;
+  const fullChooser = page.waitForEvent('filechooser');
+  await page.locator('[data-room-footer]').getByRole('button', { name: 'Attach files' }).click();
+  await (
+    await fullChooser
+  ).setFiles([{ name: staged, mimeType: 'text/plain', buffer: Buffer.from('From the thread.') }]);
+  await expect(page.locator('[data-room-footer]').getByText(staged, { exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
   await showBeside(page);
   await expect(messageRow(column(page), second)).toBeVisible({ timeout: 30_000 });
+  await expect(column(page).getByText(staged, { exact: true })).toBeVisible();
+  await expect(page.locator('[data-room-footer]').getByText(staged, { exact: true })).toHaveCount(
+    0
+  );
+  await columnComposer(page).press('Enter');
+  await waitForThreadEvent(
+    stack,
+    second,
+    (event) => event.sender === stack.tester.userId && event.content.body === staged,
+    { timeout: 60_000, description: 'the file staged in the full view, sent from the column' }
+  );
 
   const third = await openNewThread(page, stack, `${word}c`);
   await expect(messageRow(column(page), third)).toBeVisible({ timeout: 30_000 });
