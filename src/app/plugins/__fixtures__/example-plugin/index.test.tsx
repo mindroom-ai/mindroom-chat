@@ -226,9 +226,9 @@ describe('example plugin', () => {
       id: 'example',
       plugin,
     });
-    // Its build module writes "Example banner" in place of the marker in a build, in the dev server and,
-    // while MINDROOM_CLIENT_PLUGINS lists the plugin, in the unit tests.
-    expect(view.getByText(/^(EXAMPLE_BANNER|Example banner) in Lobby$/)).toBeTruthy();
+    // Its build module, which writes "Example banner" in place of the marker, runs in the unit tests
+    // only while MINDROOM_CLIENT_PLUGINS lists the plugin, and then in this file too.
+    expect(view.getByText('EXAMPLE_BANNER in Lobby')).toBeTruthy();
   });
 
   it("shows in its banner its panel's item dropped on the room's name, and lets a file drag pass", async () => {

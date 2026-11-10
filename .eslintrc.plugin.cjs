@@ -8,9 +8,8 @@ const path = require('node:path');
 const {
   COMMON,
   DIRECTIONAL_COMPONENTS,
-  LOGICAL_SIDES_IN_STYLE_FILES,
-  LOGICAL_SIDES_IN_STYLE_PROPS,
   TYPE_AWARE_RULES,
+  logicalSidesOverrides,
 } = require('./scripts/eslint-shared.cjs');
 
 const TESTS = ['**/*.test.{ts,tsx}', '**/__tests__/**'];
@@ -70,15 +69,6 @@ module.exports = {
       parserOptions: { project: './tsconfig.strict.json' },
       rules: TYPE_AWARE_RULES,
     },
-    {
-      files: ['**/*.{ts,tsx}'],
-      excludedFiles: TESTS,
-      rules: { 'no-restricted-syntax': ['error', ...LOGICAL_SIDES_IN_STYLE_PROPS] },
-    },
-    {
-      files: ['**/*.css.ts'],
-      excludedFiles: TESTS,
-      rules: { 'no-restricted-syntax': ['error', ...LOGICAL_SIDES_IN_STYLE_FILES] },
-    },
+    ...logicalSidesOverrides('', TESTS),
   ],
 };

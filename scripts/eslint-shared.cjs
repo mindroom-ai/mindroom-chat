@@ -73,10 +73,10 @@ const TYPE_AWARE_RULES = {
   '@typescript-eslint/no-unsafe-enum-comparison': 'error',
 };
 
-// Lane C styles follow the reading direction: a right-to-left language mirrors the interface,
+// Styles follow the reading direction: a right-to-left language mirrors the interface,
 // which logical properties (inline start and end) do by themselves, while a physical left or right
-// stays where it is. no-restricted-syntax finds physical sides in the style objects of Lane C
-// sources (tests excepted): vanilla-extract objects in *.css.ts files, inline `style` props, and
+// stays where it is. no-restricted-syntax finds physical sides in the style objects of the sources
+// each config gives `logicalSidesOverrides` (tests excepted): vanilla-extract objects in *.css.ts files, inline `style` props, and
 // any object with a property name only CSS uses (paddingRight, borderLeft). `left` and `right`
 // count only in a *.css.ts file (where a variant named `left` is an object, not a value) and in a
 // `style` prop, because elsewhere they are often coordinates or scroll offsets.
@@ -87,7 +87,7 @@ const TYPE_AWARE_RULES = {
 // and counts. Any other side that must stay physical takes
 // `// eslint-disable-next-line no-restricted-syntax -- <why it stays>` on the line before it.
 //
-// This rule owns no-restricted-syntax for `src/**`: ESLint overrides replace a rule's options
+// This rule owns no-restricted-syntax for those sources: ESLint overrides replace a rule's options
 // instead of merging them, so any other no-restricted-syntax config for these files would drop
 // these selectors (or be dropped). Add a new restriction to the lists below instead.
 const PHYSICAL_NAME = String.raw`/^((margin|padding|scrollMargin|scrollPadding)(Left|Right)|border(Left|Right)(Width|Style|Color)?|border(Top|Bottom)(Left|Right)Radius|(margin|padding|scroll-margin|scroll-padding)-(left|right)|border-(left|right)(-(width|style|color))?|border-(top|bottom)-(left|right)-radius)$/`;
@@ -191,10 +191,25 @@ const LOGICAL_SIDES_IN_STYLE_FILES = [
   },
 ];
 
-module.exports = {
-  COMMON,
-  DIRECTIONAL_COMPONENTS,
-  LOGICAL_SIDES_IN_STYLE_FILES,
-  LOGICAL_SIDES_IN_STYLE_PROPS,
-  TYPE_AWARE_RULES,
-};
+/**
+ * The overrides that find physical sides in the TypeScript files under `prefix` (such as `src/`, or
+ * '' for every one) other than `excludedFiles`. By pattern rather than the list of files on disk,
+ * so text linted under a made-up path gets the rule too.
+ * @param {string} prefix
+ * @param {string[]} excludedFiles
+ */
+const logicalSidesOverrides = (prefix, excludedFiles) => [
+  {
+    files: [`${prefix}**/*.{ts,tsx}`],
+    excludedFiles,
+    rules: { 'no-restricted-syntax': ['error', ...LOGICAL_SIDES_IN_STYLE_PROPS] },
+  },
+  {
+    // A vanilla-extract file is styles throughout, so `left` and `right` count anywhere in it.
+    files: [`${prefix}**/*.css.ts`],
+    excludedFiles,
+    rules: { 'no-restricted-syntax': ['error', ...LOGICAL_SIDES_IN_STYLE_FILES] },
+  },
+];
+
+module.exports = { COMMON, DIRECTIONAL_COMPONENTS, TYPE_AWARE_RULES, logicalSidesOverrides };

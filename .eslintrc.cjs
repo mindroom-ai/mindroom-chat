@@ -8,9 +8,8 @@ const provenancePaths = require('./scripts/provenance-paths.cjs');
 const {
   COMMON,
   DIRECTIONAL_COMPONENTS,
-  LOGICAL_SIDES_IN_STYLE_FILES,
-  LOGICAL_SIDES_IN_STYLE_PROPS,
   TYPE_AWARE_RULES,
+  logicalSidesOverrides,
 } = require('./scripts/eslint-shared.cjs');
 
 function lanePPaths() {
@@ -188,19 +187,8 @@ module.exports = {
         'no-restricted-imports': ['error', DIRECTIONAL_RESTRICTIONS],
       },
     },
-    {
-      // Physical sides in Lane C styles (see LOGICAL_SIDES above). By pattern rather than the
-      // list of files on disk, so text linted under a made-up path gets the rule too.
-      files: ['src/**/*.{ts,tsx}'],
-      excludedFiles: LOGICAL_SIDES_EXCLUDED,
-      rules: { 'no-restricted-syntax': ['error', ...LOGICAL_SIDES_IN_STYLE_PROPS] },
-    },
-    {
-      // A vanilla-extract file is styles throughout, so `left` and `right` count anywhere in it.
-      files: ['src/**/*.css.ts'],
-      excludedFiles: LOGICAL_SIDES_EXCLUDED,
-      rules: { 'no-restricted-syntax': ['error', ...LOGICAL_SIDES_IN_STYLE_FILES] },
-    },
+    // Physical sides in Lane C styles (scripts/eslint-shared.cjs).
+    ...logicalSidesOverrides('src/', LOGICAL_SIDES_EXCLUDED),
     {
       // Domain layers (LAYERS above), in both lanes. Zones resolve from this directory, so the
       // rule does not depend on the directory ESLint runs in.

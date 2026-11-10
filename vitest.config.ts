@@ -7,7 +7,6 @@ import {
   CLIENT_SDK_ALIAS,
   SHARED_PACKAGES,
   buildModulePlugins,
-  pluginOwner,
   readClientPlugins,
 } from './scripts/client-plugins.mjs';
 
@@ -51,7 +50,7 @@ const pluginTests = (dir: string) => [
 
 export default defineConfig({
   // Vite leaves a hook with `apply: 'build'` out, as in the dev server.
-  plugins: [buildModulePlugins(plugins, pluginOwner(plugins))],
+  plugins: [buildModulePlugins(plugins)],
   resolve: {
     // Plugins import the app through the client SDK; their tests also through its `/testing`
     // subpath, which the build leaves out so that code that ships cannot import it.

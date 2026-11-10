@@ -240,10 +240,10 @@ const BUILD_HOOKS = new Map([
  * only for their imports, so that a plugin's hooks see none of the app's modules or another plugin's.
  * Any other hook or property fails the build. The unit tests (vitest.config.ts) run them too.
  * @param {ClientPluginInfo[]} plugins
- * @param {ReturnType<typeof pluginOwner<ClientPluginInfo>>} ownerOf
  * @returns {Promise<import('vite').Plugin[]>}
  */
-export const buildModulePlugins = async (plugins, ownerOf) => {
+export const buildModulePlugins = async (plugins) => {
+  const ownerOf = pluginOwner(plugins);
   const builds = await Promise.all(
     plugins.map(async (plugin) => {
       if (!plugin.build) return [];
@@ -402,5 +402,5 @@ export const clientPlugins = (env = process.env) => {
   };
   // The plugins of their build modules come first, so that the resolveId of one that is `pre` too sees
   // its plugin's imports of the packages the app shares before `app` resolves them.
-  return [buildModulePlugins(plugins, ownerOf), app];
+  return [buildModulePlugins(plugins), app];
 };

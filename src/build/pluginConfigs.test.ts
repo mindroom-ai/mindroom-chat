@@ -197,6 +197,8 @@ describe("a listed plugin's unit tests", () => {
           ...env,
         },
         maxBuffer: 64 * 1024 * 1024,
+        // Ends before the test's own timeout, which would remove the directory it writes into.
+        timeout: 110_000,
       }
     );
 
@@ -225,7 +227,6 @@ describe("a listed plugin's unit tests", () => {
   it("collects them beside the app's own, and none through the plugin's link to the app", async () => {
     const { stdout } = await vitest(['list', '--filesOnly', '--json'], {});
     const files = (JSON.parse(stdout) as { file: string }[]).map(({ file }) => file);
-    expect(files).toContain(TEST);
     expect(files).toContain(path.join(ROOT, 'src/build/pluginConfigs.test.ts'));
     expect(files.filter((file) => file.startsWith(dir))).toEqual([TEST]);
   }, 120_000);
