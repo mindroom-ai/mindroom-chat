@@ -954,6 +954,7 @@ describe('thread approval provider rescans', () => {
     const aborted = mocks.abort.mock.calls.length;
     act(() => renderer.update(<Both page={false} view={false} />));
     expect(mocks.abort).toHaveBeenCalledTimes(aborted + 1);
-    expect(mocks.abort).toHaveBeenLastCalledWith(room.roomId, '$thread', 'thread-approvals');
+    // Its last load repairs the pending approval it found.
+    expect(mocks.abort).toHaveBeenLastCalledWith(room.roomId, '$thread', 'thread-approval-repair');
   });
 });

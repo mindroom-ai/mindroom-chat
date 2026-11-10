@@ -23,10 +23,7 @@ import {
   composerStateKey,
   shownConversationViewsAtom,
 } from '../navigation/conversationView';
-import {
-  roomIdToReplyDraftAtomFamily,
-  roomIdToUploadItemsAtomFamily,
-} from '../composer/roomInputDrafts';
+import { roomIdToReplyDraftAtomFamily } from '../composer/roomInputDrafts';
 import { RoomTimeline } from '../timeline/RoomTimeline';
 import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { MessageLinkCards } from './MessageLinkCards';
@@ -81,15 +78,14 @@ export function ThreadView({ room, threadId }: { room: Room; threadId: string })
     return () => setShownViews((shown) => shown.filter((other) => other !== place));
   }, [folded, roomId, setShownViews, threadId, view]);
 
-  // Its composer's reply and staged files, in each room it showed, go with it as it unmounts: no
-  // later view finds them. Until then they stay, as a send under way may still use them.
+  // Its composer's reply, in each room it showed, goes with it as it unmounts: no later view finds
+  // it. Its staged files go with its composer, except those a send under way still sends.
   const roomsShown = useRef(new Set<string>()).current;
   roomsShown.add(roomId);
   useEffect(
     () => () =>
       roomsShown.forEach((shownRoomId) => {
         roomIdToReplyDraftAtomFamily.remove(composerStateKey(shownRoomId, view));
-        roomIdToUploadItemsAtomFamily.remove(composerStateKey(shownRoomId, view));
       }),
     [roomsShown, view]
   );

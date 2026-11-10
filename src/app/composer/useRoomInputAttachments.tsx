@@ -26,7 +26,7 @@ import {
   roomUploadAtomFamily,
   composerUploadItemsAtom,
 } from './roomInputDrafts';
-import { ConversationViewContext } from '../navigation/conversationView';
+import { ConversationViewContext, composerStateKey } from '../navigation/conversationView';
 import { forgetPastesOutsideDraft, keepPasteText, readKeptPasteTexts } from './keptPastes';
 import {
   createUploadFamilyObserverAtom,
@@ -143,8 +143,8 @@ export const useRoomInputAttachments = ({
   const listeners = useRef(new Set<() => void>());
   const notifyQueued = useRef(false);
   const mounted = useRef(true);
-  const current = useRef({ roomId, draftKey, editor });
-  current.current = { roomId, draftKey, editor };
+  const current = useRef({ roomId, draftKey, editor, mx });
+  current.current = { roomId, draftKey, editor, mx };
 
   useEffect(() => {
     mounted.current = true;
@@ -193,6 +193,8 @@ export const useRoomInputAttachments = ({
   const watchedRooms = useRef(new Set<string>([roomId]));
   watchedRooms.current.add(roomId);
   const syncUploadWatches = useCallback(() => {
+    // An unmounted composer watches nothing: a send it left follows its own uploads.
+    if (!mounted.current) return;
     const needed = new Set<TUploadContent>(enrolled.current.map((item) => item.file));
     watchedRooms.current.forEach((watchedRoomId) =>
       store
@@ -210,20 +212,17 @@ export const useRoomInputAttachments = ({
     });
   }, [notify, store, view]);
 
-  // An unmounted composer has no listeners left to wake; the next one watches the files again.
-  useEffect(() => {
-    const watches = uploadWatches.current;
-    return () => {
-      watches.forEach((unsubscribe) => unsubscribe());
-      watches.clear();
-    };
-  }, []);
+  // A thread view's composer that unmounted has no staged files left (see below); a send under
+  // way holds the ones it claimed.
+  const closedView = useCallback(() => !mounted.current && view !== undefined, [view]);
 
   const access = useMemo<RoomInputAttachmentAccess>(() => {
     const uploadOf = (item: TUploadItem): Upload => store.get(roomUploadAtomFamily(item.file));
 
     const snapshot = (targetRoomId?: string): AttachmentSnapshot => {
-      const all = store.get(composerUploadItemsAtom(targetRoomId ?? current.current.roomId, view));
+      const all = closedView()
+        ? []
+        : store.get(composerUploadItemsAtom(targetRoomId ?? current.current.roomId, view));
       const staged = targetRoomId === undefined ? all.filter(ownedByCurrent) : all;
       const files = new Set(staged.map((item) => item.file));
       const tracked = [...staged, ...enrolled.current.filter((item) => !files.has(item.file))];
@@ -251,8 +250,8 @@ export const useRoomInputAttachments = ({
     const remove = (targetRoomId: string, files: TUploadContent[]) => {
       if (files.length === 0) return;
       const removed = new Set(files);
-      const listAtom = composerUploadItemsAtom(targetRoomId, view);
-      const items = store.get(listAtom).filter((item) => removed.has(item.file));
+      const listAtom = closedView() ? undefined : composerUploadItemsAtom(targetRoomId, view);
+      const items = listAtom ? store.get(listAtom).filter((item) => removed.has(item.file)) : [];
       // A removed file's upload in flight is cancelled; its card would otherwise finish it.
       items.forEach((item) => {
         const upload = store.get(roomUploadAtomFamily(item.file));
@@ -260,7 +259,7 @@ export const useRoomInputAttachments = ({
         mx.cancelUpload(upload.promise);
         store.set(roomUploadAtomFamily(item.file), { status: UploadStatus.Idle });
       });
-      if (items.length > 0) {
+      if (listAtom && items.length > 0) {
         store.set(listAtom, { type: 'DELETE', item: items });
         keepNames(targetRoomId);
       }
@@ -305,14 +304,42 @@ export const useRoomInputAttachments = ({
           listeners.current.delete(listener);
         };
       },
+      watchUploads: (files, listener) => {
+        const unsubscribes = files.map((file) => store.sub(roomUploadAtomFamily(file), listener));
+        return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
+      },
     };
-  }, [keepNames, mx, notify, ownedByCurrent, store, syncUploadWatches, view]);
+  }, [closedView, keepNames, mx, notify, ownedByCurrent, store, syncUploadWatches, view]);
 
   // Files staged from outside (another composer instance, a restored draft) are watched as well.
   useEffect(() => {
     syncUploadWatches();
     notify();
   }, [notify, roomItems, syncUploadWatches]);
+
+  // An unmounted composer has no listeners left to wake; the next one watches the files again.
+  // A thread view's composer takes its staged files along, and cancels their uploads, except the
+  // ones a send claimed: the send keeps those until it has sent them.
+  useEffect(() => {
+    const watches = uploadWatches.current;
+    const rooms = watchedRooms.current;
+    return () => {
+      watches.forEach((unsubscribe) => unsubscribe());
+      watches.clear();
+      if (view === undefined) return;
+      rooms.forEach((watchedRoomId) => {
+        const key = composerStateKey(watchedRoomId, view);
+        const claimed = new Set(enrolled.current.map((item) => item.file));
+        store.get(roomIdToUploadItemsAtomFamily(key)).forEach((item) => {
+          const upload = store.get(roomUploadAtomFamily(item.file));
+          if (claimed.has(item.file) || upload.status !== UploadStatus.Loading) return;
+          current.current.mx.cancelUpload(upload.promise);
+          store.set(roomUploadAtomFamily(item.file), { status: UploadStatus.Idle });
+        });
+        roomIdToUploadItemsAtomFamily.remove(key);
+      });
+    };
+  }, [store, view]);
 
   const onEditorChange = useCallback(() => {
     const { roomId: activeRoomId, editor: activeEditor } = current.current;

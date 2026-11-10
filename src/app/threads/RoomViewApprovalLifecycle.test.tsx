@@ -157,6 +157,7 @@ function Composer(
           listenersRef.current.delete(listener);
         };
       },
+      watchUploads: () => noop,
     }),
     []
   );

@@ -55,6 +55,9 @@ import { countCacheProbe } from '../cache/cacheProbe';
  * `'thread-backfill'` on the same thread coexist by design — they do
  * different things (backfill fetches older history; reconcile checks
  * the tail for divergence).
+ *
+ * `'thread-approvals'` discovers a thread's approvals; `'thread-approval-repair'` fetches the
+ * edits of given ones. Separate kinds, so neither gets the other's result.
  */
 export type BackfillJobKind =
   | 'gap-fill'
@@ -62,6 +65,7 @@ export type BackfillJobKind =
   | 'room-attachments'
   | 'thread-backfill'
   | 'thread-approvals'
+  | 'thread-approval-repair'
   | 'thread-seed'
   | 'reconcile';
 

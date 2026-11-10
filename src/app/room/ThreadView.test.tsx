@@ -13,7 +13,7 @@ import type { Editor } from 'slate';
 import { Editable, Slate } from 'slate-react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
-import { composerReplyDraftAtom, composerUploadItemsAtom } from '../composer/roomInputDrafts';
+import { composerReplyDraftAtom } from '../composer/roomInputDrafts';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import {
   ConversationViewContext,
@@ -182,7 +182,7 @@ it("sets the room view's insets to none, as no floating header or composer cover
   );
 });
 
-it('is a conversation view of its own, apart from the room page and from another view of the thread, whose reply and staged files go with it', () => {
+it('is a conversation view of its own, apart from the room page and from another view of the thread, whose reply goes with it', () => {
   const store = getDefaultStore();
   const { unmount } = render(
     <>
@@ -196,20 +196,12 @@ it('is a conversation view of its own, apart from the room page and from another
   expect(first).not.toBe(second);
 
   const reply = { userId: '@bob:example.org', eventId: '$reply', body: 'Reply' };
-  const file = new File(['x'], 'notes.txt');
-  const item = {
-    file,
-    originalFile: file,
-    encInfo: undefined,
-    metadata: { markedAsSpoiler: false },
-  };
   act(() => {
     store.set(composerReplyDraftAtom(room.roomId, first), reply);
-    store.set(composerUploadItemsAtom(room.roomId, first), { type: 'PUT', item });
   });
   unmount();
+  // Its staged files go with its composer (useRoomInputAttachments).
   expect(store.get(composerReplyDraftAtom(room.roomId, first))).toBeUndefined();
-  expect(store.get(composerUploadItemsAtom(room.roomId, first))).toEqual([]);
 });
 
 it('counts its thread as on screen for notifications while it is mounted', () => {

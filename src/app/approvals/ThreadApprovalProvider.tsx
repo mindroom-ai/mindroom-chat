@@ -25,7 +25,10 @@ import {
   enqueueThreadApprovalBackfill,
   useSyncEngine,
 } from '../event-store/engine';
-import type { ThreadApprovalHistoryError } from '../event-store/engine/threadApprovalBackfill';
+import {
+  threadApprovalJobKind,
+  type ThreadApprovalHistoryError,
+} from '../event-store/engine/threadApprovalBackfill';
 import { useLiveEventArrive } from '../event-store/timeline/roomLiveEventArrive';
 import { collectKnownRedactedEventIds } from '../matrix/eventRevision';
 import {
@@ -62,8 +65,8 @@ export type ThreadApprovals = {
 const Context = createContext<ThreadApprovals | undefined>(undefined);
 
 // Providers of one thread, in the room's page and in another view of it, share its history load
-// (the scheduler runs one per thread): only the last of them to unmount, or to ask again, cancels
-// it.
+// (the scheduler runs one per thread and purpose, discovery or repair): only the last of them to
+// unmount, or to ask again, cancels it.
 const historyWaiters = new WeakMap<BackfillScheduler, Map<string, number>>();
 export const useThreadApprovals = () => useContext(Context);
 
@@ -254,7 +257,8 @@ function ActiveThreadApprovalProvider({
     let active = true;
     const waiters = historyWaiters.get(scheduler) ?? new Map<string, number>();
     historyWaiters.set(scheduler, waiters);
-    const waitKey = JSON.stringify([room.roomId, threadId]);
+    const kind = threadApprovalJobKind(request.origins);
+    const waitKey = JSON.stringify([room.roomId, threadId, kind]);
     waiters.set(waitKey, (waiters.get(waitKey) ?? 0) + 1);
     const setRequestError = request.origins ? setRepairError : setDiscoveryError;
     fetching.current = true;
@@ -293,7 +297,7 @@ function ActiveThreadApprovalProvider({
         return;
       }
       waiters.delete(waitKey);
-      scheduler.abort(room.roomId, threadId, 'thread-approvals');
+      scheduler.abort(room.roomId, threadId, kind);
     };
   }, [mx, scheduler, room.roomId, threadId, request, ingest]);
   useEffect(() => {

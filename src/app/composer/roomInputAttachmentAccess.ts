@@ -16,4 +16,6 @@ export type RoomInputAttachmentAccess = {
   clearEnrollment: () => void;
   protectPasteItems: (items: TUploadItem[]) => () => void;
   subscribe: (listener: () => void) => () => void;
+  /** Calls `listener` on each change of these files' uploads, also after the composer unmounts. */
+  watchUploads: (files: TUploadContent[], listener: () => void) => () => void;
 };

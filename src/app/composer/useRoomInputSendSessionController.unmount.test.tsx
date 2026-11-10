@@ -5,7 +5,6 @@ import { createEditor, type Editor } from 'slate';
 import { describe, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
 import {
-  composerUploadItemsAtom,
   roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
 } from './roomInputDrafts';
@@ -276,7 +275,8 @@ describe('a send that outlives its composer', () => {
     act(() => view.renderer.unmount());
 
     expect(mx.cancelUpload.mock.calls).toEqual([[unclaimedUpload.promise]]);
-    expect(store.get(composerUploadItemsAtom(ROOM_ID, VIEW))).toEqual([claimed]);
+    // Nothing of the closed view is left staged; the send holds the file it claimed.
+    expect(stagedListKeys()).not.toContain(composerStateKey(ROOM_ID, VIEW));
     await finishUpload(claimedUpload, 'mxc://example.org/claimed');
 
     expect(bodies(mx)).toEqual(['claimed.bin', 'caption']);
@@ -284,7 +284,6 @@ describe('a send that outlives its composer', () => {
       expect.objectContaining({ rel_type: 'm.thread', event_id: THREAD_ID }),
       expect.objectContaining({ rel_type: 'm.thread', event_id: THREAD_ID }),
     ]);
-    // Nothing of the closed view is left staged.
     expect(stagedListKeys()).not.toContain(composerStateKey(ROOM_ID, VIEW));
   });
 });

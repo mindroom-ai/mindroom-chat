@@ -1,11 +1,8 @@
-import { MutableRefObject, useCallback, useEffect, useRef } from 'react';
+import { MutableRefObject, useContext, useEffect, useLayoutEffect, useState } from 'react';
+import { useStore } from 'jotai';
 import { IContent, MatrixClient, Room } from 'matrix-js-sdk';
 import { Descendant, Editor } from 'slate';
-import {
-  resetEditor,
-  resetEditorHistory,
-  restoreEditorContent,
-} from '../editor/utils';
+import { resetEditor, resetEditorHistory, restoreEditorContent } from '../editor/utils';
 import { IReplyDraft } from './roomInputDrafts';
 import { TUploadItem, Upload } from '../matrix/state/upload';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
@@ -29,6 +26,7 @@ import {
   RoomInputSendSessionState,
 } from './roomInputSendSession';
 import { getRoomMessageSentNotificationEventId } from '../event-store/timeline/roomMessageSent';
+import { ConversationViewContext } from '../navigation/conversationView';
 
 type SendSession = RoomInputSendSessionState & {
   room: Room;
@@ -44,6 +42,9 @@ type SendSession = RoomInputSendSessionState & {
   failFast: boolean;
   uploads?: Upload[];
   onUploadSent?: (file: TUploadContent) => void;
+  /** The staged files the session claimed. */
+  items?: TUploadItem[];
+  stopWatching?: () => void;
 };
 
 export type RoomInputSendContext = {
@@ -156,227 +157,240 @@ const createSendSession = (
   }),
 });
 
-export const useRoomInputSendSessionController = ({
-  mx,
-  room,
-  roomId,
-  threadId,
-  replyDraft,
-  threadingEnabled = true,
-  clearReplyDraft,
-  editor,
-  sendTypingStatus,
-  attachments,
-  mountedRef,
-  buildUploadMessageContent,
-  restoreComposerFallbackForRoom,
-  onRoomMessageSent,
-}: UseRoomInputSendSessionControllerOptions): {
+type RoomInputSendController = {
   hasActiveSendSession: () => boolean;
   processSendSession: () => Promise<void>;
   startSendSession: (options?: StartRoomInputSendSessionOptions) => Promise<void>;
-} => {
-  const sendSessionRef = useRef<SendSession | undefined>();
-  const processingSendSessionRef = useRef(false);
+};
+
+type ComposerSendController = {
+  api: RoomInputSendController;
+  /** The composer on screen lends the controller what it uses from now on. */
+  bind: (composer: UseRoomInputSendSessionControllerOptions) => void;
+  /** A composer mounts with its attachments; returns its unmount. */
+  mount: (attachments: RoomInputAttachmentAccess) => () => void;
+};
+
+/**
+ * The sends of one composer, from Enter to delivery: the session, the messages queued behind it,
+ * and the texts that go beside a session waiting for a retry. It outlives the composer. The
+ * composer on screen lends it the editor, the attachments and the callbacks, read as they are
+ * used; after the composer unmounts it keeps the last ones, and the session's own watch on the
+ * uploads it waits for wakes it. `endsWithComposer`: a thread view's, whose files no later
+ * composer shows, so a send there that can only go on after a retry ends once its composer is gone.
+ */
+const createSendController = (endsWithComposer: boolean): ComposerSendController => {
+  let composer!: UseRoomInputSendSessionControllerOptions;
+  let sendSession: SendSession | undefined;
+  let processing = false;
+  let mounted = 0;
   // Messages sent while another is still going out, each started once the one before is done.
-  const queuedSendsRef = useRef<(() => void)[]>([]);
+  const queuedSends: (() => void)[] = [];
   // Texts sent beside a session that waits for the person, one after the other.
-  const textsBesideRef = useRef<Promise<void>>(Promise.resolve());
-  const startSendSessionRef =
-    useRef<(options?: StartRoomInputSendSessionOptions) => Promise<void>>();
-  const composerContextRef = useRef({ roomId, threadId });
-  composerContextRef.current = { roomId, threadId };
+  let textsBeside: Promise<void> = Promise.resolve();
+  let wakeQueued = false;
 
-  const clearReplyDraftForSession = useCallback(
-    (session: SendSession) => {
-      if (session.replyCleared) return;
+  const wake = () => {
+    if (wakeQueued) return;
+    wakeQueued = true;
+    // Attachment updates can render synchronously inside enrollment/removal. Defer
+    // processing until the initiating operation finishes updating the send session.
+    queueMicrotask(() => {
+      wakeQueued = false;
+      void processSendSession();
+    });
+  };
 
-      session.replyCleared = true;
-      clearReplyDraft({
-        roomId: session.roomId,
-        replyDraft: session.replyDraft,
-      });
-    },
-    [clearReplyDraft]
-  );
+  const clearReplyDraftForSession = (session: SendSession) => {
+    if (session.replyCleared) return;
 
-  const sendSessionText = useCallback(
-    async (session: SendSession) => {
-      if (!session.textContent) return;
+    session.replyCleared = true;
+    composer.clearReplyDraft({
+      roomId: session.roomId,
+      replyDraft: session.replyDraft,
+    });
+  };
 
-      const relation = getTextRelationForSendSession(session);
-      const content: IContent = relation
-        ? {
-            ...session.textContent,
-            'm.relates_to': relation,
-          }
-        : session.textContent;
-      // Content too large for one event goes as a long-text sidecar, as MindRoom's long replies do.
-      // A failed upload throws before anything is sent, so the text returns to the composer.
-      const eventContent =
-        contentBytes(content) <= MAX_EVENT_CONTENT_BYTES
-          ? content
-          : await uploadLongTextSidecar(
-              mx,
-              session.room,
-              content,
-              buildLongTextPreview(content)
-            );
-      const txnId = mx.makeTxnId();
-      const sendPromise = mx.sendMessage(session.roomId, eventContent as any, txnId);
-      const localEvent = session.room.getEventForTxnId(txnId);
-      const localEventId = localEvent?.getId();
-      let roomMessageSentNotified = false;
+  // A sent message opens its thread only in a composer that still shows its room.
+  const openSentMessage = (session: SendSession, eventId: string) => {
+    const { onRoomMessageSent, mountedRef, roomId } = composer;
+    if ((mountedRef?.current ?? true) && roomId === session.roomId) onRoomMessageSent?.(eventId);
+  };
 
-      const notifyRoomMessageSent = (eventId: string | undefined) => {
-        if (!eventId || roomMessageSentNotified || !onRoomMessageSent) return;
+  const sendSessionText = async (session: SendSession) => {
+    if (!session.textContent) return;
 
-        const sentEventIdToNotify = getRoomMessageSentNotificationEventId({
-          eventId,
-          relation,
-          replyDraft: session.replyDraft,
-          threadId: session.threadId,
-        });
-        if (!sentEventIdToNotify) return;
+    const { mx } = composer;
+    const relation = getTextRelationForSendSession(session);
+    const content: IContent = relation
+      ? {
+          ...session.textContent,
+          'm.relates_to': relation,
+        }
+      : session.textContent;
+    // Content too large for one event goes as a long-text sidecar, as MindRoom's long replies do.
+    // A failed upload throws before anything is sent, so the text returns to the composer.
+    const eventContent =
+      contentBytes(content) <= MAX_EVENT_CONTENT_BYTES
+        ? content
+        : await uploadLongTextSidecar(mx, session.room, content, buildLongTextPreview(content));
+    const txnId = mx.makeTxnId();
+    const sendPromise = mx.sendMessage(session.roomId, eventContent as any, txnId);
+    const localEvent = session.room.getEventForTxnId(txnId);
+    const localEventId = localEvent?.getId();
+    let roomMessageSentNotified = false;
 
-        roomMessageSentNotified = true;
-        onRoomMessageSent(sentEventIdToNotify);
-      };
+    const notifyRoomMessageSent = (eventId: string | undefined) => {
+      if (!eventId || roomMessageSentNotified) return;
 
-      if (localEventId === `~${session.roomId}:${txnId}`) {
-        notifyRoomMessageSent(localEventId);
-      }
-
-      const sent = sendPromise.then((response) => notifyRoomMessageSent(response.event_id));
-      if (localEvent) {
-        // The message has its own row from here on: pending, then sent, or "Not sent" with Retry
-        // and Delete. So the session does not wait for the server, and the client's queue sends
-        // the next message after this one.
-        sent.catch(() => undefined);
-      } else {
-        // Without a row of its own, a failed text goes back to the composer.
-        await sent;
-      }
-
-      session.textPending = false;
-      clearReplyDraftForSession(session);
-    },
-    [mx, clearReplyDraftForSession, onRoomMessageSent]
-  );
-
-  const sendSessionUpload = useCallback(
-    async (session: SendSession, file: TUploadContent, mxc: string, isRoot: boolean) => {
-      const { staged, enrolled } = attachments.snapshot(session.roomId);
-      const fileItem =
-        staged.find((item) => item.file === file) ?? enrolled.find((item) => item.file === file);
-      if (!fileItem) {
-        throw new Error('Missing upload item for send session.');
-      }
-
-      const content = await buildUploadMessageContent(fileItem, mxc, session.signalBridgedRoom);
-      const relation = getUploadRelationForSendSession(session, isRoot);
-      const contentWithRelation: IContent = relation
-        ? {
-            ...content,
-            'm.relates_to': relation,
-          }
-        : content;
-      const txnId = mx.makeTxnId();
-      const response = await mx
-        .sendMessage(session.roomId, contentWithRelation as any, txnId)
-        .catch((error: unknown) => {
-          // The composer keeps the attachment to send again; drop the unsent echo.
-          discardFailedLocalEcho(mx, session.room.getEventForTxnId(txnId));
-          throw error;
-        });
       const sentEventIdToNotify = getRoomMessageSentNotificationEventId({
-        eventId: response.event_id,
+        eventId,
         relation,
         replyDraft: session.replyDraft,
         threadId: session.threadId,
       });
+      if (!sentEventIdToNotify) return;
 
-      session.sentFiles.add(file);
-      session.failedFiles.delete(file);
-      if (session.mode === 'auto-thread-upload-root' && isRoot) {
-        session.rootEventId = response.event_id;
-      }
-      session.onUploadSent?.(file);
-      clearReplyDraftForSession(session);
-      attachments.remove(session.roomId, [file]);
-      if (sentEventIdToNotify) {
-        onRoomMessageSent?.(sentEventIdToNotify);
-      }
-    },
-    [mx, attachments, buildUploadMessageContent, clearReplyDraftForSession, onRoomMessageSent]
-  );
+      roomMessageSentNotified = true;
+      openSentMessage(session, sentEventIdToNotify);
+    };
 
-  const restoreComposerFallback = useCallback(
-    (session: SendSession) => {
-      // A caption that failed before it had a row of its own (its long-text file did not
-      // upload, or an earlier upload of a lifecycle-complete send failed) goes back into the
-      // composer instead of parking in the session: by then the uploads have left the board, so
-      // the board's Send-again affordance that resumes a blocked session no longer exists.
-      session.textPending = false;
-      const fragment = session.composerFallback;
-      session.composerFallback = undefined;
-      const sameComposer =
-        composerContextRef.current.roomId === session.composerContext.roomId &&
-        composerContextRef.current.threadId === session.composerContext.threadId;
-      if (fragment && (mountedRef?.current ?? true) && sameComposer) {
-        restoreEditorContent(editor, fragment);
-      } else if (fragment) {
-        restoreComposerFallbackForRoom?.(
-          session.composerContext.roomId,
-          fragment,
-          session.composerContext.threadId
-        );
-      }
-    },
-    [editor, mountedRef, restoreComposerFallbackForRoom]
-  );
+    if (localEventId === `~${session.roomId}:${txnId}`) {
+      notifyRoomMessageSent(localEventId);
+    }
 
-  const clearSendSession = useCallback(() => {
-    sendSessionRef.current = undefined;
-    attachments.clearEnrollment();
-  }, [attachments]);
+    const sent = sendPromise.then((response) => notifyRoomMessageSent(response.event_id));
+    if (localEvent) {
+      // The message has its own row from here on: pending, then sent, or "Not sent" with Retry
+      // and Delete. So the session does not wait for the server, and the client's queue sends
+      // the next message after this one.
+      sent.catch(() => undefined);
+    } else {
+      // Without a row of its own, a failed text goes back to the composer.
+      await sent;
+    }
 
-  const getSessionUploads = useCallback(
-    (session: SendSession): [Upload[], TUploadContent[]] => {
-      const { staged, enrolled, uploads } = attachments.snapshot(session.roomId);
-      const activeFiles = new Set([...staged, ...enrolled].map((fileItem) => fileItem.file));
-      return [session.uploads ?? uploads, Array.from(activeFiles)];
-    },
-    [attachments]
-  );
+    session.textPending = false;
+    clearReplyDraftForSession(session);
+  };
 
-  const isSessionStalled = useCallback(
-    (session: SendSession) => isRoomInputSendSessionStalled(session, ...getSessionUploads(session)),
-    [getSessionUploads]
-  );
+  const sendSessionUpload = async (
+    session: SendSession,
+    file: TUploadContent,
+    mxc: string,
+    isRoot: boolean
+  ) => {
+    const { mx } = composer;
+    const { staged, enrolled } = composer.attachments.snapshot(session.roomId);
+    const fileItem =
+      staged.find((item) => item.file === file) ?? enrolled.find((item) => item.file === file);
+    if (!fileItem) {
+      throw new Error('Missing upload item for send session.');
+    }
+
+    const content = await composer.buildUploadMessageContent(
+      fileItem,
+      mxc,
+      session.signalBridgedRoom
+    );
+    const relation = getUploadRelationForSendSession(session, isRoot);
+    const contentWithRelation: IContent = relation
+      ? {
+          ...content,
+          'm.relates_to': relation,
+        }
+      : content;
+    const txnId = mx.makeTxnId();
+    const response = await mx
+      .sendMessage(session.roomId, contentWithRelation as any, txnId)
+      .catch((error: unknown) => {
+        // The composer keeps the attachment to send again; drop the unsent echo.
+        discardFailedLocalEcho(mx, session.room.getEventForTxnId(txnId));
+        throw error;
+      });
+    const sentEventIdToNotify = getRoomMessageSentNotificationEventId({
+      eventId: response.event_id,
+      relation,
+      replyDraft: session.replyDraft,
+      threadId: session.threadId,
+    });
+
+    session.sentFiles.add(file);
+    session.failedFiles.delete(file);
+    if (session.mode === 'auto-thread-upload-root' && isRoot) {
+      session.rootEventId = response.event_id;
+    }
+    session.onUploadSent?.(file);
+    clearReplyDraftForSession(session);
+    composer.attachments.remove(session.roomId, [file]);
+    if (sentEventIdToNotify) {
+      openSentMessage(session, sentEventIdToNotify);
+    }
+  };
+
+  const restoreComposerFallback = (session: SendSession) => {
+    // A caption that failed before it had a row of its own (its long-text file did not
+    // upload, or an earlier upload of a lifecycle-complete send failed) goes back into the
+    // composer instead of parking in the session: by then the uploads have left the board, so
+    // the board's Send-again affordance that resumes a blocked session no longer exists.
+    session.textPending = false;
+    const fragment = session.composerFallback;
+    session.composerFallback = undefined;
+    const { editor, mountedRef, restoreComposerFallbackForRoom } = composer;
+    const sameComposer =
+      composer.roomId === session.composerContext.roomId &&
+      composer.threadId === session.composerContext.threadId;
+    if (fragment && (mountedRef?.current ?? true) && sameComposer) {
+      restoreEditorContent(editor, fragment);
+    } else if (fragment) {
+      restoreComposerFallbackForRoom?.(
+        session.composerContext.roomId,
+        fragment,
+        session.composerContext.threadId
+      );
+    }
+  };
+
+  const clearSendSession = () => {
+    sendSession?.stopWatching?.();
+    sendSession = undefined;
+    composer.attachments.clearEnrollment();
+  };
+
+  const getSessionUploads = (session: SendSession): [Upload[], TUploadContent[]] => {
+    const { staged, enrolled, uploads } = composer.attachments.snapshot(session.roomId);
+    const activeFiles = new Set([...staged, ...enrolled].map((fileItem) => fileItem.file));
+    return [session.uploads ?? uploads, Array.from(activeFiles)];
+  };
+
+  const isSessionStalled = (session: SendSession) =>
+    isRoomInputSendSessionStalled(session, ...getSessionUploads(session));
 
   // Queued texts go out one at a time once the session is done, and all of them at once when it
   // can only go on after the person retries an attachment: they never wait for that.
-  const releaseQueuedSends = useCallback(() => {
-    const session = sendSessionRef.current;
+  const releaseQueuedSends = () => {
+    const session = sendSession;
     if (!session) {
-      queuedSendsRef.current.shift()?.();
+      queuedSends.shift()?.();
     } else if (isSessionStalled(session)) {
-      queuedSendsRef.current.splice(0).forEach((startQueued) => startQueued());
+      queuedSends.splice(0).forEach((startQueued) => startQueued());
     }
-  }, [isSessionStalled]);
+  };
 
-  const processSendSession = useCallback(async () => {
-    if (processingSendSessionRef.current) return;
+  const processSendSession = async () => {
+    if (processing) return;
 
-    processingSendSessionRef.current = true;
+    processing = true;
     try {
-      while (sendSessionRef.current) {
-        const session = sendSessionRef.current;
+      while (sendSession) {
+        const session = sendSession;
 
         const step = resolveRoomInputSendStep(session, ...getSessionUploads(session));
 
         if (step.kind === 'wait') {
+          // No composer is left to show the retry this session waits for: what it could not
+          // send goes with it.
+          if (endsWithComposer && mounted === 0 && isSessionStalled(session)) clearSendSession();
           return;
         }
         if (step.kind === 'complete') {
@@ -411,200 +425,208 @@ export const useRoomInputSendSessionController = ({
         }
       }
     } finally {
-      processingSendSessionRef.current = false;
+      processing = false;
       releaseQueuedSends();
     }
-  }, [
-    getSessionUploads,
-    sendSessionText,
-    sendSessionUpload,
-    restoreComposerFallback,
-    clearSendSession,
-    releaseQueuedSends,
-  ]);
+  };
 
-  const startSendSession = useCallback(
-    async ({
-      textContent,
-      batch,
-      context,
-      completeWithinCall = false,
-      composerFallback,
-      composerContext,
-      composerAlreadyReset = false,
-      onUploadSent,
-    }: StartRoomInputSendSessionOptions = {}) => {
-      const existingSession = sendSessionRef.current;
-      if (existingSession) {
-        if (completeWithinCall) {
-          throw new Error(
-            'Cannot start a lifecycle-complete send while another session is active.'
-          );
-        }
-        if (hasRoomInputSendFailures(existingSession) && !composerAlreadyReset) {
-          // Send again: the attachments whose send failed go out again; text being sent stays
-          // in the composer meanwhile.
-          existingSession.blockedRoot = false;
-          existingSession.failedFiles.clear();
-          await processSendSession();
-          return;
-        }
-        // Repeated sends while uploads are still resolving should not create duplicate events.
-        if (!textContent) return;
-        if (hasFailedPasteMarkerInText(textContent, attachments.snapshot(context?.roomId).staged)) {
-          return;
-        }
-        // The composer takes the message now, as it does any message; the reply draft the earlier
-        // message took stays with that one.
-        const nextFallback = composerFallback ?? structuredClone(editor.children);
-        if (!composerAlreadyReset) {
-          resetEditor(editor); resetEditorHistory(editor);
-          sendTypingStatus(false);
-        }
-        const nextContext: RoomInputSendContext = context ?? {
-          roomId,
-          room,
-          threadId,
-          replyDraft: replyDraft === existingSession.replyDraft ? undefined : replyDraft,
-          threadingEnabled,
-          signalBridgedRoom: isSignalBridgeRoom(room),
-        };
-        const nextComposerContext = composerContext ?? { roomId, threadId };
-        if (isSessionStalled(existingSession)) {
-          // The session waits for the person to retry an attachment; the text does not wait
-          // with it and gets its row at once.
-          const session = createSendSession(nextContext, [], {
-            textContent,
-            composerFallback: nextFallback,
-            composerContext: nextComposerContext,
-            failFast: false,
-          });
-          const sending = textsBesideRef.current.then(() =>
-            sendSessionText(session).catch(() => restoreComposerFallback(session))
-          );
-          textsBesideRef.current = sending;
-          await sending;
-          return;
-        }
-        // Otherwise it follows the message still going out, in order.
-        queuedSendsRef.current.push(() => {
-          startSendSessionRef
-            .current?.({
-              textContent,
-              context: nextContext,
-              composerFallback: nextFallback,
-              composerContext: nextComposerContext,
-              composerAlreadyReset: true,
-              onUploadSent,
-            })
-            .catch((error: unknown) => {
-              // eslint-disable-next-line no-console
-              console.warn('[room-input] could not send the queued message', error);
-            });
-        });
-        return;
-      }
-
-      const { staged } = attachments.snapshot(context?.roomId);
-      const sendItems = (batch?.fileItems ?? staged).filter((fileItem) => !fileItem.prepError);
-      const sendFiles = sendItems.map((item) => item.file);
-      if (sendFiles.length === 0 && !textContent) return;
-      if (hasFailedPasteMarkerInText(textContent, staged)) return;
-      attachments.enroll(sendItems);
-
-      sendSessionRef.current = createSendSession(
-        context ?? {
-          roomId,
-          room,
-          threadId,
-          replyDraft,
-          threadingEnabled,
-          signalBridgedRoom: isSignalBridgeRoom(room),
-        },
-        sendFiles,
-        {
-          textContent,
-          composerContext: composerContext ?? { roomId, threadId },
-          failFast: completeWithinCall,
-          uploads: batch?.uploads,
-          onUploadSent,
-        }
-      );
-      if (textContent) {
-        // The caption sends last (after the uploads), so free the composer as soon as the
-        // session has snapshotted the text instead of when the text event goes out. Keep a
-        // clone of the composer content so a caption that never gets a row of its own can be
-        // restored (slate mutates editor.children in place).
-        sendSessionRef.current.composerFallback =
-          composerFallback ?? structuredClone(editor.children);
-        if (!composerAlreadyReset) {
-          // Start the editor over, and stop the typing indicator, now that its text is captured.
-          resetEditor(editor); resetEditorHistory(editor);
-          sendTypingStatus(false);
-        }
-      }
-      try {
-        await processSendSession();
-      } catch (error) {
-        if (completeWithinCall) {
-          const failedSession = sendSessionRef.current;
-          if (failedSession?.textPending) {
-            restoreComposerFallback(failedSession);
-          }
-          clearSendSession();
-        }
-        throw error;
-      }
-      if (completeWithinCall && sendSessionRef.current) {
-        clearSendSession();
-        throw new Error('Lifecycle-complete send did not finish within the initiating call.');
-      }
-    },
-    [
+  const startSendSession = async ({
+    textContent,
+    batch,
+    context,
+    completeWithinCall = false,
+    composerFallback,
+    composerContext,
+    composerAlreadyReset = false,
+    onUploadSent,
+  }: StartRoomInputSendSessionOptions = {}) => {
+    const {
       roomId,
+      room,
       threadId,
       replyDraft,
-      threadingEnabled,
-      room,
+      threadingEnabled = true,
       editor,
       sendTypingStatus,
       attachments,
-      processSendSession,
-      sendSessionText,
-      isSessionStalled,
-      restoreComposerFallback,
-      clearSendSession,
-    ]
-  );
-
-  useEffect(() => {
-    let disposed = false;
-    let queued = false;
-    const wake = () => {
-      if (queued) return;
-      queued = true;
-      // Attachment updates can render synchronously inside enrollment/removal. Defer
-      // processing until the initiating operation finishes updating the send session.
-      queueMicrotask(() => {
-        queued = false;
-        if (!disposed) void processSendSession();
+    } = composer;
+    const existingSession = sendSession;
+    if (existingSession) {
+      if (completeWithinCall) {
+        throw new Error('Cannot start a lifecycle-complete send while another session is active.');
+      }
+      if (hasRoomInputSendFailures(existingSession) && !composerAlreadyReset) {
+        // Send again: the attachments whose send failed go out again; text being sent stays
+        // in the composer meanwhile.
+        existingSession.blockedRoot = false;
+        existingSession.failedFiles.clear();
+        await processSendSession();
+        return;
+      }
+      // Repeated sends while uploads are still resolving should not create duplicate events.
+      if (!textContent) return;
+      if (hasFailedPasteMarkerInText(textContent, attachments.snapshot(context?.roomId).staged)) {
+        return;
+      }
+      // The composer takes the message now, as it does any message; the reply draft the earlier
+      // message took stays with that one.
+      const nextFallback = composerFallback ?? structuredClone(editor.children);
+      if (!composerAlreadyReset) {
+        resetEditor(editor); resetEditorHistory(editor);
+        sendTypingStatus(false);
+      }
+      const nextContext: RoomInputSendContext = context ?? {
+        roomId,
+        room,
+        threadId,
+        replyDraft: replyDraft === existingSession.replyDraft ? undefined : replyDraft,
+        threadingEnabled,
+        signalBridgedRoom: isSignalBridgeRoom(room),
+      };
+      const nextComposerContext = composerContext ?? { roomId, threadId };
+      if (isSessionStalled(existingSession)) {
+        // The session waits for the person to retry an attachment; the text does not wait
+        // with it and gets its row at once.
+        const session = createSendSession(nextContext, [], {
+          textContent,
+          composerFallback: nextFallback,
+          composerContext: nextComposerContext,
+          failFast: false,
+        });
+        const sending = textsBeside.then(() =>
+          sendSessionText(session).catch(() => restoreComposerFallback(session))
+        );
+        textsBeside = sending;
+        await sending;
+        return;
+      }
+      // Otherwise it follows the message still going out, in order.
+      queuedSends.push(() => {
+        startSendSession({
+          textContent,
+          context: nextContext,
+          composerFallback: nextFallback,
+          composerContext: nextComposerContext,
+          composerAlreadyReset: true,
+          onUploadSent,
+        }).catch((error: unknown) => {
+          // eslint-disable-next-line no-console
+          console.warn('[room-input] could not send the queued message', error);
+        });
       });
-    };
-    const unsubscribe = attachments.subscribe(wake);
-    wake();
-    return () => {
-      disposed = true;
-      unsubscribe();
-    };
-  }, [attachments, processSendSession]);
+      return;
+    }
 
-  startSendSessionRef.current = startSendSession;
+    const { staged } = attachments.snapshot(context?.roomId);
+    const sendItems = (batch?.fileItems ?? staged).filter((fileItem) => !fileItem.prepError);
+    const sendFiles = sendItems.map((item) => item.file);
+    if (sendFiles.length === 0 && !textContent) return;
+    if (hasFailedPasteMarkerInText(textContent, staged)) return;
+    attachments.enroll(sendItems);
 
-  const hasActiveSendSession = useCallback(() => sendSessionRef.current !== undefined, []);
+    const session = createSendSession(
+      context ?? {
+        roomId,
+        room,
+        threadId,
+        replyDraft,
+        threadingEnabled,
+        signalBridgedRoom: isSignalBridgeRoom(room),
+      },
+      sendFiles,
+      {
+        textContent,
+        composerContext: composerContext ?? { roomId, threadId },
+        failFast: completeWithinCall,
+        uploads: batch?.uploads,
+        onUploadSent,
+      }
+    );
+    session.items = sendItems;
+    // The session follows its own uploads, so it goes on when no composer is left to tell it.
+    session.stopWatching = attachments.watchUploads(sendFiles, wake);
+    sendSession = session;
+    if (textContent) {
+      // The caption sends last (after the uploads), so free the composer as soon as the
+      // session has snapshotted the text instead of when the text event goes out. Keep a
+      // clone of the composer content so a caption that never gets a row of its own can be
+      // restored (slate mutates editor.children in place).
+      session.composerFallback = composerFallback ?? structuredClone(editor.children);
+      if (!composerAlreadyReset) {
+        // Start the editor over, and stop the typing indicator, now that its text is captured.
+        resetEditor(editor); resetEditorHistory(editor);
+        sendTypingStatus(false);
+      }
+    }
+    try {
+      await processSendSession();
+    } catch (error) {
+      if (completeWithinCall) {
+        const failedSession = sendSession;
+        if (failedSession?.textPending) {
+          restoreComposerFallback(failedSession);
+        }
+        clearSendSession();
+      }
+      throw error;
+    }
+    if (completeWithinCall && sendSession) {
+      clearSendSession();
+      throw new Error('Lifecycle-complete send did not finish within the initiating call.');
+    }
+  };
 
   return {
-    hasActiveSendSession,
-    processSendSession,
-    startSendSession,
+    api: {
+      hasActiveSendSession: () => sendSession !== undefined,
+      processSendSession,
+      startSendSession,
+    },
+    bind: (next) => {
+      composer = next;
+    },
+    mount: (attachments) => {
+      mounted += 1;
+      // A composer that mounts while a send an earlier one started is under way claims that
+      // send's files again, so it neither drops them nor sends them twice.
+      if (sendSession?.items) attachments.enroll(sendSession.items);
+      const unsubscribe = attachments.subscribe(wake);
+      wake();
+      return () => {
+        mounted -= 1;
+        unsubscribe();
+        wake();
+      };
+    },
   };
+};
+
+// The room page's composer has one controller per account and store, whichever room it shows,
+// so a composer that mounts again finds the sends the one before left under way.
+const pageControllers = new WeakMap<object, WeakMap<MatrixClient, ComposerSendController>>();
+
+const pageController = (store: object, mx: MatrixClient): ComposerSendController => {
+  const byClient = pageControllers.get(store) ?? new WeakMap();
+  pageControllers.set(store, byClient);
+  const existing = byClient.get(mx);
+  if (existing) return existing;
+  const created = createSendController(false);
+  byClient.set(mx, created);
+  return created;
+};
+
+export const useRoomInputSendSessionController = (
+  options: UseRoomInputSendSessionControllerOptions
+): RoomInputSendController => {
+  const store = useStore();
+  // A thread view's composer has a controller of its own, which ends with its last send.
+  const view = useContext(ConversationViewContext);
+  const [viewController] = useState(() =>
+    view === undefined ? undefined : createSendController(true)
+  );
+  const controller = viewController ?? pageController(store, options.mx);
+  useLayoutEffect(() => controller.bind(options));
+  const { attachments } = options;
+  useEffect(() => controller.mount(attachments), [attachments, controller]);
+  return controller.api;
 };

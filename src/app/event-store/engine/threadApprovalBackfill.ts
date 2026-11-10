@@ -4,10 +4,14 @@ import {
   isUndecryptedApprovalCandidate,
 } from '../../matrix/protocol/toolApproval';
 import { createPreferLiveEventMapper } from '../cache/eventRepository';
-import { BackfillScheduler } from './backfillScheduler';
+import type { BackfillJobKind, BackfillScheduler } from './backfillScheduler';
 
 /** Why approval history is incomplete; the view names it in the app language. */
 export type ThreadApprovalHistoryError = 'unavailable' | 'undecryptable' | 'unloadable';
+
+/** The scheduler job of a discovery (no origins) or of a repair of `repairOrigins`. */
+export const threadApprovalJobKind = (repairOrigins?: readonly MatrixEvent[]): BackfillJobKind =>
+  repairOrigins ? 'thread-approval-repair' : 'thread-approvals';
 
 export const enqueueThreadApprovalBackfill = (
   mx: MatrixClient,
@@ -24,7 +28,7 @@ export const enqueueThreadApprovalBackfill = (
   scheduler.enqueue({
     roomId,
     threadId,
-    kind: 'thread-approvals',
+    kind: threadApprovalJobKind(repairOrigins),
     priority: 0,
     execute: async (signal) => {
       const collected: MatrixEvent[] = [];

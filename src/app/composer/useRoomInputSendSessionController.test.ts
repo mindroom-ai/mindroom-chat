@@ -149,6 +149,7 @@ const TestHarness = ({
       },
       protectPasteItems: () => () => {},
       subscribe: () => () => {},
+      watchUploads: () => () => {},
       remove: (_roomId, uploadList) => {
         selectedFilesRef.current = selectedFilesRef.current.filter(
           (item) => !uploadList.includes(item.file)
