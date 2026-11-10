@@ -32,12 +32,21 @@ const quiet: ThreadSignals = {
   automation: false,
 };
 const approvalRecord = { eventId: '$ask', sender: '@mindroom_code:x' } as ThreadApprovalRecord;
+const reply = (senderId: string) => ({
+  eventId: '$reply',
+  senderId,
+  ts: NOW - 3600_000,
+  preview: { kind: 'text' as const, text: 'Done' },
+});
 
 const build = (
   items: [CrossRoomThreadIndexEntry, Partial<ThreadSignals>][],
   extra: Partial<Parameters<typeof buildActivityRows>[0]> = {}
 ) => {
-  const byKey = new Map(items.map(([e, s]) => [e.key, { ...quiet, ...s }]));
+  // Signals as a thread with a counted reply has them, unless the case says otherwise.
+  const byKey = new Map(
+    items.map(([e, s]) => [e.key, { ...quiet, lastReply: reply('@tom:x'), ...s }])
+  );
   return buildActivityRows({
     entries: items.map(([e]) => e),
     signals: (e) => byKey.get(e.key) ?? quiet,
@@ -87,6 +96,12 @@ describe('buildActivityRows', () => {
   it('calls a thread whose root names the user unread, though no reply is new', () => {
     const { rows } = build([[entry('root'), { mentionedMe: true, newCount: 0 }]]);
     expect(rows.map((row) => [row.key, row.kind, row.unread])).toEqual([['root', 'mention', true]]);
+  });
+
+  it('leaves out a thread with nothing to tell: no reply counted, nobody to name', () => {
+    // An agent still on its thinking placeholder, or only notices since the root.
+    const { rows } = build([[entry('quiet'), { lastReply: undefined }]]);
+    expect(rows).toEqual([]);
   });
 
   it('keeps an older thread while it waits for the user', () => {

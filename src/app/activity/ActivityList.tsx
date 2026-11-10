@@ -1,12 +1,14 @@
 import { Fragment, useCallback, useMemo, useState } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
-import { Button, Chip, Icon, IconButton, Icons, Switch, Text } from 'folds';
-import { useNavigate } from 'react-router-dom';
+import { Button, Chip, Icon, IconButton, Icons, Spinner, Switch, Text } from 'folds';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { allInvitesAtom } from '../matrix/state/inviteList';
+import { crossRoomThreadIndexBootstrappedAtom } from '../threads/cross-room/crossRoomThreadIndex';
 import { useLoadedRoomMembers } from '../matrix/hooks/useLoadedRoomMembers';
 import { getCanonicalAliasOrRoomId } from '../matrix/matrix';
+import { getViewedPlace } from '../navigation/viewedPlace';
 import { settingsAtom } from '../preferences/settings';
 import { useSetting } from '../preferences/useSetting';
 import { getActivityInvitesPath, getActivityRoomPath, withSearchParam } from '../routes/pathUtils';
@@ -65,6 +67,13 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
   );
   // Every pending invite, also those Activity leaves out as spam: the list sorts them.
   const hasInvites = useAtomValue(allInvitesAtom).length > 0;
+  const loading = !useAtomValue(crossRoomThreadIndexBootstrappedAtom);
+  const place = getViewedPlace(mx, useLocation());
+  // The row of the thread, or the invite's room, that the page shows beside the list.
+  const isCurrent = (row: ActivityRow) =>
+    row.type === 'thread'
+      ? place.roomId === row.entry.roomId && place.threadId === row.entry.threadRootId
+      : place.roomId === row.roomId && !place.threadId;
   // Senders are named from the member lists, which a room the user has not opened lacks.
   const namesVersion = useLoadedRoomMembers(
     mx,
@@ -141,17 +150,34 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
       </div>
       {shown.length === 0 ? (
         <div className={css.Empty}>
-          <Icon size="400" src={Icons.Bell} />
-          <Text size="H6">{t('activity.caughtUp')}</Text>
-          <Text size="T200" priority="300">
-            {t('activity.caughtUpDescription')}
-          </Text>
+          {/* Before the index scanned the rooms, an empty list says nothing yet. */}
+          {loading ? (
+            <>
+              <Spinner size="400" variant="Secondary" />
+              <Text size="T200" priority="300">
+                {t('sharedUi.threadsView.loadingThreads')}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Icon size="400" src={Icons.Bell} />
+              <Text size="H6">{t('activity.caughtUp')}</Text>
+              <Text size="T200" priority="300">
+                {t('activity.caughtUpDescription')}
+              </Text>
+            </>
+          )}
         </div>
       ) : (
         <div role="list">
           {waiting.map((row) => (
             <div role="listitem" key={row.key}>
-              <ActivityRowItem row={row} onOpen={open} namesVersion={namesVersion} />
+              <ActivityRowItem
+                row={row}
+                onOpen={open}
+                namesVersion={namesVersion}
+                current={isCurrent(row)}
+              />
             </div>
           ))}
           {rest.map((row, index) => {
@@ -166,7 +192,12 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
                   </Text>
                 )}
                 <div role="listitem">
-                  <ActivityRowItem row={row} onOpen={open} namesVersion={namesVersion} />
+                  <ActivityRowItem
+                    row={row}
+                    onOpen={open}
+                    namesVersion={namesVersion}
+                    current={isCurrent(row)}
+                  />
                 </div>
               </Fragment>
             );

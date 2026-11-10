@@ -81,13 +81,13 @@ type ActionState =
   | { status: 'error' }
   | { status: 'done'; label: string };
 
-/** The answer buttons of a row that waits for one, with their sending state and error. */
 /** What a row's buttons answer, so a row that comes to wait on something else starts afresh. */
 const actionTarget = (row: ActivityRow): string => {
   if (row.type === 'invite') return row.roomId;
   return row.signals.pendingApproval?.eventId ?? row.signals.pendingQuestion?.eventId ?? '';
 };
 
+/** The answer buttons of a row that waits for one, with their sending state and error. */
 function RowActions({
   row,
   room,
@@ -245,9 +245,12 @@ const rowContext = (row: ActivityThreadRow): { title: string; room: string } => 
 export const ActivityRowItem = memo(function ActivityRowItem({
   row,
   onOpen,
+  current = false,
 }: {
   row: ActivityRow;
   onOpen: (row: ActivityRow) => void;
+  /** Whether the row's thread (or invite) is the one shown beside the list. */
+  current?: boolean;
   /** Changes when a member list arrives, so the row names its senders again. */
   namesVersion?: number;
 }) {
@@ -290,7 +293,12 @@ export const ActivityRowItem = memo(function ActivityRowItem({
   return (
     <div
       data-activity-row={row.kind}
-      className={classNames(css.Row, needsYou(row) && css.RowNeedsYou, !row.unread && css.RowRead)}
+      className={classNames(
+        css.Row,
+        needsYou(row) && css.RowNeedsYou,
+        !row.unread && css.RowRead,
+        current && css.RowCurrent
+      )}
     >
       <div className={css.AvatarSlot}>
         <Avatar size="300" radii="Pill">
@@ -309,6 +317,7 @@ export const ActivityRowItem = memo(function ActivityRowItem({
         <button
           type="button"
           className={css.OpenButton}
+          aria-current={current ? 'page' : undefined}
           onClick={(event) => {
             event.stopPropagation();
             onOpen(row);

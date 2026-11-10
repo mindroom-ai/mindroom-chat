@@ -273,7 +273,7 @@ export const getMemberDisplayName = (room: Room, userId: string): string | undef
 
 /**
  * The name to show for `userId` as a sender in places that name senders of rooms the user may not
- * have opened (the Inbox, system notifications). With lazy-loaded members such a room knows only
+ * have opened (Activity, system notifications). With lazy-loaded members such a room knows only
  * the members whose events its sync brought, so a member who copied the name of someone not loaded
  * yet would read as them. Until the room's member list is loaded the user ID follows every name,
  * and a sender without one shows as the user ID; once it is loaded, the name

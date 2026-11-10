@@ -3,7 +3,11 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { createStore, Provider } from 'jotai';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { CrossRoomThreadIndexEntry } from '../cross-room/crossRoomThreadIndex';
+import {
+  crossRoomThreadIndexAtom,
+  emptyCrossRoomThreadIndexSnapshot,
+  type CrossRoomThreadIndexEntry,
+} from '../cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../cross-room/threadSignals';
 import type { ThreadApprovalRecord } from '../../matrix/protocol/threadApprovalModel';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
@@ -67,9 +71,11 @@ function CurrentPath() {
   return <output aria-label="Current path">{`${pathname}${search}`}</output>;
 }
 
-const renderNav = () =>
-  render(
-    <Provider store={createStore()}>
+const renderNav = (bootstrapped = true) => {
+  const store = createStore();
+  store.set(crossRoomThreadIndexAtom, { ...emptyCrossRoomThreadIndexSnapshot(), bootstrapped });
+  return render(
+    <Provider store={store}>
       <ScreenSizeProvider value={ScreenSize.Desktop}>
         <MemoryRouter initialEntries={['/threads/']}>
           <ThreadsNav />
@@ -78,6 +84,7 @@ const renderNav = () =>
       </ScreenSizeProvider>
     </Provider>
   );
+};
 
 // The navigation column's scroller measures itself.
 vi.stubGlobal(
@@ -253,6 +260,13 @@ describe('ThreadsNav', () => {
     renderNav();
     expect(screen.getByText('Tom: Older reply')).toBeTruthy();
     expect(screen.queryByText(/The root text/)).toBeNull();
+  });
+
+  it('says it is loading, not that nothing is there, until the thread index has loaded', () => {
+    state.items = [];
+    renderNav(false);
+    expect(screen.getByText('Loading threads')).toBeTruthy();
+    expect(screen.queryByText('No threads here yet')).toBeNull();
   });
 
   it('says when there is nothing to list', () => {

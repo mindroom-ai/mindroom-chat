@@ -71,8 +71,9 @@ const compareRows = (a: ActivityRow, b: ActivityRow): number =>
 
 /**
  * Activity's rows: a thread that waits for the person or names them, and a thread they take part
- * in with activity in the last `ACTIVITY_READ_WINDOW_MS`, one row each; then the invites. A thread an agent runs alone (an automation) is only counted, unless it names them, it
- * waits for them, or `showAutomations` lists it.
+ * in with activity in the last `ACTIVITY_READ_WINDOW_MS`, one row each; then the invites. A
+ * thread an agent runs alone (an automation) is only counted, unless it names them, it waits for
+ * them, or `showAutomations` lists it.
  */
 export const buildActivityRows = ({
   entries,
@@ -107,6 +108,9 @@ export const buildActivityRows = ({
     // A mention is unread by its signal: it may sit in the root, which no reply count holds.
     const unread = waits || named || threadSignals.newCount > 0;
     const kind = threadKind(threadSignals);
+    // A reply row says who replied; a thread with no counted reply has nothing to tell yet.
+    if (kind === 'reply' && !threadSignals.lastReply && threadSignals.newCount === 0) continue;
+    const actorIds = actorsOf(kind, threadSignals);
     rows.push({
       type: 'thread',
       key: entry.key,
@@ -115,7 +119,7 @@ export const buildActivityRows = ({
       signals: threadSignals,
       unread,
       ts: Math.max(entry.lastActivityTs, threadSignals.lastReply?.ts ?? 0),
-      actorIds: actorsOf(kind, threadSignals),
+      actorIds,
     });
   }
   for (const invite of invites) {

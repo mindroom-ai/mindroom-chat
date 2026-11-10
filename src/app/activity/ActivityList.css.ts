@@ -87,6 +87,9 @@ export const RowNeedsYou = style({
   selectors: { '&:hover': { backgroundColor: color.Warning.ContainerHover } },
 });
 
+/** The row of what the page shows beside the list. */
+export const RowCurrent = style({ backgroundColor: color.Primary.Container });
+
 /** A read row: its sentence in regular weight, the rest as on an unread one. */
 export const RowRead = style({});
 

@@ -27,16 +27,16 @@ export function ActivityBadge({ count, needsYou }: { count: number; needsYou: bo
   );
 }
 
-/**
- * The Activity bell of the icon rail. Wider than a phone it opens the Activity popover over the
- * page; a second click, or a click while Activity shows, opens the Activity page. On phones,
- * where the rail is in the drawer, it opens the page.
- */
 type ActivityTabProps = {
   /** The navigation panel's handler of a section button; with false it shows a panel it hid. */
   onSelect?: (selected: boolean) => boolean;
 };
 
+/**
+ * The Activity bell of the icon rail. Wider than a phone it opens the Activity popover over the
+ * page; a second click, or a click while Activity shows, opens the Activity page. On phones,
+ * where the rail is in the drawer, it opens the page.
+ */
 export function ActivityTab({ onSelect }: ActivityTabProps) {
   const navigate = useNavigate();
   const { t } = useTranslation();

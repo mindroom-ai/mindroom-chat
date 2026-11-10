@@ -3,7 +3,11 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { createStore, Provider } from 'jotai';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
+import {
+  crossRoomThreadIndexAtom,
+  emptyCrossRoomThreadIndexSnapshot,
+  type CrossRoomThreadIndexEntry,
+} from '../threads/cross-room/crossRoomThreadIndex';
 import type { ThreadApprovalRecord } from '../matrix/protocol/threadApprovalModel';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
@@ -162,9 +166,10 @@ function CurrentPath() {
   return <output aria-label="Current path">{`${pathname}${search}`}</output>;
 }
 
-const renderList = (result: ActivityRowsResult) => {
+const renderList = (result: ActivityRowsResult, bootstrapped = true) => {
   const store = createStore();
   store.set(activityRowsAtom, result);
+  store.set(crossRoomThreadIndexAtom, { ...emptyCrossRoomThreadIndexSnapshot(), bootstrapped });
   render(
     <Provider store={store}>
       <ScreenSizeProvider value={ScreenSize.Desktop}>
@@ -273,6 +278,15 @@ describe('ActivityList', () => {
     );
   });
 
+  it('marks the row of the thread shown beside the list', () => {
+    renderList({ rows: ROWS, hiddenAutomations: 0 });
+    const current = () => document.querySelectorAll('[aria-current="page"]');
+    expect(current()).toHaveLength(0);
+    fireEvent.click(screen.getByText('✉️ Launch email draft'));
+    expect(current()).toHaveLength(1);
+    expect(rowByTitle('✉️ Launch email draft').contains(current()[0] ?? null)).toBe(true);
+  });
+
   it('marks the unread rows read', () => {
     renderList({ rows: ROWS, hiddenAutomations: 0 });
     fireEvent.click(screen.getByRole('button', { name: 'Mark all read' }));
@@ -364,6 +378,12 @@ describe('ActivityList', () => {
     act(() => store.set(allInvitesAtom, { type: 'INITIALIZE', rooms: ['!spam:x'] }));
     fireEvent.click(screen.getByRole('button', { name: 'All invites' }));
     expect(screen.getByLabelText('Current path').textContent).toBe('/activity/invites/');
+  });
+
+  it('says it is loading, not that all is read, until the thread index has loaded', () => {
+    renderList({ rows: [], hiddenAutomations: 0 }, false);
+    expect(screen.getByText('Loading threads')).toBeTruthy();
+    expect(screen.queryByText("You're all caught up")).toBeNull();
   });
 
   it('says when nothing is left', () => {

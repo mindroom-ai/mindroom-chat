@@ -1,7 +1,7 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import classNames from 'classnames';
-import { useAtom } from 'jotai';
-import { Badge, Button, Icon, Icons, Input, Text } from 'folds';
+import { useAtom, useAtomValue } from 'jotai';
+import { Badge, Button, Icon, Icons, Input, Spinner, Text } from 'folds';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useRelativeTime } from '../../i18n/useRelativeTime';
@@ -25,6 +25,7 @@ import {
   type ThreadListItem,
   type ThreadsScope,
 } from './threadGroups';
+import { crossRoomThreadIndexBootstrappedAtom } from '../cross-room/crossRoomThreadIndex';
 import { getThreadsScopeAtom } from './threadsScope';
 import { useJoinedRoomThreadLists } from './useJoinedRoomThreadLists';
 import { useThreadListItems } from './useThreadListItems';
@@ -153,6 +154,7 @@ export function ThreadsNav() {
   const [recentLimit, setRecentLimit] = useState(RECENT_PAGE);
   const [automationsOpen, setAutomationsOpen] = useState(false);
   const shown = useShownThread();
+  const loading = !useAtomValue(crossRoomThreadIndexBootstrappedAtom);
   const groups = useMemo(
     () => groupThreads(items, scope, userId, query),
     [items, scope, userId, query]
@@ -163,12 +165,16 @@ export function ThreadsNav() {
     groups.flatMap((group) => group.items.map((it) => it.entry.roomId))
   );
 
-  const open = (item: ThreadListItem) => {
-    const roomSegment = getCanonicalAliasOrRoomId(mx, item.entry.roomId);
-    navigate(
-      withSearchParam(getThreadsRoomPath(roomSegment), { threadId: item.entry.threadRootId })
-    );
-  };
+  // One function for every render, so the memoized rows keep their render.
+  const open = useCallback(
+    (item: ThreadListItem) => {
+      const roomSegment = getCanonicalAliasOrRoomId(mx, item.entry.roomId);
+      navigate(
+        withSearchParam(getThreadsRoomPath(roomSegment), { threadId: item.entry.threadRootId })
+      );
+    },
+    [mx, navigate]
+  );
   const row = (item: ThreadListItem) => (
     <ThreadRow
       key={item.entry.key}
@@ -215,7 +221,15 @@ export function ThreadsNav() {
             before={<Icon size="100" src={Icons.Search} />}
           />
         </div>
-        {groups.length === 0 && (
+        {groups.length === 0 && loading && (
+          <div className={css.Empty}>
+            <Spinner size="400" variant="Secondary" />
+            <Text size="T200" priority="300">
+              {t('sharedUi.threadsView.loadingThreads')}
+            </Text>
+          </div>
+        )}
+        {groups.length === 0 && !loading && (
           <div className={css.Empty}>
             <Icon size="400" src={Icons.Thread} />
             <Text size="H6">{query ? t('threadsPage.noMatches') : t('threadsPage.noThreads')}</Text>
