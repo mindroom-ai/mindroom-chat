@@ -20,8 +20,6 @@
 // the precache globs never matched, or a worker without the inventory's marker fails the build:
 // each would leave an offline start without a file it loads.
 
-import path from 'node:path';
-
 /** Build files other than code a startup chunk brings: fonts from its style sheets, the wasm, images. */
 const STARTUP_ASSET = /\.(?:woff2|wasm|png|svg|webp|avif|jpe?g|gif|ico)$/;
 
@@ -133,8 +131,9 @@ export const buildInventory = (bundle, assetsDir, localeOverlay) => {
 
 /**
  * The plugin that reads the bundle, the manifest transform that keeps only the startup files and
- * `shellFiles` (paths in the output directory, such as `index.html`), and the plugin for the
- * worker's own build that writes the build inventory into it.
+ * `shellFiles` (paths in the output directory, such as `index.html`), the plugin for the
+ * worker's own build that writes the build inventory into it, and the wrapper of vite-plugin-pwa's
+ * plugins that builds the worker only after a written bundle.
  * @param {{ startupModules: readonly string[], onDemandAssets?: readonly string[], shellFiles: readonly string[], localeOverlay: RegExp }} options
  */
 export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, localeOverlay }) => {
@@ -143,13 +142,7 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
   /** @type {BuildInventory | undefined} */
   let inventory;
   let assetsDir = 'assets';
-  // vite-plugin-pwa builds the worker once the build has ended, also after it failed. A build that
-  // failed while it rendered its output must end with its own error, so the worker's build, which
-  // never ships, then passes without the plan, when the build had emptied its output directory.
-  // Otherwise (a failure in the build phase, buildEnd hooks included, or an output directory that
-  // keeps an earlier build) the worker's build fails as ever, writing no worker over an earlier one.
-  let emptiesOutDir = false;
-  let passWithoutPlan = false;
+  let written = false;
 
   /** @type {import('vite').Plugin} */
   const plugin = {
@@ -157,16 +150,13 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
     apply: 'build',
     configResolved(config) {
       assetsDir = config.build.assetsDir;
-      // As Vite decides it: unless set, it empties an output directory inside the root only.
-      const outDir = path.resolve(config.root, config.build.outDir);
-      emptiesOutDir = config.build.emptyOutDir ?? outDir.startsWith(`${config.root}${path.sep}`);
-    },
-    renderStart() {
-      passWithoutPlan = emptiesOutDir;
     },
     generateBundle(_options, bundle) {
       planned = new Set([...shellFiles, ...startupFiles(bundle, startupModules, onDemandAssets)]);
       inventory = buildInventory(bundle, assetsDir, localeOverlay);
+    },
+    writeBundle() {
+      written = true;
     },
   };
 
@@ -175,10 +165,7 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
     name: 'mindroom-worker-build-inventory',
     apply: 'build',
     renderChunk(code) {
-      if (!inventory) {
-        if (passWithoutPlan) return null;
-        throw new Error('precache plan: the build never reported its bundle');
-      }
+      if (!inventory) throw new Error('precache plan: the build never reported its bundle');
       const parts = code.split(INVENTORY_MARKER);
       if (parts.length !== 2) {
         throw new Error(
@@ -195,10 +182,7 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
    */
   const manifestTransform = (entries) => {
     const wanted = planned;
-    if (!wanted) {
-      if (passWithoutPlan) return { manifest: [], warnings: [] };
-      throw new Error('precache plan: the build never reported its bundle');
-    }
+    if (!wanted) throw new Error('precache plan: the build never reported its bundle');
     const manifest = entries.filter((entry) => wanted.has(entry.url));
     const listed = new Set(manifest.map((entry) => entry.url));
     const missing = [...wanted].filter((file) => !listed.has(file));
@@ -210,5 +194,27 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
     return { manifest, warnings: [] };
   };
 
-  return { plugin, manifestTransform, workerPlugin };
+  /**
+   * `plugins` (vite-plugin-pwa's), whose closeBundle, where it builds the worker, runs only once the
+   * build has written its bundle. Vite closes a failed build too, and the worker build's error, such
+   * as this plan's "never reported its bundle", would take the place of the build's own.
+   * @param {import('vite').Plugin[]} plugins
+   * @returns {import('vite').Plugin[]}
+   */
+  const afterWrittenBundle = (plugins) =>
+    plugins.map((original) => {
+      const hook = original.closeBundle;
+      if (!hook) return original;
+      const handler = typeof hook === 'function' ? hook : hook.handler;
+      /** @type {typeof handler} */
+      const closeBundle = function (...args) {
+        return written ? handler.apply(this, args) : undefined;
+      };
+      return {
+        ...original,
+        closeBundle: typeof hook === 'function' ? closeBundle : { ...hook, handler: closeBundle },
+      };
+    });
+
+  return { plugin, manifestTransform, workerPlugin, afterWrittenBundle };
 };

@@ -221,7 +221,8 @@ export default defineConfig({
           // Before startup.plugin, which reads the bundle's inventory.
           speechModelFiles(),
           startup.plugin,
-          serviceWorkerPlugin,
+          // The worker only once the app's bundle is written, so a failed build keeps its own error.
+          ...startup.afterWrittenBundle(serviceWorkerPlugin),
         ]),
   ],
   server: {
