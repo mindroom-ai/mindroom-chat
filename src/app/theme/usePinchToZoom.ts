@@ -53,12 +53,6 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
 
-    const resetGestureState = () => {
-      wheelDeltaRef.current = 0;
-      touchStartDistanceRef.current = null;
-      gestureStartZoomRef.current = null;
-    };
-
     // The pinch under way, from the touch event that brings a second finger down until fewer
     // than two are: how many fingers are down, and whether a pinch surface owns it. Each touch
     // event that reaches the window sets the count from its `touches`; a finger whose element
@@ -78,13 +72,17 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       const pinchStarts = fingers < 2 && event.touches.length >= 2;
       fingers = event.touches.length;
       if (fingers < 2) surfacePinch = false;
-      else if (pinchStarts) surfacePinch = surfaceOwns(event.touches);
+      else if (pinchStarts && surfaceOwns(event.touches)) {
+        surfacePinch = true;
+        // A start an earlier pinch left, whose ends were lost, never zooms these fingers later.
+        touchStartDistanceRef.current = null;
+      }
       return surfacePinch;
     };
 
     const handlePointerEnd = (event: PointerEvent) => {
       if (event.pointerType !== 'touch') return;
-      fingers = Math.max(0, fingers - 1);
+      fingers -= 1;
       if (fingers < 2) forgetPinch();
     };
 
@@ -138,8 +136,9 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       queueZoom(nextZoom);
     };
 
-    // One finger is no pinch: a surface's element is looked up only as a second finger lands.
-    const handleTouchStart = (event: TouchEvent) => {
+    // A finger lands or lifts. One finger is no pinch: a surface's element is looked up only as a
+    // second finger lands.
+    const handleFingersChange = (event: TouchEvent) => {
       if (followFingers(event)) return;
       startTouchPinch(event.touches);
     };
@@ -156,15 +155,6 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       // The pinch is the app's: the web view neither scrolls nor magnifies the page.
       if (event.cancelable) event.preventDefault();
       queueZoom(touchStartZoomRef.current * (currentDistance / startDistance));
-    };
-
-    const handleTouchEnd = (event: TouchEvent) => {
-      if (followFingers(event)) return;
-      if (event.touches.length >= 2) {
-        startTouchPinch(event.touches);
-        return;
-      }
-      touchStartDistanceRef.current = null;
     };
 
     // iOS sends the gesture events of a touch pinch to the elements its fingers landed on, and its
@@ -194,10 +184,10 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
     };
 
     window.addEventListener('wheel', handleWheel, { passive: false });
-    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchstart', handleFingersChange, { passive: true });
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
-    window.addEventListener('touchend', handleTouchEnd, { passive: true });
-    window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+    window.addEventListener('touchend', handleFingersChange, { passive: true });
+    window.addEventListener('touchcancel', handleFingersChange, { passive: true });
     document.addEventListener('gesturestart', handleGestureStart, { passive: false });
     document.addEventListener('gesturechange', handleGestureChange, { passive: false });
     document.addEventListener('gestureend', handleGestureEnd, { passive: true });
@@ -210,12 +200,14 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
         rafIdRef.current = undefined;
       }
       pendingZoomRef.current = null;
-      resetGestureState();
+      wheelDeltaRef.current = 0;
+      touchStartDistanceRef.current = null;
+      gestureStartZoomRef.current = null;
       window.removeEventListener('wheel', handleWheel);
-      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchstart', handleFingersChange);
       window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', handleTouchEnd);
-      window.removeEventListener('touchcancel', handleTouchEnd);
+      window.removeEventListener('touchend', handleFingersChange);
+      window.removeEventListener('touchcancel', handleFingersChange);
       document.removeEventListener('gesturestart', handleGestureStart);
       document.removeEventListener('gesturechange', handleGestureChange);
       document.removeEventListener('gestureend', handleGestureEnd);

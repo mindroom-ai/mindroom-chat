@@ -2,8 +2,9 @@
 // rows and text should look like the app's (docs/architecture.md "Client plugins"): the app's own
 // components, with the app's props, which keep the app's theme, glass and reading direction, text
 // as the app renders it, and for a surface a plugin draws itself the app's theme kind, its screen
-// size, its PDF frame, the motion of the room's side panels and the mark that keeps its pinches. Like `/core` it only grows, and each
-// addition raises CLIENT_PLUGIN_API_VERSION in scripts/client-plugins.mjs.
+// size, its PDF frame, the motion of the room's side panels and the mark that keeps its pinches.
+// Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in
+// scripts/client-plugins.mjs.
 import { useMemo, useSyncExternalStore } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { useOptionalClientConfig } from '../app/config/useClientConfig';

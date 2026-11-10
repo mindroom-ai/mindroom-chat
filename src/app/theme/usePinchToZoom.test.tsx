@@ -405,20 +405,23 @@ describe('usePinchToZoom', () => {
       }
     );
 
-    it('lets go of its pinch at the touch end that leaves one finger', () => {
-      const { setPageZoom } = mount(100);
-      const { surface, inside, outside } = pinchSurface();
+    it.each(['touchend', 'touchcancel'] as const)(
+      'lets go of its pinch at the %s that leaves one finger',
+      (type) => {
+        const { setPageZoom } = mount(100);
+        const { surface, inside, outside } = pinchSurface();
 
-      touch('touchstart', [[0, 0, inside]]);
-      touch('touchstart', spread(inside, surface, 100));
-      touch('touchend', [[0, 0, inside]], surface);
-      touch('touchend', [], inside);
+        touch('touchstart', [[0, 0, inside]]);
+        touch('touchstart', spread(inside, surface, 100));
+        touch(type, [[0, 0, inside]], surface);
+        touch(type, [], inside);
 
-      gesture('gesturestart', 1, outside);
-      gesture('gesturechange', 1.5, outside);
-      flushFrames();
-      expect(setPageZoom).toHaveBeenCalledWith(150);
-    });
+        gesture('gesturestart', 1, outside);
+        gesture('gesturechange', 1.5, outside);
+        flushFrames();
+        expect(setPageZoom).toHaveBeenCalledWith(150);
+      }
+    );
 
     it('zooms nothing from an earlier pinch of the page whose ends were lost', () => {
       const { setPageZoom } = mount(100);
@@ -455,6 +458,29 @@ describe('usePinchToZoom', () => {
       flushFrames();
 
       expect(move.defaultPrevented).toBe(false);
+      expect(setPageZoom).not.toHaveBeenCalled();
+    });
+
+    it('takes no start from an earlier page pinch when the browser cancels the surface pinch', () => {
+      const { setPageZoom } = mount(100);
+      const { surface, inside, outside } = pinchSurface();
+
+      // The page's pinch: both fingers' element goes, and only their pointers end.
+      touch('touchstart', [[0, 0, outside]]);
+      touch('touchstart', spread(outside, outside, 100));
+      outside.remove();
+      pointer('pointerup');
+      pointer('pointerup');
+      // Two fingers land on the surface in one frame, its element goes, and the browser cancels
+      // their pointers: the app judges the pinch again and finds it its own.
+      touch('touchstart', spread(inside, surface, 100), inside);
+      touch('touchstart', spread(inside, surface, 100), surface);
+      inside.remove();
+      pointer('pointercancel', surface);
+      pointer('pointercancel', surface);
+      touch('touchmove', spread(inside, surface, 150), surface);
+      flushFrames();
+
       expect(setPageZoom).not.toHaveBeenCalled();
     });
 
