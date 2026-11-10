@@ -82,6 +82,13 @@ export const getRoomInputVoiceSendContext = ({
  * picked up here. handleVoiceSend in the parent uses this so the bridge-
  * detection / membership predicates stay isolated to the extensions module.
  */
+/**
+ * A thread opened by a message that was still sending goes by that message's own ID once the
+ * server confirms it.
+ */
+export const confirmedVoiceThreadId = (room: Room, threadId: string | undefined) =>
+  isLocalEchoEventId(threadId) ? resolveCanonicalThreadRootId(room, threadId) : threadId;
+
 export const refreshRoomInputVoiceSendContext = (
   mx: MatrixClient,
   context: PendingVoiceSendContext
@@ -91,11 +98,7 @@ export const refreshRoomInputVoiceSendContext = (
   return {
     ...context,
     room: liveRoom,
-    // A thread opened by a message that was still sending goes by that message's own ID once the
-    // server confirms it.
-    threadId: isLocalEchoEventId(context.threadId)
-      ? resolveCanonicalThreadRootId(liveRoom, context.threadId)
-      : context.threadId,
+    threadId: confirmedVoiceThreadId(liveRoom, context.threadId),
     signalBridgedRoom: isSignalBridgeRoom(liveRoom),
   };
 };

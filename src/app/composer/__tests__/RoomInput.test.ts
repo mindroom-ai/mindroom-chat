@@ -490,6 +490,7 @@ vi.mock('../RoomInputExtensions', async () => {
           : node
       );
     },
+    confirmedVoiceThreadId: (_room: unknown, threadId: string | undefined) => threadId,
     getRoomInputVoiceSendContext: ({
       ownerSessionId,
       roomId,

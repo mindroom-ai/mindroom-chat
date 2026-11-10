@@ -35,6 +35,7 @@ import {
 } from '../matrix/matrix';
 import { Membership } from '../matrix/types/room';
 import {
+  confirmedVoiceThreadId,
   getRoomInputVoiceSendContext,
   refreshRoomInputVoiceSendContext,
 } from './RoomInputExtensions';
@@ -126,8 +127,15 @@ export const useRoomInputVoice = ({
   const { roomId } = composerContext;
   const draftBelongsToCurrentSession =
     !!pendingVoiceSendDraft && pendingVoiceSendDraft.context.ownerSessionId === currentSessionId;
+  // A recording made while its thread's root was still sending belongs to that thread after.
   const draftKey = draftBelongsToCurrentSession
-    ? voiceComposerKey(pendingVoiceSendDraft.context)
+    ? voiceComposerKey({
+        ...pendingVoiceSendDraft.context,
+        threadId: confirmedVoiceThreadId(
+          pendingVoiceSendDraft.context.room,
+          pendingVoiceSendDraft.context.threadId
+        ),
+      })
     : undefined;
   // A thread view's composer, while mounted, is the one to offer its thread's recording.
   const setThreadViewComposers = useSetAtom(threadViewVoiceComposersAtom);
