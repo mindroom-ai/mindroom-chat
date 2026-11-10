@@ -140,7 +140,7 @@ test.beforeAll(async () => {
   seeded = { person, roomId, rootId, agentReplyId, personMessageId };
 
   // The rows' threads: an agent's greeting reply, a person's, and a thread a greeting starts.
-  const send = (user: DisposableUser, content: Record<string, unknown>) =>
+  const send = (user: { accessToken: string }, content: Record<string, unknown>) =>
     sendRoomMessage(HOMESERVER, user.accessToken, roomId, { msgtype: 'm.text', ...content });
   const reply = (root: string) => ({ 'm.relates_to': { rel_type: 'm.thread', event_id: root } });
   const agentRoot = await send(person, { body: AGENT_ROOT });
