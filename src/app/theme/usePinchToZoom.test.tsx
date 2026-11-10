@@ -405,6 +405,59 @@ describe('usePinchToZoom', () => {
       }
     );
 
+    it('lets go of its pinch at the touch end that leaves one finger', () => {
+      const { setPageZoom } = mount(100);
+      const { surface, inside, outside } = pinchSurface();
+
+      touch('touchstart', [[0, 0, inside]]);
+      touch('touchstart', spread(inside, surface, 100));
+      touch('touchend', [[0, 0, inside]], surface);
+      touch('touchend', [], inside);
+
+      gesture('gesturestart', 1, outside);
+      gesture('gesturechange', 1.5, outside);
+      flushFrames();
+      expect(setPageZoom).toHaveBeenCalledWith(150);
+    });
+
+    it('zooms nothing from an earlier pinch of the page whose ends were lost', () => {
+      const { setPageZoom } = mount(100);
+      const { surface, inside, outside } = pinchSurface();
+
+      // The page's pinch: both fingers' element goes, and only their pointers end.
+      touch('touchstart', [[0, 0, outside]]);
+      touch('touchstart', spread(outside, outside, 100));
+      outside.remove();
+      pointer('pointerup');
+      pointer('pointerup');
+      // Two fingers land on the surface in one frame.
+      touch('touchstart', spread(inside, surface, 100), inside);
+      touch('touchstart', spread(inside, surface, 100), surface);
+      const move = touch('touchmove', spread(inside, surface, 150));
+      flushFrames();
+
+      expect(move.defaultPrevented).toBe(false);
+      expect(setPageZoom).not.toHaveBeenCalled();
+    });
+
+    it('lets the app take fingers whose pointers the browser cancelled without a jump', () => {
+      const { setPageZoom } = mount(100);
+      const { surface, inside } = pinchSurface();
+
+      touch('touchstart', [[0, 0, inside]]);
+      touch('touchstart', spread(inside, surface, 100));
+      inside.remove();
+      pointer('pointercancel', surface);
+      pointer('pointercancel', surface);
+      // The app judges the pinch again, and the removed element is on no surface now: the
+      // page's pinch, which zooms only from a touch of its own.
+      const move = touch('touchmove', spread(inside, surface, 150), surface);
+      flushFrames();
+
+      expect(move.defaultPrevented).toBe(false);
+      expect(setPageZoom).not.toHaveBeenCalled();
+    });
+
     it('keeps its pinch while a finger beside it or a mouse comes and goes', () => {
       const { setPageZoom } = mount(100);
       const { surface, inside, outside } = pinchSurface();
@@ -434,6 +487,60 @@ describe('usePinchToZoom', () => {
       expect(move.defaultPrevented).toBe(false);
       expect(later.defaultPrevented).toBe(false);
       expect(setPageZoom).not.toHaveBeenCalled();
+    });
+
+    it('leaves the app a pinch that starts with a finger beside it, after that finger comes up', () => {
+      const { setPageZoom } = mount(100);
+      const { surface, inside, outside } = pinchSurface();
+
+      touch('touchstart', [[200, 0, outside]]);
+      touch('touchstart', [
+        [200, 0, outside],
+        [0, 0, inside],
+      ]);
+      touch('touchstart', [[200, 0, outside], ...spread(inside, surface, 100)], surface);
+      pointer('pointerup', outside);
+      touch('touchend', spread(inside, surface, 100), outside);
+      const move = touch('touchmove', spread(inside, surface, 150));
+      flushFrames();
+
+      expect(move.defaultPrevented).toBe(true);
+      expect(setPageZoom).toHaveBeenCalledWith(150);
+    });
+
+    it('gives the surface the gestures of its pinch, wherever they are sent', () => {
+      const { setPageZoom } = mount(100);
+      const { surface, inside } = pinchSurface();
+
+      // A gesture that starts before the pinch is the surface's stops at it.
+      touch('touchstart', [[0, 0, inside]]);
+      gesture('gesturestart', 1);
+      touch('touchstart', spread(inside, surface, 100));
+      const change = gesture('gesturechange', 1.5);
+      gesture('gestureend', 1.5);
+      // One that starts during it never starts.
+      touch('touchstart', spread(inside, surface, 100));
+      const start = gesture('gesturestart', 1);
+      gesture('gesturechange', 1.8);
+      flushFrames();
+
+      expect(change.defaultPrevented).toBe(false);
+      expect(start.defaultPrevented).toBe(false);
+      expect(setPageZoom).not.toHaveBeenCalled();
+    });
+
+    it('starts no trackpad pinch over it from the zoom of an earlier one that never ended', () => {
+      const { setPageZoom } = mount(100);
+      const { inside, outside } = pinchSurface();
+
+      gesture('gesturestart', 1, outside);
+      gesture('gesturechange', 1.5, outside);
+      flushFrames();
+      gesture('gesturestart', 1, inside);
+      gesture('gesturechange', 1.2, inside);
+      flushFrames();
+
+      expect(setPageZoom.mock.calls).toEqual([[150]]);
     });
 
     it("gives iOS's gesture, which starts before the second finger's touch, to the surface", () => {

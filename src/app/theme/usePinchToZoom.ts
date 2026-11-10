@@ -78,11 +78,7 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       const pinchStarts = fingers < 2 && event.touches.length >= 2;
       fingers = event.touches.length;
       if (fingers < 2) surfacePinch = false;
-      else if (pinchStarts && surfaceOwns(event.touches)) {
-        surfacePinch = true;
-        // Should the app take these fingers over later, it waits for a touch to start from.
-        touchStartDistanceRef.current = null;
-      }
+      else if (pinchStarts) surfacePinch = surfaceOwns(event.touches);
       return surfacePinch;
     };
 
