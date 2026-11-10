@@ -1,9 +1,24 @@
 // @vitest-environment jsdom
 
 import { cleanup, render, renderHook } from '@testing-library/react';
+import type FocusTrap from 'focus-trap-react';
+import type { ComponentProps } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ImageViewer } from '../messages/viewers/ImageViewer';
+import { ImageOverlay } from '../messages/content/ImageOverlay';
 import { PINCH_SURFACE_ATTRIBUTE, usePinchToZoom } from './usePinchToZoom';
+
+// JSDOM lays nothing out, so every element counts as shown for the image viewer's focus trap.
+vi.mock('focus-trap-react', async (original) => {
+  const { default: RealTrap } = await original<{ default: typeof FocusTrap }>();
+  return {
+    default: ({ focusTrapOptions, ...props }: ComponentProps<typeof FocusTrap>) => (
+      <RealTrap
+        {...props}
+        focusTrapOptions={{ ...focusTrapOptions, tabbableOptions: { displayCheck: 'none' } }}
+      />
+    ),
+  };
+});
 
 /** A finger: where it is, and the element it landed on (the page body unless given). */
 type Point = [x: number, y: number, target?: Element];
@@ -642,21 +657,24 @@ describe('usePinchToZoom', () => {
       expect(setPageZoom).toHaveBeenCalledWith(101);
     });
 
-    it('is what the image viewer is, so a pinch on the picture zooms the picture alone', () => {
+    // On a phone the viewer's frame is the whole screen, its safe-area padding included.
+    it("is what the image viewer's frame is, so a pinch with a finger on its padding zooms no page", () => {
       const { setPageZoom } = mount(100);
       const { getByRole } = render(
-        <ImageViewer alt="harbor.jpg" src="blob:harbor" requestClose={() => undefined} />
+        <ImageOverlay alt="harbor.jpg" src="blob:harbor" requestClose={() => undefined} />
       );
       const picture = getByRole('img', { name: 'harbor.jpg' });
+      const frame = getByRole('dialog', { name: 'harbor.jpg' });
 
       touch('touchstart', [[0, 0, picture]]);
-      touch('touchstart', spread(picture, picture, 100));
-      touch('touchmove', spread(picture, picture, 150));
-      gesture('gesturestart', 1, picture);
-      gesture('gesturechange', 1.5, picture);
-      wheel({ ctrlKey: true, deltaY: -50 }, picture);
+      touch('touchstart', spread(picture, frame, 100));
+      const move = touch('touchmove', spread(picture, frame, 150));
+      gesture('gesturestart', 1, frame);
+      gesture('gesturechange', 1.5, frame);
+      wheel({ ctrlKey: true, deltaY: -50 }, frame);
       flushFrames();
 
+      expect(move.defaultPrevented).toBe(false);
       expect(setPageZoom).not.toHaveBeenCalled();
     });
   });

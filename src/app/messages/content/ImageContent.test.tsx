@@ -4,6 +4,7 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AsyncStatus } from '../../lib/hooks/useAsyncCallback';
 import { imageViewerOpenAtom } from '../../navigation/imageViewerState';
+import { PINCH_SURFACE_ATTRIBUTE } from '../../theme/usePinchToZoom';
 import { ImageContent } from './ImageContent';
 
 const IMAGE_VIEWER_HISTORY_MARKER = '__mindroomImageViewer';
@@ -340,6 +341,19 @@ describe('ImageContent', () => {
     expect(mocks.downloadCachedAttachment).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ mimeType: blobType })
+    );
+  });
+
+  it("marks the viewer's frame as a pinch surface, so the page zoom leaves its pinches alone", () => {
+    const { renderer: tree } = renderImageContent({});
+
+    act(() => {
+      tree.root.findByProps({ 'data-role': 'image' }).props.onClick();
+    });
+
+    expect(tree.root.findByProps({ role: 'dialog' }).props).toHaveProperty(
+      PINCH_SURFACE_ATTRIBUTE,
+      ''
     );
   });
 

@@ -9,11 +9,9 @@ import { downloadMedia } from '../../matrix/matrix';
 import { saveFile } from '../../native/nativeFileSave';
 import { DOWNLOAD_MIME_TYPE } from '../content/attachmentDownload';
 import { revealDirectionControls } from '../../ui/directional';
-import { PINCH_SURFACE_ATTRIBUTE } from '../../theme/usePinchToZoom';
 import * as css from './ImageViewer.css';
 
 const ZOOM_STEP = 0.2;
-const PINCH_SURFACE = { [PINCH_SURFACE_ATTRIBUTE]: '' };
 // The zoom percentage switches between fitting the image and this closer look.
 const CLOSE_LOOK_ZOOM = 2;
 
@@ -77,11 +75,10 @@ export const ImageViewer = as<'div', ImageViewerProps>(
 
     const imageTransform = `translate(${pan.translateX}px, ${pan.translateY}px) scale(${zoom})`;
 
-    // The viewer pinches its own picture, so the page zoom leaves pinches over it alone
-    // (theme/usePinchToZoom.ts); the e2e media spec finds the viewer by `data-image-viewer`.
+    // `data-image-viewer` marks the open viewer for the e2e media spec; the Modal that holds the
+    // viewer marks it as a pinch surface (content/ImageContent.tsx, content/ImageOverlay.tsx).
     return (
       <Box
-        {...PINCH_SURFACE}
         data-image-viewer="true"
         direction="Column"
         className={classNames(css.ImageViewer, className)}
