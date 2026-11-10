@@ -41,6 +41,8 @@ const unregisterSurface = (element: Element | null) => {
   if (!element) return;
   element.removeAttribute(PINCH_SURFACE_ATTRIBUTE);
   endPinchOf?.(element);
+  // A touch pinch it owned stays its own until it ends, but nothing is handed on any more.
+  pinchListeners.delete(element);
 };
 
 /**

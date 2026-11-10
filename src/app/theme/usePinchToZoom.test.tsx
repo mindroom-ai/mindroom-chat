@@ -2,7 +2,7 @@
 
 import { cleanup, render, renderHook } from '@testing-library/react';
 import type FocusTrap from 'focus-trap-react';
-import { type ComponentProps, type ReactNode, StrictMode, useRef } from 'react';
+import { type ComponentProps, type ReactNode, type RefObject, StrictMode, useRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImageOverlay } from '../messages/content/ImageOverlay';
 import {
@@ -1415,6 +1415,80 @@ describe('usePinchToZoom', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+
+    it('hands nothing more of a touch pinch once its hook goes, though its element stays', () => {
+      const { setPageZoom } = mount(100);
+      const calls: string[] = [];
+      function Zoom({ target }: { target: RefObject<HTMLDivElement> }) {
+        usePinchSurface(target, { onPinch: ({ phase }) => calls.push(phase) });
+        return null;
+      }
+      function Board({ zooms }: { zooms: boolean }) {
+        const ref = useRef<HTMLDivElement>(null);
+        return (
+          <>
+            <div ref={ref} data-testid="board" />
+            {zooms && <Zoom target={ref} />}
+          </>
+        );
+      }
+      const view = render(<Board zooms />);
+      const board = view.getByTestId('board');
+
+      touch('touchstart', [[0, 0, board]]);
+      touch('touchstart', [
+        [0, 0, board],
+        [0, 100, board],
+      ]);
+      touch('touchmove', [
+        [0, 0, board],
+        [0, 150, board],
+      ]);
+      view.rerender(<Board zooms={false} />);
+      const move = touch('touchmove', [
+        [0, 0, board],
+        [0, 200, board],
+      ]);
+      flushFrames();
+
+      expect(calls).toEqual(['start', 'move', 'end']);
+      // The pinch stays the one its start decided, and the page zoom keeps out of it.
+      expect(move.defaultPrevented).toBe(false);
+      expect(setPageZoom).not.toHaveBeenCalled();
+    });
+
+    it('hands another element nothing of a touch pinch on the one its ref named before', () => {
+      mount(100);
+      const calls: string[] = [];
+      function Canvases({ shown }: { shown: 'a' | 'b' }) {
+        const ref = useRef<HTMLDivElement>(null);
+        usePinchSurface(ref, { onPinch: ({ phase }) => calls.push(`${shown} ${phase}`) });
+        // Both stay on the page, as while a panel switch animates; the ref names the one shown.
+        return (
+          <>
+            <div ref={shown === 'a' ? ref : undefined} data-testid="a" />
+            <div ref={shown === 'b' ? ref : undefined} data-testid="b" />
+          </>
+        );
+      }
+      const view = render(<Canvases shown="a" />);
+      const a = view.getByTestId('a');
+
+      touch('touchstart', [[0, 0, a]]);
+      touch('touchstart', [
+        [0, 0, a],
+        [0, 100, a],
+      ]);
+      view.rerender(<Canvases shown="b" />);
+      touch('touchmove', [
+        [0, 0, a],
+        [0, 150, a],
+      ]);
+
+      expect(calls).toEqual(['a start', 'a end']);
+      expect(a.hasAttribute(PINCH_SURFACE_ATTRIBUTE)).toBe(false);
+      expect(view.getByTestId('b').hasAttribute(PINCH_SURFACE_ATTRIBUTE)).toBe(true);
     });
 
     it('calls the newest onPinch, and nothing once the surface is gone', () => {
