@@ -436,9 +436,9 @@ it("lets a thread in the messages' place move beside them only with no reply or 
     metadata: { markedAsSpoiler: false },
   };
   renderView();
-  const beside = () => screen.getByRole('button', { name: 'Beside' }) as HTMLButtonElement;
+  const beside = () => screen.getByRole('button', { name: 'Beside' });
   act(() => store.set(composerUploadItemsAtom(room.roomId, undefined), { type: 'PUT', item }));
-  expect(beside().disabled).toBe(true);
+  expect(beside().hasAttribute('disabled')).toBe(true);
   act(() => store.set(composerUploadItemsAtom(room.roomId, undefined), { type: 'RESET' }));
   act(() =>
     store.set(composerReplyDraftAtom(room.roomId, undefined), {
@@ -447,9 +447,9 @@ it("lets a thread in the messages' place move beside them only with no reply or 
       body: 'Reply',
     })
   );
-  expect(beside().disabled).toBe(true);
+  expect(beside().hasAttribute('disabled')).toBe(true);
   act(() => store.set(composerReplyDraftAtom(room.roomId, undefined), undefined));
-  expect(beside().disabled).toBe(false);
+  expect(beside().hasAttribute('disabled')).toBe(false);
   fireEvent.click(beside());
   expect(column()?.dataset.thread).toBe('$thread');
 });

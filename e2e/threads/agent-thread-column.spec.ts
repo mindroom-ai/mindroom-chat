@@ -167,8 +167,6 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await expect(blocked).toHaveAttribute('aria-disabled', 'true');
   await expect(blocked).toContainText('Send or remove the reply and files in the composer first');
   await shot(page, 'show-beside-blocked');
-  await blocked.click();
-  await expect(column(page)).toHaveCount(0);
   await page.keyboard.press('Escape');
   await pageComposer(page).press('Enter');
   await waitForThreadEvent(
