@@ -15,13 +15,14 @@ import { roomHeader } from '../helpers/roomMenu';
 
 // The thread column end to end: a production build with the example client plugin
 // (src/app/plugins/__fixtures__/example-plugin) against the agent stack. A thread first opens in
-// the messages' place, as before; Show beside (in the thread's More menu) moves it to a column of its own beside the room's
-// messages, with the focus in its composer, and the next thread opens there too. A reply sent
-// from the column leaves the room composer's draft alone. The plugin's panel opens to the right of
-// the thread, three columns, and closing it leaves two. Dragging the column's edge over the
-// messages takes the thread to their place, where the next thread opens too, until Show beside
-// again; text and files staged for the thread go with it both ways. A plugin's page opens a thread with the SDK's `navigateRoomThread` the way chosen. A phone
-// shows the thread in the messages' place whatever was chosen.
+// the messages' place, as before; Show beside (in the thread's More menu) moves it to a column of
+// its own beside the room's messages, with the focus in its composer. A reply sent from the column
+// leaves the room composer's draft alone. The plugin's panel opens to the right of the thread,
+// three columns, and closing it leaves two. Dragging the column's edge over the messages fills the
+// page with the column, which keeps its composer; the next thread then opens in the messages'
+// place, where Show beside waits until the composer holds no file. Show in full and back keep the
+// column's text and file. A plugin's page opens a thread with the SDK's `navigateRoomThread` the
+// way chosen. On a phone a thread opens in the messages' place whatever was chosen.
 //   MINDROOM_CLIENT_PLUGINS=$PWD/src/app/plugins/__fixtures__/example-plugin \
 //     scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/threads/agent-thread-column.spec.ts
 test.skip(
@@ -132,7 +133,7 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await expect(examplePanel(page)).toHaveCount(0, { timeout: 30_000 });
   await expect(column(page)).toBeVisible();
 
-  // Dragged over the messages, the thread takes their place, and that is stored.
+  // Dragged over the messages, the column fills the page, keeping its thread; that is stored.
   const handle = page.getByRole('separator', { name: 'Resize the thread', exact: true });
   const edge = await handle.boundingBox();
   if (!edge) throw new Error('the thread column has no edge to drag');
@@ -142,16 +143,16 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await page.mouse.move(80, edge.y + edge.height / 2, { steps: 10 });
   await expect(handle).toHaveAttribute('aria-valuetext', 'Show the thread in full');
   await page.mouse.up();
-  await expect(column(page)).toHaveCount(0);
-  await expect(banner(page)).toBeVisible();
-  await expect(messageRow(page, first)).toBeVisible();
+  await expect(column(page)).toHaveAttribute('data-filled', 'true');
+  await expect(messageRow(column(page), sent.event_id)).toBeVisible();
+  await expect(pageComposer(page)).toBeHidden();
   expect(await storedLayout(page)).toBe('"full"');
   await shot(page, 'dragged-full');
 
-  // The next thread opens in the messages' place too, until Show beside.
+  // The next thread opens in the messages' place, as chosen last. A file staged there keeps it
+  // there: Show beside says why it waits, until the file is sent.
   const second = await openNewThread(page, stack, `${word}b`);
   await expect(column(page)).toHaveCount(0);
-  // A file staged for the thread in the messages' place goes with it to the column.
   const staged = `${word}-full.txt`;
   const fullChooser = page.waitForEvent('filechooser');
   await page.locator('[data-room-footer]').getByRole('button', { name: 'Attach files' }).click();
@@ -161,26 +162,33 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await expect(page.locator('[data-room-footer]').getByText(staged, { exact: true })).toBeVisible({
     timeout: 20_000,
   });
-  await showBeside(page);
-  await expect(messageRow(column(page), second)).toBeVisible({ timeout: 30_000 });
-  await expect(column(page).getByText(staged, { exact: true })).toBeVisible();
-  await expect(page.locator('[data-room-footer]').getByText(staged, { exact: true })).toHaveCount(
-    0
-  );
-  await columnComposer(page).press('Enter');
+  await banner(page).getByRole('button', { name: 'Thread options', exact: true }).click();
+  const blocked = page.getByRole('menuitem', { name: /Show the thread beside the messages/ });
+  await expect(blocked).toHaveAttribute('aria-disabled', 'true');
+  await expect(blocked).toContainText('Send or remove the reply and files in the composer first');
+  await shot(page, 'show-beside-blocked');
+  await blocked.click();
+  await expect(column(page)).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await pageComposer(page).press('Enter');
   await waitForThreadEvent(
     stack,
     second,
     (event) => event.sender === stack.tester.userId && event.content.body === staged,
-    { timeout: 60_000, description: 'the file staged in the full view, sent from the column' }
+    { timeout: 60_000, description: 'the file staged in the full view' }
   );
+  await expect(page.locator('[data-room-footer]').getByText(staged, { exact: true })).toHaveCount(
+    0,
+    { timeout: 30_000 }
+  );
+  await showBeside(page);
+  await expect(messageRow(column(page), second)).toBeVisible({ timeout: 30_000 });
 
   const third = await openNewThread(page, stack, `${word}c`);
   await expect(messageRow(column(page), third)).toBeVisible({ timeout: 30_000 });
   await shot(page, 'next-thread-beside');
 
-  // The column's own Show in full does what the drag did, and the text and the file staged in its
-  // composer go with the thread to the messages' place.
+  // Show in full and back keep the column's composer, with its text and file.
   const unsent = `${word} not sent yet`;
   await columnComposer(page).click();
   await page.keyboard.type(unsent);
@@ -194,22 +202,23 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await banner(column(page))
     .getByRole('button', { name: 'Show the thread in full', exact: true })
     .click();
-  await expect(column(page)).toHaveCount(0);
-  await expect(pageComposer(page)).toBeFocused();
-  await expect(pageComposer(page)).toHaveText(unsent);
-  await expect(
-    page.locator('[data-room-footer]').getByText(fileName, { exact: true })
-  ).toBeVisible();
+  await expect(column(page)).toHaveAttribute('data-filled', 'true');
+  await expect(columnComposer(page)).toHaveText(unsent);
+  await expect(column(page).getByText(fileName, { exact: true })).toBeVisible();
   expect(await storedLayout(page)).toBe('"full"');
-  await pageComposer(page).press('Enter');
+  await banner(column(page))
+    .getByRole('button', { name: 'Show the thread beside the messages', exact: true })
+    .click();
+  await expect(column(page)).not.toHaveAttribute('data-filled', 'true');
+  await expect(pageComposer(page)).toBeVisible();
+  expect(await storedLayout(page)).toBe('"beside"');
+  await columnComposer(page).press('Enter');
   await waitForThreadEvent(
     stack,
     third,
     (event) => event.sender === stack.tester.userId && event.content.body === fileName,
-    { timeout: 60_000, description: 'the file staged in the column, sent from the full view' }
+    { timeout: 60_000, description: 'the file staged in the column' }
   );
-  await showBeside(page);
-  await expect(column(page)).toBeVisible();
 
   // A plugin opens a thread with the SDK's navigateRoomThread as the app does: beside, as chosen.
   await showPath(
@@ -219,14 +228,15 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await page.getByRole('button', { name: 'Open the thread', exact: true }).click();
   await expect(messageRow(column(page), second)).toBeVisible({ timeout: 30_000 });
 
-  // A phone shows the thread in the messages' place, with no way beside them.
+  // On a phone a thread opens in the messages' place, with no way beside them.
   await page.setViewportSize({ width: 390, height: 844 });
+  await showThread(page, stack, first);
   await expect(column(page)).toHaveCount(0);
-  await expect(messageRow(page, second)).toBeVisible({ timeout: 30_000 });
+  await expect(messageRow(page, first)).toBeVisible({ timeout: 30_000 });
   await banner(page).getByRole('button', { name: 'Thread options', exact: true }).click();
   await expect(page.getByRole('menuitem', { name: 'Copy thread link', exact: true })).toBeVisible();
   await expect(
-    page.getByRole('menuitem', { name: 'Show the thread beside the messages' })
+    page.getByRole('menuitem', { name: /Show the thread beside the messages/ })
   ).toHaveCount(0);
   await page.keyboard.press('Escape');
   await shot(page, 'phone');

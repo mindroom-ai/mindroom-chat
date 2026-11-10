@@ -747,7 +747,8 @@
     "back": "返回",
     "resize": "調整討論串大小",
     "showFull": "完整顯示討論串",
-    "showBeside": "在訊息旁顯示討論串"
+    "showBeside": "在訊息旁顯示討論串",
+    "showBesideBlocked": "請先送出或移除輸入框中的回覆和檔案"
   },
   "activity": {
     "title": "動態",

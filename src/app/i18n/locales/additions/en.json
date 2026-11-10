@@ -758,7 +758,8 @@
     "back": "Back",
     "resize": "Resize the thread",
     "showFull": "Show the thread in full",
-    "showBeside": "Show the thread beside the messages"
+    "showBeside": "Show the thread beside the messages",
+    "showBesideBlocked": "Send or remove the reply and files in the composer first"
   },
   "activity": {
     "title": "Activity",

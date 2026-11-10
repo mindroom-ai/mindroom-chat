@@ -769,7 +769,8 @@
     "back": "Voltar",
     "resize": "Redimensionar o tópico",
     "showFull": "Mostrar o tópico inteiro",
-    "showBeside": "Mostrar o tópico ao lado das mensagens"
+    "showBeside": "Mostrar o tópico ao lado das mensagens",
+    "showBesideBlocked": "Envie ou remova primeiro a resposta e os ficheiros no compositor"
   },
   "activity": {
     "title": "Atividade",

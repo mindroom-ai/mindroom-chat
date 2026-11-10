@@ -251,27 +251,17 @@ it('counts its thread as off screen while hidden', () => {
   ]);
 });
 
-it('hands its key and latest thread to onUnmount while its reply is still there, and its load errors to the page', () => {
-  const store = getDefaultStore();
+it('tells onUnmount the thread it showed last, and the page its load errors', () => {
   const onThreadLoadError = vi.fn();
-  const seen: unknown[] = [];
-  const onUnmount = vi.fn((view: string, threadId: string) =>
-    seen.push(threadId, store.get(composerReplyDraftAtom(room.roomId, view)))
-  );
-  const onMount = vi.fn();
-  const props = { room, onThreadLoadError, onMount, onUnmount };
+  const onUnmount = vi.fn();
+  const props = { room, onThreadLoadError, onUnmount };
   const { rerender, unmount } = render(<ThreadView {...props} threadId={THREAD} />);
   expect(state.timeline?.onThreadLoadError).toBe(onThreadLoadError);
   rerender(<ThreadView {...props} threadId="$other" />);
-  const [view] = state.composerViews;
-  expect(onMount).toHaveBeenCalledOnce();
-  expect(onMount).toHaveBeenCalledWith(view, THREAD);
-  const reply = { userId: '@bob:example.org', eventId: '$reply', body: 'Reply' };
-  act(() => store.set(composerReplyDraftAtom(room.roomId, view), reply));
+  expect(onUnmount).not.toHaveBeenCalled();
   unmount();
   expect(onUnmount).toHaveBeenCalledOnce();
-  expect(onUnmount).toHaveBeenCalledWith(view, '$other');
-  expect(seen).toEqual(['$other', reply]);
+  expect(onUnmount).toHaveBeenCalledWith('$other');
 });
 
 it('leaves the focus where it is when the root of its thread gets its own ID', () => {

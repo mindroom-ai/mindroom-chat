@@ -758,7 +758,8 @@
     "back": "Terug",
     "resize": "Breedte van de thread wijzigen",
     "showFull": "Thread volledig tonen",
-    "showBeside": "Thread naast de berichten tonen"
+    "showBeside": "Thread naast de berichten tonen",
+    "showBesideBlocked": "Verstuur of verwijder eerst het antwoord en de bestanden in het invoerveld"
   },
   "activity": {
     "title": "Activiteit",

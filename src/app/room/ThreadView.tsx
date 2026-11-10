@@ -69,8 +69,7 @@ const TIMELINE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
  * dropped files, and it adds no key handling of its own. The room page's thread column gives it
  * the thread's banner as its `header`, the event its address names, the focus as it opens,
  * `hidden` while a side panel takes the page's place, the page's handler of a thread that does not
- * load, `onMount`, which gets the view's key and thread as it mounts, and `onUnmount`, which gets
- * them before its reply and files go.
+ * load, and `onUnmount`, which gets the thread it showed last as it goes.
  */
 export function ThreadView({
   room,
@@ -80,7 +79,6 @@ export function ThreadView({
   autoFocus = false,
   hidden = false,
   onThreadLoadError,
-  onMount,
   onUnmount,
 }: {
   room: Room;
@@ -90,8 +88,7 @@ export function ThreadView({
   autoFocus?: boolean;
   hidden?: boolean;
   onThreadLoadError?: (threadId: string) => void;
-  onMount?: (view: string, threadId: string) => void;
-  onUnmount?: (view: string, threadId: string) => void;
+  onUnmount?: (threadId: string) => void;
 }) {
   const client = useMatrixClient();
   const editor = useEditor();
@@ -121,13 +118,10 @@ export function ThreadView({
   // later view finds them. Until then they stay, as a send under way may still use them.
   const roomsShown = useRef(new Set<string>()).current;
   roomsShown.add(roomId);
-  const last = useLatestRef({ threadId, onMount, onUnmount });
-  useEffect(() => {
-    last.current.onMount?.(view, last.current.threadId);
-  }, [last, view]);
+  const last = useLatestRef({ threadId, onUnmount });
   useEffect(
     () => () => {
-      last.current.onUnmount?.(view, last.current.threadId);
+      last.current.onUnmount?.(last.current.threadId);
       roomsShown.forEach((shownRoomId) => {
         roomIdToReplyDraftAtomFamily.remove(composerStateKey(shownRoomId, view));
         roomIdToUploadItemsAtomFamily.remove(composerStateKey(shownRoomId, view));

@@ -45,7 +45,7 @@ import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { getThreadRootTitle, ThreadRootTitle } from './ThreadRootTitle';
-import { ExpandIcon } from '../ui/panels/panelIcons';
+import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
 
 const ThreadActionsMenu = lazy(() =>
   import('./ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -66,8 +66,12 @@ export interface ThreadContextBannerProps {
   onExitThread: () => void;
   /** Shows the thread in a column beside the room's messages, from their place (in More). */
   onShowBeside?: () => void;
-  /** Shows the thread in the messages' place, from its column beside them. */
+  /** More offers Show beside but refuses it: the composer holds a reply or files. */
+  showBesideBlocked?: boolean;
+  /** Fills the room page with the thread's column. */
   onShowFull?: () => void;
+  /** Takes the thread's column back beside the room's messages from filling the page. */
+  onRestore?: () => void;
 }
 
 const DESKTOP_MAX_PILLS = 3;
@@ -109,7 +113,9 @@ export function ThreadContextBanner({
   summaryInfo,
   onExitThread,
   onShowBeside,
+  showBesideBlocked = false,
   onShowFull,
+  onRestore,
 }: ThreadContextBannerProps) {
   const { t, i18n } = useTranslation();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
@@ -487,18 +493,18 @@ export function ThreadContextBanner({
               )}
             </div>
             <Box alignItems="Center" gap="100" shrink="No">
-              {onShowFull && (
-                <IconTooltip label={t('thread.showFull')}>
+              {(onShowFull ?? onRestore) && (
+                <IconTooltip label={t(onShowFull ? 'thread.showFull' : 'thread.showBeside')}>
                   {(triggerRef) => (
                     <IconButton
                       ref={triggerRef}
                       className={toolbarCss.MessageOptionsButton}
                       variant="SurfaceVariant"
                       fill="None"
-                      aria-label={t('thread.showFull')}
-                      onClick={onShowFull}
+                      aria-label={t(onShowFull ? 'thread.showFull' : 'thread.showBeside')}
+                      onClick={onShowFull ?? onRestore}
                     >
-                      <Icon size="100" src={ExpandIcon} />
+                      <Icon size="100" src={onShowFull ? ExpandIcon : ShrinkIcon} />
                     </IconButton>
                   )}
                 </IconTooltip>
@@ -629,6 +635,7 @@ export function ThreadContextBanner({
             summaryText={headerModel.summaryText}
             onHideDetails={collapsed ? undefined : () => toggleCollapsed(true)}
             onShowBeside={onShowBeside}
+            showBesideBlocked={showBesideBlocked}
             anchor={activeMenu.anchor}
             onClose={() => closeMenu(activeMenu)}
           />

@@ -7,7 +7,10 @@ import { Editable, Slate } from 'slate-react';
 import { getDefaultStore } from 'jotai';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
-import { conversationBehindPanelAtom } from '../navigation/conversationCover';
+import {
+  conversationBehindPanelAtom,
+  conversationHiddenAtom,
+} from '../navigation/conversationCover';
 import { shownConversationViewsAtom } from '../navigation/conversationView';
 import type { RoomTimelineProps } from '../timeline/RoomTimeline';
 import type { ThreadContextBannerProps } from '../threads/ThreadContextBanner';
@@ -17,6 +20,7 @@ import {
   getRoomInputDraftKey,
   roomIdToMsgDraftAtomFamily,
 } from '../composer/roomInputDrafts';
+import { PanelRow } from '../members/PanelRow';
 import { RoomView, type RoomViewProps } from './RoomView';
 
 const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
@@ -78,13 +82,19 @@ vi.mock('../approvals/ThreadApprovalProvider', () => ({
 }));
 vi.mock('../approvals/ThreadApprovalControls', () => ({ ThreadApprovalQueue: () => null }));
 vi.mock('../threads/ThreadContextBanner', () => ({
-  ThreadContextBanner: ({ onShowBeside, onShowFull, onExitThread }: ThreadContextBannerProps) => (
+  ThreadContextBanner: ({
+    onShowBeside,
+    showBesideBlocked,
+    onShowFull,
+    onRestore,
+    onExitThread,
+  }: ThreadContextBannerProps) => (
     <div>
       <button type="button" onClick={onExitThread}>
         Back
       </button>
       {onShowBeside && (
-        <button type="button" onClick={onShowBeside}>
+        <button type="button" onClick={onShowBeside} disabled={showBesideBlocked}>
           Beside
         </button>
       )}
@@ -93,10 +103,15 @@ vi.mock('../threads/ThreadContextBanner', () => ({
           Full
         </button>
       )}
+      {onRestore && (
+        <button type="button" onClick={onRestore}>
+          Restore
+        </button>
+      )}
     </div>
   ),
 }));
-// The column's view, whose key is COLUMN_VIEW, hands its composer over as it unmounts.
+// The column's view, which reports its last thread as it unmounts.
 vi.mock('./ThreadView', async () => {
   const { useEffect, useRef } = await import('react');
   return {
@@ -107,7 +122,6 @@ vi.mock('./ThreadView', async () => {
       autoFocus,
       hidden,
       onThreadLoadError,
-      onMount,
       onUnmount,
     }: {
       threadId: string;
@@ -116,15 +130,11 @@ vi.mock('./ThreadView', async () => {
       autoFocus?: boolean;
       hidden?: boolean;
       onThreadLoadError?: (threadId: string) => void;
-      onMount?: (view: string, threadId: string) => void;
-      onUnmount?: (view: string, threadId: string) => void;
+      onUnmount?: (threadId: string) => void;
     }) => {
-      const last = useRef({ threadId, onMount, onUnmount });
-      last.current = { threadId, onMount, onUnmount };
-      useEffect(() => {
-        last.current.onMount?.('column', last.current.threadId);
-        return () => last.current.onUnmount?.('column', last.current.threadId);
-      }, []);
+      const last = useRef({ threadId, onUnmount });
+      last.current = { threadId, onUnmount };
+      useEffect(() => () => last.current.onUnmount?.(last.current.threadId), []);
       state.columnLoadError = onThreadLoadError;
       return (
         <div
@@ -195,10 +205,13 @@ afterEach(() => {
   getDefaultStore().set(conversationBehindPanelAtom, false);
 });
 
+// In the room's row, which measures itself before the view mounts.
 const renderView = (props: Partial<RoomViewProps> = {}, screenSize = ScreenSize.Desktop) =>
   render(
     <ScreenSizeProvider value={screenSize}>
-      <RoomView room={room} {...props} />
+      <PanelRow>
+        <RoomView room={room} {...props} />
+      </PanelRow>
     </ScreenSizeProvider>
   );
 const column = () => screen.queryByTestId('thread-view');
@@ -245,20 +258,33 @@ it('stores each choice and opens the next thread the way chosen last', () => {
   expect(column()?.dataset.thread).toBe('$thread');
 
   state.thread = '$next';
-  rerender(
-    <ScreenSizeProvider value={ScreenSize.Desktop}>
-      <RoomView room={room} />
-    </ScreenSizeProvider>
-  );
+  rerenderView(rerender);
   expect(column()?.dataset.thread).toBe('$next');
 
+  // Full fills the page with the column, which keeps the thread and its composer.
   fireEvent.click(screen.getByRole('button', { name: 'Full' }));
   expect(storedLayout()).toBe('"full"');
+  expect(column()?.dataset.thread).toBe('$next');
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  expect(screen.queryByRole('separator')).toBeNull();
+  expect(getDefaultStore().get(conversationHiddenAtom)).toBe(true);
+  // The room's messages stay under it, out of reach.
+  expect(screen.getByTestId('messages').closest('[aria-hidden="true"]')).not.toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+  expect(screen.getByTestId('messages').closest('[aria-hidden="true"]')).toBeNull();
+  expect(storedLayout()).toBe('"beside"');
+  expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
+  expect(getDefaultStore().get(conversationHiddenAtom)).toBe(false);
+
+  // The next thread opens in the messages' place once full was chosen last.
+  fireEvent.click(screen.getByRole('button', { name: 'Full' }));
+  state.thread = '$third';
+  rerenderView(rerender);
   expect(column()).toBeNull();
-  expect(state.main?.threadId).toBe('$next');
+  expect(state.main?.threadId).toBe('$third');
 });
 
-it("takes the thread to the messages' place when its edge is dragged past the messages' least width, and stores that", () => {
+it("fills the page with the column when its edge is dragged past the messages' least width, and stores that", () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
   renderView();
@@ -282,8 +308,8 @@ it("takes the thread to the messages' place when its edge is dragged past the me
   expect(screen.getByTestId('thread-column').dataset.expandPreview).toBe('true');
   expect(handle.getAttribute('aria-valuetext')).toBe('Show the thread in full');
   fireEvent.pointerUp(handle, { clientX: 100 });
-  expect(column()).toBeNull();
-  expect(state.main?.threadId).toBe('$thread');
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  expect(column()?.dataset.thread).toBe('$thread');
   expect(storedLayout()).toBe('"full"');
 });
 
@@ -292,11 +318,7 @@ it("returns the focus to the messages' composer when the column closes", () => {
   const { rerender } = renderView();
   screen.getByRole('button', { name: 'Back' }).focus();
   state.thread = undefined;
-  rerender(
-    <ScreenSizeProvider value={ScreenSize.Desktop}>
-      <RoomView room={room} />
-    </ScreenSizeProvider>
-  );
+  rerenderView(rerender);
   expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' }));
 });
 
@@ -326,11 +348,7 @@ it("keeps the history downloads of the thread in its column, and its unsent root
   const { rerender } = renderView();
   expect(state.focused).toEqual(['$confirmed']);
   state.thread = '~!room:example.org:m1.1';
-  rerender(
-    <ScreenSizeProvider value={ScreenSize.Desktop}>
-      <RoomView room={room} />
-    </ScreenSizeProvider>
-  );
+  rerenderView(rerender);
   expect(column()?.dataset.thread).toBe('~!room:example.org:m1.1');
   expect(screen.getByText('Root not sent')).toBeDefined();
 });
@@ -350,39 +368,20 @@ it.each([
 const rerenderView = (rerender: (ui: ReactNode) => void) =>
   rerender(
     <ScreenSizeProvider value={ScreenSize.Desktop}>
-      <RoomView room={room} onThreadLoadError={onLoadError} />
+      <PanelRow>
+        <RoomView room={room} onThreadLoadError={onLoadError} />
+      </PanelRow>
     </ScreenSizeProvider>
   );
 const onLoadError = vi.fn();
 
-it("gives the page's composer the column's reply and staged files as the thread takes the messages' place", () => {
-  const store = getDefaultStore();
+it("passes a thread that does not load to the page, as the thread in the messages' place does", () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   renderView({ onThreadLoadError: onLoadError });
-  // A thread that does not load is the page's to handle.
   expect(state.columnLoadError).toBe(onLoadError);
-  const reply = { userId: '@bob:example.org', eventId: '$reply', body: 'Reply' };
-  const file = new File(['x'], 'notes.txt');
-  const item = {
-    file,
-    originalFile: file,
-    encInfo: undefined,
-    metadata: { markedAsSpoiler: false },
-  };
-  act(() => {
-    store.set(composerReplyDraftAtom(room.roomId, 'column'), reply);
-    store.set(composerUploadItemsAtom(room.roomId, 'column'), { type: 'PUT', item });
-  });
-  act(() => screen.getByRole('button', { name: 'Full' }).click());
-  expect(store.get(composerReplyDraftAtom(room.roomId, undefined))).toEqual(reply);
-  expect(store.get(composerUploadItemsAtom(room.roomId, undefined))).toEqual([item]);
-  act(() => {
-    store.set(composerReplyDraftAtom(room.roomId, undefined), undefined);
-    store.set(composerUploadItemsAtom(room.roomId, undefined), { type: 'RESET' });
-  });
 });
 
-it("hands the room's composer the column's reply as the thread closes, as the page's composer keeps it, and a reply's text when its unsent root is deleted", () => {
+it("moves a reply's text to the room's composer when the column's unsent root is deleted", () => {
   const store = getDefaultStore();
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   const local = '~!room:example.org:m2.1';
@@ -399,11 +398,6 @@ it("hands the room's composer the column's reply as the thread closes, as the pa
   state.thread = local;
   state.rootDeleted = vi.fn();
   const { rerender } = renderView();
-  store.set(composerReplyDraftAtom(room.roomId, 'column'), {
-    userId: '@bob:example.org',
-    eventId: '$reply',
-    body: 'Reply',
-  });
 
   root.status = EventStatus.CANCELLED;
   act(() => {
@@ -414,16 +408,26 @@ it("hands the room's composer the column's reply as the thread closes, as the pa
   rerenderView(rerender);
   expect(store.get(roomDraft)).toEqual(text);
   expect(store.get(threadDraft)).toEqual([]);
-  expect(store.get(composerReplyDraftAtom(room.roomId, undefined))).toMatchObject({
-    eventId: '$reply',
-  });
   store.set(roomDraft, []);
-  store.set(composerReplyDraftAtom(room.roomId, undefined), undefined);
 });
 
-it("gives the column the page composer's reply and staged files as the thread leaves the messages' place for it, and only then", () => {
+it("keeps another thread's text where it is as the column closes", () => {
   const store = getDefaultStore();
-  const reply = { userId: '@bob:example.org', eventId: '$reply', body: 'Reply' };
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  const threadDraft = roomIdToMsgDraftAtomFamily(
+    getRoomInputDraftKey('@alice:example.org', room.roomId, '$thread')
+  );
+  const text = [{ type: 'paragraph', children: [{ text: 'later' }] }] as never;
+  store.set(threadDraft, text);
+  const { rerender } = renderView();
+  state.thread = undefined;
+  rerenderView(rerender);
+  expect(store.get(threadDraft)).toEqual(text);
+  store.set(threadDraft, []);
+});
+
+it("lets a thread in the messages' place move beside them only with no reply or file in its composer", () => {
+  const store = getDefaultStore();
   const file = new File(['x'], 'notes.txt');
   const item = {
     file,
@@ -431,42 +435,61 @@ it("gives the column the page composer's reply and staged files as the thread le
     encInfo: undefined,
     metadata: { markedAsSpoiler: false },
   };
-  const { rerender } = renderView();
-  act(() => {
-    store.set(composerReplyDraftAtom(room.roomId, undefined), reply);
-    store.set(composerUploadItemsAtom(room.roomId, undefined), { type: 'PUT', item });
-  });
-  act(() => screen.getByRole('button', { name: 'Beside' }).click());
-  expect(store.get(composerReplyDraftAtom(room.roomId, 'column'))).toEqual(reply);
-  expect(store.get(composerUploadItemsAtom(room.roomId, 'column'))).toEqual([item]);
-  expect(store.get(composerReplyDraftAtom(room.roomId, undefined))).toBeUndefined();
-  expect(store.get(composerUploadItemsAtom(room.roomId, undefined))).toEqual([]);
+  renderView();
+  const beside = () => screen.getByRole('button', { name: 'Beside' }) as HTMLButtonElement;
+  act(() => store.set(composerUploadItemsAtom(room.roomId, undefined), { type: 'PUT', item }));
+  expect(beside().disabled).toBe(true);
+  act(() => store.set(composerUploadItemsAtom(room.roomId, undefined), { type: 'RESET' }));
+  act(() =>
+    store.set(composerReplyDraftAtom(room.roomId, undefined), {
+      userId: '@bob:example.org',
+      eventId: '$reply',
+      body: 'Reply',
+    })
+  );
+  expect(beside().disabled).toBe(true);
+  act(() => store.set(composerReplyDraftAtom(room.roomId, undefined), undefined));
+  expect(beside().disabled).toBe(false);
+  fireEvent.click(beside());
+  expect(column()?.dataset.thread).toBe('$thread');
+});
 
-  // A thread opened beside the room's messages takes nothing of the room's composer.
-  act(() => screen.getByRole('button', { name: 'Back' }).click());
-  state.thread = undefined;
-  rerenderView(rerender);
-  expect(store.get(composerReplyDraftAtom(room.roomId, undefined))).toEqual(reply);
+it('keeps an open thread where it opened as the page widens or narrows: a column fills the page instead', () => {
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  const width = vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(600);
+  const resize = (next: number) => {
+    width.mockReturnValue(next);
+    act(() => state.resized.forEach((resized) => resized()));
+  };
+  const { rerender } = renderView();
+  // Opened on a narrow page, it stays in the messages' place as the page widens.
+  expect(column()).toBeNull();
+  resize(1000);
+  expect(column()).toBeNull();
+  expect(state.main?.threadId).toBe('$thread');
+
+  // The next thread opens beside; narrowed, its column fills the page, with no way back beside.
   state.thread = '$next';
   rerenderView(rerender);
   expect(column()?.dataset.thread).toBe('$next');
-  expect(store.get(composerReplyDraftAtom(room.roomId, undefined))).toEqual(reply);
-  expect(store.get(composerUploadItemsAtom(room.roomId, undefined))).toEqual([item]);
-  act(() => {
-    store.set(composerReplyDraftAtom(room.roomId, undefined), undefined);
-    store.set(composerUploadItemsAtom(room.roomId, undefined), { type: 'RESET' });
-  });
+  resize(600);
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  expect(screen.queryByRole('button', { name: 'Restore' })).toBeNull();
+  // No width, as behind a side panel that fills the room, keeps the last answer.
+  resize(0);
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  resize(1000);
+  expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
+  expect(storedLayout()).toBe('"beside"');
 });
 
-it('keeps its last answer while the page has no width, as behind a side panel that fills the room', () => {
+it('keeps the thread in its column as its unsent root gets its own ID', () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
-  const width = vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(600);
-  renderView();
-  expect(column()).toBeNull();
-  width.mockReturnValue(0);
-  act(() => state.resized.forEach((resized) => resized()));
-  expect(column()).toBeNull();
-  width.mockReturnValue(1000);
-  act(() => state.resized.forEach((resized) => resized()));
-  expect(column()).not.toBeNull();
+  state.thread = '~!room:example.org:m3.1';
+  const { rerender } = renderView();
+  expect(column()?.dataset.thread).toBe('~!room:example.org:m3.1');
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('full'));
+  state.thread = '$confirmed';
+  rerenderView(rerender);
+  expect(column()?.dataset.thread).toBe('$confirmed');
 });
