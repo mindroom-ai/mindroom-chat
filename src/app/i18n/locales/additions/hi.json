@@ -166,7 +166,8 @@
       "description": "MindRoom को एक समस्या आई और वह यह स्क्रीन नहीं दिखा सका। जारी रखने के लिए फिर से लोड करें।"
     },
     "passwordLoginForm": {
-      "forgotPassword": "पासवर्ड भूल गए?"
+      "forgotPassword": "पासवर्ड भूल गए?",
+      "mayUseSso": "यह खाता {{provider}} साइन-इन का उपयोग कर सकता है। ऊपर दिए गए {{provider}} बटन का उपयोग करें।"
     },
     "partUnavailable": {
       "failed": "यह लोड नहीं हो सका। अपना कनेक्शन जाँचें और फिर से कोशिश करें।",
@@ -175,7 +176,8 @@
       "reload": "पेज फिर से लोड करें"
     },
     "login": {
-      "noAccountLink": "खाता नहीं है? <authLink>पंजीकरण करें</authLink>"
+      "noAccountLink": "खाता नहीं है? <authLink>पंजीकरण करें</authLink>",
+      "orSignInWithPassword": "या पासवर्ड से साइन इन करें"
     },
     "passwordRegisterForm": {
       "passwordsDoNotMatch": "पासवर्ड मेल नहीं खाते।"
@@ -266,6 +268,10 @@
       "title": "अपने खाता पेज पर स्वीकृति दें",
       "description": "आपका सर्वर चाहता है कि आप इसे अपने खाता पेज पर स्वीकृत करें। पेज खोलें, स्वीकृति दें, फिर जारी रखने के लिए यहां लौटें।",
       "open": "खाता पेज खोलें"
+    },
+    "passwordResetForm": {
+      "emailResetUnavailable": "यह सर्वर ईमेल से पासवर्ड रीसेट नहीं कर सकता।",
+      "emailResetUnavailableSso": "यह सर्वर ईमेल से पासवर्ड रीसेट नहीं कर सकता। अगर आपने {{provider}} से साइन अप किया था, तो इसके बजाय <authLink>{{provider}} से साइन इन करें</authLink>।"
     }
   },
   "featureUi": {

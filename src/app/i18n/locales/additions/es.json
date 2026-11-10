@@ -169,7 +169,8 @@
       "description": "MindRoom tuvo un problema y no pudo mostrar esta pantalla. Recarga para continuar."
     },
     "passwordLoginForm": {
-      "forgotPassword": "¿Has olvidado la contraseña?"
+      "forgotPassword": "¿Has olvidado la contraseña?",
+      "mayUseSso": "Es posible que esta cuenta use el inicio de sesión con {{provider}}. Usa el botón {{provider}} de arriba."
     },
     "partUnavailable": {
       "failed": "No se pudo cargar. Comprueba tu conexión e inténtalo de nuevo.",
@@ -178,7 +179,8 @@
       "reload": "Recargar página"
     },
     "login": {
-      "noAccountLink": "¿No tienes una cuenta? <authLink>Regístrate</authLink>"
+      "noAccountLink": "¿No tienes una cuenta? <authLink>Regístrate</authLink>",
+      "orSignInWithPassword": "O inicia sesión con una contraseña"
     },
     "passwordRegisterForm": {
       "passwordsDoNotMatch": "Las contraseñas no coinciden."
@@ -270,6 +272,10 @@
       "title": "Aprobar en la página de tu cuenta",
       "description": "Tu servidor te pide que apruebes esto en la página de tu cuenta. Ábrela, apruébalo y vuelve aquí para continuar.",
       "open": "Abrir la página de la cuenta"
+    },
+    "passwordResetForm": {
+      "emailResetUnavailable": "Este servidor no puede restablecer contraseñas por correo electrónico.",
+      "emailResetUnavailableSso": "Este servidor no puede restablecer contraseñas por correo electrónico. Si te registraste con {{provider}}, <authLink>inicia sesión con {{provider}}</authLink> en su lugar."
     }
   },
   "featureUi": {

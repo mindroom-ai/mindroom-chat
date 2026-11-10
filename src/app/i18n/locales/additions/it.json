@@ -169,7 +169,8 @@
       "description": "MindRoom ha riscontrato un problema e non è riuscito a mostrare questa schermata. Ricarica per continuare."
     },
     "passwordLoginForm": {
-      "forgotPassword": "Password dimenticata?"
+      "forgotPassword": "Password dimenticata?",
+      "mayUseSso": "Questo account potrebbe usare l'accesso con {{provider}}. Usa il pulsante {{provider}} qui sopra."
     },
     "partUnavailable": {
       "failed": "Impossibile caricare questo elemento. Controlla la connessione e riprova.",
@@ -178,7 +179,8 @@
       "reload": "Ricarica pagina"
     },
     "login": {
-      "noAccountLink": "Non hai un account? <authLink>Registrati</authLink>"
+      "noAccountLink": "Non hai un account? <authLink>Registrati</authLink>",
+      "orSignInWithPassword": "Oppure accedi con una password"
     },
     "passwordRegisterForm": {
       "passwordsDoNotMatch": "Le password non corrispondono."
@@ -270,6 +272,10 @@
       "title": "Approva nella pagina del tuo account",
       "description": "Il tuo server ti chiede di approvare questa azione nella pagina del tuo account. Aprila, approva, poi torna qui e continua.",
       "open": "Apri la pagina dell'account"
+    },
+    "passwordResetForm": {
+      "emailResetUnavailable": "Questo server non può reimpostare le password via email.",
+      "emailResetUnavailableSso": "Questo server non può reimpostare le password via email. Se ti sei registrato con {{provider}}, <authLink>accedi con {{provider}}</authLink>."
     }
   },
   "featureUi": {

@@ -163,7 +163,8 @@
       "description": "MindRoom mengalami masalah dan tidak dapat menampilkan layar ini. Muat ulang untuk melanjutkan."
     },
     "passwordLoginForm": {
-      "forgotPassword": "Lupa kata sandi?"
+      "forgotPassword": "Lupa kata sandi?",
+      "mayUseSso": "Akun ini mungkin menggunakan masuk dengan {{provider}}. Gunakan tombol {{provider}} di atas."
     },
     "partUnavailable": {
       "failed": "Ini tidak dapat dimuat. Periksa koneksi Anda dan coba lagi.",
@@ -172,7 +173,8 @@
       "reload": "Muat ulang halaman"
     },
     "login": {
-      "noAccountLink": "Belum punya akun? <authLink>Daftar</authLink>"
+      "noAccountLink": "Belum punya akun? <authLink>Daftar</authLink>",
+      "orSignInWithPassword": "Atau masuk dengan kata sandi"
     },
     "passwordRegisterForm": {
       "passwordsDoNotMatch": "Kata sandi tidak cocok."
@@ -262,6 +264,10 @@
       "title": "Setujui di halaman akun Anda",
       "description": "Server Anda meminta Anda menyetujui ini di halaman akun Anda. Buka halaman itu, setujui, lalu kembali ke sini untuk melanjutkan.",
       "open": "Buka halaman akun"
+    },
+    "passwordResetForm": {
+      "emailResetUnavailable": "Server ini tidak dapat mengatur ulang kata sandi lewat email.",
+      "emailResetUnavailableSso": "Server ini tidak dapat mengatur ulang kata sandi lewat email. Jika Anda mendaftar dengan {{provider}}, <authLink>masuklah dengan {{provider}}</authLink> sebagai gantinya."
     }
   },
   "featureUi": {
