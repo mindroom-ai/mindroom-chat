@@ -45,6 +45,23 @@ const redacted = (value: typeof original) => ({
   },
 });
 
+it('gives a discovery asked while a repair of the thread runs its own result', async () => {
+  const { mx, scheduler } = setup();
+  vi.spyOn(mx, 'fetchRelations').mockImplementation(async (_roomId, target) => ({
+    chunk: target === threadId ? [original] : [],
+  }));
+
+  // One provider of the thread repairs an approval it holds; another, mounting, discovers.
+  const repair = enqueueThreadApprovalBackfill(mx, scheduler, roomId, threadId, [
+    new MatrixEvent(original),
+  ]);
+  const discovery = enqueueThreadApprovalBackfill(mx, scheduler, roomId, threadId);
+
+  const [repaired, discovered] = await Promise.all([repair, discovery]);
+  expect(repaired.events.map((event) => event.getId())).toEqual([]);
+  expect(discovered.events.map((event) => event.getId())).toEqual(['$approval']);
+});
+
 it('refreshes an omitted retained origin to recover a missed redaction', async () => {
   const { mx, scheduler } = setup();
   const retained = new MatrixEvent(original);
@@ -164,7 +181,7 @@ describe('thread approval backfill', () => {
   });
   it('stops before another request after a running job is cancelled', async () => {
     const { mx, scheduler } = setup();
-    let release!: (value: { chunk: typeof original[]; next_batch: string }) => void;
+    let release!: (value: { chunk: (typeof original)[]; next_batch: string }) => void;
     const fetch = vi.spyOn(mx, 'fetchRelations').mockImplementation(
       () =>
         new Promise((resolve) => {

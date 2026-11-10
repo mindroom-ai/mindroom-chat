@@ -28,8 +28,9 @@ import { roomMoreOptions } from '../helpers/roomMenu';
 // file staged there stays out of the page's send, and Up in the page's composer edits the page's
 // message only. The profile card of the helper, opened from the panel's thread, closes on Escape
 // alone; an Escape in the panel's composer then closes the panel. In a room where the account may
-// not post, the panel shows the thread without a composer. On a phone the panel covers the page,
-// its composer still completes mentions and attaches files, and the thread is read there.
+// not post, the panel shows the thread without a composer. Typing in the page's composer and then
+// in the panel's keeps one typing notice for the others. On a phone the panel covers the page, its
+// composer still completes mentions and attaches files, and the thread is read there.
 //   MINDROOM_CLIENT_PLUGINS=$PWD/src/app/plugins/__fixtures__/example-plugin \
 //     scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/plugins/agent-thread-view.spec.ts
 test.skip(
@@ -210,6 +211,126 @@ test("a plugin's panel shows a thread with its approvals and composer, as the ro
   // The room's own view of the thread shows the reply.
   await showThread(page, stack, rootId);
   await expect(messageRow(page, sent.event_id)).toContainText(reply, { timeout: 30_000 });
+});
+
+/**
+ * Whether the tester types in `roomId`, as the router sees it in its sync, sampled from now on;
+ * `longestPause` is the longest time the router saw the tester not typing between `from` and `to`.
+ */
+const watchTyping = (stack: AgentStack, roomId: string) => {
+  const token = routerToken(stack);
+  const changes: { at: number; typing: boolean }[] = [];
+  let stopped = false;
+  const filter = JSON.stringify({
+    presence: { types: [] },
+    account_data: { types: [] },
+    room: {
+      rooms: [roomId],
+      timeline: { limit: 0 },
+      state: { types: [] },
+      account_data: { types: [] },
+      ephemeral: { types: ['m.typing'] },
+    },
+  });
+  const loop = (async () => {
+    let since: string | undefined;
+    while (!stopped) {
+      const query = new URLSearchParams({ filter, timeout: since ? '1000' : '0' });
+      if (since) query.set('since', since);
+      // eslint-disable-next-line no-await-in-loop
+      const sync = await matrixFetch<{
+        next_batch: string;
+        rooms?: {
+          join?: Record<
+            string,
+            { ephemeral?: { events: { type: string; content: { user_ids?: string[] } }[] } }
+          >;
+        };
+      }>(stack.homeserver, `/sync?${query.toString()}`, { accessToken: token });
+      since = sync.next_batch;
+      sync.rooms?.join?.[roomId]?.ephemeral?.events
+        .filter((event) => event.type === 'm.typing')
+        .forEach((event) =>
+          changes.push({
+            at: Date.now(),
+            typing: event.content.user_ids?.includes(stack.tester.userId) ?? false,
+          })
+        );
+    }
+  })();
+  // A failed request shows at `stop`, not as an unhandled rejection before it.
+  loop.catch(() => undefined);
+  return {
+    typingNow: () => changes.at(-1)?.typing ?? false,
+    longestPause: (from: number, to: number) => {
+      let typing = false;
+      let pausedAt = from;
+      let longest = 0;
+      changes.forEach(({ at, typing: now }) => {
+        if (at > to) return;
+        if (at <= from) {
+          typing = now;
+          return;
+        }
+        if (typing && !now) pausedAt = at;
+        if (!typing && now) {
+          longest = Math.max(longest, at - pausedAt);
+          pausedAt = from;
+        }
+        typing = now;
+      });
+      if (!typing) longest = Math.max(longest, to - pausedAt);
+      return longest;
+    },
+    stop: async () => {
+      stopped = true;
+      await loop;
+    },
+  };
+};
+
+test("the page's and the plugin's panel's typing is one notice", async ({ page, stack }) => {
+  await openLobby(page, stack);
+  const word = uniqueWord('typing');
+  const rootId = await startThread(stack, `${word} root`);
+  await showThread(page, stack, rootId);
+  const panel = await openThreadPanel(page);
+  await showPath(page, `/home/${encodeURIComponent(stack.rooms.lobby)}`);
+  await expect(messageRow(panel, rootId)).toContainText(word, { timeout: 60_000 });
+
+  // Typing in the page's composer, then in the panel's: the others see one notice throughout,
+  // also past the time a single notice expires (30 s).
+  const typing = watchTyping(stack, stack.rooms.lobby);
+  let started = 0;
+  try {
+    await pageComposer(page).click();
+    await page.keyboard.type('t');
+    await expect.poll(typing.typingNow, { timeout: 20_000 }).toBe(true);
+    started = Date.now();
+    for (let key = 0; key < 7; key += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await page.waitForTimeout(2_000);
+      // eslint-disable-next-line no-await-in-loop
+      await page.keyboard.type('a');
+    }
+    const box = panel.getByRole('textbox');
+    await box.click();
+    while (Date.now() - started < 45_000) {
+      // eslint-disable-next-line no-await-in-loop
+      await page.keyboard.type('b');
+      // eslint-disable-next-line no-await-in-loop
+      await page.waitForTimeout(2_000);
+    }
+  } finally {
+    await typing.stop();
+  }
+  // A single composer's notice also pauses once as it expires, until the next key starts it again.
+  expect(typing.longestPause(started, Date.now())).toBeLessThan(6_000);
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.press('Backspace');
+  await pageComposer(page).click();
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.press('Backspace');
 });
 
 /** A room the router made, where the tester has joined but may not post. */
