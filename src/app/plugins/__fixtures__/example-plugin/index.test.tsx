@@ -33,6 +33,7 @@ const place = vi.hoisted(() => ({
 const roomPage = vi.hoisted(() => ({
   thread: undefined as string | undefined,
   closeThreadPanel: undefined as (() => void) | undefined,
+  profile: undefined as { roomId: string; userId: string } | undefined,
 }));
 vi.mock('@mindroom/client-sdk/core', async (importOriginal) => {
   const core = await importOriginal<typeof import('@mindroom/client-sdk/core')>();
@@ -54,6 +55,10 @@ vi.mock('@mindroom/client-sdk/room', async (importOriginal) => {
     useShownThread: () => {
       const shown = sdk.useShownThread();
       return roomPage.thread ?? shown;
+    },
+    useShownUserProfile: () => {
+      const shown = sdk.useShownUserProfile();
+      return roomPage.profile ?? shown;
     },
     ThreadView: ({ room: { roomId }, threadId }: { room: Room; threadId: string }) => (
       <button type="button">{`Thread ${threadId} of ${roomId}`}</button>
@@ -109,6 +114,7 @@ describe('example plugin', () => {
     vi.unstubAllGlobals();
     roomPage.thread = undefined;
     roomPage.closeThreadPanel = undefined;
+    roomPage.profile = undefined;
   });
 
   const [renderer] = plugin.messageRenderers ?? [];
@@ -196,14 +202,15 @@ describe('example plugin', () => {
     expect((await renderGreeting()).queryByRole('button', { name: 'Show in panel' })).toBeNull();
   });
 
-  it('shows in its thread panel the thread the room showed as it opened, kept after, which an Escape the thread leaves closes', async () => {
+  it('shows in its thread panel the thread the room showed as it opened, kept after, which an Escape the thread leaves closes unless a profile card is open', async () => {
     const panel = plugin.sidePanels?.find(({ id }) => id === 'thread');
     if (!panel) throw new Error('the example plugin has no thread panel');
     const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
     client.store.storeRoom(new Room('!lobby:example.org', client, '@ada:example.org'));
-    const ui = <panel.Component roomId="!lobby:example.org" />;
+    // A new element each time, so that a rerender renders the panel again.
+    const ui = () => <panel.Component roomId="!lobby:example.org" />;
     const options = { id: 'example', plugin, client };
-    expect((await renderPluginComponent(ui, options)).container.textContent).toBe(
+    expect((await renderPluginComponent(ui(), options)).container.textContent).toBe(
       'No example thread'
     );
     cleanup();
@@ -211,13 +218,20 @@ describe('example plugin', () => {
     roomPage.thread = '$root';
     const close = vi.fn();
     roomPage.closeThreadPanel = close;
-    const view = await renderPluginComponent(ui, options);
+    const view = await renderPluginComponent(ui(), options);
     const thread = view.getByRole('button', { name: 'Thread $root of !lobby:example.org' });
     roomPage.thread = '$other';
-    view.rerender(ui);
+    view.rerender(ui());
     expect(view.getByRole('button', { name: 'Thread $root of !lobby:example.org' })).toBe(thread);
 
-    fireEvent.keyDown(thread, { key: 'Escape' });
+    // While a profile card is open, the Escape is the card's.
+    roomPage.profile = { roomId: '!lobby:example.org', userId: '@ada:example.org' };
+    view.rerender(ui());
+    expect(fireEvent.keyDown(thread, { key: 'Escape' })).toBe(true);
+    expect(close).not.toHaveBeenCalled();
+    roomPage.profile = undefined;
+    view.rerender(ui());
+    expect(fireEvent.keyDown(thread, { key: 'Escape' })).toBe(false);
     expect(close).toHaveBeenCalledTimes(1);
   });
 

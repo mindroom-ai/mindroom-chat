@@ -77,7 +77,8 @@
 // HTML the app sanitized, with the Matrix IDs of the room's members replaced by their names.
 // A third side panel, "Example thread", toggled from the room menu, shows the thread the room showed
 // as it opened, as the room's page shows it (`ThreadView`), and keeps it while the room shows
-// another; an Escape that the thread leaves, as on one of its rows, closes the panel.
+// another; an Escape that the thread leaves, as on one of its rows, closes the panel, unless a profile
+// card is open, which that Escape closes instead.
 import {
   useEffect,
   useLayoutEffect,
@@ -136,6 +137,7 @@ import {
   useRoomHref,
   useRoomNavigate,
   useShownThread,
+  useShownUserProfile,
   ThreadView,
 } from '@mindroom/client-sdk/room';
 import {
@@ -801,13 +803,15 @@ function ExampleThread({ roomId }: { roomId: string }) {
   const client = useMatrixClient();
   const [threadId] = useState(useShownThread());
   const panel = useRoomSidePanel('example', 'thread');
+  // The floating profile card, which its rows open, takes the Escape that reaches the document.
+  const profileShown = useShownUserProfile() !== undefined;
   const room = client.getRoom(roomId);
   if (!room || !threadId) return <p>No example thread</p>;
   return (
     <div
       style={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto', minHeight: 0 }}
       onKeyDown={(event) => {
-        if (event.key !== 'Escape' || event.defaultPrevented) return;
+        if (event.key !== 'Escape' || event.defaultPrevented || profileShown) return;
         event.preventDefault();
         panel?.close();
       }}

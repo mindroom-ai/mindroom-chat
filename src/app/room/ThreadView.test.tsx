@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import type { KeyboardEvent, ReactNode } from 'react';
+import { useEffect, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createClient, Room, type RoomMember } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Editable, Slate } from 'slate-react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import type { RoomTimelineProps } from '../timeline/RoomTimeline';
 import { ThreadView } from './ThreadView';
 
@@ -12,11 +13,14 @@ const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice
 const room = new Room('!room:example.org', mx, '@alice:example.org');
 const THREAD = '$root';
 
+const LEVELS = vi.hoisted(() => ({ users_default: 0 }));
 const state = vi.hoisted(() => ({
   mayPost: true,
   tombstone: false,
   members: [] as RoomMember[],
   timeline: undefined as RoomTimelineProps | undefined,
+  timelineLevels: undefined as unknown,
+  dropTarget: undefined as HTMLElement | null | undefined,
   approvals: undefined as
     | { room: Room; threadId?: string; focusConversation?: () => void }
     | undefined,
@@ -26,7 +30,7 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx })
 vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => state.members }));
 vi.mock('../matrix/hooks/usePowerLevels', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../matrix/hooks/usePowerLevels')>()),
-  usePowerLevels: () => ({}),
+  usePowerLevels: () => LEVELS,
 }));
 vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
 vi.mock('../matrix/hooks/useRoomPermissions', () => ({
@@ -41,6 +45,7 @@ vi.mock('../matrix/hooks/useStateEvent', () => ({
 vi.mock('../timeline/RoomTimeline', () => ({
   RoomTimeline: (props: RoomTimelineProps) => {
     state.timeline = props;
+    state.timelineLevels = usePowerLevelsContext();
     return <div data-testid="timeline" />;
   },
 }));
@@ -63,11 +68,24 @@ vi.mock('../approvals/ThreadApprovalControls', () => ({
 }));
 // The composer is its Slate text box.
 vi.mock('../composer/RoomInput', () => ({
-  RoomInput: ({ editor, threadId }: { editor: Editor; threadId?: string }) => (
-    <Slate editor={editor} initialValue={[{ type: 'paragraph', children: [{ text: '' }] }]}>
-      <Editable aria-label={`Reply in ${threadId ?? 'the room'}`} />
-    </Slate>
-  ),
+  RoomInput: ({
+    editor,
+    threadId,
+    fileDropContainerRef,
+  }: {
+    editor: Editor;
+    threadId?: string;
+    fileDropContainerRef: RefObject<HTMLElement>;
+  }) => {
+    useEffect(() => {
+      state.dropTarget = fileDropContainerRef.current;
+    });
+    return (
+      <Slate editor={editor} initialValue={[{ type: 'paragraph', children: [{ text: '' }] }]}>
+        <Editable aria-label={`Reply in ${threadId ?? 'the room'}`} />
+      </Slate>
+    );
+  },
 }));
 
 beforeEach(() => {
@@ -75,6 +93,8 @@ beforeEach(() => {
   state.tombstone = false;
   state.members = [];
   state.timeline = undefined;
+  state.timelineLevels = undefined;
+  state.dropTarget = undefined;
   state.approvals = undefined;
 });
 afterEach(cleanup);
@@ -137,6 +157,12 @@ it('lets an Escape the reply box leaves bubble out of it', () => {
   );
   fireEvent.keyDown(composer() as HTMLElement, { key: 'Escape' });
   expect(heard).toHaveReturnedWith(false);
+});
+
+it("gives the timeline its room's power levels, also outside that room's page, and takes files dropped anywhere on it", () => {
+  const { container } = render(<ThreadView room={room} threadId={THREAD} />);
+  expect(state.timelineLevels).toBe(LEVELS);
+  expect(state.dropTarget).toBe(container.firstElementChild);
 });
 
 it("sets the room view's insets to none, as no floating header or composer covers its rows", () => {

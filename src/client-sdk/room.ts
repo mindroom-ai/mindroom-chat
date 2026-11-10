@@ -128,8 +128,10 @@ export const useOpenUserProfile = () => {
 
 /**
  * The floating profile card that is open, the one `useOpenUserProfile` opened or the app's own
- * mention pills and member rows did: the room and the person it shows, or undefined while none is
- * open. It renders again when the card closes or shows another person or room.
+ * mention pills, member rows and senders' names did: the room and the person it shows, or undefined
+ * while none is open. It renders again when the card closes or shows another person or room. The
+ * card closes on an Escape that reaches the document without `preventDefault`, so a plugin that
+ * closes its own surface on Escape leaves it alone while a card is open.
  */
 export const useShownUserProfile = (): { roomId: string; userId: string } | undefined => {
   const shown = useUserRoomProfileState();
@@ -165,7 +167,8 @@ const LazyThreadView = lazyPart(() =>
  * thread's tool approvals under them, and the composer under those while the signed-in account may
  * post in the room. It fills its parent, a flex column, and scrolls inside it; it shows nothing
  * while its code loads. An Escape that the composer and its menus do not take bubbles out of it, so
- * a plugin may close the thread on one that is not `defaultPrevented`.
+ * a plugin may close the thread on one that is not `defaultPrevented`, but not while
+ * `useShownUserProfile` names a card, which its rows open and which that Escape closes.
  */
 export const ThreadView = (props: { room: Room; threadId: string }) =>
   createElement(Suspense, { fallback: null }, createElement(LazyThreadView, props));
