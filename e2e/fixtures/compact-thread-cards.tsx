@@ -5,7 +5,7 @@ import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import '../../src/index.css';
 import i18n from '../../src/app/i18n/i18n';
-import { DarkTheme, LightTheme } from '../../src/app/theme/useTheme';
+import { LightTheme, THEMES } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import { CompactThreadCard } from '../../src/app/threads/overview/CompactThreadCard';
 import { CompactCardSwipe } from '../../src/app/threads/overview/CompactCardSwipe';
@@ -21,10 +21,13 @@ import type { CompactThreadCardViewModel } from '../../src/app/event-store/threa
 // production card inside the same shell, swipe and action buttons as
 // CompactRoomView. A swipe toggles a card's resolution; opening a card records
 // its thread in `body[data-opened-thread]`.
-// Query parameters: `lang` (default en) and `theme` (light or dark).
+// Query parameters: `lang` (default en) and `theme` (a theme name such as dark or green; default
+// light).
 
 const params = new URLSearchParams(window.location.search);
-applyThemeToDom(params.get('theme') === 'dark' ? DarkTheme : LightTheme);
+applyThemeToDom(
+  THEMES.find((theme) => theme.id === `${params.get('theme')}-theme`) ?? LightTheme
+);
 
 const avatar = (background: string, label: string) =>
   `data:image/svg+xml,${encodeURIComponent(

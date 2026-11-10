@@ -187,6 +187,21 @@ export const CardResolved = style({
   color: color.Success.OnContainer,
 });
 
+// A filled check at the start of a resolved card's title. The card's tint alone can sit close to
+// the surface's own hue (the green theme's cards are green too); the success colour on a solid
+// disc stands out from both the tint and the plain cards in every theme.
+export const ResolvedBadge = style({
+  display: 'inline-grid',
+  inlineSize: toRem(16),
+  placeItems: 'center',
+  blockSize: toRem(16),
+  marginInlineEnd: config.space.S200,
+  borderRadius: '50%',
+  verticalAlign: toRem(-3),
+  backgroundColor: color.Success.Main,
+  color: color.Success.OnMain,
+});
+
 export const TitleRow = style({
   display: 'flex',
   alignItems: 'baseline',
