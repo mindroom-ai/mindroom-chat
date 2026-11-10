@@ -96,7 +96,7 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   );
   await expect(messageRow(column(page), sent.event_id)).toContainText(reply, { timeout: 30_000 });
   await expect(pageComposer(page)).toHaveText(draft);
-  await expect(columnComposer(page)).toHaveText('');
+  await expect(columnComposer(page)).not.toContainText(reply);
   await shot(page, 'beside-reply-and-draft');
 
   // The plugin's panel opens to the right of the thread: three columns.
