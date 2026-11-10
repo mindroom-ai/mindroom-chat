@@ -31,6 +31,7 @@ import {
   phoneNavSlotAtom,
   phoneSheetOpenAtom,
   phoneSheetSlotAtom,
+  phoneTopBarHiddenAtom,
 } from '../navigation/phoneNavDrawer';
 import {
   conversationBehindPanelAtom,
@@ -123,6 +124,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(phoneNavSectionRootAtom),
   toInitial(phoneSheetSlotAtom),
   toInitial(phoneSheetOpenAtom),
+  toInitial(phoneTopBarHiddenAtom),
   toInitial(conversationCoveredAtom),
   toInitial(conversationBehindPanelAtom),
   toInitial(listNoticeSlotAtom),

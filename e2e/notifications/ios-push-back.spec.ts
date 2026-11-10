@@ -14,9 +14,10 @@ import {
 } from '../helpers/matrix';
 
 // The iOS app opens a tapped push as a page opened from outside the app: a thread's back chevron
-// leads to the thread's room, and the room's to its list, never to the page the app was left on
-// (another conversation, or another account's), and no back chevron leads to the pages of the
-// account that was active before a switch. The app runs as the iOS app here: Capacitor's iOS
+// leads to the thread's room, never to the page the app was left on (another conversation, or
+// another account's), and the room's list is in the drawer behind the top bar's menu button (the
+// room has no back chevron); nothing leads to the pages of the account that was active before a
+// switch. The app runs as the iOS app here: Capacitor's iOS
 // platform with a stand-in for the push plugin, whose taps the test fires as iOS would deliver
 // them. At 390 by 844 with touch, in Chromium. IOS_PUSH_BACK_SHOTS=<directory> saves the thread
 // and the pages its chevrons lead to.
@@ -189,6 +190,7 @@ const expectAt = (page: Page, expected: Partial<Place>, step: string) =>
 
 const roomBack = (page: Page) =>
   page.getByRole('banner').getByRole('button', { name: 'Back', exact: true });
+const menuButton = (page: Page) => page.locator('#phone-nav-menu-button');
 const threadBack = (page: Page) =>
   page.locator('[data-thread-context-banner]').getByRole('button', { name: 'Back', exact: true });
 const listLink = (page: Page, name: string) =>
@@ -226,18 +228,18 @@ const asIOSApp = async (page: Page) => {
   await expect(listLink(page, 'Harbor Plans')).toBeVisible({ timeout: 60_000 });
 };
 
-/** The thread a tapped push opened: its chevron leads to its room, and the room's to the list. */
+/** The thread a tapped push opened: its chevron leads to its room, whose list is in the drawer. */
 const backFromPushedThread = async (page: Page, { room, root }: Seed, shots: string) => {
   await expectAt(page, { room, thread: root }, 'the push opens the reply in its thread');
   await expect(threadBack(page)).toBeVisible();
   await shoot(page, `${shots}-1-thread`);
   await threadBack(page).tap();
   await expectAt(page, { room, thread: null }, "the thread's chevron leads to its room");
-  await expect(roomBack(page)).toBeVisible();
+  await expect(roomBack(page), 'the room has no chevron of its own').toHaveCount(0);
   await shoot(page, `${shots}-2-room`);
-  await roomBack(page).tap();
-  await expectAt(page, { path: '/home/', room: null, thread: null }, "then to the room's list");
-  await expect(listLink(page, 'Harbor Plans')).toBeVisible();
+  await menuButton(page).tap();
+  await expect(listLink(page, 'Harbor Plans'), "the drawer holds the room's list").toBeVisible();
+  await expectAt(page, { room, thread: null }, 'the drawer comes out over the room');
   await shoot(page, `${shots}-3-list`);
 };
 
@@ -313,18 +315,16 @@ test("a thread another account's push opened leads back to that account's room",
     });
     await backFromPushedThread(page, second, 'two-accounts');
 
-    // Switched from the account menu, the first account's page leads to its own list, never to
-    // the second account's room shown before the switch.
+    // Switched from the account menu, the first account's page shows its own list in the drawer,
+    // and nothing leads to the second account's room shown before the switch.
     await listLink(page, 'Harbor Plans').tap();
     await expectAt(page, { room: second.room, thread: null }, "the second account's room opens");
     await switchToStoredUsername(page, first.username);
     await expectAt(page, { room: first.dm, thread: null }, "the first account's last page opens");
-    await roomBack(page).tap();
-    await expectAt(
-      page,
-      { path: '/direct/', room: null, thread: null },
-      "its back leads to the first account's list"
-    );
+    await expect(roomBack(page), 'the room has no chevron of its own').toHaveCount(0);
+    await menuButton(page).tap();
+    await expect(page.getByTestId('resizable-page-nav')).toBeVisible();
+    await expectAt(page, { room: first.dm, thread: null }, 'the drawer comes out over the room');
   } finally {
     await context.close();
   }

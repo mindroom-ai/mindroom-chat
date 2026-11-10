@@ -16,7 +16,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // On a phone (390 by 844, touch) the small controls get a hit area a finger can find: 44 px tall,
 // and 44 px wide where the next control is far enough, else up to the middle of the gap, so two
 // controls never share a point. Measured with elementFromPoint, which hit-tests like a tap: the
-// room header buttons, the composer buttons, the thread banner buttons and "[+all]". Their look
+// room header buttons, the composer buttons, the thread bar's controls and "[+all]". Their look
 // does not change. A tapped glass button (the composer's More actions) also keeps no hover tint or
 // hover scale afterwards, while a desktop mouse still gets both (on Formatting). Checked in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
@@ -42,9 +42,8 @@ const REPLIES = [
 ] as const;
 // A phone composer keeps voice and Send; Attach, Formatting and Emoji are in More actions' menu.
 const COMPOSER = ['More actions', 'Record voice message', 'Send message'];
-// A phone's room header keeps Back, the name and More Options; the rest is in the room menu.
-const HEADER = ['Back', 'More Options'];
-const BANNER = ['Thread options', 'Pin thread', 'Resolve'];
+// A phone's room header keeps the name and More Options; the rest is in the room menu.
+const HEADER = ['More Options'];
 
 test.use({
   launchOptions: {
@@ -186,7 +185,11 @@ const measureRow = async (row: Locator[]) => {
       );
       const hits: { name: string; at: string; hit: string; inside: boolean }[] = [];
       rects.forEach((rect, index) => {
-        const name = named(elements[index] ?? null);
+        // A control may be an area its button reaches over (the phone thread bar's title).
+        const control = elements[index] ?? null;
+        const name = named(
+          control?.closest('button') ? control : control?.querySelector('button') ?? control
+        );
         const cx = centres[index]!;
         const cy = rect.top + rect.height / 2;
         const halfHeight = Math.max(size, rect.height) / 2;
@@ -290,11 +293,17 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
   await expectRow(composer.slice(2), `${engine} composer end`);
   await expectRow([all], `${engine} [+all] in the room`);
 
+  // An open thread's bar: back, the title (its button reaches over the line below it too), then the
+  // room menu.
   const banner = await openThread(page, world);
-  await shot(page, banner, `banner-${engine}-phone`);
+  await shot(page, page.getByRole('banner'), `banner-${engine}-phone`);
   await expectRow(
-    BANNER.map((name) => button(banner, name)),
-    `${engine} thread banner`
+    [
+      button(banner, 'Back'),
+      banner.locator('h1').locator('..'),
+      button(page.getByRole('banner'), 'More Options'),
+    ],
+    `${engine} thread bar`
   );
   // A thread has no [+all] line.
   await expect(all).toHaveCount(0);

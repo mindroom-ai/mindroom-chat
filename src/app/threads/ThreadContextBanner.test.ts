@@ -20,9 +20,20 @@ import { tagColor, TAG_TEXT_COLOR } from './tags/threadTagColor';
 import { ThreadContextBanner, type ThreadContextBannerProps } from './ThreadContextBanner';
 import { settingsAtom } from '../preferences/settings';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
+import { phoneTopBarHiddenAtom } from '../navigation/phoneNavDrawer';
 import { runShortcut } from '../shortcuts/useShortcut';
 
 const menuProps = vi.hoisted(() => vi.fn());
+const screenSize = vi.hoisted(() => ({ value: 'Desktop' }));
+vi.mock('../lib/hooks/useScreenSize', () => ({
+  ScreenSize: { Desktop: 'Desktop', Tablet: 'Tablet', Mobile: 'Mobile' },
+  useScreenSizeContext: () => screenSize.value,
+}));
+vi.mock('../ui/page/PhoneBackButton', () => ({
+  PhoneBackButton: ({ label, onBack }: { label: string; onBack: () => void }) =>
+    React.createElement('button', { 'aria-label': label, onClick: onBack }),
+}));
+vi.mock('../matrix/hooks/useRoomMeta', () => ({ useRoomName: () => "Bas Nijholt's Mind" }));
 const textDirection = vi.hoisted(() => vi.fn(() => 'ltr'));
 vi.mock('./ThreadActionsMenu', () => ({
   ThreadActionsMenu: (props: unknown) => {
@@ -86,7 +97,7 @@ vi.mock('folds', async () => {
     IconButton: React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
       ({ children, ...props }, ref) => React.createElement('button', { ...props, ref }, children)
     ),
-    Icons: { ArrowLeft: 'arrow-left', Check: 'check', ChevronBottom: 'chevron-bottom' },
+    Icons: { ArrowLeft: 'arrow-left', Check: 'check', ChevronBottom: 'chevron-bottom', Pin: 'pin' },
     Tooltip: ({ children }: { children?: React.ReactNode }) =>
       React.createElement('div', null, children),
     // Render the tooltip beside its trigger, so tests can read what it says.
@@ -163,11 +174,25 @@ vi.mock('./ThreadContextBanner.css', () => ({
   BannerResolved: 'BannerResolved',
   Collapsed: 'Collapsed',
   CompactHidden: 'CompactHidden',
-  DesktopOnlyTags: 'DesktopOnlyTags',
   EyebrowRow: 'EyebrowRow',
   MetadataDot: 'MetadataDot',
-  MobileOnlyTags: 'MobileOnlyTags',
   OverflowChip: 'OverflowChip',
+  PhoneBar: 'PhoneBar',
+  PhoneBarChevron: 'PhoneBarChevron',
+  PhoneBarDetails: 'PhoneBarDetails',
+  PhoneBarResolvedIcon: 'PhoneBarResolvedIcon',
+  PhoneBarScheduled: 'PhoneBarScheduled',
+  PhoneBarStatus: 'PhoneBarStatus',
+  PhoneBarSummary: 'PhoneBarSummary',
+  PhoneBarTags: 'PhoneBarTags',
+  PhoneBarTitle: 'PhoneBarTitle',
+  PhoneBarText: 'PhoneBarText',
+  PhoneBarHeading: 'PhoneBarHeading',
+  PhoneBarChips: 'PhoneBarChips',
+  PhoneBarTitleText: 'PhoneBarTitleText',
+  PhoneMenuHeader: 'PhoneMenuHeader',
+  PhoneMenuHeaderDetails: 'PhoneMenuHeaderDetails',
+  PhoneMenuHeaderTitle: 'PhoneMenuHeaderTitle',
   ResolutionByline: 'ResolutionByline',
   ResolutionBylineDot: 'ResolutionBylineDot',
   ResolverName: 'ResolverName',
@@ -612,7 +637,7 @@ describe('ThreadContextBanner rendering', () => {
         });
 
     const summarized = renderBanner('A concise thread summary');
-    expect(hidden(summarized)).toEqual(['TagsRow', 'Pin thread', 'Resolve', 'MobileOnlyTags']);
+    expect(hidden(summarized)).toEqual(['TagsRow', 'Pin thread', 'Resolve']);
     const more = summarized.root.findByProps({ 'aria-label': 'Thread options' });
     expect(more.props.className).toBe('MessageOptionsButton');
     summarized.unmount();
@@ -774,10 +799,10 @@ describe('ThreadContextBanner rendering', () => {
       displayTags: ['bug'],
     });
     const tagged = renderBanner('A concise thread summary');
-    // One picker beside the desktop tags, one beside the mobile tags row.
+    // One picker beside the tags (a phone's thread bar edits them from its menu).
     expect(
       tagged.root.findAll((node) => node.type === 'button' && node.children.includes('+ tag'))
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     tagged.unmount();
   });
 
@@ -1345,5 +1370,140 @@ describe('ThreadContextBanner rendering', () => {
       pinned.root.findAllByProps({ 'data-thread-resolution-byline': 'true' }, { deep: false })
     ).toHaveLength(0);
     pinned.unmount();
+  });
+
+  describe('on a phone', () => {
+    beforeEach(() => {
+      screenSize.value = 'Mobile';
+    });
+    afterEach(() => {
+      screenSize.value = 'Desktop';
+    });
+    const labelled = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root
+        .findAll((node) => node.type === 'button' && !!node.props['aria-label'])
+        .map((node) => node.props['aria-label'] as string);
+    const titleButton = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root.find((node) => node.type === 'button' && node.props['aria-haspopup'] === 'menu');
+    const bar = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root.find(
+        (node) => node.type === 'div' && node.props['data-thread-context-banner'] === 'true'
+      );
+
+    it('is one bar: back, then the title over the room and two tags, with no other buttons', () => {
+      bannerMocks.useThreadTags.mockReturnValue({
+        tags: {
+          'mindroom-agent': { set_by: '@a:b', set_at: ISO_1 },
+          travel: { set_by: '@a:b', set_at: ISO_2 },
+          ops: { set_by: '@a:b', set_at: ISO_3 },
+        },
+        displayTags: ['mindroom-agent', 'travel', 'ops'],
+        isResolved: false,
+        canEdit: true,
+        availableTags: [],
+      });
+      pinningMocks.canPin = true;
+      const renderer = renderBanner('Planning the NYC offsite trip');
+
+      expect(labelled(renderer)).toEqual(['Back']);
+      // The title is the page's heading and the button that opens the thread menu.
+      const title = titleButton(renderer);
+      expect(renderer.root.findByType('h1').findAll((node) => node === title)).toHaveLength(1);
+      expect(text(title)).toContain('Planning the NYC offsite trip');
+      expect(text(title)).not.toContain("Bas Nijholt's Mind");
+      // The line below it names the room and two tags; the third is counted, named by its tooltip.
+      const details = bar(renderer).findByProps({ id: title.props['aria-describedby'] });
+      expect(text(details)).toContain("Bas Nijholt's Mind");
+      expect(text(details)).toContain('mindroom-agent');
+      expect(text(details)).toContain('travel');
+      expect(text(details)).not.toContain('ops');
+      expect(details.findByProps({ className: 'OverflowChip' }).props.title).toBe('ops');
+      // Auto-approval stays in view at the line's end, a button of its own outside the title.
+      expect(details.findAllByProps({ 'data-auto-approve': '$root' })).toHaveLength(1);
+      expect(title.findAllByProps({ 'data-auto-approve': '$root' })).toHaveLength(0);
+      renderer.unmount();
+    });
+
+    it('opens the thread menu from the title, under its start, with the whole title on top', async () => {
+      const renderer = renderBanner('Planning the NYC offsite trip');
+      const trigger = { focus: vi.fn(), isConnected: true };
+      await act(async () =>
+        titleButton(renderer).props.onClick({
+          currentTarget: { ...trigger, getBoundingClientRect: () => ({ x: 1, y: 2 }) },
+        })
+      );
+      expect(titleButton(renderer).props['aria-expanded']).toBe(true);
+      const props = menuProps.mock.lastCall?.[0] as {
+        align?: string;
+        header?: React.ReactElement;
+        onHideDetails?: unknown;
+      };
+      expect(props.align).toBe('Start');
+      expect(props.onHideDetails).toBeUndefined();
+      const header = create(props.header!);
+      expect(text(header.root)).toContain('Planning the NYC offsite trip');
+      expect(text(header.root)).toContain("Bas Nijholt's Mind");
+      header.unmount();
+      renderer.unmount();
+    });
+
+    it("says a resolved or pinned thread's state where the room's name was", () => {
+      bannerMocks.useThreadTags.mockReturnValue({
+        tags: { [RESOLVED_TAG]: { set_by: '@alice:example.org', set_at: ISO_1 } },
+        displayTags: [],
+        isResolved: true,
+        canEdit: true,
+        availableTags: [],
+      });
+      const resolved = renderBanner('A concise thread summary');
+      expect(text(bar(resolved))).toContain('Resolved');
+      expect(text(bar(resolved))).not.toContain("Bas Nijholt's Mind");
+      resolved.unmount();
+
+      pinningMocks.pinnedEventIds = ['$root'];
+      const pinned = renderBanner('A concise thread summary');
+      expect(text(bar(pinned))).toContain('Pinned');
+      expect(text(bar(pinned))).not.toContain('Resolved');
+      pinned.unmount();
+    });
+
+    it("names a scheduled thread's countdown as the wider banner does", () => {
+      bannerMocks.useThreadHeaderInfo.mockReturnValue({
+        scheduledTaskCount: 2,
+        nextScheduledTs: Date.parse('2026-04-04T18:12:00.000Z'),
+        scheduledDisplayText: 'in 12m',
+      });
+      const renderer = renderBanner('A concise thread summary');
+      const countdown = bar(renderer).find(
+        (node) => typeof node.type === 'string' && node.props.role === 'img'
+      );
+      expect(countdown.props['aria-label']).toMatch(/scheduled/i);
+      expect(text(countdown)).toContain('in 12m');
+      renderer.unmount();
+    });
+
+    it('hides the top bar while it shows, and only on a phone', () => {
+      const renderer = create(bannerElement('A concise thread summary'));
+      expect(store.get(phoneTopBarHiddenAtom)).toBe(true);
+      act(() => renderer.unmount());
+      expect(store.get(phoneTopBarHiddenAtom)).toBe(false);
+
+      screenSize.value = 'Desktop';
+      const desktop = create(bannerElement('A concise thread summary'));
+      expect(store.get(phoneTopBarHiddenAtom)).toBe(false);
+      desktop.unmount();
+    });
+
+    it('gives the top bar back while a side panel covers the conversation', () => {
+      store.set(conversationBehindPanelAtom, true);
+      let renderer: ReturnType<typeof create> | undefined;
+      act(() => {
+        renderer = create(bannerElement('A concise thread summary'));
+      });
+      expect(store.get(phoneTopBarHiddenAtom)).toBe(false);
+      act(() => store.set(conversationBehindPanelAtom, false));
+      expect(store.get(phoneTopBarHiddenAtom)).toBe(true);
+      act(() => renderer?.unmount());
+    });
   });
 });

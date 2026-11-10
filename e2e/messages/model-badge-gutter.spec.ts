@@ -283,8 +283,9 @@ const checkPhone = async (page: Page, data: Seed, engine: string, testInfo: Test
     expect(await tipOnTop(page), 'the tapped badge tip shows over the page').toBe(true);
     // eslint-disable-next-line no-await-in-loop
     await shot(page, testInfo, `model-badge-${engine}-phone-${scheme}-tap`);
+    // A phone's thread bar has no plain heading to tap; the thread's first message is elsewhere.
     // eslint-disable-next-line no-await-in-loop
-    await page.getByRole('heading', { level: 1 }).tap();
+    await page.getByText(THREAD_ROOT, { exact: true }).first().tap();
     // eslint-disable-next-line no-await-in-loop
     await expect(tip).toHaveCount(0);
   }

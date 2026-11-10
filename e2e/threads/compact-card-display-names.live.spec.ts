@@ -126,6 +126,7 @@ test.describe('compact card display names', () => {
       });
     }
 
+    const wide = page.viewportSize();
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(cardResolverByline).toBeVisible();
     await expect(cardResolverByline).toHaveText(`Resolved by ${displayName}`);
@@ -135,6 +136,9 @@ test.describe('compact card display names', () => {
       });
     }
 
+    // The banner's Resolved check and byline are a wider screen's; a phone's thread bar says
+    // "Resolved" and leaves who resolved it to its menu.
+    if (wide) await page.setViewportSize(wide);
     await threadCard.click();
     await expect.poll(() => new URL(page.url()).searchParams.get('threadId')).toBe(rootId);
 

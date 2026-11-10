@@ -116,8 +116,19 @@ export const getThreadRootTitle = (
   return text ? replaceMatrixUserIdsWithDisplayNames(room, text) : undefined;
 };
 
-/** The banner's title line from the thread's first message, cut at a word to fit one line. */
-export function ThreadRootTitle({ text }: { text: string }) {
+/**
+ * The banner's title line from the thread's first message, cut at a word to fit one line; a
+ * phone's thread bar shows it as large as an AI title.
+ */
+export function ThreadRootTitle({
+  text,
+  size = 'T300',
+  className,
+}: {
+  text: string;
+  size?: 'T300' | 'H5';
+  className?: string;
+}) {
   const ref = useRef<HTMLElement>(null);
   const shown = useWordFitText(ref, text);
   return (
@@ -125,8 +136,8 @@ export function ThreadRootTitle({ text }: { text: string }) {
       ref={ref}
       as="span"
       data-thread-context-root-title="true"
-      className={css.SummaryText}
-      size="T300"
+      className={className ? `${css.SummaryText} ${className}` : css.SummaryText}
+      size={size}
       truncate
       title={text}
       {...ownDirectionLine}

@@ -16,11 +16,10 @@ import { launchWebKit } from '../helpers/webkit';
 // The thread banner's buttons and a message's hover toolbar have no tile at rest and show a
 // surface while a pointer hovers them. A touch screen keeps :hover on the element tapped last, so
 // there a tapped button kept that surface and read as pressed: after Unpin the pin still looked
-// pinned. On a phone (390 by 844, touch) a tap leaves no surface behind, while the pressed pin, the
-// resolved check and keyboard focus keep theirs, and a mouse still gets the hover surface. WebKit
-// also hovered the button that slid under the finger after a tap and opened its tooltip (Resolve
-// after Unpin); on the phone no tooltip opens after a tap, while keyboard focus and a mouse still
-// open them. Checked in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit,
+// pinned. On a phone (390 by 844, touch) the thread's bar holds back and the title, whose menu
+// pins and resolves: after each, the bar says so and its buttons keep no surface, no tooltip opens
+// after a tap, and keyboard focus still shows. Wider, the pressed pin, the resolved check and
+// keyboard focus keep their surface, and a mouse still gets the hover surface. Checked in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit,
 // in WebKit.
 // Set BANNER_TOUCH_SHOTS=<directory> to save the banner after each step.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
@@ -40,8 +39,6 @@ const REPLIES = [
   'Security review signs off on Thursday.',
   'The API page needs one more pass before the docs ship.',
 ] as const;
-// The banner buttons that rest without a tile.
-const QUIET = ['Thread options', 'Pin thread', 'Resolve'];
 
 test.use({
   launchOptions: {
@@ -181,13 +178,10 @@ const expectNoTooltip = async (page: Page, name: string, where: string) => {
   expect.soft(texts, `${where}: no tooltip opens after a tap`).toEqual([]);
 };
 
-/** No quiet banner button keeps a surface after a tap, unless it is pressed or keyboard-focused. */
-const expectNoLeftoverSurface = async (banner: Locator, where: string) => {
+/** No quiet button keeps a surface after a tap, unless it is pressed or keyboard-focused. */
+const expectNoLeftoverSurface = async (buttons: Locator[], where: string) => {
   const looks = await Promise.all(
-    QUIET.map(async (name) => {
-      const button = banner.getByRole('button', { name, exact: true });
-      return (await button.isVisible()) ? look(button) : undefined;
-    })
+    buttons.map(async (button) => ((await button.isVisible()) ? look(button) : undefined))
   );
   const shown = looks.filter((state): state is NonNullable<typeof state> => state !== undefined);
   console.log(`${where}: ${JSON.stringify(shown)}`);
@@ -208,64 +202,62 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
     })
     .toBe(true);
   const banner = await openThread(page, world);
-  const button = (name: string) => banner.getByRole('button', { name, exact: true });
-  const tap = async (name: string) => {
-    // A button waits, disabled, while the change before it is saved.
-    await expect(button(name)).toBeEnabled({ timeout: 20_000 });
-    const { x, y } = await center(button(name));
+  const back = banner.getByRole('button', { name: 'Back', exact: true });
+  const title = banner.locator('button[aria-haspopup="menu"]');
+  const menu = page.getByRole('menu', { name: 'Thread options' });
+  const tapAt = async (target: Locator) => {
+    const { x, y } = await center(target);
     await page.touchscreen.tap(x, y);
   };
+  /**
+   * The title opens the thread menu and an entry acts. Pin and Resolve keep the menu open on their
+   * new label; it closes on Escape once the change is saved.
+   */
+  const choose = async (action: string) => {
+    // The title waits, disabled, while the thread's root is not confirmed.
+    await expect(title).toBeEnabled({ timeout: 20_000 });
+    await tapAt(title);
+    const item = menu.locator(`[data-thread-action="${action}"]`);
+    await expect(item).toBeEnabled({ timeout: 20_000 });
+    await tapAt(item);
+    await expect(item).toBeEnabled({ timeout: 20_000 });
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden({ timeout: 20_000 });
+    await page.waitForTimeout(400);
+  };
+  const status = (text: string) => banner.getByText(text, { exact: true });
 
-  await tap('Pin thread');
-  await expect(button('Unpin thread')).toHaveAttribute('aria-pressed', 'true', {
-    timeout: 20_000,
-  });
-  await page.waitForTimeout(400);
-  const pinned = await look(button('Unpin thread'));
-  expect(pinned.alpha, `${engine}: the pressed pin keeps its surface`).toBeGreaterThan(0.01);
+  await choose('pin');
+  await expect(status('Pinned')).toBeVisible({ timeout: 20_000 });
   await shot(page, banner, `banner-pinned-${engine}-phone`);
   await expectNoTooltip(page, `banner-pinned-${engine}-phone`, `${engine} after Pin`);
+  await expectNoLeftoverSurface([back, title], `${engine} after Pin`);
 
-  await tap('Unpin thread');
-  await expect(button('Pin thread')).toBeVisible({ timeout: 20_000 });
-  await page.waitForTimeout(400);
+  await choose('pin');
+  await expect(status('Pinned')).toHaveCount(0, { timeout: 20_000 });
   await shot(page, banner, `banner-after-unpin-${engine}-phone`);
   await expectNoTooltip(page, `banner-after-unpin-${engine}-phone`, `${engine} after Unpin`);
-  await expectNoLeftoverSurface(banner, `${engine} after Unpin`);
+  await expectNoLeftoverSurface([back, title], `${engine} after Unpin`);
 
-  await tap('Resolve');
-  await expect(button('Resolved')).toBeVisible({ timeout: 20_000 });
-  await page.waitForTimeout(400);
-  const resolved = await look(button('Resolved'));
-  expect(resolved.green && resolved.alpha > 0.9, `${engine}: the check stays solid green`).toBe(
-    true
-  );
+  await choose('resolve');
+  await expect(status('Resolved')).toBeVisible({ timeout: 20_000 });
   await shot(page, banner, `banner-resolved-${engine}-phone`);
   await expectNoTooltip(page, `banner-resolved-${engine}-phone`, `${engine} after Resolve`);
+  await expectNoLeftoverSurface([back, title], `${engine} after Resolve`);
 
-  await tap('Resolved');
-  await expect(button('Resolve')).toBeVisible({ timeout: 20_000 });
-  await page.waitForTimeout(400);
+  await choose('resolve');
+  await expect(status('Resolved')).toHaveCount(0, { timeout: 20_000 });
   await shot(page, banner, `banner-after-reopen-${engine}-phone`);
   await expectNoTooltip(page, `banner-after-reopen-${engine}-phone`, `${engine} after reopening`);
-  await expectNoLeftoverSurface(banner, `${engine} after reopening`);
+  await expectNoLeftoverSurface([back, title], `${engine} after reopening`);
 
-  // A keyboard keeps its focus surface: Tab from Thread options to the pin. WebKit, as Safari,
-  // tabs to buttons with Option held.
-  await expect(button('Thread options')).toBeEnabled({ timeout: 20_000 });
-  await expect(button('Pin thread')).toBeEnabled({ timeout: 20_000 });
-  await button('Thread options').focus();
+  // A keyboard still shows where it is: Tab from back to the title. WebKit, as Safari, tabs to
+  // buttons with Option held.
+  await back.focus();
   await page.keyboard.press(engine === 'webkit' ? 'Alt+Tab' : 'Tab');
-  const focused = await look(page.locator(':focus'));
-  console.log(`${engine} Tab: ${JSON.stringify(focused)}`);
-  expect(focused.name, `${engine}: Tab reaches the pin`).toBe('Pin thread');
-  expect(focused.focusVisible, `${engine}: the pin shows keyboard focus`).toBe(true);
-  expect(focused.alpha, `${engine}: keyboard focus keeps its surface`).toBeGreaterThan(0.01);
-  // Keyboard focus still names the button in its tooltip.
-  await expect(
-    shownTooltips(page).filter({ hasText: 'Pin thread' }),
-    `${engine}: Tab to the pin opens its tooltip`
-  ).toHaveCount(1);
+  await expect(title, `${engine}: Tab reaches the title`).toBeFocused();
+  const focused = await look(title);
+  expect(focused.focusVisible, `${engine}: the title shows keyboard focus`).toBe(true);
 
   // A message's toolbar shares the style: a hovering pointer leaves no surface on a touch screen.
   const message = page.locator('[data-message-id]').filter({ hasText: REPLIES[1] }).last();

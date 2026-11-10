@@ -300,16 +300,12 @@ describe("a phone's room header", () => {
     swipeFromLeftEdge();
     expect(navigate).not.toHaveBeenCalled();
 
-    // The back chevron still leaves the room.
-    const [back] =
+    // The drawer holds the room list, so the header has no back chevron of its own.
+    expect(
       renderer?.root.findAll(
         (node) => node.type === 'button' && node.props['aria-label'] === 'Back'
-      ) ?? [];
-    if (!back) throw new Error('no Back button');
-    act(() => {
-      back.props.onClick();
-    });
-    expect(navigate).toHaveBeenCalledOnce();
+      )
+    ).toHaveLength(0);
   });
 });
 
@@ -429,7 +425,7 @@ describe("the room header's actions", () => {
   it("folds a phone's actions into the room menu, in the row's order", () => {
     screen.size = 'Mobile';
     renderEverything();
-    expect(rowLabels()).toEqual(['Back', 'Join the call', 'More Options']);
+    expect(rowLabels()).toEqual(['Join the call', 'More Options']);
     openMenu();
     expect(roomEntries()).toEqual([
       'Compact view',
@@ -469,7 +465,7 @@ describe("the room header's actions", () => {
 
     screen.size = 'Mobile';
     renderHeader({ pluginActions });
-    expect(rowLabels()).toEqual(['Back', 'More Options']);
+    expect(rowLabels()).toEqual(['More Options']);
     openMenu();
     expect(roomEntries().slice(-3)).toEqual(['Show Members', 'Demo auto', 'Demo menu']);
     run.mockClear();

@@ -8,7 +8,7 @@ import { ClientLayout } from './ClientLayout';
 import { resolveRootRouteRedirect } from '../navigation/routeSessionGuards';
 import { getActiveSession, putSession, updateSessionLastPath } from '../matrix/session/sessions';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
-import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import { phoneNavDrawerOpenAtom, phoneTopBarHiddenAtom } from '../navigation/phoneNavDrawer';
 
 vi.mock('folds', () => ({
   Box: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
@@ -176,5 +176,36 @@ describe('ClientLayout', () => {
     });
     expect(parts(renderer!)[1]?.props['data-covered']).toBe(true);
     getDefaultStore().set(phoneNavDrawerOpenAtom, false);
+  });
+
+  it("leaves a phone's top bar out while a thread's bar takes its place", async () => {
+    const layout = (
+      <ScreenSizeProvider value={ScreenSize.Mobile}>
+        <MemoryRouter initialEntries={[ROOM_PATH]}>
+          <ClientLayout nav={<nav />} phoneTopBar={<header />}>
+            {null}
+          </ClientLayout>
+        </MemoryRouter>
+      </ScreenSizeProvider>
+    );
+    const types = (renderer: ReturnType<typeof create>) =>
+      (
+        ((renderer.toJSON() as ReactTestRendererJSON).children ?? []) as ReactTestRendererJSON[]
+      ).map((part) => part.type);
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(layout);
+    });
+    expect(types(renderer!)).toEqual(['header', 'i', 'div']);
+
+    await act(async () => {
+      getDefaultStore().set(phoneTopBarHiddenAtom, true);
+    });
+    expect(types(renderer!)).toEqual(['i', 'div']);
+
+    await act(async () => {
+      getDefaultStore().set(phoneTopBarHiddenAtom, false);
+    });
+    expect(types(renderer!)).toEqual(['header', 'i', 'div']);
   });
 });

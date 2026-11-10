@@ -28,6 +28,9 @@ const openRoute = (page: Page, url: string) =>
 // Thread chrome stacks the room header, the thread banner, the composer and
 // the receipt row. On a landscape phone that left about a third of the
 // viewport for messages; short touch screens now keep a single bar at the top.
+// Up to a phone's width (750 px) that bar is the thread's own, in the room
+// header's place on every height; wider, the banner hides the header on short
+// screens.
 for (const viewport of [
   { name: 'landscape phone', width: 667, height: 375, touch: true, compact: true },
   { name: 'large landscape phone', width: 844, height: 390, touch: true, compact: true },
@@ -41,6 +44,8 @@ for (const viewport of [
       viewport.compact ? 'compacts' : 'keeps'
     } the room chrome`, async ({ page }, testInfo) => {
       test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
+      // A phone's thread bar is the room header's row, with the thread menu behind its title.
+      const phoneBar = viewport.width <= 750;
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       // The local Matrix fixture has no provisioning service.
       await page.route('**/v1/local-mindroom/connections', (route) =>
@@ -100,7 +105,9 @@ for (const viewport of [
 
         await loginWithPassword(page, { homeserver, ...credentials });
         await openRoute(page, `/home/${encodeURIComponent(roomId)}`);
-        const roomHeader = page.locator('header').filter({ hasText: ROOM_NAME });
+        // The room's title bar: its name, or on a phone with a thread open the thread's bar.
+        // (By its tag: wider than a phone a thread hides it on short screens.)
+        const roomHeader = page.locator('header[role="banner"]');
         await expect(roomHeader).toBeVisible();
         const topic = roomHeader.getByRole('button', { name: ROOM_TOPIC, includeHidden: true });
         await expect(topic).toBeAttached();
@@ -119,7 +126,9 @@ for (const viewport of [
         const banner = page.locator('[data-thread-context-banner]');
         await expect(banner.locator('[data-thread-context-summary]')).toHaveText(SUMMARY);
         await expect(page.getByText('Step 8:', { exact: false })).toBeInViewport();
-        const more = banner.getByRole('button', { name: 'Thread options' });
+        const more = phoneBar
+          ? banner.locator('button[aria-haspopup="menu"]')
+          : banner.getByRole('button', { name: 'Thread options' });
         await expect(more).toBeVisible();
         const scroll = page.locator('[data-thread-count]').locator('xpath=../..');
         await expect
@@ -141,18 +150,27 @@ for (const viewport of [
 
         if (viewport.compact) {
           await expect(roomHeader).toBeAttached();
-          await expect(roomHeader, 'the thread banner replaces the room header').toBeHidden();
-          // Right below the app's top bar where a phone has one (667 wide), else at the top.
+          if (phoneBar) {
+            await expect(roomHeader, "the thread's bar is the room header's row").toBeVisible();
+          } else {
+            await expect(roomHeader, 'the thread banner replaces the room header').toBeHidden();
+          }
+          // At the top: a phone's thread bar takes the top bar's place.
           expect(bannerBox.y - (await chromeTop(page))).toBeLessThan(12);
           expect(bannerBox.height, 'the thread banner is a single row').toBeLessThanOrEqual(48);
           // A titled thread has no eyebrow on any screen.
           await expect(banner.getByText('Thread View', { exact: true })).toHaveCount(0);
           const resolve = banner.getByRole('button', { name: 'Resolve', includeHidden: true });
-          await expect(resolve).toBeAttached();
-          await expect(resolve).toBeHidden();
+          if (phoneBar) {
+            // Resolving is in the thread menu; the bar keeps the tags beside the room's name.
+            await expect(resolve).toHaveCount(0);
+          } else {
+            await expect(resolve).toBeAttached();
+            await expect(resolve).toBeHidden();
+          }
           await expect(
             banner.getByText('fea', { exact: true }).filter({ visible: true })
-          ).toHaveCount(0);
+          ).toHaveCount(phoneBar ? 1 : 0);
           await expect(page.locator('[data-room-following]')).toBeAttached();
           await expect(page.locator('[data-room-following]')).toBeHidden();
           expect(visibleMessages / viewport.height).toBeGreaterThan(0.55);
@@ -165,30 +183,41 @@ for (const viewport of [
           await expect(menu.locator('[data-thread-action="pin"]')).toBeVisible();
           await menu.locator('[data-thread-action="resolve"]').click();
           // A resolved thread keeps its status in the single row.
-          const resolved = banner.getByRole('button', { name: 'Resolved' });
-          await expect(resolved).toBeVisible();
-          // The row hides the byline, but the button still says who resolved it.
-          const byline = banner.locator('[data-thread-resolution-byline]');
-          await expect(byline).toBeAttached();
-          await expect(byline).toBeHidden();
-          await expect(resolved).toHaveAccessibleDescription(/^Resolved by /);
+          if (phoneBar) {
+            // Where the room's name was; the title names it to screen readers too.
+            await expect(banner.getByText('Resolved', { exact: true })).toBeVisible();
+            await expect(more).toHaveAccessibleDescription(/Resolved/);
+          } else {
+            const resolved = banner.getByRole('button', { name: 'Resolved' });
+            await expect(resolved).toBeVisible();
+            // The row hides the byline, but the button still says who resolved it.
+            const byline = banner.locator('[data-thread-resolution-byline]');
+            await expect(byline).toBeAttached();
+            await expect(byline).toBeHidden();
+            await expect(resolved).toHaveAccessibleDescription(/^Resolved by /);
+          }
           // The menu ignores Escape while the change is saving.
           await expect(menu.locator('[data-thread-action="resolve"]')).toBeEnabled();
           await page.keyboard.press('Escape');
           await expect(menu).toBeHidden();
           expect((await banner.boundingBox())!.height).toBeLessThanOrEqual(48);
 
-          // Rotating re-measures the header inset the sticky banner sits under.
+          // Rotating re-measures the header inset the sticky banner sits under (a phone's bar
+          // stays the header's row).
           await page.setViewportSize({ width: viewport.height, height: viewport.width });
           await expect(roomHeader).toBeVisible();
-          await expect
-            .poll(async () => {
-              const header = (await roomHeader.boundingBox())!;
-              return (await banner.boundingBox())!.y - (header.y + header.height);
-            })
-            .toBeGreaterThanOrEqual(0);
+          // Turned upright every one of these is a phone's width, with the bar in the header.
+          if (viewport.height > 750) {
+            await expect
+              .poll(async () => {
+                const header = (await roomHeader.boundingBox())!;
+                return (await banner.boundingBox())!.y - (header.y + header.height);
+              })
+              .toBeGreaterThanOrEqual(0);
+          }
           await page.setViewportSize({ width: viewport.width, height: viewport.height });
-          await expect(roomHeader).toBeHidden();
+          if (phoneBar) await expect(roomHeader).toBeVisible();
+          else await expect(roomHeader).toBeHidden();
           await expect
             .poll(async () => (await banner.boundingBox())!.y - (await chromeTop(page)))
             .toBeLessThan(12);
@@ -199,7 +228,10 @@ for (const viewport of [
         } else {
           await expect(roomHeader).toBeVisible();
           await expect(banner.getByText('Thread View', { exact: true })).toHaveCount(0);
-          await expect(banner.getByRole('button', { name: 'Resolve' })).toBeVisible();
+          // A phone's bar resolves from its thread menu.
+          await expect(banner.getByRole('button', { name: 'Resolve' })).toHaveCount(
+            phoneBar ? 0 : 1
+          );
           await expect(
             banner.getByText('fea', { exact: true }).filter({ visible: true })
           ).toHaveCount(1);

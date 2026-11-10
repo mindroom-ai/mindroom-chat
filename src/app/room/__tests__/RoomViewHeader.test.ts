@@ -188,6 +188,7 @@ vi.mock('../RoomViewHeader.css', () => ({
 
 vi.mock('../RoomViewHeaderLayout.css', () => ({
   Header: 'Header',
+  ThreadBarSlot: 'ThreadBarSlot',
   Topic: 'Topic',
 }));
 
@@ -338,6 +339,7 @@ const renderHeader = async (
     onCanvasOpen?: (canvasId: string) => void;
     onCanvasClose?: () => void;
     threadId?: string;
+    threadBarSlot?: (element: HTMLElement | null) => void;
   } = {}
 ) => {
   const store = createStore();
@@ -413,7 +415,7 @@ describe('RoomViewHeader', () => {
     act(() => renderer.unmount());
   });
 
-  it("keeps a phone's header to the back button, the name and the room menu", async () => {
+  it("keeps a phone's header to the name and the room menu, its list being in the drawer", async () => {
     screenSizeState.value = 'Mobile';
     const { renderer } = await renderHeader(0, {
       canvases: [
@@ -435,13 +437,39 @@ describe('RoomViewHeader', () => {
     const labelled = renderer.root
       .findAll((node) => node.type === 'button' && !!node.props['aria-label'])
       .map((node) => node.props['aria-label'] as string);
-    expect(labelled).toEqual(['Back', 'More Options']);
+    expect(labelled).toEqual(['More Options']);
     expect(renderer.root.findAllByType('mock-canvas-header-button' as never)).toHaveLength(0);
 
     await openRoomMenu(renderer);
     for (const entry of ['Scheduled tasks (0)', 'Show Canvas', 'Show Members']) {
       expect(findMenuEntries(renderer, entry), entry).toHaveLength(1);
     }
+    act(() => renderer.unmount());
+  });
+
+  it("gives a phone's header to an open thread's bar, keeping the room menu after it", async () => {
+    screenSizeState.value = 'Mobile';
+    const { renderer } = await renderHeader(0, {
+      threadId: '$thread',
+      threadBarSlot: vi.fn(),
+    });
+    expect(renderer.root.findAllByProps({ 'data-phone-thread-bar-slot': 'true' })).toHaveLength(1);
+    expect(textOf(renderer.root)).not.toContain('General');
+    // Jump to Time, the computer and the plugins' actions act on the open conversation.
+    const labelled = renderer.root
+      .findAll((node) => node.type === 'button' && !!node.props['aria-label'])
+      .map((node) => node.props['aria-label'] as string);
+    expect(labelled).toEqual(['More Options']);
+    act(() => renderer.unmount());
+  });
+
+  it('keeps the room header beside a thread wider than a phone', async () => {
+    const { renderer } = await renderHeader(0, {
+      threadId: '$thread',
+      threadBarSlot: vi.fn(),
+    });
+    expect(renderer.root.findAllByProps({ 'data-phone-thread-bar-slot': 'true' })).toHaveLength(0);
+    expect(textOf(renderer.root)).toContain('General');
     act(() => renderer.unmount());
   });
 

@@ -30,11 +30,11 @@ import {
 } from '../helpers/designChoices';
 import { launchWebKit } from '../helpers/webkit';
 
-// A phone's room header keeps the back button, the room's name and the room menu, so a long name
-// keeps its room (L8-F025, design decision #10); the menu offers first what the header leaves out:
-// the Compact view switch and the filter bar toggle (menu checkboxes), scheduled tasks, pinned
-// messages and members, each a row as tall as a message menu's, and the menu stays inside the
-// window. Both header buttons keep a 44 px hit area. A desktop header keeps all its buttons. An
+// A phone's room header keeps the room's name and the room menu, so a long name keeps its room
+// (L8-F025, design decision #10; the room list is in the drawer, so it has no back button); the
+// menu offers first what the header leaves out: the Compact view switch and the filter bar toggle
+// (menu checkboxes), scheduled tasks, pinned messages and members, each a row as tall as a message
+// menu's, and the menu stays inside the window. The menu button keeps a 44 px hit area. A desktop header keeps all its buttons. An
 // agent room with a long name and a pinned message among 25 rooms, on a phone (390 by 844, touch)
 // and a desktop (1280 by 800), light and dark, in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
@@ -139,7 +139,7 @@ const checkPhone = async (page: Page, data: Seed, engine: string, testInfo: Test
     await setLook(page, scheme);
     // eslint-disable-next-line no-await-in-loop
     await openRoom(page, data);
-    // The header holds Back, the name and More Options, nothing else.
+    // The header holds the name and More Options, nothing else.
     // eslint-disable-next-line no-await-in-loop
     const names = await header(page)
       .getByRole('button')
@@ -148,20 +148,17 @@ const checkPhone = async (page: Page, data: Seed, engine: string, testInfo: Test
           .filter((button) => button.getBoundingClientRect().width > 0)
           .map((button) => button.getAttribute('aria-label') ?? button.textContent ?? '')
       );
-    expect(names, `${engine} ${scheme} header buttons`).toEqual(['Back', 'More Options']);
+    expect(names, `${engine} ${scheme} header buttons`).toEqual(['More Options']);
     // The name gets the header's room: more than the old 130 px ("Customer Esc...").
     // eslint-disable-next-line no-await-in-loop
     const nameWidth = await header(page)
       .locator('h1')
       .evaluate((h1) => h1.getBoundingClientRect().width);
     expect(nameWidth, 'room name width').toBeGreaterThan(230);
-    for (const name of ['Back', 'More Options']) {
-      // eslint-disable-next-line no-await-in-loop
-      expect(
-        await missedPoints(header(page).getByRole('button', { name, exact: true })),
-        `${name} 44 px target`
-      ).toEqual([]);
-    }
+    expect(
+      await missedPoints(header(page).getByRole('button', { name: 'More Options', exact: true })),
+      'More Options 44 px target'
+    ).toEqual([]);
     // eslint-disable-next-line no-await-in-loop
     await shot(page, testInfo, `phone-header-${engine}-${scheme}`);
 

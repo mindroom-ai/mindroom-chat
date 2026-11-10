@@ -5,6 +5,7 @@ import { createPrivateRoom, loginToMatrix, sendRoomMessage } from '../helpers/ma
 
 // Phones lead every full-screen page with one back button: a chevron as large as the header's
 // other icons, at the screen's start edge, with a 44 px touch target, mirrored in right-to-left.
+// A room's own header has none, since the drawer holds the room list; an open thread's bar does.
 // Set PHONE_BACK_SHOTS=<directory> to also save each surface in dark and light themes.
 const SHOTS = process.env.PHONE_BACK_SHOTS;
 
@@ -100,16 +101,14 @@ test.describe('phone back button', () => {
       await loginWithPassword(page, { homeserver, ...credentials });
       const report: string[] = [];
 
-      // The room header: the chevron at the screen's start, as large as the members icon.
+      // The room header has no chevron: the name, then the room menu, whose icon is the reference.
       await openRoute(page, `/home/${encodeURIComponent(roomId)}/`);
       const header = page.getByRole('banner').filter({ hasText: ROOM_NAME });
       await expect(header.getByRole('heading', { name: new RegExp(ROOM_NAME) })).toBeVisible({
         timeout: 60_000,
       });
-      const roomBack = header.getByRole('button', { name: 'Back', exact: true });
-      // A phone's header keeps Back, the name and the room menu; its icon is the reference.
+      await expect(header.getByRole('button', { name: 'Back', exact: true })).toHaveCount(0);
       const members = header.getByRole('button', { name: 'More Options', exact: true });
-      const room = await measure(roomBack);
       const memberIcon = await measure(members);
       for (const other of await header.getByRole('button').all()) {
         // eslint-disable-next-line no-await-in-loop
@@ -118,22 +117,10 @@ test.describe('phone back button', () => {
         const box = await measure(other).catch(() => undefined);
         if (box) report.push(`room header ${label}: glyph ${size(box.glyph)}`);
       }
-      report.push(
-        `room header back: button ${size(room.button)} at ${room.button.left.toFixed(
-          1
-        )}, glyph ${size(room.glyph)} at ${room.glyph.left.toFixed(1)}`
-      );
-      expectPhoneBack(room, memberIcon);
-      expect.soft(room.glyph.left).toBeLessThanOrEqual(20);
-      // The title follows right after the chevron.
-      const title = await header
-        .getByRole('heading', { name: new RegExp(ROOM_NAME) })
-        .evaluate((element) => element.getBoundingClientRect().left);
-      report.push(`room header title starts at ${title.toFixed(1)}`);
-      expect.soft(title - room.glyph.right).toBeLessThanOrEqual(24);
       await shoot(page, 'room', scheme);
 
-      // An open thread's banner leads with the same chevron.
+      // An open thread's bar leads with the chevron at the screen's start, as large as the room
+      // menu's icon, and its title follows right after it.
       await openRoute(
         page,
         `/home/${encodeURIComponent(roomId)}/?threadId=${encodeURIComponent(rootId)}`
@@ -141,8 +128,18 @@ test.describe('phone back button', () => {
       const banner = page.locator('[data-thread-context-banner]');
       await expect(banner).toBeVisible({ timeout: 60_000 });
       const thread = await measure(banner.getByRole('button', { name: 'Back', exact: true }));
-      report.push(`thread banner back: button ${size(thread.button)}, glyph ${size(thread.glyph)}`);
+      report.push(
+        `thread bar back: button ${size(thread.button)} at ${thread.button.left.toFixed(
+          1
+        )}, glyph ${size(thread.glyph)} at ${thread.glyph.left.toFixed(1)}`
+      );
       expectPhoneBack(thread, memberIcon);
+      expect.soft(thread.glyph.left).toBeLessThanOrEqual(20);
+      const title = await banner
+        .locator('button[aria-haspopup="menu"]')
+        .evaluate((element) => element.getBoundingClientRect().left);
+      report.push(`thread bar title starts at ${title.toFixed(1)}`);
+      expect.soft(title - thread.glyph.right).toBeLessThanOrEqual(24);
       await shoot(page, 'thread', scheme);
 
       // The pages that already used the shared button.
@@ -180,11 +177,15 @@ test.describe('phone back button', () => {
     await page.route('**/v1/local-mindroom/connections', (route) =>
       route.fulfill({ json: { connections: [] } })
     );
-    const { homeserver, credentials, roomId } = await seedRoom();
+    const { homeserver, credentials, roomId, rootId } = await seedRoom();
     await loginWithPassword(page, { homeserver, ...credentials });
-    await openRoute(page, `/home/${encodeURIComponent(roomId)}/`);
-    const header = page.getByRole('banner').filter({ hasText: ROOM_NAME });
-    const back = header.getByRole('button', { name: 'Back', exact: true });
+    await openRoute(
+      page,
+      `/home/${encodeURIComponent(roomId)}/?threadId=${encodeURIComponent(rootId)}`
+    );
+    const back = page
+      .locator('[data-thread-context-banner]')
+      .getByRole('button', { name: 'Back', exact: true });
     await expect(back).toBeVisible({ timeout: 60_000 });
     expect((await measure(back)).mirrored).toBe(false);
 

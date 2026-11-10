@@ -14,7 +14,11 @@ import {
 import { RUNTIME_NAVIGATION_PATHS } from '../../boot/serviceWorkerNavigation';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useInert } from '../lib/hooks/useInert';
-import { phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
+import {
+  PHONE_TOP_BAR_OFFSET_PROPERTY,
+  phoneLayerOpenAtom,
+  phoneTopBarHiddenAtom,
+} from '../navigation/phoneNavDrawer';
 import { NoticeSlot } from '../ui/noticeSlots';
 import * as css from './ClientLayout.css';
 
@@ -62,6 +66,8 @@ export function ClientLayout({
   const sessionId = activeSession?.sessionId;
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const layerOpen = useAtomValue(phoneLayerOpenAtom);
+  // An open thread's bar takes the top bar's place on phones; the drawer then starts at the top.
+  const topBarHidden = useAtomValue(phoneTopBarHiddenAtom) && phone;
   const pageRef = useRef<HTMLDivElement>(null);
   useInert(pageRef, phone && layerOpen);
 
@@ -110,12 +116,17 @@ export function ClientLayout({
       grow="Yes"
       direction={phone ? 'Column' : 'Row'}
       className={className}
-      style={{ height: '100%', minHeight: 0, position: 'relative' }}
+      style={{
+        height: '100%',
+        minHeight: 0,
+        position: 'relative',
+        ...(topBarHidden && { [PHONE_TOP_BAR_OFFSET_PROPERTY]: '0px' }),
+      }}
     >
       {/* Where a notice floats without a room list beside the page: wider than a phone, over the
           top of the layout, first in reading order; on a phone, under the top bar. */}
       {!phone && <NoticeSlot place="page" />}
-      {phone ? phoneTopBar : nav}
+      {phone ? !topBarHidden && phoneTopBar : nav}
       {phone && <NoticeSlot place="page" phone covered={layerOpen} />}
       <div ref={pageRef} className={phone ? css.PhonePage : css.PassThrough}>
         {waitingForAlias && sessionId ? null : children}
