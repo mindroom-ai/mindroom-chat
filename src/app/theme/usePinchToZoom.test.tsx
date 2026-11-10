@@ -501,11 +501,14 @@ describe('usePinchToZoom', () => {
       expect(setPageZoom).not.toHaveBeenCalled();
     });
 
-    it('lets go of a pinch whose ends were lost after an earlier pointer end the window missed', () => {
+    it('lets go of a pinch whose ends were lost after earlier pointer ends the window missed', () => {
       const { setPageZoom } = mount(100);
       const { inside, outside } = pinchSurface();
 
-      // A tap whose pointerup something stopped before the window.
+      // Two taps whose pointerups something stopped before the window.
+      pointer('pointerdown', outside, 8);
+      touch('touchstart', [[0, 0, outside]]);
+      touch('touchend', [], outside);
       pointer('pointerdown', outside, 9);
       touch('touchstart', [[0, 0, outside]]);
       touch('touchend', [], outside);
@@ -520,6 +523,74 @@ describe('usePinchToZoom', () => {
       gesture('gesturestart', 1, outside);
       gesture('gesturechange', 1.5, outside);
       flushFrames();
+      expect(setPageZoom).toHaveBeenCalledWith(150);
+    });
+
+    it('lets go of its pinch when a finger whose element went lifts, and a finger beside it starts the next', () => {
+      const { setPageZoom } = mount(100);
+      const { surface, inside, outside } = pinchSurface();
+
+      pointer('pointerdown', inside, 1);
+      touch('touchstart', [[0, 0, inside]]);
+      pointer('pointerdown', surface, 2);
+      touch('touchstart', spread(inside, surface, 100));
+      inside.remove();
+      // The first finger lifts: its pointer ends on the window, its touch end is lost.
+      pointer('pointerup', document.body, 1);
+      pointer('pointerdown', outside, 3);
+      touch(
+        'touchstart',
+        [
+          [0, 0, surface],
+          [0, 100, outside],
+        ],
+        outside
+      );
+      const move = touch('touchmove', [
+        [0, 0, surface],
+        [0, 150, outside],
+      ]);
+      flushFrames();
+
+      expect(move.defaultPrevented).toBe(true);
+      expect(setPageZoom).toHaveBeenCalledWith(150);
+    });
+
+    it('starts no gesture from the start of one whose ends were lost', () => {
+      const { setPageZoom } = mount(100);
+      const { inside } = pinchSurface();
+      const page = document.createElement('div');
+      const row = document.createElement('p');
+      page.append(row);
+      document.body.append(page);
+
+      // The page's pinch: its gesture starts, then the element under both fingers goes.
+      pointer('pointerdown', row, 1);
+      pointer('pointerdown', row, 2);
+      touch('touchstart', [[0, 0, row]]);
+      touch('touchstart', spread(row, row, 100));
+      gesture('gesturestart', 1, row);
+      row.remove();
+      pointer('pointerup', document.body, 1);
+      pointer('pointerup', document.body, 2);
+      // A later pinch's gesturestart goes to an element that goes at once.
+      const change = gesture('gesturechange', 1.5, inside);
+      flushFrames();
+
+      expect(change.defaultPrevented).toBe(false);
+      expect(setPageZoom).not.toHaveBeenCalled();
+    });
+
+    it('keeps zooming the page through a trackpad pinch while a mouse button comes and goes', () => {
+      const { setPageZoom } = mount(100);
+      const { outside } = pinchSurface();
+
+      gesture('gesturestart', 1, outside);
+      pointer('pointerdown', outside, 7, 'mouse');
+      pointer('pointerup', outside, 7, 'mouse');
+      gesture('gesturechange', 1.5, outside);
+      flushFrames();
+
       expect(setPageZoom).toHaveBeenCalledWith(150);
     });
 
