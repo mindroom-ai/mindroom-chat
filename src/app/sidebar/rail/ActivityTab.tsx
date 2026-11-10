@@ -80,7 +80,16 @@ export function ActivityTab({ onSelect }: ActivityTabProps) {
         </SidebarItemBadge>
       )}
       {anchor && (
-        <ActivityPopover anchor={anchor} onClose={() => setAnchor(undefined)} onExpand={openPage} />
+        <ActivityPopover
+          anchor={anchor}
+          onClose={() => setAnchor(undefined)}
+          onExpand={openPage}
+          onNavigate={() => {
+            setAnchor(undefined);
+            // The thread opens beside the Activity list, which is the navigation panel.
+            onSelect?.(false);
+          }}
+        />
       )}
     </SidebarItem>
   );

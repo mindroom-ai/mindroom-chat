@@ -9,10 +9,13 @@ import { ActivityTab } from './ActivityTab';
 const badge = vi.hoisted(() => ({ value: { count: 0, needsYou: false } }));
 vi.mock('../../activity/useActivityRows', () => ({ useActivityBadge: () => badge.value }));
 vi.mock('../../activity/ActivityPopover', () => ({
-  ActivityPopover: ({ onExpand }: { onExpand: () => void }) => (
+  ActivityPopover: ({ onExpand, onNavigate }: { onExpand: () => void; onNavigate: () => void }) => (
     <div role="dialog" aria-label="Activity popover">
       <button type="button" onClick={onExpand}>
         Open as page
+      </button>
+      <button type="button" onClick={onNavigate}>
+        Open a row
       </button>
     </div>
   ),
@@ -84,6 +87,15 @@ describe('the rail Activity bell', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open as page' }));
     expect(onSelect).toHaveBeenCalledWith(false);
     expect(currentPath()).toBe('/activity/');
+  });
+
+  it('shows the navigation panel it hid when a row of the popover opens its thread', () => {
+    const onSelect = vi.fn(() => false);
+    renderTab(ScreenSize.Desktop, '/home/', onSelect);
+    fireEvent.click(bell());
+    fireEvent.click(screen.getByRole('button', { name: 'Open a row' }));
+    expect(onSelect).toHaveBeenCalledWith(false);
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('goes to the page without a popover while Activity shows, and on phones', () => {

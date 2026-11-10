@@ -11,10 +11,12 @@ type ActivityPopoverProps = {
   anchor: HTMLElement;
   onClose: () => void;
   onExpand: () => void;
+  /** A row opened its thread in the Activity section; closes the popover. */
+  onNavigate: () => void;
 };
 
 /** Activity over the current page, beside the rail's bell: glance, answer, open a thread. */
-export function ActivityPopover({ anchor, onClose, onExpand }: ActivityPopoverProps) {
+export function ActivityPopover({ anchor, onClose, onExpand, onNavigate }: ActivityPopoverProps) {
   const { t } = useTranslation();
   const onAnchor = (target: EventTarget | null) =>
     target instanceof Node && anchor.contains(target);
@@ -51,7 +53,7 @@ export function ActivityPopover({ anchor, onClose, onExpand }: ActivityPopoverPr
             }}
           >
             <Scroll size="300" hideTrack visibility="Hover">
-              <ActivityList variant="popover" onExpand={onExpand} onNavigate={onClose} />
+              <ActivityList variant="popover" onExpand={onExpand} onNavigate={onNavigate} />
             </Scroll>
           </Menu>
         </FocusTrap>

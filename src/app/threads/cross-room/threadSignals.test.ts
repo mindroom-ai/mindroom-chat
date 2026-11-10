@@ -87,13 +87,17 @@ const readUpTo = (room: Room, eventId: string, ts: number) =>
     })
   );
 
-const setup = async (rootSender: string, replies: MatrixEvent[], { opened = false } = {}) => {
+const setup = async (
+  rootSender: string,
+  replies: MatrixEvent[],
+  { opened = false, rootContent = {} as Record<string, unknown> } = {}
+) => {
   const mx = createClient({ baseUrl: 'https://example.org', userId: ME });
   vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
   vi.spyOn(mx.http, 'authedRequest').mockResolvedValue({ chunk: [] });
   const room = new Room(ROOM_ID, mx, ME);
   mx.store.storeRoom(room);
-  const root = event({ id: ROOT, ts: 1000, sender: rootSender });
+  const root = event({ id: ROOT, ts: 1000, sender: rootSender, content: rootContent });
   room.getUnfilteredTimelineSet().addLiveEvent(root, { addToState: false });
   const thread = room.createThread(ROOT, root, [], false);
   // An opened thread has run its first page load; its live timeline then holds edits too.
@@ -257,6 +261,26 @@ describe('readThreadSignals', () => {
     });
     readUpTo(room, '$hi', 2000);
     expect(readThreadSignals(room, ROOT, ME, NOW).mentionedMe).toBe(false);
+  });
+
+  it('takes a root that names the user for read once the main timeline was read past it', async () => {
+    const mentionsMe = { 'm.mentions': { user_ids: [ME] } };
+    const { room } = await setup(BOB, [event({ id: '$r', ts: 2000 })], {
+      rootContent: mentionsMe,
+    });
+    expect(readThreadSignals(room, ROOT, ME, NOW).mentionedMe).toBe(true);
+
+    // Read in the main timeline: the root is read, the reply after it is not.
+    room.addReceipt(
+      new MatrixEvent({
+        type: 'm.receipt',
+        room_id: ROOM_ID,
+        content: { [ROOT]: { [ReceiptType.Read]: { [ME]: { thread_id: 'main', ts: 1500 } } } },
+      })
+    );
+    const signals = readThreadSignals(room, ROOT, ME, NOW);
+    expect(signals.mentionedMe).toBe(false);
+    expect(signals.newCount).toBe(1);
   });
 
   it('reports a stopped run, and a run that finished after a long time', async () => {

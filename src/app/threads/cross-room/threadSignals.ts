@@ -10,6 +10,7 @@ import {
 import { threadReceiptNamesEvent } from '../../event-store/threads/streamFinish';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { getSyncedEdit } from '../../matrix/client/syncedEdits';
+import { isMainTimelineMessageUnread } from '../../matrix/mainTimelineRead';
 import { getAiRunInfo, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
 import { isCallRowEvent } from '../../matrix/protocol/callRow';
 import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
@@ -299,9 +300,11 @@ export const readThreadSignals = (
     }
   }
 
-  // A root that names the user, unread, mentions them too.
+  // A root that names the user, unread, mentions them too. The root is a main-timeline message:
+  // the main timeline's receipts read it, as the room's unread state reads it.
   const rootShown = root ? shownOf(root, thread) : undefined;
-  const mentionCandidates = rootShown && isUnread(rootShown) ? [rootShown, ...unread] : unread;
+  const rootUnread = !!root && isMainTimelineMessageUnread(room, root, userId);
+  const mentionCandidates = rootShown && rootUnread ? [rootShown, ...unread] : unread;
   const mention = mentionCandidates.findLast(({ content }) => namesUser(content, userId));
   const mentionedMe =
     !!mention || room.getThreadUnreadNotificationCount(rootId, NotificationCountType.Highlight) > 0;
