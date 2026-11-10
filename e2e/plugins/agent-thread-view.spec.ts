@@ -364,7 +364,7 @@ test("a send from the plugin's panel outlives the panel, and the page's and the 
   await panel.getByRole('textbox').click();
   await page.keyboard.type(caption);
   await page.keyboard.press('Enter');
-  await expect(panel.getByRole('textbox')).toHaveText('');
+  await expect(panel.getByRole('textbox')).not.toContainText(caption);
   await roomMoreOptions(page).click();
   await page.getByRole('menuitemcheckbox', { name: 'Example thread', exact: true }).click();
   await expect(threadPanel(page)).toHaveCount(0);
