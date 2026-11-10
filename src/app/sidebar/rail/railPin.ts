@@ -1,7 +1,7 @@
-// The rail pins its top group (Home, Direct Messages, Threads, Canvases) above the spaces when
-// the part left between that group and the foot group still shows enough space buttons; with
-// less room the whole top part scrolls as one column again. Two limits keep a window resized
-// across the edge from flipping between the two layouts.
+// The rail pins its top group (Home, Direct Messages, Activity, Threads, Canvases) above the
+// spaces when the part left between that group and the foot group still shows enough space
+// buttons; with less room the whole top part scrolls as one column again. Two limits keep a
+// window resized across the edge from flipping between the two layouts.
 
 /** A pinned rail lets go of its top group once fewer space buttons than this fit below it. */
 export const UNPIN_BELOW = 4;

@@ -412,7 +412,9 @@ test('every rail entry slides toward the inline end and grows its indicator on h
   );
 });
 
-test('the bottom group shows its indicators while Activity or Search is open', async ({ page }) => {
+test('the bell and the bottom group show their indicators while Activity or Search is open', async ({
+  page,
+}) => {
   test.slow();
   const account = await register('rail_hover_d');
   await publishCrossSigning(account);

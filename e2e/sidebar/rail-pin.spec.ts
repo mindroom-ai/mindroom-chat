@@ -3,11 +3,11 @@ import { loginWithPassword } from '../helpers/auth';
 import { createPrivateSpace, matrixFetch, setAccountData } from '../helpers/matrix';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
-// The rail keeps Home, Direct Messages, Threads and Canvases in place while only the spaces
-// scroll, when the part between that group and the foot group shows at least four space buttons;
-// with less room the whole top part scrolls as one column, and it pins again from five. Checked
-// with 26 spaces, classic scrollbars, 600, 800 and 1000 px tall windows, and every optional rail
-// button on or off. Set RAIL_PIN_SHOTS=<directory> to also save the L25 screenshots.
+// The rail keeps Home, Direct Messages, Activity, Threads and Canvases in place while only the
+// spaces scroll, when the part between that group and the foot group shows at least four space
+// buttons; with less room the whole top part scrolls as one column, and it pins again from five.
+// Checked with 26 spaces, classic scrollbars, 600, 800 and 1000 px tall windows, and every
+// optional rail button on or off. Set RAIL_PIN_SHOTS=<directory> to also save the L25 screenshots.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'rail-pin-spec-password';
 const SHOTS = process.env.RAIL_PIN_SHOTS;

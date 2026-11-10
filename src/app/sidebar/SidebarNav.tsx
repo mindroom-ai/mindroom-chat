@@ -31,10 +31,10 @@ type SidebarNavProps = {
 };
 
 /**
- * The icon rail. On top: Home, Direct Messages, Threads and Canvases, then the joined spaces,
- * Explore and Create Space; while the window leaves room for enough spaces, the top group stays
- * put and only the spaces scroll (`RailScrollArea`). Pinned to the foot: the call this device is
- * in, the command palette, device and Local MindRoom notices when they apply, the Activity bell, the
+ * The icon rail. On top: Home, Direct Messages, the Activity bell, Threads and Canvases, then the
+ * joined spaces, Explore and Create Space; while the window leaves room for enough spaces, the top
+ * group stays put and only the spaces scroll (`RailScrollArea`). Pinned to the foot: the call this
+ * device is in, the command palette, device and Local MindRoom notices when they apply, the
  * account, and the footer. Threads, Canvases, Explore, Create Space, the command palette and
  * Local MindRoom show where the deployment offers them and the person has not hidden them in
  * Settings (`useRailButtons`). On phones the top bar holds the command palette, and the account
@@ -54,6 +54,7 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
               <SidebarStack>
                 <HomeTab onSelect={onPageNavSelect} />
                 <DirectTab onSelect={onPageNavSelect} />
+                <ActivityTab onSelect={onPageNavSelect} />
                 {shown.threads && <ThreadsTab onSelect={onPageNavSelect} />}
                 {shown.canvases && <CanvasesTab />}
               </SidebarStack>
@@ -79,7 +80,6 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
               {shown.search && !phone && <SearchTab />}
               <UnverifiedTab />
               {shown.localMindroom && <LocalMindroomTab />}
-              <ActivityTab onSelect={onPageNavSelect} />
               <SettingsTab />
             </SidebarStack>
             {footer && (
