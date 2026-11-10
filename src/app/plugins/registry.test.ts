@@ -26,6 +26,7 @@ const entries = vi.hoisted(() => {
   const roomAction = { id: 'about', label: 'about', icon, run };
   const spacesAction = { ...roomAction, id: 'spaces', shows: () => true };
   const criticalAction = { ...roomAction, id: 'remove', critical: true };
+  const messageLink = { match: () => true, Component };
   const banner = (): null => null;
   const headerSlot = [banner];
   const cover = { covers: () => false, subscribe: () => () => undefined, Component };
@@ -39,6 +40,7 @@ const entries = vi.hoisted(() => {
     actions: [action, autoAction],
     command,
     roomActions: [roomAction, spacesAction, criticalAction],
+    messageLink,
     banner,
     headerSlot,
     cover,
@@ -53,6 +55,7 @@ const entries = vi.hoisted(() => {
           headerActions: 'not a list',
           slashCommands: 'not a list',
           roomActions: roomAction,
+          messageLinks: messageLink,
           roomHeaderSlot: banner,
           conversationCovers: cover,
           forgetAccount: 'not a function',
@@ -112,6 +115,14 @@ const entries = vi.hoisted(() => {
             spacesAction,
             criticalAction,
           ],
+          messageLinks: [
+            messageLink,
+            null,
+            'https://example.org',
+            { Component },
+            { match: () => true },
+            { ...messageLink, match: true },
+          ],
           roomHeaderSlot: headerSlot,
           conversationCovers: [
             cover,
@@ -170,6 +181,9 @@ describe('registeredPlugins', () => {
     // critical is `true` or absent.
     expect(plugins[0]?.roomActions).toEqual([]);
     expect(plugins[1]?.roomActions).toEqual(entries.roomActions);
+    // A message link needs a match function and a component.
+    expect(plugins[0]?.messageLinks).toEqual([]);
+    expect(plugins[1]?.messageLinks).toEqual([entries.messageLink]);
     expect(plugins[0]?.roomHeaderSlot).toEqual([]);
     expect(plugins[1]?.roomHeaderSlot).toEqual([entries.banner]);
     // A cover needs its condition, a subscription and a component, and Escape's close is a function.

@@ -94,11 +94,11 @@ const hasMindroomAgent = (mx: MatrixClient, roomId: string): boolean => {
 };
 
 /**
- * Whether a MindRoom agent is in the room, watched only while `watch` holds: in a direct room
+ * Whether a MindRoom agent is in the room, watched only while `watch` holds: here in a direct room
  * (a direct room of people shows Threads), and while a room without a chosen view needs it for
- * its default and the caller does not know.
+ * its default and the caller does not know; elsewhere while a work room's framed icon shows.
  */
-const useRoomHasMindroomAgent = (roomId: string, watch: boolean): boolean => {
+export const useRoomHasMindroomAgent = (roomId: string, watch: boolean): boolean => {
   const mx = useMatrixClient();
   const subscribe = useCallback(
     (onChange: () => void) =>

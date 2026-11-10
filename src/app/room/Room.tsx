@@ -73,6 +73,7 @@ import { transcriptPanelAtom, useTranscriptPanel } from '../calls/transcription/
 import { useCallViewFloats } from '../calls/window/callWindowState';
 import { lazyPart } from '../lib/lazyPart';
 import { PluginSidePanel } from './PluginSidePanel';
+import { MessageLinkCards } from './MessageLinkCards';
 import { usePluginPanel } from './usePluginPanel';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { useAlive } from '../lib/hooks/useAlive';
@@ -728,16 +729,18 @@ function RoomContent() {
             style={behindPanel ? HIDDEN_CONVERSATION_STYLE : CONVERSATION_STYLE}
           >
             <RoomMessageAnnouncer room={room} threadId={routedThreadId} myUserId={ownUserId} />
-            <RoomView
-              room={room}
-              eventId={eventId}
-              threadId={routedThreadId}
-              focusEventInRoom={focusEventInRoom}
-              hasMindroomAgents={hasMindroomAgents}
-              joinRequestCount={joinRequestCount}
-              onThreadLoadError={onThreadLoadError}
-              {...headerPanels}
-            />
+            <MessageLinkCards roomId={room.roomId}>
+              <RoomView
+                room={room}
+                eventId={eventId}
+                threadId={routedThreadId}
+                focusEventInRoom={focusEventInRoom}
+                hasMindroomAgents={hasMindroomAgents}
+                joinRequestCount={joinRequestCount}
+                onThreadLoadError={onThreadLoadError}
+                {...headerPanels}
+              />
+            </MessageLinkCards>
           </Box>
           {sidePanel}
         </PluginPanelControlsContext.Provider>

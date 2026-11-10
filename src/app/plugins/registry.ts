@@ -3,6 +3,7 @@ import type { Room } from 'matrix-js-sdk';
 import { isRecord } from '../lib/isRecord';
 import { isHeaderAction, type HeaderAction } from './headerActions';
 import { isConversationCover, type ConversationCover } from './conversationCovers';
+import { isMessageLink, type MessageLink } from './messageLinks';
 import type { MessageRenderer } from './messageRenderers';
 import type { PluginPage } from './pluginPages';
 import { pluginEntries, type PluginEntry } from './pluginEntries';
@@ -32,6 +33,7 @@ export type ClientPlugin = {
   headerActions?: readonly HeaderAction[];
   slashCommands?: readonly PluginSlashCommand[];
   roomActions?: readonly PluginRoomAction[];
+  messageLinks?: readonly MessageLink[];
   translations?: PluginTranslations;
 };
 
@@ -48,6 +50,7 @@ export type RegisteredPlugin = {
   readonly headerActions: readonly HeaderAction[];
   readonly slashCommands: readonly PluginSlashCommand[];
   readonly roomActions: readonly PluginRoomAction[];
+  readonly messageLinks: readonly MessageLink[];
 };
 
 const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
@@ -59,6 +62,7 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   const covers = isRecord(plugin) ? plugin.conversationCovers : undefined;
   const commands = isRecord(plugin) ? plugin.slashCommands : undefined;
   const roomActions = isRecord(plugin) ? plugin.roomActions : undefined;
+  const links = isRecord(plugin) ? plugin.messageLinks : undefined;
   registerPluginTranslations(id, isRecord(plugin) ? plugin.translations : undefined);
   return Object.freeze({
     id,
@@ -93,6 +97,7 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
     roomActions: Object.freeze(
       Array.isArray(roomActions) ? roomActions.filter(isPluginRoomAction) : []
     ),
+    messageLinks: Object.freeze(Array.isArray(links) ? links.filter(isMessageLink) : []),
   });
 };
 

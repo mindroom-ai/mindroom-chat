@@ -28,6 +28,7 @@ const plugin = (id: string, slashCommands: PluginSlashCommand[]): RegisteredPlug
   headerActions: [],
   slashCommands,
   roomActions: [],
+  messageLinks: [],
 });
 
 const room = { roomId: '!room:example.org' } as Room;

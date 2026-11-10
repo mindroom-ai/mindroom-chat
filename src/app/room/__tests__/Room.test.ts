@@ -135,6 +135,11 @@ vi.mock('folds', () => ({
   OverlayBackdrop: () => React.createElement('div'),
 }));
 
+vi.mock('../MessageLinkCards', () => ({
+  MessageLinkCards: ({ children }: { children: React.ReactNode }) =>
+    React.createElement(React.Fragment, null, children),
+}));
+
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
@@ -253,6 +258,7 @@ vi.mock('../../canvas/canvasIndex', async (importOriginal) => ({
 
 vi.mock('../../config/useClientConfig', () => ({
   useClientConfig: () => roomState.clientConfig,
+  useOptionalClientConfig: () => roomState.clientConfig,
 }));
 
 vi.mock('../../computer/useAgentServers', () => ({
