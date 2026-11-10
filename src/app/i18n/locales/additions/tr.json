@@ -568,6 +568,7 @@
   "mindroomUi": {
     "messages": {
       "mindroomReasoning": {
+        "collapse": "Daralt",
         "thought": "Düşündü"
       },
       "messageReactionActions": {

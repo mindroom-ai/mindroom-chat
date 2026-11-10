@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import parse, { type HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
@@ -64,10 +64,19 @@ function ReasoningBlock({
   defaultExpanded,
   htmlReactParserOptions,
 }: ReasoningBlockProps) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  // Long reasoning puts the header far above: the button under it folds it from where the reader
+  // is, and gives the focus to the header, which scrolls into view if it is off screen.
+  const collapseFromEnd = () => {
+    toggleRef.current?.focus();
+    setExpanded(false);
+  };
   return (
     <div className={css.Reasoning}>
       <button
+        ref={toggleRef}
         type="button"
         className={css.Toggle}
         aria-expanded={expanded}
@@ -78,9 +87,15 @@ function ReasoningBlock({
         <Icon size="50" src={Icons.ChevronRight} className={css.Chevron} aria-hidden />
       </button>
       {expanded && (
-        <div className={css.Body}>
-          <ReasoningText text={text} htmlReactParserOptions={htmlReactParserOptions} />
-        </div>
+        <>
+          <div className={css.Body}>
+            <ReasoningText text={text} htmlReactParserOptions={htmlReactParserOptions} />
+          </div>
+          <button type="button" className={css.CollapseEnd} onClick={collapseFromEnd}>
+            <Icon size="50" src={Icons.ChevronTop} aria-hidden />
+            <span className={css.Label}>{t('mindroomUi.messages.mindroomReasoning.collapse')}</span>
+          </button>
+        </>
       )}
     </div>
   );
@@ -184,7 +199,11 @@ export const withReasoning = (
   return (
     <>
       {(live !== undefined || !!final) && (
-        <ReasoningHeader live={live} final={final} htmlReactParserOptions={htmlReactParserOptions} />
+        <ReasoningHeader
+          live={live}
+          final={final}
+          htmlReactParserOptions={htmlReactParserOptions}
+        />
       )}
       {body}
       {activity !== undefined && <LiveActivity text={activity} />}
