@@ -335,7 +335,7 @@ test("a thread's column filling the page has the banner under its own header, on
     await besideMessages();
 
     // A window too narrow for both fills the page with the column too, until it widens.
-    await page.setViewportSize({ width: 1100, height: 900 });
+    await page.setViewportSize({ width: 1000, height: 900 });
     await fillingPage();
     await shot(page, 'room-header-slot-thread-narrow');
     await page.setViewportSize({ width: 1600, height: 900 });
