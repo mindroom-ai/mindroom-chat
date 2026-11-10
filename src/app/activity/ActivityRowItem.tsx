@@ -53,9 +53,11 @@ const sentenceSuffix = (t: TFunction, row: ActivityRow): string => {
   if (row.type !== 'thread') return '';
   const { outcome, newCount } = row.signals;
   if ((row.kind === 'finished' || row.kind === 'stopped') && outcome) {
-    const parts = [
-      t('activity.runMinutes', { count: Math.max(1, Math.round(outcome.durationMs / 60_000)) }),
-    ];
+    // A run that ended within a minute (often an error) has no length worth telling.
+    const parts =
+      outcome.durationMs >= 60_000
+        ? [t('activity.runMinutes', { count: Math.round(outcome.durationMs / 60_000) })]
+        : [];
     if (outcome.toolCount) parts.push(t('activity.toolCount', { count: outcome.toolCount }));
     return parts.join(', ');
   }

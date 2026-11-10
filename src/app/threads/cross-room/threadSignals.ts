@@ -66,6 +66,8 @@ const ORIGINAL_SENDER_KEY = 'com.mindroom.original_sender';
 /** Agent question content (MindRoom's `interactive_prompt_content`). */
 const INTERACTIVE_KEY = 'io.mindroom.interactive';
 const PREVIEW_LENGTH = 240;
+/** How long an agent's question waits for an answer before it stops asking. */
+export const QUESTION_WAITS_MS = 7 * 24 * 60 * 60 * 1000;
 const STOPPED_STATUSES = new Set(['cancelled', 'error', 'interrupted', 'failed', 'stopped']);
 const FINISHED_STATUSES = new Set(['completed', 'complete', 'done', 'cached']);
 
@@ -109,14 +111,6 @@ const countsAsNews = ({ event, content }: Shown): boolean => {
     !isThreadSummaryEvent(event) && !isCallRowEvent(event) && !isThinkingPlaceholderBody(content)
   );
 };
-
-/**
- * A message that counts as news in a thread: one of the thread's own messages (not an edit), not a
- * notice (agents' titles, skill reviews and hook reports are notices), a call row, a thinking
- * placeholder, nor redacted or undecryptable.
- */
-export const isCountedReply = (event: MatrixEvent): boolean =>
-  countsAsNews({ event, content: event.getContent() });
 
 const previewOf = (content: Record<string, unknown>): ThreadPreview => {
   switch (content.msgtype) {
@@ -175,6 +169,13 @@ const readQuestion = ({ event, content }: Shown): ThreadQuestion | undefined => 
   const text = typeof payload.question_text === 'string' ? payload.question_text : '';
   if (options.length === 0 || !text) return undefined;
   return { eventId: event.getId() ?? '', senderId: event.getSender() ?? '', text, options };
+};
+
+const questionSourceId = ({ event, content }: Shown): string | undefined => {
+  const payload = content[INTERACTIVE_KEY] ?? event.getOriginalContent()[INTERACTIVE_KEY];
+  return isRecord(payload) && typeof payload.source_event_id === 'string'
+    ? payload.source_event_id
+    : undefined;
 };
 
 const answeredByReaction = (room: Room, question: ThreadQuestion, userId: string): boolean => {
@@ -291,11 +292,21 @@ export const readThreadSignals = (
   const newestAgentReply = counted.findLast(({ event }) => isAgent(event.getSender()));
   let pendingQuestion = newestAgentReply ? readQuestion(newestAgentReply) : undefined;
   if (pendingQuestion && newestAgentReply) {
-    const askedAt = newestAgentReply.event.getTs();
+    // A streamed reply asks once its last edit adds the question.
+    const askedAt = newestAgentReply.editTs ?? newestAgentReply.event.getTs();
     const wroteSince = counted.some(
       ({ event }) => event.getSender() === userId && event.getTs() > askedAt
     );
-    if (wroteSince || answeredByReaction(room, pendingQuestion, userId)) {
+    // The message it answers, or the router's relay of it, names whom the agent asks.
+    const source = all.find((event) => event.getId() === questionSourceId(newestAgentReply));
+    const asker = source?.getContent()[ORIGINAL_SENDER_KEY] ?? source?.getSender();
+    const askedSomeoneElse = typeof asker === 'string' && asker !== userId && !isAgent(asker);
+    if (
+      wroteSince ||
+      askedSomeoneElse ||
+      now - askedAt > QUESTION_WAITS_MS ||
+      answeredByReaction(room, pendingQuestion, userId)
+    ) {
       pendingQuestion = undefined;
     }
   }

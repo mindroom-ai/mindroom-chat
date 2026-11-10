@@ -98,6 +98,14 @@ describe('the rail Activity bell', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  it('toggles the navigation panel while Activity shows, keeping the open thread', () => {
+    const onSelect = vi.fn(() => true);
+    renderTab(ScreenSize.Desktop, '/activity/!r%3Ax', onSelect);
+    fireEvent.click(bell());
+    expect(onSelect).toHaveBeenCalledWith(true);
+    expect(currentPath()).toBe('/activity/!r%3Ax');
+  });
+
   it('goes to the page without a popover while Activity shows, and on phones', () => {
     renderTab(ScreenSize.Desktop, '/activity/');
     fireEvent.click(bell());

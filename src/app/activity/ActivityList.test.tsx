@@ -319,6 +319,31 @@ describe('ActivityList', () => {
     ).toBeTruthy();
   });
 
+  it('gives a run that stopped within a minute no duration, only its tools', () => {
+    renderList({
+      rows: [
+        threadRow(
+          'stop',
+          'stopped',
+          {
+            outcome: {
+              kind: 'stopped',
+              senderId: '@mindroom_code:x',
+              ts: NOW,
+              durationMs: 3000,
+              toolCount: 2,
+            },
+          },
+          { actorIds: ['@mindroom_code:x'] }
+        ),
+      ],
+      hiddenAutomations: 0,
+    });
+    const row = rowByTitle('Thread stop');
+    expect(row.textContent).toContain('2 tools');
+    expect(row.textContent).not.toMatch(/\bmin\b/);
+  });
+
   it('says You replied when the user wrote last', () => {
     renderList({
       rows: [threadRow('own', 'reply', {}, { unread: false, actorIds: ['@alice:x'] })],

@@ -54,7 +54,11 @@ const threadKind = (signals: ThreadSignals): ActivityThreadRow['kind'] => {
   return 'reply';
 };
 
-const actorsOf = (kind: ActivityThreadRow['kind'], signals: ThreadSignals): string[] => {
+const actorsOf = (
+  kind: ActivityThreadRow['kind'],
+  signals: ThreadSignals,
+  entry: CrossRoomThreadIndexEntry
+): string[] => {
   if (kind === 'approval') return [signals.pendingApproval?.sender ?? ''];
   if (kind === 'question') return [signals.pendingQuestion?.senderId ?? ''];
   if ((kind === 'finished' || kind === 'stopped') && signals.outcome) {
@@ -63,7 +67,10 @@ const actorsOf = (kind: ActivityThreadRow['kind'], signals: ThreadSignals): stri
   const first = signals.mentionedBy ? [signals.mentionedBy] : [];
   const actors = [...new Set([...first, ...signals.newSenderIds])].filter(Boolean);
   if (actors.length > 0) return actors;
-  return signals.lastReply ? [signals.lastReply.senderId] : [];
+  if (signals.lastReply) return [signals.lastReply.senderId];
+  // A mention the highlight count tells of, from a message not loaded: the index names who wrote.
+  const indexed = entry.threadRecord.presentation.lastSenderId ?? entry.rootSenderId;
+  return indexed ? [indexed] : [];
 };
 
 const compareRows = (a: ActivityRow, b: ActivityRow): number =>
@@ -110,7 +117,7 @@ export const buildActivityRows = ({
     const kind = threadKind(threadSignals);
     // A reply row says who replied; a thread with no counted reply has nothing to tell yet.
     if (kind === 'reply' && !threadSignals.lastReply && threadSignals.newCount === 0) continue;
-    const actorIds = actorsOf(kind, threadSignals);
+    const actorIds = actorsOf(kind, threadSignals, entry);
     rows.push({
       type: 'thread',
       key: entry.key,

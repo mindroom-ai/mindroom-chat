@@ -22,6 +22,7 @@ const entry = (key: string, overrides: Partial<CrossRoomThreadIndexEntry> = {}) 
     isInvolved: true,
     isUnread: false,
     lastActivityTs: NOW - 3600_000,
+    threadRecord: { presentation: {}, status: {} },
     ...overrides,
   } as CrossRoomThreadIndexEntry);
 
@@ -102,6 +103,16 @@ describe('buildActivityRows', () => {
     // An agent still on its thinking placeholder, or only notices since the root.
     const { rows } = build([[entry('quiet'), { lastReply: undefined }]]);
     expect(rows).toEqual([]);
+  });
+
+  it('names who the index says wrote last when a mention comes only from the highlight count', () => {
+    const named = entry('hl', {
+      threadRecord: { presentation: { lastSenderId: '@mindroom_mind:x' }, status: {} },
+    } as Partial<CrossRoomThreadIndexEntry>);
+    const { rows } = build([[named, { mentionedMe: true, lastReply: undefined }]]);
+    expect(rows.map((row) => row.type === 'thread' && row.actorIds)).toEqual([
+      ['@mindroom_mind:x'],
+    ]);
   });
 
   it('keeps an older thread while it waits for the user', () => {

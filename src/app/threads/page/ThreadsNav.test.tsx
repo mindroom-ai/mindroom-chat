@@ -15,9 +15,11 @@ import type { ThreadListItem } from './threadGroups';
 import { ThreadsNav } from './ThreadsNav';
 
 const ME = '@alice:x';
-const state = vi.hoisted(() => ({ items: [] as ThreadListItem[] }));
+const state = vi.hoisted(() => ({ items: [] as ThreadListItem[], listsComplete: true }));
 vi.mock('./useThreadListItems', () => ({ useThreadListItems: () => state.items }));
-vi.mock('./useJoinedRoomThreadLists', () => ({ useJoinedRoomThreadLists: () => undefined }));
+vi.mock('./useJoinedRoomThreadLists', () => ({
+  useJoinedRoomThreadLists: () => state.listsComplete,
+}));
 const mx = {
   getUserId: () => ME,
   getSafeUserId: () => ME,
@@ -267,6 +269,14 @@ describe('ThreadsNav', () => {
     renderNav(false);
     expect(screen.getByText('Loading threads')).toBeTruthy();
     expect(screen.queryByText('No threads here yet')).toBeNull();
+  });
+
+  it('says it is loading while the rooms still load their thread lists', () => {
+    state.items = [];
+    state.listsComplete = false;
+    renderNav();
+    expect(screen.getByText('Loading threads')).toBeTruthy();
+    state.listsComplete = true;
   });
 
   it('says when there is nothing to list', () => {

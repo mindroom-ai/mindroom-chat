@@ -53,6 +53,8 @@ export function ActivityTab({ onSelect }: ActivityTabProps) {
     navigate(getActivityPath());
   };
   const onClick = (event: MouseEvent<HTMLElement>) => {
+    // While Activity shows, the bell toggles its list as the other section buttons do.
+    if (active && !phone && onSelect?.(true)) return;
     if (phone || active || anchor) openPage();
     else setAnchor(event.currentTarget);
   };

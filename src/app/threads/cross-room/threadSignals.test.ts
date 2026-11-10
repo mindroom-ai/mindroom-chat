@@ -9,7 +9,7 @@ import {
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
-import { FINISHED_AFTER_MS, isCountedReply, readThreadSignals } from './threadSignals';
+import { FINISHED_AFTER_MS, QUESTION_WAITS_MS, readThreadSignals } from './threadSignals';
 
 const ROOM_ID = '!signals:example.org';
 const ME = '@alice:example.org';
@@ -228,6 +228,40 @@ describe('readThreadSignals', () => {
     });
   });
 
+  it('stops waiting on a question nobody answered once it is a week old', async () => {
+    const { room } = await setup(ME, [question('$q', 2000)]);
+    expect(readThreadSignals(room, ROOT, ME, NOW).pendingQuestion?.eventId).toBe('$q');
+    expect(
+      readThreadSignals(room, ROOT, ME, 2000 + QUESTION_WAITS_MS + 1).pendingQuestion
+    ).toBeUndefined();
+  });
+
+  it('leaves a question the agent put to someone else', async () => {
+    const { 'io.mindroom.interactive': prompt } = question('$q', 2000).getContent();
+    const asks = (id: string, source: string) =>
+      event({
+        id,
+        ts: 2000,
+        sender: AGENT,
+        content: {
+          body: 'Which deck should I polish?',
+          'io.mindroom.interactive': { ...(prompt as object), source_event_id: source },
+        },
+      });
+    const { room: bobs } = await setup(ME, [event({ id: '$bob', ts: 1500 }), asks('$q', '$bob')]);
+    expect(readThreadSignals(bobs, ROOT, ME, NOW).pendingQuestion).toBeUndefined();
+
+    // The router relays the user's message; the agent answers the relay.
+    const relay = event({
+      id: '$relay',
+      ts: 1500,
+      sender: '@mindroom_router:example.org',
+      content: { 'com.mindroom.original_sender': ME },
+    });
+    const { room: mine } = await setup(ME, [relay, asks('$q', '$relay')]);
+    expect(readThreadSignals(mine, ROOT, ME, NOW).pendingQuestion?.eventId).toBe('$q');
+  });
+
   it('drops a question the user answered by reaction or by writing', async () => {
     const { room } = await setup(ME, [question('$q', 2000)]);
     room.getUnfilteredTimelineSet().relations.aggregateChildEvent(
@@ -401,6 +435,24 @@ describe('readThreadSignals in a loaded thread with edits', () => {
     });
   });
 
+  it('asks from the edit that finished the stream, so a message written meanwhile is no answer', async () => {
+    const { 'io.mindroom.interactive': prompt } = question('$q', 2000).getContent();
+    const { room } = await setup(
+      ME,
+      [
+        event({ id: '$q', ts: 2000, sender: AGENT, content: { body: 'Thinking...' } }),
+        event({ id: '$also', ts: 2500, sender: ME, content: { body: 'also check the v2 deck' } }),
+        edit('$q-done', '$q', 3000, {
+          body: 'Which deck should I polish?',
+          'io.mindroom.stream_status': 'completed',
+          'io.mindroom.interactive': prompt,
+        }),
+      ],
+      { opened: true }
+    );
+    expect(readThreadSignals(room, ROOT, ME, NOW).pendingQuestion?.eventId).toBe('$q');
+  });
+
   it('takes a corrected reply for read once the user read it, as the thread list does', async () => {
     // An agent fixes a typo in a reply the user already read: the receipt stays on the reply.
     const { room } = await setup(
@@ -539,15 +591,5 @@ describe('readThreadSignals in a loaded thread with edits', () => {
     ask.getContent().expires_at = new Date(NOW - 1000).toISOString();
     const { room } = await setup(ME, [ask]);
     expect(readThreadSignals(room, ROOT, ME, NOW).pendingApproval).toBeUndefined();
-  });
-});
-
-describe('isCountedReply', () => {
-  it('counts messages and leaves notices out', () => {
-    expect(isCountedReply(event({ id: '$a', ts: 1 }))).toBe(true);
-    expect(isCountedReply(event({ id: '$b', ts: 1, content: { msgtype: 'm.notice' } }))).toBe(
-      false
-    );
-    expect(isCountedReply(event({ id: '$c', ts: 1, type: 'm.reaction' }))).toBe(false);
   });
 });

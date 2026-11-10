@@ -142,7 +142,7 @@ const ThreadRow = memo(function ThreadRow({ item, selected, onOpen }: ThreadRowP
  */
 export function ThreadsNav() {
   // Every page of every room's thread list, so the page lists all threads.
-  useJoinedRoomThreadLists(true);
+  const listsComplete = useJoinedRoomThreadLists(true);
   const items = useThreadListItems();
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -154,7 +154,8 @@ export function ThreadsNav() {
   const [recentLimit, setRecentLimit] = useState(RECENT_PAGE);
   const [automationsOpen, setAutomationsOpen] = useState(false);
   const shown = useShownThread();
-  const loading = !useAtomValue(crossRoomThreadIndexBootstrappedAtom);
+  // Until the index scanned the rooms and their thread lists are in, an empty list says nothing.
+  const loading = !useAtomValue(crossRoomThreadIndexBootstrappedAtom) || !listsComplete;
   const groups = useMemo(
     () => groupThreads(items, scope, userId, query),
     [items, scope, userId, query]
