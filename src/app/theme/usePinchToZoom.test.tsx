@@ -749,6 +749,31 @@ describe('usePinchToZoom', () => {
       expect(setPageZoom).not.toHaveBeenCalled();
     });
 
+    it('gives a pinch to the marked element that holds all its fingers, a nested one or not', () => {
+      const { setPageZoom } = mount(100);
+      const { surface, inside } = pinchSurface();
+      const [left, right] = [document.createElement('div'), document.createElement('div')];
+      left.setAttribute(PINCH_SURFACE_ATTRIBUTE, '');
+      right.setAttribute(PINCH_SURFACE_ATTRIBUTE, '');
+      surface.append(left, right);
+
+      // One finger on a marked child, one elsewhere on the surface; then one on each of two
+      // marked children.
+      for (const [a, b] of [
+        [left, inside],
+        [left, right],
+      ] as const) {
+        touch('touchstart', [[0, 0, a]]);
+        touch('touchstart', spread(a, b, 100));
+        const move = touch('touchmove', spread(a, b, 150));
+        touch('touchend', [], a);
+        expect(move.defaultPrevented).toBe(false);
+      }
+      flushFrames();
+
+      expect(setPageZoom).not.toHaveBeenCalled();
+    });
+
     it('leaves ctrl and the wheel over it alone, and zooms the page beside it', () => {
       const { setPageZoom } = mount(100);
       const { inside, outside } = pinchSurface();

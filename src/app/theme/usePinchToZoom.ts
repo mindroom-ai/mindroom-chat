@@ -16,11 +16,17 @@ type GestureEventWithScale = Event & { scale: number };
 const surfaceAt = (target: EventTarget | null): Element | null =>
   target instanceof Element ? target.closest(PINCH_SURFACE_SELECTOR) : null;
 
-/** Whether every finger landed in one marked element: `Touch.target` stays where it landed. */
+/**
+ * Whether every finger landed in one marked element, the innermost that holds them all when
+ * marks nest: `Touch.target` stays where a finger landed.
+ */
 const surfaceOwns = (touches: TouchList): boolean => {
-  const fingers = Array.from(touches);
-  const surface = surfaceAt(fingers[0]?.target ?? null);
-  return surface !== null && fingers.every((finger) => surfaceAt(finger.target) === surface);
+  const targets = Array.from(touches, (finger) => finger.target);
+  const holdsAll = (surface: Element) =>
+    targets.every((target) => target instanceof Node && surface.contains(target));
+  let surface = surfaceAt(targets[0] ?? null);
+  while (surface && !holdsAll(surface)) surface = surfaceAt(surface.parentElement);
+  return surface !== null;
 };
 
 /**
