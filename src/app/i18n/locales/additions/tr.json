@@ -166,7 +166,8 @@
       "description": "MindRoom bir sorunla karşılaştı ve bu ekranı gösteremedi. Devam etmek için yeniden yükleyin."
     },
     "passwordLoginForm": {
-      "forgotPassword": "Parolanızı mı unuttunuz?"
+      "forgotPassword": "Parolanızı mı unuttunuz?",
+      "mayUseSso": "Bu hesap {{provider}} ile oturum açmayı kullanıyor olabilir. Yukarıdaki {{provider}} düğmesini kullanın."
     },
     "partUnavailable": {
       "failed": "Bu yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.",
@@ -175,7 +176,8 @@
       "reload": "Sayfayı yeniden yükle"
     },
     "login": {
-      "noAccountLink": "Hesabınız yok mu? <authLink>Kayıt olun</authLink>"
+      "noAccountLink": "Hesabınız yok mu? <authLink>Kayıt olun</authLink>",
+      "orSignInWithPassword": "Ya da parolayla oturum açın"
     },
     "passwordRegisterForm": {
       "passwordsDoNotMatch": "Parolalar eşleşmiyor."
@@ -266,6 +268,10 @@
       "title": "Hesap sayfanızda onaylayın",
       "description": "Sunucunuz bunu hesap sayfanızda onaylamanızı istiyor. Sayfayı açın, onaylayın ve devam etmek için buraya dönün.",
       "open": "Hesap sayfasını aç"
+    },
+    "passwordResetForm": {
+      "emailResetUnavailable": "Bu sunucu parolaları e-postayla sıfırlayamaz.",
+      "emailResetUnavailableSso": "Bu sunucu parolaları e-postayla sıfırlayamaz. {{provider}} ile kaydolduysanız bunun yerine <authLink>{{provider}} ile oturum açın</authLink>."
     }
   },
   "featureUi": {

@@ -163,7 +163,8 @@
       "description": "MindRoom 發生問題，無法顯示此畫面。請重新載入以繼續。"
     },
     "passwordLoginForm": {
-      "forgotPassword": "忘記密碼？"
+      "forgotPassword": "忘記密碼？",
+      "mayUseSso": "此帳號可能使用 {{provider}} 登入。請使用上方的 {{provider}} 按鈕。"
     },
     "partUnavailable": {
       "failed": "無法載入。請檢查網路連線後再試一次。",
@@ -172,7 +173,8 @@
       "reload": "重新載入頁面"
     },
     "login": {
-      "noAccountLink": "沒有帳戶？ <authLink>註冊</authLink>"
+      "noAccountLink": "沒有帳戶？ <authLink>註冊</authLink>",
+      "orSignInWithPassword": "或使用密碼登入"
     },
     "passwordRegisterForm": {
       "passwordsDoNotMatch": "兩次輸入的密碼不一致。"
@@ -262,6 +264,10 @@
       "title": "在帳戶頁面上核准",
       "description": "您的伺服器要求您在帳戶頁面上核准此操作。請開啟頁面並核准，然後回到這裡繼續。",
       "open": "開啟帳戶頁面"
+    },
+    "passwordResetForm": {
+      "emailResetUnavailable": "此伺服器無法透過電子郵件重設密碼。",
+      "emailResetUnavailableSso": "此伺服器無法透過電子郵件重設密碼。如果你是用 {{provider}} 註冊的，請改為<authLink>使用 {{provider}} 登入</authLink>。"
     }
   },
   "featureUi": {

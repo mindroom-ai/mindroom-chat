@@ -37,10 +37,12 @@ type PasswordLoginFormProps = {
   baseUrl: string;
   /** The server name, for the password reset link. */
   server: string;
+  /** The single sign-on the page offers beside the form, named for the hint after a rejection. */
+  ssoProviderNames?: string;
 };
 
 /** Username (or email) and password login at the chosen homeserver. */
-export function PasswordLoginForm({ baseUrl, server }: PasswordLoginFormProps) {
+export function PasswordLoginForm({ baseUrl, server, ssoProviderNames }: PasswordLoginFormProps) {
   const { t } = useTranslation();
   const [result, setResult] = useState<CustomLoginResponse>();
   const [error, setError] = useState<LoginError>();
@@ -120,6 +122,11 @@ export function PasswordLoginForm({ baseUrl, server }: PasswordLoginFormProps) {
         </Box>
       </AuthField>
       {error && <FieldError message={t(LOGIN_ERROR_KEYS[error])} />}
+      {error === LoginError.Forbidden && ssoProviderNames && (
+        <Text size="T300" priority="400">
+          {t('sharedUi.passwordLoginForm.mayUseSso', { provider: ssoProviderNames })}
+        </Text>
+      )}
       {storeFailed && (
         <FieldError
           message={t(
@@ -127,9 +134,12 @@ export function PasswordLoginForm({ baseUrl, server }: PasswordLoginFormProps) {
           )}
         />
       )}
+      {/* Beside single sign-on, the password is the second way in and its button says so. */}
       <Button
         type="submit"
-        variant="Primary"
+        variant={ssoProviderNames ? 'Secondary' : 'Primary'}
+        fill={ssoProviderNames ? 'Soft' : undefined}
+        outlined={!!ssoProviderNames}
         size="500"
         disabled={busy}
         before={busy ? <Spinner variant="Primary" fill="Solid" size="200" /> : undefined}

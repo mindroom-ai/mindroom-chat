@@ -166,7 +166,8 @@
       "description": "MindRoom ran into a problem and couldn't show this screen. Reload to continue."
     },
     "passwordLoginForm": {
-      "forgotPassword": "Forgot Password?"
+      "forgotPassword": "Forgot Password?",
+      "mayUseSso": "This account may use {{provider}} sign-in. Use the {{provider}} button above."
     },
     "partUnavailable": {
       "failed": "This couldn't load. Check your connection and try again.",
@@ -175,7 +176,8 @@
       "reload": "Reload page"
     },
     "login": {
-      "noAccountLink": "Don't have an account? <authLink>Register</authLink>"
+      "noAccountLink": "Don't have an account? <authLink>Register</authLink>",
+      "orSignInWithPassword": "Or sign in with a password"
     },
     "passwordRegisterForm": {
       "passwordsDoNotMatch": "The passwords do not match."
@@ -266,6 +268,10 @@
       "title": "Approve on your account page",
       "description": "Your server asks you to approve this on your account page. Open it, approve, then come back here and continue.",
       "open": "Open account page"
+    },
+    "passwordResetForm": {
+      "emailResetUnavailable": "This server can't reset passwords by email.",
+      "emailResetUnavailableSso": "This server can't reset passwords by email. If you signed up with {{provider}}, <authLink>sign in with {{provider}}</authLink> instead."
     }
   },
   "featureUi": {

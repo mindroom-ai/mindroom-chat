@@ -15,7 +15,7 @@ import { getLoginPath, getOriginBaseUrl, getRegisterPath } from '../../../routes
 import { isAddAccountSearch, withAddAccountSearchIf } from '../../../navigation/addAccount';
 import { SSOLogin } from '../SSOLogin';
 import { FieldError } from '../FiledError';
-import { hasAppleIdentityProvider } from '../ssoProviders';
+import { getSsoProviderNames, hasAppleIdentityProvider } from '../ssoProviders';
 import { claimSsoLogin, SSO_NONCE_PARAM } from '../ssoReturn';
 import { PasswordLoginForm } from './PasswordLoginForm';
 import { TokenLogin, TokenLoginError } from './TokenLogin';
@@ -45,7 +45,10 @@ type LoginMethodsProps = {
   ssoRedirectUrl: string;
 };
 
-/** The sign-in methods this client offers on the server, after the MindRoom auth policy. */
+/**
+ * The sign-in methods this client offers on the server, after the MindRoom auth policy. Single
+ * sign-on comes first: on servers whose accounts are made by it, a password cannot sign anyone in.
+ */
 function LoginMethods({ server, baseUrl, flows, ssoRedirectUrl }: LoginMethodsProps) {
   const { t } = useTranslation();
   const { auth } = useClientConfig();
@@ -64,7 +67,25 @@ function LoginMethods({ server, baseUrl, flows, ssoRedirectUrl }: LoginMethodsPr
           )}
         />
       )}
-      {showPassword && <PasswordLoginForm baseUrl={baseUrl} server={server} />}
+      {showSso && (
+        <SSOLogin
+          providers={flows.sso?.providers}
+          redirectUrl={ssoRedirectUrl}
+          action={SSOAction.LOGIN}
+        />
+      )}
+      {showPassword && showSso && (
+        <Text size="T200" priority="300" align="Center">
+          {t('sharedUi.login.orSignInWithPassword')}
+        </Text>
+      )}
+      {showPassword && (
+        <PasswordLoginForm
+          baseUrl={baseUrl}
+          server={server}
+          ssoProviderNames={showSso ? getSsoProviderNames(flows.sso?.providers) : undefined}
+        />
+      )}
       {flows.password && passwordDisabled && !flows.sso && (
         <FieldError
           message={t('sharedUi.login.passwordLoginIsDisabledOnValue1UseSsoToSignIn', {
@@ -77,14 +98,6 @@ function LoginMethods({ server, baseUrl, flows, ssoRedirectUrl }: LoginMethodsPr
           message={t('sharedUi.login.thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso', {
             value1: server,
           })}
-        />
-      )}
-      {showSso && (
-        <SSOLogin
-          providers={flows.sso?.providers}
-          redirectUrl={ssoRedirectUrl}
-          action={SSOAction.LOGIN}
-          saveScreenSpace={showPassword}
         />
       )}
     </>
