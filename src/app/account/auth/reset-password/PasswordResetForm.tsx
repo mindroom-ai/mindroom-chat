@@ -1,14 +1,15 @@
 import { FormEvent, useCallback, useMemo, useState } from 'react';
 import { Box, Button, Input, Spinner, Text } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import type { MatrixError } from 'matrix-js-sdk';
+import { Link, useNavigate } from 'react-router-dom';
+import type { IIdentityProvider, MatrixClient, MatrixError } from 'matrix-js-sdk';
 import { createMatrixClient } from '../../../matrix/client/matrixClientFactory';
 import { useAutoDiscoveryInfo } from '../../../matrix/hooks/useAutoDiscoveryInfo';
 import { useAuthServer } from '../useAuthServer';
 import { AsyncStatus, useAsyncCallback } from '../../../lib/hooks/useAsyncCallback';
 import { FieldError } from '../FiledError';
 import { AuthField } from '../AuthField';
+import { getSsoProviderNames } from '../ssoProviders';
 
 type PasswordResetFormProps = {
   defaultEmail?: string;
@@ -22,6 +23,20 @@ type EmailToken = {
   clientSecret: string;
   sid: string;
 };
+
+/** Answers of a server that resets no passwords by email: Tuwunel without email, or no endpoint. */
+const EMAIL_RESET_UNAVAILABLE = new Set(['M_THREEPID_DENIED', 'M_UNRECOGNIZED']);
+
+/** The names of the server's single sign-on; undefined when it offers none or the flows fail. */
+async function fetchSsoProviderNames(
+  mx: Pick<MatrixClient, 'loginFlows'>
+): Promise<string | undefined> {
+  const flows = await mx.loginFlows().catch(() => undefined);
+  const sso = flows?.flows.find((flow) => flow.type === 'm.login.sso') as
+    | { identity_providers?: IIdentityProvider[] }
+    | undefined;
+  return sso ? getSsoProviderNames(sso.identity_providers) : undefined;
+}
 
 /**
  * Resets the password through the account's email: the server sends a link,
@@ -37,6 +52,8 @@ export function PasswordResetForm({ defaultEmail, loginLink }: PasswordResetForm
   const [mismatch, setMismatch] = useState(false);
   const [emailToken, setEmailToken] = useState<EmailToken>();
   const [done, setDone] = useState(false);
+  // Named once the server answers that it resets no passwords by email.
+  const [ssoProviderNames, setSsoProviderNames] = useState<string>();
 
   const [requestState, requestEmail] = useAsyncCallback(
     useCallback(
@@ -80,8 +97,11 @@ export function PasswordResetForm({ defaultEmail, loginLink }: PasswordResetForm
     if (!email || !password) return;
     try {
       setEmailToken(await requestEmail(email, password));
-    } catch {
-      // The state shows the error.
+    } catch (failure) {
+      // The state shows the error; an account made by single sign-on is pointed back to it.
+      if (EMAIL_RESET_UNAVAILABLE.has((failure as Partial<MatrixError>).errcode ?? '')) {
+        setSsoProviderNames(await fetchSsoProviderNames(mx));
+      }
     }
   };
 
@@ -159,7 +179,20 @@ export function PasswordResetForm({ defaultEmail, loginLink }: PasswordResetForm
           variant={mismatch ? 'Critical' : 'Background'}
         />
       </AuthField>
-      {error && (
+      {error && EMAIL_RESET_UNAVAILABLE.has(error.errcode ?? '') && (
+        <Text role="alert" size="T300">
+          {ssoProviderNames ? (
+            <Trans
+              i18nKey="sharedUi.passwordResetForm.emailResetUnavailableSso"
+              values={{ provider: ssoProviderNames }}
+              components={{ authLink: loginLink ? <Link to={loginLink} /> : <span /> }}
+            />
+          ) : (
+            t('sharedUi.passwordResetForm.emailResetUnavailable')
+          )}
+        </Text>
+      )}
+      {error && !EMAIL_RESET_UNAVAILABLE.has(error.errcode ?? '') && (
         <FieldError
           message={`${error.errcode ?? 'M_UNKNOWN'}: ${t(
             'sharedUi.passwordResetForm.failedToResetPassword'

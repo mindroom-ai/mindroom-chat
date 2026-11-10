@@ -163,7 +163,8 @@
       "description": "MindRoom で問題が発生し、この画面を表示できませんでした。続けるには再読み込みしてください。"
     },
     "passwordLoginForm": {
-      "forgotPassword": "パスワードをお忘れですか?"
+      "forgotPassword": "パスワードをお忘れですか?",
+      "mayUseSso": "このアカウントは {{provider}} でのサインインを使用している可能性があります。上の {{provider}} ボタンを使ってください。"
     },
     "partUnavailable": {
       "failed": "読み込めませんでした。接続を確認して、もう一度お試しください。",
@@ -172,7 +173,8 @@
       "reload": "ページを再読み込み"
     },
     "login": {
-      "noAccountLink": "アカウントをお持ちではありませんか? <authLink>登録</authLink>"
+      "noAccountLink": "アカウントをお持ちではありませんか? <authLink>登録</authLink>",
+      "orSignInWithPassword": "またはパスワードでサインイン"
     },
     "passwordRegisterForm": {
       "passwordsDoNotMatch": "パスワードが一致しません。"
@@ -262,6 +264,10 @@
       "title": "アカウントページで承認",
       "description": "サーバーがアカウントページでこの操作の承認を求めています。ページを開いて承認し、ここに戻って続行してください。",
       "open": "アカウントページを開く"
+    },
+    "passwordResetForm": {
+      "emailResetUnavailable": "このサーバーはメールでパスワードをリセットできません。",
+      "emailResetUnavailableSso": "このサーバーはメールでパスワードをリセットできません。{{provider}} で登録した場合は、代わりに<authLink>{{provider}} でサインイン</authLink>してください。"
     }
   },
   "featureUi": {

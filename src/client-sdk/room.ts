@@ -1,8 +1,9 @@
 // `@mindroom/client-sdk/room`, the client SDK's subpath for rooms and threads (docs/architecture.md
 // "Client plugins"): it opens them, links to them, names the thread a room's page shows, creates
 // sub-rooms and names the rooms a room is a sub-room of, shows a person's profile card in a room,
-// and shows a thread on a plugin's own surface. Like `/core` it only grows, and each addition
-// raises CLIENT_PLUGIN_API_VERSION in scripts/client-plugins.mjs.
+// names the floating one that is open and closes it, and shows a thread on a plugin's own surface.
+// Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in
+// scripts/client-plugins.mjs.
 import { createElement, lazy, Suspense, useCallback, useContext, useMemo } from 'react';
 import { useHref } from 'react-router-dom';
 import type { Position, RectCords } from 'folds';
@@ -11,7 +12,11 @@ import { getClientConfig } from '../app/config/useClientConfig';
 import { useMatrixClient } from '../app/matrix/hooks/useMatrixClient';
 import { useRoomNavigate as useAppRoomNavigate } from '../app/navigation/useRoomNavigate';
 import { UserRoomProfile } from '../app/members/profile/UserRoomProfile';
-import { useOpenUserRoomProfile } from '../app/navigation/useUserRoomProfileState';
+import {
+  useCloseUserRoomProfile,
+  useOpenUserRoomProfile,
+  useUserRoomProfileState,
+} from '../app/navigation/useUserRoomProfileState';
 import { PluginPanelControlsContext } from '../app/plugins/sidePanels';
 import { withSearchParam } from '../app/routes/pathUtils';
 import { createSubRoom as createAppSubRoom } from '../app/rooms/create/createSubRoom';
@@ -119,6 +124,24 @@ export const useOpenUserProfile = () => {
     [client, open]
   );
 };
+
+/**
+ * The floating profile card that is open, the one `useOpenUserProfile` opened or the app's own
+ * mention pills, member rows and senders' names did: the room and the person it shows, or undefined
+ * while none is open. It renders again when the card closes or shows another person or room. The
+ * card closes on an Escape that reaches the document without `preventDefault`, so a plugin that
+ * closes its own surface on Escape leaves it alone while a card is open.
+ */
+export const useShownUserProfile = (): { roomId: string; userId: string } | undefined => {
+  const { roomId, userId } = useUserRoomProfileState() ?? {};
+  return useMemo(
+    () => (roomId !== undefined && userId !== undefined ? { roomId, userId } : undefined),
+    [roomId, userId]
+  );
+};
+
+/** Closes the floating profile card, if one is open; the function stays the same. */
+export const useCloseUserProfile: () => () => void = useCloseUserRoomProfile;
 
 /**
  * The profile card of the person `userId` in `room`, as the floating card shows it, for a plugin's

@@ -178,7 +178,8 @@
       "description": "واجه MindRoom مشكلة ولم يتمكن من عرض هذه الشاشة. أعد التحميل للمتابعة."
     },
     "passwordLoginForm": {
-      "forgotPassword": "هل نسيت كلمة المرور؟"
+      "forgotPassword": "هل نسيت كلمة المرور؟",
+      "mayUseSso": "قد يستخدم هذا الحساب تسجيل الدخول عبر ⁨{{provider}}⁩. استخدم زر ⁨{{provider}}⁩ أعلاه."
     },
     "partUnavailable": {
       "failed": "تعذّر تحميل هذا. تحقّق من اتصالك وحاول مرة أخرى.",
@@ -187,7 +188,8 @@
       "reload": "إعادة تحميل الصفحة"
     },
     "login": {
-      "noAccountLink": "ليس لديك حساب؟ <authLink>سجّل حسابًا</authLink>"
+      "noAccountLink": "ليس لديك حساب؟ <authLink>سجّل حسابًا</authLink>",
+      "orSignInWithPassword": "أو سجّل الدخول بكلمة مرور"
     },
     "passwordRegisterForm": {
       "passwordsDoNotMatch": "كلمتا المرور غير متطابقتين."
@@ -282,6 +284,10 @@
       "title": "وافق من صفحة حسابك",
       "description": "يطلب منك خادمك الموافقة على هذا من صفحة حسابك. افتحها ووافق، ثم عد إلى هنا للمتابعة.",
       "open": "فتح صفحة الحساب"
+    },
+    "passwordResetForm": {
+      "emailResetUnavailable": "لا يستطيع هذا الخادم إعادة تعيين كلمات المرور عبر البريد الإلكتروني.",
+      "emailResetUnavailableSso": "لا يستطيع هذا الخادم إعادة تعيين كلمات المرور عبر البريد الإلكتروني. إذا أنشأت حسابك عبر ⁨{{provider}}⁩، <authLink>فسجّل الدخول عبر ⁨{{provider}}⁩</authLink> بدلًا من ذلك."
     }
   },
   "featureUi": {

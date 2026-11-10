@@ -166,7 +166,8 @@
       "description": "MindRoom liep tegen een probleem aan en kon dit scherm niet tonen. Laad opnieuw om verder te gaan."
     },
     "passwordLoginForm": {
-      "forgotPassword": "Wachtwoord vergeten?"
+      "forgotPassword": "Wachtwoord vergeten?",
+      "mayUseSso": "Dit account gebruikt mogelijk inloggen met {{provider}}. Gebruik de knop {{provider}} hierboven."
     },
     "partUnavailable": {
       "failed": "Dit kon niet worden geladen. Controleer je verbinding en probeer het opnieuw.",
@@ -175,7 +176,8 @@
       "reload": "Pagina opnieuw laden"
     },
     "login": {
-      "noAccountLink": "Heb je geen account? <authLink>Registreren</authLink>"
+      "noAccountLink": "Heb je geen account? <authLink>Registreren</authLink>",
+      "orSignInWithPassword": "Of log in met een wachtwoord"
     },
     "passwordRegisterForm": {
       "passwordsDoNotMatch": "De wachtwoorden komen niet overeen."
@@ -266,6 +268,10 @@
       "title": "Goedkeuren op je accountpagina",
       "description": "Je server vraagt je dit goed te keuren op je accountpagina. Open die, keur goed en kom dan hier terug om verder te gaan.",
       "open": "Accountpagina openen"
+    },
+    "passwordResetForm": {
+      "emailResetUnavailable": "Deze server kan wachtwoorden niet per e-mail opnieuw instellen.",
+      "emailResetUnavailableSso": "Deze server kan wachtwoorden niet per e-mail opnieuw instellen. Heb je je aangemeld met {{provider}}, <authLink>log dan in met {{provider}}</authLink>."
     }
   },
   "featureUi": {
