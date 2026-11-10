@@ -773,6 +773,7 @@
       "invite": "{{name}} আপনাকে আমন্ত্রণ জানিয়েছে",
       "inviteUnknown": "আপনাকে আমন্ত্রণ জানানো হয়েছে",
       "mention": "{{name}} আপনাকে উল্লেখ করেছে",
+      "mentionUnknown": "আপনাকে উল্লেখ করা হয়েছে",
       "mentionAndReply": "{{name}} আপনাকে উল্লেখ করেছে, {{other}} উত্তর দিয়েছে",
       "reply": "{{name}} উত্তর দিয়েছে",
       "replyAndOther": "{{name}} এবং {{other}} উত্তর দিয়েছে",

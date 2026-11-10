@@ -762,6 +762,7 @@
       "invite": "{{name}} 님이 초대했습니다",
       "inviteUnknown": "초대를 받았습니다",
       "mention": "{{name}} 님이 나를 멘션했습니다",
+      "mentionUnknown": "멘션을 받았습니다",
       "mentionAndReply": "{{name}} 님이 나를 멘션했고 {{other}} 님이 답글을 남겼습니다",
       "reply": "{{name}} 님이 답글을 남겼습니다",
       "replyAndOther": "{{name}} 님과 {{other}} 님이 답글을 남겼습니다",

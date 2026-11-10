@@ -773,6 +773,7 @@
       "invite": "{{name}} hat dich eingeladen",
       "inviteUnknown": "Du wurdest eingeladen",
       "mention": "{{name}} hat dich erwähnt",
+      "mentionUnknown": "Du wurdest erwähnt",
       "mentionAndReply": "{{name}} hat dich erwähnt, {{other}} hat geantwortet",
       "reply": "{{name}} hat geantwortet",
       "replyAndOther": "{{name}} und {{other}} haben geantwortet",

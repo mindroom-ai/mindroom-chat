@@ -33,6 +33,10 @@ const sentence = (t: TFunction, row: ActivityRow, names: string[]): string => {
     case 'mention':
     case 'finished':
     case 'stopped':
+      // A mention the highlight count tells of, from a message not loaded, has no known sender.
+      if (row.kind === 'mention' && row.type === 'thread' && !row.signals.mentionedBy) {
+        return t('activity.sentence.mentionUnknown');
+      }
       if (row.kind === 'mention' && other) {
         return t('activity.sentence.mentionAndReply', { name, other });
       }

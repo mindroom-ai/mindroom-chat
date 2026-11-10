@@ -762,6 +762,7 @@
       "invite": "{{name}} mengundang Anda",
       "inviteUnknown": "Anda diundang",
       "mention": "{{name}} menyebut Anda",
+      "mentionUnknown": "Anda disebut",
       "mentionAndReply": "{{name}} menyebut Anda, {{other}} membalas",
       "reply": "{{name}} membalas",
       "replyAndOther": "{{name}} dan {{other}} membalas",

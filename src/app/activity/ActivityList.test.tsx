@@ -136,6 +136,7 @@ const ROWS: ActivityRow[] = [
     'mention',
     {
       mentionedMe: true,
+      mentionedBy: '@maya:x',
       newCount: 2,
       lastReply: {
         eventId: '$r',
@@ -342,6 +343,23 @@ describe('ActivityList', () => {
     const row = rowByTitle('Thread stop');
     expect(row.textContent).toContain('2 tools');
     expect(row.textContent).not.toMatch(/\bmin\b/);
+  });
+
+  it('names no one as the mentioner when only the highlight count tells of the mention', () => {
+    renderList({
+      rows: [
+        threadRow(
+          'hl',
+          'mention',
+          { mentionedMe: true, newCount: 1, newSenderIds: ['@mindroom_mind:x'] },
+          { actorIds: ['@mindroom_mind:x'] }
+        ),
+      ],
+      hiddenAutomations: 0,
+    });
+    const row = rowByTitle('Thread hl');
+    expect(row.textContent).toContain('You were mentioned');
+    expect(row.textContent).not.toContain('Mind mentioned you');
   });
 
   it('says You replied when the user wrote last', () => {

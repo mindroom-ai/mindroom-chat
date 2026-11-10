@@ -762,6 +762,7 @@
       "invite": "{{name}} 邀請了你",
       "inviteUnknown": "你收到了邀請",
       "mention": "{{name}} 提及了你",
+      "mentionUnknown": "有人提及了你",
       "mentionAndReply": "{{name}} 提及了你，{{other}} 回覆了",
       "reply": "{{name}} 回覆了",
       "replyAndOther": "{{name}} 和 {{other}} 回覆了",

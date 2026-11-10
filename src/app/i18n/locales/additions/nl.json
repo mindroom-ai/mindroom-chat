@@ -773,6 +773,7 @@
       "invite": "{{name}} heeft je uitgenodigd",
       "inviteUnknown": "Je bent uitgenodigd",
       "mention": "{{name}} heeft je vermeld",
+      "mentionUnknown": "Je bent vermeld",
       "mentionAndReply": "{{name}} heeft je vermeld, {{other}} heeft geantwoord",
       "reply": "{{name}} heeft geantwoord",
       "replyAndOther": "{{name}} en {{other}} hebben geantwoord",

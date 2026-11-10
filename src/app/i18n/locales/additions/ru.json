@@ -795,6 +795,7 @@
       "invite": "{{name}} приглашает вас",
       "inviteUnknown": "Вас пригласили",
       "mention": "{{name}} упомянул(а) вас",
+      "mentionUnknown": "Вас упомянули",
       "mentionAndReply": "{{name}} упомянул(а) вас, {{other}} ответил(а)",
       "reply": "{{name}} ответил(а)",
       "replyAndOther": "{{name}} и {{other}} ответили",

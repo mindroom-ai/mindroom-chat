@@ -784,6 +784,7 @@
       "invite": "{{name}} vous a envoyé une invitation",
       "inviteUnknown": "Vous avez reçu une invitation",
       "mention": "{{name}} vous a mentionné",
+      "mentionUnknown": "Vous avez reçu une mention",
       "mentionAndReply": "{{name}} vous a mentionné, {{other}} a répondu",
       "reply": "{{name}} a répondu",
       "replyAndOther": "{{name}} et {{other}} ont répondu",

@@ -817,6 +817,7 @@
       "invite": "دعاك ⁨{{name}}⁩",
       "inviteUnknown": "تمت دعوتك",
       "mention": "أشار إليك ⁨{{name}}⁩",
+      "mentionUnknown": "تمت الإشارة إليك",
       "mentionAndReply": "أشار إليك ⁨{{name}}⁩، وردّ ⁨{{other}}⁩",
       "reply": "ردّ ⁨{{name}}⁩",
       "replyAndOther": "ردّ ⁨{{name}}⁩ و⁨{{other}}⁩",

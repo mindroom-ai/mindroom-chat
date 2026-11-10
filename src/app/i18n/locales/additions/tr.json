@@ -773,6 +773,7 @@
       "invite": "{{name}} sizi davet etti",
       "inviteUnknown": "Davet edildiniz",
       "mention": "{{name}} sizden bahsetti",
+      "mentionUnknown": "Sizden bahsedildi",
       "mentionAndReply": "{{name}} sizden bahsetti, {{other}} yanıtladı",
       "reply": "{{name}} yanıtladı",
       "replyAndOther": "{{name}} ve {{other}} yanıtladı",

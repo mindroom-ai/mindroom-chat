@@ -762,6 +762,7 @@
       "invite": "{{name}} から招待されました",
       "inviteUnknown": "招待されました",
       "mention": "{{name}} があなたをメンションしました",
+      "mentionUnknown": "メンションされました",
       "mentionAndReply": "{{name}} があなたをメンションし、{{other}} が返信しました",
       "reply": "{{name}} が返信しました",
       "replyAndOther": "{{name}} と {{other}} が返信しました",
