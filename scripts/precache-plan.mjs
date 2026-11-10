@@ -20,6 +20,8 @@
 // the precache globs never matched, or a worker without the inventory's marker fails the build:
 // each would leave an offline start without a file it loads.
 
+import path from 'node:path';
+
 /** Build files other than code a startup chunk brings: fonts from its style sheets, the wasm, images. */
 const STARTUP_ASSET = /\.(?:woff2|wasm|png|svg|webp|avif|jpe?g|gif|ico)$/;
 
@@ -143,10 +145,11 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
   let assetsDir = 'assets';
   // vite-plugin-pwa builds the worker once the build has ended, also after it failed. A build that
   // failed while it rendered its output must end with its own error, so the worker's build, which
-  // never ships, then passes without the plan. One that failed before it rendered (in its build
-  // phase, buildEnd hooks included) keeps failing the worker's build, whose error the build then
-  // drops, so the output directory of an earlier build stays as it was.
-  let rendering = false;
+  // never ships, then passes without the plan, when the build had emptied its output directory.
+  // Otherwise (a failure in the build phase, buildEnd hooks included, or an output directory that
+  // keeps an earlier build) the worker's build fails as ever, writing no worker over an earlier one.
+  let emptiesOutDir = false;
+  let passWithoutPlan = false;
 
   /** @type {import('vite').Plugin} */
   const plugin = {
@@ -154,9 +157,12 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
     apply: 'build',
     configResolved(config) {
       assetsDir = config.build.assetsDir;
+      // As Vite decides it: unless set, it empties an output directory inside the root only.
+      const outDir = path.resolve(config.root, config.build.outDir);
+      emptiesOutDir = config.build.emptyOutDir ?? outDir.startsWith(`${config.root}${path.sep}`);
     },
     renderStart() {
-      rendering = true;
+      passWithoutPlan = emptiesOutDir;
     },
     generateBundle(_options, bundle) {
       planned = new Set([...shellFiles, ...startupFiles(bundle, startupModules, onDemandAssets)]);
@@ -170,7 +176,7 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
     apply: 'build',
     renderChunk(code) {
       if (!inventory) {
-        if (rendering) return null;
+        if (passWithoutPlan) return null;
         throw new Error('precache plan: the build never reported its bundle');
       }
       const parts = code.split(INVENTORY_MARKER);
@@ -190,7 +196,7 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
   const manifestTransform = (entries) => {
     const wanted = planned;
     if (!wanted) {
-      if (rendering) return { manifest: [], warnings: [] };
+      if (passWithoutPlan) return { manifest: [], warnings: [] };
       throw new Error('precache plan: the build never reported its bundle');
     }
     const manifest = entries.filter((entry) => wanted.has(entry.url));

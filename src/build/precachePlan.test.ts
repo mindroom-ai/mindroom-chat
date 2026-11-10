@@ -253,7 +253,7 @@ describe('a build that fails before its bundle is written', () => {
   );
 
   /** A build with the plan wired into the service worker build as vite.config.js wires it. */
-  const buildWith = (failing: Plugin) => {
+  const buildWith = (failing: Plugin, outDir = dist) => {
     const startup = startupPrecache({
       startupModules: [],
       shellFiles: ['index.html'],
@@ -281,7 +281,7 @@ describe('a build that fails before its bundle is written', () => {
           manifest: false,
         }),
       ],
-      build: { outDir: dist, emptyOutDir: true },
+      build: { outDir },
     });
   };
 
@@ -312,4 +312,19 @@ describe('a build that fails before its bundle is written', () => {
     },
     60_000
   );
+
+  it('writes no worker over an earlier build it keeps when it fails while it renders', async () => {
+    // Vite keeps an output directory outside the root as it is.
+    const kept = mkdtempSync(path.join(tmpdir(), 'precache-plan-kept-'));
+    writeFileSync(path.join(kept, 'sw.js'), 'the earlier build');
+    const generateBundle = () => {
+      throw new Error('the build failed for its own reason');
+    };
+    try {
+      await expect(buildWith({ name: 'fails', generateBundle }, kept)).rejects.toThrow();
+      expect(readFileSync(path.join(kept, 'sw.js'), 'utf8')).toBe('the earlier build');
+    } finally {
+      rmSync(kept, { recursive: true, force: true });
+    }
+  }, 60_000);
 });
