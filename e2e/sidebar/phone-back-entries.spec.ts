@@ -13,13 +13,13 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import { openRoomPins } from '../helpers/roomMenu';
 
-// On a phone, a thread's back chevron and a room's return to wherever the person opened them
-// from: the room list, a notification, the command palette, the search results, a link in
-// another conversation, Activity, the pinned messages or Jump to Time. A thread's chevron steps
-// back past the thread, a room's past every page of the room, and the browser's back then goes on
-// from there. Neither ever lands on a room the person did not open. Each way in is its own test,
-// at 390 by 844 with touch, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
-// WebKit, in WebKit.
+// On a phone, a thread's back chevron returns to wherever the person opened the thread from: the
+// room list, a notification, the command palette, the search results, a link in another
+// conversation, Activity, the pinned messages or Jump to Time. It steps back past the thread, and
+// the browser's back then goes on from there. A room has no back chevron (the drawer holds the
+// list); the browser's back leaves it for the page it was opened from. Neither ever lands on a
+// room the person did not open. Each way in is its own test, at 390 by 844 with touch, in Chromium
+// and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'phone-back-entries-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -332,8 +332,9 @@ const FLOWS: Record<string, Flow> = {
     await openThread(page, garden, gardenRoot);
     await threadBack(page).tap();
     await expectAt(page, inRoom(garden), 'the thread chevron returns to the room');
-    await roomBack(page).tap();
-    await expectAt(page, HOME, 'the room chevron returns to the list');
+    await expect(roomBack(page), 'the room has no chevron of its own').toHaveCount(0);
+    await page.goBack();
+    await expectAt(page, HOME, "the browser's back returns to the list");
 
     // The edge swipe leaves a thread for its room, one step, also after another room: the
     // browser must not take the rest of the swipe as its own back.
@@ -352,11 +353,10 @@ const FLOWS: Record<string, Flow> = {
     // Settled: nothing goes back a second step.
     await page.waitForTimeout(1_000);
     await expectAt(page, inRoom(garden), 'the edge swipe went back one step only');
-    await roomBack(page).tap();
-    await expectAt(page, inRoom(harbor), 'the room chevron returns to the first room');
-    await roomBack(page).tap();
+    await page.goBack();
+    await expectAt(page, inRoom(harbor), "the browser's back returns to the first room");
+    await page.goBack();
     await expectAt(page, HOME, 'then to the list');
-    await browserBackLeaves(page, garden, 'browser back after the chevrons leaves the list');
   },
 
   'a notification': async (page, { harbor, books, booksRoot, writer }, testInfo) => {
@@ -395,12 +395,9 @@ const FLOWS: Record<string, Flow> = {
     await expect.poll(count, { timeout: 30_000 }).toBeGreaterThan(next);
     await clickNewest();
     await expectAt(page, inRoom(books), 'the notification opens its room');
-    await roomBack(page).tap();
-    await shoot(page, testInfo, 'notification-room-back');
-    await expectAt(page, inRoom(harbor), 'the room chevron returns to the room it opened over');
-    await roomBack(page).tap();
-    await expectAt(page, HOME, 'then to the list');
-    await browserBackLeaves(page, harbor, 'browser back after the chevrons leaves the list');
+    await expect(roomBack(page), 'the room has no chevron of its own').toHaveCount(0);
+    await shoot(page, testInfo, 'notification-room');
+    await browserBackLeaves(page, books, "the browser's back leaves the room it opened");
   },
 
   'the command palette': async (page, { harbor, books, garden, gardenRoot, word }, testInfo) => {
@@ -413,10 +410,15 @@ const FLOWS: Record<string, Flow> = {
       .filter({ hasText: 'Book Swap' })
       .tap();
     await expectAt(page, inRoom(books), 'the palette opens the room');
-    await roomBack(page).tap();
+    await expect(roomBack(page), 'the room has no chevron of its own').toHaveCount(0);
+    await page.goBack();
     await shoot(page, testInfo, 'palette-room-back');
-    await expectAt(page, inRoom(harbor), 'the room chevron returns to the room under the palette');
-    await roomBack(page).tap();
+    await expectAt(
+      page,
+      inRoom(harbor),
+      "the browser's back returns to the room under the palette"
+    );
+    await page.goBack();
     await expectAt(page, HOME, 'then to the list');
 
     // A message found in the palette's Message Search, in a thread. Its snippet starts a few
@@ -462,16 +464,18 @@ const FLOWS: Record<string, Flow> = {
     await edgeSwipeBack(page, engine);
     await expectAt(page, results, 'the edge swipe returns to the results');
 
-    // A message of the room's own timeline opens the room; its chevron returns to the results.
+    // A message of the room's own timeline opens the room; the browser's back returns to the
+    // results.
     await page.locator(`[data-event-id="${gardenNote}"]`).tap();
     await expectAt(page, inRoom(garden), 'the message opens its room');
-    await roomBack(page).tap();
+    await expect(roomBack(page), 'the room has no chevron of its own').toHaveCount(0);
+    await page.goBack();
     await shoot(page, testInfo, 'search-room-back');
-    await expectAt(page, results, 'the room chevron returns to the results');
+    await expectAt(page, results, "the browser's back returns to the results");
     await expect(searchbox).toHaveValue(word);
     await page.getByRole('button', { name: 'Back', exact: true }).tap();
     await expectAt(page, HOME, 'the results go back to the list');
-    await browserBackLeaves(page, garden, 'browser back after the chevrons leaves the list');
+    await browserBackLeaves(page, garden, 'browser back after the results leaves the list');
   },
 
   'a permalink': async (page, seed, testInfo) => {
@@ -489,15 +493,19 @@ const FLOWS: Record<string, Flow> = {
     // A link to a message of the other room's own timeline opens that room.
     await page.locator(`a[data-mention-event-id="${gardenNote}"]`).tap();
     await expectAt(page, inRoom(garden), 'the link opens the linked room');
-    await roomBack(page).tap();
+    await expect(roomBack(page), 'the room has no chevron of its own').toHaveCount(0);
+    await page.goBack();
     await shoot(page, testInfo, 'permalink-room-back');
-    await expectAt(page, inThreadOf(harbor, harborRoot), 'the room chevron returns to the thread');
+    await expectAt(
+      page,
+      inThreadOf(harbor, harborRoot),
+      "the browser's back returns to the thread"
+    );
 
     await threadBack(page).tap();
     await expectAt(page, inRoom(harbor), 'the thread chevron returns to its room');
-    await roomBack(page).tap();
-    await expectAt(page, HOME, 'the room chevron returns to the list');
-    await browserBackLeaves(page, harbor, 'browser back after the chevrons leaves the list');
+    await page.goBack();
+    await expectAt(page, HOME, "the browser's back returns to the list");
   },
 
   Activity: async (page, { books, shelfRoot }, testInfo) => {
@@ -545,12 +553,10 @@ const FLOWS: Record<string, Flow> = {
     await shoot(page, testInfo, 'pin-thread-back');
     await expectAt(page, inRoom(garden), 'the thread chevron returns to the room');
 
-    // A pinned message of the room's own timeline stays in the room; the chevron leaves it.
+    // A pinned message of the room's own timeline stays in the room.
     await openPin(gardenNote, 'planting rota');
     await expectAt(page, inRoom(garden), 'the pinned message opens in the room');
-    await roomBack(page).tap();
-    await expectAt(page, HOME, 'the room chevron returns to the list');
-    await browserBackLeaves(page, garden, 'browser back after the chevron leaves the list');
+    await expect(roomBack(page), 'the room has no chevron of its own').toHaveCount(0);
   },
 
   'Jump to Time': async (page, { garden, gardenRoot }, testInfo) => {
@@ -571,14 +577,12 @@ const FLOWS: Record<string, Flow> = {
     await threadBack(page).tap();
     await expectAt(page, inRoom(garden), 'the thread chevron returns to the room');
 
-    // In the room, the Full view opens at the room's start; the chevron leaves the room.
+    // In the room, the Full view opens at the room's start.
     await jump();
     await expect(page).toHaveURL(/%24|\$/);
     await expectAt(page, inRoom(garden), 'Jump to Time stays in the room');
-    await roomBack(page).tap();
-    await shoot(page, testInfo, 'jump-room-back');
-    await expectAt(page, HOME, 'the room chevron returns to the list');
-    await browserBackLeaves(page, garden, 'browser back after the chevron leaves the list');
+    await shoot(page, testInfo, 'jump-room');
+    await expect(roomBack(page), 'the room has no chevron of its own').toHaveCount(0);
   },
 };
 

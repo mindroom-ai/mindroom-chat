@@ -11,10 +11,10 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 // On a phone, a swipe from the screen's left edge brings the navigation drawer out over a room, as
 // the top bar's menu button does, and the room stays: it no longer goes back to the list or the
-// room it was opened from, which the room's back chevron still does. A thread open in the room
-// takes the swipe itself and steps back to the room only, leaving the drawer away. 390 by 844
-// with touch, in Chromium with real touches and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
-// Playwright's WebKit, in WebKit.
+// room it was opened from (the room header has no back chevron; the drawer holds the list). A
+// thread open in the room takes the swipe itself and steps back to the room only, leaving the
+// drawer away. 390 by 844 with touch, in Chromium with real touches and, when
+// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'phone-room-edge-swipe-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -118,7 +118,7 @@ const expectDrawer = async (page: Page, open: boolean, step: string) => {
 const openFromList = async (page: Page, name: string, room: string) => {
   await roomList(page).getByRole('link', { name }).tap();
   await expectAt(page, inRoom(room), `${name} opens from the list`);
-  await expect(page.getByRole('banner').getByRole('button', { name: 'Back' })).toBeVisible();
+  await expect(page.getByRole('banner').getByRole('heading', { level: 1, name })).toBeVisible();
 };
 
 /**

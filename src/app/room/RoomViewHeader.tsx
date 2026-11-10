@@ -8,7 +8,6 @@ import type { Room } from 'matrix-js-sdk';
 import { Avatar, Badge, Box, Icons, Text, toRem, type RectCords } from 'folds';
 import { PopOut, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { PageHeader } from '../ui/page/Page';
-import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { RoomTopicViewer } from './RoomTopicViewer';
 import { RoomAvatar, RoomIcon } from '../avatars/RoomAvatar';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -29,7 +28,6 @@ import { getCanonicalAliasOrRoomId, mxcUrlToHttp } from '../matrix/matrix';
 import { nameInitials } from '../lib/common';
 import { getDirectPartnerId } from '../matrix/room';
 import { getDirectPath, getHomePath, getSpacePath } from '../routes/pathUtils';
-import { previousHistoryOrigin, showsRoom } from '../routes/historyStack';
 import { RoomPinMenu } from '../messages/pins/RoomPinMenu';
 import {
   RoomSchedulesButton,
@@ -94,6 +92,12 @@ export type RoomViewHeaderProps = {
   pluginPanels?: readonly Pick<SidePanel, 'id' | 'label' | 'icon' | 'placement'>[];
   /** The plugins' header actions, each in the row or the room menu by its placement. */
   pluginActions?: readonly PluginHeaderAction[];
+  /**
+   * On phones with a thread open, receives the element the thread's bar goes in: RoomView portals
+   * ThreadContextBanner there from inside the thread's approvals. It takes the room name's place,
+   * and the top bar's above it, so a thread has one bar. Wider screens ignore it.
+   */
+  threadBarSlot?: (element: HTMLElement | null) => void;
 };
 
 /**
@@ -164,11 +168,13 @@ const useViewSwitch = (room: Room, hasMindroomAgents: boolean | undefined) => {
 };
 
 /**
- * The room header: avatar (a back button on phones), name and topic, then its actions (the Compact
- * and Threads switch, the filter bar button, scheduled tasks, canvases, the computer, calls, pinned
- * messages, members, and the plugins' actions) and the room menu, which offers those its row leaves
- * out. Phones keep the back button, the name and the room menu, so a long name keeps its room; a
- * call that is on keeps its button.
+ * The room header: avatar, name and topic, then its actions (the Compact and Threads switch, the
+ * filter bar button, scheduled tasks, canvases, the computer, calls, pinned messages, members, and
+ * the plugins' actions) and the room menu, which offers those its row leaves out. Phones keep the
+ * name and the room menu, so a long name keeps its room; a call that is on keeps its button. The
+ * room list is in a phone's drawer, behind the top bar's menu button, so the header has no way
+ * back. With a thread open, a phone's header is the thread's bar, the row's buttons and the room
+ * menu.
  */
 export function RoomViewHeader({
   hasMindroomAgents,
@@ -188,6 +194,7 @@ export function RoomViewHeader({
   onPanelToggle,
   pluginPanels = [],
   pluginActions = [],
+  threadBarSlot,
 }: RoomViewHeaderProps) {
   const room = useRoom();
   const { t } = useTranslation();
@@ -216,19 +223,6 @@ export function RoomViewHeader({
   // Not while a side panel in the conversation's place hides this header: its Members shortcut
   // waits.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
-  // A phone's back chevron leaves the room for the page it was opened from (the list, a lobby,
-  // search results, the room a notification opened over, a thread with a link), passing over the
-  // room's own pages: its threads and the messages it was opened at. Opened from outside the app,
-  // the list takes the room's place. A swipe from the screen's left edge does not: it brings the
-  // navigation drawer out over the room (PhoneNavDrawer), unless a thread open in the room has
-  // its own back swipe on (useRoomViewThreadState).
-  const leaveRoom = () => {
-    const addresses = [room.roomId, getCanonicalAliasOrRoomId(mx, room.roomId)];
-    const origin = previousHistoryOrigin((page) => !showsRoom(page, addresses));
-    if (origin) navigate(-origin.steps);
-    else navigate(sectionPath, { replace: true });
-  };
-
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [pinAnchor, setPinAnchor] = useState<RectCords>();
   // On phones the room menu opens these; they stay with the room they were opened in.
@@ -249,6 +243,13 @@ export function RoomViewHeader({
   const roomTopic = useRoomTopic(room);
   const topic = roomTopic && revealDirectionControls(roomTopic);
   const [topicOpen, setTopicOpen] = useState(false);
+
+  // A thread's actions are behind its bar's title; the room menu stays after it, for what acts on
+  // the open conversation (Jump to Time, the computer, canvases, the plugins' panels and actions).
+  const phoneThreadBar =
+    mobile && threadBarSlot ? (
+      <div ref={threadBarSlot} className={css.ThreadBarSlot} data-phone-thread-bar-slot="true" />
+    ) : undefined;
 
   const membersVisible = shownPanel === 'members';
   const toggleMembers = () => onPanelToggle?.('members');
@@ -452,59 +453,59 @@ export function RoomViewHeader({
   return (
     // Inside the main landmark a header is no banner by itself; the room's title bar stays one,
     // the landmark that names the open room.
-    <PageHeader role="banner" className={css.Header} balance={mobile}>
-      {/* On phones the title follows the back chevron's touch target directly. */}
-      <Box grow="Yes" alignItems="Center" gap={mobile ? '0' : '300'} style={{ minWidth: 0 }}>
-        {mobile ? (
-          <PhoneBackButton onBack={leaveRoom} />
-        ) : (
-          <Avatar size="300" radii="400" style={{ flexShrink: 0 }}>
-            <RoomAvatar
-              alt={roomName}
-              src={avatarSrc}
-              roomId={room.roomId}
-              fallbackId={direct ? getDirectPartnerId(room) : undefined}
-              renderFallback={() =>
-                direct ? (
-                  <Text as="span" size="H5">
-                    {nameInitials(roomName)}
-                  </Text>
-                ) : (
-                  <RoomIcon
-                    size="200"
-                    joinRule={room.getJoinRule()}
-                    filled
-                    work={hasMindroomAgents}
-                  />
-                )
-              }
-            />
-          </Avatar>
-        )}
-        <Box direction="Column" style={{ minWidth: 0 }}>
-          <Text as="h1" size="H5" truncate {...ownDirectionLine}>
-            {roomName}
-          </Text>
-          {topic && (
-            <button
-              type="button"
-              className={classNames(HeaderTopic, css.Topic)}
-              onClick={() => setTopicOpen(true)}
-            >
-              <Text as="span" size="T200" priority="300" truncate {...ownDirectionLine}>
-                {topic}
-              </Text>
-            </button>
+    // A thread's bar starts with its back chevron, whose touch target overhangs a balanced header.
+    <PageHeader role="banner" className={css.Header} balance={!!phoneThreadBar}>
+      {phoneThreadBar ?? (
+        <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
+          {!mobile && (
+            <Avatar size="300" radii="400" style={{ flexShrink: 0 }}>
+              <RoomAvatar
+                alt={roomName}
+                src={avatarSrc}
+                roomId={room.roomId}
+                fallbackId={direct ? getDirectPartnerId(room) : undefined}
+                renderFallback={() =>
+                  direct ? (
+                    <Text as="span" size="H5">
+                      {nameInitials(roomName)}
+                    </Text>
+                  ) : (
+                    <RoomIcon
+                      size="200"
+                      joinRule={room.getJoinRule()}
+                      filled
+                      work={hasMindroomAgents}
+                    />
+                  )
+                }
+              />
+            </Avatar>
           )}
-          {topic && topicOpen && (
-            <RoomTopicViewer
-              name={roomName}
-              topic={topic}
-              requestClose={() => setTopicOpen(false)}
-            />
-          )}
+          <Box direction="Column" style={{ minWidth: 0 }}>
+            <Text as="h1" size="H5" truncate {...ownDirectionLine}>
+              {roomName}
+            </Text>
+            {topic && (
+              <button
+                type="button"
+                className={classNames(HeaderTopic, css.Topic)}
+                onClick={() => setTopicOpen(true)}
+              >
+                <Text as="span" size="T200" priority="300" truncate {...ownDirectionLine}>
+                  {topic}
+                </Text>
+              </button>
+            )}
+            {topic && topicOpen && (
+              <RoomTopicViewer
+                name={roomName}
+                topic={topic}
+                requestClose={() => setTopicOpen(false)}
+              />
+            )}
+          </Box>
         </Box>
-      </Box>
+      )}
       {/* A small gap, so a tinted button never touches its neighbour. */}
       <Box shrink="No" alignItems="Center" gap="100">
         {entries

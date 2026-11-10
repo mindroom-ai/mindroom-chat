@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThreadActionsMenu } from './ThreadActionsMenu';
 
 vi.mock('./ThreadContextBanner.css', () => ({
+  MenuAlert: 'MenuAlert',
   TagPickerInput: 'input',
   TagPickerInputContainer: 'container',
 }));

@@ -176,7 +176,8 @@ const checkTaps = async (browser: Browser) => {
   await signIn(phonePage);
   await expect(row(phonePage, LONG)).toBeVisible({ timeout: 30_000 });
   await row(phonePage, LONG).tap();
-  await expect(phonePage.getByRole('button', { name: 'Back' })).toBeVisible();
+  // The room opened: its name heads the page.
+  await expect(phonePage.getByRole('banner').getByRole('heading', { level: 1 })).toBeVisible();
   await phonePage.waitForTimeout(1_000);
   await expect(tooltip(phonePage)).toHaveCount(0);
   await phone.close();

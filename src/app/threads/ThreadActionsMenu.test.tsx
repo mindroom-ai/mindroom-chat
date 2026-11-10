@@ -1,11 +1,12 @@
 import React from 'react';
 import { MatrixEvent } from 'matrix-js-sdk';
-import { act, create } from 'react-test-renderer';
+import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThreadActionsMenu } from './ThreadActionsMenu';
 import type { ThreadActionsMenuProps } from './ThreadActionsMenu';
 
 vi.mock('./ThreadContextBanner.css', () => ({
+  MenuAlert: 'MenuAlert',
   TagPickerInput: 'input',
   TagPickerInputContainer: 'container',
 }));
@@ -27,7 +28,7 @@ const state = vi.hoisted(() => ({
     canPin: true,
     setPinned: vi.fn(),
     updating: false,
-    error: null,
+    error: null as Error | null,
   },
   save: vi.fn(),
   regenerate: vi.fn(),
@@ -119,6 +120,7 @@ describe('ThreadActionsMenu', () => {
     state.tags.isResolved = false;
     state.pinning.pinnedEventIds = [];
     state.pinning.canPin = true;
+    state.pinning.error = null;
     state.canSend = true;
     state.rootLoaded = true;
     state.save.mockResolvedValue(undefined);
@@ -150,6 +152,34 @@ describe('ThreadActionsMenu', () => {
     click(renderer, 'hideDetails');
     expect(onHideDetails).toHaveBeenCalledOnce();
     expect(onClose).toHaveBeenCalledOnce();
+    renderer.unmount();
+  });
+
+  it('shows a header above its entries when the phone thread bar gives one', () => {
+    const renderer = render({
+      onOpenThread: undefined,
+      header: <p data-menu-header="true">Whole title</p>,
+    });
+    const menu = renderer.root.findByProps({ role: 'menu' });
+    const [first] = menu.children as ReactTestInstance[];
+    expect(first?.props['data-menu-header']).toBe('true');
+    const actions = renderer.root
+      .findAllByType('button')
+      .map((node) => node.props['data-thread-action']);
+    expect(actions).toContain('copy');
+    renderer.unmount();
+  });
+
+  it('says in the menu when pinning failed, as a phone has no pin button beside it', () => {
+    const quiet = render({ onOpenThread: undefined });
+    expect(quiet.root.findAllByProps({ role: 'alert' })).toHaveLength(0);
+    quiet.unmount();
+    state.pinning.error = new Error('forbidden');
+    const renderer = render({ onOpenThread: undefined });
+    const [alert] = renderer.root.findAll(
+      (node) => typeof node.type === 'string' && node.props.role === 'alert'
+    );
+    expect(alert?.children.join('')).toBe('Could not update pin. Please try again.');
     renderer.unmount();
   });
 

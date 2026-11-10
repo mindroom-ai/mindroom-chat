@@ -266,13 +266,17 @@ for (const engine of ENGINES) {
         expect(panel!.width).toBeLessThanOrEqual(PHONE.viewport.width - 56);
         await shoot(page, testInfo, 'home-drawer');
 
-        // A room picked there fills the page under the bar; its back chevron returns to the list,
-        // which the drawer then holds out again.
+        // A room picked there fills the page under the bar, whose header has no back chevron: the
+        // drawer holds the list. The browser's back returns to it, which the drawer then holds out
+        // again.
         await pickRoom(page, 'Garden Club', garden);
         await expect(menuButton(page)).toBeVisible();
+        await expect(
+          roomBanner(page).getByRole('button', { name: 'Back', exact: true })
+        ).toHaveCount(0);
         await shoot(page, testInfo, 'room');
-        await roomBanner(page).getByRole('button', { name: 'Back', exact: true }).tap();
-        await expectAt(page, { path: '/home/', room: null }, 'Back returns to Home');
+        await page.goBack();
+        await expectAt(page, { path: '/home/', room: null }, 'back returns to Home');
         await expectDrawer(page, true, 'Home shows its list again');
         // Put away over Home's own page, the drawer comes back out with a swipe from the left edge.
         await menuButton(page).tap();
@@ -355,8 +359,12 @@ for (const engine of ENGINES) {
         await pickRoom(page, 'Garden Club', garden);
         await page.locator(`button[data-thread-root-id="${gardenRoot}"]`).first().tap();
         await expectAt(page, { room: garden, thread: gardenRoot }, 'the thread opens');
+        // The thread's bar takes the top bar's place, and gives it back with the room.
+        await expect(page.locator('[data-phone-top-bar]')).toHaveCount(0);
+        await expect(page.locator('[data-thread-context-banner]')).toBeVisible();
         await edgeSwipe(page, engine);
         await expectAt(page, inRoom(garden), 'the edge swipe leaves the thread for its room');
+        await expect(page.locator('[data-phone-top-bar]')).toBeVisible();
         await expectDrawer(page, false, 'and leaves the drawer away');
 
         // The search field opens the command palette and names its shortcut.

@@ -216,38 +216,32 @@ test('the thread header says whose tool calls run without approval cards, and un
   }
   await page.screenshot({ path: testInfo.outputPath('desktop-tags-light.png') });
 
-  // On a phone the chips stay clear of the thread actions and read in full, expanded and collapsed.
-  const options = banner.getByRole('button', { name: 'Thread options', exact: true });
-  const show = banner.getByRole('button', { name: 'Show thread details', exact: true });
+  // On a phone the chips end the line under the thread's title, clear of the room menu, and read
+  // in full; on the narrowest phones no control leaves the screen or sits under a chip.
+  const roomMenu = page
+    .getByRole('banner')
+    .getByRole('button', { name: 'More Options', exact: true });
+  const titleButton = banner.locator('button[aria-haspopup="menu"]');
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(options).toBeVisible();
+  await expect(roomMenu).toBeVisible();
   for (const status of [chip, permissions]) {
-    expect(await leftOf(status, options)).toBe(true);
+    expect(await leftOf(status, roomMenu)).toBe(true);
+    const [chipBox, titleBox] = [await box(status), await box(titleButton)];
+    expect(chipBox.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height - 2);
     expect(await fullText(status)).toBe(true);
   }
   await page.screenshot({ path: testInfo.outputPath('phone-light.png') });
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.screenshot({ path: testInfo.outputPath('phone-dark.png') });
   await page.emulateMedia({ colorScheme: 'light' });
-  await options.click();
-  await page.getByRole('menuitem', { name: 'Hide thread details' }).click();
-  await expect(show).toBeInViewport();
-  for (const status of [chip, permissions]) {
-    expect(await leftOf(status, show)).toBe(true);
-    expect(await fullText(status)).toBe(true);
-  }
-  await page.screenshot({ path: testInfo.outputPath('phone-collapsed-light.png') });
-  // On the narrowest phones no control leaves the screen or sits under a chip.
   await page.setViewportSize({ width: 320, height: 640 });
-  await expect(show).toBeInViewport();
-  for (const status of [chip, permissions]) expect(await leftOf(status, show)).toBe(true);
-  await show.click();
-  await expect(options).toBeInViewport();
-  for (const status of [chip, permissions]) expect(await leftOf(status, options)).toBe(true);
+  await expect(roomMenu).toBeInViewport();
+  for (const status of [chip, permissions]) expect(await leftOf(status, roomMenu)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('phone-narrow-light.png') });
   await page.setViewportSize({ width: 1280, height: 800 });
 
-  // A phone held sideways puts the chips beside the title, which MindRoom usually sets.
+  // A large phone held sideways (wider than a phone's 750 px, so the banner's short-screen row)
+  // puts the chips beside the title, which MindRoom usually sets.
   const title = 'Release notes drafted and the build tag prepared for review';
   await matrixFetch(
     homeserver!,
@@ -274,7 +268,7 @@ test('the thread header says whose tool calls run without approval cards, and un
     }
   );
   const sideways = await browser.newContext({
-    viewport: { width: 667, height: 375 },
+    viewport: { width: 844, height: 390 },
     hasTouch: true,
   });
   await routeConfig(sideways);

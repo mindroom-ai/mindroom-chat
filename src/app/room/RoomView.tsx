@@ -6,7 +6,9 @@ import React, {
   useLayoutEffect,
   useReducer,
   useRef,
+  useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 import classNames from 'classnames';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
@@ -16,6 +18,7 @@ import { Box, Text, color, config } from 'folds';
 import { useEditor } from '../editor/Editor';
 import { Page } from '../ui/page/Page';
 import { useKeyDown } from '../lib/hooks/useKeyDown';
+import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
@@ -46,7 +49,10 @@ import * as overlay from '../ui/styles/RoomOverlay.css';
 import { SurfaceProvider } from '../ui/glass/SurfaceContext';
 import * as css from './RoomView.css';
 import { ThreadContextBanner } from '../threads/ThreadContextBanner';
-import { isConfirmedMatrixEventId, isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
+import {
+  isConfirmedMatrixEventId,
+  isLocalEchoEventId,
+} from '../event-store/threads/threadRouteUtils';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
 import { useShortcut } from '../shortcuts/useShortcut';
 
@@ -258,7 +264,11 @@ export function RoomView({
     footerRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus();
   }, []);
 
-  const threadHeader = effectiveThreadId ? (
+  // On phones the thread's banner is the bar at the top, in the room header's and the top bar's
+  // place; wider, it heads the thread's timeline below the room header.
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  const [threadBarSlot, setThreadBarSlot] = useState<HTMLElement | null>(null);
+  const threadBanner = effectiveThreadId ? (
     <ThreadContextBanner
       room={room}
       threadId={effectiveThreadId}
@@ -272,7 +282,7 @@ export function RoomView({
     threadId: effectiveThreadId,
     focusEventInRoom,
     hasMindroomAgents,
-    threadHeader,
+    threadHeader: phone ? undefined : threadBanner,
     summaryMap: threadState.summaryMap ?? EMPTY_SUMMARY_MAP,
     onStoreThreadSummary: threadState.storeThreadSummary ?? ignore,
     threadFilterState: threadState.threadFilterState,
@@ -322,8 +332,10 @@ export function RoomView({
           data-glass-flat="true"
           className={classNames(
             overlay.Header,
-            css.HeaderInShortArea,
-            effectiveThreadId && overlay.HeaderInThread
+            // A phone's thread bar is the only way back from the thread, so it stays.
+            !(phone && effectiveThreadId) && css.HeaderInShortArea,
+            // Short screens let a thread's banner replace the header; a phone's is in it.
+            effectiveThreadId && !phone && overlay.HeaderInThread
           )}
         >
           <SurfaceProvider value>
@@ -331,6 +343,7 @@ export function RoomView({
               hasMindroomAgents={hasMindroomAgents}
               threadId={effectiveThreadId}
               threadFilterState={threadState.threadFilterState}
+              threadBarSlot={phone && threadBanner ? setThreadBarSlot : undefined}
               {...headerProps}
             />
             <RoomHeaderSlot room={room} headerRef={headerRef} />
@@ -346,6 +359,8 @@ export function RoomView({
             <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
               <RoomTimeline {...timelineProps} />
             </Box>
+            {/* A phone's thread bar shows in the header, with the thread's approvals behind it. */}
+            {phone && threadBanner && threadBarSlot && createPortal(threadBanner, threadBarSlot)}
             <div ref={dockRef} style={DOCK_STYLE}>
               <div style={DOCK_CONTENT_STYLE}>
                 <BackgroundJobsBar

@@ -1,9 +1,13 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 import { touchTarget } from '../ui/styles/touchTarget';
+import { PHONE_TOP_BAR_OFFSET_PROPERTY } from '../navigation/phoneNavDrawer';
 
 /** The bar's height; the drawer starts right below it. */
 export const phoneTopBarHeight = toRem(52);
+
+/** Where the layers under the bar (the drawer, a sheet) start: below the bar while it shows. */
+export const phoneTopBarOffset = `var(${PHONE_TOP_BAR_OFFSET_PROPERTY}, ${phoneTopBarHeight})`;
 
 // A phone's top bar: menu, search and account in one row on the rail's colour. No line rules it off:
 // the page below starts on its own surface colour, and the drawer, in the bar's colour, meets it.

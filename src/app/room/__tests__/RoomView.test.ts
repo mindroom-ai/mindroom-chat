@@ -1005,6 +1005,39 @@ describe('RoomView', { timeout: 30_000 }, () => {
     expect(state.sortDirection).toBe('desc');
   });
 
+  it.each([
+    { screen: 'Mobile', inHeader: true },
+    { screen: 'Desktop', inHeader: false },
+  ] as const)(
+    "puts an open thread's banner in the header on $screen: $inHeader",
+    async ({ screen, inHeader }) => {
+      const room = makeRoom(nextRoomId('room-a'));
+      const { RoomView } = await import('../RoomView');
+      const { ScreenSize, ScreenSizeProvider } = await import('../../lib/hooks/useScreenSize');
+      const { ThreadContextBanner } = await import('../../threads/ThreadContextBanner');
+
+      let renderer: ReturnType<typeof create> | undefined;
+      await act(async () => {
+        renderer = create(
+          React.createElement(
+            ScreenSizeProvider,
+            { value: ScreenSize[screen] },
+            React.createElement(RoomView, { room: room as never, threadId: '$thread' })
+          )
+        );
+      });
+
+      // On a phone the header offers a slot, which the banner fills from inside the thread's
+      // approvals (a portal, which this renderer leaves out); wider, the timeline heads with it.
+      const header = renderer!.root.find(
+        (node) => node.type === passthrough && 'threadFilterState' in node.props
+      );
+      expect(typeof header.props.threadBarSlot === 'function').toBe(inHeader);
+      const timeline = renderer!.root.findByType(roomTimelineType as never);
+      expect(timeline.findAllByType(ThreadContextBanner)).toHaveLength(inHeader ? 0 : 1);
+    }
+  );
+
   it('exits a thread with history back when it was opened from the room timeline', async () => {
     const room = makeRoom(nextRoomId('room-a'));
     window.history.state = {
@@ -1572,6 +1605,20 @@ describe('RoomView', { timeout: 30_000 }, () => {
       renderer?.update(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
     });
     expect(headerClass()).toBe(`room-header ${HeaderInShortArea} room-header-in-thread`);
+
+    // On a phone the header holds the thread's bar, the only way back: a short screen or a short
+    // room area (a keyboard up) keeps it.
+    const { ScreenSize, ScreenSizeProvider } = await import('../../lib/hooks/useScreenSize');
+    await act(async () => {
+      renderer?.update(
+        React.createElement(
+          ScreenSizeProvider,
+          { value: ScreenSize.Mobile },
+          React.createElement(RoomView, { room: room as never, threadId: '$thread' })
+        )
+      );
+    });
+    expect(headerClass()).toBe('room-header');
   });
 
   it('forwards the computer and canvas state to the room header', async () => {

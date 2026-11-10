@@ -28,6 +28,7 @@ import type { ShortcutId } from '../shortcuts/shortcuts';
 import { ActionDialog } from '../ui/ActionDialog';
 import { describeError } from '../lib/describeError';
 import { ErrorDetail } from '../ui/ErrorDetail';
+import * as css from './ThreadContextBanner.css';
 
 export type ThreadActionsMenuProps = {
   room: Room;
@@ -40,12 +41,22 @@ export type ThreadActionsMenuProps = {
   onOpenThread?: () => void;
   /** Offered from the thread banner only. */
   onHideDetails?: () => void;
+  /** Above the entries: a phone's thread bar shows the whole title there, which it cuts short. */
+  header?: React.ReactNode;
+  /** The trigger edge the menu lines up with: the end (More), or a phone bar title's start. */
+  align?: 'Start' | 'End';
 };
 
 type OpenDialog = 'tags' | 'editSummary' | 'regenerate';
 
 // As the original's thread menu measures: at least 220px wide, with the banner's 12px corners.
 const menuStyle: React.CSSProperties = { minWidth: toRem(220), borderRadius: config.radii.R500 };
+// With the whole title above the entries, the menu takes the room from its trigger's start to the
+// screen's end, less a margin, so a long title wraps and the menu stays under the title.
+const headedMenuStyle = (anchor: RectCords): React.CSSProperties => ({
+  ...menuStyle,
+  width: `min(${toRem(352)}, calc(100vw - ${Math.max(0, anchor.x)}px - ${config.space.S400}))`,
+});
 
 const fieldStyle: React.CSSProperties = {
   width: '100%',
@@ -67,6 +78,8 @@ export function ThreadActionsMenu({
   onClose,
   onOpenThread,
   onHideDetails,
+  header,
+  align = 'End',
 }: ThreadActionsMenuProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -430,12 +443,13 @@ export function ThreadActionsMenu({
     });
   }
 
-  // The menu opens under its trigger, its end edge on the trigger's end edge.
+  // The menu opens under its trigger, its end edge on the trigger's end edge (or its start edge
+  // on the start of a phone bar's title).
   return (
     <PopOut
       anchor={anchor}
       offset={4}
-      align="End"
+      align={align}
       position="Bottom"
       content={
         <FocusTrap
@@ -446,7 +460,12 @@ export function ThreadActionsMenu({
             escapeDeactivates: closeMenu,
           }}
         >
-          <Menu role="menu" aria-label={t('threadActions.more')} style={menuStyle}>
+          <Menu
+            role="menu"
+            aria-label={t('threadActions.more')}
+            style={header ? headedMenuStyle(anchor) : menuStyle}
+          >
+            {header}
             <MenuGroup>
               {items.map((item) => (
                 <MenuEntry
@@ -462,6 +481,12 @@ export function ThreadActionsMenu({
                 />
               ))}
             </MenuGroup>
+            {/* A pin's failure shows here: a phone's thread bar has no pin button to show it. */}
+            {!!pinning.error && (
+              <Text role="alert" size="T200" className={css.MenuAlert}>
+                {t('thread.pinFailed')}
+              </Text>
+            )}
           </Menu>
         </FocusTrap>
       }

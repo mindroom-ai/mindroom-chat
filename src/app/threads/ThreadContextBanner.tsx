@@ -42,6 +42,8 @@ import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
+import { useHidePhoneTopBar } from '../navigation/phoneNavDrawer';
+import { useRoomName } from '../matrix/hooks/useRoomMeta';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { getThreadRootTitle, ThreadRootTitle } from './ThreadRootTitle';
@@ -106,9 +108,17 @@ export function ThreadContextBanner({
 }: ThreadContextBannerProps) {
   const { t, i18n } = useTranslation();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  // On a phone the banner is the bar at the top, in the top bar's place (RoomView puts it in the
+  // room header): flat, never collapsed, with the thread's actions behind its title. A side panel
+  // that covers the conversation covers the bar too, and the top bar comes back over it.
+  const behindPanel = useAtomValue(conversationBehindPanelAtom);
+  useHidePhoneTopBar(phone && !behindPanel);
   const bannerRef = useRef<HTMLDivElement>(null);
-  const glassRef = useLiquidGlass<HTMLDivElement>(bannerRef);
-  const [collapsed, setCollapsed] = useSetting(settingsAtom, 'threadBannerCollapsed');
+  const glassRef = useLiquidGlass<HTMLDivElement>(bannerRef, !phone);
+  const [collapsedSetting, setCollapsed] = useSetting(settingsAtom, 'threadBannerCollapsed');
+  const collapsed = collapsedSetting && !phone;
+  const roomName = revealDirectionControls(useRoomName(room));
+  const phoneStatusId = useId();
   const rootEventId = useThreadRootEvent(room, threadId);
   const { scheduledTaskCount, nextScheduledTs, cronDescription, scheduledDisplayText } =
     useThreadHeaderInfo(room, threadId);
@@ -258,8 +268,7 @@ export function ThreadContextBanner({
     setResolved(mutableThreadRootId, !headerModel.isResolved);
   }, [mutableThreadRootId, headerModel.isResolved, setResolved, isPinned]);
   const resolveDisabled = !headerModel.canEdit || headerModel.pickerDisabled || pinning.updating;
-  // Not a thread that a side panel in the conversation's place hides.
-  const behindPanel = useAtomValue(conversationBehindPanelAtom);
+  // Not a thread that a side panel in the conversation's place hides (behindPanel, above).
   useShortcut('resolveThread', () => {
     if (behindPanel || resolveDisabled || !mutableThreadRootId || isPinned) return false;
     handleToggleResolve();
@@ -277,9 +286,181 @@ export function ThreadContextBanner({
   // which hide it.
   const resolverBylineId = useId();
 
-  const backButton = phone ? (
-    <PhoneBackButton label={t('thread.back')} onBack={onExitThread} />
-  ) : (
+  // A right click, or the menu key, on the banner opens the thread's actions.
+  const openMenuFromContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!canOpenMenu || !event.currentTarget.contains(event.target as Node)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openMenu({ x: event.clientX, y: event.clientY, width: 0, height: 0 }, event.currentTarget);
+  };
+  const openMenuFromKey = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!canOpenMenu || !event.currentTarget.contains(event.target as Node)) return;
+    if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openMenu(event.currentTarget.getBoundingClientRect(), event.target as HTMLElement);
+  };
+
+  // The title, as the banner shows it: the summary, else the start of the first message.
+  const fullTitle = headerModel.summaryText
+    ? revealDirectionControls(headerModel.summaryText)
+    : rootTitle ?? t('thread.view');
+  // A phone's bar cuts the title to a line, so its menu starts with the whole title and what the
+  // bar's second line leaves out.
+  const phoneMenuHeader = phone ? (
+    <div className={css.PhoneMenuHeader} aria-hidden="true">
+      <Text as="p" size="T300" className={css.PhoneMenuHeaderTitle} {...ownDirectionLine}>
+        {fullTitle}
+      </Text>
+      <Text as="p" size="T200" priority="300" className={css.PhoneMenuHeaderDetails}>
+        {[
+          roomName,
+          headerModel.isResolved && (resolvedByLabel ?? t('thread.resolved')),
+          isPinned && t('threadNav.pinned'),
+          hasScheduled && headerModel.scheduledLabel,
+          headerModel.displayTags.join(', '),
+        ]
+          .filter(Boolean)
+          .join(' · ')}
+      </Text>
+    </div>
+  ) : undefined;
+  const actionsMenu = activeMenu && (
+    <Suspense fallback={null}>
+      <ThreadActionsMenu
+        key={`${room.roomId}:${threadRootId}`}
+        room={room}
+        rootId={threadRootId}
+        summaryText={headerModel.summaryText}
+        onHideDetails={collapsed || phone ? undefined : () => toggleCollapsed(true)}
+        header={phoneMenuHeader}
+        align={phone ? 'Start' : 'End'}
+        anchor={activeMenu.anchor}
+        onClose={() => closeMenu(activeMenu)}
+      />
+    </Suspense>
+  );
+
+  if (phone) {
+    // Where the room's name was: the thread's state when it has one, else the room.
+    let status: React.ReactNode = roomName;
+    if (isPinned) {
+      status = (
+        <>
+          <Icon src={Icons.Pin} size="50" filled aria-hidden="true" />
+          {t('threadNav.pinned')}
+        </>
+      );
+    } else if (headerModel.isResolved) {
+      status = (
+        <>
+          <Icon className={css.PhoneBarResolvedIcon} src={Icons.Check} size="50" aria-hidden />
+          {t('thread.resolved')}
+        </>
+      );
+    } else if (hasScheduled) {
+      // Named as the wider banner names it, so the countdown says what it counts down to.
+      status = (
+        <span
+          className={css.PhoneBarScheduled}
+          role="img"
+          aria-label={headerModel.scheduledLabel}
+          title={headerModel.scheduledLabel}
+        >
+          <IconCalendarEvent size={12} stroke={1.8} aria-hidden="true" />
+          {headerModel.bannerScheduledText}
+        </span>
+      );
+    }
+    let title: React.ReactNode = (
+      <Text as="span" className={css.PhoneBarTitleText} size="H5" truncate>
+        {fullTitle}
+      </Text>
+    );
+    if (headerModel.summaryText) {
+      title = (
+        <Text
+          // Remounting replays the tint for each new summary.
+          key={headerModel.summaryText}
+          as="span"
+          data-thread-context-summary="true"
+          className={classNames(css.PhoneBarTitleText, summaryChanged && css.SummaryTextChanged)}
+          onAnimationEnd={() => setShownSummary((shown) => ({ ...shown, changed: false }))}
+          size="H5"
+          truncate
+          {...ownDirectionLine}
+        >
+          {fullTitle}
+        </Text>
+      );
+    } else if (rootTitle) {
+      title = <ThreadRootTitle text={rootTitle} size="H5" className={css.PhoneBarTitleText} />;
+    }
+    return (
+      <>
+        <div
+          ref={glassRef}
+          className={css.PhoneBar}
+          data-thread-context-banner="true"
+          tabIndex={-1}
+          onContextMenu={openMenuFromContextMenu}
+          onKeyDown={openMenuFromKey}
+        >
+          <PhoneBackButton label={t('thread.back')} onBack={onExitThread} />
+          {/* The title heads the page and opens the thread menu; its button reaches over the line
+              below too, whose status chips stay buttons of their own. */}
+          <div className={css.PhoneBarText}>
+            <h1 className={css.PhoneBarHeading}>
+              <button
+                ref={moreButtonRef}
+                type="button"
+                className={css.PhoneBarTitle}
+                aria-haspopup="menu"
+                aria-expanded={!!activeMenu}
+                aria-describedby={phoneStatusId}
+                disabled={!canOpenMenu}
+                onClick={(event) =>
+                  openMenu(event.currentTarget.getBoundingClientRect(), event.currentTarget)
+                }
+              >
+                {title}
+                <Icon className={css.PhoneBarChevron} src={Icons.ChevronBottom} size="50" />
+              </button>
+            </h1>
+            <Text
+              as="div"
+              id={phoneStatusId}
+              className={css.PhoneBarDetails}
+              size="T200"
+              priority="300"
+            >
+              <span className={css.PhoneBarSummary}>
+                <span className={css.PhoneBarStatus}>{status}</span>
+                {hasTags && (
+                  <span className={css.PhoneBarTags}>
+                    <TagPills
+                      tags={headerModel.displayTags}
+                      maxPills={MOBILE_MAX_PILLS}
+                      allTags={headerModel.displayTags}
+                      canEdit={false}
+                      onRemove={handleRemoveTag}
+                    />
+                  </span>
+                )}
+              </span>
+              <span className={css.PhoneBarChips}>
+                <AutoApproveChip room={room} threadId={threadId} />
+                <ThreadApprovalPermissions />
+              </span>
+            </Text>
+          </div>
+        </div>
+        {actionsMenu}
+      </>
+    );
+  }
+
+  const backButton = (
     // At the banner's start, so its tooltip opens toward the banner, not past it.
     // folds aligns to physical edges, and right-to-left puts the button on the right.
     <IconTooltip label={t('thread.back')} align={i18n.dir() === 'rtl' ? 'End' : 'Start'}>
@@ -308,22 +489,8 @@ export function ThreadContextBanner({
         )}
         data-thread-context-banner="true"
         tabIndex={-1}
-        onContextMenu={(event) => {
-          if (!canOpenMenu || !event.currentTarget.contains(event.target as Node)) return;
-          event.preventDefault();
-          event.stopPropagation();
-          openMenu(
-            { x: event.clientX, y: event.clientY, width: 0, height: 0 },
-            event.currentTarget
-          );
-        }}
-        onKeyDown={(event) => {
-          if (!canOpenMenu || !event.currentTarget.contains(event.target as Node)) return;
-          if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
-          event.preventDefault();
-          event.stopPropagation();
-          openMenu(event.currentTarget.getBoundingClientRect(), event.target as HTMLElement);
-        }}
+        onContextMenu={openMenuFromContextMenu}
+        onKeyDown={openMenuFromKey}
       >
         {collapsed ? (
           // Collapsed to back and Show details; the tint still says resolved, and
@@ -362,10 +529,9 @@ export function ThreadContextBanner({
                 )}
                 <AutoApproveChip room={room} threadId={threadId} />
                 <ThreadApprovalPermissions />
-                {/* Desktop: tags inline on title row */}
                 {/* More adds the first tag; + tag joins the ones already set. */}
                 {hasTags && (
-                  <div className={classNames(css.TagsRow, css.DesktopOnlyTags, css.CompactHidden)}>
+                  <div className={classNames(css.TagsRow, css.CompactHidden)}>
                     <TagPills
                       tags={headerModel.displayTags}
                       maxPills={DESKTOP_MAX_PILLS}
@@ -570,25 +736,6 @@ export function ThreadContextBanner({
                 </IconTooltip>
               )}
             </Box>
-            {/* Mobile: tags in a row of their own, under the title and the actions */}
-            {hasTags && (
-              <div className={classNames(css.MobileOnlyTags, css.CompactHidden)}>
-                <TagPills
-                  tags={headerModel.displayTags}
-                  maxPills={MOBILE_MAX_PILLS}
-                  allTags={headerModel.displayTags}
-                  canEdit={headerModel.canEdit}
-                  onRemove={handleRemoveTag}
-                />
-                {headerModel.canEdit && (
-                  <ThreadTagPicker
-                    availableTags={headerModel.availableTags}
-                    onAddTag={handleAddTag}
-                    disabled={headerModel.pickerDisabled}
-                  />
-                )}
-              </div>
-            )}
           </div>
         )}
         {!!pinning.error && (
@@ -597,19 +744,7 @@ export function ThreadContextBanner({
           </Text>
         )}
       </div>
-      {activeMenu && (
-        <Suspense fallback={null}>
-          <ThreadActionsMenu
-            key={`${room.roomId}:${threadRootId}`}
-            room={room}
-            rootId={threadRootId}
-            summaryText={headerModel.summaryText}
-            onHideDetails={collapsed ? undefined : () => toggleCollapsed(true)}
-            anchor={activeMenu.anchor}
-            onClose={() => closeMenu(activeMenu)}
-          />
-        </Suspense>
-      )}
+      {actionsMenu}
     </>
   );
 }

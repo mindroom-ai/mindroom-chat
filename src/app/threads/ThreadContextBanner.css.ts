@@ -1,5 +1,5 @@
-import { keyframes, style, type CSSProperties } from '@vanilla-extract/css';
-import { config, color } from 'folds';
+import { globalStyle, keyframes, style, type CSSProperties } from '@vanilla-extract/css';
+import { config, color, toRem } from 'folds';
 import { glassDenseOverBackdrop, glassFloating, glassSurface } from '../ui/styles/Glass.css';
 import { shortViewport } from '../ui/styles/shortViewport';
 import { toolbarButtonRestFill } from '../messages/styles.css';
@@ -36,7 +36,7 @@ export const Banner = style([
   glassDenseOverBackdrop,
 ]);
 
-// Back, title and actions; narrow screens add the tags as a second row.
+// Back, title and actions.
 export const TitleRow = style({
   display: 'grid',
   gridTemplateColumns: 'auto minmax(0, 1fr) auto',
@@ -56,8 +56,6 @@ export const EyebrowRow = style({
       minWidth: 0,
       selectors: { [`&:not(:has(> :not(${CompactHidden})))`]: { display: 'none' } },
     },
-    // Phones show the tags in a row of their own, so here only status chips take another line.
-    '(max-width: 480px)': { flexWrap: 'wrap' },
   },
 });
 
@@ -96,18 +94,6 @@ export const TagsRow = style({
   overflow: 'hidden',
 });
 
-/**
- * Desktop: tags inline on title row (hidden below).
- * Mobile (<480px): tags hidden on title row, shown in a dedicated row below.
- */
-export const DesktopOnlyTags = style({
-  '@media': {
-    '(max-width: 480px)': {
-      display: 'none',
-    },
-  },
-});
-
 // On short screens the title and a scheduled task share one line and truncate together; they take the room the
 // status chips leave, down to a short stub.
 export const SubtitleRow = style({
@@ -122,17 +108,6 @@ export const SubtitleRow = style({
   },
   '@media': {
     [shortViewport]: { marginTop: 0, flexWrap: 'nowrap', flex: '1 1 0', minWidth: '4rem' },
-    // Narrow screens move the tags to their own row, which can leave the
-    // eyebrow row with nothing showing: neither the view label nor a status chip. (Asked as
-    // "no child but the tags", a :has() before a sibling combinator made WebKit restyle the
-    // whole page on every DOM change anywhere, on every screen size.)
-    '(max-width: 480px)': {
-      selectors: {
-        [`${EyebrowRow}:not(:has(> ${ViewLabel}, > [data-thread-status-chip])) + &`]: {
-          marginTop: 0,
-        },
-      },
-    },
   },
 });
 
@@ -187,19 +162,6 @@ export const OverflowChip = style({
   lineHeight: 1.4,
   whiteSpace: 'nowrap',
   verticalAlign: 'middle',
-});
-
-export const MobileOnlyTags = style({
-  display: 'none',
-  gridColumn: '2 / -1',
-  '@media': {
-    '(max-width: 480px)': {
-      display: 'flex',
-      flexWrap: 'wrap',
-      gap: '0.3rem',
-      marginTop: config.space.S100,
-    },
-  },
 });
 
 // The thread title is the one thing in this bar that differs per thread, so
@@ -309,4 +271,142 @@ export const TagPickerInput = style({
       opacity: '0',
     },
   },
+});
+
+// A phone's thread bar: back, then the title over the thread's state (or room), its tags and its
+// status chips. It fills the room header's row, flat on its surface; the title follows the back
+// chevron's touch target directly, and the room menu follows the title a gap away, so their touch
+// targets do not meet.
+export const PhoneBar = style({
+  flexGrow: 1,
+  minWidth: 0,
+  display: 'flex',
+  alignItems: 'center',
+  paddingInlineEnd: config.space.S100,
+  outline: 'none',
+});
+
+// The title's two lines; the title's button reaches over both (its ::after), for a finger.
+export const PhoneBarText = style({
+  position: 'relative',
+  flexGrow: 1,
+  minWidth: 0,
+  minHeight: toRem(44),
+  display: 'flex',
+  flexDirection: 'column',
+  justifyContent: 'center',
+  paddingInline: config.space.S100,
+});
+
+export const PhoneBarHeading = style({
+  margin: 0,
+  minWidth: 0,
+  display: 'flex',
+  font: 'inherit',
+});
+
+// As wide as the line, so a first message's title, cut at a word, fits again when the bar widens;
+// the chevron still follows the title, which takes only its own width.
+const phoneBarFocusRing = `${toRem(2)} solid ${color.Primary.Main}`;
+export const PhoneBarTitle = style([
+  { flexGrow: 1, minWidth: 0, maxWidth: '100%', display: 'flex', alignItems: 'center' },
+  // A plain button: the text it holds, nothing of its own around it.
+  { gap: config.space.S100, padding: 0, border: 0, background: 'none' },
+  { color: 'inherit', font: 'inherit', textAlign: 'start', cursor: 'pointer' },
+  {
+    selectors: {
+      // Square, so its corners take a finger too; rounded only for the focus ring.
+      '&::after': { content: '""', position: 'absolute', inset: 0 },
+      '&:disabled': { cursor: 'default' },
+      '&:focus-visible': { outline: 'none' },
+      '&:focus-visible::after': {
+        borderRadius: config.radii.R300,
+        outline: phoneBarFocusRing,
+        outlineOffset: 0,
+      },
+    },
+  },
+]);
+
+export const PhoneBarTitleText = style({ minWidth: 0, flexShrink: 1 });
+
+// Says the title opens something; it keeps its place after a cut title.
+export const PhoneBarChevron = style({ flexShrink: 0, opacity: 0.6 });
+
+// The state (or the room), the tags and the status chips: the state gives way first, down to a
+// short stub.
+export const PhoneBarDetails = style([
+  { display: 'flex', alignItems: 'center', gap: config.space.S200 },
+  { minWidth: 0, whiteSpace: 'nowrap' },
+]);
+
+// The state and the tags: what the status chips leave (a zero basis, so the chips keep their width
+// while this gives way), cut where it runs out.
+export const PhoneBarSummary = style([
+  { flex: '1 1 0', minWidth: 0, overflow: 'hidden' },
+  { display: 'flex', alignItems: 'center', gap: config.space.S200 },
+]);
+
+// Auto-approval and an active permissions grant stay in view, above the title's reach. Only once
+// the state and the tags are gone do they give way, cut rather than running under the room menu.
+export const PhoneBarChips = style([
+  { position: 'relative', zIndex: 1 },
+  { display: 'inline-flex', alignItems: 'center', gap: config.space.S100 },
+  { flexShrink: 1, minWidth: 0, overflow: 'hidden' },
+  { selectors: { '&:empty': { display: 'none' } } },
+]);
+const cutToFit = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as const;
+globalStyle(`${PhoneBarChips} > *`, { ...cutToFit, minWidth: 0, flexShrink: 1 });
+
+export const PhoneBarStatus = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: toRem(3),
+  minWidth: '3em',
+  flex: '0 1 auto',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+});
+
+export const PhoneBarResolvedIcon = style({ color: color.Success.Main });
+
+export const PhoneBarScheduled = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: toRem(3),
+  minWidth: 0,
+});
+
+// The tags' pastel would outshine the title on the dark bar, so they are toned down.
+export const PhoneBarTags = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.3rem',
+  minWidth: 0,
+  flex: '0 1 auto',
+  overflow: 'hidden',
+  opacity: 0.85,
+});
+
+export const PhoneMenuHeader = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: config.space.S100,
+  paddingBlock: `${config.space.S300} ${config.space.S200}`,
+  paddingInline: config.space.S300,
+});
+
+export const PhoneMenuHeaderTitle = style({
+  margin: 0,
+  fontWeight: config.fontWeight.W600,
+  overflowWrap: 'anywhere',
+});
+
+export const PhoneMenuHeaderDetails = style({ margin: 0, overflowWrap: 'anywhere' });
+
+// A thread menu's note that its last change failed.
+export const MenuAlert = style({
+  display: 'block',
+  paddingBlock: config.space.S200,
+  paddingInline: config.space.S300,
 });

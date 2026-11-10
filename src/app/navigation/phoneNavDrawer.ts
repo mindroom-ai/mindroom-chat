@@ -14,6 +14,28 @@ export const phoneNavSlotAtom = atom<HTMLElement | null>(null);
  */
 export const phoneSheetSlotAtom = atom<HTMLElement | null>(null);
 
+/**
+ * Whether a phone's top bar gives way to a bar of the page's own: an open thread's, which holds
+ * the way back and the thread's title in the top bar's place (ThreadContextBanner).
+ */
+export const phoneTopBarHiddenAtom = atom(false);
+
+/** The layout sets it to 0 while the top bar is hidden; the layers under the bar start there. */
+export const PHONE_TOP_BAR_OFFSET_PROPERTY = '--phone-top-bar-offset';
+
+/**
+ * Hides a phone's top bar while `hide` holds and the caller is mounted. A layout effect, so the
+ * bar is gone before the frame that shows the caller's own.
+ */
+export const useHidePhoneTopBar = (hide: boolean): void => {
+  const setHidden = useSetAtom(phoneTopBarHiddenAtom);
+  useLayoutEffect(() => {
+    if (!hide) return undefined;
+    setHidden(true);
+    return () => setHidden(false);
+  }, [hide, setHidden]);
+};
+
 /** Whether a sheet is out in that layer (not while it slides away). */
 export const phoneSheetOpenAtom = atom(false);
 

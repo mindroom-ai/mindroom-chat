@@ -34,13 +34,13 @@ const openRoute = (page: Page, url: string) =>
   }, url);
 
 // The thread banner stays above the messages while they scroll. More collapses
-// it to a pill with back and Show details on every screen, and the choice
-// persists.
+// it to a pill with back and Show details wider than a phone, and the choice
+// persists. (A phone's thread bar is one line in the room header; it does not
+// collapse.)
 // A tablet keeps the room list open, which leaves the title as little room as a phone.
 for (const viewport of [
   { name: 'desktop', width: 1280, height: 800, touch: false, bylineBelow: false },
   { name: 'tablet', width: 820, height: 1180, touch: true, bylineBelow: true },
-  { name: 'phone', width: 390, height: 844, touch: true, bylineBelow: true },
 ]) {
   test.describe(viewport.name, () => {
     test.use({ hasTouch: viewport.touch, isMobile: viewport.touch });

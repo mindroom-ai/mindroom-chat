@@ -71,7 +71,8 @@ for (const viewport of [
         window.history.pushState(null, '', url);
         window.dispatchEvent(new PopStateEvent('popstate'));
       }, `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
-      const banner = page.locator('[data-thread-context-summary]').locator('xpath=../../../..');
+      // The thread's banner: under the room header wider than a phone, the header's row on one.
+      const banner = page.locator('[data-thread-context-banner]');
       const scroll = page.locator('[data-thread-count]').locator('xpath=../..');
       await expect(banner).toBeVisible();
       await expect(page.getByText('Design note 16:', { exact: false })).toBeInViewport();
@@ -226,13 +227,25 @@ for (const viewport of [
 
       await scroll.getByRole('scrollbar').hover();
       await page.screenshot({ path: testInfo.outputPath('scrollbar-bottom.png') });
-      await banner.getByRole('button', { name: 'Resolve', exact: true }).click();
-      await expect(banner.getByRole('button', { name: 'Resolved', exact: true })).toBeVisible();
-      if (viewport.width === 390) {
+      // A phone's thread bar resolves from the menu behind its title and says so in its second line.
+      const phone = viewport.width === 390;
+      const resolvedMark = phone
+        ? banner.getByText('Resolved', { exact: true })
+        : banner.getByRole('button', { name: 'Resolved', exact: true });
+      if (phone) {
+        await banner.locator('button[aria-haspopup="menu"]').click();
+        const menu = page.getByRole('menu', { name: 'Thread options' });
+        await menu.locator('[data-thread-action="resolve"]').click();
+        await expect(resolvedMark).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(menu).toBeHidden();
+      } else {
+        await banner.getByRole('button', { name: 'Resolve', exact: true }).click();
+        await expect(resolvedMark).toBeVisible();
+      }
+      if (phone) {
         await page.setViewportSize({ width: 390, height: 568 });
-        await expect(
-          banner.getByRole('button', { name: 'Resolved', exact: true })
-        ).toBeInViewport();
+        await expect(resolvedMark).toBeInViewport();
         await expectScrollbarBounds(scroll, banner, footer);
       }
       await page.mouse.move(viewportBox!.x + viewportBox!.width / 2, 300);

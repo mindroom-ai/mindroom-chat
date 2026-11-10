@@ -1,6 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color } from 'folds';
-import { phoneTopBarHeight } from './PhoneTopBar.css';
+import { phoneTopBarOffset } from './PhoneTopBar.css';
 import { motion } from '../ui/styles/Motion.css';
 import { cardRadius } from '../ui/page/floatingCards.css';
 
@@ -9,10 +9,11 @@ import { cardRadius } from '../ui/page/floatingCards.css';
 const SLIDE = motion.duration.Slower;
 const EASE = motion.easing.Standard;
 
-// Both layers cover the area below the top bar; the bar stays usable above them.
+// Both layers cover the area below the top bar; the bar stays usable above them. Without the bar
+// (a thread's bar in its place) they reach the top.
 const belowTopBar = {
   position: 'absolute',
-  insetBlockStart: phoneTopBarHeight,
+  insetBlockStart: phoneTopBarOffset,
   insetBlockEnd: 0,
   insetInlineStart: 0,
 } as const;

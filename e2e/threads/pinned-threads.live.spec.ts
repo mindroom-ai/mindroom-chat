@@ -201,7 +201,12 @@ test.describe('pinned announcement threads', () => {
     await expect(pin).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('pinned-mobile.png') });
     await pin.click();
-    await expect(page.getByRole('button', { name: 'Unpin thread', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Resolve', exact: true })).toHaveCount(0);
+    // A phone's thread bar says the thread is pinned where the room's name was; its menu unpins.
+    const bar = page.locator('[data-thread-context-banner]');
+    await expect(bar.getByText('Pinned', { exact: true })).toBeVisible();
+    await bar.locator('button[aria-haspopup="menu"]').click();
+    const menu = page.getByRole('menu', { name: 'Thread options' });
+    await expect(menu.getByRole('menuitem', { name: 'Unpin thread', exact: true })).toBeVisible();
+    await expect(menu.getByRole('menuitem', { name: 'Resolve' })).toHaveCount(0);
   });
 });

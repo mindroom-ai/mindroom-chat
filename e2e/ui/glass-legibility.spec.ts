@@ -309,12 +309,12 @@ const checkSurfaces = async (
         banner,
         banner.locator('[data-thread-context-summary]')
       );
-      // The banner sits flush under the room header: no strip between them where scrolled text
-      // shows sharp and cut in half.
-      const headerBox = (await roomHeader(page).boundingBox())!;
-      const bannerBox = (await banner.boundingBox())!;
-      gaps[`${prefix}-banner-gap`] = Math.round(bannerBox.y - (headerBox.y + headerBox.height));
+      // Wider than a phone the banner sits flush under the room header: no strip between them
+      // where scrolled text shows sharp and cut in half. On a phone it is the room header's row.
       if (size === 'desktop') {
+        const headerBox = (await roomHeader(page).boundingBox())!;
+        const bannerBox = (await banner.boundingBox())!;
+        gaps[`${prefix}-banner-gap`] = Math.round(bannerBox.y - (headerBox.y + headerBox.height));
         await measure(
           page,
           results,
