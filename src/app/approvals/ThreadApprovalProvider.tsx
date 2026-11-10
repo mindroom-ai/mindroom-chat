@@ -128,7 +128,7 @@ function ActiveThreadApprovalProvider({
   });
   const [now, setNow] = useState(Date.now);
   const fetching = useRef(false);
-  // Whether the last request failed, so the sync's return asks again.
+  // Whether the last discovery, or a repair since, failed, so the sync's return asks again.
   const failed = useRef(false);
   const repairedOrigins = useRef(new Set<string>());
   const decryptionStarted = useRef(new WeakSet<MatrixEvent>());
@@ -274,7 +274,10 @@ function ActiveThreadApprovalProvider({
           repairedOrigins.current.add(id);
         });
         ingest(result.events, true);
-        failed.current = result.error === 'unloadable';
+        // A repair loads too little to prove that a failed discovery recovered; only discovery
+        // clears the failure.
+        const unloadable = result.error === 'unloadable';
+        failed.current = request.origins ? failed.current || unloadable : unloadable;
         setRequestError(result.error);
         // Only complete discovery also proves that earlier repair failures recovered.
         if (!request.origins && !result.error) setRepairError(undefined);
