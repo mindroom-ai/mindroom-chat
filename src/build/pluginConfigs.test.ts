@@ -200,15 +200,26 @@ describe("a listed plugin's unit tests", () => {
       }
     );
 
-  it("runs only them with MINDROOM_CLIENT_PLUGIN_TESTS_ONLY=1, through the build module's resolveId", async () => {
+  /** The test files a run with these variables ran, each with its status. */
+  const ranTests = async (env: Record<string, string>) => {
     const report = path.join(dir, 'report.json');
-    await vitest(['run', '--reporter=json', `--outputFile=${report}`], {
-      MINDROOM_CLIENT_PLUGIN_TESTS_ONLY: '1',
-    });
+    await vitest(['run', '--reporter=json', `--outputFile=${report}`], env);
     const { testResults } = JSON.parse(readFileSync(report, 'utf8')) as {
       testResults: { name: string; status: string }[];
     };
-    expect(testResults.map(({ name, status }) => [name, status])).toEqual([[TEST, 'passed']]);
+    return testResults.map(({ name, status }) => [name, status]);
+  };
+
+  it("runs only them with MINDROOM_CLIENT_PLUGIN_TESTS_ONLY=1, through the build module's resolveId", async () => {
+    expect(await ranTests({ MINDROOM_CLIENT_PLUGIN_TESTS_ONLY: '1' })).toEqual([[TEST, 'passed']]);
+  }, 120_000);
+
+  it('runs only those of a listed plugin inside src/ with MINDROOM_CLIENT_PLUGIN_TESTS_ONLY=1', async () => {
+    // The example plugin's test passes with its build module's transform too.
+    const example = path.join(ROOT, 'src/app/plugins/__fixtures__/example-plugin');
+    expect(
+      await ranTests({ MINDROOM_CLIENT_PLUGINS: example, MINDROOM_CLIENT_PLUGIN_TESTS_ONLY: '1' })
+    ).toEqual([[path.join(example, 'index.test.tsx'), 'passed']]);
   }, 120_000);
 
   it("collects them beside the app's own, and none through the plugin's link to the app", async () => {
