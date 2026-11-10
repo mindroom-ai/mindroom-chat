@@ -55,4 +55,57 @@ describe('useTypingStatusUpdater', () => {
       process.off('unhandledRejection', trackUnhandled);
     }
   });
+
+  it('keeps the notice of a room on while any of its composers types, and ends it with the last', async () => {
+    vi.useFakeTimers();
+    const calls: unknown[][] = [];
+    const client = {
+      sendTyping: (...args: unknown[]) => {
+        calls.push(args);
+        return Promise.resolve({});
+      },
+    } as never;
+    // The room page's composer and a thread view's of the same room.
+    const typing: Record<'page' | 'view', (typing: boolean) => void> = {} as never;
+    const Composer = ({ name }: { name: 'page' | 'view' }) => {
+      typing[name] = useTypingStatusUpdater(client, '!room:example.org');
+      return null;
+    };
+    act(() => {
+      renderer = create(
+        React.createElement(
+          React.Fragment,
+          null,
+          React.createElement(Composer, { name: 'page' }),
+          React.createElement(Composer, { name: 'view' })
+        )
+      );
+    });
+
+    typing.page(true);
+    typing.view(true);
+    typing.page(false);
+    expect(calls).toEqual([['!room:example.org', true, TYPING_TIMEOUT_MS]]);
+    typing.view(false);
+    expect(calls).toEqual([
+      ['!room:example.org', true, TYPING_TIMEOUT_MS],
+      ['!room:example.org', false, TYPING_TIMEOUT_MS],
+    ]);
+
+    // The notice expires once for the room; the next key in either composer starts it again.
+    calls.length = 0;
+    typing.page(true);
+    await vi.advanceTimersByTimeAsync(TYPING_TIMEOUT_MS / 2);
+    typing.view(true);
+    await vi.advanceTimersByTimeAsync(TYPING_TIMEOUT_MS / 2);
+    expect(calls).toEqual([
+      ['!room:example.org', true, TYPING_TIMEOUT_MS],
+      ['!room:example.org', false, TYPING_TIMEOUT_MS],
+    ]);
+    typing.view(true);
+    expect(calls.at(-1)).toEqual(['!room:example.org', true, TYPING_TIMEOUT_MS]);
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    expect(calls.at(-1)).toEqual(['!room:example.org', false, TYPING_TIMEOUT_MS]);
+  });
 });
