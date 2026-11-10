@@ -53,8 +53,8 @@ afterEach(() => {
 const renderTwoComposers = () => {
   const store = createStore();
   const mx = { cancelUpload: vi.fn() };
-  const composers: Record<string, Composer> = {};
-  const Composer = ({ name, threadId }: { name: string; threadId?: string }) => {
+  const composers = {} as Record<'page' | 'view', Composer>;
+  const Composer = ({ name }: { name: 'page' | 'view' }) => {
     composers[name] = {
       attachments: useRoomInputAttachments({
         mx: mx as never,
@@ -82,7 +82,7 @@ const renderTwoComposers = () => {
         <>
           <Composer name="page" />
           <ConversationViewContext.Provider value={VIEW}>
-            <Composer name="view" threadId="$root" />
+            <Composer name="view" />
           </ConversationViewContext.Provider>
         </>
       )

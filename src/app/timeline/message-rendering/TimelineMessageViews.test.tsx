@@ -1,4 +1,4 @@
-import { createRef, type ReactNode } from 'react';
+import { createRef } from 'react';
 import { getDefaultStore } from 'jotai';
 import { EventTimelineSet, MatrixEvent, type Room } from 'matrix-js-sdk';
 import { createEditor, type Editor } from 'slate';
@@ -91,13 +91,13 @@ const mountTwoViews = async () => {
     rootEvent: root,
   })) as unknown as Room['getThread'];
   const editors = { page: emptyEditor(), view: emptyEditor() };
-  const features: Record<string, ReturnType<typeof useTimelineMessageFeature>> = {};
+  const features = {} as Record<'page' | 'view', ReturnType<typeof useTimelineMessageFeature>>;
   const Timeline = ({
     name,
     editor,
     threadId,
   }: {
-    name: string;
+    name: 'page' | 'view';
     editor: Editor;
     threadId?: string;
   }) => {
@@ -115,9 +115,7 @@ const mountTwoViews = async () => {
       showHiddenEvents: false,
     });
     features[name] = feature;
-    return (
-      <div data-timeline={name}>{feature.renderEvent(rowFor(root), emptyData) as ReactNode}</div>
-    );
+    return <div data-timeline={name}>{feature.renderEvent(rowFor(root), emptyData)}</div>;
   };
   let renderer!: ReturnType<typeof create>;
   act(() => {

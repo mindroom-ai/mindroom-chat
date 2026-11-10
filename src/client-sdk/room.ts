@@ -144,9 +144,10 @@ const LazyThreadView = lazy(() =>
  * while its code loads. It may show a thread of the room whose page is open, also the one that page
  * shows: its composer has a reply and staged files of its own (which a reload does not keep), and
  * shares the thread's unsent text with the page's. Read receipts and notifications count the
- * thread as seen while the view shows it, also while the room's page is behind the panel. An
- * Escape that the composer and its menus do not take bubbles out of it, so a plugin may close the
- * thread on one that is not `defaultPrevented`.
+ * thread as seen while the view shows it, also while the room's page is behind the panel. Its menus,
+ * and the profile card its rows open, take their Escape at the document, after it bubbled through
+ * the plugin's elements; so a plugin that closes its surface on Escape listens on the window, which
+ * only an Escape nothing took reaches (one that is not `defaultPrevented`).
  */
 export const ThreadView = (props: { room: Room; threadId: string }) =>
   createElement(Suspense, { fallback: null }, createElement(LazyThreadView, props));

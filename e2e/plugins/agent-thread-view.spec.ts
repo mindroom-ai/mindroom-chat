@@ -23,9 +23,12 @@ import { roomMoreOptions } from '../helpers/roomMenu';
 // thread" panel shows the thread the room showed as it opened and keeps it after the room goes
 // back to its timeline: the thread's root and the helper's reply, the helper's held tool call,
 // which the panel approves, and a reply typed in the panel, which the room's own view of the
-// thread then shows. The profile card of the helper, opened from the panel's thread, closes on
-// Escape alone; an Escape in the panel's composer then closes the panel. In a room where the
-// account may not post, the panel shows the thread without a composer.
+// thread then shows. Reply on the root in the panel drafts and sends in the panel's composer, a
+// file staged there stays out of the page's send, and Up in the page's composer edits the page's
+// message only. The profile card of the helper, opened from the panel's thread, closes on Escape
+// alone; an Escape in the panel's composer then closes the panel. In a room where the account may
+// not post, the panel shows the thread without a composer. On a phone the panel covers the page,
+// its composer still completes mentions and attaches files, and the thread is read there.
 //   MINDROOM_CLIENT_PLUGINS=$PWD/src/app/plugins/__fixtures__/example-plugin \
 //     scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/plugins/agent-thread-view.spec.ts
 test.skip(
@@ -279,7 +282,10 @@ test.describe('on a phone', () => {
       timeout: 20_000,
     });
     await shot(page, 'phone-mention');
+    // Escape closes the suggestions alone: the panel stays.
     await page.keyboard.press('Escape');
+    await expect(panel.getByText(stack.agents.helper, { exact: true })).toHaveCount(0);
+    await expect(panel).toBeVisible();
 
     // Attach, in the composer's More actions menu, stages a file in the panel.
     const fileName = `${word}-phone.txt`;

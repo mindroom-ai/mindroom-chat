@@ -77,8 +77,8 @@
 // HTML the app sanitized, with the Matrix IDs of the room's members replaced by their names.
 // A third side panel, "Example thread", toggled from the room menu, shows the thread the room showed
 // as it opened, as the room's page shows it (`ThreadView`), and keeps it while the room shows
-// another; an Escape that the thread leaves, as on one of its rows, closes the panel, unless a profile
-// card is open, which that Escape closes instead.
+// another; an Escape in it that nothing took, as on one of its rows, closes the panel, and one that
+// closes the thread's menus, or a profile card its rows opened, leaves it open.
 import {
   useEffect,
   useLayoutEffect,
@@ -137,7 +137,6 @@ import {
   useRoomHref,
   useRoomNavigate,
   useShownThread,
-  useShownUserProfile,
   ThreadView,
 } from '@mindroom/client-sdk/room';
 import {
@@ -803,18 +802,27 @@ function ExampleThread({ roomId }: { roomId: string }) {
   const client = useMatrixClient();
   const [threadId] = useState(useShownThread());
   const panel = useRoomSidePanel('example', 'thread');
-  // The floating profile card, which its rows open, takes the Escape that reaches the document.
-  const profileShown = useShownUserProfile() !== undefined;
+  const boxRef = useRef<HTMLDivElement>(null);
+  const close = panel?.close;
+  // On the window, which the thread's menus and the profile card its rows open let no Escape of
+  // theirs reach: the document is where they take it, after it bubbled through this panel.
+  useEffect(() => {
+    if (!close) return undefined;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      if (!(event.target instanceof Node) || !boxRef.current?.contains(event.target)) return;
+      event.preventDefault();
+      close();
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [close]);
   const room = client.getRoom(roomId);
   if (!room || !threadId) return <p>No example thread</p>;
   return (
     <div
+      ref={boxRef}
       style={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto', minHeight: 0 }}
-      onKeyDown={(event) => {
-        if (event.key !== 'Escape' || event.defaultPrevented || profileShown) return;
-        event.preventDefault();
-        panel?.close();
-      }}
     >
       <ThreadView room={room} threadId={threadId} />
     </div>

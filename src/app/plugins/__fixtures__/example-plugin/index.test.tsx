@@ -33,7 +33,6 @@ const place = vi.hoisted(() => ({
 const roomPage = vi.hoisted(() => ({
   thread: undefined as string | undefined,
   closeThreadPanel: undefined as (() => void) | undefined,
-  profile: undefined as { roomId: string; userId: string } | undefined,
 }));
 vi.mock('@mindroom/client-sdk/core', async (importOriginal) => {
   const core = await importOriginal<typeof import('@mindroom/client-sdk/core')>();
@@ -55,10 +54,6 @@ vi.mock('@mindroom/client-sdk/room', async (importOriginal) => {
     useShownThread: () => {
       const shown = sdk.useShownThread();
       return roomPage.thread ?? shown;
-    },
-    useShownUserProfile: () => {
-      const shown = sdk.useShownUserProfile();
-      return roomPage.profile ?? shown;
     },
     ThreadView: ({ room: { roomId }, threadId }: { room: Room; threadId: string }) => (
       <button type="button">{`Thread ${threadId} of ${roomId}`}</button>
@@ -114,7 +109,6 @@ describe('example plugin', () => {
     vi.unstubAllGlobals();
     roomPage.thread = undefined;
     roomPage.closeThreadPanel = undefined;
-    roomPage.profile = undefined;
   });
 
   const [renderer] = plugin.messageRenderers ?? [];
@@ -202,7 +196,7 @@ describe('example plugin', () => {
     expect((await renderGreeting()).queryByRole('button', { name: 'Show in panel' })).toBeNull();
   });
 
-  it('shows in its thread panel the thread the room showed as it opened, kept after, which an Escape the thread leaves closes unless a profile card is open', async () => {
+  it('shows in its thread panel the thread the room showed as it opened, kept after, which an Escape nothing took closes', async () => {
     const panel = plugin.sidePanels?.find(({ id }) => id === 'thread');
     if (!panel) throw new Error('the example plugin has no thread panel');
     const client = createClient({ baseUrl: 'https://example.org', userId: '@ada:example.org' });
@@ -224,17 +218,18 @@ describe('example plugin', () => {
     view.rerender(ui());
     expect(view.getByRole('button', { name: 'Thread $root of !lobby:example.org' })).toBe(thread);
 
-    // While a profile card is open, the Escape is the card's.
-    roomPage.profile = { roomId: '!lobby:example.org', userId: '@ada:example.org' };
-    view.rerender(ui());
-    expect(fireEvent.keyDown(thread, { key: 'Escape' })).toBe(true);
+    // A menu of the thread, or a profile card, takes its Escape at the document.
+    const takeEscape = (event: KeyboardEvent) => event.stopPropagation();
+    document.addEventListener('keydown', takeEscape);
+    fireEvent.keyDown(thread, { key: 'Escape' });
+    document.removeEventListener('keydown', takeEscape);
     expect(close).not.toHaveBeenCalled();
-    roomPage.profile = undefined;
-    view.rerender(ui());
+    // One outside the panel is not the panel's.
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(close).not.toHaveBeenCalled();
     expect(fireEvent.keyDown(thread, { key: 'Escape' })).toBe(false);
     expect(close).toHaveBeenCalledTimes(1);
   });
-
   it("names its greeting's sender as the app names them in the room, apart from a member of the same name, and shows the account's own profile card", async () => {
     const [panel] = plugin.sidePanels ?? [];
     if (!panel) throw new Error('the example plugin has no side panel');
