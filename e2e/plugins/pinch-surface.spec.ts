@@ -91,6 +91,10 @@ const withBoard = async (
     await page.getByRole('menuitemcheckbox', { name: 'Example card', exact: true }).click();
     await expect(board(page)).toBeVisible();
     await expect(boxScale(page)).toHaveText('Box scale: 1.00');
+    // The card slides in beside the conversation: the board is where it stays once it has.
+    await page
+      .locator('[data-example-card-box]')
+      .evaluate((box) => Promise.all(box.getAnimations().map((motion) => motion.finished)));
     await check(page);
   } finally {
     // The page's live sync may still be in a route.
