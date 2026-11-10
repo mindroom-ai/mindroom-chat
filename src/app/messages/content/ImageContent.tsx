@@ -31,10 +31,15 @@ import { imageViewerOpenAtom } from '../../navigation/imageViewerState';
 import { revealDirectionControls } from '../../ui/directional';
 import { getBlobSafeMimeType, FALLBACK_MIMETYPE } from '../../lib/mimeTypes';
 import { stopPropagation } from '../../lib/keyboard';
+import { PINCH_SURFACE_ATTRIBUTE } from '../../theme/usePinchToZoom';
 import * as css from './style.css';
 
 /** Marks the history entry pushed while an image viewer is open, so Back closes the viewer. */
 export const IMAGE_VIEWER_HISTORY_MARKER = '__mindroomImageViewer';
+
+// The viewer pinches its own picture: the page zoom leaves pinches over its frame alone, its
+// safe-area padding on a phone included (theme/usePinchToZoom.ts).
+const PINCH_SURFACE = { [PINCH_SURFACE_ATTRIBUTE]: '' };
 
 type HistoryState = Record<string, unknown> | null | undefined;
 
@@ -317,6 +322,7 @@ export const ImageContent = as<'div', ImageContentProps>(
                 }}
               >
                 <Modal
+                  {...PINCH_SURFACE}
                   role="dialog"
                   aria-modal="true"
                   aria-label={shownName}
