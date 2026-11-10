@@ -62,7 +62,8 @@ export type ThreadApprovals = {
 const Context = createContext<ThreadApprovals | undefined>(undefined);
 
 // Providers of one thread, in the room's page and in another view of it, share its history load
-// (the scheduler runs one per thread): the last of them to stop waiting for it cancels it.
+// (the scheduler runs one per thread): only the last of them to unmount, or to ask again, cancels
+// it.
 const historyWaiters = new WeakMap<BackfillScheduler, Map<string, number>>();
 export const useThreadApprovals = () => useContext(Context);
 
