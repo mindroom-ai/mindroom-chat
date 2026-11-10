@@ -755,7 +755,11 @@
     }
   },
   "thread": {
-    "back": "Terug"
+    "back": "Terug",
+    "resize": "Breedte van de thread wijzigen",
+    "showFull": "Thread volledig tonen",
+    "showBeside": "Thread naast de berichten tonen",
+    "showBesideBlocked": "Verstuur of verwijder eerst wat in het invoerveld staat"
   },
   "activity": {
     "title": "Activiteit",

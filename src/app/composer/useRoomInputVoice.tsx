@@ -12,6 +12,7 @@ import {
   pendingVoiceSendDraftAtom,
   roomUploadAtomFamily,
   voiceAutoSendPendingAtom,
+  voiceRecorderRoomAtom,
 } from './roomInputDrafts';
 import { TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { pauseAllMediaElements } from '../lib/dom';
@@ -109,6 +110,14 @@ export const useRoomInputVoice = ({
   const ownsPendingVoiceDraft =
     draftBelongsToCurrentSession && pendingVoiceSendDraft?.context.roomId === roomId;
   const otherRoomOwnsPendingVoiceDraft = draftBelongsToCurrentSession && !ownsPendingVoiceDraft;
+  // The room page keeps an open thread where it is while its recorder shows (RoomView).
+  const recorderShown = voiceRecorderOpen || ownsPendingVoiceDraft;
+  const setRecorderRoom = useSetAtom(voiceRecorderRoomAtom);
+  useEffect(() => {
+    if (!recorderShown) return undefined;
+    setRecorderRoom(roomId);
+    return () => setRecorderRoom((shown) => (shown === roomId ? undefined : shown));
+  }, [recorderShown, roomId, setRecorderRoom]);
   const otherPendingVoiceRoomName =
     otherRoomOwnsPendingVoiceDraft && pendingVoiceSendDraft
       ? revealDirectionControls(

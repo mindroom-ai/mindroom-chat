@@ -766,7 +766,11 @@
     }
   },
   "thread": {
-    "back": "Atrás"
+    "back": "Atrás",
+    "resize": "Cambiar el tamaño del hilo",
+    "showFull": "Mostrar el hilo completo",
+    "showBeside": "Mostrar el hilo junto a los mensajes",
+    "showBesideBlocked": "Envía o quita primero lo que hay en el cuadro de redacción"
   },
   "activity": {
     "title": "Actividad",

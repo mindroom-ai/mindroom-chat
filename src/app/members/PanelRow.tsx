@@ -1,6 +1,7 @@
 import {
   createContext,
   type ReactNode,
+  useCallback,
   useContext,
   useLayoutEffect,
   useRef,
@@ -16,6 +17,13 @@ import { CONVERSATION_MIN_WIDTH } from '../ui/panels/ResizablePanel';
 const MembersOverlayContext = createContext(false);
 export const useMembersOverlay = (): boolean => useContext(MembersOverlayContext);
 
+/**
+ * The width of the row the room lays out in now, measured before its content mounts; 0 outside a
+ * row or before it has a layout. A function, so the row's resizes render nothing.
+ */
+const RowWidthContext = createContext<() => number>(() => 0);
+export const usePanelRowWidth = (): (() => number) => useContext(RowWidthContext);
+
 /** The members panel's default width (ResizableMembersPanel) beside the conversation's minimum. */
 const MEMBERS_BESIDE_MIN_WIDTH = 266 + CONVERSATION_MIN_WIDTH;
 
@@ -28,6 +36,7 @@ const MEMBERS_BESIDE_MIN_WIDTH = 266 + CONVERSATION_MIN_WIDTH;
 export function PanelRow({ children }: { children: ReactNode }) {
   const rowRef = useRef<HTMLDivElement>(null);
   const [overlay, setOverlay] = useState<boolean>();
+  const rowWidth = useCallback(() => rowRef.current?.clientWidth ?? 0, []);
 
   useLayoutEffect(() => {
     const row = rowRef.current;
@@ -44,7 +53,9 @@ export function PanelRow({ children }: { children: ReactNode }) {
   return (
     <Box ref={rowRef} grow="Yes" style={{ minWidth: 0, minHeight: 0 }}>
       {overlay !== undefined && (
-        <MembersOverlayContext.Provider value={overlay}>{children}</MembersOverlayContext.Provider>
+        <MembersOverlayContext.Provider value={overlay}>
+          <RowWidthContext.Provider value={rowWidth}>{children}</RowWidthContext.Provider>
+        </MembersOverlayContext.Provider>
       )}
     </Box>
   );

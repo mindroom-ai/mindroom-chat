@@ -8,9 +8,9 @@ import {
 } from 'react';
 import { getDefaultStore } from 'jotai';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { createClient, Room, type RoomMember } from 'matrix-js-sdk';
+import { createClient, MatrixEvent, Room, type RoomMember } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
-import { Editable, Slate } from 'slate-react';
+import { Editable, ReactEditor, Slate } from 'slate-react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
 import { composerReplyDraftAtom, composerUploadItemsAtom } from '../composer/roomInputDrafts';
@@ -241,8 +241,85 @@ it('counts its thread as off screen while the side panel it is in is folded', ()
   ]);
 });
 
+it('counts its thread as off screen while hidden', () => {
+  const store = getDefaultStore();
+  const { rerender } = render(<ThreadView room={room} threadId={THREAD} hidden />);
+  expect(store.get(shownConversationViewsAtom)).toEqual([]);
+  rerender(<ThreadView room={room} threadId={THREAD} />);
+  expect(store.get(shownConversationViewsAtom)).toMatchObject([
+    { roomId: room.roomId, threadId: THREAD },
+  ]);
+});
+
+it('tells onUnmount the thread it showed last, and the page its load errors', () => {
+  const onThreadLoadError = vi.fn();
+  const onUnmount = vi.fn();
+  const props = { room, onThreadLoadError, onUnmount };
+  const { rerender, unmount } = render(<ThreadView {...props} threadId={THREAD} />);
+  expect(state.timeline?.onThreadLoadError).toBe(onThreadLoadError);
+  rerender(<ThreadView {...props} threadId="$other" />);
+  expect(onUnmount).not.toHaveBeenCalled();
+  unmount();
+  expect(onUnmount).toHaveBeenCalledOnce();
+  expect(onUnmount).toHaveBeenCalledWith('$other');
+});
+
+it('leaves the focus where it is when the root of its thread gets its own ID', () => {
+  const focus = vi.spyOn(ReactEditor, 'focus');
+  // The server confirmed the unsent root as $confirmed.
+  const confirmed = vi
+    .spyOn(room, 'getEventForTxnId')
+    .mockImplementation((txnId) =>
+      txnId === 'm1.1' ? new MatrixEvent({ event_id: '$confirmed' }) : undefined
+    );
+  const view = (threadId: string) => <ThreadView room={room} threadId={threadId} autoFocus />;
+  const { rerender } = render(view('~!room:example.org:m1.1'));
+  expect(focus).toHaveBeenCalledTimes(1);
+  rerender(view('$confirmed'));
+  expect(focus).toHaveBeenCalledTimes(1);
+  rerender(view('$another'));
+  expect(focus).toHaveBeenCalledTimes(2);
+  // Another thread after an unsent root takes the focus too.
+  rerender(view('~!room:example.org:m2.1'));
+  rerender(view('$unrelated'));
+  expect(focus).toHaveBeenCalledTimes(4);
+  focus.mockRestore();
+  confirmed.mockRestore();
+});
+
+it("hands the page its composer's focus while it is mounted", () => {
+  const focusRef: { current: (() => void) | undefined } = { current: undefined };
+  const { unmount } = render(<ThreadView room={room} threadId={THREAD} focusRef={focusRef} />);
+  act(() => focusRef.current?.());
+  expect(document.activeElement).toBe(composer());
+  unmount();
+  expect(focusRef.current).toBeUndefined();
+});
+
+it('asks for the focus with no reply box to take it, and nothing breaks', () => {
+  state.mayPost = false;
+  render(<ThreadView room={room} threadId={THREAD} autoFocus />);
+  expect(composer()).toBeNull();
+  expect(screen.getByTestId('timeline')).toBeDefined();
+});
+
 it('asks for no approvals of a thread whose root the server has not confirmed', () => {
   render(<ThreadView room={room} threadId="~!room:example.org:m1.1" />);
   expect(state.approvals).toMatchObject({ room, threadId: undefined });
   expect(state.timeline?.threadId).toBe('~!room:example.org:m1.1');
+});
+
+it("puts the room page's header above the thread and opens it at the event its address names", () => {
+  render(<ThreadView room={room} threadId={THREAD} eventId="$reply" header={<b>Banner</b>} />);
+  expect(state.timeline).toMatchObject({ threadId: THREAD, eventId: '$reply' });
+  render(<>{state.timeline?.threadHeader}</>);
+  expect(screen.getByText('Banner')).toBeDefined();
+});
+
+it('takes the focus to its reply box as it opens only when asked to', () => {
+  const { unmount } = render(<ThreadView room={room} threadId={THREAD} />);
+  expect(document.activeElement).toBe(document.body);
+  unmount();
+  render(<ThreadView room={room} threadId={THREAD} autoFocus />);
+  expect(document.activeElement).toBe(composer());
 });

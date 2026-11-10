@@ -1,5 +1,13 @@
-import { type CSSProperties, useCallback, useEffect, useId, useMemo, useRef } from 'react';
-import { useSetAtom } from 'jotai';
+import {
+  type CSSProperties,
+  type MutableRefObject,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+} from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { Box } from 'folds';
@@ -7,7 +15,11 @@ import { ThreadApprovalQueue } from '../approvals/ThreadApprovalControls';
 import { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
 import { RoomInput } from '../composer/RoomInput';
 import { useEditor } from '../editor/Editor';
-import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
+import {
+  isConfirmedMatrixEventId,
+  isLocalEchoEventId,
+  resolveCanonicalThreadRootId,
+} from '../event-store/threads/threadRouteUtils';
 import { DIRECT_ROOM_TIMELINE_FILTER_STATE } from '../event-store/timeline/roomTimelineViewState';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { PowerLevelsContextProvider, usePowerLevels } from '../matrix/hooks/usePowerLevels';
@@ -21,7 +33,7 @@ import { StateEvent } from '../matrix/types/room';
 import {
   ConversationViewContext,
   composerStateKey,
-  shownConversationViewsAtom,
+  useShownConversationView,
 } from '../navigation/conversationView';
 import {
   roomIdToReplyDraftAtomFamily,
@@ -30,6 +42,7 @@ import {
 import { RoomTimeline } from '../timeline/RoomTimeline';
 import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { MessageLinkCards } from './MessageLinkCards';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
 
 const NO_SUMMARIES: ReadonlyMap<string, ThreadSummaryInfo> = new Map();
 const ignore = () => undefined;
@@ -54,9 +67,33 @@ const TIMELINE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
  * docs/architecture.md. It is a conversation view of its own (`ConversationViewContext`), shown
  * (`shownConversationViewsAtom`) while its side panel is not folded. Timeline and composer share
  * one editor, as in the room view; it has no filter bar or thread summaries, the whole view takes
- * dropped files, and it adds no key handling of its own.
+ * dropped files, and it adds no key handling of its own. The room page's thread column gives it
+ * the thread's banner as its `header`, the event its address names, the focus as it opens,
+ * `hidden` while a side panel takes the page's place, the page's handler of a thread that does not
+ * load, `onUnmount`, which gets the thread it showed last as it goes, and `focusRef`.
  */
-export function ThreadView({ room, threadId }: { room: Room; threadId: string }) {
+export function ThreadView({
+  room,
+  threadId,
+  eventId,
+  header,
+  autoFocus = false,
+  hidden = false,
+  onThreadLoadError,
+  onUnmount,
+  focusRef,
+}: {
+  room: Room;
+  threadId: string;
+  eventId?: string;
+  header?: ReactNode;
+  autoFocus?: boolean;
+  hidden?: boolean;
+  onThreadLoadError?: (threadId: string) => void;
+  onUnmount?: (threadId: string) => void;
+  /** Holds, while it is mounted, the function that takes the focus to its composer. */
+  focusRef?: MutableRefObject<(() => void) | undefined>;
+}) {
   const client = useMatrixClient();
   const editor = useEditor();
   const view = useId();
@@ -70,31 +107,45 @@ export function ThreadView({ room, threadId }: { room: Room; threadId: string })
   const composerShown = !tombstone && permissions.event('m.room.message', client.getSafeUserId());
 
   // The view shows, for read receipts and notifications, while it is mounted, but not while the
-  // side panel it is in is folded to its tab, which keeps it mounted out of sight.
-  const folded = usePanelFrame()?.layout === 'folded';
-  const setShownViews = useSetAtom(shownConversationViewsAtom);
+  // side panel it is in is folded to its tab, which keeps it mounted out of sight, nor while hidden.
+  const outOfSight = usePanelFrame()?.layout === 'folded' || hidden;
   const { roomId } = room;
-  useEffect(() => {
-    if (folded) return undefined;
-    const place = { view, roomId, threadId };
-    setShownViews((shown) => [...shown, place]);
-    return () => setShownViews((shown) => shown.filter((other) => other !== place));
-  }, [folded, roomId, setShownViews, threadId, view]);
+  useShownConversationView(!outOfSight, view, roomId, threadId);
 
   // Its composer's reply and staged files, in each room it showed, go with it as it unmounts: no
   // later view finds them. Until then they stay, as a send under way may still use them.
   const roomsShown = useRef(new Set<string>()).current;
   roomsShown.add(roomId);
+  const last = useLatestRef({ threadId, onUnmount });
   useEffect(
-    () => () =>
+    () => () => {
+      last.current.onUnmount?.(last.current.threadId);
       roomsShown.forEach((shownRoomId) => {
         roomIdToReplyDraftAtomFamily.remove(composerStateKey(shownRoomId, view));
         roomIdToUploadItemsAtomFamily.remove(composerStateKey(shownRoomId, view));
-      }),
-    [roomsShown, view]
+      });
+    },
+    [last, roomsShown, view]
   );
 
   const focusConversation = useCallback(() => ReactEditor.focus(editor), [editor]);
+  useEffect(() => {
+    if (!focusRef) return undefined;
+    focusRef.current = focusConversation;
+    return () => {
+      focusRef.current = undefined;
+    };
+  }, [focusConversation, focusRef]);
+  // Without a composer on screen there is nothing to focus. A root that gets its own ID is the
+  // same thread: the focus stays where the person took it meanwhile.
+  const previousThreadId = useRef<string>();
+  useEffect(() => {
+    const previous = previousThreadId.current;
+    previousThreadId.current = threadId;
+    const rootConfirmed =
+      isLocalEchoEventId(previous) && resolveCanonicalThreadRootId(room, previous) === threadId;
+    if (autoFocus && !rootConfirmed) focusConversation();
+  }, [autoFocus, focusConversation, room, threadId]);
 
   return (
     <ConversationViewContext.Provider value={view}>
@@ -111,6 +162,9 @@ export function ThreadView({ room, threadId }: { room: Room; threadId: string })
                 <RoomTimeline
                   room={room}
                   threadId={threadId}
+                  eventId={eventId}
+                  threadHeader={header}
+                  onThreadLoadError={onThreadLoadError}
                   viewMode="threaded"
                   hasMindroomAgents={hasMindroomAgents}
                   editor={editor}

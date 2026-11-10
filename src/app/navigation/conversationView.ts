@@ -1,5 +1,5 @@
-import { createContext, useContext, useMemo } from 'react';
-import { atom, useAtomValue, type Atom } from 'jotai';
+import { createContext, useContext, useEffect, useMemo } from 'react';
+import { atom, useAtomValue, useSetAtom, type Atom } from 'jotai';
 import { conversationHiddenAtom, conversationOutOfSightAtom } from './conversationCover';
 import { phoneNavDrawerOpenAtom } from './phoneNavDrawer';
 import type { ViewedPlace } from './viewedPlace';
@@ -25,6 +25,25 @@ export const useInConversationView = (): boolean =>
  * on screen. A view lists itself while it shows (room/ThreadView.tsx).
  */
 export const shownConversationViewsAtom = atom<readonly (ViewedPlace & { view: string })[]>([]);
+
+/** The room page's own messages while they show beside the thread's column (room/RoomView.tsx). */
+export const ROOM_MESSAGES_VIEW = 'room-messages';
+
+/** Lists the view `view`, which shows `roomId` (and `threadId`), while `shown` holds. */
+export const useShownConversationView = (
+  shown: boolean,
+  view: string,
+  roomId: string,
+  threadId?: string
+): void => {
+  const setShownViews = useSetAtom(shownConversationViewsAtom);
+  useEffect(() => {
+    if (!shown) return undefined;
+    const place = { view, roomId, threadId };
+    setShownViews((views) => [...views, place]);
+    return () => setShownViews((views) => views.filter((other) => other !== place));
+  }, [roomId, setShownViews, shown, threadId, view]);
+};
 
 /**
  * Whether this conversation is hidden: the room's page under a plugin's cover or behind a side

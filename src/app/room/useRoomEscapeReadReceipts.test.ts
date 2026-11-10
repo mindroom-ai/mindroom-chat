@@ -4,9 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Provider, createStore } from 'jotai';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import { shownConversationViewsAtom } from '../navigation/conversationView';
 import {
   conversationBehindPanelAtom,
   conversationCoveredAtom,
+  conversationUnderThreadAtom,
 } from '../navigation/conversationCover';
 
 const {
@@ -15,18 +17,16 @@ const {
   markRoomAndThreadsAsReadMock,
   markThreadAsReadMock,
   state,
-} = vi.hoisted(
-  () => ({
-    keyHotkeyMock: vi.fn(),
-    markMainTimelineAsReadMock: vi.fn(),
-    markRoomAndThreadsAsReadMock: vi.fn(),
-    markThreadAsReadMock: vi.fn(),
-    state: {
-      handler: undefined as ((evt: KeyboardEvent) => void) | undefined,
-      mx: { userId: '@user:server' },
-    },
-  })
-);
+} = vi.hoisted(() => ({
+  keyHotkeyMock: vi.fn(),
+  markMainTimelineAsReadMock: vi.fn(),
+  markRoomAndThreadsAsReadMock: vi.fn(),
+  markThreadAsReadMock: vi.fn(),
+  state: {
+    handler: undefined as ((evt: KeyboardEvent) => void) | undefined,
+    mx: { userId: '@user:server' },
+  },
+}));
 
 vi.mock('is-hotkey', () => ({
   isKeyHotkey: keyHotkeyMock,
@@ -98,6 +98,90 @@ describe('useRoomEscapeReadReceipts', () => {
     });
     expect(markThreadAsReadMock).not.toHaveBeenCalled();
     expect(markMainTimelineAsReadMock).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+
+  it.each([
+    ["marks the thread read under a plugin's cover", [conversationCoveredAtom], true],
+    [
+      'marks the thread read under the column that fills the page',
+      [conversationUnderThreadAtom],
+      true,
+    ],
+    ["marks nothing read under a phone's navigation drawer", [phoneNavDrawerOpenAtom], false],
+  ] as const)('while its column shows the thread, %s', (_what, hiding, marks) => {
+    keyHotkeyMock.mockReturnValue(true);
+    const store = createStore();
+    hiding.forEach((atom) => store.set(atom, true));
+    store.set(shownConversationViewsAtom, [
+      { view: 'column', roomId: '!room:server', threadId: '$thread' },
+    ]);
+    const renderer = create(
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(Harness, { threadId: '$thread' })
+      )
+    );
+    act(() => {
+      state.handler?.({} as KeyboardEvent);
+    });
+    expect(markThreadAsReadMock).toHaveBeenCalledTimes(marks ? 1 : 0);
+    expect(markMainTimelineAsReadMock).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+
+  it("marks nothing read under a plugin's cover while another thread's view shows", () => {
+    keyHotkeyMock.mockReturnValue(true);
+    const store = createStore();
+    store.set(conversationCoveredAtom, true);
+    store.set(shownConversationViewsAtom, [
+      { view: 'panel', roomId: '!room:server', threadId: '$other' },
+    ]);
+    const renderer = create(
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(Harness, { threadId: '$thread' })
+      )
+    );
+    act(() => {
+      state.handler?.({} as KeyboardEvent);
+    });
+    expect(markThreadAsReadMock).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+
+  it.each([
+    ['the room messages read with the focus outside the column', false],
+    ['the thread read with the focus in its column', true],
+  ])('beside the room messages, Escape marks %s', (_what, inColumn) => {
+    keyHotkeyMock.mockReturnValue(true);
+    const store = createStore();
+    store.set(shownConversationViewsAtom, [
+      { view: 'room-messages', roomId: '!room:server' },
+      { view: 'column', roomId: '!room:server', threadId: '$thread' },
+    ]);
+    // The key was pressed in the column, or outside it; the focus shortcut may have moved the
+    // focus to the room's composer since.
+    class TestElement {
+      closest(selector: string) {
+        return inColumn && selector === '[data-thread-column]' ? this : null;
+      }
+    }
+    vi.stubGlobal('Element', TestElement);
+    const renderer = create(
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(Harness, { threadId: '$thread' })
+      )
+    );
+    act(() => {
+      state.handler?.({ target: new TestElement() } as unknown as KeyboardEvent);
+    });
+    expect(markThreadAsReadMock).toHaveBeenCalledTimes(inColumn ? 1 : 0);
+    expect(markMainTimelineAsReadMock).toHaveBeenCalledTimes(inColumn ? 0 : 1);
     act(() => renderer.unmount());
   });
 

@@ -43,7 +43,9 @@ export type RoomNavigate = {
   };
   /**
    * Opens the thread `threadId` (its root's event ID) of the room; its back button returns here,
-   * unless it replaced this page: then it leads to the page before, or to the room.
+   * unless it replaced this page: then it leads to the page before, or to the room. It opens where
+   * the app's own thread links open it: in a column beside the room's messages once the person
+   * chose that on this device and the page has room for both, else in the messages' place.
    */
   navigateRoomThread: {
     (roomId: string, threadId: string): void;
@@ -83,10 +85,11 @@ export const useRoomHref = (roomId: string, threadId?: string): string =>
 
 /**
  * The root event ID of the thread the room's page shows, also when its address names a reply in
- * the thread: the ID `openBesideThread` of `useRoomSidePanel` takes. Undefined while the page
- * shows the room's own timeline, until the room has the event the address names, while the server
- * has not confirmed the root (a new thread's first message, still sending), and outside a room's
- * page (the search page). It renders again when the room shows another thread.
+ * the thread, and also while it shows beside the room's messages: the ID `openBesideThread` of
+ * `useRoomSidePanel` takes. Undefined while the page shows only the room's own timeline, until the
+ * room has the event the address names, while the server has not confirmed the root (a new
+ * thread's first message, still sending), and outside a room's page (the search page). It renders
+ * again when the room shows another thread.
  */
 export const useShownThread = (): string | undefined =>
   useContext(PluginPanelControlsContext)?.thread;

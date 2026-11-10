@@ -28,6 +28,7 @@ import type { ShortcutId } from '../shortcuts/shortcuts';
 import { ActionDialog } from '../ui/ActionDialog';
 import { describeError } from '../lib/describeError';
 import { ErrorDetail } from '../ui/ErrorDetail';
+import { ShrinkIcon } from '../ui/panels/panelIcons';
 
 export type ThreadActionsMenuProps = {
   room: Room;
@@ -40,6 +41,10 @@ export type ThreadActionsMenuProps = {
   onOpenThread?: () => void;
   /** Offered from the thread banner only. */
   onHideDetails?: () => void;
+  /** Offered from the banner of a thread in the messages' place where it may show beside them. */
+  onShowBeside?: () => void;
+  /** Show beside is refused while the composer holds a reply, files or a recording, and says so. */
+  showBesideBlocked?: boolean;
 };
 
 type OpenDialog = 'tags' | 'editSummary' | 'regenerate';
@@ -67,6 +72,8 @@ export function ThreadActionsMenu({
   onClose,
   onOpenThread,
   onHideDetails,
+  onShowBeside,
+  showBesideBlocked,
 }: ThreadActionsMenuProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -346,7 +353,7 @@ export function ThreadActionsMenu({
   };
 
   // The thread's own details (tags, title) first, then its state (resolved, pinned), then the link
-  // and the banner's Hide; each label has its icon at the end of the row.
+  // and the banner's Show beside and Hide; each label has its icon at the end of the row.
   const items: Array<{
     action: string;
     label: string;
@@ -354,6 +361,8 @@ export function ThreadActionsMenu({
     onSelect: () => void;
     /** Resolve and pin wait for the previous save. */
     mutates?: boolean;
+    /** Why it does nothing now. */
+    disabledReason?: string;
     shortcut?: ShortcutId;
   }> = [];
   if (onOpenThread) {
@@ -418,6 +427,18 @@ export function ThreadActionsMenu({
     icon: Icons.Link,
     onSelect: handleCopyLink,
   });
+  if (onShowBeside) {
+    items.push({
+      action: 'showBeside',
+      label: t('thread.showBeside'),
+      icon: ShrinkIcon,
+      disabledReason: showBesideBlocked ? t('thread.showBesideBlocked') : undefined,
+      onSelect: () => {
+        onShowBeside();
+        onClose();
+      },
+    });
+  }
   if (onHideDetails) {
     items.push({
       action: 'hideDetails',
@@ -456,6 +477,7 @@ export function ThreadActionsMenu({
                   icon={item.icon}
                   shortcut={item.shortcut}
                   data-thread-action={item.action}
+                  disabledReason={item.disabledReason}
                   disabled={item.mutates && saving}
                   aria-busy={item.mutates && saving ? true : undefined}
                   onSelect={() => item.onSelect()}

@@ -14,11 +14,21 @@ export const conversationCoveredAtom = atom(false);
 export const conversationBehindPanelAtom = atom(false);
 
 /**
- * Whether the open room's conversation is hidden, under a plugin's cover or behind a side panel:
- * the composer takes no keys and sends no typing notice, and its own popovers close.
+ * Whether the open thread's column fills the room page (room/RoomView.tsx), over the room's
+ * messages and their composer, which stay as they were under it.
+ */
+export const conversationUnderThreadAtom = atom(false);
+
+/**
+ * Whether the open room's conversation is hidden, under a plugin's cover, behind a side panel or
+ * under the thread column: the composer takes no keys and sends no typing notice, and its own
+ * popovers close.
  */
 export const conversationHiddenAtom = atom(
-  (get) => get(conversationCoveredAtom) || get(conversationBehindPanelAtom)
+  (get) =>
+    get(conversationCoveredAtom) ||
+    get(conversationBehindPanelAtom) ||
+    get(conversationUnderThreadAtom)
 );
 
 /**

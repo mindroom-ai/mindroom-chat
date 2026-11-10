@@ -766,7 +766,11 @@
     }
   },
   "thread": {
-    "back": "Retour"
+    "back": "Retour",
+    "resize": "Redimensionner le fil",
+    "showFull": "Afficher le fil en entier",
+    "showBeside": "Afficher le fil à côté des messages",
+    "showBesideBlocked": "Envoyez ou retirez d'abord ce que contient le champ de saisie"
   },
   "activity": {
     "title": "Activité",
