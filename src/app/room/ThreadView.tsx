@@ -84,8 +84,7 @@ export function ThreadView({ room, threadId }: { room: Room; threadId: string })
   }, [folded, roomId, setShownViews, threadId, view]);
 
   // Its composer's reply and staged files, in each room it showed, go with it as it unmounts: no
-  // later view finds them, and their uploads stop. A send under way took its own files off the
-  // list as its composer unmounted (a layout effect, before these passive ones).
+  // later view finds them, and their uploads stop.
   const store = useStore();
   const roomsShown = useRef(new Set<string>()).current;
   roomsShown.add(roomId);

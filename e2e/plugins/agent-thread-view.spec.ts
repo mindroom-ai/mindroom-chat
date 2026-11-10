@@ -28,10 +28,10 @@ import { roomMoreOptions } from '../helpers/roomMenu';
 // file staged there stays out of the page's send, and Up in the page's composer edits the page's
 // message only. The profile card of the helper, opened from the panel's thread, closes on Escape
 // alone; an Escape in the panel's composer then closes the panel. In a room where the account may
-// not post, the panel shows the thread without a composer. A file and caption sent from the panel
-// while the file uploads still go once the panel closes, and typing in the page's composer and
-// then in the panel's keeps one typing notice for the others. On a phone the panel covers the
-// page, its composer still completes mentions and attaches files, and the thread is read there.
+// not post, the panel shows the thread without a composer. Typing in the page's composer and then
+// in the panel's keeps one typing notice for the others, and closing the panel stops the upload of
+// a file staged there. On a phone the panel covers the page, its composer still completes
+// mentions and attaches files, and the thread is read there.
 //   MINDROOM_CLIENT_PLUGINS=$PWD/src/app/plugins/__fixtures__/example-plugin \
 //     scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/plugins/agent-thread-view.spec.ts
 test.skip(
@@ -288,12 +288,12 @@ const watchTyping = (stack: AgentStack, roomId: string) => {
   };
 };
 
-test("a send from the plugin's panel outlives the panel, and the page's and the panel's typing is one notice", async ({
+test("the page's and the plugin's panel's typing is one notice, and closing the panel stops its staged upload", async ({
   page,
   stack,
 }) => {
   await openLobby(page, stack);
-  const word = uniqueWord('outlives');
+  const word = uniqueWord('typing');
   const rootId = await startThread(stack, `${word} root`);
   await showThread(page, stack, rootId);
   let panel = await openThreadPanel(page);
@@ -330,7 +330,7 @@ test("a send from the plugin's panel outlives the panel, and the page's and the 
   await page.keyboard.press('ControlOrMeta+A');
   await page.keyboard.press('Backspace');
 
-  // A file sent from the panel while it uploads still goes after the panel closes.
+  // A file staged in the panel stops uploading as the panel closes.
   let releaseUpload!: () => void;
   const uploadHeld = new Promise<void>((resolve) => {
     releaseUpload = resolve;
@@ -339,16 +339,15 @@ test("a send from the plugin's panel outlives the panel, and the page's and the 
   const uploading = new Promise<void>((resolve) => {
     uploadStarted = resolve;
   });
-  await page.route(
-    (url) => /\/media\/(v3|r0)\/upload$|\/v1\/media\/upload$/.test(url.pathname),
-    async (route) => {
-      if (route.request().method() === 'POST') {
-        uploadStarted();
-        await uploadHeld;
-      }
-      await route.continue();
+  const isMediaUpload = (url: URL) =>
+    /\/media\/(v3|r0)\/upload$|\/v1\/media\/upload$/.test(url.pathname);
+  await page.route(isMediaUpload, async (route) => {
+    if (route.request().method() === 'POST') {
+      uploadStarted();
+      await uploadHeld;
     }
-  );
+    await route.continue().catch(() => undefined);
+  });
   panel = threadPanel(page);
   const fileName = `${word}-large.bin`;
   const chooser = page.waitForEvent('filechooser');
@@ -360,28 +359,15 @@ test("a send from the plugin's panel outlives the panel, and the page's and the 
   ]);
   await expect(panel.getByText(fileName, { exact: true })).toBeVisible({ timeout: 20_000 });
   await uploading;
-  const caption = `${word} caption`;
-  await panel.getByRole('textbox').click();
-  await page.keyboard.type(caption);
-  await page.keyboard.press('Enter');
-  await expect(panel.getByRole('textbox')).not.toContainText(caption);
+  const stopped = page.waitForEvent('requestfailed', {
+    predicate: (request) => isMediaUpload(new URL(request.url())),
+    timeout: 15_000,
+  });
   await roomMoreOptions(page).click();
   await page.getByRole('menuitemcheckbox', { name: 'Example thread', exact: true }).click();
   await expect(threadPanel(page)).toHaveCount(0);
+  await stopped;
   releaseUpload();
-
-  await waitForThreadEvent(
-    stack,
-    rootId,
-    (event) => event.sender === stack.tester.userId && event.content.body === fileName,
-    { timeout: 60_000, description: 'the file sent after the panel closed' }
-  );
-  await waitForThreadEvent(
-    stack,
-    rootId,
-    (event) => event.sender === stack.tester.userId && event.content.body === caption,
-    { timeout: 60_000, description: 'its caption' }
-  );
   await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
 

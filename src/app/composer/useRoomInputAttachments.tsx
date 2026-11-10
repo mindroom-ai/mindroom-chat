@@ -25,9 +25,8 @@ import {
   roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
   composerUploadItemsAtom,
-  hasUploadList,
 } from './roomInputDrafts';
-import { ConversationViewContext, composerStateKey } from '../navigation/conversationView';
+import { ConversationViewContext } from '../navigation/conversationView';
 import { forgetPastesOutsideDraft, keepPasteText, readKeptPasteTexts } from './keptPastes';
 import {
   createUploadFamilyObserverAtom,
@@ -194,8 +193,6 @@ export const useRoomInputAttachments = ({
   const watchedRooms = useRef(new Set<string>([roomId]));
   watchedRooms.current.add(roomId);
   const syncUploadWatches = useCallback(() => {
-    // An unmounted composer watches nothing: a send it left follows its own uploads.
-    if (!mounted.current) return;
     const needed = new Set<TUploadContent>(enrolled.current.map((item) => item.file));
     watchedRooms.current.forEach((watchedRoomId) =>
       store
@@ -223,18 +220,10 @@ export const useRoomInputAttachments = ({
   }, []);
 
   const access = useMemo<RoomInputAttachmentAccess>(() => {
-    // A send its thread view's composer left may outlive the view and its staged list: reading
-    // the list then must not bring it back.
-    const listGone = (targetRoomId: string) =>
-      view !== undefined &&
-      !mounted.current &&
-      !hasUploadList(composerStateKey(targetRoomId, view));
-    const stagedIn = (targetRoomId: string): TUploadItem[] =>
-      listGone(targetRoomId) ? [] : store.get(composerUploadItemsAtom(targetRoomId, view));
     const uploadOf = (item: TUploadItem): Upload => store.get(roomUploadAtomFamily(item.file));
 
     const snapshot = (targetRoomId?: string): AttachmentSnapshot => {
-      const all = stagedIn(targetRoomId ?? current.current.roomId);
+      const all = store.get(composerUploadItemsAtom(targetRoomId ?? current.current.roomId, view));
       const staged = targetRoomId === undefined ? all.filter(ownedByCurrent) : all;
       const files = new Set(staged.map((item) => item.file));
       const tracked = [...staged, ...enrolled.current.filter((item) => !files.has(item.file))];
@@ -262,7 +251,8 @@ export const useRoomInputAttachments = ({
     const remove = (targetRoomId: string, files: TUploadContent[]) => {
       if (files.length === 0) return;
       const removed = new Set(files);
-      const items = stagedIn(targetRoomId).filter((item) => removed.has(item.file));
+      const listAtom = composerUploadItemsAtom(targetRoomId, view);
+      const items = store.get(listAtom).filter((item) => removed.has(item.file));
       // A removed file's upload in flight is cancelled; its card would otherwise finish it.
       items.forEach((item) => {
         const upload = store.get(roomUploadAtomFamily(item.file));
@@ -271,7 +261,7 @@ export const useRoomInputAttachments = ({
         store.set(roomUploadAtomFamily(item.file), { status: UploadStatus.Idle });
       });
       if (items.length > 0) {
-        store.set(composerUploadItemsAtom(targetRoomId, view), { type: 'DELETE', item: items });
+        store.set(listAtom, { type: 'DELETE', item: items });
         keepNames(targetRoomId);
       }
       files.forEach((file) => owners.current.delete(file));
@@ -284,17 +274,6 @@ export const useRoomInputAttachments = ({
       snapshot,
       append,
       remove,
-      unstage: (targetRoomId, files) => {
-        const unstaged = new Set(files);
-        const items = stagedIn(targetRoomId).filter((item) => unstaged.has(item.file));
-        if (items.length === 0) return;
-        store.set(composerUploadItemsAtom(targetRoomId, view), { type: 'DELETE', item: items });
-        keepNames(targetRoomId);
-      },
-      restage: (targetRoomId, items) => {
-        // A closed thread view's staged files went with it.
-        if (!listGone(targetRoomId)) append(targetRoomId, items);
-      },
       enroll: (items) => {
         const known = new Set(enrolled.current.map((item) => item.file));
         enrolled.current = [...enrolled.current, ...items.filter((item) => !known.has(item.file))];
@@ -325,10 +304,6 @@ export const useRoomInputAttachments = ({
         return () => {
           listeners.current.delete(listener);
         };
-      },
-      watchUploads: (files, listener) => {
-        const unsubscribes = files.map((file) => store.sub(roomUploadAtomFamily(file), listener));
-        return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
       },
     };
   }, [keepNames, mx, notify, ownedByCurrent, store, syncUploadWatches, view]);

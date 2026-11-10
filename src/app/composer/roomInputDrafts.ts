@@ -353,10 +353,6 @@ const familyKeys = <Key>(family: {
   return keys;
 };
 
-/** Whether the staged-files list of `key` (`composerStateKey`) exists, without creating it. */
-export const hasUploadList = (key: string): boolean =>
-  familyKeys(roomIdToUploadItemsAtomFamily).includes(key);
-
 /**
  * Whether a composer holds something that only lives in memory, so a page reload would drop it:
  * a staged file, the message being replied to, or a recorded voice message. Typed text is not one:
