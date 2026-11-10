@@ -12,7 +12,7 @@ import { getSpaceRoomPath } from '../../routes/pathUtils';
 // The space's navigation lists the rooms the user is in. The client also holds rooms the user
 // is only invited to or has left; those are not rows of the list.
 
-const { passthrough, rooms } = vi.hoisted(() => {
+const { passthrough, rooms, subRooms } = vi.hoisted(() => {
   const roomIds = {
     space: '!garden:example.org',
     joined: '!seedlings:example.org',
@@ -34,6 +34,7 @@ const { passthrough, rooms } = vi.hoisted(() => {
   };
   return {
     rooms: { ids: roomIds, of: roomOf },
+    subRooms: { renderRoom: undefined as ((room: unknown) => React.ReactNode) | undefined },
     passthrough: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
   };
 });
@@ -82,10 +83,13 @@ vi.mock('../../ui/nav/NavCategoryHeader', () => ({
   NavCategoryHeader: passthrough,
 }));
 vi.mock('../room-nav/RoomNavCategoryButton', () => ({ RoomNavCategoryButton: passthrough }));
-// The rows under a room read its state, which these rooms do not have.
+// The rows under a room read its state, which these rooms do not have; how Space draws them is kept.
 vi.mock('../room-nav/SubRoomRows', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../room-nav/SubRoomRows')>()),
-  SubRoomRows: () => null,
+  SubRoomRows: ({ renderRoom }: { renderRoom: (room: unknown) => React.ReactNode }) => {
+    subRooms.renderRoom = renderRoom;
+    return null;
+  },
 }));
 vi.mock('../room-nav/SortableRoomList', () => ({
   SortableRoomList: passthrough,
@@ -93,11 +97,20 @@ vi.mock('../room-nav/SortableRoomList', () => ({
     room,
     linkPath,
     spaceId,
+    subRoom,
   }: {
     room: { roomId: string };
     linkPath: string;
     spaceId: string;
-  }) => <div data-row-room={room.roomId} data-link={linkPath} data-space={spaceId} />,
+    subRoom?: boolean;
+  }) => (
+    <div
+      data-row-room={room.roomId}
+      data-link={linkPath}
+      data-space={spaceId}
+      data-sub-room={subRoom}
+    />
+  ),
 }));
 vi.mock('../../rooms/join/JoinBeforeNavigate', () => ({
   JoinBeforeNavigate: () => null,
@@ -170,5 +183,9 @@ describe('Space navigation', () => {
     // The row opens the room in the space, whose settings and search it stays in.
     expect(rows[0]?.props['data-link']).toBe(getSpaceRoomPath(space, joined));
     expect(rows[0]?.props['data-space']).toBe(space);
+    // Only a row under a room frames its hash.
+    expect(rows[0]?.props['data-sub-room']).toBeUndefined();
+    const under = subRooms.renderRoom?.(rooms.of('!seedlings-trays:example.org'));
+    expect(React.isValidElement<{ subRoom?: boolean }>(under) && under.props.subRoom).toBe(true);
   });
 });

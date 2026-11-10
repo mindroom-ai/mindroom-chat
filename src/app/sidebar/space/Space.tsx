@@ -366,7 +366,8 @@ export function Space() {
     selectedRoomId,
     spaceRoomPath
   );
-  // A room's row, the same at top level and under the room it sits under.
+  // A room's row, the same at top level and under the room it sits under, except that there it
+  // frames its hash.
   const rowProps = (room: Room) => ({
     room,
     selected: room.roomId === selectedRoomId,
@@ -374,7 +375,7 @@ export function Space() {
     notificationMode: getRoomNotificationMode(notificationPreferences, room.roomId),
     spaceId: space.roomId,
   });
-  const renderSubRoom = (room: Room) => <RoomNavItem {...rowProps(room)} />;
+  const renderSubRoom = (room: Room) => <RoomNavItem {...rowProps(room)} subRoom />;
   const previewPath = (roomId: string) => getSpaceRoomPath(spaceIdOrAlias, roomId);
 
   return (

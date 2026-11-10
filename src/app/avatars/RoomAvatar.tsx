@@ -52,10 +52,16 @@ type RoomIconProps = {
   joinRule?: string;
   size?: '50' | '100' | '200' | '300' | '400' | '500' | '600';
   filled?: boolean;
-  /** A MindRoom agent is in the room: its hash is framed. */
-  work?: boolean;
+  /** The room shows as a sub-room of a chat room: its hash is framed. */
+  subRoom?: boolean;
 };
 
-export function RoomIcon({ space = false, joinRule, size = '100', filled, work }: RoomIconProps) {
-  return <Icon size={size} src={getRoomIconSrc(space, joinRule, work)} filled={filled} />;
+export function RoomIcon({
+  space = false,
+  joinRule,
+  size = '100',
+  filled,
+  subRoom,
+}: RoomIconProps) {
+  return <Icon size={size} src={getRoomIconSrc(space, joinRule, subRoom)} filled={filled} />;
 }

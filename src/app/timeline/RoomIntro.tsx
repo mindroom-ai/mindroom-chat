@@ -8,8 +8,8 @@ import { useRoomAvatar, useRoomName, useRoomTopic } from '../matrix/hooks/useRoo
 import { nameInitials } from '../lib/common';
 import { mxcUrlToHttp } from '../matrix/matrix';
 import { getDirectPartnerId } from '../matrix/room';
+import { useParentRooms } from '../matrix/state/subRooms';
 import { revealDirectionControls } from '../ui/directional';
-import { useRoomHasMindroomAgent } from '../navigation/useRoomViewMode';
 
 type RoomIntroProps = {
   room: Room;
@@ -23,7 +23,8 @@ export function RoomIntro({ room }: RoomIntroProps) {
   const name = revealDirectionControls(useRoomName(room));
   // A direct chat starts with the other person, as its header shows them.
   const withPerson = useIsDirectRoom();
-  const work = useRoomHasMindroomAgent(room.roomId, !withPerson);
+  // A sub-room of a chat room the client has, as the room header frames it.
+  const subRoom = useParentRooms(room).length > 0;
   const roomTopic = useRoomTopic(room);
   const topic = roomTopic && revealDirectionControls(roomTopic);
   const pictureMxc = useRoomAvatar(room, withPerson);
@@ -50,7 +51,7 @@ export function RoomIntro({ room }: RoomIntroProps) {
                 {nameInitials(name)}
               </Text>
             ) : (
-              <RoomIcon size="400" joinRule={room.getJoinRule()} filled work={work} />
+              <RoomIcon size="400" joinRule={room.getJoinRule()} filled subRoom={subRoom} />
             )
           }
         />
