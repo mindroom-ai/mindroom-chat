@@ -156,11 +156,13 @@ export const filterActivityRows = (
   rows: ActivityRow[],
   tab: ActivityTab,
   unreadOnly: boolean,
-  /** Rows to keep though read: the one the page shows beside the list, which reading cleared. */
+  /** A row to keep whatever its state: the one shown beside the list, which reading changes. */
   keep?: (row: ActivityRow) => boolean
 ): ActivityRow[] =>
   rows.filter((row) => {
-    if (unreadOnly && !row.unread && !keep?.(row)) return false;
+    // Reading it may clear the row's unread state and its mention; it stays while it shows.
+    if (keep?.(row)) return true;
+    if (unreadOnly && !row.unread) return false;
     switch (tab) {
       case 'mentions':
         return row.kind === 'mention';

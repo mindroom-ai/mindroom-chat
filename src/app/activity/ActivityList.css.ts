@@ -80,9 +80,6 @@ export const Preview = style({
   WebkitBoxOrient: 'vertical',
 });
 
-/** An approval's command, whole: what Approve runs must show to its end. */
-export const PreviewWhole = style({ overflowWrap: 'anywhere' });
-
 export const ErrorText = style({ color: color.Critical.Main });
 
 export const RowNeedsYou = style({

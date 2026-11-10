@@ -225,6 +225,14 @@ describe('filterActivityRows', () => {
     );
   });
 
+  it('keeps the row shown beside the list in its tab, though reading turned its mention to a reply', () => {
+    // Opened from Mentions: reading it clears the mention, and the row becomes a read reply.
+    const shown = (row: ActivityRow) => row.key === 'read';
+    expect(filterActivityRows(rows, 'mentions', true, shown).map((row) => row.key)).toContain(
+      'read'
+    );
+  });
+
   it('hides read rows when only unread ones are asked for', () => {
     expect(
       filterActivityRows(rows, 'replies', true)

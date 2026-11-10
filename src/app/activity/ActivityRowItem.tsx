@@ -23,6 +23,7 @@ import type { ActivityRow, ActivityThreadRow } from './activityRows';
 import { needsYou } from './activityRows';
 import { answerApproval, answerQuestion } from './activityActions';
 import { agentMember } from '../approvals/approvalPeople';
+import { ApprovalArguments } from '../approvals/ApprovalArguments';
 import * as css from './ActivityList.css';
 
 const sentence = (t: TFunction, row: ActivityRow, names: string[]): string => {
@@ -67,9 +68,6 @@ const sentenceSuffix = (t: TFunction, row: ActivityRow): string => {
   }
   return newCount > 0 ? t('activity.newCount', { count: newCount }) : '';
 };
-
-const firstStringArgument = (args: Record<string, unknown>): string =>
-  Object.values(args).find((value): value is string => typeof value === 'string') ?? '';
 
 const KIND_ICONS: Record<ActivityRow['kind'], { icon: IconSrc; className?: string }> = {
   approval: { icon: Icons.Lock, className: css.KindAttention },
@@ -225,20 +223,27 @@ function RowActions({
     ));
   }
   if (buttons.length === 0) return null;
+  // An approval shows what it runs above its buttons: the arguments, all of them on request, and
+  // whether they were cut short, as the thread's approval card shows them.
+  const approval =
+    row.type === 'thread' && row.kind === 'approval' ? row.signals.pendingApproval : undefined;
   return (
-    <div className={css.Actions}>
-      {buttons}
-      {busy && (
-        <Text size="T200" priority="300">
-          {t('activity.actions.sending')}
-        </Text>
-      )}
-      {state.status === 'error' && (
-        <Text size="T200" className={css.ErrorText} role="alert">
-          {t('activity.actions.failed')}
-        </Text>
-      )}
-    </div>
+    <>
+      {approval && <ApprovalArguments approval={approval.approval} />}
+      <div className={css.Actions}>
+        {buttons}
+        {busy && (
+          <Text size="T200" priority="300">
+            {t('activity.actions.sending')}
+          </Text>
+        )}
+        {state.status === 'error' && (
+          <Text size="T200" className={css.ErrorText} role="alert">
+            {t('activity.actions.failed')}
+          </Text>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -286,10 +291,8 @@ export const ActivityRowItem = memo(function ActivityRowItem({
   let preview = '';
   if (row.type === 'invite') preview = revealDirectionControls(room?.name ?? row.roomId);
   else if (row.kind === 'approval' && row.signals.pendingApproval) {
-    const { approval } = row.signals.pendingApproval;
-    preview = revealDirectionControls(
-      `${approval.toolName} ${firstStringArgument(approval.arguments)}`.trim()
-    );
+    // What it runs shows beside Approve, as the thread's approval card shows it.
+    preview = revealDirectionControls(row.signals.pendingApproval.approval.toolName);
   } else if (row.kind === 'question' && row.signals.pendingQuestion) {
     preview = revealDirectionControls(row.signals.pendingQuestion.text);
   } else if (row.signals.lastReply) preview = threadPreviewText(t, row.signals.lastReply.preview);
@@ -357,8 +360,7 @@ export const ActivityRowItem = memo(function ActivityRowItem({
               as="span"
               size="T200"
               priority="400"
-              // An approval shows its whole command above the Approve button, never a cut one.
-              className={row.kind === 'approval' ? css.PreviewWhole : css.Preview}
+              className={css.Preview}
               {...ownDirectionLine}
             >
               {preview}

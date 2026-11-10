@@ -15,7 +15,6 @@ import { allInvitesAtom } from '../matrix/state/inviteList';
 import type { ActivityRow, ActivityRowsResult } from './activityRows';
 import { activityRowsAtom, activityShowAutomationsAtom } from './activityState';
 import { ActivityList } from './ActivityList';
-import * as css from './ActivityList.css';
 
 const NAMES: Record<string, string> = {
   '@mindroom_code:x': 'Code',
@@ -109,6 +108,8 @@ const approvalRecord = {
     agentName: 'code',
     toolName: 'run_shell_command',
     arguments: { command: 'npm run deploy:staging' },
+    argumentsTruncated: false,
+    argumentSource: null,
     approvable: true,
   },
 } as unknown as ThreadApprovalRecord;
@@ -237,10 +238,21 @@ describe('ActivityList', () => {
     expect(within(rowByTitle('Thread a')).getByRole('button', { name: 'Approve' })).toBeTruthy();
   });
 
-  it('shows the whole command of an approval, never cut short above its Approve button', () => {
-    renderList({ rows: ROWS, hiddenAutomations: 0 });
-    const command = within(rowByTitle('Thread a')).getByText(/npm run deploy:staging/);
-    expect(command.className).not.toContain(css.Preview);
+  it('shows what an approval runs beside its Approve button, also array arguments', () => {
+    const listing = {
+      ...approvalRecord,
+      approval: {
+        ...approvalRecord.approval,
+        arguments: { args: ['rm', '-rf', '/workspace/reports'] },
+      },
+    } as unknown as ThreadApprovalRecord;
+    renderList({
+      rows: [threadRow('arr', 'approval', { pendingApproval: listing }, { actorIds: [] })],
+      hiddenAutomations: 0,
+    });
+    const row = rowByTitle('Thread arr');
+    expect(row.textContent).toContain('/workspace/reports');
+    expect(within(row).getByRole('button', { name: /Show all arguments/ })).toBeTruthy();
   });
 
   it('answers a question with the option picked', async () => {
