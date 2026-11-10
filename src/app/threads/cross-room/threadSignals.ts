@@ -25,7 +25,7 @@ import {
   parseToolApprovalExpiryTimestamp,
 } from '../../matrix/protocol/toolApproval';
 import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
-import type { PluginEvent } from '../../plugins/messageRenderers';
+import { hasMessagePreviews, type PluginEvent } from '../../plugins/messageRenderers';
 import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
 
 export type ThreadPreview =
@@ -36,8 +36,8 @@ export type ThreadReply = {
   senderId: string;
   ts: number;
   preview: ThreadPreview;
-  /** The reply as the timeline gives it to a plugin's message renderer. */
-  event: PluginEvent;
+  /** The reply as the timeline gives it to a plugin's message renderer, while one has a preview. */
+  event?: PluginEvent;
 };
 export type ThreadQuestion = {
   eventId: string;
@@ -145,7 +145,9 @@ export const threadRootPluginEvent = (
   entry: Pick<CrossRoomThreadIndexEntry, 'threadRecord' | 'threadRootId'>
 ): PluginEvent | undefined => {
   // The index's `summaryText` falls back to the root's text; the AI title is the presentation's.
-  if (!room || entry.threadRecord.presentation.summaryText !== undefined) return undefined;
+  if (!room || !hasMessagePreviews() || entry.threadRecord.presentation.summaryText !== undefined) {
+    return undefined;
+  }
   const thread = room.getThread(entry.threadRootId);
   const root = thread?.rootEvent ?? room.findEventById(entry.threadRootId);
   return root ? threadMessagePluginEvent(room, root, thread) : undefined;
@@ -393,7 +395,9 @@ export const readThreadSignals = (
             senderId: newest.event.getSender() ?? '',
             ts: newest.event.getTs(),
             preview: previewOf(newest.content),
-            event: threadMessagePluginEvent(room, newest.event, thread),
+            ...(hasMessagePreviews()
+              ? { event: threadMessagePluginEvent(room, newest.event, thread) }
+              : {}),
           },
         }
       : {}),

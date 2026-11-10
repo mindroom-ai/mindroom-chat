@@ -9,6 +9,7 @@ import {
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
+import type { RegisteredPlugin } from '../../plugins/registry';
 import {
   FINISHED_AFTER_MS,
   QUESTION_WAITS_MS,
@@ -16,6 +17,16 @@ import {
   threadRootPluginEvent,
 } from './threadSignals';
 import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
+
+// A build with a plugin whose renderer previews messages; a case may take it out.
+const plugins = vi.hoisted(() => [] as RegisteredPlugin[]);
+const previewPlugin = {
+  id: 'cards',
+  tag: 'cards@1.0.0',
+  messageRenderers: [{ match: () => true, Component: () => null, preview: () => 'Card' }],
+} as unknown as RegisteredPlugin;
+plugins.push(previewPlugin);
+vi.mock('../../plugins/registry', () => ({ registeredPlugins: plugins }));
 
 const ROOM_ID = '!signals:example.org';
 const ME = '@alice:example.org';
@@ -494,6 +505,32 @@ describe('readThreadSignals in a loaded thread with edits', () => {
       body: 'Done',
       'io.mindroom.stream_status': 'completed',
     });
+  });
+
+  it('looks up no event for plugins while no renderer of the build has a preview', async () => {
+    const { room } = await setup(AGENT, [
+      event({ id: '$r', ts: 2000, sender: AGENT, content: { body: 'Hi' } }),
+    ]);
+    plugins.splice(0, 1, {
+      ...previewPlugin,
+      messageRenderers: [{ match: () => true, Component: () => null }],
+    } as unknown as RegisteredPlugin);
+    try {
+      const signals = readThreadSignals(room, ROOT, ME, NOW);
+      expect(signals.lastReply?.eventId).toBe('$r');
+      expect(signals.lastReply?.event).toBeUndefined();
+      const getThread = vi.spyOn(room, 'getThread');
+      const findEventById = vi.spyOn(room, 'findEventById');
+      const entry = { threadRootId: ROOT, threadRecord: { presentation: {} } } as Pick<
+        CrossRoomThreadIndexEntry,
+        'threadRecord' | 'threadRootId'
+      >;
+      expect(threadRootPluginEvent(room, entry)).toBeUndefined();
+      expect(getThread).not.toHaveBeenCalled();
+      expect(findEventById).not.toHaveBeenCalled();
+    } finally {
+      plugins.splice(0, 1, previewPlugin);
+    }
   });
 
   it("hands a thread's root to plugins with its newest edit, unless the thread has an AI title", async () => {
