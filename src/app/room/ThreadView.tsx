@@ -28,7 +28,6 @@ import {
   roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
 } from '../composer/roomInputDrafts';
-import { claimedSendFiles } from '../composer/useRoomInputSendSessionController';
 import { UploadStatus } from '../matrix/state/upload';
 import { RoomTimeline } from '../timeline/RoomTimeline';
 import { usePanelFrame } from '../ui/panels/panelFrameContext';
@@ -85,25 +84,24 @@ export function ThreadView({ room, threadId }: { room: Room; threadId: string })
   }, [folded, roomId, setShownViews, threadId, view]);
 
   // Its composer's reply and staged files, in each room it showed, go with it as it unmounts: no
-  // later view finds them, and their uploads stop. A send under way keeps the files it claimed.
+  // later view finds them, and their uploads stop. A send under way took its own files off the
+  // list as its composer unmounted (a layout effect, before these passive ones).
   const store = useStore();
   const roomsShown = useRef(new Set<string>()).current;
   roomsShown.add(roomId);
   useEffect(
-    () => () => {
-      const claimed = new Set(claimedSendFiles(store, client, view));
+    () => () =>
       roomsShown.forEach((shownRoomId) => {
         const key = composerStateKey(shownRoomId, view);
         store.get(roomIdToUploadItemsAtomFamily(key)).forEach(({ file }) => {
           const upload = store.get(roomUploadAtomFamily(file));
-          if (claimed.has(file) || upload.status !== UploadStatus.Loading) return;
+          if (upload.status !== UploadStatus.Loading) return;
           client.cancelUpload(upload.promise);
           store.set(roomUploadAtomFamily(file), { status: UploadStatus.Idle });
         });
         roomIdToReplyDraftAtomFamily.remove(key);
         roomIdToUploadItemsAtomFamily.remove(key);
-      });
-    },
+      }),
     [client, roomsShown, store, view]
   );
 

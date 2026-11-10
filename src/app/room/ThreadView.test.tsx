@@ -43,11 +43,6 @@ const state = vi.hoisted(() => ({
   dropTarget: undefined as HTMLElement | null | undefined,
   composerViews: [] as (string | undefined)[],
   approvals: undefined as Omit<ApprovalProps, 'children'> | undefined,
-  claimed: [] as File[],
-}));
-
-vi.mock('../composer/useRoomInputSendSessionController', () => ({
-  claimedSendFiles: () => state.claimed,
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
@@ -115,7 +110,6 @@ beforeEach(() => {
   state.dropTarget = undefined;
   state.composerViews = [];
   state.approvals = undefined;
-  state.claimed = [];
 });
 afterEach(cleanup);
 
@@ -193,7 +187,7 @@ it("sets the room view's insets to none, as no floating header or composer cover
   );
 });
 
-it('is a conversation view of its own, apart from the room page and from another view of the thread, whose reply and staged files go with it, their uploads stopped unless a send holds them', () => {
+it('is a conversation view of its own, apart from the room page and from another view of the thread, whose reply and staged files go with it, their uploads stopped', () => {
   const store = getDefaultStore();
   const { unmount } = render(
     <>
@@ -225,16 +219,13 @@ it('is a conversation view of its own, apart from the room page and from another
   act(() => {
     store.set(composerReplyDraftAtom(room.roomId, first), reply);
   });
-  const unclaimed = staged('notes.txt');
-  // A send under way holds this one, and still sends it.
-  const claimed = staged('claimed.txt');
-  state.claimed = [claimed.file];
+  const notes = staged('notes.txt');
   const cancel = vi.spyOn(mx, 'cancelUpload').mockReturnValue(true);
   unmount();
   expect(store.get(composerReplyDraftAtom(room.roomId, first))).toBeUndefined();
   expect(store.get(composerUploadItemsAtom(room.roomId, first))).toEqual([]);
-  expect(cancel.mock.calls).toEqual([[unclaimed.promise]]);
-  expect(store.get(roomUploadAtomFamily(claimed.file)).status).toBe(UploadStatus.Loading);
+  expect(cancel.mock.calls).toEqual([[notes.promise]]);
+  expect(store.get(roomUploadAtomFamily(notes.file)).status).toBe(UploadStatus.Idle);
   cancel.mockRestore();
 });
 
