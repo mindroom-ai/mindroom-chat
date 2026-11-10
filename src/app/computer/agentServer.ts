@@ -77,7 +77,7 @@ export const trustedServers = (
   if (servers.length > 0 && !warnedUnchecked) {
     warnedUnchecked = true;
     console.warn(
-      'MindRoom servers that agents publish are used unchecked: config.json sets neither mindroom.computers.apiUrl nor mindroom.computers.trustedApiUrls.'
+      'MindRoom servers that agents publish are used unchecked: config.json sets no usable mindroom.computers.apiUrl and no mindroom.computers.trustedApiUrls.'
     );
   }
   return servers;
