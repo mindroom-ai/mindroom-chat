@@ -16,6 +16,7 @@ vi.mock('./CompactRoomView.css', () => ({
   ReplyCount: 'ReplyCount',
   ResolutionByline: 'ResolutionByline',
   ResolutionBylineLabel: 'ResolutionBylineLabel',
+  ResolvedBadge: 'ResolvedBadge',
   ScheduledIndicator: 'ScheduledIndicator',
   Stats: 'Stats',
   StreamingStatus: 'StreamingStatus',
@@ -284,5 +285,22 @@ describe('CompactThreadCard', () => {
     ).toHaveLength(1);
 
     renderer.unmount();
+  });
+
+  it('leads a resolved title, and only a resolved one, with the check badge', () => {
+    const badges = (isResolved: boolean) => {
+      const renderer = create(
+        <CompactThreadCard viewModel={makeViewModel({ isResolved })} onClick={vi.fn()} />
+      );
+      const title = renderer.root.findByProps({ className: 'TitleText' });
+      const found = title.findAll(
+        (node) => node.type === 'span' && node.props.className === 'ResolvedBadge'
+      ).length;
+      renderer.unmount();
+      return found;
+    };
+
+    expect(badges(true)).toBe(1);
+    expect(badges(false)).toBe(0);
   });
 });
