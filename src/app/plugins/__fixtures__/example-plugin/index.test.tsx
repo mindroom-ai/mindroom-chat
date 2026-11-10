@@ -13,7 +13,7 @@ import {
   type PluginEvent,
 } from '@mindroom/client-sdk/core';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
-import type { PanelPresence } from '@mindroom/client-sdk/ui';
+import type { PanelPresence, SurfacePinch } from '@mindroom/client-sdk/ui';
 import plugin from './index';
 
 // jsdom lays nothing out, so a focus trap finds nothing it could focus and throws; its menu's trap
@@ -24,9 +24,11 @@ vi.mock('focus-trap-react', () => ({
 
 // The room's panel place around the card and the screen size, which the app provides; outside it
 // there is no place, and the size is the SDK's own answer.
+// The pinches the app's page zoom hands its board go to the `onPinch` it gave last.
 const place = vi.hoisted(() => ({
   presence: undefined as PanelPresence | undefined,
   screenSize: undefined as 'Desktop' | 'Mobile' | undefined,
+  onPinch: undefined as ((pinch: SurfacePinch) => void) | undefined,
 }));
 // The thread the room's page shows and the thread panel's controls, which the room provides, and the
 // thread itself, which is the app's (e2e/plugins/agent-thread-view.spec.ts).
@@ -65,6 +67,10 @@ vi.mock('@mindroom/client-sdk/ui', async (importOriginal) => {
   return {
     ...ui,
     usePanelPresence: () => place.presence,
+    usePinchSurface: (...args: Parameters<typeof ui.usePinchSurface>) => {
+      place.onPinch = args[1].onPinch;
+      ui.usePinchSurface(...args);
+    },
     useScreenSize: () => place.screenSize ?? ui.useScreenSize(),
   };
 });
@@ -503,6 +509,39 @@ describe('example plugin', () => {
     );
     view.unmount();
     expect(revoked).toEqual([objectUrl]);
+  });
+
+  it("scales its pinch board's box around the centre of each pinch the app hands it", async () => {
+    const card = plugin.sidePanels?.find(({ id }) => id === 'card');
+    if (!card) throw new Error('the example plugin has no card');
+    const view = await renderPluginComponent(<card.Component roomId="!lobby:example.org" />, {
+      id: 'example',
+      plugin,
+      frame: { label: 'Example card', layout: 'beside', setLayout: () => undefined },
+    });
+    const board = view.getByRole('group', { name: 'Example pinch board' });
+    const box = board.firstElementChild as HTMLElement;
+    // The page zoom leaves the board's pinches to it.
+    expect(board.hasAttribute('data-pinch-surface')).toBe(true);
+    const pinch = (phase: SurfacePinch['phase'], scale: number, x: number, y: number) =>
+      act(() => place.onPinch?.({ phase, scale, centre: { x, y } }));
+
+    // jsdom lays nothing out: the board's corner is at 0, 0. Around the box's middle, twice the
+    // size, its middle where it was.
+    pinch('start', 1, 30, 30);
+    pinch('move', 2, 30, 30);
+    expect(view.getByText('Pinching')).toBeTruthy();
+    pinch('end', 2, 30, 30);
+    expect(view.queryByText('Pinching')).toBeNull();
+    expect(view.getByText('Box scale: 2.00')).toBeTruthy();
+    expect(box.style.transform).toBe('translate(-30px, -30px) scale(2)');
+
+    // The next pinch goes on from there: half the size around the board's corner, moved by 10 px.
+    pinch('start', 1, 0, 0);
+    pinch('move', 0.5, 10, 10);
+    pinch('end', 0.5, 10, 10);
+    expect(view.getByText('Box scale: 1.00')).toBeTruthy();
+    expect(box.style.transform).toBe('translate(-5px, -5px) scale(1)');
   });
 
   it.each([
