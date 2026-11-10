@@ -21,7 +21,10 @@ module.exports = {
     // Real paths, so that an import through a link to the app (`.mindroom-chat`) resolves into
     // the app's directories below.
     'import/resolver': {
-      node: { ...COMMON.settings['import/resolver'].node, preserveSymlinks: false },
+      [path.join(__dirname, 'scripts/eslint-plugin-resolver.cjs')]: {
+        ...COMMON.settings['import/resolver'].node,
+        preserveSymlinks: false,
+      },
     },
   },
   ignorePatterns: ['node_modules/', 'dist/'],

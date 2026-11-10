@@ -126,6 +126,8 @@ describe('.eslintrc.plugin.cjs', () => {
   it.each([
     '../.mindroom-chat/src/client-sdk/core',
     '../.mindroom-chat/src/app/plugins/registry',
+    // As TypeScript resolves it, to registry.ts.
+    '../.mindroom-chat/src/app/plugins/registry.js',
     '../.mindroom-chat/e2e/helpers/matrix',
     path.join(ROOT, 'src/app/plugins/registry'),
   ])('refuses an import of %s, which reaches into the app', async (specifier) => {
