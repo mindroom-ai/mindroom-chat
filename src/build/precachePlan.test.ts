@@ -1,7 +1,7 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { build, type Rollup } from 'vite';
+import { build, type Plugin, type Rollup } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { afterAll, describe, expect, it } from 'vitest';
 import { buildInventory, startupFiles, startupPrecache } from '../../scripts/precache-plan.mjs';
@@ -243,6 +243,7 @@ describe('startupPrecache', () => {
 
 describe('a build that fails before its bundle is written', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'precache-plan-'));
+  const dist = path.join(dir, 'dist');
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
   writeFileSync(path.join(dir, 'index.html'), '<script type="module" src="./main.js"></script>\n');
   writeFileSync(path.join(dir, 'main.js'), 'export {};\n');
@@ -251,25 +252,19 @@ describe('a build that fails before its bundle is written', () => {
     'console.log(self.__WB_MANIFEST, self.__MINDROOM_BUILD_INVENTORY);\n'
   );
 
-  it("ends with the build's own error, not the service worker build's", async () => {
-    // As vite.config.js wires the plan into the service worker build; a plugin of the build
-    // fails first, as the third-party notices do for a client plugin without a lockfile.
+  /** A build with the plan wired into the service worker build as vite.config.js wires it. */
+  const buildWith = (failing: Plugin) => {
     const startup = startupPrecache({
       startupModules: [],
       shellFiles: ['index.html'],
       localeOverlay: /^$/,
     });
-    const built = build({
+    return build({
       configFile: false,
       root: dir,
       logLevel: 'silent',
       plugins: [
-        {
-          name: 'fails',
-          generateBundle() {
-            throw new Error('the build failed for its own reason');
-          },
-        },
+        failing,
         startup.plugin,
         VitePWA({
           strategies: 'injectManifest',
@@ -286,8 +281,29 @@ describe('a build that fails before its bundle is written', () => {
           manifest: false,
         }),
       ],
-      build: { outDir: path.join(dir, 'dist'), emptyOutDir: true },
+      build: { outDir: dist, emptyOutDir: true },
     });
-    await expect(built).rejects.toThrow('the build failed for its own reason');
+  };
+
+  it("ends with the build's own error, not the service worker build's", async () => {
+    // As the third-party notices fail for a client plugin with installed packages but no lockfile.
+    const generateBundle = () => {
+      throw new Error('the build failed for its own reason');
+    };
+    await expect(buildWith({ name: 'fails', generateBundle })).rejects.toThrow(
+      'the build failed for its own reason'
+    );
+  }, 60_000);
+
+  it('writes no worker into the output of an earlier build when it fails before its output', async () => {
+    mkdirSync(dist, { recursive: true });
+    writeFileSync(path.join(dist, 'sw.js'), 'the earlier build');
+    const buildStart = () => {
+      throw new Error('the build failed while it built');
+    };
+    await expect(buildWith({ name: 'fails', buildStart })).rejects.toThrow(
+      'the build failed while it built'
+    );
+    expect(readFileSync(path.join(dist, 'sw.js'), 'utf8')).toBe('the earlier build');
   }, 60_000);
 });

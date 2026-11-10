@@ -142,8 +142,10 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
   let inventory;
   let assetsDir = 'assets';
   // vite-plugin-pwa builds the worker once the build has ended, also after a build that failed
-  // before its bundle, whose own error the build must end with: then the worker's build, which
-  // never ships, passes without the plan.
+  // while it generated its output, whose own error the build must end with: then the worker's
+  // build, which never ships, passes without the plan. After a build that failed before (buildEnd
+  // gets its error), the worker's build fails as ever, which leaves the output directory as it was
+  // and the build's own error in place.
   let ended = false;
 
   /** @type {import('vite').Plugin} */
@@ -153,8 +155,8 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
     configResolved(config) {
       assetsDir = config.build.assetsDir;
     },
-    buildEnd() {
-      ended = true;
+    buildEnd(error) {
+      ended = !error;
     },
     generateBundle(_options, bundle) {
       planned = new Set([...shellFiles, ...startupFiles(bundle, startupModules, onDemandAssets)]);
