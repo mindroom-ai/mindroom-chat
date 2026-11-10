@@ -338,6 +338,9 @@ export const pendingVoiceSendDraftAtom = atom<PendingVoiceSendDraft | undefined>
 /** True while a recorded voice message waits to be sent with the composer's attachments. */
 export const voiceAutoSendPendingAtom = atom(false);
 
+/** The room whose page composer shows its voice recorder: recording, or a recording to send. */
+export const voiceRecorderRoomAtom = atom<string | undefined>(undefined);
+
 // What a reload would lose.
 
 /** The keys a family holds atoms for, listed without creating or removing any. */
@@ -386,4 +389,5 @@ export const forgetComposerStateOfSession = (store: JotaiStore): void => {
   dropEveryEntry(roomIdToReplyDraftAtomFamily);
   dropEveryEntry(roomIdToUploadItemsAtomFamily);
   store.set(voiceAutoSendPendingAtom, false);
+  store.set(voiceRecorderRoomAtom, undefined);
 };

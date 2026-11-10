@@ -770,7 +770,7 @@
     "resize": "Redimensionar o tópico",
     "showFull": "Mostrar o tópico inteiro",
     "showBeside": "Mostrar o tópico ao lado das mensagens",
-    "showBesideBlocked": "Envie ou remova primeiro a resposta e os ficheiros no compositor"
+    "showBesideBlocked": "Envie ou remova primeiro o que está no compositor"
   },
   "activity": {
     "title": "Atividade",

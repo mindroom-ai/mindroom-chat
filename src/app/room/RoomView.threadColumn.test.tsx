@@ -19,6 +19,7 @@ import {
   composerUploadItemsAtom,
   getRoomInputDraftKey,
   roomIdToMsgDraftAtomFamily,
+  voiceRecorderRoomAtom,
 } from '../composer/roomInputDrafts';
 import { PanelRow } from '../members/PanelRow';
 import { RoomView, type RoomViewProps } from './RoomView';
@@ -438,7 +439,12 @@ it("lets a thread in the messages' place move beside them only with no reply or 
   );
   expect(beside().hasAttribute('disabled')).toBe(true);
   act(() => store.set(composerReplyDraftAtom(room.roomId, undefined), undefined));
+  // So does a voice recorder in this room's composer; another room's leaves it.
+  act(() => store.set(voiceRecorderRoomAtom, room.roomId));
+  expect(beside().hasAttribute('disabled')).toBe(true);
+  act(() => store.set(voiceRecorderRoomAtom, '!other:example.org'));
   expect(beside().hasAttribute('disabled')).toBe(false);
+  act(() => store.set(voiceRecorderRoomAtom, undefined));
   fireEvent.click(beside());
   expect(column()?.dataset.thread).toBe('$thread');
 });

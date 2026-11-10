@@ -31,6 +31,7 @@ import { RoomInput } from '../composer/RoomInput';
 import {
   composerReplyDraftAtom,
   composerUploadItemsAtom,
+  voiceRecorderRoomAtom,
   getRoomInputDraftKey,
   roomIdToMsgDraftAtomFamily,
 } from '../composer/roomInputDrafts';
@@ -352,9 +353,10 @@ export function RoomView({
     return () => setUnderThread(false);
   }, [columnFills, setUnderThread]);
   // A thread in the messages' place moves to the column only with nothing in its composer but text,
-  // which the thread keeps: no reply or file goes from one composer to the other.
+  // which the thread keeps: no reply, file or voice message goes from one composer to the other.
   const pageReply = useAtomValue(composerReplyDraftAtom(roomId, undefined));
   const pageFiles = useAtomValue(composerUploadItemsAtom(roomId, undefined)).length > 0;
+  const pageRecording = useAtomValue(voiceRecorderRoomAtom) === roomId;
   const showBeside = () => {
     if (openThreadId) setPlace({ threadId: openThreadId, column: true });
     threadLayout.setLayout('beside');
@@ -378,7 +380,7 @@ export function RoomView({
       summaryInfo={threadState.threadSummaryInfo}
       onExitThread={threadState.handleExitThread ?? ignore}
       onShowBeside={!columnThreadId && threadLayout.roomy ? showBeside : undefined}
-      showBesideBlocked={!!pageReply || pageFiles}
+      showBesideBlocked={!!pageReply || pageFiles || pageRecording}
       onShowFull={columnThreadId && !columnFills ? showFull : undefined}
       onRestore={columnFills && threadLayout.roomy ? showBeside : undefined}
     />

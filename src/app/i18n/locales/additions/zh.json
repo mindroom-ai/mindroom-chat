@@ -748,7 +748,7 @@
     "resize": "调整讨论串大小",
     "showFull": "完整显示讨论串",
     "showBeside": "在消息旁显示讨论串",
-    "showBesideBlocked": "请先发送或移除输入框中的回复和文件"
+    "showBesideBlocked": "请先发送或移除输入框中的内容"
   },
   "activity": {
     "title": "动态",

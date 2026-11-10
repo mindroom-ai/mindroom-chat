@@ -43,7 +43,7 @@ export type ThreadActionsMenuProps = {
   onHideDetails?: () => void;
   /** Offered from the banner of a thread in the messages' place where it may show beside them. */
   onShowBeside?: () => void;
-  /** Show beside is refused while the composer holds a reply or files, and says so. */
+  /** Show beside is refused while the composer holds a reply, files or a recording, and says so. */
   showBesideBlocked?: boolean;
 };
 

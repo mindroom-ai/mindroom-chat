@@ -66,7 +66,7 @@ export interface ThreadContextBannerProps {
   onExitThread: () => void;
   /** Shows the thread in a column beside the room's messages, from their place (in More). */
   onShowBeside?: () => void;
-  /** More offers Show beside but refuses it: the composer holds a reply or files. */
+  /** More offers Show beside but refuses it: the composer holds a reply, files or a recording. */
   showBesideBlocked?: boolean;
   /** Fills the room page with the thread's column. */
   onShowFull?: () => void;

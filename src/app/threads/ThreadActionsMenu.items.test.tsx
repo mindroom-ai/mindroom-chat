@@ -152,9 +152,7 @@ describe('ThreadActionsMenu rows', () => {
     const items = renderMenu({ onShowBeside, showBesideBlocked: true });
     const entry = rowOf(items, 'showBeside');
     expect(entry?.getAttribute('aria-disabled')).toBe('true');
-    expect(entry?.textContent).toContain(
-      'Send or remove the reply and files in the composer first'
-    );
+    expect(entry?.textContent).toContain('Send or remove what the composer holds first');
     act(() => entry?.click());
     expect(onShowBeside).not.toHaveBeenCalled();
   });
