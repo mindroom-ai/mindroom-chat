@@ -52,7 +52,9 @@ const pinching = (page: Page) => page.getByText('Pinching', { exact: true });
 
 const storedPageZoom = (page: Page) =>
   page.evaluate(
-    () => (JSON.parse(localStorage.getItem('settings') ?? '{}') as { pageZoom?: number }).pageZoom
+    () =>
+      (JSON.parse(localStorage.getItem('settings') ?? '{}') as { pageZoom?: number }).pageZoom ??
+      100
   );
 
 const boxOf = async (locator: Locator) => {
@@ -143,7 +145,7 @@ test('a pinch on a plugin surface scales its box around the fingers, and the pag
     expectNear(scaled.width, 120);
     expectNear(scaled.x + scaled.width / 2, middle.x);
     expectNear(scaled.y + scaled.height / 2, middle.y);
-    expect(await storedPageZoom(page)).toBeUndefined();
+    expect(await storedPageZoom(page)).toBe(100);
     expect(await page.evaluate(() => window.visualViewport?.scale)).toBe(1);
 
     // One finger on the board and one on the conversation beside the card, 200 then 250 px apart:
@@ -297,7 +299,7 @@ test('in WebKit, iOS pinches, a trackpad gesture and ctrl with the wheel scale t
       const scaled = await boxOf(pinchBox(page));
       expectNear(scaled.width, 120);
       expectNear(scaled.x + scaled.width / 2, middle.x);
-      expect(await storedPageZoom(page)).toBeUndefined();
+      expect(await storedPageZoom(page)).toBe(100);
 
       // A trackpad's gesture over the board halves the box; one beside the card zooms the page.
       expect(await synthGesture(page, 'gesturestart', 1, middle)).toBe(true);
@@ -306,7 +308,7 @@ test('in WebKit, iOS pinches, a trackpad gesture and ctrl with the wheel scale t
       await synthGesture(page, 'gestureend', 0.5, middle);
       await expect(boxScale(page)).toHaveText('Box scale: 1.00');
       await expect(pinching(page)).toHaveCount(0);
-      expect(await storedPageZoom(page)).toBeUndefined();
+      expect(await storedPageZoom(page)).toBe(100);
       await synthGesture(page, 'gesturestart', 1, outside);
       await synthGesture(page, 'gesturechange', 1.2, outside);
       await synthGesture(page, 'gestureend', 1.2, outside);
