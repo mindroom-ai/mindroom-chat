@@ -314,6 +314,7 @@ export const roomIdToUploadItemsAtomFamily = atomFamily((_roomId: string) =>
 /** The files staged in the composer in `roomId` of the conversation view `view`. */
 export const composerUploadItemsAtom = (roomId: string, view: string | undefined) =>
   roomIdToUploadItemsAtomFamily(composerStateKey(roomId, view));
+export type StagedList = ReturnType<typeof composerUploadItemsAtom>;
 
 /** The upload state of a staged file. */
 export const roomUploadAtomFamily = atomFamily(

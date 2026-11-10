@@ -1,11 +1,10 @@
-import { useCallback, useContext, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { createStore } from 'jotai';
 import type { IContent, MatrixClient, Room } from 'matrix-js-sdk';
 import { getAudioMsgContent } from '../matrix/send/msgContent';
-import { ConversationViewContext } from '../navigation/conversationView';
 import {
   type PendingVoiceSendContext,
-  composerUploadItemsAtom,
+  type StagedList,
   roomUploadAtomFamily,
 } from './roomInputDrafts';
 import { type TUploadItem, UploadStatus } from '../matrix/state/upload';
@@ -28,7 +27,6 @@ export const getVoiceMessageContentOptions = (
  */
 
 export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room: Room) => {
-  const view = useContext(ConversationViewContext);
   // A recording that cannot be prepared (encrypted) fails at once; the recorder keeps it to retry.
   const createVoiceUploadItems = useCallback(
     async (
@@ -87,12 +85,11 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
   );
 
   /**
-   * Uploads an item only while it is still staged in `roomId`'s composer; undefined when it was
-   * removed meanwhile or its upload failed.
+   * Uploads an item only while it is still staged in `listAtom`; undefined when it was removed
+   * meanwhile or its upload failed.
    */
   const uploadItemWhileStaged = useCallback(
-    async (roomId: string, item: TUploadItem): Promise<TUploadItem | undefined> => {
-      const listAtom = composerUploadItemsAtom(roomId, view);
+    async (listAtom: StagedList, item: TUploadItem): Promise<TUploadItem | undefined> => {
       const staged = () => store.get(listAtom).some((entry) => entry.file === item.file);
       if (!staged()) return undefined;
       // Removing the file from the composer ends the wait, even for an upload that never settles.
@@ -115,7 +112,7 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
         unsubscribe();
       }
     },
-    [store, uploadItem, view]
+    [store, uploadItem]
   );
 
   const sendVoiceItem = useCallback(

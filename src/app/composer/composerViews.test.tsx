@@ -6,6 +6,7 @@ import { createEditor } from 'slate';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
 import {
+  composerUploadItemsAtom,
   readKeptFileNames,
   roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
@@ -104,7 +105,7 @@ it("keeps a file staged in one composer of the room out of the other one's send"
   expect(readKeptFileNames(ME, ROOM_ID)).toEqual(['page.txt']);
 });
 
-it("uploads a file only while it is staged in its own composer, not in the room page's", async () => {
+it("uploads a file only while it is staged in the view's list, not in the room page's", async () => {
   const { store, composers } = renderTwoComposers();
   const pageFile = fileItem('page.txt');
   const viewFile = fileItem('view.txt');
@@ -115,10 +116,11 @@ it("uploads a file only while it is staged in its own composer, not in the room 
   act(() => composers.page.attachments.access.append(ROOM_ID, [pageFile]));
   act(() => composers.view.attachments.access.append(ROOM_ID, [viewFile]));
 
+  const viewList = composerUploadItemsAtom(ROOM_ID, VIEW);
   await expect(
-    composers.view.transport.uploadItemWhileStaged(ROOM_ID, pageFile)
+    composers.view.transport.uploadItemWhileStaged(viewList, pageFile)
   ).resolves.toBeUndefined();
-  await expect(composers.view.transport.uploadItemWhileStaged(ROOM_ID, viewFile)).resolves.toBe(
+  await expect(composers.view.transport.uploadItemWhileStaged(viewList, viewFile)).resolves.toBe(
     viewFile
   );
 });

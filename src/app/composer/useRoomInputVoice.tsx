@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { IContent, MatrixClient } from 'matrix-js-sdk';
@@ -9,6 +9,8 @@ import { IconTooltip } from '../ui/IconTooltip';
 import { useMediaConfig } from '../matrix/hooks/useMediaConfig';
 import {
   type PendingVoiceSendContext,
+  type StagedList,
+  composerUploadItemsAtom,
   openVoiceRecorderAtom,
   pendingVoiceSendDraftAtom,
   roomUploadAtomFamily,
@@ -37,6 +39,7 @@ import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
 import type { useRoomInputUploadTransport } from './useRoomInputUploadTransport';
 import { ComposerIconButton } from './RoomInput.css';
 import { revealDirectionControls } from '../ui/directional';
+import { ConversationViewContext } from '../navigation/conversationView';
 
 type VoiceComposerAdapter = {
   getContext: () => Pick<
@@ -78,6 +81,8 @@ type PendingVoiceComposerBundle = {
   textContent?: IContent;
   composerFallback?: Descendant[];
   companionItems: TUploadItem[];
+  /** The list they were staged in, which a thread view drops from its family as it closes. */
+  stagedList: StagedList;
   composerReset: boolean;
   handedOff: boolean;
   releasePasteProtection: () => void;
@@ -93,6 +98,7 @@ export const useRoomInputVoice = ({
 }: UseRoomInputVoiceOptions): VoiceFeature => {
   const { t } = useTranslation();
   const store = useStore();
+  const view = useContext(ConversationViewContext);
   const mediaConfig = useMediaConfig();
   const allowUploadSize = mediaConfig['m.upload.size'] ?? Infinity;
   const [voiceRecorderOpen, setVoiceRecorderOpen] = useState(false);
@@ -121,13 +127,6 @@ export const useRoomInputVoice = ({
   const voiceAutoSendInFlightRef = useRef(false);
   const voiceRecorderRef = useRef<VoiceRecorderComposerHandle>(null);
   const pendingVoiceComposerBundleRef = useRef<PendingVoiceComposerBundle>();
-  const mountedRef = useRef(true);
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
 
   // While this composer owns a pending failed-send draft (e.g. it survived a
   // RoomProvider key remount on real navigation), surface the recorder so
@@ -323,26 +322,19 @@ export const useRoomInputVoice = ({
         }
         const ownerRoomId = liveContext.roomId;
         const liveRoomEncrypted = liveContext.room.hasEncryptionStateEvent();
-        // A file removed from the composer before it goes is left out. A thread view's staged
-        // files go with it as it closes (room/ThreadView.tsx), so a closed view's are all kept.
-        const isStillStaged = (): ((item: TUploadItem) => boolean) => {
-          if (getContext().threadView && !mountedRef.current) return () => true;
-          const liveFiles = new Set(
-            attachmentAccess.snapshot(ownerRoomId).staged.map((item) => item.file)
-          );
-          return (item) => liveFiles.has(item.file);
-        };
-        const getEligibleCompanionItems = (): TUploadItem[] => {
-          const staged = isStillStaged();
-          return (composerBundle?.companionItems ?? []).filter(
+        // A file removed from the composer before it goes is left out.
+        const stillStaged = (item: TUploadItem): boolean =>
+          !!composerBundle &&
+          store.get(composerBundle.stagedList).some((staged) => staged.file === item.file);
+        const getEligibleCompanionItems = (): TUploadItem[] =>
+          (composerBundle?.companionItems ?? []).filter(
             (item) =>
-              staged(item) &&
+              stillStaged(item) &&
               !item.prepError &&
               Boolean(item.encInfo) === liveRoomEncrypted &&
               store.get(roomUploadAtomFamily(item.file)).status !== UploadStatus.Error &&
               item.file.size < allowUploadSize
           );
-        };
         let eligibleCompanionItems = getEligibleCompanionItems();
         if (
           composerBundle &&
@@ -370,7 +362,9 @@ export const useRoomInputVoice = ({
 
         if (shouldCombineWithCompanions) {
           const companionUploadResultsPromise = Promise.allSettled(
-            eligibleCompanionItems.map((item) => uploadItemWhileStaged(ownerRoomId, item))
+            eligibleCompanionItems.map((item) =>
+              uploadItemWhileStaged(composerBundle.stagedList, item)
+            )
           );
           try {
             await uploadItem(fileItem);
@@ -379,11 +373,10 @@ export const useRoomInputVoice = ({
           }
           const companionUploadResults = await companionUploadResultsPromise;
 
-          const staged = isStillStaged();
           const readyItems = [
             ...companionUploadResults
               .map((result) => (result.status === 'fulfilled' ? result.value : undefined))
-              .filter((item): item is TUploadItem => item !== undefined && staged(item)),
+              .filter((item): item is TUploadItem => item !== undefined && stillStaged(item)),
             fileItem,
           ];
           try {
@@ -452,7 +445,6 @@ export const useRoomInputVoice = ({
       allowUploadSize,
       clearConsumedReply,
       createVoiceUploadItems,
-      getContext,
       hasActiveSendSession,
       mx,
       releaseVoiceAutoSend,
@@ -492,6 +484,7 @@ export const useRoomInputVoice = ({
         textContent: content,
         composerFallback: content ? snapshotText() : undefined,
         companionItems,
+        stagedList: composerUploadItemsAtom(context.roomId, view),
         releasePasteProtection: attachmentAccess.protectPasteItems(companionItems),
         composerReset: false,
         handedOff: false,
@@ -510,7 +503,7 @@ export const useRoomInputVoice = ({
 
       return true;
     },
-    [attachmentAccess, getContext, ownsPendingVoiceDraft, snapshotText, voiceRecorderOpen]
+    [attachmentAccess, getContext, ownsPendingVoiceDraft, snapshotText, view, voiceRecorderOpen]
   );
 
   const renderRecorder = (onRetryRequest: () => void): React.ReactNode =>
