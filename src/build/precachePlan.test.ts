@@ -295,15 +295,21 @@ describe('a build that fails before its bundle is written', () => {
     );
   }, 60_000);
 
-  it('writes no worker into the output of an earlier build when it fails before its output', async () => {
-    mkdirSync(dist, { recursive: true });
-    writeFileSync(path.join(dist, 'sw.js'), 'the earlier build');
-    const buildStart = () => {
-      throw new Error('the build failed while it built');
-    };
-    await expect(buildWith({ name: 'fails', buildStart })).rejects.toThrow(
-      'the build failed while it built'
-    );
-    expect(readFileSync(path.join(dist, 'sw.js'), 'utf8')).toBe('the earlier build');
-  }, 60_000);
+  // A failure in buildEnd as scripts/package-copies.mjs fails a build that holds two copies of
+  // one package version.
+  it.each(['buildStart', 'buildEnd'])(
+    'writes no worker into the output of an earlier build when it fails in %s',
+    async (hook) => {
+      mkdirSync(dist, { recursive: true });
+      writeFileSync(path.join(dist, 'sw.js'), 'the earlier build');
+      const fail = () => {
+        throw new Error(`the build failed in ${hook}`);
+      };
+      await expect(buildWith({ name: 'fails', [hook]: fail })).rejects.toThrow(
+        `the build failed in ${hook}`
+      );
+      expect(readFileSync(path.join(dist, 'sw.js'), 'utf8')).toBe('the earlier build');
+    },
+    60_000
+  );
 });

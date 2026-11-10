@@ -141,12 +141,12 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
   /** @type {BuildInventory | undefined} */
   let inventory;
   let assetsDir = 'assets';
-  // vite-plugin-pwa builds the worker once the build has ended, also after a build that failed
-  // while it generated its output, whose own error the build must end with: then the worker's
-  // build, which never ships, passes without the plan. After a build that failed before (buildEnd
-  // gets its error), the worker's build fails as ever, which leaves the output directory as it was
-  // and the build's own error in place.
-  let ended = false;
+  // vite-plugin-pwa builds the worker once the build has ended, also after it failed. A build that
+  // failed while it rendered its output must end with its own error, so the worker's build, which
+  // never ships, then passes without the plan. One that failed before it rendered (in its build
+  // phase, buildEnd hooks included) keeps failing the worker's build, whose error the build then
+  // drops, so the output directory of an earlier build stays as it was.
+  let rendering = false;
 
   /** @type {import('vite').Plugin} */
   const plugin = {
@@ -155,8 +155,8 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
     configResolved(config) {
       assetsDir = config.build.assetsDir;
     },
-    buildEnd(error) {
-      ended = !error;
+    renderStart() {
+      rendering = true;
     },
     generateBundle(_options, bundle) {
       planned = new Set([...shellFiles, ...startupFiles(bundle, startupModules, onDemandAssets)]);
@@ -170,7 +170,7 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
     apply: 'build',
     renderChunk(code) {
       if (!inventory) {
-        if (ended) return null;
+        if (rendering) return null;
         throw new Error('precache plan: the build never reported its bundle');
       }
       const parts = code.split(INVENTORY_MARKER);
@@ -190,7 +190,7 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
   const manifestTransform = (entries) => {
     const wanted = planned;
     if (!wanted) {
-      if (ended) return { manifest: [], warnings: [] };
+      if (rendering) return { manifest: [], warnings: [] };
       throw new Error('precache plan: the build never reported its bundle');
     }
     const manifest = entries.filter((entry) => wanted.has(entry.url));
