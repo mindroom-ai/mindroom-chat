@@ -264,6 +264,9 @@ for (const engine of ENGINES) {
         const panel = await drawer(page).boundingBox();
         expect(panel!.y).toBeGreaterThanOrEqual(bar!.y + bar!.height);
         expect(panel!.width).toBeLessThanOrEqual(PHONE.viewport.width - 56);
+        // The menu button sits on the rail's centre line, above the rail's buttons.
+        const railBox = (await rail(page).boundingBox())!;
+        expect(bar!.x + bar!.width / 2).toBeCloseTo(railBox.x + railBox.width / 2, 0);
         await shoot(page, testInfo, 'home-drawer');
 
         // A room picked there fills the page under the bar; its back chevron returns to the list,

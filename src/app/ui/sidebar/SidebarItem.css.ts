@@ -16,6 +16,9 @@ const FlexColumn = style({ display: 'flex', flexFlow: 'column' });
 /** Centres whatever it holds on both axes. */
 const Centered = style({ display: 'flex', alignItems: 'center', justifyContent: 'center' });
 
+/** The rail's width; a phone's menu button above it sits on its centre line. */
+export const railWidth = toRem(66);
+
 /** The rail: a fixed-width column, as tall as the client. */
 export const Sidebar = style([
   DefaultReset,
@@ -24,7 +27,7 @@ export const Sidebar = style([
     flex: 'none',
     color: color.Background.OnContainer,
     backgroundColor: color.Background.Container,
-    inlineSize: toRem(66),
+    inlineSize: railWidth,
     blockSize: '100%',
     '@media': {
       // A phone in landscape scrolls the whole rail (SidebarScrollPart). No scrollbar, as the
