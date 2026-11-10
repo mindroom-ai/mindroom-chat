@@ -447,7 +447,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       sessions,
       onRoomMessageSent,
     });
-    const { microphone } = voice;
 
     const buildTextContent = useCallback(
       (): IContent | undefined =>
@@ -774,7 +773,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   onToggleFormatting={toggleFormatting}
                   onEmoji={(anchor) => openBoard('Emoji', anchor)}
                 />
-                {microphone}
+                {voice.microphone}
               </>
             ) : (
               <>
@@ -784,7 +783,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   icon={Icons.PlusCircle}
                   onPress={attachments.pickFiles}
                 />
-                {microphone}
+                {voice.microphone}
                 <ComposerIconButton
                   label={t('composer.formatting')}
                   icon={Icons.Text}

@@ -445,7 +445,9 @@ vi.mock('../commands/useCommands', () => ({
 vi.mock('../commands/agentCommandQuery', () => ({ getAgentCommandQuery: () => undefined }));
 vi.mock('../RoomInputExtensions', async () => {
   const { createRoomInputSendSessionState, getUploadRelationForSendSession } =
-    await vi.importActual<typeof import('../roomInputSendSession')>('../roomInputSendSession');
+    await vi.importActual<typeof import('../roomInputSendSession')>(
+      '../roomInputSendSession'
+    );
 
   return {
     createRoomInputPasteMarkerElement: (marker: {
