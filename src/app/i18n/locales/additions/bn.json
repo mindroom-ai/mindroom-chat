@@ -752,7 +752,8 @@
   },
   "activity": {
     "title": "কার্যকলাপ",
-    "unreadOnly": "শুধু অপঠিত",
+    "unreadOnly": "অপঠিত",
+    "unreadOnlyHint": "শুধু অপঠিত দেখান",
     "markAllRead": "সব পঠিত হিসেবে চিহ্নিত করুন",
     "openAsPage": "পৃষ্ঠা হিসেবে খুলুন",
     "tabs": {

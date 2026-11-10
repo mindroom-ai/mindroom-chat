@@ -752,7 +752,8 @@
   },
   "activity": {
     "title": "गतिविधि",
-    "unreadOnly": "केवल अपठित",
+    "unreadOnly": "अपठित",
+    "unreadOnlyHint": "केवल अपठित दिखाएँ",
     "markAllRead": "सभी को पढ़ा हुआ चिह्नित करें",
     "openAsPage": "पेज के रूप में खोलें",
     "tabs": {

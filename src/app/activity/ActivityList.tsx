@@ -127,13 +127,21 @@ export function ActivityList({ variant, onNavigate, onExpand }: ActivityListProp
             {t('activity.title')}
           </Text>
         )}
-        {/* The label names the switch and toggles it too. */}
-        <label className={css.Toggle}>
-          <Text as="span" size="T200">
-            {t('activity.unreadOnly')}
-          </Text>
-          <Switch value={unreadOnly} onChange={setUnreadOnly} />
-        </label>
+        {/* The label names the switch and toggles it too; the tooltip says what it does. */}
+        <TooltipProvider
+          position="Bottom"
+          offset={4}
+          tooltip={tooltip(t('activity.unreadOnlyHint'))}
+        >
+          {(triggerRef) => (
+            <label ref={triggerRef} className={css.Toggle}>
+              <Text as="span" size="T200">
+                {t('activity.unreadOnly')}
+              </Text>
+              <Switch value={unreadOnly} onChange={setUnreadOnly} />
+            </label>
+          )}
+        </TooltipProvider>
         <TooltipProvider position="Bottom" offset={4} tooltip={tooltip(t('activity.markAllRead'))}>
           {(triggerRef) => (
             <IconButton

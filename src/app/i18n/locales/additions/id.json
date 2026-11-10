@@ -741,7 +741,8 @@
   },
   "activity": {
     "title": "Aktivitas",
-    "unreadOnly": "Hanya belum dibaca",
+    "unreadOnly": "Belum dibaca",
+    "unreadOnlyHint": "Tampilkan hanya yang belum dibaca",
     "markAllRead": "Tandai semua dibaca",
     "openAsPage": "Buka sebagai halaman",
     "tabs": {

@@ -763,7 +763,8 @@
   },
   "activity": {
     "title": "Attività",
-    "unreadOnly": "Solo non letti",
+    "unreadOnly": "Non letti",
+    "unreadOnlyHint": "Mostra solo i non letti",
     "markAllRead": "Segna tutto come letto",
     "openAsPage": "Apri come pagina",
     "tabs": {

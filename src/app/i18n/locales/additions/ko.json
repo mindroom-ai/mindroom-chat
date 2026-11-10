@@ -741,7 +741,8 @@
   },
   "activity": {
     "title": "활동",
-    "unreadOnly": "읽지 않은 항목만",
+    "unreadOnly": "읽지 않음",
+    "unreadOnlyHint": "읽지 않은 항목만 보기",
     "markAllRead": "모두 읽음으로 표시",
     "openAsPage": "페이지로 열기",
     "tabs": {

@@ -752,7 +752,8 @@
   },
   "activity": {
     "title": "Activity",
-    "unreadOnly": "Unread only",
+    "unreadOnly": "Unread",
+    "unreadOnlyHint": "Show only unread",
     "markAllRead": "Mark all read",
     "openAsPage": "Open as page",
     "tabs": {

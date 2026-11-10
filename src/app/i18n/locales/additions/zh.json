@@ -741,7 +741,8 @@
   },
   "activity": {
     "title": "动态",
-    "unreadOnly": "仅未读",
+    "unreadOnly": "未读",
+    "unreadOnlyHint": "仅显示未读",
     "markAllRead": "全部标为已读",
     "openAsPage": "以页面打开",
     "tabs": {

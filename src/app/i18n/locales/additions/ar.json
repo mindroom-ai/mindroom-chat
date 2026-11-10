@@ -796,7 +796,8 @@
   },
   "activity": {
     "title": "النشاط",
-    "unreadOnly": "غير المقروءة فقط",
+    "unreadOnly": "غير المقروءة",
+    "unreadOnlyHint": "إظهار غير المقروءة فقط",
     "markAllRead": "تعليم الكل كمقروء",
     "openAsPage": "فتح كصفحة",
     "tabs": {

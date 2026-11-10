@@ -741,7 +741,8 @@
   },
   "activity": {
     "title": "動態",
-    "unreadOnly": "僅未讀",
+    "unreadOnly": "未讀",
+    "unreadOnlyHint": "僅顯示未讀",
     "markAllRead": "全部標為已讀",
     "openAsPage": "以頁面開啟",
     "tabs": {

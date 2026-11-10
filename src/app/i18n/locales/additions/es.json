@@ -763,7 +763,8 @@
   },
   "activity": {
     "title": "Actividad",
-    "unreadOnly": "Solo sin leer",
+    "unreadOnly": "Sin leer",
+    "unreadOnlyHint": "Mostrar solo sin leer",
     "markAllRead": "Marcar todo como leído",
     "openAsPage": "Abrir como página",
     "tabs": {

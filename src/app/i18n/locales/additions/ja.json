@@ -741,7 +741,8 @@
   },
   "activity": {
     "title": "アクティビティ",
-    "unreadOnly": "未読のみ",
+    "unreadOnly": "未読",
+    "unreadOnlyHint": "未読のみ表示",
     "markAllRead": "すべて既読にする",
     "openAsPage": "ページとして開く",
     "tabs": {

@@ -282,7 +282,7 @@ describe('ActivityList', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'All' }));
     expect(screen.getByText('Thread read')).toBeTruthy();
-    fireEvent.click(screen.getByRole('switch', { name: 'Unread only' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Unread' }));
     expect(screen.queryByText('Thread read')).toBeNull();
   });
 
