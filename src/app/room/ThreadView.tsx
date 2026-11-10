@@ -23,6 +23,7 @@ import {
   shownConversationViewsAtom,
 } from '../navigation/conversationView';
 import { RoomTimeline } from '../timeline/RoomTimeline';
+import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { MessageLinkCards } from './MessageLinkCards';
 
 const NO_SUMMARIES: ReadonlyMap<string, ThreadSummaryInfo> = new Map();
@@ -69,14 +70,17 @@ export function ThreadView({ room, threadId }: { room: Room; threadId: string })
   const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
   const composerShown = !tombstone && permissions.event('m.room.message', client.getSafeUserId());
 
-  // Notifications count the thread as on screen while the view shows it.
+  // Notifications count the thread as on screen while the view shows it: not while the side
+  // panel it is in is folded to its tab, which keeps it mounted out of sight.
+  const folded = usePanelFrame()?.layout === 'folded';
   const setShownViews = useSetAtom(shownConversationViewsAtom);
   const { roomId } = room;
   useEffect(() => {
+    if (folded) return undefined;
     const place = { roomId, threadId };
     setShownViews((shown) => [...shown, place]);
     return () => setShownViews((shown) => shown.filter((other) => other !== place));
-  }, [roomId, setShownViews, threadId]);
+  }, [folded, roomId, setShownViews, threadId]);
 
   const focusConversation = useCallback(() => ReactEditor.focus(editor as ReactEditor), [editor]);
 

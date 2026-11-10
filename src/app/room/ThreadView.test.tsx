@@ -12,6 +12,7 @@ import {
   shownConversationViewsAtom,
 } from '../navigation/conversationView';
 import type { RoomTimelineProps } from '../timeline/RoomTimeline';
+import { PanelFrameProvider } from '../ui/panels/panelFrameContext';
 import { ThreadView } from './ThreadView';
 
 const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
@@ -203,6 +204,26 @@ it('counts its thread as on screen for notifications while it is mounted', () =>
   ]);
   unmount();
   expect(store.get(shownConversationViewsAtom)).toEqual([]);
+});
+
+it('counts its thread as off screen while the side panel it is in is folded', () => {
+  const store = getDefaultStore();
+  const frame = (layout: 'beside' | 'folded') => ({ label: 'Thread', layout, setLayout: vi.fn() });
+  const { rerender, unmount } = render(
+    <PanelFrameProvider value={frame('folded')}>
+      <ThreadView room={room} threadId={THREAD} />
+    </PanelFrameProvider>
+  );
+  expect(store.get(shownConversationViewsAtom)).toEqual([]);
+  rerender(
+    <PanelFrameProvider value={frame('beside')}>
+      <ThreadView room={room} threadId={THREAD} />
+    </PanelFrameProvider>
+  );
+  expect(store.get(shownConversationViewsAtom)).toEqual([
+    { roomId: room.roomId, threadId: THREAD },
+  ]);
+  unmount();
 });
 
 it('asks for no approvals of a thread whose root the server has not confirmed', () => {
