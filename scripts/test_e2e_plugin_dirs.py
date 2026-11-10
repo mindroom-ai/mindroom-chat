@@ -4,6 +4,7 @@ throwaway repository that holds the scripts, with stand-ins for Docker, curl and
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -169,8 +170,9 @@ class SlotPreviewTests(PluginDirTestCase):
 
 
 class SuiteTests(PluginDirTestCase):
-    def test_the_suite_runs_the_plugin_directories_specs_on_the_production_build(self) -> None:
-        repo, _ = self.repository(
+    def setUp(self) -> None:
+        super().setUp()
+        self.repo, _ = self.repository(
             "app",
             {
                 "scripts/e2e-suite.sh": "",
@@ -180,35 +182,48 @@ class SuiteTests(PluginDirTestCase):
                 "e2e/a.spec.ts": "\n",
             },
         )
-        plugin = self.plugin("plugin")
+        self.log = self.tmp / "slot.log"
+
+    def runs(self, *options: str, **env: str) -> list[tuple[str, bool]]:
+        """The suite's slot runs, as their Playwright filter and whether they are on the production build."""
+        self.log.unlink(missing_ok=True)
+        result = subprocess.run(
+            ["bash", str(self.repo / "scripts/e2e-suite.sh"), "--slots", "98", *options],
+            capture_output=True,
+            text=True,
+            env={**self.env, **env, "SLOT_LOG": str(self.log)},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return sorted(
+            (line.split(" npx playwright test ")[1].split(" ")[0], " --preview " in line)
+            for line in self.log.read_text().splitlines()
+        )
+
+    def test_the_suite_runs_the_plugin_directories_specs_on_the_production_build(self) -> None:
+        plugin = self.plugin("plugin[1]")
         (plugin / "e2e/nested").mkdir()
         (plugin / "e2e/nested/b.spec.ts").write_text("\n")
-        (plugin / "e2e/c.spec.ts").write_text("\n")
-        log = self.tmp / "slot.log"
+        (plugin / "e2e/a.spec.ts").write_text("\n")
         for options in ([], ["--dev"]):
-            log.unlink(missing_ok=True)
-            result = subprocess.run(
-                ["bash", str(repo / "scripts/e2e-suite.sh"), "--slots", "98", *options],
-                capture_output=True,
-                text=True,
-                env={**self.env, "E2E_PLUGIN_DIRS": str(plugin), "SLOT_LOG": str(log)},
-            )
-            self.assertEqual(result.returncode, 0, result.stderr)
-            # Each run as its spec and whether it is on the production build.
-            runs = sorted(
-                (line.split(" npx playwright test ")[1].split(" ")[0], " --preview " in line)
-                for line in log.read_text().splitlines()
-            )
+            runs = self.runs(*options, E2E_PLUGIN_DIRS=str(plugin))
             self.assertEqual(
                 runs,
-                # By their paths in the slot's snapshot.
                 [
-                    (f"{self.snapshots}/slot-98/e2e-plugins/plugin/e2e/c.spec.ts", True),
-                    (f"{self.snapshots}/slot-98/e2e-plugins/plugin/e2e/nested/b.spec.ts", True),
-                    (f"{self.snapshots}/slot-98/e2e/a.spec.ts", options == []),
+                    (r"slot-98/e2e-plugins/plugin\[1\]/e2e/a\.spec\.ts", True),
+                    (r"slot-98/e2e-plugins/plugin\[1\]/e2e/nested/b\.spec\.ts", True),
+                    (r"slot-98/e2e/a\.spec\.ts", options == []),
                 ],
             )
+        # Playwright takes each filter as a regular expression over the path of a file in the snapshot.
+        tree = "/e2e root+/slot-98"
+        app_filter, plugin_filter = runs[2][0], runs[0][0]
+        self.assertTrue(re.search(app_filter, f"{tree}/e2e/a.spec.ts"))
+        self.assertFalse(re.search(app_filter, f"{tree}/e2e-plugins/plugin[1]/e2e/a.spec.ts"))
+        self.assertTrue(re.search(plugin_filter, f"{tree}/e2e-plugins/plugin[1]/e2e/a.spec.ts"))
 
+    def test_without_plugin_directories_the_specs_are_given_as_named(self) -> None:
+        runs = self.runs("e2e/a.spec.ts", "./e2e/a.spec.ts")
+        self.assertEqual(runs, [("./e2e/a.spec.ts", True), ("e2e/a.spec.ts", True)])
 
 if __name__ == "__main__":
     unittest.main()

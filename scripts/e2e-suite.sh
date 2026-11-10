@@ -174,11 +174,17 @@ main() {
       local options=(--snapshot="$sha")
       if [ "$server" = preview ]; then options+=(--preview); fi
       if printf '%s\n' "${rtc_specs[@]}" | grep -qxF "$spec"; then options+=(--rtc); fi
-      # The spec by its path in the slot's snapshot (scripts/e2e-slot.sh): Playwright matches a
-      # relative one anywhere, so e2e/a.spec.ts would also pick a plugin directory's e2e/a.spec.ts.
+      # Playwright takes the spec as a regular expression that may match anywhere in a file's path,
+      # so with plugin directories, whose projects have specs of their own, e2e/a.spec.ts would also
+      # pick a plugin directory's e2e/a.spec.ts: there it gets the spec by its path in the slot's
+      # snapshot (scripts/e2e-slot.sh), its characters escaped.
+      local filter="$spec"
+      if [ -n "${E2E_PLUGIN_DIRS:-}" ]; then
+        filter="$(printf '%s' "slot-$slot/$spec" | sed 's/[][\.*^$+?(){}|]/\\&/g')"
+      fi
       PLAYWRIGHT_JSON_OUTPUT_FILE="$run/json/$key.json" \
         bash "$repo/scripts/e2e-slot.sh" "$slot" "${options[@]}" \
-        npx playwright test "$snapshots/slot-$slot/$spec" --reporter=list,json --output "$run/output/$key" \
+        npx playwright test "$filter" --reporter=list,json --output "$run/output/$key" \
         "${playwright_options[@]}" >"$run/logs/$key.log" 2>&1 || status=$?
       printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$spec" "$run/json/$key.json" "$run/logs/$key.log" "$server" \
         "$status" "$load" >>"$run/manifest.tsv"
