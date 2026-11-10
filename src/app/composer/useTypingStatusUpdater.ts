@@ -100,6 +100,11 @@ export const useTypingStatusUpdater = (
         }, TYPING_TIMEOUT_MS);
         return;
       }
+      // The setting is the account's: it ends the room's notice, whichever composer is typing.
+      if (hidden && endRoomTyping(mx, roomId)) {
+        send(false);
+        return;
+      }
       stop();
     },
     [composer, conversationHidden, hidden, mx, roomId, send, stop]

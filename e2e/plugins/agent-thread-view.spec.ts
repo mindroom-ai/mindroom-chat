@@ -29,8 +29,8 @@ import { roomMoreOptions } from '../helpers/roomMenu';
 // message only. The profile card of the helper, opened from the panel's thread, closes on Escape
 // alone; an Escape in the panel's composer then closes the panel. In a room where the account may
 // not post, the panel shows the thread without a composer. Typing in the page's composer and then
-// in the panel's keeps one typing notice for the others. On a phone the panel covers the page, its composer still completes
-// mentions and attaches files, and the thread is read there.
+// in the panel's keeps one typing notice for the others. On a phone the panel covers the page, its
+// composer still completes mentions and attaches files, and the thread is read there.
 //   MINDROOM_CLIENT_PLUGINS=$PWD/src/app/plugins/__fixtures__/example-plugin \
 //     scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/plugins/agent-thread-view.spec.ts
 test.skip(

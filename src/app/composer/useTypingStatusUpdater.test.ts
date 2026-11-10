@@ -108,4 +108,43 @@ describe('useTypingStatusUpdater', () => {
     renderer = undefined;
     expect(calls.at(-1)).toEqual(['!room:example.org', false, TYPING_TIMEOUT_MS]);
   });
+
+  it('ends the notice of the room for all its composers once Hide Typing is turned on', () => {
+    const calls: unknown[][] = [];
+    const client = {
+      sendTyping: (...args: unknown[]) => {
+        calls.push(args);
+        return Promise.resolve({});
+      },
+    } as never;
+    const typing: Record<'page' | 'view', (typing: boolean) => void> = {} as never;
+    const Composer = ({ name, hidden }: { name: 'page' | 'view'; hidden: boolean }) => {
+      typing[name] = useTypingStatusUpdater(client, '!room:example.org', hidden);
+      return null;
+    };
+    const both = (hidden: boolean) =>
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(Composer, { name: 'page', hidden }),
+        React.createElement(Composer, { name: 'view', hidden })
+      );
+    act(() => {
+      renderer = create(both(false));
+    });
+    typing.page(true);
+    typing.view(true);
+    act(() => renderer?.update(both(true)));
+
+    // The next key in either composer sends the stop, and starts nothing.
+    typing.view(true);
+    expect(calls).toEqual([
+      ['!room:example.org', true, TYPING_TIMEOUT_MS],
+      ['!room:example.org', false, TYPING_TIMEOUT_MS],
+    ]);
+    typing.page(true);
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    expect(calls).toHaveLength(2);
+  });
 });
