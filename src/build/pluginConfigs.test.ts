@@ -278,6 +278,8 @@ describe('playwright.config.ts', () => {
     'e2e/nested/plugin-configs-probe.spec.ts':
       "import { expect, test } from '@playwright/test';\nimport { createPrivateRoom } from '@mindroom/e2e/matrix';\n" +
       "test('reaches the helpers', () => expect(typeof createPrivateRoom).toBe('function'));\n",
+    // Not a spec: Playwright would fail to load it.
+    'e2e/unit.test.ts': "throw new Error('loaded a unit test');\n",
   });
   const withoutSpecs = pluginDir({ 'e2e/fixtures/page.html': '<!doctype html>\n' });
 
@@ -291,7 +293,8 @@ describe('playwright.config.ts', () => {
         '--list',
         '--reporter=json',
         '--pass-with-no-tests',
-        'plugin-configs-probe.spec.ts',
+        // The made-up plugin directories' files only.
+        'plugin-configs-',
       ],
       {
         cwd: ROOT,

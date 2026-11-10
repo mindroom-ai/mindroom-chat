@@ -139,13 +139,33 @@ class SlotPreviewTests(PluginDirTestCase):
         self.assertFalse((self.copies / "plugin/.mindroom-chat").exists())
         self.assertTrue((self.copies / "plugin/e2e/fixtures/page.html").is_file())
 
-    def test_two_directories_of_one_name_are_refused(self) -> None:
+    def test_client_plugins_of_one_name_get_copies_of_their_own_and_their_entries_are_trimmed(self) -> None:
         plugin = self.plugin("plugin")
         other = self.plugin("elsewhere/plugin")
-        result, seen = self.run_slot(MINDROOM_CLIENT_PLUGINS=f"{plugin},{other}")
+        result, (plugins, _, _) = self.run_slot(MINDROOM_CLIENT_PLUGINS=f" {plugin}, {other} ")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(plugins, f"{self.copies / 'plugin'},{self.copies / 'plugin-2'}")
+
+    def test_two_plugin_directories_of_one_name_are_refused(self) -> None:
+        plugin = self.plugin("plugin")
+        other = self.plugin("elsewhere/plugin")
+        result, seen = self.run_slot(E2E_PLUGIN_DIRS=f"{plugin}{os.pathsep}{other}")
         self.assertEqual(result.returncode, 2)
-        self.assertIn(f"{plugin} and {other} would both be copied to {self.copies / 'plugin'}", result.stderr)
+        self.assertIn("e2e-slot: two directories of E2E_PLUGIN_DIRS are named plugin", result.stderr)
         self.assertEqual(seen, [])
+
+    def test_a_link_that_leads_out_of_the_directory_leads_where_it_did(self) -> None:
+        plugin = self.plugin("plugin")
+        (self.tmp / "shared").mkdir()
+        # As npm links a local package (`npm install ../shared`), and a link inside the directory.
+        (plugin / "node_modules/shared").symlink_to("../../shared")
+        (plugin / "node_modules/.bin").mkdir()
+        (plugin / "node_modules/.bin/dep").symlink_to("../dep/index.js")
+        result, _ = self.run_slot(MINDROOM_CLIENT_PLUGINS=str(plugin))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        copy = self.copies / "plugin"
+        self.assertEqual(os.readlink(copy / "node_modules/shared"), str(self.tmp / "shared"))
+        self.assertEqual(os.readlink(copy / "node_modules/.bin/dep"), "../dep/index.js")
 
 
 class SuiteTests(PluginDirTestCase):
@@ -181,10 +201,11 @@ class SuiteTests(PluginDirTestCase):
             )
             self.assertEqual(
                 runs,
+                # By their paths in the slot's snapshot.
                 [
-                    ("e2e-plugins/plugin/e2e/c.spec.ts", True),
-                    ("e2e-plugins/plugin/e2e/nested/b.spec.ts", True),
-                    ("e2e/a.spec.ts", options == []),
+                    (f"{self.snapshots}/slot-98/e2e-plugins/plugin/e2e/c.spec.ts", True),
+                    (f"{self.snapshots}/slot-98/e2e-plugins/plugin/e2e/nested/b.spec.ts", True),
+                    (f"{self.snapshots}/slot-98/e2e/a.spec.ts", options == []),
                 ],
             )
 

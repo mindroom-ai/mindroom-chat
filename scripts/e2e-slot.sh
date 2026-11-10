@@ -24,7 +24,8 @@
 #                       MINDROOM_CLIENT_PLUGINS those plugins, and is the run's own. The snapshot
 #                       gets copies of the directories of both in e2e-plugins/, each once, and both
 #                       variables name the copies, so edits in the directories never reach the run;
-#                       a copy's link to the app (.mindroom-chat) is a link to the snapshot.
+#                       a copy's link to the app (.mindroom-chat) is a link to the snapshot, and its
+#                       links that lead out of the directory (a local package) lead where they did.
 #                       Specs that import /src/ modules need the dev server.
 #   --fresh             Start the slot's homeserver empty and delete it when the command ends.
 #   --rtc               Start the slot's call service (scripts/e2e-rtc.sh: LiveKit and a MatrixRTC
@@ -127,7 +128,7 @@ main() {
         build="$snapshots/builds/slot-$slot"
         rm -rf "$build"
         mkdir -p "$tree/e2e-plugins"
-        declare -A plugin_sources=()
+        declare -A plugin_copies=()
         if [ -n "${E2E_PLUGIN_DIRS:-}" ]; then
           copy_plugin_dirs : "$E2E_PLUGIN_DIRS"
           export E2E_PLUGIN_DIRS="$copies"
@@ -211,27 +212,44 @@ main() {
   without_token "$@"
 }
 
-# Copies the directories of the list $2, split on $1 only (so a name such as plugin[1] stays itself)
-# and relative to the snapshot $tree, into its e2e-plugins/, and sets `copies` to the list of the
-# copies. A directory that plugin_sources already maps to its copy is not copied again.
+# Copies the directories of the list $2, split on $1 only (so a name such as plugin[1] stays itself),
+# trimmed and relative to the snapshot $tree, into its e2e-plugins/, named as they are, and sets
+# `copies` to the list of the copies. A directory that plugin_copies already maps to its copy is not
+# copied again. A name another copy has refuses the run for E2E_PLUGIN_DIRS (":"), whose names the
+# fixture page URLs and Playwright projects take, and gets a number for MINDROOM_CLIENT_PLUGINS.
 copy_plugin_dirs() {
-  local dir real copy parts
+  local dir real copy name n parts link target
   copies=
   IFS="$1" read -r -a parts <<<"$2"
   for dir in "${parts[@]}"; do
+    dir="${dir#"${dir%%[![:space:]]*}"}"
+    dir="${dir%"${dir##*[![:space:]]}"}"
     [ -n "$dir" ] || continue
     real="$(cd "$tree" && cd "$dir" && pwd -P)"
-    copy="$tree/e2e-plugins/$(basename "$real")"
-    if [ -z "${plugin_sources[$copy]:-}" ]; then
-      plugin_sources[$copy]="$real"
+    copy="${plugin_copies[$real]:-}"
+    if [ -z "$copy" ]; then
+      name="$(basename "$real")"
+      copy="$tree/e2e-plugins/$name"
+      n=1
+      while [ -e "$copy" ]; do
+        if [ "$1" = : ]; then
+          echo "e2e-slot: two directories of E2E_PLUGIN_DIRS are named $name" >&2
+          exit 2
+        fi
+        n=$((n + 1))
+        copy="$tree/e2e-plugins/$name-$n"
+      done
+      plugin_copies[$real]="$copy"
       mkdir "$copy"
       # Its link to the app, a link or a submodule (docs/development.md), stays out: the copy's is
       # the snapshot.
       tar -C "$real" --exclude=./.mindroom-chat -cf - . | tar -C "$copy" -xf -
+      # A link that leads out of the directory, as npm makes one for a local package, leads where it did.
+      find "$copy" -type l -print0 | while IFS= read -r -d '' link; do
+        target="$(readlink -f "$real/${link#"$copy"/}" || true)"
+        case "$target" in "$real" | "$real"/* | "") ;; *) ln -sfn "$target" "$link" ;; esac
+      done
       if [ -e "$real/.mindroom-chat" ]; then ln -s "$tree" "$copy/.mindroom-chat"; fi
-    elif [ "${plugin_sources[$copy]}" != "$real" ]; then
-      echo "e2e-slot: ${plugin_sources[$copy]} and $real would both be copied to $copy" >&2
-      exit 2
     fi
     copies="${copies:+$copies$1}$copy"
   done
