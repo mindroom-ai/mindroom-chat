@@ -23,8 +23,10 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // own frosted surface in light and dark; the broken component shows nothing and the room keeps
 // working; `?plugins=off` and `plugins.example.enabled: false` leave the banner out. The example's
 // panel item, dragged onto the room's name, shows in the banner through the header element its slot
-// gets, while a file dropped there still goes to the composer. Set PLUGIN_SHOTS=<directory> to save
-// screenshots.
+// gets, while a file dropped there still goes to the composer. A thread shown beside the messages
+// leaves the banner above them; while the thread's column fills the page, made full or by a narrow
+// window, the banner shows once, under the column's copy of the room header, whose element it gets.
+// Set PLUGIN_SHOTS=<directory> to save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'room-header-slot-password';
 const RUN = Date.now().toString(36);
@@ -268,4 +270,73 @@ test("the example panel's item dropped on the room's name shows in the banner; a
     await expect(footer.getByText(DROPPED_FILE)).toBeVisible();
     await expect(dropped).toHaveText('Dropped: Example item');
     await shot(page, 'room-header-slot-file-dropped');
+  }));
+
+test("a thread's column filling the page has the banner under its own header, once, and gives it back beside the messages", ({
+  browser,
+}) =>
+  onBuild(browser, {}, async (page, data) => {
+    const { accessToken } = data.person;
+    const rootId = await sendRoomMessage(HOMESERVER, accessToken, data.roomId, {
+      msgtype: 'm.text',
+      body: `The slot thread ${RUN}`,
+    });
+    await sendRoomMessage(HOMESERVER, accessToken, data.roomId, {
+      msgtype: 'm.text',
+      body: `A reply in the slot thread ${RUN}`,
+      'm.relates_to': { rel_type: 'm.thread', event_id: rootId, is_falling_back: true },
+    });
+    await page.goto(roomPath(data, `?threadId=${encodeURIComponent(rootId)}`));
+    const column = page.getByTestId('thread-column');
+    const inColumn = column.locator('[data-example-plugin-banner]');
+    const threadBanner = page.locator('[data-thread-context-banner]');
+    await expect(threadBanner).toBeVisible({ timeout: 60_000 });
+    await threadBanner.getByRole('button', { name: 'Thread options', exact: true }).click();
+    await page
+      .getByRole('menuitem', { name: 'Show the thread beside the messages', exact: true })
+      .click();
+    await expect(column).toBeVisible();
+
+    // Beside the messages, the banner stays above them, once.
+    const besideMessages = async () => {
+      await expect(column).not.toHaveAttribute('data-filled', 'true');
+      await expect(banner(page)).toHaveCount(1);
+      await expect(banner(page)).toBeVisible();
+      await expect(inColumn).toHaveCount(0);
+    };
+    // Filling the page, the column's header has it, and the hidden room area none.
+    const fillingPage = async () => {
+      await expect(column).toHaveAttribute('data-filled', 'true');
+      await expect(banner(page)).toHaveCount(1);
+      await expect(inColumn).toBeVisible();
+      await expect(inColumn).toContainText(BANNER);
+    };
+    await besideMessages();
+    await shot(page, 'room-header-slot-thread-beside');
+
+    await column.getByRole('button', { name: 'Show the thread in full', exact: true }).click();
+    await fillingPage();
+    await shot(page, 'room-header-slot-thread-full');
+    // It gets the column's header: the example panel's item dropped on the name there shows in it.
+    await roomHeader(page).getByRole('button', { name: 'Example panel', exact: true }).click();
+    const panel = page.getByRole('region', { name: 'Example panel', exact: true });
+    await panel.getByText('Example item', { exact: true }).dragTo(column.locator('h1'));
+    await expect(inColumn.locator('[data-example-plugin-dropped]')).toHaveText(
+      'Dropped: Example item'
+    );
+    await roomHeader(page).getByRole('button', { name: 'Example panel', exact: true }).click();
+    await expect(panel).toHaveCount(0);
+
+    await column
+      .getByRole('button', { name: 'Show the thread beside the messages', exact: true })
+      .click();
+    await besideMessages();
+
+    // A window too narrow for both fills the page with the column too, until it widens.
+    await page.setViewportSize({ width: 760, height: 800 });
+    await fillingPage();
+    await shot(page, 'room-header-slot-thread-narrow');
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await besideMessages();
+    await shot(page, 'room-header-slot-thread-beside-again');
   }));

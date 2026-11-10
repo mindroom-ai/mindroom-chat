@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { ComponentProps, ReactNode } from 'react';
+import type { ComponentProps, ReactNode, RefObject } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createClient, EventStatus, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
@@ -37,6 +37,9 @@ const state = vi.hoisted(() => ({
   columnLoadError: undefined as ((threadId: string) => void) | undefined,
   rootDeleted: () => undefined as void,
   resized: [] as (() => void)[],
+  // The plugin header slot's marker: how many are mounted, and the header the last one was given.
+  slotsMounted: 0,
+  slotHeader: undefined as HTMLElement | null | undefined,
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
@@ -60,7 +63,23 @@ vi.mock('./useRoomViewThreadState', () => ({
   }),
 }));
 vi.mock('./RoomViewHeader', () => ({ RoomViewHeader: () => <div data-testid="room-header" /> }));
-vi.mock('./RoomHeaderSlot', () => ({ RoomHeaderSlot: () => null }));
+// A plugin of the build whose header slot shows a marker.
+vi.mock('../plugins/pluginEntries', async () => {
+  const { useEffect } = await import('react');
+  function Marker({ headerRef }: { headerRef: RefObject<HTMLElement> }) {
+    useEffect(() => {
+      state.slotsMounted += 1;
+      state.slotHeader = headerRef.current;
+      return () => {
+        state.slotsMounted -= 1;
+      };
+    }, [headerRef]);
+    return <div data-testid="header-slot" />;
+  }
+  return {
+    pluginEntries: [{ id: 'example', version: '1.0.0', plugin: { roomHeaderSlot: [Marker] } }],
+  };
+});
 vi.mock('./ConversationCover', () => ({ ConversationCover: () => null }));
 vi.mock('../timeline/RoomTimeline', () => ({
   RoomTimeline: (props: RoomTimelineProps) => {
@@ -183,6 +202,8 @@ beforeEach(() => {
   state.focused = [];
   state.rootDeleted = () => undefined;
   state.resized = [];
+  state.slotsMounted = 0;
+  state.slotHeader = undefined;
   localStorage.clear();
   vi.stubGlobal('PointerEvent', TestPointerEvent);
   vi.stubGlobal(
@@ -225,6 +246,41 @@ const column = () => screen.queryByTestId('thread-view');
 const draftAtom = (threadId?: string) =>
   roomIdToMsgDraftAtomFamily(getRoomInputDraftKey('@alice:example.org', room.roomId, threadId));
 const storedLayout = () => localStorage.getItem(LAYOUT_KEY);
+// The header that shows the plugins' slot, which only one header on the page mounts.
+const slotHeader = () => {
+  const markers = screen.getAllByTestId('header-slot');
+  expect(markers).toHaveLength(1);
+  expect(state.slotsMounted).toBe(1);
+  const header = markers[0].closest<HTMLElement>('[data-glass-flat]');
+  expect(header).not.toBeNull();
+  // The slot's components are given the element of the header they show in.
+  expect(state.slotHeader).toBe(header);
+  expect(within(header as HTMLElement).getByTestId('room-header')).toBeDefined();
+  return header as HTMLElement;
+};
+const inColumn = (element: Element) => !!screen.queryByTestId('thread-column')?.contains(element);
+
+it("shows the plugins' header slot once, under the header people see, as the column fills the page and goes back", () => {
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  state.thread = undefined;
+  const { rerender } = renderView();
+  expect(inColumn(slotHeader())).toBe(false);
+
+  // Beside the messages, the room's header above them keeps it; the column shows none.
+  state.thread = '$thread';
+  rerenderView(rerender);
+  expect(column()).not.toBeNull();
+  expect(inColumn(slotHeader())).toBe(false);
+
+  // Filling the page, the column's header has it, and the hidden room area none.
+  fireEvent.click(screen.getByRole('button', { name: 'Full' }));
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  expect(inColumn(slotHeader())).toBe(true);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+  expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
+  expect(inColumn(slotHeader())).toBe(false);
+});
 
 it("opens a thread in the messages' place on first use", () => {
   renderView();
@@ -484,14 +540,17 @@ it('keeps an open thread where it opened as the page widens or narrows: a column
   state.thread = '$next';
   rerenderView(rerender);
   expect(column()?.dataset.thread).toBe('$next');
+  expect(inColumn(slotHeader())).toBe(false);
   resize(600);
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
   expect(screen.queryByRole('button', { name: 'Restore' })).toBeNull();
+  expect(inColumn(slotHeader())).toBe(true);
   // No width, as behind a side panel that fills the room, keeps the last answer.
   resize(0);
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
   resize(1000);
   expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
+  expect(inColumn(slotHeader())).toBe(false);
   expect(storedLayout()).toBe('"beside"');
 });
 
