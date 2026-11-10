@@ -883,8 +883,9 @@ describe('usePinchToZoom', () => {
       const surface = view.getByTestId('board');
 
       gesture('gesturestart', 1, surface);
+      gesture('gesturechange', 1.2, surface);
       expect(surface.hasAttribute(PINCH_SURFACE_ATTRIBUTE)).toBe(true);
-      expect(pinches.map(({ phase }) => phase)).toEqual(['start']);
+      expect(pinches.map(({ phase }) => phase)).toEqual(['start', 'move']);
     });
 
     it('marks its element as a pinch surface while it is mounted', () => {
@@ -1232,9 +1233,8 @@ describe('usePinchToZoom', () => {
         gesture('gesturechange', 1.5, inside);
         flushFrames();
 
-        // A finger down shows the gesture is a touch pinch's. With none yet, it starts as a
-        // trackpad's, and ends as the touches show the pinch is the app's.
-        expect(pinches.map(({ phase }) => phase)).toEqual(regrip ? [] : ['start', 'end']);
+        // The touches show the pinch is the app's before the gesture changes.
+        expect(pinches).toEqual([]);
         expect(setPageZoom).toHaveBeenCalledWith(150);
       }
     );
@@ -1244,24 +1244,38 @@ describe('usePinchToZoom', () => {
       const { pinches, inside, outside } = renderSurface();
 
       const start = gesture('gesturestart', 1, inside, [40, 30]);
-      const change = gesture('gesturechange', 1.5, inside, [42, 31]);
-      gesture('gestureend', 1.5, inside, [42, 31]);
+      gesture('gesturechange', 1.5, inside, [42, 31]);
+      const change = gesture('gesturechange', 1.8, inside, [43, 32]);
+      gesture('gestureend', 1.8, inside, [43, 32]);
       flushFrames();
       expect(pinches).toEqual([
         handed('start', 1, 40, 30),
         handed('move', 1.5, 42, 31),
-        handed('end', 1.5, 42, 31),
+        handed('move', 1.8, 43, 32),
+        handed('end', 1.8, 43, 32),
       ]);
       expect(start.defaultPrevented).toBe(true);
       expect(change.defaultPrevented).toBe(true);
       expect(setPageZoom).not.toHaveBeenCalled();
 
+      // One that ends before it changes is nothing.
+      pinches.length = 0;
+      gesture('gesturestart', 1, inside);
+      gesture('gestureend', 1, inside);
+      gesture('gesturechange', 1.5, inside);
+      expect(pinches).toEqual([]);
+
       // A gesture whose end is lost ends as the next one starts, beside it.
       pinches.length = 0;
       gesture('gesturestart', 1, inside, [40, 30]);
+      gesture('gesturechange', 1.2, inside, [40, 30]);
       gesture('gesturestart', 1, outside);
       gesture('gesturechange', 1.5, outside);
-      expect(pinches).toEqual([handed('start', 1, 40, 30), handed('end', 1, 40, 30)]);
+      expect(pinches).toEqual([
+        handed('start', 1, 40, 30),
+        handed('move', 1.2, 40, 30),
+        handed('end', 1.2, 40, 30),
+      ]);
       gesture('gestureend', 1.5, outside);
       flushFrames();
       expect(setPageZoom).toHaveBeenCalledWith(150);
@@ -1283,9 +1297,14 @@ describe('usePinchToZoom', () => {
       const { pinches, inside } = renderSurface();
 
       gesture('gesturestart', 1, inside, [40, 30]);
+      gesture('gesturechange', 1.2, inside, [40, 30]);
       unmount();
 
-      expect(pinches).toEqual([handed('start', 1, 40, 30), handed('end', 1, 40, 30)]);
+      expect(pinches).toEqual([
+        handed('start', 1, 40, 30),
+        handed('move', 1.2, 40, 30),
+        handed('end', 1.2, 40, 30),
+      ]);
     });
 
     it('hands it ctrl and the wheel over it as one pinch, which ends once the wheel rests', () => {
@@ -1336,11 +1355,12 @@ describe('usePinchToZoom', () => {
 
       wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('first'));
       gesture('gesturestart', 1, view.getByTestId('second'));
+      gesture('gesturechange', 1.2, view.getByTestId('second'));
       // The wheel's rest ends no pinch but its own.
       vi.advanceTimersByTime(500);
 
       expect(first.map(({ phase }) => phase)).toEqual(['start', 'move', 'end']);
-      expect(second.map(({ phase }) => phase)).toEqual(['start']);
+      expect(second.map(({ phase }) => phase)).toEqual(['start', 'move']);
 
       // The wheel goes on over the other surface before it rests: a pinch of that one's.
       gesture('gestureend', 1, view.getByTestId('second'));
@@ -1462,12 +1482,14 @@ describe('usePinchToZoom', () => {
       const surface = view.getByTestId('named');
 
       gesture('gesturestart', 1, surface);
+      gesture('gesturechange', 1, surface);
       gesture('gestureend', 1, surface);
       view.unmount();
       document.body.append(surface);
       gesture('gesturestart', 1, surface);
+      gesture('gesturechange', 1, surface);
 
-      expect(calls).toEqual(['second start', 'second end']);
+      expect(calls).toEqual(['second start', 'second move', 'second end']);
     });
   });
 });

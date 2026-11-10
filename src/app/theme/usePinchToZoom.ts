@@ -155,6 +155,9 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       last: SurfacePinch;
     } | null = null;
     let wheelRest: number | undefined;
+    // A gesture that started over a surface with no finger down, a trackpad's unless a touch shows
+    // otherwise before it first changes.
+    let trackpadGesture: { surface: Element; centre: SurfacePinch['centre'] } | null = null;
     endPinchOf = (surface) => {
       if (handed?.surface === surface) endHanded();
     };
@@ -222,6 +225,7 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       fingers = 0;
       surfacePinch = null;
       gestureStartZoomRef.current = null;
+      trackpadGesture = null;
       endHanded();
     };
 
@@ -235,8 +239,6 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       // No finger is down: a pointer whose end the window never saw is not down either.
       if (fingers === 0) pointersDown.clear();
       const owner = pinchStarts ? surfaceOwning(event.touches) : null;
-      // The touches carry the pinch from here: a gesture taken for a trackpad's was theirs.
-      if (pinchStarts && handed?.from === 'gesture') endHanded();
       if (owner) {
         surfacePinch = owner;
         // A start an earlier pinch left, whose ends were lost, never zooms these fingers later.
@@ -352,16 +354,16 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
     // iOS sends the gesture events of a touch pinch to the elements its fingers landed on: they
     // go with the touch pinch's owner, whose onPinch has the touches. Its gesturestart may come
     // before the second finger's touchstart, and a trackpad pinch has only the gesture: with no
-    // touch pinch under way, the gesture's target decides, and with no finger down at all, by its
-    // touches and its pointers, it is a trackpad's, which the surface's onPinch gets from the
-    // gesture.
+    // touch pinch under way, the gesture's target decides. With no finger down at all, by its
+    // touches and its pointers, until it first changes, it is a trackpad's, which the surface's
+    // onPinch gets from the gesture.
     const handleGestureStart = (event: Event) => {
       gestureStartZoomRef.current = null;
       if (handed?.from === 'gesture') endHanded();
       const surface = surfaceAt(event.target);
       if (surfacePinch || (fingers < 2 && surface !== null)) {
         if (fingers === 0 && pointersDown.size === 0 && surface) {
-          startHanded(surface, 'gesture', gestureCentre(event));
+          trackpadGesture = { surface, centre: gestureCentre(event) };
         }
         const owner = surfacePinch ?? surface;
         if (owner && pinchListeners.has(owner) && event.cancelable) event.preventDefault();
@@ -377,6 +379,11 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       const { scale } = event as GestureEventWithScale;
       const startZoom = gestureStartZoomRef.current;
       if (surfacePinch || startZoom === null) {
+        const trackpad = trackpadGesture;
+        trackpadGesture = null;
+        if (trackpad && fingers === 0) {
+          startHanded(trackpad.surface, 'gesture', trackpad.centre);
+        }
         const fromGesture = handed?.from === 'gesture';
         if (fromGesture) moveHanded(scale, gestureCentre(event));
         const zoomsItself = fromGesture || (surfacePinch && pinchListeners.has(surfacePinch));
