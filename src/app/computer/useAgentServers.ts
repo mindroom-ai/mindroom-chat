@@ -10,6 +10,7 @@ import {
 import { Capacitor } from '@capacitor/core';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useForceUpdate } from '../lib/hooks/useForceUpdate';
+import { useClientConfig } from '../config/useClientConfig';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { agentRoomState, useAgentRoomState } from '../matrix/protocol/agentRoomState';
 import { readOpenIdBinding } from '../matrix/openidAudience';
@@ -19,6 +20,8 @@ import {
   distinctServerUrls,
   isLoopbackOrigin,
   selectAgentServers,
+  trustedServerOrigins,
+  trustedServers,
   type AgentServer,
 } from './agentServer';
 
@@ -69,26 +72,34 @@ export const useBindsOpenIdTokens = (): boolean => useOpenIdBinding() === true;
 export const useRoomAgentServers = (room: Room | null): AgentServer[] =>
   useAgentRoomState(room, MINDROOM_SERVER_EVENT, selectRoomServers);
 
-const joinedRoomServerUrls = (mx: MatrixClient): string[] =>
+const joinedRoomServerUrls = (mx: MatrixClient, trusted: Set<string> | undefined): string[] =>
   distinctServerUrls(
-    mx
-      .getRooms()
-      .filter((room) => room.getMyMembership() === 'join')
-      .flatMap(roomServers)
+    trustedServers(
+      mx
+        .getRooms()
+        .filter((room) => room.getMyMembership() === 'join')
+        .flatMap(roomServers),
+      trusted
+    )
   );
 
 const sameUrls = (a: string[], b: string[]): boolean =>
   a.length === b.length && a.every((url, index) => url === b[index]);
 
-/** Every server the agents in the user's rooms publish, newest first, while the homeserver binds tokens. */
+/**
+ * Every trusted server (`trustedServerOrigins`) the agents in the user's rooms publish, newest
+ * first, while the homeserver binds tokens.
+ */
 export const useAgentServerUrls = (): string[] => {
   const mx = useMatrixClient();
   const bindsTokens = useBindsOpenIdTokens();
+  const { computers } = useClientConfig().mindroom ?? {};
+  const trusted = useMemo(() => trustedServerOrigins(computers), [computers]);
   const [version, refresh] = useForceUpdate();
   const urls = useMemo(() => {
     void version;
-    return bindsTokens ? joinedRoomServerUrls(mx) : [];
-  }, [mx, bindsTokens, version]);
+    return bindsTokens ? joinedRoomServerUrls(mx, trusted) : [];
+  }, [mx, bindsTokens, trusted, version]);
   const renderedUrls = useRef(urls);
   // Synchronously with the commit, so a check that runs before passive effects compares with what is shown.
   useLayoutEffect(() => {
@@ -106,7 +117,7 @@ export const useAgentServerUrls = (): string[] => {
     let check: ReturnType<typeof setTimeout> | undefined;
     const checkServers = () => {
       check = undefined;
-      if (!sameUrls(joinedRoomServerUrls(mx), renderedUrls.current)) refresh();
+      if (!sameUrls(joinedRoomServerUrls(mx, trusted), renderedUrls.current)) refresh();
     };
     const onMember = (_event: MatrixEvent, _state: RoomState, member: RoomMember) => {
       if (!bindsTokens || !isMindroomAgentUserIdForViewer(member.userId, viewer)) return;
@@ -121,6 +132,6 @@ export const useAgentServerUrls = (): string[] => {
       mx.removeListener(RoomStateEvent.Members, onMember);
       mx.removeListener(RoomEvent.MyMembership, refresh);
     };
-  }, [mx, bindsTokens, refresh]);
+  }, [mx, bindsTokens, trusted, refresh]);
   return urls;
 };

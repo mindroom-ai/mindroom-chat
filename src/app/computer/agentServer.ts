@@ -45,3 +45,38 @@ export const isLoopbackOrigin = (origin: string): boolean => {
 export const distinctServerUrls = (servers: AgentServer[]): string[] => [
   ...new Set([...servers].sort((a, b) => b.ts - a.ts).map((server) => server.apiUrl)),
 ];
+
+/**
+ * The origins a published server must be on to count as one: the configured server
+ * (`mindroom.computers.apiUrl`) and those `mindroom.computers.trustedApiUrls` lists, since any
+ * account on the homeserver named like an agent can publish one. Undefined while neither is set,
+ * as in a client for any deployment, which has nothing to check a published origin against.
+ */
+export const trustedServerOrigins = (
+  computers: { apiUrl?: string; trustedApiUrls?: string[] } | undefined
+): Set<string> | undefined => {
+  const listed = computers?.trustedApiUrls;
+  const apiUrl = resolveComputerApiUrl(computers?.apiUrl);
+  if (!apiUrl && !Array.isArray(listed)) return undefined;
+  const urls: unknown[] = [apiUrl, ...(Array.isArray(listed) ? listed : [])];
+  return new Set(
+    urls.flatMap((url) => (typeof url === 'string' && resolveComputerApiUrl(url)) || [])
+  );
+};
+
+let warnedUnchecked = false;
+
+/** The published servers on the trusted list; all of them, with a warning, without a list. */
+export const trustedServers = (
+  servers: AgentServer[],
+  trusted: Set<string> | undefined
+): AgentServer[] => {
+  if (trusted) return servers.filter((server) => trusted.has(server.apiUrl));
+  if (servers.length > 0 && !warnedUnchecked) {
+    warnedUnchecked = true;
+    console.warn(
+      'MindRoom servers that agents publish are used unchecked: config.json sets neither mindroom.computers.apiUrl nor mindroom.computers.trustedApiUrls.'
+    );
+  }
+  return servers;
+};

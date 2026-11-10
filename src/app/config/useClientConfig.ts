@@ -237,6 +237,11 @@ export type ClientConfig = {
        * agents publish.
        */
       apiUrl?: string;
+      /**
+       * Origins the room's agents may publish as the room's MindRoom server, beside `apiUrl`, which is
+       * always trusted. With `apiUrl` or this list set, a published origin on neither does not count.
+       */
+      trustedApiUrls?: string[];
     };
     uiActions?: {
       /** Homeservers whose agents may open panels without a click. */
