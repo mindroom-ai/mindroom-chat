@@ -127,7 +127,7 @@ test("a plugin's panel shows a thread with its approvals and composer, as the ro
 
   // Reply on the root in the panel drafts in the panel's composer alone, and sends into the thread.
   const rootRow = messageRow(panel, rootId);
-  await rootRow.hover();
+  await rootRow.getByText(`${word} #approve`).hover();
   await rootRow.getByRole('button', { name: 'Reply', exact: true }).click();
   await expect(panel.getByRole('button', { name: 'Cancel reply' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Cancel reply' })).toHaveCount(1);
