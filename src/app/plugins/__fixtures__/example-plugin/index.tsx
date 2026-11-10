@@ -2,6 +2,7 @@
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json,
 // and "From <sender>" after the sender's avatar in the room, with ", a MindRoom agent" for an agent.
+// Activity and the Threads page preview such a message as "Greeting: <text>" ("Gruß: <text>").
 // A side panel, "Example panel", names the room it is open in, counts its joined members and says
 // whether a MindRoom agent has joined or is invited, through the account's client, and whether the
 // account may post there, which it says again when the room's levels change. Under "Example rows"
@@ -100,6 +101,7 @@ import {
 import { KnownMembership, type Room } from 'matrix-js-sdk';
 import {
   commandUsage,
+  getPluginTranslation,
   pluginPublicUrl,
   reloadForNewVersion,
   usePanelFrame,
@@ -995,7 +997,14 @@ const plugin: ClientPlugin = {
     },
   ],
   messageRenderers: [
-    { match: (event) => greetingText(event.content) !== undefined, Component: Greeting },
+    {
+      match: (event) => greetingText(event.content) !== undefined,
+      Component: Greeting,
+      preview: (event) => {
+        const text = greetingText(event.content);
+        return text && getPluginTranslation('example')('preview', { text });
+      },
+    },
   ],
   pages: [
     { path: '', Component: ExamplePage },
@@ -1098,6 +1107,7 @@ const plugin: ClientPlugin = {
       topic: "Set this room's topic, where you may. Example: /topic Plans for today",
       roomInfo: 'Example room info',
       roomRemoval: 'Example removal',
+      preview: 'Greeting: {{text}}',
     },
     load: async (language) =>
       language === 'de' ? (await import('./locales/de.json')).default : undefined,

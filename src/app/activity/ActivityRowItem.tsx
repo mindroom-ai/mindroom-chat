@@ -13,11 +13,13 @@ import { getMxIdLocalPart } from '../matrix/matrix';
 import { getMemberAvatarMxc, getMemberRawDisplayName, withoutNameDisguises } from '../matrix/room';
 import { acceptInvite } from '../notifications/inbox/acceptInvite';
 import { declineInvite } from '../notifications/inbox/declineInvite';
+import { useMessagePreview } from '../plugins/messageRenderers';
 import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import {
   threadActorName,
   threadIndexReplyPreview,
   threadPreviewText,
+  threadRootPluginEvent,
   threadTitleText,
 } from '../threads/cross-room/threadText';
 import type { ActivityRow, ActivityThreadRow } from './activityRows';
@@ -248,8 +250,11 @@ function RowActions({
   );
 }
 
-const rowContext = (row: ActivityThreadRow): { title: string; room: string } => ({
-  title: threadTitleText(row.entry),
+const rowContext = (
+  row: ActivityThreadRow,
+  pluginTitle: string | undefined
+): { title: string; room: string } => ({
+  title: pluginTitle ?? threadTitleText(row.entry),
   room: revealDirectionControls(row.entry.roomName),
 });
 
@@ -298,6 +303,16 @@ export const ActivityRowItem = memo(function ActivityRowItem({
     : undefined;
   const suffix = sentenceSuffix(t, row);
   const kind = KIND_ICONS[row.kind];
+  // A plugin that renders the reply, or the root, as a card in the timeline previews it here.
+  const viewerId = mx.getUserId() ?? undefined;
+  const replyPreview = useMessagePreview(
+    row.type === 'thread' ? row.signals.lastReply?.event : undefined,
+    viewerId
+  );
+  const pluginTitle = useMessagePreview(
+    row.type === 'thread' ? threadRootPluginEvent(room, row.entry) : undefined,
+    viewerId
+  );
 
   let preview = '';
   if (row.type === 'invite') preview = revealDirectionControls(room?.name ?? row.roomId);
@@ -306,9 +321,10 @@ export const ActivityRowItem = memo(function ActivityRowItem({
     preview = revealDirectionControls(row.signals.pendingApproval.approval.toolName);
   } else if (row.kind === 'question' && row.signals.pendingQuestion) {
     preview = revealDirectionControls(row.signals.pendingQuestion.text);
-  } else if (row.signals.lastReply) preview = threadPreviewText(t, row.signals.lastReply.preview);
-  else preview = threadIndexReplyPreview(row.entry)?.text ?? '';
-  const context = row.type === 'thread' ? rowContext(row) : undefined;
+  } else if (row.signals.lastReply) {
+    preview = replyPreview ?? threadPreviewText(t, row.signals.lastReply.preview);
+  } else preview = threadIndexReplyPreview(row.entry)?.text ?? '';
+  const context = row.type === 'thread' ? rowContext(row, pluginTitle) : undefined;
 
   return (
     <div

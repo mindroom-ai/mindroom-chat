@@ -11,11 +11,17 @@ import {
 import type { ThreadSignals } from '../cross-room/threadSignals';
 import type { ThreadApprovalRecord } from '../../matrix/protocol/threadApprovalModel';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
+import type { RegisteredPlugin } from '../../plugins/registry';
 import type { ThreadListItem } from './threadGroups';
 import { ThreadsNav } from './ThreadsNav';
 
 const ME = '@alice:x';
-const state = vi.hoisted(() => ({ items: [] as ThreadListItem[], listsComplete: true }));
+const state = vi.hoisted(() => ({
+  items: [] as ThreadListItem[],
+  listsComplete: true,
+  plugins: [] as RegisteredPlugin[],
+}));
+vi.mock('../../plugins/registry', () => ({ registeredPlugins: state.plugins }));
 vi.mock('./useThreadListItems', () => ({ useThreadListItems: () => state.items }));
 vi.mock('./useJoinedRoomThreadLists', () => ({
   useJoinedRoomThreadLists: () => state.listsComplete,
@@ -104,6 +110,7 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   state.items = [];
+  state.plugins.splice(0);
 });
 
 describe('ThreadsNav', () => {
@@ -127,6 +134,7 @@ describe('ThreadsNav', () => {
             senderId: '@tom:x',
             ts: 1,
             preview: { kind: 'text', text: '+1' },
+            event: { sender: '@tom:x', content: {} },
           },
         }
       ),
@@ -219,12 +227,47 @@ describe('ThreadsNav', () => {
             senderId: ME,
             ts: 1,
             preview: { kind: 'text', text: 'done' },
+            event: { sender: ME, content: {} },
           },
         }
       ),
     ];
     renderNav();
     expect(screen.getByText('You: done')).toBeTruthy();
+  });
+
+  it("previews a reply with the plugin that renders it, after its sender's name", () => {
+    const content = { msgtype: 'm.text', body: 'Hello there', 'com.example.greeting': {} };
+    state.plugins.push({
+      id: 'example',
+      tag: 'example@1.0.0',
+      messageRenderers: [
+        {
+          match: () => true,
+          Component: () => null,
+          preview: () => 'Greeting: Hi',
+          trust: 'server',
+        },
+      ],
+    } as unknown as RegisteredPlugin);
+    state.items = [
+      item(
+        'card',
+        'Card thread',
+        {},
+        {
+          lastReply: {
+            eventId: '$c',
+            senderId: '@tom:x',
+            ts: 1,
+            preview: { kind: 'text', text: 'Hello there' },
+            event: { eventId: '$c', sender: '@tom:x', content },
+          },
+        }
+      ),
+    ];
+    renderNav();
+    expect(screen.getByText('Tom: Greeting: Hi')).toBeTruthy();
   });
 
   it('writes out direction controls in titles, previews and room names', () => {
@@ -239,6 +282,7 @@ describe('ThreadsNav', () => {
             senderId: '@tom:x',
             ts: 1,
             preview: { kind: 'text', text: 'a\u202eb' },
+            event: { sender: '@tom:x', content: {} },
           },
         }
       ),

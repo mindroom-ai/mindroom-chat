@@ -10,6 +10,7 @@ import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
 import { FINISHED_AFTER_MS, QUESTION_WAITS_MS, readThreadSignals } from './threadSignals';
+import { threadRootPluginEvent } from './threadText';
 
 const ROOM_ID = '!signals:example.org';
 const ME = '@alice:example.org';
@@ -443,6 +444,42 @@ describe('readThreadSignals in a loaded thread with edits', () => {
       kind: 'finished',
       durationMs: FINISHED_AFTER_MS + 60_000,
     });
+  });
+
+  it('hands the last reply to plugins as the timeline does, its newest edit included', async () => {
+    const card = { 'com.example.greeting': { text: 'Hello' } };
+    const { room } = await setup(
+      ME,
+      [
+        event({ id: '$r', ts: 2000, sender: AGENT, content: { body: 'Hi' } }),
+        edit('$fix', '$r', 3000, { body: 'Hello', ...card }),
+      ],
+      { opened: true }
+    );
+
+    expect(readThreadSignals(room, ROOT, ME, NOW).lastReply?.event).toEqual({
+      eventId: '$r',
+      roomId: ROOM_ID,
+      type: 'm.room.message',
+      sender: AGENT,
+      content: { msgtype: 'm.text', body: 'Hello', ...card },
+    });
+  });
+
+  it("hands a thread's root to plugins with its newest edit, unless the thread has an AI title", async () => {
+    const card = { 'com.example.greeting': { text: 'Hello' } };
+    const { room } = await setup(AGENT, []);
+    const fix = edit('$fix', ROOT, 3000, { body: 'Hello', ...card });
+    room.getUnfilteredTimelineSet().addLiveEvent(fix, { addToState: false });
+    const entry = { threadRootId: ROOT, summaryText: '' };
+
+    expect(threadRootPluginEvent(room, entry)).toMatchObject({
+      eventId: ROOT,
+      sender: AGENT,
+      content: { body: 'Hello', ...card },
+    });
+    expect(threadRootPluginEvent(room, { ...entry, summaryText: 'Greetings' })).toBeUndefined();
+    expect(threadRootPluginEvent(room, { ...entry, threadRootId: '$gone' })).toBeUndefined();
   });
 
   it('asks from the edit that finished the stream, so a message written meanwhile is no answer', async () => {

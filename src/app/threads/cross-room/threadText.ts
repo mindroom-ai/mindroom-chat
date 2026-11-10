@@ -6,7 +6,8 @@ import { getMemberRawDisplayName, getSenderName } from '../../matrix/room';
 import { localizeThreadPreview } from '../../event-store/threads/threadMessagePreview';
 import { revealDirectionControls } from '../../ui/directional';
 import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
-import type { ThreadPreview } from './threadSignals';
+import type { PluginEvent } from '../../plugins/messageRenderers';
+import { threadMessagePluginEvent, type ThreadPreview } from './threadSignals';
 
 /**
  * A sender as the cross-room lists name them: an agent of the user's homeserver by its name,
@@ -35,6 +36,20 @@ export const threadPreviewText = (t: TFunction, preview: ThreadPreview): string 
 export const threadTitleText = (
   entry: Pick<CrossRoomThreadIndexEntry, 'summaryText' | 'rootPreviewText'>
 ): string => revealDirectionControls(entry.summaryText || entry.rootPreviewText);
+
+/**
+ * The root of a thread without an AI title as a plugin's message renderer sees it, for a title
+ * from the plugin (`useMessagePreview`). Undefined with an AI title or while the root is not loaded.
+ */
+export const threadRootPluginEvent = (
+  room: Room | null,
+  entry: Pick<CrossRoomThreadIndexEntry, 'summaryText' | 'threadRootId'>
+): PluginEvent | undefined => {
+  if (!room || entry.summaryText) return undefined;
+  const thread = room.getThread(entry.threadRootId);
+  const root = thread?.rootEvent ?? room.findEventById(entry.threadRootId);
+  return root ? threadMessagePluginEvent(room, root, thread) : undefined;
+};
 
 /**
  * The thread index's own preview of the newest reply, for a thread whose loaded messages hold no

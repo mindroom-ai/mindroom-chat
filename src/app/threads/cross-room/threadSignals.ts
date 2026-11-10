@@ -25,11 +25,19 @@ import {
   parseToolApprovalExpiryTimestamp,
 } from '../../matrix/protocol/toolApproval';
 import { getEditedEvent } from '../../matrix/room';
+import type { PluginEvent } from '../../plugins/messageRenderers';
 
 export type ThreadPreview =
   | { kind: 'text'; text: string; localization?: ThreadPreviewLocalization }
   | { kind: 'voice' | 'image' | 'video' | 'file' };
-export type ThreadReply = { eventId: string; senderId: string; ts: number; preview: ThreadPreview };
+export type ThreadReply = {
+  eventId: string;
+  senderId: string;
+  ts: number;
+  preview: ThreadPreview;
+  /** The reply as the timeline gives it to a plugin's message renderer. */
+  event: PluginEvent;
+};
 export type ThreadQuestion = {
   eventId: string;
   senderId: string;
@@ -107,6 +115,21 @@ const shownOf = (event: MatrixEvent, thread: Thread | null | undefined): Shown =
     editId: edit.getId(),
   };
 };
+
+const pluginEventOf = (room: Room, { event, content }: Shown): PluginEvent => ({
+  eventId: event.getId(),
+  roomId: room.roomId,
+  type: event.getType(),
+  sender: event.getSender() ?? '',
+  content,
+});
+
+/** A thread's message as the timeline gives it to a plugin's message renderer: its newest edit. */
+export const threadMessagePluginEvent = (
+  room: Room,
+  event: MatrixEvent,
+  thread: Thread | null | undefined
+): PluginEvent => pluginEventOf(room, shownOf(event, thread));
 
 const countsAsNews = ({ event, content }: Shown): boolean => {
   if (event.getType() !== 'm.room.message' || !isFirstOrder(event)) return false;
@@ -350,6 +373,7 @@ export const readThreadSignals = (
             senderId: newest.event.getSender() ?? '',
             ts: newest.event.getTs(),
             preview: previewOf(newest.content),
+            event: pluginEventOf(room, newest),
           },
         }
       : {}),

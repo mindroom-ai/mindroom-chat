@@ -9,6 +9,7 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useLoadedRoomMembers } from '../../matrix/hooks/useLoadedRoomMembers';
 import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
 import { getViewedPlace, type ViewedPlace } from '../../navigation/viewedPlace';
+import { useMessagePreview } from '../../plugins/messageRenderers';
 import { getThreadsRoomPath, withSearchParam } from '../../routes/pathUtils';
 import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import { PageNav, PageNavContent } from '../../ui/page/Page';
@@ -17,6 +18,7 @@ import {
   threadActorName,
   threadIndexReplyPreview,
   threadPreviewText,
+  threadRootPluginEvent,
   threadTitleText,
 } from '../cross-room/threadText';
 import {
@@ -60,10 +62,18 @@ const ThreadRow = memo(function ThreadRow({ item, selected, onOpen }: ThreadRowP
   const reply = signals.lastReply;
   const senderName = (senderId: string) =>
     senderId === mx.getUserId() ? t('threadPreview.you') : threadActorName(mx, room, senderId);
+  // A plugin that renders the reply, or the root, as a card in the timeline previews it here.
+  const viewerId = mx.getUserId() ?? undefined;
+  const replyPreview = useMessagePreview(reply?.event, viewerId);
+  const title =
+    useMessagePreview(threadRootPluginEvent(room, entry), viewerId) ?? threadTitleText(entry);
   const indexed = reply ? undefined : threadIndexReplyPreview(entry);
   let preview = '';
-  if (reply) preview = `${senderName(reply.senderId)}: ${threadPreviewText(t, reply.preview)}`;
-  else if (indexed?.senderId) preview = `${senderName(indexed.senderId)}: ${indexed.text}`;
+  if (reply) {
+    preview = `${senderName(reply.senderId)}: ${
+      replyPreview ?? threadPreviewText(t, reply.preview)
+    }`;
+  } else if (indexed?.senderId) preview = `${senderName(indexed.senderId)}: ${indexed.text}`;
   else if (indexed) preview = indexed.text;
   const read = signals.newCount === 0 && !chip;
 
@@ -77,7 +87,7 @@ const ThreadRow = memo(function ThreadRow({ item, selected, onOpen }: ThreadRowP
       <span className={css.Body}>
         <span className={css.Line}>
           <Text as="span" size="T300" truncate className={css.Grow} {...ownDirectionLine}>
-            {read ? threadTitleText(entry) : <b>{threadTitleText(entry)}</b>}
+            {read ? title : <b>{title}</b>}
           </Text>
         </span>
         <span className={css.Line}>

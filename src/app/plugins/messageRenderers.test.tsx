@@ -4,7 +4,12 @@ import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import type { RegisteredPlugin } from './registry';
-import { useMessageRenderer, type MessageRenderer, type PluginEvent } from './messageRenderers';
+import {
+  useMessagePreview,
+  useMessageRenderer,
+  type MessageRenderer,
+  type PluginEvent,
+} from './messageRenderers';
 
 const registry = vi.hoisted((): RegisteredPlugin[] => []);
 vi.mock('./registry', () => ({ registeredPlugins: registry }));
@@ -34,6 +39,11 @@ const renderer = (overrides: Partial<MessageRenderer> = {}): MessageRenderer => 
 
 const message = (sender: string): PluginEvent => ({ sender, content: { body: 'Hello' } });
 
+const withConfig =
+  (config: ClientConfig) =>
+  ({ children }: { children: ReactNode }) =>
+    <ClientConfigProvider value={config}>{children}</ClientConfigProvider>;
+
 /** The renderer the hook picks for `event`, as `viewer` (null: signed out) with `config`. */
 const pick = (
   event: PluginEvent | undefined,
@@ -41,10 +51,13 @@ const pick = (
   viewer: string | null = VIEWER
 ) =>
   renderHook(() => useMessageRenderer(event, viewer ?? undefined), {
-    wrapper: ({ children }: { children: ReactNode }) => (
-      <ClientConfigProvider value={config}>{children}</ClientConfigProvider>
-    ),
+    wrapper: withConfig(config),
   }).result.current;
+
+/** The preview the hook gives `event`, as the viewer with `config`. */
+const previewOf = (event: PluginEvent, config: ClientConfig = {}) =>
+  renderHook(() => useMessagePreview(event, VIEWER), { wrapper: withConfig(config) }).result
+    .current;
 
 afterEach(() => {
   registry.splice(0);
@@ -110,5 +123,68 @@ describe('useMessageRenderer', () => {
     registry.push(plugin('alpha', renderer({ trust: 'server' })));
     expect(pick(undefined)).toBeUndefined();
     expect(pick(message('@person:example.org'), {}, null)).toBeUndefined();
+  });
+});
+
+describe('useMessagePreview', () => {
+  it("gives the matching renderer's text on one line, cut, direction controls written out", () => {
+    const preview = vi.fn(() => `  Greeting:\n\t Hello \u202Eworld ${'x'.repeat(300)}`);
+    registry.push(plugin('alpha', renderer({ preview })));
+    const event = message(AGENT);
+    const text = previewOf(event);
+    expect(preview).toHaveBeenCalledWith(event);
+    expect(text?.startsWith('Greeting: Hello <U+202E>world xxx')).toBe(true);
+    // Cut to 240 characters before the control is written out (7 characters longer).
+    expect(text).toHaveLength(240 + '<U+202E>'.length - 1);
+  });
+
+  it('asks no preview of a sender the renderer does not trust', () => {
+    const preview = vi.fn(() => 'Card');
+    registry.push(plugin('alpha', renderer({ preview })));
+    expect(previewOf(message('@person:example.org'))).toBeUndefined();
+    registry.splice(0, 1, plugin('alpha', renderer({ trust: 'server', preview })));
+    expect(previewOf(message('@person:other.org'))).toBeUndefined();
+    expect(preview).not.toHaveBeenCalled();
+  });
+
+  it('asks no preview when match declines or config.json turns the plugin off', () => {
+    const preview = vi.fn(() => 'Card');
+    registry.push(plugin('alpha', renderer({ match: () => false, preview })));
+    expect(previewOf(message(AGENT))).toBeUndefined();
+    registry.splice(0, 1, plugin('alpha', renderer({ preview })));
+    const off = { plugins: { alpha: { enabled: false } } } as unknown as ClientConfig;
+    expect(previewOf(message(AGENT), off)).toBeUndefined();
+    expect(preview).not.toHaveBeenCalled();
+  });
+
+  it('gives no text for a preview that throws, logged once, or one that is no string or blank', () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    registry.push(
+      plugin(
+        'alpha',
+        renderer({
+          preview: () => {
+            throw new Error('boom');
+          },
+        })
+      )
+    );
+    expect(previewOf(message(AGENT))).toBeUndefined();
+    expect(previewOf(message(AGENT))).toBeUndefined();
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(logged.mock.calls[0]?.[0]).toContain(
+      "[plugin alpha@1.0.0] a message renderer's preview failed"
+    );
+    registry.splice(0, 1, plugin('beta', renderer({ preview: () => 42 as unknown as string })));
+    expect(previewOf(message(AGENT))).toBeUndefined();
+    registry.splice(0, 1, plugin('beta', renderer({ preview: () => ' \n ' })));
+    expect(previewOf(message(AGENT))).toBeUndefined();
+  });
+
+  it("keeps the app's text when the renderer that takes the message has no preview", () => {
+    const later = vi.fn(() => 'Card');
+    registry.push(plugin('alpha', renderer()), plugin('beta', renderer({ preview: later })));
+    expect(previewOf(message(AGENT))).toBeUndefined();
+    expect(later).not.toHaveBeenCalled();
   });
 });

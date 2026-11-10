@@ -95,6 +95,14 @@ describe('example plugin', () => {
     expect(renderer?.match({ sender: greeting.sender, content: { body: 'Hello' } })).toBe(false);
   });
 
+  it("previews a greeting on one line in the app's language, and nothing else", async () => {
+    await renderGreeting();
+    expect(renderer?.preview?.(greeting)).toBe('Greeting: Hello');
+    await renderGreeting({ language: 'de' });
+    expect(renderer?.preview?.(greeting)).toBe('Gruß: Hello');
+    expect(renderer?.preview?.({ ...greeting, content: { body: 'Hello' } })).toBeUndefined();
+  });
+
   it('labels a greeting with its English strings', async () => {
     expect((await renderGreeting()).getByText('Example plugin: Hello')).toBeTruthy();
   });
