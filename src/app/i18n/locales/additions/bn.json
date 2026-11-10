@@ -568,6 +568,7 @@
   "mindroomUi": {
     "messages": {
       "mindroomReasoning": {
+        "collapse": "গুটিয়ে নিন",
         "thought": "ভেবেছে"
       },
       "messageReactionActions": {

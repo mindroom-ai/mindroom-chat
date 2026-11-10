@@ -568,6 +568,7 @@
   "mindroomUi": {
     "messages": {
       "mindroomReasoning": {
+        "collapse": "समेटें",
         "thought": "सोचा"
       },
       "messageReactionActions": {

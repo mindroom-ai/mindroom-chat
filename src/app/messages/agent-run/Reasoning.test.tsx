@@ -76,6 +76,7 @@ vi.mock('../html/HtmlBlocks.css', () => ({
 vi.mock('./Reasoning.css', () => ({
   Reasoning: 'Reasoning',
   Toggle: 'ReasoningToggle',
+  CollapseEnd: 'ReasoningCollapseEnd',
   Label: 'ReasoningLabel',
   Chevron: 'ReasoningChevron',
   Body: 'ReasoningBody',
@@ -194,7 +195,7 @@ describe('MindroomReasoning', () => {
 
     act(() => renderer?.update(element('Partial answer')));
 
-    expect(text(renderer?.root)).toBe('ThinkingChecking the cachePartial answer');
+    expect(text(renderer?.root)).toBe('ThinkingChecking the cacheCollapsePartial answer');
     expect(renderLiveMarkdown).toHaveBeenCalledTimes(1);
   });
 
@@ -266,7 +267,7 @@ describe('MindroomReasoning', () => {
     expect(text(header(root))).toBe('Thinking');
     expect(header(root).props['aria-expanded']).toBe(true);
     expect(text(root)).toBe(
-      'ThinkingChecking the cachePartial answerPreparing isolated worker... 3s elapsed.'
+      'ThinkingChecking the cacheCollapsePartial answerPreparing isolated worker... 3s elapsed.'
     );
   });
 
@@ -319,7 +320,7 @@ describe('MindroomReasoning', () => {
     });
 
     expect(text(header(root))).toBe('Thinking');
-    expect(text(root)).toBe('ThinkingChecking the cacheLong partial answer');
+    expect(text(root)).toBe('ThinkingChecking the cacheCollapseLong partial answer');
   });
 
   it('keeps multi-paragraph reasoning in one column', () => {
@@ -385,7 +386,7 @@ describe('MindroomReasoning', () => {
       'io.mindroom.live_activity': 'Starting worker',
     });
 
-    expect(text(root)).toBe('ThinkingPlanningThinking placeholderStarting worker');
+    expect(text(root)).toBe('ThinkingPlanningCollapseThinking placeholderStarting worker');
   });
 
   it('shows reasoning on notices too', () => {

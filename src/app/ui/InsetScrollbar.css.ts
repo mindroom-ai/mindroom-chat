@@ -5,7 +5,9 @@ import { color, config, toRem } from 'folds';
 export const Viewport = style({
   overflowX: 'hidden',
   overflowY: 'auto',
-  overscrollBehavior: 'contain',
+  // Vertical only: containing the horizontal axis too kept a trackpad's two-finger swipe from
+  // reaching Chrome, which then never went back (an open thread to its room).
+  overscrollBehaviorY: 'contain',
   scrollbarWidth: 'none',
   selectors: {
     '&::-webkit-scrollbar': { display: 'none' },

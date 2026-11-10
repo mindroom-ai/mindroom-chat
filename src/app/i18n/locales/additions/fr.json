@@ -577,6 +577,7 @@
   "mindroomUi": {
     "messages": {
       "mindroomReasoning": {
+        "collapse": "Réduire",
         "thought": "A réfléchi"
       },
       "messageReactionActions": {

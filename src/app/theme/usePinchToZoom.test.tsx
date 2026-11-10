@@ -265,6 +265,24 @@ describe('usePinchToZoom', () => {
     expect(setPageZoom).toHaveBeenCalledWith(101);
   });
 
+  // One notch: 100 px as Chromium sends it, three lines, or one page.
+  const NOTCHES = [
+    ['pixels', WheelEvent.DOM_DELTA_PIXEL, -100],
+    ['lines', WheelEvent.DOM_DELTA_LINE, -3],
+    ['pages', WheelEvent.DOM_DELTA_PAGE, -1],
+  ] as const;
+
+  it.each(NOTCHES)(
+    'steps the page zoom as far for a notch of a wheel in %s',
+    (_, deltaMode, deltaY) => {
+      const { setPageZoom } = mount(100);
+
+      wheel({ ctrlKey: true, deltaMode, deltaY });
+      flushFrames();
+      expect(setPageZoom.mock.calls).toEqual([[102]]);
+    }
+  );
+
   it('stops listening once unmounted', () => {
     const { setPageZoom, unmount } = mount(100);
     unmount();
@@ -1339,6 +1357,15 @@ describe('usePinchToZoom', () => {
       flushFrames();
       expect(pinches).toEqual([]);
       expect(setPageZoom).toHaveBeenCalledWith(101);
+    });
+
+    it.each(NOTCHES)('scales it as far for a notch of a wheel in %s', (_, deltaMode, deltaY) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      mount(100);
+      const { pinches, inside } = renderSurface();
+
+      wheel({ ctrlKey: true, deltaMode, deltaY, clientX: 40, clientY: 30 }, inside);
+      expect(pinches).toEqual([handed('start', 1, 40, 30), handed('move', Math.E, 40, 30)]);
     });
 
     it('ends a wheel pinch on one surface before it hands the next pinch to another', () => {

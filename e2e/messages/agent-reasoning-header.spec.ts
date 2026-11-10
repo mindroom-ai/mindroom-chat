@@ -267,6 +267,53 @@ test.describe('agent reasoning header', () => {
     }
   });
 
+  test('folds long reasoning from the button under it and brings the header back', async ({
+    page,
+  }) => {
+    test.slow();
+    await page.setViewportSize({ width: 1280, height: 720 });
+    const { reply: sendReply, open } = await startAgentThread(page, 'Plan my first week');
+    const steps = Array.from(
+      { length: 40 },
+      (_, index) => `Step ${index + 1}: weigh what the user needs on day ${index + 1}.`
+    );
+    await sendReply({
+      body: 'Thinking...',
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.live_reasoning': steps.join('\n\n'),
+    });
+
+    await open();
+    // Found by its header, which stays when the reasoning folds.
+    const reply = page
+      .locator('[data-message-item]')
+      .filter({ has: page.getByRole('button', { name: 'Thinking' }) });
+    await expect(reply).toContainText('Step 40:', { timeout: 60_000 });
+    await expect(reply).toHaveCount(1);
+    const toggle = reply.getByRole('button', { name: 'Thinking' });
+    const collapse = reply.getByRole('button', { name: 'Collapse' });
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(collapse).not.toHaveAttribute('aria-expanded');
+
+    // The reader at the end of the reasoning, its header scrolled away above.
+    await collapse.scrollIntoViewIfNeeded();
+    await expect(collapse).toBeInViewport();
+    await expect(toggle).not.toBeInViewport();
+    await page.mouse.move(0, 0);
+    if (SCREENSHOT) await page.screenshot({ path: `${SCREENSHOT}/reasoning-collapse-end.png` });
+
+    await collapse.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(collapse).toHaveCount(0);
+    await expect(reply).not.toContainText('Step 40:');
+    await expect(toggle).toBeFocused();
+    await expect(toggle).toBeInViewport();
+    await page.mouse.move(0, 0);
+    if (SCREENSHOT) {
+      await page.screenshot({ path: `${SCREENSHOT}/reasoning-collapse-end-folded.png` });
+    }
+  });
+
   // MindRoom writes a blank line around each tool marker. Those lines leave no empty line under the
   // folded tool row: it sits the app's paragraph spacing (8 px) from the reply's text, in the
   // formatted body MindRoom sends and in the body alone, which the app renders the same way.

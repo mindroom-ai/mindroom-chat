@@ -29,6 +29,15 @@ body {
   overscroll-behavior: none;
 }
 
+/* With a trackpad or mouse, a horizontal swipe is the browser's: Chrome goes back or forward on
+   a two-finger swipe only while the page's own overscroll-behavior-x is auto, and the back from
+   an open thread is to its room. A touch screen keeps it off, for the app's own edge swipes. */
+@media (hover: hover) and (pointer: fine) {
+  body {
+    overscroll-behavior-x: auto;
+  }
+}
+
 #root,
 #portalContainer {
   isolation: isolate;
