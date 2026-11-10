@@ -1,9 +1,11 @@
 import type { ComponentType } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useOptionalClientConfig } from '../config/useClientConfig';
 import { getMxIdServer } from '../matrix/matrix';
 import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
 import { revealDirectionControls } from '../ui/directional';
 import { isPluginEnabled } from './pluginConfig';
+import { pluginNamespace } from './pluginTranslations';
 import { registeredPlugins } from './registry';
 
 /** A message as a renderer sees it: the content the app renders it from (latest edit included). */
@@ -33,8 +35,8 @@ export type MessageRenderer = {
   preview?: (event: PluginEvent) => string | undefined;
 };
 
-/** The renderer that takes a message, and its plugin's tag. */
-export type MatchedRenderer = { tag: string; renderer: MessageRenderer };
+/** The renderer that takes a message, and its plugin's ID and tag. */
+export type MatchedRenderer = { id: string; tag: string; renderer: MessageRenderer };
 
 const trusts = (trust: MessageRenderer['trust'], sender: string, viewerId: string): boolean => {
   if (trust !== 'server') return isMindroomAgentUserIdForViewer(sender, viewerId);
@@ -80,7 +82,7 @@ export const useMessageRenderer = (
       (candidate) =>
         trusts(candidate.trust, event.sender, viewerId) && matches(tag, candidate, event)
     );
-    if (renderer) return { tag, renderer };
+    if (renderer) return { id, tag, renderer };
   }
   return undefined;
 };
@@ -95,6 +97,8 @@ export const useMessagePreview = (
   viewerId: string | undefined
 ): string | undefined => {
   const matched = useMessageRenderer(event, viewerId);
+  // The plugin's strings for the language in use may arrive after the app's: render again then.
+  useTranslation(matched?.renderer.preview ? pluginNamespace(matched.id) : undefined);
   if (!matched?.renderer.preview || !event) return undefined;
   let text: unknown;
   try {

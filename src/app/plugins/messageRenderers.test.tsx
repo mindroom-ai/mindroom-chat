@@ -70,7 +70,7 @@ describe('useMessageRenderer', () => {
     const only = renderer({ match });
     registry.push(plugin('alpha', only));
     const event = message(AGENT);
-    expect(pick(event)).toEqual({ tag: 'alpha@1.0.0', renderer: only });
+    expect(pick(event)).toEqual({ id: 'alpha', tag: 'alpha@1.0.0', renderer: only });
     expect(match).toHaveBeenCalledWith(event);
     // An agent account on another homeserver, and a person on this one.
     expect(pick(message('@mindroom_helper:other.org'))).toBeUndefined();
@@ -89,14 +89,14 @@ describe('useMessageRenderer', () => {
     const declines = renderer({ match: () => false });
     const first = renderer();
     registry.push(plugin('alpha', declines, first), plugin('beta', renderer()));
-    expect(pick(message(AGENT))).toEqual({ tag: 'alpha@1.0.0', renderer: first });
+    expect(pick(message(AGENT))).toEqual({ id: 'alpha', tag: 'alpha@1.0.0', renderer: first });
   });
 
   it('skips the renderers of a plugin config.json turns off', () => {
     const on = renderer();
     registry.push(plugin('alpha', renderer()), plugin('beta', on));
     const config = { plugins: { alpha: { enabled: false } } } as unknown as ClientConfig;
-    expect(pick(message(AGENT), config)).toEqual({ tag: 'beta@1.0.0', renderer: on });
+    expect(pick(message(AGENT), config)).toEqual({ id: 'beta', tag: 'beta@1.0.0', renderer: on });
   });
 
   it('counts a match that throws as no match, and logs it once with the plugin tag', () => {
