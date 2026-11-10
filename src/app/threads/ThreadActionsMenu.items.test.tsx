@@ -7,6 +7,7 @@ import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { Icons, config, type IconSrc } from 'folds';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThreadActionsMenu, type ThreadActionsMenuProps } from './ThreadActionsMenu';
+import { ShrinkIcon } from '../ui/panels/panelIcons';
 
 vi.mock('./ThreadContextBanner.css', () => ({ TagPickerInput: 'i', TagPickerInputContainer: 'c' }));
 vi.mock('../ui/styles/Motion.css', () => ({
@@ -125,6 +126,25 @@ describe('ThreadActionsMenu rows', () => {
         Node.DOCUMENT_POSITION_FOLLOWING
       );
     });
+  });
+
+  it('offers to show the thread beside the messages before Hide where the banner asks for it', () => {
+    const onShowBeside = vi.fn();
+    const onClose = vi.fn();
+    const items = renderMenu({ onShowBeside, onHideDetails: () => undefined, onClose });
+
+    expect(rows(items).slice(-3)).toEqual([
+      { action: 'copy', label: 'Copy thread link', icon: glyph(Icons.Link) },
+      {
+        action: 'showBeside',
+        label: 'Show the thread beside the messages',
+        icon: glyph(ShrinkIcon),
+      },
+      { action: 'hideDetails', label: 'Hide thread details', icon: glyph(Icons.ChevronTop) },
+    ]);
+    act(() => items.find((item) => item.dataset.threadAction === 'showBeside')?.click());
+    expect(onShowBeside).toHaveBeenCalledOnce();
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('starts a card menu with Open thread, and gives Reopen its own icon', () => {

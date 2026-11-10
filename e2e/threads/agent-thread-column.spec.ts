@@ -15,7 +15,7 @@ import { roomHeader } from '../helpers/roomMenu';
 
 // The thread column end to end: a production build with the example client plugin
 // (src/app/plugins/__fixtures__/example-plugin) against the agent stack. A thread first opens in
-// the messages' place, as before; Show beside moves it to a column of its own beside the room's
+// the messages' place, as before; Show beside (in the thread's More menu) moves it to a column of its own beside the room's
 // messages, with the focus in its composer, and the next thread opens there too. A reply sent
 // from the column leaves the room composer's draft alone. The plugin's panel opens to the right of
 // the thread, three columns, and closing it leaves two. Dragging the column's edge over the
@@ -45,6 +45,14 @@ const examplePanel = (page: Page): Locator =>
 const storedLayout = (page: Page) =>
   page.evaluate((key) => window.localStorage.getItem(key), LAYOUT_KEY);
 
+/** The thread's More menu offers to show the thread in the messages' place beside them. */
+const showBeside = async (page: Page) => {
+  await banner(page).getByRole('button', { name: 'Thread options', exact: true }).click();
+  await page
+    .getByRole('menuitem', { name: 'Show the thread beside the messages', exact: true })
+    .click();
+};
+
 const shot = (page: Page, name: string) =>
   page.screenshot({ path: test.info().outputPath(`thread-column-${name}.png`) });
 
@@ -70,9 +78,7 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   // First use: the thread in the messages' place, as before.
   await expect(column(page)).toHaveCount(0);
   await shot(page, 'first-use-full');
-  await banner(page)
-    .getByRole('button', { name: 'Show the thread beside the messages', exact: true })
-    .click();
+  await showBeside(page);
   await expect(column(page)).toBeVisible();
   await expect(messageRow(column(page), first)).toBeVisible({ timeout: 30_000 });
   await expect(columnComposer(page)).toBeFocused();
@@ -145,9 +151,7 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   // The next thread opens in the messages' place too, until Show beside.
   const second = await openNewThread(page, stack, `${word}b`);
   await expect(column(page)).toHaveCount(0);
-  await banner(page)
-    .getByRole('button', { name: 'Show the thread beside the messages', exact: true })
-    .click();
+  await showBeside(page);
   await expect(messageRow(column(page), second)).toBeVisible({ timeout: 30_000 });
 
   const third = await openNewThread(page, stack, `${word}c`);
@@ -161,9 +165,7 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await expect(column(page)).toHaveCount(0);
   await expect(pageComposer(page)).toBeFocused();
   expect(await storedLayout(page)).toBe('"full"');
-  await banner(page)
-    .getByRole('button', { name: 'Show the thread beside the messages', exact: true })
-    .click();
+  await showBeside(page);
   await expect(column(page)).toBeVisible();
 
   // A plugin opens a thread with the SDK's navigateRoomThread as the app does: beside, as chosen.
@@ -178,8 +180,11 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(column(page)).toHaveCount(0);
   await expect(messageRow(page, second)).toBeVisible({ timeout: 30_000 });
+  await banner(page).getByRole('button', { name: 'Thread options', exact: true }).click();
+  await expect(page.getByRole('menuitem', { name: 'Copy thread link', exact: true })).toBeVisible();
   await expect(
-    banner(page).getByRole('button', { name: 'Show the thread beside the messages' })
+    page.getByRole('menuitem', { name: 'Show the thread beside the messages' })
   ).toHaveCount(0);
+  await page.keyboard.press('Escape');
   await shot(page, 'phone');
 });

@@ -28,6 +28,7 @@ import type { ShortcutId } from '../shortcuts/shortcuts';
 import { ActionDialog } from '../ui/ActionDialog';
 import { describeError } from '../lib/describeError';
 import { ErrorDetail } from '../ui/ErrorDetail';
+import { ShrinkIcon } from '../ui/panels/panelIcons';
 
 export type ThreadActionsMenuProps = {
   room: Room;
@@ -40,6 +41,8 @@ export type ThreadActionsMenuProps = {
   onOpenThread?: () => void;
   /** Offered from the thread banner only. */
   onHideDetails?: () => void;
+  /** Offered from the banner of a thread in the messages' place where it may show beside them. */
+  onShowBeside?: () => void;
 };
 
 type OpenDialog = 'tags' | 'editSummary' | 'regenerate';
@@ -67,6 +70,7 @@ export function ThreadActionsMenu({
   onClose,
   onOpenThread,
   onHideDetails,
+  onShowBeside,
 }: ThreadActionsMenuProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -346,7 +350,7 @@ export function ThreadActionsMenu({
   };
 
   // The thread's own details (tags, title) first, then its state (resolved, pinned), then the link
-  // and the banner's Hide; each label has its icon at the end of the row.
+  // and the banner's Show beside and Hide; each label has its icon at the end of the row.
   const items: Array<{
     action: string;
     label: string;
@@ -418,6 +422,17 @@ export function ThreadActionsMenu({
     icon: Icons.Link,
     onSelect: handleCopyLink,
   });
+  if (onShowBeside) {
+    items.push({
+      action: 'showBeside',
+      label: t('thread.showBeside'),
+      icon: ShrinkIcon,
+      onSelect: () => {
+        onShowBeside();
+        onClose();
+      },
+    });
+  }
   if (onHideDetails) {
     items.push({
       action: 'hideDetails',
