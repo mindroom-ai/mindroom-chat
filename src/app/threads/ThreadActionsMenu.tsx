@@ -73,7 +73,7 @@ export function ThreadActionsMenu({
   onOpenThread,
   onHideDetails,
   onShowBeside,
-  showBesideBlocked = false,
+  showBesideBlocked,
 }: ThreadActionsMenuProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();

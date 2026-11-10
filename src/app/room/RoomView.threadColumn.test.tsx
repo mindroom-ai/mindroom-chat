@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createClient, EventStatus, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
@@ -22,6 +22,7 @@ import {
 } from '../composer/roomInputDrafts';
 import { PanelRow } from '../members/PanelRow';
 import { RoomView, type RoomViewProps } from './RoomView';
+import type { ThreadView } from './ThreadView';
 
 const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
 const room = new Room('!room:example.org', mx, '@alice:example.org');
@@ -30,7 +31,6 @@ const LAYOUT_KEY = 'mindroom.threadColumn.layout';
 const state = vi.hoisted(() => ({
   thread: undefined as string | undefined,
   main: undefined as RoomTimelineProps | undefined,
-  exit: () => undefined as void,
   focused: [] as (string | undefined)[],
   approvalThread: 'unset' as string | undefined,
   columnLoadError: undefined as ((threadId: string) => void) | undefined,
@@ -55,7 +55,6 @@ vi.mock('./useRoomViewThreadState', () => ({
   useRoomViewThreadState: () => ({
     viewMode: 'compact',
     effectiveThreadId: state.thread,
-    handleExitThread: state.exit,
     handleThreadRootDeleted: state.rootDeleted,
   }),
 }));
@@ -123,15 +122,7 @@ vi.mock('./ThreadView', async () => {
       hidden,
       onThreadLoadError,
       onUnmount,
-    }: {
-      threadId: string;
-      eventId?: string;
-      header?: ReactNode;
-      autoFocus?: boolean;
-      hidden?: boolean;
-      onThreadLoadError?: (threadId: string) => void;
-      onUnmount?: (threadId: string) => void;
-    }) => {
+    }: ComponentProps<typeof ThreadView>) => {
       const last = useRef({ threadId, onUnmount });
       last.current = { threadId, onUnmount };
       useEffect(() => () => last.current.onUnmount?.(last.current.threadId), []);
@@ -174,7 +165,6 @@ class TestPointerEvent extends MouseEvent {
 beforeEach(() => {
   state.thread = '$thread';
   state.main = undefined;
-  state.exit = () => undefined;
   state.focused = [];
   state.rootDeleted = () => undefined;
   state.resized = [];
@@ -206,15 +196,19 @@ afterEach(() => {
 });
 
 // In the room's row, which measures itself before the view mounts.
+const tree = (props: Partial<RoomViewProps> = {}, screenSize = ScreenSize.Desktop) => (
+  <ScreenSizeProvider value={screenSize}>
+    <PanelRow>
+      <RoomView room={room} {...props} />
+    </PanelRow>
+  </ScreenSizeProvider>
+);
 const renderView = (props: Partial<RoomViewProps> = {}, screenSize = ScreenSize.Desktop) =>
-  render(
-    <ScreenSizeProvider value={screenSize}>
-      <PanelRow>
-        <RoomView room={room} {...props} />
-      </PanelRow>
-    </ScreenSizeProvider>
-  );
+  render(tree(props, screenSize));
+const rerenderView = (rerender: (ui: ReactNode) => void) => rerender(tree());
 const column = () => screen.queryByTestId('thread-view');
+const draftAtom = (threadId?: string) =>
+  roomIdToMsgDraftAtomFamily(getRoomInputDraftKey('@alice:example.org', room.roomId, threadId));
 const storedLayout = () => localStorage.getItem(LAYOUT_KEY);
 
 it("opens a thread in the messages' place on first use", () => {
@@ -261,8 +255,11 @@ it('stores each choice and opens the next thread the way chosen last', () => {
   rerenderView(rerender);
   expect(column()?.dataset.thread).toBe('$next');
 
-  // Full fills the page with the column, which keeps the thread and its composer.
+  // Full fills the page with the column, which keeps the thread and its composer; focus left in
+  // the room's composer goes, as the composer turns inert.
+  screen.getByRole('textbox', { name: 'Message' }).focus();
   fireEvent.click(screen.getByRole('button', { name: 'Full' }));
+  expect(document.activeElement).toBe(document.body);
   expect(storedLayout()).toBe('"full"');
   expect(column()?.dataset.thread).toBe('$next');
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
@@ -306,6 +303,7 @@ it("fills the page with the column when its edge is dragged past the messages' l
   fireEvent.pointerDown(handle, { clientX: 340, button: 0 });
   fireEvent.pointerMove(handle, { clientX: 100 });
   expect(screen.getByTestId('thread-column').dataset.expandPreview).toBe('true');
+  expect(handle.getAttribute('aria-valuenow')).toBe(handle.getAttribute('aria-valuemax'));
   expect(handle.getAttribute('aria-valuetext')).toBe('Show the thread in full');
   fireEvent.pointerUp(handle, { clientX: 100 });
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
@@ -365,18 +363,9 @@ it.each([
   expect(screen.queryByRole('button', { name: 'Beside' })).toBeNull();
 });
 
-const rerenderView = (rerender: (ui: ReactNode) => void) =>
-  rerender(
-    <ScreenSizeProvider value={ScreenSize.Desktop}>
-      <PanelRow>
-        <RoomView room={room} onThreadLoadError={onLoadError} />
-      </PanelRow>
-    </ScreenSizeProvider>
-  );
-const onLoadError = vi.fn();
-
 it("passes a thread that does not load to the page, as the thread in the messages' place does", () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  const onLoadError = vi.fn();
   renderView({ onThreadLoadError: onLoadError });
   expect(state.columnLoadError).toBe(onLoadError);
 });
@@ -385,12 +374,8 @@ it("moves a reply's text to the room's composer when the column's unsent root is
   const store = getDefaultStore();
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   const local = '~!room:example.org:m2.1';
-  const threadDraft = roomIdToMsgDraftAtomFamily(
-    getRoomInputDraftKey('@alice:example.org', room.roomId, local)
-  );
-  const roomDraft = roomIdToMsgDraftAtomFamily(
-    getRoomInputDraftKey('@alice:example.org', room.roomId)
-  );
+  const threadDraft = draftAtom(local);
+  const roomDraft = draftAtom();
   const text = [{ type: 'paragraph', children: [{ text: 'my reply' }] }] as never;
   store.set(threadDraft, text);
   const root = new MatrixEvent({ event_id: local, type: 'm.room.message', content: {} });
@@ -414,9 +399,7 @@ it("moves a reply's text to the room's composer when the column's unsent root is
 it("keeps another thread's text where it is as the column closes", () => {
   const store = getDefaultStore();
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
-  const threadDraft = roomIdToMsgDraftAtomFamily(
-    getRoomInputDraftKey('@alice:example.org', room.roomId, '$thread')
-  );
+  const threadDraft = draftAtom('$thread');
   const text = [{ type: 'paragraph', children: [{ text: 'later' }] }] as never;
   store.set(threadDraft, text);
   const { rerender } = renderView();
@@ -483,8 +466,11 @@ it('keeps an open thread where it opened as the page widens or narrows: a column
   expect(storedLayout()).toBe('"beside"');
 });
 
-it('keeps the thread in its column as its unsent root gets its own ID', () => {
+it('keeps the thread in its column as its unsent root gets its own ID, and only that thread', () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  vi.spyOn(room, 'getEventForTxnId').mockImplementation((txnId) =>
+    txnId === 'm3.1' ? new MatrixEvent({ event_id: '$confirmed' }) : undefined
+  );
   state.thread = '~!room:example.org:m3.1';
   const { rerender } = renderView();
   expect(column()?.dataset.thread).toBe('~!room:example.org:m3.1');
@@ -492,6 +478,14 @@ it('keeps the thread in its column as its unsent root gets its own ID', () => {
   state.thread = '$confirmed';
   rerenderView(rerender);
   expect(column()?.dataset.thread).toBe('$confirmed');
+
+  // Another thread opened after an unsent root opens as stored.
+  state.thread = '~!room:example.org:m4.1';
+  rerenderView(rerender);
+  state.thread = '$unrelated';
+  rerenderView(rerender);
+  expect(column()).toBeNull();
+  expect(state.main?.threadId).toBe('$unrelated');
 });
 
 it("opens a thread in the messages' place when the room's row is wide but the page beside a side panel is not", () => {

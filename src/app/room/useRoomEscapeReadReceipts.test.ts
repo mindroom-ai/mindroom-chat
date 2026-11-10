@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Provider, createStore } from 'jotai';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import { shownConversationViewsAtom } from '../navigation/conversationView';
 import {
   conversationBehindPanelAtom,
   conversationCoveredAtom,
@@ -101,13 +102,20 @@ describe('useRoomEscapeReadReceipts', () => {
   });
 
   it.each([
-    ['marks the thread read', [], true],
+    ["marks the thread read under a plugin's cover", [conversationCoveredAtom], true],
+    [
+      'marks the thread read under the column that fills the page',
+      [conversationUnderThreadAtom],
+      true,
+    ],
     ["marks nothing read under a phone's navigation drawer", [phoneNavDrawerOpenAtom], false],
-    ['marks nothing read behind a side panel', [conversationBehindPanelAtom], false],
-  ] as const)("under the thread's column that fills the page, %s", (_what, also, marks) => {
+  ] as const)('while its column shows the thread, %s', (_what, hiding, marks) => {
     keyHotkeyMock.mockReturnValue(true);
     const store = createStore();
-    [conversationUnderThreadAtom, ...also].forEach((atom) => store.set(atom, true));
+    hiding.forEach((atom) => store.set(atom, true));
+    store.set(shownConversationViewsAtom, [
+      { view: 'column', roomId: '!room:server', threadId: '$thread' },
+    ]);
     const renderer = create(
       React.createElement(
         Provider,
@@ -119,6 +127,7 @@ describe('useRoomEscapeReadReceipts', () => {
       state.handler?.({} as KeyboardEvent);
     });
     expect(markThreadAsReadMock).toHaveBeenCalledTimes(marks ? 1 : 0);
+    expect(markMainTimelineAsReadMock).not.toHaveBeenCalled();
     act(() => renderer.unmount());
   });
 

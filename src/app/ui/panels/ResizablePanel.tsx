@@ -341,7 +341,7 @@ export function ResizablePanel({
           aria-orientation="vertical"
           aria-valuemin={width < minWidth ? 0 : minWidth}
           aria-valuemax={maxWidth}
-          aria-valuenow={Math.round(width)}
+          aria-valuenow={Math.round(Math.min(width, maxWidth))}
           aria-valuetext={
             (collapseOnRelease && collapseLabel) || (expandOnRelease && expandLabel) || undefined
           }

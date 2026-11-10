@@ -113,7 +113,7 @@ export function ThreadContextBanner({
   summaryInfo,
   onExitThread,
   onShowBeside,
-  showBesideBlocked = false,
+  showBesideBlocked,
   onShowFull,
   onRestore,
 }: ThreadContextBannerProps) {
@@ -289,6 +289,11 @@ export function ThreadContextBanner({
   // The Resolved button is described by the byline, also on short screens,
   // which hide it.
   const resolverBylineId = useId();
+
+  // The column's button: fill the page with it, or take it back beside the messages.
+  const columnToggle = onShowFull
+    ? { label: t('thread.showFull'), icon: ExpandIcon, onClick: onShowFull }
+    : onRestore && { label: t('thread.showBeside'), icon: ShrinkIcon, onClick: onRestore };
 
   const backButton = phone ? (
     <PhoneBackButton label={t('thread.back')} onBack={onExitThread} />
@@ -493,18 +498,18 @@ export function ThreadContextBanner({
               )}
             </div>
             <Box alignItems="Center" gap="100" shrink="No">
-              {(onShowFull ?? onRestore) && (
-                <IconTooltip label={t(onShowFull ? 'thread.showFull' : 'thread.showBeside')}>
+              {columnToggle && (
+                <IconTooltip label={columnToggle.label}>
                   {(triggerRef) => (
                     <IconButton
                       ref={triggerRef}
                       className={toolbarCss.MessageOptionsButton}
                       variant="SurfaceVariant"
                       fill="None"
-                      aria-label={t(onShowFull ? 'thread.showFull' : 'thread.showBeside')}
-                      onClick={onShowFull ?? onRestore}
+                      aria-label={columnToggle.label}
+                      onClick={columnToggle.onClick}
                     >
-                      <Icon size="100" src={onShowFull ? ExpandIcon : ShrinkIcon} />
+                      <Icon size="100" src={columnToggle.icon} />
                     </IconButton>
                   )}
                 </IconTooltip>

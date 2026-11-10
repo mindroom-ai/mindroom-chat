@@ -7,7 +7,6 @@ import {
   useMemo,
   useRef,
 } from 'react';
-import { useSetAtom } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { Box } from 'folds';
@@ -18,6 +17,7 @@ import { useEditor } from '../editor/Editor';
 import {
   isConfirmedMatrixEventId,
   isLocalEchoEventId,
+  resolveCanonicalThreadRootId,
 } from '../event-store/threads/threadRouteUtils';
 import { DIRECT_ROOM_TIMELINE_FILTER_STATE } from '../event-store/timeline/roomTimelineViewState';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -32,7 +32,7 @@ import { StateEvent } from '../matrix/types/room';
 import {
   ConversationViewContext,
   composerStateKey,
-  shownConversationViewsAtom,
+  useShownConversationView,
 } from '../navigation/conversationView';
 import {
   roomIdToReplyDraftAtomFamily,
@@ -105,14 +105,8 @@ export function ThreadView({
   // The view shows, for read receipts and notifications, while it is mounted, but not while the
   // side panel it is in is folded to its tab, which keeps it mounted out of sight, nor while hidden.
   const outOfSight = usePanelFrame()?.layout === 'folded' || hidden;
-  const setShownViews = useSetAtom(shownConversationViewsAtom);
   const { roomId } = room;
-  useEffect(() => {
-    if (outOfSight) return undefined;
-    const place = { view, roomId, threadId };
-    setShownViews((shown) => [...shown, place]);
-    return () => setShownViews((shown) => shown.filter((other) => other !== place));
-  }, [outOfSight, roomId, setShownViews, threadId, view]);
+  useShownConversationView(!outOfSight, view, roomId, threadId);
 
   // Its composer's reply and staged files, in each room it showed, go with it as it unmounts: no
   // later view finds them. Until then they stay, as a send under way may still use them.
@@ -133,12 +127,14 @@ export function ThreadView({
   const focusConversation = useCallback(() => ReactEditor.focus(editor), [editor]);
   // Without a composer on screen there is nothing to focus. A root that gets its own ID is the
   // same thread: the focus stays where the person took it meanwhile.
-  const focusedThread = useRef<string>();
+  const previousThreadId = useRef<string>();
   useEffect(() => {
-    const confirmedRoot = isLocalEchoEventId(focusedThread.current);
-    focusedThread.current = threadId;
-    if (autoFocus && !confirmedRoot) focusConversation();
-  }, [autoFocus, focusConversation, threadId]);
+    const previous = previousThreadId.current;
+    previousThreadId.current = threadId;
+    const rootConfirmed =
+      isLocalEchoEventId(previous) && resolveCanonicalThreadRootId(room, previous) === threadId;
+    if (autoFocus && !rootConfirmed) focusConversation();
+  }, [autoFocus, focusConversation, room, threadId]);
 
   return (
     <ConversationViewContext.Provider value={view}>

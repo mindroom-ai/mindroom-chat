@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { getDefaultStore } from 'jotai';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { createClient, Room, type RoomMember } from 'matrix-js-sdk';
+import { createClient, MatrixEvent, Room, type RoomMember } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Editable, ReactEditor, Slate } from 'slate-react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -266,6 +266,12 @@ it('tells onUnmount the thread it showed last, and the page its load errors', ()
 
 it('leaves the focus where it is when the root of its thread gets its own ID', () => {
   const focus = vi.spyOn(ReactEditor, 'focus');
+  // The server confirmed the unsent root as $confirmed.
+  const confirmed = vi
+    .spyOn(room, 'getEventForTxnId')
+    .mockImplementation((txnId) =>
+      txnId === 'm1.1' ? new MatrixEvent({ event_id: '$confirmed' }) : undefined
+    );
   const view = (threadId: string) => <ThreadView room={room} threadId={threadId} autoFocus />;
   const { rerender } = render(view('~!room:example.org:m1.1'));
   expect(focus).toHaveBeenCalledTimes(1);
@@ -273,7 +279,12 @@ it('leaves the focus where it is when the root of its thread gets its own ID', (
   expect(focus).toHaveBeenCalledTimes(1);
   rerender(view('$another'));
   expect(focus).toHaveBeenCalledTimes(2);
+  // Another thread after an unsent root takes the focus too.
+  rerender(view('~!room:example.org:m2.1'));
+  rerender(view('$unrelated'));
+  expect(focus).toHaveBeenCalledTimes(4);
   focus.mockRestore();
+  confirmed.mockRestore();
 });
 
 it('asks for the focus with no reply box to take it, and nothing breaks', () => {

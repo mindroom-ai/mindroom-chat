@@ -20,19 +20,19 @@ export type ThreadLayout = 'beside' | 'full';
 export const THREAD_COLUMN_WIDTH_KEY = 'mindroom.threadColumn.width';
 
 const LAYOUT_KEY = 'mindroom.threadColumn.layout';
-const readLayout = (key: string): ThreadLayout =>
-  getLocalStorageItem<unknown>(key, undefined) === 'beside' ? 'beside' : 'full';
-const threadLayoutAtom = atomWithLocalStorage<ThreadLayout>(
-  LAYOUT_KEY,
-  readLayout,
-  setLocalStorageItem
-);
 
 /**
  * The stored layout as storage has it now, for a thread that opens: the atom, which another tab
  * may have changed while it was not mounted, reads it again only after its first render.
  */
-export const storedThreadLayout = (): ThreadLayout => readLayout(LAYOUT_KEY);
+export const storedThreadLayout = (): ThreadLayout =>
+  getLocalStorageItem<unknown>(LAYOUT_KEY, undefined) === 'beside' ? 'beside' : 'full';
+
+const threadLayoutAtom = atomWithLocalStorage<ThreadLayout>(
+  LAYOUT_KEY,
+  storedThreadLayout,
+  setLocalStorageItem
+);
 
 /** The room's messages and the thread beside them each keep a conversation's least width. */
 const BESIDE_MIN_WIDTH = 2 * CONVERSATION_MIN_WIDTH;
@@ -40,8 +40,8 @@ const BESIDE_MIN_WIDTH = 2 * CONVERSATION_MIN_WIDTH;
 /**
  * The layout threads show in on the room page `pageRef` holds: `roomy` while the page has room for
  * a thread beside the messages (never on phones), `measured` once the page itself said so, the
- * stored `layout`, and `setLayout`, which stores a choice. A page not laid out yet, or a test renderer's, which lays out nothing, counts as
- * roomy.
+ * stored `layout`, and `setLayout`, which stores a choice. Before the page has a layout the room's
+ * row answers; a row with none either (a test renderer's) counts as roomy.
  */
 export const useThreadLayout = (pageRef: RefObject<HTMLElement>) => {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;

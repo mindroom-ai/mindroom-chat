@@ -4,11 +4,8 @@ import { useStore } from 'jotai';
 import { useKeyDown } from '../lib/hooks/useKeyDown';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { markMainTimelineAsRead, markThreadAsRead } from '../notifications/readReceipts';
-import {
-  conversationBehindPanelAtom,
-  conversationOutOfSightAtom,
-  conversationUnderThreadAtom,
-} from '../navigation/conversationCover';
+import { conversationOutOfSightAtom } from '../navigation/conversationCover';
+import { shownConversationViewsAtom } from '../navigation/conversationView';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 
 type UseRoomEscapeReadReceiptsOptions = {
@@ -31,12 +28,14 @@ export const useRoomEscapeReadReceipts = ({
     window,
     useCallback(
       (evt: KeyboardEvent) => {
-        // The thread's column filling the page hides the room's messages, not the thread.
+        // A thread in a view of its own (the room page's column) shows while the page's own
+        // conversation is hidden, under a plugin's cover or under that column.
         const threadShows =
           !!threadId &&
-          store.get(conversationUnderThreadAtom) &&
-          !store.get(conversationBehindPanelAtom) &&
-          !store.get(phoneNavDrawerOpenAtom);
+          !store.get(phoneNavDrawerOpenAtom) &&
+          store
+            .get(shownConversationViewsAtom)
+            .some((place) => place.roomId === roomId && place.threadId === threadId);
         if (store.get(conversationOutOfSightAtom) && !threadShows) return;
         if (!isKeyHotkey('escape', evt)) return;
         if (threadId) {

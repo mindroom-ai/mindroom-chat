@@ -15,7 +15,7 @@ import { roomHeader } from '../helpers/roomMenu';
 
 // The thread column end to end: a production build with the example client plugin
 // (src/app/plugins/__fixtures__/example-plugin) against the agent stack. A thread first opens in
-// the messages' place, as before; Show beside (in the thread's More menu) moves it to a column of
+// the messages' place; Show beside (in the thread's More menu) moves it to a column of
 // its own beside the room's messages, with the focus in its composer. A reply sent from the column
 // leaves the room composer's draft alone. The plugin's panel opens to the right of the thread,
 // three columns, and closing it leaves two. Dragging the column's edge over the messages fills the
@@ -37,7 +37,7 @@ const LAYOUT_KEY = 'mindroom.threadColumn.layout';
 const column = (page: Page): Locator => page.getByTestId('thread-column');
 /** The room page's own composer, not the column's. */
 const pageComposer = (page: Page): Locator =>
-  page.locator('[data-room-footer] [data-editable-name="RoomInput"]');
+  pageFooter(page).locator('[data-editable-name="RoomInput"]');
 const columnComposer = (page: Page): Locator =>
   column(page).locator('[data-editable-name="RoomInput"]');
 const banner = (scope: Page | Locator): Locator => scope.locator('[data-thread-context-banner]');
@@ -46,9 +46,13 @@ const examplePanel = (page: Page): Locator =>
 const storedLayout = (page: Page) =>
   page.evaluate((key) => window.localStorage.getItem(key), LAYOUT_KEY);
 
-/** The thread's More menu offers to show the thread in the messages' place beside them. */
+const pageFooter = (page: Page): Locator => page.locator('[data-room-footer]');
+const openThreadOptions = (page: Page) =>
+  banner(page).getByRole('button', { name: 'Thread options', exact: true }).click();
+
+/** Moves the thread from the messages' place to the column with Show beside in its More menu. */
 const showBeside = async (page: Page) => {
-  await banner(page).getByRole('button', { name: 'Thread options', exact: true }).click();
+  await openThreadOptions(page);
   await page
     .getByRole('menuitem', { name: 'Show the thread beside the messages', exact: true })
     .click();
@@ -56,6 +60,23 @@ const showBeside = async (page: Page) => {
 
 const shot = (page: Page, name: string) =>
   page.screenshot({ path: test.info().outputPath(`thread-column-${name}.png`) });
+
+/** Stages a text file named `name` in the composer inside `scope`. */
+const stageFile = async (page: Page, scope: Locator, name: string) => {
+  const chooser = page.waitForEvent('filechooser');
+  await scope.getByRole('button', { name: 'Attach files' }).click();
+  await (await chooser).setFiles([{ name, mimeType: 'text/plain', buffer: Buffer.from(name) }]);
+  await expect(scope.getByText(name, { exact: true })).toBeVisible({ timeout: 20_000 });
+};
+
+/** The tester's message `body` in the thread `rootId`, once the server has it. */
+const ownMessage = (stack: AgentStack, rootId: string, body: string, description: string) =>
+  waitForThreadEvent(
+    stack,
+    rootId,
+    (event) => event.sender === stack.tester.userId && event.content.body === body,
+    { timeout: 60_000, description }
+  );
 
 /** Starts a thread in the lobby and shows it once the helper answered in it. */
 const openNewThread = async (page: Page, stack: AgentStack, word: string): Promise<string> => {
@@ -76,7 +97,7 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   const word = uniqueWord('column');
   const first = await openNewThread(page, stack, word);
 
-  // First use: the thread in the messages' place, as before.
+  // First use: the thread in the messages' place.
   await expect(column(page)).toHaveCount(0);
   await shot(page, 'first-use-full');
   await showBeside(page);
@@ -97,12 +118,7 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await columnComposer(page).click();
   await page.keyboard.type(reply);
   await page.keyboard.press('Enter');
-  const sent = await waitForThreadEvent(
-    stack,
-    first,
-    (event) => event.sender === stack.tester.userId && event.content.body === reply,
-    { timeout: 60_000, description: 'the reply sent from the column' }
-  );
+  const sent = await ownMessage(stack, first, reply, 'the reply sent from the column');
   await expect(messageRow(column(page), sent.event_id)).toContainText(reply, { timeout: 30_000 });
   await expect(pageComposer(page)).toHaveText(draft);
   await expect(columnComposer(page)).not.toContainText(reply);
@@ -154,31 +170,18 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   const second = await openNewThread(page, stack, `${word}b`);
   await expect(column(page)).toHaveCount(0);
   const staged = `${word}-full.txt`;
-  const fullChooser = page.waitForEvent('filechooser');
-  await page.locator('[data-room-footer]').getByRole('button', { name: 'Attach files' }).click();
-  await (
-    await fullChooser
-  ).setFiles([{ name: staged, mimeType: 'text/plain', buffer: Buffer.from('From the thread.') }]);
-  await expect(page.locator('[data-room-footer]').getByText(staged, { exact: true })).toBeVisible({
-    timeout: 20_000,
-  });
-  await banner(page).getByRole('button', { name: 'Thread options', exact: true }).click();
+  await stageFile(page, pageFooter(page), staged);
+  await openThreadOptions(page);
   const blocked = page.getByRole('menuitem', { name: /Show the thread beside the messages/ });
   await expect(blocked).toHaveAttribute('aria-disabled', 'true');
   await expect(blocked).toContainText('Send or remove the reply and files in the composer first');
   await shot(page, 'show-beside-blocked');
   await page.keyboard.press('Escape');
   await pageComposer(page).press('Enter');
-  await waitForThreadEvent(
-    stack,
-    second,
-    (event) => event.sender === stack.tester.userId && event.content.body === staged,
-    { timeout: 60_000, description: 'the file staged in the full view' }
-  );
-  await expect(page.locator('[data-room-footer]').getByText(staged, { exact: true })).toHaveCount(
-    0,
-    { timeout: 30_000 }
-  );
+  await ownMessage(stack, second, staged, 'the file staged in the full view');
+  await expect(pageFooter(page).getByText(staged, { exact: true })).toHaveCount(0, {
+    timeout: 30_000,
+  });
   await showBeside(page);
   await expect(messageRow(column(page), second)).toBeVisible({ timeout: 30_000 });
 
@@ -191,12 +194,7 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await columnComposer(page).click();
   await page.keyboard.type(unsent);
   const fileName = `${word}-column.txt`;
-  const chooser = page.waitForEvent('filechooser');
-  await column(page).getByRole('button', { name: 'Attach files' }).click();
-  await (
-    await chooser
-  ).setFiles([{ name: fileName, mimeType: 'text/plain', buffer: Buffer.from('From the column.') }]);
-  await expect(column(page).getByText(fileName, { exact: true })).toBeVisible({ timeout: 20_000 });
+  await stageFile(page, column(page), fileName);
   await banner(column(page))
     .getByRole('button', { name: 'Show the thread in full', exact: true })
     .click();
@@ -211,12 +209,7 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await expect(pageComposer(page)).toBeVisible();
   expect(await storedLayout(page)).toBe('"beside"');
   await columnComposer(page).press('Enter');
-  await waitForThreadEvent(
-    stack,
-    third,
-    (event) => event.sender === stack.tester.userId && event.content.body === fileName,
-    { timeout: 60_000, description: 'the file staged in the column' }
-  );
+  await ownMessage(stack, third, fileName, 'the file staged in the column');
 
   // A plugin opens a thread with the SDK's navigateRoomThread as the app does: beside, as chosen.
   await showPath(
@@ -230,8 +223,7 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await page.setViewportSize({ width: 390, height: 844 });
   await showThread(page, stack, first);
   await expect(column(page)).toHaveCount(0);
-  await expect(messageRow(page, first)).toBeVisible({ timeout: 30_000 });
-  await banner(page).getByRole('button', { name: 'Thread options', exact: true }).click();
+  await openThreadOptions(page);
   await expect(page.getByRole('menuitem', { name: 'Copy thread link', exact: true })).toBeVisible();
   await expect(
     page.getByRole('menuitem', { name: /Show the thread beside the messages/ })

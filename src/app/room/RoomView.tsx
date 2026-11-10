@@ -54,7 +54,7 @@ import {
   conversationUnderThreadAtom,
 } from '../navigation/conversationCover';
 import { useInert } from '../lib/hooks/useInert';
-import { shownConversationViewsAtom } from '../navigation/conversationView';
+import { useShownConversationView } from '../navigation/conversationView';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
 import * as overlay from '../ui/styles/RoomOverlay.css';
 import { SurfaceProvider } from '../ui/glass/SurfaceContext';
@@ -63,6 +63,7 @@ import { ThreadContextBanner } from '../threads/ThreadContextBanner';
 import {
   isConfirmedMatrixEventId,
   isLocalEchoEventId,
+  resolveCanonicalThreadRootId,
 } from '../event-store/threads/threadRouteUtils';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
 import { useShortcut } from '../shortcuts/useShortcut';
@@ -272,16 +273,17 @@ export function RoomView({
   const [place, setPlace] = useState<ThreadPlace>();
   const samePlace =
     !!place &&
+    (place.threadId === openThreadId ||
+      (isLocalEchoEventId(place.threadId) &&
+        resolveCanonicalThreadRootId(room, place.threadId) === openThreadId));
+  const inColumn =
     !!openThreadId &&
-    (place.threadId === openThreadId || isLocalEchoEventId(place.threadId));
-  const inColumn = samePlace
-    ? place.column
-    : !!openThreadId && threadLayout.roomy && storedThreadLayout() === 'beside';
+    (samePlace ? place.column : threadLayout.roomy && storedThreadLayout() === 'beside');
   // It takes its place once the page has measured itself, which it does before it paints.
-  if (
-    !openThreadId ? place !== undefined : threadLayout.measured && place?.threadId !== openThreadId
-  ) {
-    setPlace(openThreadId ? { threadId: openThreadId, column: inColumn } : undefined);
+  if (!openThreadId) {
+    if (place) setPlace(undefined);
+  } else if (threadLayout.measured && place?.threadId !== openThreadId) {
+    setPlace({ threadId: openThreadId, column: inColumn });
   }
   const columnThreadId = inColumn ? openThreadId : undefined;
   const columnFills = !!columnThreadId && (threadLayout.layout === 'full' || !threadLayout.roomy);
@@ -301,7 +303,8 @@ export function RoomView({
     localRoot.pending && localRoot.event && isFailedLocalEchoEvent(localRoot.event)
       ? localRoot.event
       : undefined;
-  // Under a plugin's cover or behind a side panel the composer takes no keys.
+  // Under a plugin's cover, behind a side panel or under the thread column filling the page, the
+  // composer takes no keys.
   const hidden = useAtomValue(conversationHiddenAtom);
   // A side panel in the page's place hides the thread column too; a plugin's cover leaves it.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
@@ -321,13 +324,7 @@ export function RoomView({
 
   // Beside its thread, the page shows the room's messages too, which its address does not name:
   // notifications count the room as on screen, as they do while the page shows only the room.
-  const setShownViews = useSetAtom(shownConversationViewsAtom);
-  useEffect(() => {
-    if (!columnThreadId || hidden) return undefined;
-    const place = { view: 'room-messages', roomId };
-    setShownViews((shown) => [...shown, place]);
-    return () => setShownViews((shown) => shown.filter((other) => other !== place));
-  }, [columnThreadId, hidden, roomId, setShownViews]);
+  useShownConversationView(!!columnThreadId && !hidden, 'room-messages', roomId);
   // A reply drafted under an unsent root that is deleted goes to the room's composer, as the page's
   // own composer takes it (useUnconfirmedRootSends); the column's composer has saved it as it went.
   const store = useStore();
@@ -347,6 +344,11 @@ export function RoomView({
   useLayoutEffect(() => {
     if (!columnFills) return undefined;
     setUnderThread(true);
+    // Focus left there goes, as behind a side panel (Room.tsx): a browser need not move it off an
+    // element that turns inert, and keys would reach it.
+    const area = areaRef.current;
+    const focused = area?.ownerDocument.activeElement;
+    if (focused && area?.contains(focused)) (focused as HTMLElement).blur();
     return () => setUnderThread(false);
   }, [columnFills, setUnderThread]);
   // A thread in the messages' place moves to the column only with nothing in its composer but text,
@@ -367,16 +369,21 @@ export function RoomView({
     }
   }, [columnThreadId, focusConversation]);
 
-  const threadHeader = effectiveThreadId ? (
+  const showFull = () => threadLayout.setLayout('full');
+  // The open thread's banner, in the messages' place or in the column, with its way to the other.
+  const threadBanner = openThreadId && (
     <ThreadContextBanner
       room={room}
-      threadId={effectiveThreadId}
+      threadId={openThreadId}
       summaryInfo={threadState.threadSummaryInfo}
       onExitThread={threadState.handleExitThread ?? ignore}
-      onShowBeside={threadLayout.roomy ? showBeside : undefined}
+      onShowBeside={!columnThreadId && threadLayout.roomy ? showBeside : undefined}
       showBesideBlocked={!!pageReply || pageFiles}
+      onShowFull={columnThreadId && !columnFills ? showFull : undefined}
+      onRestore={columnFills && threadLayout.roomy ? showBeside : undefined}
     />
-  ) : undefined;
+  );
+  const threadHeader = columnThreadId ? undefined : threadBanner;
   const timelineProps: RoomTimelineProps = {
     room,
     // The event the address names is the thread's, unless it asks for it in the room.
@@ -425,9 +432,6 @@ export function RoomView({
     );
   }
 
-  const showFull = () => threadLayout.setLayout('full');
-  const restoreBeside = () => threadLayout.setLayout('beside');
-
   return (
     <Page ref={pageRef} style={columnThreadId ? PAGE_ROW_STYLE : PAGE_STYLE}>
       <div
@@ -459,7 +463,7 @@ export function RoomView({
           <ThreadApprovalProvider
             room={room}
             // A message not yet on the server has no approvals, and no relations to ask for.
-            threadId={isConfirmedMatrixEventId(effectiveThreadId) ? effectiveThreadId : undefined}
+            threadId={columnThreadId ? undefined : focusedThreadId}
             focusConversation={focusConversation}
           >
             <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
@@ -513,16 +517,7 @@ export function RoomView({
             room={room}
             threadId={columnThreadId}
             eventId={focusEventInRoom ? undefined : eventId}
-            header={
-              <ThreadContextBanner
-                room={room}
-                threadId={columnThreadId}
-                summaryInfo={threadState.threadSummaryInfo}
-                onExitThread={threadState.handleExitThread ?? ignore}
-                onShowFull={columnFills ? undefined : showFull}
-                onRestore={columnFills && threadLayout.roomy ? restoreBeside : undefined}
-              />
-            }
+            header={threadBanner}
             autoFocus
             hidden={behindPanel}
             onThreadLoadError={onThreadLoadError}

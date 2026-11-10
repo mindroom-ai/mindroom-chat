@@ -97,8 +97,8 @@ const rows = (items: HTMLElement[]) =>
     label: item.textContent,
     icon: item.querySelector('svg')?.innerHTML,
   }));
-const resolveRow = (items: HTMLElement[]) =>
-  items.find((item) => item.dataset.threadAction === 'resolve');
+const rowOf = (items: HTMLElement[], action: string) =>
+  items.find((item) => item.dataset.threadAction === action);
 
 describe('ThreadActionsMenu rows', () => {
   it('lists the banner menu as tags, summary, resolve, pin, link, hide, each with its icon after the label', () => {
@@ -114,8 +114,8 @@ describe('ThreadActionsMenu rows', () => {
       { action: 'hideDetails', label: 'Hide thread details', icon: glyph(Icons.ChevronTop) },
     ]);
     // Resolve acts on the open thread here, so it shows the shortcut that does the same.
-    expect(resolveRow(items)?.getAttribute('aria-keyshortcuts')).toBe('Control+Shift+Enter');
-    expect(resolveRow(items)?.querySelector('[data-keys]')?.getAttribute('data-keys')).toBe(
+    expect(rowOf(items, 'resolve')?.getAttribute('aria-keyshortcuts')).toBe('Control+Shift+Enter');
+    expect(rowOf(items, 'resolve')?.querySelector('[data-keys]')?.getAttribute('data-keys')).toBe(
       'Ctrl+Shift+Enter'
     );
     // The icon follows the label, so the label starts the row and names it.
@@ -142,7 +142,7 @@ describe('ThreadActionsMenu rows', () => {
       },
       { action: 'hideDetails', label: 'Hide thread details', icon: glyph(Icons.ChevronTop) },
     ]);
-    act(() => items.find((item) => item.dataset.threadAction === 'showBeside')?.click());
+    act(() => rowOf(items, 'showBeside')?.click());
     expect(onShowBeside).toHaveBeenCalledOnce();
     expect(onClose).toHaveBeenCalledOnce();
   });
@@ -150,7 +150,7 @@ describe('ThreadActionsMenu rows', () => {
   it('refuses to show the thread beside the messages while its composer holds a reply or files, and says why', () => {
     const onShowBeside = vi.fn();
     const items = renderMenu({ onShowBeside, showBesideBlocked: true });
-    const entry = items.find((item) => item.dataset.threadAction === 'showBeside');
+    const entry = rowOf(items, 'showBeside');
     expect(entry?.getAttribute('aria-disabled')).toBe('true');
     expect(entry?.textContent).toContain(
       'Send or remove the reply and files in the composer first'
@@ -164,7 +164,7 @@ describe('ThreadActionsMenu rows', () => {
     const menuItems = renderMenu({ onOpenThread: () => undefined });
     const items = rows(menuItems);
     // The shortcut resolves the open thread, not the card's.
-    expect(resolveRow(menuItems)?.hasAttribute('aria-keyshortcuts')).toBe(false);
+    expect(rowOf(menuItems, 'resolve')?.hasAttribute('aria-keyshortcuts')).toBe(false);
 
     expect(items.map((item) => item.action)).toEqual([
       'open',
