@@ -3954,6 +3954,31 @@ describe('RoomInput', () => {
       act(() => renderer.unmount());
     });
 
+    it('closes the recorder of a failed send when its view moves to another thread', async () => {
+      const store = createStore();
+      const renderer = await renderComposers(store);
+      await openRecorder(renderer, 'view');
+      const context = voiceRecorderState.byView.get(VIEW).getSendContext();
+      await act(async () => {
+        store.set(pendingVoiceSendDraftAtom, { file: voiceFile(), duration: 900, context });
+      });
+      expect(voiceRecorderState.byView.has(VIEW)).toBe(true);
+
+      // The same view now shows another thread: the recording stays its thread's, and no Send
+      // there retries it.
+      await act(async () => {
+        renderer.update(composersTree(store, { threadId: '$other-thread' }));
+      });
+      expect(voiceRecorderState.byView.has(VIEW)).toBe(false);
+      expect(micOf(renderer, 'view').props.disabled).toBe(true);
+      await act(async () => {
+        await sendOf(renderer, 'view').props.onClick();
+      });
+      expect(voiceRecorderState.send).not.toHaveBeenCalled();
+      expect(mxState.sendMessage).not.toHaveBeenCalled();
+      act(() => renderer.unmount());
+    });
+
     it("sends the view's typed text with its recording, both into its thread", async () => {
       const store = createStore();
       const renderer = await renderComposers(store);

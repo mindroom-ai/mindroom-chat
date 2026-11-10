@@ -32,7 +32,6 @@ const state = vi.hoisted(() => ({
   commandThread: undefined as string | undefined,
   resetEditor: vi.fn(),
   restoreEditorContent: vi.fn(),
-  /** The room the voice messages of the composer last counted as theirs. */
 }));
 
 vi.mock('folds', () => {
