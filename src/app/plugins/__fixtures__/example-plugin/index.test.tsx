@@ -226,8 +226,8 @@ describe('example plugin', () => {
       id: 'example',
       plugin,
     });
-    // Its build module, which writes "Example banner" in place of the marker, runs in a build and the
-    // dev server, never in unit tests.
+    // Its build module, which writes "Example banner" in place of the marker, runs in the unit tests
+    // only while MINDROOM_CLIENT_PLUGINS lists the plugin, and then in this file too.
     expect(view.getByText('EXAMPLE_BANNER in Lobby')).toBeTruthy();
   });
 
