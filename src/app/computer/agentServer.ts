@@ -1,4 +1,5 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
+import type { ClientConfig } from '../config/useClientConfig';
 import { resolveComputerApiUrl } from './api';
 
 /** Each MindRoom agent's server in a room, as state keyed by the agent's own user ID. */
@@ -50,15 +51,16 @@ export const distinctServerUrls = (servers: AgentServer[]): string[] => [
  * The origins a published server must be on to count as one: the configured server
  * (`mindroom.computers.apiUrl`) and those `mindroom.computers.trustedApiUrls` lists, since any
  * account on the homeserver named like an agent can publish one. Undefined while neither is set,
- * as in a client for any deployment, which has nothing to check a published origin against.
+ * as in a client for any deployment, which has nothing to check a published origin against; a
+ * list that is not an array trusts none of its entries.
  */
 export const trustedServerOrigins = (
-  computers: { apiUrl?: string; trustedApiUrls?: string[] } | undefined
+  computers: NonNullable<ClientConfig['mindroom']>['computers']
 ): Set<string> | undefined => {
-  const listed = computers?.trustedApiUrls;
   const apiUrl = resolveComputerApiUrl(computers?.apiUrl);
-  if (!apiUrl && !Array.isArray(listed)) return undefined;
-  const urls: unknown[] = [apiUrl, ...(Array.isArray(listed) ? listed : [])];
+  const listed: unknown = computers?.trustedApiUrls;
+  if (!apiUrl && listed === undefined) return undefined;
+  const urls: unknown[] = Array.isArray(listed) ? [apiUrl, ...listed] : [apiUrl];
   return new Set(
     urls.flatMap((url) => (typeof url === 'string' && resolveComputerApiUrl(url)) || [])
   );

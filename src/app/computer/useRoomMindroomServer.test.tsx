@@ -94,7 +94,7 @@ describe('useRoomMindroomServer', () => {
       });
       state.published = PUBLISHED;
       state.bindsTokens = false;
-      expect(server(preference, DEPLOYMENT)).toEqual({
+      expect(server(preference, DEPLOYMENT, [PUBLISHED])).toEqual({
         apiUrl: DEPLOYMENT,
         pending: false,
       });

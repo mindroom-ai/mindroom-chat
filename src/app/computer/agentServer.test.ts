@@ -12,6 +12,8 @@ import {
 
 const agent = '@mindroom_code:example.org';
 
+const server = (apiUrl: string, ts = 1) => ({ agentUserId: agent, apiUrl, computer: false, ts });
+
 const serverEvent = (
   content: Record<string, unknown>,
   { sender = agent, ts = 1 }: { sender?: string; ts?: number } = {}
@@ -61,12 +63,6 @@ describe('MindRoom server state', () => {
   });
 
   it('lists each origin once, newest first', () => {
-    const server = (apiUrl: string, ts: number) => ({
-      agentUserId: agent,
-      apiUrl,
-      computer: false,
-      ts,
-    });
     expect(
       distinctServerUrls([
         server('http://localhost:8765', 1),
@@ -91,8 +87,6 @@ describe('MindRoom server state', () => {
 });
 
 describe('trusted MindRoom servers', () => {
-  const server = (apiUrl: string, ts = 1) => ({ agentUserId: agent, apiUrl, computer: false, ts });
-
   it('trusts the configured server and the listed ones, each read as an origin', () => {
     expect(
       trustedServerOrigins({
@@ -108,11 +102,20 @@ describe('trusted MindRoom servers', () => {
     );
   });
 
+  it('trusts only the configured server without a list', () => {
+    expect(trustedServerOrigins({ apiUrl: 'https://deployment.example.org' })).toEqual(
+      new Set(['https://deployment.example.org'])
+    );
+  });
+
   it('checks against a list without a configured server, and trusts none from an empty or unusable one', () => {
     expect(trustedServerOrigins({ trustedApiUrls: ['https://other.example.org'] })).toEqual(
       new Set(['https://other.example.org'])
     );
     expect(trustedServerOrigins({ trustedApiUrls: [] })).toEqual(new Set());
+    expect(
+      trustedServerOrigins({ trustedApiUrls: 'https://other.example.org' as unknown as string[] })
+    ).toEqual(new Set());
     expect(
       trustedServerOrigins({
         apiUrl: 'not a url',
