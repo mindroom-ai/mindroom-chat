@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { ClientEvent, RoomEvent } from 'matrix-js-sdk';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
+import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { rememberSeenThreadRoot } from '../../matrix/seenThreadRoots';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
 import type { ThreadSignals } from './threadSignals';
@@ -65,6 +66,20 @@ describe('createThreadSignalsReader', () => {
     reader.read(room, entry(), '@me:x', NOW);
     expect(mocks.read).toHaveBeenCalledTimes(1);
     heard += 1;
+    reader.read(room, entry(), '@me:x', NOW);
+    expect(mocks.read).toHaveBeenCalledTimes(2);
+  });
+
+  it('reads again once this device takes a thread root for read', () => {
+    mocks.read.mockReturnValue(quiet);
+    const { room } = makeRoom();
+    const reader = createThreadSignalsReader();
+    reader.read(room, entry(), '@me:x', NOW);
+    reader.read(room, entry(), '@me:x', NOW);
+    expect(mocks.read).toHaveBeenCalledTimes(1);
+    // Mark all read with other main-timeline messages unread: no receipt, a record on this device.
+    const root = { getId: () => '$root', getTs: () => 1000 } as MatrixEvent;
+    rememberSeenThreadRoot('@me:x', '!r:x', root, 0);
     reader.read(room, entry(), '@me:x', NOW);
     expect(mocks.read).toHaveBeenCalledTimes(2);
   });

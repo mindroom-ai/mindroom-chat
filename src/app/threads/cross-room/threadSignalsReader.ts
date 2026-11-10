@@ -1,6 +1,7 @@
 import { ClientEvent, MatrixEventEvent, RoomEvent } from 'matrix-js-sdk';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
+import { seenThreadRootsVersion } from '../../matrix/seenThreadRoots';
 import { readThreadSignals, type ThreadSignals } from './threadSignals';
 
 type Cached = { key: string; signals: ThreadSignals };
@@ -33,6 +34,8 @@ export const createThreadSignalsReader = (
       const key = [
         entry.generation,
         roomChanges(room),
+        // A root this device took for read, which sends no receipt and so no room event.
+        seenThreadRootsVersion(),
         events.length,
         events.at(-1)?.getId() ?? '',
       ].join(':');
