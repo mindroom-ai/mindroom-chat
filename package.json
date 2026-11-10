@@ -20,7 +20,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "typecheck-tests": "tsc --noEmit -p .",
     "test": "vitest run",
-    "lint": "eslint --ext .ts,.tsx,.js,.mjs,.cjs src e2e scripts vite.config.js vitest.config.ts .eslintrc.cjs",
+    "lint": "eslint --ext .ts,.tsx,.js,.mjs,.cjs src e2e scripts vite.config.js vitest.config.ts .eslintrc.cjs .eslintrc.plugin.cjs",
     "typecheck-all": "node scripts/typecheck-all.mjs",
     "postinstall": "patch-package --error-on-fail"
   },

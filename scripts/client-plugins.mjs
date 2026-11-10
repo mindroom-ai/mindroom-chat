@@ -19,7 +19,7 @@ import { normalizePath, searchForWorkspaceRoot } from 'vite';
  * `apiVersion`, the one it needs. Version 1 had no SDK; each later addition to the SDK (an export,
  * a contribution kind in `ClientPlugin`, or a field of the declaration) raises it.
  */
-export const CLIENT_PLUGIN_API_VERSION = 43;
+export const CLIENT_PLUGIN_API_VERSION = 44;
 
 /** The SDK's subpaths a build resolves, which plugins import, and the modules they are. */
 export const CLIENT_SDK_ALIAS = {
@@ -238,12 +238,12 @@ const BUILD_HOOKS = new Map([
  * to its plugin's modules, the ones its `resolveId` makes up under its id included (Vite's virtual
  * modules, such as `\0my-plugin:settings`): `transform` and `load` run only for them, and `resolveId`
  * only for their imports, so that a plugin's hooks see none of the app's modules or another plugin's.
- * Any other hook or property fails the build.
+ * Any other hook or property fails the build. The unit tests (vitest.config.ts) run them too.
  * @param {ClientPluginInfo[]} plugins
  * @param {ReturnType<typeof pluginOwner<ClientPluginInfo>>} ownerOf
  * @returns {Promise<import('vite').Plugin[]>}
  */
-const buildModulePlugins = async (plugins, ownerOf) => {
+export const buildModulePlugins = async (plugins, ownerOf) => {
   const builds = await Promise.all(
     plugins.map(async (plugin) => {
       if (!plugin.build) return [];
