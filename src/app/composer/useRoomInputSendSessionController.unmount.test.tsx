@@ -1,15 +1,11 @@
-import React, { createRef, useEffect, useMemo, useRef } from 'react';
+import { createRef, useEffect, useMemo, useRef } from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createEditor, type Editor } from 'slate';
 import { describe, expect, it, vi } from 'vitest';
-import type { Room } from 'matrix-js-sdk';
-import {
-  roomIdToUploadItemsAtomFamily,
-  roomUploadAtomFamily,
-} from './roomInputDrafts';
+import type { Room, UploadResponse } from 'matrix-js-sdk';
+import { roomIdToUploadItemsAtomFamily, roomUploadAtomFamily } from './roomInputDrafts';
 import type { TUploadItem } from '../matrix/state/upload';
-import type { UploadResponse } from '../matrix/matrix';
 import { ConversationViewContext, composerStateKey } from '../navigation/conversationView';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
@@ -43,10 +39,12 @@ const stagedFile = (name: string): TUploadItem => {
 
 const deferredUpload = () => {
   let resolve!: (value: UploadResponse) => void;
-  const promise = new Promise<UploadResponse>((done) => {
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<UploadResponse>((done, fail) => {
     resolve = done;
+    reject = fail;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 };
 
 const createClient = () => {
@@ -176,9 +174,10 @@ const stageUploading = (
   return upload;
 };
 
-const finishUpload = async (upload: ReturnType<typeof deferredUpload>, mxc: string) => {
+const finishUpload = async (upload: ReturnType<typeof deferredUpload>, mxc?: string) => {
   await act(async () => {
-    upload.resolve({ content_uri: mxc });
+    if (mxc) upload.resolve({ content_uri: mxc });
+    else upload.reject(new Error('upload failed'));
     await Promise.resolve();
   });
   // The session wakes a microtask after the upload settles, then sends in turn.
@@ -206,6 +205,16 @@ const bodies = (mx: Client) =>
 describe('a send that outlives its composer', () => {
   it('sends the file and caption of the room page after its composer unmounts', async () => {
     const store = createStore();
+    const { sub } = store;
+    let watches = 0;
+    store.sub = (atom, listener) => {
+      watches += 1;
+      const unsubscribe = sub(atom, listener);
+      return () => {
+        watches -= 1;
+        unsubscribe();
+      };
+    };
     const mx = createClient();
     const opened = vi.fn();
     const page = mount(store, mx, { onRoomMessageSent: opened });
@@ -225,6 +234,8 @@ describe('a send that outlives its composer', () => {
     // The file left the room's staged files as it went; it opened no thread off screen.
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
     expect(opened).not.toHaveBeenCalled();
+    // Nothing watches its uploads any more.
+    expect(watches).toBe(0);
   });
 
   it("queues the next message of the room page's composer behind the send its last mount left", async () => {
@@ -280,10 +291,39 @@ describe('a send that outlives its composer', () => {
     await finishUpload(claimedUpload, 'mxc://example.org/claimed');
 
     expect(bodies(mx)).toEqual(['claimed.bin', 'caption']);
-    expect(mx.sendMessage.mock.calls.map((call) => call[1]['m.relates_to'])).toEqual([
+    expect(
+      mx.sendMessage.mock.calls.map((call) => (call[1] as Record<string, unknown>)['m.relates_to'])
+    ).toEqual([
       expect.objectContaining({ rel_type: 'm.thread', event_id: THREAD_ID }),
       expect.objectContaining({ rel_type: 'm.thread', event_id: THREAD_ID }),
     ]);
     expect(stagedListKeys()).not.toContain(composerStateKey(ROOM_ID, VIEW));
   });
+
+  it.each(['before', 'after'])(
+    'ends the send of a thread view that can only go on after a retry, its upload failing %s the view closes',
+    async (when) => {
+      const store = createStore();
+      const mx = createClient();
+      const view = mount(store, mx, { view: VIEW, threadId: THREAD_ID });
+      const claimed = stagedFile('claimed.bin');
+      const upload = stageUploading(store, view.composer(), claimed);
+      await act(async () => {
+        await view.composer().sessions.startSendSession({
+          textContent: { msgtype: 'm.text', body: 'caption' },
+        });
+      });
+      const { sessions } = view.composer();
+      if (when === 'before') await finishUpload(upload);
+      act(() => view.renderer.unmount());
+      if (when === 'after') await finishUpload(upload);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // The caption does not wait for the failed file; nothing is left to show its retry.
+      expect(bodies(mx)).toEqual(['caption']);
+      expect(sessions.hasActiveSendSession()).toBe(false);
+    }
+  );
 });

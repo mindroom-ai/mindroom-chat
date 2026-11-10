@@ -957,4 +957,36 @@ describe('thread approval provider rescans', () => {
     // Its last load repairs the pending approval it found.
     expect(mocks.abort).toHaveBeenLastCalledWith(room.roomId, '$thread', 'thread-approval-repair');
   });
+
+  it("cancels a thread view's discovery as it unmounts while the room page's repair of that thread runs", async () => {
+    const Both = ({ view }: { view: boolean }) => (
+      <>
+        <ThreadApprovalProvider room={room} threadId="$thread" />
+        {view && <ThreadApprovalProvider room={room} threadId="$thread" />}
+      </>
+    );
+    // The page's discovery finds a pending approval and repairs it; later loads stay running.
+    let discoveries = 0;
+    mocks.backfill.mockImplementation((_mx, _scheduler, _room, _thread, origins?: MatrixEvent[]) =>
+      !origins && (discoveries += 1) === 1
+        ? Promise.resolve({ events: [event()], repairedEventIds: [] })
+        : new Promise(() => undefined)
+    );
+    await act(async () => {
+      renderer = create(<Both view={false} />);
+    });
+    expect(mocks.backfill).toHaveBeenLastCalledWith(
+      mx,
+      scheduler,
+      room.roomId,
+      '$thread',
+      [expect.any(MatrixEvent)],
+      expect.any(Array)
+    );
+    await act(async () => renderer.update(<Both view />));
+    mocks.abort.mockClear();
+
+    act(() => renderer.update(<Both view={false} />));
+    expect(mocks.abort.mock.calls).toEqual([[room.roomId, '$thread', 'thread-approvals']]);
+  });
 });
