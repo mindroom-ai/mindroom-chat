@@ -1248,6 +1248,45 @@ describe('usePinchToZoom', () => {
       expect(setPageZoom).not.toHaveBeenCalled();
     });
 
+    it.each([
+      ['two fingers land at once', false],
+      ['a finger lands again after its pointer ended the pinch', true],
+    ])(
+      "hands it no gesture of an iOS pinch that its touches make the app's, when %s",
+      (_, regrip) => {
+        const { setPageZoom } = mount(100);
+        const { pinches, inside, outside } = renderSurface();
+        if (regrip) {
+          // The page's pinch; one finger lifts, its touch end first, and lands again.
+          pointer('pointerdown', outside, 1);
+          pointer('pointerdown', inside, 2);
+          touch('touchstart', [
+            [0, 0, outside, 1],
+            [0, 100, inside, 2],
+          ]);
+          touch('touchend', [[0, 100, inside, 2]], outside);
+          pointer('pointerup', outside, 1);
+        }
+        // Safari's gesture comes before the touch that shows the pinch's fingers.
+        gesture('gesturestart', 1, inside);
+        touch('touchstart', [
+          [0, 0, outside, 3],
+          [0, 100, inside, 2],
+        ]);
+        touch('touchmove', [
+          [0, 0, outside, 3],
+          [0, 150, inside, 2],
+        ]);
+        gesture('gesturechange', 1.5, inside);
+        flushFrames();
+
+        // A finger down shows the gesture is a touch pinch's. With none yet, it starts as a
+        // trackpad's, and ends as the touches show the pinch is the app's.
+        expect(pinches.map(({ phase }) => phase)).toEqual(regrip ? [] : ['start', 'end']);
+        expect(setPageZoom).toHaveBeenCalledWith(150);
+      }
+    );
+
     it("hands it a trackpad's pinch over it, and leaves the page one beside it", () => {
       const { setPageZoom } = mount(100);
       const { pinches, inside, outside } = renderSurface();

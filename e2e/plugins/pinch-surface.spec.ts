@@ -64,9 +64,9 @@ const boxOf = async (locator: Locator) => {
   return box;
 };
 
-/** Within a pixel and a half, for sub-pixel layout. */
+/** Within half a pixel, for sub-pixel layout. */
 const expectNear = (actual: number, expected: number) =>
-  expect(Math.abs(actual - expected)).toBeLessThan(1.5);
+  expect(Math.abs(actual - expected)).toBeLessThan(0.5);
 
 /** Where on the board a point `x`, `y` px from its top left corner is, inside its border. */
 const onBoard = async (page: Page, x: number, y: number): Promise<Spot> => {

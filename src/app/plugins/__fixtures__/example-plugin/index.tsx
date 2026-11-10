@@ -28,9 +28,9 @@
 // PDF it builds as a blob, in the browser's viewer in the card. Its "Example pinch board" is a pinch
 // surface (`usePinchSurface`): a pinch on it scales its box around the fingers, from the scale and
 // centre the app hands it, and it says "Box scale: <scale>" and, while a pinch is on, "Pinching".
-// Beside the conversation the card
-// slides in and out as the room's panels do, also from the width of a panel whose place it takes;
-// filling the room, folded, on a phone and under reduced motion it opens and closes at once.
+// Beside the conversation the card slides in and out as the room's panels do, also from the width
+// of a panel whose place it takes; filling the room, folded, on a phone and under reduced motion it
+// opens and closes at once.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg); its build module (build.mjs) writes "Example banner" in place of a marker, which
 // unit tests show as it is unless MINDROOM_CLIENT_PLUGINS lists it. The banner has a button, "Show
@@ -683,8 +683,11 @@ function PinchBoard() {
   const pinchStart = useRef<{ box: typeof box; x: number; y: number }>();
   usePinchSurface(board, {
     onPinch: ({ phase, scale, centre }: SurfacePinch) => {
-      const rect = board.current?.getBoundingClientRect();
-      const [x, y] = [centre.x - (rect?.left ?? 0), centre.y - (rect?.top ?? 0)];
+      // In the board's padding box, where its box is laid out: inside its border.
+      const element = board.current;
+      const rect = element?.getBoundingClientRect();
+      const x = centre.x - (rect?.left ?? 0) - (element?.clientLeft ?? 0);
+      const y = centre.y - (rect?.top ?? 0) - (element?.clientTop ?? 0);
       if (phase === 'start') pinchStart.current = { box: boxNow.current, x, y };
       setPinching(phase !== 'end');
       const start = pinchStart.current;
