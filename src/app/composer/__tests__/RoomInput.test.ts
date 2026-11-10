@@ -15,7 +15,7 @@ import {
   voiceAutoSendPendingAtom,
 } from '../roomInputDrafts';
 import { TUploadItem, Upload, UploadStatus } from '../../matrix/state/upload';
-import { ConversationViewContext } from '../../navigation/conversationView';
+import { ConversationViewContext, composerStateKey } from '../../navigation/conversationView';
 import { VOICE_WAVEFORM_BAR_COUNT } from '../../lib/audioWaveform';
 import {
   getMatrixUploadErrorMessage,
@@ -4039,6 +4039,71 @@ describe('RoomInput', () => {
           }),
         });
       });
+      act(() => renderer.unmount());
+    });
+
+    it('sends the files a Send took with its recording after the view closes', async () => {
+      const store = createStore();
+      const companion = new File(['attachment'], 'view.txt', { type: 'text/plain' });
+      const viewFiles = roomIdToUploadItemsAtomFamily(composerStateKey(ROOM_ID, VIEW));
+      store.set(viewFiles, { type: 'PUT', item: [createUploadItem(companion)] });
+      store.set(roomUploadAtomFamily(companion), { mxc: 'mxc://mindroom/view.txt' });
+      const renderer = await renderComposers(store);
+      await openRecorder(renderer, 'view');
+      const upload = createDeferred<{ content_uri: string }>();
+      mxState.uploadContent.mockReturnValueOnce(upload.promise);
+      queueSend(voiceFile());
+      let sent!: Promise<unknown>;
+      await act(async () => {
+        sent = sendOf(renderer, 'view').props.onClick();
+        await Promise.resolve();
+      });
+
+      // The view closes while the recording uploads, and its staged files go with it.
+      await act(async () => {
+        renderer.update(composersTree(store, null));
+        roomIdToUploadItemsAtomFamily.remove(composerStateKey(ROOM_ID, VIEW));
+      });
+      await act(async () => {
+        upload.resolve({ content_uri: 'mxc://mindroom/voice' });
+        await sent;
+      });
+
+      expect(
+        mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+      ).toEqual(['view.txt', 'voice.m4a']);
+      act(() => renderer.unmount());
+    });
+
+    it("leaves out a file removed from the room page's composer after it unmounted", async () => {
+      const store = createStore();
+      const companion = new File(['attachment'], 'page.txt', { type: 'text/plain' });
+      const staged = createUploadItem(companion);
+      stageUploadItems(store, [staged], [companion]);
+      const { renderer } = await renderRoomInput(store, { keyedRoomSubtree: true });
+      await openVoiceRecorder(renderer);
+      const upload = createDeferred<{ content_uri: string }>();
+      mxState.uploadContent.mockReturnValueOnce(upload.promise);
+      queuePrimaryVoiceSend(voiceFile(), 900);
+      let sent!: Promise<unknown>;
+      await act(async () => {
+        sent = getPrimarySendButton(renderer).props.onClick();
+        await Promise.resolve();
+      });
+
+      // The page moves to another room, and the room's composer, shown again, drops the file.
+      await updateRoomInput(renderer, store, { roomId: OTHER_ROOM_ID, keyedRoomSubtree: true });
+      await act(async () => {
+        store.set(roomIdToUploadItemsAtomFamily(ROOM_ID), { type: 'DELETE', item: staged });
+      });
+      await act(async () => {
+        upload.resolve({ content_uri: 'mxc://mindroom/voice' });
+        await sent;
+      });
+
+      expect(
+        mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+      ).toEqual(['voice.m4a']);
       act(() => renderer.unmount());
     });
 

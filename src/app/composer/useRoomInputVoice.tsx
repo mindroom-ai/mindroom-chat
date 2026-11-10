@@ -121,6 +121,13 @@ export const useRoomInputVoice = ({
   const voiceAutoSendInFlightRef = useRef(false);
   const voiceRecorderRef = useRef<VoiceRecorderComposerHandle>(null);
   const pendingVoiceComposerBundleRef = useRef<PendingVoiceComposerBundle>();
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // While this composer owns a pending failed-send draft (e.g. it survived a
   // RoomProvider key remount on real navigation), surface the recorder so
@@ -316,13 +323,20 @@ export const useRoomInputVoice = ({
         }
         const ownerRoomId = liveContext.roomId;
         const liveRoomEncrypted = liveContext.room.hasEncryptionStateEvent();
-        const getEligibleCompanionItems = (): TUploadItem[] => {
+        // A file removed from the composer before it goes is left out. A thread view's staged
+        // files go with it as it closes (room/ThreadView.tsx), so a closed view's are all kept.
+        const isStillStaged = (): ((item: TUploadItem) => boolean) => {
+          if (getContext().threadView && !mountedRef.current) return () => true;
           const liveFiles = new Set(
             attachmentAccess.snapshot(ownerRoomId).staged.map((item) => item.file)
           );
+          return (item) => liveFiles.has(item.file);
+        };
+        const getEligibleCompanionItems = (): TUploadItem[] => {
+          const staged = isStillStaged();
           return (composerBundle?.companionItems ?? []).filter(
             (item) =>
-              liveFiles.has(item.file) &&
+              staged(item) &&
               !item.prepError &&
               Boolean(item.encInfo) === liveRoomEncrypted &&
               store.get(roomUploadAtomFamily(item.file)).status !== UploadStatus.Error &&
@@ -365,14 +379,11 @@ export const useRoomInputVoice = ({
           }
           const companionUploadResults = await companionUploadResultsPromise;
 
-          const liveItems = attachmentAccess.snapshot(ownerRoomId).staged;
-          const liveFiles = new Set(liveItems.map((item) => item.file));
+          const staged = isStillStaged();
           const readyItems = [
             ...companionUploadResults
               .map((result) => (result.status === 'fulfilled' ? result.value : undefined))
-              .filter(
-                (item): item is TUploadItem => item !== undefined && liveFiles.has(item.file)
-              ),
+              .filter((item): item is TUploadItem => item !== undefined && staged(item)),
             fileItem,
           ];
           try {
@@ -441,6 +452,7 @@ export const useRoomInputVoice = ({
       allowUploadSize,
       clearConsumedReply,
       createVoiceUploadItems,
+      getContext,
       hasActiveSendSession,
       mx,
       releaseVoiceAutoSend,
