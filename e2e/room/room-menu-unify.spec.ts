@@ -245,6 +245,20 @@ const oddRows = (menu: Locator) =>
       .map((row) => [row.textContent?.trim() ?? '', row.getBoundingClientRect().height] as const);
   }, MENU_ROW);
 
+/**
+ * The rows of the open room menu whose text is taller than the row, by name and both heights: a
+ * row that says why it is disabled grows with its reason rather than painting over its neighbours.
+ */
+const overflowingRows = (menu: Locator) =>
+  menu.evaluate((element) =>
+    Array.from(
+      element.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"]')
+    )
+      .filter((row) => row.closest('[role="menu"]') === element)
+      .filter((row) => row.scrollHeight > row.clientHeight + 0.5)
+      .map((row) => [row.textContent?.trim() ?? '', row.clientHeight, row.scrollHeight] as const)
+  );
+
 const sidebarLink = (page: Page, roomId: string) =>
   page.locator(`a[href*="${encodeURIComponent(roomId)}"]`).first();
 
@@ -334,6 +348,9 @@ const readAllMenus = async (
     await openFrom(page, room, entry, phone);
     await shot(page, testInfo, `${tag}-${room.key}-${entry}`);
     seen[entry] = await readMenu(roomMenu(page));
+    for (const [name, height, content] of await overflowingRows(roomMenu(page))) {
+      problems.push(`${entry} "${name}" is ${height} px tall, its text ${content} px`);
+    }
     if (phone) {
       for (const [name, height] of await oddRows(roomMenu(page))) {
         problems.push(`${entry} "${name}" is ${Math.round(height)} px tall`);
@@ -375,7 +392,7 @@ const checkSame = (room: Case, { seen, problems }: Read, tag: string) => {
   expect(unknown, `${where}: header-only entries depend on the open room`).toEqual([]);
   expect(
     problems,
-    `${where}: rows not ${MENU_ROW} px tall on a touch screen, menus Escape left open`
+    `${where}: rows shorter than their text, rows not ${MENU_ROW} px tall on a touch screen, menus Escape left open`
   ).toEqual([]);
 };
 
