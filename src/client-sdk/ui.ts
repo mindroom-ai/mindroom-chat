@@ -24,8 +24,13 @@ export { NavButton, NavItem, NavItemContent } from '../app/ui/nav/NavItem';
 export { useScreenSizeContext as useScreenSize } from '../app/lib/hooks/useScreenSize';
 export { pdfFrameUrl } from '../app/messages/viewers/pdfFrame';
 // The attribute that marks an element whose pinches are its own, which the app's page zoom leaves
-// to it, and the hook that marks one and hands it those pinches, with their scale and centre.
-export { PINCH_SURFACE_ATTRIBUTE, usePinchSurface } from '../app/theme/usePinchToZoom';
+// to it, the one that marks chrome inside it whose pinches stay the app's, and the hook that marks
+// one and hands it those pinches, with their scale and centre.
+export {
+  PINCH_CHROME_ATTRIBUTE,
+  PINCH_SURFACE_ATTRIBUTE,
+  usePinchSurface,
+} from '../app/theme/usePinchToZoom';
 export type { SurfacePinch } from '../app/theme/usePinchToZoom';
 // A side panel that draws its own frame moves in and out as the room's panels do: its phase in the
 // room's panel place, which waits for it once it registers, and the room's motion of a panel's width.
