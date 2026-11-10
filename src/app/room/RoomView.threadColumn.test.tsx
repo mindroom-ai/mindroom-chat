@@ -141,7 +141,7 @@ vi.mock('./ThreadView', async () => {
           data-hidden={hidden}
         >
           {header}
-          <div contentEditable suppressContentEditableWarning tabIndex={0} aria-label="Reply" />
+          <div contentEditable suppressContentEditableWarning aria-label="Reply" />
         </div>
       );
     },
