@@ -167,9 +167,9 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       touchStartDistanceRef.current = null;
     };
 
-    // iOS sends the gesture of a touch pinch as its first finger is down, before the second
-    // finger's touchstart; that first finger's element is the gesture's target. A trackpad pinch
-    // has only the gesture, over the element under the pointer.
+    // iOS sends the gesture events of a touch pinch to the elements its fingers landed on, and its
+    // gesturestart may come before the second finger's touchstart. A trackpad pinch has only the
+    // gesture, over the element under the pointer.
     const handleGestureStart = (event: Event) => {
       gestureStartZoomRef.current = null;
       if (surfacePinch || surfaceAt(event.target) !== null) return;
