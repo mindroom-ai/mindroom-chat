@@ -39,6 +39,7 @@ const reply = (senderId: string) => ({
   senderId,
   ts: NOW - 3600_000,
   preview: { kind: 'text' as const, text: 'Done' },
+  event: { sender: senderId, content: {} },
 });
 
 const build = (

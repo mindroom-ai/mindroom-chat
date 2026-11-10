@@ -9,7 +9,24 @@ import {
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
-import { FINISHED_AFTER_MS, QUESTION_WAITS_MS, readThreadSignals } from './threadSignals';
+import type { RegisteredPlugin } from '../../plugins/registry';
+import {
+  FINISHED_AFTER_MS,
+  QUESTION_WAITS_MS,
+  readThreadSignals,
+  threadRootPluginEvent,
+} from './threadSignals';
+import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
+
+// A build with a plugin whose renderer previews messages; a case may take it out.
+const plugins = vi.hoisted(() => [] as RegisteredPlugin[]);
+const previewPlugin = {
+  id: 'cards',
+  tag: 'cards@1.0.0',
+  messageRenderers: [{ match: () => true, Component: () => null, preview: () => 'Card' }],
+} as unknown as RegisteredPlugin;
+plugins.push(previewPlugin);
+vi.mock('../../plugins/registry', () => ({ registeredPlugins: plugins }));
 
 const ROOM_ID = '!signals:example.org';
 const ME = '@alice:example.org';
@@ -443,6 +460,97 @@ describe('readThreadSignals in a loaded thread with edits', () => {
       kind: 'finished',
       durationMs: FINISHED_AFTER_MS + 60_000,
     });
+  });
+
+  it('hands the last reply to plugins as the timeline does, its newest edit included', async () => {
+    const card = { 'com.example.greeting': { text: 'Hello' } };
+    const { room } = await setup(
+      ME,
+      [
+        event({ id: '$r', ts: 2000, sender: AGENT, content: { body: 'Hi' } }),
+        edit('$fix', '$r', 3000, { body: 'Hello', ...card }),
+      ],
+      { opened: true }
+    );
+
+    expect(readThreadSignals(room, ROOT, ME, NOW).lastReply?.event).toEqual({
+      eventId: '$r',
+      roomId: ROOM_ID,
+      type: 'm.room.message',
+      sender: AGENT,
+      content: { msgtype: 'm.text', body: 'Hello', ...card },
+    });
+  });
+
+  it('keeps the MindRoom metadata an edit carries beside m.new_content, as the timeline does', async () => {
+    const reply = event({ id: '$r', ts: 2000, sender: AGENT, content: { body: 'Thinking...' } });
+    const done = new MatrixEvent({
+      event_id: '$done',
+      room_id: ROOM_ID,
+      sender: AGENT,
+      type: 'm.room.message',
+      origin_server_ts: 3000,
+      content: {
+        msgtype: 'm.text',
+        body: '* Done',
+        'io.mindroom.stream_status': 'completed',
+        'm.new_content': { msgtype: 'm.text', body: 'Done' },
+        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$r' },
+      },
+    });
+    const { room } = await setup(ME, [reply, done], { opened: true });
+
+    expect(readThreadSignals(room, ROOT, ME, NOW).lastReply?.event?.content).toEqual({
+      msgtype: 'm.text',
+      body: 'Done',
+      'io.mindroom.stream_status': 'completed',
+    });
+  });
+
+  it('looks up no event for plugins while no renderer of the build has a preview', async () => {
+    const { room } = await setup(AGENT, [
+      event({ id: '$r', ts: 2000, sender: AGENT, content: { body: 'Hi' } }),
+    ]);
+    plugins.splice(0, 1, {
+      ...previewPlugin,
+      messageRenderers: [{ match: () => true, Component: () => null }],
+    } as unknown as RegisteredPlugin);
+    try {
+      const signals = readThreadSignals(room, ROOT, ME, NOW);
+      expect(signals.lastReply?.eventId).toBe('$r');
+      expect(signals.lastReply?.event).toBeUndefined();
+      const getThread = vi.spyOn(room, 'getThread');
+      const findEventById = vi.spyOn(room, 'findEventById');
+      const entry = { threadRootId: ROOT, threadRecord: { presentation: {} } } as Pick<
+        CrossRoomThreadIndexEntry,
+        'threadRecord' | 'threadRootId'
+      >;
+      expect(threadRootPluginEvent(room, entry)).toBeUndefined();
+      expect(getThread).not.toHaveBeenCalled();
+      expect(findEventById).not.toHaveBeenCalled();
+    } finally {
+      plugins.splice(0, 1, previewPlugin);
+    }
+  });
+
+  it("hands a thread's root to plugins with its newest edit, unless the thread has an AI title", async () => {
+    const card = { 'com.example.greeting': { text: 'Hello' } };
+    const { room } = await setup(AGENT, []);
+    const fix = edit('$fix', ROOT, 3000, { body: 'Hello', ...card });
+    room.getUnfilteredTimelineSet().addLiveEvent(fix, { addToState: false });
+    const entry = (summaryText?: string) =>
+      ({ threadRootId: ROOT, threadRecord: { presentation: { summaryText } } } as Pick<
+        CrossRoomThreadIndexEntry,
+        'threadRecord' | 'threadRootId'
+      >);
+
+    expect(threadRootPluginEvent(room, entry())).toMatchObject({
+      eventId: ROOT,
+      sender: AGENT,
+      content: { body: 'Hello', ...card },
+    });
+    expect(threadRootPluginEvent(room, entry('Greetings'))).toBeUndefined();
+    expect(threadRootPluginEvent(room, { ...entry(), threadRootId: '$gone' })).toBeUndefined();
   });
 
   it('asks from the edit that finished the stream, so a message written meanwhile is no answer', async () => {
