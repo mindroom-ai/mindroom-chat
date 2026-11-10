@@ -309,7 +309,7 @@ describe('playwright.config.ts', () => {
       }
     );
     const report = JSON.parse(stdout) as {
-      config: { projects: { name: string; testDir: string }[] };
+      config: { rootDir: string; projects: { name: string; testDir: string }[] };
       suites: { file: string; specs: { title: string; tests: { projectName: string }[] }[] }[];
       errors: unknown[];
     };
@@ -317,7 +317,11 @@ describe('playwright.config.ts', () => {
       projects: report.config.projects.map(({ name, testDir }) => [name, testDir]),
       tests: report.suites.flatMap(({ file, specs }) =>
         specs.flatMap(({ title, tests }) =>
-          tests.map(({ projectName }) => [projectName, path.resolve(ROOT, file), title])
+          tests.map(({ projectName }) => [
+            projectName,
+            realpathSync(path.resolve(report.config.rootDir, file)),
+            title,
+          ])
         )
       ),
       errors: report.errors,
