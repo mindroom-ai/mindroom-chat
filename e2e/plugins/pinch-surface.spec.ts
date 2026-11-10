@@ -18,6 +18,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // gesture events dispatched in the order iOS sends them, and ctrl with the wheel is real.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 
+// Screenshots of each step go to the test's output.
 test.use({ viewport: { width: 1600, height: 1000 }, video: 'off' });
 
 let build: string | undefined;
@@ -142,6 +143,7 @@ test('a pinch on a plugin surface scales its box around the fingers, and the pag
     await touch('touchEnd', []);
     await expect(pinching(page)).toHaveCount(0);
     const scaled = await boxOf(pinchBox(page));
+    await page.screenshot({ path: test.info().outputPath('chromium-board-pinch.png') });
     expectNear(scaled.width, 120);
     expectNear(scaled.x + scaled.width / 2, middle.x);
     expectNear(scaled.y + scaled.height / 2, middle.y);
@@ -162,6 +164,7 @@ test('a pinch on a plugin surface scales its box around the fingers, and the pag
     ]);
     await touch('touchEnd', []);
     await expect.poll(() => storedPageZoom(page)).toBe(125);
+    await page.screenshot({ path: test.info().outputPath('chromium-across-edge.png') });
     await expect(boxScale(page)).toHaveText('Box scale: 2.00');
     await expect(pinching(page)).toHaveCount(0);
 
@@ -208,6 +211,7 @@ test('a pinch on a plugin surface scales its box around the fingers, and the pag
     ]);
     await touch('touchEnd', []);
     await expect.poll(() => storedPageZoom(page)).toBe(150);
+    await page.screenshot({ path: test.info().outputPath('chromium-after-lost-ends.png') });
     await expect(boxScale(page)).toHaveText('Box scale: 2.67');
     expect(await page.evaluate(() => window.visualViewport?.scale)).toBe(1);
   });
@@ -297,6 +301,7 @@ test('in WebKit, iOS pinches, a trackpad gesture and ctrl with the wheel scale t
       await synthTouch(page, 'touchend', [], 1);
       await synthGesture(page, 'gestureend', 2, middle);
       const scaled = await boxOf(pinchBox(page));
+      await page.screenshot({ path: test.info().outputPath('webkit-ios-pinch.png') });
       expectNear(scaled.width, 120);
       expectNear(scaled.x + scaled.width / 2, middle.x);
       expect(await storedPageZoom(page)).toBe(100);
@@ -313,6 +318,7 @@ test('in WebKit, iOS pinches, a trackpad gesture and ctrl with the wheel scale t
       await synthGesture(page, 'gesturechange', 1.2, outside);
       await synthGesture(page, 'gestureend', 1.2, outside);
       await expect.poll(() => storedPageZoom(page)).toBe(120);
+      await page.screenshot({ path: test.info().outputPath('webkit-trackpad.png') });
 
       // Ctrl with the wheel over the board, a real wheel: one pinch, which ends once it rests.
       const board2 = await onBoard(page, 100, 100);
@@ -326,6 +332,7 @@ test('in WebKit, iOS pinches, a trackpad gesture and ctrl with the wheel scale t
       ).toBeGreaterThan(1);
       await expect(pinching(page)).toHaveCount(0);
       expect(await storedPageZoom(page)).toBe(120);
+      await page.screenshot({ path: test.info().outputPath('webkit-wheel.png') });
       expect(await page.evaluate(() => window.visualViewport?.scale ?? 1)).toBe(1);
     });
   } finally {
