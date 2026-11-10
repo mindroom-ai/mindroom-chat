@@ -327,6 +327,30 @@ it('keeps failed discovery visible after a successful targeted repair until full
   expect(current.error).toBeUndefined();
 });
 
+it('asks for discovery again when the connection returns, after a targeted repair succeeded beside a failed discovery', async () => {
+  const pending = event();
+  mocks.backfill.mockResolvedValueOnce({
+    events: [pending],
+    repairedEventIds: [],
+    error: 'unloadable',
+  });
+  mocks.backfill.mockResolvedValueOnce({ events: [], repairedEventIds: ['$approval'] });
+  await mount();
+  // The pending approval the failed discovery did load gets its targeted repair, which succeeds.
+  expect(mocks.backfill).toHaveBeenCalledTimes(2);
+  expect(mocks.backfill.mock.calls[1][4]).toEqual([pending]);
+  expect(current.error).toBe('unloadable');
+
+  mocks.backfill.mockResolvedValueOnce({ events: [pending], repairedEventIds: ['$approval'] });
+  await act(async () => {
+    mx.emit(ClientEvent.Sync, SyncState.Error, SyncState.Syncing);
+    mx.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Error);
+  });
+  expect(mocks.backfill).toHaveBeenCalledTimes(3);
+  expect(mocks.backfill.mock.calls[2][4]).toBeUndefined();
+  expect(current.error).toBeUndefined();
+});
+
 it.each([
   ['origin', false],
   ['edit', false],

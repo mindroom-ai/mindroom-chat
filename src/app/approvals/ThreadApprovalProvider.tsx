@@ -274,7 +274,10 @@ function ActiveThreadApprovalProvider({
           repairedOrigins.current.add(id);
         });
         ingest(result.events, true);
-        failed.current = result.error === 'unloadable';
+        // A repair loads too little to prove that a failed discovery recovered; only discovery
+        // clears the failure.
+        const unloadable = result.error === 'unloadable';
+        failed.current = request.origins ? failed.current || unloadable : unloadable;
         setRequestError(result.error);
         // Only complete discovery also proves that earlier repair failures recovered.
         if (!request.origins && !result.error) setRepairError(undefined);
