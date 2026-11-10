@@ -43,9 +43,10 @@ export const threadTitleText = (
  */
 export const threadRootPluginEvent = (
   room: Room | null,
-  entry: Pick<CrossRoomThreadIndexEntry, 'summaryText' | 'threadRootId'>
+  entry: Pick<CrossRoomThreadIndexEntry, 'threadRecord' | 'threadRootId'>
 ): PluginEvent | undefined => {
-  if (!room || entry.summaryText) return undefined;
+  // The index's `summaryText` falls back to the root's text; the AI title is the presentation's.
+  if (!room || entry.threadRecord.presentation.summaryText !== undefined) return undefined;
   const thread = room.getThread(entry.threadRootId);
   const root = thread?.rootEvent ?? room.findEventById(entry.threadRootId);
   return root ? threadMessagePluginEvent(room, root, thread) : undefined;

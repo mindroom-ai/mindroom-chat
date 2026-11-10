@@ -591,7 +591,13 @@ describe('ActivityList', () => {
 
   it("titles a thread without an AI title by the plugin's preview of its root", () => {
     mocks.plugins.push(greetingPlugin());
-    const row = threadRow('card', 'reply', {}, { title: '', actorIds: ['@mindroom_code:x'] });
+    // Without an AI title, the index titles the thread by the root's body.
+    const row = threadRow(
+      'card',
+      'reply',
+      {},
+      { title: 'Hello there', actorIds: ['@mindroom_code:x'] }
+    );
     mocks.roots.set(
       '$card-root',
       new MatrixEvent({
@@ -603,6 +609,7 @@ describe('ActivityList', () => {
     );
     renderList({ rows: [row], hiddenAutomations: 0 });
     expect(screen.getByText('Greeting: Hi')).toBeTruthy();
+    expect(screen.queryByText('Hello there')).toBeNull();
   });
 
   it('says when nothing is left', () => {

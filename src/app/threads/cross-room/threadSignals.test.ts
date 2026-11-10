@@ -10,6 +10,7 @@ import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { keepSyncedEdits } from '../../matrix/client/syncedEdits';
 import { FINISHED_AFTER_MS, QUESTION_WAITS_MS, readThreadSignals } from './threadSignals';
+import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
 import { threadRootPluginEvent } from './threadText';
 
 const ROOM_ID = '!signals:example.org';
@@ -471,15 +472,19 @@ describe('readThreadSignals in a loaded thread with edits', () => {
     const { room } = await setup(AGENT, []);
     const fix = edit('$fix', ROOT, 3000, { body: 'Hello', ...card });
     room.getUnfilteredTimelineSet().addLiveEvent(fix, { addToState: false });
-    const entry = { threadRootId: ROOT, summaryText: '' };
+    const entry = (summaryText?: string) =>
+      ({ threadRootId: ROOT, threadRecord: { presentation: { summaryText } } } as Pick<
+        CrossRoomThreadIndexEntry,
+        'threadRecord' | 'threadRootId'
+      >);
 
-    expect(threadRootPluginEvent(room, entry)).toMatchObject({
+    expect(threadRootPluginEvent(room, entry())).toMatchObject({
       eventId: ROOT,
       sender: AGENT,
       content: { body: 'Hello', ...card },
     });
-    expect(threadRootPluginEvent(room, { ...entry, summaryText: 'Greetings' })).toBeUndefined();
-    expect(threadRootPluginEvent(room, { ...entry, threadRootId: '$gone' })).toBeUndefined();
+    expect(threadRootPluginEvent(room, entry('Greetings'))).toBeUndefined();
+    expect(threadRootPluginEvent(room, { ...entry(), threadRootId: '$gone' })).toBeUndefined();
   });
 
   it('asks from the edit that finished the stream, so a message written meanwhile is no answer', async () => {

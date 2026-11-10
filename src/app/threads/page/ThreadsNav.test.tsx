@@ -72,7 +72,7 @@ const item = (
     summaryText: title,
     rootPreviewText: '',
     searchableText: title.toLowerCase(),
-    threadRecord: { status: { replyCount: 1, isStreaming: false } },
+    threadRecord: { status: { replyCount: 1, isStreaming: false }, presentation: {} },
     ...entry,
   } as CrossRoomThreadIndexEntry,
   signals: { ...quiet, ...signals },
@@ -144,7 +144,7 @@ describe('ThreadsNav', () => {
         }
       ),
       item('run', '📝 Minutes', {
-        threadRecord: { status: { replyCount: 1, isStreaming: true } },
+        threadRecord: { status: { replyCount: 1, isStreaming: true }, presentation: {} },
       } as never),
       item('old', '📊 Q3 churn'),
     ];
@@ -270,7 +270,7 @@ describe('ThreadsNav', () => {
           },
         }
       ),
-      item('root', ''),
+      item('root', 'Root body'),
     ];
     state.roots.set(
       '$root',
@@ -279,6 +279,7 @@ describe('ThreadsNav', () => {
     renderNav();
     expect(screen.getByText('Tom: Card $c')).toBeTruthy();
     expect(screen.getByText('Card $root')).toBeTruthy();
+    expect(screen.queryByText('Root body')).toBeNull();
   });
 
   it('writes out direction controls in titles, previews and room names', () => {
