@@ -6,5 +6,6 @@
   "subroom": "Einen Unterraum dieses Raums erstellen. Beispiel: /subroom Ideen",
   "topic": "Das Thema dieses Raums setzen, wo du es darfst. Beispiel: /topic Pläne für heute",
   "roomInfo": "Beispiel-Rauminfo",
-  "roomRemoval": "Beispiel-Entfernung"
+  "roomRemoval": "Beispiel-Entfernung",
+  "preview": "Gruß: {{text}}"
 }

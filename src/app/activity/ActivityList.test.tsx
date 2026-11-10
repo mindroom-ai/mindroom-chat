@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
+import { MatrixEvent } from 'matrix-js-sdk';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -11,6 +12,8 @@ import {
 import type { ThreadApprovalRecord } from '../matrix/protocol/threadApprovalModel';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
+import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
+import type { RegisteredPlugin } from '../plugins/registry';
 import { allInvitesAtom } from '../matrix/state/inviteList';
 import type { ActivityRow, ActivityRowsResult } from './activityRows';
 import { activityRowsAtom, activityShowAutomationsAtom } from './activityState';
@@ -28,6 +31,8 @@ const NAMES: Record<string, string> = {
 };
 
 const mocks = vi.hoisted(() => ({
+  plugins: [] as RegisteredPlugin[],
+  roots: new Map<string, unknown>(),
   answerApproval: vi.fn(),
   answerQuestion: vi.fn(),
   markActivityRowsRead: vi.fn(async () => undefined),
@@ -39,9 +44,14 @@ const mocks = vi.hoisted(() => ({
       getCanonicalAlias: () => null;
       membersLoaded: () => boolean;
       getJoinedMembers: () => { userId: string; name: string }[];
+      // A thread row's room: the row reads the thread's root.
+      getThread?: () => null;
+      findEventById?: (eventId: string) => unknown;
     }
   >(),
 }));
+
+vi.mock('../plugins/registry', () => ({ registeredPlugins: mocks.plugins }));
 
 vi.mock('./activityActions', () => ({
   answerApproval: mocks.answerApproval,
@@ -86,6 +96,8 @@ const threadRow = (
     getCanonicalAlias: () => null,
     membersLoaded: () => true,
     getJoinedMembers: () => [{ userId: '@mindroom_code:x', name: 'Code' }],
+    getThread: () => null,
+    findEventById: (eventId: string) => mocks.roots.get(eventId),
   });
   return {
     type: 'thread',
@@ -151,6 +163,7 @@ const ROWS: ActivityRow[] = [
         senderId: '@tom:x',
         ts: NOW,
         preview: { kind: 'text', text: '+1, the v2 opener is stronger' },
+        event: { sender: '@tom:x', content: {} },
       },
     },
     { actorIds: ['@maya:x', '@tom:x'], title: '✉️ Launch email draft' }
@@ -164,6 +177,7 @@ const ROWS: ActivityRow[] = [
         senderId: '@mindroom_mind:x',
         ts: NOW,
         preview: { kind: 'voice' },
+        event: { sender: '@mindroom_mind:x', content: {} },
       },
     },
     { unread: false, actorIds: ['@mindroom_mind:x'] }
@@ -175,18 +189,20 @@ function CurrentPath() {
   return <output aria-label="Current path">{`${pathname}${search}`}</output>;
 }
 
-const renderList = (result: ActivityRowsResult, bootstrapped = true) => {
+const renderList = (result: ActivityRowsResult, bootstrapped = true, config: ClientConfig = {}) => {
   const store = createStore();
   store.set(activityRowsAtom, result);
   store.set(crossRoomThreadIndexAtom, { ...emptyCrossRoomThreadIndexSnapshot(), bootstrapped });
   render(
     <Provider store={store}>
-      <ScreenSizeProvider value={ScreenSize.Desktop}>
-        <MemoryRouter initialEntries={['/home/']}>
-          <ActivityList variant="page" />
-          <CurrentPath />
-        </MemoryRouter>
-      </ScreenSizeProvider>
+      <ClientConfigProvider value={config}>
+        <ScreenSizeProvider value={ScreenSize.Desktop}>
+          <MemoryRouter initialEntries={['/home/']}>
+            <ActivityList variant="page" />
+            <CurrentPath />
+          </MemoryRouter>
+        </ScreenSizeProvider>
+      </ClientConfigProvider>
     </Provider>
   );
   return store;
@@ -198,7 +214,40 @@ const rowByTitle = (title: string) =>
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  mocks.plugins.splice(0);
+  mocks.roots.clear();
 });
+
+const GREETING = { msgtype: 'm.text', body: 'Hello there', 'com.example.greeting': { text: 'Hi' } };
+
+/** A plugin that renders greetings as cards, and previews them as "Greeting: <text>". */
+const greetingPlugin = (preview: (text: string) => string = (text) => `Greeting: ${text}`) =>
+  ({
+    id: 'example',
+    tag: 'example@1.0.0',
+    messageRenderers: [
+      {
+        match: (event: { content: Record<string, unknown> }) =>
+          'com.example.greeting' in event.content,
+        Component: () => null,
+        preview: (event: { content: Record<string, unknown> }) =>
+          preview((event.content['com.example.greeting'] as { text: string }).text),
+      },
+    ],
+  } as unknown as RegisteredPlugin);
+
+/** A row whose newest reply is `sender`'s greeting. */
+const greetingRow = (key: string, sender: string) =>
+  threadRow(key, 'reply', {
+    newCount: 1,
+    lastReply: {
+      eventId: `$${key}-reply`,
+      senderId: sender,
+      ts: NOW,
+      preview: { kind: 'text', text: 'Hello there' },
+      event: { eventId: `$${key}-reply`, type: 'm.room.message', sender, content: GREETING },
+    },
+  });
 
 describe('ActivityList', () => {
   it('says what happened, in which thread and room', () => {
@@ -335,6 +384,7 @@ describe('ActivityList', () => {
               text,
               localization: { kind: 'tools', count: 2, prose: 'Here is the reply' },
             },
+            event: { sender: '@mindroom_mind:x', content: {} },
           },
         }),
       ],
@@ -405,6 +455,7 @@ describe('ActivityList', () => {
           senderId: '@tom:x',
           ts: NOW,
           preview: { kind: 'text', text: 'see invoice\u202etxt.exe' },
+          event: { sender: '@tom:x', content: {} },
         },
       },
       { unread: false, actorIds: ['@tom:x'], title: 'Plan\u202eevil' }
@@ -510,6 +561,56 @@ describe('ActivityList', () => {
     renderList({ rows: [], hiddenAutomations: 0 }, false);
     expect(screen.getByText('Loading threads')).toBeTruthy();
     expect(screen.queryByText("You're all caught up")).toBeNull();
+  });
+
+  it("previews a reply with the plugin that renders it, a person's with its text", () => {
+    mocks.plugins.push(greetingPlugin());
+    renderList({
+      rows: [greetingRow('agent', '@mindroom_code:x'), greetingRow('person', '@tom:x')],
+      hiddenAutomations: 0,
+    });
+    expect(within(rowByTitle('Thread agent')).getByText('Greeting: Hi')).toBeTruthy();
+    expect(within(rowByTitle('Thread person')).getByText('Hello there')).toBeTruthy();
+  });
+
+  it("keeps the reply's text when the plugin's preview throws or config.json turns it off", () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.plugins.push(
+      greetingPlugin(() => {
+        throw new Error('boom');
+      })
+    );
+    renderList({ rows: [greetingRow('fails', '@mindroom_code:x')], hiddenAutomations: 0 });
+    expect(within(rowByTitle('Thread fails')).getByText('Hello there')).toBeTruthy();
+    cleanup();
+    mocks.plugins.splice(0, 1, greetingPlugin());
+    const off = { plugins: { example: { enabled: false } } } as unknown as ClientConfig;
+    renderList({ rows: [greetingRow('off', '@mindroom_code:x')], hiddenAutomations: 0 }, true, off);
+    expect(within(rowByTitle('Thread off')).getByText('Hello there')).toBeTruthy();
+    logged.mockRestore();
+  });
+
+  it("titles a thread without an AI title by the plugin's preview of its root", () => {
+    mocks.plugins.push(greetingPlugin());
+    // Without an AI title, the index titles the thread by the root's body.
+    const row = threadRow(
+      'card',
+      'reply',
+      {},
+      { title: 'Hello there', actorIds: ['@mindroom_code:x'] }
+    );
+    mocks.roots.set(
+      '$card-root',
+      new MatrixEvent({
+        event_id: '$card-root',
+        type: 'm.room.message',
+        sender: '@mindroom_code:x',
+        content: GREETING,
+      })
+    );
+    renderList({ rows: [row], hiddenAutomations: 0 });
+    expect(screen.getByText('Greeting: Hi')).toBeTruthy();
+    expect(screen.queryByText('Hello there')).toBeNull();
   });
 
   it('says when nothing is left', () => {
