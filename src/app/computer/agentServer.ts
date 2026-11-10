@@ -33,11 +33,12 @@ export const selectAgentServers = (events: MatrixEvent[]): AgentServer[] =>
 export const isLoopbackOrigin = (origin: string): boolean => {
   // A trailing dot names the same host, as in localhost.
   const hostname = new URL(origin).hostname.replace(/\.$/, '');
-  // URL parsing writes an IPv4-mapped loopback such as [::ffff:127.0.0.1] as [::ffff:7f..].
+  // URL parsing writes an IPv4-mapped address in hex, so 127.0.0.0/8 is [::ffff:7f00:0] to
+  // [::ffff:7fff:ffff]; [::ffff:7f0:1] is 7.240.0.1.
   return (
     hostname === 'localhost' ||
     hostname === '[::1]' ||
-    hostname.startsWith('[::ffff:7f') ||
+    /^\[::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}\]$/.test(hostname) ||
     /^127(\.\d{1,3}){3}$/.test(hostname)
   );
 };

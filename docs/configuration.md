@@ -13,7 +13,7 @@ The homeserver adds a few settings of its own through `/.well-known/matrix/clien
 The app fetches `/config.json` from the root of its origin before it shows anything (`src/app/config/ClientConfigLoader.tsx`). The file must hold a JSON object. Every key is optional, and a missing key means the default in the tables below, so `{}` is a valid configuration. The TypeScript type is `ClientConfig` in `src/app/config/useClientConfig.ts`.
 
 - **Where it comes from.** `vite build` copies `config.mindroom.json` to `dist/config.json`, and the dev server answers `/config.json` with the same file. A deployment replaces `dist/config.json` with its own; no new build is needed.
-- **When a change applies.** On the web the app starts with the copy it stored in `localStorage` at the previous start and fetches a fresh one in the background, so a changed file takes effect on the second load after the change. The native apps fetch it at every start.
+- **When a change applies.** On the web the app starts with the copy it stored in `localStorage` at the previous start and fetches a fresh one in the background, and a changed file applies as soon as that copy arrives, in the same load. A change to `hashRouter` or `sidebar.showMindRoom`, which the router is built from, applies from the next load instead. The native apps fetch it at every start.
 - **Failures.** If the fetch fails, the app shows an error with a retry button, plus a button to go on with the stored copy when there is one. A redirect or a 401 or 403 answer counts as an expired sign-in at an authenticating proxy and starts sign-in recovery (see `__AUTHENTICATION_RECOVERY_CONFIG__` below).
 - **Requests.** `cache: no-store`, same-origin credentials, and redirects are not followed.
 
