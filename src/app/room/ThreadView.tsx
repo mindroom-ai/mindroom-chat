@@ -124,14 +124,17 @@ export function ThreadView({
   const last = useLatestRef({ threadId, onMount, onUnmount });
   useEffect(() => {
     last.current.onMount?.(view, last.current.threadId);
-    return () => {
+  }, [last, view]);
+  useEffect(
+    () => () => {
       last.current.onUnmount?.(view, last.current.threadId);
       roomsShown.forEach((shownRoomId) => {
         roomIdToReplyDraftAtomFamily.remove(composerStateKey(shownRoomId, view));
         roomIdToUploadItemsAtomFamily.remove(composerStateKey(shownRoomId, view));
       });
-    };
-  }, [last, roomsShown, view]);
+    },
+    [last, roomsShown, view]
+  );
 
   const focusConversation = useCallback(() => ReactEditor.focus(editor), [editor]);
   // Without a composer on screen there is nothing to focus. A root that gets its own ID is the
