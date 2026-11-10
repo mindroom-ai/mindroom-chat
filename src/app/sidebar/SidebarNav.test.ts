@@ -113,15 +113,15 @@ describe('SidebarNav', () => {
     mocks.homeserverUrl = 'https://mindroom.chat';
   });
 
-  it('shows Threads after Direct Messages and before spaces by default', () => {
+  it('shows Activity after Direct Messages, then Threads, before spaces', () => {
     const renderer = renderSidebarNav();
 
     expect(
       renderer.root
         .findAll((node) => typeof node.props['data-tab'] === 'string')
         .map((node) => node.props['data-tab'])
-        .slice(0, 4)
-    ).toEqual(['home', 'direct', 'threads', 'spaces']);
+        .slice(0, 5)
+    ).toEqual(['home', 'direct', 'activity', 'threads', 'spaces']);
 
     renderer.unmount();
   });
@@ -145,8 +145,8 @@ describe('SidebarNav', () => {
       renderer.root
         .findAll((node) => typeof node.props['data-tab'] === 'string')
         .map((node) => node.props['data-tab'])
-        .slice(0, 5)
-    ).toEqual(['home', 'direct', 'threads', 'canvases', 'spaces']);
+        .slice(0, 6)
+    ).toEqual(['home', 'direct', 'activity', 'threads', 'canvases', 'spaces']);
     renderer.unmount();
 
     const off = renderSidebarNav();

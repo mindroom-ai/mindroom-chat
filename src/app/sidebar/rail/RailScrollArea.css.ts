@@ -55,7 +55,7 @@ export const RailScrollArea = style({
   },
 });
 
-/** The top group: Home, Direct Messages, Threads and Canvases. */
+/** The top group: Home, Direct Messages, Activity, Threads and Canvases. */
 export const RailScrollTop = style({ flexShrink: 0 });
 
 /** The spaces, then Explore and Create Space. Pinned, it is the scroller. */

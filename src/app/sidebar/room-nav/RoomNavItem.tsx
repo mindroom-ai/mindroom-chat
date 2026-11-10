@@ -21,7 +21,6 @@ import { nameInitials } from '../../lib/common';
 import { useRoomBackgroundJobs } from '../../background-jobs/useRoomBackgroundJobs';
 import { useLongPress } from '../../lib/hooks/useLongPress';
 import { IconTooltip } from '../../ui/IconTooltip';
-import { useRoomHasMindroomAgent } from '../../navigation/useRoomViewMode';
 import { RoomActionsMenu, useRoomActionDialog } from '../../room/RoomActionsMenu';
 import type { RoomActionDialog } from '../../room/roomActions';
 
@@ -42,6 +41,8 @@ type RoomNavItemProps = {
   spaceId: string;
   /** A finger drags the row: its menu, which the finger's long press opened, closes. */
   dragging: boolean;
+  /** The row sits under the room it is a sub-room of: its hash is framed. */
+  subRoom: boolean;
 }>;
 
 /**
@@ -97,14 +98,16 @@ type RoomNavItemAvatarProps = {
   selected: boolean;
   /** Read rooms show their privacy icon as faint as their name. */
   quiet: boolean;
+  /** The row sits under a room: its hash is framed. */
+  nested: boolean;
 };
 
-function RoomNavItemAvatar({ room, name, personAvatar, selected, quiet }: RoomNavItemAvatarProps) {
+function RoomNavItemAvatar(props: RoomNavItemAvatarProps) {
+  const { room, name, personAvatar, selected, quiet, nested } = props;
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const avatarMxc = useRoomAvatar(room, personAvatar);
   const isSpace = room.getType() === RoomType.Space;
-  const work = useRoomHasMindroomAgent(room.roomId, !personAvatar && !isSpace);
 
   let src = avatarMxc
     ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, AVATAR_SIZE, AVATAR_SIZE, 'crop') ?? undefined
@@ -122,7 +125,7 @@ function RoomNavItemAvatar({ room, name, personAvatar, selected, quiet }: RoomNa
     }
     const joinRule = room.getJoinRule();
     return (
-      <RoomIcon size="100" filled={selected} joinRule={joinRule} space={isSpace} work={work} />
+      <RoomIcon size="100" filled={selected} joinRule={joinRule} space={isSpace} subRoom={nested} />
     );
   };
 
@@ -264,6 +267,7 @@ type RoomNavLinkProps = {
   nameRef: React.Ref<HTMLSpanElement>;
   /** Pointer handlers that show the cut-off name in full. */
   pointerProps: React.HTMLAttributes<HTMLElement>;
+  subRoom: boolean;
 };
 
 /** The link of a room row: avatar, name (stronger with unread messages), job clock and status. */
@@ -277,6 +281,7 @@ function RoomNavLink({
   status,
   nameRef,
   pointerProps,
+  subRoom,
 }: RoomNavLinkProps) {
   return (
     <NavLink to={to} {...pointerProps}>
@@ -288,6 +293,7 @@ function RoomNavLink({
             personAvatar={personAvatar}
             selected={selected}
             quiet={!hasUnread}
+            nested={subRoom}
           />
           <Box as="span" grow="Yes">
             <Text
@@ -333,6 +339,7 @@ const pointerAnchor = (event: React.MouseEvent): RectCords => ({
 export function RoomNavItem(props: RoomNavItemProps) {
   const { room, selected, linkPath, notificationMode, direct, showAvatar, spaceId, dragging } =
     props;
+  const subRoom = Boolean(props.subRoom);
   const { t } = useTranslation();
   const [engaged, engagementProps] = useRowEngagement();
   const [optionsAnchor, setOptionsAnchor] = useState<RectCords>();
@@ -404,6 +411,7 @@ export function RoomNavItem(props: RoomNavItemProps) {
         status={status}
         nameRef={nameRef}
         pointerProps={namePointerProps}
+        subRoom={subRoom}
       />
       {/* Mounted while hidden too, so the button can leave as smoothly as it came. */}
       <RoomNavOptions

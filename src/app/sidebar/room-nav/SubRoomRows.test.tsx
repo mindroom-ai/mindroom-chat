@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
+import { RoomIcon } from '../../avatars/RoomAvatar';
 import { nestSubRooms, SubRoomRows, useSubRoomList } from './SubRoomRows';
 
 const parents = (entries: Record<string, string[]>) =>
@@ -182,6 +183,8 @@ describe('SubRoomRows', () => {
       num_joined_members: 1,
       world_readable: false,
       guest_can_join: false,
+      // A listed room the client does not know can turn out to be a space.
+      room_type: roomId === '!unknown:remote.org' ? 'm.space' : undefined,
     }));
     const tree = { top: [PARENT], children: new Map([[PARENT, ['!joined:example.org']]]) };
 
@@ -209,6 +212,7 @@ describe('SubRoomRows', () => {
         .map((node) => node.props[attribute] as string);
     expect(marked('data-room-row')).toEqual(['!joined:example.org']);
     expect(marked('data-sub-room-to-join')).toEqual(['!left:example.org', '!unknown:remote.org']);
+    expect(root.findAllByType(RoomIcon).map((node) => node.props.subRoom)).toEqual([true, true]);
     expect(root.findAll((node) => node.type === 'a').map((node) => node.props.href)).toEqual([
       '/preview/!left:example.org?viaServers=example.org',
       '/preview/!unknown:remote.org?viaServers=remote.org',
@@ -216,6 +220,7 @@ describe('SubRoomRows', () => {
     await vi.waitFor(() =>
       expect(JSON.stringify(renderer!.toJSON())).toContain('Name of !unknown:remote.org')
     );
+    expect(root.findAllByType(RoomIcon).map((node) => node.props.space)).toEqual([false, true]);
   });
 });
 

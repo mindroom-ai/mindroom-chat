@@ -125,9 +125,9 @@ describe('SidebarNav buttons a person can hide', () => {
     expect(renderedTabs().tabs).toEqual([
       'home',
       'direct',
+      'activity',
       'spaces',
       'unverified',
-      'activity',
       'settings',
     ]);
     // Only the rule between the scrolling and pinned parts.
@@ -139,6 +139,7 @@ describe('SidebarNav buttons a person can hide', () => {
     expect(renderedTabs().tabs).toEqual([
       'home',
       'direct',
+      'activity',
       'threads',
       'canvases',
       'spaces',
@@ -147,7 +148,6 @@ describe('SidebarNav buttons a person can hide', () => {
       'search',
       'unverified',
       'localMindroom',
-      'activity',
       'settings',
     ]);
   });

@@ -170,14 +170,15 @@ export function Home() {
     selectedRoomId,
     homeRoomPath
   );
-  // A room's row, the same at top level and under the room it sits under.
+  // A room's row, the same at top level and under the room it sits under, except that there it
+  // frames its hash.
   const rowProps = (room: Room) => ({
     room,
     linkPath: homeRoomPath(room.roomId),
     selected: room.roomId === selectedRoomId,
     notificationMode: getRoomNotificationMode(notificationPreferences, room.roomId),
   });
-  const renderSubRoom = (room: Room) => <RoomNavItem {...rowProps(room)} />;
+  const renderSubRoom = (room: Room) => <RoomNavItem {...rowProps(room)} subRoom />;
 
   // The list reopens where it was left: after a space, or a room or thread that took a phone's
   // whole screen.

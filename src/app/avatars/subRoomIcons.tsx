@@ -1,13 +1,13 @@
 import type { IconSrc } from 'folds';
 
-// Drawn on folds' 24-unit grid with the 1.5-unit bars of its Hash. A work room's hash sits in a
+// Drawn on folds' 24-unit grid with the 1.5-unit bars of its Hash. A sub-room's hash sits in a
 // rounded frame, so the frame says what kind of room it is and the corner badge stays free to say
 // who can join, as folds' HashLock and HashGlobe do for other rooms.
 
 const innerHash = <path d="M9.5 7V17M14.5 7V17M7 9.5H17M7 14.5H17" />;
 
-/** A work room anyone with the link can join, or one without a known join rule. */
-export const WorkRoomIcon: IconSrc = () => (
+/** A sub-room anyone with the link can join, or one without a known join rule. */
+export const SubRoomIcon: IconSrc = () => (
   <g fill="none" stroke="currentColor" strokeWidth="1.5">
     <rect x="2.75" y="2.75" width="18.5" height="18.5" rx="4" />
     {innerHash}
@@ -17,8 +17,8 @@ export const WorkRoomIcon: IconSrc = () => (
 /** The frame with its top end corner left open for a badge. */
 const openFrame = <path d="M13 2.75H6.75a4 4 0 0 0-4 4v10.5a4 4 0 0 0 4 4h10.5a4 4 0 0 0 4-4V11" />;
 
-/** A work room only invited members, or members who knocked, can join. */
-export const WorkRoomLockIcon: IconSrc = () => (
+/** A sub-room only invited members, or members who knocked, can join. */
+export const SubRoomLockIcon: IconSrc = () => (
   <g fill="none" stroke="currentColor" strokeWidth="1.5">
     {openFrame}
     {innerHash}
@@ -35,8 +35,8 @@ export const WorkRoomLockIcon: IconSrc = () => (
   </g>
 );
 
-/** A public work room. */
-export const WorkRoomGlobeIcon: IconSrc = () => (
+/** A public sub-room. */
+export const SubRoomGlobeIcon: IconSrc = () => (
   <g fill="none" stroke="currentColor" strokeWidth="1.5">
     {openFrame}
     {innerHash}

@@ -3,11 +3,11 @@ import { loginWithPassword } from '../helpers/auth';
 import { createPrivateSpace, matrixFetch, setAccountData } from '../helpers/matrix';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
-// The rail keeps Home, Direct Messages, Threads and Canvases in place while only the spaces
-// scroll, when the part between that group and the foot group shows at least four space buttons;
-// with less room the whole top part scrolls as one column, and it pins again from five. Checked
-// with 26 spaces, classic scrollbars, 600, 800 and 1000 px tall windows, and every optional rail
-// button on or off. Set RAIL_PIN_SHOTS=<directory> to also save the L25 screenshots.
+// The rail keeps Home, Direct Messages, Activity, Threads and Canvases in place while only the
+// spaces scroll, when the part between that group and the foot group shows at least four space
+// buttons; with less room the whole top part scrolls as one column, and it pins again from five.
+// Checked with 26 spaces, classic scrollbars, 600, 800 and 1000 px tall windows, and every
+// optional rail button on or off. Set RAIL_PIN_SHOTS=<directory> to also save the L25 screenshots.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'rail-pin-spec-password';
 const SHOTS = process.env.RAIL_PIN_SHOTS;
@@ -543,7 +543,7 @@ test('pinned: keyboard order, dragging with auto-scroll, a collapsed panel and r
   // Keyboard focus: the top group, the spaces in order, Explore and Create Space, the foot.
   await homeButton(page).focus();
   const order: string[] = [];
-  for (let step = 0; step < SPACE_COUNT + 8; step += 1) {
+  for (let step = 0; step < SPACE_COUNT + 9; step += 1) {
     order.push(
       await page.evaluate(() => {
         const element = document.activeElement;
@@ -560,6 +560,7 @@ test('pinned: keyboard order, dragging with auto-scroll, a collapsed panel and r
   expect(order).toEqual([
     'Home',
     'Direct Messages',
+    'Activity',
     'Threads',
     'Canvases',
     ...account.spaces,
