@@ -25,9 +25,12 @@
 // which leaves only its tab, "Show example card", at the room's edge. The card says the kind of the
 // app's theme ("Theme: light" or "Theme: dark") and the screen size the app lays out by ("Screen:
 // Mobile", "Tablet" or "Desktop"), each as it changes, and "Show example PDF" previews a one-page
-// PDF it builds as a blob, in the browser's viewer in the card. Beside the conversation the card
-// slides in and out as the room's panels do, also from the width of a panel whose place it takes;
-// filling the room, folded, on a phone and under reduced motion it opens and closes at once.
+// PDF it builds as a blob, in the browser's viewer in the card. Its "Example pinch board" is a pinch
+// surface (`usePinchSurface`): a pinch on it scales its box around the fingers, from the scale and
+// centre the app hands it, and it says "Box scale: <scale>" and, while a pinch is on, "Pinching".
+// Beside the conversation the card slides in and out as the room's panels do, also from the width
+// of a panel whose place it takes; filling the room, folded, on a phone and under reduced motion it
+// opens and closes at once.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg); its build module (build.mjs) writes "Example banner" in place of a marker, which
 // unit tests show as it is unless MINDROOM_CLIENT_PLUGINS lists it. The banner has a button, "Show
@@ -167,10 +170,12 @@ import {
   replaceMatrixUserIdsWithDisplayNames,
   useMarkdownHtml,
   usePanelPresence,
+  usePinchSurface,
   useScreenSize,
   useThemeKind,
   type PanelPhase,
   type PanelRegistration,
+  type SurfacePinch,
 } from '@mindroom/client-sdk/ui';
 
 /** The drag type of the item its panel offers, which the room header takes. */
@@ -665,6 +670,73 @@ function ExamplePdf() {
   );
 }
 
+/**
+ * Its pinch board: a pinch on it scales its box around the pinch's centre, which keeps the point of
+ * the box under it where the pinch started, from the box's scale and place at that start. The zoom
+ * is the board's state, so it starts again unzoomed each time the card opens.
+ */
+function PinchBoard() {
+  const board = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState({ scale: 1, x: 0, y: 0 });
+  const [pinching, setPinching] = useState(false);
+  const boxNow = useRef(box);
+  const pinchStart = useRef<{ box: typeof box; x: number; y: number }>();
+  usePinchSurface(board, {
+    onPinch: ({ phase, scale, centre }: SurfacePinch) => {
+      // In the board's padding box, where its box is laid out: inside its border.
+      const element = board.current;
+      const rect = element?.getBoundingClientRect();
+      const x = centre.x - (rect?.left ?? 0) - (element?.clientLeft ?? 0);
+      const y = centre.y - (rect?.top ?? 0) - (element?.clientTop ?? 0);
+      if (phase === 'start') pinchStart.current = { box: boxNow.current, x, y };
+      setPinching(phase !== 'end');
+      const start = pinchStart.current;
+      if (!start) return;
+      const next = {
+        scale: start.box.scale * scale,
+        x: x - (start.x - start.box.x) * scale,
+        y: y - (start.y - start.box.y) * scale,
+      };
+      boxNow.current = next;
+      setBox(next);
+    },
+  });
+  return (
+    <>
+      <div
+        ref={board}
+        role="group"
+        aria-label="Example pinch board"
+        style={{
+          position: 'relative',
+          height: 160,
+          overflow: 'hidden',
+          border: `1px solid ${color.Surface.ContainerLine}`,
+        }}
+      >
+        <div
+          data-example-pinch-box
+          style={{
+            position: 'absolute',
+            // At the board's top left corner in either reading direction: its place and the
+            // pinch's centre are both in client coordinates.
+            // eslint-disable-next-line no-restricted-syntax
+            left: 0,
+            top: 0,
+            width: 60,
+            height: 60,
+            background: color.Primary.Main,
+            transformOrigin: '0 0',
+            transform: `translate(${box.x}px, ${box.y}px) scale(${box.scale})`,
+          }}
+        />
+      </div>
+      <p>Box scale: {box.scale.toFixed(2)}</p>
+      {pinching && <p>Pinching</p>}
+    </>
+  );
+}
+
 const ROWS = ['First example row', 'Second example row'];
 
 /** Its menu's button, and the menu, which Escape and a click outside close, as the room menu's. */
@@ -941,6 +1013,7 @@ function ExampleCard() {
         <p>Theme: {themeKind}</p>
         <p>Screen: {screenSize}</p>
         <ExamplePdf />
+        <PinchBoard />
       </section>
     </div>
   );

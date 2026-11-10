@@ -80,9 +80,10 @@ select {
 
 /* iOS Safari zooms the page into a text field that writes smaller than 16 px when the field takes
    the focus, and leaves the page zoomed; the app's fields write at 15 px. On a touch screen they
-   write at the root size, as the composer does: 16 px at the default Page Zoom, and scaled with it
-   (usePageZoom), so a smaller zoom does not leave them larger than the text around them. Below
-   100 % iOS zooms into them again, as into the composer. A desktop keeps their own size. */
+   write at the root size: 16 px at the default Page Zoom, and scaled with it (usePageZoom), so a
+   smaller zoom does not leave them larger than the text around them. A desktop keeps their own
+   size. The composer writes at a message body's size everywhere (editor/Editor.css.ts); WebKit's
+   maximum-scale=1 (index.html) keeps iOS from zooming into it, and into these fields below 100 %. */
 @media (hover: none) and (pointer: coarse) {
   input:not(
       [type='button'],
@@ -99,11 +100,6 @@ select {
   textarea,
   select {
     font-size: 1rem !important;
-  }
-
-  /* The composer writes at 1rem, under 16 px below 100 % page zoom. */
-  [contenteditable='true'] {
-    font-size: max(16px, 1rem);
   }
 }
 

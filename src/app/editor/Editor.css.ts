@@ -40,7 +40,12 @@ export const EditorTextareaScroll = style({
   },
 });
 
+// The text writes at the size of a message body (MessageTextBody's T400), so it keeps its size
+// from the composer to the thread.
 export const EditorTextarea = style({
+  fontSize: config.fontSize.T400,
+  lineHeight: config.lineHeight.T400,
+  letterSpacing: config.letterSpacing.T400,
   padding: `${textPaddingBlock} ${config.space.S100}`,
   outline: 'none',
   overflowWrap: 'anywhere',
