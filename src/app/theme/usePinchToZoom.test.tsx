@@ -89,6 +89,12 @@ const wheel = (init: WheelEventInit, at: Element = document.body) => {
   return event;
 };
 
+/** Two fingers, one on `a` and one `distance` px below it on `b`. */
+const spread = (a: Element, b: Element, distance: number): Point[] => [
+  [0, 0, a],
+  [0, distance, b],
+];
+
 /** A marked element with something inside it, and an element beside it. */
 const pinchSurface = () => {
   const surface = document.createElement('div');
@@ -125,6 +131,7 @@ describe('usePinchToZoom', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     cleanup();
     document.body.replaceChildren();
     vi.restoreAllMocks();
@@ -286,11 +293,6 @@ describe('usePinchToZoom', () => {
   });
 
   describe('a pinch surface', () => {
-    const spread = (a: Element, b: Element, distance: number): Point[] => [
-      [0, 0, a],
-      [0, distance, b],
-    ];
-
     it('keeps a pinch whose fingers all land on it, and the gestures with it', () => {
       const { setPageZoom } = mount(100);
       const { surface, inside } = pinchSurface();
@@ -897,10 +899,7 @@ describe('usePinchToZoom', () => {
       const { pinches, surface, inside } = renderSurface();
 
       touch('touchstart', [[0, 0, inside]]);
-      touch('touchstart', [
-        [0, 0, inside],
-        [0, 100, surface],
-      ]);
+      touch('touchstart', spread(inside, surface, 100));
       const move = touch('touchmove', [
         [10, 0, inside],
         [10, 150, surface],
@@ -945,14 +944,8 @@ describe('usePinchToZoom', () => {
       const [first, second] = insideFirst ? [inside, outside] : [outside, inside];
 
       touch('touchstart', [[0, 0, first]]);
-      touch('touchstart', [
-        [0, 0, first],
-        [0, 100, second],
-      ]);
-      touch('touchmove', [
-        [0, 0, first],
-        [0, 150, second],
-      ]);
+      touch('touchstart', spread(first, second, 100));
+      touch('touchmove', spread(first, second, 150));
       touch('touchend', [], first);
       flushFrames();
 
@@ -971,14 +964,8 @@ describe('usePinchToZoom', () => {
       );
       const pinch = (a: Element, b: Element) => {
         touch('touchstart', [[0, 0, a]]);
-        touch('touchstart', [
-          [0, 0, a],
-          [0, 100, b],
-        ]);
-        touch('touchmove', [
-          [0, 0, a],
-          [0, 200, b],
-        ]);
+        touch('touchstart', spread(a, b, 100));
+        touch('touchmove', spread(a, b, 200));
         touch('touchend', [], a);
       };
 
@@ -1003,14 +990,8 @@ describe('usePinchToZoom', () => {
       const marked = view.getByTestId('marked');
 
       touch('touchstart', [[0, 0, marked]]);
-      touch('touchstart', [
-        [0, 0, marked],
-        [0, 100, marked],
-      ]);
-      const move = touch('touchmove', [
-        [0, 0, marked],
-        [0, 150, marked],
-      ]);
+      touch('touchstart', spread(marked, marked, 100));
+      const move = touch('touchmove', spread(marked, marked, 150));
       flushFrames();
 
       // The marked element keeps its pinch, and prevents its defaults itself, as before.
@@ -1028,20 +1009,10 @@ describe('usePinchToZoom', () => {
         pointer('pointerdown', inside, 1);
         touch('touchstart', [[0, 0, inside]]);
         pointer('pointerdown', surface, 2);
-        touch('touchstart', [
-          [0, 0, inside],
-          [0, 100, surface],
-        ]);
+        touch('touchstart', spread(inside, surface, 100));
         inside.remove();
         // The first finger's touches go to the removed element; the second's still list both.
-        touch(
-          'touchmove',
-          [
-            [0, 0, inside],
-            [0, 120, surface],
-          ],
-          surface
-        );
+        touch('touchmove', spread(inside, surface, 120), surface);
         pointer(type, document.body, 1);
         pointer(type, document.body, 2);
         // The touch ends that come later end nothing more.
@@ -1057,14 +1028,8 @@ describe('usePinchToZoom', () => {
         // The next pinch on the surface starts from its own fingers.
         pinches.length = 0;
         touch('touchstart', [[0, 0, surface]]);
-        touch('touchstart', [
-          [0, 0, surface],
-          [0, 200, surface],
-        ]);
-        touch('touchmove', [
-          [0, 0, surface],
-          [0, 300, surface],
-        ]);
+        touch('touchstart', spread(surface, surface, 200));
+        touch('touchmove', spread(surface, surface, 300));
         touch('touchend', [], surface);
         expect(pinches).toEqual([
           handed('start', 1, 0, 100),
@@ -1075,15 +1040,8 @@ describe('usePinchToZoom', () => {
         // A pinch across its edge after one whose ends were lost is the app's.
         pinches.length = 0;
         touch('touchstart', [[0, 0, surface]]);
-        touch('touchstart', [
-          [0, 0, surface],
-          [0, 100, outside],
-        ]);
-        inside.remove();
-        touch('touchmove', [
-          [0, 0, surface],
-          [0, 150, outside],
-        ]);
+        touch('touchstart', spread(surface, outside, 100));
+        touch('touchmove', spread(surface, outside, 150));
         flushFrames();
         expect(pinches).toEqual([]);
         expect(setPageZoom).toHaveBeenCalledWith(150);
@@ -1210,14 +1168,8 @@ describe('usePinchToZoom', () => {
 
       touch('touchstart', [[0, 0, inside]]);
       const start = gesture('gesturestart', 1, inside);
-      touch('touchstart', [
-        [0, 0, inside],
-        [0, 100, surface],
-      ]);
-      touch('touchmove', [
-        [0, 0, inside],
-        [0, 150, surface],
-      ]);
+      touch('touchstart', spread(inside, surface, 100));
+      touch('touchmove', spread(inside, surface, 150));
       gesture('gesturechange', 1.5, inside);
       // A third finger lands beside it.
       touch(
@@ -1320,14 +1272,8 @@ describe('usePinchToZoom', () => {
       const { pinches, surface } = renderSurface();
 
       touch('touchstart', [[0, 0, surface]]);
-      touch('touchstart', [
-        [0, 0, surface],
-        [0, 0, surface],
-      ]);
-      touch('touchmove', [
-        [0, 0, surface],
-        [0, 50, surface],
-      ]);
+      touch('touchstart', spread(surface, surface, 0));
+      touch('touchmove', spread(surface, surface, 50));
 
       expect(pinches).toEqual([handed('start', 1, 0, 0)]);
     });
@@ -1344,74 +1290,66 @@ describe('usePinchToZoom', () => {
 
     it('hands it ctrl and the wheel over it as one pinch, which ends once the wheel rests', () => {
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-      try {
-        const { setPageZoom } = mount(100);
-        const { pinches, inside, outside } = renderSurface();
+      const { setPageZoom } = mount(100);
+      const { pinches, inside, outside } = renderSurface();
 
-        const first = wheel({ ctrlKey: true, deltaY: -50, clientX: 40, clientY: 30 }, inside);
-        vi.advanceTimersByTime(100);
-        wheel({ ctrlKey: true, deltaY: -50, clientX: 40, clientY: 30 }, inside);
-        // Without ctrl the wheel scrolls, as before.
-        const plain = wheel({ deltaY: -50 }, inside);
-        vi.advanceTimersByTime(100);
-        expect(pinches.map(({ phase }) => phase)).toEqual(['start', 'move', 'move']);
-        vi.advanceTimersByTime(200);
-        flushFrames();
+      const first = wheel({ ctrlKey: true, deltaY: -50, clientX: 40, clientY: 30 }, inside);
+      vi.advanceTimersByTime(100);
+      wheel({ ctrlKey: true, deltaY: -50, clientX: 40, clientY: 30 }, inside);
+      // Without ctrl the wheel scrolls, as before.
+      const plain = wheel({ deltaY: -50 }, inside);
+      vi.advanceTimersByTime(100);
+      expect(pinches.map(({ phase }) => phase)).toEqual(['start', 'move', 'move']);
+      vi.advanceTimersByTime(200);
+      flushFrames();
 
-        expect(pinches).toEqual([
-          handed('start', 1, 40, 30),
-          handed('move', Math.exp(0.5), 40, 30),
-          handed('move', Math.exp(0.5) ** 2, 40, 30),
-          handed('end', Math.exp(0.5) ** 2, 40, 30),
-        ]);
-        expect(first.defaultPrevented).toBe(true);
-        expect(plain.defaultPrevented).toBe(false);
-        expect(setPageZoom).not.toHaveBeenCalled();
+      expect(pinches).toEqual([
+        handed('start', 1, 40, 30),
+        handed('move', Math.exp(0.5), 40, 30),
+        handed('move', Math.exp(0.5) ** 2, 40, 30),
+        handed('end', Math.exp(0.5) ** 2, 40, 30),
+      ]);
+      expect(first.defaultPrevented).toBe(true);
+      expect(plain.defaultPrevented).toBe(false);
+      expect(setPageZoom).not.toHaveBeenCalled();
 
-        // Ctrl and the wheel beside it zoom the page, and end nothing more.
-        pinches.length = 0;
-        wheel({ ctrlKey: true, deltaY: -50 }, outside);
-        vi.advanceTimersByTime(500);
-        flushFrames();
-        expect(pinches).toEqual([]);
-        expect(setPageZoom).toHaveBeenCalledWith(101);
-      } finally {
-        vi.useRealTimers();
-      }
+      // Ctrl and the wheel beside it zoom the page, and end nothing more.
+      pinches.length = 0;
+      wheel({ ctrlKey: true, deltaY: -50 }, outside);
+      vi.advanceTimersByTime(500);
+      flushFrames();
+      expect(pinches).toEqual([]);
+      expect(setPageZoom).toHaveBeenCalledWith(101);
     });
 
     it('ends a wheel pinch on one surface before it hands the next pinch to another', () => {
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-      try {
-        mount(100);
-        const first: SurfacePinch[] = [];
-        const second: SurfacePinch[] = [];
-        const view = render(
-          <>
-            <Surface label="first" pinches={first} />
-            <Surface label="second" pinches={second} />
-          </>
-        );
+      mount(100);
+      const first: SurfacePinch[] = [];
+      const second: SurfacePinch[] = [];
+      const view = render(
+        <>
+          <Surface label="first" pinches={first} />
+          <Surface label="second" pinches={second} />
+        </>
+      );
 
-        wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('first'));
-        gesture('gesturestart', 1, view.getByTestId('second'));
-        // The wheel's rest ends no pinch but its own.
-        vi.advanceTimersByTime(500);
+      wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('first'));
+      gesture('gesturestart', 1, view.getByTestId('second'));
+      // The wheel's rest ends no pinch but its own.
+      vi.advanceTimersByTime(500);
 
-        expect(first.map(({ phase }) => phase)).toEqual(['start', 'move', 'end']);
-        expect(second.map(({ phase }) => phase)).toEqual(['start']);
+      expect(first.map(({ phase }) => phase)).toEqual(['start', 'move', 'end']);
+      expect(second.map(({ phase }) => phase)).toEqual(['start']);
 
-        // The wheel goes on over the other surface before it rests: a pinch of that one's.
-        gesture('gestureend', 1, view.getByTestId('second'));
-        first.length = 0;
-        second.length = 0;
-        wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('first'));
-        wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('second'));
-        expect(first.map(({ phase }) => phase)).toEqual(['start', 'move', 'end']);
-        expect(second).toEqual([handed('start', 1, 0, 0), handed('move', Math.exp(0.5), 0, 0)]);
-      } finally {
-        vi.useRealTimers();
-      }
+      // The wheel goes on over the other surface before it rests: a pinch of that one's.
+      gesture('gestureend', 1, view.getByTestId('second'));
+      first.length = 0;
+      second.length = 0;
+      wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('first'));
+      wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('second'));
+      expect(first.map(({ phase }) => phase)).toEqual(['start', 'move', 'end']);
+      expect(second).toEqual([handed('start', 1, 0, 0), handed('move', Math.exp(0.5), 0, 0)]);
     });
 
     it("ends a pinch with the callback of the element it went to when the hook's element changes or goes", () => {
@@ -1431,29 +1369,25 @@ describe('usePinchToZoom', () => {
         );
       }
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-      try {
-        mount(100);
-        const view = render(<Deck name="a" />);
-        wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('a'));
-        view.rerender(<Deck name="b" />);
-        vi.advanceTimersByTime(500);
-        expect(calls).toEqual(['a start', 'a move', 'a end']);
+      mount(100);
+      const view = render(<Deck name="a" />);
+      wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('a'));
+      view.rerender(<Deck name="b" />);
+      vi.advanceTimersByTime(500);
+      expect(calls).toEqual(['a start', 'a move', 'a end']);
 
-        // A re-render with the same element, and another surface going, keep the pinch going.
-        view.rerender(<Deck name="b" extra />);
-        wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('b'));
-        view.rerender(<Deck name="b" />);
-        wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('b'));
-        expect(calls.slice(3)).toEqual(['b start', 'b move', 'b move']);
+      // A re-render with the same element, and another surface going, keep the pinch going.
+      view.rerender(<Deck name="b" extra />);
+      wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('b'));
+      view.rerender(<Deck name="b" />);
+      wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('b'));
+      expect(calls.slice(3)).toEqual(['b start', 'b move', 'b move']);
 
-        // Unmounted mid-pinch, it gets its end then, and nothing later.
-        view.unmount();
-        expect(calls.slice(6)).toEqual(['b end']);
-        vi.advanceTimersByTime(500);
-        expect(calls).toHaveLength(7);
-      } finally {
-        vi.useRealTimers();
-      }
+      // Unmounted mid-pinch, it gets its end then, and nothing later.
+      view.unmount();
+      expect(calls.slice(6)).toEqual(['b end']);
+      vi.advanceTimersByTime(500);
+      expect(calls).toHaveLength(7);
     });
 
     it('hands nothing more of a touch pinch once its hook goes, though its element stays', () => {
@@ -1476,19 +1410,10 @@ describe('usePinchToZoom', () => {
       const board = view.getByTestId('board');
 
       touch('touchstart', [[0, 0, board]]);
-      touch('touchstart', [
-        [0, 0, board],
-        [0, 100, board],
-      ]);
-      touch('touchmove', [
-        [0, 0, board],
-        [0, 150, board],
-      ]);
+      touch('touchstart', spread(board, board, 100));
+      touch('touchmove', spread(board, board, 150));
       view.rerender(<Board zooms={false} />);
-      const move = touch('touchmove', [
-        [0, 0, board],
-        [0, 200, board],
-      ]);
+      const move = touch('touchmove', spread(board, board, 200));
       flushFrames();
 
       expect(calls).toEqual(['start', 'move', 'end']);
@@ -1515,15 +1440,9 @@ describe('usePinchToZoom', () => {
       const a = view.getByTestId('a');
 
       touch('touchstart', [[0, 0, a]]);
-      touch('touchstart', [
-        [0, 0, a],
-        [0, 100, a],
-      ]);
+      touch('touchstart', spread(a, a, 100));
       view.rerender(<Canvases shown="b" />);
-      touch('touchmove', [
-        [0, 0, a],
-        [0, 150, a],
-      ]);
+      touch('touchmove', spread(a, a, 150));
 
       expect(calls).toEqual(['a start', 'a end']);
       expect(a.hasAttribute(PINCH_SURFACE_ATTRIBUTE)).toBe(false);

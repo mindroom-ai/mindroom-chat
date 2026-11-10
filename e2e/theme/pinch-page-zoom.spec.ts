@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { fingersOn } from '../helpers/fingers';
 
 // On a touch screen a two-finger pinch changes the app's page zoom setting: the root font size,
 // which every rem of the interface follows, so the layout reflows at the new size and stays on
@@ -6,24 +7,12 @@ import { expect, test, type Page } from '@playwright/test';
 // stays at 1.
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-type Finger = [id: number, x: number, y: number];
-
 const rootFontSize = (page: Page) => page.evaluate(() => document.documentElement.style.fontSize);
 
 const storedPageZoom = (page: Page) =>
   page.evaluate(
     () => (JSON.parse(localStorage.getItem('settings') ?? '{}') as { pageZoom?: number }).pageZoom
   );
-
-/** Raw touch points over CDP: each call lists every finger down. */
-const fingersOn = async (page: Page) => {
-  const session = await page.context().newCDPSession(page);
-  return (type: 'touchStart' | 'touchMove' | 'touchEnd', fingers: Finger[]) =>
-    session.send('Input.dispatchTouchEvent', {
-      type,
-      touchPoints: fingers.map(([id, x, y]) => ({ id, x, y })),
-    });
-};
 
 test('a pinch changes the page zoom, not the magnification', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium', 'Chromium takes raw touch points over CDP');

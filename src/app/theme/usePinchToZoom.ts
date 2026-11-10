@@ -56,18 +56,18 @@ export const usePinchSurface = (
 ): void => {
   const listener = useRef(onPinch);
   const registered = useRef<HTMLElement | null>(null);
-  // After each render, since the element may be another one by then. This runs before the newest
-  // onPinch is taken below, so a pinch of the element that went ends with that element's onPinch.
+  // After each render, since the element may be another one by then. A pinch of the element that
+  // went ends before the newest onPinch is taken, with that element's onPinch.
   useLayoutEffect(() => {
     const element = ref.current;
-    if (element === registered.current) return;
-    unregisterSurface(registered.current);
-    registered.current = element;
-    if (!element) return;
-    element.setAttribute(PINCH_SURFACE_ATTRIBUTE, '');
-    pinchListeners.set(element, listener);
-  });
-  useLayoutEffect(() => {
+    if (element !== registered.current) {
+      unregisterSurface(registered.current);
+      registered.current = element;
+      if (element) {
+        element.setAttribute(PINCH_SURFACE_ATTRIBUTE, '');
+        pinchListeners.set(element, listener);
+      }
+    }
     listener.current = onPinch;
   });
   useLayoutEffect(

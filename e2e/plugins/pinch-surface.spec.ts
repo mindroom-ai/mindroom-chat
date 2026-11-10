@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { disposableHomeserverIsUp } from '../helpers/disposableAccounts';
+import { fingersOn, type Finger } from '../helpers/fingers';
 import { roomMoreOptions } from '../helpers/roomMenu';
 import { openPanelRoom } from '../helpers/sidePanels';
 import { serveBuild } from '../helpers/staticBuildServer';
@@ -43,7 +44,6 @@ test.afterAll(() => {
   if (build) rmSync(build, { recursive: true, force: true });
 });
 
-type Finger = [id: number, x: number, y: number];
 type Spot = { x: number; y: number };
 
 const board = (page: Page) => page.getByRole('group', { name: 'Example pinch board' });
@@ -64,10 +64,6 @@ const boxOf = async (locator: Locator) => {
   return box;
 };
 
-/** Within half a pixel, for sub-pixel layout. */
-const expectNear = (actual: number, expected: number) =>
-  expect(Math.abs(actual - expected)).toBeLessThan(0.5);
-
 /** Where on the board a point `x`, `y` px from its top left corner is, inside its border. */
 const onBoard = async (page: Page, x: number, y: number): Promise<Spot> => {
   const { x: left, y: top } = await boxOf(board(page));
@@ -83,11 +79,6 @@ const withBoard = async (
   const server = await serveBuild(build!);
   const context = await browser.newContext({ baseURL: server.origin, ...options });
   const page = await context.newPage();
-  // A new account is asked to set up a recovery password; this spec has no use for one.
-  await page.addLocatorHandler(
-    page.getByRole('dialog').filter({ hasText: 'Set up your recovery password' }),
-    (dialog) => dialog.getByRole('button', { name: 'Not now', exact: true }).click()
-  );
   try {
     await openPanelRoom(context, page);
     await roomMoreOptions(page).click();
@@ -105,16 +96,6 @@ const withBoard = async (
     await context.close();
     await server.close();
   }
-};
-
-/** Raw touch points over CDP: each call lists every finger down. */
-const fingersOn = async (page: Page) => {
-  const session = await page.context().newCDPSession(page);
-  return (type: 'touchStart' | 'touchMove' | 'touchEnd', fingers: Finger[]) =>
-    session.send('Input.dispatchTouchEvent', {
-      type,
-      touchPoints: fingers.map(([id, x, y]) => ({ id, x, y })),
-    });
 };
 
 test('a pinch on a plugin surface scales its box around the fingers, and the page zoom stays', async ({
@@ -144,9 +125,9 @@ test('a pinch on a plugin surface scales its box around the fingers, and the pag
     await expect(pinching(page)).toHaveCount(0);
     const scaled = await boxOf(pinchBox(page));
     await page.screenshot({ path: test.info().outputPath('chromium-board-pinch.png') });
-    expectNear(scaled.width, 120);
-    expectNear(scaled.x + scaled.width / 2, middle.x);
-    expectNear(scaled.y + scaled.height / 2, middle.y);
+    expect(scaled.width).toBeCloseTo(120, 0);
+    expect(scaled.x + scaled.width / 2).toBeCloseTo(middle.x, 0);
+    expect(scaled.y + scaled.height / 2).toBeCloseTo(middle.y, 0);
     expect(await storedPageZoom(page)).toBe(100);
     expect(await page.evaluate(() => window.visualViewport?.scale)).toBe(1);
 
@@ -171,11 +152,11 @@ test('a pinch on a plugin surface scales its box around the fingers, and the pag
     // A finger lands on an element of the board that goes mid-pinch: the other finger's moves
     // still scale the box, and once they lift, though the first finger's end is lost, the
     // box's pinch ends.
-    await page.evaluate(() => {
+    await board(page).evaluate((element) => {
       const stone = document.createElement('div');
       stone.id = 'pinch-stone';
       stone.style.cssText = 'position: absolute; left: 10px; top: 100px; width: 30px; height: 30px';
-      document.querySelector('[aria-label="Example pinch board"]')?.append(stone);
+      element.append(stone);
     });
     const [stone, far] = [await onBoard(page, 20, 110), await onBoard(page, 200, 110)];
     await touch('touchStart', [[5, stone.x, stone.y]]);
@@ -302,8 +283,8 @@ test('in WebKit, iOS pinches, a trackpad gesture and ctrl with the wheel scale t
       await synthGesture(page, 'gestureend', 2, middle);
       const scaled = await boxOf(pinchBox(page));
       await page.screenshot({ path: test.info().outputPath('webkit-ios-pinch.png') });
-      expectNear(scaled.width, 120);
-      expectNear(scaled.x + scaled.width / 2, middle.x);
+      expect(scaled.width).toBeCloseTo(120, 0);
+      expect(scaled.x + scaled.width / 2).toBeCloseTo(middle.x, 0);
       expect(await storedPageZoom(page)).toBe(100);
 
       // A trackpad's gesture over the board halves the box; one beside the card zooms the page.
