@@ -1,6 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 import { touchTarget } from '../ui/styles/touchTarget';
+import { railWidth } from '../ui/sidebar/SidebarItem.css';
 
 /** The bar's height; the drawer starts right below it. */
 export const phoneTopBarHeight = toRem(52);
@@ -24,8 +25,18 @@ export const PhoneTopBar = style([
 /** The bar's buttons take a 44 px hit area on a touch screen, reaching half the gap between them. */
 export const BarControl = style(touchTarget(config.space.S100));
 
-/** Holds the menu button and its unread dot. */
-export const MenuButtonFrame = style({ position: 'relative', flexShrink: 0 });
+/** The menu button's width: folds' `IconButton` of size 400. */
+const menuButtonSize = toRem(40);
+
+/**
+ * Holds the menu button and its unread dot. The button sits on the centre line of the rail that
+ * the drawer slides in below it, past the bar's own padding.
+ */
+export const MenuButtonFrame = style({
+  position: 'relative',
+  flexShrink: 0,
+  marginInlineStart: `calc((${railWidth} - ${menuButtonSize}) / 2 - ${config.space.S200})`,
+});
 
 /** Marks unread messages somewhere: the accent colour, or the mention colour for a highlight. */
 export const UnreadDot = style({
