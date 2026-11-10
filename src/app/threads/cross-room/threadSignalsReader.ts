@@ -1,6 +1,5 @@
 import { ClientEvent, MatrixEventEvent, RoomEvent } from 'matrix-js-sdk';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
-import { isPendingApproval } from '../../matrix/protocol/threadApprovalModel';
 import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
 import { readThreadSignals, type ThreadSignals } from './threadSignals';
 
@@ -21,8 +20,8 @@ export type ThreadSignalsReader = {
 /**
  * A cache of thread signals. They depend on more than an index entry's `generation` sees: a
  * reaction, an edit the thread holds back, a receipt from another device. So a thread is read
- * again whenever its room heard anything since (`roomChanges`), and once a waiting approval
- * expires.
+ * again whenever its room heard anything since (`roomChanges`), and once what it waits on lapses
+ * (`waitsUntil`).
  */
 export const createThreadSignalsReader = (
   roomChanges: (room: Room) => number = () => 0
@@ -38,9 +37,9 @@ export const createThreadSignalsReader = (
         events.at(-1)?.getId() ?? '',
       ].join(':');
       const previous = cache.get(entry.key);
-      const approval = previous?.signals.pendingApproval;
-      const expired = !!approval && !isPendingApproval(approval, now);
-      if (previous && previous.key === key && !expired) return previous.signals;
+      const waitsUntil = previous?.signals.waitsUntil;
+      const lapsed = waitsUntil !== undefined && now >= waitsUntil;
+      if (previous && previous.key === key && !lapsed) return previous.signals;
       const read = readThreadSignals(room, entry.threadRootId, userId, now);
       // An agent asks whoever it talks with: in a thread the user takes no part in, not them.
       const { pendingQuestion: _theirs, ...others } = read;

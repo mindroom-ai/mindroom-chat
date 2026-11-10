@@ -20,7 +20,10 @@ import {
   type ThreadApprovalRecord,
 } from '../../matrix/protocol/threadApprovalModel';
 import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
-import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
+import {
+  MINDROOM_TOOL_APPROVAL_EVENT,
+  parseToolApprovalExpiryTimestamp,
+} from '../../matrix/protocol/toolApproval';
 import { getEditedEvent } from '../../matrix/room';
 
 export type ThreadPreview =
@@ -54,6 +57,8 @@ export type ThreadSignals = {
   outcome?: ThreadOutcome;
   /** An agent started it and no person has written in it: a scheduled run, a hook. */
   automation: boolean;
+  /** When what it waits on lapses with no event: the approval expires, the question ages out. */
+  waitsUntil?: number;
 };
 
 /** The newest events of a thread the signals read. */
@@ -291,9 +296,9 @@ export const readThreadSignals = (
 
   const newestAgentReply = counted.findLast(({ event }) => isAgent(event.getSender()));
   let pendingQuestion = newestAgentReply ? readQuestion(newestAgentReply) : undefined;
+  // A streamed reply asks once its last edit adds the question.
+  const askedAt = newestAgentReply ? newestAgentReply.editTs ?? newestAgentReply.event.getTs() : 0;
   if (pendingQuestion && newestAgentReply) {
-    // A streamed reply asks once its last edit adds the question.
-    const askedAt = newestAgentReply.editTs ?? newestAgentReply.event.getTs();
     const wroteSince = counted.some(
       ({ event }) => event.getSender() === userId && event.getTs() > askedAt
     );
@@ -324,7 +329,12 @@ export const readThreadSignals = (
   const automation =
     isAgent(root?.getSender()) && !counted.some(({ event }) => !isAgent(event.getSender()));
 
+  const lapses = [
+    pendingApproval && parseToolApprovalExpiryTimestamp(pendingApproval.approval.expiresAt),
+    pendingQuestion && askedAt + QUESTION_WAITS_MS,
+  ].filter((ts): ts is number => typeof ts === 'number');
   return {
+    ...(lapses.length > 0 ? { waitsUntil: Math.min(...lapses) } : {}),
     ...(pendingApproval ? { pendingApproval } : {}),
     ...(pendingQuestion ? { pendingQuestion } : {}),
     mentionedMe,

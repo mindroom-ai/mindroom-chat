@@ -205,7 +205,10 @@ describe('readThreadSignals', () => {
 
   it('finds a pending approval the user may answer, not one for someone else', async () => {
     const { room } = await setup(ME, [approval('$ask', 2000, null)]);
-    expect(readThreadSignals(room, ROOT, ME, NOW).pendingApproval?.eventId).toBe('$ask');
+    expect(readThreadSignals(room, ROOT, ME, NOW)).toMatchObject({
+      pendingApproval: { eventId: '$ask' },
+      waitsUntil: Date.parse('2099-01-01T00:00:00Z'),
+    });
 
     const { room: theirs } = await setup(ME, [approval('$ask', 2000, '@other:example.org')]);
     expect(readThreadSignals(theirs, ROOT, ME, NOW).pendingApproval).toBeUndefined();
@@ -230,7 +233,10 @@ describe('readThreadSignals', () => {
 
   it('stops waiting on a question nobody answered once it is a week old', async () => {
     const { room } = await setup(ME, [question('$q', 2000)]);
-    expect(readThreadSignals(room, ROOT, ME, NOW).pendingQuestion?.eventId).toBe('$q');
+    expect(readThreadSignals(room, ROOT, ME, NOW)).toMatchObject({
+      pendingQuestion: { eventId: '$q' },
+      waitsUntil: 2000 + QUESTION_WAITS_MS,
+    });
     expect(
       readThreadSignals(room, ROOT, ME, 2000 + QUESTION_WAITS_MS + 1).pendingQuestion
     ).toBeUndefined();

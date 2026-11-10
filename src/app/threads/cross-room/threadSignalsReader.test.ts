@@ -69,13 +69,9 @@ describe('createThreadSignalsReader', () => {
     expect(mocks.read).toHaveBeenCalledTimes(2);
   });
 
-  it('reads again once a waiting approval has expired', () => {
-    const approval = {
-      eventId: '$ask',
-      wireStatus: 'pending',
-      approval: { status: 'pending', expiresAt: new Date(NOW + 30_000).toISOString() },
-    };
-    mocks.read.mockReturnValue({ ...quiet, pendingApproval: approval });
+  it('reads again once what the thread waits on lapses: an approval expires, a question ages out', () => {
+    const question = { eventId: '$q', senderId: '@mindroom_a:x', text: 'q', options: [] };
+    mocks.read.mockReturnValue({ ...quiet, pendingQuestion: question, waitsUntil: NOW + 30_000 });
     const { room } = makeRoom();
     const reader = createThreadSignalsReader();
     reader.read(room, entry(), '@me:x', NOW);
