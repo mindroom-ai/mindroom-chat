@@ -48,6 +48,15 @@ const standIn = {
 } as unknown as MatrixClient;
 
 /**
+ * Registers the strings of the plugin `id`, `plugin` its entry's default export, so that
+ * `usePluginTranslation` and `getPluginTranslation` translate with them in a test that renders
+ * without `renderPluginComponent`, which registers them itself, such as one that uses React Testing
+ * Library's `render` or `renderHook`. The strings stay registered for the rest of the test file.
+ */
+export const registerPluginStrings = (id: string, plugin: ClientPlugin) =>
+  registerPluginTranslations(id, plugin.translations);
+
+/**
  * Renders `ui`, made of the components of the plugin `id`, into the document with what the SDK's
  * config, translation, storage, Matrix, panel frame, screen size and theme kind hooks need:
  * `config` is the plugin's section of config.json (`plugins.<id>`, what `usePluginConfig` reads),
@@ -87,7 +96,7 @@ export const renderPluginComponent = async (
     themeKind?: ThemeKind;
   }
 ) => {
-  registerPluginTranslations(id, plugin.translations);
+  registerPluginStrings(id, plugin);
   await i18n.changeLanguage(language);
   // Without a login of the account in this browser, `usePluginStorage` stores nothing.
   putSession({
