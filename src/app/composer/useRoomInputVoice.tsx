@@ -126,8 +126,7 @@ export const useRoomInputVoice = ({
   const ownsPendingVoiceDraft =
     draftKey !== undefined &&
     (draftKey === composerKey ||
-      (view === undefined &&
-        draftKey === voiceComposerKey({ ...composerContext, threadView: true })));
+      draftKey === voiceComposerKey({ ...composerContext, threadView: true }));
   const otherComposerOwnsPendingVoiceDraft = draftBelongsToCurrentSession && !ownsPendingVoiceDraft;
   // The room page keeps an open thread where it is while its recorder shows (RoomView).
   const recorderShown = view === undefined && (voiceRecorderOpen || ownsPendingVoiceDraft);
