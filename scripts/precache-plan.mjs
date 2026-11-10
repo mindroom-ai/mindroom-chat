@@ -131,8 +131,9 @@ export const buildInventory = (bundle, assetsDir, localeOverlay) => {
 
 /**
  * The plugin that reads the bundle, the manifest transform that keeps only the startup files and
- * `shellFiles` (paths in the output directory, such as `index.html`), and the plugin for the
- * worker's own build that writes the build inventory into it.
+ * `shellFiles` (paths in the output directory, such as `index.html`), the plugin for the
+ * worker's own build that writes the build inventory into it, and the wrapper of vite-plugin-pwa's
+ * plugins that builds the worker only after a written bundle.
  * @param {{ startupModules: readonly string[], onDemandAssets?: readonly string[], shellFiles: readonly string[], localeOverlay: RegExp }} options
  */
 export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, localeOverlay }) => {
@@ -141,6 +142,7 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
   /** @type {BuildInventory | undefined} */
   let inventory;
   let assetsDir = 'assets';
+  let written = false;
 
   /** @type {import('vite').Plugin} */
   const plugin = {
@@ -152,6 +154,9 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
     generateBundle(_options, bundle) {
       planned = new Set([...shellFiles, ...startupFiles(bundle, startupModules, onDemandAssets)]);
       inventory = buildInventory(bundle, assetsDir, localeOverlay);
+    },
+    writeBundle() {
+      written = true;
     },
   };
 
@@ -189,5 +194,27 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
     return { manifest, warnings: [] };
   };
 
-  return { plugin, manifestTransform, workerPlugin };
+  /**
+   * `plugins` (vite-plugin-pwa's), whose closeBundle, where it builds the worker, runs only once the
+   * build has written its bundle. Vite closes a failed build too, and the worker build's error, such
+   * as this plan's "never reported its bundle", would take the place of the build's own.
+   * @param {import('vite').Plugin[]} plugins
+   * @returns {import('vite').Plugin[]}
+   */
+  const afterWrittenBundle = (plugins) =>
+    plugins.map((original) => {
+      const hook = original.closeBundle;
+      if (!hook) return original;
+      const handler = typeof hook === 'function' ? hook : hook.handler;
+      /** @type {typeof handler} */
+      const closeBundle = function (...args) {
+        return written ? handler.apply(this, args) : undefined;
+      };
+      return {
+        ...original,
+        closeBundle: typeof hook === 'function' ? closeBundle : { ...hook, handler: closeBundle },
+      };
+    });
+
+  return { plugin, manifestTransform, workerPlugin, afterWrittenBundle };
 };
