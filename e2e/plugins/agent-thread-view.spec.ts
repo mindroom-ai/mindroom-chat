@@ -49,8 +49,17 @@ const openThreadPanel = async (page: Page): Promise<Locator> => {
   return panel;
 };
 
-const shot = (page: Page, name: string) =>
-  page.screenshot({ path: test.info().outputPath(`thread-view-${name}.png`) });
+/** A screenshot once the panel has moved in, its end at the window's. */
+const shot = async (page: Page, name: string) => {
+  const width = page.viewportSize()?.width ?? 0;
+  await expect
+    .poll(async () => {
+      const box = await threadPanel(page).boundingBox();
+      return box && Math.round(box.x + box.width);
+    })
+    .toBeLessThanOrEqual(width);
+  await page.screenshot({ path: test.info().outputPath(`thread-view-${name}.png`) });
+};
 
 test("a plugin's panel shows a thread with its approvals and composer, as the room's page does", async ({
   page,
