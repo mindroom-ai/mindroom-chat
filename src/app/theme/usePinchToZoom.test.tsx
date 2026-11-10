@@ -658,6 +658,25 @@ describe('usePinchToZoom', () => {
       }
     );
 
+    it("gives the app the gestures of its pinch, also those sent to the surface's element", () => {
+      const { setPageZoom } = mount(100);
+      const { inside, outside } = pinchSurface();
+
+      // Both fingers land in one frame, one on the surface; Safari then sends each finger's
+      // element a gesturestart.
+      touch('touchstart', spread(inside, outside, 100), inside);
+      touch('touchstart', spread(inside, outside, 100), outside);
+      gesture('gesturestart', 1, outside);
+      const start = gesture('gesturestart', 1, inside);
+      touch('touchmove', spread(inside, outside, 150));
+      const change = gesture('gesturechange', 1.5, inside);
+      flushFrames();
+
+      expect(start.defaultPrevented).toBe(true);
+      expect(change.defaultPrevented).toBe(true);
+      expect(setPageZoom.mock.calls).toEqual([[150]]);
+    });
+
     it('gives the surface the gestures of its pinch, wherever they are sent', () => {
       const { setPageZoom } = mount(100);
       const { surface, inside } = pinchSurface();
