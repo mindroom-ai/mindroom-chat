@@ -604,6 +604,7 @@
   "mindroomUi": {
     "messages": {
       "mindroomReasoning": {
+        "collapse": "طي",
         "thought": "فكّر"
       },
       "messageReactionActions": {

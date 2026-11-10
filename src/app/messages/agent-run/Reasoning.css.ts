@@ -32,6 +32,14 @@ export const Toggle = style({
   },
 });
 
+/** Under open reasoning, a chevron up and "Collapse", in the header's tone, at its edge. */
+export const CollapseEnd = style([
+  Toggle,
+  {
+    marginTop: config.space.S100,
+  },
+]);
+
 export const Label = style({
   fontSize: toRem(12),
 });

@@ -568,6 +568,7 @@
   "mindroomUi": {
     "messages": {
       "mindroomReasoning": {
+        "collapse": "Collapse",
         "thought": "Thought"
       },
       "messageReactionActions": {
