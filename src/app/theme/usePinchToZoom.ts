@@ -30,6 +30,19 @@ type PinchListener = { current: (pinch: SurfacePinch) => void };
 // The surfaces of usePinchSurface, by their element, with the newest onPinch of each.
 const pinchListeners = new WeakMap<Element, PinchListener>();
 
+// The page zoom's end of the pinch it handed a surface, for a surface that goes mid-pinch.
+let endPinchOf: ((surface: Element) => void) | undefined;
+
+/**
+ * Unmarks `element`, which the page zoom then finds no surface; its pinch under way ends now, with
+ * the onPinch it had.
+ */
+const unregisterSurface = (element: Element | null) => {
+  if (!element) return;
+  element.removeAttribute(PINCH_SURFACE_ATTRIBUTE);
+  endPinchOf?.(element);
+};
+
 /**
  * Marks `ref`'s element as a pinch surface and hands `onPinch` each pinch the page zoom leaves to
  * it, by the rule that decides which pinches are a surface's: the page zoom then also keeps the
@@ -40,18 +53,29 @@ export const usePinchSurface = (
   { onPinch }: { onPinch: (pinch: SurfacePinch) => void }
 ): void => {
   const listener = useRef(onPinch);
+  const registered = useRef<HTMLElement | null>(null);
+  // After each render, since the element may be another one by then. This runs before the newest
+  // onPinch is taken below, so a pinch of the element that went ends with that element's onPinch.
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (element === registered.current) return;
+    unregisterSurface(registered.current);
+    registered.current = element;
+    if (!element) return;
+    element.setAttribute(PINCH_SURFACE_ATTRIBUTE, '');
+    pinchListeners.set(element, listener);
+  });
   useLayoutEffect(() => {
     listener.current = onPinch;
   });
-  // Each render, since the element may be another one by then.
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) return undefined;
-    element.setAttribute(PINCH_SURFACE_ATTRIBUTE, '');
-    pinchListeners.set(element, listener);
-    // Unmarked, it is no surface the page zoom finds.
-    return () => element.removeAttribute(PINCH_SURFACE_ATTRIBUTE);
-  });
+  useLayoutEffect(
+    () => () => {
+      unregisterSurface(registered.current);
+      // Mounted again (StrictMode), it marks its element again.
+      registered.current = null;
+    },
+    []
+  );
 };
 
 const gestureCentre = (event: Event): SurfacePinch['centre'] => {
@@ -129,6 +153,9 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       last: SurfacePinch;
     } | null = null;
     let wheelRest: number | undefined;
+    endPinchOf = (surface) => {
+      if (handed?.surface === surface) endHanded();
+    };
 
     const endHanded = () => {
       const pinch = handed;

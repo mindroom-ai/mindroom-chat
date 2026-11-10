@@ -2,7 +2,7 @@
 
 import { cleanup, render, renderHook } from '@testing-library/react';
 import type FocusTrap from 'focus-trap-react';
-import { type ComponentProps, type ReactNode, useRef } from 'react';
+import { type ComponentProps, type ReactNode, StrictMode, useRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImageOverlay } from '../messages/content/ImageOverlay';
 import {
@@ -870,6 +870,21 @@ describe('usePinchToZoom', () => {
       centre: { x, y },
     });
 
+    it('stays a surface after StrictMode mounts it a second time', () => {
+      mount(100);
+      const pinches: SurfacePinch[] = [];
+      const view = render(
+        <StrictMode>
+          <Surface label="board" pinches={pinches} />
+        </StrictMode>
+      );
+      const surface = view.getByTestId('board');
+
+      gesture('gesturestart', 1, surface);
+      expect(surface.hasAttribute(PINCH_SURFACE_ATTRIBUTE)).toBe(true);
+      expect(pinches.map(({ phase }) => phase)).toEqual(['start']);
+    });
+
     it('marks its element as a pinch surface while it is mounted', () => {
       const { surface, unmount } = renderSurface();
       expect(surface.hasAttribute(PINCH_SURFACE_ATTRIBUTE)).toBe(true);
@@ -1355,6 +1370,48 @@ describe('usePinchToZoom', () => {
         wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('second'));
         expect(first.map(({ phase }) => phase)).toEqual(['start', 'move', 'end']);
         expect(second).toEqual([handed('start', 1, 0, 0), handed('move', Math.exp(0.5), 0, 0)]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("ends a pinch with the callback of the element it went to when the hook's element changes or goes", () => {
+      const calls: string[] = [];
+      function Slide({ name }: { name: string }) {
+        const ref = useRef<HTMLDivElement>(null);
+        usePinchSurface(ref, { onPinch: ({ phase }) => calls.push(`${name} ${phase}`) });
+        // Another slide is another element.
+        return <div key={name} ref={ref} data-testid={name} />;
+      }
+      function Deck({ name, extra }: { name: string; extra?: boolean }) {
+        return (
+          <>
+            <Slide name={name} />
+            {extra && <Slide name="extra" />}
+          </>
+        );
+      }
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      try {
+        mount(100);
+        const view = render(<Deck name="a" />);
+        wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('a'));
+        view.rerender(<Deck name="b" />);
+        vi.advanceTimersByTime(500);
+        expect(calls).toEqual(['a start', 'a move', 'a end']);
+
+        // A re-render with the same element, and another surface going, keep the pinch going.
+        view.rerender(<Deck name="b" extra />);
+        wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('b'));
+        view.rerender(<Deck name="b" />);
+        wheel({ ctrlKey: true, deltaY: -50 }, view.getByTestId('b'));
+        expect(calls.slice(3)).toEqual(['b start', 'b move', 'b move']);
+
+        // Unmounted mid-pinch, it gets its end then, and nothing later.
+        view.unmount();
+        expect(calls.slice(6)).toEqual(['b end']);
+        vi.advanceTimersByTime(500);
+        expect(calls).toHaveLength(7);
       } finally {
         vi.useRealTimers();
       }

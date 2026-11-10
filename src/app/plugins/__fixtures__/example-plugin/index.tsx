@@ -672,7 +672,8 @@ function ExamplePdf() {
 
 /**
  * Its pinch board: a pinch on it scales its box around the pinch's centre, which keeps the point of
- * the box under it where the pinch started, from the box's scale and place at that start.
+ * the box under it where the pinch started, from the box's scale and place at that start. The zoom
+ * is the board's state, so it starts again unzoomed each time the card opens.
  */
 function PinchBoard() {
   const board = useRef<HTMLDivElement>(null);
