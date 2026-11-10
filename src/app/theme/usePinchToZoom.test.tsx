@@ -45,9 +45,11 @@ const gesture = (
 const pointer = (
   type: 'pointerdown' | 'pointerup' | 'pointercancel',
   at: Element = document.body,
+  pointerId = 1,
   pointerType = 'touch'
 ) => {
   const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'pointerId', { value: pointerId });
   Object.defineProperty(event, 'pointerType', { value: pointerType });
   at.dispatchEvent(event);
 };
@@ -310,8 +312,8 @@ describe('usePinchToZoom', () => {
         touch('touchstart', spread(inside, other, 100), other);
       };
       const landPointers = () => {
-        pointer('pointerdown', inside);
-        pointer('pointerdown', other);
+        pointer('pointerdown', inside, 1);
+        pointer('pointerdown', other, 2);
       };
       if (order === 'touch events first') {
         landTouches();
@@ -395,8 +397,8 @@ describe('usePinchToZoom', () => {
         touch('touchstart', spread(inside, inside, 100));
         inside.remove();
         // Pointer events reach the window once the element they went to is gone.
-        pointer(type);
-        pointer(type);
+        pointer(type, document.body, 1);
+        pointer(type, document.body, 2);
 
         gesture('gesturestart', 1, outside);
         gesture('gesturechange', 1.5, outside);
@@ -431,8 +433,8 @@ describe('usePinchToZoom', () => {
       touch('touchstart', [[0, 0, outside]]);
       touch('touchstart', spread(outside, outside, 100));
       outside.remove();
-      pointer('pointerup');
-      pointer('pointerup');
+      pointer('pointerup', document.body, 1);
+      pointer('pointerup', document.body, 2);
       // Two fingers land on the surface in one frame.
       touch('touchstart', spread(inside, surface, 100), inside);
       touch('touchstart', spread(inside, surface, 100), surface);
@@ -450,8 +452,8 @@ describe('usePinchToZoom', () => {
       touch('touchstart', [[0, 0, inside]]);
       touch('touchstart', spread(inside, surface, 100));
       inside.remove();
-      pointer('pointercancel', surface);
-      pointer('pointercancel', surface);
+      pointer('pointercancel', surface, 1);
+      pointer('pointercancel', surface, 2);
       // The app judges the pinch again, and the removed element is on no surface now: the
       // page's pinch, which zooms only from a touch of its own.
       const move = touch('touchmove', spread(inside, surface, 150), surface);
@@ -469,33 +471,58 @@ describe('usePinchToZoom', () => {
       touch('touchstart', [[0, 0, outside]]);
       touch('touchstart', spread(outside, outside, 100));
       outside.remove();
-      pointer('pointerup');
-      pointer('pointerup');
+      pointer('pointerup', document.body, 1);
+      pointer('pointerup', document.body, 2);
       // Two fingers land on the surface in one frame, its element goes, and the browser cancels
       // their pointers: the app judges the pinch again and finds it its own.
       touch('touchstart', spread(inside, surface, 100), inside);
       touch('touchstart', spread(inside, surface, 100), surface);
       inside.remove();
-      pointer('pointercancel', surface);
-      pointer('pointercancel', surface);
+      pointer('pointercancel', surface, 1);
+      pointer('pointercancel', surface, 2);
       touch('touchmove', spread(inside, surface, 150), surface);
       flushFrames();
 
       expect(setPageZoom).not.toHaveBeenCalled();
     });
 
+    it('lets go of a pinch whose ends were lost after an earlier pointer end the window missed', () => {
+      const { setPageZoom } = mount(100);
+      const { inside, outside } = pinchSurface();
+
+      // A tap whose pointerup something stopped before the window.
+      pointer('pointerdown', outside, 9);
+      touch('touchstart', [[0, 0, outside]]);
+      touch('touchend', [], outside);
+      pointer('pointerdown', inside, 1);
+      pointer('pointerdown', inside, 2);
+      touch('touchstart', [[0, 0, inside]]);
+      touch('touchstart', spread(inside, inside, 100));
+      inside.remove();
+      pointer('pointerup', document.body, 1);
+      pointer('pointerup', document.body, 2);
+
+      gesture('gesturestart', 1, outside);
+      gesture('gesturechange', 1.5, outside);
+      flushFrames();
+      expect(setPageZoom).toHaveBeenCalledWith(150);
+    });
+
     it('keeps its pinch while a finger beside it or a mouse comes and goes', () => {
       const { setPageZoom } = mount(100);
       const { surface, inside, outside } = pinchSurface();
 
+      pointer('pointerdown', inside, 1);
       touch('touchstart', [[0, 0, inside]]);
+      pointer('pointerdown', surface, 2);
       touch('touchstart', spread(inside, surface, 100));
-      pointer('pointerup', outside, 'mouse');
-      pointer('pointerdown', outside);
+      pointer('pointerdown', outside, 7, 'mouse');
+      pointer('pointerup', outside, 7, 'mouse');
+      pointer('pointerdown', outside, 3);
       touch('touchstart', [...spread(inside, surface, 100), [200, 0, outside]], outside);
       const move = touch('touchmove', [...spread(inside, surface, 150), [200, 0, outside]]);
       // One of the surface's fingers comes up: two fingers stay down, one of them beside it.
-      pointer('pointerup', surface);
+      pointer('pointerup', surface, 1);
       touch(
         'touchend',
         [
@@ -515,24 +542,35 @@ describe('usePinchToZoom', () => {
       expect(setPageZoom).not.toHaveBeenCalled();
     });
 
-    it('leaves the app a pinch that starts with a finger beside it, after that finger comes up', () => {
-      const { setPageZoom } = mount(100);
-      const { surface, inside, outside } = pinchSurface();
+    // Chromium sends a finger's pointer event before its touch event; other orders count it once too.
+    it.each([
+      ['pointer events first', true],
+      ['touch events first', false],
+    ])(
+      'leaves the app a pinch that starts with a finger beside it, after that finger comes up, with %s',
+      (_, pointerFirst) => {
+        const { setPageZoom } = mount(100);
+        const { surface, inside, outside } = pinchSurface();
 
-      touch('touchstart', [[200, 0, outside]]);
-      touch('touchstart', [
-        [200, 0, outside],
-        [0, 0, inside],
-      ]);
-      touch('touchstart', [[200, 0, outside], ...spread(inside, surface, 100)], surface);
-      pointer('pointerup', outside);
-      touch('touchend', spread(inside, surface, 100), outside);
-      const move = touch('touchmove', spread(inside, surface, 150));
-      flushFrames();
+        pointer('pointerdown', outside, 1);
+        touch('touchstart', [[200, 0, outside]]);
+        pointer('pointerdown', inside, 2);
+        touch('touchstart', [
+          [200, 0, outside],
+          [0, 0, inside],
+        ]);
+        pointer('pointerdown', surface, 3);
+        touch('touchstart', [[200, 0, outside], ...spread(inside, surface, 100)], surface);
+        if (pointerFirst) pointer('pointerup', outside, 1);
+        touch('touchend', spread(inside, surface, 100), outside);
+        if (!pointerFirst) pointer('pointerup', outside, 1);
+        const move = touch('touchmove', spread(inside, surface, 150));
+        flushFrames();
 
-      expect(move.defaultPrevented).toBe(true);
-      expect(setPageZoom).toHaveBeenCalledWith(150);
-    });
+        expect(move.defaultPrevented).toBe(true);
+        expect(setPageZoom).toHaveBeenCalledWith(150);
+      }
+    );
 
     it('gives the surface the gestures of its pinch, wherever they are sent', () => {
       const { setPageZoom } = mount(100);

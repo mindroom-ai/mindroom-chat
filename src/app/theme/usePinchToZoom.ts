@@ -57,10 +57,13 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
     // than two are: how many fingers are down, and whether a pinch surface owns it. Each touch
     // event that reaches the window sets the count from its `touches`; a finger whose element
     // went is still counted there, and the pinch keeps the owner it started with. When every
-    // finger's element went, no touch event comes, but each finger's touch pointer still ends on
-    // the window, and so does the gesture; either forgets the pinch, so nothing outlives it.
+    // finger's element went, no touch event comes, but each finger's pointer still ends on
+    // the window, and so does the gesture; the last pointer to end, or the gesture's end, forgets
+    // the pinch, so nothing outlives it. The pointers down are kept apart from the count,
+    // so a finger that lifts counts once, whichever of its two events comes first.
     let fingers = 0;
     let surfacePinch = false;
+    const pointersDown = new Set<number>();
 
     const forgetPinch = () => {
       fingers = 0;
@@ -71,6 +74,8 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
     const followFingers = (event: TouchEvent): boolean => {
       const pinchStarts = fingers < 2 && event.touches.length >= 2;
       fingers = event.touches.length;
+      // No finger is down: a pointer whose end the window never saw is not down either.
+      if (fingers === 0) pointersDown.clear();
       if (fingers < 2) surfacePinch = false;
       else if (pinchStarts && surfaceOwns(event.touches)) {
         surfacePinch = true;
@@ -80,10 +85,14 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       return surfacePinch;
     };
 
+    // Every pointer counts, a mouse's too: a pointer ID belongs to one pointer while it is down.
+    const handlePointerDown = (event: PointerEvent) => {
+      pointersDown.add(event.pointerId);
+    };
+
     const handlePointerEnd = (event: PointerEvent) => {
-      if (event.pointerType !== 'touch') return;
-      fingers -= 1;
-      if (fingers < 2) forgetPinch();
+      pointersDown.delete(event.pointerId);
+      if (pointersDown.size === 0) forgetPinch();
     };
 
     const flushPendingZoom = () => {
@@ -191,6 +200,7 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
     document.addEventListener('gesturestart', handleGestureStart, { passive: false });
     document.addEventListener('gesturechange', handleGestureChange, { passive: false });
     document.addEventListener('gestureend', handleGestureEnd, { passive: true });
+    window.addEventListener('pointerdown', handlePointerDown, { passive: true });
     window.addEventListener('pointerup', handlePointerEnd, { passive: true });
     window.addEventListener('pointercancel', handlePointerEnd, { passive: true });
 
@@ -211,6 +221,7 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       document.removeEventListener('gesturestart', handleGestureStart);
       document.removeEventListener('gesturechange', handleGestureChange);
       document.removeEventListener('gestureend', handleGestureEnd);
+      window.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('pointerup', handlePointerEnd);
       window.removeEventListener('pointercancel', handlePointerEnd);
     };
