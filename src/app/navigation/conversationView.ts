@@ -6,9 +6,9 @@ import type { ViewedPlace } from './viewedPlace';
 
 /**
  * A conversation the page shows besides the room page's own, such as a client plugin's thread view
- * (room/ThreadView.tsx, keyed by its thread). Its composer has a reply and staged files of its own,
- * which no reload keeps; it is hidden while it does not show, and also out of sight under a
- * phone's navigation drawer. Without one, a timeline and its composer are the room page's.
+ * (room/ThreadView.tsx), named by a key of its own. Its composer has a reply and staged files of
+ * its own, which go with the view; it is hidden while it does not show, and also out of sight
+ * under a phone's navigation drawer. Without one, a timeline and its composer are the room page's.
  */
 export const ConversationViewContext = createContext<string | undefined>(undefined);
 

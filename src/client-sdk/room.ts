@@ -165,14 +165,14 @@ const LazyThreadView = lazy(() =>
  * thread's tool approvals under them, and the composer under those while the signed-in account may
  * post in the room. It fills its parent, a flex column, and scrolls inside it; it shows nothing
  * while its code loads. It may show a thread of the room whose page is open, also the one that page
- * shows: its composer has a reply and staged files of its own, which a view of the same thread
- * finds again and a reload does not keep, shares the thread's unsent text with the page's, and
- * records no voice messages, which are the page's. Read receipts and notifications count the
- * thread as seen while the view shows it, also while the room's page is behind the panel, but not
- * while its side panel is folded or under a phone's navigation drawer. Its menus,
- * and the profile card its rows open, take their Escape at the document, after it bubbled through
- * the plugin's elements; so a plugin that closes its surface on Escape listens on the window, which
- * only an Escape nothing took reaches (one that is not `defaultPrevented`).
+ * shows: its composer has a reply and staged files of its own, which go with it as it unmounts,
+ * shares the thread's unsent text with the page's, and records no voice messages, which are the
+ * page's. Read receipts and notifications count the thread as seen while the view shows it, also
+ * while the room's page is behind the panel, but not while its side panel is folded or under a
+ * phone's navigation drawer. Its menus, and the profile card its rows open, take their Escape at
+ * the document, after it bubbled through the plugin's elements; so a plugin that closes its
+ * surface on Escape listens on the window, which only an Escape nothing took reaches (one that is
+ * not `defaultPrevented`).
  */
 export const ThreadView = (props: { room: Room; threadId: string }) =>
   createElement(Suspense, { fallback: null }, createElement(LazyThreadView, props));

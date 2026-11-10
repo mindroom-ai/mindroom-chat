@@ -1,4 +1,4 @@
-import { type CSSProperties, useCallback, useEffect, useMemo, useRef } from 'react';
+import { type CSSProperties, useCallback, useEffect, useId, useMemo, useRef } from 'react';
 import { useSetAtom } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
@@ -20,8 +20,13 @@ import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import { StateEvent } from '../matrix/types/room';
 import {
   ConversationViewContext,
+  composerStateKey,
   shownConversationViewsAtom,
 } from '../navigation/conversationView';
+import {
+  roomIdToReplyDraftAtomFamily,
+  roomIdToUploadItemsAtomFamily,
+} from '../composer/roomInputDrafts';
 import { RoomTimeline } from '../timeline/RoomTimeline';
 import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { MessageLinkCards } from './MessageLinkCards';
@@ -46,7 +51,7 @@ const TIMELINE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
 
 /**
  * The app side of `ThreadView` in `@mindroom/client-sdk/room`, whose contract lives there and in
- * docs/architecture.md. It is a conversation view of its thread (`ConversationViewContext`), shown
+ * docs/architecture.md. It is a conversation view of its own (`ConversationViewContext`), shown
  * (`shownConversationViewsAtom`) while its side panel is not folded. Timeline and composer share
  * one editor, as in the room view; it has no filter bar or thread summaries, the whole view takes
  * dropped files, and it adds no key handling of its own.
@@ -54,8 +59,7 @@ const TIMELINE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
 export function ThreadView({ room, threadId }: { room: Room; threadId: string }) {
   const client = useMatrixClient();
   const editor = useEditor();
-  // Its composer's reply and staged files are the thread's, in any view of it, until a reload.
-  const view = threadId;
+  const view = useId();
   const viewRef = useRef<HTMLDivElement>(null);
   const members = useRoomMembers(client, room.roomId);
   const hasMindroomAgents = useMemo(() => hasActiveMindroomAgent(members), [members]);
@@ -76,6 +80,19 @@ export function ThreadView({ room, threadId }: { room: Room; threadId: string })
     setShownViews((shown) => [...shown, place]);
     return () => setShownViews((shown) => shown.filter((other) => other !== place));
   }, [folded, roomId, setShownViews, threadId, view]);
+
+  // Its composer's reply and staged files, in each room it showed, go with it as it unmounts: no
+  // later view finds them. Until then they stay, as a send under way may still use them.
+  const roomsShown = useRef(new Set<string>()).current;
+  roomsShown.add(roomId);
+  useEffect(
+    () => () =>
+      roomsShown.forEach((shownRoomId) => {
+        roomIdToReplyDraftAtomFamily.remove(composerStateKey(shownRoomId, view));
+        roomIdToUploadItemsAtomFamily.remove(composerStateKey(shownRoomId, view));
+      }),
+    [roomsShown, view]
+  );
 
   const focusConversation = useCallback(() => ReactEditor.focus(editor), [editor]);
 

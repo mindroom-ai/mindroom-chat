@@ -7,12 +7,13 @@ import {
   type RefObject,
 } from 'react';
 import { getDefaultStore } from 'jotai';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createClient, Room, type RoomMember } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Editable, Slate } from 'slate-react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
+import { composerReplyDraftAtom, composerUploadItemsAtom } from '../composer/roomInputDrafts';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import {
   ConversationViewContext,
@@ -181,20 +182,34 @@ it("sets the room view's insets to none, as no floating header or composer cover
   );
 });
 
-it("is a conversation view of its thread, apart from the room page, so another view of the thread finds the thread's reply and staged files again", () => {
-  const { unmount } = render(<ThreadView room={room} threadId={THREAD} />);
-  unmount();
-  render(
+it('is a conversation view of its own, apart from the room page and from another view of the thread, whose reply and staged files go with it', () => {
+  const store = getDefaultStore();
+  const { unmount } = render(
     <>
       <ThreadView room={room} threadId={THREAD} />
-      <ThreadView room={room} threadId="$other" />
+      <ThreadView room={room} threadId={THREAD} />
     </>
   );
-  const [first, again, other] = state.composerViews;
+  const [first, second] = state.composerViews;
   expect(first).toBeDefined();
-  expect(again).toBe(first);
-  expect(other).toBeDefined();
-  expect(other).not.toBe(first);
+  expect(second).toBeDefined();
+  expect(first).not.toBe(second);
+
+  const reply = { userId: '@bob:example.org', eventId: '$reply', body: 'Reply' };
+  const file = new File(['x'], 'notes.txt');
+  const item = {
+    file,
+    originalFile: file,
+    encInfo: undefined,
+    metadata: { markedAsSpoiler: false },
+  };
+  act(() => {
+    store.set(composerReplyDraftAtom(room.roomId, first), reply);
+    store.set(composerUploadItemsAtom(room.roomId, first), { type: 'PUT', item });
+  });
+  unmount();
+  expect(store.get(composerReplyDraftAtom(room.roomId, first))).toBeUndefined();
+  expect(store.get(composerUploadItemsAtom(room.roomId, first))).toEqual([]);
 });
 
 it('counts its thread as on screen for notifications while it is mounted', () => {
