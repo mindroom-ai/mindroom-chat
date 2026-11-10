@@ -128,7 +128,7 @@ function ActiveThreadApprovalProvider({
   });
   const [now, setNow] = useState(Date.now);
   const fetching = useRef(false);
-  // Whether the last request failed, so the sync's return asks again.
+  // Whether the last discovery, or a repair since, failed, so the sync's return asks again.
   const failed = useRef(false);
   const repairedOrigins = useRef(new Set<string>());
   const decryptionStarted = useRef(new WeakSet<MatrixEvent>());
