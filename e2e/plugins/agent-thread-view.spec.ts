@@ -28,8 +28,10 @@ import { roomMoreOptions } from '../helpers/roomMenu';
 // file staged there stays out of the page's send, and Up in the page's composer edits the page's
 // message only. The profile card of the helper, opened from the panel's thread, closes on Escape
 // alone; an Escape in the panel's composer then closes the panel. In a room where the account may
-// not post, the panel shows the thread without a composer. On a phone the panel covers the page,
-// its composer still completes mentions and attaches files, and the thread is read there.
+// not post, the panel shows the thread without a composer. A file and caption sent from the panel
+// while the file uploads still go once the panel closes, and typing in the page's composer and
+// then in the panel's keeps one typing notice for the others. On a phone the panel covers the
+// page, its composer still completes mentions and attaches files, and the thread is read there.
 //   MINDROOM_CLIENT_PLUGINS=$PWD/src/app/plugins/__fixtures__/example-plugin \
 //     scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/plugins/agent-thread-view.spec.ts
 test.skip(
@@ -210,6 +212,177 @@ test("a plugin's panel shows a thread with its approvals and composer, as the ro
   // The room's own view of the thread shows the reply.
   await showThread(page, stack, rootId);
   await expect(messageRow(page, sent.event_id)).toContainText(reply, { timeout: 30_000 });
+});
+
+/**
+ * Whether the tester types in `roomId`, as the router sees it in its sync, sampled from now on;
+ * `longestPause` is the longest time the router saw the tester not typing since `from`.
+ */
+const watchTyping = (stack: AgentStack, roomId: string) => {
+  const token = routerToken(stack);
+  const changes: { at: number; typing: boolean }[] = [];
+  let stopped = false;
+  const filter = JSON.stringify({
+    presence: { types: [] },
+    account_data: { types: [] },
+    room: {
+      rooms: [roomId],
+      timeline: { limit: 0 },
+      state: { types: [] },
+      account_data: { types: [] },
+      ephemeral: { types: ['m.typing'] },
+    },
+  });
+  const loop = (async () => {
+    let since: string | undefined;
+    while (!stopped) {
+      const query = new URLSearchParams({ filter, timeout: since ? '1000' : '0' });
+      if (since) query.set('since', since);
+      // eslint-disable-next-line no-await-in-loop
+      const sync = await matrixFetch<{
+        next_batch: string;
+        rooms?: {
+          join?: Record<
+            string,
+            { ephemeral?: { events: { type: string; content: { user_ids?: string[] } }[] } }
+          >;
+        };
+      }>(stack.homeserver, `/sync?${query.toString()}`, { accessToken: token });
+      since = sync.next_batch;
+      sync.rooms?.join?.[roomId]?.ephemeral?.events
+        .filter((event) => event.type === 'm.typing')
+        .forEach((event) =>
+          changes.push({
+            at: Date.now(),
+            typing: event.content.user_ids?.includes(stack.tester.userId) ?? false,
+          })
+        );
+    }
+  })();
+  return {
+    typingNow: () => changes.at(-1)?.typing ?? false,
+    longestPause: (from: number, to: number) => {
+      let typing = false;
+      let pausedAt: number | undefined;
+      let longest = 0;
+      changes.forEach(({ at, typing: now }) => {
+        if (at > to) return;
+        if (at <= from) {
+          typing = now;
+          return;
+        }
+        if (typing && !now) pausedAt = at;
+        if (!typing && now) {
+          longest = Math.max(longest, at - (pausedAt ?? from));
+          pausedAt = undefined;
+        }
+        typing = now;
+      });
+      if (!typing) longest = Math.max(longest, to - (pausedAt ?? from));
+      return longest;
+    },
+    stop: async () => {
+      stopped = true;
+      await loop;
+    },
+  };
+};
+
+test("a send from the plugin's panel outlives the panel, and the page's and the panel's typing is one notice", async ({
+  page,
+  stack,
+}) => {
+  await openLobby(page, stack);
+  const word = uniqueWord('outlives');
+  const rootId = await startThread(stack, `${word} root`);
+  await showThread(page, stack, rootId);
+  let panel = await openThreadPanel(page);
+  await showPath(page, `/home/${encodeURIComponent(stack.rooms.lobby)}`);
+  await expect(messageRow(panel, rootId)).toContainText(word, { timeout: 60_000 });
+
+  // Typing in the page's composer, then in the panel's: the others see one notice throughout,
+  // also past the time a single notice expires (30 s).
+  const typing = watchTyping(stack, stack.rooms.lobby);
+  await pageComposer(page).click();
+  await page.keyboard.type('t');
+  await expect.poll(typing.typingNow, { timeout: 20_000 }).toBe(true);
+  const started = Date.now();
+  for (let key = 0; key < 7; key += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await page.waitForTimeout(2_000);
+    // eslint-disable-next-line no-await-in-loop
+    await page.keyboard.type('a');
+  }
+  const box = panel.getByRole('textbox');
+  await box.click();
+  while (Date.now() - started < 45_000) {
+    // eslint-disable-next-line no-await-in-loop
+    await page.keyboard.type('b');
+    // eslint-disable-next-line no-await-in-loop
+    await page.waitForTimeout(2_000);
+  }
+  await typing.stop();
+  // A single composer's notice also pauses once as it expires, until the next key starts it again.
+  expect(typing.longestPause(started, Date.now())).toBeLessThan(6_000);
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.press('Backspace');
+  await pageComposer(page).click();
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.press('Backspace');
+
+  // A file sent from the panel while it uploads still goes after the panel closes.
+  let releaseUpload!: () => void;
+  const uploadHeld = new Promise<void>((resolve) => {
+    releaseUpload = resolve;
+  });
+  let uploadStarted!: () => void;
+  const uploading = new Promise<void>((resolve) => {
+    uploadStarted = resolve;
+  });
+  await page.route(
+    (url) => /\/media\/(v3|r0)\/upload$|\/v1\/media\/upload$/.test(url.pathname),
+    async (route) => {
+      if (route.request().method() === 'POST') {
+        uploadStarted();
+        await uploadHeld;
+      }
+      await route.continue();
+    }
+  );
+  panel = threadPanel(page);
+  const fileName = `${word}-large.bin`;
+  const chooser = page.waitForEvent('filechooser');
+  await panel.getByRole('button', { name: 'Attach files' }).click();
+  await (
+    await chooser
+  ).setFiles([
+    { name: fileName, mimeType: 'application/octet-stream', buffer: Buffer.alloc(2_000_000, 7) },
+  ]);
+  await expect(panel.getByText(fileName, { exact: true })).toBeVisible({ timeout: 20_000 });
+  await uploading;
+  const caption = `${word} caption`;
+  await panel.getByRole('textbox').click();
+  await page.keyboard.type(caption);
+  await page.keyboard.press('Enter');
+  await expect(panel.getByRole('textbox')).toHaveText('');
+  await roomMoreOptions(page).click();
+  await page.getByRole('menuitemcheckbox', { name: 'Example thread', exact: true }).click();
+  await expect(threadPanel(page)).toHaveCount(0);
+  releaseUpload();
+
+  await waitForThreadEvent(
+    stack,
+    rootId,
+    (event) => event.sender === stack.tester.userId && event.content.body === fileName,
+    { timeout: 60_000, description: 'the file sent after the panel closed' }
+  );
+  await waitForThreadEvent(
+    stack,
+    rootId,
+    (event) => event.sender === stack.tester.userId && event.content.body === caption,
+    { timeout: 60_000, description: 'its caption' }
+  );
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
 
 /** A room the router made, where the tester has joined but may not post. */
