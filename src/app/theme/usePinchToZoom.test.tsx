@@ -1657,6 +1657,39 @@ describe('usePinchToZoom', () => {
         expect(outer).toEqual([]);
         expect(setPageZoom).not.toHaveBeenCalled();
       });
+
+      it.each([
+        ['the inner surface', true],
+        ['the outer content', false],
+      ])(
+        'leaves the app a pinch across the chrome around a surface, its first finger on %s',
+        (_, innerFirst) => {
+          const { setPageZoom } = mount(100);
+          const outer: SurfacePinch[] = [];
+          const inner: SurfacePinch[] = [];
+          const chrome = { [PINCH_CHROME_ATTRIBUTE]: '' };
+          const view = render(
+            <Surface label="outer" pinches={outer}>
+              <div {...chrome}>
+                <Surface label="inner" pinches={inner} />
+              </div>
+            </Surface>
+          );
+          const [onInner, onOuter] = [
+            view.getByTestId('inner inside'),
+            view.getByTestId('outer inside'),
+          ];
+          const [first, second] = innerFirst ? [onInner, onOuter] : [onOuter, onInner];
+
+          const move = pinch(first, second);
+          flushFrames();
+
+          expect(move.defaultPrevented).toBe(true);
+          expect(setPageZoom).toHaveBeenCalledWith(120);
+          expect(outer).toEqual([]);
+          expect(inner).toEqual([]);
+        }
+      );
     });
   });
 });

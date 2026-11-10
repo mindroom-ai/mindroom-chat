@@ -106,19 +106,22 @@ const surfaceAt = (target: EventTarget | null): Element | null => {
   return owner?.hasAttribute(PINCH_CHROME_ATTRIBUTE) ? null : owner;
 };
 
+/** The marked elements around `target`, innermost first, up to the first chrome. */
+const surfacesAround = (target: EventTarget | null): Element[] => {
+  const surfaces: Element[] = [];
+  for (let surface = surfaceAt(target); surface; surface = surfaceAt(surface.parentElement)) {
+    surfaces.push(surface);
+  }
+  return surfaces;
+};
+
 /**
- * The marked element every finger landed in, the innermost that holds them all when marks nest:
- * `Touch.target` stays where a finger landed.
+ * The marked element every finger landed in, the innermost that holds them all when marks nest,
+ * with no chrome between it and any finger: `Touch.target` stays where a finger landed.
  */
 const surfaceOwning = (touches: TouchList): Element | null => {
-  const targets = Array.from(touches, (finger) => finger.target);
-  // A finger on chrome, or on no surface, leaves the pinch to the page zoom.
-  if (!targets.every((target) => surfaceAt(target) !== null)) return null;
-  const holdsAll = (surface: Element) =>
-    targets.every((target) => target instanceof Node && surface.contains(target));
-  let surface = surfaceAt(targets[0] ?? null);
-  while (surface && !holdsAll(surface)) surface = surfaceAt(surface.parentElement);
-  return surface;
+  const [first = [], ...others] = Array.from(touches, (finger) => surfacesAround(finger.target));
+  return first.find((surface) => others.every((around) => around.includes(surface))) ?? null;
 };
 
 /**
