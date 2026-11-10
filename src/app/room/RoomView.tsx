@@ -464,6 +464,7 @@ export function RoomView({
             <RoomViewHeader
               hasMindroomAgents={hasMindroomAgents}
               threadId={effectiveThreadId}
+              openThreadId={openThreadId}
               threadFilterState={threadState.threadFilterState}
               {...headerProps}
             />

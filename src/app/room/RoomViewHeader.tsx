@@ -68,6 +68,11 @@ export type RoomViewHeaderProps = {
   joinRequestCount?: number;
   /** The open thread, if any: the room's view switch does not apply inside a thread. */
   threadId?: string;
+  /**
+   * The thread the page has open, also in its column beside the room's messages, where `threadId`
+   * names none: the plugins' actions run in it.
+   */
+  openThreadId?: string;
   /** The room's thread filters: the filter button marks them while their bar is hidden. */
   threadFilterState?: ThreadFilterState;
   computerAvailable?: boolean;
@@ -175,6 +180,7 @@ export function RoomViewHeader({
   hasMindroomAgents,
   joinRequestCount = 0,
   threadId,
+  openThreadId = threadId,
   threadFilterState,
   computerAvailable,
   computerOpen,
@@ -429,7 +435,7 @@ export function RoomViewHeader({
         run: () =>
           run({
             roomId: room.roomId,
-            threadId: isConfirmedMatrixEventId(threadId) ? threadId : undefined,
+            threadId: isConfirmedMatrixEventId(openThreadId) ? openThreadId : undefined,
           }),
       })
     ),
