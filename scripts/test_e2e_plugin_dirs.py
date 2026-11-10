@@ -4,7 +4,6 @@ throwaway repository that holds the scripts, with stand-ins for Docker, curl and
 from __future__ import annotations
 
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -44,7 +43,11 @@ class PluginDirTestCase(unittest.TestCase):
             (bin_dir / name).chmod(0o755)
         self.snapshots = self.tmp / "e2e"
         self.env = {
-            **{name: value for name, value in os.environ.items() if name not in ("E2E_PLUGIN_DIRS", "MINDROOM_CLIENT_PLUGINS")},
+            **{
+                name: value
+                for name, value in os.environ.items()
+                if name not in ("E2E_PLUGIN_DIRS", "MINDROOM_CLIENT_PLUGINS", "PLAYWRIGHT_WEBKIT_EXECUTABLE")
+            },
             "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
             "E2E_SNAPSHOT_ROOT": str(self.snapshots),
             "E2E_MAX_CONCURRENT": "0",
@@ -195,35 +198,33 @@ class SuiteTests(PluginDirTestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         return sorted(
-            (line.split(" npx playwright test ")[1].split(" ")[0], " --preview " in line)
+            (line.split(" npx playwright test ")[1].split(" --reporter")[0], " --preview " in line)
             for line in self.log.read_text().splitlines()
         )
 
-    def test_the_suite_runs_the_plugin_directories_specs_on_the_production_build(self) -> None:
+    def test_the_suite_runs_the_plugin_directories_specs_in_their_projects_on_the_production_build(self) -> None:
         plugin = self.plugin("plugin[1]")
         (plugin / "e2e/nested").mkdir()
         (plugin / "e2e/nested/b.spec.ts").write_text("\n")
         (plugin / "e2e/a.spec.ts").write_text("\n")
         for options in ([], ["--dev"]):
-            runs = self.runs(*options, E2E_PLUGIN_DIRS=str(plugin))
             self.assertEqual(
-                runs,
+                self.runs(*options, E2E_PLUGIN_DIRS=str(plugin)),
                 [
-                    (r"slot-98/e2e-plugins/plugin\[1\]/e2e/a\.spec\.ts", True),
-                    (r"slot-98/e2e-plugins/plugin\[1\]/e2e/nested/b\.spec\.ts", True),
-                    (r"slot-98/e2e/a\.spec\.ts", options == []),
+                    (r"e2e-plugins/plugin\[1\]/e2e/a\.spec\.ts --project=plugin[1]", True),
+                    (r"e2e-plugins/plugin\[1\]/e2e/nested/b\.spec\.ts --project=plugin[1]", True),
+                    ("e2e/a.spec.ts --project=chromium", options == []),
                 ],
             )
-        # Playwright takes each filter as a regular expression over the path of a file in the snapshot.
-        tree = "/e2e root+/slot-98"
-        app_filter, plugin_filter = runs[2][0], runs[0][0]
-        self.assertTrue(re.search(app_filter, f"{tree}/e2e/a.spec.ts"))
-        self.assertFalse(re.search(app_filter, f"{tree}/e2e-plugins/plugin[1]/e2e/a.spec.ts"))
-        self.assertTrue(re.search(plugin_filter, f"{tree}/e2e-plugins/plugin[1]/e2e/a.spec.ts"))
+        self.assertEqual(
+            self.runs("./e2e/a.spec.ts", E2E_PLUGIN_DIRS=str(plugin), PLAYWRIGHT_WEBKIT_EXECUTABLE="/bin/webkit"),
+            [("./e2e/a.spec.ts --project=chromium --project=webkit", True)],
+        )
 
     def test_without_plugin_directories_the_specs_are_given_as_named(self) -> None:
         runs = self.runs("e2e/a.spec.ts", "./e2e/a.spec.ts")
         self.assertEqual(runs, [("./e2e/a.spec.ts", True), ("e2e/a.spec.ts", True)])
+
 
 if __name__ == "__main__":
     unittest.main()

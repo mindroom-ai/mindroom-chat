@@ -69,7 +69,7 @@ A client plugin ([architecture.md](architecture.md#client-plugins)) can live in 
   E2E_PLUGIN_DIRS=<plugin directory> MINDROOM_CLIENT_PLUGINS=<plugin directory> just e2e-slot 3 --preview npx playwright test --project=<directory name>
   ```
 
-  The run builds the plugin in from a copy in its snapshot, so edits made in the plugin's directory meanwhile never reach it (a link in it that leads out of it, such as a local package npm installed, still leads where it did), and `E2E_PLUGIN_DIRS=<plugin directory> MINDROOM_CLIENT_PLUGINS=<plugin directory> just e2e-suite` runs the plugin's specs with the app's, each as `e2e-plugins/<directory name>/e2e/<spec>` in a run of its own, with a copy of the plugin's directory as it is when that run starts.
+  The run builds the plugin in from a copy in its snapshot, so edits made in the plugin's directory meanwhile never reach it (the copy holds the plugin's directory alone, and a link in it that leads out of it, such as a local package npm installed, still leads where it did), and `E2E_PLUGIN_DIRS=<plugin directory> MINDROOM_CLIENT_PLUGINS=<plugin directory> just e2e-suite` runs the plugin's specs with the app's, each as `e2e-plugins/<directory name>/e2e/<spec>` in a run of its own, with a copy of the plugin's directory as it is when that run starts.
 
 ## End-to-end specs
 
