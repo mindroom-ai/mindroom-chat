@@ -503,3 +503,43 @@ test('?plugins=off previews every row by its body', ({ browser }) =>
     await expect(activityRows.filter({ hasText: CARD_BODY })).toHaveCount(1);
     await shot(page, 'rows-plugins-off');
   }));
+
+test("a row that shows while the plugin's German strings load reads them when they arrive", ({
+  browser,
+}) =>
+  onBuild(
+    browser,
+    {},
+    async (page, data) => {
+      await signIn(page, data);
+      // The build's chunk of the plugin's German strings answers only once released.
+      let release: () => void = () => undefined;
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let held = false;
+      await page.route('**/*.js', async (route) => {
+        const response = await route.fetch();
+        const body = await response.text();
+        if (body.includes(GERMAN_LABEL)) {
+          held = true;
+          await released;
+        }
+        await route.fulfill({ response, body });
+      });
+      await page.evaluate(() => localStorage.setItem('i18nextLng', 'de'));
+      await page.goto('/threads/');
+      await page.getByRole('radio', { name: 'Alle' }).click();
+      const agentRow = page.getByRole('navigation').getByRole('button').filter({
+        hasText: AGENT_ROOT,
+      });
+      await expect(agentRow).toContainText(`Greeting: ${ROW_GREETING}`, { timeout: 60_000 });
+      await expect.poll(() => held).toBe(true);
+
+      release();
+      await expect(agentRow).toContainText(`Gruß: ${ROW_GREETING}`);
+      await shot(page, 'rows-german-late');
+    },
+    // Requests a service worker makes pass by the page's routes.
+    { serviceWorkers: 'block' }
+  ));
