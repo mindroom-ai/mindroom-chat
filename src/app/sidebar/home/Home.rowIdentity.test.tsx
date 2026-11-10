@@ -147,6 +147,7 @@ describe('Home room rows', () => {
   let renderer: ReactTestRenderer | undefined;
 
   afterEach(() => {
+    subRooms.renderRoom = undefined;
     act(() => renderer?.unmount());
     renderer = undefined;
   });

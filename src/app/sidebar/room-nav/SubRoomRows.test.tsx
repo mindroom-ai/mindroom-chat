@@ -183,6 +183,8 @@ describe('SubRoomRows', () => {
       num_joined_members: 1,
       world_readable: false,
       guest_can_join: false,
+      // A listed room the client does not know can turn out to be a space.
+      room_type: roomId === '!unknown:remote.org' ? 'm.space' : undefined,
     }));
     const tree = { top: [PARENT], children: new Map([[PARENT, ['!joined:example.org']]]) };
 
@@ -218,6 +220,7 @@ describe('SubRoomRows', () => {
     await vi.waitFor(() =>
       expect(JSON.stringify(renderer!.toJSON())).toContain('Name of !unknown:remote.org')
     );
+    expect(root.findAllByType(RoomIcon).map((node) => node.props.space)).toEqual([false, true]);
   });
 });
 
