@@ -543,7 +543,7 @@ test('pinned: keyboard order, dragging with auto-scroll, a collapsed panel and r
   // Keyboard focus: the top group, the spaces in order, Explore and Create Space, the foot.
   await homeButton(page).focus();
   const order: string[] = [];
-  for (let step = 0; step < SPACE_COUNT + 8; step += 1) {
+  for (let step = 0; step < SPACE_COUNT + 9; step += 1) {
     order.push(
       await page.evaluate(() => {
         const element = document.activeElement;
@@ -560,6 +560,7 @@ test('pinned: keyboard order, dragging with auto-scroll, a collapsed panel and r
   expect(order).toEqual([
     'Home',
     'Direct Messages',
+    'Activity',
     'Threads',
     'Canvases',
     ...account.spaces,
