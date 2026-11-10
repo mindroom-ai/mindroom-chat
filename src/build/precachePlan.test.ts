@@ -1,6 +1,11 @@
-import type { Rollup } from 'vite';
-import { describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { build, type Plugin, type Rollup } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { buildInventory, startupFiles, startupPrecache } from '../../scripts/precache-plan.mjs';
+import { thirdPartyNoticesPlugin } from '../../scripts/third-party-notices.mjs';
 
 type ChunkShape = {
   facade?: string;
@@ -235,4 +240,108 @@ describe('startupPrecache', () => {
       'the build never reported its bundle'
     );
   });
+});
+
+describe('a build that fails before its bundle is written', () => {
+  // Its real path: Vite names the emitted pages by their path from the root.
+  const dir = realpathSync(mkdtempSync(path.join(tmpdir(), 'precache-plan-')));
+  const dist = path.join(dir, 'app/dist');
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(path.join(dir, 'app'));
+  writeFileSync(
+    path.join(dir, 'app/index.html'),
+    '<script type="module" src="./main.js"></script>\n'
+  );
+  writeFileSync(path.join(dir, 'app/main.js'), 'export {};\n');
+  writeFileSync(
+    path.join(dir, 'app/sw.js'),
+    'console.log(self.__WB_MANIFEST, self.__MINDROOM_BUILD_INVENTORY);\n'
+  );
+  // A client plugin with installed packages but no lockfile, which the third-party notices refuse.
+  const plugin = path.join(dir, 'plugin');
+  mkdirSync(path.join(plugin, 'node_modules/dep'), { recursive: true });
+  writeFileSync(
+    path.join(plugin, 'package.json'),
+    JSON.stringify({
+      name: 'no-lockfile',
+      version: '1.0.0',
+      mindroomClientPlugin: { id: 'no-lockfile', apiVersion: 1, entry: './index.js' },
+    })
+  );
+  writeFileSync(path.join(plugin, 'index.js'), 'export default {};\n');
+  writeFileSync(
+    path.join(plugin, 'node_modules/dep/package.json'),
+    JSON.stringify({ name: 'dep', version: '1.0.0', license: 'MIT' })
+  );
+
+  /** A build with the plan and the service worker build wired as vite.config.js wires them. */
+  const buildWith = (failing: Plugin, outDir = dist) => {
+    const startup = startupPrecache({
+      startupModules: [],
+      shellFiles: ['index.html'],
+      localeOverlay: /^$/,
+    });
+    return build({
+      configFile: false,
+      root: path.join(dir, 'app'),
+      logLevel: 'silent',
+      plugins: [
+        failing,
+        startup.plugin,
+        startup.afterWrittenBundle(
+          VitePWA({
+            strategies: 'injectManifest',
+            srcDir: path.join(dir, 'app'),
+            filename: 'sw.js',
+            injectManifest: {
+              rollupFormat: 'iife',
+              injectionPoint: 'self.__WB_MANIFEST',
+              manifestTransforms: [startup.manifestTransform],
+              buildPlugins: { vite: [startup.workerPlugin] },
+            },
+            devOptions: { enabled: false },
+            injectRegister: false,
+            manifest: false,
+          })
+        ),
+      ],
+      build: { outDir },
+    });
+  };
+
+  it("ends with the third-party notices' refusal of a client plugin without a lockfile", async () => {
+    vi.stubEnv('MINDROOM_CLIENT_PLUGINS', plugin);
+    try {
+      await expect(buildWith(thirdPartyNoticesPlugin())).rejects.toThrow(
+        `MINDROOM_CLIENT_PLUGINS: ${plugin}: has node_modules but no package-lock.json`
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  }, 60_000);
+
+  it.each(['buildStart', 'buildEnd', 'generateBundle'])(
+    'ends with its own error when it fails in %s, and writes no worker over an earlier build',
+    async (hook) => {
+      // Outside the root, where Vite keeps an earlier build's files unless told to empty it.
+      const kept = path.join(dir, `kept-${hook}`);
+      mkdirSync(kept);
+      writeFileSync(path.join(kept, 'sw.js'), 'the earlier build');
+      const fail = () => {
+        throw new Error(`the build failed in ${hook}`);
+      };
+      await expect(buildWith({ name: 'fails', [hook]: fail }, kept)).rejects.toThrow(
+        `the build failed in ${hook}`
+      );
+      expect(readFileSync(path.join(kept, 'sw.js'), 'utf8')).toBe('the earlier build');
+    },
+    60_000
+  );
+
+  it('builds the worker, with the inventory, once the bundle is written', async () => {
+    await buildWith({ name: 'passes' });
+    const worker = readFileSync(path.join(dist, 'sw.js'), 'utf8');
+    expect(worker).not.toContain('__MINDROOM_BUILD_INVENTORY');
+    expect(worker).toMatch(/"?files"?:\[/);
+  }, 60_000);
 });
