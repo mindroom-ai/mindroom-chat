@@ -70,17 +70,17 @@ export function ThreadView({ room, threadId }: { room: Room; threadId: string })
   const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
   const composerShown = !tombstone && permissions.event('m.room.message', client.getSafeUserId());
 
-  // Notifications count the thread as on screen while the view shows it: not while the side
-  // panel it is in is folded to its tab, which keeps it mounted out of sight.
+  // The view shows, for read receipts and notifications, while it is mounted, but not while the
+  // side panel it is in is folded to its tab, which keeps it mounted out of sight.
   const folded = usePanelFrame()?.layout === 'folded';
   const setShownViews = useSetAtom(shownConversationViewsAtom);
   const { roomId } = room;
   useEffect(() => {
     if (folded) return undefined;
-    const place = { roomId, threadId };
+    const place = { view, roomId, threadId };
     setShownViews((shown) => [...shown, place]);
     return () => setShownViews((shown) => shown.filter((other) => other !== place));
-  }, [folded, roomId, setShownViews, threadId]);
+  }, [folded, roomId, setShownViews, threadId, view]);
 
   const focusConversation = useCallback(() => ReactEditor.focus(editor as ReactEditor), [editor]);
 

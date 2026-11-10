@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useMemo } from 'react';
 import { atom, useAtomValue, type Atom } from 'jotai';
 import { conversationHiddenAtom, conversationOutOfSightAtom } from './conversationCover';
 import { phoneNavDrawerOpenAtom } from './phoneNavDrawer';
@@ -30,11 +30,27 @@ export const useConversationHidden = (): boolean => {
 };
 
 /**
- * The atom saying whether this conversation is out of sight (`conversationOutOfSightAtom` on the
- * room's page); another view is only under a phone's navigation drawer.
+ * Each other view on screen now, with the room and thread it shows: notifications count those as
+ * on screen. A view lists itself while it shows (room/ThreadView.tsx).
  */
-export const useConversationOutOfSightAtom = (): Atom<boolean> =>
-  useInConversationView() ? phoneNavDrawerOpenAtom : conversationOutOfSightAtom;
+export const shownConversationViewsAtom = atom<readonly (ViewedPlace & { view: string })[]>([]);
 
-/** The room and thread of each other view mounted now, which notifications count as on screen. */
-export const shownConversationViewsAtom = atom<readonly ViewedPlace[]>([]);
+/**
+ * The atom saying whether this conversation is out of sight (`conversationOutOfSightAtom` on the
+ * room's page); another view is while it does not show (`shownConversationViewsAtom`) or a phone's
+ * navigation drawer covers it.
+ */
+export const useConversationOutOfSightAtom = (): Atom<boolean> => {
+  const view = useContext(ConversationViewContext);
+  return useMemo(
+    () =>
+      view === undefined
+        ? conversationOutOfSightAtom
+        : atom(
+            (get) =>
+              get(phoneNavDrawerOpenAtom) ||
+              !get(shownConversationViewsAtom).some((shown) => shown.view === view)
+          ),
+    [view]
+  );
+};

@@ -15,7 +15,10 @@ import {
   conversationBehindPanelAtom,
   conversationCoveredAtom,
 } from '../navigation/conversationCover';
-import { ConversationViewContext } from '../navigation/conversationView';
+import {
+  ConversationViewContext,
+  shownConversationViewsAtom,
+} from '../navigation/conversationView';
 
 vi.mock('../notifications/readReceipts', () => ({
   markMainTimelineAsRead: vi.fn(),
@@ -499,10 +502,26 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
       }
     });
 
-    it("is read in another conversation view while a side panel hides the room's page", () => {
+    it("is read in another conversation view while a side panel hides the room's page, and not while that view does not show", () => {
       const store = getDefaultStore();
       act(() => store.set(conversationBehindPanelAtom, true));
       try {
+        // Mounted, the view does not show yet: a folded side panel keeps it out of sight.
+        act(() => {
+          probe = create(
+            <ConversationViewContext.Provider value="thread-view">
+              <Probe options={optionsWith(openThread)} />
+            </ConversationViewContext.Provider>
+          );
+        });
+        runFrames();
+        expect(markThreadAsRead).not.toHaveBeenCalled();
+        act(() => probe?.unmount());
+        act(() =>
+          store.set(shownConversationViewsAtom, [
+            { view: 'thread-view', roomId: room.roomId, threadId: '$thread' },
+          ])
+        );
         act(() => {
           probe = create(
             <ConversationViewContext.Provider value="thread-view">
@@ -536,6 +555,7 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
       } finally {
         act(() => store.set(conversationBehindPanelAtom, false));
         act(() => store.set(phoneNavDrawerOpenAtom, false));
+        act(() => store.set(shownConversationViewsAtom, []));
       }
     });
 

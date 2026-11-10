@@ -310,7 +310,9 @@ describe('MessageNotificationsFeature', () => {
 
   it("stays quiet for a thread another conversation view shows, also behind the room's page, but not under a phone's drawer", () => {
     const store = createStore();
-    store.set(shownConversationViewsAtom, [{ roomId: ROOM, threadId: '$root' }]);
+    store.set(shownConversationViewsAtom, [
+      { view: 'thread-view', roomId: ROOM, threadId: '$root' },
+    ]);
     store.set(conversationBehindPanelAtom, true);
     const inThread = (body: string) =>
       message({

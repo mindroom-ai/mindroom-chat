@@ -199,7 +199,7 @@ it('is a conversation view of its own, apart from the room page and from another
 it('counts its thread as on screen for notifications while it is mounted', () => {
   const store = getDefaultStore();
   const { unmount } = render(<ThreadView room={room} threadId={THREAD} />);
-  expect(store.get(shownConversationViewsAtom)).toEqual([
+  expect(store.get(shownConversationViewsAtom)).toMatchObject([
     { roomId: room.roomId, threadId: THREAD },
   ]);
   unmount();
@@ -220,7 +220,7 @@ it('counts its thread as off screen while the side panel it is in is folded', ()
       <ThreadView room={room} threadId={THREAD} />
     </PanelFrameProvider>
   );
-  expect(store.get(shownConversationViewsAtom)).toEqual([
+  expect(store.get(shownConversationViewsAtom)).toMatchObject([
     { roomId: room.roomId, threadId: THREAD },
   ]);
   unmount();
