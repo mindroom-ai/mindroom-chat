@@ -6,8 +6,8 @@ import type { ViewedPlace } from './viewedPlace';
 
 /**
  * A conversation the page shows besides the room page's own, such as a client plugin's thread view
- * (room/ThreadView.tsx), named by a key of its own. Its composer has a reply and staged files of
- * its own, which no reload keeps, and it is out of sight only while it does not show or under a
+ * (room/ThreadView.tsx, keyed by its thread). Its composer has a reply and staged files of its own,
+ * which no reload keeps; it is hidden while it does not show, and also out of sight under a
  * phone's navigation drawer. Without one, a timeline and its composer are the room page's.
  */
 export const ConversationViewContext = createContext<string | undefined>(undefined);
@@ -21,19 +21,21 @@ export const useInConversationView = (): boolean =>
   useContext(ConversationViewContext) !== undefined;
 
 /**
- * Whether this conversation is hidden: the room's page under a plugin's cover or behind a side
- * panel (`conversationHiddenAtom`). Another view is never hidden that way.
- */
-export const useConversationHidden = (): boolean => {
-  const hidden = useAtomValue(conversationHiddenAtom);
-  return !useInConversationView() && hidden;
-};
-
-/**
  * Each other view on screen now, with the room and thread it shows: notifications count those as
  * on screen. A view lists itself while it shows (room/ThreadView.tsx).
  */
 export const shownConversationViewsAtom = atom<readonly (ViewedPlace & { view: string })[]>([]);
+
+/**
+ * Whether this conversation is hidden: the room's page under a plugin's cover or behind a side
+ * panel (`conversationHiddenAtom`), another view while it does not show (a folded side panel).
+ */
+export const useConversationHidden = (): boolean => {
+  const view = useContext(ConversationViewContext);
+  const pageHidden = useAtomValue(conversationHiddenAtom);
+  const shown = useAtomValue(shownConversationViewsAtom);
+  return view === undefined ? pageHidden : !shown.some((place) => place.view === view);
+};
 
 /**
  * The atom saying whether this conversation is out of sight (`conversationOutOfSightAtom` on the

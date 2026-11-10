@@ -8,7 +8,10 @@ import {
   conversationBehindPanelAtom,
   conversationCoveredAtom,
 } from '../navigation/conversationCover';
-import { ConversationViewContext } from '../navigation/conversationView';
+import {
+  ConversationViewContext,
+  shownConversationViewsAtom,
+} from '../navigation/conversationView';
 import { useTypingStatusUpdater } from './useTypingStatusUpdater';
 
 const ROOM = '!garden:example.org';
@@ -93,11 +96,23 @@ describe.each([
     updater.unmount();
   });
 
-  it("keeps typing in another conversation view while the room's page is hidden", () => {
+  it("keeps typing in another conversation view while the room's page is hidden, and ends it as the view stops showing", () => {
+    const store = getDefaultStore();
+    act(() =>
+      store.set(shownConversationViewsAtom, [
+        { view: 'thread-view', roomId: ROOM, threadId: '$root' },
+      ])
+    );
     const updater = mountUpdater(false, 'thread-view');
-    act(() => getDefaultStore().set(atom, true));
+    act(() => store.set(atom, true));
     updater.type(true);
     expect(updater.calls).toEqual([[ROOM, true, TYPING_TIMEOUT_MS]]);
+    // Its side panel folds.
+    act(() => store.set(shownConversationViewsAtom, []));
+    expect(updater.calls).toEqual([
+      [ROOM, true, TYPING_TIMEOUT_MS],
+      [ROOM, false, TYPING_TIMEOUT_MS],
+    ]);
     updater.unmount();
   });
 });

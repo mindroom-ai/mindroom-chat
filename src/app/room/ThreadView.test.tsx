@@ -181,17 +181,20 @@ it("sets the room view's insets to none, as no floating header or composer cover
   );
 });
 
-it('is a conversation view of its own, apart from the room page and from another thread view', () => {
+it("is a conversation view of its thread, apart from the room page, so another view of the thread finds the thread's reply and staged files again", () => {
+  const { unmount } = render(<ThreadView room={room} threadId={THREAD} />);
+  unmount();
   render(
     <>
       <ThreadView room={room} threadId={THREAD} />
-      <ThreadView room={room} threadId={THREAD} />
+      <ThreadView room={room} threadId="$other" />
     </>
   );
-  const [first, second] = state.composerViews;
+  const [first, again, other] = state.composerViews;
   expect(first).toBeDefined();
-  expect(second).toBeDefined();
-  expect(first).not.toBe(second);
+  expect(again).toBe(first);
+  expect(other).toBeDefined();
+  expect(other).not.toBe(first);
 });
 
 it('counts its thread as on screen for notifications while it is mounted', () => {

@@ -1,4 +1,4 @@
-import { type CSSProperties, useCallback, useEffect, useId, useMemo, useRef } from 'react';
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSetAtom } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
@@ -46,7 +46,7 @@ const TIMELINE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
 
 /**
  * The app side of `ThreadView` in `@mindroom/client-sdk/room`, whose contract lives there and in
- * docs/architecture.md. It is a conversation view of its own (`ConversationViewContext`), shown
+ * docs/architecture.md. It is a conversation view of its thread (`ConversationViewContext`), shown
  * (`shownConversationViewsAtom`) while its side panel is not folded. Timeline and composer share
  * one editor, as in the room view; it has no filter bar or thread summaries, the whole view takes
  * dropped files, and it adds no key handling of its own.
@@ -54,7 +54,8 @@ const TIMELINE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
 export function ThreadView({ room, threadId }: { room: Room; threadId: string }) {
   const client = useMatrixClient();
   const editor = useEditor();
-  const view = useId();
+  // Its composer's reply and staged files are the thread's, in any view of it, until a reload.
+  const view = threadId;
   const viewRef = useRef<HTMLDivElement>(null);
   const members = useRoomMembers(client, room.roomId);
   const hasMindroomAgents = useMemo(() => hasActiveMindroomAgent(members), [members]);

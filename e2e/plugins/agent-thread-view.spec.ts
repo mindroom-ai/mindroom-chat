@@ -128,12 +128,12 @@ test("a plugin's panel shows a thread with its approvals and composer, as the ro
   // Reply on the root in the panel drafts in the panel's composer alone, and sends into the thread.
   const rootRow = messageRow(panel, rootId);
   const replyButton = rootRow.getByRole('button', { name: 'Reply', exact: true });
-  // Rows arriving below can move the root from under the pointer; hover it again until it shows.
+  // The panel follows its newest rows, which can scroll the root away from under the pointer;
+  // hover it again until its Reply takes the click.
   await expect(async () => {
     await rootRow.getByText(`${word} #approve`).hover();
-    await expect(replyButton).toBeVisible({ timeout: 2_000 });
+    await replyButton.click({ timeout: 2_000 });
   }).toPass({ timeout: 60_000 });
-  await replyButton.click();
   await expect(panel.getByRole('button', { name: 'Cancel reply' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Cancel reply' })).toHaveCount(1);
   await expect(box).toBeFocused();

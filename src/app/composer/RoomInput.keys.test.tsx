@@ -6,7 +6,11 @@ import { EventStatus, type Room } from 'matrix-js-sdk';
 import { UserMentionAutocomplete } from '../editor/autocomplete/UserMentionAutocomplete';
 import { ThreadModelPicker } from '../models/ModelPicker';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
-import { ConversationViewContext, composerStateKey } from '../navigation/conversationView';
+import {
+  ConversationViewContext,
+  composerStateKey,
+  shownConversationViewsAtom,
+} from '../navigation/conversationView';
 import { roomIdToReplyDraftAtomFamily } from './roomInputDrafts';
 import { RoomInputReplyPreview } from './RoomInputReplyPreview';
 import type { SlashCommand } from './commands/useCommands';
@@ -267,6 +271,7 @@ describe('composer', () => {
 
   it("keeps the mention menu and the model picker of another conversation view open as a side panel hides the room's page", async () => {
     const store = createStore();
+    store.set(shownConversationViewsAtom, [{ view: VIEW, roomId: '!room:example.org' }]);
     await mountComposer([], { store, view: VIEW });
     act(() => store.set(conversationBehindPanelAtom, true));
     expect(renderer!.root.findAllByType(UserMentionAutocomplete)).toHaveLength(1);
