@@ -53,15 +53,13 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
 
-    // The pinch under way, from the touch event that brings a second finger down until fewer
-    // than two are: how many fingers are down, and whether a pinch surface owns it. Each touch
-    // event that reaches the window sets the count from its `touches`; a finger whose element
-    // went is still counted there, and the pinch keeps the owner it started with. When every
-    // finger's element went, no touch event comes, but each finger's pointer still ends on
-    // the window, and so does the gesture; a touch pointer that ends with fewer than two left down,
-    // or the gesture's end, forgets the pinch and its gesture, so nothing outlives it. The touch
-    // pointers down are kept apart from the count, so a finger that lifts counts once, whichever
-    // of its two events comes first.
+    // The pinch under way: how many fingers are down, by each touch event's `touches`, and
+    // whether a pinch surface owns it, decided as the second finger lands. A pinch ends only in
+    // forgetPinch, which drops its gesture's start too, at the first of: a touch event with fewer
+    // than two fingers, the gesture's end, and a touch pointer end that leaves fewer than two
+    // down. The pointers are a set of their own, so a finger counts once whichever of its events
+    // comes first, and they end on the window even when every finger's element went and no touch
+    // event comes, so nothing outlives the pinch.
     let fingers = 0;
     let surfacePinch = false;
     const pointersDown = new Set<number>();
@@ -75,11 +73,13 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
     /** Follows the fingers of `event`; true while the pinch they make is a surface's. */
     const followFingers = (event: TouchEvent): boolean => {
       const pinchStarts = fingers < 2 && event.touches.length >= 2;
+      // Fewer than two fingers are down: the pinch has ended, and its gesture, whose end may
+      // have been lost, with it.
+      if (fingers >= 2 && event.touches.length < 2) forgetPinch();
       fingers = event.touches.length;
       // No finger is down: a pointer whose end the window never saw is not down either.
       if (fingers === 0) pointersDown.clear();
-      if (fingers < 2) surfacePinch = false;
-      else if (pinchStarts && surfaceOwns(event.touches)) {
+      if (pinchStarts && surfaceOwns(event.touches)) {
         surfacePinch = true;
         // A start an earlier pinch left, whose ends were lost, never zooms these fingers later.
         touchStartDistanceRef.current = null;

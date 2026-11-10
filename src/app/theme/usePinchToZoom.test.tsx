@@ -581,6 +581,23 @@ describe('usePinchToZoom', () => {
       expect(setPageZoom).not.toHaveBeenCalled();
     });
 
+    it('starts no gesture from the start of a pinch that the next touch shows ended', () => {
+      const { setPageZoom } = mount(100);
+      const { inside, outside } = pinchSurface();
+
+      // The page's pinch and its gesture; their ends are lost, and no pointer event comes.
+      touch('touchstart', [[0, 0, outside]]);
+      touch('touchstart', spread(outside, outside, 100));
+      gesture('gesturestart', 1, outside);
+      // A finger lands alone: that pinch is over.
+      touch('touchstart', [[0, 0, inside]]);
+      const change = gesture('gesturechange', 1.5, inside);
+      flushFrames();
+
+      expect(change.defaultPrevented).toBe(false);
+      expect(setPageZoom).not.toHaveBeenCalled();
+    });
+
     it('keeps zooming the page through a trackpad pinch while a mouse button comes and goes', () => {
       const { setPageZoom } = mount(100);
       const { outside } = pinchSurface();
