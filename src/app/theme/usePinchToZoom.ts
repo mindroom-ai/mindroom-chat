@@ -5,6 +5,16 @@ import { sanitizeZoom } from '../preferences/settings';
 const WHEEL_ZOOM_SENSITIVITY = 0.02;
 // Ctrl with the wheel has no end: a surface's pinch from it ends once the wheel rests this long.
 const WHEEL_PINCH_REST_MS = 200;
+// One notch of a mouse wheel, as Chromium sends it in pixels. A wheel that sends lines sends three
+// a notch, and one that sends pages one, so each counts as this share of a notch.
+const WHEEL_NOTCH_PX = 100;
+
+/** Ctrl with the wheel's `deltaY` in pixels, so a notch zooms one step in every `deltaMode`. */
+const wheelPixels = ({ deltaY, deltaMode }: WheelEvent): number => {
+  if (deltaMode === WheelEvent.DOM_DELTA_LINE) return (deltaY * WHEEL_NOTCH_PX) / 3;
+  if (deltaMode === WheelEvent.DOM_DELTA_PAGE) return deltaY * WHEEL_NOTCH_PX;
+  return deltaY;
+};
 
 /**
  * Marks an element that handles pinches over it itself, such as the image viewer or a plugin's
@@ -287,12 +297,12 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
 
     // A surface's pinch from ctrl and the wheel: their deltas, folded into one scale as Chromium
     // makes them from a trackpad's.
-    const handWheel = (surface: Element, event: WheelEvent) => {
+    const handWheel = (surface: Element, event: WheelEvent, deltaY: number) => {
       const centre = { x: event.clientX, y: event.clientY };
       const goesOn = handed?.from === 'wheel' && handed.surface === surface;
       if (!goesOn && !startHanded(surface, 'wheel', centre)) return;
       if (event.cancelable) event.preventDefault();
-      moveHanded((handed?.last.scale ?? 1) * Math.exp(-event.deltaY / 100), centre);
+      moveHanded((handed?.last.scale ?? 1) * Math.exp(-deltaY / 100), centre);
       window.clearTimeout(wheelRest);
       wheelRest = window.setTimeout(() => {
         if (handed?.from === 'wheel') endHanded();
@@ -301,14 +311,15 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
 
     const handleWheel = (event: WheelEvent) => {
       if (!event.ctrlKey || !Number.isFinite(event.deltaY)) return;
+      const deltaY = wheelPixels(event);
       const surface = surfaceAt(event.target);
       if (surface !== null) {
-        handWheel(surface, event);
+        handWheel(surface, event, deltaY);
         return;
       }
       if (event.cancelable) event.preventDefault();
 
-      wheelDeltaRef.current += -event.deltaY * WHEEL_ZOOM_SENSITIVITY;
+      wheelDeltaRef.current += -deltaY * WHEEL_ZOOM_SENSITIVITY;
       const wholeDelta =
         wheelDeltaRef.current > 0
           ? Math.floor(wheelDeltaRef.current)
