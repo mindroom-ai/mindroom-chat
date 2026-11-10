@@ -9,9 +9,11 @@ import { IconTooltip } from '../ui/IconTooltip';
 import { useMediaConfig } from '../matrix/hooks/useMediaConfig';
 import {
   type PendingVoiceSendContext,
+  openVoiceRecorderAtom,
   pendingVoiceSendDraftAtom,
   roomUploadAtomFamily,
   voiceAutoSendPendingAtom,
+  voiceComposerKey,
 } from './roomInputDrafts';
 import { TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { pauseAllMediaElements } from '../lib/dom';
@@ -39,7 +41,7 @@ import { revealDirectionControls } from '../ui/directional';
 type VoiceComposerAdapter = {
   getContext: () => Pick<
     PendingVoiceSendContext,
-    'roomId' | 'room' | 'threadId' | 'replyDraft' | 'threadingEnabled'
+    'roomId' | 'room' | 'threadId' | 'replyDraft' | 'threadingEnabled' | 'threadView'
   >;
   snapshotText: () => Descendant[];
   resetText: () => void;
@@ -49,7 +51,8 @@ type VoiceComposerAdapter = {
 
 type UseRoomInputVoiceOptions = {
   mx: MatrixClient;
-  roomId: string;
+  /** This composer's `voiceComposerKey`: a failed send recorded here comes back here. */
+  composerKey: string;
   composer: VoiceComposerAdapter;
   attachments: RoomInputAttachmentAccess;
   transport: Pick<
@@ -84,7 +87,7 @@ type PendingVoiceComposerBundle = {
 
 export const useRoomInputVoice = ({
   mx,
-  roomId,
+  composerKey,
   composer: { getContext, snapshotText, resetText, restoreText, clearConsumedReply },
   attachments: attachmentAccess,
   transport: { createVoiceUploadItems, uploadItem, uploadItemWhileStaged, sendVoiceItem },
@@ -107,7 +110,7 @@ export const useRoomInputVoice = ({
   const draftBelongsToCurrentSession =
     !!pendingVoiceSendDraft && pendingVoiceSendDraft.context.ownerSessionId === currentSessionId;
   const ownsPendingVoiceDraft =
-    draftBelongsToCurrentSession && pendingVoiceSendDraft?.context.roomId === roomId;
+    draftBelongsToCurrentSession && voiceComposerKey(pendingVoiceSendDraft.context) === composerKey;
   const otherRoomOwnsPendingVoiceDraft = draftBelongsToCurrentSession && !ownsPendingVoiceDraft;
   const otherPendingVoiceRoomName =
     otherRoomOwnsPendingVoiceDraft && pendingVoiceSendDraft
@@ -144,13 +147,30 @@ export const useRoomInputVoice = ({
     previousPendingDraftRef.current = pendingVoiceSendDraft;
     if (
       previous &&
-      previous.context.roomId === roomId &&
+      voiceComposerKey(previous.context) === composerKey &&
       !pendingVoiceSendDraft &&
       voiceRecorderOpen
     ) {
       setVoiceRecorderOpen(false);
     }
-  }, [pendingVoiceSendDraft, roomId, voiceRecorderOpen]);
+  }, [composerKey, pendingVoiceSendDraft, voiceRecorderOpen]);
+
+  // One recorder is open at a time: opening one in another composer closes this one, which ends
+  // its recording as leaving the room does.
+  const [recorderToken] = useState(() => Symbol('voice recorder'));
+  const openRecorder = useAtomValue(openVoiceRecorderAtom);
+  useEffect(() => {
+    if (!voiceRecorderOpen) return undefined;
+    store.set(openVoiceRecorderAtom, recorderToken);
+    return () => {
+      if (store.get(openVoiceRecorderAtom) === recorderToken) {
+        store.set(openVoiceRecorderAtom, undefined);
+      }
+    };
+  }, [recorderToken, store, voiceRecorderOpen]);
+  useEffect(() => {
+    if (openRecorder !== undefined && openRecorder !== recorderToken) setVoiceRecorderOpen(false);
+  }, [openRecorder, recorderToken]);
 
   // Discard any orphaned draft. Three cases:
   //   1. Account-switch leak: the atom is module-level and survives
@@ -457,7 +477,7 @@ export const useRoomInputVoice = ({
       const context = getContext();
       const companionItems = attachmentAccess.snapshot().staged;
       pendingVoiceComposerBundleRef.current = {
-        roomId,
+        roomId: context.roomId,
         composerThreadId: context.threadId,
         // A live recording follows the reply/thread visible when primary Send is pressed.
         // A parked retry keeps the durable context captured with the failed recording.
@@ -489,7 +509,7 @@ export const useRoomInputVoice = ({
 
       return true;
     },
-    [attachmentAccess, getContext, ownsPendingVoiceDraft, roomId, snapshotText, voiceRecorderOpen]
+    [attachmentAccess, getContext, ownsPendingVoiceDraft, snapshotText, voiceRecorderOpen]
   );
 
   const renderRecorder = (onRetryRequest: () => void): React.ReactNode =>

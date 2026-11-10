@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Editor, createEditor } from 'slate';
+import type { Room } from 'matrix-js-sdk';
 import {
   AutocompletePrefix,
   type AutocompleteQuery,
@@ -7,6 +8,7 @@ import {
 import {
   createRoomInputPasteMarkerElement,
   getRoomInputPasteMarkerFileNames,
+  getRoomInputVoiceSendContext,
   isRoomInputAutocompleteQuery,
   RoomInputAutocomplete,
   RoomInputReplyContext,
@@ -142,5 +144,21 @@ describe('RoomInputMindroomExtensions', () => {
     removeRoomInputPasteMarkerElements(editor, new Set(['mindroom-paste-a3f19c.txt']));
 
     expect(getRoomInputPasteMarkerFileNames(editor.children)).toEqual(new Set());
+  });
+
+  it("marks a voice message recorded in a thread's own view as that view's", () => {
+    const room = { roomId: '!room:example.org', getMembers: () => [] } as unknown as Room;
+    const base = {
+      ownerSessionId: '@me:example.org',
+      roomId: room.roomId,
+      room,
+      threadId: '$thread',
+      replyDraft: undefined,
+    };
+
+    expect(getRoomInputVoiceSendContext({ ...base, threadView: true }).threadView).toBe(true);
+    expect(getRoomInputVoiceSendContext({ ...base, threadView: false })).not.toHaveProperty(
+      'threadView'
+    );
   });
 });

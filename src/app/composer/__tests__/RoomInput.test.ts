@@ -15,6 +15,7 @@ import {
   voiceAutoSendPendingAtom,
 } from '../roomInputDrafts';
 import { TUploadItem, Upload, UploadStatus } from '../../matrix/state/upload';
+import { ConversationViewContext } from '../../navigation/conversationView';
 import { VOICE_WAVEFORM_BAR_COUNT } from '../../lib/audioWaveform';
 import {
   getMatrixUploadErrorMessage,
@@ -123,7 +124,7 @@ const {
     decryptAttachment: vi.fn(),
   },
   voiceRecorderState: {
-    send: vi.fn(async () => false),
+    send: vi.fn<(view?: string) => Promise<boolean>>(async () => false),
     props: undefined as
       | {
           active?: boolean;
@@ -144,6 +145,8 @@ const {
           getSendContext: () => unknown;
         }
       | undefined,
+    // The mounted recorders, by the conversation view of their composer (none: the room page's).
+    byView: new Map<string | undefined, any>(),
   },
 }));
 
@@ -442,9 +445,7 @@ vi.mock('../commands/useCommands', () => ({
 vi.mock('../commands/agentCommandQuery', () => ({ getAgentCommandQuery: () => undefined }));
 vi.mock('../RoomInputExtensions', async () => {
   const { createRoomInputSendSessionState, getUploadRelationForSendSession } =
-    await vi.importActual<typeof import('../roomInputSendSession')>(
-      '../roomInputSendSession'
-    );
+    await vi.importActual<typeof import('../roomInputSendSession')>('../roomInputSendSession');
 
   return {
     createRoomInputPasteMarkerElement: (marker: {
@@ -495,6 +496,7 @@ vi.mock('../RoomInputExtensions', async () => {
       threadId,
       replyDraft,
       threadingEnabled = true,
+      threadView,
     }: {
       ownerSessionId: string;
       roomId: string;
@@ -502,6 +504,7 @@ vi.mock('../RoomInputExtensions', async () => {
       threadId: string | undefined;
       replyDraft: IReplyDraft | undefined;
       threadingEnabled?: boolean;
+      threadView?: boolean;
     }) => ({
       ownerSessionId,
       roomId,
@@ -510,6 +513,7 @@ vi.mock('../RoomInputExtensions', async () => {
       replyDraft,
       threadingEnabled,
       signalBridgedRoom: false,
+      ...(threadView && { threadView }),
     }),
     refreshRoomInputVoiceSendContext: (
       mxClient: { getRoom: (roomId: string) => unknown },
@@ -580,7 +584,8 @@ vi.mock('../RoomInputExtensions', async () => {
   };
 });
 
-vi.mock('../voice/VoiceRecorderDialog', () => {
+vi.mock('../voice/VoiceRecorderDialog', async () => {
+  const { ConversationViewContext } = await import('../../navigation/conversationView');
   return {
     VoiceRecorderComposer: React.forwardRef(
       (
@@ -616,8 +621,11 @@ vi.mock('../voice/VoiceRecorderDialog', () => {
           onSendRecording: (file, duration, waveform, context) =>
             onSendRecording(file, duration, waveform, context ?? getSendContext()),
         };
+        const view = React.useContext(ConversationViewContext);
+        voiceRecorderState.byView.set(view, voiceRecorderState.props);
+        React.useEffect(() => () => void voiceRecorderState.byView.delete(view), [view]);
         React.useImperativeHandle(ref, () => ({
-          send: () => voiceRecorderState.send(),
+          send: () => voiceRecorderState.send(view),
         }));
         return React.createElement('div');
       }
@@ -867,6 +875,7 @@ const openVoiceRecorder = async (renderer: ReactTestRenderer) => {
 
 afterEach(() => {
   voiceRecorderState.props = undefined;
+  voiceRecorderState.byView.clear();
   voiceRecorderState.send.mockReset();
   voiceRecorderState.send.mockResolvedValue(false);
   customEditorState.autocompleteQuery = undefined;
@@ -3758,5 +3767,232 @@ describe('RoomInput', () => {
     expect(store.get(roomIdToReplyDraftAtomFamily(ROOM_ID))).toEqual(newerReplyDraft);
 
     renderer.unmount();
+  });
+
+  describe('in a thread view beside the room page', () => {
+    const VIEW = 'thread-view';
+    const VIEW_THREAD = '$view-thread';
+
+    // The room page's composer and, unless closed, a thread view's composer of the same room.
+    const composersTree = (
+      store: ReturnType<typeof createStore>,
+      view: { key?: string; threadId?: string } | null = {}
+    ) =>
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(
+          'section',
+          { 'data-composer': 'page' },
+          React.createElement(RoomInput, {
+            editor: createEditor(),
+            fileDropContainerRef: createRef<HTMLElement>(),
+            roomId: ROOM_ID,
+            room: createRoom(ROOM_ID),
+          })
+        ),
+        view &&
+          React.createElement(
+            'section',
+            { 'data-composer': 'view', key: view.key ?? VIEW },
+            React.createElement(
+              ConversationViewContext.Provider,
+              { value: view.key ?? VIEW },
+              React.createElement(RoomInput, {
+                editor: createEditor(),
+                fileDropContainerRef: createRef<HTMLElement>(),
+                roomId: ROOM_ID,
+                room: createRoom(ROOM_ID),
+                threadId: view.threadId ?? VIEW_THREAD,
+              })
+            )
+          )
+      );
+    const renderComposers = async (store: ReturnType<typeof createStore>) => {
+      let renderer!: ReactTestRenderer;
+      await act(async () => {
+        renderer = create(composersTree(store));
+      });
+      return renderer;
+    };
+    const composer = (renderer: ReactTestRenderer, name: 'page' | 'view') =>
+      renderer.root.find((node) => node.props['data-composer'] === name);
+    const micOf = (renderer: ReactTestRenderer, name: 'page' | 'view') =>
+      composer(renderer, name).find(
+        (node) =>
+          node.type === 'button' &&
+          typeof node.props['aria-label'] === 'string' &&
+          (node.props['aria-label'].startsWith('Record voice message') ||
+            node.props['aria-label'].startsWith('Voice recording paused'))
+      );
+    const sendOf = (renderer: ReactTestRenderer, name: 'page' | 'view') =>
+      composer(renderer, name).find(
+        (node) => node.type === 'button' && node.props['aria-label'] === 'Send message'
+      );
+    const openRecorder = async (renderer: ReactTestRenderer, name: 'page' | 'view') => {
+      await act(async () => {
+        micOf(renderer, name).props.onClick();
+      });
+    };
+    // The next Send of a recorder sends this recording, from the composer it was pressed in.
+    const queueSend = (file: File) => {
+      voiceRecorderState.send.mockImplementationOnce(async (view?: string) => {
+        const recorder = voiceRecorderState.byView.get(view);
+        if (recorder.onSendStopRequest?.() === false) return false;
+        try {
+          await recorder.onSendRecording(file, 900);
+          return true;
+        } catch (error) {
+          recorder.onSendStopFailure?.();
+          throw error;
+        }
+      });
+    };
+    const voiceFile = () => new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+
+    it('shows the microphone and sends a recording as a reply in its thread', async () => {
+      const store = createStore();
+      const renderer = await renderComposers(store);
+      expect(micOf(renderer, 'view').props.disabled).toBe(false);
+
+      await openRecorder(renderer, 'view');
+      queueSend(voiceFile());
+      await act(async () => {
+        await sendOf(renderer, 'view').props.onClick();
+      });
+
+      expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+      expect(mxState.sendMessage.mock.calls[0]?.[0]).toBe(ROOM_ID);
+      expect(mxState.sendMessage.mock.calls[0]?.[1]).toMatchObject({
+        msgtype: 'm.audio',
+        'm.relates_to': expect.objectContaining({
+          event_id: VIEW_THREAD,
+          rel_type: RelationType.Thread,
+        }),
+      });
+      act(() => renderer.unmount());
+    });
+
+    it('keeps a recording to its own composer, and one recorder open at a time', async () => {
+      const store = createStore();
+      const renderer = await renderComposers(store);
+
+      await openRecorder(renderer, 'view');
+      // The room page shows no recorder of its own and can still record.
+      expect([...voiceRecorderState.byView.keys()]).toEqual([VIEW]);
+      expect(micOf(renderer, 'page').props.disabled).toBe(false);
+
+      // Recording on the room page closes the view's recorder, as leaving its room does.
+      await openRecorder(renderer, 'page');
+      expect([...voiceRecorderState.byView.keys()]).toEqual([undefined]);
+      expect(micOf(renderer, 'view').props.disabled).toBe(false);
+
+      // The page's Send sends the page's recording, at the room's root; the view's sends nothing.
+      await act(async () => {
+        await sendOf(renderer, 'view').props.onClick();
+      });
+      expect(voiceRecorderState.send).not.toHaveBeenCalled();
+      queueSend(voiceFile());
+      await act(async () => {
+        await sendOf(renderer, 'page').props.onClick();
+      });
+      expect(voiceRecorderState.send).toHaveBeenCalledWith(undefined);
+      expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+      expect(mxState.sendMessage.mock.calls[0]?.[1]).not.toHaveProperty('m.relates_to');
+      act(() => renderer.unmount());
+    });
+
+    it("brings a failed send back in a view of its thread only, never on the room's page", async () => {
+      const store = createStore();
+      const renderer = await renderComposers(store);
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      await openRecorder(renderer, 'view');
+      const file = voiceFile();
+      queueSend(file);
+      mxState.uploadContent.mockRejectedValueOnce(new Error('offline'));
+      await act(async () => {
+        await expect(sendOf(renderer, 'view').props.onClick()).rejects.toBeDefined();
+      });
+      // The recorder keeps the recording it failed to send (useVoiceRecorder does that).
+      const context = voiceRecorderState.byView.get(VIEW).getSendContext();
+      await act(async () => {
+        store.set(pendingVoiceSendDraftAtom, { file, duration: 900, context });
+      });
+      expect(context).toMatchObject({ roomId: ROOM_ID, threadId: VIEW_THREAD, threadView: true });
+
+      // Closed, the view keeps it waiting; the room page neither shows nor records over it.
+      await act(async () => {
+        renderer.update(composersTree(store, null));
+      });
+      expect(voiceRecorderState.byView.has(undefined)).toBe(false);
+      expect(micOf(renderer, 'page').props.disabled).toBe(true);
+
+      // A view of another thread does not take it either.
+      await act(async () => {
+        renderer.update(composersTree(store, { key: 'other-view', threadId: '$other-thread' }));
+      });
+      expect(voiceRecorderState.byView.size).toBe(0);
+
+      // A view of its thread, opened anew (as after a reload), shows it again.
+      await act(async () => {
+        renderer.update(composersTree(store, { key: 'reopened-view' }));
+      });
+      expect([...voiceRecorderState.byView.keys()]).toEqual(['reopened-view']);
+      expect(voiceRecorderState.byView.get('reopened-view').active).toBe(true);
+      expect(micOf(renderer, 'view').props.disabled).toBe(true);
+      expect(micOf(renderer, 'page').props.disabled).toBe(true);
+
+      // Sent or discarded, it leaves that view's recorder closed.
+      await act(async () => {
+        store.set(pendingVoiceSendDraftAtom, undefined);
+      });
+      expect(voiceRecorderState.byView.size).toBe(0);
+      expect(micOf(renderer, 'page').props.disabled).toBe(false);
+      consoleError.mockRestore();
+      act(() => renderer.unmount());
+    });
+
+    it("sends the view's typed text with its recording, both into its thread", async () => {
+      const store = createStore();
+      const renderer = await renderComposers(store);
+      stageComposerText('thread caption');
+      resetEditorOnNextSend();
+      await openRecorder(renderer, 'view');
+      queueSend(voiceFile());
+      await act(async () => {
+        await sendOf(renderer, 'view').props.onClick();
+      });
+
+      expect(
+        mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+      ).toEqual(['voice.m4a', 'thread caption']);
+      mxState.sendMessage.mock.calls.forEach((call) => {
+        expect(call[1]).toMatchObject({
+          'm.relates_to': expect.objectContaining({
+            event_id: VIEW_THREAD,
+            rel_type: RelationType.Thread,
+          }),
+        });
+      });
+      act(() => renderer.unmount());
+    });
+
+    it('ends a recording when its view closes, and sends nothing', async () => {
+      const store = createStore();
+      const renderer = await renderComposers(store);
+      await openRecorder(renderer, 'view');
+      expect(voiceRecorderState.byView.has(VIEW)).toBe(true);
+
+      await act(async () => {
+        renderer.update(composersTree(store, null));
+      });
+
+      expect(voiceRecorderState.byView.size).toBe(0);
+      expect(micOf(renderer, 'page').props.disabled).toBe(false);
+      expect(voiceRecorderState.send).not.toHaveBeenCalled();
+      expect(mxState.uploadContent).not.toHaveBeenCalled();
+      expect(mxState.sendMessage).not.toHaveBeenCalled();
+      act(() => renderer.unmount());
+    });
   });
 });

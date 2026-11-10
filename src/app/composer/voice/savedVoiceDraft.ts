@@ -30,6 +30,7 @@ type SavedVoiceDraft = {
   replyDraft?: IReplyDraft;
   threadingEnabled: boolean;
   signalBridgedRoom: boolean;
+  threadView?: boolean;
 };
 
 interface VoiceDraftDb extends DBSchema {
@@ -82,6 +83,7 @@ const saveVoiceDraft = async (userId: string, draft: PendingVoiceSendDraft): Pro
       replyDraft: replyDraftAtRest(userId, context.roomId, context.replyDraft),
       threadingEnabled: context.threadingEnabled,
       signalBridgedRoom: context.signalBridgedRoom,
+      threadView: context.threadView,
     })
   );
 };
@@ -116,6 +118,7 @@ export const useSavedVoiceDraft = (mx: MatrixClient): void => {
             replyDraft: saved.replyDraft,
             threadingEnabled: saved.threadingEnabled,
             signalBridgedRoom: saved.signalBridgedRoom,
+            ...(saved.threadView && { threadView: true }),
           },
         });
       })

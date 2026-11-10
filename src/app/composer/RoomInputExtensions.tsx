@@ -20,8 +20,7 @@ import type { TUploadContent } from '../matrix/matrix';
 import type { PasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
 
 export type RoomInputAutocompletePrefix = typeof MINDROOM_COMMAND_PREFIX;
-export type RoomInputAutocompleteQuery =
-  AutocompleteQuery<RoomInputAutocompletePrefix>;
+export type RoomInputAutocompleteQuery = AutocompleteQuery<RoomInputAutocompletePrefix>;
 
 type RoomInputAutocompleteProps = {
   editor: Editor;
@@ -53,6 +52,7 @@ export const getRoomInputVoiceSendContext = ({
   threadId,
   replyDraft,
   threadingEnabled = true,
+  threadView,
 }: {
   ownerSessionId: string;
   roomId: string;
@@ -60,6 +60,7 @@ export const getRoomInputVoiceSendContext = ({
   threadId: string | undefined;
   replyDraft: IReplyDraft | undefined;
   threadingEnabled?: boolean;
+  threadView?: boolean;
 }): PendingVoiceSendContext => ({
   ownerSessionId,
   roomId,
@@ -68,6 +69,7 @@ export const getRoomInputVoiceSendContext = ({
   replyDraft,
   threadingEnabled,
   signalBridgedRoom: isSignalBridgeRoom(room),
+  ...(threadView && { threadView }),
 });
 
 /**
@@ -111,9 +113,7 @@ export const getRoomInputVoiceUploadRelation = (
   return getUploadRelationForSendSession(session, false);
 };
 
-export const createRoomInputPasteMarkerElement = (
-  marker: PasteMarker
-): PasteMarkerElement => ({
+export const createRoomInputPasteMarkerElement = (marker: PasteMarker): PasteMarkerElement => ({
   type: BlockType.PasteMarker,
   id: marker.id,
   chars: marker.chars,
@@ -142,10 +142,7 @@ export const getRoomInputPasteMarkerFileNames = (nodes: Descendant[]): Set<strin
   return fileNames;
 };
 
-export const removeRoomInputPasteMarkerElements = (
-  editor: Editor,
-  fileNames: Set<string>
-) => {
+export const removeRoomInputPasteMarkerElements = (editor: Editor, fileNames: Set<string>) => {
   if (fileNames.size === 0) return;
 
   Transforms.removeNodes(editor, {
@@ -154,20 +151,13 @@ export const removeRoomInputPasteMarkerElements = (
   });
 };
 
-export function RoomInputAutocomplete({
-  editor,
-  query,
-  requestClose,
-}: RoomInputAutocompleteProps) {
+export function RoomInputAutocomplete({ editor, query, requestClose }: RoomInputAutocompleteProps) {
   if (!isRoomInputAutocompleteQuery(query)) return null;
 
   return <AgentCommandAutocomplete editor={editor} query={query} requestClose={requestClose} />;
 }
 
-export function RoomInputThreadIndicator({
-  room,
-  relation,
-}: RoomInputThreadIndicatorProps) {
+export function RoomInputThreadIndicator({ room, relation }: RoomInputThreadIndicatorProps) {
   if (relation?.rel_type !== RelationType.Thread) return null;
 
   return <ThreadIndicator room={room} />;

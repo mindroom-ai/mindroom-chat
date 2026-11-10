@@ -44,6 +44,11 @@ export type PendingVoiceSendContext = {
   replyDraft: IReplyDraft | undefined;
   threadingEnabled: boolean;
   signalBridgedRoom: boolean;
+  /**
+   * Recorded in a thread's own view (room/ThreadView.tsx), not on the room's page: after a failed
+   * send it comes back in a view of that thread, never on the page.
+   */
+  threadView?: boolean;
 };
 
 export type PendingVoiceSendInFlight = {
@@ -337,6 +342,17 @@ export const pendingVoiceSendDraftAtom = atom<PendingVoiceSendDraft | undefined>
 
 /** True while a recorded voice message waits to be sent with the composer's attachments. */
 export const voiceAutoSendPendingAtom = atom(false);
+
+/** The composer a recorded voice message belongs to: its room's page or a view of its thread. */
+export const voiceComposerKey = ({
+  roomId,
+  threadId,
+  threadView,
+}: Pick<PendingVoiceSendContext, 'roomId' | 'threadId' | 'threadView'>): string =>
+  threadView ? JSON.stringify([roomId, threadId]) : roomId;
+
+/** The composer whose voice recorder is open, one at a time: opening another closes it. */
+export const openVoiceRecorderAtom = atom<symbol | undefined>(undefined);
 
 // What a reload would lose.
 
