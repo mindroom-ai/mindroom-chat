@@ -3,6 +3,7 @@ import {
   type DragEvent,
   type MouseEvent,
   type SyntheticEvent,
+  useContext,
   useRef,
   useState,
 } from 'react';
@@ -11,6 +12,7 @@ import { Box, Button, Text } from 'folds';
 import { ActionDialog } from '../ui/ActionDialog';
 import { MessageLink } from './MessageLink';
 import { linkTextMisleads } from './linkDestination';
+import { MessageLinkCardContext } from './messageLinkCards';
 
 /** The address as the browser will open it, so an encoded or punycode host shows as such. */
 const displayAddress = (href: string): string => {
@@ -38,6 +40,7 @@ export function CheckedMessageLink({ onClick, ...props }: ComponentProps<typeof 
   const [asking, setAsking] = useState(false);
   const anchor = useRef<HTMLAnchorElement | null>(null);
   const confirmed = useRef(false);
+  const showCard = useContext(MessageLinkCardContext);
 
   const misleads = (link: HTMLAnchorElement) =>
     !!href && linkTextMisleads(link.textContent ?? '', href);
@@ -57,6 +60,13 @@ export function CheckedMessageLink({ onClick, ...props }: ComponentProps<typeof 
       return;
     }
     ask(evt);
+    if (evt.defaultPrevented) return;
+    // A plain click on a link a plugin takes shows its card; a click that opens elsewhere follows the link.
+    if (evt.button !== 0 || evt.ctrlKey || evt.metaKey || evt.shiftKey || evt.altKey) return;
+    if (showCard?.(evt.currentTarget, href)) {
+      evt.preventDefault();
+      evt.stopPropagation();
+    }
   };
 
   // A middle click opens the link in a new tab.

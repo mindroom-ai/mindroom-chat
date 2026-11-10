@@ -80,7 +80,10 @@ vi.mock('../matrix/hooks/usePowerLevels', () => ({
   PowerLevelsContextProvider: ({ children }: { children: React.ReactNode }) => children,
   usePowerLevels: () => ({}),
 }));
-vi.mock('../config/useClientConfig', () => ({ useClientConfig: () => state.config }));
+vi.mock('../config/useClientConfig', () => ({
+  useClientConfig: () => state.config,
+  useOptionalClientConfig: () => state.config,
+}));
 vi.mock('../computer/useAgentServers', () => ({
   useRoomAgentServers: () => [],
   useBindsOpenIdTokens: () => false,

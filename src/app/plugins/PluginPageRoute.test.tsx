@@ -24,6 +24,7 @@ const plugin = (id: string, ...pages: PluginPage[]): RegisteredPlugin => ({
   headerActions: [],
   slashCommands: [],
   roomActions: [],
+  messageLinks: [],
 });
 
 /** A config.json with this `plugins` section. */
