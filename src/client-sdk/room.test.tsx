@@ -232,7 +232,7 @@ describe('useRoomNavigate', () => {
   }
 });
 
-describe('useOpenUserProfile and UserProfileCard', () => {
+describe('useOpenUserProfile, useShownUserProfile, useCloseUserProfile and UserProfileCard', () => {
   const ME = '@ada:example.org';
   const BOB = '@bob:example.org';
   const CAROL = '@carol:example.org';
@@ -333,10 +333,10 @@ describe('useOpenUserProfile and UserProfileCard', () => {
 
   it('names the floating card that is open, and closes it', () => {
     const { account } = signedIn();
-    const seen: ReturnType<typeof useShownUserProfile>[] = [];
-    let close: () => void = () => undefined;
+    let shown: ReturnType<typeof useShownUserProfile>;
+    let close = (): void => undefined;
     function Probe() {
-      seen.push(useShownUserProfile());
+      shown = useShownUserProfile();
       close = useCloseUserProfile();
       return null;
     }
@@ -347,18 +347,18 @@ describe('useOpenUserProfile and UserProfileCard', () => {
         <Probe />
       </>
     );
-    expect(seen.at(-1)).toBeUndefined();
+    expect(shown).toBeUndefined();
 
     fireEvent.click(screen.getByRole('button', { name: 'Bob' }));
-    expect(seen.at(-1)).toEqual({ roomId: ROOM, userId: BOB });
+    expect(shown).toEqual({ roomId: ROOM, userId: BOB });
     // Opened again for the same person elsewhere, it is the same card.
-    const shown = seen.at(-1);
+    const first = shown;
     fireEvent.click(screen.getByRole('button', { name: 'Bob on the left' }));
-    expect(seen.at(-1)).toBe(shown);
+    expect(shown).toBe(first);
 
     act(() => close());
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(seen.at(-1)).toBeUndefined();
+    expect(shown).toBeUndefined();
   });
 
   it('opens nothing for a room the client does not have, also once the room arrives', () => {

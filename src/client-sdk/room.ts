@@ -132,9 +132,7 @@ export const useOpenUserProfile = () => {
  * closes its own surface on Escape leaves it alone while a card is open.
  */
 export const useShownUserProfile = (): { roomId: string; userId: string } | undefined => {
-  const shown = useUserRoomProfileState();
-  const roomId = shown?.roomId;
-  const userId = shown?.userId;
+  const { roomId, userId } = useUserRoomProfileState() ?? {};
   return useMemo(
     () => (roomId !== undefined && userId !== undefined ? { roomId, userId } : undefined),
     [roomId, userId]
