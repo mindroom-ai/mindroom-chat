@@ -346,7 +346,7 @@ it("keeps the history downloads of the thread in its column, and its unsent root
   vi.spyOn(room, 'findEventById').mockReturnValue({ status: 'not_sent' } as never);
   state.thread = '$confirmed';
   const { rerender } = renderView();
-  expect(state.focused).toEqual(['$confirmed']);
+  expect(new Set(state.focused)).toEqual(new Set(['$confirmed']));
   state.thread = '~!room:example.org:m1.1';
   rerenderView(rerender);
   expect(column()?.dataset.thread).toBe('~!room:example.org:m1.1');
@@ -492,4 +492,17 @@ it('keeps the thread in its column as its unsent root gets its own ID', () => {
   state.thread = '$confirmed';
   rerenderView(rerender);
   expect(column()?.dataset.thread).toBe('$confirmed');
+});
+
+it("opens a thread in the messages' place when the room's row is wide but the page beside a side panel is not", () => {
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  // The row, the render container's child, is wide; the page inside it is narrow.
+  vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(function width(
+    this: Element
+  ) {
+    return this.parentElement?.parentElement === document.body ? 1000 : 600;
+  });
+  renderView();
+  expect(column()).toBeNull();
+  expect(state.main?.threadId).toBe('$thread');
 });

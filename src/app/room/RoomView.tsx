@@ -277,7 +277,10 @@ export function RoomView({
   const inColumn = samePlace
     ? place.column
     : !!openThreadId && threadLayout.roomy && storedThreadLayout() === 'beside';
-  if (!openThreadId ? place !== undefined : place?.threadId !== openThreadId) {
+  // It takes its place once the page has measured itself, which it does before it paints.
+  if (
+    !openThreadId ? place !== undefined : threadLayout.measured && place?.threadId !== openThreadId
+  ) {
     setPlace(openThreadId ? { threadId: openThreadId, column: inColumn } : undefined);
   }
   const columnThreadId = inColumn ? openThreadId : undefined;

@@ -4,7 +4,12 @@ import { useStore } from 'jotai';
 import { useKeyDown } from '../lib/hooks/useKeyDown';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { markMainTimelineAsRead, markThreadAsRead } from '../notifications/readReceipts';
-import { conversationOutOfSightAtom } from '../navigation/conversationCover';
+import {
+  conversationBehindPanelAtom,
+  conversationOutOfSightAtom,
+  conversationUnderThreadAtom,
+} from '../navigation/conversationCover';
+import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 
 type UseRoomEscapeReadReceiptsOptions = {
   hideActivity: boolean;
@@ -22,10 +27,17 @@ export const useRoomEscapeReadReceipts = ({
 
   // Escape marks the conversation as read, wherever the focus is on the page: an open thread, or
   // else the room's own messages, never its threads.
-  useKeyDown(window,
+  useKeyDown(
+    window,
     useCallback(
       (evt: KeyboardEvent) => {
-        if (store.get(conversationOutOfSightAtom)) return;
+        // The thread's column filling the page hides the room's messages, not the thread.
+        const threadShows =
+          !!threadId &&
+          store.get(conversationUnderThreadAtom) &&
+          !store.get(conversationBehindPanelAtom) &&
+          !store.get(phoneNavDrawerOpenAtom);
+        if (store.get(conversationOutOfSightAtom) && !threadShows) return;
         if (!isKeyHotkey('escape', evt)) return;
         if (threadId) {
           markThreadAsRead(mx, roomId, threadId, hideActivity);

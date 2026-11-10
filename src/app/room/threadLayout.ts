@@ -39,21 +39,22 @@ const BESIDE_MIN_WIDTH = 2 * CONVERSATION_MIN_WIDTH;
 
 /**
  * The layout threads show in on the room page `pageRef` holds: `roomy` while the page has room for
- * a thread beside the messages (never on phones), the stored `layout`, and `setLayout`, which
- * stores a choice. A page not laid out yet, or a test renderer's, which lays out nothing, counts as
+ * a thread beside the messages (never on phones), `measured` once the page itself said so, the
+ * stored `layout`, and `setLayout`, which stores a choice. A page not laid out yet, or a test renderer's, which lays out nothing, counts as
  * roomy.
  */
 export const useThreadLayout = (pageRef: RefObject<HTMLElement>) => {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const [layout, setLayout] = useAtom(threadLayoutAtom);
   // Whether the page is wide enough, not its width: a page that resizes as a panel moves renders
-  // again only when that changes. Before the page has a layout, the room's row answers, so a
-  // thread opens where it belongs on the first render.
+  // again only when that changes. Before the page has a layout, the room's row answers, which a
+  // side panel beside the page makes wider than the page: `measured` says when the page answered.
   const rowWidth = usePanelRowWidth();
   const [wide, setWide] = useState(() => {
     const width = rowWidth();
     return width === 0 || width >= BESIDE_MIN_WIDTH;
   });
+  const [measured, setMeasured] = useState(false);
   useLayoutEffect(() => {
     const page = pageRef.current;
     if (!page) return undefined;
@@ -62,11 +63,12 @@ export const useThreadLayout = (pageRef: RefObject<HTMLElement>) => {
       if (page.clientWidth > 0) setWide(page.clientWidth >= BESIDE_MIN_WIDTH);
     };
     measure();
+    setMeasured(true);
     if (typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(measure);
     observer.observe(page);
     return () => observer.disconnect();
   }, [pageRef]);
   const roomy = !phone && wide;
-  return { roomy, layout, setLayout };
+  return { roomy, measured, layout, setLayout };
 };

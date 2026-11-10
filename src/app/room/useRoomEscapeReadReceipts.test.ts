@@ -7,6 +7,7 @@ import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import {
   conversationBehindPanelAtom,
   conversationCoveredAtom,
+  conversationUnderThreadAtom,
 } from '../navigation/conversationCover';
 
 const {
@@ -15,18 +16,16 @@ const {
   markRoomAndThreadsAsReadMock,
   markThreadAsReadMock,
   state,
-} = vi.hoisted(
-  () => ({
-    keyHotkeyMock: vi.fn(),
-    markMainTimelineAsReadMock: vi.fn(),
-    markRoomAndThreadsAsReadMock: vi.fn(),
-    markThreadAsReadMock: vi.fn(),
-    state: {
-      handler: undefined as ((evt: KeyboardEvent) => void) | undefined,
-      mx: { userId: '@user:server' },
-    },
-  })
-);
+} = vi.hoisted(() => ({
+  keyHotkeyMock: vi.fn(),
+  markMainTimelineAsReadMock: vi.fn(),
+  markRoomAndThreadsAsReadMock: vi.fn(),
+  markThreadAsReadMock: vi.fn(),
+  state: {
+    handler: undefined as ((evt: KeyboardEvent) => void) | undefined,
+    mx: { userId: '@user:server' },
+  },
+}));
 
 vi.mock('is-hotkey', () => ({
   isKeyHotkey: keyHotkeyMock,
@@ -98,6 +97,28 @@ describe('useRoomEscapeReadReceipts', () => {
     });
     expect(markThreadAsReadMock).not.toHaveBeenCalled();
     expect(markMainTimelineAsReadMock).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+
+  it.each([
+    ['marks the thread read', [], true],
+    ["marks nothing read under a phone's navigation drawer", [phoneNavDrawerOpenAtom], false],
+    ['marks nothing read behind a side panel', [conversationBehindPanelAtom], false],
+  ] as const)("under the thread's column that fills the page, %s", (_what, also, marks) => {
+    keyHotkeyMock.mockReturnValue(true);
+    const store = createStore();
+    [conversationUnderThreadAtom, ...also].forEach((atom) => store.set(atom, true));
+    const renderer = create(
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(Harness, { threadId: '$thread' })
+      )
+    );
+    act(() => {
+      state.handler?.({} as KeyboardEvent);
+    });
+    expect(markThreadAsReadMock).toHaveBeenCalledTimes(marks ? 1 : 0);
     act(() => renderer.unmount());
   });
 
