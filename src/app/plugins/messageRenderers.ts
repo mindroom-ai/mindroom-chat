@@ -91,6 +91,10 @@ export const useMessageRenderer = (
   return undefined;
 };
 
+/** Whether a plugin of this build gives a message renderer a `preview`: else none is asked. */
+export const hasMessagePreviews = (): boolean =>
+  registeredPlugins.some(({ messageRenderers }) => messageRenderers.some(({ preview }) => preview));
+
 /**
  * The text the renderer the timeline picks for `event` gives it (`preview`), on one line, cut as
  * the app cuts its own previews, direction controls written out. Undefined when that
