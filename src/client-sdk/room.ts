@@ -169,8 +169,9 @@ const LazyThreadView = lazy(() =>
  * post in the room. It fills its parent, a flex column, and scrolls inside it; it shows nothing
  * while its code loads. It may show a thread of the room whose page is open, also the one that page
  * shows: its composer has a reply and staged files of its own, which go with it as it unmounts,
- * shares the thread's unsent text with the page's, and records no voice messages, which are the
- * page's. Read receipts and notifications count the thread as seen while the view shows it, also
+ * shares the thread's unsent text with the page's, and records voice messages into its thread (one
+ * recorder is open in the app at a time, and a failed send comes back in a view of that thread, not
+ * on the page). Read receipts and notifications count the thread as seen while the view shows it, also
  * while the room's page is behind the panel, but not while its side panel is folded or under a
  * phone's navigation drawer. Its menus, and the profile card its rows open, take their Escape at
  * the document, after it bubbled through the plugin's elements; so a plugin that closes its

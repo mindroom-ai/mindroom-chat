@@ -10,6 +10,7 @@ import {
   voiceRecorderRoomAtom,
 } from './roomInputDrafts';
 import { useRoomInputVoice } from './useRoomInputVoice';
+import { ConversationViewContext } from '../navigation/conversationView';
 
 vi.mock('../matrix/hooks/useMediaConfig', () => ({ useMediaConfig: () => ({}) }));
 
@@ -17,7 +18,7 @@ const mx = {
   getUserId: () => '@alice:example.org',
   getRoom: () => ({ getMyMembership: () => 'join' }),
 } as unknown as MatrixClient;
-const draft = (roomId: string): PendingVoiceSendDraft => ({
+const draft = (roomId: string, threadView?: boolean): PendingVoiceSendDraft => ({
   file: new File(['voice'], 'voice.ogg'),
   duration: 1000,
   context: {
@@ -28,17 +29,17 @@ const draft = (roomId: string): PendingVoiceSendDraft => ({
     replyDraft: undefined,
     threadingEnabled: true,
     signalBridgedRoom: false,
+    ...(threadView && { threadView }),
   },
 });
 
-const renderVoice = (store: ReturnType<typeof createStore>, roomId: string) =>
+const renderVoice = (store: ReturnType<typeof createStore>, roomId: string, view?: string) =>
   renderHook(
     () =>
       useRoomInputVoice({
         mx,
-        roomId,
         composer: {
-          getContext: vi.fn(),
+          getContext: () => ({ roomId, threadId: '$thread', threadView: view !== undefined }),
           snapshotText: vi.fn(),
           resetText: vi.fn(),
           restoreText: vi.fn(),
@@ -50,7 +51,11 @@ const renderVoice = (store: ReturnType<typeof createStore>, roomId: string) =>
       }),
     {
       wrapper: ({ children }: { children: ReactNode }) => (
-        <Provider store={store}>{children}</Provider>
+        <Provider store={store}>
+          <ConversationViewContext.Provider value={view}>
+            {children}
+          </ConversationViewContext.Provider>
+        </Provider>
       ),
     }
   );
@@ -62,9 +67,18 @@ it('names the room whose composer shows its recorder, until the recorder goes', 
   // A recording waiting to be sent from this room's composer shows its recorder.
   act(() => store.set(pendingVoiceSendDraftAtom, draft('!room:example.org')));
   expect(store.get(voiceRecorderRoomAtom)).toBe('!room:example.org');
-  // Another room's recording names that room only in its own composer.
+  // Another room's recording closes this recorder and names that room only in its own composer.
   act(() => store.set(pendingVoiceSendDraftAtom, draft('!other:example.org')));
+  expect(store.get(voiceRecorderRoomAtom)).toBeUndefined();
+  act(() => store.set(pendingVoiceSendDraftAtom, draft('!room:example.org')));
   expect(store.get(voiceRecorderRoomAtom)).toBe('!room:example.org');
   unmount();
+  expect(store.get(voiceRecorderRoomAtom)).toBeUndefined();
+});
+
+it('names no room for a recording that waits in a thread view', () => {
+  const store = createStore();
+  renderVoice(store, '!room:example.org', 'view');
+  act(() => store.set(pendingVoiceSendDraftAtom, draft('!room:example.org', true)));
   expect(store.get(voiceRecorderRoomAtom)).toBeUndefined();
 });

@@ -44,6 +44,11 @@ export type PendingVoiceSendContext = {
   replyDraft: IReplyDraft | undefined;
   threadingEnabled: boolean;
   signalBridgedRoom: boolean;
+  /**
+   * Recorded in a thread's own view (room/ThreadView.tsx), not on the room's page: after a failed
+   * send it comes back in a view of that thread, never on the page.
+   */
+  threadView?: boolean;
 };
 
 export type PendingVoiceSendInFlight = {
@@ -309,6 +314,7 @@ export const roomIdToUploadItemsAtomFamily = atomFamily((_roomId: string) =>
 /** The files staged in the composer in `roomId` of the conversation view `view`. */
 export const composerUploadItemsAtom = (roomId: string, view: string | undefined) =>
   roomIdToUploadItemsAtomFamily(composerStateKey(roomId, view));
+export type StagedList = ReturnType<typeof composerUploadItemsAtom>;
 
 /** The upload state of a staged file. */
 export const roomUploadAtomFamily = atomFamily(
@@ -337,6 +343,17 @@ export const pendingVoiceSendDraftAtom = atom<PendingVoiceSendDraft | undefined>
 
 /** True while a recorded voice message waits to be sent with the composer's attachments. */
 export const voiceAutoSendPendingAtom = atom(false);
+
+/** The composer a recorded voice message belongs to: its room's page or a view of its thread. */
+export const voiceComposerKey = ({
+  roomId,
+  threadId,
+  threadView,
+}: Pick<PendingVoiceSendContext, 'roomId' | 'threadId' | 'threadView'>): string =>
+  threadView ? JSON.stringify([roomId, threadId]) : roomId;
+
+/** The composer whose voice recorder is open, one at a time: opening another closes it. */
+export const openVoiceRecorderAtom = atom<symbol | undefined>(undefined);
 
 /** The room whose page composer shows its voice recorder: recording, or a recording to send. */
 export const voiceRecorderRoomAtom = atom<string | undefined>(undefined);
@@ -383,11 +400,12 @@ const dropEveryEntry = (family: { setShouldRemove: (test: (() => boolean) | null
  * files and a voice send in progress. These are keyed by room alone, so the next account to open
  * a room both accounts are in would otherwise show them and send them as its own. Unsent
  * messages stay, since they are kept per account. A recorded voice message waiting for a retry
- * stays too: it names its account and no other one sends it.
+ * stays too: it names its account and no other one sends it. No recorder stays open.
  */
 export const forgetComposerStateOfSession = (store: JotaiStore): void => {
   dropEveryEntry(roomIdToReplyDraftAtomFamily);
   dropEveryEntry(roomIdToUploadItemsAtomFamily);
   store.set(voiceAutoSendPendingAtom, false);
+  store.set(openVoiceRecorderAtom, undefined);
   store.set(voiceRecorderRoomAtom, undefined);
 };

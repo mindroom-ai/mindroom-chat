@@ -56,11 +56,7 @@ import {
 } from './roomInputDrafts';
 import type { TUploadItem } from '../matrix/state/upload';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
-import {
-  ConversationViewContext,
-  composerStateKey,
-  useConversationHidden,
-} from '../navigation/conversationView';
+import { ConversationViewContext, useConversationHidden } from '../navigation/conversationView';
 import { settingsAtom } from '../preferences/settings';
 import { mobileOrTablet } from '../lib/user-agent';
 import { withPasteAttachmentMetadata } from '../matrix/protocol/pasteAttachmentMarker';
@@ -404,7 +400,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     const composer = useMemo(
       () => ({
-        getContext: () => ({ roomId, room, threadId, replyDraft, threadingEnabled }),
+        getContext: () => ({
+          roomId,
+          room,
+          threadId,
+          replyDraft,
+          threadingEnabled,
+          threadView: view !== undefined,
+        }),
         snapshotText: () => structuredClone(editor.children),
         resetText: () => {
           resetEditor(editor);
@@ -428,23 +431,20 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         roomId,
         threadId,
         threadingEnabled,
+        view,
       ]
     );
 
     // A voice message whose send failed survives a reload, as the dialog promises.
     useSavedVoiceDraft(mx);
-    // Voice messages are the room page's: they keep one recording and one failed send per room,
-    // so another view of the room records none and never takes the page's.
     const voice = useRoomInputVoice({
       mx,
-      roomId: composerStateKey(roomId, view),
       composer,
       attachments: attachments.access,
       transport,
       sessions,
       onRoomMessageSent,
     });
-    const microphone = view === undefined && voice.microphone;
 
     const buildTextContent = useCallback(
       (): IContent | undefined =>
@@ -771,7 +771,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   onToggleFormatting={toggleFormatting}
                   onEmoji={(anchor) => openBoard('Emoji', anchor)}
                 />
-                {microphone}
+                {voice.microphone}
               </>
             ) : (
               <>
@@ -781,7 +781,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   icon={Icons.PlusCircle}
                   onPress={attachments.pickFiles}
                 />
-                {microphone}
+                {voice.microphone}
                 <ComposerIconButton
                   label={t('composer.formatting')}
                   icon={Icons.Text}

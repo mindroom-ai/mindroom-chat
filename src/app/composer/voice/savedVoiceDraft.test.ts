@@ -106,6 +106,28 @@ describe('useSavedVoiceDraft', () => {
     expect(restored?.context.room).toBe(room);
   });
 
+  it("keeps a recording from a thread's own view for a view of that thread", async () => {
+    const first = openPage();
+    await settle();
+    const draft = failedDraft();
+    act(() =>
+      first.store.set(pendingVoiceSendDraftAtom, {
+        ...draft,
+        context: { ...draft.context, threadView: true },
+      })
+    );
+    await settle();
+    act(() => first.renderer.unmount());
+
+    const store = await reloadPage();
+
+    expect(store.get(reloadedAtom())?.context).toMatchObject({
+      roomId: room.roomId,
+      threadId: '$thread',
+      threadView: true,
+    });
+  });
+
   it('forgets the recording once it is sent or discarded', async () => {
     const page = openPage();
     await settle();

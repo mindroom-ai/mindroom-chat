@@ -53,6 +53,7 @@ export const getRoomInputVoiceSendContext = ({
   threadId,
   replyDraft,
   threadingEnabled = true,
+  threadView,
 }: {
   ownerSessionId: string;
   roomId: string;
@@ -60,6 +61,7 @@ export const getRoomInputVoiceSendContext = ({
   threadId: string | undefined;
   replyDraft: IReplyDraft | undefined;
   threadingEnabled?: boolean;
+  threadView?: boolean;
 }): PendingVoiceSendContext => ({
   ownerSessionId,
   roomId,
@@ -68,6 +70,7 @@ export const getRoomInputVoiceSendContext = ({
   replyDraft,
   threadingEnabled,
   signalBridgedRoom: isSignalBridgeRoom(room),
+  ...(threadView && { threadView }),
 });
 
 /**
