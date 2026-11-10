@@ -433,9 +433,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     // A voice message whose send failed survives a reload, as the dialog promises.
     useSavedVoiceDraft(mx);
+    // Voice messages are the room page's: they keep one recording and one failed send per room,
+    // so another view of the room records none and never takes the page's.
     const voice = useRoomInputVoice({
       mx,
-      roomId,
+      roomId: composerStateKey(roomId, view),
       composer,
       attachments: attachments.access,
       transport,
@@ -768,7 +770,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   onToggleFormatting={toggleFormatting}
                   onEmoji={(anchor) => openBoard('Emoji', anchor)}
                 />
-                {voice.microphone}
+                {view === undefined && voice.microphone}
               </>
             ) : (
               <>
@@ -778,7 +780,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   icon={Icons.PlusCircle}
                   onPress={attachments.pickFiles}
                 />
-                {voice.microphone}
+                {view === undefined && voice.microphone}
                 <ComposerIconButton
                   label={t('composer.formatting')}
                   icon={Icons.Text}

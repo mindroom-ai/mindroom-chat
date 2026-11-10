@@ -115,6 +115,8 @@ test("a plugin's panel shows a thread with its approvals and composer, as the ro
   // A reply typed in the panel goes to the thread, and the room's own view of it shows it.
   const reply = `${word} from the panel`;
   const box = panel.getByRole('textbox');
+  // Voice messages are the room page's.
+  await expect(panel.getByRole('button', { name: 'Record voice message' })).toHaveCount(0);
   await box.click();
   await page.keyboard.type(reply);
   await page.keyboard.press('Enter');

@@ -538,15 +538,17 @@ export const useRoomInputAttachments = ({
     useCallback((files: File[]) => void stageFiles(files).catch(() => undefined), [stageFiles]),
     true
   );
-  // A plugin's cover over the conversation takes no files for the composer under it.
-  const covered = useAtomValue(conversationCoveredAtom);
+  // A plugin's cover over the room page's conversation takes no files for the composer under it;
+  // another view of the room is not under it.
+  const covered = useAtomValue(conversationCoveredAtom) && view === undefined;
   const dropZoneActive = useFileDropZone(
     fileDropContainerRef,
     useCallback(
       (files: File[]) => {
-        if (!store.get(conversationCoveredAtom)) void stageFiles(files).catch(() => undefined);
+        if (view === undefined && store.get(conversationCoveredAtom)) return;
+        void stageFiles(files).catch(() => undefined);
       },
-      [stageFiles, store]
+      [stageFiles, store, view]
     )
   );
   const dropZoneVisible = dropZoneActive && !covered;

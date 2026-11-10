@@ -28,6 +28,8 @@ const state = vi.hoisted(() => ({
   commandThread: undefined as string | undefined,
   resetEditor: vi.fn(),
   restoreEditorContent: vi.fn(),
+  /** The room the voice messages of the composer last counted as theirs. */
+  voiceRoomId: undefined as string | undefined,
 }));
 
 vi.mock('folds', () => {
@@ -155,12 +157,15 @@ vi.mock('./useRoomInputUploadTransport', () => ({
   useRoomInputUploadTransport: () => ({}),
 }));
 vi.mock('./useRoomInputVoice', () => ({
-  useRoomInputVoice: () => ({
-    blocksSubmit: () => false,
-    submitIfActive: async () => false,
-    renderRecorder: () => null,
-    microphone: null,
-  }),
+  useRoomInputVoice: ({ roomId }: { roomId: string }) => {
+    state.voiceRoomId = roomId;
+    return {
+      blocksSubmit: () => false,
+      submitIfActive: async () => false,
+      renderRecorder: () => null,
+      microphone: null,
+    };
+  },
 }));
 
 let renderer: ReactTestRenderer | undefined;
@@ -263,6 +268,13 @@ describe('composer', () => {
     act(() => store.set(conversationBehindPanelAtom, true));
     expect(renderer!.root.findAllByType(UserMentionAutocomplete)).toHaveLength(1);
     expect(renderer!.root.findByType(ThreadModelPicker).props.conversationHidden).toBe(false);
+  });
+
+  it("leaves the room page's voice messages to it in another conversation view", async () => {
+    await mountComposer([], { view: 'thread-view' });
+    expect(state.voiceRoomId).toBe(composerStateKey('!room:example.org', 'thread-view'));
+    await mountComposer([]);
+    expect(state.voiceRoomId).toBe('!room:example.org');
   });
 
   it("shows the reply of its own conversation view, not the room page's", async () => {
