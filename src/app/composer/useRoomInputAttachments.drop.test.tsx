@@ -6,6 +6,7 @@ import type { Room } from 'matrix-js-sdk';
 import { createEditor } from 'slate';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { conversationCoveredAtom } from '../navigation/conversationCover';
+import { ConversationViewContext } from '../navigation/conversationView';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 
 vi.mock('./upload/UploadCardRenderer', () => ({ UploadCardRenderer: () => null }));
@@ -23,7 +24,7 @@ afterEach(() => {
 });
 
 /** The room area, a drop zone for the composer's files, and what the composer stages from it. */
-const renderComposer = () => {
+const renderComposer = (view?: string) => {
   const createUploadItems = vi.fn(async () => []);
   const editor = createEditor();
   editor.children = [{ type: 'paragraph', children: [{ text: '' }] }];
@@ -42,7 +43,11 @@ const renderComposer = () => {
     }).dropZoneVisible;
     return <div ref={area} data-testid="area" />;
   }
-  const { getByTestId } = render(<Composer />);
+  const { getByTestId } = render(
+    <ConversationViewContext.Provider value={view}>
+      <Composer />
+    </ConversationViewContext.Provider>
+  );
   const file = new File(['content'], 'notes.txt', { type: 'text/plain' });
   const drag = (type: 'dragenter' | 'drop') => {
     const event = new Event(type, { bubbles: true, cancelable: true });
@@ -71,5 +76,14 @@ describe("the composer's file drop under a plugin's cover", () => {
     expect(composer.dropZoneVisible()).toBe(false);
     expect(composer.drag('drop').defaultPrevented).toBe(true);
     expect(composer.createUploadItems).not.toHaveBeenCalled();
+  });
+
+  it("stages a dropped file in another conversation view while a cover hides the room's page", () => {
+    const composer = renderComposer('thread-view');
+    act(() => getDefaultStore().set(conversationCoveredAtom, true));
+    composer.drag('dragenter');
+    expect(composer.dropZoneVisible()).toBe(true);
+    composer.drag('drop');
+    expect(composer.createUploadItems).toHaveBeenCalledWith([composer.file]);
   });
 });

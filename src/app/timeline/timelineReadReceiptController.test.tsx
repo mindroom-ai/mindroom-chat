@@ -11,7 +11,14 @@ import {
 } from '../notifications/readReceipts';
 import { useTimelineReadReceiptController } from './timelineReadReceiptController';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
-import { conversationCoveredAtom } from '../navigation/conversationCover';
+import {
+  conversationBehindPanelAtom,
+  conversationCoveredAtom,
+} from '../navigation/conversationCover';
+import {
+  ConversationViewContext,
+  shownConversationViewsAtom,
+} from '../navigation/conversationView';
 
 vi.mock('../notifications/readReceipts', () => ({
   markMainTimelineAsRead: vi.fn(),
@@ -492,6 +499,58 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
         expect(markThreadAsRead).toHaveBeenCalledTimes(1);
       } finally {
         act(() => store.set(atom, false));
+      }
+    });
+
+    it("is read in another conversation view while a side panel hides the room's page, and not while that view does not show", () => {
+      const store = getDefaultStore();
+      const inView = (options: ControllerOptions) => (
+        <ConversationViewContext.Provider value="thread-view">
+          <Probe options={options} />
+        </ConversationViewContext.Provider>
+      );
+      act(() => store.set(conversationBehindPanelAtom, true));
+      try {
+        // Mounted, the view does not show yet: a folded side panel keeps it out of sight.
+        act(() => {
+          probe = create(inView(optionsWith(openThread)));
+        });
+        runFrames();
+        expect(markThreadAsRead).not.toHaveBeenCalled();
+        act(() => probe?.unmount());
+        act(() =>
+          store.set(shownConversationViewsAtom, [
+            { view: 'thread-view', roomId: room.roomId, threadId: '$thread' },
+          ])
+        );
+        act(() => {
+          probe = create(inView(optionsWith(openThread)));
+        });
+        runFrames();
+        expect(markThreadAsRead).toHaveBeenCalledTimes(1);
+
+        // A phone's navigation drawer hides it, and a new reply waits until the drawer goes.
+        act(() => store.set(phoneNavDrawerOpenAtom, true));
+        const rows = [
+          { getId: () => '$thread' },
+          { getId: () => '$reply-1' },
+          { getId: () => '$reply-2' },
+        ] as unknown as MatrixEvent[];
+        act(() =>
+          probe?.update(
+            inView(optionsWith({ ...openThread, threadEventsLength: 3, threadEvents: rows }))
+          )
+        );
+        runFrames();
+        expect(markThreadAsRead).toHaveBeenCalledTimes(1);
+        act(() => store.set(phoneNavDrawerOpenAtom, false));
+        runFrames();
+        expect(markThreadAsRead).toHaveBeenCalledTimes(2);
+        expect(vi.mocked(markThreadAsRead).mock.lastCall?.[5]).toBe(rows);
+      } finally {
+        act(() => store.set(conversationBehindPanelAtom, false));
+        act(() => store.set(phoneNavDrawerOpenAtom, false));
+        act(() => store.set(shownConversationViewsAtom, []));
       }
     });
 

@@ -19,6 +19,7 @@ import {
 import { createUploadAtom, type TUploadAtom, type TUploadItem } from '../matrix/state/upload';
 import { isEncryptedRoomOf } from '../matrix/client/encryptedRoomTextOffDisk';
 import { clearKeptPastes } from './keptPastes';
+import { composerStateKey } from '../navigation/conversationView';
 
 // TUploadItem is declared with the upload state; this seam keeps exporting it (seams.tsv).
 export type { TUploadItem } from '../matrix/state/upload';
@@ -194,6 +195,10 @@ export const roomIdToReplyDraftAtomFamily = atomFamily((_key: string) =>
   atom<IReplyDraft | undefined>(undefined)
 );
 
+/** The reply of the composer in `roomId` of the conversation view `view`, none for the room page. */
+export const composerReplyDraftAtom = (roomId: string, view: string | undefined) =>
+  roomIdToReplyDraftAtomFamily(composerStateKey(roomId, view));
+
 const isOptionalString = (value: unknown): boolean =>
   value === undefined || typeof value === 'string';
 
@@ -300,6 +305,10 @@ const createUploadListAtom = () => {
 export const roomIdToUploadItemsAtomFamily = atomFamily((_roomId: string) =>
   createUploadListAtom()
 );
+
+/** The files staged in the composer in `roomId` of the conversation view `view`. */
+export const composerUploadItemsAtom = (roomId: string, view: string | undefined) =>
+  roomIdToUploadItemsAtomFamily(composerStateKey(roomId, view));
 
 /** The upload state of a staged file. */
 export const roomUploadAtomFamily = atomFamily(

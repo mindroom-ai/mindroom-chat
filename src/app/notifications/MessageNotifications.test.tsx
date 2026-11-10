@@ -16,7 +16,11 @@ import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
-import { conversationCoveredAtom } from '../navigation/conversationCover';
+import {
+  conversationBehindPanelAtom,
+  conversationCoveredAtom,
+} from '../navigation/conversationCover';
+import { shownConversationViewsAtom } from '../navigation/conversationView';
 import { FINISHED_REPLY_HOLD_MS, MessageNotificationsFeature } from './MessageNotifications';
 import { playChime } from './playChime';
 import { defined } from '../../test/utils/defined';
@@ -302,6 +306,30 @@ describe('MessageNotificationsFeature', () => {
     arrive(message({ msgtype: 'm.text', body: 'under the cover' }));
     expect(FakeNotification.shown).toHaveLength(1);
     expect(playChime).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays quiet for a thread another conversation view shows, also behind the room's page, but not under a phone's drawer", () => {
+    const store = createStore();
+    store.set(shownConversationViewsAtom, [
+      { view: 'thread-view', roomId: ROOM, threadId: '$root' },
+    ]);
+    store.set(conversationBehindPanelAtom, true);
+    const inThread = (body: string) =>
+      message({
+        msgtype: 'm.text',
+        body,
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+      });
+    render(`/home/${encodeURIComponent(ROOM)}/`, true, store);
+    arrive(inThread('in the shown thread'));
+    arrive(message({ msgtype: 'm.text', body: 'in the room behind the panel' }));
+    expect(FakeNotification.shown.map((note) => note.options.body)).toEqual([
+      'Maya Chen: in the room behind the panel',
+    ]);
+
+    act(() => store.set(phoneNavDrawerOpenAtom, true));
+    arrive(inThread('under the drawer'));
+    expect(FakeNotification.shown).toHaveLength(2);
   });
 
   it('notifies for an encrypted message whose key arrives after a first failed decryption', async () => {

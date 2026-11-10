@@ -7,6 +7,10 @@ import {
   conversationBehindPanelAtom,
   conversationCoveredAtom,
 } from '../navigation/conversationCover';
+import {
+  ConversationViewContext,
+  shownConversationViewsAtom,
+} from '../navigation/conversationView';
 import { ComposerActionsMenu } from './ComposerActionsMenu';
 
 // jsdom lays nothing out, so the trap would find no control to hold.
@@ -20,26 +24,44 @@ afterEach(() => {
   cleanup();
   store.set(conversationCoveredAtom, false);
   store.set(conversationBehindPanelAtom, false);
+  store.set(shownConversationViewsAtom, []);
 });
 
-describe('the composer actions menu', () => {
-  it.each([
-    ["a plugin's cover", conversationCoveredAtom],
-    ['a side panel in its place', conversationBehindPanelAtom],
-  ])('closes as %s hides the conversation', (_what, atom) => {
-    const noop = () => undefined;
-    render(
+/** Opens the menu, in the room page's composer unless `view` names another conversation view. */
+const openMenu = (view?: string) => {
+  const noop = () => undefined;
+  render(
+    <ConversationViewContext.Provider value={view}>
       <ComposerActionsMenu
         formattingOpen={false}
         onAttach={noop}
         onToggleFormatting={noop}
         onEmoji={noop}
       />
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    </ConversationViewContext.Provider>
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+};
+
+describe('the composer actions menu', () => {
+  it.each([
+    ["a plugin's cover", conversationCoveredAtom],
+    ['a side panel in its place', conversationBehindPanelAtom],
+  ])('closes as %s hides the conversation', (_what, atom) => {
+    openMenu();
     expect(screen.queryByRole('menu')).not.toBeNull();
 
     act(() => store.set(atom, true));
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it("stays open in another conversation view as a side panel hides the room's page", () => {
+    store.set(shownConversationViewsAtom, [{ view: 'thread-view', roomId: '!room:example.org' }]);
+    openMenu('thread-view');
+    act(() => store.set(conversationBehindPanelAtom, true));
+    expect(screen.queryByRole('menu')).not.toBeNull();
+    // It closes as its side panel folds.
+    act(() => store.set(shownConversationViewsAtom, []));
     expect(screen.queryByRole('menu')).toBeNull();
   });
 });

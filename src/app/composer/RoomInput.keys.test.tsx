@@ -6,6 +6,13 @@ import { EventStatus, type Room } from 'matrix-js-sdk';
 import { UserMentionAutocomplete } from '../editor/autocomplete/UserMentionAutocomplete';
 import { ThreadModelPicker } from '../models/ModelPicker';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
+import {
+  ConversationViewContext,
+  composerStateKey,
+  shownConversationViewsAtom,
+} from '../navigation/conversationView';
+import { roomIdToReplyDraftAtomFamily } from './roomInputDrafts';
+import { RoomInputReplyPreview } from './RoomInputReplyPreview';
 import type { SlashCommand } from './commands/useCommands';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
 
@@ -25,6 +32,8 @@ const state = vi.hoisted(() => ({
   commandThread: undefined as string | undefined,
   resetEditor: vi.fn(),
   restoreEditorContent: vi.fn(),
+  /** The room the voice messages of the composer last counted as theirs. */
+  voiceRoomId: undefined as string | undefined,
 }));
 
 vi.mock('folds', () => {
@@ -152,12 +161,15 @@ vi.mock('./useRoomInputUploadTransport', () => ({
   useRoomInputUploadTransport: () => ({}),
 }));
 vi.mock('./useRoomInputVoice', () => ({
-  useRoomInputVoice: () => ({
-    blocksSubmit: () => false,
-    submitIfActive: async () => false,
-    renderRecorder: () => null,
-    microphone: null,
-  }),
+  useRoomInputVoice: ({ roomId }: { roomId: string }) => {
+    state.voiceRoomId = roomId;
+    return {
+      blocksSubmit: () => false,
+      submitIfActive: async () => false,
+      renderRecorder: () => null,
+      microphone: null,
+    };
+  },
 }));
 
 let renderer: ReactTestRenderer | undefined;
@@ -173,11 +185,16 @@ afterEach(() => {
   state.commandThread = undefined;
 });
 
+/** Another conversation view than the room page, as a plugin's thread view. */
+const VIEW = 'thread-view';
+
 type ComposerProps = {
   store?: ReturnType<typeof createStore>;
   room?: Room;
   threadId?: string;
   threadingEnabled?: boolean;
+  /** The key of the conversation view the composer is in, other than the room page. */
+  view?: string;
 };
 
 /**
@@ -189,19 +206,22 @@ const mountComposer = async (
   {
     store = createStore(),
     room = { roomId: '!room:example.org', name: 'Room' } as unknown as Room,
+    view,
     ...props
   }: ComposerProps = {}
 ) => {
   const { RoomInput } = await import('./RoomInput');
   const element = (
     <Provider store={store}>
-      <RoomInput
-        editor={{ children: document } as never}
-        fileDropContainerRef={createRef()}
-        roomId={room.roomId}
-        room={room}
-        {...props}
-      />
+      <ConversationViewContext.Provider value={view}>
+        <RoomInput
+          editor={{ children: document } as never}
+          fileDropContainerRef={createRef()}
+          roomId={room.roomId}
+          room={room}
+          {...props}
+        />
+      </ConversationViewContext.Provider>
     </Provider>
   );
   act(() => {
@@ -247,6 +267,37 @@ describe('composer', () => {
     // Its Tab would pick a completion into the hidden draft.
     expect(mentionMenus()).toBe(0);
     expect(pickerHidden()).toBe(true);
+  });
+
+  it("keeps the mention menu and the model picker of another conversation view open as a side panel hides the room's page", async () => {
+    const store = createStore();
+    store.set(shownConversationViewsAtom, [{ view: VIEW, roomId: '!room:example.org' }]);
+    await mountComposer([], { store, view: VIEW });
+    act(() => store.set(conversationBehindPanelAtom, true));
+    expect(renderer!.root.findAllByType(UserMentionAutocomplete)).toHaveLength(1);
+    expect(renderer!.root.findByType(ThreadModelPicker).props.conversationHidden).toBe(false);
+  });
+
+  it("leaves the room page's voice messages to it in another conversation view", async () => {
+    await mountComposer([], { view: VIEW });
+    expect(state.voiceRoomId).toBe(composerStateKey('!room:example.org', VIEW));
+    await mountComposer([]);
+    expect(state.voiceRoomId).toBe('!room:example.org');
+  });
+
+  it("shows the reply of its own conversation view, not the room page's", async () => {
+    const store = createStore();
+    const reply = { userId: '@bob:example.org', eventId: '$page', body: 'On the page' };
+    store.set(roomIdToReplyDraftAtomFamily('!room:example.org'), reply);
+    await mountComposer([], { store, view: VIEW });
+    expect(renderer!.root.findAllByType(RoomInputReplyPreview)).toHaveLength(0);
+    act(() =>
+      store.set(roomIdToReplyDraftAtomFamily(composerStateKey('!room:example.org', VIEW)), {
+        ...reply,
+        eventId: '$view',
+      })
+    );
+    expect(renderer!.root.findByType(RoomInputReplyPreview).props.replyDraft.eventId).toBe('$view');
   });
 
   it('leaves Enter to the mention menu while it shows suggestions', async () => {

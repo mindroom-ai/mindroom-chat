@@ -12,7 +12,10 @@ import {
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
-import { hydrateCachedEvents, serializeEventsForCache } from '../event-store/cache/eventCacheEditUtils';
+import {
+  hydrateCachedEvents,
+  serializeEventsForCache,
+} from '../event-store/cache/eventCacheEditUtils';
 import {
   ThreadApprovalProvider,
   ThreadApprovals,
@@ -34,7 +37,9 @@ vi.mock('../event-store/engine', () => ({
   enqueueThreadApprovalBackfill: mocks.backfill,
   useSyncEngine: () => ({ scheduler, persist }),
 }));
-vi.mock('../event-store/timeline/roomLiveEventArrive', () => ({ useLiveEventArrive: () => undefined }));
+vi.mock('../event-store/timeline/roomLiveEventArrive', () => ({
+  useLiveEventArrive: () => undefined,
+}));
 let current: ThreadApprovals;
 let renderer: ReactTestRenderer;
 function Probe() {
@@ -916,5 +921,39 @@ describe('thread approval provider rescans', () => {
     act(() => renderer.unmount());
     await nextTask();
     expect(rescans).not.toHaveBeenCalled();
+  });
+
+  it("leaves a thread's history load running for the other provider of that thread, and the last one cancels it", async () => {
+    // The room's page and another view of the room (a plugin's thread view) show one thread.
+    const Both = ({ page, view }: { page: boolean; view: boolean }) => (
+      <>
+        {page && <ThreadApprovalProvider room={room} threadId="$thread" />}
+        {view && (
+          <ThreadApprovalProvider room={room} threadId="$thread">
+            <Probe />
+          </ThreadApprovalProvider>
+        )}
+      </>
+    );
+    let finish!: (result: { events: MatrixEvent[]; repairedEventIds: string[] }) => void;
+    mocks.backfill.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    await act(async () => {
+      renderer = create(<Both page view />);
+    });
+    act(() => renderer.update(<Both page={false} view />));
+    expect(mocks.abort).not.toHaveBeenCalled();
+    await act(async () => finish({ events: [event()], repairedEventIds: [] }));
+    expect(current.loading).toBe(false);
+    expect(current.records.map((record) => record.eventId)).toEqual(['$approval']);
+
+    const aborted = mocks.abort.mock.calls.length;
+    act(() => renderer.update(<Both page={false} view={false} />));
+    expect(mocks.abort).toHaveBeenCalledTimes(aborted + 1);
+    expect(mocks.abort).toHaveBeenLastCalledWith(room.roomId, '$thread', 'thread-approvals');
   });
 });

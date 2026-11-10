@@ -8,11 +8,15 @@ import {
   conversationBehindPanelAtom,
   conversationCoveredAtom,
 } from '../navigation/conversationCover';
+import {
+  ConversationViewContext,
+  shownConversationViewsAtom,
+} from '../navigation/conversationView';
 import { useTypingStatusUpdater } from './useTypingStatusUpdater';
 
 const ROOM = '!garden:example.org';
 
-const mountUpdater = (hidden: boolean) => {
+const mountUpdater = (hidden: boolean, view?: string) => {
   const calls: unknown[][] = [];
   const client = {
     sendTyping: (...args: unknown[]) => {
@@ -25,15 +29,20 @@ const mountUpdater = (hidden: boolean) => {
     update = useTypingStatusUpdater(client, ROOM, hide);
     return null;
   };
+  const inView = (hide: boolean) =>
+    React.createElement(
+      ConversationViewContext.Provider,
+      { value: view },
+      React.createElement(Harness, { hide })
+    );
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = create(React.createElement(Harness, { hide: hidden }));
+    renderer = create(inView(hidden));
   });
   return {
     calls,
     type: (typing: boolean) => update(typing),
-    setHidden: (hide: boolean) =>
-      act(() => renderer.update(React.createElement(Harness, { hide }))),
+    setHidden: (hide: boolean) => act(() => renderer.update(inView(hide))),
     unmount: () => act(() => renderer.unmount()),
   };
 };
@@ -84,6 +93,26 @@ describe.each([
     act(() => getDefaultStore().set(atom, false));
     updater.type(true);
     expect(updater.calls).toEqual([...ended, [ROOM, true, TYPING_TIMEOUT_MS]]);
+    updater.unmount();
+  });
+
+  it("keeps typing in another conversation view while the room's page is hidden, and ends it as the view stops showing", () => {
+    const store = getDefaultStore();
+    act(() =>
+      store.set(shownConversationViewsAtom, [
+        { view: 'thread-view', roomId: ROOM, threadId: '$root' },
+      ])
+    );
+    const updater = mountUpdater(false, 'thread-view');
+    act(() => store.set(atom, true));
+    updater.type(true);
+    expect(updater.calls).toEqual([[ROOM, true, TYPING_TIMEOUT_MS]]);
+    // Its side panel folds.
+    act(() => store.set(shownConversationViewsAtom, []));
+    expect(updater.calls).toEqual([
+      [ROOM, true, TYPING_TIMEOUT_MS],
+      [ROOM, false, TYPING_TIMEOUT_MS],
+    ]);
     updater.unmount();
   });
 });
