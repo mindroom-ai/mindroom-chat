@@ -75,8 +75,8 @@ export const ImageViewer = as<'div', ImageViewerProps>(
 
     const imageTransform = `translate(${pan.translateX}px, ${pan.translateY}px) scale(${zoom})`;
 
-    // `data-image-viewer` marks the open viewer: the page's pinch to zoom leaves the viewer its
-    // own pinch while it is there (theme/usePinchToZoom.ts), and the e2e media spec finds it by it.
+    // `data-image-viewer` marks the open viewer for the e2e media spec; the Modal that holds the
+    // viewer marks it as a pinch surface (content/ImageContent.tsx, content/ImageOverlay.tsx).
     return (
       <Box
         data-image-viewer="true"

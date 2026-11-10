@@ -5,6 +5,11 @@ import { Modal } from '../../ui/glass/GlassPrimitives';
 import { revealDirectionControls } from '../../ui/directional';
 import { ImageViewer } from '../viewers/ImageViewer';
 import { useViewerFrame, viewerTrapOptions } from './viewerFrame';
+import { PINCH_SURFACE_ATTRIBUTE } from '../../theme/usePinchToZoom';
+
+// The viewer pinches its own picture: the page zoom leaves pinches over its frame alone, its
+// safe-area padding on a phone included (theme/usePinchToZoom.ts).
+const PINCH_SURFACE = { [PINCH_SURFACE_ATTRIBUTE]: '' };
 
 type ImageOverlayProps = {
   /** The picture to show; nothing opens until it is there. */
@@ -29,6 +34,7 @@ export function ImageOverlay({ src, alt, requestClose }: ImageOverlayProps) {
       <OverlayCenter style={centerStyle}>
         <FocusTrap focusTrapOptions={viewerTrapOptions(requestClose)}>
           <Modal
+            {...PINCH_SURFACE}
             role="dialog"
             aria-modal="true"
             aria-label={revealDirectionControls(alt)}

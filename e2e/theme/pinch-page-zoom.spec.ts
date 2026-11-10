@@ -15,16 +15,21 @@ const storedPageZoom = (page: Page) =>
     () => (JSON.parse(localStorage.getItem('settings') ?? '{}') as { pageZoom?: number }).pageZoom
   );
 
-test('a pinch changes the page zoom, not the magnification', async ({ page, browserName }) => {
-  test.skip(browserName !== 'chromium', 'Chromium takes raw touch points over CDP');
-  await page.goto('/');
-  await expect(page.locator('#root')).not.toBeEmpty();
+/** Raw touch points over CDP: each call lists every finger down. */
+const fingersOn = async (page: Page) => {
   const session = await page.context().newCDPSession(page);
-  const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', fingers: Finger[]) =>
+  return (type: 'touchStart' | 'touchMove' | 'touchEnd', fingers: Finger[]) =>
     session.send('Input.dispatchTouchEvent', {
       type,
       touchPoints: fingers.map(([id, x, y]) => ({ id, x, y })),
     });
+};
+
+test('a pinch changes the page zoom, not the magnification', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Chromium takes raw touch points over CDP');
+  await page.goto('/');
+  await expect(page.locator('#root')).not.toBeEmpty();
+  const touch = await fingersOn(page);
 
   // The fingers spread from 100 to 150 px apart: 150 %.
   await touch('touchStart', [[1, 150, 400]]);
@@ -53,6 +58,50 @@ test('a pinch changes the page zoom, not the magnification', async ({ page, brow
   await touch('touchEnd', []);
   await expect.poll(() => storedPageZoom(page)).toBe(100);
   expect(await rootFontSize(page)).toBe('');
+  expect(await page.evaluate(() => window.visualViewport?.scale)).toBe(1);
+});
+
+// A plugin's board that zooms itself marks its element (`PINCH_SURFACE_ATTRIBUTE` in the client
+// SDK's `ui`): a pinch whose fingers all land on it is its own, and the page zoom stays.
+test('a pinch on a pinch surface leaves the page zoom, one across its edge changes it', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== 'chromium', 'Chromium takes raw touch points over CDP');
+  await page.goto('/');
+  await expect(page.locator('#root')).not.toBeEmpty();
+  // The board covers the page from 300 to 500 px down.
+  await page.evaluate(() => {
+    const board = document.createElement('div');
+    board.setAttribute('data-pinch-surface', '');
+    board.style.cssText = 'position: fixed; inset: 300px 0 auto; height: 200px; z-index: 10000';
+    board.addEventListener('touchmove', (event) => event.preventDefault(), { passive: false });
+    document.body.append(board);
+  });
+  const touch = await fingersOn(page);
+
+  await touch('touchStart', [[1, 150, 400]]);
+  await touch('touchStart', [
+    [1, 150, 400],
+    [2, 250, 400],
+  ]);
+  await touch('touchMove', [
+    [1, 125, 400],
+    [2, 275, 400],
+  ]);
+  await touch('touchEnd', []);
+  // One finger on the board and one below it: the page's pinch, from 200 to 250 px apart. Had the
+  // board's pinch zoomed the page to 150 %, this one would take it on to 188 %.
+  await touch('touchStart', [
+    [3, 150, 600],
+    [4, 150, 400],
+  ]);
+  await touch('touchMove', [
+    [3, 150, 650],
+    [4, 150, 400],
+  ]);
+  await touch('touchEnd', []);
+  await expect.poll(() => storedPageZoom(page)).toBe(125);
   expect(await page.evaluate(() => window.visualViewport?.scale)).toBe(1);
 });
 

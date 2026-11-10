@@ -13,6 +13,7 @@ import { LIVE_REASONING_KEY } from '../app/messages/live/useLiveReplyContent';
 import { pdfFrameUrl as appPdfFrameUrl } from '../app/messages/viewers/pdfFrame';
 import { PluginSidePanel } from '../app/room/PluginSidePanel';
 import { applyAppTheme } from '../app/theme/appliedTheme';
+import { PINCH_SURFACE_ATTRIBUTE as APP_PINCH_SURFACE_ATTRIBUTE } from '../app/theme/usePinchToZoom';
 import { DarkTheme, LightTheme } from '../app/theme/useTheme';
 import { Dialog, Header, IconButton, Menu } from '../app/ui/glass/GlassPrimitives';
 import { PopOut } from '../app/ui/directional';
@@ -27,6 +28,7 @@ import {
 import * as ui from './ui';
 import {
   pdfFrameUrl,
+  PINCH_SURFACE_ATTRIBUTE,
   replaceMatrixUserIdsWithDisplayNames,
   sanitizeHtml,
   useMarkdownHtml,
@@ -58,7 +60,7 @@ describe('@mindroom/client-sdk/ui', () => {
       PopOut,
     };
     const text = ['replaceMatrixUserIdsWithDisplayNames', 'sanitizeHtml', 'useMarkdownHtml'];
-    const ownSurface = ['pdfFrameUrl', 'useScreenSize', 'useThemeKind'];
+    const ownSurface = ['PINCH_SURFACE_ATTRIBUTE', 'pdfFrameUrl', 'useScreenSize', 'useThemeKind'];
     const panelMotion = ['animatePanel', 'usePanelPresence'];
     // The SDK only grows: a name a plugin imports never goes.
     expect(Object.keys(ui).sort()).toEqual(
@@ -67,6 +69,8 @@ describe('@mindroom/client-sdk/ui', () => {
     Object.entries(app).forEach(([name, component]) => {
       expect(ui[name as keyof typeof ui], name).toBe(component);
     });
+    // The page zoom leaves a pinch over an element with this attribute alone.
+    expect(PINCH_SURFACE_ATTRIBUTE).toBe(APP_PINCH_SURFACE_ATTRIBUTE);
   });
 });
 
