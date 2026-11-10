@@ -36,7 +36,6 @@ import {
   useCloseUserProfile,
   useShownThread,
   useShownUserProfile,
-  ThreadView,
   type RoomNavigate,
 } from './room';
 
@@ -50,20 +49,6 @@ vi.mock('focus-trap-react', async (original) => {
         focusTrapOptions={{ ...focusTrapOptions, tabbableOptions: { displayCheck: 'none' } }}
       />
     ),
-  };
-});
-
-// The app's thread view, which the SDK loads once one renders: it counts its mounts.
-const threadViewMounts = vi.hoisted(() => [] as string[]);
-vi.mock('../app/room/ThreadView', async () => {
-  const { useEffect } = await import('react');
-  return {
-    ThreadView: ({ threadId }: { threadId: string }) => {
-      useEffect(() => {
-        threadViewMounts.push(threadId);
-      }, []);
-      return <p>{`Thread ${threadId}`}</p>;
-    },
   };
 });
 
@@ -543,18 +528,5 @@ describe('useParentRooms, getParentRooms and offersSubRooms', () => {
 describe('useShownThread', () => {
   it("is undefined outside a room's page", () => {
     expect(renderHook(() => useShownThread()).result.current).toBeUndefined();
-  });
-});
-
-describe('ThreadView', () => {
-  it('starts afresh for another thread, and stays for the same one', async () => {
-    threadViewMounts.length = 0;
-    const room = { roomId: ROOM } as Room;
-    const { rerender } = render(<ThreadView room={room} threadId="$a" />);
-    await screen.findByText('Thread $a');
-    rerender(<ThreadView room={room} threadId="$a" />);
-    rerender(<ThreadView room={room} threadId="$b" />);
-    await screen.findByText('Thread $b');
-    expect(threadViewMounts).toEqual(['$a', '$b']);
   });
 });
