@@ -214,7 +214,7 @@ main() {
 copy_plugin_dirs() {
   local dir real copy name n parts link target copies=
   [ -n "${!1:-}" ] || return 0
-  IFS="$2" read -r -a parts <<<"${!1}"
+  mapfile -t -d "$2" parts < <(printf '%s' "${!1}")
   for dir in "${parts[@]}"; do
     dir="${dir#"${dir%%[![:space:]]*}"}"
     dir="${dir%"${dir##*[![:space:]]}"}"

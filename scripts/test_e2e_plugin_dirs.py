@@ -142,10 +142,10 @@ class SlotPreviewTests(PluginDirTestCase):
         self.assertFalse((self.copies / "plugin/.mindroom-chat").exists())
         self.assertTrue((self.copies / "plugin/e2e/fixtures/page.html").is_file())
 
-    def test_client_plugins_of_one_name_get_copies_of_their_own_and_their_entries_are_trimmed(self) -> None:
+    def test_client_plugins_of_one_name_get_copies_of_their_own_and_their_entries_are_trimmed_of_spaces_and_newlines(self) -> None:
         plugin = self.plugin("plugin")
         other = self.plugin("elsewhere/plugin")
-        result, (plugins, _, _) = self.run_slot(MINDROOM_CLIENT_PLUGINS=f" {plugin}, {other} ")
+        result, (plugins, _, _) = self.run_slot(MINDROOM_CLIENT_PLUGINS=f" {plugin},\n {other} \n")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(plugins, f"{self.copies / 'plugin'},{self.copies / 'plugin-2'}")
 
