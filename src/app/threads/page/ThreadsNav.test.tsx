@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
+import { MatrixEvent } from 'matrix-js-sdk';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -11,11 +12,18 @@ import {
 import type { ThreadSignals } from '../cross-room/threadSignals';
 import type { ThreadApprovalRecord } from '../../matrix/protocol/threadApprovalModel';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
+import type { RegisteredPlugin } from '../../plugins/registry';
 import type { ThreadListItem } from './threadGroups';
 import { ThreadsNav } from './ThreadsNav';
 
 const ME = '@alice:x';
-const state = vi.hoisted(() => ({ items: [] as ThreadListItem[], listsComplete: true }));
+const state = vi.hoisted(() => ({
+  items: [] as ThreadListItem[],
+  listsComplete: true,
+  plugins: [] as RegisteredPlugin[],
+  roots: new Map<string, MatrixEvent>(),
+}));
+vi.mock('../../plugins/registry', () => ({ registeredPlugins: state.plugins }));
 vi.mock('./useThreadListItems', () => ({ useThreadListItems: () => state.items }));
 vi.mock('./useJoinedRoomThreadLists', () => ({
   useJoinedRoomThreadLists: () => state.listsComplete,
@@ -27,6 +35,8 @@ const mx = {
     roomId,
     getCanonicalAlias: () => null,
     membersLoaded: () => true,
+    getThread: () => null,
+    findEventById: (eventId: string) => state.roots.get(eventId),
   }),
 };
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
@@ -62,7 +72,7 @@ const item = (
     summaryText: title,
     rootPreviewText: '',
     searchableText: title.toLowerCase(),
-    threadRecord: { status: { replyCount: 1, isStreaming: false } },
+    threadRecord: { status: { replyCount: 1, isStreaming: false }, presentation: {} },
     ...entry,
   } as CrossRoomThreadIndexEntry,
   signals: { ...quiet, ...signals },
@@ -104,6 +114,8 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   state.items = [];
+  state.plugins.splice(0);
+  state.roots.clear();
 });
 
 describe('ThreadsNav', () => {
@@ -127,11 +139,12 @@ describe('ThreadsNav', () => {
             senderId: '@tom:x',
             ts: 1,
             preview: { kind: 'text', text: '+1' },
+            event: { sender: '@tom:x', content: {} },
           },
         }
       ),
       item('run', '📝 Minutes', {
-        threadRecord: { status: { replyCount: 1, isStreaming: true } },
+        threadRecord: { status: { replyCount: 1, isStreaming: true }, presentation: {} },
       } as never),
       item('old', '📊 Q3 churn'),
     ];
@@ -219,12 +232,54 @@ describe('ThreadsNav', () => {
             senderId: ME,
             ts: 1,
             preview: { kind: 'text', text: 'done' },
+            event: { sender: ME, content: {} },
           },
         }
       ),
     ];
     renderNav();
     expect(screen.getByText('You: done')).toBeTruthy();
+  });
+
+  it("previews a reply, and titles a thread without an AI title, with the plugin's preview", () => {
+    const content = { msgtype: 'm.text', body: 'Hello there', 'com.example.greeting': {} };
+    state.plugins.push({
+      id: 'example',
+      tag: 'example@1.0.0',
+      messageRenderers: [
+        {
+          match: () => true,
+          Component: () => null,
+          preview: (event: { eventId: string }) => `Card ${event.eventId}`,
+          trust: 'server',
+        },
+      ],
+    } as unknown as RegisteredPlugin);
+    state.items = [
+      item(
+        'card',
+        'Card thread',
+        {},
+        {
+          lastReply: {
+            eventId: '$c',
+            senderId: '@tom:x',
+            ts: 1,
+            preview: { kind: 'text', text: 'Hello there' },
+            event: { eventId: '$c', sender: '@tom:x', content },
+          },
+        }
+      ),
+      item('root', 'Root body'),
+    ];
+    state.roots.set(
+      '$root',
+      new MatrixEvent({ event_id: '$root', type: 'm.room.message', sender: '@tom:x', content })
+    );
+    renderNav();
+    expect(screen.getByText('Tom: Card $c')).toBeTruthy();
+    expect(screen.getByText('Card $root')).toBeTruthy();
+    expect(screen.queryByText('Root body')).toBeNull();
   });
 
   it('writes out direction controls in titles, previews and room names', () => {
@@ -239,6 +294,7 @@ describe('ThreadsNav', () => {
             senderId: '@tom:x',
             ts: 1,
             preview: { kind: 'text', text: 'a\u202eb' },
+            event: { sender: '@tom:x', content: {} },
           },
         }
       ),

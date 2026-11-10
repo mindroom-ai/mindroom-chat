@@ -13,6 +13,7 @@ import { getMxIdLocalPart } from '../matrix/matrix';
 import { getMemberAvatarMxc, getMemberRawDisplayName, withoutNameDisguises } from '../matrix/room';
 import { acceptInvite } from '../notifications/inbox/acceptInvite';
 import { declineInvite } from '../notifications/inbox/declineInvite';
+import { useMessagePreview } from '../plugins/messageRenderers';
 import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import {
   threadActorName,
@@ -20,7 +21,8 @@ import {
   threadPreviewText,
   threadTitleText,
 } from '../threads/cross-room/threadText';
-import type { ActivityRow, ActivityThreadRow } from './activityRows';
+import { threadRootPluginEvent } from '../threads/cross-room/threadSignals';
+import type { ActivityRow } from './activityRows';
 import { needsYou } from './activityRows';
 import { answerApproval, answerQuestion } from './activityActions';
 import { agentMember } from '../approvals/approvalPeople';
@@ -248,11 +250,6 @@ function RowActions({
   );
 }
 
-const rowContext = (row: ActivityThreadRow): { title: string; room: string } => ({
-  title: threadTitleText(row.entry),
-  room: revealDirectionControls(row.entry.roomName),
-});
-
 /** One Activity row: who did what, a preview, the thread and room, and its answer buttons. */
 export const ActivityRowItem = memo(function ActivityRowItem({
   row,
@@ -298,6 +295,16 @@ export const ActivityRowItem = memo(function ActivityRowItem({
     : undefined;
   const suffix = sentenceSuffix(t, row);
   const kind = KIND_ICONS[row.kind];
+  // A plugin that renders the reply, or the root, as a card in the timeline previews it here.
+  const viewerId = mx.getUserId() ?? undefined;
+  const replyPreview = useMessagePreview(
+    row.type === 'thread' ? row.signals.lastReply?.event : undefined,
+    viewerId
+  );
+  const pluginTitle = useMessagePreview(
+    row.type === 'thread' ? threadRootPluginEvent(room, row.entry) : undefined,
+    viewerId
+  );
 
   let preview = '';
   if (row.type === 'invite') preview = revealDirectionControls(room?.name ?? row.roomId);
@@ -306,9 +313,16 @@ export const ActivityRowItem = memo(function ActivityRowItem({
     preview = revealDirectionControls(row.signals.pendingApproval.approval.toolName);
   } else if (row.kind === 'question' && row.signals.pendingQuestion) {
     preview = revealDirectionControls(row.signals.pendingQuestion.text);
-  } else if (row.signals.lastReply) preview = threadPreviewText(t, row.signals.lastReply.preview);
-  else preview = threadIndexReplyPreview(row.entry)?.text ?? '';
-  const context = row.type === 'thread' ? rowContext(row) : undefined;
+  } else if (row.signals.lastReply) {
+    preview = replyPreview ?? threadPreviewText(t, row.signals.lastReply.preview);
+  } else preview = threadIndexReplyPreview(row.entry)?.text ?? '';
+  const context =
+    row.type === 'thread'
+      ? {
+          title: pluginTitle ?? threadTitleText(row.entry),
+          room: revealDirectionControls(row.entry.roomName),
+        }
+      : undefined;
 
   return (
     <div
