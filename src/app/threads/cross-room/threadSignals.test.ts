@@ -500,7 +500,7 @@ describe('readThreadSignals in a loaded thread with edits', () => {
     });
     const { room } = await setup(ME, [reply, done], { opened: true });
 
-    expect(readThreadSignals(room, ROOT, ME, NOW).lastReply?.event.content).toEqual({
+    expect(readThreadSignals(room, ROOT, ME, NOW).lastReply?.event?.content).toEqual({
       msgtype: 'm.text',
       body: 'Done',
       'io.mindroom.stream_status': 'completed',
