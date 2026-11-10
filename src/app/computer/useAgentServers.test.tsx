@@ -304,6 +304,16 @@ it('offers outside a room only the published servers on the trusted list', async
   expect(seen.at(-1)).toEqual([]);
 });
 
+it('does not render again for a redelivered agent membership whose server is not trusted', async () => {
+  const { room, joined, seen } = await mountServerUrls({
+    apiUrl: 'https://deployment.example.org',
+  });
+  const renders = seen.length;
+  redeliver(room, joined);
+  await afterSyncBatch();
+  expect(seen).toHaveLength(renders);
+});
+
 it('ignores a trusted localhost server in the native apps', async () => {
   native.isNativePlatform = true;
   const { seen } = await mountServerUrls({ trustedApiUrls: ['http://localhost:8765'] });
