@@ -13,7 +13,12 @@ import type { Editor } from 'slate';
 import { Editable, Slate } from 'slate-react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
-import { composerReplyDraftAtom } from '../composer/roomInputDrafts';
+import {
+  composerReplyDraftAtom,
+  composerUploadItemsAtom,
+  roomUploadAtomFamily,
+} from '../composer/roomInputDrafts';
+import { UploadStatus } from '../matrix/state/upload';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import {
   ConversationViewContext,
@@ -38,6 +43,11 @@ const state = vi.hoisted(() => ({
   dropTarget: undefined as HTMLElement | null | undefined,
   composerViews: [] as (string | undefined)[],
   approvals: undefined as Omit<ApprovalProps, 'children'> | undefined,
+  claimed: [] as File[],
+}));
+
+vi.mock('../composer/useRoomInputSendSessionController', () => ({
+  claimedSendFiles: () => state.claimed,
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
@@ -105,6 +115,7 @@ beforeEach(() => {
   state.dropTarget = undefined;
   state.composerViews = [];
   state.approvals = undefined;
+  state.claimed = [];
 });
 afterEach(cleanup);
 
@@ -182,7 +193,7 @@ it("sets the room view's insets to none, as no floating header or composer cover
   );
 });
 
-it('is a conversation view of its own, apart from the room page and from another view of the thread, whose reply goes with it', () => {
+it('is a conversation view of its own, apart from the room page and from another view of the thread, whose reply and staged files go with it, their uploads stopped unless a send holds them', () => {
   const store = getDefaultStore();
   const { unmount } = render(
     <>
@@ -196,12 +207,35 @@ it('is a conversation view of its own, apart from the room page and from another
   expect(first).not.toBe(second);
 
   const reply = { userId: '@bob:example.org', eventId: '$reply', body: 'Reply' };
+  const staged = (name: string) => {
+    const file = new File(['x'], name);
+    const item = {
+      file,
+      originalFile: file,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+    };
+    const promise = new Promise<never>(() => undefined);
+    act(() => {
+      store.set(composerUploadItemsAtom(room.roomId, first), { type: 'PUT', item });
+      store.set(roomUploadAtomFamily(file), { promise });
+    });
+    return { file, promise };
+  };
   act(() => {
     store.set(composerReplyDraftAtom(room.roomId, first), reply);
   });
+  const unclaimed = staged('notes.txt');
+  // A send under way holds this one, and still sends it.
+  const claimed = staged('claimed.txt');
+  state.claimed = [claimed.file];
+  const cancel = vi.spyOn(mx, 'cancelUpload').mockReturnValue(true);
   unmount();
-  // Its staged files go with its composer (useRoomInputAttachments).
   expect(store.get(composerReplyDraftAtom(room.roomId, first))).toBeUndefined();
+  expect(store.get(composerUploadItemsAtom(room.roomId, first))).toEqual([]);
+  expect(cancel.mock.calls).toEqual([[unclaimed.promise]]);
+  expect(store.get(roomUploadAtomFamily(claimed.file)).status).toBe(UploadStatus.Loading);
+  cancel.mockRestore();
 });
 
 it('counts its thread as on screen for notifications while it is mounted', () => {

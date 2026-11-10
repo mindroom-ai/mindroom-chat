@@ -1,5 +1,5 @@
 import { type CSSProperties, useCallback, useEffect, useId, useMemo, useRef } from 'react';
-import { useSetAtom } from 'jotai';
+import { useSetAtom, useStore } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { Box } from 'folds';
@@ -23,7 +23,13 @@ import {
   composerStateKey,
   shownConversationViewsAtom,
 } from '../navigation/conversationView';
-import { roomIdToReplyDraftAtomFamily } from '../composer/roomInputDrafts';
+import {
+  roomIdToReplyDraftAtomFamily,
+  roomIdToUploadItemsAtomFamily,
+  roomUploadAtomFamily,
+} from '../composer/roomInputDrafts';
+import { claimedSendFiles } from '../composer/useRoomInputSendSessionController';
+import { UploadStatus } from '../matrix/state/upload';
 import { RoomTimeline } from '../timeline/RoomTimeline';
 import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { MessageLinkCards } from './MessageLinkCards';
@@ -78,16 +84,27 @@ export function ThreadView({ room, threadId }: { room: Room; threadId: string })
     return () => setShownViews((shown) => shown.filter((other) => other !== place));
   }, [folded, roomId, setShownViews, threadId, view]);
 
-  // Its composer's reply, in each room it showed, goes with it as it unmounts: no later view finds
-  // it. Its staged files go with its composer, except those a send under way still sends.
+  // Its composer's reply and staged files, in each room it showed, go with it as it unmounts: no
+  // later view finds them, and their uploads stop. A send under way keeps the files it claimed.
+  const store = useStore();
   const roomsShown = useRef(new Set<string>()).current;
   roomsShown.add(roomId);
   useEffect(
-    () => () =>
+    () => () => {
+      const claimed = new Set(claimedSendFiles(store, client, view));
       roomsShown.forEach((shownRoomId) => {
-        roomIdToReplyDraftAtomFamily.remove(composerStateKey(shownRoomId, view));
-      }),
-    [roomsShown, view]
+        const key = composerStateKey(shownRoomId, view);
+        store.get(roomIdToUploadItemsAtomFamily(key)).forEach(({ file }) => {
+          const upload = store.get(roomUploadAtomFamily(file));
+          if (claimed.has(file) || upload.status !== UploadStatus.Loading) return;
+          client.cancelUpload(upload.promise);
+          store.set(roomUploadAtomFamily(file), { status: UploadStatus.Idle });
+        });
+        roomIdToReplyDraftAtomFamily.remove(key);
+        roomIdToUploadItemsAtomFamily.remove(key);
+      });
+    },
+    [client, roomsShown, store, view]
   );
 
   const focusConversation = useCallback(() => ReactEditor.focus(editor), [editor]);

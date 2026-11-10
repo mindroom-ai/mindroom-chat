@@ -1,4 +1,4 @@
-import { MutableRefObject, useContext, useEffect, useLayoutEffect, useState } from 'react';
+import { MutableRefObject, useContext, useEffect, useLayoutEffect } from 'react';
 import { useStore } from 'jotai';
 import { IContent, MatrixClient, Room } from 'matrix-js-sdk';
 import { Descendant, Editor } from 'slate';
@@ -42,8 +42,6 @@ type SendSession = RoomInputSendSessionState & {
   failFast: boolean;
   uploads?: Upload[];
   onUploadSent?: (file: TUploadContent) => void;
-  /** The staged files the session claimed. */
-  items?: TUploadItem[];
   stopWatching?: () => void;
 };
 
@@ -165,6 +163,8 @@ type RoomInputSendController = {
 
 type ComposerSendController = {
   api: RoomInputSendController;
+  /** The files the session under way claimed (a sent one has left the staged files). */
+  claimed: () => TUploadContent[];
   /** The composer on screen lends the controller what it uses from now on. */
   bind: (composer: UseRoomInputSendSessionControllerOptions) => void;
   /** A composer mounts with its attachments; returns its unmount. */
@@ -176,10 +176,11 @@ type ComposerSendController = {
  * and the texts that go beside a session waiting for a retry. It outlives the composer. The
  * composer on screen lends it the editor, the attachments and the callbacks, read as they are
  * used; after the composer unmounts it keeps the last ones, and the session's own watch on the
- * uploads it waits for wakes it. `endsWithComposer`: a thread view's, whose files no later
- * composer shows, so a send there that can only go on after a retry ends once its composer is gone.
+ * uploads it waits for wakes it. A session that can only go on after a retry ends once no
+ * composer is mounted, as it did with its composer before: its files stay staged for another
+ * send. `release` runs once the controller is idle with no composer mounted.
  */
-const createSendController = (endsWithComposer: boolean): ComposerSendController => {
+const createSendController = (release: () => void): ComposerSendController => {
   let composer!: UseRoomInputSendSessionControllerOptions;
   let sendSession: SendSession | undefined;
   let processing = false;
@@ -212,9 +213,13 @@ const createSendController = (endsWithComposer: boolean): ComposerSendController
   };
 
   // A sent message opens its thread only in a composer that still shows its room.
-  const openSentMessage = (session: SendSession, eventId: string) => {
+  const openSentMessage = (session: SendSession, eventId: string): boolean => {
     const { onRoomMessageSent, mountedRef, roomId } = composer;
-    if ((mountedRef?.current ?? true) && roomId === session.roomId) onRoomMessageSent?.(eventId);
+    if (!onRoomMessageSent || !(mountedRef?.current ?? true) || roomId !== session.roomId) {
+      return false;
+    }
+    onRoomMessageSent(eventId);
+    return true;
   };
 
   const sendSessionText = async (session: SendSession) => {
@@ -251,8 +256,7 @@ const createSendController = (endsWithComposer: boolean): ComposerSendController
       });
       if (!sentEventIdToNotify) return;
 
-      roomMessageSentNotified = true;
-      openSentMessage(session, sentEventIdToNotify);
+      roomMessageSentNotified = openSentMessage(session, sentEventIdToNotify);
     };
 
     if (localEventId === `~${session.roomId}:${txnId}`) {
@@ -388,9 +392,8 @@ const createSendController = (endsWithComposer: boolean): ComposerSendController
         const step = resolveRoomInputSendStep(session, ...getSessionUploads(session));
 
         if (step.kind === 'wait') {
-          // No composer is left to show the retry this session waits for: what it could not
-          // send goes with it.
-          if (endsWithComposer && mounted === 0 && isSessionStalled(session)) clearSendSession();
+          // Without a composer nothing shows the retry this session waits for.
+          if (mounted === 0 && isSessionStalled(session)) clearSendSession();
           return;
         }
         if (step.kind === 'complete') {
@@ -418,8 +421,9 @@ const createSendController = (endsWithComposer: boolean): ComposerSendController
             throw error;
           }
           if (step.isRoot) {
+            // The caption goes on its own (see `resolveRoomInputSendStep`).
             session.blockedRoot = true;
-            return;
+            continue;
           }
           session.failedFiles.add(step.file);
         }
@@ -427,6 +431,7 @@ const createSendController = (endsWithComposer: boolean): ComposerSendController
     } finally {
       processing = false;
       releaseQueuedSends();
+      if (mounted === 0 && !sendSession && queuedSends.length === 0) release();
     }
   };
 
@@ -542,7 +547,6 @@ const createSendController = (endsWithComposer: boolean): ComposerSendController
         onUploadSent,
       }
     );
-    session.items = sendItems;
     // The session follows its own uploads, so it goes on when no composer is left to tell it.
     session.stopWatching = attachments.watchUploads(sendFiles, wake);
     sendSession = session;
@@ -576,20 +580,27 @@ const createSendController = (endsWithComposer: boolean): ComposerSendController
     }
   };
 
-  return {
+  const controller: ComposerSendController = {
     api: {
       hasActiveSendSession: () => sendSession !== undefined,
       processSendSession,
       startSendSession,
     },
+    claimed: () => sendSession?.orderedFiles ?? [],
     bind: (next) => {
       composer = next;
     },
     mount: (attachments) => {
       mounted += 1;
       // A composer that mounts while a send an earlier one started is under way claims that
-      // send's files again, so it neither drops them nor sends them twice.
-      if (sendSession?.items) attachments.enroll(sendSession.items);
+      // send's files still staged again (not those sent or removed), so it neither drops them nor
+      // sends them twice.
+      if (sendSession) {
+        const claimed = new Set(controller.claimed());
+        attachments.enroll(
+          attachments.snapshot(sendSession.roomId).staged.filter((item) => claimed.has(item.file))
+        );
+      }
       const unsubscribe = attachments.subscribe(wake);
       wake();
       return () => {
@@ -599,34 +610,49 @@ const createSendController = (endsWithComposer: boolean): ComposerSendController
       };
     },
   };
+  return controller;
 };
 
-// The room page's composer has one controller per account and store, whichever room it shows,
-// so a composer that mounts again finds the sends the one before left under way.
-const pageControllers = new WeakMap<object, WeakMap<MatrixClient, ComposerSendController>>();
+// Each composer has one controller per store and account: the room page's (whichever room it
+// shows) and each thread view's. A composer that mounts again finds the sends the one before left
+// under way; an idle controller with no composer goes.
+const controllers = new WeakMap<
+  object,
+  WeakMap<MatrixClient, Map<string | undefined, ComposerSendController>>
+>();
 
-const pageController = (store: object, mx: MatrixClient): ComposerSendController => {
-  const byClient = pageControllers.get(store) ?? new WeakMap();
-  pageControllers.set(store, byClient);
-  const existing = byClient.get(mx);
-  if (existing) return existing;
-  const created = createSendController(false);
-  byClient.set(mx, created);
-  return created;
+const controllersOf = (store: object, mx: MatrixClient) => {
+  const byClient = controllers.get(store) ?? new WeakMap();
+  controllers.set(store, byClient);
+  const byView = byClient.get(mx) ?? new Map<string | undefined, ComposerSendController>();
+  byClient.set(mx, byView);
+  return byView;
 };
+
+/** The files a send of this composer (`view`: a thread view's, else the room page's) holds. */
+export const claimedSendFiles = (
+  store: object,
+  mx: MatrixClient,
+  view: string | undefined
+): TUploadContent[] => controllers.get(store)?.get(mx)?.get(view)?.claimed() ?? [];
 
 export const useRoomInputSendSessionController = (
   options: UseRoomInputSendSessionControllerOptions
 ): RoomInputSendController => {
   const store = useStore();
-  // A thread view's composer has a controller of its own, which ends with its last send.
   const view = useContext(ConversationViewContext);
-  const [viewController] = useState(() =>
-    view === undefined ? undefined : createSendController(true)
-  );
-  const controller = viewController ?? pageController(store, options.mx);
-  useLayoutEffect(() => controller.bind(options));
+  const byView = controllersOf(store, options.mx);
+  let controller = byView.get(view);
+  if (!controller) {
+    const created = createSendController(() => {
+      if (byView.get(view) === created) byView.delete(view);
+    });
+    byView.set(view, created);
+    controller = created;
+  }
+  const bound = controller;
+  useLayoutEffect(() => bound.bind(options));
   const { attachments } = options;
-  useEffect(() => controller.mount(attachments), [attachments, controller]);
-  return controller.api;
+  useEffect(() => bound.mount(attachments), [attachments, bound]);
+  return bound.api;
 };

@@ -8,7 +8,10 @@ import { roomIdToUploadItemsAtomFamily, roomUploadAtomFamily } from './roomInput
 import type { TUploadItem } from '../matrix/state/upload';
 import { ConversationViewContext, composerStateKey } from '../navigation/conversationView';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
-import { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
+import {
+  claimedSendFiles,
+  useRoomInputSendSessionController,
+} from './useRoomInputSendSessionController';
 
 // The paste marker module brings the composer's menus and indicators along.
 vi.mock('./commands/CommandAutocomplete', () => ({
@@ -188,17 +191,6 @@ const finishUpload = async (upload: ReturnType<typeof deferredUpload>, mxc?: str
   });
 };
 
-/** The keys the staged-files family holds lists for, read without creating any. */
-const stagedListKeys = () => {
-  const keys: string[] = [];
-  roomIdToUploadItemsAtomFamily.setShouldRemove((_createdAt, key) => {
-    keys.push(key);
-    return false;
-  });
-  roomIdToUploadItemsAtomFamily.setShouldRemove(null);
-  return keys;
-};
-
 const bodies = (mx: Client) =>
   mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body);
 
@@ -227,12 +219,15 @@ describe('a send that outlives its composer', () => {
       });
     });
     expect(mx.sendMessage).not.toHaveBeenCalled();
+    // Staged after the send: it stays for the next message.
+    const later = stagedFile('later.bin');
+    act(() => page.composer().attachments.append(ROOM_ID, [later]));
     act(() => page.renderer.unmount());
     await finishUpload(upload, 'mxc://example.org/large');
 
     expect(bodies(mx)).toEqual(['large.bin', 'caption']);
     // The file left the room's staged files as it went; it opened no thread off screen.
-    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([later]);
     expect(opened).not.toHaveBeenCalled();
     // Nothing watches its uploads any more.
     expect(watches).toBe(0);
@@ -268,7 +263,32 @@ describe('a send that outlives its composer', () => {
     act(() => again.renderer.unmount());
   });
 
-  it('sends the claimed file of a closed thread view, and drops and cancels the ones no send claimed', async () => {
+  it('keeps a file removed during the send out of it after the composer mounts again', async () => {
+    const store = createStore();
+    const mx = createClient();
+    const first = mount(store, mx);
+    const kept = stagedFile('kept.bin');
+    const removed = stagedFile('removed.bin');
+    const keptUpload = stageUploading(store, first.composer(), kept);
+    stageUploading(store, first.composer(), removed);
+    await act(async () => {
+      await first.composer().sessions.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'caption' },
+      });
+    });
+    act(() => first.composer().attachments.remove(ROOM_ID, [removed.file]));
+    act(() => first.renderer.unmount());
+
+    const again = mount(store, mx);
+    expect(again.composer().attachments.snapshot(ROOM_ID).enrolled).toEqual([kept]);
+    await finishUpload(keptUpload, 'mxc://example.org/kept');
+
+    expect(bodies(mx)).toEqual(['kept.bin', 'caption']);
+    expect(again.composer().sessions.hasActiveSendSession()).toBe(false);
+    act(() => again.renderer.unmount());
+  });
+
+  it("sends the claimed file of a thread view whose composer went, and keeps the view's other files", async () => {
     const store = createStore();
     const mx = createClient();
     const view = mount(store, mx, { view: VIEW, threadId: THREAD_ID });
@@ -281,13 +301,13 @@ describe('a send that outlives its composer', () => {
     });
     // Staged after the send, so no send claimed it.
     const unclaimed = stagedFile('unclaimed.bin');
-    const unclaimedUpload = stageUploading(store, view.composer(), unclaimed);
+    stageUploading(store, view.composer(), unclaimed);
+    expect(claimedSendFiles(store, mx as never, VIEW)).toEqual([claimed.file]);
 
+    // The composer goes (the account may no longer post) while the view stays: the view's
+    // staged files stay with it, and the send goes on.
     act(() => view.renderer.unmount());
-
-    expect(mx.cancelUpload.mock.calls).toEqual([[unclaimedUpload.promise]]);
-    // Nothing of the closed view is left staged; the send holds the file it claimed.
-    expect(stagedListKeys()).not.toContain(composerStateKey(ROOM_ID, VIEW));
+    expect(mx.cancelUpload).not.toHaveBeenCalled();
     await finishUpload(claimedUpload, 'mxc://example.org/claimed');
 
     expect(bodies(mx)).toEqual(['claimed.bin', 'caption']);
@@ -297,33 +317,55 @@ describe('a send that outlives its composer', () => {
       expect.objectContaining({ rel_type: 'm.thread', event_id: THREAD_ID }),
       expect.objectContaining({ rel_type: 'm.thread', event_id: THREAD_ID }),
     ]);
-    expect(stagedListKeys()).not.toContain(composerStateKey(ROOM_ID, VIEW));
+    expect(claimedSendFiles(store, mx as never, VIEW)).toEqual([]);
+    expect(store.get(roomIdToUploadItemsAtomFamily(composerStateKey(ROOM_ID, VIEW)))).toEqual([
+      unclaimed,
+    ]);
   });
 
-  it.each(['before', 'after'])(
-    'ends the send of a thread view that can only go on after a retry, its upload failing %s the view closes',
-    async (when) => {
-      const store = createStore();
-      const mx = createClient();
-      const view = mount(store, mx, { view: VIEW, threadId: THREAD_ID });
-      const claimed = stagedFile('claimed.bin');
-      const upload = stageUploading(store, view.composer(), claimed);
-      await act(async () => {
-        await view.composer().sessions.startSendSession({
-          textContent: { msgtype: 'm.text', body: 'caption' },
+  describe.each([
+    ['room page', undefined, undefined],
+    ['thread view', VIEW, THREAD_ID],
+  ])('in the %s', (_name, viewKey, threadId) => {
+    it.each(['before', 'after'])(
+      'ends a send that can only go on after a retry, its file failing to send %s its composer unmounts, so the next one goes',
+      async (when) => {
+        const store = createStore();
+        const mx = createClient();
+        const first = mount(store, mx, { view: viewKey, threadId });
+        const failing = stagedFile('failing.bin');
+        const upload = stageUploading(store, first.composer(), failing);
+        await act(async () => {
+          await first.composer().sessions.startSendSession({
+            textContent: { msgtype: 'm.text', body: 'caption' },
+          });
         });
-      });
-      const { sessions } = view.composer();
-      if (when === 'before') await finishUpload(upload);
-      act(() => view.renderer.unmount());
-      if (when === 'after') await finishUpload(upload);
-      await act(async () => {
-        await Promise.resolve();
-      });
+        const { sessions } = first.composer();
+        mx.sendMessage.mockRejectedValueOnce(new Error('send failed'));
+        if (when === 'before') await finishUpload(upload, 'mxc://example.org/failing');
+        act(() => first.renderer.unmount());
+        if (when === 'after') await finishUpload(upload, 'mxc://example.org/failing');
+        await act(async () => {
+          await Promise.resolve();
+        });
 
-      // The caption does not wait for the failed file; nothing is left to show its retry.
-      expect(bodies(mx)).toEqual(['caption']);
-      expect(sessions.hasActiveSendSession()).toBe(false);
-    }
-  );
+        // The caption does not wait for the file, which stays staged for another try.
+        expect(bodies(mx)).toEqual(['failing.bin', 'caption']);
+        expect(sessions.hasActiveSendSession()).toBe(false);
+        expect(
+          store.get(roomIdToUploadItemsAtomFamily(composerStateKey(ROOM_ID, viewKey)))
+        ).toEqual([failing]);
+
+        // The composer mounting again sends its message, rather than trying the old one again.
+        const again = mount(store, mx, { view: viewKey, threadId });
+        await act(async () => {
+          await again.composer().sessions.startSendSession({
+            textContent: { msgtype: 'm.text', body: 'next' },
+          });
+        });
+        expect(bodies(mx)).toEqual(['failing.bin', 'caption', 'failing.bin', 'next']);
+        act(() => again.renderer.unmount());
+      }
+    );
+  });
 });
