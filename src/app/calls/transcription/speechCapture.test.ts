@@ -253,7 +253,11 @@ const framesOf = async (stretch: SpeechStretch) => {
 /** Lets every step started so far finish, as the next task would. */
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 
-/** Lets a load asked for meanwhile get as far as asking for a detector (100 ms, on the real clock). */
+/**
+ * Gives a load that should not happen time to ask for a detector (100 ms, on the real clock). Only
+ * for checking that none comes: a load that should come is awaited by `entering` or `making`, as
+ * the wrapper's and the runtime's imports can take longer than this on a busy machine.
+ */
 const idle = () => wait(100);
 
 /** Keeps the model loading until the returned function is called. */
@@ -564,11 +568,13 @@ describe('startSpeechCapture', () => {
     const { capture } = await startOffline();
     expect(detector.made).toEqual([]);
     detector.loading = () => Promise.resolve();
+    const made = making();
     capture.setPaused(true);
     await capture.stop();
     expect(defined(FakeAudioContext.last, 'the audio context').state).toBe('closed');
     // The pause loads it again, and the stop lets go of what that loads.
-    await idle();
+    await made;
+    await settle();
     expect(defined(detector.made[0], 'the detector').destroyed).toBe(true);
   });
 
@@ -691,10 +697,16 @@ describe('startSpeechCapture', () => {
     ['could not be fetched', () => Promise.reject(new TypeError('Failed to fetch'))],
     ['was refused', async () => new Response('Service Unavailable', { status: 503 })],
   ])('loads the runtime again on the next start when its WebAssembly %s', async (_, failure) => {
-    vi.mocked(fetch).mockImplementationOnce(failure);
+    const fetched = new Promise<void>((resolve) => {
+      vi.mocked(fetch).mockImplementationOnce(() => {
+        resolve();
+        return failure();
+      });
+    });
     const { track } = microphone();
     const failed = await startSpeechCapture(track, () => undefined);
-    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+    // The load fails on the fetch's answer, before the next task.
+    await fetched;
     await settle();
     await failed.stop();
 
@@ -705,14 +717,20 @@ describe('startSpeechCapture', () => {
 
   it('asks for the runtime module by a URL of its own after it failed to load, as the browser keeps it failed', async () => {
     vi.resetModules();
+    let failing!: () => void;
+    const imported = new Promise<void>((resolve) => {
+      failing = resolve;
+    });
     vi.doMock('/assets/speech-model/ort-wasm-simd-threaded.js', () => {
+      failing();
       throw new TypeError('Failed to fetch dynamically imported module');
     });
     try {
       const fresh = await import('./speechCapture');
       const { track } = microphone();
       const failed = await fresh.startSpeechCapture(track, () => undefined);
-      await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+      // The import fails as its module throws, and the capture counts that before the next task.
+      await imported;
       await settle();
       await failed.stop();
 
