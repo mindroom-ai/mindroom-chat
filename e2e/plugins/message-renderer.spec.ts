@@ -7,6 +7,7 @@ import {
   test,
   type Browser,
   type BrowserContextOptions,
+  type Locator,
   type Page,
 } from '@playwright/test';
 import { chooseFromAccountMenu, loginWithPassword, waitForLoggedInShell } from '../helpers/auth';
@@ -238,6 +239,13 @@ test('?plugins=off shows the reply as the app renders it', ({ browser }) =>
     await expectCoreRendering(page, data, 'plugins-off');
   }));
 
+/** Opens `path` without loading the page again, as the app's own links go. */
+const navigateInPage = (page: Page, path: string) =>
+  page.evaluate((to) => {
+    window.history.pushState(null, '', to);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, path);
+
 test('?plugins=off on the sign-in page holds for the rest of that page load', ({ browser }) =>
   onBuild(browser, {}, async (page, data) => {
     await page.goto(`${buildLoginPath(HOMESERVER)}?plugins=off`);
@@ -248,11 +256,7 @@ test('?plugins=off on the sign-in page holds for the rest of that page load', ({
     });
     await page.getByRole('button', { name: 'Login' }).click();
     await waitForLoggedInShell(page);
-    // Into the thread without loading the page again, as the app's own links go.
-    await page.evaluate((path) => {
-      window.history.pushState(null, '', path);
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    }, threadPath(data));
+    await navigateInPage(page, threadPath(data));
     await expectCoreRendering(page, data, 'plugins-off-from-sign-in');
     expect(await page.evaluate(() => (window as { pluginSpecLoad?: boolean }).pluginSpecLoad)).toBe(
       true
@@ -386,13 +390,19 @@ for (const [name, plugins, path] of [
     }));
 }
 
+/** The Threads page's rows, with every thread listed (`all`: the scope's name in the app's language). */
+const allThreadRows = async (page: Page, all = 'All') => {
+  await page.getByRole('radio', { name: all }).click();
+  return page.getByRole('navigation').getByRole('button');
+};
+
 /** The rows of Activity's popover, Activity's page and the Threads page, as `name` shows them. */
 const expectRows = async (
   page: Page,
   name: string,
   expected: { agentReply: string; cardTitle: string; hidden: string[] }
 ) => {
-  const check = async (rows: ReturnType<Page['locator']>, place: string) => {
+  const check = async (rows: Locator, place: string) => {
     const agentRow = rows.filter({ hasText: AGENT_ROOT });
     await expect(agentRow).toContainText(expected.agentReply, { timeout: 60_000 });
     await expect(rows.filter({ hasText: PERSON_ROOT })).toContainText(ROW_PERSON_BODY);
@@ -400,7 +410,7 @@ const expectRows = async (
     for (const text of expected.hidden) await expect(rows.filter({ hasText: text })).toHaveCount(0);
     await shot(page, `${name}-${place}`);
   };
-  const bell = page.getByRole('button', { name: /^(Activity|Aktivität)/ }).first();
+  const bell = page.getByRole('button', { name: /^Activity/ }).first();
   await bell.click();
   const popover = page.getByRole('dialog');
   await check(popover.locator('[data-activity-row]'), 'activity-popover');
@@ -408,17 +418,13 @@ const expectRows = async (
   await page.goto('/activity/');
   await check(page.locator('[data-activity-row]'), 'activity-page');
   await page.goto('/threads/');
-  await page.getByRole('radio', { name: /^(All|Alle)$/ }).click();
-  await check(page.getByRole('navigation').getByRole('button'), 'threads-page');
+  await check(await allThreadRows(page), 'threads-page');
 };
 
-const pluginRows = (language: 'en' | 'de' = 'en') => {
-  const label = language === 'de' ? 'Gruß' : 'Greeting';
-  return {
-    agentReply: `${label}: ${ROW_GREETING}`,
-    cardTitle: `${label}: ${CARD_GREETING}`,
-    hidden: [ROW_AGENT_BODY, CARD_BODY],
-  };
+const pluginRows = {
+  agentReply: `Greeting: ${ROW_GREETING}`,
+  cardTitle: `Greeting: ${CARD_GREETING}`,
+  hidden: [ROW_AGENT_BODY, CARD_BODY],
 };
 
 const coreRows = {
@@ -433,15 +439,14 @@ test("Activity and the Threads page preview an agent's greeting through the plug
   onBuild(browser, {}, async (page, data) => {
     await signIn(page, data);
     await page.goto('/home/');
-    await expectRows(page, 'rows', pluginRows());
+    await expectRows(page, 'rows', pluginRows);
   }));
 
 test('the rows read the German preview once the app is German, without a reload', ({ browser }) =>
   onBuild(browser, {}, async (page, data) => {
     await signIn(page, data);
     await page.goto('/threads/');
-    await page.getByRole('radio', { name: 'All' }).click();
-    const rows = page.getByRole('navigation').getByRole('button');
+    const rows = await allThreadRows(page);
     await expect(rows.filter({ hasText: AGENT_ROOT })).toContainText(`Greeting: ${ROW_GREETING}`, {
       timeout: 60_000,
     });
@@ -482,20 +487,14 @@ test('?plugins=off previews every row by its body', ({ browser }) =>
     await page.getByRole('button', { name: 'Login' }).click();
     await waitForLoggedInShell(page);
     // The setting holds for the page load, so the lists open without loading the page again.
-    const open = (path: string) =>
-      page.evaluate((to) => {
-        window.history.pushState(null, '', to);
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      }, path);
-    await open('/threads/');
-    await page.getByRole('radio', { name: 'All' }).click();
-    const rows = page.getByRole('navigation').getByRole('button');
+    await navigateInPage(page, '/threads/');
+    const rows = await allThreadRows(page);
     await expect(rows.filter({ hasText: AGENT_ROOT })).toContainText(ROW_AGENT_BODY, {
       timeout: 60_000,
     });
     await expect(rows.filter({ hasText: CARD_BODY })).toHaveCount(1);
     await expect(rows.filter({ hasText: `Greeting: ${ROW_GREETING}` })).toHaveCount(0);
-    await open('/activity/');
+    await navigateInPage(page, '/activity/');
     const activityRows = page.locator('[data-activity-row]');
     await expect(activityRows.filter({ hasText: AGENT_ROOT })).toContainText(ROW_AGENT_BODY, {
       timeout: 60_000,
@@ -529,10 +528,7 @@ test("a row that shows while the plugin's German strings load reads them when th
       });
       await page.evaluate(() => localStorage.setItem('i18nextLng', 'de'));
       await page.goto('/threads/');
-      await page.getByRole('radio', { name: 'Alle' }).click();
-      const agentRow = page.getByRole('navigation').getByRole('button').filter({
-        hasText: AGENT_ROOT,
-      });
+      const agentRow = (await allThreadRows(page, 'Alle')).filter({ hasText: AGENT_ROOT });
       await expect(agentRow).toContainText(`Greeting: ${ROW_GREETING}`, { timeout: 60_000 });
       await expect.poll(() => held).toBe(true);
 
