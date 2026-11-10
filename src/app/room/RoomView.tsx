@@ -8,7 +8,7 @@ import React, {
   useRef,
 } from 'react';
 import classNames from 'classnames';
-import { useAtomValue } from 'jotai';
+import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { EventStatus, RoomEvent, type Room, type RoomEventHandlerMap } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
@@ -42,19 +42,32 @@ import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 import { RoomHeaderSlot } from './RoomHeaderSlot';
 import { ConversationCover } from './ConversationCover';
 import { conversationHiddenAtom } from '../navigation/conversationCover';
+import { shownConversationViewsAtom } from '../navigation/conversationView';
+import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
 import * as overlay from '../ui/styles/RoomOverlay.css';
 import { SurfaceProvider } from '../ui/glass/SurfaceContext';
 import * as css from './RoomView.css';
 import { ThreadContextBanner } from '../threads/ThreadContextBanner';
-import { isConfirmedMatrixEventId, isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
+import {
+  isConfirmedMatrixEventId,
+  isLocalEchoEventId,
+} from '../event-store/threads/threadRouteUtils';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
 import { useShortcut } from '../shortcuts/useShortcut';
+import { ThreadView } from './ThreadView';
+import { THREAD_COLUMN_WIDTH_KEY, useThreadLayout } from './threadLayout';
 
 const EMPTY_SUMMARY_MAP = new Map<string, ThreadSummaryInfo>();
 /** Stand-in for handlers the thread state mock or a minimal state leaves out. */
 const ignore = () => undefined;
 
 const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
+/** The thread column opens this wide, and may take what the messages beside it can spare. */
+const THREAD_COLUMN_DEFAULT_WIDTH = 480;
+const THREAD_COLUMN_MAX_WIDTH = 4096;
+// The page's own style (Page), and with the thread column beside the room area.
+const PAGE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
+const PAGE_ROW_STYLE: CSSProperties = { ...PAGE_STYLE, flexDirection: 'row' };
 
 export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId' | 'threadFilterState'> & {
   room: Room;
@@ -194,7 +207,9 @@ const useLocalEchoRoot = (room: Room, threadId: string | undefined, onDeleted: (
  * The main area of a room: the timeline (Compact cards, the Full timeline, or the open thread
  * with its banner) under a floating header and footer, with approvals and background jobs
  * above the composer. The composer stays mounted when a thread opens, so a send that opened
- * the thread keeps its pending uploads.
+ * the thread keeps its pending uploads. Where the person chose it and the page has room
+ * (`useThreadLayout`), the open thread shows in a column of its own beside the room's messages
+ * instead, a conversation view (`ThreadView`) with its own composer.
  */
 export function RoomView({
   room,
@@ -215,6 +230,7 @@ export function RoomView({
   const footerRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
   const compactRoomScrollStateRef = useRef<ScrollAnchorMemory>(new Map());
   const threadReturnPlaceRef = useRef<RoomRowsPlace>();
 
@@ -225,10 +241,14 @@ export function RoomView({
   const canCancelJobs = permissions.event(BACKGROUND_JOB_CANCEL_EVENT, myUserId);
 
   const threadState = useRoomViewThreadState({ room, threadId, eventId, hasMindroomAgents });
-  const { effectiveThreadId, viewMode } = threadState;
+  const { effectiveThreadId: openThreadId, viewMode } = threadState;
+  const threadLayout = useThreadLayout(pageRef);
+  // The thread in its column, or in the messages' place.
+  const columnThreadId = threadLayout.beside ? openThreadId : undefined;
+  const effectiveThreadId = columnThreadId ? undefined : openThreadId;
   const localRoot = useLocalEchoRoot(
     room,
-    effectiveThreadId,
+    openThreadId,
     threadState.handleThreadRootDeleted ?? ignore
   );
   // An upgraded room takes no more messages; its notice leads to the replacement.
@@ -246,9 +266,7 @@ export function RoomView({
   useRoomOverlayInsets(areaRef, headerRef, footerRef, dockRef, effectiveThreadId);
 
   // The open room (and thread) keeps its history downloads; leaving the room ends them.
-  const focusedThreadId = isConfirmedMatrixEventId(effectiveThreadId)
-    ? effectiveThreadId
-    : undefined;
+  const focusedThreadId = isConfirmedMatrixEventId(openThreadId) ? openThreadId : undefined;
   useEffect(() => {
     engine.noteRoomFocused(roomId, focusedThreadId);
   }, [engine, roomId, focusedThreadId]);
@@ -258,17 +276,38 @@ export function RoomView({
     footerRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus();
   }, []);
 
+  // Beside its thread, the page shows the room's messages too, which its address does not name:
+  // notifications count the room as on screen, as they do while the page shows only the room.
+  const setShownViews = useSetAtom(shownConversationViewsAtom);
+  useEffect(() => {
+    if (!columnThreadId || hidden) return undefined;
+    const place = { view: 'room-messages', roomId };
+    setShownViews((shown) => [...shown, place]);
+    return () => setShownViews((shown) => shown.filter((other) => other !== place));
+  }, [columnThreadId, hidden, roomId, setShownViews]);
+  // Focus left in a thread column that closed (or took the messages' place) goes to the composer.
+  const hadColumn = useRef(false);
+  useEffect(() => {
+    const closed = hadColumn.current && !columnThreadId;
+    hadColumn.current = !!columnThreadId;
+    if (closed && (!document.activeElement || document.activeElement === document.body)) {
+      focusConversation();
+    }
+  }, [columnThreadId, focusConversation]);
+
   const threadHeader = effectiveThreadId ? (
     <ThreadContextBanner
       room={room}
       threadId={effectiveThreadId}
       summaryInfo={threadState.threadSummaryInfo}
       onExitThread={threadState.handleExitThread ?? ignore}
+      onShowBeside={threadLayout.roomy ? () => threadLayout.setLayout('beside') : undefined}
     />
   ) : undefined;
   const timelineProps: RoomTimelineProps = {
     room,
-    eventId,
+    // The event the address names is the thread's, unless it asks for it in the room.
+    eventId: columnThreadId && !focusEventInRoom ? undefined : eventId,
     threadId: effectiveThreadId,
     focusEventInRoom,
     hasMindroomAgents,
@@ -313,8 +352,10 @@ export function RoomView({
     );
   }
 
+  const showFull = () => threadLayout.setLayout('full');
+
   return (
-    <Page>
+    <Page ref={pageRef} style={columnThreadId ? PAGE_ROW_STYLE : PAGE_STYLE}>
       <div ref={areaRef} className={css.RoomArea} style={AREA_STYLE}>
         {/* The element draws the header's surface; the row inside shows it and paints none. */}
         <div
@@ -377,6 +418,35 @@ export function RoomView({
         </div>
         <ConversationCover key={roomId} room={room} conversationRef={conversationRef} />
       </div>
+      {columnThreadId && (
+        <ResizablePanel
+          side="end"
+          storageKey={THREAD_COLUMN_WIDTH_KEY}
+          defaultWidth={THREAD_COLUMN_DEFAULT_WIDTH}
+          minContentWidth={CONVERSATION_MIN_WIDTH}
+          maxPanelWidth={THREAD_COLUMN_MAX_WIDTH}
+          resizeLabel={t('thread.resize')}
+          onExpand={showFull}
+          expandLabel={t('thread.showFull')}
+          testId="thread-column"
+        >
+          <ThreadView
+            room={room}
+            threadId={columnThreadId}
+            eventId={focusEventInRoom ? undefined : eventId}
+            header={
+              <ThreadContextBanner
+                room={room}
+                threadId={columnThreadId}
+                summaryInfo={threadState.threadSummaryInfo}
+                onExitThread={threadState.handleExitThread ?? ignore}
+                onShowFull={showFull}
+              />
+            }
+            autoFocus
+          />
+        </ResizablePanel>
+      )}
     </Page>
   );
 }

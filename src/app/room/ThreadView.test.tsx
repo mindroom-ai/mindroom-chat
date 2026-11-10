@@ -246,3 +246,18 @@ it('asks for no approvals of a thread whose root the server has not confirmed', 
   expect(state.approvals).toMatchObject({ room, threadId: undefined });
   expect(state.timeline?.threadId).toBe('~!room:example.org:m1.1');
 });
+
+it("puts the room page's header above the thread and opens it at the event its address names", () => {
+  render(<ThreadView room={room} threadId={THREAD} eventId="$reply" header={<b>Banner</b>} />);
+  expect(state.timeline).toMatchObject({ threadId: THREAD, eventId: '$reply' });
+  render(<>{state.timeline?.threadHeader}</>);
+  expect(screen.getByText('Banner')).toBeDefined();
+});
+
+it('takes the focus to its reply box as it opens only when asked to', () => {
+  const { unmount } = render(<ThreadView room={room} threadId={THREAD} />);
+  expect(document.activeElement).toBe(document.body);
+  unmount();
+  render(<ThreadView room={room} threadId={THREAD} autoFocus />);
+  expect(document.activeElement).toBe(composer());
+});

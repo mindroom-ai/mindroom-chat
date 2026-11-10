@@ -754,7 +754,10 @@
     }
   },
   "thread": {
-    "back": "Back"
+    "back": "Back",
+    "resize": "Resize the thread",
+    "showFull": "Show the thread in full",
+    "showBeside": "Show the thread beside the messages"
   },
   "activity": {
     "title": "Activity",

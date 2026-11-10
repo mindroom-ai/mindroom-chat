@@ -754,7 +754,10 @@
     }
   },
   "thread": {
-    "back": "Geri"
+    "back": "Geri",
+    "resize": "Konuyu yeniden boyutlandır",
+    "showFull": "Konuyu tam göster",
+    "showBeside": "Konuyu mesajların yanında göster"
   },
   "activity": {
     "title": "Etkinlik",

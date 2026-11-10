@@ -743,7 +743,10 @@
     }
   },
   "thread": {
-    "back": "返回"
+    "back": "返回",
+    "resize": "调整讨论串大小",
+    "showFull": "完整显示讨论串",
+    "showBeside": "在消息旁显示讨论串"
   },
   "activity": {
     "title": "动态",

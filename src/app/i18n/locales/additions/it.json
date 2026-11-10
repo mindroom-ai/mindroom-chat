@@ -765,7 +765,10 @@
     }
   },
   "thread": {
-    "back": "Indietro"
+    "back": "Indietro",
+    "resize": "Ridimensiona il thread",
+    "showFull": "Mostra il thread a tutta larghezza",
+    "showBeside": "Mostra il thread accanto ai messaggi"
   },
   "activity": {
     "title": "Attività",

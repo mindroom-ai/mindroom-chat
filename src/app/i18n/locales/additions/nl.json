@@ -754,7 +754,10 @@
     }
   },
   "thread": {
-    "back": "Terug"
+    "back": "Terug",
+    "resize": "Breedte van de thread wijzigen",
+    "showFull": "Thread volledig tonen",
+    "showBeside": "Thread naast de berichten tonen"
   },
   "activity": {
     "title": "Activiteit",

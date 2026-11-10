@@ -45,6 +45,7 @@ import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { getThreadRootTitle, ThreadRootTitle } from './ThreadRootTitle';
+import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
 
 const ThreadActionsMenu = lazy(() =>
   import('./ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -63,6 +64,10 @@ export interface ThreadContextBannerProps {
   threadId: string;
   summaryInfo?: ThreadSummaryInfo;
   onExitThread: () => void;
+  /** Shows the thread in a column beside the room's messages, from their place. */
+  onShowBeside?: () => void;
+  /** Shows the thread in the messages' place, from its column beside them. */
+  onShowFull?: () => void;
 }
 
 const DESKTOP_MAX_PILLS = 3;
@@ -103,6 +108,8 @@ export function ThreadContextBanner({
   threadId,
   summaryInfo,
   onExitThread,
+  onShowBeside,
+  onShowFull,
 }: ThreadContextBannerProps) {
   const { t, i18n } = useTranslation();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
@@ -298,6 +305,25 @@ export function ThreadContextBanner({
     </IconTooltip>
   );
 
+  const layoutLabel = t(onShowFull ? 'thread.showFull' : 'thread.showBeside');
+  const onLayoutToggle = onShowFull ?? onShowBeside;
+  const layoutButton = onLayoutToggle && (
+    <IconTooltip label={layoutLabel}>
+      {(triggerRef) => (
+        <IconButton
+          ref={triggerRef}
+          className={toolbarCss.MessageOptionsButton}
+          variant="SurfaceVariant"
+          fill="None"
+          aria-label={layoutLabel}
+          onClick={onLayoutToggle}
+        >
+          <Icon size="100" src={onShowFull ? ExpandIcon : ShrinkIcon} />
+        </IconButton>
+      )}
+    </IconTooltip>
+  );
+
   return (
     <>
       <div
@@ -332,6 +358,7 @@ export function ThreadContextBanner({
             {backButton}
             <AutoApproveChip room={room} threadId={threadId} />
             <ThreadApprovalPermissions />
+            {layoutButton}
             <IconTooltip label={t('thread.showDetails')}>
               {(triggerRef) => (
                 <IconButton
@@ -480,6 +507,7 @@ export function ThreadContextBanner({
               )}
             </div>
             <Box alignItems="Center" gap="100" shrink="No">
+              {layoutButton}
               <IconTooltip label={t('threadActions.more')}>
                 {(triggerRef) => (
                   <IconButton

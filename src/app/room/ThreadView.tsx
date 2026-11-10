@@ -1,4 +1,12 @@
-import { type CSSProperties, useCallback, useEffect, useId, useMemo, useRef } from 'react';
+import {
+  type CSSProperties,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+} from 'react';
 import { useSetAtom } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
@@ -54,9 +62,22 @@ const TIMELINE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
  * docs/architecture.md. It is a conversation view of its own (`ConversationViewContext`), shown
  * (`shownConversationViewsAtom`) while its side panel is not folded. Timeline and composer share
  * one editor, as in the room view; it has no filter bar or thread summaries, the whole view takes
- * dropped files, and it adds no key handling of its own.
+ * dropped files, and it adds no key handling of its own. The room page's thread column gives it
+ * the thread's banner as its `header`, the event its address names, and the focus as it opens.
  */
-export function ThreadView({ room, threadId }: { room: Room; threadId: string }) {
+export function ThreadView({
+  room,
+  threadId,
+  eventId,
+  header,
+  autoFocus = false,
+}: {
+  room: Room;
+  threadId: string;
+  eventId?: string;
+  header?: ReactNode;
+  autoFocus?: boolean;
+}) {
   const client = useMatrixClient();
   const editor = useEditor();
   const view = useId();
@@ -95,6 +116,9 @@ export function ThreadView({ room, threadId }: { room: Room; threadId: string })
   );
 
   const focusConversation = useCallback(() => ReactEditor.focus(editor), [editor]);
+  useEffect(() => {
+    if (autoFocus && composerShown) focusConversation();
+  }, [autoFocus, composerShown, focusConversation, threadId]);
 
   return (
     <ConversationViewContext.Provider value={view}>
@@ -111,6 +135,8 @@ export function ThreadView({ room, threadId }: { room: Room; threadId: string })
                 <RoomTimeline
                   room={room}
                   threadId={threadId}
+                  eventId={eventId}
+                  threadHeader={header}
                   viewMode="threaded"
                   hasMindroomAgents={hasMindroomAgents}
                   editor={editor}

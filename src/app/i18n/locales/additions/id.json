@@ -743,7 +743,10 @@
     }
   },
   "thread": {
-    "back": "Kembali"
+    "back": "Kembali",
+    "resize": "Ubah ukuran utas",
+    "showFull": "Tampilkan utas penuh",
+    "showBeside": "Tampilkan utas di samping pesan"
   },
   "activity": {
     "title": "Aktivitas",

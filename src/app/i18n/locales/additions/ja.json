@@ -743,7 +743,10 @@
     }
   },
   "thread": {
-    "back": "戻る"
+    "back": "戻る",
+    "resize": "スレッドのサイズを変更",
+    "showFull": "スレッドを全体に表示",
+    "showBeside": "スレッドをメッセージの横に表示"
   },
   "activity": {
     "title": "アクティビティ",
