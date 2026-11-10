@@ -94,11 +94,17 @@ let mx: MatrixClient;
 const newAccount = () =>
   ({ getRoom: () => null, getSafeUserId: () => '@ann:example.org' } as unknown as MatrixClient);
 
+// The room's published server is trusted (`mindroom.computers.trustedApiUrls`), so it counts beside a
+// configured one.
 const signedIn = (deploymentUrl?: string) =>
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <MatrixClientProvider value={mx}>
-        <ClientConfigProvider value={{ mindroom: { computers: { apiUrl: deploymentUrl } } }}>
+        <ClientConfigProvider
+          value={{
+            mindroom: { computers: { apiUrl: deploymentUrl, trustedApiUrls: [PUBLISHED] } },
+          }}
+        >
           {children}
         </ClientConfigProvider>
       </MatrixClientProvider>

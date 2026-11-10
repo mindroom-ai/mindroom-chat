@@ -107,9 +107,10 @@ const serverAt = (mx: MatrixClient, apiUrl: string): MindroomServer => {
 };
 
 /**
- * The MindRoom server of the room `roomId`, by the rule call transcripts use: the one the room's
- * agents published while the homeserver binds sign-in tokens to it, else the one `config.json`
- * names (`mindroom.computers.apiUrl`). Undefined in a room without a MindRoom agent, or without
+ * The MindRoom server of the room `roomId`, by the rule call transcripts use: the newest one the
+ * room's agents published that `config.json` trusts (its `mindroom.computers.apiUrl`, or one on
+ * `mindroom.computers.trustedApiUrls`; any while it sets neither), while the homeserver binds
+ * sign-in tokens to it; else `mindroom.computers.apiUrl`. Undefined in a room without a MindRoom agent, or without
  * either server. Every plugin and the app share one session with each server. Until the room's
  * members and the homeserver's answer are in, it can be undefined or the configured server and
  * change after; a plugin that signs in at once or tells the person there is no server takes

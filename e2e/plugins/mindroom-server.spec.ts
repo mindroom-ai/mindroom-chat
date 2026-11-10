@@ -152,7 +152,8 @@ test("a plugin's panel calls its MindRoom routes and websocket, signs in again, 
   await page.context().close();
 });
 
-// A configured server (`mindroom.computers.apiUrl`) that nothing answers on.
+// A configured server (`mindroom.computers.apiUrl`) that nothing answers on. The stack's own server
+// is on the trusted list, so the one the lobby's agents published counts.
 const CONFIGURED = 'http://127.0.0.1:29599';
 
 /** Each line the panel's greeting showed in the page's current load, in order. */
@@ -163,7 +164,9 @@ test("a plugin's panel waits for the room's server: the published one, never the
   page,
   stack,
 }) => {
-  await routeClientConfig(page, stack, { computers: { apiUrl: CONFIGURED } });
+  await routeClientConfig(page, stack, {
+    computers: { apiUrl: CONFIGURED, trustedApiUrls: [stack.apiUrl] },
+  });
   const requests = serverRequests(page, stack);
   const configured: string[] = [];
   page.on('request', (request) => {
