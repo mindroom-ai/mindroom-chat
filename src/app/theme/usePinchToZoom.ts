@@ -49,10 +49,8 @@ export const usePinchSurface = (
     if (!element) return undefined;
     element.setAttribute(PINCH_SURFACE_ATTRIBUTE, '');
     pinchListeners.set(element, listener);
-    return () => {
-      element.removeAttribute(PINCH_SURFACE_ATTRIBUTE);
-      pinchListeners.delete(element);
-    };
+    // Unmarked, it is no surface the page zoom finds.
+    return () => element.removeAttribute(PINCH_SURFACE_ATTRIBUTE);
   });
 };
 
@@ -180,15 +178,14 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       const distance = touchDistance(touches);
       const same =
         handed?.from === 'touch' &&
-        handed.surface === surface &&
         handed.fingers?.[0] === first.identifier &&
         handed.fingers[1] === second.identifier;
       if (!same) {
         startHanded(surface, 'touch', centre, [first.identifier, second.identifier], distance);
         return;
       }
+      // Fingers that landed on one point measure no spread to scale against.
       if (!moved || !handed || handed.distance <= 0) return;
-      if (!Number.isFinite(distance) || distance <= 0) return;
       moveHanded(distance / handed.distance, centre);
     };
 
@@ -331,7 +328,7 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       if (handed?.from === 'gesture') endHanded();
       const surface = surfaceAt(event.target);
       if (surfacePinch || (fingers < 2 && surface !== null)) {
-        if (!surfacePinch && fingers === 0 && surface) {
+        if (fingers === 0 && surface) {
           startHanded(surface, 'gesture', gestureCentre(event));
         }
         const owner = surfacePinch ?? surface;
@@ -349,9 +346,7 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       const startZoom = gestureStartZoomRef.current;
       if (surfacePinch || startZoom === null) {
         const fromGesture = handed?.from === 'gesture';
-        if (fromGesture && Number.isFinite(scale) && scale > 0) {
-          moveHanded(scale, gestureCentre(event));
-        }
+        if (fromGesture) moveHanded(scale, gestureCentre(event));
         const zoomsItself = fromGesture || (surfacePinch && pinchListeners.has(surfacePinch));
         if (zoomsItself && event.cancelable) event.preventDefault();
         return;
@@ -376,7 +371,7 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
     window.addEventListener('pointercancel', handlePointerEnd, { passive: true });
 
     return () => {
-      window.clearTimeout(wheelRest);
+      // A wheel's pinch then has nothing for its rest to end.
       endHanded();
       if (rafIdRef.current !== undefined) {
         window.cancelAnimationFrame(rafIdRef.current);

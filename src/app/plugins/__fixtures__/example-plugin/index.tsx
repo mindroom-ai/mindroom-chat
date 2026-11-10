@@ -687,7 +687,7 @@ function PinchBoard() {
       if (phase === 'start') pinchStart.current = { box: boxNow.current, x, y };
       setPinching(phase !== 'end');
       const start = pinchStart.current;
-      if (phase !== 'move' || !start) return;
+      if (!start) return;
       const next = {
         scale: start.box.scale * scale,
         x: x - (start.x - start.box.x) * scale,
@@ -716,6 +716,7 @@ function PinchBoard() {
             position: 'absolute',
             // At the board's top left corner in either reading direction: its place and the
             // pinch's centre are both in client coordinates.
+            // eslint-disable-next-line no-restricted-syntax
             left: 0,
             top: 0,
             width: 60,
