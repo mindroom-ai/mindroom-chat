@@ -21,6 +21,7 @@ import { nameInitials } from '../../lib/common';
 import { useRoomBackgroundJobs } from '../../background-jobs/useRoomBackgroundJobs';
 import { useLongPress } from '../../lib/hooks/useLongPress';
 import { IconTooltip } from '../../ui/IconTooltip';
+import { useRoomHasMindroomAgent } from '../../navigation/useRoomViewMode';
 import { RoomActionsMenu, useRoomActionDialog } from '../../room/RoomActionsMenu';
 import type { RoomActionDialog } from '../../room/roomActions';
 
@@ -102,6 +103,8 @@ function RoomNavItemAvatar({ room, name, personAvatar, selected, quiet }: RoomNa
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const avatarMxc = useRoomAvatar(room, personAvatar);
+  const isSpace = room.getType() === RoomType.Space;
+  const work = useRoomHasMindroomAgent(room.roomId, !personAvatar && !isSpace);
 
   let src = avatarMxc
     ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, AVATAR_SIZE, AVATAR_SIZE, 'crop') ?? undefined
@@ -118,8 +121,9 @@ function RoomNavItemAvatar({ room, name, personAvatar, selected, quiet }: RoomNa
       );
     }
     const joinRule = room.getJoinRule();
-    const isSpace = room.getType() === RoomType.Space;
-    return <RoomIcon size="100" filled={selected} joinRule={joinRule} space={isSpace} />;
+    return (
+      <RoomIcon size="100" filled={selected} joinRule={joinRule} space={isSpace} work={work} />
+    );
   };
 
   // A room without a picture shows the bare privacy icon, with no tinted tile behind it.

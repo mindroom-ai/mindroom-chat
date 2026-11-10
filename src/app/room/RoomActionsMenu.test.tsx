@@ -374,6 +374,7 @@ describe("plugins' entries", () => {
       headerActions: [],
       slashCommands: [],
       roomActions,
+      messageLinks: [],
     });
   };
 

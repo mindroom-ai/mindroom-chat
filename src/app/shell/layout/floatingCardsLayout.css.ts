@@ -8,7 +8,6 @@ import {
 } from '../../ui/page/floatingCards.css';
 import { PageNavContent, PageNavHeader, PageNavTrack } from '../../ui/page/style.css';
 import { Handle, Panel } from '../../ui/panels/ResizablePanel.css';
-import { Header as RoomHeader } from '../../ui/styles/RoomOverlay.css';
 import { MinimapContainer } from '../../timeline/TimelineMinimap.css';
 import { RecentlyOpenedPanel } from '../../sidebar/threads/threadNav.css';
 
@@ -70,17 +69,6 @@ globalStyle(`${FloatingShell} ${Handle}:not(:hover):not(:focus-visible):not(:act
 
 // The conversation's minimap keeps off the card's edge, where it would read as a splitter grip.
 globalStyle(`${FloatingShell} ${MinimapContainer}`, { insetInlineStart: config.space.S100 });
-
-// The room header sits inside the card with a hairline under it, which leaves its height alone.
-globalStyle(`${FloatingShell} ${RoomHeader}::after`, {
-  content: '""',
-  position: 'absolute',
-  insetInline: 0,
-  insetBlockEnd: 0,
-  blockSize: config.borderWidth.B300,
-  backgroundColor: color.Surface.ContainerLine,
-  pointerEvents: 'none',
-});
 
 // The card's gap now separates the list from the page, so rows end S300 before the column's edge:
 // the open row's highlight sits as far from the card as from the rail. The list's scrollbar moves

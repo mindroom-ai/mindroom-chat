@@ -734,4 +734,26 @@ describe('example plugin', () => {
     view.getByRole('button', { name: 'Close example dialog' }).click();
     expect(close).toHaveBeenCalled();
   });
+
+  it('takes the links of example.org items for its message link', () => {
+    const [link] = plugin.messageLinks ?? [];
+    if (!link) throw new Error('the example plugin has no message link');
+    expect(link.match(new URL('https://example.org/items/7'))).toBe(true);
+    expect(link.match(new URL('https://example.org/items/7/x'))).toBe(false);
+    expect(link.match(new URL('https://example.com/items/7'))).toBe(false);
+  });
+
+  it('names the item in its link card', async () => {
+    const [link] = plugin.messageLinks ?? [];
+    if (!link) throw new Error('the example plugin has no message link');
+    const view = await renderPluginComponent(
+      <link.Component
+        href="https://example.org/items/7"
+        roomId="!lobby:example.org"
+        close={vi.fn()}
+      />,
+      { id: 'example', plugin }
+    );
+    expect(view.getByText('Example item 7')).toBeTruthy();
+  });
 });
