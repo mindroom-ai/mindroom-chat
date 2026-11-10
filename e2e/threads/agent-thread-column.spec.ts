@@ -3,6 +3,7 @@ import {
   expect,
   messageRow,
   openLobby,
+  showPath,
   showThread,
   startThread,
   test,
@@ -19,7 +20,8 @@ import { roomHeader } from '../helpers/roomMenu';
 // from the column leaves the room composer's draft alone. The plugin's panel opens to the right of
 // the thread, three columns, and closing it leaves two. Dragging the column's edge over the
 // messages takes the thread to their place, where the next thread opens too, until Show beside
-// again. A phone shows the thread in the messages' place whatever was chosen.
+// again. A plugin's page opens a thread with the SDK's `navigateRoomThread` the way chosen. A phone
+// shows the thread in the messages' place whatever was chosen.
 //   MINDROOM_CLIENT_PLUGINS=$PWD/src/app/plugins/__fixtures__/example-plugin \
 //     scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/threads/agent-thread-column.spec.ts
 test.skip(
@@ -164,10 +166,18 @@ test('a thread opens beside the messages once chosen, takes their place when dra
     .click();
   await expect(column(page)).toBeVisible();
 
+  // A plugin opens a thread with the SDK's navigateRoomThread as the app does: beside, as chosen.
+  await showPath(
+    page,
+    `/p/example/rooms/${encodeURIComponent(stack.rooms.lobby)}/${encodeURIComponent(second)}`
+  );
+  await page.getByRole('button', { name: 'Open the thread', exact: true }).click();
+  await expect(messageRow(column(page), second)).toBeVisible({ timeout: 30_000 });
+
   // A phone shows the thread in the messages' place, with no way beside them.
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(column(page)).toHaveCount(0);
-  await expect(messageRow(page, third)).toBeVisible({ timeout: 30_000 });
+  await expect(messageRow(page, second)).toBeVisible({ timeout: 30_000 });
   await expect(
     banner(page).getByRole('button', { name: 'Show the thread beside the messages' })
   ).toHaveCount(0);

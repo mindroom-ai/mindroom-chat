@@ -7,6 +7,7 @@ import { Editable, Slate } from 'slate-react';
 import { getDefaultStore } from 'jotai';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
+import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { shownConversationViewsAtom } from '../navigation/conversationView';
 import type { RoomTimelineProps } from '../timeline/RoomTimeline';
 import type { ThreadContextBannerProps } from '../threads/ThreadContextBanner';
@@ -20,6 +21,7 @@ const state = vi.hoisted(() => ({
   thread: undefined as string | undefined,
   main: undefined as RoomTimelineProps | undefined,
   exit: () => undefined as void,
+  focused: [] as (string | undefined)[],
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
@@ -30,7 +32,10 @@ vi.mock('../matrix/hooks/useRoomPermissions', () => ({
 }));
 vi.mock('../matrix/hooks/useStateEvent', () => ({ useStateEvent: () => undefined }));
 vi.mock('../event-store/engine/engineContext', () => ({
-  useSyncEngine: () => ({ noteRoomFocused: () => undefined, clearRoomFocus: () => undefined }),
+  useSyncEngine: () => ({
+    noteRoomFocused: (_roomId: string, threadId?: string) => state.focused.push(threadId),
+    clearRoomFocus: () => undefined,
+  }),
 }));
 vi.mock('./useRoomViewThreadState', () => ({
   useRoomViewThreadState: () => ({
@@ -51,6 +56,9 @@ vi.mock('../timeline/RoomTimeline', () => ({
 vi.mock('../timeline/typing/RoomViewTyping', () => ({ RoomViewTyping: () => null }));
 vi.mock('../timeline/RoomViewFollowing', () => ({ RoomViewFollowing: () => null }));
 vi.mock('../background-jobs/BackgroundJobsBar', () => ({ BackgroundJobsBar: () => null }));
+vi.mock('../messages/FailedSendActions', () => ({
+  FailedSendActions: () => <div>Root not sent</div>,
+}));
 vi.mock('../approvals/ThreadApprovalProvider', () => ({
   ThreadApprovalProvider: ({ children }: { children: ReactNode }) => children,
 }));
@@ -121,6 +129,7 @@ beforeEach(() => {
   state.thread = '$thread';
   state.main = undefined;
   state.exit = () => undefined;
+  state.focused = [];
   localStorage.clear();
   vi.stubGlobal('PointerEvent', TestPointerEvent);
   vi.stubGlobal(
@@ -141,6 +150,7 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  getDefaultStore().set(conversationBehindPanelAtom, false);
 });
 
 const renderView = (props: Partial<RoomViewProps> = {}, screenSize = ScreenSize.Desktop) =>
@@ -215,6 +225,12 @@ it("takes the thread to the messages' place when its edge is dragged past the me
   expect(column()).not.toBeNull();
   expect(storedLayout()).toBe('"beside"');
 
+  // A drag the browser cancels changes nothing.
+  fireEvent.pointerDown(handle, { clientX: 340, button: 0 });
+  fireEvent.pointerMove(handle, { clientX: 100 });
+  fireEvent.pointerCancel(handle, { clientX: 100 });
+  expect(column()).not.toBeNull();
+
   fireEvent.pointerDown(handle, { clientX: 340, button: 0 });
   fireEvent.pointerMove(handle, { clientX: 100 });
   expect(screen.getByTestId('thread-column').dataset.expandPreview).toBe('true');
@@ -247,6 +263,30 @@ it('counts the whole room as on screen for notifications while its messages show
   ]);
   act(() => screen.getByRole('button', { name: 'Full' }).click());
   expect(store.get(shownConversationViewsAtom)).toEqual([]);
+});
+
+it('counts nothing more on screen while a side panel takes the place of the messages and the thread', () => {
+  getDefaultStore().set(conversationBehindPanelAtom, true);
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  renderView();
+  expect(column()).not.toBeNull();
+  expect(getDefaultStore().get(shownConversationViewsAtom)).toEqual([]);
+});
+
+it("keeps the history downloads of the thread in its column, and its unsent root's notice", () => {
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  vi.spyOn(room, 'findEventById').mockReturnValue({ status: 'not_sent' } as never);
+  state.thread = '$confirmed';
+  const { rerender } = renderView();
+  expect(state.focused).toEqual(['$confirmed']);
+  state.thread = '~!room:example.org:m1.1';
+  rerender(
+    <ScreenSizeProvider value={ScreenSize.Desktop}>
+      <RoomView room={room} />
+    </ScreenSizeProvider>
+  );
+  expect(column()?.dataset.thread).toBe('~!room:example.org:m1.1');
+  expect(screen.getByText('Root not sent')).toBeDefined();
 });
 
 it.each([

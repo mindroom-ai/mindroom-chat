@@ -116,9 +116,10 @@ export function ThreadView({
   );
 
   const focusConversation = useCallback(() => ReactEditor.focus(editor), [editor]);
+  // Without a composer on screen there is nothing to focus.
   useEffect(() => {
-    if (autoFocus && composerShown) focusConversation();
-  }, [autoFocus, composerShown, focusConversation, threadId]);
+    if (autoFocus) focusConversation();
+  }, [autoFocus, focusConversation, threadId]);
 
   return (
     <ConversationViewContext.Provider value={view}>
