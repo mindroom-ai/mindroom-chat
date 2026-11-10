@@ -222,7 +222,7 @@
       "toggleTheme": "Thema wisselen",
       "toggleThemeDescription": "Wissel tussen licht en donker",
       "logout": "Uitloggen",
-      "logoutDescription": "Uitloggen bij MindRoom Chat",
+      "logoutDescription": "Uitloggen bij MindRoom",
       "markCurrentRoomRead": "Huidige kamer als gelezen markeren",
       "markCurrentRoomReadDescription": "{{room}} als gelezen markeren",
       "copyCurrentRoomLink": "Link naar huidige kamer kopiëren",
@@ -2216,24 +2216,17 @@
         "chooseModel": "Choose model",
         "roomDefault": "Room default",
         "modelForThread": "Model for this thread",
-        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
         "search": "Search models",
-        "close": "Close model picker",
-        "useRoomDefault": "Use room default",
         "roomDefaultDescription": "Let each agent use its configured model.",
         "models": "Models",
         "runtime": "Runtime",
         "chooseRuntime": "Choose a runtime",
         "runtimeLabel": "{{userId}} on {{deviceId}}",
-        "refresh": "Refresh models",
         "retry": "Retry",
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread.",
-        "inheritedModels": "Room defaults by agent: {{models}}",
-        "futureReplies": "Changes apply to future replies.",
-        "threadModel": "Thread model"
+        "commandFallback": "You can still send !model with a model key in this thread."
       }
     },
     "voice": {
@@ -2258,8 +2251,8 @@
         "ok": "OK"
       },
       "errors": {
-        "microphoneBlockedAndroid": "Microfoontoegang is geblokkeerd. Geef MindRoom Chat toegang tot de microfoon in de Android-appinstellingen en probeer het opnieuw.",
-        "microphoneBlockedIos": "Microfoontoegang is geblokkeerd. Geef MindRoom Chat toegang tot de microfoon in de iPhone-instellingen en probeer het opnieuw.",
+        "microphoneBlockedAndroid": "Microfoontoegang is geblokkeerd. Geef MindRoom toegang tot de microfoon in de Android-appinstellingen en probeer het opnieuw.",
+        "microphoneBlockedIos": "Microfoontoegang is geblokkeerd. Geef MindRoom toegang tot de microfoon in de iPhone-instellingen en probeer het opnieuw.",
         "microphoneBlockedBrowser": "Microfoontoegang is geblokkeerd. Geef deze site/app toegang tot de microfoon in je browser- of systeeminstellingen en probeer het opnieuw.",
         "noMicrophone": "Er is geen microfoon gevonden op dit apparaat.",
         "microphoneUnavailable": "De microfoon is momenteel niet beschikbaar (mogelijk wordt deze door een andere app gebruikt).",

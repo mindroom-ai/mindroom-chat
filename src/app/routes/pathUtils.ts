@@ -1,6 +1,9 @@
 import { generatePath } from 'react-router-dom';
 import { getAppBasePath } from '../lib/basePath';
 import {
+  ACTIVITY_INVITES_PATH,
+  ACTIVITY_PATH,
+  ACTIVITY_ROOM_PATH,
   CANVASES_PATH,
   CONNECT_PATH,
   DIRECT_CREATE_PATH,
@@ -13,9 +16,6 @@ import {
   HOME_PATH,
   HOME_ROOM_PATH,
   HOME_SEARCH_PATH,
-  INBOX_INVITES_PATH,
-  INBOX_NOTIFICATIONS_PATH,
-  INBOX_PATH,
   LOGIN_PATH,
   REGISTER_PATH,
   RESET_PASSWORD_PATH,
@@ -25,6 +25,7 @@ import {
   SPACE_ROOM_PATH,
   SPACE_SEARCH_PATH,
   THREADS_PATH,
+  THREADS_ROOM_PATH,
 } from './paths';
 
 /** Hash router settings from the client config; `true` means enabled without a basename. */
@@ -134,7 +135,7 @@ export const getConnectPath = (pairCode?: string): string => {
   return withSearchParam(connectPath, { code: pairCode });
 };
 
-/** A room route under Home or Direct Messages, optionally focused on one event. */
+/** A room route under Home, Direct Messages, Activity or Threads, optionally at one event. */
 const roomInSectionPath = (pattern: string, roomIdOrAlias: string, eventId?: string): string =>
   generatePath(pattern, {
     eventId: optionalSegment(eventId),
@@ -156,6 +157,13 @@ export const getDirectRoomPath = (roomIdOrAlias: string, eventId?: string): stri
   roomInSectionPath(DIRECT_ROOM_PATH, roomIdOrAlias, eventId);
 
 export const getThreadsPath = (): string => THREADS_PATH;
+export const getThreadsRoomPath = (roomIdOrAlias: string, eventId?: string): string =>
+  roomInSectionPath(THREADS_ROOM_PATH, roomIdOrAlias, eventId);
+
+export const getActivityPath = fixedPath(ACTIVITY_PATH);
+export const getActivityInvitesPath = fixedPath(ACTIVITY_INVITES_PATH);
+export const getActivityRoomPath = (roomIdOrAlias: string, eventId?: string): string =>
+  roomInSectionPath(ACTIVITY_ROOM_PATH, roomIdOrAlias, eventId);
 export const getCanvasesPath = (): string => CANVASES_PATH;
 
 export const getSpacePath = (spaceIdOrAlias: string): string =>
@@ -179,6 +187,3 @@ export const getExploreFeaturedPath = fixedPath(EXPLORE_FEATURED_PATH);
 export const getExploreServerPath = (server: string): string =>
   getServerPath(EXPLORE_SERVER_PATH, server);
 
-export const getInboxPath = fixedPath(INBOX_PATH);
-export const getInboxNotificationsPath = fixedPath(INBOX_NOTIFICATIONS_PATH);
-export const getInboxInvitesPath = fixedPath(INBOX_INVITES_PATH);

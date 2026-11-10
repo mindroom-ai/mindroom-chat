@@ -15,7 +15,7 @@ const resolve = (config: unknown) => {
 };
 
 const DEFAULTS = {
-  title: 'MindRoom Chat',
+  title: 'MindRoom',
   showTitle: true,
   pageTitle: undefined,
   logo: {
@@ -33,7 +33,7 @@ const DEFAULTS = {
 };
 
 describe('resolveDeploymentBranding', () => {
-  it('keeps the MindRoom Chat defaults without a branding key or a configuration', () => {
+  it('keeps the MindRoom defaults without a branding key or a configuration', () => {
     expect(resolve({})).toEqual({ branding: DEFAULTS, warnings: [] });
     expect(resolve(undefined)).toEqual({ branding: DEFAULTS, warnings: [] });
   });
@@ -105,7 +105,7 @@ describe('resolveDeploymentBranding', () => {
   it('keeps the default title for a non-string title', () => {
     for (const title of [7, { text: 'Example Co' }]) {
       const { branding, warnings } = resolve({ branding: { title } });
-      expect(branding.title).toBe('MindRoom Chat');
+      expect(branding.title).toBe('MindRoom');
       expect(branding.showTitle).toBe(true);
       expect(branding.pageTitle).toBeUndefined();
       expect(warnings).toEqual([expect.stringContaining('branding.title')]);
@@ -120,7 +120,7 @@ describe('resolveDeploymentBranding', () => {
         branding: { title: 'Example Co', showTitle: false, pageTitle: 'Example Co' },
         warnings: [],
       });
-      // With MindRoom Chat's own logo the name stays MindRoom Chat, and the tab keeps its title.
+      // With MindRoom's own logo the name stays MindRoom, and the tab keeps its title.
       expect(resolve({ branding: { title } })).toEqual({
         branding: { ...DEFAULTS, showTitle: false },
         warnings: [],

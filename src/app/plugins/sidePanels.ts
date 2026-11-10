@@ -164,8 +164,8 @@ export type RoomSidePanelControl = {
 
 /**
  * The side panel `panelId` of plugin `pluginId` in the room open where this renders, such as a
- * message renderer's card in the room's timeline; undefined outside a room's page (the inbox, the
- * search page).
+ * message renderer's card in the room's timeline; undefined outside a room's page (the search
+ * page).
  */
 export const useRoomSidePanel = (
   pluginId: string,

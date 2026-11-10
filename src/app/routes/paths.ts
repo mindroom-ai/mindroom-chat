@@ -25,6 +25,13 @@ export const DIRECT_CREATE_PATH = '/direct/create/';
 export const DIRECT_ROOM_PATH = '/direct/:roomIdOrAlias/:eventId?/';
 
 export const THREADS_PATH = '/threads/';
+/** A room of the Threads section, which opens its thread beside the list (`?threadId=`). */
+export const THREADS_ROOM_PATH = '/threads/:roomIdOrAlias/:eventId?/';
+
+export const ACTIVITY_PATH = '/activity/';
+export const ACTIVITY_INVITES_PATH = '/activity/invites/';
+/** A room of the Activity section, which opens its thread beside the list (`?threadId=`). */
+export const ACTIVITY_ROOM_PATH = '/activity/:roomIdOrAlias/:eventId?/';
 /** Opens the Settings dialog on a page; settingsRegistry.ts lists the page ids. */
 export const SETTINGS_PATH = '/settings/:page?/';
 export const CANVASES_PATH = '/canvases/';
@@ -35,10 +42,6 @@ export const PLUGIN_PAGE_PATH = `${PLUGIN_ROOT_PATH}*`;
 export const EXPLORE_PATH = '/explore/';
 export const EXPLORE_FEATURED_PATH = '/explore/featured/';
 export const EXPLORE_SERVER_PATH = '/explore/:server/';
-
-export const INBOX_PATH = '/inbox/';
-export const INBOX_NOTIFICATIONS_PATH = '/inbox/notifications/';
-export const INBOX_INVITES_PATH = '/inbox/invites/';
 
 export const SPACE_PATH = '/:spaceIdOrAlias/';
 export const SPACE_LOBBY_PATH = '/:spaceIdOrAlias/lobby/';

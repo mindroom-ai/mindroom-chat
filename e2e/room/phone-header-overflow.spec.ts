@@ -33,11 +33,12 @@ import { launchWebKit } from '../helpers/webkit';
 // A phone's room header keeps the back button, the room's name and the room menu, so a long name
 // keeps its room (L8-F025, design decision #10); the menu offers first what the header leaves out:
 // the Compact view switch and the filter bar toggle (menu checkboxes), scheduled tasks, pinned
-// messages and members, each a 44 px row, and the menu stays inside the window. Both header
-// buttons keep a 44 px hit area. A desktop header keeps all its buttons. An agent room with a long
-// name and a pinned message among 25 rooms, on a phone (390 by 844, touch) and a desktop (1280 by
-// 800), light and dark, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
-// WebKit, in WebKit. Set DESIGN_CHOICES_SHOTS=<directory> to save screenshots.
+// messages and members, each a row as tall as a message menu's, and the menu stays inside the
+// window. Both header buttons keep a 44 px hit area. A desktop header keeps all its buttons. An
+// agent room with a long name and a pinned message among 25 rooms, on a phone (390 by 844, touch)
+// and a desktop (1280 by 800), light and dark, in Chromium and, when
+// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
+// DESIGN_CHOICES_SHOTS=<directory> to save screenshots.
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const ENGINES = ['chromium', ...(WEBKIT ? ['webkit'] : [])] as const;
 const ROOM_NAME = 'Customer Escalations and Renewals';
@@ -45,6 +46,8 @@ const PINNED = 'Escalation playbook: page the on-call lead first, then the accou
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
 const MOVED = ['Compact view', 'Thread filters', 'Scheduled tasks (0)', 'Pinned Messages'];
 const TARGET = 44;
+/** A message menu's row (MenuEntry: folds' MenuItem, size 300), which a room menu's rows match. */
+const MENU_ROW = 32;
 
 test.use({ launchOptions: LAUNCH });
 
@@ -169,7 +172,7 @@ const checkPhone = async (page: Page, data: Seed, engine: string, testInfo: Test
       await expect(entry(page, name), name).toBeVisible();
       // eslint-disable-next-line no-await-in-loop
       const height = await entry(page, name).evaluate((row) => row.getBoundingClientRect().height);
-      expect(height, `${name} row height`).toBeGreaterThanOrEqual(TARGET - 0.5);
+      expect(height, `${name} row height`).toBeCloseTo(MENU_ROW, 0);
     }
     // eslint-disable-next-line no-await-in-loop
     await expect(entry(page, 'Compact view')).toHaveAttribute('aria-checked', 'true');

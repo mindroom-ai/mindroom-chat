@@ -222,7 +222,7 @@
       "toggleTheme": "Toggle Theme",
       "toggleThemeDescription": "Switch between light and dark",
       "logout": "Logout",
-      "logoutDescription": "Sign out of MindRoom Chat",
+      "logoutDescription": "Sign out of MindRoom",
       "markCurrentRoomRead": "Mark Current Room Read",
       "markCurrentRoomReadDescription": "Mark {{room}} as read",
       "copyCurrentRoomLink": "Copy Current Room Link",
@@ -2216,24 +2216,17 @@
         "chooseModel": "Choose model",
         "roomDefault": "Room default",
         "modelForThread": "Model for this thread",
-        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
         "search": "Search models",
-        "close": "Close model picker",
-        "useRoomDefault": "Use room default",
         "roomDefaultDescription": "Let each agent use its configured model.",
         "models": "Models",
         "runtime": "Runtime",
         "chooseRuntime": "Choose a runtime",
         "runtimeLabel": "{{userId}} on {{deviceId}}",
-        "refresh": "Refresh models",
         "retry": "Retry",
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread.",
-        "inheritedModels": "Room defaults by agent: {{models}}",
-        "futureReplies": "Changes apply to future replies.",
-        "threadModel": "Thread model"
+        "commandFallback": "You can still send !model with a model key in this thread."
       }
     },
     "voice": {
@@ -2258,8 +2251,8 @@
         "ok": "OK"
       },
       "errors": {
-        "microphoneBlockedAndroid": "Microphone access is blocked. Allow microphone access for MindRoom Chat in Android app settings and try again.",
-        "microphoneBlockedIos": "Microphone access is blocked. Allow microphone access for MindRoom Chat in iPhone settings and try again.",
+        "microphoneBlockedAndroid": "Microphone access is blocked. Allow microphone access for MindRoom in Android app settings and try again.",
+        "microphoneBlockedIos": "Microphone access is blocked. Allow microphone access for MindRoom in iPhone settings and try again.",
         "microphoneBlockedBrowser": "Microphone access is blocked. Allow microphone access for this site/app in your browser or system settings and try again.",
         "noMicrophone": "No microphone was found on this device.",
         "microphoneUnavailable": "Microphone is unavailable right now (it may be in use by another app).",

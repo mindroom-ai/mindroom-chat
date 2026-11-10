@@ -104,8 +104,7 @@
       "close": "닫기"
     },
     "invites": {
-      "actionFailed": "문제가 발생했습니다. 다시 시도하세요.",
-      "openNotifications": "알림 열기"
+      "actionFailed": "문제가 발생했습니다. 다시 시도하세요."
     },
     "inviteUserAutocomplete": {
       "placeholder": "사용자를 검색하거나 사용자 ID를 입력하세요"
@@ -697,7 +696,8 @@
       "description": "{{userId}}에게 초대를 보냅니다."
     },
     "actions": {
-      "goInboxInvitesDescription": "받은편지함 초대 및 알림 열기"
+      "goActivity": "활동으로 이동",
+      "goActivityDescription": "멘션, 답글, 나를 기다리는 항목"
     }
   },
   "shortcuts": {
@@ -738,5 +738,107 @@
   },
   "thread": {
     "back": "뒤로"
+  },
+  "activity": {
+    "title": "활동",
+    "unreadOnly": "읽지 않음",
+    "markAllRead": "모두 읽음으로 표시",
+    "openAsPage": "페이지로 열기",
+    "tabs": {
+      "all": "전체",
+      "mentions": "멘션",
+      "replies": "답글",
+      "needsYou": "확인 필요"
+    },
+    "tabsLabel": "표시",
+    "days": {
+      "today": "오늘",
+      "yesterday": "어제",
+      "earlier": "이전"
+    },
+    "sentence": {
+      "approval": "{{name}} 님이 승인을 기다립니다",
+      "question": "{{name}} 님이 질문했습니다",
+      "invite": "{{name}} 님이 초대했습니다",
+      "inviteUnknown": "초대를 받았습니다",
+      "mention": "{{name}} 님이 나를 멘션했습니다",
+      "mentionUnknown": "멘션을 받았습니다",
+      "mentionAndReply": "{{name}} 님이 나를 멘션했고 {{other}} 님이 답글을 남겼습니다",
+      "reply": "{{name}} 님이 답글을 남겼습니다",
+      "replyAndOther": "{{name}} 님과 {{other}} 님이 답글을 남겼습니다",
+      "replyAndOthers_other": "{{name}} 님 외 {{count}}명이 답글을 남겼습니다",
+      "finished": "{{name}} 님이 작업을 마쳤습니다",
+      "stopped": "{{name}} 님의 작업이 중지되었습니다",
+      "youReplied": "내가 답장함"
+    },
+    "newCount_other": "새 항목 {{count}}개",
+    "runMinutes_other": "{{count}}분",
+    "toolCount_other": "도구 {{count}}개",
+    "actions": {
+      "approve": "승인",
+      "deny": "거부",
+      "details": "세부 정보",
+      "join": "참여",
+      "decline": "거절",
+      "sending": "보내는 중…",
+      "failed": "보내지 못했습니다. 다시 시도하세요.",
+      "answered": "답변함: {{label}}",
+      "approved": "승인됨",
+      "denied": "거부됨",
+      "joined": "참여함",
+      "declined": "거절함"
+    },
+    "automationsHidden_other": "자동화 실행 {{count}}개 숨김",
+    "showAutomations": "표시",
+    "hideAutomations": "자동화 실행 숨기기",
+    "allInvites": "모든 초대",
+    "caughtUp": "모두 확인했습니다",
+    "caughtUpDescription": "멘션, 내 스레드의 답글, 나를 기다리는 모든 항목이 여기에 표시됩니다.",
+    "pickTitle": "활동에서 항목을 선택하세요",
+    "pickDescription": "해당 스레드가 목록 옆에 열립니다.",
+    "pickDescriptionPhone": "메뉴를 열어 선택하세요.",
+    "bellLabel": "활동",
+    "bellLabelCount_other": "활동, 읽지 않음 {{count}}개",
+    "openActivity": "활동 열기",
+    "close": "활동 닫기"
+  },
+  "threadPreview": {
+    "voice": "음성 메시지",
+    "image": "이미지",
+    "video": "동영상",
+    "file": "파일",
+    "you": "나"
+  },
+  "threadsPage": {
+    "title": "스레드",
+    "scopeLabel": "표시",
+    "scope": {
+      "mine": "내 스레드",
+      "following": "팔로우 중",
+      "all": "전체"
+    },
+    "search": "스레드 검색",
+    "groups": {
+      "needsYou": "확인 필요",
+      "unread": "읽지 않음",
+      "working": "에이전트 작업 중",
+      "recent": "최근",
+      "automations": "자동화"
+    },
+    "showMore": "더 보기",
+    "chips": {
+      "approval": "승인",
+      "question": "질문",
+      "mention": "나를 멘션함",
+      "resolved": "해결됨"
+    },
+    "working": "작업 중",
+    "noThreads": "아직 스레드가 없습니다",
+    "noThreadsDescription": "내가 시작했거나 참여한 스레드가 여기에 표시됩니다.",
+    "noMatches": "검색과 일치하는 스레드가 없습니다",
+    "pickTitle": "스레드를 선택하세요",
+    "pickDescription": "목록 옆에 열립니다.",
+    "pickDescriptionPhone": "메뉴를 열어 선택하세요.",
+    "needsYouLabel_other": "스레드, 확인 필요 {{count}}개"
   }
 }

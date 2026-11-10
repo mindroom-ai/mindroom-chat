@@ -25,7 +25,7 @@ const args = process.argv.slice(2);
 const record = { command, args, hasNotarySecrets: Boolean(process.env.APPLE_ID || process.env.APPLE_APP_SPECIFIC_PASSWORD) };
 if (command === 'hdiutil') {
   const stage = args[args.indexOf('-srcfolder') + 1];
-  record.appExists = fs.existsSync(path.join(stage, 'MindRoom Chat.app', 'Contents', 'Info.plist'));
+  record.appExists = fs.existsSync(path.join(stage, 'MindRoom.app', 'Contents', 'Info.plist'));
   record.applications = fs.readlinkSync(path.join(stage, 'Applications'));
 }
 fs.appendFileSync(process.env.TEST_LOG, JSON.stringify(record) + '\\n');
@@ -169,8 +169,8 @@ describe('Mac release build script', () => {
     ]);
     expect(lifecycle[2]).toMatchObject({ appExists: true, applications: '/Applications' });
     expect(lifecycle[0].args[2]).toMatch(/\.zip$/);
-    expect(lifecycle[4].args[2]).toMatch(/MindRoom-Chat\.dmg$/);
-    expect(readFileSync(join(root, 'build/macos/MindRoom-Chat.dmg'), 'utf8')).toBe('fixture dmg');
+    expect(lifecycle[4].args[2]).toMatch(/MindRoom\.dmg$/);
+    expect(readFileSync(join(root, 'build/macos/MindRoom.dmg'), 'utf8')).toBe('fixture dmg');
   });
 
   it('does not produce a DMG if app notarization fails', () => {

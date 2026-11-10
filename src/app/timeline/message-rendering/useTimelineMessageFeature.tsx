@@ -732,17 +732,19 @@ export const useTimelineMessageFeature = ({
     [decryptions, messageSpacing, renderMessageRow, room]
   );
 
+  // A thread has no expand-all toggle, so its long messages fold as usual whatever the room's is.
+  const expansionBaseline = threadId ? false : expandAll;
   const wrapExpansion = useCallback(
     (node: ReactNode) => (
       <CollapsibleMessageStateProvider
-        expandAllInit={expandAll}
+        expandAllInit={expansionBaseline}
         manualExpansionState={manualExpansionState}
         onExpansionLayoutChange={restoreExpansionAnchor}
       >
         {node}
       </CollapsibleMessageStateProvider>
     ),
-    [expandAll, manualExpansionState, restoreExpansionAnchor]
+    [expansionBaseline, manualExpansionState, restoreExpansionAnchor]
   );
 
   return {

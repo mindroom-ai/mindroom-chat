@@ -75,3 +75,14 @@ export const SearchField = style([
 
 /** The placeholder, which gives way first when the bar is narrow. */
 export const SearchPlaceholder = style({ flexGrow: 1, minInlineSize: 0, opacity: 0.7 });
+
+/** Holds the Activity bell and its count. */
+export const BellFrame = style({ position: 'relative', flexShrink: 0 });
+
+/** The bell's count, over the bell's top end corner. */
+export const BellBadge = style({
+  position: 'absolute',
+  insetBlockStart: toRem(-2),
+  insetInlineEnd: toRem(-4),
+  pointerEvents: 'none',
+});

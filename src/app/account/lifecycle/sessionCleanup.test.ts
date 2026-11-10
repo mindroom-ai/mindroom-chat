@@ -8,7 +8,7 @@ import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads
 import { clearRecentlyOpenedPanelHeightStore } from '../../preferences/recentlyOpenedPanelHeight';
 import { clearCallWindowStore } from '../../calls/window/callWindowState';
 import { clearThreadSidebarPreferencesStore } from '../../threads/cross-room/threadSidebarPreferences';
-import { clearCrossRoomThreadFiltersStore } from '../../threads/cross-room/crossRoomThreadFilters';
+import { clearThreadsScopeStore } from '../../threads/page/threadsScope';
 import { clearRoomThreadFiltersStore } from '../../threads/overview/roomThreadFilterState';
 import { clearRoomViewModeStore } from '../../navigation/roomViewMode';
 import { clearThreadSummarySharedState } from '../../event-store/threads/threadSummaryState';
@@ -145,8 +145,8 @@ vi.mock('../../threads/cross-room/threadSidebarPreferences', () => ({
   clearThreadSidebarPreferencesStore: vi.fn(),
 }));
 
-vi.mock('../../threads/cross-room/crossRoomThreadFilters', () => ({
-  clearCrossRoomThreadFiltersStore: vi.fn(),
+vi.mock('../../threads/page/threadsScope', () => ({
+  clearThreadsScopeStore: vi.fn(),
 }));
 
 vi.mock('../../threads/overview/roomThreadFilterState', () => ({
@@ -282,7 +282,8 @@ describe('MindRoom session cleanup', () => {
 
     expect(removeItem).toHaveBeenCalledWith('lastOpenThread@alice:example.com');
     expect(vi.mocked(clearRoomThreadFiltersStore)).toHaveBeenCalledWith('@alice:example.com');
-    expect(vi.mocked(clearCrossRoomThreadFiltersStore)).toHaveBeenCalledWith('@alice:example.com');
+    expect(removeItem).toHaveBeenCalledWith('crossRoomThreadFilters:@alice:example.com');
+    expect(vi.mocked(clearThreadsScopeStore)).toHaveBeenCalledWith('@alice:example.com');
     expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith('@alice:example.com');
     expect(vi.mocked(clearRecentlyOpenedPanelHeightStore)).toHaveBeenCalledWith(
       '@alice:example.com'

@@ -31,6 +31,19 @@ describe('getViewedPlace', () => {
     ).toBe(ROOM);
   });
 
+  it('reads the room and thread an Activity or Threads page shows beside its list', () => {
+    expect(
+      getViewedPlace(client, {
+        pathname: `/activity/${encodeURIComponent('#team:example.org')}/`,
+        search: `?threadId=${encodeURIComponent('$root')}`,
+      })
+    ).toEqual({ roomId: '!aliased:example.org', threadId: '$root' });
+    expect(
+      getViewedPlace(client, { pathname: `/threads/${encodeURIComponent(ROOM)}/`, search: '' })
+        .roomId
+    ).toBe(ROOM);
+  });
+
   it('resolves an alias and finds no room on other pages', () => {
     expect(
       getViewedPlace(client, {

@@ -1575,7 +1575,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
       roomUnread,
       unreadMarkerShown,
     });
-  // In the room and in a thread the toggle takes a line of its own above the rows. A phone's
+  // In the room the toggle takes a line of its own above the rows; a thread has none. A phone's
   // unread pills, as wide as the line nearly, sit at its height: while they show, the toggle moves
   // to the line's start and they keep clear of it there.
   const expandAllToggle = itemCount > 0 && (
@@ -1647,7 +1647,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
                   loading={threadLoading}
                   onLoadOlder={handleLoadOlderThread}
                 />
-                {expandAllToggle}
               </div>
             </>
           ) : (

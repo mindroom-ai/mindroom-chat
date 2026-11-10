@@ -384,17 +384,17 @@ const checkDesktop = async (page: Page, { username, spaces }: Account) => {
     await closes('Direct Messages shown', () => railButton(page, 'Direct Messages').click());
     await opens('a space from Direct Messages', () => spaceButton(page, at(3)).click());
 
-    // Threads has no panel: a collapsed panel opened by going there moves in on the next page.
+    // Threads, whose list is its panel, opens it like Home does and closes it when shown.
     await closes('toggle', () => collapseButton(page).click());
-    await railButton(page, 'Threads').click();
+    await opens('Threads', () => railButton(page, 'Threads').click());
     await expect(page).toHaveURL(/\/threads\//);
-    await expect.poll(() => widthOf(page)).toBe(0);
+    await closes('Threads shown', () => railButton(page, 'Threads').click());
     await opens('a space after Threads', () => spaceButton(page, at(4)).click());
 
     // With the panel open, changing pages does not move it.
     await stays('another space while open', () => spaceButton(page, at(5)).click());
     await stays('Home while open', () => railButton(page, 'Home').click());
-    await railButton(page, 'Threads').click();
+    await stays('Threads while open', () => railButton(page, 'Threads').click());
     await expect(page).toHaveURL(/\/threads\//);
     await stays('a space from Threads while open', () => spaceButton(page, at(6)).click());
 

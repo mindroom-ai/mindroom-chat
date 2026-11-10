@@ -4,6 +4,7 @@ import {
   test,
   type Browser,
   type BrowserContextOptions,
+  type Locator,
   type Page,
 } from '@playwright/test';
 import { getHomeserver } from '../env';
@@ -421,7 +422,16 @@ const checkOlderQuestions = async (page: Page, name: string) => {
   });
 };
 
-/** The Threads page lists and counts every thread of every room, all rooms and all time. */
+/** The threads the Threads list counts in its groups, from each group's heading (`Recent · 12`). */
+const groupedThreads = (list: Locator) =>
+  list.locator('section').evaluateAll((sections) =>
+    sections.reduce((sum, section) => {
+      const heading = section.querySelector('h3, button')?.textContent ?? '';
+      return sum + Number(/·\s*(\d+)$/.exec(heading.trim())?.[1] ?? 0);
+    }, 0)
+  );
+
+/** The Threads list, on All, lists and counts every thread of every room. */
 const checkThreadsPage = async (page: Page, name: string) => {
   seeded ??= seed();
   const { reader, roomId } = await seeded;
@@ -431,38 +441,23 @@ const checkThreadsPage = async (page: Page, name: string) => {
     username: reader.username,
     password: PASSWORD,
   });
-  await page.evaluate((userId) => {
-    localStorage.setItem(
-      `crossRoomThreadFilters:${userId}`,
-      JSON.stringify({
-        v: 1,
-        scope: 'all',
-        roomIds: [],
-        spaceIds: [],
-        tag: { include: [], exclude: [] },
-        unreadOnly: false,
-        resolved: 'all',
-        hasAttention: false,
-        activityWindow: 'all',
-      })
-    );
-  }, reader.userId);
   await page.goto('/threads/');
+  const list = page.getByRole('navigation', { name: 'Threads' });
+  await list.getByRole('radio', { name: 'All' }).click();
+  await expect(list.getByRole('radio', { name: 'All' })).toHaveAttribute('aria-checked', 'true');
 
-  const count = page.getByText(/^\d+\+? threads?$/).first();
-  const seen: string[] = [];
+  const seen: number[] = [];
   const startedAt = Date.now();
   while (Date.now() - startedAt < 45_000) {
     // eslint-disable-next-line no-await-in-loop
-    const text = ((await count.textContent({ timeout: 1_000 }).catch(() => null)) ?? '').trim();
-    if (text && seen.at(-1) !== text) seen.push(text);
-    if (text === `${THREADS} threads`) break;
+    const count = await groupedThreads(list);
+    if (seen.at(-1) !== count) seen.push(count);
+    if (count === THREADS) break;
     // eslint-disable-next-line no-await-in-loop
     await page.waitForTimeout(100);
   }
   report({ type: 'threads page count values', description: seen.join(' -> ') });
-  expect(seen.at(-1), `count values: ${seen.join(' -> ')}`).toBe(`${THREADS} threads`);
-  expect(seen.filter((text) => !/^\d+ threads?$/.test(text))).toEqual([]);
+  expect(seen.at(-1), `count values: ${seen.join(' -> ')}`).toBe(THREADS);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-threads-page.png` });
 
   await page.waitForTimeout(5_000);
@@ -557,7 +552,7 @@ test('older questions without replies get cards at the end of the list (WebKit, 
   }
 });
 
-test('the Threads page lists and counts all 500 threads (Chromium, desktop)', async ({
+test('the Threads list lists and counts all 500 threads (Chromium, desktop)', async ({
   browser,
   baseURL,
 }) => {
@@ -567,7 +562,7 @@ test('the Threads page lists and counts all 500 threads (Chromium, desktop)', as
   );
 });
 
-test('the Threads page lists and counts all 500 threads (WebKit, phone)', async ({ baseURL }) => {
+test('the Threads list lists and counts all 500 threads (WebKit, phone)', async ({ baseURL }) => {
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(360_000);
   const browser = await launchWebKit();

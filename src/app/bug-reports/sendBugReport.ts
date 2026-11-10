@@ -26,7 +26,7 @@ export const buildBugReportSummary = (report: BugReport, reporterName: string): 
   }
   lines.push(
     `Room: ${target.roomName}`,
-    `Client: MindRoom Chat ${client.build} (${client.platform})`,
+    `Client: MindRoom ${client.build} (${client.platform})`,
     'The debug data is attached below. Add any details in this thread.'
   );
   return lines.join('\n');

@@ -104,8 +104,7 @@
       "close": "关闭"
     },
     "invites": {
-      "actionFailed": "出了点问题，请重试。",
-      "openNotifications": "打开通知"
+      "actionFailed": "出了点问题，请重试。"
     },
     "inviteUserAutocomplete": {
       "placeholder": "搜索用户或输入用户 ID"
@@ -697,7 +696,8 @@
       "description": "将向 {{userId}} 发送邀请。"
     },
     "actions": {
-      "goInboxInvitesDescription": "打开收件箱邀请和通知"
+      "goActivity": "前往动态",
+      "goActivityDescription": "提及、回复和等待你处理的事项"
     }
   },
   "shortcuts": {
@@ -738,5 +738,107 @@
   },
   "thread": {
     "back": "返回"
+  },
+  "activity": {
+    "title": "动态",
+    "unreadOnly": "未读",
+    "markAllRead": "全部标为已读",
+    "openAsPage": "以页面打开",
+    "tabs": {
+      "all": "全部",
+      "mentions": "提及",
+      "replies": "回复",
+      "needsYou": "待你处理"
+    },
+    "tabsLabel": "显示",
+    "days": {
+      "today": "今天",
+      "yesterday": "昨天",
+      "earlier": "更早"
+    },
+    "sentence": {
+      "approval": "{{name}} 需要批准",
+      "question": "{{name}} 向你提问",
+      "invite": "{{name}} 邀请了你",
+      "inviteUnknown": "你收到了邀请",
+      "mention": "{{name}} 提及了你",
+      "mentionUnknown": "有人提及了你",
+      "mentionAndReply": "{{name}} 提及了你，{{other}} 回复了",
+      "reply": "{{name}} 回复了",
+      "replyAndOther": "{{name}} 和 {{other}} 回复了",
+      "replyAndOthers_other": "{{name}} 和其他 {{count}} 人回复了",
+      "finished": "{{name}} 已完成",
+      "stopped": "{{name}} 已停止",
+      "youReplied": "你已回复"
+    },
+    "newCount_other": "{{count}} 条新消息",
+    "runMinutes_other": "{{count}} 分钟",
+    "toolCount_other": "{{count}} 个工具",
+    "actions": {
+      "approve": "批准",
+      "deny": "拒绝",
+      "details": "详情",
+      "join": "加入",
+      "decline": "拒绝",
+      "sending": "正在发送…",
+      "failed": "发送失败，请重试。",
+      "answered": "已回答：{{label}}",
+      "approved": "已批准",
+      "denied": "已拒绝",
+      "joined": "已加入",
+      "declined": "已拒绝"
+    },
+    "automationsHidden_other": "已隐藏 {{count}} 次自动化运行",
+    "showAutomations": "显示",
+    "hideAutomations": "隐藏自动化运行",
+    "allInvites": "所有邀请",
+    "caughtUp": "你已全部看完",
+    "caughtUpDescription": "提及、你的讨论串中的回复以及等待你处理的所有事项都会显示在这里。",
+    "pickTitle": "从动态中选择一项",
+    "pickDescription": "它所在的讨论串会在列表旁边打开。",
+    "pickDescriptionPhone": "打开菜单进行选择。",
+    "bellLabel": "动态",
+    "bellLabelCount_other": "动态，{{count}} 条未读",
+    "openActivity": "打开动态",
+    "close": "关闭动态"
+  },
+  "threadPreview": {
+    "voice": "语音消息",
+    "image": "图片",
+    "video": "视频",
+    "file": "文件",
+    "you": "你"
+  },
+  "threadsPage": {
+    "title": "讨论串",
+    "scopeLabel": "显示",
+    "scope": {
+      "mine": "我的",
+      "following": "关注中",
+      "all": "全部"
+    },
+    "search": "搜索讨论串",
+    "groups": {
+      "needsYou": "待你处理",
+      "unread": "未读",
+      "working": "智能体工作中",
+      "recent": "最近",
+      "automations": "自动化"
+    },
+    "showMore": "显示更多",
+    "chips": {
+      "approval": "批准",
+      "question": "问题",
+      "mention": "提及你",
+      "resolved": "已解决"
+    },
+    "working": "处理中",
+    "noThreads": "这里还没有讨论串",
+    "noThreadsDescription": "你发起或参与的讨论串会显示在这里。",
+    "noMatches": "没有与此搜索匹配的讨论串",
+    "pickTitle": "选择一个讨论串",
+    "pickDescription": "它会在列表旁边打开。",
+    "pickDescriptionPhone": "打开菜单进行选择。",
+    "needsYouLabel_other": "讨论串，{{count}} 个待你处理"
   }
 }

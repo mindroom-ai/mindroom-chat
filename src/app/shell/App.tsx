@@ -16,6 +16,7 @@ import {
 } from '../theme/useTheme';
 import { usePageZoom } from '../theme/usePageZoom';
 import { useMobileKeyboardViewportFix } from '../native/useMobileKeyboardViewportFix';
+import { installStatusBarTapScroll } from '../native/statusBarTapScroll';
 import { appJotaiStore, setImperativeJotaiStore } from '../lib/state/jotaiStore';
 import { applyAppTheme } from '../theme/appliedTheme';
 import { NoticeLayout } from '../notifications/notices/NoticeBanners';
@@ -84,6 +85,8 @@ function App() {
   useMobileKeyboardViewportFix();
   // Menus and dialogs opened from the keyboard take focus, and give it back when they close.
   useEffect(() => installOverlayFocus(document), []);
+  // A tap on the iOS status bar scrolls the view under it to the top.
+  useEffect(() => installStatusBarTapScroll(window), []);
   return (
     <JotaiProvider store={appJotaiStore}>
       <AppTheme>

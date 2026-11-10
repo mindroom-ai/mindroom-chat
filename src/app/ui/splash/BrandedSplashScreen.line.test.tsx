@@ -55,7 +55,7 @@ describe('MindRoomSplashScreen line', () => {
 
   it('uses the translated line when every configured line is blank', () => {
     expect(shownLine(renderSplash({ loadingMessages: ['', '   '], random: () => 0.5 }, {}))).toBe(
-      'Loading MindRoom Chat'
+      'Loading MindRoom'
     );
   });
 
@@ -90,7 +90,7 @@ describe('MindRoomSplashScreen line', () => {
     expect(pickMindRoomSplashMessage(lines, () => 0)).toBe('One');
     expect(pickMindRoomSplashMessage(lines, () => 1)).toBe('Three');
     expect(pickMindRoomSplashMessage(lines, () => -0.5)).toBe('One');
-    expect(pickMindRoomSplashMessage(undefined, () => 0.5)).toBe('Loading MindRoom Chat');
+    expect(pickMindRoomSplashMessage(undefined, () => 0.5)).toBe('Loading MindRoom');
   });
 
   it('keeps its line across renders until it gets a new list', () => {

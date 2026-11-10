@@ -13,7 +13,8 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 // Room and space names as the navigation shows them, with names people really give: several
 // rooms that differ only at their end, and long English names in an Arabic interface. A space
-// with 7 rooms, an invite and an unread room, on a phone (390 by 844, touch) and a desktop.
+// with 7 rooms, an invite and an unread room with a thread that names the reader, on a phone (390
+// by 844, touch) and a desktop.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'space-names-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -85,6 +86,17 @@ const seed = async (): Promise<Seed> => {
         msgtype: 'm.text',
         body: 'The draft is ready for another look.',
       });
+      // A thread that names the owner, so Activity lists it with the room's name.
+      const rootId = await sendRoomMessage(HOMESERVER, peer.accessToken, roomId, {
+        msgtype: 'm.text',
+        body: 'Open questions on the redesign',
+      });
+      await sendRoomMessage(HOMESERVER, peer.accessToken, roomId, {
+        msgtype: 'm.text',
+        body: `${owner.userId} can you review the second section?`,
+        'm.mentions': { user_ids: [owner.userId] },
+        'm.relates_to': { rel_type: 'm.thread', event_id: rootId, is_falling_back: true },
+      });
     }
   }
   await createPrivateRoom(HOMESERVER, peer.accessToken, {
@@ -141,15 +153,18 @@ test('long English names keep their start in a right-to-left interface', async (
     'ltr'
   );
 
-  await page.goto('/inbox/invites/');
-  const invite = page.getByText(INVITE_NAME, { exact: true });
+  await page.goto('/activity/invites/');
+  const invite = page.locator('main').getByText(INVITE_NAME, { exact: true });
   await expect(invite).toBeVisible({ timeout: 30_000 });
   expect(await direction(invite)).toBe('ltr');
 
-  await page.goto('/inbox/notifications/');
-  const heading = page.locator('main').getByText(LONG_ROOM, { exact: true });
-  await expect(heading).toBeVisible({ timeout: 30_000 });
-  expect(await direction(heading)).toBe('ltr');
+  await page.goto('/activity/');
+  // The thread's row names its room, which keeps its start.
+  const activityRoom = page
+    .locator('[data-activity-list="page"] [data-activity-row]')
+    .getByText(LONG_ROOM, { exact: true });
+  await expect(activityRoom).toBeVisible({ timeout: 30_000 });
+  expect(await direction(activityRoom)).toBe('ltr');
 
   await pressPaletteShortcut(page);
   // The palette's accessible name is in Arabic too.

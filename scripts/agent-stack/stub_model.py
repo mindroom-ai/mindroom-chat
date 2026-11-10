@@ -11,6 +11,7 @@ The person's latest message picks a scenario by hashtag:
   #think       reasoning first, then the answer
   #markdown    a table, a code block and a list
   #error       the provider answers 500
+  #ask         a streamed reply that ends in a question with two options, for answering by reaction
   #shell       one shell call         #multi   three shell calls
   #pause       two shell calls, with 3.5 s of thinking before the second
   #approve     a shell call that needs approval (the backend's approval script looks for needs-approval)
@@ -90,7 +91,18 @@ TOOL_SCENARIOS: dict[str, list[tuple[str, dict]]] = {
         ("run_shell_command", {"args": "sleep 45; echo background job finished", "background_after": 0})
     ],
 }
-TEXT_SCENARIOS = ("#stopme", "#slow", "#long", "#think", "#markdown", "#error")
+TEXT_SCENARIOS = ("#stopme", "#slow", "#long", "#think", "#markdown", "#error", "#ask")
+
+# #ask: a short stream (each word an edit) ending in MindRoom's interactive block, which the backend turns into the
+# message's question and its reaction buttons.
+ASK_SECONDS_PER_WORD = 0.1
+ASK_QUESTION = {
+    "question": "Which deck should I polish for Thursday?",
+    "options": [
+        {"emoji": "✅", "label": "v3 final", "value": "v3"},
+        {"emoji": "📄", "label": "v4 draft", "value": "v4"},
+    ],
+}
 
 
 def tool_scenarios(files: list[Path]) -> dict[str, list[tuple[str, dict]]]:
@@ -284,6 +296,9 @@ def plan(body: dict, scenarios: dict[str, list[tuple[str, dict]]]) -> tuple:
         )
     if has_tag(text, "#error"):
         return ("error",)
+    if has_tag(text, "#ask"):
+        block = json.dumps(ASK_QUESTION, ensure_ascii=False)
+        return ("slow", f"Two versions are ready.\n\n```interactive\n{block}\n```", ASK_SECONDS_PER_WORD)
     return ("text", f"Hello from **{body.get('model')}**. You said: {person_said(messages)}")
 
 

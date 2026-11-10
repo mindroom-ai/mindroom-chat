@@ -55,7 +55,7 @@ describe('buildBugReportSummary', () => {
     expect(summary).toContain('Message: https://chat.example/#/!r:example.com/$reply');
     expect(summary).toContain('Thread: ');
     expect(summary).toContain('Room: Lobby');
-    expect(summary).toContain('Client: MindRoom Chat abc123 (ios)');
+    expect(summary).toContain('Client: MindRoom abc123 (ios)');
   });
 });
 

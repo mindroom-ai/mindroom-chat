@@ -213,8 +213,8 @@ export const resolveIOSPushConfig = (
   return {
     appId,
     gatewayUrl,
-    appDisplayName: trimConfigValue(iosPushConfig.appDisplayName) ?? 'MindRoom Chat iOS',
-    deviceDisplayName: trimConfigValue(iosPushConfig.deviceDisplayName) ?? 'MindRoom Chat iOS',
+    appDisplayName: trimConfigValue(iosPushConfig.appDisplayName) ?? 'MindRoom iOS',
+    deviceDisplayName: trimConfigValue(iosPushConfig.deviceDisplayName) ?? 'MindRoom iOS',
     profileTag:
       trimConfigValue(iosPushConfig.profileTag) ?? getOrCreateIOSPushProfileTag(sessionId),
     append: iosPushConfig.append !== false,

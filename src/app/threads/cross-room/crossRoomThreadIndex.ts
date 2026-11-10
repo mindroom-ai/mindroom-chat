@@ -58,6 +58,11 @@ export const crossRoomThreadIndexAtom = atom<CrossRoomThreadIndexSnapshot>(
   emptyCrossRoomThreadIndexSnapshot()
 );
 
+/** Whether the index has scanned the rooms once; before, an empty list says nothing. */
+export const crossRoomThreadIndexBootstrappedAtom = atom(
+  (get) => get(crossRoomThreadIndexAtom).bootstrapped
+);
+
 export const getCrossRoomThreadIndexKey = (roomId: string, threadRootId: string): string =>
   `${roomId}${KEY_SEPARATOR}${threadRootId}`;
 

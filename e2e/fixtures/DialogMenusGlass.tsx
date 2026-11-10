@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { color, Text } from 'folds';
 import { ModelPicker } from '../../src/app/models/ModelPicker';
 import { ScreenSizeProvider, useScreenSize } from '../../src/app/lib/hooks/useScreenSize';
-import { FilterBarMobileSheet } from '../../src/app/threads/page/FilterBarMobileSheet';
+import { BottomSheet } from '../../src/app/ui/BottomSheet';
 import { InviteAutocompleteMenu } from '../../src/app/members/invite/InviteAutocompleteMenu';
 import { InviteAutocompleteOption } from '../../src/app/members/invite/InviteAutocompleteMenu.css';
 import { AutocompleteMenu } from '../../src/app/editor/autocomplete/AutocompleteMenu';
@@ -46,27 +46,30 @@ export function DialogMenusGlass() {
           color: color.Surface.OnContainer,
         }}
       >
-        <ModelPicker
-          state={{
-            eligible: true,
-            runtimes: [],
-            override: null,
-            inherited: [],
-            loading: false,
-            pending: false,
-            canMutate: true,
-            models: Array.from({ length: 24 }, (_, index) => ({
-              key: `model-${index + 1}`,
-              id: `model-${index + 1}`,
-              provider: 'Local',
-              display_name: `Studio model ${String(index + 1).padStart(2, '0')}`,
-            })),
-            refresh: () => undefined,
-            chooseRuntime: () => undefined,
-            selectModel: setSelected,
-            resetToRoomDefault: () => setSelected('default'),
-          }}
-        />
+        {/* At the foot of the page, as in the composer, so its menu opens above it. */}
+        <div style={{ position: 'fixed', insetBlockEnd: 16, insetInlineStart: 16 }}>
+          <ModelPicker
+            state={{
+              eligible: true,
+              runtimes: [],
+              override: null,
+              inherited: [],
+              loading: false,
+              pending: false,
+              canMutate: true,
+              models: Array.from({ length: 24 }, (_, index) => ({
+                key: `model-${index + 1}`,
+                id: `model-${index + 1}`,
+                provider: 'Local',
+                display_name: `Studio model ${String(index + 1).padStart(2, '0')}`,
+              })),
+              refresh: () => undefined,
+              chooseRuntime: () => undefined,
+              selectModel: setSelected,
+              resetToRoomDefault: () => setSelected('default'),
+            }}
+          />
+        </div>
         <button type="button" onClick={() => setFilters(true)}>
           Open filters
         </button>
@@ -112,18 +115,24 @@ export function DialogMenusGlass() {
           ))}
         </InviteAutocompleteMenu>
 
-        <FilterBarMobileSheet open={filters} requestClose={() => setFilters(false)}>
-          {Array.from({ length: 20 }, (_, index) => (
-            <button
-              type="button"
-              key={index}
-              style={{ padding: 8 }}
-              onClick={() => setSelected(`filter-${index + 1}`)}
-            >
-              Filter option {index + 1}
-            </button>
-          ))}
-        </FilterBarMobileSheet>
+        {filters && (
+          <BottomSheet
+            title="Filters"
+            closeLabel="Close filters"
+            requestClose={() => setFilters(false)}
+          >
+            {Array.from({ length: 20 }, (_, index) => (
+              <button
+                type="button"
+                key={index}
+                style={{ padding: 8 }}
+                onClick={() => setSelected(`filter-${index + 1}`)}
+              >
+                Filter option {index + 1}
+              </button>
+            ))}
+          </BottomSheet>
+        )}
         <div style={{ position: 'fixed', bottom: 40, insetInline: 20 }}>
           {autocomplete && (
             <AutocompleteMenu

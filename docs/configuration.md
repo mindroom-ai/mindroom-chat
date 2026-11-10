@@ -41,10 +41,10 @@ A company can put its own logo, name and footer on the signed-out pages without 
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
-| `branding.title` | string | `MindRoom Chat` | The name beside the logo in the card's header (the page's heading), in the loading screens' line and at their bottom, and in the browser tab, where a signed-in account adds its unread count in front. Without it the tab keeps `MindRoom`. A title too long for the header ends in an ellipsis. An empty title (`""`) shows no name beside the logo, for a wordmark logo that shows it already: the logo alone is the page's heading, which screen readers name by the logo's `alt` text, and that text is the name, which the loading screens and the tab then show (with the default logo it stays `MindRoom Chat`, and the tab keeps `MindRoom`). |
-| `branding.logo.src` | string (URL) | the MindRoom Chat logo | The logo in the card's header: an `https` URL, or a path on the app's own origin such as `/branding/logo.svg`, served beside `config.json`. Shown 28 pixels high and as wide as its proportions make it, up to 160 pixels. It is loaded without a referrer; if it does not load, the default logo is shown. |
+| `branding.title` | string | `MindRoom` | The name beside the logo in the card's header (the page's heading), in the loading screens' line and at their bottom, and in the browser tab, where a signed-in account adds its unread count in front. Without it the tab keeps `MindRoom`. A title too long for the header ends in an ellipsis. An empty title (`""`) shows no name beside the logo, for a wordmark logo that shows it already: the logo alone is the page's heading, which screen readers name by the logo's `alt` text, and that text is the name, which the loading screens and the tab then show (with the default logo it stays `MindRoom`, and the tab keeps `MindRoom`). |
+| `branding.logo.src` | string (URL) | the MindRoom logo | The logo in the card's header: an `https` URL, or a path on the app's own origin such as `/branding/logo.svg`, served beside `config.json`. Shown 28 pixels high and as wide as its proportions make it, up to 160 pixels. It is loaded without a referrer; if it does not load, the default logo is shown. |
 | `branding.logo.srcDark` | string (URL) | `src` | The logo in dark themes, under the same rules. Signed out, the app shows `defaultTheme` (below), else follows the system's light or dark setting. |
-| `branding.logo.alt` | string | `MindRoom Chat Logo` | Required with `src`: what screen readers say for the logo. |
+| `branding.logo.alt` | string | `MindRoom Logo` | Required with `src`: what screen readers say for the logo. |
 | `branding.footer.text` | string, or a list of strings and `{label, url}` links | none | A line under the card, before the credits. A list is read in order as one line, its links inside the text, each opened in a new tab, with `url` an absolute `http`, `https` or `mailto` address: `[{"label": "Example", "url": "https://example.com/source"}, " by ", {"label": "Example Co", "url": "https://www.example.com"}]` shows "Example by Example Co" with both names linked. Text keeps its spaces as written. Markup is shown as written, not rendered. |
 | `branding.footer.links` | `{label, url}[]` | `[]` | Links after the Support, Privacy and Terms links, each opened in a new tab. `url` must be an absolute `http`, `https` or `mailto` address. |
 
@@ -58,7 +58,7 @@ Values are checked when the configuration loads. A value that fails keeps its de
 - A `footer` that is not an object, or `text` that is neither text nor a list: no footer text. In a `text` list, a link whose `url` is refused shows its label as plain text, and an entry without a label is left out.
 - A link without a label or with another scheme, in `branding.footer.links` or `auth.poweredBy`: that link is left out, the others stay.
 
-Not covered by `branding`: the welcome page (`welcome.*` below), the favicon, the web app manifest and home screen icons, notification titles, the device name a sign-in gives the session (`MindRoom Chat Web`), and the native apps' names.
+Not covered by `branding`: the welcome page (`welcome.*` below), the favicon, the web app manifest and home screen icons, notification titles, the device name a sign-in gives the session (`MindRoom Web`), and the native apps' names.
 
 An example:
 
@@ -159,14 +159,14 @@ With `showEncryptionOption: false` and `defaultEncryption: false` together, the 
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
-| `welcome.title` | string | `Welcome to MindRoom Chat` | Heading of the welcome page (shown when no room is open). |
+| `welcome.title` | string | `Welcome to MindRoom` | Heading of the welcome page (shown when no room is open). |
 | `welcome.subtitle` | string | `AI agents that live in your chat rooms.` | Line under the heading; also shown in Settings > About. |
 | `welcome.sourceLabel` | string | `Source Code` | Label of the first welcome button. |
 | `welcome.sourceUrl` | string | `https://github.com/mindroom-ai/mindroom-chat` | Its link. An empty string hides the button. Settings > About always links to the default. |
 | `welcome.docsLabel` | string | `Docs` | Label of the second welcome button. |
 | `welcome.docsUrl` | string | `https://docs.mindroom.chat/` | Its link. An empty string hides the button. |
 | `welcome.poweredBy` | `{label, url}[]` | MindRoom and Matrix | The "Powered by" links on the welcome page. `[]` hides the line. |
-| `splash.loadingMessages` | string[] | `Loading MindRoom Chat` (with `branding.title` for the name), translated | The startup screen shows one of these, picked at random at each start. Blank entries are skipped. |
+| `splash.loadingMessages` | string[] | `Loading MindRoom` (with `branding.title` for the name), translated | The startup screen shows one of these, picked at random at each start. Blank entries are skipped. |
 | `mindroom.thinkingPlaceholderMessages` | string[] | `Making progress`, `Almost there`, `Boosting the GPUs`, `Checking the thread`, `Composing the reply` | Shown in turn, every 3.6 seconds, while an agent's reply still reads `Thinking...`. Blank and non-string entries are skipped; an empty list means the defaults. |
 
 A `welcome` text equal to its English default is shown translated into the app language; any other text is shown as written in every language.
@@ -237,15 +237,15 @@ location = /errors/envelope {
 
 Read only by the iOS app. Push stays off unless `enabled` is `true`, `appId` is set and `gatewayUrl` is an HTTPS URL. The values go into the Matrix pusher the app registers with the homeserver.
 
-Each account's pusher also puts the account's random tag on the device into its pushes (`mindroom_account` in the pusher's `default_payload`, which Sygnal merges into each push). Tapping a push of a signed-in account that is not the active one makes that account active and opens the message there. An account's pusher gets the tag the next time the account is active in the app.
+Each account's pusher also puts the account's random tag on the device into its pushes (`mindroom_account` in the pusher's `default_payload`, which Sygnal merges into each push). Tapping a push of a signed-in account that is not the active one makes that account active and opens the message there. An account's pusher gets the tag the next time the account is active in the app. A tapped push opens its message as a page opened from outside the app: the back chevron of the thread it opens leads to the thread's room, and the room's to its list, not to the page the app was left on.
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
 | `push.ios.enabled` | boolean | `false` | Turns push on. |
 | `push.ios.appId` | string | none | The pusher's `app_id`, as the push gateway knows the app. |
 | `push.ios.gatewayUrl` | string (HTTPS URL) | none | The push gateway's notify URL (pusher `data.url`). |
-| `push.ios.appDisplayName` | string | `MindRoom Chat iOS` | The pusher's `app_display_name`; also the title of `event_id_only` notifications. |
-| `push.ios.deviceDisplayName` | string | `MindRoom Chat iOS` | The pusher's `device_display_name`. |
+| `push.ios.appDisplayName` | string | `MindRoom iOS` | The pusher's `app_display_name`; also the title of `event_id_only` notifications. |
+| `push.ios.deviceDisplayName` | string | `MindRoom iOS` | The pusher's `device_display_name`. |
 | `push.ios.profileTag` | string | a random tag per account, stored on the device | The pusher's `profile_tag`. |
 | `push.ios.append` | boolean | `true` | The pusher's `append`. |
 | `push.ios.format` | `"full"` or other | `event_id_only` | `"full"` sends the whole event to the gateway; anything else sends only its ID, and the notification reads "New message". |

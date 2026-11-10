@@ -10,6 +10,7 @@ import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { useActiveSession } from '../../matrix/session/useSessionStore';
 import { setActiveSession, type StoredSession } from '../../matrix/session/sessions';
 import { resolveSessionRestorePath } from '../../routes/sessionRouteRestore';
+import { OPENED_FROM_OUTSIDE_STATE } from '../../routes/historyStack';
 import { useClientStartupContext } from '../../matrix/ClientStartupContext';
 import {
   cloudflareAccessAllowsPush,
@@ -176,7 +177,8 @@ export function NativeIOSPushOpenFeature() {
     if (!target || !hasCompletedInitialSync) return;
     setTarget(undefined);
     if (mx.getRoom(target.roomId)?.getMyMembership() !== KnownMembership.Join) return;
-    navigateRoom(target.roomId, target.eventId);
+    // Its back buttons lead to its room and the room's list, not to where the app was left.
+    navigateRoom(target.roomId, target.eventId, { state: OPENED_FROM_OUTSIDE_STATE });
   }, [hasCompletedInitialSync, mx, navigateRoom, target]);
 
   return null;

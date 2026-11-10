@@ -43,14 +43,15 @@ export { Direct } from '../sidebar/direct/Direct';
 export { DirectCreate } from '../sidebar/direct/DirectCreate';
 export { SpaceRouteProvider } from '../sidebar/space/Space';
 export { Lobby } from '../spaces/lobby/Lobby';
-export { Threads } from '../threads/page/Threads';
+export { ThreadsNav } from '../threads/page/ThreadsNav';
+export { ThreadsEmpty } from '../threads/page/ThreadsEmpty';
 export { Canvases } from '../canvas/page/Canvases';
 export { FeaturedRooms } from '../rooms/explore/Featured';
 export { PublicRooms } from '../rooms/explore/Server';
 export { Invites } from '../notifications/inbox/Invites';
-export { InboxNav } from '../notifications/inbox/InboxNav';
+export { ActivityNav } from '../activity/ActivityNav';
+export { ActivityEmpty } from '../activity/ActivityEmpty';
 export { ExploreNav } from '../rooms/explore/ExploreNav';
-export { Notifications } from '../notifications/inbox/Notifications';
 export { PluginPageRoute } from '../plugins/PluginPageRoute';
 
 /**
@@ -105,7 +106,7 @@ export function SectionPage({ nav, navId }: { nav: ReactNode; navId?: string }) 
 
 /**
  * A section's own page. A phone stays at this address with the section's list out in its drawer,
- * so where wider screens redirect (a space to its lobby, the Inbox to Invites) a phone shows
+ * so where wider screens redirect (a space to its lobby) a phone shows
  * `phonePage` in place, and a way back to the list lands here with the drawer out.
  */
 export function SectionIndex({

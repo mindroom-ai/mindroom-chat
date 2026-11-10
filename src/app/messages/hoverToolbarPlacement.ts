@@ -113,8 +113,8 @@ export const toolbarOffset = (
 /**
  * How far below the top of its row the hover toolbar sits, in pixels, or `undefined` in its usual
  * place above the row. It moves to stay clear of what floats over the top of the timeline (the
- * first row starts right under the `[+all]` toggle and a thread's banner, so its toolbar moves
- * down into the row instead of covering them) and of the fold buttons of long messages, so
+ * first row starts right under the room's `[+all]` toggle or a thread's banner, so its toolbar
+ * moves down into the row instead of covering them) and of the fold buttons of long messages, so
  * it never draws over a Show less button. Moved down into its row, it also keeps below the row's
  * sender line. Measured while the toolbar shows, and again as the timeline scrolls under it or
  * the row changes size.

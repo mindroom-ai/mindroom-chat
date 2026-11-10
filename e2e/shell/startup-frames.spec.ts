@@ -71,7 +71,7 @@ const sampleDomStates = (page: Page) =>
       if (!document.getElementById('root')?.childElementCount) return ['loading', ''];
       const text = (document.body?.innerText ?? '').replace(/\s+/g, ' ').trim();
       // The splash names the app under its loading line.
-      if (text.endsWith('MindRoom Chat')) return ['splash', ''];
+      if (text.endsWith('MindRoom')) return ['splash', ''];
       // What the page holds then, without generated class names.
       const markup = (document.getElementById('root')?.innerHTML ?? '')
         .replace(/ class="[^"]*"/g, '')

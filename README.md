@@ -33,7 +33,7 @@ It is also a complete Matrix client, with rooms, direct messages, spaces, end-to
 - 🔒 **End-to-end encryption.** Private rooms you create here are encrypted by default, with device verification, key backup and a recovery key. Rooms that MindRoom creates for its agents start unencrypted unless their [room policy](https://docs.mindroom.chat/rooms/#room-policy) sets `encrypted: true`.
 - 📞 **Calls.** Voice and video calls and screen sharing over MatrixRTC (LiveKit).
 - 👥 **Every account.** Sign in with a password or single sign-on, register, and keep several accounts side by side.
-- 🔎 **Find anything.** A command palette, message search, an Inbox for notifications and invites, and an Explore page for public room directories.
+- 🔎 **Find anything.** A command palette, message search, an Activity bell for mentions, replies, approvals and invites, a Threads page that groups your conversations by what they need, and an Explore page for public room directories.
 - 🌍 **For everyone.** 17 languages (Arabic right to left), light and dark themes, keyboard shortcuts, and a start from cache when you are offline.
 - 🐞 **Bug reports** from inside the app.
 - 🔓 **Open source.** Apache-2.0, with any Matrix homeserver.

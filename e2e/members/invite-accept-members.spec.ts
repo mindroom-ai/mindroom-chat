@@ -10,7 +10,7 @@ import {
 import { matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { onWebKitPage } from '../helpers/webkit';
 
-// An invite accepted in the app (an Inbox card's Accept, or Join on the room's invite page): the
+// An invite accepted in the app (Join on its Activity row, or on the room's invite page): the
 // room then knows its members as a room opened any other way does. The inviter is listed under
 // their name and role, their messages carry their name, and a direct chat is named after them,
 // also after a reload. Runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
@@ -111,7 +111,6 @@ const expectHostKnown = async (page: Page, { host }: People, body: string) => {
   await expect(timeline.getByText(localpart(host.userId), { exact: true })).toHaveCount(0);
 };
 
-/** Accepts the invite on its Inbox card, reached from the rail as people do, without a reload. */
 /**
  * Reloads once the saved sync holds the join: the client saves it within 10 s of a state change.
  * The next start replays that copy, which has no invite state to fall back on.
@@ -121,19 +120,24 @@ const reloadFromSavedSync = async (page: Page) => {
   await page.reload();
 };
 
-const acceptFromInbox = async (page: Page, roomLabel: string) => {
-  await page.getByRole('button', { name: 'Inbox', exact: true }).first().click();
-  const card = page.locator('[data-invite-room-id]').filter({ hasText: roomLabel });
-  await card
-    .first()
-    .getByRole('button', { name: 'Accept', exact: true })
-    .click({ timeout: 30_000 });
-  await expect(card).toHaveCount(0, { timeout: 30_000 });
+/** Joins with the invite's row in the rail's Activity popover, as people do, without a reload. */
+const acceptFromActivity = async (page: Page, roomLabel: string) => {
+  await page
+    .getByRole('navigation', { name: 'Main', exact: true })
+    .getByRole('button', { name: /^Activity/ })
+    .click();
+  const popover = page.getByRole('dialog', { name: 'Activity', exact: true });
+  const row = popover.locator('[data-activity-row="invite"]').filter({ hasText: roomLabel });
+  await row.first().getByRole('button', { name: 'Join', exact: true }).click({ timeout: 30_000 });
+  await expect(row).toHaveCount(0, { timeout: 30_000 });
+  await page.keyboard.press('Escape');
+  await expect(popover).toBeHidden();
 };
 
 /**
  * Opens the room from the rail's section and its room list, without loading the page again; the
- * section may open on the room already.
+ * section may open on the room already. The section's button is pressed only from elsewhere:
+ * pressed while its section shows, it folds the room list away.
  */
 const openRoom = async (
   page: Page,
@@ -141,7 +145,10 @@ const openRoom = async (
   roomId: string,
   name: RegExp
 ) => {
-  await page.getByRole('button', { name: section, exact: true }).first().click();
+  const sectionPath = section === 'Home' ? '/home/' : '/direct/';
+  if (!new URL(page.url()).pathname.startsWith(sectionPath)) {
+    await page.getByRole('button', { name: section, exact: true }).first().click();
+  }
   const inRoom = () => decodeURIComponent(page.url()).includes(roomId);
   await expect(async () => {
     if (!inRoom()) await page.getByRole('link', { name }).first().click({ timeout: 5_000 });
@@ -149,19 +156,19 @@ const openRoom = async (
   }).toPass({ timeout: 30_000 });
 };
 
-const acceptedFromInbox = async (page: Page, browserName: string) => {
-  const people = await registerPeople(`inbox_${browserName}`);
+const acceptedFromActivity = async (page: Page, browserName: string) => {
+  const people = await registerPeople(`activity_${browserName}`);
   const roomName = `Accept probe ${browserName} ${RUN}`;
   const body = `Welcome to the accept probe ${browserName}`;
   // The guest is signed in when the invite arrives, as people usually are.
   await signIn(page, people.guest);
   const roomId = await inviteGuest(people, roomName, body);
-  await acceptFromInbox(page, roomName);
+  await acceptFromActivity(page, roomName);
   await openRoom(page, 'Home', roomId, new RegExp(roomName));
   await expectHostKnown(page, people, body);
   await reloadFromSavedSync(page);
   await expectHostKnown(page, people, body);
-  if (SHOTS) await page.screenshot({ path: `${SHOTS}/inbox-accept-${browserName}.png` });
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/activity-accept-${browserName}.png` });
 };
 
 const acceptedOnInvitePage = async (page: Page, browserName: string) => {
@@ -186,7 +193,7 @@ const directChatNamedAfterHost = async (page: Page, browserName: string) => {
   const body = `Hi there, a direct message ${browserName}`;
   await signIn(page, people.guest);
   const roomId = await inviteGuest(people, undefined, body);
-  await acceptFromInbox(page, HOST_NAME);
+  await acceptFromActivity(page, HOST_NAME);
   // The direct chat is listed and titled with the host's name, never their Matrix ID.
   await openRoom(page, 'Direct Messages', roomId, new RegExp(HOST_NAME));
   await expect(page.getByRole('link', { name: new RegExp(HOST_NAME) }).first()).toBeVisible();
@@ -200,7 +207,7 @@ const directChatNamedAfterHost = async (page: Page, browserName: string) => {
 };
 
 const cases = [
-  ['an Inbox accept lists the inviter by name', acceptedFromInbox],
+  ['a Join in Activity lists the inviter by name', acceptedFromActivity],
   ['Join on the invite page lists the inviter by name', acceptedOnInvitePage],
   ['an accepted direct chat is named after the inviter', directChatNamedAfterHost],
 ] as const;

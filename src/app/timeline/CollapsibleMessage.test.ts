@@ -509,6 +509,46 @@ describe('CollapsibleMessage', () => {
     });
   });
 
+  it('unfolds from a click on its faded last 4em, but not on a link there or above them', () => {
+    // The content ends at y=200; at 16 px its last 4em start at y=136.
+    const laidOut = {
+      clientHeight: 72,
+      scrollHeight: 320,
+      getBoundingClientRect: () => ({ bottom: 200 }),
+    } as unknown as MockContentElement;
+    const link = { tagName: 'A' };
+    const click = (clientY: number, onLink = false, inPortal = false) => {
+      const target = { closest: () => (onLink ? link : null) };
+      const inside = new Set<unknown>(inPortal ? [] : [target, link]);
+      return { clientY, target, currentTarget: { contains: (node: unknown) => inside.has(node) } };
+    };
+    const getContainer = (renderer: ReactTestRenderer) =>
+      renderer.root.find(
+        (node) => node.type === 'div' && node.props.className === 'collapsible-container'
+      );
+    const renderer = renderCollapsibleMessage({ collapseMode: 'default' }, laidOut);
+    const expanded = () => getContentContainer(renderer).props['data-expanded'];
+
+    act(() => getContainer(renderer).props.onClick(click(120)));
+    expect(expanded()).toBe(false);
+    act(() => getContainer(renderer).props.onClick(click(180, true)));
+    expect(expanded()).toBe(false);
+    // A click in a portal the message opened, such as an image viewer, reaches it through React.
+    act(() => getContainer(renderer).props.onClick(click(180, false, true)));
+    expect(expanded()).toBe(false);
+    // A drag that selected text ends in a click too.
+    vi.stubGlobal('getSelection', () => ({ isCollapsed: false }));
+    act(() => getContainer(renderer).props.onClick(click(180)));
+    expect(expanded()).toBe(false);
+    vi.stubGlobal('getSelection', () => ({ isCollapsed: true }));
+
+    act(() => getContainer(renderer).props.onClick(click(180)));
+    expect(expanded()).toBe(true);
+    // Unfolded, the lines are plain text again.
+    expect(getContainer(renderer).props.onClick).toBeUndefined();
+    act(() => renderer.unmount());
+  });
+
   it('content wrapper has no click handler when collapsed (nested interactive elements safe)', () => {
     const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
     const content = getContentContainer(renderer);

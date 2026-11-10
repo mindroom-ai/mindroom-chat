@@ -5,7 +5,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // "Branding"): the logo, its dark variant and the title in the sign-in card's header, the footer's
 // text and links, and the page title, on login, register and the pairing page. Desktop 1280x800
 // and a 390x844 touch phone, light and dark, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE
-// names Playwright's WebKit, WebKit. Without the key the pages keep MindRoom Chat's own look, and a
+// names Playwright's WebKit, WebKit. Without the key the pages keep MindRoom's own look, and a
 // malformed key falls back to it. An empty title hides the name beside a wordmark logo, and the
 // first start's splash names no app before config.json arrives. Set AUTH_BRANDING_SHOTS=<directory>
 // to save every screen.
@@ -155,7 +155,7 @@ const checkBranded = async (browser: Browser, baseURL: string, browserName: stri
           );
           await expectHeaderFits(page);
           await expect(page).toHaveTitle('Example Co');
-          await expect(page.getByText('MindRoom Chat', { exact: true })).toHaveCount(0);
+          await expect(header(page).getByText('MindRoom', { exact: true })).toHaveCount(0);
 
           const footer = page.locator('footer');
           await expect(footer.getByText(BRANDING.footer.text, { exact: true })).toBeVisible();
@@ -190,7 +190,7 @@ const checkBranded = async (browser: Browser, baseURL: string, browserName: stri
   }
 };
 
-/** Without branding, or with a malformed one, the pages look as MindRoom Chat's always did. */
+/** Without branding, or with a malformed one, the pages look as MindRoom's always did. */
 const checkDefault = async (browser: Browser, baseURL: string, browserName: string) => {
   const deployments: Deployment[] = [
     { name: 'default' },
@@ -210,10 +210,8 @@ const checkDefault = async (browser: Browser, baseURL: string, browserName: stri
           for (const screen of SCREENS) {
             await page.goto(screen.path);
             await screen.ready(page);
-            await expect(header(page).getByRole('heading', { level: 1 })).toHaveText(
-              'MindRoom Chat'
-            );
-            await expectLogo(page, 'MindRoom Chat Logo', /mindroom-logo/, 28);
+            await expect(header(page).getByRole('heading', { level: 1 })).toHaveText('MindRoom');
+            await expectLogo(page, 'MindRoom Logo', /mindroom-logo/, 28);
             await expect(page).toHaveTitle('MindRoom');
             await expect(page.locator('footer')).toHaveText('Powered by MindRoom and Matrix');
             await shoot(
@@ -271,7 +269,7 @@ const checkWordmark = async (browser: Browser, baseURL: string, browserName: str
       );
       expect(await nameBox(page, 'Example Co')).toBeLessThanOrEqual(1);
       await expect(page).toHaveTitle('Example Co');
-      await expect(page.getByText('MindRoom Chat', { exact: true })).toHaveCount(0);
+      await expect(header(page).getByText('MindRoom', { exact: true })).toHaveCount(0);
       await shoot(page, `${browserName}-${layout}-light-login-wordmark`);
 
       await page.goto('/connect?code=ABCD-EFGH');
@@ -344,7 +342,7 @@ test('a configured brand replaces the logo, title and footer on the signed-out p
   await checkBranded(browser, baseURL!, 'chromium');
 });
 
-test('without branding the signed-out pages keep the MindRoom Chat look', async ({
+test('without branding the signed-out pages keep the MindRoom look', async ({
   browser,
   baseURL,
 }) => {

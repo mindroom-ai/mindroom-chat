@@ -222,7 +222,7 @@
       "toggleTheme": "切换主题",
       "toggleThemeDescription": "明暗切换",
       "logout": "退出登录",
-      "logoutDescription": "退出 MindRoom Chat",
+      "logoutDescription": "退出 MindRoom",
       "markCurrentRoomRead": "标记当前房间已读",
       "markCurrentRoomReadDescription": "将 {{room}} 标记为已读",
       "copyCurrentRoomLink": "复制当前房间链接",
@@ -2216,24 +2216,17 @@
         "chooseModel": "Choose model",
         "roomDefault": "Room default",
         "modelForThread": "Model for this thread",
-        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
         "search": "Search models",
-        "close": "Close model picker",
-        "useRoomDefault": "Use room default",
         "roomDefaultDescription": "Let each agent use its configured model.",
         "models": "Models",
         "runtime": "Runtime",
         "chooseRuntime": "Choose a runtime",
         "runtimeLabel": "{{userId}} on {{deviceId}}",
-        "refresh": "Refresh models",
         "retry": "Retry",
         "loading": "Loading models",
         "pending": "Waiting for model change",
         "noResults": "No matching models",
-        "commandFallback": "You can still send !model with a model key in this thread.",
-        "inheritedModels": "Room defaults by agent: {{models}}",
-        "futureReplies": "Changes apply to future replies.",
-        "threadModel": "Thread model"
+        "commandFallback": "You can still send !model with a model key in this thread."
       }
     },
     "voice": {
@@ -2258,8 +2251,8 @@
         "ok": "确定"
       },
       "errors": {
-        "microphoneBlockedAndroid": "麦克风访问被阻止。在 Android 应用程序设置中允许 MindRoom Chat 的麦克风访问权限，然后重试。",
-        "microphoneBlockedIos": "麦克风访问被阻止。在 iPhone 设置中允许 MindRoom Chat 访问麦克风，然后重试。",
+        "microphoneBlockedAndroid": "麦克风访问被阻止。在 Android 应用程序设置中允许 MindRoom 的麦克风访问权限，然后重试。",
+        "microphoneBlockedIos": "麦克风访问被阻止。在 iPhone 设置中允许 MindRoom 访问麦克风，然后重试。",
         "microphoneBlockedBrowser": "麦克风访问被阻止。在您的浏览器或系统设置中允许访问此网站/应用程序的麦克风，然后重试。",
         "noMicrophone": "在此设备上找不到麦克风。",
         "microphoneUnavailable": "麦克风目前不可用（可能正被其他应用程序使用）。",

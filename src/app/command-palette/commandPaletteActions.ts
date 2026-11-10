@@ -3,7 +3,7 @@ import {
   getDirectPath,
   getHomePath,
   getHomeSearchPath,
-  getInboxPath,
+  getActivityPath,
 } from '../routes/pathUtils';
 import type { CommandPaletteActionItem } from './commandPaletteTypes';
 
@@ -11,7 +11,7 @@ export type CommandPaletteQuickActionId =
   | 'open-settings'
   | 'go-home'
   | 'go-direct'
-  | 'go-inbox'
+  | 'go-activity'
   | 'create-room'
   | 'create-space'
   | 'mark-current-room-read'
@@ -81,9 +81,9 @@ export const getCommandPaletteQuickActions = (
       description: t('commandPalette.actions.goDirectDescription'),
       keywords: ['dm', 'messages'],
     }),
-    actionItem('go-inbox', t('commandPalette.actions.goInbox'), 100, {
-      description: t('commandPalette.actions.goInboxInvitesDescription'),
-      keywords: ['invites', 'notifications'],
+    actionItem('go-activity', t('commandPalette.actions.goActivity'), 100, {
+      description: t('commandPalette.actions.goActivityDescription'),
+      keywords: ['inbox', 'invites', 'notifications', 'mentions'],
     }),
     actionItem('create-room', t('commandPalette.actions.createRoom'), 90, {
       description: t('commandPalette.actions.createRoomDescription'),
@@ -169,5 +169,5 @@ export const getCommandPaletteSearchPagePath = (term: string): string =>
 export const commandPaletteStaticActionPaths = {
   goHome: getHomePath(),
   goDirect: getDirectPath(),
-  goInbox: getInboxPath(),
+  goActivity: getActivityPath(),
 } as const;

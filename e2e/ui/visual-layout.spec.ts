@@ -20,8 +20,8 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 // Arabic thread, and a space holding both rooms.
 // - Members: between a phone and about 950 px the members panel lies over the room instead of
 //   squeezing the conversation (L8-F001).
-// - Thread: the expand-all toggle covers no message text at any scroll position (L8-F002, L5-F006,
-//   L6-F006) and names what it does.
+// - Thread: no expand-all toggle covers its rows, as none shows there (L8-F002, L5-F006,
+//   L6-F006), and model names start in view (L8-F011).
 // - Compact cards: a resolved card with two tags is as tall as the others on a phone (L8-F005).
 // - Palette: a message row shows the room before the thread in the interface's direction, also for
 //   Arabic names (L8-F006), and keeps the sender's short name whole on a phone (L8-F007).
@@ -423,65 +423,8 @@ const checkMembers = async (run: Run) => {
 };
 
 // ---------------------------------------------------------------------------------------------
-// L8-F002, L5-F006, L6-F006: the expand-all toggle.
-
-type Clash = { scrollTop: number; text: string } | null;
-
-/**
- * How far each scan scrolls between checks: less than the 18 px toggle plus a 16 px line, so no
- * overlap slips between two steps.
- */
-const SCAN_STEP = 12;
-
-/**
- * Scrolls the thread from top to bottom in small steps and answers the first position where the
- * expand-all toggle covers message text, if any.
- */
-const toggleClash = (page: Page): Promise<Clash> =>
-  page.evaluate(async (STEP) => {
-    const toggle = Array.from(document.querySelectorAll('button')).find((button) =>
-      /^\[[+-]/.test(button.textContent ?? '')
-    );
-    if (!toggle) throw new Error('No expand-all toggle');
-    let element: HTMLElement | null = document.querySelector('[data-thread-count]');
-    while (element && !/(auto|scroll)/.test(getComputedStyle(element).overflowY)) {
-      element = element.parentElement;
-    }
-    if (!element) throw new Error('No thread scroller');
-    const scroll = element;
-    const frame = () =>
-      new Promise((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(resolve));
-      });
-    const overlaps = (a: DOMRect, b: DOMRect) =>
-      Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 &&
-      Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
-    const end = scroll.scrollHeight - scroll.clientHeight;
-    for (let top = 0; top <= end + STEP; top += STEP) {
-      scroll.scrollTop = Math.min(top, end);
-      // eslint-disable-next-line no-await-in-loop
-      await frame();
-      const box = toggle.getBoundingClientRect();
-      const rows = document.querySelectorAll('[data-message-id]');
-      for (const row of rows) {
-        const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
-        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-          if (!node.textContent?.trim()) continue;
-          const range = document.createRange();
-          range.selectNodeContents(node);
-          for (const rect of range.getClientRects()) {
-            if (overlaps(rect, box)) return { scrollTop: scroll.scrollTop, text: node.textContent };
-          }
-        }
-      }
-    }
-    return null;
-  }, SCAN_STEP);
-
-const EXPAND_LABELS = {
-  expand: 'Expand all long messages',
-  collapse: 'Collapse all long messages',
-};
+// L8-F002, L5-F006, L6-F006: a thread's rows, which no expand-all toggle covers any more (only the
+// room has one, on a line of its own), and L8-F011: model names.
 
 const checkThread = async (run: Run, sizes: { width: number; height: number }[]) => {
   const { page, seed: data } = run;
@@ -498,7 +441,10 @@ const checkThread = async (run: Run, sizes: { width: number; height: number }[])
         timeout: 60_000,
       });
       await shot(run, `thread-bottom-${size.width}-${direction}-${scheme}`);
-      expect(await toggleClash(page), `toggle covers no text (${where})`).toBeNull();
+      await expect(
+        page.getByRole('button', { name: /^(Expand|Collapse) all long messages$/ }),
+        `no expand-all toggle in a thread (${where})`
+      ).toHaveCount(0);
       // The model name keeps its own direction, so its start stays in view (L8-F011).
       const badgeStartCut = await page.evaluate(() =>
         Array.from(document.querySelectorAll('[aria-label*="Stub Large Model"] span')).some(
@@ -519,14 +465,6 @@ const checkThread = async (run: Run, sizes: { width: number; height: number }[])
       expect(badgeStartCut, `model names start in view (${where})`).toBe(false);
     }
   }
-  // The toggle says what it does (English).
-  await setLook(page, 'ltr', 'light');
-  const expand = page.getByRole('button', { name: EXPAND_LABELS.expand, exact: true });
-  await expect(expand).toBeVisible();
-  await expand.click();
-  await expect(
-    page.getByRole('button', { name: EXPAND_LABELS.collapse, exact: true })
-  ).toBeVisible();
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -797,7 +735,7 @@ const CASES: { name: string; form: string; options: BrowserContextOptions; check
     check: checkMembers,
   },
   {
-    name: 'the expand-all toggle covers no text',
+    name: 'a thread has no expand-all toggle and shows model names whole',
     form: 'desktop',
     options: DESKTOP,
     check: (run) =>
@@ -808,7 +746,7 @@ const CASES: { name: string; form: string; options: BrowserContextOptions; check
       ]),
   },
   {
-    name: 'the expand-all toggle covers no text',
+    name: 'a thread has no expand-all toggle and shows model names whole',
     form: 'phone',
     options: PHONE,
     check: (run) => checkThread(run, [{ width: 390, height: 844 }]),

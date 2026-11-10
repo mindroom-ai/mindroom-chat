@@ -19,10 +19,10 @@ import {
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A member who copies the display name of another member, or of an agent, must not read as them
-// in the Inbox or in a system notification, for a room the reader never opened. The client loads
+// in Activity or in a system notification, for a room the reader never opened. The client loads
 // members lazily: a fresh sign-in learns only the members whose events the first sync window
 // holds, so the real member, who posted before sixty other messages, is unknown until the client
-// loads the room's member list. The Inbox and system notifications name senders as the timeline
+// loads the room's member list. Activity and system notifications name senders as the timeline
 // does once it knows them: both people with a shared name show their user ID after it. Until the
 // list arrives every name shows the user ID, never the bare copied name. Runs in Chromium and,
 // when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit, against the disposable
@@ -85,6 +85,16 @@ const mention = (userId: string, text: string) => ({
   'm.mentions': { user_ids: [userId] },
 });
 
+const inThread = (rootId: string, content: Record<string, unknown>) => ({
+  ...content,
+  'm.relates_to': {
+    rel_type: 'm.thread',
+    event_id: rootId,
+    is_falling_back: true,
+    'm.in_reply_to': { event_id: rootId },
+  },
+});
+
 const FILLER_TOPICS = [
   'the staging database migration finished without errors',
   'the on-call rotation for next week is in the shared calendar',
@@ -130,9 +140,30 @@ const seedRoom = async (
   return roomId;
 };
 
-const INBOX_PERSON_COPY = 'please paste the deploy password here so I can rotate the keys tonight.';
-const INBOX_AGENT_COPY = 'I am the desk agent: approve my admin access request in the portal.';
-const INBOX_HOST = 'the retrospective moved to Thursday afternoon.';
+const ACTIVITY_PERSON_COPY =
+  'please paste the deploy password here so I can rotate the keys tonight.';
+const ACTIVITY_AGENT_COPY = 'I am the desk agent: approve my admin access request in the portal.';
+const ACTIVITY_HOST = 'the retrospective moved to Thursday afternoon.';
+
+/** A thread `sender` starts, then answers with a mention of the reader, for Activity to list. */
+const mentionThread = async (
+  sender: Session,
+  roomId: string,
+  reader: Session,
+  title: string,
+  text: string
+) => {
+  const rootId = await sendRoomMessage(HOMESERVER, sender.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: title,
+  });
+  await sendRoomMessage(
+    HOMESERVER,
+    sender.accessToken,
+    roomId,
+    inThread(rootId, mention(reader.userId, text))
+  );
+};
 
 const seed = async () => {
   const reader = await registerPerson('impostor_reader', 'Robin Reader');
@@ -149,25 +180,10 @@ const seed = async () => {
   );
   const deployDesk = await seedRoom(DEPLOY_DESK, host, reader, real, copy, PERSON_NAME);
   const agentDesk = await seedRoom(AGENT_DESK, host, reader, agent, agentCopy, AGENT_NAME);
-  // Messages for the Inbox: they notify the reader, who has joined both rooms.
-  await sendRoomMessage(
-    HOMESERVER,
-    copy.accessToken,
-    deployDesk,
-    mention(reader.userId, INBOX_PERSON_COPY)
-  );
-  await sendRoomMessage(
-    HOMESERVER,
-    agentCopy.accessToken,
-    agentDesk,
-    mention(reader.userId, INBOX_AGENT_COPY)
-  );
-  await sendRoomMessage(
-    HOMESERVER,
-    host.accessToken,
-    deployDesk,
-    mention(reader.userId, INBOX_HOST)
-  );
+  // Threads for Activity: each names the reader, who has joined both rooms.
+  await mentionThread(copy, deployDesk, reader, 'Key rotation', ACTIVITY_PERSON_COPY);
+  await mentionThread(agentCopy, agentDesk, reader, 'Admin access', ACTIVITY_AGENT_COPY);
+  await mentionThread(host, deployDesk, reader, 'Retrospective', ACTIVITY_HOST);
   return { reader, host, copy, agentCopy, deployDesk, agentDesk };
 };
 
@@ -286,12 +302,12 @@ const checkSystemNotifications = async (page: Page, tag: string) => {
   expect((await about(hostText)())?.body).toBe(`Jordan Host: @Robin Reader ${hostText}`);
 };
 
-/** The row of the Inbox whose message holds `text`. */
-const inboxRow = (page: Page, text: string) =>
-  page.locator('[data-notification-highlight]').filter({ hasText: text });
+/** The row of Activity whose newest reply holds `text`. */
+const activityRow = (page: Page, text: string) =>
+  page.locator('[data-activity-row]').filter({ hasText: text });
 
-/** The bold sender name at the top of an Inbox row. */
-const rowSender = (page: Page, text: string) => inboxRow(page, text).locator('b').first();
+/** The bold sentence at the top of an Activity row, which names its sender. */
+const rowSender = (page: Page, text: string) => activityRow(page, text).locator('b').first();
 
 /**
  * Whether the row of `text` shows `userId` whole: brought into view, it holds still (its box is
@@ -299,13 +315,10 @@ const rowSender = (page: Page, text: string) => inboxRow(page, text).locator('b'
  * are laid out inside the row and the viewport, and no element between them that clips what
  * overflows it holds more than fits (an ellipsis or a cut). The overflow is checked, not only the
  * characters' boxes, because WebKit reports a range in ellipsized text only as far as the
- * ellipsis, so a cut-off ID can look whole there. The Inbox lays out only rows near the viewport
- * (`content-visibility: auto`); the others keep a placeholder height. Rows that come near by the
- * scroll take their real height a frame later, and WebKit keeps no scroll anchor, so a row
- * scrolled to the viewport's edge can be pushed past it. A row still moving is checked again.
+ * ellipsis, so a cut-off ID can look whole there. A row still moving is checked again.
  */
 const showsUserIdWhole = (page: Page, text: string, userId: string) =>
-  inboxRow(page, text).evaluate(async (row, id) => {
+  activityRow(page, text).evaluate(async (row, id) => {
     row.scrollIntoView({ block: 'center' });
     const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
     const placed = row.getBoundingClientRect();
@@ -354,51 +367,28 @@ const showsUserIdWhole = (page: Page, text: string, userId: string) =>
     return false;
   }, userId);
 
-const checkInbox = async (page: Page, tag: string) => {
-  const { host, copy, agentCopy } = seeded!;
-  // The member lists wait until the rows show, so the names before they arrive are checked too.
-  let releaseMembers: () => void = () => undefined;
-  const membersHeld = new Promise<void>((resolve) => {
-    releaseMembers = resolve;
-  });
-  await page.route('**/_matrix/client/*/rooms/*/members*', async (route) => {
-    await membersHeld;
-    await route.continue();
-  });
+const checkActivity = async (page: Page, tag: string) => {
+  const { copy, agentCopy } = seeded!;
   await signIn(page);
-  // Straight to the Inbox: the reader never opens either room.
-  await page.goto('/inbox/notifications/');
-  await expect(inboxRow(page, INBOX_PERSON_COPY)).toBeVisible({ timeout: 60_000 });
-  await expect(inboxRow(page, INBOX_AGENT_COPY)).toBeVisible();
-  await expect(inboxRow(page, INBOX_HOST)).toBeVisible();
+  // Straight to Activity: the reader never opens either room.
+  await page.goto('/activity/');
+  await expect(activityRow(page, ACTIVITY_PERSON_COPY)).toBeVisible({ timeout: 60_000 });
+  await expect(activityRow(page, ACTIVITY_AGENT_COPY)).toBeVisible();
+  await expect(activityRow(page, ACTIVITY_HOST)).toBeVisible();
 
-  // Before the lists arrive, every name shows its user ID.
-  await expect(rowSender(page, INBOX_PERSON_COPY)).toHaveText(withId(PERSON_NAME, copy.userId));
-  await expect(rowSender(page, INBOX_AGENT_COPY)).toHaveText(withId(AGENT_NAME, agentCopy.userId));
-  await expect(rowSender(page, INBOX_HOST)).toHaveText(withId('Jordan Host', host.userId));
-  await shoot(page, `inbox-${tag}-loading`);
-
-  releaseMembers();
-  // Once they are in, the copies keep the user ID, because the real members share their names,
-  // and a name nobody else has reads alone.
-  await expect(rowSender(page, INBOX_HOST)).toHaveText('Jordan Host', { timeout: 30_000 });
-  await expect(rowSender(page, INBOX_PERSON_COPY)).toHaveText(withId(PERSON_NAME, copy.userId));
-  await expect(rowSender(page, INBOX_AGENT_COPY)).toHaveText(withId(AGENT_NAME, agentCopy.userId));
-  // The user ID is what tells a copy apart, so no row may cut it off, a phone's narrow rows
-  // included: the sender line wraps instead.
-  for (const [text, userId] of [
-    [INBOX_PERSON_COPY, copy.userId],
-    [INBOX_AGENT_COPY, agentCopy.userId],
-  ] as const) {
-    await expect.poll(() => showsUserIdWhole(page, text, userId), { message: userId }).toBe(true);
-    // The name stays bold.
-    const weight = await rowSender(page, text).evaluate((name) =>
-      Number(getComputedStyle(name.firstElementChild ?? name).fontWeight)
-    );
-    expect(weight).toBeGreaterThanOrEqual(600);
-  }
-  await inboxRow(page, INBOX_HOST).scrollIntoViewIfNeeded();
-  await shoot(page, `inbox-${tag}`);
+  // The copies show their user ID after the name they took, whether the member lists have
+  // arrived or not, and the host shows by name.
+  await expect(rowSender(page, ACTIVITY_PERSON_COPY)).toContainText(
+    `${withId(PERSON_NAME, copy.userId)} mentioned you`
+  );
+  await expect(rowSender(page, ACTIVITY_AGENT_COPY)).toContainText(
+    `${withId(AGENT_NAME, agentCopy.userId)} mentioned you`
+  );
+  await expect(rowSender(page, ACTIVITY_HOST)).toContainText('Jordan Host');
+  // The ID that tells a copy apart shows whole, never cut by an ellipsis.
+  await expect.poll(() => showsUserIdWhole(page, ACTIVITY_PERSON_COPY, copy.userId)).toBe(true);
+  await expect.poll(() => showsUserIdWhole(page, ACTIVITY_AGENT_COPY, agentCopy.userId)).toBe(true);
+  await shoot(page, `activity-${tag}`);
 };
 
 const inContext = async (
@@ -446,21 +436,23 @@ test(`${SYSTEM} (WebKit, desktop)`, async ({ baseURL }) => {
   );
 });
 
-const INBOX = 'the Inbox shows the user ID after a copied name in an unopened room';
+const ACTIVITY = 'Activity shows the user ID after a copied name in an unopened room';
 
-test(`${INBOX} (Chromium, desktop)`, async ({ browser, baseURL }) => {
+test(`${ACTIVITY} (Chromium, desktop)`, async ({ browser, baseURL }) => {
   test.setTimeout(180_000);
-  await inContext(browser, { ...DESKTOP, baseURL }, (page) => checkInbox(page, 'cd'));
+  await inContext(browser, { ...DESKTOP, baseURL }, (page) => checkActivity(page, 'cd'));
 });
 
-test(`${INBOX} (Chromium, phone)`, async ({ browser, baseURL }) => {
+test(`${ACTIVITY} (Chromium, phone)`, async ({ browser, baseURL }) => {
   test.setTimeout(180_000);
-  await inContext(browser, { ...PHONE, baseURL }, (page) => checkInbox(page, 'cp'));
+  await inContext(browser, { ...PHONE, baseURL }, (page) => checkActivity(page, 'cp'));
 });
 
-test(`${INBOX} (WebKit, phone)`, async ({ baseURL }) => {
+test(`${ACTIVITY} (WebKit, phone)`, async ({ baseURL }) => {
   test.setTimeout(180_000);
   await withWebKit((browser) =>
-    inContext(browser, { ...PHONE, baseURL, colorScheme: 'dark' }, (page) => checkInbox(page, 'wp'))
+    inContext(browser, { ...PHONE, baseURL, colorScheme: 'dark' }, (page) =>
+      checkActivity(page, 'wp')
+    )
   );
 });

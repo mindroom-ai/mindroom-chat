@@ -10,7 +10,7 @@ import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import { MatrixClientProvider } from '../../src/app/matrix/hooks/useMatrixClient';
 import { InviteCard, makeInviteData } from '../../src/app/notifications/inbox/Invites';
 
-// Inbox invite cards whose inviters pick display names that try to pass for
+// Invite cards whose inviters pick display names that try to pass for
 // someone else: each card must still show the inviter's real ID, left to
 // right, after the name. Query parameter: `lang` (default en).
 

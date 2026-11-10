@@ -104,8 +104,7 @@
       "close": "閉じる"
     },
     "invites": {
-      "actionFailed": "問題が発生しました。もう一度試してください。",
-      "openNotifications": "通知を開く"
+      "actionFailed": "問題が発生しました。もう一度試してください。"
     },
     "inviteUserAutocomplete": {
       "placeholder": "ユーザーを検索するか、ユーザー ID を入力"
@@ -697,7 +696,8 @@
       "description": "{{userId}} に招待が送信されます。"
     },
     "actions": {
-      "goInboxInvitesDescription": "受信トレイの招待と通知を開く"
+      "goActivity": "アクティビティに移動",
+      "goActivityDescription": "メンション、返信、あなたの対応を待っている項目"
     }
   },
   "shortcuts": {
@@ -738,5 +738,107 @@
   },
   "thread": {
     "back": "戻る"
+  },
+  "activity": {
+    "title": "アクティビティ",
+    "unreadOnly": "未読",
+    "markAllRead": "すべて既読にする",
+    "openAsPage": "ページとして開く",
+    "tabs": {
+      "all": "すべて",
+      "mentions": "メンション",
+      "replies": "返信",
+      "needsYou": "要対応"
+    },
+    "tabsLabel": "表示",
+    "days": {
+      "today": "今日",
+      "yesterday": "昨日",
+      "earlier": "それ以前"
+    },
+    "sentence": {
+      "approval": "{{name}} が承認を求めています",
+      "question": "{{name}} から質問があります",
+      "invite": "{{name}} から招待されました",
+      "inviteUnknown": "招待されました",
+      "mention": "{{name}} があなたをメンションしました",
+      "mentionUnknown": "メンションされました",
+      "mentionAndReply": "{{name}} があなたをメンションし、{{other}} が返信しました",
+      "reply": "{{name}} が返信しました",
+      "replyAndOther": "{{name}} と {{other}} が返信しました",
+      "replyAndOthers_other": "{{name}} とほか {{count}} 人が返信しました",
+      "finished": "{{name}} が完了しました",
+      "stopped": "{{name}} が停止しました",
+      "youReplied": "あなたが返信しました"
+    },
+    "newCount_other": "新着 {{count}} 件",
+    "runMinutes_other": "{{count}} 分",
+    "toolCount_other": "{{count}} ツール",
+    "actions": {
+      "approve": "承認する",
+      "deny": "拒否",
+      "details": "詳細",
+      "join": "参加",
+      "decline": "辞退",
+      "sending": "送信中…",
+      "failed": "送信できませんでした。もう一度試してください。",
+      "answered": "回答済み: {{label}}",
+      "approved": "承認済み",
+      "denied": "拒否済み",
+      "joined": "参加済み",
+      "declined": "辞退済み"
+    },
+    "automationsHidden_other": "自動化の実行 {{count}} 件を非表示",
+    "showAutomations": "表示",
+    "hideAutomations": "自動化の実行を非表示",
+    "allInvites": "すべての招待",
+    "caughtUp": "すべて確認しました",
+    "caughtUpDescription": "メンション、自分のスレッドへの返信、あなたの対応を待っている項目がここに表示されます。",
+    "pickTitle": "アクティビティから項目を選択",
+    "pickDescription": "そのスレッドがリストの横に開きます。",
+    "pickDescriptionPhone": "メニューを開いて選んでください。",
+    "bellLabel": "アクティビティ",
+    "bellLabelCount_other": "アクティビティ、未読 {{count}} 件",
+    "openActivity": "アクティビティを開く",
+    "close": "アクティビティを閉じる"
+  },
+  "threadPreview": {
+    "voice": "音声メッセージ",
+    "image": "画像",
+    "video": "動画",
+    "file": "ファイル",
+    "you": "あなた"
+  },
+  "threadsPage": {
+    "title": "スレッド",
+    "scopeLabel": "表示",
+    "scope": {
+      "mine": "自分",
+      "following": "フォロー中",
+      "all": "すべて"
+    },
+    "search": "スレッドを検索",
+    "groups": {
+      "needsYou": "要対応",
+      "unread": "未読",
+      "working": "エージェントが作業中",
+      "recent": "最近",
+      "automations": "自動化"
+    },
+    "showMore": "もっと見る",
+    "chips": {
+      "approval": "承認",
+      "question": "質問",
+      "mention": "あなたへのメンション",
+      "resolved": "解決済み"
+    },
+    "working": "処理中",
+    "noThreads": "まだスレッドはありません",
+    "noThreadsDescription": "自分が始めたスレッドや参加しているスレッドがここに表示されます。",
+    "noMatches": "この検索に一致するスレッドはありません",
+    "pickTitle": "スレッドを選択",
+    "pickDescription": "リストの横に開きます。",
+    "pickDescriptionPhone": "メニューを開いて選んでください。",
+    "needsYouLabel_other": "スレッド、{{count}} 件が対応待ち"
   }
 }

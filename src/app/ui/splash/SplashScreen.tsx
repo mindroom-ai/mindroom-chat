@@ -24,7 +24,7 @@ export function SplashScreen({ children, background }: SplashScreenProps) {
   const persistentBackground = usePersistentParticleBackground();
   const customBackground = background !== undefined && background !== null && background !== false;
   // The deployment's name, from its configuration or the last one this browser loaded. Before any
-  // has loaded the name is unknown, and naming MindRoom Chat could name another deployment's app.
+  // has loaded the name is unknown, and naming MindRoom could name another deployment's app.
   const config = useLoadedOrCachedClientConfig();
   const title = config && deploymentBranding(config).title;
 

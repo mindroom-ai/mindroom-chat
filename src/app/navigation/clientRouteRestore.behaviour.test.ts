@@ -29,7 +29,7 @@ const noClient = {} as MatrixClient;
 describe('clientRouteRestore behaviour', () => {
   it('drops the trailing slash of matched paths and returns unmatched paths unchanged', () => {
     expect(canonicalizeSessionPathname(noClient, '/home/')).toBe('/home');
-    expect(canonicalizeSessionPathname(noClient, '/inbox/invites/')).toBe('/inbox/invites');
+    expect(canonicalizeSessionPathname(noClient, '/activity/invites/')).toBe('/activity/invites');
     expect(canonicalizeSessionPathname(noClient, '/home/!room%3Aexample.org')).toBe(
       '/home/!room%3Aexample.org'
     );

@@ -51,7 +51,7 @@ test('Accept All joins every primary invite and records the DMs', async ({ page 
   const dmRoomIds = [await createDm('Router DM'), await createDm('Second DM')];
 
   await loginWithPassword(page, { homeserver: homeserver!, username, password });
-  await page.goto('/inbox/invites/');
+  await page.goto('/activity/invites/');
   const accept = page.getByRole('button', { name: 'Accept', exact: true });
   await expect(accept).toHaveCount(4);
   await page.screenshot({ path: testInfo.outputPath('before.png') });

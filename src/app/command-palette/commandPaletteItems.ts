@@ -262,7 +262,7 @@ export const useCommandPaletteSource = ({
       },
       'go-direct': goTo(commandPaletteStaticActionPaths.goDirect),
       'go-home': goTo(commandPaletteStaticActionPaths.goHome),
-      'go-inbox': goTo(commandPaletteStaticActionPaths.goInbox),
+      'go-activity': goTo(commandPaletteStaticActionPaths.goActivity),
       'create-space': () => openCreateSpace(selectedSpaceId),
       'create-room': () => openCreateRoom(selectedSpaceId),
       'open-settings': () => setSettingsModal({}),

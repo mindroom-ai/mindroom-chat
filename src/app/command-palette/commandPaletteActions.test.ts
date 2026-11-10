@@ -15,7 +15,7 @@ describe('getCommandPaletteQuickActions', () => {
       'open-settings',
       'go-home',
       'go-direct',
-      'go-inbox',
+      'go-activity',
       'create-room',
       'create-space',
       'toggle-theme',
@@ -85,10 +85,13 @@ describe('getCommandPaletteQuickActions', () => {
     expect(ids).not.toContain('unresolve-current-thread');
   });
 
-  it('describes Go Inbox as the Inbox that opens on Invites, found by invites too', () => {
-    const goInbox = getCommandPaletteQuickActions({}, t).find((item) => item.id === 'go-inbox');
-    expect(goInbox?.description).toBe('Open Inbox invites and notifications');
-    expect(goInbox?.keywords).toEqual(['invites', 'notifications']);
+  it('describes Go to Activity, found by invites, notifications and the old Inbox too', () => {
+    const goActivity = getCommandPaletteQuickActions({}, t).find(
+      (item) => item.id === 'go-activity'
+    );
+    expect(goActivity?.title).toBe('Go to Activity');
+    expect(goActivity?.description).toBe('Mentions, replies and what waits for you');
+    expect(goActivity?.keywords).toEqual(['inbox', 'invites', 'notifications', 'mentions']);
   });
 });
 
@@ -105,7 +108,7 @@ describe('commandPaletteStaticActionPaths', () => {
     expect(commandPaletteStaticActionPaths).toEqual({
       goHome: '/home/',
       goDirect: '/direct/',
-      goInbox: '/inbox/',
+      goActivity: '/activity/',
     });
   });
 });

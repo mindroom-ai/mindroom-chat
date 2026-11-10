@@ -13,7 +13,9 @@ import {
 } from '../helpers/matrix';
 
 /**
- * Scroll-stability probe for the virtualized thread timeline (informational).
+ * Scroll-stability probe for the virtualized timeline (informational). A
+ * thread has no expand-all toggle, so the long messages are the room's own,
+ * in a room without agents, which shows them in order like the Full view.
  * Expands all rows, then wheel-scrolls up fast with real input while sampling
  * the viewport position of a mid-screen row every frame. A frame where the
  * row's viewport delta does not match the scroll delta is a user-visible jump
@@ -23,7 +25,7 @@ import {
 const hasCredentials = !!process.env.E2E_USERNAME;
 const REPLY_COUNT = Number(process.env.PERF_REPLY_COUNT ?? 250);
 
-test.describe('PERF: thread scroll stability under expand-all', () => {
+test.describe('PERF: timeline scroll stability under expand-all', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
   test.setTimeout(600_000);
 
@@ -43,7 +45,7 @@ test.describe('PERF: thread scroll stability under expand-all', () => {
     const roomId = await createPrivateRoom(homeserver, session.accessToken, {
       name: `Scroll stability ${Date.now()}`,
     });
-    const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
+    await sendRoomMessage(homeserver, session.accessToken, roomId, {
       msgtype: 'm.text',
       body: 'Scroll stability root',
     });
@@ -56,17 +58,11 @@ test.describe('PERF: thread scroll stability under expand-all', () => {
       await sendRoomMessage(homeserver, session.accessToken, roomId, {
         msgtype: 'm.text',
         body: `Stability reply ${i}\n${lines}`,
-        'm.relates_to': {
-          rel_type: 'm.thread',
-          event_id: rootId,
-          is_falling_back: true,
-          'm.in_reply_to': { event_id: rootId },
-        },
       });
     }
 
     await loginWithPassword(page, { homeserver, username, password });
-    await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
+    await page.goto(`/home/${encodeURIComponent(roomId)}`);
     await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
     await page.waitForTimeout(2_500);
 

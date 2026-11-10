@@ -11,6 +11,7 @@ import type { ClientConfig } from '../config/useClientConfig';
 import { ConnectPage } from '../local-mindroom/ConnectPage';
 import { setAfterLoginRedirectPath } from '../routes/afterLoginRedirectPath';
 import { useHistoryStackRecorder } from '../routes/historyStack';
+import { useActiveSession } from '../matrix/session/useSessionStore';
 import {
   resolveProtectedRouteRedirect,
   resolveRootRouteRedirect,
@@ -30,9 +31,9 @@ import {
   HOME_PATH,
   HOME_ROOM_PATH,
   HOME_SEARCH_PATH,
-  INBOX_INVITES_PATH,
-  INBOX_NOTIFICATIONS_PATH,
-  INBOX_PATH,
+  ACTIVITY_INVITES_PATH,
+  ACTIVITY_PATH,
+  ACTIVITY_ROOM_PATH,
   LOGIN_PATH,
   PLUGIN_ROOT_PATH,
   REGISTER_PATH,
@@ -44,6 +45,7 @@ import {
   SPACE_ROOM_PATH,
   SPACE_SEARCH_PATH,
   THREADS_PATH,
+  THREADS_ROOM_PATH,
 } from '../routes/paths';
 import { getAppBasePath } from '../lib/basePath';
 import { AuthLayout } from '../account/auth/AuthLayout';
@@ -118,14 +120,15 @@ const Direct = fromPages((pages) => pages.Direct);
 const DirectCreate = fromPages((pages) => pages.DirectCreate);
 const SpaceRouteProvider = fromPages((pages) => pages.SpaceRouteProvider);
 const Lobby = fromPages((pages) => pages.Lobby);
-const Threads = fromPages((pages) => pages.Threads);
+const ThreadsNav = fromPages((pages) => pages.ThreadsNav);
+const ThreadsEmpty = fromPages((pages) => pages.ThreadsEmpty);
 const Canvases = fromPages((pages) => pages.Canvases);
 const FeaturedRooms = fromPages((pages) => pages.FeaturedRooms);
 const PublicRooms = fromPages((pages) => pages.PublicRooms);
 const Invites = fromPages((pages) => pages.Invites);
-const InboxNav = fromPages((pages) => pages.InboxNav);
+const ActivityNav = fromPages((pages) => pages.ActivityNav);
+const ActivityEmpty = fromPages((pages) => pages.ActivityEmpty);
 const ExploreNav = fromPages((pages) => pages.ExploreNav);
-const Notifications = fromPages((pages) => pages.Notifications);
 const PluginPageRoute = fromPages((pages) => pages.PluginPageRoute);
 const Room = fromModule(
   () => roomModule,
@@ -179,7 +182,7 @@ function ProtectedRoutes({ hashRouter }: { hashRouter: ClientConfig['hashRouter'
 
 /** Follows the history entries the signed-in pages show, for their back buttons. */
 function HistoryStackRecorder() {
-  useHistoryStackRecorder();
+  useHistoryStackRecorder(useActiveSession()?.sessionId);
   return null;
 }
 
@@ -225,14 +228,10 @@ export const createRouter = (clientConfig: ClientConfig) => {
           <Route path={DIRECT_ROOM_PATH} element={<RoomPage />} />
         </Route>
         <Route path={SETTINGS_PATH} element={<SettingsDeepLink />} />
-        <Route
-          path={THREADS_PATH}
-          element={
-            <PageMain>
-              <Threads />
-            </PageMain>
-          }
-        />
+        <Route path={THREADS_PATH} element={<SectionPage nav={<ThreadsNav />} />}>
+          <Route index element={<SectionIndex page={<ThreadsEmpty />} />} />
+          <Route path={THREADS_ROOM_PATH} element={<RoomPage />} />
+        </Route>
         <Route
           path={CANVASES_PATH}
           element={
@@ -252,20 +251,13 @@ export const createRouter = (clientConfig: ClientConfig) => {
           <Route index element={<PluginPageRoute />} />
           <Route path="*" element={<PluginPageRoute />} />
         </Route>
-        <Route path={INBOX_PATH} element={<SectionPage nav={<InboxNav />} />}>
-          {/* The Inbox opens on Invites; phones stay here, its list out over Invites. */}
-          <Route
-            index
-            element={
-              <SectionIndex
-                page={<Navigate to={INBOX_INVITES_PATH} replace />}
-                phonePage={<Invites />}
-              />
-            }
-          />
-          <Route path={INBOX_NOTIFICATIONS_PATH} element={<Notifications />} />
-          <Route path={INBOX_INVITES_PATH} element={<Invites />} />
+        <Route path={ACTIVITY_PATH} element={<SectionPage nav={<ActivityNav />} />}>
+          <Route index element={<SectionIndex page={<ActivityEmpty />} />} />
+          <Route path={ACTIVITY_INVITES_PATH} element={<Invites />} />
+          <Route path={ACTIVITY_ROOM_PATH} element={<RoomPage />} />
         </Route>
+        {/* The Inbox became Activity; its old addresses, kept in bookmarks and notifications. */}
+        <Route path="/inbox/*" element={<Navigate to={ACTIVITY_PATH} replace />} />
         <Route
           path={SPACE_PATH}
           element={

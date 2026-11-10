@@ -46,10 +46,10 @@ const image = (renderer: ReactTestRenderer) => renderer.root.findByType('img');
 afterEach(() => vi.restoreAllMocks());
 
 describe('BrandLogo', () => {
-  it('shows the MindRoom Chat logo without a configured one', () => {
+  it('shows the MindRoom logo without a configured one', () => {
     const { props } = image(renderLogo({}, DarkTheme));
     expect(props.src).toBe(MINDROOM_LOGO_SRC);
-    expect(props.alt).toBe('MindRoom Chat Logo');
+    expect(props.alt).toBe('MindRoom Logo');
     expect(props.className).toBe('logo');
     expect(props.referrerPolicy).toBeUndefined();
   });
@@ -65,7 +65,7 @@ describe('BrandLogo', () => {
     );
   });
 
-  it('falls back to the MindRoom Chat logo, with a warning, when the configured one fails', () => {
+  it('falls back to the MindRoom logo, with a warning, when the configured one fails', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const renderer = renderLogo(BRANDED, LightTheme);
     act(() => {
@@ -73,7 +73,7 @@ describe('BrandLogo', () => {
     });
     expect(image(renderer).props).toMatchObject({
       src: MINDROOM_LOGO_SRC,
-      alt: 'MindRoom Chat Logo',
+      alt: 'MindRoom Logo',
     });
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('https://cdn.example.test/logo.svg'));
   });

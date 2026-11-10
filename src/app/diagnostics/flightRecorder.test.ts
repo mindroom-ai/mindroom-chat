@@ -733,6 +733,7 @@ describe('iOS freeze flight recorder', () => {
       ['https://chat.test/reset-password/secret', 'auth', false],
       ['https://chat.test/%23private:secret/lobby', 'space', false],
       ['https://chat.test/explore/secret', 'other', false],
+      ['https://chat.test/activity/%21secret?threadId=%24secret', 'other', true],
     ] as const;
 
     cases.forEach(([url, route, hasThreadId]) => {
