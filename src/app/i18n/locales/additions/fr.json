@@ -110,8 +110,7 @@
       "close": "Fermer"
     },
     "invites": {
-      "actionFailed": "Une erreur s’est produite. Réessayez.",
-      "openNotifications": "Ouvrir les notifications"
+      "actionFailed": "Une erreur s’est produite. Réessayez."
     },
     "inviteUserAutocomplete": {
       "placeholder": "Rechercher des utilisateurs ou saisir un identifiant utilisateur"
@@ -719,7 +718,8 @@
       "description": "Envoie une invitation à {{userId}}."
     },
     "actions": {
-      "goInboxInvitesDescription": "Ouvrir les invitations et notifications de la boîte de réception"
+      "goActivity": "Aller à l’activité",
+      "goActivityDescription": "Mentions, réponses et ce qui vous attend"
     }
   },
   "shortcuts": {
@@ -760,5 +760,121 @@
   },
   "thread": {
     "back": "Retour"
+  },
+  "activity": {
+    "title": "Activité",
+    "unreadOnly": "Non lus",
+    "markAllRead": "Tout marquer comme lu",
+    "openAsPage": "Ouvrir dans une page",
+    "tabs": {
+      "all": "Tout",
+      "mentions": "Mentions",
+      "replies": "Réponses",
+      "needsYou": "À traiter"
+    },
+    "tabsLabel": "Afficher",
+    "days": {
+      "today": "Aujourd’hui",
+      "yesterday": "Hier",
+      "earlier": "Plus tôt"
+    },
+    "sentence": {
+      "approval": "{{name}} demande une approbation",
+      "question": "{{name}} vous a posé une question",
+      "invite": "{{name}} vous a envoyé une invitation",
+      "inviteUnknown": "Vous avez reçu une invitation",
+      "mention": "{{name}} vous a mentionné",
+      "mentionUnknown": "Vous avez reçu une mention",
+      "mentionAndReply": "{{name}} vous a mentionné, {{other}} a répondu",
+      "reply": "{{name}} a répondu",
+      "replyAndOther": "{{name}} et {{other}} ont répondu",
+      "replyAndOthers_one": "{{name}} et {{count}} autre ont répondu",
+      "replyAndOthers_many": "{{name}} et {{count}} autres ont répondu",
+      "replyAndOthers_other": "{{name}} et {{count}} autres ont répondu",
+      "finished": "{{name}} a terminé",
+      "stopped": "{{name}} s’est arrêté",
+      "youReplied": "Vous avez répondu"
+    },
+    "newCount_one": "{{count}} nouveau",
+    "newCount_many": "{{count}} nouveaux",
+    "newCount_other": "{{count}} nouveaux",
+    "runMinutes_one": "{{count}} min",
+    "runMinutes_many": "{{count}} min",
+    "runMinutes_other": "{{count}} min",
+    "toolCount_one": "{{count}} outil",
+    "toolCount_many": "{{count}} outils",
+    "toolCount_other": "{{count}} outils",
+    "actions": {
+      "approve": "Approuver",
+      "deny": "Refuser",
+      "details": "Détails",
+      "join": "Rejoindre",
+      "decline": "Refuser",
+      "sending": "Envoi…",
+      "failed": "Échec de l’envoi. Réessayez.",
+      "answered": "Réponse : {{label}}",
+      "approved": "Approuvé",
+      "denied": "Refusé",
+      "joined": "Rejoint",
+      "declined": "Refusé"
+    },
+    "automationsHidden_one": "{{count}} exécution d’automatisation masquée",
+    "automationsHidden_many": "{{count}} exécutions d’automatisation masquées",
+    "automationsHidden_other": "{{count}} exécutions d’automatisation masquées",
+    "showAutomations": "Afficher",
+    "hideAutomations": "Masquer les exécutions d’automatisation",
+    "allInvites": "Toutes les invitations",
+    "caughtUp": "Vous êtes à jour",
+    "caughtUpDescription": "Les mentions, les réponses dans vos fils et tout ce qui vous attend apparaissent ici.",
+    "pickTitle": "Choisissez un élément de l’activité",
+    "pickDescription": "Son fil s’ouvre ici, à côté de la liste.",
+    "pickDescriptionPhone": "Ouvrez le menu pour en choisir un.",
+    "bellLabel": "Activité",
+    "bellLabelCount_one": "Activité, {{count}} non lu",
+    "bellLabelCount_many": "Activité, {{count}} non lus",
+    "bellLabelCount_other": "Activité, {{count}} non lus",
+    "openActivity": "Ouvrir l’activité",
+    "close": "Fermer l’activité"
+  },
+  "threadPreview": {
+    "voice": "Message vocal",
+    "image": "Image",
+    "video": "Vidéo",
+    "file": "Fichier",
+    "you": "Vous"
+  },
+  "threadsPage": {
+    "title": "Fils",
+    "scopeLabel": "Afficher",
+    "scope": {
+      "mine": "Les miens",
+      "following": "Suivis",
+      "all": "Tous"
+    },
+    "search": "Rechercher des fils",
+    "groups": {
+      "needsYou": "À traiter",
+      "unread": "Non lus",
+      "working": "Agents au travail",
+      "recent": "Récents",
+      "automations": "Automatisations"
+    },
+    "showMore": "Afficher plus",
+    "chips": {
+      "approval": "Approbation",
+      "question": "Question",
+      "mention": "Vous mentionne",
+      "resolved": "Résolu"
+    },
+    "working": "En cours",
+    "noThreads": "Aucun fil pour l’instant",
+    "noThreadsDescription": "Les fils que vous lancez ou auxquels vous participez apparaissent ici.",
+    "noMatches": "Aucun fil ne correspond à cette recherche",
+    "pickTitle": "Choisissez un fil",
+    "pickDescription": "Il s’ouvre ici, à côté de la liste.",
+    "pickDescriptionPhone": "Ouvrez le menu pour en choisir un.",
+    "needsYouLabel_one": "Fils, {{count}} vous attend",
+    "needsYouLabel_many": "Fils, {{count}} vous attendent",
+    "needsYouLabel_other": "Fils, {{count}} vous attendent"
   }
 }

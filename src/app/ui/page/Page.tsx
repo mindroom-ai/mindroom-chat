@@ -60,7 +60,7 @@ export function PageRoot({ nav, children, main }: PageRootProps) {
 
 type PageNavProps = {
   size?: '400' | '300';
-  /** Names the `nav` landmark, usually the column's title (Home, Inbox, Settings). */
+  /** Names the `nav` landmark, usually the column's title (Home, Activity, Settings). */
   label?: string;
   children: ReactNode;
 };

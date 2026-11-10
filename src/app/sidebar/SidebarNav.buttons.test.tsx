@@ -52,8 +52,8 @@ vi.mock('./rail/ExploreTab', () => ({
 vi.mock('./rail/HomeTab', () => ({
   HomeTab: tab('home'),
 }));
-vi.mock('./rail/InboxTab', () => ({
-  InboxTab: tab('inbox'),
+vi.mock('./rail/ActivityTab', () => ({
+  ActivityTab: tab('activity'),
 }));
 vi.mock('../command-palette/CommandPaletteSidebarTab', () => ({
   SearchTab: tab('search'),
@@ -127,7 +127,7 @@ describe('SidebarNav buttons a person can hide', () => {
       'direct',
       'spaces',
       'unverified',
-      'inbox',
+      'activity',
       'settings',
     ]);
     // Only the rule between the scrolling and pinned parts.
@@ -147,7 +147,7 @@ describe('SidebarNav buttons a person can hide', () => {
       'search',
       'unverified',
       'localMindroom',
-      'inbox',
+      'activity',
       'settings',
     ]);
   });
@@ -190,7 +190,7 @@ describe('SidebarNav buttons a person can hide', () => {
     state.settings = ALL_ON;
     const { tabs } = renderedTabs(CANVASES, ScreenSize.Mobile);
     expect(tabs).not.toContain('search');
-    expect(tabs).toContain('inbox');
+    expect(tabs).toContain('activity');
     expect(tabs.at(-1)).toBe('settings');
   });
 });

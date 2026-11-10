@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { color, Text } from 'folds';
 import { ModelPicker } from '../../src/app/models/ModelPicker';
 import { ScreenSizeProvider, useScreenSize } from '../../src/app/lib/hooks/useScreenSize';
-import { FilterBarMobileSheet } from '../../src/app/threads/page/FilterBarMobileSheet';
+import { BottomSheet } from '../../src/app/ui/BottomSheet';
 import { InviteAutocompleteMenu } from '../../src/app/members/invite/InviteAutocompleteMenu';
 import { InviteAutocompleteOption } from '../../src/app/members/invite/InviteAutocompleteMenu.css';
 import { AutocompleteMenu } from '../../src/app/editor/autocomplete/AutocompleteMenu';
@@ -115,18 +115,24 @@ export function DialogMenusGlass() {
           ))}
         </InviteAutocompleteMenu>
 
-        <FilterBarMobileSheet open={filters} requestClose={() => setFilters(false)}>
-          {Array.from({ length: 20 }, (_, index) => (
-            <button
-              type="button"
-              key={index}
-              style={{ padding: 8 }}
-              onClick={() => setSelected(`filter-${index + 1}`)}
-            >
-              Filter option {index + 1}
-            </button>
-          ))}
-        </FilterBarMobileSheet>
+        {filters && (
+          <BottomSheet
+            title="Filters"
+            closeLabel="Close filters"
+            requestClose={() => setFilters(false)}
+          >
+            {Array.from({ length: 20 }, (_, index) => (
+              <button
+                type="button"
+                key={index}
+                style={{ padding: 8 }}
+                onClick={() => setSelected(`filter-${index + 1}`)}
+              >
+                Filter option {index + 1}
+              </button>
+            ))}
+          </BottomSheet>
+        )}
         <div style={{ position: 'fixed', bottom: 40, insetInline: 20 }}>
           {autocomplete && (
             <AutocompleteMenu

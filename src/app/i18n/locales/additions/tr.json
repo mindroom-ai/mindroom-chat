@@ -107,8 +107,7 @@
       "close": "Kapat"
     },
     "invites": {
-      "actionFailed": "Bir şeyler ters gitti. Tekrar deneyin.",
-      "openNotifications": "Bildirimleri aç"
+      "actionFailed": "Bir şeyler ters gitti. Tekrar deneyin."
     },
     "inviteUserAutocomplete": {
       "placeholder": "Kullanıcı arayın veya bir kullanıcı kimliği girin"
@@ -708,7 +707,8 @@
       "description": "{{userId}} kullanıcısına davet gönderir."
     },
     "actions": {
-      "goInboxInvitesDescription": "Gelen kutusu davetlerini ve bildirimlerini aç"
+      "goActivity": "Etkinliğe git",
+      "goActivityDescription": "Bahsetmeler, yanıtlar ve sizi bekleyenler"
     }
   },
   "shortcuts": {
@@ -749,5 +749,114 @@
   },
   "thread": {
     "back": "Geri"
+  },
+  "activity": {
+    "title": "Etkinlik",
+    "unreadOnly": "Okunmamış",
+    "markAllRead": "Tümünü okundu olarak işaretle",
+    "openAsPage": "Sayfa olarak aç",
+    "tabs": {
+      "all": "Tümü",
+      "mentions": "Bahsetmeler",
+      "replies": "Yanıtlar",
+      "needsYou": "Sizi bekleyenler"
+    },
+    "tabsLabel": "Göster",
+    "days": {
+      "today": "Bugün",
+      "yesterday": "Dün",
+      "earlier": "Daha önce"
+    },
+    "sentence": {
+      "approval": "{{name}} onay bekliyor",
+      "question": "{{name}} size bir soru sordu",
+      "invite": "{{name}} sizi davet etti",
+      "inviteUnknown": "Davet edildiniz",
+      "mention": "{{name}} sizden bahsetti",
+      "mentionUnknown": "Sizden bahsedildi",
+      "mentionAndReply": "{{name}} sizden bahsetti, {{other}} yanıtladı",
+      "reply": "{{name}} yanıtladı",
+      "replyAndOther": "{{name}} ve {{other}} yanıtladı",
+      "replyAndOthers_one": "{{name}} ve {{count}} kişi daha yanıtladı",
+      "replyAndOthers_other": "{{name}} ve {{count}} kişi daha yanıtladı",
+      "finished": "{{name}} işini tamamladı",
+      "stopped": "{{name}} durdu",
+      "youReplied": "Yanıtladınız"
+    },
+    "newCount_one": "{{count}} yeni",
+    "newCount_other": "{{count}} yeni",
+    "runMinutes_one": "{{count}} dk",
+    "runMinutes_other": "{{count}} dk",
+    "toolCount_one": "{{count}} araç",
+    "toolCount_other": "{{count}} araç",
+    "actions": {
+      "approve": "Onayla",
+      "deny": "Reddet",
+      "details": "Ayrıntılar",
+      "join": "Katıl",
+      "decline": "Geri çevir",
+      "sending": "Gönderiliyor…",
+      "failed": "Gönderilemedi. Tekrar deneyin.",
+      "answered": "Yanıtlandı: {{label}}",
+      "approved": "Onaylandı",
+      "denied": "Reddedildi",
+      "joined": "Katıldınız",
+      "declined": "Geri çevrildi"
+    },
+    "automationsHidden_one": "{{count}} otomasyon çalıştırması gizlendi",
+    "automationsHidden_other": "{{count}} otomasyon çalıştırması gizlendi",
+    "showAutomations": "Göster",
+    "hideAutomations": "Otomasyon çalıştırmalarını gizle",
+    "allInvites": "Tüm davetler",
+    "caughtUp": "Her şeyi gördünüz",
+    "caughtUpDescription": "Bahsetmeler, konularınızdaki yanıtlar ve sizi bekleyen her şey burada görünür.",
+    "pickTitle": "Etkinlikten bir öğe seçin",
+    "pickDescription": "Konusu burada, listenin yanında açılır.",
+    "pickDescriptionPhone": "Seçmek için menüyü açın.",
+    "bellLabel": "Etkinlik",
+    "bellLabelCount_one": "Etkinlik, {{count}} okunmamış",
+    "bellLabelCount_other": "Etkinlik, {{count}} okunmamış",
+    "openActivity": "Etkinliği aç",
+    "close": "Etkinliği kapat"
+  },
+  "threadPreview": {
+    "voice": "Sesli mesaj",
+    "image": "Görsel",
+    "video": "Video",
+    "file": "Dosya",
+    "you": "Siz"
+  },
+  "threadsPage": {
+    "title": "Konular",
+    "scopeLabel": "Göster",
+    "scope": {
+      "mine": "Benimkiler",
+      "following": "Takip edilenler",
+      "all": "Tümü"
+    },
+    "search": "Konularda ara",
+    "groups": {
+      "needsYou": "Sizi bekleyenler",
+      "unread": "Okunmamış",
+      "working": "Çalışan ajanlar",
+      "recent": "Son konular",
+      "automations": "Otomasyonlar"
+    },
+    "showMore": "Daha fazla göster",
+    "chips": {
+      "approval": "Onay",
+      "question": "Soru",
+      "mention": "Sizden bahsediyor",
+      "resolved": "Çözüldü"
+    },
+    "working": "Çalışıyor",
+    "noThreads": "Burada henüz konu yok",
+    "noThreadsDescription": "Başlattığınız veya katıldığınız konular burada görünür.",
+    "noMatches": "Bu aramayla eşleşen konu yok",
+    "pickTitle": "Bir konu seçin",
+    "pickDescription": "Burada, listenin yanında açılır.",
+    "pickDescriptionPhone": "Seçmek için menüyü açın.",
+    "needsYouLabel_one": "Konular, {{count}} tanesi sizi bekliyor",
+    "needsYouLabel_other": "Konular, {{count}} tanesi sizi bekliyor"
   }
 }

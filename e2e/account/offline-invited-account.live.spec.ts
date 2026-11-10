@@ -35,7 +35,7 @@ test('reopens an accepted invitation offline and catches up after reconnect', as
     invite: [member.userId],
   });
   await loginWithPassword(page, { homeserver, ...credentials });
-  await page.goto('/inbox/invites');
+  await page.goto('/activity/invites/');
   await page.getByRole('button', { name: /^(Primary|Public) 1$/ }).click();
   await page.getByRole('button', { name: 'Accept', exact: true }).click({ timeout: 10_000 });
   await expect(page.getByRole('button', { name: 'Accept', exact: true })).toHaveCount(0);

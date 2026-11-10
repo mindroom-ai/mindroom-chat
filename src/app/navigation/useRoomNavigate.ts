@@ -5,21 +5,21 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useSelectedSpace } from './useSelectedSpace';
 import { useDirectSelected } from '../routes/useDirectSelected';
+import { useActivitySelected } from '../routes/useActivitySelected';
+import { useThreadsSelected } from '../routes/useThreadsSelected';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { getAncestorSpaceIds, isInSpace } from '../matrix/state/spaceAncestors';
 import type { RoomToParents } from '../matrix/types/room';
 import { mDirectAtom } from '../matrix/state/mDirectList';
-import {
-  getCanonicalAliasOrRoomId,
-  getCanonicalAliasRoomId,
-  isRoomAlias,
-} from '../matrix/matrix';
+import { getCanonicalAliasOrRoomId, getCanonicalAliasRoomId, isRoomAlias } from '../matrix/matrix';
 import {
   decodeRouteParam,
+  getActivityRoomPath,
   getDirectRoomPath,
   getHomeRoomPath,
   getSpacePath,
   getSpaceRoomPath,
+  getThreadsRoomPath,
   withSearchParam,
 } from '../routes/pathUtils';
 import { navigateToRoomThread } from './threadNavigation';
@@ -37,8 +37,16 @@ const getRoomTopSpace = (mx: MatrixClient, parentsByRoom: RoomToParents, roomId:
   return spaceIds.find((spaceId) => (parentsByRoom.get(spaceId)?.size ?? 0) === 0) ?? spaceIds[0];
 };
 
-/** Where the route is: the space it is inside, whether it is in Direct, and its room segment. */
-type RoutePlace = { spaceId?: string; direct: boolean; roomSegment?: string };
+/**
+ * Where the route is: the space it is inside, whether it is in Direct, the list section it is in
+ * (Activity or Threads, which show a room beside their list), and its room segment.
+ */
+type RoutePlace = {
+  spaceId?: string;
+  direct: boolean;
+  section?: 'activity' | 'threads';
+  roomSegment?: string;
+};
 
 /** Whether the route's room segment names the room, by ID or by an alias the client knows. */
 const routeShowsRoom = (mx: MatrixClient, roomSegment: string | undefined, roomId: string) => {
@@ -60,6 +68,11 @@ const getRoomPath = (
   // which mounts the room view again (a phone's keyboard closes, the view starts over).
   const shown = routeShowsRoom(mx, route.roomSegment, roomId);
 
+  if (shown && route.section) {
+    return route.section === 'activity'
+      ? getActivityRoomPath(roomIdOrAlias, eventId)
+      : getThreadsRoomPath(roomIdOrAlias, eventId);
+  }
   if (route.spaceId && (shown || isInSpace(roomToParents, roomId, route.spaceId))) {
     return getSpaceRoomPath(getCanonicalAliasOrRoomId(mx, route.spaceId), roomIdOrAlias, eventId);
   }
@@ -94,6 +107,11 @@ export const useRoomNavigate = () => {
   const { roomIdOrAlias: roomSegment } = useParams();
   const selectedSpaceId = useSelectedSpace();
   const inDirect = useDirectSelected();
+  const inActivity = useActivitySelected();
+  const inThreads = useThreadsSelected();
+  let section: RoutePlace['section'];
+  if (inActivity) section = 'activity';
+  else if (inThreads) section = 'threads';
 
   /** The app path of a room, at `eventId` when given, in the section the room opens in. */
   const roomPath = useCallback(
@@ -102,11 +120,11 @@ export const useRoomNavigate = () => {
         client,
         roomToParents,
         directChats,
-        { spaceId: selectedSpaceId, direct: inDirect, roomSegment },
+        { spaceId: selectedSpaceId, direct: inDirect, section, roomSegment },
         roomId,
         eventId
       ),
-    [client, roomToParents, directChats, selectedSpaceId, inDirect, roomSegment]
+    [client, roomToParents, directChats, selectedSpaceId, inDirect, section, roomSegment]
   );
 
   /** Opens an app path as it is, such as a path recorded earlier. */

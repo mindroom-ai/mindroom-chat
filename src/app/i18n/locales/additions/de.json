@@ -107,8 +107,7 @@
       "close": "Schließen"
     },
     "invites": {
-      "actionFailed": "Etwas ist schiefgelaufen. Versuche es erneut.",
-      "openNotifications": "Benachrichtigungen öffnen"
+      "actionFailed": "Etwas ist schiefgelaufen. Versuche es erneut."
     },
     "inviteUserAutocomplete": {
       "placeholder": "Benutzer suchen oder Benutzer-ID eingeben"
@@ -708,7 +707,8 @@
       "description": "Sendet {{userId}} eine Einladung."
     },
     "actions": {
-      "goInboxInvitesDescription": "Einladungen und Benachrichtigungen im Posteingang öffnen"
+      "goActivity": "Zur Aktivität",
+      "goActivityDescription": "Erwähnungen, Antworten und was auf dich wartet"
     }
   },
   "shortcuts": {
@@ -749,5 +749,114 @@
   },
   "thread": {
     "back": "Zurück"
+  },
+  "activity": {
+    "title": "Aktivität",
+    "unreadOnly": "Ungelesen",
+    "markAllRead": "Alle als gelesen markieren",
+    "openAsPage": "Als Seite öffnen",
+    "tabs": {
+      "all": "Alle",
+      "mentions": "Erwähnungen",
+      "replies": "Antworten",
+      "needsYou": "Wartet auf dich"
+    },
+    "tabsLabel": "Anzeigen",
+    "days": {
+      "today": "Heute",
+      "yesterday": "Gestern",
+      "earlier": "Früher"
+    },
+    "sentence": {
+      "approval": "{{name}} braucht eine Genehmigung",
+      "question": "{{name}} hat dich etwas gefragt",
+      "invite": "{{name}} hat dich eingeladen",
+      "inviteUnknown": "Du wurdest eingeladen",
+      "mention": "{{name}} hat dich erwähnt",
+      "mentionUnknown": "Du wurdest erwähnt",
+      "mentionAndReply": "{{name}} hat dich erwähnt, {{other}} hat geantwortet",
+      "reply": "{{name}} hat geantwortet",
+      "replyAndOther": "{{name}} und {{other}} haben geantwortet",
+      "replyAndOthers_one": "{{name}} und {{count}} weitere Person haben geantwortet",
+      "replyAndOthers_other": "{{name}} und {{count}} weitere haben geantwortet",
+      "finished": "{{name}} ist fertig",
+      "stopped": "{{name}} wurde gestoppt",
+      "youReplied": "Du hast geantwortet"
+    },
+    "newCount_one": "{{count}} neu",
+    "newCount_other": "{{count}} neu",
+    "runMinutes_one": "{{count}} Min.",
+    "runMinutes_other": "{{count}} Min.",
+    "toolCount_one": "{{count}} Werkzeug",
+    "toolCount_other": "{{count}} Werkzeuge",
+    "actions": {
+      "approve": "Genehmigen",
+      "deny": "Ablehnen",
+      "details": "Details",
+      "join": "Beitreten",
+      "decline": "Ablehnen",
+      "sending": "Wird gesendet…",
+      "failed": "Senden fehlgeschlagen. Versuche es erneut.",
+      "answered": "Beantwortet: {{label}}",
+      "approved": "Genehmigt",
+      "denied": "Abgelehnt",
+      "joined": "Beigetreten",
+      "declined": "Abgelehnt"
+    },
+    "automationsHidden_one": "{{count}} Automatisierungslauf ausgeblendet",
+    "automationsHidden_other": "{{count}} Automatisierungsläufe ausgeblendet",
+    "showAutomations": "Anzeigen",
+    "hideAutomations": "Automatisierungsläufe ausblenden",
+    "allInvites": "Alle Einladungen",
+    "caughtUp": "Du bist auf dem neuesten Stand",
+    "caughtUpDescription": "Erwähnungen, Antworten in deinen Threads und alles, was auf dich wartet, erscheinen hier.",
+    "pickTitle": "Wähle etwas aus der Aktivität",
+    "pickDescription": "Der Thread dazu öffnet sich hier, neben der Liste.",
+    "pickDescriptionPhone": "Öffne das Menü, um etwas auszuwählen.",
+    "bellLabel": "Aktivität",
+    "bellLabelCount_one": "Aktivität, {{count}} ungelesen",
+    "bellLabelCount_other": "Aktivität, {{count}} ungelesen",
+    "openActivity": "Aktivität öffnen",
+    "close": "Aktivität schließen"
+  },
+  "threadPreview": {
+    "voice": "Sprachnachricht",
+    "image": "Bild",
+    "video": "Video",
+    "file": "Datei",
+    "you": "Du"
+  },
+  "threadsPage": {
+    "title": "Threads",
+    "scopeLabel": "Anzeigen",
+    "scope": {
+      "mine": "Meine",
+      "following": "Gefolgt",
+      "all": "Alle"
+    },
+    "search": "Threads durchsuchen",
+    "groups": {
+      "needsYou": "Wartet auf dich",
+      "unread": "Ungelesen",
+      "working": "Agenten arbeiten",
+      "recent": "Zuletzt aktiv",
+      "automations": "Automatisierungen"
+    },
+    "showMore": "Mehr anzeigen",
+    "chips": {
+      "approval": "Genehmigung",
+      "question": "Frage",
+      "mention": "Erwähnt dich",
+      "resolved": "Gelöst"
+    },
+    "working": "In Arbeit",
+    "noThreads": "Hier gibt es noch keine Threads",
+    "noThreadsDescription": "Threads, die du startest oder an denen du teilnimmst, erscheinen hier.",
+    "noMatches": "Kein Thread passt zu dieser Suche",
+    "pickTitle": "Wähle einen Thread",
+    "pickDescription": "Er öffnet sich hier, neben der Liste.",
+    "pickDescriptionPhone": "Öffne das Menü, um etwas auszuwählen.",
+    "needsYouLabel_one": "Threads, {{count}} wartet auf dich",
+    "needsYouLabel_other": "Threads, {{count}} warten auf dich"
   }
 }

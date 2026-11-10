@@ -81,7 +81,7 @@ export const useRoomHref = (roomId: string, threadId?: string): string =>
  * the thread: the ID `openBesideThread` of `useRoomSidePanel` takes. Undefined while the page
  * shows the room's own timeline, until the room has the event the address names, while the server
  * has not confirmed the root (a new thread's first message, still sending), and outside a room's
- * page (the inbox, the search page). It renders again when the room shows another thread.
+ * page (the search page). It renders again when the room shows another thread.
  */
 export const useShownThread = (): string | undefined =>
   useContext(PluginPanelControlsContext)?.thread;

@@ -26,8 +26,8 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // order text shows in without showing themselves: a room named `Payroll <U+202E>sevihcra<U+202C>`
 // reads as "Payroll archives". More places that name a room show each control as its code point:
 // a room mention and a link to a message, the call panel of a call someone else is in (no call
-// service needed), the drop overlay, an invite in the Inbox, the Join a Room dialog's directory
-// rows, the page of a room the reader has not joined, and the Canvases page.
+// service needed), the drop overlay, an invite on the invite list, the Join a Room dialog's
+// directory rows, the page of a room the reader has not joined, and the Canvases page.
 // Then in Arabic, where the name sits inside a translated sentence: the header, the call panel,
 // the drop overlay, the invite and the join page. Against the disposable homeserver of a slot, on
 // a phone (390 by 844, touch) and a desktop (1280 by 800), in Chromium and, when
@@ -282,9 +282,9 @@ const checkDropOverlay = async (page: Page, label: string) => {
   await expect(overlay).toBeHidden();
 };
 
-/** The Inbox's invite names the room and its topic. */
+/** The invite list's card names the room and its topic. */
 const checkInvite = async (page: Page, label: string) => {
-  await go(page, '/inbox/invites/');
+  await go(page, '/activity/invites/');
   const card = page
     .locator('main')
     .getByText(/^Invoice /)
@@ -369,7 +369,7 @@ const checkArabic = async (page: Page, world: World, label: string) => {
   await shot(page, `${label}-ar-drop-overlay`);
   await drag(area, true);
   await expect(overlay).toBeHidden();
-  await go(page, '/inbox/invites/');
+  await go(page, '/activity/invites/');
   await expectShown(
     page
       .locator('main')

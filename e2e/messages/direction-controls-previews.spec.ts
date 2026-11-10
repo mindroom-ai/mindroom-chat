@@ -24,8 +24,8 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // Bidirectional controls (U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C) change the
 // order text shows in without showing themselves: `quarterly-report<U+202E>fdp.exe` reads as a
 // PDF. Where the app previews a message on one line, each control shows as its code point, as in
-// the message itself: the room list's name of a room, a system notification, the Inbox, the
-// Threads page, reply quotes, the composer's reply bar and Compact cards. A member's message and
+// the message itself: the room list's name of a room, a system notification, Activity, the
+// Threads list, reply quotes, the composer's reply bar and Compact cards. A member's message and
 // a file's name hold the controls, and so does the room's name. Against the disposable homeserver
 // of a slot, on a phone (390 by 844, touch) and a desktop (1280 by 800), in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
@@ -166,8 +166,8 @@ const seed = async (engine: string): Promise<World> => {
     });
   const textReplyId = await reply(rootId, 'Done, the report has its new name now.');
   const fileReplyId = await reply(fileId, 'Thanks, I am opening the report now.');
-  // The reader takes part in the thread, so the Threads page lists it; the file is its newest
-  // reply.
+  // The reader takes part in the thread, so Activity and the Threads list show it; the file is
+  // its newest reply.
   await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
     msgtype: 'm.text',
     body: 'Can you attach the renamed report here as well?',
@@ -295,14 +295,15 @@ const check = async (page: Page, world: World, label: string) => {
     body: `${MEMBER_NAME}: ${liveFileShown}`,
   });
 
-  // The Inbox: the room's name over its notifications, and the new message and file.
-  await go(page, '/inbox/notifications/');
-  const inboxRoom = main.getByText(/^Payroll /).first();
-  await expect(inboxRoom).toBeVisible({ timeout: 60_000 });
-  await expectShown(inboxRoom, ROOM_NAME_SHOWN);
-  await expectShown(main.getByText(liveTextShown).first(), liveTextShown);
-  await expectShown(main.getByText(liveFileShown).first(), liveFileShown);
-  await shot(page, `${label}-inbox`);
+  // Activity: the thread's row, with its title (the message) and its room's name.
+  await go(page, '/activity/');
+  const activityRow = page
+    .locator('[data-activity-list="page"] [data-activity-row]')
+    .filter({ hasText: 'auditors' });
+  await expect(activityRow).toBeVisible({ timeout: 60_000 });
+  await expectShown(activityRow, PLAIN_SHOWN);
+  await expectShown(activityRow, ROOM_NAME_SHOWN);
+  await shot(page, `${label}-activity`);
 
   // The room in its Threads view: the quotes above the reader's replies.
   await seedRoomOverviewState({
@@ -335,15 +336,18 @@ const check = async (page: Page, world: World, label: string) => {
   await page.getByRole('button', { name: 'Cancel reply' }).click();
   await expect(replyBar).toBeHidden();
 
-  // The Threads page: the thread's room, its title (the message) and its newest reply (the file).
+  // The Threads list: the thread's title (the message), its newest reply (a file, by its kind)
+  // and its room.
   await go(page, '/threads/');
-  const threadCard = main.locator(`button[data-thread-root-id="${rootId}"]`);
-  await expect(threadCard).toBeVisible({ timeout: 60_000 });
-  const threadsRow = threadCard.locator('xpath=..');
+  const threadsRow = page
+    .getByRole('navigation', { name: 'Threads' })
+    .getByRole('button')
+    .filter({ hasText: 'auditors' });
+  await expect(threadsRow).toBeVisible({ timeout: 60_000 });
+  await expectShown(threadsRow, PLAIN_SHOWN);
+  await expectShown(threadsRow, `${MEMBER_NAME}: File`);
   await expectShown(threadsRow, ROOM_NAME_SHOWN);
-  await expectShown(threadCard, PLAIN_SHOWN);
-  await expectShown(threadCard, `${MEMBER_NAME}: ${FILE_NAME_SHOWN}`);
-  await shot(page, `${label}-threads-page`);
+  await shot(page, `${label}-threads-list`);
 
   // The room in its Compact view: the thread's card and the file's card.
   await seedRoomOverviewState({

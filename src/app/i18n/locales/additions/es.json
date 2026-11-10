@@ -110,8 +110,7 @@
       "close": "Cerrar"
     },
     "invites": {
-      "actionFailed": "Algo salió mal. Inténtalo de nuevo.",
-      "openNotifications": "Abrir notificaciones"
+      "actionFailed": "Algo salió mal. Inténtalo de nuevo."
     },
     "inviteUserAutocomplete": {
       "placeholder": "Busca usuarios o introduce un ID de usuario"
@@ -719,7 +718,8 @@
       "description": "Envía una invitación a {{userId}}."
     },
     "actions": {
-      "goInboxInvitesDescription": "Abrir las invitaciones y notificaciones de la bandeja de entrada"
+      "goActivity": "Ir a Actividad",
+      "goActivityDescription": "Menciones, respuestas y lo que te espera"
     }
   },
   "shortcuts": {
@@ -760,5 +760,121 @@
   },
   "thread": {
     "back": "Atrás"
+  },
+  "activity": {
+    "title": "Actividad",
+    "unreadOnly": "Sin leer",
+    "markAllRead": "Marcar todo como leído",
+    "openAsPage": "Abrir como página",
+    "tabs": {
+      "all": "Todo",
+      "mentions": "Menciones",
+      "replies": "Respuestas",
+      "needsYou": "Pendientes"
+    },
+    "tabsLabel": "Mostrar",
+    "days": {
+      "today": "Hoy",
+      "yesterday": "Ayer",
+      "earlier": "Antes"
+    },
+    "sentence": {
+      "approval": "{{name}} necesita aprobación",
+      "question": "{{name}} te hizo una pregunta",
+      "invite": "{{name}} te invitó",
+      "inviteUnknown": "Te invitaron",
+      "mention": "{{name}} te mencionó",
+      "mentionUnknown": "Te mencionaron",
+      "mentionAndReply": "{{name}} te mencionó, {{other}} respondió",
+      "reply": "{{name}} respondió",
+      "replyAndOther": "{{name}} y {{other}} respondieron",
+      "replyAndOthers_one": "{{name}} y {{count}} más respondieron",
+      "replyAndOthers_many": "{{name}} y {{count}} más respondieron",
+      "replyAndOthers_other": "{{name}} y {{count}} más respondieron",
+      "finished": "{{name}} terminó",
+      "stopped": "{{name}} se detuvo",
+      "youReplied": "Respondiste"
+    },
+    "newCount_one": "{{count}} nuevo",
+    "newCount_many": "{{count}} nuevos",
+    "newCount_other": "{{count}} nuevos",
+    "runMinutes_one": "{{count}} min",
+    "runMinutes_many": "{{count}} min",
+    "runMinutes_other": "{{count}} min",
+    "toolCount_one": "{{count}} herramienta",
+    "toolCount_many": "{{count}} herramientas",
+    "toolCount_other": "{{count}} herramientas",
+    "actions": {
+      "approve": "Aprobar",
+      "deny": "Denegar",
+      "details": "Detalles",
+      "join": "Unirse",
+      "decline": "Rechazar",
+      "sending": "Enviando…",
+      "failed": "No se pudo enviar. Inténtalo de nuevo.",
+      "answered": "Respondido: {{label}}",
+      "approved": "Aprobado",
+      "denied": "Denegado",
+      "joined": "Te uniste",
+      "declined": "Rechazado"
+    },
+    "automationsHidden_one": "{{count}} ejecución de automatización oculta",
+    "automationsHidden_many": "{{count}} ejecuciones de automatización ocultas",
+    "automationsHidden_other": "{{count}} ejecuciones de automatización ocultas",
+    "showAutomations": "Mostrar",
+    "hideAutomations": "Ocultar ejecuciones de automatización",
+    "allInvites": "Todas las invitaciones",
+    "caughtUp": "Estás al día",
+    "caughtUpDescription": "Aquí aparecen las menciones, las respuestas en tus hilos y todo lo que te espera.",
+    "pickTitle": "Elige algo de Actividad",
+    "pickDescription": "Su hilo se abre aquí, junto a la lista.",
+    "pickDescriptionPhone": "Abre el menú para elegir uno.",
+    "bellLabel": "Actividad",
+    "bellLabelCount_one": "Actividad, {{count}} sin leer",
+    "bellLabelCount_many": "Actividad, {{count}} sin leer",
+    "bellLabelCount_other": "Actividad, {{count}} sin leer",
+    "openActivity": "Abrir Actividad",
+    "close": "Cerrar Actividad"
+  },
+  "threadPreview": {
+    "voice": "Mensaje de voz",
+    "image": "Imagen",
+    "video": "Vídeo",
+    "file": "Archivo",
+    "you": "Tú"
+  },
+  "threadsPage": {
+    "title": "Hilos",
+    "scopeLabel": "Mostrar",
+    "scope": {
+      "mine": "Míos",
+      "following": "Seguidos",
+      "all": "Todos"
+    },
+    "search": "Buscar hilos",
+    "groups": {
+      "needsYou": "Pendientes",
+      "unread": "Sin leer",
+      "working": "Agentes trabajando",
+      "recent": "Recientes",
+      "automations": "Automatizaciones"
+    },
+    "showMore": "Mostrar más",
+    "chips": {
+      "approval": "Aprobación",
+      "question": "Pregunta",
+      "mention": "Te menciona",
+      "resolved": "Resuelto"
+    },
+    "working": "Trabajando",
+    "noThreads": "Aún no hay hilos aquí",
+    "noThreadsDescription": "Aquí aparecen los hilos que inicias o en los que participas.",
+    "noMatches": "Ningún hilo coincide con esta búsqueda",
+    "pickTitle": "Elige un hilo",
+    "pickDescription": "Se abre aquí, junto a la lista.",
+    "pickDescriptionPhone": "Abre el menú para elegir uno.",
+    "needsYouLabel_one": "Hilos, {{count}} te espera",
+    "needsYouLabel_many": "Hilos, {{count}} te esperan",
+    "needsYouLabel_other": "Hilos, {{count}} te esperan"
   }
 }

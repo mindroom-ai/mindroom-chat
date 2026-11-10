@@ -44,7 +44,7 @@ SMOKE_SPECS=(
   e2e/room/rooms.live.spec.ts                      # the room list and opening a room's timeline
   e2e/sidebar/room-unread-filter.spec.ts       # unread marks in the room list
   e2e/threads/thread-unread-receipts.live.spec.ts     # unread threads cleared by mark-read and opening
-  e2e/sidebar/inbox-mark-read.spec.ts          # the Inbox's Mark as Read
+  e2e/activity/activity.spec.ts          # the Activity bell, an approval answered, a row's thread
   e2e/composer/long-composer-message.live.spec.ts      # sending and editing long messages, room and thread
   e2e/composer/slash-commands.spec.ts           # composer commands
   e2e/threads/threads.live.spec.ts                    # thread overview, opening threads, a new root

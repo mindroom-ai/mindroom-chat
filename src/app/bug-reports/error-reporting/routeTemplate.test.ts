@@ -18,7 +18,9 @@ describe('matchRoute', () => {
     ['/login/matrix.example.org/', '', '/login/:server?/'],
     ['/settings/about/', '', '/settings/:page?/'],
     ['/explore/matrix.example.org/', '', '/explore/:server/'],
-    ['/inbox/notifications/', '', '/inbox/notifications/'],
+    ['/activity/invites/', '', '/activity/invites/'],
+    [`/activity/${room}/`, '', '/activity/:roomIdOrAlias/:eventId?/'],
+    [`/threads/${room}/`, '', '/threads/:roomIdOrAlias/:eventId?/'],
     ['/a/b/c/d/e/', '', '/<unknown>/'],
   ])('%s%s is %s', (pathname, search, template) => {
     expect(matchRoute(pathname, search).template).toBe(template);

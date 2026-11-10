@@ -104,8 +104,7 @@
       "close": "關閉"
     },
     "invites": {
-      "actionFailed": "發生錯誤，請再試一次。",
-      "openNotifications": "開啟通知"
+      "actionFailed": "發生錯誤，請再試一次。"
     },
     "inviteUserAutocomplete": {
       "placeholder": "搜尋使用者或輸入使用者 ID"
@@ -697,7 +696,8 @@
       "description": "將向 {{userId}} 傳送邀請。"
     },
     "actions": {
-      "goInboxInvitesDescription": "開啟收件匣邀請與通知"
+      "goActivity": "前往動態",
+      "goActivityDescription": "提及、回覆和等待你處理的事項"
     }
   },
   "shortcuts": {
@@ -738,5 +738,107 @@
   },
   "thread": {
     "back": "返回"
+  },
+  "activity": {
+    "title": "動態",
+    "unreadOnly": "未讀",
+    "markAllRead": "全部標為已讀",
+    "openAsPage": "以頁面開啟",
+    "tabs": {
+      "all": "全部",
+      "mentions": "提及",
+      "replies": "回覆",
+      "needsYou": "待你處理"
+    },
+    "tabsLabel": "顯示",
+    "days": {
+      "today": "今天",
+      "yesterday": "昨天",
+      "earlier": "更早"
+    },
+    "sentence": {
+      "approval": "{{name}} 需要核准",
+      "question": "{{name}} 向你提問",
+      "invite": "{{name}} 邀請了你",
+      "inviteUnknown": "你收到了邀請",
+      "mention": "{{name}} 提及了你",
+      "mentionUnknown": "有人提及了你",
+      "mentionAndReply": "{{name}} 提及了你，{{other}} 回覆了",
+      "reply": "{{name}} 回覆了",
+      "replyAndOther": "{{name}} 和 {{other}} 回覆了",
+      "replyAndOthers_other": "{{name}} 和其他 {{count}} 人回覆了",
+      "finished": "{{name}} 已完成",
+      "stopped": "{{name}} 已停止",
+      "youReplied": "你已回覆"
+    },
+    "newCount_other": "{{count}} 則新訊息",
+    "runMinutes_other": "{{count}} 分鐘",
+    "toolCount_other": "{{count}} 個工具",
+    "actions": {
+      "approve": "核准",
+      "deny": "拒絕",
+      "details": "詳細資料",
+      "join": "加入",
+      "decline": "拒絕",
+      "sending": "正在傳送…",
+      "failed": "傳送失敗，請再試一次。",
+      "answered": "已回答：{{label}}",
+      "approved": "已核准",
+      "denied": "已拒絕",
+      "joined": "已加入",
+      "declined": "已拒絕"
+    },
+    "automationsHidden_other": "已隱藏 {{count}} 次自動化執行",
+    "showAutomations": "顯示",
+    "hideAutomations": "隱藏自動化執行",
+    "allInvites": "所有邀請",
+    "caughtUp": "你已全部看完",
+    "caughtUpDescription": "提及、你的討論串中的回覆以及等待你處理的所有事項都會顯示在這裡。",
+    "pickTitle": "從動態中選擇一項",
+    "pickDescription": "它所在的討論串會在清單旁邊開啟。",
+    "pickDescriptionPhone": "打開選單進行選擇。",
+    "bellLabel": "動態",
+    "bellLabelCount_other": "動態，{{count}} 則未讀",
+    "openActivity": "開啟動態",
+    "close": "關閉動態"
+  },
+  "threadPreview": {
+    "voice": "語音訊息",
+    "image": "圖片",
+    "video": "影片",
+    "file": "檔案",
+    "you": "你"
+  },
+  "threadsPage": {
+    "title": "討論串",
+    "scopeLabel": "顯示",
+    "scope": {
+      "mine": "我的",
+      "following": "追蹤中",
+      "all": "全部"
+    },
+    "search": "搜尋討論串",
+    "groups": {
+      "needsYou": "待你處理",
+      "unread": "未讀",
+      "working": "AI 代理工作中",
+      "recent": "最近",
+      "automations": "自動化"
+    },
+    "showMore": "顯示更多",
+    "chips": {
+      "approval": "核准",
+      "question": "問題",
+      "mention": "提及你",
+      "resolved": "已解決"
+    },
+    "working": "處理中",
+    "noThreads": "這裡還沒有討論串",
+    "noThreadsDescription": "你發起或參與的討論串會顯示在這裡。",
+    "noMatches": "沒有符合此搜尋的討論串",
+    "pickTitle": "選擇一個討論串",
+    "pickDescription": "它會在清單旁邊開啟。",
+    "pickDescriptionPhone": "打開選單進行選擇。",
+    "needsYouLabel_other": "討論串，{{count}} 個待你處理"
   }
 }

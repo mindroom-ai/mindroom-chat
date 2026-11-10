@@ -47,6 +47,10 @@ const read = (userId: string, storage = getSafeLocalStorage()): SeenRoots | unde
 
 // Reads happen for every message the unread rules look at; writes, once per opened thread.
 const cache = new Map<string, SeenRoots>();
+let changes = 0;
+
+/** A count of this device's changes to the records, for caches of what they decide. */
+export const seenThreadRootsVersion = (): number => changes;
 
 const cached = (userId: string): SeenRoots => {
   let roots = cache.get(userId);
@@ -66,6 +70,7 @@ const update = (
   const storage = getSafeLocalStorage();
   const roots = read(userId, storage) ?? { ...cached(userId) };
   const room = change({ ...roots[roomId] });
+  changes += 1;
   if (Object.keys(room).length > 0) roots[roomId] = room;
   else delete roots[roomId];
   cache.set(userId, roots);
@@ -113,6 +118,7 @@ export const forgetReadThreadRoots = (userId: string, roomId: string, readTs: nu
 
 /** Forgets every root of an account, for sign-out. */
 export const clearSeenThreadRoots = (userId: string): void => {
+  changes += 1;
   cache.delete(userId);
   removeStorageItemSafe(getSafeLocalStorage(), storageKey(userId));
 };

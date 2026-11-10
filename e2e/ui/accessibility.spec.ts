@@ -228,7 +228,7 @@ test.describe.serial('keyboard and accessibility', () => {
 
   /**
    * axe-core over the main screens in the page's language: home, a room beside its members, a
-   * thread, the inbox, message search, the account menu and the settings dialog. Each opens
+   * thread, Activity, message search, the account menu and the settings dialog. Each opens
    * inside the running app; the findings come back as `screen rule: element` lines.
    */
   const axeMainScreens = async (code: string): Promise<string[]> => {
@@ -257,14 +257,12 @@ test.describe.serial('keyboard and accessibility', () => {
     );
     await expect(page.getByText(THREAD_REPLY)).toBeVisible();
     await check('thread');
-    await openInApp(page, '/inbox/notifications/');
+    await openInApp(page, '/activity/');
     await expect(
-      page.getByRole('heading', {
-        level: 1,
-        name: label(code, 'sharedUi.notifications.notificationMessages'),
-      })
+      page.getByRole('heading', { level: 1, name: label(code, 'activity.pickTitle') })
     ).toBeVisible();
-    await check('inbox');
+    await expect(page.locator('[data-activity-list="page"]')).toBeVisible();
+    await check('activity');
     await openInApp(page, '/home/search/?term=checklist');
     await expect(page.getByRole('main').getByText(THREAD_ROOT)).toBeVisible({ timeout: 30_000 });
     await check('search');

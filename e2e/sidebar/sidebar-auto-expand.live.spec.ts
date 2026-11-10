@@ -68,7 +68,7 @@ test('section icons reopen collapsed navigation while bottom actions leave it co
       'xpath=(.//*[@role="separator"])[last()]/following-sibling::*[1]'
     );
     const activeAccount = page.getByRole('button', { name: activeAccountButtonNamePattern });
-    const inbox = activeAccount.locator('xpath=../preceding-sibling::*[1]//button');
+    const activity = activeAccount.locator('xpath=../preceding-sibling::*[1]//button');
     const storageKey = `mindroom.pageNav.desktopCollapsed:${session.userId}`;
     const savedCollapse = () => page.evaluate((key) => localStorage.getItem(key), storageKey);
     const selectTab = async (button: Locator, label: string, keyboard = false) => {
@@ -126,8 +126,13 @@ test('section icons reopen collapsed navigation while bottom actions leave it co
       await page.keyboard.press('Escape');
       await expect(expand).toBeVisible();
 
-      await selectTab(inbox, 'Inbox');
-      await expect(page).toHaveURL(/\/inbox/);
+      // The Activity bell opens its popover over the page, which opens the Activity page.
+      await selectTab(activity, 'Activity');
+      await page
+        .getByRole('dialog', { name: 'Activity' })
+        .getByRole('button', { name: 'Open as page', exact: true })
+        .click();
+      await expect(page).toHaveURL(/\/activity\/$/);
       await expect(expand).toBeVisible();
       await expect.poll(savedCollapse).toBe('true');
       await expand.click();

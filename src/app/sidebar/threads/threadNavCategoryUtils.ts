@@ -1,5 +1,5 @@
 import type { CrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
-import { compareCrossRoomThreadEntries } from '../../threads/cross-room/crossRoomThreadFilterPipeline';
+import { compareCrossRoomThreadEntries } from '../../threads/cross-room/crossRoomThreadOrder';
 
 export const MAX_SIDEBAR_THREADS = 50;
 
