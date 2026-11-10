@@ -187,8 +187,26 @@ describe('RoomInputMindroomExtensions', () => {
       threadingEnabled: false,
     });
 
-    expect(getRoomInputVoiceUploadRelation(context, new File(['voice'], 'voice.ogg'))).toEqual({
+    expect(getRoomInputVoiceUploadRelation(context)).toEqual({
       'm.in_reply_to': { event_id: '$reply' },
+    });
+  });
+
+  it('sends a voice message in a thread as a reply in that thread', () => {
+    const room = { roomId: '!room:example.org', getMembers: () => [] } as unknown as Room;
+    const context = getRoomInputVoiceSendContext({
+      ownerSessionId: '@me:example.org',
+      roomId: room.roomId,
+      room,
+      threadId: '$root',
+      replyDraft: undefined,
+    });
+
+    expect(getRoomInputVoiceUploadRelation(context)).toEqual({
+      event_id: '$root',
+      rel_type: RelationType.Thread,
+      is_falling_back: true,
+      'm.in_reply_to': { event_id: '$root' },
     });
   });
 

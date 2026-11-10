@@ -122,7 +122,7 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
         mxc,
         getVoiceMessageContentOptions(context.signalBridgedRoom)
       );
-      const relation = getRoomInputVoiceUploadRelation(context, item.file);
+      const relation = getRoomInputVoiceUploadRelation(context);
       if (relation) content['m.relates_to'] = relation;
       const txnId = mx.makeTxnId();
       try {

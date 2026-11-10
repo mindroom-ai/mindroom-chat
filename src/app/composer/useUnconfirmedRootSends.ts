@@ -3,7 +3,7 @@ import { useStore } from 'jotai';
 import { EventStatus, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { isFailedLocalEchoEvent } from '../matrix/protocol/pendingLocalEcho';
-import { getRoomInputDraftKey, moveMessageDraft } from './roomInputDrafts';
+import { moveMessageDraft } from './roomInputDrafts';
 
 /** A send the composer holds while its thread's root waits for the server. */
 export type HeldSend = { kind: 'message' } | { kind: 'sticker'; mxc: string; label: string };
@@ -57,11 +57,7 @@ export const useUnconfirmedRootSends = ({
     const confirmed = root.getId() === threadId;
     const deleted = root.status === EventStatus.CANCELLED && threadId === undefined;
     if (!confirmed && !deleted) return;
-    moveMessageDraft(
-      store,
-      getRoomInputDraftKey(userId, roomId, previous.threadId),
-      getRoomInputDraftKey(userId, roomId, threadId)
-    );
+    moveMessageDraft(store, userId, roomId, previous.threadId, threadId);
   }, [room, roomId, store, threadId, userId]);
 
   const [held, setHeld] = useState<Held>();

@@ -444,10 +444,9 @@ vi.mock('../commands/useCommands', () => ({
 
 vi.mock('../commands/agentCommandQuery', () => ({ getAgentCommandQuery: () => undefined }));
 vi.mock('../RoomInputExtensions', async () => {
-  const { createRoomInputSendSessionState, getUploadRelationForSendSession } =
-    await vi.importActual<typeof import('../roomInputSendSession')>(
-      '../roomInputSendSession'
-    );
+  const { getMessageRelation } = await vi.importActual<
+    typeof import('../../matrix/send/composeMessageRelation')
+  >('../../matrix/send/composeMessageRelation');
 
   return {
     createRoomInputPasteMarkerElement: (marker: {
@@ -537,26 +536,14 @@ vi.mock('../RoomInputExtensions', async () => {
         signalBridgedRoom: false,
       };
     },
-    getRoomInputVoiceUploadRelation: (
-      context: {
-        threadId: string | undefined;
-        replyDraft: IReplyDraft | undefined;
-      },
-      file: File
-    ) =>
-      getUploadRelationForSendSession(
-        {
-          threadId: context.threadId,
-          replyDraft: context.replyDraft,
-          ...createRoomInputSendSessionState({
-            files: [file],
-            hasText: false,
-            threadId: context.threadId,
-            replyDraft: context.replyDraft,
-          }),
-        },
-        false
-      ),
+    getRoomInputVoiceUploadRelation: (context: {
+      threadId: string | undefined;
+      replyDraft: IReplyDraft | undefined;
+      threadingEnabled: boolean;
+    }) =>
+      getMessageRelation(context.replyDraft?.eventId, context.replyDraft?.relation, context.threadId, {
+        allowThreadRelation: context.threadingEnabled,
+      }),
     isRoomInputAutocompleteQuery: (query?: { prefix?: string }) => query?.prefix === '!',
     RoomInputAutocomplete: () => null,
     RoomInputReplyContext: ({
@@ -2846,7 +2833,6 @@ describe('RoomInput', () => {
 
   it("refuses a voice send under its thread root's local ID", async () => {
     const store = createStore();
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { renderer } = await renderRoomInput(store, { roomId: ROOM_ID, threadId: '$thread-a' });
     await openVoiceRecorder(renderer);
     // Recorded in a thread whose root the server had not confirmed, then sent from another room.
@@ -2868,7 +2854,6 @@ describe('RoomInput', () => {
     });
     expect(mxState.uploadContent).not.toHaveBeenCalled();
     expect(mxState.sendMessage).not.toHaveBeenCalled();
-    consoleError.mockRestore();
     renderer.unmount();
   });
 

@@ -32,7 +32,6 @@ import {
   composerReplyDraftAtom,
   composerUploadItemsAtom,
   voiceRecorderRoomAtom,
-  getRoomInputDraftKey,
   moveMessageDraft,
 } from '../composer/roomInputDrafts';
 import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
@@ -348,11 +347,7 @@ export function RoomView({
   const onColumnGone = useCallback(
     (columnThread: string) => {
       if (deletedRoot.current !== columnThread) return;
-      moveMessageDraft(
-        store,
-        getRoomInputDraftKey(myUserId, roomId, columnThread),
-        getRoomInputDraftKey(myUserId, roomId)
-      );
+      moveMessageDraft(store, myUserId, roomId, columnThread);
     },
     [myUserId, roomId, store]
   );

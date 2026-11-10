@@ -46,7 +46,7 @@ export type PendingVoiceSendContext = {
   signalBridgedRoom: boolean;
   /**
    * Recorded in a thread's own view (room/ThreadView.tsx), not on the room's page: after a failed
-   * send it comes back in a view of that thread, never on the page.
+   * send it comes back in a view of that thread, or on the room's page while it shows that thread.
    */
   threadView?: boolean;
 };
@@ -146,10 +146,16 @@ const createMsgDraftAtom = (draftKey: string): WritableAtom<Descendant[], [Desce
 /** The unsent message of a composer, keyed by `getRoomInputDraftKey`. */
 export const roomIdToMsgDraftAtomFamily = atomFamily(createMsgDraftAtom);
 
-/** Moves a draft to another composer's, after the text that one holds: the thread it was in went. */
-export const moveMessageDraft = (store: JotaiStore, fromKey: string, toKey: string): void => {
-  const from = roomIdToMsgDraftAtomFamily(fromKey);
-  const to = roomIdToMsgDraftAtomFamily(toKey);
+/** Moves a thread's draft to another composer's in the room, after the text that one holds. */
+export const moveMessageDraft = (
+  store: JotaiStore,
+  userId: string,
+  roomId: string,
+  fromThreadId: string | undefined,
+  toThreadId?: string
+): void => {
+  const from = roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(userId, roomId, fromThreadId));
+  const to = roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(userId, roomId, toThreadId));
   const draft = store.get(from);
   if (draft.length > 0) store.set(to, [...store.get(to), ...draft]);
   store.set(from, []);

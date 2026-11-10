@@ -124,9 +124,8 @@ export const useRoomInputVoice = ({
   // The room's page also offers the recording of a view of the thread it shows: on a page with no
   // room for the thread's column, the thread shows only there.
   const ownsPendingVoiceDraft =
-    draftKey !== undefined &&
-    (draftKey === composerKey ||
-      draftKey === voiceComposerKey({ ...composerContext, threadView: true }));
+    draftKey === composerKey ||
+    draftKey === voiceComposerKey({ ...composerContext, threadView: true });
   const otherComposerOwnsPendingVoiceDraft = draftBelongsToCurrentSession && !ownsPendingVoiceDraft;
   // The room page keeps an open thread where it is while its recorder shows (RoomView).
   const recorderShown = view === undefined && (voiceRecorderOpen || ownsPendingVoiceDraft);
@@ -136,14 +135,6 @@ export const useRoomInputVoice = ({
     setRecorderRoom(roomId);
     return () => setRecorderRoom((shown) => (shown === roomId ? undefined : shown));
   }, [recorderShown, roomId, setRecorderRoom]);
-  const otherPendingVoiceRoomName =
-    otherComposerOwnsPendingVoiceDraft &&
-    pendingVoiceSendDraft &&
-    pendingVoiceSendDraft.context.roomId !== roomId
-      ? revealDirectionControls(
-          pendingVoiceSendDraft.context.room.name ?? pendingVoiceSendDraft.context.roomId
-        )
-      : undefined;
   const voiceAutoSendClaimedRef = useRef(false);
   const voiceAutoSendInFlightRef = useRef(false);
   const voiceRecorderRef = useRef<VoiceRecorderComposerHandle>(null);
@@ -547,10 +538,14 @@ export const useRoomInputVoice = ({
     ) : null;
 
   let microphoneLabel = t('composer.recordVoice');
-  if (otherPendingVoiceRoomName) {
-    microphoneLabel = t('composer.voicePausedInOtherRoom', { roomName: otherPendingVoiceRoomName });
-  } else if (otherComposerOwnsPendingVoiceDraft) {
-    microphoneLabel = t('composer.voicePausedInThisRoom');
+  if (otherComposerOwnsPendingVoiceDraft) {
+    const { room: draftRoom, roomId: draftRoomId } = pendingVoiceSendDraft.context;
+    microphoneLabel =
+      draftRoomId === roomId
+        ? t('composer.voicePausedInThisRoom')
+        : t('composer.voicePausedInOtherRoom', {
+            roomName: revealDirectionControls(draftRoom.name ?? draftRoomId),
+          });
   }
   const microphone = (
     // The label says why the button is disabled while another composer holds a draft;

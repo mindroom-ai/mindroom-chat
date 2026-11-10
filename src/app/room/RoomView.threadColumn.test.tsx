@@ -413,57 +413,38 @@ it("passes a thread that does not load to the page, as the thread in the message
   expect(state.columnLoadError).toBe(onLoadError);
 });
 
-it("moves a reply's text to the room's composer when the column's unsent root is deleted", () => {
-  const store = getDefaultStore();
-  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
-  const local = '~!room:example.org:m2.1';
-  const threadDraft = draftAtom(local);
-  const roomDraft = draftAtom();
-  const text = [{ type: 'paragraph', children: [{ text: 'my reply' }] }] as never;
-  store.set(threadDraft, text);
-  const root = new MatrixEvent({ event_id: local, type: 'm.room.message', content: {} });
-  vi.spyOn(room, 'findEventById').mockReturnValue(root);
-  state.thread = local;
-  state.rootDeleted = vi.fn();
-  const { rerender } = renderView();
+it.each([
+  ['to', []],
+  ['after the text in', [{ type: 'paragraph', children: [{ text: 'room text' }] }]],
+])(
+  "moves a reply's text %s the room's composer when the column's unsent root is deleted",
+  (_, roomText) => {
+    const store = getDefaultStore();
+    localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+    const local = '~!room:example.org:m2.1';
+    const threadDraft = draftAtom(local);
+    const roomDraft = draftAtom();
+    const reply = { type: 'paragraph', children: [{ text: 'my reply' }] };
+    store.set(roomDraft, roomText as never);
+    store.set(threadDraft, [reply] as never);
+    const root = new MatrixEvent({ event_id: local, type: 'm.room.message', content: {} });
+    vi.spyOn(room, 'findEventById').mockReturnValue(root);
+    state.thread = local;
+    state.rootDeleted = vi.fn();
+    const { rerender } = renderView();
 
-  root.status = EventStatus.CANCELLED;
-  act(() => {
-    room.emit(RoomEvent.LocalEchoUpdated, root, room, local);
-  });
-  expect(state.rootDeleted).toHaveBeenCalledOnce();
-  state.thread = undefined;
-  rerenderView(rerender);
-  expect(store.get(roomDraft)).toEqual(text);
-  expect(store.get(threadDraft)).toEqual([]);
-  store.set(roomDraft, []);
-});
-
-it("adds a reply's text after the room composer's own when the column's unsent root is deleted", () => {
-  const store = getDefaultStore();
-  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
-  const local = '~!room:example.org:m2.2';
-  const threadDraft = draftAtom(local);
-  const roomDraft = draftAtom();
-  const roomText = { type: 'paragraph', children: [{ text: 'room text' }] };
-  const reply = { type: 'paragraph', children: [{ text: 'my reply' }] };
-  store.set(roomDraft, [roomText] as never);
-  store.set(threadDraft, [reply] as never);
-  const root = new MatrixEvent({ event_id: local, type: 'm.room.message', content: {} });
-  vi.spyOn(room, 'findEventById').mockReturnValue(root);
-  state.thread = local;
-  const { rerender } = renderView();
-
-  root.status = EventStatus.CANCELLED;
-  act(() => {
-    room.emit(RoomEvent.LocalEchoUpdated, root, room, local);
-  });
-  state.thread = undefined;
-  rerenderView(rerender);
-  expect(store.get(roomDraft)).toEqual([roomText, reply]);
-  expect(store.get(threadDraft)).toEqual([]);
-  store.set(roomDraft, []);
-});
+    root.status = EventStatus.CANCELLED;
+    act(() => {
+      room.emit(RoomEvent.LocalEchoUpdated, root, room, local);
+    });
+    expect(state.rootDeleted).toHaveBeenCalledOnce();
+    state.thread = undefined;
+    rerenderView(rerender);
+    expect(store.get(roomDraft)).toEqual([...roomText, reply]);
+    expect(store.get(threadDraft)).toEqual([]);
+    store.set(roomDraft, []);
+  }
+);
 
 it("keeps another thread's text where it is as the column closes", () => {
   const store = getDefaultStore();

@@ -16,11 +16,7 @@ import {
   isLocalEchoEventId,
   resolveCanonicalThreadRootId,
 } from '../event-store/threads/threadRouteUtils';
-import {
-  createRoomInputSendSessionState,
-  getUploadRelationForSendSession,
-} from './roomInputSendSession';
-import type { TUploadContent } from '../matrix/matrix';
+import { getMessageRelation } from '../matrix/send/composeMessageRelation';
 import type { PasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
 
 export type RoomInputAutocompletePrefix = typeof MINDROOM_COMMAND_PREFIX;
@@ -104,25 +100,11 @@ export const refreshRoomInputVoiceSendContext = (
   };
 };
 
-export const getRoomInputVoiceUploadRelation = (
-  context: PendingVoiceSendContext,
-  file: TUploadContent
-) => {
-  const session = {
-    threadId: context.threadId,
-    replyDraft: context.replyDraft,
-    threadingEnabled: context.threadingEnabled,
-    ...createRoomInputSendSessionState({
-      files: [file],
-      hasText: false,
-      threadId: context.threadId,
-      replyDraft: context.replyDraft,
-      threadingEnabled: context.threadingEnabled,
-    }),
-  };
-
-  return getUploadRelationForSendSession(session, false);
-};
+/** A voice message is one file without text: a reply, a thread reply, or neither. */
+export const getRoomInputVoiceUploadRelation = (context: PendingVoiceSendContext) =>
+  getMessageRelation(context.replyDraft?.eventId, context.replyDraft?.relation, context.threadId, {
+    allowThreadRelation: context.threadingEnabled,
+  });
 
 export const createRoomInputPasteMarkerElement = (
   marker: PasteMarker
