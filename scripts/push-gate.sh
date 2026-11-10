@@ -233,10 +233,10 @@ check_lint() {
   local rc=0 files=() scope problems
   mapfile -t files < <(
     git -C "$checkout" diff --name-only --diff-filter=ACMR "$base_sha...$sha" -- \
-      src e2e scripts vite.config.js vitest.config.ts .eslintrc.cjs | grep -E '\.(ts|tsx|js|mjs|cjs)$' || true
+      src e2e scripts vite.config.js vitest.config.ts .eslintrc.cjs .eslintrc.plugin.cjs | grep -E '\.(ts|tsx|js|mjs|cjs)$' || true
   )
-  if printf '%s\n' "${files[@]}" | grep -qxF .eslintrc.cjs; then
-    scope='every file (.eslintrc.cjs changed)'
+  if printf '%s\n' "${files[@]}" | grep -qxE '\.eslintrc\.cjs|scripts/eslint-shared\.cjs'; then
+    scope='every file (the ESLint config changed)'
     (cd "$tree" && npm run lint) >"$logs/lint.log" 2>&1 || rc=$?
   elif [ ${#files[@]} -eq 0 ]; then
     echo 'no changed files to lint'
