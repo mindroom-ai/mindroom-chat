@@ -38,13 +38,15 @@ export const useRoomEscapeReadReceipts = ({
             .some((place) => place.roomId === roomId && place.threadId === threadId);
         if (store.get(conversationOutOfSightAtom) && !threadShows) return;
         if (!isKeyHotkey('escape', evt)) return;
-        // Beside the thread's column, Escape outside the column is the room's messages'.
+        // Beside the thread's column, Escape outside the column is the room's messages'. The key's
+        // target says where it was pressed: the focus shortcut may have moved the focus since.
         const messagesBeside = store
           .get(shownConversationViewsAtom)
           .some((place) => place.roomId === roomId && place.view === ROOM_MESSAGES_VIEW);
         if (
           threadId &&
-          (!messagesBeside || !!document.activeElement?.closest?.('[data-thread-column]'))
+          (!messagesBeside ||
+            (evt.target instanceof Element && !!evt.target.closest('[data-thread-column]')))
         ) {
           markThreadAsRead(mx, roomId, threadId, hideActivity);
           return;

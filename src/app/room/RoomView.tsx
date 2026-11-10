@@ -322,7 +322,8 @@ export function RoomView({
   const columnRef = useRef<HTMLDivElement>(null);
   const focusComposer = useCallback(() => {
     if (!columnFills) ReactEditor.focus(editor as ReactEditor);
-    else columnRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus();
+    // Its composer's, not a message edit open in its timeline.
+    else columnRef.current?.querySelector<HTMLElement>('[data-editable-name="RoomInput"]')?.focus();
   }, [columnFills, editor]);
   useTypeToCompose(focusComposer, columnFills ? !behindPanel : composerShown && !hidden);
   useRoomOverlayInsets(areaRef, headerRef, footerRef, dockRef, effectiveThreadId);
@@ -549,9 +550,6 @@ export function RoomView({
                 </SurfaceProvider>
               </div>
             )}
-            {columnFills && (
-              <BackgroundJobsBar room={room} threadId={columnThreadId} canCancel={canCancelJobs} />
-            )}
             <ThreadView
               room={room}
               threadId={columnThreadId}
@@ -562,6 +560,10 @@ export function RoomView({
               onThreadLoadError={onThreadLoadError}
               onUnmount={onColumnGone}
             />
+            {/* Under the thread, where its list of jobs opens upward over the timeline. */}
+            {columnFills && (
+              <BackgroundJobsBar room={room} threadId={columnThreadId} canCancel={canCancelJobs} />
+            )}
           </div>
         </ResizablePanel>
       )}

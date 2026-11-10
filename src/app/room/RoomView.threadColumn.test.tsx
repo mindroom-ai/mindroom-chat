@@ -141,7 +141,14 @@ vi.mock('./ThreadView', async () => {
           data-hidden={hidden}
         >
           {header}
-          <div contentEditable suppressContentEditableWarning aria-label="Reply" />
+          {/* A message edit open in its timeline comes before its composer. */}
+          <div contentEditable suppressContentEditableWarning aria-label="Edit" />
+          <div
+            contentEditable
+            suppressContentEditableWarning
+            data-editable-name="RoomInput"
+            aria-label="Reply"
+          />
         </div>
       );
     },
