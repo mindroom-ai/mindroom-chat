@@ -812,6 +812,7 @@
     "caughtUpDescription": "Mentions, replies in your threads and anything that waits for you show up here.",
     "pickTitle": "Pick something from Activity",
     "pickDescription": "Its thread opens here, beside the list.",
+    "pickDescriptionPhone": "Open the menu to pick one.",
     "bellLabel": "Activity",
     "bellLabelCount_one": "Activity, {{count}} unread",
     "bellLabelCount_other": "Activity, {{count}} unread",
@@ -854,6 +855,7 @@
     "noMatches": "No thread matches this search",
     "pickTitle": "Pick a thread",
     "pickDescription": "It opens here, beside the list.",
+    "pickDescriptionPhone": "Open the menu to pick one.",
     "needsYouLabel_one": "Threads, {{count}} waits for you",
     "needsYouLabel_other": "Threads, {{count}} wait for you"
   }

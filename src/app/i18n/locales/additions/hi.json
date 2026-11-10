@@ -812,6 +812,7 @@
     "caughtUpDescription": "उल्लेख, आपके थ्रेड में जवाब और आपकी प्रतीक्षा में रही हर चीज़ यहाँ दिखती है।",
     "pickTitle": "गतिविधि में से कुछ चुनें",
     "pickDescription": "उसका थ्रेड यहाँ, सूची के बगल में खुलता है।",
+    "pickDescriptionPhone": "चुनने के लिए मेनू खोलें।",
     "bellLabel": "गतिविधि",
     "bellLabelCount_one": "गतिविधि, {{count}} अपठित",
     "bellLabelCount_other": "गतिविधि, {{count}} अपठित",
@@ -854,6 +855,7 @@
     "noMatches": "कोई थ्रेड इस खोज से मेल नहीं खाता",
     "pickTitle": "कोई थ्रेड चुनें",
     "pickDescription": "यह यहाँ, सूची के बगल में खुलता है।",
+    "pickDescriptionPhone": "चुनने के लिए मेनू खोलें।",
     "needsYouLabel_one": "थ्रेड, {{count}} आपकी प्रतीक्षा में",
     "needsYouLabel_other": "थ्रेड, {{count}} आपकी प्रतीक्षा में"
   }

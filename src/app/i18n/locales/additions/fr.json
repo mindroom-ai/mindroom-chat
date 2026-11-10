@@ -828,6 +828,7 @@
     "caughtUpDescription": "Les mentions, les réponses dans vos fils et tout ce qui vous attend apparaissent ici.",
     "pickTitle": "Choisissez un élément de l’activité",
     "pickDescription": "Son fil s’ouvre ici, à côté de la liste.",
+    "pickDescriptionPhone": "Ouvrez le menu pour en choisir un.",
     "bellLabel": "Activité",
     "bellLabelCount_one": "Activité, {{count}} non lu",
     "bellLabelCount_many": "Activité, {{count}} non lus",
@@ -871,6 +872,7 @@
     "noMatches": "Aucun fil ne correspond à cette recherche",
     "pickTitle": "Choisissez un fil",
     "pickDescription": "Il s’ouvre ici, à côté de la liste.",
+    "pickDescriptionPhone": "Ouvrez le menu pour en choisir un.",
     "needsYouLabel_one": "Fils, {{count}} vous attend",
     "needsYouLabel_many": "Fils, {{count}} vous attendent",
     "needsYouLabel_other": "Fils, {{count}} vous attendent"

@@ -812,6 +812,7 @@
     "caughtUpDescription": "Erwähnungen, Antworten in deinen Threads und alles, was auf dich wartet, erscheinen hier.",
     "pickTitle": "Wähle etwas aus der Aktivität",
     "pickDescription": "Der Thread dazu öffnet sich hier, neben der Liste.",
+    "pickDescriptionPhone": "Öffne das Menü, um etwas auszuwählen.",
     "bellLabel": "Aktivität",
     "bellLabelCount_one": "Aktivität, {{count}} ungelesen",
     "bellLabelCount_other": "Aktivität, {{count}} ungelesen",
@@ -854,6 +855,7 @@
     "noMatches": "Kein Thread passt zu dieser Suche",
     "pickTitle": "Wähle einen Thread",
     "pickDescription": "Er öffnet sich hier, neben der Liste.",
+    "pickDescriptionPhone": "Öffne das Menü, um etwas auszuwählen.",
     "needsYouLabel_one": "Threads, {{count}} wartet auf dich",
     "needsYouLabel_other": "Threads, {{count}} warten auf dich"
   }

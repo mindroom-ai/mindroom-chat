@@ -1,17 +1,20 @@
 import { Icon, Icons } from 'folds';
 import { useTranslation } from 'react-i18next';
+import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { Page, PageHero, PageHeroSection } from '../../ui/page/Page';
 
 /** The Threads section with no thread open: where the thread a row opens will show. */
 export function ThreadsEmpty() {
   const { t } = useTranslation();
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
   return (
     <Page>
       <PageHeroSection>
         <PageHero
           icon={<Icon size="600" src={Icons.Thread} />}
           title={t('threadsPage.pickTitle')}
-          subTitle={t('threadsPage.pickDescription')}
+          // On a phone the list is in the menu, not beside the page.
+          subTitle={t(phone ? 'threadsPage.pickDescriptionPhone' : 'threadsPage.pickDescription')}
         />
       </PageHeroSection>
     </Page>

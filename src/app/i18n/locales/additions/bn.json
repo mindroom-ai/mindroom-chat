@@ -812,6 +812,7 @@
     "caughtUpDescription": "উল্লেখ, আপনার থ্রেডের উত্তর এবং আপনার অপেক্ষায় থাকা সবকিছু এখানে দেখা যায়।",
     "pickTitle": "কার্যকলাপ থেকে কিছু বেছে নিন",
     "pickDescription": "এর থ্রেড এখানে, তালিকার পাশে খোলে।",
+    "pickDescriptionPhone": "একটি বেছে নিতে মেনু খুলুন।",
     "bellLabel": "কার্যকলাপ",
     "bellLabelCount_one": "কার্যকলাপ, {{count}}টি অপঠিত",
     "bellLabelCount_other": "কার্যকলাপ, {{count}}টি অপঠিত",
@@ -854,6 +855,7 @@
     "noMatches": "এই অনুসন্ধানের সাথে কোনো থ্রেড মেলেনি",
     "pickTitle": "একটি থ্রেড বেছে নিন",
     "pickDescription": "এটি এখানে, তালিকার পাশে খোলে।",
+    "pickDescriptionPhone": "একটি বেছে নিতে মেনু খুলুন।",
     "needsYouLabel_one": "থ্রেড, {{count}}টি আপনার অপেক্ষায়",
     "needsYouLabel_other": "থ্রেড, {{count}}টি আপনার অপেক্ষায়"
   }

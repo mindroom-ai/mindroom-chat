@@ -796,6 +796,7 @@
     "caughtUpDescription": "提及、你的讨论串中的回复以及等待你处理的所有事项都会显示在这里。",
     "pickTitle": "从动态中选择一项",
     "pickDescription": "它所在的讨论串会在列表旁边打开。",
+    "pickDescriptionPhone": "打开菜单进行选择。",
     "bellLabel": "动态",
     "bellLabelCount_other": "动态，{{count}} 条未读",
     "openActivity": "打开动态",
@@ -837,6 +838,7 @@
     "noMatches": "没有与此搜索匹配的讨论串",
     "pickTitle": "选择一个讨论串",
     "pickDescription": "它会在列表旁边打开。",
+    "pickDescriptionPhone": "打开菜单进行选择。",
     "needsYouLabel_other": "讨论串，{{count}} 个待你处理"
   }
 }

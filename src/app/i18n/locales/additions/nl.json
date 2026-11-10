@@ -812,6 +812,7 @@
     "caughtUpDescription": "Vermeldingen, antwoorden in je threads en alles wat op je wacht, verschijnen hier.",
     "pickTitle": "Kies iets uit Activiteit",
     "pickDescription": "De bijbehorende thread opent hier, naast de lijst.",
+    "pickDescriptionPhone": "Open het menu om er een te kiezen.",
     "bellLabel": "Activiteit",
     "bellLabelCount_one": "Activiteit, {{count}} ongelezen",
     "bellLabelCount_other": "Activiteit, {{count}} ongelezen",
@@ -854,6 +855,7 @@
     "noMatches": "Geen thread past bij deze zoekopdracht",
     "pickTitle": "Kies een thread",
     "pickDescription": "Die opent hier, naast de lijst.",
+    "pickDescriptionPhone": "Open het menu om er een te kiezen.",
     "needsYouLabel_one": "Threads, {{count}} wacht op jou",
     "needsYouLabel_other": "Threads, {{count}} wachten op jou"
   }

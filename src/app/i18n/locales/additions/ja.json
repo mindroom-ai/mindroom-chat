@@ -796,6 +796,7 @@
     "caughtUpDescription": "メンション、自分のスレッドへの返信、あなたの対応を待っている項目がここに表示されます。",
     "pickTitle": "アクティビティから項目を選択",
     "pickDescription": "そのスレッドがリストの横に開きます。",
+    "pickDescriptionPhone": "メニューを開いて選んでください。",
     "bellLabel": "アクティビティ",
     "bellLabelCount_other": "アクティビティ、未読 {{count}} 件",
     "openActivity": "アクティビティを開く",
@@ -837,6 +838,7 @@
     "noMatches": "この検索に一致するスレッドはありません",
     "pickTitle": "スレッドを選択",
     "pickDescription": "リストの横に開きます。",
+    "pickDescriptionPhone": "メニューを開いて選んでください。",
     "needsYouLabel_other": "スレッド、{{count}} 件が対応待ち"
   }
 }

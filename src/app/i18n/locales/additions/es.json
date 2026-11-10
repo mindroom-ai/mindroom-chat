@@ -828,6 +828,7 @@
     "caughtUpDescription": "Aquí aparecen las menciones, las respuestas en tus hilos y todo lo que te espera.",
     "pickTitle": "Elige algo de Actividad",
     "pickDescription": "Su hilo se abre aquí, junto a la lista.",
+    "pickDescriptionPhone": "Abre el menú para elegir uno.",
     "bellLabel": "Actividad",
     "bellLabelCount_one": "Actividad, {{count}} sin leer",
     "bellLabelCount_many": "Actividad, {{count}} sin leer",
@@ -871,6 +872,7 @@
     "noMatches": "Ningún hilo coincide con esta búsqueda",
     "pickTitle": "Elige un hilo",
     "pickDescription": "Se abre aquí, junto a la lista.",
+    "pickDescriptionPhone": "Abre el menú para elegir uno.",
     "needsYouLabel_one": "Hilos, {{count}} te espera",
     "needsYouLabel_many": "Hilos, {{count}} te esperan",
     "needsYouLabel_other": "Hilos, {{count}} te esperan"

@@ -796,6 +796,7 @@
     "caughtUpDescription": "Sebutan, balasan di utas Anda, dan apa pun yang menunggu Anda muncul di sini.",
     "pickTitle": "Pilih sesuatu dari Aktivitas",
     "pickDescription": "Utasnya terbuka di sini, di samping daftar.",
+    "pickDescriptionPhone": "Buka menu untuk memilih.",
     "bellLabel": "Aktivitas",
     "bellLabelCount_other": "Aktivitas, {{count}} belum dibaca",
     "openActivity": "Buka Aktivitas",
@@ -837,6 +838,7 @@
     "noMatches": "Tidak ada utas yang cocok dengan pencarian ini",
     "pickTitle": "Pilih utas",
     "pickDescription": "Utas terbuka di sini, di samping daftar.",
+    "pickDescriptionPhone": "Buka menu untuk memilih.",
     "needsYouLabel_other": "Utas, {{count}} menunggu Anda"
   }
 }

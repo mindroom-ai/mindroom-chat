@@ -828,6 +828,7 @@
     "caughtUpDescription": "Qui compaiono le menzioni, le risposte nei tuoi thread e tutto ciò che ti aspetta.",
     "pickTitle": "Scegli un elemento da Attività",
     "pickDescription": "Il suo thread si apre qui, accanto all’elenco.",
+    "pickDescriptionPhone": "Apri il menu per sceglierne uno.",
     "bellLabel": "Attività",
     "bellLabelCount_one": "Attività, {{count}} non letto",
     "bellLabelCount_many": "Attività, {{count}} non letti",
@@ -871,6 +872,7 @@
     "noMatches": "Nessun thread corrisponde a questa ricerca",
     "pickTitle": "Scegli un thread",
     "pickDescription": "Si apre qui, accanto all’elenco.",
+    "pickDescriptionPhone": "Apri il menu per sceglierne uno.",
     "needsYouLabel_one": "Thread, {{count}} ti aspetta",
     "needsYouLabel_many": "Thread, {{count}} ti aspettano",
     "needsYouLabel_other": "Thread, {{count}} ti aspettano"

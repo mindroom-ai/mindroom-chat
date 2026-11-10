@@ -796,6 +796,7 @@
     "caughtUpDescription": "提及、你的討論串中的回覆以及等待你處理的所有事項都會顯示在這裡。",
     "pickTitle": "從動態中選擇一項",
     "pickDescription": "它所在的討論串會在清單旁邊開啟。",
+    "pickDescriptionPhone": "打開選單進行選擇。",
     "bellLabel": "動態",
     "bellLabelCount_other": "動態，{{count}} 則未讀",
     "openActivity": "開啟動態",
@@ -837,6 +838,7 @@
     "noMatches": "沒有符合此搜尋的討論串",
     "pickTitle": "選擇一個討論串",
     "pickDescription": "它會在清單旁邊開啟。",
+    "pickDescriptionPhone": "打開選單進行選擇。",
     "needsYouLabel_other": "討論串，{{count}} 個待你處理"
   }
 }

@@ -812,6 +812,7 @@
     "caughtUpDescription": "Bahsetmeler, konularınızdaki yanıtlar ve sizi bekleyen her şey burada görünür.",
     "pickTitle": "Etkinlikten bir öğe seçin",
     "pickDescription": "Konusu burada, listenin yanında açılır.",
+    "pickDescriptionPhone": "Seçmek için menüyü açın.",
     "bellLabel": "Etkinlik",
     "bellLabelCount_one": "Etkinlik, {{count}} okunmamış",
     "bellLabelCount_other": "Etkinlik, {{count}} okunmamış",
@@ -854,6 +855,7 @@
     "noMatches": "Bu aramayla eşleşen konu yok",
     "pickTitle": "Bir konu seçin",
     "pickDescription": "Burada, listenin yanında açılır.",
+    "pickDescriptionPhone": "Seçmek için menüyü açın.",
     "needsYouLabel_one": "Konular, {{count}} tanesi sizi bekliyor",
     "needsYouLabel_other": "Konular, {{count}} tanesi sizi bekliyor"
   }

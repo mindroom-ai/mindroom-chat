@@ -828,6 +828,7 @@
     "caughtUpDescription": "As menções, as respostas nos seus tópicos e tudo o que está à sua espera aparecem aqui.",
     "pickTitle": "Escolha algo da Atividade",
     "pickDescription": "O tópico correspondente abre aqui, ao lado da lista.",
+    "pickDescriptionPhone": "Abra o menu para escolher um.",
     "bellLabel": "Atividade",
     "bellLabelCount_one": "Atividade, {{count}} não lido",
     "bellLabelCount_many": "Atividade, {{count}} não lidos",
@@ -871,6 +872,7 @@
     "noMatches": "Nenhum tópico corresponde a esta pesquisa",
     "pickTitle": "Escolha um tópico",
     "pickDescription": "Abre aqui, ao lado da lista.",
+    "pickDescriptionPhone": "Abra o menu para escolher um.",
     "needsYouLabel_one": "Tópicos, {{count}} à sua espera",
     "needsYouLabel_many": "Tópicos, {{count}} à sua espera",
     "needsYouLabel_other": "Tópicos, {{count}} à sua espera"
