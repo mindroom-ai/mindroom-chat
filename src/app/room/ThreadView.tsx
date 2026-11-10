@@ -1,5 +1,6 @@
 import {
   type CSSProperties,
+  type MutableRefObject,
   type ReactNode,
   useCallback,
   useEffect,
@@ -69,7 +70,7 @@ const TIMELINE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
  * dropped files, and it adds no key handling of its own. The room page's thread column gives it
  * the thread's banner as its `header`, the event its address names, the focus as it opens,
  * `hidden` while a side panel takes the page's place, the page's handler of a thread that does not
- * load, and `onUnmount`, which gets the thread it showed last as it goes.
+ * load, `onUnmount`, which gets the thread it showed last as it goes, and `focusRef`.
  */
 export function ThreadView({
   room,
@@ -80,6 +81,7 @@ export function ThreadView({
   hidden = false,
   onThreadLoadError,
   onUnmount,
+  focusRef,
 }: {
   room: Room;
   threadId: string;
@@ -89,6 +91,8 @@ export function ThreadView({
   hidden?: boolean;
   onThreadLoadError?: (threadId: string) => void;
   onUnmount?: (threadId: string) => void;
+  /** Holds, while it is mounted, the function that takes the focus to its composer. */
+  focusRef?: MutableRefObject<(() => void) | undefined>;
 }) {
   const client = useMatrixClient();
   const editor = useEditor();
@@ -125,6 +129,13 @@ export function ThreadView({
   );
 
   const focusConversation = useCallback(() => ReactEditor.focus(editor), [editor]);
+  useEffect(() => {
+    if (!focusRef) return undefined;
+    focusRef.current = focusConversation;
+    return () => {
+      focusRef.current = undefined;
+    };
+  }, [focusConversation, focusRef]);
   // Without a composer on screen there is nothing to focus. A root that gets its own ID is the
   // same thread: the focus stays where the person took it meanwhile.
   const previousThreadId = useRef<string>();

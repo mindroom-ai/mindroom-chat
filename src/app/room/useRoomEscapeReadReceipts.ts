@@ -23,7 +23,8 @@ export const useRoomEscapeReadReceipts = ({
   const store = useStore();
 
   // Escape marks the conversation as read, wherever the focus is on the page: an open thread, or
-  // else the room's own messages, never its threads.
+  // else the room's own messages, never its threads; beside the thread's column, the messages
+  // unless the key was pressed in the column.
   useKeyDown(
     window,
     useCallback(

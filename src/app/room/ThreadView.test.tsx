@@ -287,6 +287,15 @@ it('leaves the focus where it is when the root of its thread gets its own ID', (
   confirmed.mockRestore();
 });
 
+it("hands the page its composer's focus while it is mounted", () => {
+  const focusRef: { current?: () => void } = {};
+  const { unmount } = render(<ThreadView room={room} threadId={THREAD} focusRef={focusRef} />);
+  act(() => focusRef.current?.());
+  expect(document.activeElement).toBe(composer());
+  unmount();
+  expect(focusRef.current).toBeUndefined();
+});
+
 it('asks for the focus with no reply box to take it, and nothing breaks', () => {
   state.mayPost = false;
   render(<ThreadView room={room} threadId={THREAD} autoFocus />);

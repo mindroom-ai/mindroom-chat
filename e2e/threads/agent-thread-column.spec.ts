@@ -205,6 +205,10 @@ test('a thread opens beside the messages once chosen, takes their place when dra
     .click();
   await expect(column(page)).toHaveAttribute('data-filled', 'true');
   await expect(columnComposer(page)).toHaveText(unsent);
+  // Typing with the focus on the thread's text goes on in the column's composer, where it left off.
+  await column(page).getByText(`${word}c hello`, { exact: true }).click();
+  await page.keyboard.type(' more');
+  await expect(columnComposer(page)).toHaveText(`${unsent} more`);
   await expect(column(page).getByText(fileName, { exact: true })).toBeVisible();
   expect(await storedLayout(page)).toBe('"full"');
   await banner(column(page))

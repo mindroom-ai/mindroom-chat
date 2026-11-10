@@ -127,7 +127,16 @@ vi.mock('./ThreadView', async () => {
       hidden,
       onThreadLoadError,
       onUnmount,
+      focusRef,
     }: ComponentProps<typeof ThreadView>) => {
+      const reply = useRef<HTMLDivElement>(null);
+      useEffect(() => {
+        if (!focusRef) return undefined;
+        focusRef.current = () => reply.current?.focus();
+        return () => {
+          focusRef.current = undefined;
+        };
+      }, [focusRef]);
       const last = useRef({ threadId, onUnmount });
       last.current = { threadId, onUnmount };
       useEffect(() => () => last.current.onUnmount?.(last.current.threadId), []);
@@ -141,14 +150,7 @@ vi.mock('./ThreadView', async () => {
           data-hidden={hidden}
         >
           {header}
-          {/* A message edit open in its timeline comes before its composer. */}
-          <div contentEditable suppressContentEditableWarning aria-label="Edit" />
-          <div
-            contentEditable
-            suppressContentEditableWarning
-            data-editable-name="RoomInput"
-            aria-label="Reply"
-          />
+          <div ref={reply} contentEditable suppressContentEditableWarning aria-label="Reply" />
         </div>
       );
     },

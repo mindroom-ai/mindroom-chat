@@ -319,11 +319,10 @@ export function RoomView({
   // A side panel in the page's place hides the thread column too; a plugin's cover leaves it.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
   // Under the column that fills the page, typing goes to the column's composer instead.
-  const columnRef = useRef<HTMLDivElement>(null);
+  const focusColumn = useRef<() => void>();
   const focusComposer = useCallback(() => {
     if (!columnFills) ReactEditor.focus(editor as ReactEditor);
-    // Its composer's, not a message edit open in its timeline.
-    else columnRef.current?.querySelector<HTMLElement>('[data-editable-name="RoomInput"]')?.focus();
+    else focusColumn.current?.();
   }, [columnFills, editor]);
   useTypeToCompose(focusComposer, columnFills ? !behindPanel : composerShown && !hidden);
   useRoomOverlayInsets(areaRef, headerRef, footerRef, dockRef, effectiveThreadId);
@@ -532,7 +531,7 @@ export function RoomView({
           expandLabel={t('thread.showFull')}
           testId="thread-column"
         >
-          <div ref={columnRef} style={COLUMN_STYLE} data-thread-column>
+          <div style={COLUMN_STYLE} data-thread-column>
             {/* Filling the page, the column has the room's header the room area hides. */}
             {columnFills && (
               <div
@@ -559,6 +558,7 @@ export function RoomView({
               hidden={behindPanel}
               onThreadLoadError={onThreadLoadError}
               onUnmount={onColumnGone}
+              focusRef={focusColumn}
             />
             {/* Under the thread, where its list of jobs opens upward over the timeline. */}
             {columnFills && (
