@@ -13,7 +13,10 @@ import { LIVE_REASONING_KEY } from '../app/messages/live/useLiveReplyContent';
 import { pdfFrameUrl as appPdfFrameUrl } from '../app/messages/viewers/pdfFrame';
 import { PluginSidePanel } from '../app/room/PluginSidePanel';
 import { applyAppTheme } from '../app/theme/appliedTheme';
-import { PINCH_SURFACE_ATTRIBUTE as APP_PINCH_SURFACE_ATTRIBUTE } from '../app/theme/usePinchToZoom';
+import {
+  PINCH_SURFACE_ATTRIBUTE as APP_PINCH_SURFACE_ATTRIBUTE,
+  usePinchSurface as appUsePinchSurface,
+} from '../app/theme/usePinchToZoom';
 import { DarkTheme, LightTheme } from '../app/theme/useTheme';
 import { Dialog, Header, IconButton, Menu } from '../app/ui/glass/GlassPrimitives';
 import { PopOut } from '../app/ui/directional';
@@ -60,7 +63,13 @@ describe('@mindroom/client-sdk/ui', () => {
       PopOut,
     };
     const text = ['replaceMatrixUserIdsWithDisplayNames', 'sanitizeHtml', 'useMarkdownHtml'];
-    const ownSurface = ['PINCH_SURFACE_ATTRIBUTE', 'pdfFrameUrl', 'useScreenSize', 'useThemeKind'];
+    const ownSurface = [
+      'PINCH_SURFACE_ATTRIBUTE',
+      'pdfFrameUrl',
+      'usePinchSurface',
+      'useScreenSize',
+      'useThemeKind',
+    ];
     const panelMotion = ['animatePanel', 'usePanelPresence'];
     // The SDK only grows: a name a plugin imports never goes.
     expect(Object.keys(ui).sort()).toEqual(
@@ -71,6 +80,8 @@ describe('@mindroom/client-sdk/ui', () => {
     });
     // The page zoom leaves a pinch over an element with this attribute alone.
     expect(PINCH_SURFACE_ATTRIBUTE).toBe(APP_PINCH_SURFACE_ATTRIBUTE);
+    // The page zoom hands a surface of this hook its pinches.
+    expect(ui.usePinchSurface).toBe(appUsePinchSurface);
   });
 });
 
