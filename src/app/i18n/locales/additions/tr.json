@@ -686,7 +686,7 @@
   },
   "composer": {
     "voicePausedInThisRoom": "Ses kaydı duraklatıldı — bu odanın başka bir yerindeki gönderilmemiş kaydınızı tamamlayın veya silin",
-    "voiceThreadRootUnsent": "Konunun ilk mesajı henüz gönderilmedi. Gönderildiğinde bu sesli mesajı yeniden gönderin.",
+    "voiceThreadRootUnsent": "Bu sesli mesajın konusunda gönderilmiş bir ilk mesaj yok. O mesaj gönderildiğinde yeniden deneyin veya kaydı silin.",
     "emoji": "Emoji",
     "cancelReply": "Yanıtı iptal et",
     "moreActions": "Diğer işlemler",

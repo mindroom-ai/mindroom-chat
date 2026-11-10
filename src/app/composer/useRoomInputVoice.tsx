@@ -316,7 +316,8 @@ export const useRoomInputVoice = ({
         if (!liveContext) {
           throw new Error(t('composer.voiceRoomUnavailable'));
         }
-        // No reply can point at a root the server has not confirmed; a retry once it has can.
+        // No reply can point at a root the server has not confirmed (still sending, or deleted
+        // unsent); a retry once it has can.
         if (isLocalEchoEventId(liveContext.threadId)) {
           throw new Error(t('composer.voiceThreadRootUnsent'));
         }

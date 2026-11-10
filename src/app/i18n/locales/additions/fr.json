@@ -697,7 +697,7 @@
   },
   "composer": {
     "voicePausedInThisRoom": "L'enregistrement vocal est en pause — terminez ou supprimez l'enregistrement non envoyé ailleurs dans ce salon",
-    "voiceThreadRootUnsent": "Le premier message du fil n'est pas encore envoyé. Renvoyez ce message vocal une fois qu'il l'est.",
+    "voiceThreadRootUnsent": "Le fil de ce message vocal n'a pas de premier message envoyé. Réessayez une fois ce message envoyé, ou supprimez l'enregistrement.",
     "emoji": "Émoji",
     "cancelReply": "Annuler la réponse",
     "moreActions": "Plus d’actions",

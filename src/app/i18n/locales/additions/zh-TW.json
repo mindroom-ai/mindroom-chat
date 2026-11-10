@@ -675,7 +675,7 @@
   },
   "composer": {
     "voicePausedInThisRoom": "錄音已暫停 — 完成或放棄在此聊天室其他位置未傳送的錄音",
-    "voiceThreadRootUnsent": "討論串的第一則訊息尚未傳送。傳送後請再次傳送此語音訊息。",
+    "voiceThreadRootUnsent": "此語音訊息所在的討論串沒有已傳送的第一則訊息。請在該訊息傳送後重試，或放棄此錄音。",
     "emoji": "表情符號",
     "cancelReply": "取消回覆",
     "moreActions": "更多操作",

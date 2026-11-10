@@ -675,7 +675,7 @@
   },
   "composer": {
     "voicePausedInThisRoom": "음성 녹음 일시 중지됨 — 이 방의 다른 곳에서 보내지 않은 녹음을 완료하거나 삭제하세요",
-    "voiceThreadRootUnsent": "스레드의 첫 메시지가 아직 전송되지 않았습니다. 전송된 후 이 음성 메시지를 다시 보내세요.",
+    "voiceThreadRootUnsent": "이 음성 메시지의 스레드에 전송된 첫 메시지가 없습니다. 그 메시지가 전송된 후 다시 시도하거나 녹음을 삭제하세요.",
     "emoji": "이모지",
     "cancelReply": "답장 취소",
     "moreActions": "추가 작업",

@@ -686,7 +686,7 @@
   },
   "composer": {
     "voicePausedInThisRoom": "Voice recording paused — finish or discard your unsent recording elsewhere in this room",
-    "voiceThreadRootUnsent": "The thread's first message is not sent yet. Send this voice message again once it is.",
+    "voiceThreadRootUnsent": "This voice message's thread has no sent first message. Retry once that message is sent, or discard the recording.",
     "emoji": "Emoji",
     "cancelReply": "Cancel reply",
     "moreActions": "More actions",

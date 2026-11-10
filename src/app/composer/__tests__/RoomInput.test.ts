@@ -2863,7 +2863,7 @@ describe('RoomInput', () => {
     );
     await act(async () => {
       await expect(getPrimarySendButton(renderer).props.onClick()).rejects.toThrow(
-        "The thread's first message is not sent yet."
+        "This voice message's thread has no sent first message."
       );
     });
     expect(mxState.uploadContent).not.toHaveBeenCalled();

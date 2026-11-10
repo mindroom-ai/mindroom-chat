@@ -697,7 +697,7 @@
   },
   "composer": {
     "voicePausedInThisRoom": "Registrazione vocale in pausa — completa o elimina la registrazione non inviata altrove in questa stanza",
-    "voiceThreadRootUnsent": "Il primo messaggio del thread non è ancora stato inviato. Invia di nuovo questo messaggio vocale quando lo sarà.",
+    "voiceThreadRootUnsent": "Il thread di questo messaggio vocale non ha un primo messaggio inviato. Riprova quando quel messaggio sarà inviato, oppure elimina la registrazione.",
     "emoji": "Emoji",
     "cancelReply": "Annulla risposta",
     "moreActions": "Altre azioni",
