@@ -109,8 +109,9 @@ main() {
       [ -n "$dir" ] || continue
       real="$(cd "$dir" && pwd -P)"
       if [ -d "$real/e2e" ]; then
-        mapfile -t -O "${#specs[@]}" specs < <(cd "$real" && find e2e -name '*.spec.ts' | sort |
-          sed "s|^|e2e-plugins/$(basename "$real")/|")
+        while IFS= read -r spec; do specs+=("e2e-plugins/$(basename "$real")/$spec"); done < <(
+          cd "$real" && find e2e -name '*.spec.ts' | sort
+        )
       fi
     done
   fi

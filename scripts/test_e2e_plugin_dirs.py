@@ -53,9 +53,9 @@ class PluginDirTestCase(unittest.TestCase):
             "E2E_MAX_CONCURRENT": "0",
         }
 
-    def repository(self, name: str, files: dict[str, str]) -> tuple[Path, str]:
+    def repository(self, files: dict[str, str]) -> tuple[Path, str]:
         """A Git repository with these scripts of this one (or the text given) and other files, and its commit."""
-        repo = self.tmp / name
+        repo = self.tmp / "app"
         for relative, text in files.items():
             target = repo / relative
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -87,7 +87,6 @@ class SlotPreviewTests(PluginDirTestCase):
     def setUp(self) -> None:
         super().setUp()
         self.app, self.sha = self.repository(
-            "app",
             {"scripts/e2e-slot.sh": "", "scripts/private-dir.sh": "", "e2e/docker-compose.yaml": "services: {}\n"},
         )
         self.tree = self.snapshots / "slot-98"
@@ -171,12 +170,19 @@ class SlotPreviewTests(PluginDirTestCase):
         self.assertEqual(os.readlink(copy / "node_modules/shared"), str(self.tmp / "shared"))
         self.assertEqual(os.readlink(copy / "node_modules/.bin/dep"), "../dep/index.js")
 
+    def test_an_absolute_link_into_the_directory_leads_into_the_copy(self) -> None:
+        plugin = self.plugin("plugin")
+        (plugin / "e2e/fixtures/alias.html").symlink_to(plugin / "e2e/fixtures/page.html")
+        result, _ = self.run_slot(MINDROOM_CLIENT_PLUGINS=str(plugin))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        copy = self.copies / "plugin"
+        self.assertEqual(os.readlink(copy / "e2e/fixtures/alias.html"), str(copy / "e2e/fixtures/page.html"))
+
 
 class SuiteTests(PluginDirTestCase):
     def setUp(self) -> None:
         super().setUp()
         self.repo, _ = self.repository(
-            "app",
             {
                 "scripts/e2e-suite.sh": "",
                 "scripts/private-dir.sh": "",
@@ -203,7 +209,8 @@ class SuiteTests(PluginDirTestCase):
         )
 
     def test_the_suite_runs_the_plugin_directories_specs_in_their_projects_on_the_production_build(self) -> None:
-        plugin = self.plugin("plugin[1]")
+        # A name with characters that mean something to sed and to regular expressions.
+        plugin = self.plugin("plugin[1]&")
         (plugin / "e2e/nested").mkdir()
         (plugin / "e2e/nested/b.spec.ts").write_text("\n")
         (plugin / "e2e/a.spec.ts").write_text("\n")
@@ -211,8 +218,8 @@ class SuiteTests(PluginDirTestCase):
             self.assertEqual(
                 self.runs(*options, E2E_PLUGIN_DIRS=str(plugin)),
                 [
-                    (r"e2e-plugins/plugin\[1\]/e2e/a\.spec\.ts --project=plugin[1]", True),
-                    (r"e2e-plugins/plugin\[1\]/e2e/nested/b\.spec\.ts --project=plugin[1]", True),
+                    (r"e2e-plugins/plugin\[1\]&/e2e/a\.spec\.ts --project=plugin[1]&", True),
+                    (r"e2e-plugins/plugin\[1\]&/e2e/nested/b\.spec\.ts --project=plugin[1]&", True),
                     ("e2e/a.spec.ts --project=chromium", options == []),
                 ],
             )

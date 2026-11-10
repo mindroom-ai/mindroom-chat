@@ -25,6 +25,14 @@ const ROOT = realpathSync(fileURLToPath(new URL('../..', import.meta.url)));
 // A link elsewhere in some checkouts.
 const NODE_MODULES = realpathSync(path.join(ROOT, 'node_modules'));
 
+/** This run's environment for a child process, without Vitest's variables and these. */
+const childEnv = (...unset: string[]) =>
+  Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name]) => !name.startsWith('VITEST') && !unset.includes(name)
+    )
+  );
+
 const madeDirs: string[] = [];
 afterAll(() => madeDirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })));
 
@@ -225,9 +233,7 @@ describe("a listed plugin's unit tests", () => {
       {
         cwd: ROOT,
         env: {
-          ...Object.fromEntries(
-            Object.entries(process.env).filter(([name]) => !name.startsWith('VITEST'))
-          ),
+          ...childEnv(),
           MINDROOM_CLIENT_PLUGINS: dir,
           ...env,
         },
@@ -299,13 +305,7 @@ describe('playwright.config.ts', () => {
       {
         cwd: ROOT,
         env: {
-          ...Object.fromEntries(
-            Object.entries(process.env).filter(
-              ([name]) =>
-                !name.startsWith('VITEST') &&
-                !['E2E_PLUGIN_DIRS', 'PLAYWRIGHT_WEBKIT_EXECUTABLE'].includes(name)
-            )
-          ),
+          ...childEnv('E2E_PLUGIN_DIRS', 'PLAYWRIGHT_WEBKIT_EXECUTABLE'),
           ...(pluginDirs === undefined ? {} : { E2E_PLUGIN_DIRS: pluginDirs }),
         },
         maxBuffer: 64 * 1024 * 1024,

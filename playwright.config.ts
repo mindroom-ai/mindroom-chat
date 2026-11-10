@@ -55,7 +55,9 @@ const pluginProjects = pluginDirectories(process.env.E2E_PLUGIN_DIRS, ROOT).flat
   const testDir = path.join(dir, 'e2e');
   const hasSpecs =
     existsSync(testDir) &&
-    readdirSync(testDir, { recursive: true }).some((file) => String(file).endsWith('.spec.ts'));
+    readdirSync(testDir, { encoding: 'utf8', recursive: true }).some((file) =>
+      file.endsWith('.spec.ts')
+    );
   return hasSpecs
     ? [{ name: path.basename(dir), testDir, testMatch: '**/*.spec.ts', use: { ...chromeOnHost } }]
     : [];

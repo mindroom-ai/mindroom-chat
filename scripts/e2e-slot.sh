@@ -122,25 +122,19 @@ main() {
     if [ "$preview" = 1 ]; then
       build="$snapshots/builds/$sha"
       # The plugin directories (E2E_PLUGIN_DIRS) and client plugins (MINDROOM_CLIENT_PLUGINS) are
-      # copied into the snapshot, where the fixture page build finds the pages of the first
-      # (scripts/e2e-plugin-pages.mjs). No commit pins them, so such a build is this run's own.
+      # copied into the snapshot's e2e-plugins/, where the fixture page build finds the pages of
+      # each copy (scripts/e2e-plugin-pages.mjs). No commit pins them, so such a build is this run's own.
       if [ -n "${E2E_PLUGIN_DIRS:-}${MINDROOM_CLIENT_PLUGINS:-}" ]; then
         build="$snapshots/builds/slot-$slot"
         rm -rf "$build"
         mkdir -p "$tree/e2e-plugins"
         declare -A plugin_copies=()
-        if [ -n "${E2E_PLUGIN_DIRS:-}" ]; then
-          copy_plugin_dirs : "$E2E_PLUGIN_DIRS"
-          export E2E_PLUGIN_DIRS="$copies"
-        fi
-        if [ -n "${MINDROOM_CLIENT_PLUGINS:-}" ]; then
-          copy_plugin_dirs , "$MINDROOM_CLIENT_PLUGINS"
-          export MINDROOM_CLIENT_PLUGINS="$copies"
-        fi
+        copy_plugin_dirs E2E_PLUGIN_DIRS :
+        copy_plugin_dirs MINDROOM_CLIENT_PLUGINS ,
       fi
       mkdir -p "$snapshots/builds"
       (
-        # One build per commit (per run with E2E_PLUGIN_DIRS); slots that start together wait for the first one.
+        # One build per commit (per run with plugin directories); slots that start together wait for the first one.
         flock 9
         if [ ! -e "$build/.complete" ]; then
           echo "e2e-slot $slot: building ${sha:0:12} into $build" >&2
@@ -212,15 +206,15 @@ main() {
   without_token "$@"
 }
 
-# Copies the directories of the list $2, split on $1 only (so a name such as plugin[1] stays itself),
-# trimmed and relative to the snapshot $tree, into its e2e-plugins/, named as they are, and sets
-# `copies` to the list of the copies. A directory that plugin_copies already maps to its copy is not
-# copied again. A name another copy has refuses the run for E2E_PLUGIN_DIRS (":"), whose names the
-# fixture page URLs and Playwright projects take, and gets a number for MINDROOM_CLIENT_PLUGINS.
+# Copies the directories that the variable named $1 lists, split on $2 only (so a name such as
+# plugin[1] stays itself), trimmed and relative to the snapshot $tree, into its e2e-plugins/, named as
+# they are, and points the variable at the copies. A directory that plugin_copies already maps to its
+# copy is not copied again. A name another copy has refuses the run for E2E_PLUGIN_DIRS, whose names
+# the fixture page URLs and Playwright projects take, and gets a number for MINDROOM_CLIENT_PLUGINS.
 copy_plugin_dirs() {
-  local dir real copy name n parts link target
-  copies=
-  IFS="$1" read -r -a parts <<<"$2"
+  local dir real copy name n parts link target copies=
+  [ -n "${!1:-}" ] || return 0
+  IFS="$2" read -r -a parts <<<"${!1}"
   for dir in "${parts[@]}"; do
     dir="${dir#"${dir%%[![:space:]]*}"}"
     dir="${dir%"${dir##*[![:space:]]}"}"
@@ -232,7 +226,7 @@ copy_plugin_dirs() {
       copy="$tree/e2e-plugins/$name"
       n=1
       while [ -e "$copy" ]; do
-        if [ "$1" = : ]; then
+        if [ "$1" = E2E_PLUGIN_DIRS ]; then
           echo "e2e-slot: two directories of E2E_PLUGIN_DIRS are named $name" >&2
           exit 2
         fi
@@ -244,15 +238,23 @@ copy_plugin_dirs() {
       # Its link to the app, a link or a submodule (docs/development.md), stays out: the copy's is
       # the snapshot.
       tar -C "$real" --exclude=./.mindroom-chat -cf - . | tar -C "$copy" -xf -
-      # A link that leads out of the directory, as npm makes one for a local package, leads where it did.
+      # A link that leads out of the directory, as npm makes one for a local package, leads where it
+      # did, and an absolute one into the directory leads into the copy.
       find "$copy" -type l -print0 | while IFS= read -r -d '' link; do
         target="$(readlink -f "$real/${link#"$copy"/}" || true)"
-        case "$target" in "$real" | "$real"/* | "") ;; *) ln -sfn "$target" "$link" ;; esac
+        case "$target" in
+          "") ;;
+          "$real" | "$real"/*)
+            if [[ "$(readlink "$link")" == /* ]]; then ln -sfn "$copy${target#"$real"}" "$link"; fi
+            ;;
+          *) ln -sfn "$target" "$link" ;;
+        esac
       done
       if [ -e "$real/.mindroom-chat" ]; then ln -s "$tree" "$copy/.mindroom-chat"; fi
     fi
-    copies="${copies:+$copies$1}$copy"
+    copies="${copies:+$copies$2}$copy"
   done
+  export "$1=$copies"
 }
 
 # Runs a command without the run token's descriptor: only this script holds it, so a server the
