@@ -133,7 +133,7 @@ test('the bell lists what waits and what is new, and answers an approval in plac
   expect(response!.content.status).toBe('approved');
 });
 
-test('a row opens its thread beside the Activity list, and reading it clears the row', async ({
+test('a row opens its thread beside the Activity list, and reading it clears the row once left', async ({
   page,
 }) => {
   await signIn(page, fixture.person);
@@ -158,10 +158,14 @@ test('a row opens its thread beside the Activity list, and reading it clears the
   // The list stays beside the thread.
   await expect(list).toBeVisible();
 
+  // With Unread on, the row of the thread beside the list stays while it shows; once the thread
+  // is left, the read row goes.
   await list.getByRole('switch', { name: 'Unread' }).click();
-  await expect(list.getByText(`When should I leave for the airport ${RUN}?`)).toBeHidden({
-    timeout: 60_000,
-  });
+  const row = list.getByText(`When should I leave for the airport ${RUN}?`);
+  await expect(row).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/activity\/$/);
+  await expect(row).toBeHidden({ timeout: 60_000 });
 });
 
 test('on a phone the top bar bell opens Activity as a sheet', async ({ page }) => {

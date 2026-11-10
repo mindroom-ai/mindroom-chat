@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { allInvitesAtom } from '../matrix/state/inviteList';
+import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
 import { useMinuteClock } from '../lib/hooks/useMinuteClock';
 import {
   crossRoomThreadIndexAtom,
@@ -22,7 +23,8 @@ const QUIET: ThreadSignals = {
 
 /**
  * Activity's rows from the cross-room thread index and the pending invites, rebuilt when the
- * index changes and every minute; a thread's signals come from the client's shared cache.
+ * index or a room's unread counts change, and every minute; a thread's signals come from the
+ * client's shared cache.
  */
 const useComputedActivityRows = (): ActivityRowsResult => {
   const mx = useMatrixClient();
@@ -31,6 +33,9 @@ const useComputedActivityRows = (): ActivityRowsResult => {
   const inviteIds = useAtomValue(allInvitesAtom);
   const showAutomations = useAtomValue(activityShowAutomationsAtom);
   const now = useMinuteClock();
+  // Unread counts change with no index change: a read on another device, a sync after Mark all
+  // read. The room counts move only when they do, not with every streamed edit.
+  const roomUnreads = useAtomValue(roomToUnreadAtom);
 
   return useMemo(() => {
     const reader = getThreadSignalsReader(mx);
@@ -46,7 +51,9 @@ const useComputedActivityRows = (): ActivityRowsResult => {
       now,
       showAutomations,
     });
-  }, [index, inviteIds, mx, now, showAutomations, userId]);
+    // roomUnreads only triggers the rebuild; the signals read the counts themselves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, inviteIds, mx, now, roomUnreads, showAutomations, userId]);
 };
 
 /** Keeps Activity's rows current for the whole session; `ClientNonUIFeatures` mounts it once. */

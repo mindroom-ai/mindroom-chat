@@ -1,4 +1,4 @@
-import { ClientEvent, MatrixEventEvent, RoomEvent } from 'matrix-js-sdk';
+import { ClientEvent, MatrixEventEvent, NotificationCountType, RoomEvent } from 'matrix-js-sdk';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import type { CrossRoomThreadIndexEntry } from './crossRoomThreadIndex';
 import { seenThreadRootsVersion } from '../../matrix/seenThreadRoots';
@@ -36,6 +36,8 @@ export const createThreadSignalsReader = (
         roomChanges(room),
         // A root this device took for read, which sends no receipt and so no room event.
         seenThreadRootsVersion(),
+        // The server's count of the thread's mentions, which a sync changes with no event.
+        room.getThreadUnreadNotificationCount(entry.threadRootId, NotificationCountType.Highlight),
         events.length,
         events.at(-1)?.getId() ?? '',
       ].join(':');

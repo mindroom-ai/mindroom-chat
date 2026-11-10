@@ -29,8 +29,13 @@ const entry = (generation = 1, isInvolved = true) =>
 
 const makeRoom = () => {
   const thread = { events: [{ getId: () => '$a' }] };
-  const room = { roomId: '!r:x', getThread: () => thread } as unknown as Room;
-  return { room, thread };
+  const counts = { highlight: 0 };
+  const room = {
+    roomId: '!r:x',
+    getThread: () => thread,
+    getThreadUnreadNotificationCount: () => counts.highlight,
+  } as unknown as Room;
+  return { room, thread, counts };
 };
 
 afterEach(() => mocks.read.mockReset());
@@ -66,6 +71,20 @@ describe('createThreadSignalsReader', () => {
     reader.read(room, entry(), '@me:x', NOW);
     expect(mocks.read).toHaveBeenCalledTimes(1);
     heard += 1;
+    reader.read(room, entry(), '@me:x', NOW);
+    expect(mocks.read).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads again when the server counts the thread's mentions anew, with no event", () => {
+    mocks.read.mockReturnValue(quiet);
+    const { room, counts } = makeRoom();
+    const reader = createThreadSignalsReader();
+    counts.highlight = 1;
+    reader.read(room, entry(), '@me:x', NOW);
+    reader.read(room, entry(), '@me:x', NOW);
+    expect(mocks.read).toHaveBeenCalledTimes(1);
+    // A sync after Mark all read clears the count; no event or receipt comes with it.
+    counts.highlight = 0;
     reader.read(room, entry(), '@me:x', NOW);
     expect(mocks.read).toHaveBeenCalledTimes(2);
   });
