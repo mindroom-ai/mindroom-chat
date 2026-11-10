@@ -766,7 +766,11 @@
     }
   },
   "thread": {
-    "back": "Voltar"
+    "back": "Voltar",
+    "resize": "Redimensionar o tópico",
+    "showFull": "Mostrar o tópico inteiro",
+    "showBeside": "Mostrar o tópico ao lado das mensagens",
+    "showBesideBlocked": "Envie ou remova primeiro o que está no compositor"
   },
   "activity": {
     "title": "Atividade",

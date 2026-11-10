@@ -7,6 +7,7 @@ import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { Icons, config, type IconSrc } from 'folds';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThreadActionsMenu, type ThreadActionsMenuProps } from './ThreadActionsMenu';
+import { ShrinkIcon } from '../ui/panels/panelIcons';
 
 vi.mock('./ThreadContextBanner.css', () => ({ TagPickerInput: 'i', TagPickerInputContainer: 'c' }));
 vi.mock('../ui/styles/Motion.css', () => ({
@@ -96,8 +97,8 @@ const rows = (items: HTMLElement[]) =>
     label: item.textContent,
     icon: item.querySelector('svg')?.innerHTML,
   }));
-const resolveRow = (items: HTMLElement[]) =>
-  items.find((item) => item.dataset.threadAction === 'resolve');
+const rowOf = (items: HTMLElement[], action: string) =>
+  items.find((item) => item.dataset.threadAction === action);
 
 describe('ThreadActionsMenu rows', () => {
   it('lists the banner menu as tags, summary, resolve, pin, link, hide, each with its icon after the label', () => {
@@ -113,8 +114,8 @@ describe('ThreadActionsMenu rows', () => {
       { action: 'hideDetails', label: 'Hide thread details', icon: glyph(Icons.ChevronTop) },
     ]);
     // Resolve acts on the open thread here, so it shows the shortcut that does the same.
-    expect(resolveRow(items)?.getAttribute('aria-keyshortcuts')).toBe('Control+Shift+Enter');
-    expect(resolveRow(items)?.querySelector('[data-keys]')?.getAttribute('data-keys')).toBe(
+    expect(rowOf(items, 'resolve')?.getAttribute('aria-keyshortcuts')).toBe('Control+Shift+Enter');
+    expect(rowOf(items, 'resolve')?.querySelector('[data-keys]')?.getAttribute('data-keys')).toBe(
       'Ctrl+Shift+Enter'
     );
     // The icon follows the label, so the label starts the row and names it.
@@ -127,12 +128,41 @@ describe('ThreadActionsMenu rows', () => {
     });
   });
 
+  it('offers to show the thread beside the messages before Hide where the banner asks for it', () => {
+    const onShowBeside = vi.fn();
+    const onClose = vi.fn();
+    const items = renderMenu({ onShowBeside, onHideDetails: () => undefined, onClose });
+
+    expect(rows(items).slice(-3)).toEqual([
+      { action: 'copy', label: 'Copy thread link', icon: glyph(Icons.Link) },
+      {
+        action: 'showBeside',
+        label: 'Show the thread beside the messages',
+        icon: glyph(ShrinkIcon),
+      },
+      { action: 'hideDetails', label: 'Hide thread details', icon: glyph(Icons.ChevronTop) },
+    ]);
+    act(() => rowOf(items, 'showBeside')?.click());
+    expect(onShowBeside).toHaveBeenCalledOnce();
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('refuses to show the thread beside the messages while its composer holds a reply or files, and says why', () => {
+    const onShowBeside = vi.fn();
+    const items = renderMenu({ onShowBeside, showBesideBlocked: true });
+    const entry = rowOf(items, 'showBeside');
+    expect(entry?.getAttribute('aria-disabled')).toBe('true');
+    expect(entry?.textContent).toContain('Send or remove what the composer holds first');
+    act(() => entry?.click());
+    expect(onShowBeside).not.toHaveBeenCalled();
+  });
+
   it('starts a card menu with Open thread, and gives Reopen its own icon', () => {
     state.resolved = true;
     const menuItems = renderMenu({ onOpenThread: () => undefined });
     const items = rows(menuItems);
     // The shortcut resolves the open thread, not the card's.
-    expect(resolveRow(menuItems)?.hasAttribute('aria-keyshortcuts')).toBe(false);
+    expect(rowOf(menuItems, 'resolve')?.hasAttribute('aria-keyshortcuts')).toBe(false);
 
     expect(items.map((item) => item.action)).toEqual([
       'open',

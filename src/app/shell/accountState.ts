@@ -35,6 +35,7 @@ import {
 import {
   conversationBehindPanelAtom,
   conversationCoveredAtom,
+  conversationUnderThreadAtom,
 } from '../navigation/conversationCover';
 import { listNoticeSlotAtom, pageNoticeSlotAtom } from '../ui/noticeSlots';
 import { mDirectAtom } from '../matrix/state/mDirectList';
@@ -125,6 +126,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(phoneSheetOpenAtom),
   toInitial(conversationCoveredAtom),
   toInitial(conversationBehindPanelAtom),
+  toInitial(conversationUnderThreadAtom),
   toInitial(listNoticeSlotAtom),
   toInitial(pageNoticeSlotAtom),
 ];

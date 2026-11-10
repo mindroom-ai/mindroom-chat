@@ -744,7 +744,11 @@
     }
   },
   "thread": {
-    "back": "뒤로"
+    "back": "뒤로",
+    "resize": "스레드 크기 조정",
+    "showFull": "스레드를 전체로 보기",
+    "showBeside": "스레드를 메시지 옆에 보기",
+    "showBesideBlocked": "먼저 입력창에 있는 것을 보내거나 지우세요"
   },
   "activity": {
     "title": "활동",

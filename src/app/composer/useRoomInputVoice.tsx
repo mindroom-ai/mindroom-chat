@@ -16,6 +16,7 @@ import {
   roomUploadAtomFamily,
   voiceAutoSendPendingAtom,
   voiceComposerKey,
+  voiceRecorderRoomAtom,
 } from './roomInputDrafts';
 import { TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { pauseAllMediaElements } from '../lib/dom';
@@ -111,12 +112,22 @@ export const useRoomInputVoice = ({
   // account; ignore (and clean up) any draft that does not belong to us.
   const currentSessionId = mx.getUserId() ?? undefined;
   // A failed send recorded in this composer comes back in it.
-  const composerKey = voiceComposerKey(getContext());
+  const composerContext = getContext();
+  const composerKey = voiceComposerKey(composerContext);
+  const { roomId } = composerContext;
   const draftBelongsToCurrentSession =
     !!pendingVoiceSendDraft && pendingVoiceSendDraft.context.ownerSessionId === currentSessionId;
   const ownsPendingVoiceDraft =
     draftBelongsToCurrentSession && voiceComposerKey(pendingVoiceSendDraft.context) === composerKey;
   const otherComposerOwnsPendingVoiceDraft = draftBelongsToCurrentSession && !ownsPendingVoiceDraft;
+  // The room page keeps an open thread where it is while its recorder shows (RoomView).
+  const recorderShown = view === undefined && (voiceRecorderOpen || ownsPendingVoiceDraft);
+  const setRecorderRoom = useSetAtom(voiceRecorderRoomAtom);
+  useEffect(() => {
+    if (!recorderShown) return undefined;
+    setRecorderRoom(roomId);
+    return () => setRecorderRoom((shown) => (shown === roomId ? undefined : shown));
+  }, [recorderShown, roomId, setRecorderRoom]);
   const otherPendingVoiceRoomName =
     otherComposerOwnsPendingVoiceDraft && pendingVoiceSendDraft
       ? revealDirectionControls(

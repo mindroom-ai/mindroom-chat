@@ -744,7 +744,11 @@
     }
   },
   "thread": {
-    "back": "戻る"
+    "back": "戻る",
+    "resize": "スレッドのサイズを変更",
+    "showFull": "スレッドを全体に表示",
+    "showBeside": "スレッドをメッセージの横に表示",
+    "showBesideBlocked": "先に入力欄の内容を送信するか削除してください"
   },
   "activity": {
     "title": "アクティビティ",

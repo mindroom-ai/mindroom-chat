@@ -462,6 +462,10 @@ describe("the room header's actions", () => {
     expect(run).toHaveBeenLastCalledWith({ roomId: '!room:example.org', threadId: '$thread' });
     openMenu();
     expect(roomEntries()).toEqual(['Demo menu']);
+    // Beside the room's messages, the header is the room's, and its actions run in the thread.
+    renderHeader({ pluginActions, openThreadId: '$beside' });
+    runFromRow();
+    expect(run).toHaveBeenLastCalledWith({ roomId: '!room:example.org', threadId: '$beside' });
     // A thread whose root the server has not confirmed yet is left out.
     renderHeader({ pluginActions, threadId: '~local' });
     runFromRow();
