@@ -37,19 +37,23 @@ globalStyle(`${FloatingShell} ${PageSurface}:not(${PageSurface} *)`, {
 globalStyle(`${FloatingShell} ${PageDivider}`, { display: 'none' });
 
 // A side panel of a room is a card of the conversation's height, a gap after the conversation. The
-// room keeps the gap at its end around the panel, so the panel's card is as wide as the panel.
-globalStyle(`${FloatingShell} :has(> ${Panel}[data-side='end'])`, {
+// room keeps the gap at its end around the panel, so the panel's card is as wide as the panel. A
+// panel inside a page (the room page's thread column) is part of the page's card and stays flat,
+// its splitter's line between it and the conversation.
+const SIDE_PANEL = `${Panel}[data-side='end']:not(${PageSurface} *)`;
+globalStyle(`${FloatingShell} :has(> ${SIDE_PANEL})`, {
   paddingInlineEnd: CARD_GAP,
 });
-globalStyle(`${FloatingShell} ${Panel}[data-side='end']`, { paddingBlock: CARD_GAP });
+globalStyle(`${FloatingShell} ${SIDE_PANEL}`, { paddingBlock: CARD_GAP });
 // Expanded, a panel takes the conversation's place, so it keeps the gap on both sides.
-globalStyle(`${FloatingShell} ${Panel}[data-side='end'][data-filled]`, {
+globalStyle(`${FloatingShell} ${SIDE_PANEL}[data-filled]`, {
   paddingInlineStart: CARD_GAP,
 });
-globalStyle(`${FloatingShell} ${Panel}[data-side='end'] > :first-child`, card);
+globalStyle(`${FloatingShell} ${SIDE_PANEL} > :first-child`, card);
 
 // The splitters run through the gaps: each handle moves half a gap off its panel's edge, so it and
-// its line sit in the middle of the gap, and the line shows only while the splitter is used.
+// its line sit in the middle of the gap, and the line shows only while the splitter is used. A
+// splitter inside a page has no gap: it stays on the edge, its line always shown.
 const HALF_GAP = `calc(${CARD_GAP} / 2)`;
 // With a mouse the handle is exactly the gap, so it takes nothing from the list's scrollbar or the
 // cards; touch keeps its wider target.
@@ -60,12 +64,13 @@ const handleOffset = `calc(-1 * var(--mr-panel-handle-inset) - ${HALF_GAP})`;
 globalStyle(`${FloatingShell} ${Panel}[data-side='start'] > ${Handle}`, {
   insetInlineEnd: handleOffset,
 });
-globalStyle(`${FloatingShell} ${Panel}[data-side='end'] > ${Handle}${Handle}`, {
+globalStyle(`${FloatingShell} ${SIDE_PANEL} > ${Handle}${Handle}`, {
   insetInlineStart: handleOffset,
 });
-globalStyle(`${FloatingShell} ${Handle}:not(:hover):not(:focus-visible):not(:active)::after`, {
-  backgroundColor: 'transparent',
-});
+globalStyle(
+  `${FloatingShell} ${Handle}:not(${PageSurface} *):not(:hover):not(:focus-visible):not(:active)::after`,
+  { backgroundColor: 'transparent' }
+);
 
 // The conversation's minimap keeps off the card's edge, where it would read as a splitter grip.
 globalStyle(`${FloatingShell} ${MinimapContainer}`, { insetInlineStart: config.space.S100 });
