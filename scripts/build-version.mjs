@@ -130,8 +130,11 @@ export const readSourceVersion = (cwd) => {
   return `source-${hash.digest('hex').slice(0, 16)}`;
 };
 
-/** What a plugin's digest leaves out: its installed packages, for which its lockfile stands, and Git's data. */
-const PLUGIN_SKIP = new Set(['node_modules', '.git']);
+/**
+ * What a plugin's digest leaves out: its installed packages, for which its lockfile stands, Git's
+ * data, and the app it links in (`.mindroom-chat`, docs/development.md), which the version names.
+ */
+const PLUGIN_SKIP = new Set(['node_modules', '.git', '.mindroom-chat']);
 
 /**
  * The build version (resolveBuildVersion). A checkout without Git or provider variables (an

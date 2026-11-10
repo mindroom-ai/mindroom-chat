@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -59,6 +59,14 @@ describe('build version with client plugins', () => {
     mkdirSync(path.join(copy, 'node_modules', 'some-package'), { recursive: true });
     writeFileSync(path.join(copy, 'node_modules', 'some-package', 'index.js'), 'export {};\n');
     expect(versionWith(copy)).toBe(versionWith(original));
+  });
+
+  it('leaves out the app the plugin links in, also when the link leads back to the plugin', () => {
+    const original = plugin(ENTRY);
+    const linked = plugin(ENTRY);
+    // As in a snapshot of scripts/e2e-slot.sh, whose copy of the plugin links to the snapshot.
+    symlinkSync(linked, path.join(linked, '.mindroom-chat'));
+    expect(versionWith(linked)).toBe(versionWith(original));
   });
 
   // Pages take a published version of at most 128 characters (src/app/config/appVersion.ts).
