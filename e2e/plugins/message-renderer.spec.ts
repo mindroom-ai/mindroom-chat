@@ -32,7 +32,10 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // German once the app's language is German, without a reload, also in a reply that rendered while
 // the plugin's German strings were still loading. The plugin's pages open from their links, one
 // with the app's rail and one filling the window; an unknown plugin's page, and the example's with
-// `?plugins=off` or `enabled: false`, say "Page not found" where they are. Set
+// `?plugins=off` or `enabled: false`, say "Page not found" where they are. Activity (the bell's
+// popover and its page) and the Threads page preview an agent's greeting reply as the plugin does,
+// "Greeting: <text>", in German too once the app is, and a person's as its body; a thread an agent's
+// greeting starts takes that line as its title. With the plugin off, they show the bodies. Set
 // PLUGIN_SHOTS=<directory> to save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'client-plugin-password';
@@ -41,6 +44,13 @@ const GREETING = 'Hello from the example plugin';
 const GERMAN_LABEL = 'Beispiel-Plugin';
 const AGENT_BODY = 'Plain body of the agent reply';
 const PERSON_BODY = 'Plain body of a person';
+const ROW_GREETING = 'Hello from a row';
+const ROW_AGENT_BODY = 'Plain body of the agent row reply';
+const ROW_PERSON_BODY = 'Plain body of the person row reply';
+const CARD_GREETING = 'A thread from a greeting';
+const CARD_BODY = 'Plain body of the greeting root';
+const AGENT_ROOT = `Thread with an agent greeting ${RUN}`;
+const PERSON_ROOT = `Thread with a person greeting ${RUN}`;
 
 test.use({ viewport: { width: 1280, height: 800 } });
 test.describe.configure({ mode: 'serial' });
@@ -102,12 +112,14 @@ test.beforeAll(async () => {
   shippedConfig = JSON.parse(readFileSync(join(build, 'config.json'), 'utf8'));
 
   const person = await registerDisposableUser(`plugin_person_${RUN}`, PASSWORD);
+  const other = await registerDisposableUser(`plugin_other_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, 'greeter');
   const roomId = await createRoom(HOMESERVER, person.accessToken, {
     name: 'Plugin room',
-    invite: [agent.userId],
+    invite: [agent.userId, other.userId],
   });
   await joinRoom(HOMESERVER, agent.accessToken, roomId);
+  await joinRoom(HOMESERVER, other.accessToken, roomId);
   const rootId = await sendRoomMessage(HOMESERVER, person.accessToken, roomId, {
     msgtype: 'm.text',
     body: 'Greet me, please.',
@@ -126,6 +138,28 @@ test.beforeAll(async () => {
     ...inThread,
   });
   seeded = { person, roomId, rootId, agentReplyId, personMessageId };
+
+  // The rows' threads: an agent's greeting reply, a person's, and a thread a greeting starts.
+  const send = (user: DisposableUser, content: Record<string, unknown>) =>
+    sendRoomMessage(HOMESERVER, user.accessToken, roomId, { msgtype: 'm.text', ...content });
+  const reply = (root: string) => ({ 'm.relates_to': { rel_type: 'm.thread', event_id: root } });
+  const agentRoot = await send(person, { body: AGENT_ROOT });
+  await send(agent, {
+    body: ROW_AGENT_BODY,
+    'com.example.greeting': { text: ROW_GREETING },
+    ...reply(agentRoot),
+  });
+  const personRoot = await send(person, { body: PERSON_ROOT });
+  await send(other, {
+    body: ROW_PERSON_BODY,
+    'com.example.greeting': { text: ROW_GREETING },
+    ...reply(personRoot),
+  });
+  const cardRoot = await send(agent, {
+    body: CARD_BODY,
+    'com.example.greeting': { text: CARD_GREETING },
+  });
+  await send(person, { body: 'Thanks for the greeting', ...reply(cardRoot) });
 });
 
 test.afterAll(() => {
@@ -351,3 +385,121 @@ for (const [name, plugins, path] of [
       await shot(page, `plugin-page-not-found-${name.replace(/\W+/g, '-')}`);
     }));
 }
+
+/** The rows of Activity's popover, Activity's page and the Threads page, as `name` shows them. */
+const expectRows = async (
+  page: Page,
+  name: string,
+  expected: { agentReply: string; cardTitle: string; hidden: string[] }
+) => {
+  const check = async (rows: ReturnType<Page['locator']>, place: string) => {
+    const agentRow = rows.filter({ hasText: AGENT_ROOT });
+    await expect(agentRow).toContainText(expected.agentReply, { timeout: 60_000 });
+    await expect(rows.filter({ hasText: PERSON_ROOT })).toContainText(ROW_PERSON_BODY);
+    await expect(rows.filter({ hasText: expected.cardTitle })).toHaveCount(1);
+    for (const text of expected.hidden) await expect(rows.filter({ hasText: text })).toHaveCount(0);
+    await shot(page, `${name}-${place}`);
+  };
+  const bell = page.getByRole('button', { name: /^(Activity|Aktivität)/ }).first();
+  await bell.click();
+  const popover = page.getByRole('dialog');
+  await check(popover.locator('[data-activity-row]'), 'activity-popover');
+  await page.keyboard.press('Escape');
+  await page.goto('/activity/');
+  await check(page.locator('[data-activity-row]'), 'activity-page');
+  await page.goto('/threads/');
+  await page.getByRole('radio', { name: /^(All|Alle)$/ }).click();
+  await check(page.getByRole('navigation').getByRole('button'), 'threads-page');
+};
+
+const pluginRows = (language: 'en' | 'de' = 'en') => {
+  const label = language === 'de' ? 'Gruß' : 'Greeting';
+  return {
+    agentReply: `${label}: ${ROW_GREETING}`,
+    cardTitle: `${label}: ${CARD_GREETING}`,
+    hidden: [ROW_AGENT_BODY, CARD_BODY],
+  };
+};
+
+const coreRows = {
+  agentReply: ROW_AGENT_BODY,
+  cardTitle: CARD_BODY,
+  hidden: [`Greeting: ${ROW_GREETING}`, `Greeting: ${CARD_GREETING}`],
+};
+
+test("Activity and the Threads page preview an agent's greeting through the plugin", ({
+  browser,
+}) =>
+  onBuild(browser, {}, async (page, data) => {
+    await signIn(page, data);
+    await page.goto('/home/');
+    await expectRows(page, 'rows', pluginRows());
+  }));
+
+test('the rows read the German preview once the app is German, without a reload', ({ browser }) =>
+  onBuild(browser, {}, async (page, data) => {
+    await signIn(page, data);
+    await page.goto('/threads/');
+    await page.getByRole('radio', { name: 'All' }).click();
+    const rows = page.getByRole('navigation').getByRole('button');
+    await expect(rows.filter({ hasText: AGENT_ROOT })).toContainText(`Greeting: ${ROW_GREETING}`, {
+      timeout: 60_000,
+    });
+    await page.evaluate(() => {
+      (window as { pluginSpecLoad?: boolean }).pluginSpecLoad = true;
+    });
+    await pickLanguage(page, 'Deutsch');
+    await expect(rows.filter({ hasText: AGENT_ROOT })).toContainText(`Gruß: ${ROW_GREETING}`);
+    await expect(rows.filter({ hasText: `Gruß: ${CARD_GREETING}` })).toHaveCount(1);
+    await shot(page, 'rows-german-threads-page');
+    // Activity's popover, opened in the same page load.
+    await page
+      .getByRole('button', { name: /^Aktivität/ })
+      .first()
+      .click();
+    const popoverRows = page.getByRole('dialog').locator('[data-activity-row]');
+    await expect(popoverRows.filter({ hasText: AGENT_ROOT })).toContainText(
+      `Gruß: ${ROW_GREETING}`
+    );
+    await shot(page, 'rows-german-activity-popover');
+    expect(await page.evaluate(() => (window as { pluginSpecLoad?: boolean }).pluginSpecLoad)).toBe(
+      true
+    );
+  }));
+
+test('plugins.example.enabled: false previews every row by its body', ({ browser }) =>
+  onBuild(browser, { example: { enabled: false } }, async (page, data) => {
+    await signIn(page, data);
+    await page.goto('/home/');
+    await expectRows(page, 'rows-disabled', coreRows);
+  }));
+
+test('?plugins=off previews every row by its body', ({ browser }) =>
+  onBuild(browser, {}, async (page, data) => {
+    await page.goto(`${buildLoginPath(HOMESERVER)}?plugins=off`);
+    await page.locator('input[name="usernameInput"]').fill(data.person.username);
+    await page.locator('input[name="passwordInput"]').fill(data.person.password);
+    await page.getByRole('button', { name: 'Login' }).click();
+    await waitForLoggedInShell(page);
+    // The setting holds for the page load, so the lists open without loading the page again.
+    const open = (path: string) =>
+      page.evaluate((to) => {
+        window.history.pushState(null, '', to);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }, path);
+    await open('/threads/');
+    await page.getByRole('radio', { name: 'All' }).click();
+    const rows = page.getByRole('navigation').getByRole('button');
+    await expect(rows.filter({ hasText: AGENT_ROOT })).toContainText(ROW_AGENT_BODY, {
+      timeout: 60_000,
+    });
+    await expect(rows.filter({ hasText: CARD_BODY })).toHaveCount(1);
+    await expect(rows.filter({ hasText: `Greeting: ${ROW_GREETING}` })).toHaveCount(0);
+    await open('/activity/');
+    const activityRows = page.locator('[data-activity-row]');
+    await expect(activityRows.filter({ hasText: AGENT_ROOT })).toContainText(ROW_AGENT_BODY, {
+      timeout: 60_000,
+    });
+    await expect(activityRows.filter({ hasText: CARD_BODY })).toHaveCount(1);
+    await shot(page, 'rows-plugins-off');
+  }));
