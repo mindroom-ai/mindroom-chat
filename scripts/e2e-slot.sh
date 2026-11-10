@@ -20,8 +20,12 @@
 #   --preview           Serve a production build (`vite build`, then `vite preview`) instead of the
 #                       dev server; implies --snapshot. The build also holds the spec fixture pages
 #                       (e2e/fixtures/*.html) and is shared by every slot that tests the same commit;
-#                       with E2E_PLUGIN_DIRS, it also holds their fixture pages (the snapshot gets
-#                       copies of the directories in e2e-plugins/) and is the run's own.
+#                       with E2E_PLUGIN_DIRS, it also holds their fixture pages, and with
+#                       MINDROOM_CLIENT_PLUGINS those plugins, and is the run's own. The snapshot
+#                       gets copies of the directories of both in e2e-plugins/, each once, and both
+#                       variables name the copies, so edits in the directories never reach the run;
+#                       a copy's link to the app (.mindroom-chat) is a link to the snapshot, and its
+#                       links that lead out of the directory (a local package) lead where they did.
 #                       Specs that import /src/ modules need the dev server.
 #   --fresh             Start the slot's homeserver empty and delete it when the command ends.
 #   --rtc               Start the slot's call service (scripts/e2e-rtc.sh: LiveKit and a MatrixRTC
@@ -117,27 +121,20 @@ main() {
 
     if [ "$preview" = 1 ]; then
       build="$snapshots/builds/$sha"
-      # The plugin directories (E2E_PLUGIN_DIRS) are copied into the snapshot, where the fixture page
-      # build finds their pages (scripts/e2e-plugin-pages.mjs). No commit pins them, so such a build
-      # is this run's own.
-      if [ -n "${E2E_PLUGIN_DIRS:-}" ]; then
+      # The plugin directories (E2E_PLUGIN_DIRS) and client plugins (MINDROOM_CLIENT_PLUGINS) are
+      # copied into the snapshot's e2e-plugins/, where the fixture page build finds the pages of
+      # each copy (scripts/e2e-plugin-pages.mjs). No commit pins them, so such a build is this run's own.
+      if [ -n "${E2E_PLUGIN_DIRS:-}${MINDROOM_CLIENT_PLUGINS:-}" ]; then
         build="$snapshots/builds/slot-$slot"
         rm -rf "$build"
         mkdir -p "$tree/e2e-plugins"
-        (
-          cd "$tree"
-          # Split on ":" only: a name such as plugin[1] stays itself, as it does for Vite and stack.py.
-          IFS=:
-          set -f
-          for dir in $E2E_PLUGIN_DIRS; do
-            [ -n "$dir" ] || continue
-            real="$(cd "$dir" && pwd -P)" && cp -R "$real" "e2e-plugins/$(basename "$real")"
-          done
-        )
+        declare -A plugin_copies=()
+        copy_plugin_dirs E2E_PLUGIN_DIRS :
+        copy_plugin_dirs MINDROOM_CLIENT_PLUGINS ,
       fi
       mkdir -p "$snapshots/builds"
       (
-        # One build per commit (per run with E2E_PLUGIN_DIRS); slots that start together wait for the first one.
+        # One build per commit (per run with plugin directories); slots that start together wait for the first one.
         flock 9
         if [ ! -e "$build/.complete" ]; then
           echo "e2e-slot $slot: building ${sha:0:12} into $build" >&2
@@ -207,6 +204,57 @@ main() {
   export CHROMIUM_PATH="${CHROMIUM_PATH:-$(command -v chromium || true)}"
   export PLAYWRIGHT_CHROMIUM_EXECUTABLE="${PLAYWRIGHT_CHROMIUM_EXECUTABLE:-$CHROMIUM_PATH}"
   without_token "$@"
+}
+
+# Copies the directories that the variable named $1 lists, split on $2 only (so a name such as
+# plugin[1] stays itself), trimmed and relative to the snapshot $tree, into its e2e-plugins/, named as
+# they are, and points the variable at the copies. A directory that plugin_copies already maps to its
+# copy is not copied again. A name another copy has refuses the run for E2E_PLUGIN_DIRS, whose names
+# the fixture page URLs and Playwright projects take, and gets a number for MINDROOM_CLIENT_PLUGINS.
+copy_plugin_dirs() {
+  local dir real copy name n parts link target copies=
+  [ -n "${!1:-}" ] || return 0
+  mapfile -t -d "$2" parts < <(printf '%s' "${!1}")
+  for dir in "${parts[@]}"; do
+    dir="${dir#"${dir%%[![:space:]]*}"}"
+    dir="${dir%"${dir##*[![:space:]]}"}"
+    [ -n "$dir" ] || continue
+    real="$(cd "$tree" && cd "$dir" && pwd -P)"
+    copy="${plugin_copies[$real]:-}"
+    if [ -z "$copy" ]; then
+      name="$(basename "$real")"
+      copy="$tree/e2e-plugins/$name"
+      n=1
+      while [ -e "$copy" ]; do
+        if [ "$1" = E2E_PLUGIN_DIRS ]; then
+          echo "e2e-slot: two directories of E2E_PLUGIN_DIRS are named $name" >&2
+          exit 2
+        fi
+        n=$((n + 1))
+        copy="$tree/e2e-plugins/$name-$n"
+      done
+      plugin_copies[$real]="$copy"
+      mkdir "$copy"
+      # Its link to the app, a link or a submodule (docs/development.md), stays out: the copy's is
+      # the snapshot.
+      tar -C "$real" --exclude=./.mindroom-chat -cf - . | tar -C "$copy" -xf -
+      # A link that leads out of the directory, as npm makes one for a local package, leads where it
+      # did, and an absolute one into the directory leads into the copy.
+      find "$copy" -type l -print0 | while IFS= read -r -d '' link; do
+        target="$(readlink -f "$real/${link#"$copy"/}" || true)"
+        case "$target" in
+          "") ;;
+          "$real" | "$real"/*)
+            if [[ "$(readlink "$link")" == /* ]]; then ln -sfn "$copy${target#"$real"}" "$link"; fi
+            ;;
+          *) ln -sfn "$target" "$link" ;;
+        esac
+      done
+      if [ -e "$real/.mindroom-chat" ]; then ln -s "$tree" "$copy/.mindroom-chat"; fi
+    fi
+    copies="${copies:+$copies$2}$copy"
+  done
+  export "$1=$copies"
 }
 
 # Runs a command without the run token's descriptor: only this script holds it, so a server the

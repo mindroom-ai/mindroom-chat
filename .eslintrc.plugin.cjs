@@ -12,7 +12,8 @@ const {
   logicalSidesOverrides,
 } = require('./scripts/eslint-shared.cjs');
 
-const TESTS = ['**/*.test.{ts,tsx}', '**/__tests__/**'];
+// The plugin's end-to-end specs in its e2e/ count as tests, as the app's own do.
+const TESTS = ['**/*.test.{ts,tsx}', '**/__tests__/**', 'e2e/**'];
 
 module.exports = {
   ...COMMON,
@@ -51,7 +52,8 @@ module.exports = {
           {
             target: path.parse(__dirname).root,
             from: [path.join(__dirname, 'src'), path.join(__dirname, 'e2e')],
-            message: 'A plugin imports the app only through @mindroom/client-sdk/<subpath>.',
+            message:
+              'A plugin imports the app only through @mindroom/client-sdk/<subpath>, and its specs the e2e helpers through @mindroom/e2e/<helper>.',
           },
         ],
       },
@@ -65,6 +67,21 @@ module.exports = {
     {
       files: TESTS,
       rules: { '@typescript-eslint/no-explicit-any': 'off' },
+    },
+    {
+      // As in the app's own specs: WebKit comes from @mindroom/e2e/webkit, whose contexts keep
+      // Safari's user agent and block the service worker.
+      files: ['e2e/**/*.{ts,tsx}'],
+      rules: {
+        'no-restricted-properties': [
+          'error',
+          {
+            object: 'webkit',
+            property: 'launch',
+            message: 'Launch WebKit with launchWebKit or onWebKitPage from @mindroom/e2e/webkit.',
+          },
+        ],
+      },
     },
     {
       // Relative to the directory ESLint runs in: the plugin's.

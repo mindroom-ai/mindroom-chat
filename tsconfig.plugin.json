@@ -5,6 +5,11 @@
     "types": ["node"],
     "paths": {
       "@mindroom/client-sdk/*": ["./src/client-sdk/*"],
+      "@mindroom/e2e/*": ["./e2e/helpers/*"],
+      "@playwright/test": [
+        "./node_modules/@playwright/test/index.d.ts",
+        "./node_modules/@playwright/test/index.mjs"
+      ],
       "react": ["./node_modules/@types/react"],
       "react/*": ["./node_modules/@types/react/*"],
       "react-dom": ["./node_modules/@types/react-dom"],

@@ -11,9 +11,10 @@
 # rooms from earlier specs never crowd the account. Specs that import /src/ modules, and all of them
 # with --dev, get the dev server instead. Specs that name scripts/e2e-rtc.sh (the call specs) also
 # get the slot's call service (`e2e-slot.sh --rtc`). Each slot takes the next spec when it finishes one.
-# Without specs, every e2e/**/*.spec.ts of the commit runs. Playwright options default to
-# `--retries 1`; a test that passes on its retry counts as flaky. --slots takes `25-30` or `2,25,26`
-# (default 25-30). The run directory ($E2E_SNAPSHOT_ROOT/suite-<commit>-<time>, with logs, JSON
+# Without specs, every e2e/**/*.spec.ts of the commit runs, and with E2E_PLUGIN_DIRS each one in
+# those directories, as e2e-plugins/<directory name>/e2e/<spec>, always on the production build,
+# whose snapshot has their copies. Playwright options default to `--retries 1`; a test that passes
+# on its retry counts as flaky. --slots takes `25-30` or `2,25,26` (default 25-30). The run directory ($E2E_SNAPSHOT_ROOT/suite-<commit>-<time>, with logs, JSON
 # reports, traces and results.tsv; the root defaults to /tmp/mindroom-client-e2e, as in
 # scripts/e2e-slot.sh) is printed at the start; --out copies results.tsv there too.
 # results.tsv counts tests skipped because the run lacked a service, fixture, account or setting
@@ -100,6 +101,22 @@ main() {
   fi
   if [ ${#specs[@]} -eq 0 ]; then
     mapfile -t specs < <(git ls-tree -r --name-only "$sha" -- e2e | grep '\.spec\.ts$' | sort)
+    # And the specs in the e2e/ of each plugin directory (E2E_PLUGIN_DIRS, relative to the
+    # repository), by their path in the snapshot, whose e2e-plugins/ has a copy of the directory
+    # (scripts/e2e-slot.sh --preview).
+    mapfile -t -d : plugin_dirs < <(printf '%s' "${E2E_PLUGIN_DIRS:-}")
+    for dir in "${plugin_dirs[@]}"; do
+      # Trimmed, as scripts/e2e-slot.sh takes them.
+      dir="${dir#"${dir%%[![:space:]]*}"}"
+      dir="${dir%"${dir##*[![:space:]]}"}"
+      [ -n "$dir" ] || continue
+      real="$(cd "$dir" && pwd -P)"
+      if [ -d "$real/e2e" ]; then
+        while IFS= read -r spec; do specs+=("e2e-plugins/$(basename "$real")/$spec"); done < <(
+          cd "$real" && find e2e -name '*.spec.ts' | sort
+        )
+      fi
+    done
   fi
   mapfile -t dev_specs < <(git grep -l "'/src/" "$sha" -- e2e | sed "s/^$sha://")
   mapfile -t rtc_specs < <(git grep -l 'scripts/e2e-rtc\.sh' "$sha" -- e2e | sed "s/^$sha://")
@@ -130,7 +147,9 @@ main() {
   {
     for spec in "${specs[@]}"; do
       server=preview
-      if [ "$dev_all" = 1 ] || printf '%s\n' "${dev_specs[@]}" | grep -qxF "$spec"; then server=dev; fi
+      # A plugin directory's specs run only where the snapshot has its copy.
+      if { [ "$dev_all" = 1 ] && [[ "$spec" != e2e-plugins/* ]]; } ||
+        printf '%s\n' "${dev_specs[@]}" | grep -qxF "$spec"; then server=dev; fi
       case "$spec" in *.live.spec.ts) rank=0 ;; *) rank=1 ;; esac
       printf '%s\t%s\t%s\n' "$rank" "$server" "$spec"
     done
@@ -159,9 +178,27 @@ main() {
       local options=(--snapshot="$sha")
       if [ "$server" = preview ]; then options+=(--preview); fi
       if printf '%s\n' "${rtc_specs[@]}" | grep -qxF "$spec"; then options+=(--rtc); fi
+      # Playwright takes the spec as a regular expression that may match anywhere in a file's path,
+      # so e2e/a.spec.ts would also pick a plugin directory's e2e/a.spec.ts: with plugin directories,
+      # each run names its projects (playwright.config.ts), a plugin directory's spec, escaped, its
+      # directory's, and the app's specs the app's, unless the Playwright options name projects.
+      local filter="$spec" projects=()
+      case "$spec" in
+        e2e-plugins/*)
+          filter="$(printf '%s' "$spec" | sed 's/[][\.*^$+?(){}|]/\\&/g')"
+          projects=(--project="$(cut -d / -f 2 <<<"$spec")")
+          ;;
+        *)
+          if [ -n "${E2E_PLUGIN_DIRS:-}" ]; then
+            projects=(--project=chromium)
+            if [ -n "${PLAYWRIGHT_WEBKIT_EXECUTABLE:-}" ]; then projects+=(--project=webkit); fi
+          fi
+          ;;
+      esac
+      if printf '%s\n' "${playwright_options[@]}" | grep -q '^--project'; then projects=(); fi
       PLAYWRIGHT_JSON_OUTPUT_FILE="$run/json/$key.json" \
         bash "$repo/scripts/e2e-slot.sh" "$slot" "${options[@]}" \
-        npx playwright test "$spec" --reporter=list,json --output "$run/output/$key" \
+        npx playwright test "$filter" "${projects[@]}" --reporter=list,json --output "$run/output/$key" \
         "${playwright_options[@]}" >"$run/logs/$key.log" 2>&1 || status=$?
       printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$spec" "$run/json/$key.json" "$run/logs/$key.log" "$server" \
         "$status" "$load" >>"$run/manifest.tsv"
