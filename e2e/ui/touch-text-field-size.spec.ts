@@ -173,7 +173,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
   const desktop = await sizes(browser, baseURL, DESKTOP, username, `${engine}-desktop`);
   // A desktop keeps the size the fields were designed with, smaller than the phone's.
   expect(desktop.serverInput, `${engine}: the desktop keeps its own size`).toBeLessThan(16);
-  // 75 % of the 16 px root size, the composer's size at that zoom.
+  // 75 % of the 16 px root size.
   expect(await zoomedSize(browser, baseURL), `${engine}: fields follow Page Zoom`).toBe(12);
 };
 

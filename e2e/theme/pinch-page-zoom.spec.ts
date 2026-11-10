@@ -105,21 +105,26 @@ test('a pinch on a pinch surface leaves the page zoom, one across its edge chang
   expect(await page.evaluate(() => window.visualViewport?.scale)).toBe(1);
 });
 
-// iOS zooms the web view into an editable whose text is under 16 px when it takes the focus, and
-// with the web view's own pinch off nothing could zoom back out. The composer writes at 1rem, so
-// below 100 % page zoom it keeps 16 px on a touch screen, as the text fields do (index.css).
-test('the composer writes at 16 px or more at every page zoom', async ({ page }) => {
+// The composer writes at the size of a message body (folds' T400: 15 px on 22 px lines at the
+// default page zoom), on a touch screen too, so text keeps its size from the composer to the
+// thread at every page zoom. iOS does not zoom into it although that is under 16 px: WebKit pages
+// get maximum-scale=1 (index.html, e2e/ui/viewport-meta.spec.ts).
+test('the composer writes at the size of a message body at every page zoom', async ({ page }) => {
   await page.goto('/e2e/fixtures/composer-undo.html');
   const composer = page.locator('[contenteditable="true"]');
   await expect(composer).toBeVisible();
-  const fontSizeAt = (zoom: string) =>
-    composer.evaluate((element, rootSize) => {
+  await composer.click();
+  await page.keyboard.type('The load test passed');
+  const text = composer.locator('[data-slate-string]');
+  const textAt = (zoom: string) =>
+    text.evaluate((element, rootSize) => {
       document.documentElement.style.fontSize = rootSize;
-      return parseFloat(getComputedStyle(element).fontSize);
+      const { fontSize, lineHeight } = getComputedStyle(element);
+      return [parseFloat(fontSize), parseFloat(lineHeight)];
     }, zoom);
 
-  expect(await fontSizeAt('50%')).toBe(16);
-  expect(await fontSizeAt('80%')).toBe(16);
-  expect(await fontSizeAt('')).toBe(16);
-  expect(await fontSizeAt('150%')).toBe(24);
+  expect(await textAt('50%')).toEqual([7.5, 11]);
+  expect(await textAt('80%')).toEqual([12, 17.6]);
+  expect(await textAt('')).toEqual([15, 22]);
+  expect(await textAt('150%')).toEqual([22.5, 33]);
 });
