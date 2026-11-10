@@ -131,6 +131,27 @@ describe('useRoomEscapeReadReceipts', () => {
     act(() => renderer.unmount());
   });
 
+  it("marks nothing read under a plugin's cover while another thread's view shows", () => {
+    keyHotkeyMock.mockReturnValue(true);
+    const store = createStore();
+    store.set(conversationCoveredAtom, true);
+    store.set(shownConversationViewsAtom, [
+      { view: 'panel', roomId: '!room:server', threadId: '$other' },
+    ]);
+    const renderer = create(
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(Harness, { threadId: '$thread' })
+      )
+    );
+    act(() => {
+      state.handler?.({} as KeyboardEvent);
+    });
+    expect(markThreadAsReadMock).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+
   it('marks only the main timeline read on Escape outside a thread, never the threads', () => {
     keyHotkeyMock.mockReturnValue(true);
     create(React.createElement(Harness));

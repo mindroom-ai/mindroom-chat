@@ -236,6 +236,9 @@ it("shows the thread in its own column beside the room's messages once chosen, a
   // The thread's approvals are the column's.
   expect(state.approvalThread).toBeUndefined();
   expect(screen.getByRole('separator', { name: 'Resize the thread' })).toBeDefined();
+  // In the column the banner offers Full, not the menu's Show beside.
+  expect(screen.getByRole('button', { name: 'Full' })).toBeDefined();
+  expect(screen.queryByRole('button', { name: 'Beside' })).toBeNull();
 });
 
 it('shows the room timeline at an event the address asks for in the room, beside the thread', () => {
@@ -264,6 +267,9 @@ it('stores each choice and opens the next thread the way chosen last', () => {
   expect(column()?.dataset.thread).toBe('$next');
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
   expect(screen.queryByRole('separator')).toBeNull();
+  // Filling the page, the column offers the way back, not Full or Show beside's menu entry.
+  expect(screen.queryByRole('button', { name: 'Full' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Beside' })).toBeNull();
   expect(getDefaultStore().get(conversationHiddenAtom)).toBe(true);
   // The room's messages stay under it, out of reach.
   expect(screen.getByTestId('messages').closest('[aria-hidden="true"]')).not.toBeNull();
@@ -479,9 +485,14 @@ it('keeps the thread in its column as its unsent root gets its own ID, and only 
   rerenderView(rerender);
   expect(column()?.dataset.thread).toBe('$confirmed');
 
-  // Another thread opened after an unsent root opens as stored.
+  // Another thread opened after an unsent root in the column opens as stored.
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  state.thread = undefined;
+  rerenderView(rerender);
   state.thread = '~!room:example.org:m4.1';
   rerenderView(rerender);
+  expect(column()?.dataset.thread).toBe('~!room:example.org:m4.1');
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('full'));
   state.thread = '$unrelated';
   rerenderView(rerender);
   expect(column()).toBeNull();
