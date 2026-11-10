@@ -213,6 +213,9 @@ export function RoomViewHeader({
   const space = useSpaceOptionally();
   const spacePathId = space ? getCanonicalAliasOrRoomId(mx, space.roomId) : undefined;
   const direct = useIsDirectRoom();
+  // A sub-room of a chat room the client has (useParentRooms: listed by it and, once joined,
+  // naming it back as parent), also while the room list shows it on its own because that room is
+  // hidden: the header describes the room, not where a list puts it.
   const subRoom = useParentRooms(room).length > 0;
   const sectionPath = sectionPathOf(spacePathId, direct);
   // Not while a side panel in the conversation's place hides this header: its Members shortcut

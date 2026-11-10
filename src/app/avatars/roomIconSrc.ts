@@ -4,8 +4,8 @@ import { SubRoomGlobeIcon, SubRoomIcon, SubRoomLockIcon } from './subRoomIcons';
 
 // Kept apart from RoomAvatar.tsx so callers can use it without loading the avatar styles.
 /**
- * The icon for a room or space without an avatar, by how it can be joined. A sub-room, one a chat
- * room lists under it, frames its hash.
+ * The icon for a room or space without an avatar, by how it can be joined. A sub-room, one shown
+ * as nested under a chat room, frames its hash.
  */
 export const getRoomIconSrc = (space: boolean, joinRule?: string, subRoom = false): IconSrc => {
   const restricted = joinRule === JoinRule.Invite || joinRule === JoinRule.Knock;

@@ -7,8 +7,9 @@ import { getHomeRoomPath } from '../../routes/pathUtils';
 // A room row keeps state of its own, such as an open Leave prompt. When the list changes under
 // it, that state must stay with its room, not with the row's position.
 
-const { listed, passthrough, virtualizerKeys } = vi.hoisted(() => ({
+const { listed, passthrough, subRooms, virtualizerKeys } = vi.hoisted(() => ({
   listed: { roomIds: [] as string[] },
+  subRooms: { renderRoom: undefined as ((room: unknown) => React.ReactNode) | undefined },
   virtualizerKeys: { keyOf: undefined as ((index: number) => unknown) | undefined },
   passthrough: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
 }));
@@ -38,17 +39,35 @@ vi.mock('../../ui/nav/NavCategoryHeader', () => ({
 vi.mock('../../ui/VirtualTile', () => ({ VirtualTile: passthrough }));
 vi.mock('../../rooms/join/JoinAddressPrompt', () => ({ JoinAddressPrompt: () => null }));
 vi.mock('../room-nav/RoomNavCategoryButton', () => ({ RoomNavCategoryButton: passthrough }));
-// The rows under a room read its state, which these rooms do not have.
+// The rows under a room read its state, which these rooms do not have; how Home draws them is kept.
 vi.mock('../room-nav/SubRoomRows', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../room-nav/SubRoomRows')>()),
-  SubRoomRows: () => null,
+  SubRoomRows: ({ renderRoom }: { renderRoom: (room: unknown) => React.ReactNode }) => {
+    subRooms.renderRoom = renderRoom;
+    return null;
+  },
 }));
 vi.mock('../room-nav/SortableRoomList', () => ({
   SortableRoomList: passthrough,
   // Remembers the room it first showed, as RoomNavItem remembers which prompt is open.
-  SortableRoomRow: ({ room, linkPath }: { room: { roomId: string }; linkPath: string }) => {
+  SortableRoomRow: ({
+    room,
+    linkPath,
+    subRoom,
+  }: {
+    room: { roomId: string };
+    linkPath: string;
+    subRoom?: boolean;
+  }) => {
     const [firstRoomId] = useState(room.roomId);
-    return <div data-row-room={room.roomId} data-first-room={firstRoomId} data-link={linkPath} />;
+    return (
+      <div
+        data-row-room={room.roomId}
+        data-first-room={firstRoomId}
+        data-link={linkPath}
+        data-sub-room={subRoom}
+      />
+    );
   },
 }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
@@ -121,6 +140,7 @@ const rows = (renderer: ReactTestRenderer) =>
       room: node.props['data-row-room'] as string,
       first: node.props['data-first-room'] as string,
       link: node.props['data-link'] as string,
+      subRoom: node.props['data-sub-room'] as boolean | undefined,
     }));
 
 describe('Home room rows', () => {
@@ -154,5 +174,16 @@ describe('Home room rows', () => {
     });
 
     expect([0, 1].map((index) => virtualizerKeys.keyOf?.(index))).toEqual(['!bees', '!compost']);
+  });
+
+  it('frame the hash of the rows under a room, not of the rows on their own', () => {
+    listed.roomIds = ['!bees'];
+    act(() => {
+      renderer = create(<Home />);
+    });
+
+    expect(rows(renderer!).map((row) => row.subRoom)).toEqual([undefined]);
+    const under = subRooms.renderRoom?.({ roomId: '!bees-hives' });
+    expect(React.isValidElement<{ subRoom?: boolean }>(under) && under.props.subRoom).toBe(true);
   });
 });

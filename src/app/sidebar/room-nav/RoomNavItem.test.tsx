@@ -10,7 +10,6 @@ const testState = vi.hoisted(() => ({
   directAvatarMxc: undefined as string | undefined,
   roomAvatarMxc: undefined as string | undefined,
   backgroundJobs: [] as { jobId: string }[],
-  parentRooms: [] as Room[],
   setHover: undefined as ((hovering: boolean) => void) | undefined,
   matrixMxcUrlToHttp: vi.fn((mxc: string) =>
     mxc.startsWith('mxc://example.org/')
@@ -187,10 +186,6 @@ vi.mock('../../background-jobs/useRoomBackgroundJobs', () => ({
   }),
 }));
 
-vi.mock('../../matrix/state/subRooms', () => ({
-  useParentRooms: () => testState.parentRooms,
-}));
-
 vi.mock('../../matrix/matrix', () => ({
   getCanonicalAliasOrRoomId: (_mx: unknown, roomId: string) => roomId,
   isRoomAlias: () => false,
@@ -207,7 +202,9 @@ const room = {
   getType: () => undefined,
 } as unknown as Room;
 
-const renderRoomNavItem = (props: { direct?: boolean; showAvatar?: boolean } = {}) =>
+const renderRoomNavItem = (
+  props: { direct?: boolean; showAvatar?: boolean; subRoom?: boolean } = {}
+) =>
   create(
     <RoomNavItem
       room={room}
@@ -226,15 +223,14 @@ describe('RoomNavItem avatar', () => {
     testState.avatarMxc = undefined;
     testState.directAvatarMxc = undefined;
     testState.roomAvatarMxc = undefined;
-    testState.parentRooms = [];
     testState.matrixMxcUrlToHttp.mockClear();
   });
 
-  it('frames the icon of a sub-room, a room a chat room lists under it', () => {
+  it('frames the icon of a row shown under the room it is a sub-room of', () => {
     expect(findByTestId(renderRoomNavItem(), 'room-icon')[0].props.subRoom).toBe(false);
-
-    testState.parentRooms = [{ roomId: '!parent:example.org' } as Room];
-    expect(findByTestId(renderRoomNavItem(), 'room-icon')[0].props.subRoom).toBe(true);
+    expect(findByTestId(renderRoomNavItem({ subRoom: true }), 'room-icon')[0].props.subRoom).toBe(
+      true
+    );
   });
 
   it('upgrades the privacy icon to the room avatar when avatar state appears', () => {

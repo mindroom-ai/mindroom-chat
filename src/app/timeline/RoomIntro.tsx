@@ -23,6 +23,7 @@ export function RoomIntro({ room }: RoomIntroProps) {
   const name = revealDirectionControls(useRoomName(room));
   // A direct chat starts with the other person, as its header shows them.
   const withPerson = useIsDirectRoom();
+  // A sub-room of a chat room the client has, as the room header frames it.
   const subRoom = useParentRooms(room).length > 0;
   const roomTopic = useRoomTopic(room);
   const topic = roomTopic && revealDirectionControls(roomTopic);

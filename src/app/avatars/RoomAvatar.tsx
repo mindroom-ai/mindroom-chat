@@ -52,7 +52,7 @@ type RoomIconProps = {
   joinRule?: string;
   size?: '50' | '100' | '200' | '300' | '400' | '500' | '600';
   filled?: boolean;
-  /** A chat room lists the room as its sub-room: its hash is framed. */
+  /** The room shows as a sub-room of a chat room: its hash is framed. */
   subRoom?: boolean;
 };
 

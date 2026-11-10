@@ -2,7 +2,7 @@ import { Fragment, type ReactNode, useMemo } from 'react';
 import { useAtomValue } from 'jotai';
 import { Avatar, Box, Text, config } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { KnownMembership, type Room } from 'matrix-js-sdk';
+import { KnownMembership, RoomType, type Room } from 'matrix-js-sdk';
 import { NavItem, NavItemContent, NavLink } from '../../ui/nav/NavItem';
 import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import { RoomIcon } from '../../avatars/RoomAvatar';
@@ -136,7 +136,12 @@ function RoomToJoinRow({ roomId, viaServers, to }: RoomToJoinRowProps) {
               <NavItemContent>
                 <Box as="span" grow="Yes" alignItems="Center" gap="200">
                   <Avatar size="200" radii="400" style={{ opacity: config.opacity.P300 }}>
-                    <RoomIcon size="100" joinRule={summary?.join_rule} subRoom />
+                    <RoomIcon
+                      size="100"
+                      joinRule={summary?.join_rule}
+                      space={summary?.room_type === RoomType.Space}
+                      subRoom
+                    />
                   </Avatar>
                   <Box as="span" grow="Yes">
                     <Text as="span" size="Inherit" priority="300" truncate {...ownDirectionLine}>
