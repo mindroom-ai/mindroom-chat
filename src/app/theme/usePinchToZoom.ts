@@ -21,7 +21,12 @@ const wheelPixels = ({ deltaY, deltaMode }: WheelEvent): number => {
  * board: the page zoom leaves them to it (docs/architecture.md "Client plugins").
  */
 export const PINCH_SURFACE_ATTRIBUTE = 'data-pinch-surface';
-const PINCH_SURFACE_SELECTOR = `[${PINCH_SURFACE_ATTRIBUTE}]`;
+/**
+ * Marks chrome inside a pinch surface, such as its toolbar: a pinch over it is the page zoom's, as
+ * if no surface were there.
+ */
+export const PINCH_CHROME_ATTRIBUTE = 'data-pinch-chrome';
+const PINCH_OWNER_SELECTOR = `[${PINCH_SURFACE_ATTRIBUTE}], [${PINCH_CHROME_ATTRIBUTE}]`;
 
 type GestureEventWithScale = Event & { scale: number; clientX: number; clientY: number };
 
@@ -95,8 +100,11 @@ const gestureCentre = (event: Event): SurfacePinch['centre'] => {
   return { x: clientX, y: clientY };
 };
 
-const surfaceAt = (target: EventTarget | null): Element | null =>
-  target instanceof Element ? target.closest(PINCH_SURFACE_SELECTOR) : null;
+/** The nearest marked element around `target`, unless chrome is nearer. */
+const surfaceAt = (target: EventTarget | null): Element | null => {
+  const owner = target instanceof Element ? target.closest(PINCH_OWNER_SELECTOR) : null;
+  return owner?.hasAttribute(PINCH_CHROME_ATTRIBUTE) ? null : owner;
+};
 
 /**
  * The marked element every finger landed in, the innermost that holds them all when marks nest:
@@ -104,6 +112,8 @@ const surfaceAt = (target: EventTarget | null): Element | null =>
  */
 const surfaceOwning = (touches: TouchList): Element | null => {
   const targets = Array.from(touches, (finger) => finger.target);
+  // A finger on chrome, or on no surface, leaves the pinch to the page zoom.
+  if (!targets.every((target) => surfaceAt(target) !== null)) return null;
   const holdsAll = (surface: Element) =>
     targets.every((target) => target instanceof Node && surface.contains(target));
   let surface = surfaceAt(targets[0] ?? null);
@@ -117,7 +127,7 @@ const surfaceOwning = (touches: TouchList): Element | null => {
  * trackpad, and iOS alongside the touches), and ctrl with the wheel, which other browsers send
  * for a trackpad pinch. Each animation frame stores at most one new zoom. A pinch over an element
  * with PINCH_SURFACE_ATTRIBUTE is that element's own, and goes to its onPinch if usePinchSurface
- * marked it.
+ * marked it, unless it is over PINCH_CHROME_ATTRIBUTE inside it.
  */
 export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => void): void => {
   const pageZoomRef = useRef(pageZoom);

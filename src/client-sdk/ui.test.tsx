@@ -14,6 +14,7 @@ import { pdfFrameUrl as appPdfFrameUrl } from '../app/messages/viewers/pdfFrame'
 import { PluginSidePanel } from '../app/room/PluginSidePanel';
 import { applyAppTheme } from '../app/theme/appliedTheme';
 import {
+  PINCH_CHROME_ATTRIBUTE as APP_PINCH_CHROME_ATTRIBUTE,
   PINCH_SURFACE_ATTRIBUTE as APP_PINCH_SURFACE_ATTRIBUTE,
   usePinchSurface as appUsePinchSurface,
 } from '../app/theme/usePinchToZoom';
@@ -31,6 +32,7 @@ import {
 import * as ui from './ui';
 import {
   pdfFrameUrl,
+  PINCH_CHROME_ATTRIBUTE,
   PINCH_SURFACE_ATTRIBUTE,
   replaceMatrixUserIdsWithDisplayNames,
   sanitizeHtml,
@@ -64,6 +66,7 @@ describe('@mindroom/client-sdk/ui', () => {
     };
     const text = ['replaceMatrixUserIdsWithDisplayNames', 'sanitizeHtml', 'useMarkdownHtml'];
     const ownSurface = [
+      'PINCH_CHROME_ATTRIBUTE',
       'PINCH_SURFACE_ATTRIBUTE',
       'pdfFrameUrl',
       'usePinchSurface',
@@ -80,6 +83,8 @@ describe('@mindroom/client-sdk/ui', () => {
     });
     // The page zoom leaves a pinch over an element with this attribute alone.
     expect(PINCH_SURFACE_ATTRIBUTE).toBe(APP_PINCH_SURFACE_ATTRIBUTE);
+    // And one over chrome inside it to the page zoom.
+    expect(PINCH_CHROME_ATTRIBUTE).toBe(APP_PINCH_CHROME_ATTRIBUTE);
     // The page zoom hands a surface of this hook its pinches.
     expect(ui.usePinchSurface).toBe(appUsePinchSurface);
   });

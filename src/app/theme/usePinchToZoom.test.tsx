@@ -6,6 +6,7 @@ import { type ComponentProps, type ReactNode, type RefObject, StrictMode, useRef
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImageOverlay } from '../messages/content/ImageOverlay';
 import {
+  PINCH_CHROME_ATTRIBUTE,
   PINCH_SURFACE_ATTRIBUTE,
   type SurfacePinch,
   usePinchSurface,
@@ -1517,6 +1518,145 @@ describe('usePinchToZoom', () => {
       gesture('gesturechange', 1, surface);
 
       expect(calls).toEqual(['second start', 'second move', 'second end']);
+    });
+
+    describe('chrome inside it', () => {
+      /** A surface holding a toolbar marked as chrome, with a button on it. */
+      const renderChrome = () => {
+        const pinches: SurfacePinch[] = [];
+        const chrome = { [PINCH_CHROME_ATTRIBUTE]: '' };
+        const view = render(
+          <Surface label="board" pinches={pinches}>
+            <div {...chrome} data-testid="toolbar">
+              <button type="button">Bold</button>
+            </div>
+          </Surface>
+        );
+        return {
+          pinches,
+          inside: view.getByTestId('board inside'),
+          toolbar: view.getByTestId('toolbar'),
+          button: view.getByRole('button', { name: 'Bold' }),
+        };
+      };
+
+      const pinch = (a: Element, b: Element) => {
+        touch('touchstart', [[0, 0, a]]);
+        touch('touchstart', spread(a, b, 100));
+        const move = touch('touchmove', spread(a, b, 120));
+        touch('touchend', [], a);
+        return move;
+      };
+
+      it('leaves the app a pinch whose fingers land on it, and hands the surface one on its content', () => {
+        const { setPageZoom } = mount(100);
+        const { pinches, inside, toolbar, button } = renderChrome();
+
+        const move = pinch(button, toolbar);
+        flushFrames();
+        expect(move.defaultPrevented).toBe(true);
+        expect(setPageZoom).toHaveBeenCalledWith(120);
+        expect(pinches).toEqual([]);
+
+        pinch(inside, inside);
+        expect(pinches.map(({ phase }) => phase)).toEqual(['start', 'move', 'end']);
+      });
+
+      it.each([
+        ['the chrome', true],
+        ['the content', false],
+      ])(
+        'leaves the app a pinch whose first finger lands on %s and the other not',
+        (_, chromeFirst) => {
+          const { setPageZoom } = mount(100);
+          const { pinches, inside, button } = renderChrome();
+          const [first, second] = chromeFirst ? [button, inside] : [inside, button];
+
+          const move = pinch(first, second);
+          flushFrames();
+
+          expect(move.defaultPrevented).toBe(true);
+          expect(setPageZoom).toHaveBeenCalledWith(120);
+          expect(pinches).toEqual([]);
+        }
+      );
+
+      it("leaves the app ctrl and the wheel, and a trackpad's pinch, over it", () => {
+        const { setPageZoom } = mount(100);
+        const { pinches, button } = renderChrome();
+
+        const over = wheel({ ctrlKey: true, deltaY: -50 }, button);
+        flushFrames();
+        expect(over.defaultPrevented).toBe(true);
+        expect(setPageZoom).toHaveBeenLastCalledWith(101);
+
+        const start = gesture('gesturestart', 1, button);
+        const change = gesture('gesturechange', 1.2, button);
+        gesture('gestureend', 1.2, button);
+        flushFrames();
+        expect(start.defaultPrevented).toBe(true);
+        expect(change.defaultPrevented).toBe(true);
+        // From the 101 the wheel left.
+        expect(setPageZoom).toHaveBeenLastCalledWith(121);
+        expect(pinches).toEqual([]);
+      });
+
+      it('leaves the app a pinch over chrome inside a surface inside another', () => {
+        const { setPageZoom } = mount(100);
+        const outer: SurfacePinch[] = [];
+        const inner: SurfacePinch[] = [];
+        const chrome = { [PINCH_CHROME_ATTRIBUTE]: '' };
+        const view = render(
+          <Surface label="outer" pinches={outer}>
+            <Surface label="inner" pinches={inner}>
+              <div {...chrome} data-testid="toolbar" />
+            </Surface>
+          </Surface>
+        );
+        const toolbar = view.getByTestId('toolbar');
+
+        const move = pinch(toolbar, toolbar);
+        flushFrames();
+        expect(move.defaultPrevented).toBe(true);
+        expect(setPageZoom).toHaveBeenLastCalledWith(120);
+
+        const over = wheel({ ctrlKey: true, deltaY: -50 }, toolbar);
+        flushFrames();
+        expect(over.defaultPrevented).toBe(true);
+        expect(setPageZoom).toHaveBeenLastCalledWith(121);
+
+        gesture('gesturestart', 1, toolbar);
+        const change = gesture('gesturechange', 1.1, toolbar);
+        gesture('gestureend', 1.1, toolbar);
+        flushFrames();
+        expect(change.defaultPrevented).toBe(true);
+        expect(setPageZoom).toHaveBeenLastCalledWith(133);
+        expect(outer).toEqual([]);
+        expect(inner).toEqual([]);
+      });
+
+      it('hands a surface on chrome the pinches on its own content', () => {
+        const { setPageZoom } = mount(100);
+        const outer: SurfacePinch[] = [];
+        const inner: SurfacePinch[] = [];
+        const chrome = { [PINCH_CHROME_ATTRIBUTE]: '' };
+        const view = render(
+          <Surface label="outer" pinches={outer}>
+            <div {...chrome}>
+              <Surface label="inner" pinches={inner} />
+            </div>
+          </Surface>
+        );
+        const content = view.getByTestId('inner inside');
+
+        pinch(content, content);
+        wheel({ ctrlKey: true, deltaY: -50 }, content);
+        flushFrames();
+
+        expect(inner.map(({ phase }) => phase)).toEqual(['start', 'move', 'end', 'start', 'move']);
+        expect(outer).toEqual([]);
+        expect(setPageZoom).not.toHaveBeenCalled();
+      });
     });
   });
 });
