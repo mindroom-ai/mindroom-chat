@@ -227,6 +227,18 @@ class SuiteTests(PluginDirTestCase):
             self.runs("./e2e/a.spec.ts", E2E_PLUGIN_DIRS=str(plugin), PLAYWRIGHT_WEBKIT_EXECUTABLE="/bin/webkit"),
             [("./e2e/a.spec.ts --project=chromium --project=webkit", True)],
         )
+        # Projects the Playwright options name are the run's own.
+        self.assertEqual(
+            self.runs("e2e/a.spec.ts", "--", "--project=webkit", E2E_PLUGIN_DIRS=str(plugin)),
+            [("e2e/a.spec.ts", True)],
+        )
+        # Every line of the list counts, as in scripts/e2e-slot.sh.
+        other = self.plugin("other")
+        (other / "e2e/c.spec.ts").write_text("\n")
+        self.assertIn(
+            ("e2e-plugins/other/e2e/c\\.spec\\.ts --project=other", True),
+            self.runs(E2E_PLUGIN_DIRS=f"{plugin}:\n{other}"),
+        )
 
     def test_without_plugin_directories_the_specs_are_given_as_named(self) -> None:
         runs = self.runs("e2e/a.spec.ts", "./e2e/a.spec.ts")

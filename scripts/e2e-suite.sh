@@ -104,8 +104,11 @@ main() {
     # And the specs in the e2e/ of each plugin directory (E2E_PLUGIN_DIRS, relative to the
     # repository), by their path in the snapshot, whose e2e-plugins/ has a copy of the directory
     # (scripts/e2e-slot.sh --preview).
-    IFS=: read -r -a plugin_dirs <<<"${E2E_PLUGIN_DIRS:-}"
+    mapfile -t -d : plugin_dirs < <(printf '%s' "${E2E_PLUGIN_DIRS:-}")
     for dir in "${plugin_dirs[@]}"; do
+      # Trimmed, as scripts/e2e-slot.sh takes them.
+      dir="${dir#"${dir%%[![:space:]]*}"}"
+      dir="${dir%"${dir##*[![:space:]]}"}"
       [ -n "$dir" ] || continue
       real="$(cd "$dir" && pwd -P)"
       if [ -d "$real/e2e" ]; then
@@ -178,7 +181,7 @@ main() {
       # Playwright takes the spec as a regular expression that may match anywhere in a file's path,
       # so e2e/a.spec.ts would also pick a plugin directory's e2e/a.spec.ts: with plugin directories,
       # each run names its projects (playwright.config.ts), a plugin directory's spec, escaped, its
-      # directory's, and the app's specs the app's.
+      # directory's, and the app's specs the app's, unless the Playwright options name projects.
       local filter="$spec" projects=()
       case "$spec" in
         e2e-plugins/*)
@@ -192,6 +195,7 @@ main() {
           fi
           ;;
       esac
+      if printf '%s\n' "${playwright_options[@]}" | grep -q '^--project'; then projects=(); fi
       PLAYWRIGHT_JSON_OUTPUT_FILE="$run/json/$key.json" \
         bash "$repo/scripts/e2e-slot.sh" "$slot" "${options[@]}" \
         npx playwright test "$filter" "${projects[@]}" --reporter=list,json --output "$run/output/$key" \
