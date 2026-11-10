@@ -99,3 +99,10 @@ export const getSSOProviderButtonTitle = (
 
   return t('sharedUi.ssoProviders.continueProvider', { provider: provider.name });
 };
+
+/** The providers' names in button order, for hints that point at the buttons; `SSO` without names. */
+export const getSsoProviderNames = (providers?: IIdentityProvider[]): string =>
+  sortIdentityProviders(providers)
+    .map((provider) => provider.name)
+    .filter(Boolean)
+    .join(', ') || 'SSO';

@@ -163,7 +163,8 @@
       "description": "MindRoom 遇到问题，无法显示此页面。请重新加载以继续。"
     },
     "passwordLoginForm": {
-      "forgotPassword": "忘记密码？"
+      "forgotPassword": "忘记密码？",
+      "mayUseSso": "此账户可能使用 {{provider}} 登录。请使用上方的 {{provider}} 按钮。"
     },
     "partUnavailable": {
       "failed": "无法加载。请检查网络连接后重试。",
@@ -172,7 +173,8 @@
       "reload": "重新加载页面"
     },
     "login": {
-      "noAccountLink": "没有账户？ <authLink>注册</authLink>"
+      "noAccountLink": "没有账户？ <authLink>注册</authLink>",
+      "orSignInWithPassword": "或使用密码登录"
     },
     "passwordRegisterForm": {
       "passwordsDoNotMatch": "两次输入的密码不一致。"
@@ -262,6 +264,10 @@
       "title": "在账户页面上批准",
       "description": "您的服务器要求您在账户页面上批准此操作。请打开页面并批准，然后回到这里继续。",
       "open": "打开账户页面"
+    },
+    "passwordResetForm": {
+      "emailResetUnavailable": "此服务器无法通过电子邮件重置密码。",
+      "emailResetUnavailableSso": "此服务器无法通过电子邮件重置密码。如果你是用 {{provider}} 注册的，请改为<authLink>使用 {{provider}} 登录</authLink>。"
     }
   },
   "featureUi": {

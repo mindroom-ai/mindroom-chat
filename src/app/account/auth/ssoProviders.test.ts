@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { IIdentityProvider, SSOAction } from 'matrix-js-sdk';
 import {
   getSSOProviderButtonTitle,
+  getSsoProviderNames,
   hasAppleIdentityProvider,
   isAppleIdentityProvider,
   isGitHubIdentityProvider,
@@ -103,5 +104,15 @@ describe('getSSOProviderButtonTitle', () => {
     expect(getSSOProviderButtonTitle(githubProvider, i18next.t, SSOAction.LOGIN)).toBe(
       'Continue with GitHub'
     );
+  });
+});
+
+describe('getSsoProviderNames', () => {
+  it('names the providers in button order, and SSO when the server names none', () => {
+    expect(getSsoProviderNames([provider('mindroom', 'MindRoom')])).toBe('MindRoom');
+    expect(
+      getSsoProviderNames([provider('oidc', 'Company'), provider('apple', 'Apple', 'apple')])
+    ).toBe('Apple, Company');
+    expect(getSsoProviderNames(undefined)).toBe('SSO');
   });
 });

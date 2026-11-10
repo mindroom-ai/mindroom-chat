@@ -163,7 +163,8 @@
       "description": "MindRoom에 문제가 발생해 이 화면을 표시하지 못했습니다. 계속하려면 새로고침하세요."
     },
     "passwordLoginForm": {
-      "forgotPassword": "비밀번호를 잊으셨나요?"
+      "forgotPassword": "비밀번호를 잊으셨나요?",
+      "mayUseSso": "이 계정은 {{provider}} 로그인을 사용할 수 있습니다. 위의 {{provider}} 버튼을 사용하세요."
     },
     "partUnavailable": {
       "failed": "불러오지 못했습니다. 연결을 확인하고 다시 시도하세요.",
@@ -172,7 +173,8 @@
       "reload": "페이지 새로고침"
     },
     "login": {
-      "noAccountLink": "계정이 없나요? <authLink>가입</authLink>"
+      "noAccountLink": "계정이 없나요? <authLink>가입</authLink>",
+      "orSignInWithPassword": "또는 비밀번호로 로그인"
     },
     "passwordRegisterForm": {
       "passwordsDoNotMatch": "비밀번호가 일치하지 않습니다."
@@ -262,6 +264,10 @@
       "title": "계정 페이지에서 승인",
       "description": "서버에서 계정 페이지에서 이 작업을 승인하도록 요청합니다. 페이지를 열어 승인한 다음 여기로 돌아와 계속하세요.",
       "open": "계정 페이지 열기"
+    },
+    "passwordResetForm": {
+      "emailResetUnavailable": "이 서버는 이메일로 비밀번호를 재설정할 수 없습니다.",
+      "emailResetUnavailableSso": "이 서버는 이메일로 비밀번호를 재설정할 수 없습니다. {{provider}}(으)로 가입했다면 대신 <authLink>{{provider}}(으)로 로그인</authLink>하세요."
     }
   },
   "featureUi": {

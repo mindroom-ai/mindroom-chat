@@ -28,9 +28,24 @@ vi.mock('folds', () => ({
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
 }));
-vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
+const resetError = vi.hoisted(() => ({ errcode: 'M_UNKNOWN' }));
+const requestEmail = vi.hoisted(() => ({ fn: (): Promise<unknown> => Promise.resolve() }));
+vi.mock('react-router-dom', () => ({
+  Link: ({ children, to }: { children?: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
+  useNavigate: () => vi.fn(),
+}));
 vi.mock('../../../matrix/client/matrixClientFactory', () => ({
-  createMatrixClient: () => ({ generateClientSecret: () => 'secret' }),
+  createMatrixClient: () => ({
+    generateClientSecret: () => 'secret',
+    loginFlows: async () => ({
+      flows: [
+        { type: 'm.login.password' },
+        { type: 'm.login.sso', identity_providers: [{ id: 'idp', name: 'Example ID' }] },
+      ],
+    }),
+  }),
 }));
 vi.mock('../../../matrix/hooks/useAutoDiscoveryInfo', () => ({
   useAutoDiscoveryInfo: () => ({ 'm.homeserver': { base_url: 'https://example.test' } }),
@@ -43,8 +58,8 @@ vi.mock('../../../lib/hooks/useAsyncCallback', async () => {
   return {
     ...actual,
     useAsyncCallback: () => [
-      { status: actual.AsyncStatus.Error, error: { errcode: 'M_UNKNOWN', data: {} } },
-      vi.fn(),
+      { status: actual.AsyncStatus.Error, error: { errcode: resetError.errcode, data: {} } },
+      () => requestEmail.fn(),
     ],
   };
 });
@@ -103,5 +118,61 @@ describe('PasswordResetForm', () => {
         'data-field-error': 'M_UNKNOWN: Passwort konnte nicht zurückgesetzt werden.',
       })
     ).toBeDefined();
+  });
+
+  it('sends a server without email resets to its single sign-on', async () => {
+    resetError.errcode = 'M_THREEPID_DENIED';
+    requestEmail.fn = () => Promise.reject({ errcode: 'M_THREEPID_DENIED' });
+    const language = createInstance();
+    await language.init({
+      lng: 'en',
+      react: { useSuspense: false },
+      resources: {
+        en: {
+          translation: {
+            sharedUi: {
+              passwordResetForm: {
+                emailResetUnavailableSso:
+                  'No email resets. If you used {{provider}}, <authLink>sign in with {{provider}}</authLink>.',
+              },
+            },
+          },
+        },
+      },
+    });
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(
+        <I18nextProvider i18n={language}>
+          <PasswordResetForm loginLink="/login/example.test/" />
+        </I18nextProvider>
+      );
+    });
+    const form = renderer.root.findByType('form');
+    await act(async () => {
+      const fields = {
+        emailInput: 'a@example.test',
+        passwordInput: 'pw',
+        confirmPasswordInput: 'pw',
+      };
+      const currentTarget = { elements: fields } as unknown as HTMLFormElement;
+      vi.stubGlobal(
+        'FormData',
+        class {
+          get = (name: keyof typeof fields) => fields[name];
+        }
+      );
+      form.props.onSubmit({ preventDefault: () => undefined, currentTarget });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    vi.unstubAllGlobals();
+    resetError.errcode = 'M_UNKNOWN';
+
+    const alert = renderer.root.findByProps({ role: 'alert' });
+    const text = (node: typeof alert): string =>
+      node.children.map((child) => (typeof child === 'string' ? child : text(child))).join('');
+    expect(text(alert)).toBe('No email resets. If you used Example ID, sign in with Example ID.');
+    expect(alert.findByType('a')).toBeDefined();
+    expect(renderer.root.findAll((node) => node.props['data-field-error'])).toHaveLength(0);
   });
 });
