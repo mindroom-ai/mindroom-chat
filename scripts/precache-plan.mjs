@@ -141,6 +141,10 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
   /** @type {BuildInventory | undefined} */
   let inventory;
   let assetsDir = 'assets';
+  // vite-plugin-pwa builds the worker once the build has ended, also after a build that failed
+  // before its bundle, whose own error the build must end with: then the worker's build, which
+  // never ships, passes without the plan.
+  let ended = false;
 
   /** @type {import('vite').Plugin} */
   const plugin = {
@@ -148,6 +152,9 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
     apply: 'build',
     configResolved(config) {
       assetsDir = config.build.assetsDir;
+    },
+    buildEnd() {
+      ended = true;
     },
     generateBundle(_options, bundle) {
       planned = new Set([...shellFiles, ...startupFiles(bundle, startupModules, onDemandAssets)]);
@@ -160,7 +167,10 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
     name: 'mindroom-worker-build-inventory',
     apply: 'build',
     renderChunk(code) {
-      if (!inventory) throw new Error('precache plan: the build never reported its bundle');
+      if (!inventory) {
+        if (ended) return null;
+        throw new Error('precache plan: the build never reported its bundle');
+      }
       const parts = code.split(INVENTORY_MARKER);
       if (parts.length !== 2) {
         throw new Error(
@@ -177,7 +187,10 @@ export const startupPrecache = ({ startupModules, onDemandAssets, shellFiles, lo
    */
   const manifestTransform = (entries) => {
     const wanted = planned;
-    if (!wanted) throw new Error('precache plan: the build never reported its bundle');
+    if (!wanted) {
+      if (ended) return { manifest: [], warnings: [] };
+      throw new Error('precache plan: the build never reported its bundle');
+    }
     const manifest = entries.filter((entry) => wanted.has(entry.url));
     const listed = new Set(manifest.map((entry) => entry.url));
     const missing = [...wanted].filter((file) => !listed.has(file));

@@ -1,5 +1,9 @@
-import type { Rollup } from 'vite';
-import { describe, expect, it } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { build, type Rollup } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
+import { afterAll, describe, expect, it } from 'vitest';
 import { buildInventory, startupFiles, startupPrecache } from '../../scripts/precache-plan.mjs';
 
 type ChunkShape = {
@@ -235,4 +239,55 @@ describe('startupPrecache', () => {
       'the build never reported its bundle'
     );
   });
+});
+
+describe('a build that fails before its bundle is written', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'precache-plan-'));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  writeFileSync(path.join(dir, 'index.html'), '<script type="module" src="./main.js"></script>\n');
+  writeFileSync(path.join(dir, 'main.js'), 'export {};\n');
+  writeFileSync(
+    path.join(dir, 'sw.js'),
+    'console.log(self.__WB_MANIFEST, self.__MINDROOM_BUILD_INVENTORY);\n'
+  );
+
+  it("ends with the build's own error, not the service worker build's", async () => {
+    // As vite.config.js wires the plan into the service worker build; a plugin of the build
+    // fails first, as the third-party notices do for a client plugin without a lockfile.
+    const startup = startupPrecache({
+      startupModules: [],
+      shellFiles: ['index.html'],
+      localeOverlay: /^$/,
+    });
+    const built = build({
+      configFile: false,
+      root: dir,
+      logLevel: 'silent',
+      plugins: [
+        {
+          name: 'fails',
+          generateBundle() {
+            throw new Error('the build failed for its own reason');
+          },
+        },
+        startup.plugin,
+        VitePWA({
+          strategies: 'injectManifest',
+          srcDir: dir,
+          filename: 'sw.js',
+          injectManifest: {
+            rollupFormat: 'iife',
+            injectionPoint: 'self.__WB_MANIFEST',
+            manifestTransforms: [startup.manifestTransform],
+            buildPlugins: { vite: [startup.workerPlugin] },
+          },
+          devOptions: { enabled: false },
+          injectRegister: false,
+          manifest: false,
+        }),
+      ],
+      build: { outDir: path.join(dir, 'dist'), emptyOutDir: true },
+    });
+    await expect(built).rejects.toThrow('the build failed for its own reason');
+  }, 60_000);
 });
