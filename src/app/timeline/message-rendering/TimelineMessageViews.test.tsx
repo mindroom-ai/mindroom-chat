@@ -156,6 +156,18 @@ describe('two conversation views of one room', () => {
     }
   );
 
+  it('replies where no composer is mounted, as without permission to post, and focuses nothing', async () => {
+    const { rootRowOf } = await mountTwoViews();
+
+    expect(() =>
+      act(() => (rootRowOf('page').props.onReplyClick as (id: string) => void)('$root'))
+    ).not.toThrow();
+    const { composerReplyDraftAtom } = await drafts();
+    expect(getDefaultStore().get(composerReplyDraftAtom(ROOM, undefined))).toMatchObject({
+      eventId: '$root',
+    });
+  });
+
   it.each(['page', 'view'] as const)(
     'edits on Up only in the timeline of the focused composer (%s)',
     async (focused) => {
