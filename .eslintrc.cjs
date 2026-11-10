@@ -53,10 +53,6 @@ const GLASS_RESTRICTIONS = {
   ],
 };
 
-// Lane C code places pop-outs and tooltips in reading order through the directional wrappers,
-// which mirror folds' physical sides in a right-to-left interface; only the wrapper module itself
-// uses folds' own components. ESLint keys `paths` by module name, so this second restriction on
-// `folds` is a pattern.
 // Lane C makes its module-level atoms with jotai's own `atom`, which the account state test
 // follows to find account state an account would leave behind (shell/accountState.test.ts);
 // these entry points and factories make atoms past it.
@@ -71,6 +67,10 @@ const ATOM_FACTORIES = [
   'atomWithReset',
   'atomWithStorage',
 ];
+// Lane C code places pop-outs and tooltips in reading order through the directional wrappers,
+// which mirror folds' physical sides in a right-to-left interface; only the wrapper module itself
+// uses folds' own components. ESLint keys `paths` by module name, so this second restriction on
+// `folds` is a pattern.
 const DIRECTIONAL_RESTRICTIONS = {
   paths: [
     ...GLASS_RESTRICTIONS.paths,
