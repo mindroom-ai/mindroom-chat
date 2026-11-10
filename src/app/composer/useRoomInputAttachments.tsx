@@ -3,6 +3,7 @@ import {
   ReactNode,
   RefObject,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -24,6 +25,7 @@ import {
   roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
 } from './roomInputDrafts';
+import { ConversationViewContext, composerStateKey } from '../navigation/conversationView';
 import { forgetPastesOutsideDraft, keepPasteText, readKeptPasteTexts } from './keptPastes';
 import {
   createUploadFamilyObserverAtom,
@@ -127,7 +129,9 @@ export const useRoomInputAttachments = ({
   createUploadItems,
 }: UseRoomInputAttachmentsOptions): RoomInputAttachments => {
   const store = useStore();
-  const itemsAtom = roomIdToUploadItemsAtomFamily(roomId);
+  // Another view of the room (a plugin's thread view) stages its own files, and keeps no names.
+  const view = useContext(ConversationViewContext);
+  const itemsAtom = roomIdToUploadItemsAtomFamily(composerStateKey(roomId, view));
   const roomItems = useAtomValue(itemsAtom);
   const [boardOpen, setBoardOpen] = useState(true);
 
@@ -162,14 +166,14 @@ export const useRoomInputAttachments = ({
   // The names of a room's staged files follow every change, so a reload can say what it lost.
   const keepNames = useCallback(
     (targetRoomId: string) => {
-      if (!userId) return;
+      if (!userId || view !== undefined) return;
       keepStagedFileNames(
         userId,
         targetRoomId,
         store.get(roomIdToUploadItemsAtomFamily(targetRoomId))
       );
     },
-    [store, userId]
+    [store, userId, view]
   );
 
   // Paste files belong to the draft they were pasted into; other files to the room's composer,
@@ -191,7 +195,7 @@ export const useRoomInputAttachments = ({
     const needed = new Set<TUploadContent>(enrolled.current.map((item) => item.file));
     watchedRooms.current.forEach((watchedRoomId) =>
       store
-        .get(roomIdToUploadItemsAtomFamily(watchedRoomId))
+        .get(roomIdToUploadItemsAtomFamily(composerStateKey(watchedRoomId, view)))
         .forEach((item) => needed.add(item.file))
     );
     uploadWatches.current.forEach((unsubscribe, file) => {
@@ -203,7 +207,7 @@ export const useRoomInputAttachments = ({
       if (uploadWatches.current.has(file)) return;
       uploadWatches.current.set(file, store.sub(roomUploadAtomFamily(file), notify));
     });
-  }, [notify, store]);
+  }, [notify, store, view]);
 
   // An unmounted composer has no listeners left to wake; the next one watches the files again.
   useEffect(() => {
@@ -218,7 +222,11 @@ export const useRoomInputAttachments = ({
     const uploadOf = (item: TUploadItem): Upload => store.get(roomUploadAtomFamily(item.file));
 
     const snapshot = (targetRoomId?: string): AttachmentSnapshot => {
-      const all = store.get(roomIdToUploadItemsAtomFamily(targetRoomId ?? current.current.roomId));
+      const all = store.get(
+        roomIdToUploadItemsAtomFamily(
+          composerStateKey(targetRoomId ?? current.current.roomId, view)
+        )
+      );
       const staged = targetRoomId === undefined ? all.filter(ownedByCurrent) : all;
       const files = new Set(staged.map((item) => item.file));
       const tracked = [...staged, ...enrolled.current.filter((item) => !files.has(item.file))];
@@ -233,7 +241,10 @@ export const useRoomInputAttachments = ({
         // A file that could not be prepared shows its error on its card instead of uploading.
         if (item.prepError) store.set(roomUploadAtomFamily(item.file), { error: item.prepError });
       });
-      store.set(roomIdToUploadItemsAtomFamily(targetRoomId), { type: 'PUT', item: items });
+      store.set(roomIdToUploadItemsAtomFamily(composerStateKey(targetRoomId, view)), {
+        type: 'PUT',
+        item: items,
+      });
       keepNames(targetRoomId);
       watchedRooms.current.add(targetRoomId);
       syncUploadWatches();
@@ -243,7 +254,7 @@ export const useRoomInputAttachments = ({
     const remove = (targetRoomId: string, files: TUploadContent[]) => {
       if (files.length === 0) return;
       const removed = new Set(files);
-      const listAtom = roomIdToUploadItemsAtomFamily(targetRoomId);
+      const listAtom = roomIdToUploadItemsAtomFamily(composerStateKey(targetRoomId, view));
       const items = store.get(listAtom).filter((item) => removed.has(item.file));
       // A removed file's upload in flight is cancelled; its card would otherwise finish it.
       items.forEach((item) => {
@@ -298,7 +309,7 @@ export const useRoomInputAttachments = ({
         };
       },
     };
-  }, [keepNames, mx, notify, ownedByCurrent, store, syncUploadWatches]);
+  }, [keepNames, mx, notify, ownedByCurrent, store, syncUploadWatches, view]);
 
   // Files staged from outside (another composer instance, a restored draft) are watched as well.
   useEffect(() => {
@@ -476,7 +487,10 @@ export const useRoomInputAttachments = ({
       if (item.prepError) {
         store.set(roomUploadAtomFamily(item.file), { error: item.prepError });
       }
-      store.set(roomIdToUploadItemsAtomFamily(pasteRoomId), { type: 'PUT', item: items });
+      store.set(roomIdToUploadItemsAtomFamily(composerStateKey(pasteRoomId, view)), {
+        type: 'PUT',
+        item: items,
+      });
       keepNames(pasteRoomId);
       if (pasteDraftKey) {
         const draftAtom = roomIdToMsgDraftAtomFamily(pasteDraftKey);
@@ -484,7 +498,7 @@ export const useRoomInputAttachments = ({
       }
       notify();
     },
-    [access, createUploadItems, keepNames, notify, store, userId]
+    [access, createUploadItems, keepNames, notify, store, userId, view]
   );
 
   const onPaste = useCallback(

@@ -3,6 +3,7 @@ import React, {
   KeyboardEvent,
   RefObject,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -55,7 +56,11 @@ import {
 } from './roomInputDrafts';
 import type { TUploadItem } from '../matrix/state/upload';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
-import { conversationHiddenAtom } from '../navigation/conversationCover';
+import {
+  ConversationViewContext,
+  composerStateKey,
+  useConversationHidden,
+} from '../navigation/conversationView';
 import { settingsAtom } from '../preferences/settings';
 import { mobileOrTablet } from '../lib/user-agent';
 import { withPasteAttachmentMetadata } from '../matrix/protocol/pasteAttachmentMarker';
@@ -274,7 +279,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [enterForNewline] = useSetting(settingsAtom, 'enterForNewline');
     const userId = mx.getUserId() ?? '';
     const draftKey = threadId ? getRoomInputDraftKey(userId, roomId, threadId) : undefined;
-    const replyDraft = useAtomValue(roomIdToReplyDraftAtomFamily(roomId));
+    // Another view of the room (a plugin's thread view) has a reply of its own.
+    const view = useContext(ConversationViewContext);
+    const replyDraft = useAtomValue(roomIdToReplyDraftAtomFamily(composerStateKey(roomId, view)));
     const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
     const sendTypingStatus = useTypingStatusUpdater(mx, roomId, hideActivity);
     const isComposing = useComposingCheck();
@@ -290,7 +297,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
     // The board and the autocomplete menu, whose Tab the window takes, close as the conversation
     // hides, under a plugin's cover or behind a side panel.
-    const conversationHidden = useAtomValue(conversationHiddenAtom);
+    const conversationHidden = useConversationHidden();
     if (conversationHidden && emojiAnchor) setEmojiAnchor(undefined);
     if (conversationHidden && autocompleteQuery) setAutocompleteQuery(undefined);
     const [boardTab, setBoardTab] = useState<EmojiBoardTab>('Emoji');
@@ -355,15 +362,15 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         roomId: string;
         replyDraft?: IReplyDraft;
       }) => {
-        const replyAtom = roomIdToReplyDraftAtomFamily(replyRoomId);
+        const replyAtom = roomIdToReplyDraftAtomFamily(composerStateKey(replyRoomId, view));
         // A reply chosen after this send started stays for the next message.
         if (consumed && hasMatchingReplyDraft(consumed, store.get(replyAtom))) {
           store.set(replyAtom, undefined);
           // The composer may show another room by now; its kept reply goes too.
-          if (userId) keepReplyDraft(userId, replyRoomId, undefined);
+          if (userId && view === undefined) keepReplyDraft(userId, replyRoomId, undefined);
         }
       },
-      [store, userId]
+      [store, userId, view]
     );
 
     const restoreComposerFallbackForRoom = useCallback(

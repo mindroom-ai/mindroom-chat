@@ -6,6 +6,9 @@ import { EventStatus, type Room } from 'matrix-js-sdk';
 import { UserMentionAutocomplete } from '../editor/autocomplete/UserMentionAutocomplete';
 import { ThreadModelPicker } from '../models/ModelPicker';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
+import { ConversationViewContext, composerStateKey } from '../navigation/conversationView';
+import { roomIdToReplyDraftAtomFamily } from './roomInputDrafts';
+import { RoomInputReplyPreview } from './RoomInputReplyPreview';
 import type { SlashCommand } from './commands/useCommands';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
 
@@ -178,6 +181,8 @@ type ComposerProps = {
   room?: Room;
   threadId?: string;
   threadingEnabled?: boolean;
+  /** The key of the conversation view the composer is in, other than the room page. */
+  view?: string;
 };
 
 /**
@@ -189,19 +194,22 @@ const mountComposer = async (
   {
     store = createStore(),
     room = { roomId: '!room:example.org', name: 'Room' } as unknown as Room,
+    view,
     ...props
   }: ComposerProps = {}
 ) => {
   const { RoomInput } = await import('./RoomInput');
   const element = (
     <Provider store={store}>
-      <RoomInput
-        editor={{ children: document } as never}
-        fileDropContainerRef={createRef()}
-        roomId={room.roomId}
-        room={room}
-        {...props}
-      />
+      <ConversationViewContext.Provider value={view}>
+        <RoomInput
+          editor={{ children: document } as never}
+          fileDropContainerRef={createRef()}
+          roomId={room.roomId}
+          room={room}
+          {...props}
+        />
+      </ConversationViewContext.Provider>
     </Provider>
   );
   act(() => {
@@ -247,6 +255,29 @@ describe('composer', () => {
     // Its Tab would pick a completion into the hidden draft.
     expect(mentionMenus()).toBe(0);
     expect(pickerHidden()).toBe(true);
+  });
+
+  it("keeps the mention menu and the model picker of another conversation view open as a side panel hides the room's page", async () => {
+    const store = createStore();
+    await mountComposer([], { store, view: 'thread-view' });
+    act(() => store.set(conversationBehindPanelAtom, true));
+    expect(renderer!.root.findAllByType(UserMentionAutocomplete)).toHaveLength(1);
+    expect(renderer!.root.findByType(ThreadModelPicker).props.conversationHidden).toBe(false);
+  });
+
+  it("shows the reply of its own conversation view, not the room page's", async () => {
+    const store = createStore();
+    const reply = { userId: '@bob:example.org', eventId: '$page', body: 'On the page' };
+    store.set(roomIdToReplyDraftAtomFamily('!room:example.org'), reply);
+    await mountComposer([], { store, view: 'thread-view' });
+    expect(renderer!.root.findAllByType(RoomInputReplyPreview)).toHaveLength(0);
+    act(() =>
+      store.set(
+        roomIdToReplyDraftAtomFamily(composerStateKey('!room:example.org', 'thread-view')),
+        { ...reply, eventId: '$view' }
+      )
+    );
+    expect(renderer!.root.findByType(RoomInputReplyPreview).props.replyDraft.eventId).toBe('$view');
   });
 
   it('leaves Enter to the mention menu while it shows suggestions', async () => {

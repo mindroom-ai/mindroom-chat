@@ -31,7 +31,7 @@ import {
 import { isLatestAnchorInReach } from './roomTimelineScroll';
 import { waitForScrollQuiescence } from './scrollQuiescence';
 import { useReaderSees } from './useReaderSees';
-import { conversationOutOfSightAtom } from '../navigation/conversationCover';
+import { useConversationOutOfSightAtom } from '../navigation/conversationView';
 
 /**
  * How long the bottom anchor must stay out of reach before the view counts as scrolled away, so a
@@ -225,7 +225,7 @@ export const useTimelineReadReceiptController = ({
   // A phone's navigation drawer, or a plugin's cover, over the timeline hides it as a window
   // without the focus does; once it goes, the reader sees it again.
   const readerSees = useReaderSees();
-  const outOfSight = useAtomValue(conversationOutOfSightAtom);
+  const outOfSight = useAtomValue(useConversationOutOfSightAtom());
 
   // The view is gone once it unmounts; a frame it scheduled then reads nothing.
   const mountedRef = useRef(false);

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { useAtomValue } from 'jotai';
 import { Method, type MatrixClient } from 'matrix-js-sdk';
 import { TYPING_TIMEOUT_MS } from '../matrix/state/typingMembers';
-import { conversationHiddenAtom } from '../navigation/conversationCover';
+import { useConversationHidden } from '../navigation/conversationView';
 
 /**
  * A function the composer calls with `true` while the user types and `false` when they stop.
@@ -40,7 +39,7 @@ export const useTypingStatusUpdater = (
     send(false);
   }, [clearExpiry, send]);
 
-  const conversationHidden = useAtomValue(conversationHiddenAtom);
+  const conversationHidden = useConversationHidden();
   useEffect(() => {
     if (conversationHidden) stop();
   }, [conversationHidden, stop]);

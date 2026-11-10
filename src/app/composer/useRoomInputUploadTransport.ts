@@ -1,7 +1,8 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useContext, useMemo } from 'react';
 import type { createStore } from 'jotai';
 import type { IContent, MatrixClient, Room } from 'matrix-js-sdk';
 import { getAudioMsgContent } from '../matrix/send/msgContent';
+import { ConversationViewContext, composerStateKey } from '../navigation/conversationView';
 import {
   type PendingVoiceSendContext,
   roomIdToUploadItemsAtomFamily,
@@ -27,6 +28,7 @@ export const getVoiceMessageContentOptions = (
  */
 
 export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room: Room) => {
+  const view = useContext(ConversationViewContext);
   // A recording that cannot be prepared (encrypted) fails at once; the recorder keeps it to retry.
   const createVoiceUploadItems = useCallback(
     async (
@@ -90,7 +92,7 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
    */
   const uploadItemWhileStaged = useCallback(
     async (roomId: string, item: TUploadItem): Promise<TUploadItem | undefined> => {
-      const listAtom = roomIdToUploadItemsAtomFamily(roomId);
+      const listAtom = roomIdToUploadItemsAtomFamily(composerStateKey(roomId, view));
       const staged = () => store.get(listAtom).some((entry) => entry.file === item.file);
       if (!staged()) return undefined;
       // Removing the file from the composer ends the wait, even for an upload that never settles.
@@ -113,7 +115,7 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
         unsubscribe();
       }
     },
-    [store, uploadItem]
+    [store, uploadItem, view]
   );
 
   const sendVoiceItem = useCallback(

@@ -11,7 +11,11 @@ import {
 } from '../notifications/readReceipts';
 import { useTimelineReadReceiptController } from './timelineReadReceiptController';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
-import { conversationCoveredAtom } from '../navigation/conversationCover';
+import {
+  conversationBehindPanelAtom,
+  conversationCoveredAtom,
+} from '../navigation/conversationCover';
+import { ConversationViewContext } from '../navigation/conversationView';
 
 vi.mock('../notifications/readReceipts', () => ({
   markMainTimelineAsRead: vi.fn(),
@@ -492,6 +496,46 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
         expect(markThreadAsRead).toHaveBeenCalledTimes(1);
       } finally {
         act(() => store.set(atom, false));
+      }
+    });
+
+    it("is read in another conversation view while a side panel hides the room's page", () => {
+      const store = getDefaultStore();
+      act(() => store.set(conversationBehindPanelAtom, true));
+      try {
+        act(() => {
+          probe = create(
+            <ConversationViewContext.Provider value="thread-view">
+              <Probe options={optionsWith(openThread)} />
+            </ConversationViewContext.Provider>
+          );
+        });
+        runFrames();
+        expect(markThreadAsRead).toHaveBeenCalledTimes(1);
+
+        // A phone's navigation drawer hides it, and its reply waits until the drawer goes.
+        act(() => store.set(phoneNavDrawerOpenAtom, true));
+        const rows = [
+          { getId: () => '$thread' },
+          { getId: () => '$reply-1' },
+        ] as unknown as MatrixEvent[];
+        act(() =>
+          probe?.update(
+            <ConversationViewContext.Provider value="thread-view">
+              <Probe
+                options={optionsWith({ ...openThread, threadEventsLength: 2, threadEvents: rows })}
+              />
+            </ConversationViewContext.Provider>
+          )
+        );
+        runFrames();
+        expect(markThreadAsRead).toHaveBeenCalledTimes(1);
+        act(() => store.set(phoneNavDrawerOpenAtom, false));
+        runFrames();
+        expect(markThreadAsRead).toHaveBeenCalledTimes(2);
+      } finally {
+        act(() => store.set(conversationBehindPanelAtom, false));
+        act(() => store.set(phoneNavDrawerOpenAtom, false));
       }
     });
 

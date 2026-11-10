@@ -7,6 +7,7 @@ import {
   conversationBehindPanelAtom,
   conversationCoveredAtom,
 } from '../navigation/conversationCover';
+import { ConversationViewContext } from '../navigation/conversationView';
 import { ComposerActionsMenu } from './ComposerActionsMenu';
 
 // jsdom lays nothing out, so the trap would find no control to hold.
@@ -41,5 +42,22 @@ describe('the composer actions menu', () => {
 
     act(() => store.set(atom, true));
     expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it("stays open in another conversation view as a side panel hides the room's page", () => {
+    const noop = () => undefined;
+    render(
+      <ConversationViewContext.Provider value="thread-view">
+        <ComposerActionsMenu
+          formattingOpen={false}
+          onAttach={noop}
+          onToggleFormatting={noop}
+          onEmoji={noop}
+        />
+      </ConversationViewContext.Provider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    act(() => store.set(conversationBehindPanelAtom, true));
+    expect(screen.queryByRole('menu')).not.toBeNull();
   });
 });

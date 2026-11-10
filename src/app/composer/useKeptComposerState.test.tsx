@@ -9,6 +9,7 @@ import {
   roomIdToUploadItemsAtomFamily,
   type TUploadItem,
 } from './roomInputDrafts';
+import { ConversationViewContext } from '../navigation/conversationView';
 import { useKeptComposerState } from './useKeptComposerState';
 
 const ME = '@me:example.org';
@@ -133,5 +134,29 @@ describe('useKeptComposerState', () => {
     expect(reload().get(roomIdToReplyDraftAtomFamily(ROOM))).toBeUndefined();
     expect(kept?.lostFileNames).toEqual([]);
     expect(values.size).toBe(0);
+  });
+
+  it("leaves what the room's page kept to that page in another conversation view", () => {
+    const store = openPage();
+    act(() => store.set(roomIdToReplyDraftAtomFamily(ROOM), reply));
+    keepStagedFileNames(ME, ROOM, [staged('notes.txt')]);
+    act(() => renderer?.unmount());
+    roomIdToReplyDraftAtomFamily.remove(ROOM);
+    const kept0 = new Map(values);
+
+    const viewStore = createStore();
+    act(() => {
+      renderer = create(
+        <Provider store={viewStore}>
+          <ConversationViewContext.Provider value="thread-view">
+            <Probe userId={ME} roomId={ROOM} />
+          </ConversationViewContext.Provider>
+        </Provider>
+      );
+    });
+    expect(kept?.lostFileNames).toEqual([]);
+    expect(viewStore.get(roomIdToReplyDraftAtomFamily(ROOM))).toBeUndefined();
+    act(() => kept?.dismissLostFiles());
+    expect(values).toEqual(kept0);
   });
 });
