@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
+import { EventEmitter } from 'events';
 import { act, cleanup, render } from '@testing-library/react';
 import { Provider, createStore } from 'jotai';
+import { RoomStateEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { allRoomsAtom } from '../../matrix/state/roomList';
 import { hasServerEncryptionSetup } from '../devices/serverEncryptionSetup';
 import {
   EncryptionRecoveryPrompt,
@@ -20,14 +23,34 @@ const KEY = { keyId: 'key1', keyContent: {}, hasPassphrase: true };
 const LOCKED: RecoveryState = { kind: 'locked', key: KEY };
 const NONE: RecoveryState = { kind: 'none' };
 
-const useAccount = (userId: string, crypto: object | null = {}) =>
-  vi.mocked(useMatrixClient).mockReturnValue({
+// Joined rooms by ID; whether each has `m.room.encryption` state.
+const rooms = new Map<string, { encrypted: boolean }>();
+const ENCRYPTED_ROOM = '!secret:example.org';
+const PLAIN_ROOM = '!lobby:example.org';
+
+let client: EventEmitter;
+
+const useAccount = (userId: string, crypto: object | null = {}) => {
+  client = Object.assign(new EventEmitter(), {
     getCrypto: () => crypto,
     getSafeUserId: () => userId,
-  } as unknown as ReturnType<typeof useMatrixClient>);
+    getRoom: (roomId: string) => {
+      const room = rooms.get(roomId);
+      return room ? { roomId, hasEncryptionStateEvent: () => room.encrypted } : null;
+    },
+  });
+  vi.mocked(useMatrixClient).mockReturnValue(
+    client as unknown as ReturnType<typeof useMatrixClient>
+  );
+};
 
-const setup = (state: RecoveryState, config: ClientConfig = {}) => {
+const setup = (
+  state: RecoveryState,
+  config: ClientConfig = {},
+  joined: string[] = [ENCRYPTED_ROOM]
+) => {
   const store = createStore();
+  store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: joined });
   const ui = (config: ClientConfig) => (
     <Provider store={store}>
       <ClientConfigProvider value={config}>
@@ -49,6 +72,9 @@ const setup = (state: RecoveryState, config: ClientConfig = {}) => {
 
 beforeEach(() => {
   resetPromptedAccountsForTests();
+  rooms.clear();
+  rooms.set(ENCRYPTED_ROOM, { encrypted: true });
+  rooms.set(PLAIN_ROOM, { encrypted: false });
   useAccount('@alice:example.org');
   vi.mocked(hasServerEncryptionSetup).mockResolvedValue(false);
 });
@@ -86,6 +112,36 @@ describe('EncryptionRecoveryPrompt', () => {
     const { store } = setup(NONE);
     await act(async () => {});
     expect(store.get(recoveryDialogAtom)).toBeUndefined();
+  });
+
+  it('prompts nothing while no joined room is encrypted', async () => {
+    const locked = setup(LOCKED, {}, []);
+    await act(async () => {});
+    expect(locked.store.get(recoveryDialogAtom)).toBeUndefined();
+    cleanup();
+    const none = setup(NONE, {}, [PLAIN_ROOM]);
+    await act(async () => {});
+    expect(none.store.get(recoveryDialogAtom)).toBeUndefined();
+    expect(hasServerEncryptionSetup).not.toHaveBeenCalled();
+  });
+
+  it('opens Set up once the account joins its first encrypted room', async () => {
+    const { store } = setup(NONE, {}, [PLAIN_ROOM]);
+    await act(async () => {});
+    expect(store.get(recoveryDialogAtom)).toBeUndefined();
+    await act(async () => store.set(allRoomsAtom, { type: 'PUT', roomId: ENCRYPTED_ROOM }));
+    expect(store.get(recoveryDialogAtom)).toBe('setup');
+  });
+
+  it('opens Unlock once a joined room turns encryption on', async () => {
+    const { store } = setup(LOCKED, {}, [PLAIN_ROOM]);
+    await act(async () => {});
+    expect(store.get(recoveryDialogAtom)).toBeUndefined();
+    rooms.set(PLAIN_ROOM, { encrypted: true });
+    await act(async () => {
+      client.emit(RoomStateEvent.Events, { getType: () => 'm.room.encryption' }, {}, null);
+    });
+    expect(store.get(recoveryDialogAtom)).toBe('unlock');
   });
 
   it('never prompts for unknown or other', async () => {
@@ -150,6 +206,7 @@ describe('EncryptionRecoveryPrompt', () => {
 
   it('never overrides a dialog that is already open', async () => {
     const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [ENCRYPTED_ROOM] });
     store.set(recoveryDialogAtom, 'change');
     vi.mocked(useRecoveryState).mockReturnValue(LOCKED);
     render(
@@ -177,6 +234,23 @@ describe('EncryptionRecoveryPrompt', () => {
     answer(false);
     await act(async () => {});
     expect(store.get(recoveryDialogAtom)).toBeUndefined();
+  });
+
+  it('leaving the last encrypted room while the server check is pending leaves the account unprompted', async () => {
+    let answer: (hasSetup: boolean) => void = () => {};
+    vi.mocked(hasServerEncryptionSetup).mockReturnValueOnce(
+      new Promise<boolean>((resolve) => {
+        answer = resolve;
+      })
+    );
+    const { store } = setup(NONE);
+    await act(async () => store.set(allRoomsAtom, { type: 'DELETE', roomId: ENCRYPTED_ROOM }));
+    answer(false);
+    await act(async () => {});
+    expect(store.get(recoveryDialogAtom)).toBeUndefined();
+    await act(async () => store.set(allRoomsAtom, { type: 'PUT', roomId: ENCRYPTED_ROOM }));
+    expect(store.get(recoveryDialogAtom)).toBe('setup');
+    expect(hasServerEncryptionSetup).toHaveBeenCalledTimes(2);
   });
 
   it('a settled server check that says encryption is set up does not prompt again when the state returns to none', async () => {
