@@ -1,7 +1,7 @@
 import { createRef } from 'react';
 import { getDefaultStore } from 'jotai';
 import { EventTimelineSet, MatrixEvent, type Room } from 'matrix-js-sdk';
-import { createEditor, type Editor } from 'slate';
+import { createEditor } from 'slate';
 import { ReactEditor } from 'slate-react';
 import { act } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -9,7 +9,7 @@ import { create, makeRoom } from '../test-utils/RoomTimeline.test.shared';
 import { useKeyDown } from '../../lib/hooks/useKeyDown';
 import { MessageLayout, type MessageSpacing } from '../../preferences/settings';
 import { BlockType } from '../../editor/types';
-import { ConversationViewContext, composerStateKey } from '../../navigation/conversationView';
+import { ConversationViewContext } from '../../navigation/conversationView';
 import type { TimelineMessageRow } from './types';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
@@ -17,10 +17,7 @@ import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 // each with its timeline and the composer that shares its editor. The reply target is real jotai
 // state here, and message selection and the editor guards are the real ones.
 vi.doUnmock('../../matrix/room');
-vi.doUnmock('../../lib/dom');
-vi.doMock('../../editor/utils', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../editor/utils')>()),
-}));
+vi.doUnmock('../../editor/utils');
 vi.doUnmock('../../composer/roomInputDrafts');
 vi.doMock('jotai', async (importOriginal) => ({
   ...(await importOriginal<typeof import('jotai')>()),
@@ -67,9 +64,9 @@ const emptyEditor = () => {
   return editor;
 };
 
-/** Mounts the room page's timeline of the room and a thread view's timeline of its thread. */
 const drafts = () => import('../../composer/roomInputDrafts');
 
+/** Mounts the room page's timeline of the room and a thread view's timeline of its thread. */
 const mountTwoViews = async () => {
   const { useTimelineMessageFeature } = await import('./useTimelineMessageFeature');
   const root = message('$root');
@@ -92,18 +89,10 @@ const mountTwoViews = async () => {
   })) as unknown as Room['getThread'];
   const editors = { page: emptyEditor(), view: emptyEditor() };
   const features = {} as Record<'page' | 'view', ReturnType<typeof useTimelineMessageFeature>>;
-  const Timeline = ({
-    name,
-    editor,
-    threadId,
-  }: {
-    name: 'page' | 'view';
-    editor: Editor;
-    threadId?: string;
-  }) => {
+  const Timeline = ({ name, threadId }: { name: 'page' | 'view'; threadId?: string }) => {
     const feature = useTimelineMessageFeature({
       room,
-      editor,
+      editor: editors[name],
       threadId,
       scrollRef: createRef<HTMLDivElement>(),
       showThreadRepliesInRoom: false,
@@ -121,9 +110,9 @@ const mountTwoViews = async () => {
   act(() => {
     renderer = create(
       <>
-        <Timeline name="page" editor={editors.page} />
+        <Timeline name="page" />
         <ConversationViewContext.Provider value={VIEW}>
-          <Timeline name="view" editor={editors.view} threadId="$root" />
+          <Timeline name="view" threadId="$root" />
         </ConversationViewContext.Provider>
       </>
     );
@@ -139,40 +128,33 @@ importBeforeTests(() => import('./useTimelineMessageFeature'));
 
 afterEach(async () => {
   vi.restoreAllMocks();
-  const { roomIdToReplyDraftAtomFamily } = await drafts();
+  const { composerReplyDraftAtom } = await drafts();
   const store = getDefaultStore();
-  store.set(roomIdToReplyDraftAtomFamily(ROOM), undefined);
-  store.set(roomIdToReplyDraftAtomFamily(composerStateKey(ROOM, VIEW)), undefined);
+  store.set(composerReplyDraftAtom(ROOM, undefined), undefined);
+  store.set(composerReplyDraftAtom(ROOM, VIEW), undefined);
 });
 
 describe('two conversation views of one room', () => {
-  it("replies in the view whose timeline the Reply was on, and focuses that view's composer", async () => {
-    const focus = vi.spyOn(ReactEditor, 'focus').mockImplementation(() => undefined);
-    const { editors, rootRowOf } = await mountTwoViews();
+  it.each(['page', 'view'] as const)(
+    "replies in the view whose timeline the Reply was on (%s), and focuses that view's composer",
+    async (name) => {
+      const focus = vi.spyOn(ReactEditor, 'focus').mockImplementation(() => undefined);
+      const { editors, rootRowOf } = await mountTwoViews();
 
-    act(() => (rootRowOf('view').props.onReplyClick as (id: string) => void)('$root'));
+      act(() => (rootRowOf(name).props.onReplyClick as (id: string) => void)('$root'));
 
-    const { roomIdToReplyDraftAtomFamily } = await drafts();
-    const store = getDefaultStore();
-    expect(store.get(roomIdToReplyDraftAtomFamily(composerStateKey(ROOM, VIEW)))).toMatchObject({
-      eventId: '$root',
-    });
-    expect(store.get(roomIdToReplyDraftAtomFamily(ROOM))).toBeUndefined();
-    expect(focus).toHaveBeenCalledOnce();
-    expect(focus).toHaveBeenCalledWith(editors.view);
-  });
-
-  it("keeps the room page's reply under the room's own key", async () => {
-    vi.spyOn(ReactEditor, 'focus').mockImplementation(() => undefined);
-    const { rootRowOf } = await mountTwoViews();
-
-    act(() => (rootRowOf('page').props.onReplyClick as (id: string) => void)('$root'));
-
-    const { roomIdToReplyDraftAtomFamily } = await drafts();
-    const store = getDefaultStore();
-    expect(store.get(roomIdToReplyDraftAtomFamily(ROOM))).toMatchObject({ eventId: '$root' });
-    expect(store.get(roomIdToReplyDraftAtomFamily(composerStateKey(ROOM, VIEW)))).toBeUndefined();
-  });
+      const { composerReplyDraftAtom } = await drafts();
+      const store = getDefaultStore();
+      const other = name === 'page' ? 'view' : 'page';
+      const viewOf = { page: undefined, view: VIEW };
+      expect(store.get(composerReplyDraftAtom(ROOM, viewOf[name]))).toMatchObject({
+        eventId: '$root',
+      });
+      expect(store.get(composerReplyDraftAtom(ROOM, viewOf[other]))).toBeUndefined();
+      expect(focus).toHaveBeenCalledOnce();
+      expect(focus).toHaveBeenCalledWith(editors[name]);
+    }
+  );
 
   it.each(['page', 'view'] as const)(
     'edits on Up only in the timeline of the focused composer (%s)',

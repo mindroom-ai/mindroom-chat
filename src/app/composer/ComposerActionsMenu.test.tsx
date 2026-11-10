@@ -23,21 +23,28 @@ afterEach(() => {
   store.set(conversationBehindPanelAtom, false);
 });
 
-describe('the composer actions menu', () => {
-  it.each([
-    ["a plugin's cover", conversationCoveredAtom],
-    ['a side panel in its place', conversationBehindPanelAtom],
-  ])('closes as %s hides the conversation', (_what, atom) => {
-    const noop = () => undefined;
-    render(
+/** Opens the menu, in the room page's composer unless `view` names another conversation view. */
+const openMenu = (view?: string) => {
+  const noop = () => undefined;
+  render(
+    <ConversationViewContext.Provider value={view}>
       <ComposerActionsMenu
         formattingOpen={false}
         onAttach={noop}
         onToggleFormatting={noop}
         onEmoji={noop}
       />
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    </ConversationViewContext.Provider>
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+};
+
+describe('the composer actions menu', () => {
+  it.each([
+    ["a plugin's cover", conversationCoveredAtom],
+    ['a side panel in its place', conversationBehindPanelAtom],
+  ])('closes as %s hides the conversation', (_what, atom) => {
+    openMenu();
     expect(screen.queryByRole('menu')).not.toBeNull();
 
     act(() => store.set(atom, true));
@@ -45,18 +52,7 @@ describe('the composer actions menu', () => {
   });
 
   it("stays open in another conversation view as a side panel hides the room's page", () => {
-    const noop = () => undefined;
-    render(
-      <ConversationViewContext.Provider value="thread-view">
-        <ComposerActionsMenu
-          formattingOpen={false}
-          onAttach={noop}
-          onToggleFormatting={noop}
-          onEmoji={noop}
-        />
-      </ConversationViewContext.Provider>
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    openMenu('thread-view');
     act(() => store.set(conversationBehindPanelAtom, true));
     expect(screen.queryByRole('menu')).not.toBeNull();
   });

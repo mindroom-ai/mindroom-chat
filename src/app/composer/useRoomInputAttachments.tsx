@@ -24,8 +24,9 @@ import {
   keepStagedFileNames,
   roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
+  composerUploadItemsAtom,
 } from './roomInputDrafts';
-import { ConversationViewContext, composerStateKey } from '../navigation/conversationView';
+import { ConversationViewContext } from '../navigation/conversationView';
 import { forgetPastesOutsideDraft, keepPasteText, readKeptPasteTexts } from './keptPastes';
 import {
   createUploadFamilyObserverAtom,
@@ -131,7 +132,7 @@ export const useRoomInputAttachments = ({
   const store = useStore();
   // Another view of the room (a plugin's thread view) stages its own files, and keeps no names.
   const view = useContext(ConversationViewContext);
-  const itemsAtom = roomIdToUploadItemsAtomFamily(composerStateKey(roomId, view));
+  const itemsAtom = composerUploadItemsAtom(roomId, view);
   const roomItems = useAtomValue(itemsAtom);
   const [boardOpen, setBoardOpen] = useState(true);
 
@@ -195,7 +196,7 @@ export const useRoomInputAttachments = ({
     const needed = new Set<TUploadContent>(enrolled.current.map((item) => item.file));
     watchedRooms.current.forEach((watchedRoomId) =>
       store
-        .get(roomIdToUploadItemsAtomFamily(composerStateKey(watchedRoomId, view)))
+        .get(composerUploadItemsAtom(watchedRoomId, view))
         .forEach((item) => needed.add(item.file))
     );
     uploadWatches.current.forEach((unsubscribe, file) => {
@@ -222,11 +223,7 @@ export const useRoomInputAttachments = ({
     const uploadOf = (item: TUploadItem): Upload => store.get(roomUploadAtomFamily(item.file));
 
     const snapshot = (targetRoomId?: string): AttachmentSnapshot => {
-      const all = store.get(
-        roomIdToUploadItemsAtomFamily(
-          composerStateKey(targetRoomId ?? current.current.roomId, view)
-        )
-      );
+      const all = store.get(composerUploadItemsAtom(targetRoomId ?? current.current.roomId, view));
       const staged = targetRoomId === undefined ? all.filter(ownedByCurrent) : all;
       const files = new Set(staged.map((item) => item.file));
       const tracked = [...staged, ...enrolled.current.filter((item) => !files.has(item.file))];
@@ -241,7 +238,7 @@ export const useRoomInputAttachments = ({
         // A file that could not be prepared shows its error on its card instead of uploading.
         if (item.prepError) store.set(roomUploadAtomFamily(item.file), { error: item.prepError });
       });
-      store.set(roomIdToUploadItemsAtomFamily(composerStateKey(targetRoomId, view)), {
+      store.set(composerUploadItemsAtom(targetRoomId, view), {
         type: 'PUT',
         item: items,
       });
@@ -254,7 +251,7 @@ export const useRoomInputAttachments = ({
     const remove = (targetRoomId: string, files: TUploadContent[]) => {
       if (files.length === 0) return;
       const removed = new Set(files);
-      const listAtom = roomIdToUploadItemsAtomFamily(composerStateKey(targetRoomId, view));
+      const listAtom = composerUploadItemsAtom(targetRoomId, view);
       const items = store.get(listAtom).filter((item) => removed.has(item.file));
       // A removed file's upload in flight is cancelled; its card would otherwise finish it.
       items.forEach((item) => {
@@ -487,7 +484,7 @@ export const useRoomInputAttachments = ({
       if (item.prepError) {
         store.set(roomUploadAtomFamily(item.file), { error: item.prepError });
       }
-      store.set(roomIdToUploadItemsAtomFamily(composerStateKey(pasteRoomId, view)), {
+      store.set(composerUploadItemsAtom(pasteRoomId, view), {
         type: 'PUT',
         item: items,
       });

@@ -222,8 +222,8 @@ export const useTimelineReadReceiptController = ({
     unreadInfo,
   });
 
-  // A phone's navigation drawer, or a plugin's cover, over the timeline hides it as a window
-  // without the focus does; once it goes, the reader sees it again.
+  // Out of sight (`useConversationOutOfSightAtom`), the timeline is hidden as a window without the
+  // focus is; once it shows again, the reader sees it again.
   const readerSees = useReaderSees();
   const outOfSight = useAtomValue(useConversationOutOfSightAtom());
 
@@ -341,7 +341,7 @@ export const useTimelineReadReceiptController = ({
     ]
   );
   useDocumentFocusChange(handleWindowFocus);
-  // The drawer or the cover going counts as coming back to the window.
+  // Coming back into sight counts as coming back to the window.
   const coveredRef = useRef(outOfSight);
   useEffect(() => {
     const wasCovered = coveredRef.current;

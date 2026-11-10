@@ -16,7 +16,7 @@ import {
 import MessageSound from '../../../public/sound/notification.ogg';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
-import { conversationOutOfSightAtom } from '../navigation/conversationCover';
+import { conversationHiddenAtom } from '../navigation/conversationCover';
 import { getViewedPlace, type ViewedPlace } from '../navigation/viewedPlace';
 import { shownConversationViewsAtom } from '../navigation/conversationView';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
@@ -150,7 +150,7 @@ export function MessageNotificationsFeature() {
   const [sound] = useSetting(settingsAtom, 'isNotificationSounds');
   // A phone's navigation drawer over the page leaves no room on screen, and a plugin's cover over
   // the conversation, or a side panel in its place, leaves only other views of conversations.
-  const outOfSight = useAtomValue(conversationOutOfSightAtom);
+  const hidden = useAtomValue(conversationHiddenAtom);
   const drawerOpen = useAtomValue(phoneNavDrawerOpenAtom);
   const views = useAtomValue(shownConversationViewsAtom);
 
@@ -159,7 +159,7 @@ export function MessageNotificationsFeature() {
     desktop,
     sound,
     directRooms,
-    places: drawerOpen ? [] : [...(outOfSight ? [] : [getViewedPlace(client, location)]), ...views],
+    places: drawerOpen ? [] : [...(hidden ? [] : [getViewedPlace(client, location)]), ...views],
     open: (notice) => {
       if (notice.threadId) navigateRoomThread(notice.roomId, notice.threadId);
       else navigateRoom(notice.roomId);

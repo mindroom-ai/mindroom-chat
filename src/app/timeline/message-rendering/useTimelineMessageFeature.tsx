@@ -48,8 +48,8 @@ import { useMentionClickHandler } from '../../messages/useMentionClickHandler';
 import { useSettingValue } from '../../preferences/useSettingValue';
 import { useHour24Clock } from '../../preferences/useHour24Clock';
 import { MessageLayout, settingsAtom, type Settings } from '../../preferences/settings';
-import { roomIdToReplyDraftAtomFamily } from '../../composer/roomInputDrafts';
-import { ConversationViewContext, composerStateKey } from '../../navigation/conversationView';
+import { composerReplyDraftAtom } from '../../composer/roomInputDrafts';
+import { ConversationViewContext } from '../../navigation/conversationView';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import {
   canEditEvent,
@@ -340,7 +340,7 @@ export const useTimelineMessageFeature = ({
   const editLatestOnArrowUp = useCallback(
     (evt: KeyboardEvent) => {
       if (evt.key !== 'ArrowUp') return;
-      if (!ReactEditor.isFocused(editor as ReactEditor)) return;
+      if (!ReactEditor.isFocused(editor)) return;
       if (!isEmptyEditor(editor)) return;
       const target = findLatestEditableEvent();
       const targetId = target?.getId();
@@ -403,9 +403,7 @@ export const useTimelineMessageFeature = ({
   );
 
   const view = useContext(ConversationViewContext);
-  const setReplyDraft = useSetAtom(
-    roomIdToReplyDraftAtomFamily(composerStateKey(room.roomId, view))
-  );
+  const setReplyDraft = useSetAtom(composerReplyDraftAtom(room.roomId, view));
   const { navigateRoomThread } = useRoomNavigate();
   const handleReplyClick = useCallback(
     (replyEventId: string, startThread = false) => {
@@ -416,7 +414,7 @@ export const useTimelineMessageFeature = ({
         navigateRoomThread(room.roomId, reply.threadRootId);
       }
       // The composer of this timeline, which shares its editor.
-      ReactEditor.focus(editor as ReactEditor);
+      ReactEditor.focus(editor);
     },
     [editor, navigateRoomThread, room, setReplyDraft]
   );

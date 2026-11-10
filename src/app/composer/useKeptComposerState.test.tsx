@@ -32,12 +32,17 @@ function Probe({ userId, roomId }: { userId: string; roomId: string }) {
   return null;
 }
 
-/** A composer on a new page: the in-memory atoms are gone, storage stays. */
-const openPage = (store = createStore()) => {
+/**
+ * A composer on a new page, the room page's unless `view` names another conversation view: the
+ * in-memory atoms are gone, storage stays.
+ */
+const openPage = (store = createStore(), view?: string) => {
   act(() => {
     renderer = create(
       <Provider store={store}>
-        <Probe userId={ME} roomId={ROOM} />
+        <ConversationViewContext.Provider value={view}>
+          <Probe userId={ME} roomId={ROOM} />
+        </ConversationViewContext.Provider>
       </Provider>
     );
   });
@@ -141,19 +146,9 @@ describe('useKeptComposerState', () => {
     act(() => store.set(roomIdToReplyDraftAtomFamily(ROOM), reply));
     keepStagedFileNames(ME, ROOM, [staged('notes.txt')]);
     act(() => renderer?.unmount());
-    roomIdToReplyDraftAtomFamily.remove(ROOM);
     const kept0 = new Map(values);
 
-    const viewStore = createStore();
-    act(() => {
-      renderer = create(
-        <Provider store={viewStore}>
-          <ConversationViewContext.Provider value="thread-view">
-            <Probe userId={ME} roomId={ROOM} />
-          </ConversationViewContext.Provider>
-        </Provider>
-      );
-    });
+    const viewStore = openPage(createStore(), 'thread-view');
     expect(kept?.lostFileNames).toEqual([]);
     expect(viewStore.get(roomIdToReplyDraftAtomFamily(ROOM))).toBeUndefined();
     act(() => kept?.dismissLostFiles());

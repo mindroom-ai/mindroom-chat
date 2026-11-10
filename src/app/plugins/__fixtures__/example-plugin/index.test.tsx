@@ -29,7 +29,7 @@ const place = vi.hoisted(() => ({
   screenSize: undefined as 'Desktop' | 'Mobile' | undefined,
 }));
 // The thread the room's page shows and the thread panel's controls, which the room provides, and the
-// thread itself, which is the app's (e2e/plugins/thread-view.spec.ts).
+// thread itself, which is the app's (e2e/plugins/agent-thread-view.spec.ts).
 const roomPage = vi.hoisted(() => ({
   thread: undefined as string | undefined,
   closeThreadPanel: undefined as (() => void) | undefined,

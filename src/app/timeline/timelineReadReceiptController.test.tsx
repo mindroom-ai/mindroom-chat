@@ -504,15 +504,16 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
 
     it("is read in another conversation view while a side panel hides the room's page, and not while that view does not show", () => {
       const store = getDefaultStore();
+      const inView = (options: ControllerOptions) => (
+        <ConversationViewContext.Provider value="thread-view">
+          <Probe options={options} />
+        </ConversationViewContext.Provider>
+      );
       act(() => store.set(conversationBehindPanelAtom, true));
       try {
         // Mounted, the view does not show yet: a folded side panel keeps it out of sight.
         act(() => {
-          probe = create(
-            <ConversationViewContext.Provider value="thread-view">
-              <Probe options={optionsWith(openThread)} />
-            </ConversationViewContext.Provider>
-          );
+          probe = create(inView(optionsWith(openThread)));
         });
         runFrames();
         expect(markThreadAsRead).not.toHaveBeenCalled();
@@ -523,28 +524,21 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
           ])
         );
         act(() => {
-          probe = create(
-            <ConversationViewContext.Provider value="thread-view">
-              <Probe options={optionsWith(openThread)} />
-            </ConversationViewContext.Provider>
-          );
+          probe = create(inView(optionsWith(openThread)));
         });
         runFrames();
         expect(markThreadAsRead).toHaveBeenCalledTimes(1);
 
-        // A phone's navigation drawer hides it, and its reply waits until the drawer goes.
+        // A phone's navigation drawer hides it, and a new reply waits until the drawer goes.
         act(() => store.set(phoneNavDrawerOpenAtom, true));
         const rows = [
           { getId: () => '$thread' },
           { getId: () => '$reply-1' },
+          { getId: () => '$reply-2' },
         ] as unknown as MatrixEvent[];
         act(() =>
           probe?.update(
-            <ConversationViewContext.Provider value="thread-view">
-              <Probe
-                options={optionsWith({ ...openThread, threadEventsLength: 2, threadEvents: rows })}
-              />
-            </ConversationViewContext.Provider>
+            inView(optionsWith({ ...openThread, threadEventsLength: 3, threadEvents: rows }))
           )
         );
         runFrames();
@@ -552,6 +546,7 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
         act(() => store.set(phoneNavDrawerOpenAtom, false));
         runFrames();
         expect(markThreadAsRead).toHaveBeenCalledTimes(2);
+        expect(vi.mocked(markThreadAsRead).mock.lastCall?.[5]).toBe(rows);
       } finally {
         act(() => store.set(conversationBehindPanelAtom, false));
         act(() => store.set(phoneNavDrawerOpenAtom, false));

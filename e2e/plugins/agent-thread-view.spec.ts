@@ -3,6 +3,7 @@ import {
   bodyOf,
   expect,
   lobbyEvents,
+  messageRow,
   openLobby,
   serverUnreadCounts,
   openThread,
@@ -38,10 +39,6 @@ test.skip(
 test.describe.configure({ timeout: 360_000 });
 
 const APPROVAL_EVENT = 'io.mindroom.tool_approval';
-
-/** The row of the message `eventId` in `scope`. */
-const row = (scope: Page | Locator, eventId: string): Locator =>
-  scope.locator(`[data-message-id="${eventId}"]`).first();
 
 const threadPanel = (page: Page): Locator =>
   page.getByRole('region', { name: 'Example thread', exact: true });
@@ -90,7 +87,7 @@ test("a plugin's panel shows a thread with its approvals and composer, as the ro
   // The room goes back to its timeline; the panel keeps the thread.
   await showPath(page, `/home/${encodeURIComponent(stack.rooms.lobby)}`);
   await expect(page.locator('[data-thread-context-banner]')).toHaveCount(0, { timeout: 30_000 });
-  await expect(row(panel, rootId)).toContainText(word, { timeout: 60_000 });
+  await expect(messageRow(panel, rootId)).toContainText(word, { timeout: 60_000 });
   await expect(panel.locator(`[data-user-id="${stack.agents.helper}"]`).first()).toBeVisible({
     timeout: 60_000,
   });
@@ -126,10 +123,10 @@ test("a plugin's panel shows a thread with its approvals and composer, as the ro
     (event) => event.sender === stack.tester.userId && event.content.body === reply,
     { timeout: 60_000, description: 'the reply sent from the panel' }
   );
-  await expect(row(panel, sent.event_id)).toContainText(reply, { timeout: 30_000 });
+  await expect(messageRow(panel, sent.event_id)).toContainText(reply, { timeout: 30_000 });
 
   // Reply on the root in the panel drafts in the panel's composer alone, and sends into the thread.
-  const rootRow = row(panel, rootId);
+  const rootRow = messageRow(panel, rootId);
   await rootRow.hover();
   await rootRow.getByRole('button', { name: 'Reply', exact: true }).click();
   await expect(panel.getByRole('button', { name: 'Cancel reply' })).toBeVisible();
@@ -207,7 +204,7 @@ test("a plugin's panel shows a thread with its approvals and composer, as the ro
 
   // The room's own view of the thread shows the reply.
   await showThread(page, stack, rootId);
-  await expect(row(page, sent.event_id)).toContainText(reply, { timeout: 30_000 });
+  await expect(messageRow(page, sent.event_id)).toContainText(reply, { timeout: 30_000 });
 });
 
 /** A room the router made, where the tester has joined but may not post. */
@@ -243,7 +240,7 @@ test("a plugin's panel shows a thread without a composer where the account may n
   const { roomId, rootId, word } = await readOnlyRoom(stack);
   await openThread(page, { ...stack, rooms: { ...stack.rooms, lobby: roomId } }, rootId);
   const panel = await openThreadPanel(page);
-  await expect(row(panel, rootId)).toContainText(`${word} root`, { timeout: 60_000 });
+  await expect(messageRow(panel, rootId)).toContainText(`${word} root`, { timeout: 60_000 });
   await expect(panel.getByRole('textbox')).toHaveCount(0);
   await shot(page, 'read-only');
 });
@@ -260,7 +257,7 @@ test.describe('on a phone', () => {
     const rootId = await startThread(stack, word);
     await showThread(page, stack, rootId);
     const panel = await openThreadPanel(page);
-    await expect(row(panel, rootId)).toContainText(word, { timeout: 60_000 });
+    await expect(messageRow(panel, rootId)).toContainText(word, { timeout: 60_000 });
 
     // A message in the thread while the panel covers the page is read there.
     const later = `${word} later`;

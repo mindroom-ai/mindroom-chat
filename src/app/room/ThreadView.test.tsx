@@ -1,11 +1,18 @@
 // @vitest-environment jsdom
-import { useContext, useEffect, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import {
+  useContext,
+  useEffect,
+  type ComponentProps,
+  type KeyboardEvent,
+  type RefObject,
+} from 'react';
 import { getDefaultStore } from 'jotai';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createClient, Room, type RoomMember } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Editable, Slate } from 'slate-react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import type { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import {
   ConversationViewContext,
@@ -18,6 +25,7 @@ import { ThreadView } from './ThreadView';
 const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
 const room = new Room('!room:example.org', mx, '@alice:example.org');
 const THREAD = '$root';
+type ApprovalProps = ComponentProps<typeof ThreadApprovalProvider>;
 
 const LEVELS = vi.hoisted(() => ({ users_default: 0 }));
 const state = vi.hoisted(() => ({
@@ -28,9 +36,7 @@ const state = vi.hoisted(() => ({
   timelineLevels: undefined as unknown,
   dropTarget: undefined as HTMLElement | null | undefined,
   composerViews: [] as (string | undefined)[],
-  approvals: undefined as
-    | { room: Room; threadId?: string; focusConversation?: () => void }
-    | undefined,
+  approvals: undefined as Omit<ApprovalProps, 'children'> | undefined,
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
@@ -57,15 +63,7 @@ vi.mock('../timeline/RoomTimeline', () => ({
   },
 }));
 vi.mock('../approvals/ThreadApprovalProvider', () => ({
-  ThreadApprovalProvider: ({
-    children,
-    ...props
-  }: {
-    children: ReactNode;
-    room: Room;
-    threadId?: string;
-    focusConversation?: () => void;
-  }) => {
+  ThreadApprovalProvider: ({ children, ...props }: ApprovalProps) => {
     state.approvals = props;
     return children;
   },
@@ -209,7 +207,7 @@ it('counts its thread as on screen for notifications while it is mounted', () =>
 it('counts its thread as off screen while the side panel it is in is folded', () => {
   const store = getDefaultStore();
   const frame = (layout: 'beside' | 'folded') => ({ label: 'Thread', layout, setLayout: vi.fn() });
-  const { rerender, unmount } = render(
+  const { rerender } = render(
     <PanelFrameProvider value={frame('folded')}>
       <ThreadView room={room} threadId={THREAD} />
     </PanelFrameProvider>
@@ -223,7 +221,6 @@ it('counts its thread as off screen while the side panel it is in is folded', ()
   expect(store.get(shownConversationViewsAtom)).toMatchObject([
     { roomId: room.roomId, threadId: THREAD },
   ]);
-  unmount();
 });
 
 it('asks for no approvals of a thread whose root the server has not confirmed', () => {

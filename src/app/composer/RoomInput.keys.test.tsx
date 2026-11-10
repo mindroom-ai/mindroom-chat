@@ -181,6 +181,9 @@ afterEach(() => {
   state.commandThread = undefined;
 });
 
+/** Another conversation view than the room page, as a plugin's thread view. */
+const VIEW = 'thread-view';
+
 type ComposerProps = {
   store?: ReturnType<typeof createStore>;
   room?: Room;
@@ -264,15 +267,15 @@ describe('composer', () => {
 
   it("keeps the mention menu and the model picker of another conversation view open as a side panel hides the room's page", async () => {
     const store = createStore();
-    await mountComposer([], { store, view: 'thread-view' });
+    await mountComposer([], { store, view: VIEW });
     act(() => store.set(conversationBehindPanelAtom, true));
     expect(renderer!.root.findAllByType(UserMentionAutocomplete)).toHaveLength(1);
     expect(renderer!.root.findByType(ThreadModelPicker).props.conversationHidden).toBe(false);
   });
 
   it("leaves the room page's voice messages to it in another conversation view", async () => {
-    await mountComposer([], { view: 'thread-view' });
-    expect(state.voiceRoomId).toBe(composerStateKey('!room:example.org', 'thread-view'));
+    await mountComposer([], { view: VIEW });
+    expect(state.voiceRoomId).toBe(composerStateKey('!room:example.org', VIEW));
     await mountComposer([]);
     expect(state.voiceRoomId).toBe('!room:example.org');
   });
@@ -281,13 +284,13 @@ describe('composer', () => {
     const store = createStore();
     const reply = { userId: '@bob:example.org', eventId: '$page', body: 'On the page' };
     store.set(roomIdToReplyDraftAtomFamily('!room:example.org'), reply);
-    await mountComposer([], { store, view: 'thread-view' });
+    await mountComposer([], { store, view: VIEW });
     expect(renderer!.root.findAllByType(RoomInputReplyPreview)).toHaveLength(0);
     act(() =>
-      store.set(
-        roomIdToReplyDraftAtomFamily(composerStateKey('!room:example.org', 'thread-view')),
-        { ...reply, eventId: '$view' }
-      )
+      store.set(roomIdToReplyDraftAtomFamily(composerStateKey('!room:example.org', VIEW)), {
+        ...reply,
+        eventId: '$view',
+      })
     );
     expect(renderer!.root.findByType(RoomInputReplyPreview).props.replyDraft.eventId).toBe('$view');
   });

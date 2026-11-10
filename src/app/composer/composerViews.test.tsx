@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React, { createRef, type ReactNode } from 'react';
+import React, { createRef } from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createEditor } from 'slate';
@@ -24,10 +24,6 @@ vi.mock('./upload/UploadBoard', () => ({
   UploadBoardContent: () => null,
   UploadBoardHeader: () => null,
 }));
-vi.mock('./RoomInputExtensions', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./RoomInputExtensions')>()),
-  getRoomInputVoiceUploadRelation: () => undefined,
-}));
 
 const ME = '@tester:example.org';
 const ROOM_ID = '!views:example.org';
@@ -38,7 +34,7 @@ const fileItem = (name: string): TUploadItem => {
   return { file, originalFile: file, encInfo: undefined, metadata: { markedAsSpoiler: false } };
 };
 
-type Composer = {
+type ComposerHooks = {
   attachments: ReturnType<typeof useRoomInputAttachments>;
   transport: ReturnType<typeof useRoomInputUploadTransport>;
 };
@@ -53,7 +49,7 @@ afterEach(() => {
 const renderTwoComposers = () => {
   const store = createStore();
   const mx = { cancelUpload: vi.fn() };
-  const composers = {} as Record<'page' | 'view', Composer>;
+  const composers = {} as Record<'page' | 'view', ComposerHooks>;
   const Composer = ({ name }: { name: 'page' | 'view' }) => {
     composers[name] = {
       attachments: useRoomInputAttachments({
@@ -75,17 +71,14 @@ const renderTwoComposers = () => {
     };
     return null;
   };
-  const inStore = (children: ReactNode) => <Provider store={store}>{children}</Provider>;
   act(() => {
     renderer = create(
-      inStore(
-        <>
-          <Composer name="page" />
-          <ConversationViewContext.Provider value={VIEW}>
-            <Composer name="view" />
-          </ConversationViewContext.Provider>
-        </>
-      )
+      <Provider store={store}>
+        <Composer name="page" />
+        <ConversationViewContext.Provider value={VIEW}>
+          <Composer name="view" />
+        </ConversationViewContext.Provider>
+      </Provider>
     );
   });
   return { store, composers };

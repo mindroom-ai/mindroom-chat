@@ -2,10 +2,10 @@ import { useCallback, useContext, useMemo } from 'react';
 import type { createStore } from 'jotai';
 import type { IContent, MatrixClient, Room } from 'matrix-js-sdk';
 import { getAudioMsgContent } from '../matrix/send/msgContent';
-import { ConversationViewContext, composerStateKey } from '../navigation/conversationView';
+import { ConversationViewContext } from '../navigation/conversationView';
 import {
   type PendingVoiceSendContext,
-  roomIdToUploadItemsAtomFamily,
+  composerUploadItemsAtom,
   roomUploadAtomFamily,
 } from './roomInputDrafts';
 import { type TUploadItem, UploadStatus } from '../matrix/state/upload';
@@ -92,7 +92,7 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
    */
   const uploadItemWhileStaged = useCallback(
     async (roomId: string, item: TUploadItem): Promise<TUploadItem | undefined> => {
-      const listAtom = roomIdToUploadItemsAtomFamily(composerStateKey(roomId, view));
+      const listAtom = composerUploadItemsAtom(roomId, view);
       const staged = () => store.get(listAtom).some((entry) => entry.file === item.file);
       if (!staged()) return undefined;
       // Removing the file from the composer ends the wait, even for an upload that never settles.

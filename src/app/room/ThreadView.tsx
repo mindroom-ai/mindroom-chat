@@ -45,17 +45,11 @@ const VIEW_STYLE = {
 const TIMELINE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
 
 /**
- * The thread `threadId` (its root's event ID) of `room` as the room's page shows it, for a client
- * plugin's surface (`ThreadView` of `@mindroom/client-sdk/room`): its root and replies with their
- * message actions and link cards, the thread's tool approvals under them, and the composer under
- * those while the signed-in account may post in the room. It is a conversation view of its own
- * (`ConversationViewContext`), also beside the room's page of the same room: its composer has its
- * own reply and staged files, and it counts as on screen while the room's page is behind a panel.
- * The text being written is the thread's draft, the same as on the room's page; voice messages
- * stay the page's. Timeline and
- * composer share one editor, as in the room view; it has no filter bar or thread summaries, and
- * the whole view takes dropped files. It adds no key handling of its own, so an Escape the
- * composer and its menus leave bubbles out of it.
+ * The app side of `ThreadView` in `@mindroom/client-sdk/room`, whose contract lives there and in
+ * docs/architecture.md. It is a conversation view of its own (`ConversationViewContext`), shown
+ * (`shownConversationViewsAtom`) while its side panel is not folded. Timeline and composer share
+ * one editor, as in the room view; it has no filter bar or thread summaries, the whole view takes
+ * dropped files, and it adds no key handling of its own.
  */
 export function ThreadView({ room, threadId }: { room: Room; threadId: string }) {
   const client = useMatrixClient();
@@ -82,7 +76,7 @@ export function ThreadView({ room, threadId }: { room: Room; threadId: string })
     return () => setShownViews((shown) => shown.filter((other) => other !== place));
   }, [folded, roomId, setShownViews, threadId, view]);
 
-  const focusConversation = useCallback(() => ReactEditor.focus(editor as ReactEditor), [editor]);
+  const focusConversation = useCallback(() => ReactEditor.focus(editor), [editor]);
 
   return (
     <ConversationViewContext.Provider value={view}>

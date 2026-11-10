@@ -52,7 +52,7 @@ import {
   type IReplyDraft,
   keepReplyDraft,
   roomIdToMsgDraftAtomFamily,
-  roomIdToReplyDraftAtomFamily,
+  composerReplyDraftAtom,
 } from './roomInputDrafts';
 import type { TUploadItem } from '../matrix/state/upload';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
@@ -281,7 +281,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const draftKey = threadId ? getRoomInputDraftKey(userId, roomId, threadId) : undefined;
     // Another view of the room (a plugin's thread view) has a reply of its own.
     const view = useContext(ConversationViewContext);
-    const replyDraft = useAtomValue(roomIdToReplyDraftAtomFamily(composerStateKey(roomId, view)));
+    const replyDraft = useAtomValue(composerReplyDraftAtom(roomId, view));
     const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
     const sendTypingStatus = useTypingStatusUpdater(mx, roomId, hideActivity);
     const isComposing = useComposingCheck();
@@ -362,7 +362,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         roomId: string;
         replyDraft?: IReplyDraft;
       }) => {
-        const replyAtom = roomIdToReplyDraftAtomFamily(composerStateKey(replyRoomId, view));
+        const replyAtom = composerReplyDraftAtom(replyRoomId, view);
         // A reply chosen after this send started stays for the next message.
         if (consumed && hasMatchingReplyDraft(consumed, store.get(replyAtom))) {
           store.set(replyAtom, undefined);
@@ -444,6 +444,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       sessions,
       onRoomMessageSent,
     });
+    const microphone = view === undefined && voice.microphone;
 
     const buildTextContent = useCallback(
       (): IContent | undefined =>
@@ -770,7 +771,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   onToggleFormatting={toggleFormatting}
                   onEmoji={(anchor) => openBoard('Emoji', anchor)}
                 />
-                {view === undefined && voice.microphone}
+                {microphone}
               </>
             ) : (
               <>
@@ -780,7 +781,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   icon={Icons.PlusCircle}
                   onPress={attachments.pickFiles}
                 />
-                {view === undefined && voice.microphone}
+                {microphone}
                 <ComposerIconButton
                   label={t('composer.formatting')}
                   icon={Icons.Text}

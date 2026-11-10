@@ -33,10 +33,8 @@ const timeline = (events: MatrixEvent[]) => {
 };
 
 // The composer that shares the timeline's editor has the focus, unless a test moves it.
-const focusedEditors = new Set<unknown>();
 beforeEach(() => {
-  focusedEditors.clear();
-  vi.spyOn(ReactEditor, 'isFocused').mockImplementation((editor) => focusedEditors.has(editor));
+  vi.spyOn(ReactEditor, 'isFocused').mockReturnValue(true);
 });
 
 const mountKeyboard = async (
@@ -53,7 +51,6 @@ const mountKeyboard = async (
   room.getLiveTimeline = () => timeline([message('$room-message')]);
   const editor = createEditor();
   editor.children = [{ type: BlockType.Paragraph, children: [{ text: '' }] }];
-  focusedEditors.add(editor);
   let feature!: ReturnType<typeof useTimelineMessageFeature>;
   const Harness = ({ threadId }: { threadId?: string }) => {
     feature = useTimelineMessageFeature({
@@ -180,7 +177,7 @@ describe('Up-arrow message editing', () => {
 
   it('does not edit while another input has focus', async () => {
     const keyboard = await mountKeyboard([message('$reply')], '$root');
-    focusedEditors.delete(keyboard.editor);
+    vi.mocked(ReactEditor.isFocused).mockReturnValue(false);
     expect(keyboard.pressUp().editingEventId).toBeUndefined();
   });
 });
