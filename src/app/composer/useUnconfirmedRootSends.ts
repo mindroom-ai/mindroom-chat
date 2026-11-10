@@ -3,7 +3,7 @@ import { useStore } from 'jotai';
 import { EventStatus, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { isFailedLocalEchoEvent } from '../matrix/protocol/pendingLocalEcho';
-import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from './roomInputDrafts';
+import { getRoomInputDraftKey, moveMessageDraft } from './roomInputDrafts';
 
 /** A send the composer holds while its thread's root waits for the server. */
 export type HeldSend = { kind: 'message' } | { kind: 'sticker'; mxc: string; label: string };
@@ -26,8 +26,8 @@ type Options = {
 /**
  * A thread opened by a message the server has not confirmed yet has that message's local ID,
  * which no reply can point at. The composer stays usable there:
- * - its draft moves with the thread when the root gets its own ID, and to the room's composer
- *   when the root is deleted unsent;
+ * - its draft moves with the thread when the root gets its own ID, and to the room's composer,
+ *   after the text it holds, when the root is deleted unsent;
  * - a send waits, its text in the composer, until the root has its own ID, and then goes out
  *   (`hold`). A root that fails to send, or a composer that moves elsewhere, drops the wait and
  *   the text stays where it is.
@@ -57,13 +57,11 @@ export const useUnconfirmedRootSends = ({
     const confirmed = root.getId() === threadId;
     const deleted = root.status === EventStatus.CANCELLED && threadId === undefined;
     if (!confirmed && !deleted) return;
-    const from = roomIdToMsgDraftAtomFamily(
-      getRoomInputDraftKey(userId, roomId, previous.threadId)
+    moveMessageDraft(
+      store,
+      getRoomInputDraftKey(userId, roomId, previous.threadId),
+      getRoomInputDraftKey(userId, roomId, threadId)
     );
-    const to = roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(userId, roomId, threadId));
-    const draft = store.get(from);
-    if (draft.length > 0 && store.get(to).length === 0) store.set(to, draft);
-    store.set(from, []);
   }, [room, roomId, store, threadId, userId]);
 
   const [held, setHeld] = useState<Held>();

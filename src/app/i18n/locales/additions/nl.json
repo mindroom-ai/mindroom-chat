@@ -685,6 +685,8 @@
     }
   },
   "composer": {
+    "voicePausedInThisRoom": "Spraakopname gepauzeerd — maak je niet-verzonden opname elders in deze ruimte af of verwijder deze",
+    "voiceThreadRootUnsent": "Het eerste bericht van de thread is nog niet verzonden. Verstuur dit spraakbericht opnieuw zodra het verzonden is.",
     "emoji": "Emoji",
     "cancelReply": "Antwoord annuleren",
     "moreActions": "Meer acties",

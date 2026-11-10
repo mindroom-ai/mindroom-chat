@@ -190,4 +190,23 @@ describe('useUnconfirmedRootSends', () => {
     expect(Node.string(editor)).toBe('Draft for the deleted thread.');
     expect(draftOf(undefined)).toEqual(paragraph('Draft for the deleted thread.'));
   });
+
+  it("adds the draft after the room composer's own text when the root is deleted unsent", async () => {
+    const { room, root } = makeRoom();
+    store.set(
+      roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(USER, ROOM)),
+      paragraph('Room text.')
+    );
+    const editor = withHistory(createEditor());
+    editor.children = paragraph('');
+    await render(room, editor, LOCAL_ID);
+    type(editor, 'Reply text.');
+
+    await act(async () => room.updatePendingEvent(root, EventStatus.NOT_SENT));
+    await act(async () => room.updatePendingEvent(root, EventStatus.CANCELLED));
+    await render(room, editor, undefined);
+
+    expect(draftOf(undefined)).toEqual([...paragraph('Room text.'), ...paragraph('Reply text.')]);
+    expect(draftOf(LOCAL_ID)).toEqual([]);
+  });
 });

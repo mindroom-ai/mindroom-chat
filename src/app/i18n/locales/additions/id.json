@@ -674,6 +674,8 @@
     }
   },
   "composer": {
+    "voicePausedInThisRoom": "Rekaman suara dijeda — selesaikan atau buang rekaman yang belum terkirim di tempat lain di ruangan ini",
+    "voiceThreadRootUnsent": "Pesan pertama utas belum terkirim. Kirim ulang pesan suara ini setelah pesan itu terkirim.",
     "emoji": "Emoji",
     "cancelReply": "Batalkan balasan",
     "moreActions": "Tindakan lainnya",

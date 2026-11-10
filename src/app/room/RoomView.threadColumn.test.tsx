@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type { ComponentProps, ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createClient, EventStatus, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
@@ -24,6 +25,7 @@ import {
 import { PanelRow } from '../members/PanelRow';
 import { RoomView, type RoomViewProps } from './RoomView';
 import type { ThreadView } from './ThreadView';
+import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 
 const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
 const room = new Room('!room:example.org', mx, '@alice:example.org');
@@ -37,13 +39,20 @@ const state = vi.hoisted(() => ({
   columnLoadError: undefined as ((threadId: string) => void) | undefined,
   rootDeleted: () => undefined as void,
   resized: [] as (() => void)[],
+  canMessage: true,
+  read: [] as string[],
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({ usePowerLevelsContext: () => ({}) }));
 vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
 vi.mock('../matrix/hooks/useRoomPermissions', () => ({
-  useRoomPermissions: () => ({ event: () => true }),
+  useRoomPermissions: () => ({ event: () => state.canMessage }),
+}));
+vi.mock('../notifications/readReceipts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../notifications/readReceipts')>()),
+  markMainTimelineAsRead: () => state.read.push('messages'),
+  markThreadAsRead: (_mx: unknown, _roomId: string, threadId: string) => state.read.push(threadId),
 }));
 vi.mock('../matrix/hooks/useStateEvent', () => ({ useStateEvent: () => undefined }));
 vi.mock('../event-store/engine/engineContext', () => ({
@@ -151,6 +160,8 @@ vi.mock('./ThreadView', async () => {
         >
           {header}
           <div ref={reply} contentEditable suppressContentEditableWarning aria-label="Reply" />
+          {/* A menu it opens renders outside it, as the app's menus and dialogs do. */}
+          {createPortal(<button type="button">Column menu item</button>, document.body)}
         </div>
       );
     },
@@ -183,6 +194,8 @@ beforeEach(() => {
   state.focused = [];
   state.rootDeleted = () => undefined;
   state.resized = [];
+  state.canMessage = true;
+  state.read = [];
   localStorage.clear();
   vi.stubGlobal('PointerEvent', TestPointerEvent);
   vi.stubGlobal(
@@ -210,9 +223,15 @@ afterEach(() => {
   getDefaultStore().set(conversationBehindPanelAtom, false);
 });
 
+// The room's Escape handler (Room.tsx), which reads the open thread or the room's messages.
+function EscapeReads() {
+  useRoomEscapeReadReceipts({ hideActivity: false, roomId: room.roomId, threadId: state.thread });
+  return null;
+}
 // In the room's row, which measures itself before the view mounts.
 const tree = (props: Partial<RoomViewProps> = {}, screenSize = ScreenSize.Desktop) => (
   <ScreenSizeProvider value={screenSize}>
+    <EscapeReads />
     <PanelRow>
       <RoomView room={room} {...props} />
     </PanelRow>
@@ -420,6 +439,32 @@ it("moves a reply's text to the room's composer when the column's unsent root is
   store.set(roomDraft, []);
 });
 
+it("adds a reply's text after the room composer's own when the column's unsent root is deleted", () => {
+  const store = getDefaultStore();
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  const local = '~!room:example.org:m2.2';
+  const threadDraft = draftAtom(local);
+  const roomDraft = draftAtom();
+  const roomText = { type: 'paragraph', children: [{ text: 'room text' }] };
+  const reply = { type: 'paragraph', children: [{ text: 'my reply' }] };
+  store.set(roomDraft, [roomText] as never);
+  store.set(threadDraft, [reply] as never);
+  const root = new MatrixEvent({ event_id: local, type: 'm.room.message', content: {} });
+  vi.spyOn(room, 'findEventById').mockReturnValue(root);
+  state.thread = local;
+  const { rerender } = renderView();
+
+  root.status = EventStatus.CANCELLED;
+  act(() => {
+    room.emit(RoomEvent.LocalEchoUpdated, root, room, local);
+  });
+  state.thread = undefined;
+  rerenderView(rerender);
+  expect(store.get(roomDraft)).toEqual([roomText, reply]);
+  expect(store.get(threadDraft)).toEqual([]);
+  store.set(roomDraft, []);
+});
+
 it("keeps another thread's text where it is as the column closes", () => {
   const store = getDefaultStore();
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
@@ -552,4 +597,26 @@ it("gives the column that fills the page the thread's background jobs and the le
   );
   fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA' });
   expect(document.activeElement).toBe(screen.getByLabelText('Reply'));
+});
+
+it('leaves typed letters alone in a column that fills the page without a composer', () => {
+  state.canMessage = false;
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  renderView();
+  fireEvent.click(screen.getByRole('button', { name: 'Full' }));
+  fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA' });
+  expect(document.activeElement).toBe(document.body);
+});
+
+it('marks the thread read on Escape in its column, in a menu it opened and on its edge', () => {
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  renderView();
+  const escape = (target: Element) => fireEvent.keyDown(target, { key: 'Escape' });
+  escape(screen.getByLabelText('Reply'));
+  escape(screen.getByRole('button', { name: 'Column menu item' }));
+  escape(screen.getByRole('separator', { name: 'Resize the thread' }));
+  expect(state.read).toEqual(['$thread', '$thread', '$thread']);
+  // Beside the column, the room's messages are read.
+  escape(screen.getByRole('textbox', { name: 'Message' }));
+  expect(state.read).toEqual(['$thread', '$thread', '$thread', 'messages']);
 });

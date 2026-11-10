@@ -146,6 +146,15 @@ const createMsgDraftAtom = (draftKey: string): WritableAtom<Descendant[], [Desce
 /** The unsent message of a composer, keyed by `getRoomInputDraftKey`. */
 export const roomIdToMsgDraftAtomFamily = atomFamily(createMsgDraftAtom);
 
+/** Moves a draft to another composer's, after the text that one holds: the thread it was in went. */
+export const moveMessageDraft = (store: JotaiStore, fromKey: string, toKey: string): void => {
+  const from = roomIdToMsgDraftAtomFamily(fromKey);
+  const to = roomIdToMsgDraftAtomFamily(toKey);
+  const draft = store.get(from);
+  if (draft.length > 0) store.set(to, [...store.get(to), ...draft]);
+  store.set(from, []);
+};
+
 // What else a reload keeps, per account and room: the message being replied to, and the names of
 // the staged files, which cannot be kept themselves.
 const REPLY_STORAGE_PREFIX = 'roomInputReply:';

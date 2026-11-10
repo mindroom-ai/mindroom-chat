@@ -685,6 +685,8 @@
     }
   },
   "composer": {
+    "voicePausedInThisRoom": "Sprachaufnahme pausiert — schließe deine nicht gesendete Aufnahme an anderer Stelle in diesem Raum ab oder verwirf sie",
+    "voiceThreadRootUnsent": "Die erste Nachricht des Threads ist noch nicht gesendet. Sende diese Sprachnachricht erneut, sobald sie gesendet ist.",
     "emoji": "Emoji",
     "cancelReply": "Antwort abbrechen",
     "moreActions": "Weitere Aktionen",

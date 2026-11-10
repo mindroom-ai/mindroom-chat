@@ -13,6 +13,10 @@ import { PendingSendIndicator } from '../ui/PendingSendIndicator';
 import { ThreadIndicator } from '../messages/ThreadIndicator';
 import { isSignalBridgeRoom } from '../matrix/bridgeDetection';
 import {
+  isLocalEchoEventId,
+  resolveCanonicalThreadRootId,
+} from '../event-store/threads/threadRouteUtils';
+import {
   createRoomInputSendSessionState,
   getUploadRelationForSendSession,
 } from './roomInputSendSession';
@@ -91,6 +95,11 @@ export const refreshRoomInputVoiceSendContext = (
   return {
     ...context,
     room: liveRoom,
+    // A thread opened by a message that was still sending goes by that message's own ID once the
+    // server confirms it.
+    threadId: isLocalEchoEventId(context.threadId)
+      ? resolveCanonicalThreadRootId(liveRoom, context.threadId)
+      : context.threadId,
     signalBridgedRoom: isSignalBridgeRoom(liveRoom),
   };
 };
@@ -102,6 +111,7 @@ export const getRoomInputVoiceUploadRelation = (
   const session = {
     threadId: context.threadId,
     replyDraft: context.replyDraft,
+    threadingEnabled: context.threadingEnabled,
     ...createRoomInputSendSessionState({
       files: [file],
       hasText: false,
