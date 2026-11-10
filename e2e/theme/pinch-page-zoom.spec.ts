@@ -113,8 +113,11 @@ test('the composer writes at the size of a message body at every page zoom', asy
   await page.goto('/e2e/fixtures/composer-undo.html');
   const composer = page.locator('[contenteditable="true"]');
   await expect(composer).toBeVisible();
+  await composer.click();
+  await page.keyboard.type('The load test passed');
+  const text = composer.locator('[data-slate-string]');
   const textAt = (zoom: string) =>
-    composer.evaluate((element, rootSize) => {
+    text.evaluate((element, rootSize) => {
       document.documentElement.style.fontSize = rootSize;
       const { fontSize, lineHeight } = getComputedStyle(element);
       return [parseFloat(fontSize), parseFloat(lineHeight)];
