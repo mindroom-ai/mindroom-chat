@@ -24,7 +24,7 @@ import {
   MINDROOM_TOOL_APPROVAL_EVENT,
   parseToolApprovalExpiryTimestamp,
 } from '../../matrix/protocol/toolApproval';
-import { getEditedEvent } from '../../matrix/room';
+import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 import type { PluginEvent } from '../../plugins/messageRenderers';
 
 export type ThreadPreview =
@@ -116,20 +116,24 @@ const shownOf = (event: MatrixEvent, thread: Thread | null | undefined): Shown =
   };
 };
 
-const pluginEventOf = (room: Room, { event, content }: Shown): PluginEvent => ({
-  eventId: event.getId(),
-  roomId: room.roomId,
-  type: event.getType(),
-  sender: event.getSender() ?? '',
-  content,
-});
-
 /** A thread's message as the timeline gives it to a plugin's message renderer: its newest edit. */
 export const threadMessagePluginEvent = (
   room: Room,
   event: MatrixEvent,
   thread: Thread | null | undefined
-): PluginEvent => pluginEventOf(room, shownOf(event, thread));
+): PluginEvent => {
+  const id = event.getId();
+  return {
+    eventId: id,
+    roomId: room.roomId,
+    type: event.getType(),
+    sender: event.getSender() ?? '',
+    content: getLatestMessageContent(
+      event,
+      id ? getEditedEvent(id, event, thread?.timelineSet) : undefined
+    ),
+  };
+};
 
 const countsAsNews = ({ event, content }: Shown): boolean => {
   if (event.getType() !== 'm.room.message' || !isFirstOrder(event)) return false;
@@ -373,7 +377,7 @@ export const readThreadSignals = (
             senderId: newest.event.getSender() ?? '',
             ts: newest.event.getTs(),
             preview: previewOf(newest.content),
-            event: pluginEventOf(room, newest),
+            event: threadMessagePluginEvent(room, newest.event, thread),
           },
         }
       : {}),

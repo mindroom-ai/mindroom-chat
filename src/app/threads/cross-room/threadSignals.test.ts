@@ -467,6 +467,31 @@ describe('readThreadSignals in a loaded thread with edits', () => {
     });
   });
 
+  it('keeps the MindRoom metadata an edit carries beside m.new_content, as the timeline does', async () => {
+    const reply = event({ id: '$r', ts: 2000, sender: AGENT, content: { body: 'Thinking...' } });
+    const done = new MatrixEvent({
+      event_id: '$done',
+      room_id: ROOM_ID,
+      sender: AGENT,
+      type: 'm.room.message',
+      origin_server_ts: 3000,
+      content: {
+        msgtype: 'm.text',
+        body: '* Done',
+        'io.mindroom.stream_status': 'completed',
+        'm.new_content': { msgtype: 'm.text', body: 'Done' },
+        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$r' },
+      },
+    });
+    const { room } = await setup(ME, [reply, done], { opened: true });
+
+    expect(readThreadSignals(room, ROOT, ME, NOW).lastReply?.event.content).toEqual({
+      msgtype: 'm.text',
+      body: 'Done',
+      'io.mindroom.stream_status': 'completed',
+    });
+  });
+
   it("hands a thread's root to plugins with its newest edit, unless the thread has an AI title", async () => {
     const card = { 'com.example.greeting': { text: 'Hello' } };
     const { room } = await setup(AGENT, []);
