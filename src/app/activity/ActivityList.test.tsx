@@ -15,6 +15,7 @@ import { allInvitesAtom } from '../matrix/state/inviteList';
 import type { ActivityRow, ActivityRowsResult } from './activityRows';
 import { activityRowsAtom, activityShowAutomationsAtom } from './activityState';
 import { ActivityList } from './ActivityList';
+import * as css from './ActivityList.css';
 
 const NAMES: Record<string, string> = {
   '@mindroom_code:x': 'Code',
@@ -22,6 +23,8 @@ const NAMES: Record<string, string> = {
   '@maya:x': 'Maya Chen',
   '@tom:x': 'Tom Becker',
   '@sam:x': 'Sam Rivera',
+  // A name of invisible characters only, as spam invites use.
+  '@ghost:x': '\u200b\u200b',
 };
 
 const mocks = vi.hoisted(() => ({
@@ -436,8 +439,27 @@ describe('ActivityList', () => {
     renderList({ rows: [invite('!pilot:x', '@sam:x')], hiddenAutomations: 0 });
     const row = screen.getByText('Partner Pilot').closest('[data-activity-row]') as HTMLElement;
     expect(within(row).getByText('Sam Rivera invited you')).toBeTruthy();
-    // The ID still shows, so a copied name can be told apart, but not inside the sentence.
-    expect(within(row).getByText('@sam:x')).toBeTruthy();
+    // The ID still shows, so a copied name can be told apart, but not inside the sentence; whole,
+    // as a long ID wraps rather than hiding its server.
+    const id = within(row).getByText('@sam:x');
+    expect(id.className).toContain(css.WholeId);
+  });
+
+  it('names an inviter whose name shows nothing by their user ID', () => {
+    inviteRoom('!ghost:x', 'Free prizes');
+    renderList({ rows: [invite('!ghost:x', '@ghost:x')], hiddenAutomations: 0 });
+    expect(screen.getByText('ghost invited you')).toBeTruthy();
+  });
+
+  it('keeps one or two invites as rows of their own, with their answers', () => {
+    inviteRoom('!b1:x', 'Bridge 1');
+    inviteRoom('!b2:x', 'Bridge 2');
+    renderList({
+      rows: [invite('!b1:x', '@tom:x'), invite('!b2:x', '@tom:x')],
+      hiddenAutomations: 0,
+    });
+    expect(screen.getAllByRole('button', { name: 'Join' })).toHaveLength(2);
+    expect(screen.queryByText('2 invites')).toBeNull();
   });
 
   it('gathers three or more invites into one row that opens the invite list', () => {

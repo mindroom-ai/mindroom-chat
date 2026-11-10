@@ -136,6 +136,9 @@ export const Grow = style({ flexGrow: 1, minInlineSize: 0 });
 /** The row's sentence wraps, also inside a user ID, which must show whole after a copied name. */
 export const Sentence = style({ flexGrow: 1, minInlineSize: 0, overflowWrap: 'anywhere' });
 
+/** An inviter's user ID, whole: a long one wraps rather than hide the server that tells it apart. */
+export const WholeId = style({ minInlineSize: 0, overflowWrap: 'anywhere' });
+
 export const UnreadDot = style({
   ...roundDot(8),
   flexShrink: 0,

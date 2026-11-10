@@ -2,7 +2,7 @@ import { Avatar, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { getMxIdLocalPart } from '../matrix/matrix';
-import { getMemberRawDisplayName } from '../matrix/room';
+import { getMemberRawDisplayName, withoutNameDisguises } from '../matrix/room';
 import { revealDirectionControls } from '../ui/directional';
 import type { ActivityRow } from './activityRows';
 import * as css from './ActivityList.css';
@@ -24,15 +24,18 @@ export function ActivityInvitesRow({
 }) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  const inviters = [
-    ...new Set(
-      invites.flatMap(({ roomId, inviterId }) => {
-        if (!inviterId) return [];
-        const room = mx.getRoom(roomId);
-        return [(room && getMemberRawDisplayName(room, inviterId)) ?? getMxIdLocalPart(inviterId)];
-      })
-    ),
-  ].filter((name): name is string => !!name);
+  // One name per inviter (by user ID); the invite list beside it shows their IDs.
+  const inviterRooms = new Map(
+    invites.flatMap(({ roomId, inviterId }) => (inviterId ? [[inviterId, roomId] as const] : []))
+  );
+  const inviters = [...inviterRooms].map(([inviterId, roomId]) => {
+    const room = mx.getRoom(roomId);
+    return (
+      withoutNameDisguises((room && getMemberRawDisplayName(room, inviterId)) ?? '') ??
+      getMxIdLocalPart(inviterId) ??
+      inviterId
+    );
+  });
   return (
     <div data-activity-row="invites" className={`${css.Row} ${css.RowNeedsYou}`}>
       <div className={css.AvatarSlot}>

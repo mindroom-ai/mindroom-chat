@@ -10,7 +10,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { mxcUrlToHttp } from '../matrix/mediaUrl';
 import { getMxIdLocalPart } from '../matrix/matrix';
-import { getMemberAvatarMxc, getMemberRawDisplayName } from '../matrix/room';
+import { getMemberAvatarMxc, getMemberRawDisplayName, withoutNameDisguises } from '../matrix/room';
 import { acceptInvite } from '../notifications/inbox/acceptInvite';
 import { declineInvite } from '../notifications/inbox/declineInvite';
 import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
@@ -284,7 +284,9 @@ export const ActivityRowItem = memo(function ActivityRowItem({
   const names = actorIds.map((userId) =>
     row.type === 'invite'
       ? revealDirectionControls(
-          (room && getMemberRawDisplayName(room, userId)) ?? getMxIdLocalPart(userId) ?? userId
+          withoutNameDisguises((room && getMemberRawDisplayName(room, userId)) ?? '') ??
+            getMxIdLocalPart(userId) ??
+            userId
         )
       : threadActorName(mx, room, userId)
   );
@@ -376,7 +378,13 @@ export const ActivityRowItem = memo(function ActivityRowItem({
             </Text>
           )}
           {row.type === 'invite' && row.inviterId && (
-            <Text as="span" size="T200" priority="300" truncate>
+            <Text
+              as="span"
+              size="T200"
+              priority="300"
+              className={css.WholeId}
+              {...ownDirectionLine}
+            >
               {revealDirectionControls(row.inviterId)}
             </Text>
           )}
