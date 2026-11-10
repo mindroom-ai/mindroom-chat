@@ -23,8 +23,7 @@ export const conversationHiddenAtom = atom(
 
 /**
  * Whether the open room's conversation is out of sight: a phone's navigation drawer covers the
- * page, or the conversation is hidden. Read receipts wait meanwhile, and notifications count no
- * room as on screen.
+ * page, or the conversation is hidden. Read receipts of the room's page wait meanwhile.
  */
 export const conversationOutOfSightAtom = atom(
   (get) => get(phoneNavDrawerOpenAtom) || get(conversationHiddenAtom)

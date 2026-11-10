@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { useAtomValue, useStore } from 'jotai';
+import { useInConversationView } from '../navigation/conversationView';
 import { isPasteFileName } from '../matrix/protocol/pasteAttachmentMarker';
 import {
   keepReplyDraft,
@@ -23,8 +24,10 @@ type KeptComposerState = {
  * text alone without noticing. Large pastes are not among them: their text is kept with the draft
  * (`keptPastes.ts`), and the composer's attachments put them back.
  */
-export const useKeptComposerState = (userId: string, roomId: string): KeptComposerState => {
+export const useKeptComposerState = (ownUserId: string, roomId: string): KeptComposerState => {
   const store = useStore();
+  // Another view of the room (a plugin's thread view) keeps nothing; the room's page does.
+  const userId = useInConversationView() ? '' : ownUserId;
   const itemsAtom = roomIdToUploadItemsAtomFamily(roomId);
   // Pastes the composer puts back do not answer the notice of the other files.
   const stagedCount = useAtomValue(itemsAtom).filter(

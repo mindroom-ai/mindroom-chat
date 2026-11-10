@@ -306,8 +306,8 @@ export const sendFromComposer = async (page: Page, text: string): Promise<void> 
   await page.keyboard.press('Enter');
 };
 
-export const messageRow = (page: Page, eventId: string): Locator =>
-  page.locator(`[data-message-id="${eventId}"]`).first();
+export const messageRow = (scope: Page | Locator, eventId: string): Locator =>
+  scope.locator(`[data-message-id="${eventId}"]`).first();
 
 const latestContent = (events: MatrixEvent[]): Map<string, MatrixEvent> => {
   // The room's events, newest first, folded so each original carries its latest edit's content.

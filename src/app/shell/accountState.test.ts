@@ -40,6 +40,8 @@ const KEPT_MODULES: Record<string, string> = {
   // whose own -1s would then take the count below 0.
   'src/app/navigation/useEdgeSwipeBack.ts':
     'counts the back swipes of the pages shown, each taken back as its page goes',
+  'src/app/navigation/conversationView.ts':
+    'lists the conversation views shown, each taken out as its view goes or hides',
 };
 
 // The importer of the app: every module under src/app/, keyed by its path from the root.

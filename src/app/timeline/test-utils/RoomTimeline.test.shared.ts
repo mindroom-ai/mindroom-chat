@@ -736,7 +736,7 @@ vi.mock('../../editor/utils', () => ({
 }));
 
 vi.mock('../../composer/roomInputDrafts', () => ({
-  roomIdToReplyDraftAtomFamily: () => ({}),
+  composerReplyDraftAtom: () => ({}),
 }));
 
 vi.mock('../../matrix/state/roomToParents', () => ({

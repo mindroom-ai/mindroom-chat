@@ -3,6 +3,7 @@ import React, {
   KeyboardEvent,
   RefObject,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -51,11 +52,15 @@ import {
   type IReplyDraft,
   keepReplyDraft,
   roomIdToMsgDraftAtomFamily,
-  roomIdToReplyDraftAtomFamily,
+  composerReplyDraftAtom,
 } from './roomInputDrafts';
 import type { TUploadItem } from '../matrix/state/upload';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
-import { conversationHiddenAtom } from '../navigation/conversationCover';
+import {
+  ConversationViewContext,
+  composerStateKey,
+  useConversationHidden,
+} from '../navigation/conversationView';
 import { settingsAtom } from '../preferences/settings';
 import { mobileOrTablet } from '../lib/user-agent';
 import { withPasteAttachmentMetadata } from '../matrix/protocol/pasteAttachmentMarker';
@@ -274,7 +279,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [enterForNewline] = useSetting(settingsAtom, 'enterForNewline');
     const userId = mx.getUserId() ?? '';
     const draftKey = threadId ? getRoomInputDraftKey(userId, roomId, threadId) : undefined;
-    const replyDraft = useAtomValue(roomIdToReplyDraftAtomFamily(roomId));
+    // Another view of the room (a plugin's thread view) has a reply of its own.
+    const view = useContext(ConversationViewContext);
+    const replyDraft = useAtomValue(composerReplyDraftAtom(roomId, view));
     const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
     const sendTypingStatus = useTypingStatusUpdater(mx, roomId, hideActivity);
     const isComposing = useComposingCheck();
@@ -290,7 +297,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
     // The board and the autocomplete menu, whose Tab the window takes, close as the conversation
     // hides, under a plugin's cover or behind a side panel.
-    const conversationHidden = useAtomValue(conversationHiddenAtom);
+    const conversationHidden = useConversationHidden();
     if (conversationHidden && emojiAnchor) setEmojiAnchor(undefined);
     if (conversationHidden && autocompleteQuery) setAutocompleteQuery(undefined);
     const [boardTab, setBoardTab] = useState<EmojiBoardTab>('Emoji');
@@ -355,15 +362,15 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         roomId: string;
         replyDraft?: IReplyDraft;
       }) => {
-        const replyAtom = roomIdToReplyDraftAtomFamily(replyRoomId);
+        const replyAtom = composerReplyDraftAtom(replyRoomId, view);
         // A reply chosen after this send started stays for the next message.
         if (consumed && hasMatchingReplyDraft(consumed, store.get(replyAtom))) {
           store.set(replyAtom, undefined);
           // The composer may show another room by now; its kept reply goes too.
-          if (userId) keepReplyDraft(userId, replyRoomId, undefined);
+          if (userId && view === undefined) keepReplyDraft(userId, replyRoomId, undefined);
         }
       },
-      [store, userId]
+      [store, userId, view]
     );
 
     const restoreComposerFallbackForRoom = useCallback(
@@ -426,15 +433,18 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     // A voice message whose send failed survives a reload, as the dialog promises.
     useSavedVoiceDraft(mx);
+    // Voice messages are the room page's: they keep one recording and one failed send per room,
+    // so another view of the room records none and never takes the page's.
     const voice = useRoomInputVoice({
       mx,
-      roomId,
+      roomId: composerStateKey(roomId, view),
       composer,
       attachments: attachments.access,
       transport,
       sessions,
       onRoomMessageSent,
     });
+    const microphone = view === undefined && voice.microphone;
 
     const buildTextContent = useCallback(
       (): IContent | undefined =>
@@ -761,7 +771,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   onToggleFormatting={toggleFormatting}
                   onEmoji={(anchor) => openBoard('Emoji', anchor)}
                 />
-                {voice.microphone}
+                {microphone}
               </>
             ) : (
               <>
@@ -771,7 +781,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                   icon={Icons.PlusCircle}
                   onPress={attachments.pickFiles}
                 />
-                {voice.microphone}
+                {microphone}
                 <ComposerIconButton
                   label={t('composer.formatting')}
                   icon={Icons.Text}

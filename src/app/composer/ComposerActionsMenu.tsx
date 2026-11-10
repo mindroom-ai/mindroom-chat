@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
-import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import isHotkey from 'is-hotkey';
@@ -8,7 +7,7 @@ import { PopOut } from '../ui/directional';
 import { IconButton, Menu } from '../ui/glass/GlassPrimitives';
 import { IconTooltip } from '../ui/IconTooltip';
 import { MenuEntry, MenuGroup } from '../ui/MenuEntry';
-import { conversationHiddenAtom } from '../navigation/conversationCover';
+import { useConversationHidden } from '../navigation/conversationView';
 import * as css from './RoomInput.css';
 
 type ComposerActionsMenuProps = {
@@ -34,7 +33,7 @@ export function ComposerActionsMenu({
   const { t } = useTranslation();
   const [anchor, setAnchor] = useState<RectCords>();
   // The menu closes as the conversation hides, under a plugin's cover or behind a side panel.
-  const conversationHidden = useAtomValue(conversationHiddenAtom);
+  const conversationHidden = useConversationHidden();
   if (conversationHidden && anchor) setAnchor(undefined);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const refocusRef = useRef(false);
