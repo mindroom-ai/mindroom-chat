@@ -33,7 +33,9 @@ import {
   useParentRooms,
   useRoomHref,
   useRoomNavigate,
+  useCloseUserProfile,
   useShownThread,
+  useShownUserProfile,
   type RoomNavigate,
 } from './room';
 
@@ -327,6 +329,36 @@ describe('useOpenUserProfile and UserProfileCard', () => {
     // On the side it is given: its end 8 pixels before the anchor's start.
     fireEvent.click(screen.getByRole('button', { name: 'Bob on the left' }));
     expect(screen.getByRole('dialog', { name: BOB }).parentElement?.style.right).toBe('932px');
+  });
+
+  it('names the floating card that is open, and closes it', () => {
+    const { account } = signedIn();
+    const seen: ReturnType<typeof useShownUserProfile>[] = [];
+    let close: () => void = () => undefined;
+    function Probe() {
+      seen.push(useShownUserProfile());
+      close = useCloseUserProfile();
+      return null;
+    }
+    renderInApp(
+      account,
+      <>
+        <BobButtons roomId={ROOM} />
+        <Probe />
+      </>
+    );
+    expect(seen.at(-1)).toBeUndefined();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bob' }));
+    expect(seen.at(-1)).toEqual({ roomId: ROOM, userId: BOB });
+    // Opened again for the same person elsewhere, it is the same card.
+    const shown = seen.at(-1);
+    fireEvent.click(screen.getByRole('button', { name: 'Bob on the left' }));
+    expect(seen.at(-1)).toBe(shown);
+
+    act(() => close());
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(seen.at(-1)).toBeUndefined();
   });
 
   it('opens nothing for a room the client does not have, also once the room arrives', () => {

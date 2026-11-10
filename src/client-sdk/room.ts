@@ -1,17 +1,23 @@
 // `@mindroom/client-sdk/room`, the client SDK's subpath for rooms and threads (docs/architecture.md
 // "Client plugins"): it opens them, links to them, names the thread a room's page shows, creates
-// sub-rooms and names the rooms a room is a sub-room of, and shows a person's profile card in a
-// room. Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in
+// sub-rooms and names the rooms a room is a sub-room of, shows a person's profile card in a room,
+// names the floating one that is open and closes it, and shows a thread on a plugin's own surface.
+// Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in
 // scripts/client-plugins.mjs.
-import { createElement, useCallback, useContext, useMemo } from 'react';
+import { createElement, Suspense, useCallback, useContext, useMemo } from 'react';
 import { useHref } from 'react-router-dom';
 import type { Position, RectCords } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { getClientConfig } from '../app/config/useClientConfig';
+import { lazyPart } from '../app/lib/lazyPart';
 import { useMatrixClient } from '../app/matrix/hooks/useMatrixClient';
 import { useRoomNavigate as useAppRoomNavigate } from '../app/navigation/useRoomNavigate';
 import { UserRoomProfile } from '../app/members/profile/UserRoomProfile';
-import { useOpenUserRoomProfile } from '../app/navigation/useUserRoomProfileState';
+import {
+  useCloseUserRoomProfile,
+  useOpenUserRoomProfile,
+  useUserRoomProfileState,
+} from '../app/navigation/useUserRoomProfileState';
 import { PluginPanelControlsContext } from '../app/plugins/sidePanels';
 import { withSearchParam } from '../app/routes/pathUtils';
 import { createSubRoom as createAppSubRoom } from '../app/rooms/create/createSubRoom';
@@ -121,6 +127,24 @@ export const useOpenUserProfile = () => {
 };
 
 /**
+ * The floating profile card that is open, the one `useOpenUserProfile` opened or the app's own
+ * mention pills and member rows did: the room and the person it shows, or undefined while none is
+ * open. It renders again when the card closes or shows another person or room.
+ */
+export const useShownUserProfile = (): { roomId: string; userId: string } | undefined => {
+  const shown = useUserRoomProfileState();
+  const roomId = shown?.roomId;
+  const userId = shown?.userId;
+  return useMemo(
+    () => (roomId !== undefined && userId !== undefined ? { roomId, userId } : undefined),
+    [roomId, userId]
+  );
+};
+
+/** Closes the floating profile card, if one is open; the function stays the same. */
+export const useCloseUserProfile: () => () => void = useCloseUserRoomProfile;
+
+/**
  * The profile card of the person `userId` in `room`, as the floating card shows it, for a plugin's
  * own surface; `onDone` runs when the card has done its job, such as before it opens the direct chat.
  * Like the floating card, it starts afresh for another room or person, so what one began there (a
@@ -128,3 +152,20 @@ export const useOpenUserProfile = () => {
  */
 export const UserProfileCard = (props: { room: Room; userId: string; onDone: () => void }) =>
   createElement(UserRoomProfile, { ...props, key: `${props.room.roomId}:${props.userId}` });
+
+// Plugin entries load with the app, so the thread's timeline and composer load only once a
+// `ThreadView` renders.
+const LazyThreadView = lazyPart(() =>
+  import('../app/room/ThreadView').then((module) => ({ default: module.ThreadView }))
+);
+
+/**
+ * The thread `threadId` (its root's event ID) of `room` as the room's page shows it, for a plugin's
+ * own surface such as its side panel: the root and its replies with the app's message actions, the
+ * thread's tool approvals under them, and the composer under those while the signed-in account may
+ * post in the room. It fills its parent, a flex column, and scrolls inside it; it shows nothing
+ * while its code loads. An Escape that the composer and its menus do not take bubbles out of it, so
+ * a plugin may close the thread on one that is not `defaultPrevented`.
+ */
+export const ThreadView = (props: { room: Room; threadId: string }) =>
+  createElement(Suspense, { fallback: null }, createElement(LazyThreadView, props));

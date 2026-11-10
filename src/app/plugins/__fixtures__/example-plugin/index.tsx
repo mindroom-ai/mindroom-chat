@@ -75,6 +75,9 @@
 // beside the panel, as a mention pill opens one; under it, the panel shows the signed-in person's
 // card itself. It shows the greeting's text as the app renders an agent's reply, as Markdown whose
 // HTML the app sanitized, with the Matrix IDs of the room's members replaced by their names.
+// A third side panel, "Example thread", toggled from the room menu, shows the thread the room showed
+// as it opened, as the room's page shows it (`ThreadView`), and keeps it while the room shows
+// another; an Escape that the thread leaves, as on one of its rows, closes the panel.
 import {
   useEffect,
   useLayoutEffect,
@@ -133,6 +136,7 @@ import {
   useRoomHref,
   useRoomNavigate,
   useShownThread,
+  ThreadView,
 } from '@mindroom/client-sdk/room';
 import {
   ComputerApiError,
@@ -792,6 +796,27 @@ function ExamplePanel({ roomId, request }: { roomId: string; request?: unknown }
   );
 }
 
+/** The thread the room showed as the panel opened, kept while the room shows another. */
+function ExampleThread({ roomId }: { roomId: string }) {
+  const client = useMatrixClient();
+  const [threadId] = useState(useShownThread());
+  const panel = useRoomSidePanel('example', 'thread');
+  const room = client.getRoom(roomId);
+  if (!room || !threadId) return <p>No example thread</p>;
+  return (
+    <div
+      style={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto', minHeight: 0 }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape' || event.defaultPrevented) return;
+        event.preventDefault();
+        panel?.close();
+      }}
+    >
+      <ThreadView room={room} threadId={threadId} />
+    </div>
+  );
+}
+
 // The card's width: its own beside the conversation, the room's when it fills it or on a phone. Its
 // box, the card and its margins, clips it: the box moves in and out, and the card keeps its width.
 const CARD_WIDTH = 320;
@@ -1019,6 +1044,7 @@ const plugin: ClientPlugin = {
       opensOverMembers: true,
     },
     { id: 'card', label: 'Example card', Component: ExampleCard, frame: 'own' },
+    { id: 'thread', label: 'Example thread', Component: ExampleThread },
   ],
   headerActions: [
     {

@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-// `renderPluginComponent`'s stand-in client, side panel frame, screen size and theme kind, as a
-// plugin's test meets them: through the SDK only.
-import { fireEvent } from '@testing-library/react';
+// `renderPluginComponent`'s stand-in client, side panel frame, screen size and theme kind, and
+// `registerPluginStrings`, as a plugin's test meets them: through the SDK only.
+import { fireEvent, renderHook } from '@testing-library/react';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { usePanelFrame } from '@mindroom/client-sdk/core';
+import { usePanelFrame, usePluginTranslation } from '@mindroom/client-sdk/core';
 import { mxcUrlToHttp, useMatrixClient, useMediaAuthentication } from '@mindroom/client-sdk/matrix';
-import { renderPluginComponent } from '@mindroom/client-sdk/testing';
+import { registerPluginStrings, renderPluginComponent } from '@mindroom/client-sdk/testing';
 import { useScreenSize, useThemeKind } from '@mindroom/client-sdk/ui';
 
 /** An avatar as a plugin draws one: authenticated as the app asks, unless the test says. */
@@ -122,5 +122,13 @@ describe('renderPluginComponent', () => {
       const view = await renderPluginComponent(<Layout />, { id: 'layout', plugin: {} });
       expect(view.container.textContent).toBe('Desktop, dark');
     });
+  });
+});
+
+describe('registerPluginStrings', () => {
+  it("gives a plugin's strings to a hook rendered without renderPluginComponent", () => {
+    registerPluginStrings('strings', { translations: { en: { greeting: 'Hello, {{name}}' } } });
+    const { result } = renderHook(() => usePluginTranslation('strings'));
+    expect(result.current('greeting', { name: 'Ada' })).toBe('Hello, Ada');
   });
 });
