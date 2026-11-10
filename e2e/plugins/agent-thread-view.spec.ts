@@ -1,0 +1,165 @@
+import type { Locator, Page } from '@playwright/test';
+import {
+  expect,
+  openLobby,
+  openThread,
+  routerToken,
+  showPath,
+  showThread,
+  startThread,
+  test,
+  uniqueWord,
+  waitForThreadEvent,
+  type AgentStack,
+} from '../helpers/agentStack';
+import { joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import { roomMoreOptions } from '../helpers/roomMenu';
+
+// The client SDK's `ThreadView` end to end: a production build with the example client plugin
+// (src/app/plugins/__fixtures__/example-plugin) against the agent stack. The plugin's "Example
+// thread" panel shows the thread the room showed as it opened and keeps it after the room goes
+// back to its timeline: the thread's root and the helper's reply, the helper's held tool call,
+// which the panel approves, and a reply typed in the panel, which the room's own view of the
+// thread then shows. The profile card of the helper, opened from the panel's thread, closes on
+// Escape alone; an Escape in the panel's composer then closes the panel. In a room where the
+// account may not post, the panel shows the thread without a composer.
+//   MINDROOM_CLIENT_PLUGINS=$PWD/src/app/plugins/__fixtures__/example-plugin \
+//     scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/plugins/agent-thread-view.spec.ts
+test.skip(
+  !process.env.MINDROOM_CLIENT_PLUGINS?.includes('example-plugin'),
+  'needs a build with the example client plugin in MINDROOM_CLIENT_PLUGINS'
+);
+test.describe.configure({ timeout: 360_000 });
+
+const APPROVAL_EVENT = 'io.mindroom.tool_approval';
+
+/** The row of the message `eventId` in `scope`. */
+const row = (scope: Page | Locator, eventId: string): Locator =>
+  scope.locator(`[data-message-id="${eventId}"]`).first();
+
+const threadPanel = (page: Page): Locator =>
+  page.getByRole('region', { name: 'Example thread', exact: true });
+
+/** Opens the "Example thread" panel from the room menu. */
+const openThreadPanel = async (page: Page): Promise<Locator> => {
+  await roomMoreOptions(page).click();
+  await page.getByRole('menuitemcheckbox', { name: 'Example thread', exact: true }).click();
+  const panel = threadPanel(page);
+  await expect(panel).toBeVisible({ timeout: 30_000 });
+  return panel;
+};
+
+const shot = (page: Page, name: string) =>
+  page.screenshot({ path: test.info().outputPath(`thread-view-${name}.png`) });
+
+test("a plugin's panel shows a thread with its approvals and composer, as the room's page does", async ({
+  page,
+  stack,
+}) => {
+  await openLobby(page, stack);
+  const word = uniqueWord('panel');
+  const rootId = await startThread(stack, `${word} #approve`);
+  await showThread(page, stack, rootId);
+  await waitForThreadEvent(
+    stack,
+    rootId,
+    (event) => event.type === APPROVAL_EVENT && event.content.status === 'pending',
+    { timeout: 90_000, description: 'a pending tool approval' }
+  );
+  const panel = await openThreadPanel(page);
+
+  // The room goes back to its timeline; the panel keeps the thread.
+  await showPath(page, `/home/${encodeURIComponent(stack.rooms.lobby)}`);
+  await expect(page.locator('[data-thread-context-banner]')).toHaveCount(0, { timeout: 30_000 });
+  await expect(row(panel, rootId)).toContainText(word, { timeout: 60_000 });
+  await expect(panel.locator(`[data-user-id="${stack.agents.helper}"]`).first()).toBeVisible({
+    timeout: 60_000,
+  });
+  await shot(page, 'panel');
+
+  // The helper's held tool call shows in the panel, which approves it.
+  const bar = panel.getByRole('region', { name: 'Thread approvals' });
+  await expect(bar).toContainText('Helper is waiting for you', { timeout: 90_000 });
+  await bar.getByRole('button', { name: /^Review 1/ }).click();
+  const dialog = page.getByRole('dialog', { name: 'Helper wants to do 1 thing' });
+  await dialog.getByRole('button', { name: 'Approve once' }).click();
+  await expect(dialog).toContainText('Approved', { timeout: 60_000 });
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await waitForThreadEvent(
+    stack,
+    rootId,
+    (event) => event.type === APPROVAL_EVENT && event.content.status === 'approved',
+    { timeout: 90_000, description: 'the approved tool approval' }
+  );
+  await expect(bar).toBeHidden({ timeout: 60_000 });
+
+  // A reply typed in the panel goes to the thread, and the room's own view of it shows it.
+  const reply = `${word} from the panel`;
+  const box = panel.getByRole('textbox');
+  await box.click();
+  await page.keyboard.type(reply);
+  await page.keyboard.press('Enter');
+  const sent = await waitForThreadEvent(
+    stack,
+    rootId,
+    (event) => event.sender === stack.tester.userId && event.content.body === reply,
+    { timeout: 60_000, description: 'the reply sent from the panel' }
+  );
+  await expect(row(panel, sent.event_id)).toContainText(reply, { timeout: 30_000 });
+
+  // The helper's profile card, opened from the panel's thread, closes on Escape alone.
+  await panel.locator(`[data-user-id="${stack.agents.helper}"]`).first().click();
+  const card = page.getByRole('dialog', { name: stack.agents.helper, exact: true });
+  await expect(card).toBeVisible();
+  await shot(page, 'profile-card');
+  await page.keyboard.press('Escape');
+  await expect(card).toHaveCount(0);
+  await expect(panel).toBeVisible();
+
+  // An Escape the composer leaves reaches the plugin, which closes its panel.
+  await box.click();
+  await page.keyboard.press('Escape');
+  await expect(panel).toHaveCount(0);
+
+  // The room's own view of the thread shows the reply.
+  await showThread(page, stack, rootId);
+  await expect(row(page, sent.event_id)).toContainText(reply, { timeout: 30_000 });
+});
+
+/** A room the router made, where the tester has joined but may not post. */
+const readOnlyRoom = async (stack: AgentStack) => {
+  const router = routerToken(stack);
+  const { room_id: roomId } = await matrixFetch<{ room_id: string }>(
+    stack.homeserver,
+    '/createRoom',
+    {
+      method: 'POST',
+      accessToken: router,
+      body: JSON.stringify({
+        name: uniqueWord('Read only '),
+        preset: 'private_chat',
+        invite: [stack.tester.userId],
+        power_level_content_override: { events_default: 50 },
+      }),
+    }
+  );
+  await joinRoom(stack.homeserver, stack.tester.accessToken, roomId);
+  const word = uniqueWord('readonly');
+  const rootId = await sendRoomMessage(stack.homeserver, router, roomId, {
+    msgtype: 'm.text',
+    body: `${word} root`,
+  });
+  return { roomId, rootId, word };
+};
+
+test("a plugin's panel shows a thread without a composer where the account may not post", async ({
+  page,
+  stack,
+}) => {
+  const { roomId, rootId, word } = await readOnlyRoom(stack);
+  await openThread(page, { ...stack, rooms: { ...stack.rooms, lobby: roomId } }, rootId);
+  const panel = await openThreadPanel(page);
+  await expect(row(panel, rootId)).toContainText(`${word} root`, { timeout: 60_000 });
+  await expect(panel.getByRole('textbox')).toHaveCount(0);
+  await shot(page, 'read-only');
+});
