@@ -25,6 +25,14 @@ const ROOT = realpathSync(fileURLToPath(new URL('../..', import.meta.url)));
 // A link elsewhere in some checkouts.
 const NODE_MODULES = realpathSync(path.join(ROOT, 'node_modules'));
 
+/** This run's environment for a child process, without Vitest's variables and these. */
+const childEnv = (...unset: string[]) =>
+  Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name]) => !name.startsWith('VITEST') && !unset.includes(name)
+    )
+  );
+
 const madeDirs: string[] = [];
 afterAll(() => madeDirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })));
 
@@ -73,6 +81,15 @@ describe('tsconfig.plugin.strict.json', () => {
     );
   });
 
+  it("resolves the e2e helpers and Playwright's types to the app's", () => {
+    expect(realpath(resolve('@mindroom/e2e/matrix'))).toBe(
+      path.join(ROOT, 'e2e/helpers/matrix.ts')
+    );
+    expect(realpath(resolve('@playwright/test'))).toBe(
+      path.join(NODE_MODULES, '@playwright/test/index.d.ts')
+    );
+  });
+
   it.each([...SHARED_PACKAGES, 'vitest'])("takes the types of %s from the app's copy", (name) => {
     expect(realpath(resolve(name)).startsWith(`${NODE_MODULES}/`)).toBe(true);
   });
@@ -102,6 +119,7 @@ describe('.eslintrc.plugin.cjs', () => {
     // The resolver resolves nothing from a folder that does not exist, which would leave the
     // boundary rule silent.
     'src/panel.tsx': '',
+    'e2e/panel.spec.ts': '',
   });
   const eslint = new ESLint({
     cwd: dir,
@@ -111,8 +129,8 @@ describe('.eslintrc.plugin.cjs', () => {
       rules: Object.fromEntries(Object.keys(TYPE_AWARE_RULES).map((rule) => [rule, 'off'])),
     },
   });
-  const lint = async (source: string) => {
-    const [result] = await eslint.lintText(source, { filePath: path.join(dir, 'src/panel.tsx') });
+  const lint = async (source: string, file = 'src/panel.tsx') => {
+    const [result] = await eslint.lintText(source, { filePath: path.join(dir, file) });
     expect(result?.fatalErrorCount).toBe(0);
     return (result?.messages ?? []).map(({ ruleId, message }) => ({ ruleId, message }));
   };
@@ -142,6 +160,29 @@ describe('.eslintrc.plugin.cjs', () => {
         "import { PopOut } from '@mindroom/client-sdk/ui';\nimport { usePluginConfig } from '@mindroom/client-sdk/core';\nexport { PopOut, usePluginConfig };\n"
       )
     ).toEqual([]);
+  });
+
+  it('passes a spec that takes the e2e helpers through @mindroom/e2e and needs no types', async () => {
+    expect(
+      await lint(
+        "import { test } from '@playwright/test';\nimport { createPrivateRoom } from '@mindroom/e2e/matrix';\nexport const room = (options: any) => [test, createPrivateRoom, options];\n",
+        'e2e/panel.spec.ts'
+      )
+    ).toEqual([]);
+  });
+
+  it("refuses a spec's import of the e2e helpers by their path, and its own WebKit", async () => {
+    const messages = await lint(
+      "import { webkit } from '@playwright/test';\nimport { createPrivateRoom } from '../.mindroom-chat/e2e/helpers/matrix';\nexport const open = () => [webkit.launch(), createPrivateRoom];\n",
+      'e2e/panel.spec.ts'
+    );
+    expect(messages).toEqual([
+      BOUNDARY,
+      {
+        ruleId: 'no-restricted-properties',
+        message: expect.stringContaining('Launch WebKit with launchWebKit or onWebKitPage'),
+      },
+    ]);
   });
 
   it("refuses folds' own PopOut and physical sides in a style", async () => {
@@ -192,9 +233,7 @@ describe("a listed plugin's unit tests", () => {
       {
         cwd: ROOT,
         env: {
-          ...Object.fromEntries(
-            Object.entries(process.env).filter(([name]) => !name.startsWith('VITEST'))
-          ),
+          ...childEnv(),
           MINDROOM_CLIENT_PLUGINS: dir,
           ...env,
         },
@@ -232,4 +271,88 @@ describe("a listed plugin's unit tests", () => {
     expect(files).toContain(path.join(ROOT, 'src/build/pluginConfigs.test.ts'));
     expect(files.filter((file) => file.startsWith(dir))).toEqual([TEST]);
   }, 120_000);
+});
+
+describe('playwright.config.ts', () => {
+  // A plugin directory with a spec that takes the e2e helpers and Playwright from the app, and one
+  // with only a fixture page.
+  const withSpecs = pluginDir({
+    'tsconfig.json': JSON.stringify({
+      extends: './.mindroom-chat/tsconfig.plugin.json',
+      include: ['e2e'],
+    }),
+    'e2e/nested/plugin-configs-probe.spec.ts':
+      "import { expect, test } from '@playwright/test';\nimport { createPrivateRoom } from '@mindroom/e2e/matrix';\n" +
+      "test('reaches the helpers', () => expect(typeof createPrivateRoom).toBe('function'));\n",
+    // Not a spec: Playwright would fail to load it.
+    'e2e/unit.test.ts': "throw new Error('loaded a unit test');\n",
+  });
+  const withoutSpecs = pluginDir({ 'e2e/fixtures/page.html': '<!doctype html>\n' });
+
+  /** The projects and the tests in them that `playwright test --list` finds with these plugin directories. */
+  const listed = async (pluginDirs: string | undefined) => {
+    const { stdout } = await promisify(execFile)(
+      process.execPath,
+      [
+        path.join(ROOT, 'node_modules/@playwright/test/cli.js'),
+        'test',
+        '--list',
+        '--reporter=json',
+        '--pass-with-no-tests',
+        // The made-up plugin directories' files only.
+        'plugin-configs-',
+      ],
+      {
+        cwd: ROOT,
+        env: {
+          ...childEnv('E2E_PLUGIN_DIRS', 'PLAYWRIGHT_WEBKIT_EXECUTABLE'),
+          ...(pluginDirs === undefined ? {} : { E2E_PLUGIN_DIRS: pluginDirs }),
+        },
+        maxBuffer: 64 * 1024 * 1024,
+      }
+    );
+    const report = JSON.parse(stdout) as {
+      config: { rootDir: string; projects: { name: string; testDir: string }[] };
+      suites: { file: string; specs: { title: string; tests: { projectName: string }[] }[] }[];
+      errors: unknown[];
+    };
+    return {
+      projects: report.config.projects.map(({ name, testDir }) => [name, testDir]),
+      tests: report.suites.flatMap(({ file, specs }) =>
+        specs.flatMap(({ title, tests }) =>
+          tests.map(({ projectName }) => [
+            projectName,
+            realpathSync(path.resolve(report.config.rootDir, file)),
+            title,
+          ])
+        )
+      ),
+      errors: report.errors,
+    };
+  };
+
+  it("runs a plugin directory's specs in a project of its own, with the app's helpers", async () => {
+    expect(await listed(`${withSpecs}${path.delimiter}${withoutSpecs}`)).toEqual({
+      projects: [
+        ['chromium', path.join(ROOT, 'e2e')],
+        [path.basename(withSpecs), path.join(withSpecs, 'e2e')],
+      ],
+      tests: [
+        [
+          path.basename(withSpecs),
+          path.join(withSpecs, 'e2e/nested/plugin-configs-probe.spec.ts'),
+          'reaches the helpers',
+        ],
+      ],
+      errors: [],
+    });
+  }, 60_000);
+
+  it('has only the chromium project without plugin directories', async () => {
+    expect(await listed(undefined)).toEqual({
+      projects: [['chromium', path.join(ROOT, 'e2e')]],
+      tests: [],
+      errors: [],
+    });
+  }, 60_000);
 });

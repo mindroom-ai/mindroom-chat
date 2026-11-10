@@ -1,4 +1,10 @@
+import { existsSync, readdirSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, devices } from '@playwright/test';
+import { pluginDirectories } from './scripts/e2e-plugin-pages.mjs';
+
+const ROOT = path.dirname(fileURLToPath(import.meta.url));
 
 // The Vite dev server listens here: port 4200 (see server in vite.config.js), or E2E_APP_PORT,
 // which scripts/e2e-slot.sh sets so that several runs can share one machine. E2E_PORT wins over
@@ -42,6 +48,21 @@ const webkitProject = webkitExecutable
     ]
   : [];
 
+// A plugin directory of E2E_PLUGIN_DIRS (scripts/e2e-plugin-pages.mjs) with specs of its own in its
+// e2e/ runs them in a project named after the directory, in Chromium, as the app's own specs run:
+// `--project=<directory name>` picks them (docs/development.md "A client plugin in its own repository").
+const pluginProjects = pluginDirectories(process.env.E2E_PLUGIN_DIRS, ROOT).flatMap((dir) => {
+  const testDir = path.join(dir, 'e2e');
+  const hasSpecs =
+    existsSync(testDir) &&
+    readdirSync(testDir, { encoding: 'utf8', recursive: true }).some((file) =>
+      file.endsWith('.spec.ts')
+    );
+  return hasSpecs
+    ? [{ name: path.basename(dir), testDir, testMatch: '**/*.spec.ts', use: { ...chromeOnHost } }]
+    : [];
+});
+
 /**
  * Playwright runs the specs in e2e/ in the Chromium from `CHROMIUM_PATH` (exported by
  * `nix develop`) against the dev server, which Playwright starts when nothing listens yet.
@@ -78,7 +99,7 @@ const playwrightConfig = defineConfig({
       args: ['--disable-features=IsolateSandboxedIframes'],
     },
   },
-  projects: [{ name: 'chromium', use: { ...chromeOnHost } }, ...webkitProject],
+  projects: [{ name: 'chromium', use: { ...chromeOnHost } }, ...webkitProject, ...pluginProjects],
   webServer: {
     command: process.env.E2E_SERVER_COMMAND ?? `npx vite --port ${appPort}`,
     url: baseURL,
