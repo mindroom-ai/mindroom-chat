@@ -2,13 +2,10 @@ import React, { useLayoutEffect } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createClient, MatrixEvent, MemoryStore, Room, RoomStateEvent } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';
+import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { MINDROOM_SERVER_EVENT, type AgentServer } from './agentServer';
-import {
-  useBindsOpenIdTokens,
-  useAgentServerUrls,
-  useRoomAgentServers,
-} from './useAgentServers';
+import { useBindsOpenIdTokens, useAgentServerUrls, useRoomAgentServers } from './useAgentServers';
 
 const native = vi.hoisted(() => ({ isNativePlatform: false }));
 vi.mock('@capacitor/core', () => ({
@@ -143,8 +140,12 @@ it('shows a membership change that lands between a commit and its passive effect
   expect(seen.at(-1)?.map((server) => server.apiUrl)).toEqual(['http://localhost:8765']);
 });
 
+type Computers = NonNullable<ClientConfig['mindroom']>['computers'];
+
 // A client whose one joined room has an agent with a server, re-emitting room state as the SDK does.
-const mountServerUrls = async () => {
+const mountServerUrls = async (
+  computers: Computers = { trustedApiUrls: ['http://localhost:8765'] }
+) => {
   const mx = createClient({
     baseUrl: 'https://example.org',
     userId: viewer,
@@ -177,7 +178,9 @@ const mountServerUrls = async () => {
   await act(async () => {
     renderer = create(
       <MatrixClientProvider value={mx}>
-        <Probe />
+        <ClientConfigProvider value={{ mindroom: { computers } }}>
+          <Probe />
+        </ClientConfigProvider>
       </MatrixClientProvider>
     );
   });
@@ -282,6 +285,28 @@ it('ignores a published localhost server in the native apps, where it is the pho
   });
   native.isNativePlatform = true;
   const seen = mount(room);
+  expect(seen.at(-1)).toEqual([]);
+  native.isNativePlatform = false;
+});
+
+it('offers outside a room only the published servers on the trusted list', async () => {
+  expect((await mountServerUrls({ apiUrl: 'https://deployment.example.org' })).seen.at(-1)).toEqual(
+    []
+  );
+  act(() => renderer?.unmount());
+  const { room, seen } = await mountServerUrls({
+    apiUrl: 'https://deployment.example.org',
+    trustedApiUrls: ['http://localhost:8765'],
+  });
+  expect(seen.at(-1)).toEqual(['http://localhost:8765']);
+  // A server that moves off the list is dropped once its state changes.
+  await addState(room, serverEvent('https://moved.example.org'));
+  expect(seen.at(-1)).toEqual([]);
+});
+
+it('ignores a trusted localhost server in the native apps', async () => {
+  native.isNativePlatform = true;
+  const { seen } = await mountServerUrls({ trustedApiUrls: ['http://localhost:8765'] });
   expect(seen.at(-1)).toEqual([]);
   native.isNativePlatform = false;
 });
