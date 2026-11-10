@@ -36,17 +36,19 @@ const BESIDE_MIN_WIDTH = 2 * CONVERSATION_MIN_WIDTH;
 export const useThreadLayout = (pageRef: RefObject<HTMLElement>) => {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const [layout, setLayout] = useAtom(threadLayoutAtom);
-  const [width, setWidth] = useState(0);
+  // Whether the page is wide enough, not its width: a page that resizes as a panel moves renders
+  // again only when that changes.
+  const [wide, setWide] = useState(true);
   useLayoutEffect(() => {
     const page = pageRef.current;
     if (!page) return undefined;
-    const measure = () => setWidth(page.clientWidth);
+    const measure = () => setWide(page.clientWidth === 0 || page.clientWidth >= BESIDE_MIN_WIDTH);
     measure();
     if (typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(measure);
     observer.observe(page);
     return () => observer.disconnect();
   }, [pageRef]);
-  const roomy = !phone && (width === 0 || width >= BESIDE_MIN_WIDTH);
+  const roomy = !phone && wide;
   return { roomy, beside: roomy && layout === 'beside', setLayout };
 };
