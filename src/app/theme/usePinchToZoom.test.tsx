@@ -1,33 +1,72 @@
 // @vitest-environment jsdom
 
-import { renderHook } from '@testing-library/react';
+import { cleanup, render, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { usePinchToZoom } from './usePinchToZoom';
+import { ImageViewer } from '../messages/viewers/ImageViewer';
+import { PINCH_SURFACE_ATTRIBUTE, usePinchToZoom } from './usePinchToZoom';
 
-type Point = [x: number, y: number];
+/** A finger: where it is, and the element it landed on (the page body unless given). */
+type Point = [x: number, y: number, target?: Element];
 
-/** Dispatches a touch event from the page body, with `touches` listing every finger down. */
-const touch = (type: 'touchstart' | 'touchmove' | 'touchend', points: Point[]) => {
+/**
+ * Dispatches a touch event at `at`, by default the last finger's element, with `touches` listing
+ * every finger down; a touch's identifier is its place in the list.
+ */
+const touch = (
+  type: 'touchstart' | 'touchmove' | 'touchend' | 'touchcancel',
+  points: Point[],
+  at?: Element
+) => {
   const event = new Event(type, { bubbles: true, cancelable: true });
-  Object.defineProperty(event, 'touches', {
-    value: points.map(([x, y], identifier) => ({ identifier, clientX: x, clientY: y })),
-  });
-  document.body.dispatchEvent(event);
+  const touches = points.map(([x, y, target = document.body], identifier) => ({
+    identifier,
+    clientX: x,
+    clientY: y,
+    target,
+  }));
+  Object.defineProperty(event, 'touches', { value: touches });
+  (at ?? touches[touches.length - 1]?.target ?? document.body).dispatchEvent(event);
   return event;
 };
 
 /** Safari's gesture events: `scale` is the fingers' spread against the gesture's start. */
-const gesture = (type: 'gesturestart' | 'gesturechange' | 'gestureend', scale: number) => {
+const gesture = (
+  type: 'gesturestart' | 'gesturechange' | 'gestureend',
+  scale: number,
+  at: Element = document.body
+) => {
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.defineProperty(event, 'scale', { value: scale });
-  document.body.dispatchEvent(event);
+  at.dispatchEvent(event);
   return event;
 };
 
-const wheel = (init: WheelEventInit) => {
+// jsdom has no PointerEvent.
+const pointer = (
+  type: 'pointerdown' | 'pointerup' | 'pointercancel',
+  at: Element = document.body,
+  pointerType = 'touch'
+) => {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'pointerType', { value: pointerType });
+  at.dispatchEvent(event);
+};
+
+const wheel = (init: WheelEventInit, at: Element = document.body) => {
   const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, ...init });
-  document.body.dispatchEvent(event);
+  at.dispatchEvent(event);
   return event;
+};
+
+/** A marked element with something inside it, and an element beside it. */
+const pinchSurface = () => {
+  const surface = document.createElement('div');
+  surface.setAttribute(PINCH_SURFACE_ATTRIBUTE, '');
+  const inside = document.createElement('p');
+  surface.append(inside);
+  const outside = document.createElement('div');
+  document.body.append(surface, outside);
+  return { surface, inside, outside };
 };
 
 describe('usePinchToZoom', () => {
@@ -55,6 +94,7 @@ describe('usePinchToZoom', () => {
   });
 
   afterEach(() => {
+    cleanup();
     document.body.replaceChildren();
     vi.restoreAllMocks();
   });
@@ -187,29 +227,6 @@ describe('usePinchToZoom', () => {
     expect(setPageZoom).toHaveBeenCalledWith(101);
   });
 
-  it('leaves the pinch to an open image viewer', () => {
-    const viewer = document.createElement('div');
-    viewer.dataset.imageViewer = 'true';
-    document.body.append(viewer);
-    const { setPageZoom } = mount(100);
-
-    touch('touchstart', [
-      [0, 0],
-      [0, 100],
-    ]);
-    const move = touch('touchmove', [
-      [0, 0],
-      [0, 150],
-    ]);
-    const start = gesture('gesturestart', 1);
-    gesture('gesturechange', 1.5);
-    flushFrames();
-
-    expect(move.defaultPrevented).toBe(false);
-    expect(start.defaultPrevented).toBe(false);
-    expect(setPageZoom).not.toHaveBeenCalled();
-  });
-
   it('stops listening once unmounted', () => {
     const { setPageZoom, unmount } = mount(100);
     unmount();
@@ -225,5 +242,251 @@ describe('usePinchToZoom', () => {
     flushFrames();
 
     expect(setPageZoom).not.toHaveBeenCalled();
+  });
+
+  it('ignores a gesture change whose start it never saw, wherever it is', () => {
+    const { setPageZoom } = mount(100);
+
+    const change = gesture('gesturechange', 1.8);
+    flushFrames();
+
+    expect(change.defaultPrevented).toBe(false);
+    expect(setPageZoom).not.toHaveBeenCalled();
+  });
+
+  describe('a pinch surface', () => {
+    const spread = (a: Element, b: Element, distance: number): Point[] => [
+      [0, 0, a],
+      [0, distance, b],
+    ];
+
+    it('keeps a pinch whose fingers all land on it, and the gestures with it', () => {
+      const { setPageZoom } = mount(100);
+      const { surface, inside } = pinchSurface();
+
+      touch('touchstart', [[0, 0, inside]]);
+      touch('touchstart', spread(inside, surface, 100));
+      const move = touch('touchmove', spread(inside, surface, 150));
+      const start = gesture('gesturestart', 1, inside);
+      const change = gesture('gesturechange', 1.5, inside);
+      flushFrames();
+
+      expect(move.defaultPrevented).toBe(false);
+      expect(start.defaultPrevented).toBe(false);
+      expect(change.defaultPrevented).toBe(false);
+      expect(setPageZoom).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['on the surface', true],
+      ['beside it', false],
+    ])('leaves the app a pinch whose first finger lands %s and the other not', (_, insideFirst) => {
+      const { setPageZoom } = mount(100);
+      const { inside, outside } = pinchSurface();
+      const [first, second] = insideFirst ? [inside, outside] : [outside, inside];
+
+      touch('touchstart', [[0, 0, first]]);
+      touch('touchstart', spread(first, second, 100));
+      const move = touch('touchmove', spread(first, second, 150));
+      flushFrames();
+
+      expect(move.defaultPrevented).toBe(true);
+      expect(setPageZoom).toHaveBeenCalledWith(150);
+    });
+
+    // WebKit sends one touchstart per element when fingers land in the same frame, each listing
+    // both fingers; pointerdown comes before or after them.
+    it.each([
+      ['touch events first', 'both on the surface', true],
+      ['pointer events first', 'both on the surface', true],
+      ['touch events first', 'one beside it', false],
+      ['pointer events first', 'one beside it', false],
+    ])('judges fingers that land in one frame, with %s, %s', (order, _, bothInside) => {
+      const { setPageZoom } = mount(100);
+      const { surface, inside, outside } = pinchSurface();
+      const other = bothInside ? surface : outside;
+      const landTouches = () => {
+        touch('touchstart', spread(inside, other, 100), inside);
+        touch('touchstart', spread(inside, other, 100), other);
+      };
+      const landPointers = () => {
+        pointer('pointerdown', inside);
+        pointer('pointerdown', other);
+      };
+      if (order === 'touch events first') {
+        landTouches();
+        landPointers();
+      } else {
+        landPointers();
+        landTouches();
+      }
+      const move = touch('touchmove', spread(inside, other, 150));
+      flushFrames();
+
+      expect(move.defaultPrevented).toBe(!bothInside);
+      if (bothInside) expect(setPageZoom).not.toHaveBeenCalled();
+      else expect(setPageZoom).toHaveBeenCalledWith(150);
+    });
+
+    it('keeps its pinch when the element under a finger goes, and lets go after it', () => {
+      const { setPageZoom } = mount(100);
+      const { surface, inside, outside } = pinchSurface();
+
+      touch('touchstart', [[0, 0, inside]]);
+      touch('touchstart', spread(inside, surface, 100));
+      inside.remove();
+      // The first finger's events go to the removed element and never reach the window; the
+      // second finger's still list both, and a third finger lands on the surface.
+      touch('touchmove', spread(inside, surface, 150), surface);
+      touch('touchstart', [...spread(inside, surface, 150), [100, 0, surface]], surface);
+      const move = touch(
+        'touchmove',
+        [...spread(inside, surface, 180), [100, 0, surface]],
+        surface
+      );
+      // Its gesturestart went to the removed element too.
+      const change = gesture('gesturechange', 1.8, surface);
+      flushFrames();
+
+      expect(move.defaultPrevented).toBe(false);
+      expect(change.defaultPrevented).toBe(false);
+      expect(setPageZoom).not.toHaveBeenCalled();
+
+      // The surface's fingers come up, the removed element's unseen, and the next pinch is the app's.
+      touch('touchend', [[0, 0, inside]], surface);
+      touch('touchstart', [[0, 0, outside]]);
+      touch('touchstart', spread(outside, outside, 100));
+      touch('touchmove', spread(outside, outside, 150));
+      flushFrames();
+      expect(setPageZoom).toHaveBeenCalledWith(150);
+    });
+
+    it('lets a trackpad pinch beside it zoom after a pinch whose ends it never saw', () => {
+      const { setPageZoom } = mount(100);
+      const { surface, inside, outside } = pinchSurface();
+
+      touch('touchstart', [[0, 0, inside]]);
+      touch('touchstart', spread(inside, inside, 100));
+      // Every later touch event of both fingers goes to the removed element.
+      inside.remove();
+
+      // A trackpad pinch over the surface is its own, and one beside it is the app's.
+      const onSurface = gesture('gesturestart', 1, surface);
+      gesture('gesturechange', 1.5, surface);
+      gesture('gestureend', 1.5, surface);
+      flushFrames();
+      expect(onSurface.defaultPrevented).toBe(false);
+      expect(setPageZoom).not.toHaveBeenCalled();
+
+      const beside = gesture('gesturestart', 1, outside);
+      gesture('gesturechange', 1.5, outside);
+      flushFrames();
+      expect(beside.defaultPrevented).toBe(true);
+      expect(setPageZoom).toHaveBeenCalledWith(150);
+    });
+
+    it.each(['pointerup', 'pointercancel'] as const)(
+      'lets go of its pinch once each finger sends %s, though their touch ends were lost',
+      (type) => {
+        const { setPageZoom } = mount(100);
+        const { inside, outside } = pinchSurface();
+
+        touch('touchstart', [[0, 0, inside]]);
+        touch('touchstart', spread(inside, inside, 100));
+        inside.remove();
+        // Pointer events reach the window once the element they went to is gone.
+        pointer(type);
+        pointer(type);
+
+        gesture('gesturestart', 1, outside);
+        gesture('gesturechange', 1.5, outside);
+        flushFrames();
+        expect(setPageZoom).toHaveBeenCalledWith(150);
+      }
+    );
+
+    it('keeps its pinch while a finger beside it or a mouse comes and goes', () => {
+      const { setPageZoom } = mount(100);
+      const { surface, inside, outside } = pinchSurface();
+
+      touch('touchstart', [[0, 0, inside]]);
+      touch('touchstart', spread(inside, surface, 100));
+      pointer('pointerup', outside, 'mouse');
+      pointer('pointerdown', outside);
+      touch('touchstart', [...spread(inside, surface, 100), [200, 0, outside]], outside);
+      const move = touch('touchmove', [...spread(inside, surface, 150), [200, 0, outside]]);
+      // One of the surface's fingers comes up: two fingers stay down, one of them beside it.
+      pointer('pointerup', surface);
+      touch(
+        'touchend',
+        [
+          [0, 0, inside],
+          [200, 0, outside],
+        ],
+        surface
+      );
+      const later = touch('touchmove', [
+        [0, 0, inside],
+        [250, 0, outside],
+      ]);
+      flushFrames();
+
+      expect(move.defaultPrevented).toBe(false);
+      expect(later.defaultPrevented).toBe(false);
+      expect(setPageZoom).not.toHaveBeenCalled();
+    });
+
+    it("gives iOS's gesture, which starts before the second finger's touch, to the surface", () => {
+      const { setPageZoom } = mount(100);
+      const { surface, inside, outside } = pinchSurface();
+
+      touch('touchstart', [[0, 0, inside]]);
+      const start = gesture('gesturestart', 1, inside);
+      touch('touchstart', spread(inside, surface, 100));
+      touch('touchmove', spread(inside, surface, 150));
+      gesture('gesturechange', 1.5, inside);
+      // A third finger lands beside the surface.
+      touch('touchstart', [...spread(inside, surface, 150), [200, 0, outside]], outside);
+      touch('touchmove', [...spread(inside, surface, 180), [220, 0, outside]]);
+      const change = gesture('gesturechange', 1.8, inside);
+      flushFrames();
+
+      expect(start.defaultPrevented).toBe(false);
+      expect(change.defaultPrevented).toBe(false);
+      expect(setPageZoom).not.toHaveBeenCalled();
+    });
+
+    it('leaves ctrl and the wheel over it alone, and zooms the page beside it', () => {
+      const { setPageZoom } = mount(100);
+      const { inside, outside } = pinchSurface();
+
+      const over = wheel({ ctrlKey: true, deltaY: -50 }, inside);
+      flushFrames();
+      expect(over.defaultPrevented).toBe(false);
+      expect(setPageZoom).not.toHaveBeenCalled();
+
+      const beside = wheel({ ctrlKey: true, deltaY: -50 }, outside);
+      flushFrames();
+      expect(beside.defaultPrevented).toBe(true);
+      expect(setPageZoom).toHaveBeenCalledWith(101);
+    });
+
+    it('is what the image viewer is, so a pinch on the picture zooms the picture alone', () => {
+      const { setPageZoom } = mount(100);
+      const { getByRole } = render(
+        <ImageViewer alt="harbor.jpg" src="blob:harbor" requestClose={() => undefined} />
+      );
+      const picture = getByRole('img', { name: 'harbor.jpg' });
+
+      touch('touchstart', [[0, 0, picture]]);
+      touch('touchstart', spread(picture, picture, 100));
+      touch('touchmove', spread(picture, picture, 150));
+      gesture('gesturestart', 1, picture);
+      gesture('gesturechange', 1.5, picture);
+      wheel({ ctrlKey: true, deltaY: -50 }, picture);
+      flushFrames();
+
+      expect(setPageZoom).not.toHaveBeenCalled();
+    });
   });
 });

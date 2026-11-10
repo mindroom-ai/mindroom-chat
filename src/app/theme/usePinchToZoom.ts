@@ -3,16 +3,32 @@ import { touchDistance } from '../lib/hooks/useZoom';
 import { sanitizeZoom } from '../preferences/settings';
 
 const WHEEL_ZOOM_SENSITIVITY = 0.02;
-// The image viewer pinches its own image; while it is open the page zoom leaves pinches alone.
-const OPEN_IMAGE_VIEWER_SELECTOR = '[data-image-viewer="true"]';
+
+/**
+ * Marks an element that handles pinches over it itself, such as the image viewer or a plugin's
+ * board: the page zoom leaves them to it (docs/architecture.md "Client plugins").
+ */
+export const PINCH_SURFACE_ATTRIBUTE = 'data-pinch-surface';
+const PINCH_SURFACE_SELECTOR = `[${PINCH_SURFACE_ATTRIBUTE}]`;
 
 type GestureEventWithScale = Event & { scale: number };
+
+const surfaceAt = (target: EventTarget | null): Element | null =>
+  target instanceof Element ? target.closest(PINCH_SURFACE_SELECTOR) : null;
+
+/** Whether every finger landed in one marked element: `Touch.target` stays where it landed. */
+const surfaceOwns = (touches: TouchList): boolean => {
+  const fingers = Array.from(touches);
+  const surface = surfaceAt(fingers[0]?.target ?? null);
+  return surface !== null && fingers.every((finger) => surfaceAt(finger.target) === surface);
+};
 
 /**
  * A pinch changes the page zoom setting, so the interface reflows at the new size instead of
  * being magnified like a picture: two fingers on a touch screen, Safari's gesture events (a Mac
  * trackpad, and iOS alongside the touches), and ctrl with the wheel, which other browsers send
- * for a trackpad pinch. Each animation frame stores at most one new zoom.
+ * for a trackpad pinch. Each animation frame stores at most one new zoom. A pinch over an element
+ * with PINCH_SURFACE_ATTRIBUTE is that element's own.
  */
 export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => void): void => {
   const pageZoomRef = useRef(pageZoom);
@@ -43,10 +59,37 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       gestureStartZoomRef.current = null;
     };
 
-    const shouldIgnorePinch = () => {
-      const imageViewerOpen = document.querySelector(OPEN_IMAGE_VIEWER_SELECTOR) !== null;
-      if (imageViewerOpen) resetGestureState();
-      return imageViewerOpen;
+    // The pinch under way, from the touch event that brings a second finger down until fewer
+    // than two are: how many fingers are down, and whether a pinch surface owns it. Each touch
+    // event that reaches the window sets the count from its `touches`; a finger whose element
+    // went is still counted there, and the pinch keeps the owner it started with. When every
+    // finger's element went, no touch event comes, but each finger's touch pointer still ends on
+    // the window, and so does the gesture; either forgets the pinch, so nothing outlives it.
+    let fingers = 0;
+    let surfacePinch = false;
+
+    const forgetPinch = () => {
+      fingers = 0;
+      surfacePinch = false;
+    };
+
+    /** Follows the fingers of `event`; true while the pinch they make is a surface's. */
+    const followFingers = (event: TouchEvent): boolean => {
+      const pinchStarts = fingers < 2 && event.touches.length >= 2;
+      fingers = event.touches.length;
+      if (fingers < 2) surfacePinch = false;
+      else if (pinchStarts && surfaceOwns(event.touches)) {
+        surfacePinch = true;
+        // Should the app take these fingers over later, it waits for a touch to start from.
+        touchStartDistanceRef.current = null;
+      }
+      return surfacePinch;
+    };
+
+    const handlePointerEnd = (event: PointerEvent) => {
+      if (event.pointerType !== 'touch') return;
+      fingers = Math.max(0, fingers - 1);
+      if (fingers < 2) forgetPinch();
     };
 
     const flushPendingZoom = () => {
@@ -78,7 +121,7 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
 
     const handleWheel = (event: WheelEvent) => {
       if (!event.ctrlKey || !Number.isFinite(event.deltaY)) return;
-      if (shouldIgnorePinch()) return;
+      if (surfaceAt(event.target) !== null) return;
       if (event.cancelable) event.preventDefault();
 
       wheelDeltaRef.current += -event.deltaY * WHEEL_ZOOM_SENSITIVITY;
@@ -99,19 +142,19 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       queueZoom(nextZoom);
     };
 
-    // One finger is no pinch: those touches (every scroll) return before the document query.
+    // One finger is no pinch: a surface's element is looked up only as a second finger lands.
     const handleTouchStart = (event: TouchEvent) => {
-      if (event.touches.length >= 2 && shouldIgnorePinch()) return;
+      if (followFingers(event)) return;
       startTouchPinch(event.touches);
     };
 
     const handleTouchMove = (event: TouchEvent) => {
+      if (followFingers(event)) return;
       const startDistance = touchStartDistanceRef.current;
       if (event.touches.length < 2 || startDistance === null || startDistance <= 0) {
         touchStartDistanceRef.current = null;
         return;
       }
-      if (shouldIgnorePinch()) return;
       const currentDistance = touchDistance(event.touches);
       if (!Number.isFinite(currentDistance) || currentDistance <= 0) return;
       // The pinch is the app's: the web view neither scrolls nor magnifies the page.
@@ -120,32 +163,38 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
     };
 
     const handleTouchEnd = (event: TouchEvent) => {
+      if (followFingers(event)) return;
       if (event.touches.length >= 2) {
-        if (!shouldIgnorePinch()) startTouchPinch(event.touches);
+        startTouchPinch(event.touches);
         return;
       }
       touchStartDistanceRef.current = null;
     };
 
+    // iOS sends the gesture of a touch pinch as its first finger is down, before the second
+    // finger's touchstart; that first finger's element is the gesture's target. A trackpad pinch
+    // has only the gesture, over the element under the pointer.
     const handleGestureStart = (event: Event) => {
-      if (shouldIgnorePinch()) return;
+      gestureStartZoomRef.current = null;
+      if (surfacePinch || surfaceAt(event.target) !== null) return;
       if (event.cancelable) event.preventDefault();
       gestureStartZoomRef.current = pendingZoomRef.current ?? pageZoomRef.current;
     };
 
+    // Only a gesture whose start was the app's zooms the page: one that started elsewhere never
+    // jumps the page zoom to its own scale midway.
     const handleGestureChange = (event: Event) => {
       const { scale } = event as GestureEventWithScale;
+      const startZoom = gestureStartZoomRef.current;
+      if (surfacePinch || startZoom === null) return;
       if (!Number.isFinite(scale) || scale <= 0) return;
-      if (shouldIgnorePinch()) return;
-      const startZoom =
-        gestureStartZoomRef.current ?? pendingZoomRef.current ?? pageZoomRef.current;
-      gestureStartZoomRef.current = startZoom;
       if (event.cancelable) event.preventDefault();
       queueZoom(startZoom * scale);
     };
 
     const handleGestureEnd = () => {
       gestureStartZoomRef.current = null;
+      forgetPinch();
     };
 
     window.addEventListener('wheel', handleWheel, { passive: false });
@@ -156,6 +205,8 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
     document.addEventListener('gesturestart', handleGestureStart, { passive: false });
     document.addEventListener('gesturechange', handleGestureChange, { passive: false });
     document.addEventListener('gestureend', handleGestureEnd, { passive: true });
+    window.addEventListener('pointerup', handlePointerEnd, { passive: true });
+    window.addEventListener('pointercancel', handlePointerEnd, { passive: true });
 
     return () => {
       if (rafIdRef.current !== undefined) {
@@ -172,6 +223,8 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       document.removeEventListener('gesturestart', handleGestureStart);
       document.removeEventListener('gesturechange', handleGestureChange);
       document.removeEventListener('gestureend', handleGestureEnd);
+      window.removeEventListener('pointerup', handlePointerEnd);
+      window.removeEventListener('pointercancel', handlePointerEnd);
     };
   }, []);
 };
