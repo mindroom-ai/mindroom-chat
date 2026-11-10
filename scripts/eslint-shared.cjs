@@ -76,8 +76,9 @@ const TYPE_AWARE_RULES = {
 // Styles follow the reading direction: a right-to-left language mirrors the interface,
 // which logical properties (inline start and end) do by themselves, while a physical left or right
 // stays where it is. no-restricted-syntax finds physical sides in the style objects of the sources
-// each config gives `logicalSidesOverrides` (tests excepted): vanilla-extract objects in *.css.ts files, inline `style` props, and
-// any object with a property name only CSS uses (paddingRight, borderLeft). `left` and `right`
+// each config gives `logicalSidesOverrides` (tests excepted): vanilla-extract objects in *.css.ts
+// files, inline `style` props, and any object with a property name only CSS uses (paddingRight,
+// borderLeft). `left` and `right`
 // count only in a *.css.ts file (where a variant named `left` is an object, not a value) and in a
 // `style` prop, because elsewhere they are often coordinates or scroll offsets.
 //

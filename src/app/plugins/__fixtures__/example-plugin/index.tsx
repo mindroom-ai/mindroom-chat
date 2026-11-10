@@ -29,7 +29,7 @@
 // filling the room, folded, on a phone and under reduced motion it opens and closes at once.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg); its build module (build.mjs) writes "Example banner" in place of a marker, which
-// unit tests show as it is unless MINDROOM_CLIENT_PLUGINS lists the plugin. The banner also has a button, "Show
+// unit tests show as it is unless MINDROOM_CLIENT_PLUGINS lists it. The banner has a button, "Show
 // example cover", that covers the room's conversation with "Example cover of <room name>" until its
 // Close button or Escape closes it. Its panel also offers "Example item" to drag, in a drag type of
 // its own, and the banner shows "Dropped: <text>" when one lands anywhere on the room header. Like a
