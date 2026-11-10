@@ -64,7 +64,7 @@ const matches = (tag: string, renderer: MessageRenderer, event: PluginEvent): bo
   }
 };
 
-/** Tags of the plugins whose `preview` threw, so each is logged once. */
+/** Tags of the plugins whose `preview` threw or gave no string, so each is logged once. */
 const failedPreviews = new Set<string>();
 
 /** As long as the app's own previews of a message (the thread signals' `PREVIEW_LENGTH`). */
@@ -105,15 +105,18 @@ export const useMessagePreview = (
   // The app's typed namespaces cover its own catalog only.
   useTranslation((matched?.renderer.preview ? pluginNamespace(matched.id) : undefined) as never);
   if (!matched?.renderer.preview || !event) return undefined;
+  const message = "a message renderer's preview failed; core previews it";
   let text: unknown;
   try {
     text = matched.renderer.preview(event);
   } catch (error) {
-    const message = "a message renderer's preview failed; core previews it";
     logOnce(failedPreviews, matched.tag, message, error);
     return undefined;
   }
-  if (typeof text !== 'string') return undefined;
+  if (typeof text !== 'string') {
+    if (text !== undefined) logOnce(failedPreviews, matched.tag, message, text);
+    return undefined;
+  }
   const line = text.replace(/\s+/g, ' ').trim().slice(0, PREVIEW_LENGTH);
   return line ? revealDirectionControls(line) : undefined;
 };

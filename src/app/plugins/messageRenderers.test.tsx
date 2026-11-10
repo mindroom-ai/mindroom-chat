@@ -157,7 +157,7 @@ describe('useMessagePreview', () => {
     expect(preview).not.toHaveBeenCalled();
   });
 
-  it('gives no text for a preview that throws, logged once, or one that is no string or blank', () => {
+  it('gives no text for a preview that throws or gives no string, each logged once, or a blank one', () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     registry.push(
       plugin(
@@ -175,10 +175,19 @@ describe('useMessagePreview', () => {
     expect(logged.mock.calls[0]?.[0]).toContain(
       "[plugin alpha@1.0.0] a message renderer's preview failed"
     );
+    // A result that is no string is logged once too; undefined and a blank text are not.
     registry.splice(0, 1, plugin('beta', renderer({ preview: () => 42 as unknown as string })));
     expect(previewOf(message(AGENT))).toBeUndefined();
-    registry.splice(0, 1, plugin('beta', renderer({ preview: () => ' \n ' })));
     expect(previewOf(message(AGENT))).toBeUndefined();
+    expect(logged).toHaveBeenCalledTimes(2);
+    expect(logged.mock.calls[1]?.[0]).toContain(
+      "[plugin beta@1.0.0] a message renderer's preview failed"
+    );
+    registry.splice(0, 1, plugin('gamma', renderer({ preview: () => undefined })));
+    expect(previewOf(message(AGENT))).toBeUndefined();
+    registry.splice(0, 1, plugin('gamma', renderer({ preview: () => ' \n ' })));
+    expect(previewOf(message(AGENT))).toBeUndefined();
+    expect(logged).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the app's text when the renderer that takes the message has no preview", () => {
