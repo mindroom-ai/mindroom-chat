@@ -129,4 +129,4 @@ e2e-suite *args:
 # Tests of the e2e tooling, the notices generator, the bundle report and the iOS test fixture generators (scripts/e2e-results-tsv.test.mjs, scripts/third-party-notices.test.mjs, scripts/ios-routing-test-routes.test.mjs, scripts/ios-canvas-test-fixtures.test.mjs and scripts/perf/bundle-report.test.mjs with Node's test runner, scripts/test_matrix_http.py, scripts/reference/test_seed.py, scripts/agent-stack/test_stack.py and scripts/upstream-overlap/test_check.py with unittest).
 script-tests:
     node --test scripts/e2e-results-tsv.test.mjs scripts/third-party-notices.test.mjs scripts/ios-routing-test-routes.test.mjs scripts/ios-canvas-test-fixtures.test.mjs scripts/perf/bundle-report.test.mjs
-    python3 -m unittest scripts/test_matrix_http.py scripts/reference/test_seed.py scripts/agent-stack/test_stack.py scripts/upstream-overlap/test_check.py
+    python3 -m unittest scripts/test_matrix_http.py scripts/reference/test_seed.py scripts/agent-stack/test_stack.py scripts/upstream-overlap/test_check.py scripts/test_e2e_plugin_dirs.py

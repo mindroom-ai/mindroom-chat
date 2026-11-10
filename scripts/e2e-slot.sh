@@ -20,8 +20,11 @@
 #   --preview           Serve a production build (`vite build`, then `vite preview`) instead of the
 #                       dev server; implies --snapshot. The build also holds the spec fixture pages
 #                       (e2e/fixtures/*.html) and is shared by every slot that tests the same commit;
-#                       with E2E_PLUGIN_DIRS, it also holds their fixture pages (the snapshot gets
-#                       copies of the directories in e2e-plugins/) and is the run's own.
+#                       with E2E_PLUGIN_DIRS, it also holds their fixture pages, and with
+#                       MINDROOM_CLIENT_PLUGINS those plugins, and is the run's own. The snapshot
+#                       gets copies of the directories of both in e2e-plugins/, each once, and both
+#                       variables name the copies, so edits in the directories never reach the run;
+#                       a copy's link to the app (.mindroom-chat) is a link to the snapshot.
 #                       Specs that import /src/ modules need the dev server.
 #   --fresh             Start the slot's homeserver empty and delete it when the command ends.
 #   --rtc               Start the slot's call service (scripts/e2e-rtc.sh: LiveKit and a MatrixRTC
@@ -117,23 +120,22 @@ main() {
 
     if [ "$preview" = 1 ]; then
       build="$snapshots/builds/$sha"
-      # The plugin directories (E2E_PLUGIN_DIRS) are copied into the snapshot, where the fixture page
-      # build finds their pages (scripts/e2e-plugin-pages.mjs). No commit pins them, so such a build
-      # is this run's own.
-      if [ -n "${E2E_PLUGIN_DIRS:-}" ]; then
+      # The plugin directories (E2E_PLUGIN_DIRS) and client plugins (MINDROOM_CLIENT_PLUGINS) are
+      # copied into the snapshot, where the fixture page build finds the pages of the first
+      # (scripts/e2e-plugin-pages.mjs). No commit pins them, so such a build is this run's own.
+      if [ -n "${E2E_PLUGIN_DIRS:-}${MINDROOM_CLIENT_PLUGINS:-}" ]; then
         build="$snapshots/builds/slot-$slot"
         rm -rf "$build"
         mkdir -p "$tree/e2e-plugins"
-        (
-          cd "$tree"
-          # Split on ":" only: a name such as plugin[1] stays itself, as it does for Vite and stack.py.
-          IFS=:
-          set -f
-          for dir in $E2E_PLUGIN_DIRS; do
-            [ -n "$dir" ] || continue
-            real="$(cd "$dir" && pwd -P)" && cp -R "$real" "e2e-plugins/$(basename "$real")"
-          done
-        )
+        declare -A plugin_sources=()
+        if [ -n "${E2E_PLUGIN_DIRS:-}" ]; then
+          copy_plugin_dirs : "$E2E_PLUGIN_DIRS"
+          export E2E_PLUGIN_DIRS="$copies"
+        fi
+        if [ -n "${MINDROOM_CLIENT_PLUGINS:-}" ]; then
+          copy_plugin_dirs , "$MINDROOM_CLIENT_PLUGINS"
+          export MINDROOM_CLIENT_PLUGINS="$copies"
+        fi
       fi
       mkdir -p "$snapshots/builds"
       (
@@ -207,6 +209,32 @@ main() {
   export CHROMIUM_PATH="${CHROMIUM_PATH:-$(command -v chromium || true)}"
   export PLAYWRIGHT_CHROMIUM_EXECUTABLE="${PLAYWRIGHT_CHROMIUM_EXECUTABLE:-$CHROMIUM_PATH}"
   without_token "$@"
+}
+
+# Copies the directories of the list $2, split on $1 only (so a name such as plugin[1] stays itself)
+# and relative to the snapshot $tree, into its e2e-plugins/, and sets `copies` to the list of the
+# copies. A directory that plugin_sources already maps to its copy is not copied again.
+copy_plugin_dirs() {
+  local dir real copy parts
+  copies=
+  IFS="$1" read -r -a parts <<<"$2"
+  for dir in "${parts[@]}"; do
+    [ -n "$dir" ] || continue
+    real="$(cd "$tree" && cd "$dir" && pwd -P)"
+    copy="$tree/e2e-plugins/$(basename "$real")"
+    if [ -z "${plugin_sources[$copy]:-}" ]; then
+      plugin_sources[$copy]="$real"
+      mkdir "$copy"
+      # Its link to the app, a link or a submodule (docs/development.md), stays out: the copy's is
+      # the snapshot.
+      tar -C "$real" --exclude=./.mindroom-chat -cf - . | tar -C "$copy" -xf -
+      if [ -e "$real/.mindroom-chat" ]; then ln -s "$tree" "$copy/.mindroom-chat"; fi
+    elif [ "${plugin_sources[$copy]}" != "$real" ]; then
+      echo "e2e-slot: ${plugin_sources[$copy]} and $real would both be copied to $copy" >&2
+      exit 2
+    fi
+    copies="${copies:+$copies$1}$copy"
+  done
 }
 
 # Runs a command without the run token's descriptor: only this script holds it, so a server the

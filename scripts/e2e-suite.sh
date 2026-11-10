@@ -11,8 +11,9 @@
 # rooms from earlier specs never crowd the account. Specs that import /src/ modules, and all of them
 # with --dev, get the dev server instead. Specs that name scripts/e2e-rtc.sh (the call specs) also
 # get the slot's call service (`e2e-slot.sh --rtc`). Each slot takes the next spec when it finishes one.
-# Without specs, every e2e/**/*.spec.ts of the commit runs. Playwright options default to
-# `--retries 1`; a test that passes on its retry counts as flaky. --slots takes `25-30` or `2,25,26`
+# Without specs, every e2e/**/*.spec.ts of the commit runs, and with E2E_PLUGIN_DIRS each one in
+# those directories, as e2e-plugins/<directory name>/e2e/<spec>, always on the production build,
+# whose snapshot has their copies. Playwright options default to `--retries 1`; a test that passes on its retry counts as flaky. --slots takes `25-30` or `2,25,26`
 # (default 25-30). The run directory ($E2E_SNAPSHOT_ROOT/suite-<commit>-<time>, with logs, JSON
 # reports, traces and results.tsv; the root defaults to /tmp/mindroom-client-e2e, as in
 # scripts/e2e-slot.sh) is printed at the start; --out copies results.tsv there too.
@@ -100,6 +101,18 @@ main() {
   fi
   if [ ${#specs[@]} -eq 0 ]; then
     mapfile -t specs < <(git ls-tree -r --name-only "$sha" -- e2e | grep '\.spec\.ts$' | sort)
+    # And the specs in the e2e/ of each plugin directory (E2E_PLUGIN_DIRS, relative to the
+    # repository), by their path in the snapshot, whose e2e-plugins/ has a copy of the directory
+    # (scripts/e2e-slot.sh --preview).
+    IFS=: read -r -a plugin_dirs <<<"${E2E_PLUGIN_DIRS:-}"
+    for dir in "${plugin_dirs[@]}"; do
+      [ -n "$dir" ] || continue
+      real="$(cd "$dir" && pwd -P)"
+      if [ -d "$real/e2e" ]; then
+        mapfile -t -O "${#specs[@]}" specs < <(cd "$real" && find e2e -name '*.spec.ts' | sort |
+          sed "s|^|e2e-plugins/$(basename "$real")/|")
+      fi
+    done
   fi
   mapfile -t dev_specs < <(git grep -l "'/src/" "$sha" -- e2e | sed "s/^$sha://")
   mapfile -t rtc_specs < <(git grep -l 'scripts/e2e-rtc\.sh' "$sha" -- e2e | sed "s/^$sha://")
@@ -130,7 +143,9 @@ main() {
   {
     for spec in "${specs[@]}"; do
       server=preview
-      if [ "$dev_all" = 1 ] || printf '%s\n' "${dev_specs[@]}" | grep -qxF "$spec"; then server=dev; fi
+      # A plugin directory's specs run only where the snapshot has its copy.
+      if { [ "$dev_all" = 1 ] && [[ "$spec" != e2e-plugins/* ]]; } ||
+        printf '%s\n' "${dev_specs[@]}" | grep -qxF "$spec"; then server=dev; fi
       case "$spec" in *.live.spec.ts) rank=0 ;; *) rank=1 ;; esac
       printf '%s\t%s\t%s\n' "$rank" "$server" "$spec"
     done

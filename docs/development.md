@@ -43,15 +43,15 @@ A client plugin ([architecture.md](architecture.md#client-plugins)) can live in 
 - **Typecheck.** The plugin's `tsconfig.json` extends `tsconfig.plugin.json`, and its `tsconfig.strict.json` adds `tsconfig.plugin.strict.json`, the flags of the app's `tsconfig.strict.json`:
 
   ```json
-  { "extends": "./.mindroom-chat/tsconfig.plugin.json", "include": ["src"] }
+  { "extends": "./.mindroom-chat/tsconfig.plugin.json", "include": ["src", "e2e"] }
   ```
 
   ```json
   { "extends": ["./.mindroom-chat/tsconfig.plugin.strict.json", "./tsconfig.json"] }
   ```
 
-  The base has the app's compiler options, `paths` for `@mindroom/client-sdk/*` (`testing` included), for each package the app shares with plugins and for `vitest`, all to the app's copies, and the app's ambient types (`types` `node`, from the app's `typeRoots`; a plugin with global types of its own sets both). A plugin's own `paths` replace the base's rather than adding to them, so a plugin that maps names of its own, such as the package names of its build module's aliases, repeats the base's entries with `./.mindroom-chat/` before each. `.mindroom-chat/node_modules/.bin/tsc -p tsconfig.json` checks the plugin and the app modules the SDK reaches; under the strict flags the app's own ported modules have errors that the app's `just strict` ignores, so the plugin keeps the errors in its own files: `tsc -p tsconfig.strict.json --pretty false | grep 'error TS' | grep -v '^\.mindroom-chat/'` prints none.
-- **Lint.** The plugin's `.eslintrc.cjs` extends `.eslintrc.plugin.cjs`, the rules of the app's own code without its lanes and layers: logical sides in styles, `PopOut` from the SDK rather than folds, the React, hooks and accessibility rules, and the type-aware rules with the types of the plugin's `tsconfig.strict.json`. One more rule refuses an import that reaches the app's `src/` or `e2e/` by its path rather than through `@mindroom/client-sdk/<subpath>`. ESLint 8 loads its plugins from the directory `--resolve-plugins-relative-to` names, so the plugin runs the app's ESLint from its own directory:
+  The base has the app's compiler options, `paths` for `@mindroom/client-sdk/*` (`testing` included), for each package the app shares with plugins, for `vitest`, and for the end-to-end specs `@mindroom/e2e/*` (the app's `e2e/helpers/`) and `@playwright/test`, all to the app's copies, and the app's ambient types (`types` `node`, from the app's `typeRoots`; a plugin with global types of its own sets both). A plugin's own `paths` replace the base's rather than adding to them, so a plugin that maps names of its own, such as the package names of its build module's aliases, repeats the base's entries with `./.mindroom-chat/` before each, the two of `@playwright/test` in their order: TypeScript takes its types from the first, and Playwright, which reads these `paths` as it loads the specs, its module from the second. `.mindroom-chat/node_modules/.bin/tsc -p tsconfig.json` checks the plugin and the app modules the SDK reaches; under the strict flags the app's own ported modules have errors that the app's `just strict` ignores, so the plugin keeps the errors in its own files: `tsc -p tsconfig.strict.json --pretty false | grep 'error TS' | grep -v '^\.mindroom-chat/'` prints none.
+- **Lint.** The plugin's `.eslintrc.cjs` extends `.eslintrc.plugin.cjs`, the rules of the app's own code without its lanes and layers: logical sides in styles, `PopOut` from the SDK rather than folds, the React, hooks and accessibility rules, and the type-aware rules with the types of the plugin's `tsconfig.strict.json`. One more rule refuses an import that reaches the app's `src/` or `e2e/` by its path rather than through `@mindroom/client-sdk/<subpath>`, or in the plugin's specs `@mindroom/e2e/<helper>`. Files in the plugin's `e2e/` are tests, as the app's own specs are: they may use `any` and launch WebKit only through `@mindroom/e2e/webkit`. ESLint 8 loads its plugins from the directory `--resolve-plugins-relative-to` names, so the plugin runs the app's ESLint from its own directory:
 
   ```js
   module.exports = { root: true, extends: ['./.mindroom-chat/.eslintrc.plugin.cjs'] };
@@ -63,6 +63,13 @@ A client plugin ([architecture.md](architecture.md#client-plugins)) can live in 
 
 - **Unit tests.** From the checkout, `MINDROOM_CLIENT_PLUGINS=<plugin directory> MINDROOM_CLIENT_PLUGIN_TESTS_ONLY=1 npx vitest run` runs the plugin's tests alone, with its build module's hooks, so the names its `resolveId` maps resolve as in the build (`vitest.config.ts`); without `MINDROOM_CLIENT_PLUGIN_TESTS_ONLY` they run with the app's. Tests of the checkout inside the plugin's directory never run as the plugin's.
 - **Build.** `MINDROOM_CLIENT_PLUGINS=<plugin directory> just build` in the checkout, or the image's `MINDROOM_CLIENT_PLUGINS` build argument (`Dockerfile`).
+- **E2E.** The plugin's specs (`*.spec.ts` in its `e2e/` and the folders below it) run in the checkout's Playwright while `E2E_PLUGIN_DIRS` names the plugin's directory, in a Chromium project named after the directory (`playwright.config.ts`), with the app's global setup and its accounts. They import the app's helpers as `@mindroom/e2e/<helper>`, such as `@mindroom/e2e/matrix` for `e2e/helpers/matrix.ts`, and `@playwright/test` as the app's; a fixture page in the plugin's `e2e/fixtures/` loads at `/e2e-plugins/<directory name>/e2e/fixtures/<page>.html`. From the checkout, with absolute directories:
+
+  ```bash
+  E2E_PLUGIN_DIRS=<plugin directory> MINDROOM_CLIENT_PLUGINS=<plugin directory> just e2e-slot 3 --preview npx playwright test --project=<directory name>
+  ```
+
+  The run builds the plugin in from a copy in its snapshot, so edits made in the plugin's directory meanwhile never reach it, and `E2E_PLUGIN_DIRS=<plugin directory> MINDROOM_CLIENT_PLUGINS=<plugin directory> just e2e-suite` runs the plugin's specs with the app's, each as `e2e-plugins/<directory name>/e2e/<spec>`.
 
 ## End-to-end specs
 
@@ -84,7 +91,7 @@ just e2e-slot 3 --rtc --preview npx playwright test e2e/calls/calls.spec.ts  # w
 just e2e-slot 3 down                                                        # stop the slot, delete its data
 ```
 
-- `--snapshot[=<rev>]` copies a commit (default `HEAD`) to `$E2E_SNAPSHOT_ROOT/slot-<n>` and runs the command there with an empty homeserver, so uncommitted edits never reach the run. `--preview` also builds that commit and serves it with `vite preview`. Specs that import `/src/` modules need the dev server (`--snapshot` without `--preview`).
+- `--snapshot[=<rev>]` copies a commit (default `HEAD`) to `$E2E_SNAPSHOT_ROOT/slot-<n>` and runs the command there with an empty homeserver, so uncommitted edits never reach the run. `--preview` also builds that commit and serves it with `vite preview`; with `E2E_PLUGIN_DIRS` or `MINDROOM_CLIENT_PLUGINS`, it copies their directories into the snapshot, names the copies in both variables and makes a build of the run's own. Specs that import `/src/` modules need the dev server (`--snapshot` without `--preview`).
 - `E2E_MAX_CONCURRENT` (default 6, `0` for no limit) caps how many slot runs go at once, over every shell that uses the same `E2E_SNAPSHOT_ROOT` (default `/tmp/mindroom-client-e2e`).
 - `just e2e-suite --slots 25-28 --out results.tsv [specs] [-- <playwright options>]` (Linux only: it reads `/proc/loadavg`) runs every spec file (or the given ones) of one commit, each in its own `--preview` slot run, and writes one TSV row per spec (passed, failed, skipped, first error, flaky, seconds, server, load average, and the tests skipped for a missing service, fixture, account or setting, which the summary names). The call specs get their slot's call service. `--rev <rev>` picks another commit, `--dev` uses the dev server for all specs, and `--resume <run directory>` finishes an interrupted run. Specs that import `/src/` modules run on the dev server even without `--dev`, so they get no production-build coverage. Playwright options default to `--retries 1`.
 - `scripts/e2e-rtc.sh <slot> up|down|env` starts LiveKit and a MatrixRTC authorization service for the call specs; `e2e-slot --rtc` starts it before the slot's homeserver, which announces it, and stops it after the command.
