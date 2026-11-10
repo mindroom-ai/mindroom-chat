@@ -51,8 +51,6 @@ type VoiceComposerAdapter = {
 
 type UseRoomInputVoiceOptions = {
   mx: MatrixClient;
-  /** This composer's `voiceComposerKey`: a failed send recorded here comes back here. */
-  composerKey: string;
   composer: VoiceComposerAdapter;
   attachments: RoomInputAttachmentAccess;
   transport: Pick<
@@ -87,7 +85,6 @@ type PendingVoiceComposerBundle = {
 
 export const useRoomInputVoice = ({
   mx,
-  composerKey,
   composer: { getContext, snapshotText, resetText, restoreText, clearConsumedReply },
   attachments: attachmentAccess,
   transport: { createVoiceUploadItems, uploadItem, uploadItemWhileStaged, sendVoiceItem },
@@ -107,13 +104,15 @@ export const useRoomInputVoice = ({
   // switch in the sidebar leaves yesterday's draft visible to a new
   // account; ignore (and clean up) any draft that does not belong to us.
   const currentSessionId = mx.getUserId() ?? undefined;
+  // A failed send recorded in this composer comes back in it.
+  const composerKey = voiceComposerKey(getContext());
   const draftBelongsToCurrentSession =
     !!pendingVoiceSendDraft && pendingVoiceSendDraft.context.ownerSessionId === currentSessionId;
   const ownsPendingVoiceDraft =
     draftBelongsToCurrentSession && voiceComposerKey(pendingVoiceSendDraft.context) === composerKey;
-  const otherRoomOwnsPendingVoiceDraft = draftBelongsToCurrentSession && !ownsPendingVoiceDraft;
+  const otherComposerOwnsPendingVoiceDraft = draftBelongsToCurrentSession && !ownsPendingVoiceDraft;
   const otherPendingVoiceRoomName =
-    otherRoomOwnsPendingVoiceDraft && pendingVoiceSendDraft
+    otherComposerOwnsPendingVoiceDraft && pendingVoiceSendDraft
       ? revealDirectionControls(
           pendingVoiceSendDraft.context.room.name ?? pendingVoiceSendDraft.context.roomId
         )
@@ -123,17 +122,11 @@ export const useRoomInputVoice = ({
   const voiceRecorderRef = useRef<VoiceRecorderComposerHandle>(null);
   const pendingVoiceComposerBundleRef = useRef<PendingVoiceComposerBundle>();
 
-  // When this room owns a pending failed-send draft (e.g. survived a
+  // While this composer owns a pending failed-send draft (e.g. it survived a
   // RoomProvider key remount on real navigation), surface the recorder so
-  // the user can see the retry/discard controls.
-  useEffect(() => {
-    if (ownsPendingVoiceDraft) {
-      setVoiceRecorderOpen(true);
-    }
-  }, [ownsPendingVoiceDraft]);
-
-  // Close the recorder while a parked draft is not this composer's, and once its own goes away.
-  // This covers cases the hook can't observe locally:
+  // the user can see the retry/discard controls. Close it while a parked draft
+  // is another composer's, and once its own goes away. Closing covers cases the
+  // hook can't observe locally:
   //   1. A previous mount started a retry, the user navigated away, the
   //      retry settled remotely, and we're now back in the source room
   //      with phase synced to 'sending' from the atom.
@@ -147,10 +140,9 @@ export const useRoomInputVoice = ({
   useEffect(() => {
     const ownedBefore = ownedPendingDraftRef.current;
     ownedPendingDraftRef.current = ownsPendingVoiceDraft;
-    if (!ownsPendingVoiceDraft && (ownedBefore || draftBelongsToCurrentSession)) {
-      setVoiceRecorderOpen(false);
-    }
-  }, [draftBelongsToCurrentSession, ownsPendingVoiceDraft]);
+    if (ownsPendingVoiceDraft) setVoiceRecorderOpen(true);
+    else if (ownedBefore || otherComposerOwnsPendingVoiceDraft) setVoiceRecorderOpen(false);
+  }, [ownsPendingVoiceDraft, otherComposerOwnsPendingVoiceDraft]);
 
   // One recorder is open at a time: opening one in another composer closes this one, which ends
   // its recording as leaving the room does.
@@ -175,7 +167,7 @@ export const useRoomInputVoice = ({
   //      A draft from account A must not block voice recording in B.
   //   2. Same-session room loss (rev-A R4 Issue 2): if the user was
   //      kicked from / left / forgot the parked-draft room, the
-  //      otherRoomOwnsPendingVoiceDraft gate would lock the mic in
+  //      otherComposerOwnsPendingVoiceDraft gate would lock the mic in
   //      every other room with no in-app surface to discard.
   //   3. Same-session non-joinable room (rev-B / rev-G R5): a Room
   //      object can survive in mx.getRoom() after the user is no longer
@@ -528,21 +520,22 @@ export const useRoomInputVoice = ({
     ? t('composer.voicePausedInOtherRoom', { roomName: otherPendingVoiceRoomName })
     : t('composer.recordVoice');
   const microphone = (
-    // The label says why the button is disabled while another room holds a draft;
+    // The label says why the button is disabled while another composer holds a draft;
     // the tooltip shows it too where the browser reports hovering a disabled button.
     <IconTooltip label={microphoneLabel} position="Top">
       {(triggerRef) => (
         <IconButton
           ref={triggerRef}
           onClick={() => {
-            if (voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft) return;
+            if (voiceRecorderOpen || voiceAutoSendPending || otherComposerOwnsPendingVoiceDraft)
+              return;
             pauseAllMediaElements();
             setVoiceRecorderOpen(true);
           }}
           variant="SurfaceVariant"
           size="300"
           radii="300"
-          disabled={voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft}
+          disabled={voiceRecorderOpen || voiceAutoSendPending || otherComposerOwnsPendingVoiceDraft}
           aria-label={microphoneLabel}
           className={ComposerIconButton}
         >

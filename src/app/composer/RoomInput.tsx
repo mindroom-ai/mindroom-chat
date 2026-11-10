@@ -53,7 +53,6 @@ import {
   keepReplyDraft,
   roomIdToMsgDraftAtomFamily,
   composerReplyDraftAtom,
-  voiceComposerKey,
 } from './roomInputDrafts';
 import type { TUploadItem } from '../matrix/state/upload';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
@@ -440,7 +439,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     useSavedVoiceDraft(mx);
     const voice = useRoomInputVoice({
       mx,
-      composerKey: voiceComposerKey({ roomId, threadId, threadView: view !== undefined }),
       composer,
       attachments: attachments.access,
       transport,
