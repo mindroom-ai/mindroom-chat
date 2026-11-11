@@ -108,6 +108,7 @@ const TestHarness = ({
   clearReplyDraft,
   restoreComposerFallbackForRoom,
   threadId,
+  roomId = '!room:example.org',
 }: {
   onReady: (api: HarnessApi) => void;
   onRoomMessageSent?: (eventId: string) => boolean | void;
@@ -124,6 +125,7 @@ const TestHarness = ({
   clearReplyDraft: ReturnType<typeof vi.fn>;
   restoreComposerFallbackForRoom: ReturnType<typeof vi.fn>;
   threadId?: string;
+  roomId?: string;
 }) => {
   const selectedFilesRef = useRef<TUploadItem[]>([]);
   const sendSessionFilesRef = useRef<TUploadContent[]>([]);
@@ -170,13 +172,13 @@ const TestHarness = ({
   const controller = useRoomInputSendSessionController({
     mx: mx as never,
     room: {
-      roomId: '!room:example.org',
+      roomId,
       getEventForTxnId: mx.getEventForTxnId,
       getLiveTimeline: () => undefined,
       getMembers: () => [],
       hasEncryptionStateEvent: () => false,
     } as never,
-    roomId: '!room:example.org',
+    roomId,
     threadId,
     replyDraft,
     clearReplyDraft,
@@ -281,22 +283,31 @@ const renderHarness = (
       api.mountedRef.current = false;
       act(() => renderer.unmount());
     },
-    /** Mounts the same composer again, with refs of its own. */
-    mountAgain: () => {
+    /** Mounts the same composer again, with refs of its own, in `roomId` if given. */
+    mountAgain: (roomId?: string) => {
       let next!: HarnessApi;
+      const againProps = {
+        ...props,
+        threadId: options.threadId,
+        roomId,
+        onReady: (nextApi: HarnessApi) => {
+          next = nextApi;
+          api = nextApi;
+        },
+      };
       act(() => {
-        renderer = create(
-          React.createElement(TestHarness, {
-            ...props,
-            threadId: options.threadId,
-            onReady: (nextApi: HarnessApi) => {
-              next = nextApi;
-              api = nextApi;
-            },
-          })
-        );
+        renderer = create(React.createElement(TestHarness, againProps));
       });
-      return { api: next, current: () => api };
+      const again = renderer;
+      return {
+        api: next,
+        current: () => api,
+        /** Moves the composer mounted again to another room, as the room's page does. */
+        changeRoom: (nextRoomId: string) =>
+          act(() =>
+            again.update(React.createElement(TestHarness, { ...againProps, roomId: nextRoomId }))
+          ),
+      };
     },
   };
 };
@@ -384,7 +395,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
   });
 
   it('ends a session left waiting for a retry once its composer went', async () => {
-    const { api, mx, unmount, mountAgain } = renderHarness();
+    const { api, mx, unmount } = renderHarness();
     const file = createFile('broken.txt');
     api.selectedFilesRef.current = [createUploadItem(file)];
     api.uploadsRef.current = [prepErrorUpload(file)];
@@ -396,6 +407,84 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     unmount();
     await vi.waitFor(() => expect(api.hasActiveSendSession()).toBe(false));
     expect(mx.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('leaves a sent file on the board of the composer that took the send over no more', async () => {
+    const { api, mx, unmount, mountAgain } = renderHarness();
+    const file = createFile('in-flight.txt');
+    const fileSend = createDeferred<{ event_id: string }>();
+    mx.sendMessage.mockReturnValueOnce(fileSend.promise);
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [successUpload(file)];
+    act(() => {
+      void api.startSendSession();
+    });
+    await vi.waitFor(() => expect(mx.sendMessage).toHaveBeenCalledTimes(1));
+
+    unmount();
+    const again = mountAgain();
+    expect(again.api.selectedFilesRef.current.map((item) => item.file)).toEqual([file]);
+    await act(async () => {
+      fileSend.resolve({ event_id: '$file' });
+      await fileSend.promise;
+    });
+    await vi.waitFor(() => expect(again.api.selectedFilesRef.current).toEqual([]));
+    await act(async () => {
+      await again.api.startSendSession();
+    });
+    expect(mx.sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('takes a send over when the composer moves to its room, not only as it mounts', async () => {
+    const { api, mx, unmount, mountAgain } = renderHarness();
+    const file = createFile('room-a.txt');
+    const item = createUploadItem(file);
+    api.selectedFilesRef.current = [item];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'caption' } });
+    });
+    unmount();
+
+    const again = mountAgain('!other:example.org');
+    expect(again.current().joinedSendPending).toBe(false);
+    again.changeRoom('!room:example.org');
+    expect(again.current().joinedSendPending).toBe(true);
+    // The room's board still lists the file: Send sends nothing of it a second time.
+    again.api.selectedFilesRef.current = [item];
+    again.api.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      await again.api.startSendSession({ textContent: { msgtype: 'm.text', body: 'later' } });
+      await again.api.processSendSession();
+    });
+    await vi.waitFor(() =>
+      expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual(
+        ['room-a.txt', 'caption', 'later']
+      )
+    );
+  });
+
+  it('sends no file a send nobody took over still claims', async () => {
+    const { api, mx, unmount, mountAgain } = renderHarness();
+    const file = createFile('claimed.txt');
+    const item = createUploadItem(file);
+    api.selectedFilesRef.current = [item];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    unmount();
+
+    // A composer elsewhere whose send would take the same file along.
+    const elsewhere = mountAgain('!other:example.org');
+    elsewhere.api.selectedFilesRef.current = [item];
+    elsewhere.api.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      await elsewhere.api.startSendSession({ textContent: { msgtype: 'm.text', body: 'own' } });
+    });
+    expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
+      'own',
+    ]);
   });
 
   it('keeps the sends of two composers mounted at once apart', async () => {

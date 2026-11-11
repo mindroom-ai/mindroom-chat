@@ -576,6 +576,8 @@ export const useRoomInputAttachments = ({
 
   const replaceItem = (item: TUploadItem, replacement: TUploadItem) => {
     store.set(itemsAtom, { type: 'REPLACE', item, replacement });
+    // A send that claimed the file sends it as changed (a spoiler set after Send, say).
+    enrolled.current = enrolled.current.map((entry) => (entry === item ? replacement : entry));
     keepNames(roomId);
   };
 

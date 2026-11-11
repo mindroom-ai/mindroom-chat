@@ -308,6 +308,21 @@ describe('attachment staging ownership', () => {
     });
   });
 
+  it('keeps a file a send claimed as the board changes it', () => {
+    const harness = renderHarness();
+    const { access } = harness.feature;
+    const item = createUploadItem('photo.png');
+    act(() => {
+      access.append(ROOM_ID, [item]);
+      access.enroll([item]);
+    });
+    const card = harness.renderer.root.findByType(UploadCardRenderer);
+    act(() => card.props.setMetadata(item, { markedAsSpoiler: true }));
+    expect(access.snapshot().enrolled.map((entry) => entry.metadata)).toEqual([
+      { markedAsSpoiler: true },
+    ]);
+  });
+
   it('keeps recorder enrollment when canceling only board uploads', () => {
     const harness = renderHarness();
     const { access } = harness.feature;

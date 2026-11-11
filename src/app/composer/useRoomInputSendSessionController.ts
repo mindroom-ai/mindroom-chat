@@ -404,7 +404,8 @@ export const useRoomInputSendSessionController = ({
       }
       session.onUploadSent?.(file);
       clearReplyDraftForSession(session);
-      attachments.remove(session.roomId, [file]);
+      // The composer that took the send over meanwhile holds the file now.
+      session.composer.attachments.remove(session.roomId, [file]);
       if (sentEventIdToNotify) {
         session.composer.reportSent(session.composerContext, sentEventIdToNotify);
       }
@@ -615,7 +616,13 @@ export const useRoomInputSendSessionController = ({
       }
 
       const { staged } = attachments.snapshot(context?.roomId);
-      const sendItems = (batch?.fileItems ?? staged).filter((fileItem) => !fileItem.prepError);
+      // Files a send nobody took over still claims go with that send only.
+      const parkedFiles = new Set(
+        [...parkedSlotsOf(mx).values()].flatMap((parked) => parked.session?.orderedFiles ?? [])
+      );
+      const sendItems = (batch?.fileItems ?? staged).filter(
+        (fileItem) => !fileItem.prepError && !parkedFiles.has(fileItem.file)
+      );
       const sendFiles = sendItems.map((item) => item.file);
       if (sendFiles.length === 0 && !textContent) return;
       if (hasFailedPasteMarkerInText(textContent, staged)) return;
@@ -691,6 +698,7 @@ export const useRoomInputSendSessionController = ({
       restoreText,
       reportSent,
       mountedRef,
+      mx,
       store,
       processSendSession,
       sendSessionText,
@@ -725,14 +733,14 @@ export const useRoomInputSendSessionController = ({
 
   startSendSessionRef.current = startSendSession;
 
-  // A composer mounting for the key of one that unmounted with a send under way takes that send
-  // over: its board shows the files still to go, which it can cancel or retry, and its sends
-  // follow that one.
-  const mountedOnce = useRef(false);
+  // A composer showing the key of one that unmounted with a send under way, as it mounts or moves
+  // there, takes that send over: its board shows the files still to go, which it can cancel or
+  // retry, and its sends follow that one.
+  const composerKey = composerKeyRef.current;
   useEffect(() => {
-    if (mountedOnce.current) return;
-    mountedOnce.current = true;
-    const parked = parkedSlotsOf(mx).get(composerKeyRef.current);
+    const own = slotRef.current;
+    if (own.session || own.queued.length > 0) return;
+    const parked = parkedSlotsOf(mx).get(composerKey);
     const session = parked?.session;
     if (!parked || !session || session.failFast) return;
     parked.unpark?.();
@@ -756,7 +764,7 @@ export const useRoomInputSendSessionController = ({
     parked.adopted = true;
     slotRef.current = parked;
     setSlot(parked);
-  }, [attachments, mountedRef, mx, reportSent, restoreText]);
+  }, [attachments, composerKey, mountedRef, mx, reportSent, restoreText]);
 
   // Unmounting with a send under way parks it for the next composer of the same key.
   useEffect(
