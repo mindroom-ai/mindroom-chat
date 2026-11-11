@@ -11,7 +11,12 @@ import {
   registerPluginStrings,
   renderPluginComponent,
 } from '@mindroom/client-sdk/testing';
-import { usePanelPresence, useScreenSize, useThemeKind } from '@mindroom/client-sdk/ui';
+import {
+  type PanelRegistration,
+  usePanelPresence,
+  useScreenSize,
+  useThemeKind,
+} from '@mindroom/client-sdk/ui';
 
 /** An avatar as a plugin draws one: authenticated as the app asks, unless the test says. */
 function Avatar({ authenticated }: { authenticated?: boolean }) {
@@ -140,9 +145,9 @@ describe('registerPluginStrings', () => {
 
 describe('PanelPlace', () => {
   /** The registration of the last moving panel that registered. */
-  let registration: (() => void) & { done: () => void };
+  let registration: PanelRegistration;
 
-  /** A panel that draws its own frame and moves, as a plugin's does: it registers with its place. */
+  /** A side panel with `frame: 'own'` that moves, as a plugin's does: it registers with its place. */
   function MovingCard({ name }: { name: string }) {
     const presence = usePanelPresence();
     const register = presence?.register;
@@ -154,14 +159,13 @@ describe('PanelPlace', () => {
     return <p>{`${name}, ${presence?.phase ?? 'no place'}`}</p>;
   }
 
-  /** The place holding the card `open`, or none, rendered with the test's panel frame. */
+  /** The place holding the card `open`, or none. */
   const place = (open?: string) => (
     <PanelPlace>{open ? <MovingCard key={open} name={open} /> : null}</PanelPlace>
   );
 
   const renderPlace = async () => {
-    const frame = { label: 'Card', layout: 'beside' as const, setLayout: () => undefined };
-    const view = await renderPluginComponent(place(), { id: 'card', plugin: {}, frame });
+    const view = await renderPluginComponent(place(), { id: 'card', plugin: {} });
     return { ...view, setOpen: (open?: string) => view.rerender(place(open)) };
   };
 
