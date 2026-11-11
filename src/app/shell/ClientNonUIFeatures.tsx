@@ -19,6 +19,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { keepEncryptedRoomTextOffDisk } from '../matrix/client/encryptedRoomTextOffDisk';
 import { forgetEncryptedRecentThreadText } from '../event-store/threads/recentThreads';
 import { forgetEncryptedReplyText } from '../composer/roomInputDrafts';
+import { UnconfirmedRootsFeature } from '../composer/UnconfirmedRootsFeature';
 
 /** The account's stores keep no text read out of its encrypted rooms. */
 function EncryptedRoomTextOffDiskFeature() {
@@ -58,6 +59,7 @@ export function ClientNonUIFeatures() {
       <AgentConnectLinkFeature />
       <ErrorReportingClientFeature />
       <EncryptedRoomTextOffDiskFeature />
+      <UnconfirmedRootsFeature />
     </>
   );
 }
