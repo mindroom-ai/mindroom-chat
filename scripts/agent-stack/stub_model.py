@@ -24,8 +24,17 @@ The person's latest message picks a scenario by hashtag:
   #job         a shell call that runs 45 s as a background job
 
 --scenarios FILE (repeatable; stack.py passes each plugin directory's e2e/stub-scenarios.json) adds tool scenarios in
-the same shape as TOOL_SCENARIOS below, as JSON: {"#hashtag": [["tool_function", {"argument": "value"}], ...]}. The
-files are read for every request, so an edit applies at once; a hashtag the stub already has gets the file's steps.
+the same shape as TOOL_SCENARIOS below, as JSON: {"#hashtag": [["tool_function", {"argument": "value"}], ...]}.
+--scenario-module FILE (repeatable; stack.py passes each plugin directory's e2e/stub_scenarios.py) is Python that may
+define two names, for steps that need what only the turn knows (an id an earlier call returned, the person's words):
+  SCENARIOS  {"#hashtag": [("tool_function", arguments), ...]}, where arguments is a dict or a function of the Turn
+             below that returns one; a function that returns a str ends the scenario with that text instead.
+  REPLIES    {"#hashtag": function}: the function of the Turn returns the text of the reply, with no tool call.
+A step function sees a Turn: `results` (the turn's tool results so far, as text, in order), `said` (the person's
+latest words), `system` (the system and developer messages, joined) and `tools` (the tool names offered). Files and
+modules are read for every request, so an edit applies at once. A hashtag the stub already has gets a file's steps,
+and a module's win over both. A file or module that cannot be read, and a step function that fails, make the reply say
+why, naming the file and the hashtag (for a file or module, those of the latest message).
 
 Anything else gets a short echo naming the model ("Hello from **stub-fast**. You said: <message>").
 A call's notes (structured, about the call's <transcript>) say "Stub notes of the call." and "stub" in each list.
@@ -45,9 +54,12 @@ import asyncio
 import io
 import json
 import re
+import runpy
 import time
 import uuid
 import wave
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from pathlib import Path
 
 from aiohttp import web
@@ -105,16 +117,61 @@ ASK_QUESTION = {
 }
 
 
-def tool_scenarios(files: list[Path]) -> dict[str, list[tuple[str, dict]]]:
-    """TOOL_SCENARIOS with the scenarios of the --scenarios files; a ValueError names a file that is missing or not in
-    their shape."""
-    scenarios = dict(TOOL_SCENARIOS)
+@dataclass(frozen=True)
+class Turn:
+    """What a step function of a --scenario-module sees (the docstring)."""
+
+    results: tuple[str, ...]
+    said: str
+    system: str
+    tools: tuple[str, ...]
+
+
+Step = tuple[str, dict | Callable[[Turn], dict | str]]
+
+
+def guarded(
+    module: Path, tag: str, function: Callable[[Turn], object], text_only: bool = False
+) -> Callable[[Turn], dict | str]:
+    """`function`, with its failure, or an answer it may not give (a REPLIES one gives a text), as a text naming the
+    step."""
+    failed = f"The stub's scenario {tag} of {module} failed"
+    wanted = "a text" if text_only else "a dict of arguments or a text"
+
+    def step(turn: Turn) -> dict | str:
+        try:
+            answer = function(turn)
+        except Exception as error:
+            return f"{failed}: {type(error).__name__}: {error}"
+        if isinstance(answer, str) or (isinstance(answer, dict) and not text_only):
+            return answer
+        return f"{failed}: it gave {type(answer).__name__}, not {wanted}"
+
+    return step
+
+
+def tool_scenarios(files: list[Path], modules: Iterable[Path] = ()) -> dict[str, list[Step]]:
+    """TOOL_SCENARIOS with the scenarios of the --scenarios files and then the --scenario-module modules; a ValueError
+    names a file or module that is missing, fails or is not in their shape."""
+    scenarios: dict[str, list[Step]] = dict(TOOL_SCENARIOS)
     for file in files:
         try:
             for tag, steps in json.loads(file.read_text()).items():
                 scenarios[tag.lower()] = [(name, args) for name, args in steps]
         except (OSError, ValueError, TypeError, AttributeError) as error:
             raise ValueError(f"{file}: {type(error).__name__}: {error}") from error
+    for module in modules:
+        try:
+            names = runpy.run_path(str(module))
+            for tag, steps in names.get("SCENARIOS", {}).items():
+                key = tag.lower()
+                scenarios[key] = [
+                    (name, guarded(module, key, args) if callable(args) else args) for name, args in steps
+                ]
+            for tag, reply in names.get("REPLIES", {}).items():
+                scenarios[tag.lower()] = [("", guarded(module, tag.lower(), reply, text_only=True))]
+        except Exception as error:
+            raise ValueError(f"{module}: {type(error).__name__}: {error}") from error
     return scenarios
 
 
@@ -244,7 +301,7 @@ def schema_value(schema: dict, defs: dict, text: str, key: str = ""):
 # Chat turns
 
 
-def plan(body: dict, scenarios: dict[str, list[tuple[str, dict]]]) -> tuple:
+def plan(body: dict, scenarios: dict[str, list[Step]]) -> tuple:
     """("text", markdown), ("slow", text, seconds per word), ("think", text), ("tool", name, args) or ("error",),
     with the tool scenarios of tool_scenarios."""
     messages = body.get("messages") or []
@@ -254,8 +311,10 @@ def plan(body: dict, scenarios: dict[str, list[tuple[str, dict]]]) -> tuple:
     # The latest message decides when it names a scenario; otherwise the whole turn does.
     if any(has_tag(latest, tag) for tag in [*scenarios, *TEXT_SCENARIOS]):
         text = latest
-    results = [m for m in messages[index + 1 :] if m.get("role") == "tool"] if index >= 0 else []
-    last_result = text_of(results[-1].get("content"))[:400] if results else ""
+    results = (
+        [text_of(m.get("content")) for m in messages[index + 1 :] if m.get("role") == "tool"] if index >= 0 else []
+    )
+    last_result = results[-1][:400] if results else ""
     available = [tool.get("function", {}).get("name", "") for tool in body.get("tools") or []]
     # When background jobs end, MindRoom asks the agent to collect their results and report them.
     if JOBS_ENDED in latest and "job" in available:
@@ -267,6 +326,13 @@ def plan(body: dict, scenarios: dict[str, list[tuple[str, dict]]]) -> tuple:
             continue
         if len(results) < len(steps):
             name, args = steps[len(results)]
+            if callable(args):
+                system = "\n".join(
+                    text_of(m.get("content")) for m in messages if m.get("role") in ("system", "developer")
+                )
+                args = args(Turn(tuple(results), person_said(messages), system, tuple(available)))
+                if isinstance(args, str):
+                    return ("text", args)
             if name not in available:
                 return (
                     "text",
@@ -321,9 +387,10 @@ def tool_call(name: str, args: dict) -> dict:
 
 
 class Stub:
-    def __init__(self, log_path: Path, scenario_files: list[Path]) -> None:
+    def __init__(self, log_path: Path, scenario_files: list[Path], scenario_modules: list[Path]) -> None:
         self.log_path = log_path
         self.scenario_files = scenario_files
+        self.scenario_modules = scenario_modules
 
     def record(self, entry: dict) -> None:
         with self.log_path.open("a") as handle:
@@ -350,10 +417,11 @@ class Stub:
             step: tuple = ("text", json.dumps(schema_value(schema, schema.get("$defs", {}), person_text)))
         else:
             try:
-                scenarios = tool_scenarios(self.scenario_files)
+                scenarios = tool_scenarios(self.scenario_files, self.scenario_modules)
             except ValueError as error:
-                # The reply says why, in the thread the spec's author looks at.
-                step = ("text", f"The stub could not read its scenarios: {error}")
+                # The reply says why, in the thread the spec's author looks at, with the hashtags it was asked for.
+                tags = " ".join(re.findall(r"#[\w-]+", person_said(messages).lower()))
+                step = ("text", f"The stub could not read its scenarios{f' for {tags}' if tags else ''}: {error}")
             else:
                 step = plan(body, scenarios)
         think = 0.0
@@ -488,9 +556,16 @@ def main() -> None:
     parser.add_argument(
         "--scenarios", type=Path, action="append", default=[], help="a JSON file of more tool scenarios (repeatable)"
     )
+    parser.add_argument(
+        "--scenario-module",
+        type=Path,
+        action="append",
+        default=[],
+        help="a Python file of more scenarios, computed from the turn (repeatable)",
+    )
     args = parser.parse_args()
     args.log.parent.mkdir(parents=True, exist_ok=True)
-    stub = Stub(args.log, args.scenarios)
+    stub = Stub(args.log, args.scenarios, args.scenario_module)
     app = web.Application(client_max_size=64 * 1024 * 1024)
     app.router.add_post("/v1/chat/completions", stub.completions)
     app.router.add_post("/v1/audio/transcriptions", stub.transcriptions)

@@ -68,6 +68,7 @@ scripts/e2e-slot.sh snapshot, to the snapshot). Each part of a directory is opti
                                         pluginOriginPort (null without one). Chat frames those pages and signs in to
                                         the plugin's routes only with --client-sessions, which a spec passes itself.
   e2e/stub-scenarios.json               more scenarios for the stub model (stub_model.py --scenarios).
+  e2e/stub_scenarios.py                 more, whose steps are computed from the turn (stub_model.py --scenario-module).
   e2e/fixtures/*.html                   fixture pages. The slot's Chat serves each directory at
                                         /e2e-plugins/<directory name>/ (scripts/e2e-plugin-pages.mjs), so a page is at
                                         /e2e-plugins/<directory name>/e2e/fixtures/<page>.html.
@@ -143,6 +144,7 @@ WORKER_DOCKERFILE = "local/instances/deploy/Dockerfile.mindroom"
 # The parts of a plugin directory that this script reads ($E2E_PLUGIN_DIRS, see the docstring).
 PLUGIN_MANIFEST = "mindroom.plugin.json"
 PLUGIN_SCENARIOS = "e2e/stub-scenarios.json"
+PLUGIN_SCENARIO_MODULE = "e2e/stub_scenarios.py"
 TRANSCRIPTION_MODES = ("stub", "real")
 # The model that writes a call's notes when a stub-model stack transcribes with OpenAI. With the stand-in the stub
 # model writes them, and a real-model stack has its own GPT-6 Luna write them.
@@ -370,8 +372,8 @@ def plugin_dir_paths() -> list[Path]:
 
 def check_plugin_dirs(venv_bin: Path, directories: list[Path]) -> list[dict]:
     """Each plugin directory as the state records it: its MindRoom plugin's name and tools, which
-    `mindroom plugins check --json` reports, whether its manifest names an origin_module, and its scenario file. A
-    plugin that fails the check refuses the start."""
+    `mindroom plugins check --json` reports, whether its manifest names an origin_module, and its scenario file and
+    module. A plugin that fails the check refuses the start."""
     checked = []
     for directory in directories:
         if not directory.is_dir():
@@ -395,13 +397,14 @@ def check_plugin_dirs(venv_bin: Path, directories: list[Path]) -> list[dict]:
             plugin, tools = report["name"], report["tools"]
             # The check loaded the manifest, so it is JSON.
             origins = bool(json.loads((directory / PLUGIN_MANIFEST).read_text()).get("origin_module"))
-        scenarios = directory / PLUGIN_SCENARIOS
+        scenarios, module = directory / PLUGIN_SCENARIOS, directory / PLUGIN_SCENARIO_MODULE
         checked.append(
             {
                 "dir": str(directory),
                 "plugin": plugin,
                 "tools": tools,
                 "scenarios": str(scenarios) if scenarios.is_file() else None,
+                "scenarioModule": str(module) if module.is_file() else None,
                 "origins": origins,
             }
         )
@@ -1158,6 +1161,12 @@ def start(
                 "--tag",
                 str(slot_dir),
                 *(arg for d in plugin_dirs if d["scenarios"] for arg in ("--scenarios", d["scenarios"])),
+                *(
+                    arg
+                    for d in plugin_dirs
+                    if d["scenarioModule"]
+                    for arg in ("--scenario-module", d["scenarioModule"])
+                ),
             ],
             cwd=slot_dir,
             env=env,

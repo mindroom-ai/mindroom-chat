@@ -12,6 +12,7 @@ import { basename, delimiter, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test as pageTest } from '@playwright/test';
 import {
+  bodyOf,
   expect,
   messageRow,
   openThread,
@@ -22,8 +23,8 @@ import {
   waitForAgentReply,
 } from '../helpers/agentStack';
 
-// The agent stack with a plugin directory (scripts/agent-stack/stack.py's docstring). The first two tests need
-// E2E_PLUGIN_DIRS to name e2e/fixtures/sample-plugin, or a copy of it: the first for the stack, the second for
+// The agent stack with a plugin directory (scripts/agent-stack/stack.py's docstring). The first three tests need
+// E2E_PLUGIN_DIRS to name e2e/fixtures/sample-plugin, or a copy of it: the first two for the stack, the third for
 // the app server:
 //   E2E_PLUGIN_DIRS=e2e/fixtures/sample-plugin just e2e-slot 3 --preview npx playwright test <this spec>
 test.describe.configure({ timeout: 300_000 });
@@ -56,6 +57,7 @@ test("a plugin directory's scenario drives the stub to its plugin's tool", async
     plugin: 'e2e-sample',
     tools: ['e2e_sample'],
     scenarios: join(dir, 'e2e/stub-scenarios.json'),
+    scenarioModule: join(dir, 'e2e/stub_scenarios.py'),
     origins: false,
   });
 
@@ -66,6 +68,22 @@ test("a plugin directory's scenario drives the stub to its plugin's tool", async
     body.includes('Hello Ada, from the sample plugin')
   );
   await expect(messageRow(page, reply.event_id)).toContainText('Hello Ada, from the sample plugin');
+});
+
+test("a plugin directory's scenario module passes one tool's result to the next call", async ({
+  page,
+  stack,
+}) => {
+  test.skip(!sampleDir, 'E2E_PLUGIN_DIRS names no copy of e2e/fixtures/sample-plugin');
+  test.skip(stack.model === 'real', "A plugin directory's scenarios drive the stub model only");
+  // The module's #chain makes an item, then uses it by the id the backend's first call returned.
+  const rootId = await startThread(stack, `${uniqueWord('chain')} #chain`);
+  await openThread(page, stack, rootId);
+  const reply = await waitForAgentReply(stack, rootId, (body) => body.includes('then: Used item-'));
+  const text = bodyOf(reply);
+  const made = /Made (item-[0-9a-f]{8}), then: Used \1, from the sample plugin/.exec(text);
+  expect(made, text).not.toBeNull();
+  await expect(messageRow(page, reply.event_id)).toContainText(`Used ${made?.[1] ?? ''}`);
 });
 
 // Its own test, without the agent stack, so the page opens in a browser that has not loaded the app: in a
