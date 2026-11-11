@@ -243,13 +243,13 @@ export function AuthLayout() {
   // Adding an account can be abandoned: back to where the signed-in account was.
   const returnPath = resolveAddAccountReturnPath(search, activeSession);
 
-  const homeRedirect =
+  const leavesSignIn =
     typeof window !== 'undefined' ? resolveAuthRouteRedirect(window.location.href) : null;
   // An active session leaves these pages for the page asked for before sign-in, or Home. A
   // sign-in on them leaves its navigation to this redirect (useCompleteSession).
   useEffect(() => {
-    if (homeRedirect) openAfterSignIn(navigate);
-  }, [homeRedirect, navigate]);
+    if (leavesSignIn) openAfterSignIn(navigate);
+  }, [leavesSignIn, navigate]);
 
   const registrationAllowed = auth?.allowRegistration !== false;
   const showServer = (nextServer: string) =>
@@ -262,9 +262,9 @@ export function AuthLayout() {
   // and a server a locked deployment does not offer is replaced by the one it falls back to.
   const urlNamesServer = requestedServer?.trim() === server;
   useEffect(() => {
-    if (!homeRedirect && !urlNamesServer) showServer(server);
+    if (!leavesSignIn && !urlNamesServer) showServer(server);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [homeRedirect, urlNamesServer, server]);
+  }, [leavesSignIn, urlNamesServer, server]);
 
   const handleServerChange = (nextServer: string) => {
     if (resolveAuthServer(nextServer, defaultServer, locked, homeserverList) !== nextServer) return;

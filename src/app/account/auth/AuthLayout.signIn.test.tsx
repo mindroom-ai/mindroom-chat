@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { type ReactNode, useState } from 'react';
+import { useState } from 'react';
 import { RouterProvider, createBrowserRouter } from 'react-router-dom';
 import type { LoginResponse } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -14,30 +14,7 @@ import { followRouterSignalsInNode } from '../../../test/utils/nodeSignalRequest
 import { AuthLayout } from './AuthLayout';
 import { useLoginComplete } from './login/loginUtil';
 
-vi.mock('./styles.css', () =>
-  Object.fromEntries(
-    [
-      'AuthScroll',
-      'AuthLayout',
-      'AuthCard',
-      'AuthLogo',
-      'AuthLogoHeading',
-      'AuthHeader',
-      'AuthCardContent',
-      'AuthFooter',
-    ].map((name) => [name, name])
-  )
-);
 vi.mock('../../ui/styles/Glass.css', () => ({ glassOverBackdrop: 'glass-over-backdrop' }));
-vi.mock('../../ui/glass/GlassPrimitives', () => ({
-  Header: ({ children }: { children: ReactNode }) => <header>{children}</header>,
-  Surface: ({ children }: { children: ReactNode }) => <main>{children}</main>,
-}));
-vi.mock('./BrandLogo', () => ({ BrandLogo: () => null }));
-vi.mock('../../ui/particle-background/PersistentParticleBackground', () => ({
-  ParticleBackgroundSurface: () => null,
-  usePersistentParticleBackground: () => false,
-}));
 vi.mock('../../config/useClientConfig', () => ({
   useClientConfig: () => ({ homeserverList: ['example.org'] }),
   useOptionalClientConfig: () => ({ homeserverList: ['example.org'] }),
@@ -47,10 +24,6 @@ vi.mock('../../matrix/cs-api', async () => ({
   autoDiscovery: () =>
     Promise.resolve([undefined, { 'm.homeserver': { base_url: 'https://example.org' } }]),
 }));
-vi.mock('./UnlistedServerCheck', () => ({
-  UnlistedServerCheck: ({ children }: { children: ReactNode }) => children,
-}));
-vi.mock('./AuthFooter', () => ({ AuthFooter: () => null }));
 
 followRouterSignalsInNode();
 vi.stubGlobal(

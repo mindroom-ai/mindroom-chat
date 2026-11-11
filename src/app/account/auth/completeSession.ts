@@ -60,8 +60,9 @@ export const openAfterSignIn = (navigate: NavigateFunction): void => {
 
 /**
  * Stores the new session, makes it active, and opens the page saved before
- * sign-in (or home), through AuthLayout's redirect unless adding an account. Returns true when the browser refused to store the
- * credentials, so the page can tell the user instead of looping.
+ * sign-in (or home), through AuthLayout's redirect unless adding an account.
+ * Returns true when the browser refused to store the credentials, so the page
+ * can tell the user instead of looping.
  *
  * Signing in again to an account this browser has already (Add account, a second login tab)
  * keeps the stored session and its device, with its keys and verification, and signs the new
