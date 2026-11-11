@@ -130,11 +130,16 @@ export function SubagentRunView({
   // Text that grows without new documents (the Markdown renderer arriving, a block unfolding).
   const getThread = useCallback(() => box.current?.firstElementChild, []);
   useResizeObserver(keepEnd, getThread);
+  // The card that opened it is gone, so focus moves to the way back. Before the panel's own
+  // layout effect, which gives focus to the card of a run Back closed.
+  const backButton = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => backButton.current?.focus(), []);
 
   return (
     <>
       <header className={SidePanelHeader}>
         <IconButton
+          ref={backButton}
           size="300"
           radii="300"
           variant="Surface"

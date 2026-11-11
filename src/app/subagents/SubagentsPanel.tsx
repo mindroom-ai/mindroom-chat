@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Icon, IconButton, Icons, Text } from 'folds';
@@ -79,12 +79,25 @@ export function SubagentsPanel({ room, onClose }: { room: Room; onClose: () => v
   const byId = useMemo(() => runsById(nodes), [nodes]);
   const active = countActiveSubagentRuns(runs);
   const [openRun, setOpenRun] = useState<string | null>(null);
-  // A run the store no longer has (after the page reloads) leaves the list in view.
   const open = openRun === null ? undefined : byId.get(openRun);
+  // A run the store let go (no frame for a while) closes, so its next frame does not reopen it.
+  useEffect(() => {
+    if (openRun !== null && !open) setOpenRun(null);
+  }, [open, openRun]);
+  // Back gives focus to the card of the run it closed, as the reader left it.
+  const section = useRef<HTMLElement>(null);
+  const [returnTo, setReturnTo] = useState<string | null>(null);
   const back = useCallback(() => {
     const parent = open?.run.meta.parent;
+    setReturnTo(open?.run.run ?? null);
     setOpenRun(parent && byId.has(parent) ? parent : null);
   }, [byId, open]);
+  useLayoutEffect(() => {
+    if (returnTo === null) return;
+    const cards = section.current?.querySelectorAll<HTMLElement>('[data-subagent-run]') ?? [];
+    [...cards].find((card) => card.dataset.subagentRun === returnTo)?.focus();
+    setReturnTo(null);
+  }, [openRun, returnTo]);
   // One clock for every card, ticking only while a run is at it.
   const [now, setNow] = useState(Date.now);
   useInterval(() => setNow(Date.now()), active > 0 ? CLOCK_MS : -1);
@@ -105,7 +118,7 @@ export function SubagentsPanel({ room, onClose }: { room: Room; onClose: () => v
   const title = t('mindroomUi.subagents.title');
 
   return (
-    <section className={css.Panel} aria-label={title} data-testid="subagents-panel">
+    <section ref={section} className={css.Panel} aria-label={title} data-testid="subagents-panel">
       {open ? (
         <SubagentRunView
           key={open.run.run}

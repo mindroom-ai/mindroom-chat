@@ -342,15 +342,20 @@ describe('SubagentsPanel', () => {
 
     open('parent');
     expect(heading()).toBe('Research Desk');
+    // The card that opened it is gone; focus moves to the way back.
+    expect(document.activeElement).toBe(button(container, 'Back'));
     expect(card('child').textContent).toContain('Write it.');
     open('child');
     expect(heading()).toBe('writer');
     expect(transcript()?.textContent).toContain('Written.');
     act(() => button(container, 'Back').click());
     expect(heading()).toBe('Research Desk');
+    // Back gives focus to the card of the run it closed.
+    expect(document.activeElement).toBe(card('child'));
     act(() => button(container, 'Back').click());
     expect(view()).toBeNull();
     expect(heading()).toBe('Sub-agents');
+    expect(document.activeElement).toBe(card('parent'));
   });
 
   it('opens the thread the run was started from', () => {
@@ -375,6 +380,24 @@ describe('SubagentsPanel', () => {
     act(() => getSubagentRunStore(mx).clear());
     expect(view()).toBeNull();
     expect(container.textContent).toContain('No sub-agents are running in this room.');
+    // The run's next frame lists it again without opening it.
+    seqs.clear();
+    ingest('run', meta('running'), docs('Still looking.'));
+    expect(view()).toBeNull();
+    expect(card('run').textContent).toContain('Still looking.');
+  });
+
+  it('opens an ended run at its task and stays there', () => {
+    ingest('run', meta('completed'), docs('First line.', [], false));
+    render();
+    open('run');
+    const box = view();
+    if (!box) throw new Error('no open run');
+    Object.defineProperty(box, 'scrollHeight', { configurable: true, get: () => 1_000 });
+    Object.defineProperty(box, 'clientHeight', { configurable: true, value: 200 });
+
+    ingest('run', meta('completed'), docs('First line. Second line.', [], false));
+    expect(box.scrollTop).toBe(0);
   });
 
   it('follows new text at the end of a running run until the reader scrolls up more than 24 px', () => {
