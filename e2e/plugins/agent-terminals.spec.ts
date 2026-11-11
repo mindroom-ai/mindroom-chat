@@ -67,7 +67,7 @@ test("the helper runs a command in a terminal, which the backend's terminal rout
   // The stream admits only the slot's Chat as origin, so the page opens it.
   const stream = `${room.replace(/^http/, 'ws')}/agents/${encodeURIComponent(
     stack.agents.helper
-  )}/terminals/${encodeURIComponent(terminals[0].id)}`;
+  )}/terminals/${encodeURIComponent(terminals[0]?.id ?? '')}`;
   const shown = await page.evaluate(
     ({ url, session, marker }) =>
       new Promise<string>((resolve, reject) => {
