@@ -8,6 +8,7 @@ import '@fontsource/inter/variable.css';
 import '../index.css';
 import '../app/theme/Typography.css';
 import type { MatrixClient } from 'matrix-js-sdk';
+import { resolveComputerApiUrl } from '../app/computer/api';
 import i18n from '../app/i18n/i18n';
 import { registerPluginTranslations } from '../app/plugins/pluginTranslations';
 import type { ClientPlugin } from '../app/plugins/registry';
@@ -41,7 +42,9 @@ export const bootFixturePage = async ({
 };
 
 /**
- * The `MindroomServer` at `apiUrl`, such as `http://127.0.0.1:29601`, for the account `client`
+ * The `MindroomServer` at `apiUrl`, an origin such as `http://127.0.0.1:29601`, with or without a
+ * trailing `/`: `https:`, or `http:` on this device or the local network, as the app takes them
+ * (any other throws a `TypeError`), for the account `client`
  * (matrix-js-sdk's, signed in), as `useMindroomServer` gives it to a room's components, outside
  * React: the same object, over the same session, for every caller with that client and server.
  * Its sign-in asks the homeserver for a token bound to the server, so the homeserver must bind
@@ -53,4 +56,12 @@ export const fixtureMindroomServer = ({
 }: {
   client: MatrixClient;
   apiUrl: string;
-}): MindroomServer => serverAt(client, apiUrl);
+}): MindroomServer => {
+  const origin = resolveComputerApiUrl(apiUrl);
+  if (!origin) {
+    throw new TypeError(
+      `${apiUrl} is not a MindRoom server's origin: an https: one, or http: on this device or the local network.`
+    );
+  }
+  return serverAt(client, origin);
+};
