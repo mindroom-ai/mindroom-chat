@@ -150,6 +150,17 @@ export const roomIdToMsgDraftAtomFamily = atomFamily(createMsgDraftAtom);
 export const hasKeptDraft = (draftKey: string): boolean =>
   getStorageItemSafe(getSafeLocalStorage(), `${DRAFT_STORAGE_PREFIX}${draftKey}`) !== null;
 
+/** Puts text back into the stored draft `draftKey`, after any text typed there since. */
+export const restoreTextToDraft = (
+  store: JotaiStore,
+  draftKey: string,
+  fragment: Descendant[]
+): void => {
+  if (fragment.length === 0) return;
+  const draftAtom = roomIdToMsgDraftAtomFamily(draftKey);
+  store.set(draftAtom, [...store.get(draftAtom), ...fragment]);
+};
+
 /** Moves a thread's draft to another composer's in the room, after the text that one holds. */
 export const moveMessageDraft = (
   store: JotaiStore,
