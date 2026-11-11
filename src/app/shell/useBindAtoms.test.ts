@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { useBindAtoms } from './useBindAtoms';
 import { useBindLiveReplyFrames } from '../messages/live/bindLiveReplyFrames';
+import { useBindSubagentFrames } from '../messages/live/bindSubagentFrames';
 import { useModelControllerLifetime } from '../models/useModelPicker';
 import { useBindArchivedRoomsAtom } from '../matrix/state/archivedRooms';
 import { useBindReplacedRoomsAtom } from '../matrix/state/replacedRooms';
@@ -23,6 +24,7 @@ vi.mock('../matrix/state/typingMembers', () => ({
   useBindRoomIdToTypingMembersAtom: vi.fn(),
 }));
 vi.mock('../messages/live/bindLiveReplyFrames', () => ({ useBindLiveReplyFrames: vi.fn() }));
+vi.mock('../messages/live/bindSubagentFrames', () => ({ useBindSubagentFrames: vi.fn() }));
 vi.mock('../models/useModelPicker', () => ({ useModelControllerLifetime: vi.fn() }));
 vi.mock('../matrix/state/archivedRooms', () => ({ useBindArchivedRoomsAtom: vi.fn() }));
 vi.mock('../matrix/state/replacedRooms', () => ({ useBindReplacedRoomsAtom: vi.fn() }));
@@ -45,6 +47,22 @@ describe('useBindAtoms', () => {
     });
 
     expect(useBindLiveReplyFrames).toHaveBeenCalledWith(client);
+    act(() => renderer?.unmount());
+  });
+
+  it("feeds the account's sub-agent frames to its store, so every room's runs show live", () => {
+    const client = { id: 'account' } as unknown as MatrixClient;
+    function Probe() {
+      useBindAtoms(client);
+      return null;
+    }
+
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(React.createElement(Probe));
+    });
+
+    expect(useBindSubagentFrames).toHaveBeenCalledWith(client);
     act(() => renderer?.unmount());
   });
 
