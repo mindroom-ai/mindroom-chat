@@ -204,4 +204,14 @@ describe('service worker build assets', () => {
     post({ type: 'takeOver' }, { id: 'tab', url: `${ORIGIN}/home/` });
     expect(skipWaiting).toHaveBeenCalledOnce();
   });
+
+  it('claims the pages of this origin when one that it does not control asks', async () => {
+    const { order, post } = await loadWorker([{ url: 'index.html', revision: '1' }]);
+    post({ type: 'claim' }, { id: 'tab', url: 'https://elsewhere.example/' });
+    post({ type: 'claim' });
+    expect(order).toEqual([]);
+
+    post({ type: 'claim' }, { id: 'tab', url: `${ORIGIN}/home/` });
+    expect(order).toEqual(['claim']);
+  });
 });
