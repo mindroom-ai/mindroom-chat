@@ -2,7 +2,8 @@ import React, { MutableRefObject, useEffect, useMemo, useRef } from 'react';
 import { act, create } from 'react-test-renderer';
 import { EventStatus, MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { IReplyDraft } from './roomInputDrafts';
+import { getDefaultStore } from 'jotai';
+import { IReplyDraft, roomUploadAtomFamily } from './roomInputDrafts';
 import { TUploadItem, Upload, UploadStatus } from '../matrix/state/upload';
 import { TUploadContent, toMatrixUploadError } from '../matrix/matrix';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
@@ -32,6 +33,7 @@ type HarnessApi = {
   uploadsRef: MutableRefObject<Upload[]>;
   mountedRef: MutableRefObject<boolean>;
   hasActiveSendSession: () => boolean;
+  joinedSendPending: boolean;
   startSendSession: (options?: StartRoomInputSendSessionOptions) => Promise<void>;
   processSendSession: () => Promise<void>;
 };
@@ -80,6 +82,10 @@ const successUpload = (file: File, mxc = `mxc://mindroom/${file.name}`): Upload 
   mxc,
 });
 
+/** The bodies of the messages sent so far, in order. */
+const sentBodies = (mx: { sendMessage: ReturnType<typeof vi.fn> }): string[] =>
+  mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body);
+
 const loadingUpload = (file: File): Upload => ({
   file,
   status: UploadStatus.Loading,
@@ -106,6 +112,7 @@ const TestHarness = ({
   clearReplyDraft,
   restoreComposerFallbackForRoom,
   threadId,
+  roomId = '!room:example.org',
 }: {
   onReady: (api: HarnessApi) => void;
   onRoomMessageSent?: (eventId: string) => boolean | void;
@@ -122,6 +129,7 @@ const TestHarness = ({
   clearReplyDraft: ReturnType<typeof vi.fn>;
   restoreComposerFallbackForRoom: ReturnType<typeof vi.fn>;
   threadId?: string;
+  roomId?: string;
 }) => {
   const selectedFilesRef = useRef<TUploadItem[]>([]);
   const sendSessionFilesRef = useRef<TUploadContent[]>([]);
@@ -168,13 +176,13 @@ const TestHarness = ({
   const controller = useRoomInputSendSessionController({
     mx: mx as never,
     room: {
-      roomId: '!room:example.org',
+      roomId,
       getEventForTxnId: mx.getEventForTxnId,
       getLiveTimeline: () => undefined,
       getMembers: () => [],
       hasEncryptionStateEvent: () => false,
     } as never,
-    roomId: '!room:example.org',
+    roomId,
     threadId,
     replyDraft,
     clearReplyDraft,
@@ -272,8 +280,451 @@ const renderHarness = (
     changeThread: (threadId?: string) => {
       act(() => renderer.update(React.createElement(TestHarness, { ...props, threadId })));
     },
+    /** Moves the composer to another room, as the room's page does. */
+    changeRoom: (roomId: string) => {
+      act(() =>
+        renderer.update(
+          React.createElement(TestHarness, { ...props, threadId: options.threadId, roomId })
+        )
+      );
+    },
+    /** The controller as the composer rendered it last. */
+    current: () => api,
+    /** Unmounts the composer, as closing a thread's column or leaving the room does. */
+    unmount: () => {
+      api.mountedRef.current = false;
+      act(() => renderer.unmount());
+    },
+    /** Mounts the same composer again, with refs of its own, in `roomId` if given. */
+    mountAgain: (roomId?: string) => {
+      let next!: HarnessApi;
+      const againProps = {
+        ...props,
+        threadId: options.threadId,
+        roomId,
+        onReady: (nextApi: HarnessApi) => {
+          next = nextApi;
+          api = nextApi;
+        },
+      };
+      act(() => {
+        renderer = create(React.createElement(TestHarness, againProps));
+      });
+      const again = renderer;
+      return {
+        api: next,
+        /** This composer's controller as it rendered last. */
+        current: () => next,
+        /** Unmounts the composer mounted again. */
+        unmount: () => {
+          next.mountedRef.current = false;
+          act(() => again.unmount());
+        },
+        /** Moves the composer mounted again to another room, as the room's page does. */
+        changeRoom: (nextRoomId: string) =>
+          act(() =>
+            again.update(React.createElement(TestHarness, { ...againProps, roomId: nextRoomId }))
+          ),
+      };
+    },
   };
 };
+
+describe('useRoomInputSendSessionController after its composer unmounts', () => {
+  it('sends the message once its upload finishes after the composer went', async () => {
+    const onRoomMessageSent = vi.fn();
+    const { api, mx, unmount, current, changeThread } = renderHarness({ onRoomMessageSent });
+    const file = createFile('slow.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'caption' } });
+    });
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+    // Its own send shows on its board, not as another composer's.
+    changeThread(undefined);
+    expect(current().joinedSendPending).toBe(false);
+
+    unmount();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+    api.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      getDefaultStore().set(roomUploadAtomFamily(file), { mxc: 'mxc://mindroom/slow.txt' });
+      await Promise.resolve();
+    });
+
+    await vi.waitFor(() => expect(mx.sendMessage).toHaveBeenCalledTimes(2));
+    expect(sentBodies(mx)).toEqual(['slow.txt', 'caption']);
+    expect(api.hasActiveSendSession()).toBe(false);
+    // The composer that went opens no thread for the root it sent.
+    expect(onRoomMessageSent).not.toHaveBeenCalled();
+  });
+
+  it('lets a composer mounted again join the send instead of sending its files twice', async () => {
+    const { api, mx, unmount, mountAgain, changeThread } = renderHarness();
+    const file = createFile('shared.txt');
+    const item = createUploadItem(file);
+    const fileSend = createDeferred<{ event_id: string }>();
+    mx.sendMessage.mockReturnValueOnce(fileSend.promise);
+    api.selectedFilesRef.current = [item];
+    api.uploadsRef.current = [successUpload(file)];
+    act(() => {
+      void api.startSendSession({ textContent: { msgtype: 'm.text', body: 'caption' } });
+    });
+    await vi.waitFor(() => expect(mx.sendMessage).toHaveBeenCalledTimes(1));
+
+    unmount();
+    // The room's page keeps its staged files: the composer mounted again still lists this one.
+    const { api: again, current } = mountAgain();
+    expect(again.joinedSendPending).toBe(true);
+    again.selectedFilesRef.current = [item];
+    again.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      await again.startSendSession();
+    });
+    expect(mx.sendMessage).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      fileSend.resolve({ event_id: '$file' });
+      await fileSend.promise;
+    });
+    await vi.waitFor(() => expect(again.hasActiveSendSession()).toBe(false));
+    expect(current().joinedSendPending).toBe(false);
+    expect(sentBodies(mx)).toEqual(['shared.txt', 'caption']);
+
+    // Its own next send is its own, not the one it took over.
+    const next = createFile('next.txt');
+    again.selectedFilesRef.current = [createUploadItem(next)];
+    again.uploadsRef.current = [loadingUpload(next)];
+    await act(async () => {
+      await again.startSendSession();
+    });
+    expect(again.hasActiveSendSession()).toBe(true);
+    changeThread(undefined);
+    expect(current().joinedSendPending).toBe(false);
+    // A send of a mounted composer is its own: another mount does not take it over.
+    expect(mountAgain().current().joinedSendPending).toBe(false);
+  });
+
+  it('sends the caption on its own when the root fails to send after the composer went', async () => {
+    const { api, mx, unmount } = renderHarness();
+    const file = createFile('root.txt');
+    const rootSend = createDeferred<{ event_id: string }>();
+    mx.sendMessage.mockReturnValueOnce(rootSend.promise);
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [successUpload(file)];
+    act(() => {
+      void api.startSendSession({ textContent: { msgtype: 'm.text', body: 'caption' } });
+    });
+    await vi.waitFor(() => expect(mx.sendMessage).toHaveBeenCalledTimes(1));
+
+    unmount();
+    await act(async () => {
+      rootSend.reject(new Error('offline'));
+      await rootSend.promise.catch(() => undefined);
+    });
+    await vi.waitFor(() => expect(mx.sendMessage).toHaveBeenCalledTimes(2));
+    expect((mx.sendMessage.mock.calls[1][1] as { body: string }).body).toBe('caption');
+    await vi.waitFor(() => expect(api.hasActiveSendSession()).toBe(false));
+  });
+
+  it('ends a session left waiting for a retry once its composer went', async () => {
+    const { api, mx, unmount } = renderHarness();
+    const file = createFile('broken.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [prepErrorUpload(file)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    expect(api.hasActiveSendSession()).toBe(true);
+
+    unmount();
+    await vi.waitFor(() => expect(api.hasActiveSendSession()).toBe(false));
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('leaves a sent file on the board of the composer that took the send over no more', async () => {
+    const { api, mx, unmount, mountAgain } = renderHarness();
+    const file = createFile('in-flight.txt');
+    const fileSend = createDeferred<{ event_id: string }>();
+    mx.sendMessage.mockReturnValueOnce(fileSend.promise);
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [successUpload(file)];
+    act(() => {
+      void api.startSendSession();
+    });
+    await vi.waitFor(() => expect(mx.sendMessage).toHaveBeenCalledTimes(1));
+
+    unmount();
+    const again = mountAgain();
+    expect(again.api.selectedFilesRef.current.map((item) => item.file)).toEqual([file]);
+    await act(async () => {
+      fileSend.resolve({ event_id: '$file' });
+      await fileSend.promise;
+    });
+    await vi.waitFor(() => expect(again.api.selectedFilesRef.current).toEqual([]));
+    await act(async () => {
+      await again.api.startSendSession();
+    });
+    expect(mx.sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts the sends queued behind a taken-over send with the composer holding it', async () => {
+    const { api, mx, unmount, mountAgain } = renderHarness();
+    const file = createFile('first.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession();
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'queued' } });
+    });
+    unmount();
+    const again = mountAgain();
+    // Staged in the composer that took over, as the queued text goes out with it.
+    const later = createFile('later.txt');
+    again.api.selectedFilesRef.current = [
+      ...again.api.selectedFilesRef.current,
+      createUploadItem(later),
+    ];
+    again.api.uploadsRef.current = [successUpload(file), loadingUpload(later)];
+    await act(async () => {
+      await again.api.processSendSession();
+    });
+    await vi.waitFor(() => expect(again.api.sendSessionFilesRef.current).toEqual([later]));
+    expect(sentBodies(mx)).toEqual(['first.txt']);
+  });
+
+  it('takes a file over as the board last changed it', async () => {
+    const { api, unmount, mountAgain } = renderHarness();
+    const file = createFile('photo.png');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    // Marked as a spoiler on the board after Send.
+    const spoiler = { ...createUploadItem(file), metadata: { markedAsSpoiler: true } };
+    api.selectedFilesRef.current = [spoiler];
+    unmount();
+    const again = mountAgain();
+    expect(again.api.selectedFilesRef.current).toEqual([spoiler]);
+    expect(again.api.selectedFilesRef.current[0]).toBe(spoiler);
+  });
+
+  it('parks a queued send under its own room once it goes out after the composer went', async () => {
+    const { api, mx, unmount, mountAgain, changeRoom, current } = renderHarness();
+    const file = createFile('room-a.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    // In room B, a text too long for one event waits behind room A's upload.
+    changeRoom('!b:example.org');
+    const sidecar = createDeferred<{ content_uri: string }>();
+    mx.uploadContent.mockReturnValueOnce(sidecar.promise);
+    await act(async () => {
+      await current().startSendSession({
+        textContent: { msgtype: 'm.text', body: 'x'.repeat(50_000) },
+      });
+    });
+    unmount();
+    api.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      getDefaultStore().set(roomUploadAtomFamily(file), { mxc: 'mxc://mindroom/room-a.txt' });
+      await Promise.resolve();
+    });
+    // Room A's file went; room B's text is uploading its long-text file.
+    await vi.waitFor(() => expect(mx.uploadContent).toHaveBeenCalledTimes(1));
+
+    const inA = mountAgain();
+    expect(inA.current().joinedSendPending).toBe(false);
+    const inB = mountAgain('!b:example.org');
+    expect(inB.current().joinedSendPending).toBe(true);
+    await act(async () => {
+      await inB.api.startSendSession({ textContent: { msgtype: 'm.text', body: 'next' } });
+    });
+    expect(sentBodies(mx)).toEqual(['room-a.txt']);
+    await act(async () => {
+      sidecar.resolve({ content_uri: 'mxc://mindroom/sidecar' });
+      await sidecar.promise;
+    });
+    await vi.waitFor(() => expect(sentBodies(mx)).toHaveLength(3));
+    expect(sentBodies(mx)[2]).toBe('next');
+  });
+
+  it("keeps another room's parked send where it is as a queued send parks again", async () => {
+    const { mx, mountAgain } = renderHarness();
+    // Room B's send, parked as its composer went.
+    const inB = mountAgain('!b:example.org');
+    const fileB = createFile('room-b.txt');
+    inB.api.selectedFilesRef.current = [createUploadItem(fileB)];
+    inB.api.uploadsRef.current = [loadingUpload(fileB)];
+    await act(async () => {
+      await inB.api.startSendSession();
+    });
+    inB.unmount();
+    // Room A's send, with a text for room B queued behind it, parked as its composer went.
+    const inA = mountAgain();
+    const fileA = createFile('room-a.txt');
+    inA.api.selectedFilesRef.current = [createUploadItem(fileA)];
+    inA.api.uploadsRef.current = [loadingUpload(fileA)];
+    await act(async () => {
+      await inA.api.startSendSession();
+    });
+    inA.changeRoom('!b:example.org');
+    await act(async () => {
+      await inA.current().startSendSession({ textContent: { msgtype: 'm.text', body: 'hi' } });
+    });
+    inA.unmount();
+    inA.api.uploadsRef.current = [successUpload(fileA)];
+    await act(async () => {
+      getDefaultStore().set(roomUploadAtomFamily(fileA), { mxc: 'mxc://mindroom/room-a.txt' });
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(sentBodies(mx)).toEqual(['room-a.txt', 'hi']));
+
+    // Room B's composer still takes room B's file over.
+    const backInB = mountAgain('!b:example.org');
+    expect(backInB.current().joinedSendPending).toBe(true);
+    expect(backInB.api.selectedFilesRef.current.map((item) => item.file)).toEqual([fileB]);
+  });
+
+  it('takes a send over when the composer moves to its room, not only as it mounts', async () => {
+    const { api, mx, unmount, mountAgain } = renderHarness();
+    const file = createFile('room-a.txt');
+    const item = createUploadItem(file);
+    api.selectedFilesRef.current = [item];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'caption' } });
+    });
+    unmount();
+
+    const again = mountAgain('!other:example.org');
+    expect(again.current().joinedSendPending).toBe(false);
+    again.changeRoom('!room:example.org');
+    expect(again.current().joinedSendPending).toBe(true);
+    // The room's board still lists the file: Send sends nothing of it a second time.
+    again.api.selectedFilesRef.current = [item];
+    again.api.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      await again.api.startSendSession({ textContent: { msgtype: 'm.text', body: 'later' } });
+      await again.api.processSendSession();
+    });
+    await vi.waitFor(() => expect(sentBodies(mx)).toEqual(['room-a.txt', 'caption', 'later']));
+  });
+
+  it('sends no file a send nobody took over still claims', async () => {
+    const { api, mx, unmount, mountAgain } = renderHarness();
+    const file = createFile('claimed.txt');
+    const item = createUploadItem(file);
+    api.selectedFilesRef.current = [item];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    unmount();
+
+    // A composer elsewhere whose send would take the same file along.
+    const elsewhere = mountAgain('!other:example.org');
+    elsewhere.api.selectedFilesRef.current = [item];
+    elsewhere.api.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      await elsewhere.api.startSendSession({ textContent: { msgtype: 'm.text', body: 'own' } });
+    });
+    expect(sentBodies(mx)).toEqual(['own']);
+  });
+
+  it("sends no file another mounted composer's send holds", async () => {
+    const { api, mx, mountAgain } = renderHarness();
+    const file = createFile('held.txt');
+    const item = createUploadItem(file);
+    api.selectedFilesRef.current = [item];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    // Another composer of the room lists the same file, as a queued send of one that unmounted
+    // would read the room's board.
+    const other = mountAgain('!other:example.org');
+    other.api.selectedFilesRef.current = [item];
+    other.api.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      await other.api.startSendSession({ textContent: { msgtype: 'm.text', body: 'other' } });
+    });
+    expect(sentBodies(mx)).toEqual(['other']);
+  });
+
+  it('keeps the sends of two composers mounted at once apart', async () => {
+    const { api, mx, mountAgain } = renderHarness();
+    // A second view of the same thread, mounted beside the first, with files of its own.
+    const other = mountAgain();
+    const slow = createFile('slow.txt');
+    api.selectedFilesRef.current = [createUploadItem(slow)];
+    api.uploadsRef.current = [loadingUpload(slow)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    const own = createFile('own.txt');
+    other.api.selectedFilesRef.current = [createUploadItem(own)];
+    other.api.uploadsRef.current = [successUpload(own)];
+    await act(async () => {
+      await other.api.startSendSession();
+    });
+    expect(sentBodies(mx)).toEqual(['own.txt']);
+    expect(other.current().joinedSendPending).toBe(false);
+  });
+
+  it('sends a file once when the composer moves to another thread before it goes', async () => {
+    const { api, mx, changeThread } = renderHarness({ threadId: '$first' });
+    const file = createFile('first.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'caption' } });
+    });
+    changeThread('$second');
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'second' } });
+    });
+    api.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      await api.processSendSession();
+    });
+    await vi.waitFor(() => expect(sentBodies(mx)).toEqual(['first.txt', 'caption', 'second']));
+  });
+
+  it('lets the composer that took a send over cancel its file, and sends what follows', async () => {
+    const { api, mx, unmount, mountAgain } = renderHarness();
+    const file = createFile('cancelled.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'caption' } });
+    });
+    unmount();
+    const again = mountAgain();
+    // The file shows on its board again, claimed by the send it took over.
+    expect(again.api.selectedFilesRef.current.map((item) => item.file)).toEqual([file]);
+    expect(again.api.sendSessionFilesRef.current).toEqual([file]);
+
+    // Cancelled there, as the card's cancel removes it.
+    again.api.selectedFilesRef.current = [];
+    again.api.sendSessionUploadItemsRef.current = [];
+    again.api.uploadsRef.current = [];
+    await act(async () => {
+      await again.api.processSendSession();
+    });
+    await act(async () => {
+      await again.api.startSendSession({ textContent: { msgtype: 'm.text', body: 'next' } });
+    });
+    await vi.waitFor(() => expect(sentBodies(mx)).toEqual(['caption', 'next']));
+  });
+});
 
 describe('useRoomInputSendSessionController active session query', () => {
   it('tracks waiting, failed, retried, and completed sessions', async () => {
@@ -370,9 +821,7 @@ describe('useRoomInputSendSessionController active session query', () => {
 
       expect(failure).toBe(sendFailure);
       expect(mx.sendMessage).toHaveBeenCalledTimes(expectedBodies.length);
-      expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
-        ...expectedBodies,
-      ]);
+      expect(sentBodies(mx)).toEqual([...expectedBodies]);
       expect(api.hasActiveSendSession()).toBe(false);
       expect(api.sendSessionFilesRef.current).toEqual([]);
       expect(api.sendSessionUploadItemsRef.current).toEqual([]);
@@ -1078,15 +1527,13 @@ describe('useRoomInputSendSessionController sends that cannot go out yet', () =>
     localEvents: ReturnType<typeof renderHarness>['localEvents']
   ) => {
     const held: ReturnType<typeof createDeferred<{ event_id: string }>>[] = [];
-    mx.sendMessage.mockImplementation(
-      (targetRoomId: string, _content: unknown, txnId?: string) => {
-        if (!txnId) throw new Error('Expected a transaction id');
-        localEvents.set(txnId, { getId: () => `~${targetRoomId}:${txnId}` });
-        const send = createDeferred<{ event_id: string }>();
-        held.push(send);
-        return send.promise;
-      }
-    );
+    mx.sendMessage.mockImplementation((targetRoomId: string, _content: unknown, txnId?: string) => {
+      if (!txnId) throw new Error('Expected a transaction id');
+      localEvents.set(txnId, { getId: () => `~${targetRoomId}:${txnId}` });
+      const send = createDeferred<{ event_id: string }>();
+      held.push(send);
+      return send.promise;
+    });
     return held;
   };
 

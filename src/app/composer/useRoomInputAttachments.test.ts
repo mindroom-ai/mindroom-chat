@@ -308,6 +308,32 @@ describe('attachment staging ownership', () => {
     });
   });
 
+  it('releases a file removed in one composer from the sends of every other', () => {
+    const holder = renderHarness();
+    const other = renderHarness();
+    const item = createUploadItem('cancelled.txt');
+    act(() => {
+      holder.feature.access.enroll([item]);
+      other.feature.access.remove(ROOM_ID, [item.file]);
+    });
+    expect(holder.feature.access.snapshot().enrolled).toEqual([]);
+  });
+
+  it('keeps a file a send claimed as the board changes it', () => {
+    const harness = renderHarness();
+    const { access } = harness.feature;
+    const item = createUploadItem('photo.png');
+    act(() => {
+      access.append(ROOM_ID, [item]);
+      access.enroll([item]);
+    });
+    const card = harness.renderer.root.findByType(UploadCardRenderer);
+    act(() => card.props.setMetadata(item, { markedAsSpoiler: true }));
+    expect(access.snapshot().enrolled.map((entry) => entry.metadata)).toEqual([
+      { markedAsSpoiler: true },
+    ]);
+  });
+
   it('keeps recorder enrollment when canceling only board uploads', () => {
     const harness = renderHarness();
     const { access } = harness.feature;
@@ -327,7 +353,10 @@ describe('attachment staging ownership', () => {
       expect(access.snapshot().uploads).toEqual([
         { file: recording.file, status: UploadStatus.Success, mxc: 'mxc://example.org/voice' },
       ]);
-      access.clearEnrollment();
+      // Another session's release leaves this one's files claimed.
+      access.clearEnrollment([selected.file]);
+      expect(access.snapshot().enrolled).toEqual([recording]);
+      access.clearEnrollment([recording.file]);
       expect(access.snapshot().enrolled).toEqual([]);
     });
   });

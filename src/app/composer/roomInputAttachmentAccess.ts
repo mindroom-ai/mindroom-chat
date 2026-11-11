@@ -13,7 +13,8 @@ export type RoomInputAttachmentAccess = {
   append: (roomId: string, items: TUploadItem[]) => void;
   remove: (roomId: string, files: TUploadContent[]) => void;
   enroll: (items: TUploadItem[]) => void;
-  clearEnrollment: () => void;
+  /** Releases the files a send session claimed with `enroll`. */
+  clearEnrollment: (files: TUploadContent[]) => void;
   protectPasteItems: (items: TUploadItem[]) => () => void;
   subscribe: (listener: () => void) => () => void;
 };

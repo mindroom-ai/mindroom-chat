@@ -4,6 +4,12 @@ import { Editor, Transforms } from 'slate';
 import { isEmptyEditor, resetEditor, resetEditorHistory } from '../editor/utils';
 import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from './roomInputDrafts';
 
+// The drafts mounted composers show, each counted once per composer.
+const shownDrafts = new Map<string, number>();
+
+/** Whether a mounted composer shows the draft under `draftKey` (`getRoomInputDraftKey`). */
+export const isDraftShown = (draftKey: string): boolean => shownDrafts.has(draftKey);
+
 export const useRoomInputDraft = (
   editor: Editor,
   userId: string,
@@ -11,7 +17,8 @@ export const useRoomInputDraft = (
   threadId?: string
 ) => {
   const store = useStore();
-  const draftAtom = roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(userId, roomId, threadId));
+  const draftKey = getRoomInputDraftKey(userId, roomId, threadId);
+  const draftAtom = roomIdToMsgDraftAtomFamily(draftKey);
   const activeRef = useRef<{ editor: Editor; atom: typeof draftAtom }>();
   const savingRef = useRef(false);
 
@@ -38,14 +45,18 @@ export const useRoomInputDraft = (
     restoreDraft();
     activeRef.current = { editor, atom: draftAtom };
     const unsubscribe = store.sub(draftAtom, restoreDraft);
+    shownDrafts.set(draftKey, (shownDrafts.get(draftKey) ?? 0) + 1);
     return () => {
       saveDraft();
       activeRef.current = undefined;
       unsubscribe();
+      const shown = (shownDrafts.get(draftKey) ?? 1) - 1;
+      if (shown > 0) shownDrafts.set(draftKey, shown);
+      else shownDrafts.delete(draftKey);
       // Nothing else to undo: the next destination's effect restores its own draft into
       // this editor, and an unmounted editor is discarded.
     };
-  }, [draftAtom, editor, saveDraft, store]);
+  }, [draftAtom, draftKey, editor, saveDraft, store]);
 
   return saveDraft;
 };
