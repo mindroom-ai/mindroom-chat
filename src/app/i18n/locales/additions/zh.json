@@ -270,7 +270,7 @@
       "emailResetUnavailableSso": "此服务器无法通过电子邮件重置密码。如果你是用 {{provider}} 注册的，请改为<authLink>使用 {{provider}} 登录</authLink>。"
     },
     "syncStatus": {
-      "mediaUnavailable": "此窗口无法加载图片：浏览器在此处没有为 MindRoom 运行 Service Worker。"
+      "mediaUnavailable": "此窗口无法加载部分图片：浏览器在此处没有为 MindRoom 运行 Service Worker。"
     }
   },
   "featureUi": {

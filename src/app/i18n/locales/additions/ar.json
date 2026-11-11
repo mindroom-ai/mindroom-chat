@@ -290,7 +290,7 @@
       "emailResetUnavailableSso": "لا يستطيع هذا الخادم إعادة تعيين كلمات المرور عبر البريد الإلكتروني. إذا أنشأت حسابك عبر ⁨{{provider}}⁩، <authLink>فسجّل الدخول عبر ⁨{{provider}}⁩</authLink> بدلًا من ذلك."
     },
     "syncStatus": {
-      "mediaUnavailable": "لا يمكن تحميل الصور في هذه النافذة: المتصفح لا يشغّل عامل خدمة لـ MindRoom هنا."
+      "mediaUnavailable": "تعذّر تحميل بعض الصور في هذه النافذة: المتصفح لا يشغّل عامل خدمة لـ MindRoom هنا."
     }
   },
   "featureUi": {

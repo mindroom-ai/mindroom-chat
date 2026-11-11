@@ -13,8 +13,9 @@ import {
   sendStateEvent,
 } from '../helpers/matrix';
 
-// Media on a homeserver that refuses the legacy media endpoints, which every request routed here
-// to `/_matrix/media/v3/` (or r0) stands in for. Timeline pictures are fetched with the access
+// Media on a homeserver that refuses the legacy media endpoints, as the test homeserver does; the
+// spec answers every request for `/_matrix/media/v3/` (or r0) itself, to count them, and refuses
+// them the same way, so it holds on a server that still serves them. Timeline pictures are fetched with the access
 // token in a header; custom emoji are plain images, which only the service worker can sign. A page
 // loaded past the worker (a hard reload) gets it without another reload, and its custom emoji
 // load; a window where no worker can run says why they cannot.
@@ -29,7 +30,7 @@ const FACE_PNG = Buffer.from(
 const PASSWORD = 'uncontrolled-page-media-password';
 const LEGACY_MEDIA = /\/_matrix\/media\/(?:v3|r0)\/(?:download|thumbnail)\//;
 const NOTICE =
-  "Images can't load in this window: the browser runs no service worker for MindRoom here.";
+  "Some images can't load in this window: the browser runs no service worker for MindRoom here.";
 
 type Fixture = { user: DisposableUser; roomId: string; imageEventId: string };
 

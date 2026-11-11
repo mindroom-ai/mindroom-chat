@@ -278,7 +278,7 @@
       "emailResetUnavailableSso": "Este servidor no puede restablecer contraseñas por correo electrónico. Si te registraste con {{provider}}, <authLink>inicia sesión con {{provider}}</authLink> en su lugar."
     },
     "syncStatus": {
-      "mediaUnavailable": "Las imágenes no se pueden cargar en esta ventana: el navegador no ejecuta aquí ningún service worker para MindRoom."
+      "mediaUnavailable": "Algunas imágenes no se pueden cargar en esta ventana: el navegador no ejecuta aquí ningún service worker para MindRoom."
     }
   },
   "featureUi": {

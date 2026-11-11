@@ -270,7 +270,7 @@
       "emailResetUnavailableSso": "このサーバーはメールでパスワードをリセットできません。{{provider}} で登録した場合は、代わりに<authLink>{{provider}} でサインイン</authLink>してください。"
     },
     "syncStatus": {
-      "mediaUnavailable": "このウィンドウでは画像を読み込めません: ブラウザーがここで MindRoom のサービスワーカーを実行していません。"
+      "mediaUnavailable": "このウィンドウでは一部の画像を読み込めません: ブラウザーがここで MindRoom のサービスワーカーを実行していません。"
     }
   },
   "featureUi": {
