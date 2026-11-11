@@ -339,6 +339,22 @@ class CommandLineTests(unittest.TestCase):
         self.assertTrue(state["terminals"])
         self.assertEqual(state["logs"]["runner"], str(self.slot_dir / "runner.log"))
 
+    def test_a_runner_that_exits_while_starting_stops_the_start_with_its_log(self) -> None:
+        def wait(description, check, *_args, **_kwargs):
+            if description == "the sandbox runner":
+                (self.slot_dir / "runner.log").write_text("Address already in use")
+                return check()
+            return {}
+
+        with (
+            self.starting(),
+            mock.patch.object(stack, "commit_has", return_value=True),
+            mock.patch.object(stack, "wait_until", side_effect=wait),
+        ):
+            self.assertEqual(self.main("7", "up", "--terminals"), 1)
+        self.assertIn("the sandbox runner exited while starting", self.stderr.getvalue())
+        self.assertIn("Address already in use", self.stderr.getvalue())
+
     def test_terminals_refuse_a_commit_without_the_terminal_toolkit(self) -> None:
         with self.starting(), mock.patch.object(stack, "commit_has", return_value=False):
             self.assertEqual(self.main("7", "up", "--terminals"), stack.EXIT_NO_TERMINALS)

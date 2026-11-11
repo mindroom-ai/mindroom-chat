@@ -42,10 +42,23 @@ const signIn = async (stack: AgentStack): Promise<string> => {
   return ((await response.json()) as { session_token: string }).session_token;
 };
 
+/** The terminals the backend's routes list in `room` for the session `token`. */
+const listTerminals = async (room: string, token: string): Promise<Terminal[]> => {
+  const listed = await fetch(`${room}/terminals`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(listed.status).toBe(200);
+  return ((await listed.json()) as { terminals: Terminal[] }).terminals;
+};
+
 test("the helper runs a command in a terminal, which the backend's terminal routes show", async ({
   page,
   stack,
 }) => {
+  const token = await signIn(stack);
+  const room = `${stack.apiUrl}/api/rooms/${encodeURIComponent(stack.rooms.lobby)}`;
+  // A reused stack keeps the terminals of earlier runs, so the test looks at the one it opens.
+  const before = (await listTerminals(room, token)).map(({ id }) => id);
   const rootId = await startThread(stack, `${uniqueWord('terminal')} #terminal`);
   await openThread(page, stack, rootId);
   const reply = await waitForAgentReply(stack, rootId, (body) => body.includes(MARKER), {
@@ -53,21 +66,16 @@ test("the helper runs a command in a terminal, which the backend's terminal rout
   });
   await expect(messageRow(page, reply.event_id)).toContainText(MARKER);
 
-  const token = await signIn(stack);
-  const room = `${stack.apiUrl}/api/rooms/${encodeURIComponent(stack.rooms.lobby)}`;
-  const listed = await fetch(`${room}/terminals`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  expect(listed.status).toBe(200);
-  const { terminals } = (await listed.json()) as { terminals: Terminal[] };
-  expect(terminals).toEqual([
+  const opened = (await listTerminals(room, token)).filter(({ id }) => !before.includes(id));
+  expect(opened).toEqual([
     expect.objectContaining({ agent_user_id: stack.agents.helper, alive: true, writable: true }),
   ]);
+  const terminal = `${room}/agents/${encodeURIComponent(
+    stack.agents.helper
+  )}/terminals/${encodeURIComponent(opened[0]?.id ?? '')}`;
 
   // The stream admits only the slot's Chat as origin, so the page opens it.
-  const stream = `${room.replace(/^http/, 'ws')}/agents/${encodeURIComponent(
-    stack.agents.helper
-  )}/terminals/${encodeURIComponent(terminals[0]?.id ?? '')}`;
+  const stream = terminal.replace(/^http/, 'ws');
   const shown = await page.evaluate(
     ({ url, session, marker }) =>
       new Promise<string>((resolve, reject) => {
@@ -102,4 +110,10 @@ test("the helper runs a command in a terminal, which the backend's terminal rout
   );
   expect(shown).toContain(MARKER);
   expect(shown).toContain('tester-21');
+  // Closed, so runs on a reused stack never fill the workspace's terminals.
+  const closed = await fetch(terminal, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(closed.status).toBe(204);
 });

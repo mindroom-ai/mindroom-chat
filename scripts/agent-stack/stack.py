@@ -1258,7 +1258,14 @@ def start(
         )
         (slot_dir / "state.json").write_text(json.dumps(state, indent=1))
         runner_url = f"http://127.0.0.1:{port['runner']}/healthz"
-        wait_until("the sandbox runner", lambda: http_json("GET", runner_url)[0] == 200, 120, 0.5)
+
+        def runner_ready() -> bool:
+            if not alive(state["pids"]["runner"], str(slot_dir)):
+                tail = (slot_dir / "runner.log").read_text(errors="replace")[-4000:]
+                raise StackError(f"the sandbox runner exited while starting\n--- runner.log ---\n{tail}")
+            return http_json("GET", runner_url)[0] == 200
+
+        wait_until("the sandbox runner", runner_ready, 120, 0.5)
 
     voice = f", calls on {calls['model']}" if calls else ""
     log(f"starting MindRoom {sha[:12]} (namespace {namespace}, {args.model} model{voice}) on {api_url}")
