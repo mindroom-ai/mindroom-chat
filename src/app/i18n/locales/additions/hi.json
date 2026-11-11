@@ -697,8 +697,13 @@
       "failed": "विफल",
       "cancelled": "रोका गया",
       "denied": "अस्वीकृत",
-      "count_one": "{{count}} चल रहा है",
-      "count_other": "{{count}} चल रहे हैं"
+      "count_one": "{{count}} सक्रिय",
+      "count_other": "{{count}} सक्रिय",
+      "show": "सब-एजेंट दिखाएँ",
+      "hide": "सब-एजेंट छिपाएँ",
+      "withCount_one": "{{label}}, {{count}} सक्रिय",
+      "withCount_other": "{{label}}, {{count}} सक्रिय",
+      "resize": "सब-एजेंट पैनल का आकार बदलें"
     }
   },
   "composer": {

@@ -8,7 +8,11 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { isActiveSubagentStatus } from '../matrix/protocol/subagentFrame';
 import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../messages/html/react-custom-html-parser';
-import { useRoomSubagentRuns, type SubagentRun } from '../messages/live/subagentRunStore';
+import {
+  countActiveSubagentRuns,
+  useRoomSubagentRuns,
+  type SubagentRun,
+} from '../messages/live/subagentRunStore';
 import { useMentionClickHandler } from '../messages/useMentionClickHandler';
 import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
 import { SubagentCard, type SubagentRunNode } from './SubagentCard';
@@ -51,17 +55,17 @@ const nestRuns = (runs: readonly SubagentRun[]): SubagentRunNode[] => {
 
 /**
  * The room's live sub-agent runs, in the room's side panel: a card per run, the runs a run started
- * inside its card, with how many still run in the header.
+ * inside its card, with how many are still at it in the header.
  */
 export function SubagentsPanel({ room, onClose }: { room: Room; onClose: () => void }) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const runs = useRoomSubagentRuns(room.roomId);
   const nodes = useMemo(() => nestRuns(runs), [runs]);
-  const running = runs.filter(({ meta }) => isActiveSubagentStatus(meta.status)).length;
+  const active = countActiveSubagentRuns(runs);
   // One clock for every card, ticking only while a run is at it.
   const [now, setNow] = useState(Date.now);
-  useInterval(() => setNow(Date.now()), running > 0 ? CLOCK_MS : -1);
+  useInterval(() => setNow(Date.now()), active > 0 ? CLOCK_MS : -1);
   // Agents show by the room's names for them, which may not have loaded yet.
   useLoadedRoomMembers(mx, [room.roomId]);
 
@@ -85,9 +89,9 @@ export function SubagentsPanel({ room, onClose }: { room: Room; onClose: () => v
           <Text as="h2" size="H4" truncate>
             {title}
           </Text>
-          {running > 0 && (
+          {active > 0 && (
             <Text size="T200" priority="300" truncate>
-              {t('mindroomUi.subagents.count', { count: running })}
+              {t('mindroomUi.subagents.count', { count: active })}
             </Text>
           )}
         </div>

@@ -26,10 +26,11 @@ import { alignUiActionSync } from './uiActionSync';
 
 // A room with every core side panel (src/app/room/Room.tsx; their rule is
 // src/app/ui/panels/roomPanels.ts) on the disposable homeserver: an agent that shows canvases, its computer (a service the page answers with an
-// error, so the panel opens without a worker), and calls (a service the homeserver announces
-// through the page, never reached: the call panel opens without a call).
+// error, so the panel opens without a worker), calls (a service the homeserver announces
+// through the page, never reached: the call panel opens without a call), and sub-agent runs (its
+// ephemeral `io.mindroom.subagents` frames, which the homeserver relays to the page).
 
-export const CORE_PANELS = ['computer', 'canvas', 'call', 'members'] as const;
+export const CORE_PANELS = ['computer', 'canvas', 'call', 'subagents', 'members'] as const;
 /** The name of the room the viewer opens the panels in. */
 const PANEL_ROOM = 'Side panels';
 type CorePanel = (typeof CORE_PANELS)[number];
@@ -115,6 +116,54 @@ export const openPanelRoom = async (context: BrowserContext, page: Page): Promis
   return room;
 };
 
+/**
+ * A sub-agent run of the agent that ended a moment ago, as MindRoom streams one (a snapshot frame
+ * in an unencrypted room). The room keeps an ended run for 30 minutes, and the header shows the
+ * Sub-agents toggle while it does.
+ */
+const sendEndedSubagentRun = async (room: PanelRoom) => {
+  const now = Date.now();
+  const sid = `${now}-${randomUUID().replaceAll('-', '').slice(0, 8)}`;
+  const roomPath = encodeURIComponent(room.roomId);
+  const response = await fetch(
+    `${HOMESERVER}/_matrix/client/unstable/org.matrix.msc2477/rooms/${roomPath}/ephemeral/io.mindroom.subagents/subagents.${sid}.0`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${room.agent.accessToken}`,
+      },
+      body: JSON.stringify({
+        v: 1,
+        run: `delegation-${sid}`,
+        sid,
+        seq: 0,
+        meta: {
+          agent: 'researcher',
+          caller: 'panels',
+          root: 'panels',
+          parent: null,
+          thread_id: room.rootId,
+          source: 'delegate',
+          status: 'completed',
+          started_at: now / 1000 - 30,
+          ended_at: now / 1000,
+          task: 'Look around the room.',
+          result: 'Looked around.',
+        },
+        snapshot: {
+          md: 'Looked around.',
+          reasoning: '',
+          tools: [],
+          status: 'pending',
+          activity: '',
+        },
+      }),
+    }
+  );
+  if (!response.ok) throw new Error(`Sub-agent frame refused: ${response.status}`);
+};
+
 export const panelLocator = (page: Page, panel: CorePanel | 'plugin'): Locator =>
   page.locator(`[data-testid="resizable-${panel}-panel"]`);
 
@@ -145,6 +194,10 @@ export const openPanel = async (page: Page, room: PanelRoom, panel: CorePanel) =
     });
   } else if (panel === 'call') {
     await roomHeader(page).getByRole('button', { name: 'Start a call', exact: true }).click();
+  } else if (panel === 'subagents') {
+    const toggle = roomHeader(page).getByRole('button', { name: 'Show sub-agents', exact: true });
+    if (!(await toggle.isVisible())) await sendEndedSubagentRun(room);
+    await toggle.click();
   } else {
     await roomHeader(page).getByRole('button', { name: 'Show Members', exact: true }).click();
   }
@@ -157,6 +210,7 @@ export const closePanel = async (page: Page, panel: CorePanel) => {
     computer: 'Close computer',
     canvas: 'Close canvas',
     call: 'Close call view',
+    subagents: 'Close',
     members: 'Hide Members',
   };
   const scope = panel === 'members' ? roomHeader(page) : panelLocator(page, panel);

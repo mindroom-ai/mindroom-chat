@@ -708,9 +708,15 @@
       "failed": "Falló",
       "cancelled": "Detenido",
       "denied": "Denegado",
-      "count_one": "{{count}} en ejecución",
-      "count_many": "{{count}} en ejecución",
-      "count_other": "{{count}} en ejecución"
+      "count_one": "{{count}} activo",
+      "count_many": "{{count}} activos",
+      "count_other": "{{count}} activos",
+      "show": "Mostrar subagentes",
+      "hide": "Ocultar subagentes",
+      "withCount_one": "{{label}}, {{count}} activo",
+      "withCount_many": "{{label}}, {{count}} activos",
+      "withCount_other": "{{label}}, {{count}} activos",
+      "resize": "Cambiar el tamaño del panel de subagentes"
     }
   },
   "composer": {

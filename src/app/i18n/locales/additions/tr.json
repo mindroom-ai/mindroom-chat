@@ -697,8 +697,13 @@
       "failed": "Başarısız",
       "cancelled": "Durduruldu",
       "denied": "Reddedildi",
-      "count_one": "{{count}} çalışıyor",
-      "count_other": "{{count}} çalışıyor"
+      "count_one": "{{count}} etkin",
+      "count_other": "{{count}} etkin",
+      "show": "Alt ajanları göster",
+      "hide": "Alt ajanları gizle",
+      "withCount_one": "{{label}}, {{count}} etkin",
+      "withCount_other": "{{label}}, {{count}} etkin",
+      "resize": "Alt ajan panelini yeniden boyutlandır"
     }
   },
   "composer": {

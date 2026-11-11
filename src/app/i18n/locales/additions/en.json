@@ -697,8 +697,13 @@
       "failed": "Failed",
       "cancelled": "Stopped",
       "denied": "Denied",
-      "count_one": "{{count}} running",
-      "count_other": "{{count}} running"
+      "count_one": "{{count}} active",
+      "count_other": "{{count}} active",
+      "show": "Show sub-agents",
+      "hide": "Hide sub-agents",
+      "withCount_one": "{{label}}, {{count}} active",
+      "withCount_other": "{{label}}, {{count}} active",
+      "resize": "Resize the sub-agents panel"
     }
   },
   "composer": {

@@ -708,9 +708,15 @@
       "failed": "Falhou",
       "cancelled": "Parado",
       "denied": "Recusado",
-      "count_one": "{{count}} em execução",
-      "count_many": "{{count}} em execução",
-      "count_other": "{{count}} em execução"
+      "count_one": "{{count}} ativo",
+      "count_many": "{{count}} ativos",
+      "count_other": "{{count}} ativos",
+      "show": "Mostrar subagentes",
+      "hide": "Ocultar subagentes",
+      "withCount_one": "{{label}}, {{count}} ativo",
+      "withCount_many": "{{label}}, {{count}} ativos",
+      "withCount_other": "{{label}}, {{count}} ativos",
+      "resize": "Redimensionar o painel de subagentes"
     }
   },
   "composer": {

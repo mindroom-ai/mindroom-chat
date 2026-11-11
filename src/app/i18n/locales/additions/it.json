@@ -708,9 +708,15 @@
       "failed": "Non riuscito",
       "cancelled": "Interrotto",
       "denied": "Negato",
-      "count_one": "{{count}} in esecuzione",
-      "count_many": "{{count}} in esecuzione",
-      "count_other": "{{count}} in esecuzione"
+      "count_one": "{{count}} attivo",
+      "count_many": "{{count}} attivi",
+      "count_other": "{{count}} attivi",
+      "show": "Mostra sottoagenti",
+      "hide": "Nascondi sottoagenti",
+      "withCount_one": "{{label}}, {{count}} attivo",
+      "withCount_many": "{{label}}, {{count}} attivi",
+      "withCount_other": "{{label}}, {{count}} attivi",
+      "resize": "Ridimensiona il pannello dei sottoagenti"
     }
   },
   "composer": {

@@ -123,5 +123,7 @@ describe('presentBackgroundJobs', () => {
       'run_subagent (subagent)',
       'run_tests',
     ]);
+    // A sub-agent's row opens the Sub-agents panel.
+    expect(presented?.items.map((item) => item.subagent)).toEqual([true, false]);
   });
 });

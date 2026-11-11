@@ -70,6 +70,8 @@ import { RoomMessageAnnouncer } from '../timeline/RoomMessageAnnouncer';
 import { useCallPanel, useInCall } from '../calls/callStore';
 import { CallPanelPart, CallPanelUnavailable } from '../calls/CallPanelPart';
 import { transcriptPanelAtom, useTranscriptPanel } from '../calls/transcription/transcriptPanel';
+import { subagentsPanelAtom, useSubagentsPanel } from '../navigation/subagentsPanel';
+import { SubagentsPanelPart } from '../subagents/SubagentsPanelPart';
 import { useCallViewFloats } from '../calls/window/callWindowState';
 import { lazyPart } from '../lib/lazyPart';
 import { PluginSidePanel } from './PluginSidePanel';
@@ -82,6 +84,7 @@ import {
   callWidthStorageKey,
   computerWidthStorageKey,
   pluginPanelWidthStorageKey,
+  subagentsWidthStorageKey,
 } from '../preferences/accountStorageKeys';
 
 /** The computer opens wide enough for a desktop screen beside the conversation. */
@@ -153,8 +156,8 @@ const useRoomRoute = () => {
 
 /**
  * A room: its view, and beside it one side panel at a time (an agent's computer, a canvas, the
- * call, the members, or a plugin's panel). The room also carries out the UI requests agents send
- * (`io.mindroom.ui_action`).
+ * call, its live transcript, the sub-agents, the members, or a plugin's panel). The room also
+ * carries out the UI requests agents send (`io.mindroom.ui_action`).
  */
 export function Room() {
   return (
@@ -239,6 +242,7 @@ function RoomContent() {
   const callFloats = useCallViewFloats();
   const callInSidePanel = callOpen && !callFloats;
   const transcript = useTranscriptPanel(roomId);
+  const subagents = useSubagentsPanel(roomId);
 
   const pluginPanels = usePluginSidePanels(registeredPlugins, clientConfig);
   const pluginActions = usePluginHeaderActions(registeredPlugins, clientConfig);
@@ -254,7 +258,7 @@ function RoomContent() {
   } = usePluginPanel(
     roomId,
     pluginPanels,
-    computerOpen || !!canvas || callInSidePanel || transcript.open,
+    computerOpen || !!canvas || callInSidePanel || transcript.open || subagents.open,
     { beside: membersOpen && !membersOverPage, close: closeMembers }
   );
 
@@ -378,6 +382,35 @@ function RoomContent() {
         </ResizablePanel>
       ),
     },
+    {
+      id: 'subagents',
+      open: subagents.open,
+      close: subagents.close,
+      // Open in the store (navigation/subagentsPanel.ts), which a sub-agent job in the jobs bar
+      // sets too; the room then makes room for it (below).
+      show: subagents.show,
+      label: t('mindroomUi.subagents.title'),
+      covers: mobile,
+      // Its runs' transcripts read like the live transcript, so it grows no wider.
+      render: () => (
+        <ResizablePanel
+          side="end"
+          storageKey={subagentsWidthStorageKey(ownUserId)}
+          defaultWidth={CALL_DEFAULT_WIDTH}
+          minContentWidth={CONVERSATION_MIN_WIDTH}
+          maxPanelWidth={TRANSCRIPT_MAX_WIDTH}
+          passthrough={mobile}
+          resizeLabel={t('mindroomUi.subagents.resize')}
+          collapseLabel={t('mindroomUi.subagents.hide')}
+          onCollapse={subagents.close}
+          testId="resizable-subagents-panel"
+        >
+          <Suspense fallback={null}>
+            <SubagentsPanelPart room={room} onClose={subagents.close} />
+          </Suspense>
+        </ResizablePanel>
+      ),
+    },
     ...pluginPanels.map(
       (panel): PanelEntry => ({
         id: panel.id,
@@ -433,13 +466,21 @@ function RoomContent() {
   ];
   const { shown, layout, setLayout, request } = useRoomPanels(roomId, panels);
   // Transcript, in the call's controls or on its row, asks for the panel as the room's own buttons
-  // ask for theirs, also while it shows: folded, it unfolds.
+  // ask for theirs, also while it shows: folded, it unfolds. So does a sub-agent job in the jobs
+  // bar for the Sub-agents panel, whose store the header's toggle sets too.
   const store = useStore();
   useEffect(
     () =>
       store.sub(transcriptPanelAtom, () => {
         if (store.get(transcriptPanelAtom)?.roomId === roomId)
           request('transcript', () => undefined);
+      }),
+    [request, roomId, store]
+  );
+  useEffect(
+    () =>
+      store.sub(subagentsPanelAtom, () => {
+        if (store.get(subagentsPanelAtom)?.roomId === roomId) request('subagents', () => undefined);
       }),
     [request, roomId, store]
   );

@@ -686,7 +686,11 @@
       "failed": "Gagal",
       "cancelled": "Dihentikan",
       "denied": "Ditolak",
-      "count_other": "{{count}} berjalan"
+      "count_other": "{{count}} aktif",
+      "show": "Tampilkan subagen",
+      "hide": "Sembunyikan subagen",
+      "withCount_other": "{{label}}, {{count}} aktif",
+      "resize": "Ubah ukuran panel subagen"
     }
   },
   "composer": {

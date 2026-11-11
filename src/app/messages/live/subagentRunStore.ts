@@ -1,7 +1,11 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import type { SubagentFrame, SubagentMeta } from '../../matrix/protocol/subagentFrame';
+import {
+  isActiveSubagentStatus,
+  type SubagentFrame,
+  type SubagentMeta,
+} from '../../matrix/protocol/subagentFrame';
 import { nextLiveEntry, type LiveReplyEntry } from './liveReplyStore';
 
 /** A working run stays this long after its last frame; MindRoom sends one every 10 s meanwhile. */
@@ -19,6 +23,13 @@ export type SubagentRun = LiveReplyEntry & {
 };
 
 const NO_RUNS: readonly SubagentRun[] = [];
+
+/**
+ * How many of the runs are still at it (running, waiting for approval or paused): the count the
+ * room header's badge and the Sub-agents panel's own header show.
+ */
+export const countActiveSubagentRuns = (runs: readonly SubagentRun[]): number =>
+  runs.filter(({ meta }) => isActiveSubagentStatus(meta.status)).length;
 
 const runKey = (roomId: string, run: string): string => `${roomId}\0${run}`;
 

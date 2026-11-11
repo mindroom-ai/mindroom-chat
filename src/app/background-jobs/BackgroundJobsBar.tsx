@@ -11,7 +11,9 @@ import React, {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useStore } from 'jotai';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { openSubagentsPanel } from '../navigation/subagentsPanel';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import * as css from './BackgroundJobsBar.css';
 import { jobsInView } from '../matrix/protocol/backgroundJobsContract';
@@ -41,6 +43,7 @@ type OpenMode = 'hover' | 'pinned';
 export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsBarProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
+  const store = useStore();
   const { jobs: roomJobs, total: roomTotal } = useRoomBackgroundJobs(room);
   const sent = useSentCancels(room.roomId);
   const viewJobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
@@ -281,9 +284,23 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
           <ul id={listId} role="list" className={css.Jobs} onFocus={() => setOpen('pinned')}>
             {model.items.map((item) => (
               <li key={item.jobId} className={css.Job}>
-                <Text as="span" size="T200" truncate className={css.Label} title={item.name}>
-                  {item.name}
-                </Text>
+                {item.subagent ? (
+                  // A sub-agent's run shows in the room's Sub-agents panel, which its name opens.
+                  <button
+                    type="button"
+                    className={css.LabelButton}
+                    title={item.name}
+                    onClick={() => openSubagentsPanel(store, room.roomId)}
+                  >
+                    <Text as="span" size="T200" truncate>
+                      {item.name}
+                    </Text>
+                  </button>
+                ) : (
+                  <Text as="span" size="T200" truncate className={css.Label} title={item.name}>
+                    {item.name}
+                  </Text>
+                )}
                 {item.waiting && !item.stopping && (
                   <Text as="span" size="T200" truncate className={css.Muted}>
                     {t('mindroomUi.backgroundJobs.waiting')}

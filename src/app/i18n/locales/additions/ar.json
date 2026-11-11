@@ -741,12 +741,21 @@
       "failed": "فشل",
       "cancelled": "تم الإيقاف",
       "denied": "تم الرفض",
-      "count_zero": "قيد التشغيل: ⁨{{count}}⁩",
-      "count_one": "قيد التشغيل: ⁨{{count}}⁩",
-      "count_two": "قيد التشغيل: ⁨{{count}}⁩",
-      "count_few": "قيد التشغيل: ⁨{{count}}⁩",
-      "count_many": "قيد التشغيل: ⁨{{count}}⁩",
-      "count_other": "قيد التشغيل: ⁨{{count}}⁩"
+      "count_zero": "نشطة: ⁨{{count}}⁩",
+      "count_one": "نشطة: ⁨{{count}}⁩",
+      "count_two": "نشطة: ⁨{{count}}⁩",
+      "count_few": "نشطة: ⁨{{count}}⁩",
+      "count_many": "نشطة: ⁨{{count}}⁩",
+      "count_other": "نشطة: ⁨{{count}}⁩",
+      "show": "إظهار الوكلاء الفرعيين",
+      "hide": "إخفاء الوكلاء الفرعيين",
+      "withCount_zero": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
+      "withCount_one": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
+      "withCount_two": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
+      "withCount_few": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
+      "withCount_many": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
+      "withCount_other": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
+      "resize": "تغيير حجم لوحة الوكلاء الفرعيين"
     }
   },
   "composer": {

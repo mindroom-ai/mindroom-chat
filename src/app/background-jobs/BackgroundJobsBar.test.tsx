@@ -2,8 +2,10 @@
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
+import { getDefaultStore } from 'jotai';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
+import { subagentsPanelAtom } from '../navigation/subagentsPanel';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import { BackgroundJobsBar } from './BackgroundJobsBar';
 import { keepCancelsOf } from './sentCancels';
@@ -28,6 +30,7 @@ vi.mock('./BackgroundJobsBar.css', () => ({
   Jobs: 'Jobs',
   Job: 'Job',
   Label: 'Label',
+  LabelButton: 'LabelButton',
   Muted: 'Muted',
   Stopping: 'Stopping',
   Action: 'Action',
@@ -112,6 +115,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  getDefaultStore().set(subagentsPanelAtom, undefined);
   vi.unstubAllGlobals();
 });
 
@@ -474,6 +478,20 @@ it('leaves focus where the person moved it when the jobs change later', async ()
   state.jobs = [job('a'), job('b')];
   render();
   expect(document.activeElement).toBe(document.body);
+});
+
+it("opens the room's Sub-agents panel from a sub-agent job's name in its row, and from no other", async () => {
+  state.jobs = [job('a', { kind: 'subagent', tool: 'run_subagent' }), job('b')];
+  render();
+  expand();
+  const [subagent, tool] = [...container.querySelectorAll('li')];
+  const name = 'mindroomUi.backgroundJobs.subagent{"tool":"run_subagent"}';
+  expect(subagent?.querySelector('button:not([data-cancel-job])')?.textContent).toBe(name);
+  expect(tool?.querySelector('button:not([data-cancel-job])')).toBeNull();
+  await click(name);
+  expect(getDefaultStore().get(subagentsPanelAtom)).toEqual({ roomId: room.roomId });
+  // The list stays as it was; the panel opens beside it.
+  expect(container.querySelectorAll('li')).toHaveLength(2);
 });
 
 it('says in its row that a job waits for approval, until it is stopping', () => {

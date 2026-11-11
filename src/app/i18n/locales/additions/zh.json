@@ -686,7 +686,11 @@
       "failed": "失败",
       "cancelled": "已停止",
       "denied": "已拒绝",
-      "count_other": "{{count}} 个运行中"
+      "count_other": "{{count}} 个活跃",
+      "show": "显示子智能体",
+      "hide": "隐藏子智能体",
+      "withCount_other": "{{label}}，{{count}} 个活跃",
+      "resize": "调整子智能体面板大小"
     }
   },
   "composer": {

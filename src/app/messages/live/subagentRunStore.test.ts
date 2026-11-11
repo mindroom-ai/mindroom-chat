@@ -12,6 +12,7 @@ import {
 } from '../../matrix/protocol/subagentFrame';
 import fixture from './__fixtures__/subagent-frames-v1.json';
 import {
+  countActiveSubagentRuns,
   getSubagentRunStore,
   SUBAGENT_QUIET_RUN_KEPT_MS,
   SUBAGENT_WORKING_RUN_FRESHNESS_MS,
@@ -192,6 +193,25 @@ describe('SubagentRunStore', () => {
 
     expect(run()?.docs.md).toBe('Here');
     expect(run(OTHER_ROOM)).toMatchObject({ roomId: OTHER_ROOM, docs: docs('There') });
+  });
+
+  it('counts the runs still at it: running, waiting for approval or paused', () => {
+    const statuses: SubagentStatus[] = [
+      'running',
+      'awaiting_approval',
+      'paused',
+      'completed',
+      'failed',
+      'cancelled',
+      'denied',
+    ];
+    statuses.forEach((status) =>
+      store.ingest(ROOM, AGENT, { ...snapshot(0, status, { status }), run: status }, 1000)
+    );
+
+    expect(store.runs(ROOM)).toHaveLength(7);
+    expect(countActiveSubagentRuns(store.runs(ROOM))).toBe(3);
+    expect(countActiveSubagentRuns(store.runs(OTHER_ROOM))).toBe(0);
   });
 
   it('shows each run of the fixture as its last frame leaves it', () => {

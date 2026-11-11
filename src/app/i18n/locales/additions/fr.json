@@ -708,9 +708,15 @@
       "failed": "Échec",
       "cancelled": "Arrêté",
       "denied": "Refusé",
-      "count_one": "{{count}} en cours",
-      "count_many": "{{count}} en cours",
-      "count_other": "{{count}} en cours"
+      "count_one": "{{count}} actif",
+      "count_many": "{{count}} actifs",
+      "count_other": "{{count}} actifs",
+      "show": "Afficher les sous-agents",
+      "hide": "Masquer les sous-agents",
+      "withCount_one": "{{label}}, {{count}} actif",
+      "withCount_many": "{{label}}, {{count}} actifs",
+      "withCount_other": "{{label}}, {{count}} actifs",
+      "resize": "Redimensionner le panneau des sous-agents"
     }
   },
   "composer": {

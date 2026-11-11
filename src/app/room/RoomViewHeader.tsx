@@ -32,6 +32,8 @@ import { useParentRooms } from '../matrix/state/subRooms';
 import { getDirectPath, getHomePath, getSpacePath } from '../routes/pathUtils';
 import { previousHistoryOrigin, showsRoom } from '../routes/historyStack';
 import { RoomPinMenu } from '../messages/pins/RoomPinMenu';
+import { countActiveSubagentRuns, useRoomSubagentRuns } from '../messages/live/subagentRunStore';
+import { SubagentsIcon } from '../subagents/SubagentsIcon';
 import {
   RoomSchedulesButton,
   RoomSchedulesMenuEntry,
@@ -92,8 +94,8 @@ export type RoomViewHeaderProps = {
    */
   shownPanel?: string;
   /**
-   * Opens the members or a plugin's panel by the room's rule, unfolds it while it is folded, or
-   * closes it while it shows.
+   * Opens the members, the sub-agents or a plugin's panel by the room's rule, unfolds it while it
+   * is folded, or closes it while it shows.
    */
   onPanelToggle?: (id: string) => void;
   /** The plugins' side panels, each toggled from the row or the room menu by its placement. */
@@ -110,13 +112,28 @@ export type HeaderCallPlacement =
   | { at: 'header'; phone: boolean }
   | { at: 'menu'; requestClose: () => void };
 
-// On the Members button's top end corner, out of the pointer's way.
-const joinRequestBadgeStyle = {
+// A count on a button's top end corner, out of the pointer's way, in a badge tall enough for its
+// digits (the 200 size is a dot's).
+const countBadgeStyle = {
   position: 'absolute',
   top: 0,
   insetInlineEnd: 0,
   pointerEvents: 'none',
 } as const;
+const cornerCount = (count: number) => (
+  <Badge
+    style={countBadgeStyle}
+    size="400"
+    variant="Primary"
+    fill="Solid"
+    radii="Pill"
+    aria-hidden="true"
+  >
+    <Text as="span" size="L400">
+      {count}
+    </Text>
+  </Badge>
+);
 
 // A dot on a button's top end corner, out of the pointer's way; `marker` names it for tests.
 const dotStyle = {
@@ -171,10 +188,10 @@ const useViewSwitch = (room: Room, hasMindroomAgents: boolean | undefined) => {
 
 /**
  * The room header: avatar (a back button on phones), name and topic, then its actions (the Compact
- * and Threads switch, the filter bar button, scheduled tasks, canvases, the computer, calls, pinned
- * messages, members, and the plugins' actions) and the room menu, which offers those its row leaves
- * out. Phones keep the back button, the name and the room menu, so a long name keeps its room; a
- * call that is on keeps its button.
+ * and Threads switch, the filter bar button, scheduled tasks, canvases, the computer, the
+ * sub-agents, calls, pinned messages, members, and the plugins' actions) and the room menu, which
+ * offers those its row leaves out. Phones keep the back button, the name and the room menu, so a
+ * long name keeps its room; a call that is on keeps its button.
  */
 export function RoomViewHeader({
   hasMindroomAgents,
@@ -285,6 +302,14 @@ export function RoomViewHeader({
 
   const canToggleComputer = !!computerAvailable && !!onComputerToggle;
   const showCanvases = !!canvases && !!onCanvasOpen && !!onCanvasClose;
+  // The Sub-agents toggle shows while the room keeps a sub-agent run (a working one, or one paused
+  // or ended not long ago), with a count of those still at it, as the panel's own header has.
+  const subagentRuns = useRoomSubagentRuns(room.roomId);
+  const activeSubagents = countActiveSubagentRuns(subagentRuns);
+  const subagentsVisible = shownPanel === 'subagents';
+  const subagentsLabel = subagentsVisible
+    ? t('mindroomUi.subagents.hide')
+    : t('mindroomUi.subagents.show');
 
   // An action in the room menu closes it before it acts where the menu's button was.
   const closeMenu = () => setMenuAnchor(undefined);
@@ -383,6 +408,20 @@ export function RoomViewHeader({
       active: !!computerOpen,
       run: () => onComputerToggle?.(),
     },
+    subagentRuns.length > 0 && {
+      id: 'subagents',
+      label:
+        activeSubagents > 0
+          ? t('mindroomUi.subagents.withCount', { label: subagentsLabel, count: activeSubagents })
+          : subagentsLabel,
+      icon: SubagentsIcon,
+      placement: 'auto',
+      pressed: subagentsVisible,
+      active: subagentsVisible,
+      badge: activeSubagents > 0 && cornerCount(activeSubagents),
+      run: () => onPanelToggle?.('subagents'),
+      marker: 'data-subagents-toggle',
+    },
     // The call buttons, which on phones keep only a call that is on (HeaderCallButtons).
     calls && { id: 'call', placement: 'row', row: calls({ at: 'header', phone: mobile }) },
     pinnedCount > 0 && {
@@ -400,18 +439,7 @@ export function RoomViewHeader({
       icon: Icons.User,
       placement: 'auto',
       shortcut: 'members',
-      badge: pendingRequests > 0 && (
-        <Badge
-          style={joinRequestBadgeStyle}
-          size="200"
-          variant="Primary"
-          fill="Solid"
-          radii="Pill"
-          aria-hidden="true"
-        >
-          <Text size="L400">{pendingRequests}</Text>
-        </Badge>
-      ),
+      badge: pendingRequests > 0 && cornerCount(pendingRequests),
       run: toggleMembers,
     },
     ...pluginPanels.map(
@@ -529,8 +557,8 @@ export function RoomViewHeader({
             popup: 'menu',
             expanded: !!menuAnchor,
             run: setMenuAnchor,
-            // A dot marks what the menu holds that a button would show: join requests or hidden
-            // active filters, on phones.
+            // A dot marks what the menu holds that a button would show: join requests, active
+            // sub-agents or hidden active filters, on phones.
             badge:
               menuEntries.some((entry) => drawnByHeader(entry) && !!entry.badge) &&
               cornerDot('data-room-menu-dot'),

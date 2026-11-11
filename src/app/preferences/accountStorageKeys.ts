@@ -28,6 +28,8 @@ export const computerWidthStorageKey = (userId: string): string =>
   `mindroom.computer.width:${userId}`;
 export const callTranscriptWidthStorageKey = (userId: string): string =>
   `mindroom.callTranscript.width:${userId}`;
+export const subagentsWidthStorageKey = (userId: string): string =>
+  `mindroom.subagents.width:${userId}`;
 
 /** The start of the width keys of the account's plugin side panels. */
 export const pluginPanelWidthStorageKeyPrefix = (userId: string): string =>
@@ -46,6 +48,7 @@ export const accountStorageKeys = (userId: string): string[] => [
   callWidthStorageKey(userId),
   computerWidthStorageKey(userId),
   callTranscriptWidthStorageKey(userId),
+  subagentsWidthStorageKey(userId),
 ];
 
 /** The starts of the account's keys that hold one value per panel or device. */

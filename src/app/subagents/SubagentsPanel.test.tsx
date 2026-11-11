@@ -163,7 +163,7 @@ describe('SubagentsPanel', () => {
     render();
 
     expect(cards().map((element) => element.dataset.subagentRun)).toEqual(['early', 'late']);
-    expect(container.querySelector('header')?.textContent).toContain('2 running');
+    expect(container.querySelector('header')?.textContent).toContain('2 active');
     // A member shows by the room's name for them, an agent outside the room by its own name.
     expect(card('early').textContent).toContain('Research Desk');
     expect(card('late').textContent).toContain('writer');
@@ -178,7 +178,16 @@ describe('SubagentsPanel', () => {
     render();
 
     expect(cards().map((element) => element.dataset.subagentRun)).toEqual(['busy', 'new', 'old']);
-    expect(container.querySelector('header')?.textContent).toContain('1 running');
+    expect(container.querySelector('header')?.textContent).toContain('1 active');
+  });
+
+  it('counts paused runs and runs waiting for approval as active, as the header badge does', () => {
+    ingest('waiting', meta('awaiting_approval'), docs('May I?'));
+    ingest('paused', meta('paused', { startedAt: NOW - 30 }), docs('Later.', [], false));
+    ingest('done', meta('completed'), docs('Done.', [], false));
+    render();
+
+    expect(container.querySelector('header')?.textContent).toContain('2 active');
   });
 
   it('shows a run inside the card of the run that started it, and an orphan on its own', () => {

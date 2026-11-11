@@ -697,8 +697,13 @@
       "failed": "Fehlgeschlagen",
       "cancelled": "Gestoppt",
       "denied": "Abgelehnt",
-      "count_one": "{{count}} läuft",
-      "count_other": "{{count}} laufen"
+      "count_one": "{{count}} aktiv",
+      "count_other": "{{count}} aktiv",
+      "show": "Sub-Agenten anzeigen",
+      "hide": "Sub-Agenten ausblenden",
+      "withCount_one": "{{label}}, {{count}} aktiv",
+      "withCount_other": "{{label}}, {{count}} aktiv",
+      "resize": "Größe des Sub-Agenten-Bereichs ändern"
     }
   },
   "composer": {

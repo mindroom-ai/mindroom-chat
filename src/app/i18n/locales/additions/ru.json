@@ -719,10 +719,17 @@
       "failed": "Ошибка",
       "cancelled": "Остановлено",
       "denied": "Запрещено",
-      "count_one": "Выполняется: {{count}}",
-      "count_few": "Выполняется: {{count}}",
-      "count_many": "Выполняется: {{count}}",
-      "count_other": "Выполняется: {{count}}"
+      "count_one": "Активно: {{count}}",
+      "count_few": "Активно: {{count}}",
+      "count_many": "Активно: {{count}}",
+      "count_other": "Активно: {{count}}",
+      "show": "Показать субагентов",
+      "hide": "Скрыть субагентов",
+      "withCount_one": "{{label}}, активно: {{count}}",
+      "withCount_few": "{{label}}, активно: {{count}}",
+      "withCount_many": "{{label}}, активно: {{count}}",
+      "withCount_other": "{{label}}, активно: {{count}}",
+      "resize": "Изменить размер панели субагентов"
     }
   },
   "composer": {

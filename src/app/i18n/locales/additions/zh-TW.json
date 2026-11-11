@@ -686,7 +686,11 @@
       "failed": "失敗",
       "cancelled": "已停止",
       "denied": "已拒絕",
-      "count_other": "{{count}} 個執行中"
+      "count_other": "{{count}} 個活躍",
+      "show": "顯示子代理",
+      "hide": "隱藏子代理",
+      "withCount_other": "{{label}}，{{count}} 個活躍",
+      "resize": "調整子代理面板大小"
     }
   },
   "composer": {

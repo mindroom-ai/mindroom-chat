@@ -698,7 +698,12 @@
       "cancelled": "Gestopt",
       "denied": "Geweigerd",
       "count_one": "{{count}} actief",
-      "count_other": "{{count}} actief"
+      "count_other": "{{count}} actief",
+      "show": "Subagenten tonen",
+      "hide": "Subagenten verbergen",
+      "withCount_one": "{{label}}, {{count}} actief",
+      "withCount_other": "{{label}}, {{count}} actief",
+      "resize": "Formaat van het subagentenpaneel wijzigen"
     }
   },
   "composer": {
