@@ -274,6 +274,8 @@ const renderHarness = (
     changeThread: (threadId?: string) => {
       act(() => renderer.update(React.createElement(TestHarness, { ...props, threadId })));
     },
+    /** The controller as the composer rendered it last. */
+    current: () => api,
     /** Unmounts the composer, as closing a thread's column or leaving the room does. */
     unmount: () => {
       api.mountedRef.current = false;
@@ -294,14 +296,15 @@ const renderHarness = (
           })
         );
       });
-      return { api: next };
+      return { api: next, current: () => api };
     },
   };
 };
 
 describe('useRoomInputSendSessionController after its composer unmounts', () => {
   it('sends the message once its upload finishes after the composer went', async () => {
-    const { api, mx, unmount } = renderHarness();
+    const onRoomMessageSent = vi.fn();
+    const { api, mx, unmount, current } = renderHarness({ onRoomMessageSent });
     const file = createFile('slow.txt');
     api.selectedFilesRef.current = [createUploadItem(file)];
     api.uploadsRef.current = [loadingUpload(file)];
@@ -309,8 +312,14 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
       await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'caption' } });
     });
     expect(mx.sendMessage).not.toHaveBeenCalled();
+    // Its own send shows on its board, not as another composer's.
+    expect(current().joinedSendPending).toBe(false);
 
     unmount();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mx.sendMessage).not.toHaveBeenCalled();
     api.uploadsRef.current = [successUpload(file)];
     await act(async () => {
       getDefaultStore().set(roomUploadAtomFamily(file), { mxc: 'mxc://mindroom/slow.txt' });
@@ -323,6 +332,8 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
       'caption',
     ]);
     expect(api.hasActiveSendSession()).toBe(false);
+    // The composer that went opens no thread for the root it sent.
+    expect(onRoomMessageSent).not.toHaveBeenCalled();
   });
 
   it('lets a composer mounted again join the send instead of sending its files twice', async () => {
@@ -340,7 +351,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
 
     unmount();
     // The room's page keeps its staged files: the composer mounted again still lists this one.
-    const { api: again } = mountAgain();
+    const { api: again, current } = mountAgain();
     expect(again.joinedSendPending).toBe(true);
     again.selectedFilesRef.current = [item];
     again.uploadsRef.current = [successUpload(file)];
@@ -354,6 +365,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
       await fileSend.promise;
     });
     await vi.waitFor(() => expect(again.hasActiveSendSession()).toBe(false));
+    expect(current().joinedSendPending).toBe(false);
     expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
       'shared.txt',
       'caption',
@@ -371,9 +383,21 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     expect(api.hasActiveSendSession()).toBe(true);
 
     unmount();
-    const { api: again } = mountAgain();
-    await vi.waitFor(() => expect(again.hasActiveSendSession()).toBe(false));
+    await vi.waitFor(() => expect(api.hasActiveSendSession()).toBe(false));
     expect(mx.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('shows a send as pending in another mount of the composer while it goes out', async () => {
+    const { api, mountAgain } = renderHarness();
+    // A second view of the same thread, mounted beside the first.
+    const other = mountAgain();
+    const file = createFile('beside.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    expect(other.current().joinedSendPending).toBe(true);
   });
 });
 

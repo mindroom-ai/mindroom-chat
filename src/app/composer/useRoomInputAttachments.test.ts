@@ -327,6 +327,9 @@ describe('attachment staging ownership', () => {
       expect(access.snapshot().uploads).toEqual([
         { file: recording.file, status: UploadStatus.Success, mxc: 'mxc://example.org/voice' },
       ]);
+      // Another session's release leaves this one's files claimed.
+      access.clearEnrollment([selected.file]);
+      expect(access.snapshot().enrolled).toEqual([recording]);
       access.clearEnrollment([recording.file]);
       expect(access.snapshot().enrolled).toEqual([]);
     });

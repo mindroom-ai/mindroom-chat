@@ -90,6 +90,9 @@ describe('UnconfirmedRootsFeature', () => {
 
   it('moves the draft of a closed thread to its root once the root is confirmed', () => {
     store.set(draftAtom(LOCAL_ROOT), draft('written while the root was sending'));
+    // The thread's column showed it, and closed.
+    mount(LOCAL_ROOT);
+    act(() => renderer?.unmount());
     mount();
 
     echo('$root', EventStatus.SENT);
