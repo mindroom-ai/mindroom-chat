@@ -90,6 +90,8 @@ type SendSlot = {
   adopted: boolean;
   /** Takes the slot out of the parked ones. */
   unpark?: () => void;
+  /** Parks the slot again under the key of the session it holds now. */
+  repark?: () => void;
   /** Starts a send with the composer holding the slot, for the sends queued in it. */
   start?: (options: StartRoomInputSendSessionOptions, slot: SendSlot) => Promise<void>;
 };
@@ -636,6 +638,8 @@ export const useRoomInputSendSessionController = ({
       );
       sendSlot.session = session;
       busySlotsOf(mx).add(sendSlot);
+      // A send queued in a parked slot waits there under its own key.
+      sendSlot.repark?.();
       // The session wakes on its own uploads, with or without its composer.
       const unsubscribes = sendFiles.map((file) =>
         store.sub(roomUploadAtomFamily(file), () =>
@@ -730,6 +734,7 @@ export const useRoomInputSendSessionController = ({
     if (!parked || !session || session.failFast) return;
     parked.unpark?.();
     parked.unpark = undefined;
+    parked.repark = undefined;
     const { staged, enrolled } = session.composer.attachments.snapshot(session.roomId);
     const items = new Map(
       // The board's copy of a file is the newest.
@@ -759,14 +764,19 @@ export const useRoomInputSendSessionController = ({
       const current = slotRef.current;
       const { session } = current;
       if (!session && current.queued.length === 0) return;
-      const key = session
-        ? voiceComposerKey({ ...session.composerContext, threadView })
-        : composerKeyRef.current;
       const parked = parkedSlotsOf(mx);
-      parked.set(key, current);
-      current.unpark = () => {
-        if (parked.get(key) === current) parked.delete(key);
+      const park = () => {
+        current.unpark?.();
+        const key = current.session
+          ? voiceComposerKey({ ...current.session.composerContext, threadView })
+          : composerKeyRef.current;
+        parked.set(key, current);
+        current.unpark = () => {
+          if (parked.get(key) === current) parked.delete(key);
+        };
       };
+      current.repark = park;
+      park();
     },
     [composerKeyRef, mx, threadView]
   );

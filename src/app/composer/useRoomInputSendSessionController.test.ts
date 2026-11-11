@@ -280,6 +280,14 @@ const renderHarness = (
     changeThread: (threadId?: string) => {
       act(() => renderer.update(React.createElement(TestHarness, { ...props, threadId })));
     },
+    /** Moves the composer to another room, as the room's page does. */
+    changeRoom: (roomId: string) => {
+      act(() =>
+        renderer.update(
+          React.createElement(TestHarness, { ...props, threadId: options.threadId, roomId })
+        )
+      );
+    },
     /** The controller as the composer rendered it last. */
     current: () => api,
     /** Unmounts the composer, as closing a thread's column or leaving the room does. */
@@ -392,6 +400,8 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     expect(again.hasActiveSendSession()).toBe(true);
     changeThread(undefined);
     expect(current().joinedSendPending).toBe(false);
+    // A send of a mounted composer is its own: another mount does not take it over.
+    expect(mountAgain().current().joinedSendPending).toBe(false);
   });
 
   it('sends the caption on its own when the root fails to send after the composer went', async () => {
@@ -497,6 +507,48 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     const again = mountAgain();
     expect(again.api.selectedFilesRef.current).toEqual([spoiler]);
     expect(again.api.selectedFilesRef.current[0]).toBe(spoiler);
+  });
+
+  it('parks a queued send under its own room once it goes out after the composer went', async () => {
+    const { api, mx, unmount, mountAgain, changeRoom, current } = renderHarness();
+    const file = createFile('room-a.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    // In room B, a text too long for one event waits behind room A's upload.
+    changeRoom('!b:example.org');
+    const sidecar = createDeferred<{ content_uri: string }>();
+    mx.uploadContent.mockReturnValueOnce(sidecar.promise);
+    await act(async () => {
+      await current().startSendSession({
+        textContent: { msgtype: 'm.text', body: 'x'.repeat(50_000) },
+      });
+    });
+    unmount();
+    api.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      getDefaultStore().set(roomUploadAtomFamily(file), { mxc: 'mxc://mindroom/room-a.txt' });
+      await Promise.resolve();
+    });
+    // Room A's file went; room B's text is uploading its long-text file.
+    await vi.waitFor(() => expect(mx.uploadContent).toHaveBeenCalledTimes(1));
+
+    const inA = mountAgain();
+    expect(inA.current().joinedSendPending).toBe(false);
+    const inB = mountAgain('!b:example.org');
+    expect(inB.current().joinedSendPending).toBe(true);
+    await act(async () => {
+      await inB.api.startSendSession({ textContent: { msgtype: 'm.text', body: 'next' } });
+    });
+    expect(sentBodies(mx)).toEqual(['room-a.txt']);
+    await act(async () => {
+      sidecar.resolve({ content_uri: 'mxc://mindroom/sidecar' });
+      await sidecar.promise;
+    });
+    await vi.waitFor(() => expect(sentBodies(mx)).toHaveLength(3));
+    expect(sentBodies(mx)[2]).toBe('next');
   });
 
   it('takes a send over when the composer moves to its room, not only as it mounts', async () => {
