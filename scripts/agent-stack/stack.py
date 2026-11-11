@@ -46,8 +46,8 @@ homeserver that binds OpenID tokens, MindRoom's Tuwunel with TUWUNEL_MINDROOM_OP
 e2e/docker-compose.yaml starts it for every slot; on any other, POST /api/client-sessions answers 403.
 
 --terminals gives the helper MindRoom's persistent terminals (its docs/architecture/terminals.md): the `terminal`
-toolkit beside its shell, which runs in a sandbox runner of the slot (the static_runner backend) on 127.0.0.1:29900+N
-with a token of this start's own, and `terminals: type`, so people in the lobby may type in them too. The runner works
+toolkit beside its shell, which, like every agent's shell, runs in a sandbox runner of the slot (the static_runner
+backend) on 127.0.0.1:29900+N with a token of this start's own, and `terminals: type`, so people in the lobby may type in them too. The runner works
 in the backend's storage, as the Kubernetes chart's sidecar mounts the agents' storage, so it isolates nothing. An agent
 types in its terminals only while no approval rule may ask for its shell calls, so this stack has no approval script
 for run_shell_command: specs of shell approvals (#approve, #bidi) need a stack without --terminals. The stub's
@@ -498,7 +498,7 @@ def option_env(slot: int, client_sessions: bool, image: str | None) -> list[str]
 
 
 def runner_env(slot: int, token: str) -> list[str]:
-    """The .env lines of --terminals: the helper's shell runs in the slot's sandbox runner, which mounts the agents'
+    """The .env lines of --terminals: the agents' shells run in the slot's sandbox runner, which mounts the agents'
     storage."""
     return [
         "MINDROOM_WORKER_BACKEND=static_runner",
@@ -713,17 +713,15 @@ def config_yaml(
     worker_defaults = "  worker_tools: [browser_mcp]\n  worker_scope: user_agent\n" if computers else ""
     if computers:
         agent_tools += "\n      - browser_mcp"
-    # Terminals run beside the shell in the slot's sandbox runner, and people may type in them (the docstring).
-    helper_terminals = "    terminals: type\n" if terminals else ""
+    helper_terminals = ""
+    shell_review = "    - match: run_shell_command\n      script: ./approval_scripts/shell_review.py\n"
     if terminals:
+        # Terminals run beside the shells in the slot's sandbox runner, and people may type in them (the docstring);
+        # an agent types in its terminals only while no rule may ask for its shell calls.
         agent_tools += "\n      - terminal"
         worker_defaults = "  worker_tools: [shell]\n"
-    # An agent types in its terminals only while no rule may ask for its shell calls.
-    shell_review = (
-        ""
-        if terminals
-        else "    - match: run_shell_command\n      script: ./approval_scripts/shell_review.py\n"
-    )
+        helper_terminals = "    terminals: type\n"
+        shell_review = ""
     if mode == "real":
         # JSON strings are YAML flow scalars, so the script needs no escaping of its own.
         instructions = "\n".join(f"      - {json.dumps(line)}" for line in REAL_INSTRUCTIONS)

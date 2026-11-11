@@ -194,6 +194,29 @@ export const signIn = async (
 };
 
 /**
+ * Signs the tester in to MindRoom's client sessions from outside the page, with a token of its own
+ * bound to the stack's API, and returns the session token.
+ */
+export const clientSessionToken = async (stack: AgentStack): Promise<string> => {
+  const openIdToken = await matrixFetch<Record<string, unknown>>(
+    stack.homeserver,
+    `/user/${encodeURIComponent(stack.tester.userId)}/openid/request_token`,
+    {
+      method: 'POST',
+      accessToken: stack.tester.accessToken,
+      body: JSON.stringify({ 'io.mindroom.audience': new URL(stack.apiUrl).origin }),
+    }
+  );
+  const response = await fetch(`${stack.apiUrl}/api/client-sessions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ openid_token: openIdToken }),
+  });
+  expect(response.status).toBe(200);
+  return ((await response.json()) as { session_token: string }).session_token;
+};
+
+/**
  * A page signed in to an account (the tester's by default) on a device of its own: for the tester, a
  * new session that has not been verified and holds no room keys, so it cannot read encrypted rooms yet.
  */

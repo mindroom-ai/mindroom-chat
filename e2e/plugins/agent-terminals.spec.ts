@@ -1,4 +1,5 @@
 import {
+  clientSessionToken,
   expect,
   messageRow,
   openThread,
@@ -6,9 +7,7 @@ import {
   test,
   uniqueWord,
   waitForAgentReply,
-  type AgentStack,
 } from '../helpers/agentStack';
-import { matrixFetch } from '../helpers/matrix';
 
 // The agent stack with --terminals (scripts/agent-stack/stack.py's docstring): the stub's #terminal makes the
 // helper open a terminal in the slot's sandbox runner and run an echo in it. The backend's terminal routes then
@@ -21,26 +20,6 @@ test.describe.configure({ timeout: 300_000 });
 const MARKER = 'stub-terminal-42';
 
 type Terminal = { agent_user_id: string; id: string; alive: boolean; writable: boolean };
-
-/** A client session of the tester's own with the stack's backend, for a token bound to its API. */
-const signIn = async (stack: AgentStack): Promise<string> => {
-  const openIdToken = await matrixFetch<Record<string, unknown>>(
-    stack.homeserver,
-    `/user/${encodeURIComponent(stack.tester.userId)}/openid/request_token`,
-    {
-      method: 'POST',
-      accessToken: stack.tester.accessToken,
-      body: JSON.stringify({ 'io.mindroom.audience': new URL(stack.apiUrl).origin }),
-    }
-  );
-  const response = await fetch(`${stack.apiUrl}/api/client-sessions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ openid_token: openIdToken }),
-  });
-  expect(response.status).toBe(200);
-  return ((await response.json()) as { session_token: string }).session_token;
-};
 
 /** The terminals the backend's routes list in `room` for the session `token`. */
 const listTerminals = async (room: string, token: string): Promise<Terminal[]> => {
@@ -55,7 +34,7 @@ test("the helper runs a command in a terminal, which the backend's terminal rout
   page,
   stack,
 }) => {
-  const token = await signIn(stack);
+  const token = await clientSessionToken(stack);
   const room = `${stack.apiUrl}/api/rooms/${encodeURIComponent(stack.rooms.lobby)}`;
   // A reused stack keeps the terminals of earlier runs, so the test looks at the one it opens.
   const before = (await listTerminals(room, token)).map(({ id }) => id);
@@ -76,9 +55,10 @@ test("the helper runs a command in a terminal, which the backend's terminal rout
 
   // The stream admits only the slot's Chat as origin, so the page opens it.
   const stream = terminal.replace(/^http/, 'ws');
-  const shown = await page.evaluate(
+  // It resolves only once the terminal showed the marker, then what the tester typed.
+  await page.evaluate(
     ({ url, session, marker }) =>
-      new Promise<string>((resolve, reject) => {
+      new Promise<void>((resolve, reject) => {
         const socket = new WebSocket(url, ['mindroom-session', `mindroom-session.${session}`]);
         socket.binaryType = 'arraybuffer';
         const decoder = new TextDecoder();
@@ -98,7 +78,7 @@ test("the helper runs a command in a terminal, which the backend's terminal rout
           if (typed && text.includes('tester-21')) {
             clearTimeout(timer);
             socket.close();
-            resolve(text);
+            resolve();
           }
         };
         socket.onclose = ({ code }) => {
@@ -108,8 +88,6 @@ test("the helper runs a command in a terminal, which the backend's terminal rout
       }),
     { url: stream, session: token, marker: MARKER }
   );
-  expect(shown).toContain(MARKER);
-  expect(shown).toContain('tester-21');
   // Closed, so runs on a reused stack never fill the workspace's terminals.
   const closed = await fetch(terminal, {
     method: 'DELETE',

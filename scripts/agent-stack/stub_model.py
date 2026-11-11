@@ -78,16 +78,13 @@ CANVAS_PAGE = (
 # A tool step's arguments may hold this key: how long, in seconds, the model thinks before the call. It is not sent.
 THINK_SECONDS = "_think_seconds"
 
-# #terminal types this; the terminal prints stub-terminal-42, which its typed line does not hold.
-TERMINAL_COMMAND = "echo stub-terminal-$((6 * 7))"
-
-
 def terminal_command(turn: Turn) -> dict | str:
     """#terminal's second step: the command, in the terminal whose ID terminal_open answered."""
     opened = re.fullmatch(r"Opened terminal (\S+)\.", turn.results[-1].strip())
     if not opened:
         return f"The terminal did not open: {turn.results[-1]}"
-    return {"session_id": opened.group(1), "command": TERMINAL_COMMAND}
+    # The terminal prints stub-terminal-42, which the typed line does not hold.
+    return {"session_id": opened.group(1), "command": "echo stub-terminal-$((6 * 7))"}
 
 
 TOOL_SCENARIOS: dict[str, list[Step]] = {

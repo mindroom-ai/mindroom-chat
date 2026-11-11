@@ -273,7 +273,12 @@ class CommandLineTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         # A real model or plugin directories that the shell running the tests sets stay out of them.
-        environment = {"E2E_AGENT_STACK_ROOT": directory.name, "E2E_AGENT_MODEL": "", "E2E_PLUGIN_DIRS": ""}
+        environment = {
+            "E2E_AGENT_STACK_ROOT": directory.name,
+            "E2E_AGENT_MODEL": "",
+            "E2E_AGENT_TRANSCRIPTION": "",
+            "E2E_PLUGIN_DIRS": "",
+        }
         patcher = mock.patch.dict(os.environ, environment)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -804,9 +809,7 @@ class TranscriptionTests(unittest.TestCase):
         self.assertNotIn("  notes:\n", config)
 
     def test_real_transcripts_without_an_openai_key_do_not_start(self) -> None:
-        args = mock.Mock(
-            checkout=None, ref=None, model="stub", transcription="real", calls=None, calls_profile="realtime"
-        )
+        args = up_args(checkout=None, ref=None, transcription="real")
         with (
             tempfile.TemporaryDirectory() as directory,
             mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": directory, "ANTHROPIC_API_KEY": "a"}, clear=True),
@@ -1128,8 +1131,7 @@ class StubScenarioTests(unittest.TestCase):
         terminal = [{"type": "function", "function": {"name": name}} for name in ("terminal_open", "terminal_run")]
 
         def turn(*results: str) -> dict:
-            body = chat("please #terminal", *({"role": "tool", "content": result} for result in results))
-            return {**body, "tools": terminal}
+            return {**self.turn("please #terminal", *results), "tools": terminal}
 
         self.assertEqual(stub_model.plan(turn(), scenarios), ("tool", "terminal_open", {}))
         self.assertEqual(
