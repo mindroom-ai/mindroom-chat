@@ -15,14 +15,16 @@ import { roomHeader } from '../helpers/roomMenu';
 
 // The thread column end to end: a production build with the example client plugin
 // (src/app/plugins/__fixtures__/example-plugin) against the agent stack. A thread first opens in
-// the messages' place; Show beside (in the thread's More menu) moves it to a column of
-// its own beside the room's messages, with the focus in its composer. A reply sent from the column
-// leaves the room composer's draft alone. The plugin's panel opens to the right of the thread,
-// three columns, and closing it leaves two. Dragging the column's edge over the messages fills the
-// page with the column, which keeps its composer; the next thread then opens in the messages'
-// place, where Show beside waits until the composer holds no file. Show in full and back keep the
-// column's text and file. A plugin's page opens a thread with the SDK's `navigateRoomThread` the
-// way chosen. On a phone a thread opens in the messages' place whatever was chosen.
+// the messages' place; Show beside (a button on the thread's banner, also in its More menu) moves
+// it to a column of its own beside the room's messages, with the focus in its composer, inside the
+// page's card rather than in a card of its own. A reply sent from the column leaves the room
+// composer's draft alone. The plugin's panel opens to the right of the thread, three columns, and
+// closing it leaves two. Dragging the column's edge over the messages fills the page with the
+// column, which keeps its composer; the next thread then opens in the messages' place, where Show
+// beside (the banner's button and the More menu's) waits until the composer holds no file. Show in
+// full and back keep the column's text and file. A plugin's page opens a thread with the SDK's
+// `navigateRoomThread` the way chosen. On a phone a thread opens in the messages' place whatever
+// was chosen, with no Show beside.
 //   MINDROOM_CLIENT_PLUGINS=$PWD/src/app/plugins/__fixtures__/example-plugin \
 //     scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/threads/agent-thread-column.spec.ts
 test.skip(
@@ -41,6 +43,10 @@ const pageComposer = (page: Page): Locator =>
 const columnComposer = (page: Page): Locator =>
   column(page).locator('[data-editable-name="RoomInput"]');
 const banner = (scope: Page | Locator): Locator => scope.locator('[data-thread-context-banner]');
+const besideButton = (scope: Page | Locator): Locator =>
+  banner(scope).getByRole('button', { name: 'Show the thread beside the messages', exact: true });
+/** The box a side panel draws its card on; the thread column, in the page's card, draws none. */
+const columnBox = (page: Page): Locator => column(page).locator(':scope > :first-child');
 const examplePanel = (page: Page): Locator =>
   page.getByRole('region', { name: 'Example panel', exact: true });
 const storedLayout = (page: Page) =>
@@ -100,7 +106,7 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   // First use: the thread in the messages' place.
   await expect(column(page)).toHaveCount(0);
   await shot(page, 'first-use-full');
-  await showBeside(page);
+  await besideButton(page).click();
   await expect(column(page)).toBeVisible();
   await expect(messageRow(column(page), first)).toBeVisible({ timeout: 30_000 });
   await expect(columnComposer(page)).toBeFocused();
@@ -108,6 +114,7 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await expect(pageComposer(page)).toBeVisible();
   await expect(banner(page)).toHaveCount(1);
   expect(await storedLayout(page)).toBe('"beside"');
+  await expect(columnBox(page)).toHaveCSS('box-shadow', 'none');
   await shot(page, 'beside');
 
   // A draft in the room composer stays while a reply goes out from the column.
@@ -160,6 +167,7 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await expect(handle).toHaveAttribute('aria-valuetext', 'Show the thread in full');
   await page.mouse.up();
   await expect(column(page)).toHaveAttribute('data-filled', 'true');
+  await expect(columnBox(page)).toHaveCSS('box-shadow', 'none');
   await expect(messageRow(column(page), sent.event_id)).toBeVisible();
   await expect(pageComposer(page)).toBeHidden();
   // The room's header comes with it, its buttons in reach.
@@ -182,6 +190,7 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await expect(blocked).toContainText('Send or remove what the composer holds first');
   await shot(page, 'show-beside-blocked');
   await page.keyboard.press('Escape');
+  await expect(besideButton(page)).toHaveAttribute('aria-disabled', 'true');
   await pageComposer(page).press('Enter');
   await ownMessage(stack, second, staged, 'the file staged in the full view');
   await expect(pageFooter(page).getByText(staged, { exact: true })).toHaveCount(0, {
@@ -212,9 +221,7 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await expect(columnComposer(page)).toHaveText(`${unsent}more`);
   await expect(column(page).getByText(fileName, { exact: true })).toBeVisible();
   expect(await storedLayout(page)).toBe('"full"');
-  await banner(column(page))
-    .getByRole('button', { name: 'Show the thread beside the messages', exact: true })
-    .click();
+  await besideButton(column(page)).click();
   await expect(column(page)).not.toHaveAttribute('data-filled', 'true');
   await expect(pageComposer(page)).toBeVisible();
   expect(await storedLayout(page)).toBe('"beside"');
@@ -233,6 +240,7 @@ test('a thread opens beside the messages once chosen, takes their place when dra
   await page.setViewportSize({ width: 390, height: 844 });
   await showThread(page, stack, first);
   await expect(column(page)).toHaveCount(0);
+  await expect(besideButton(page)).toHaveCount(0);
   await openThreadOptions(page);
   await expect(page.getByRole('menuitem', { name: 'Copy thread link', exact: true })).toBeVisible();
   await expect(

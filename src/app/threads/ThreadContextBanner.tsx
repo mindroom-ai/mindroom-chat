@@ -64,9 +64,9 @@ export interface ThreadContextBannerProps {
   threadId: string;
   summaryInfo?: ThreadSummaryInfo;
   onExitThread: () => void;
-  /** Shows the thread in a column beside the room's messages, from their place (in More). */
+  /** Shows the thread in a column beside the room's messages, from their place (button, More). */
   onShowBeside?: () => void;
-  /** More offers Show beside but refuses it: the composer holds a reply, files or a recording. */
+  /** Show beside is offered but refused: the composer holds a reply, files or a recording. */
   showBesideBlocked?: boolean;
   /** Fills the room page with the thread's column. */
   onShowFull?: () => void;
@@ -290,10 +290,17 @@ export function ThreadContextBanner({
   // which hide it.
   const resolverBylineId = useId();
 
-  // The column's button: fill the page with it, or take it back beside the messages.
+  // The column's button: fill the page with it, or take it (or the thread in the messages' place)
+  // beside the messages. Only from the messages' place does it wait, while their composer is busy.
+  const toBeside = onRestore ?? onShowBeside;
   const columnToggle = onShowFull
-    ? { label: t('thread.showFull'), icon: ExpandIcon, onClick: onShowFull }
-    : onRestore && { label: t('thread.showBeside'), icon: ShrinkIcon, onClick: onRestore };
+    ? { label: t('thread.showFull'), icon: ExpandIcon, onClick: onShowFull, blocked: false }
+    : toBeside && {
+        label: t('thread.showBeside'),
+        icon: ShrinkIcon,
+        onClick: toBeside,
+        blocked: !onRestore && !!showBesideBlocked,
+      };
 
   const backButton = phone ? (
     <PhoneBackButton label={t('thread.back')} onBack={onExitThread} />
@@ -499,15 +506,20 @@ export function ThreadContextBanner({
             </div>
             <Box alignItems="Center" gap="100" shrink="No">
               {columnToggle && (
-                <IconTooltip label={columnToggle.label}>
+                <IconTooltip
+                  label={columnToggle.label}
+                  hint={columnToggle.blocked ? t('thread.showBesideBlocked') : undefined}
+                >
                   {(triggerRef) => (
+                    // Waiting, it keeps its focus and name, and its tooltip says why.
                     <IconButton
                       ref={triggerRef}
                       className={toolbarCss.MessageOptionsButton}
                       variant="SurfaceVariant"
                       fill="None"
                       aria-label={columnToggle.label}
-                      onClick={columnToggle.onClick}
+                      aria-disabled={columnToggle.blocked || undefined}
+                      onClick={columnToggle.blocked ? undefined : columnToggle.onClick}
                     >
                       <Icon size="100" src={columnToggle.icon} />
                     </IconButton>
