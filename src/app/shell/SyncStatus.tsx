@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { ClientEvent, SyncState, type MatrixClient, type SyncStateData } from 'matrix-js-sdk';
 import { useHomeserverUnreachable } from '../matrix/client/homeserverReachability';
 import { useSyncStalled } from '../matrix/client/syncStall';
+import { useMediaAuthenticationUnavailable } from '../matrix/hooks/useMediaAuthentication';
 import { useCloudflareAccessSignInRequired } from '../native/cloudflareAccess';
 import { hostOf } from '../lib/httpUrl';
 import { NOTICE_LEAVE_MS, pageNoticeSlotAtom } from '../ui/noticeSlots';
@@ -61,6 +62,7 @@ export function SyncStatus({ mx, reported = true }: SyncStatusProps) {
   const stalled = useSyncStalled(mx);
   const baseUrl = mx.getHomeserverUrl();
   const signInRequired = useCloudflareAccessSignInRequired(baseUrl);
+  const mediaUnavailable = useMediaAuthenticationUnavailable();
 
   useEffect(() => {
     const handleSync = (current: SyncState, _previous: SyncState | null, data?: SyncStateData) => {
@@ -91,6 +93,8 @@ export function SyncStatus({ mx, reported = true }: SyncStatusProps) {
     };
   } else if (snapshot.catchingUp) {
     status = { message: t('sharedUi.syncStatus.catchingUp'), critical: false };
+  } else if (mediaUnavailable) {
+    status = { message: t('sharedUi.syncStatus.mediaUnavailable'), critical: false, settled: true };
   }
 
   return (
@@ -103,7 +107,8 @@ export function SyncStatus({ mx, reported = true }: SyncStatusProps) {
   );
 }
 
-type Status = { message: string; critical: boolean };
+/** `settled`: nothing is in progress, so the pill shows no spinner. */
+type Status = { message: string; critical: boolean; settled?: boolean };
 
 /**
  * The pill: it comes in when there is something to say, changes in place, and plays its way out
@@ -140,8 +145,8 @@ function SyncStatusPill({ status }: { status: Status | undefined }) {
         if (event.target === event.currentTarget && !leaving) cameIn.current = true;
       }}
     >
-      {shown.critical ? (
-        <Icon src={Icons.Warning} size="100" filled />
+      {shown.critical || shown.settled ? (
+        <Icon src={Icons.Warning} size="100" filled={shown.critical} />
       ) : (
         <Spinner size="100" variant="Secondary" />
       )}

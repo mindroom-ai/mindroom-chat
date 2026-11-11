@@ -272,6 +272,9 @@
     "passwordResetForm": {
       "emailResetUnavailable": "This server can't reset passwords by email.",
       "emailResetUnavailableSso": "This server can't reset passwords by email. If you signed up with {{provider}}, <authLink>sign in with {{provider}}</authLink> instead."
+    },
+    "syncStatus": {
+      "mediaUnavailable": "Images can't load in this window: the browser runs no service worker for MindRoom here."
     }
   },
   "featureUi": {

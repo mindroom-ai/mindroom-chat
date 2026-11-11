@@ -268,6 +268,9 @@
     "passwordResetForm": {
       "emailResetUnavailable": "Server ini tidak dapat mengatur ulang kata sandi lewat email.",
       "emailResetUnavailableSso": "Server ini tidak dapat mengatur ulang kata sandi lewat email. Jika Anda mendaftar dengan {{provider}}, <authLink>masuklah dengan {{provider}}</authLink> sebagai gantinya."
+    },
+    "syncStatus": {
+      "mediaUnavailable": "Gambar tidak dapat dimuat di jendela ini: browser tidak menjalankan service worker untuk MindRoom di sini."
     }
   },
   "featureUi": {

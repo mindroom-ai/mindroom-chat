@@ -214,7 +214,7 @@ describe('SyncStatus', () => {
     const { mx, request } = createClient();
     const text = render(mx);
     expect(text()).toBe(
-      "Some images can't load in this window: the browser runs no service worker here, which images from your homeserver need. Open MindRoom in a normal window with site data allowed."
+      "Images can't load in this window: the browser runs no service worker for MindRoom here."
     );
     // Without a spinner: nothing is in progress.
     expect(renderer!.root.findAll((node) => node.props.variant === 'Secondary')).toHaveLength(0);

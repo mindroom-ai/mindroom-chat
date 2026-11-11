@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Capacitor } from '@capacitor/core';
 import type { SpecVersions } from '../cs-api';
 import { supportsAuthenticatedMedia } from '../mediaUrl';
@@ -57,4 +57,45 @@ export const useMediaAuthentication = (): boolean => {
   }, []);
 
   return shouldUseMediaAuthentication(specVersions, transportSupported);
+};
+
+// Startup (src/index.tsx) reports a browser that cannot run the service worker. Media then goes to
+// the legacy endpoints, which a homeserver may refuse; a legacy image that fails shows it does.
+let workerUnavailable = false;
+let legacyMediaFailed = false;
+const listeners = new Set<() => void>();
+const LEGACY_MEDIA_PATH = /\/_matrix\/media\/(?:v3|r0)\/(?:download|thumbnail)\//;
+
+const handleImageError = (event: Event) => {
+  const { target } = event;
+  if (legacyMediaFailed || !(target instanceof HTMLImageElement)) return;
+  if (!LEGACY_MEDIA_PATH.test(target.currentSrc || target.src)) return;
+  legacyMediaFailed = true;
+  listeners.forEach((listener) => listener());
+};
+
+/** Called at startup when no service worker can control this page. */
+export const markServiceWorkerUnavailable = (): void => {
+  if (workerUnavailable) return;
+  workerUnavailable = true;
+  // Load errors do not bubble, so the document hears them while they travel down to the image.
+  document.addEventListener('error', handleImageError, true);
+  listeners.forEach((listener) => listener());
+};
+
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+};
+
+const readLegacyMediaRefused = () => workerUnavailable && legacyMediaFailed;
+
+/**
+ * Whether images fail because nothing in this window can add the access token: no service worker
+ * can control it, the homeserver has authenticated media, and it refused a legacy media image.
+ */
+export const useMediaAuthenticationUnavailable = (): boolean => {
+  const specVersions = useSpecVersions();
+  const refused = useSyncExternalStore(subscribe, readLegacyMediaRefused);
+  return refused && !readTransportSupport() && supportsAuthenticatedMedia(specVersions);
 };

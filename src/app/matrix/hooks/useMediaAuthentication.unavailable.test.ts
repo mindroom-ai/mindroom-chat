@@ -50,7 +50,8 @@ const failImage = (src: string) =>
     image.dispatchEvent(new Event('error'));
   });
 
-const LEGACY_EMOJI = 'https://matrix.example/_matrix/media/v3/thumbnail/matrix.example/abc?width=32';
+const LEGACY_EMOJI =
+  'https://matrix.example/_matrix/media/v3/thumbnail/matrix.example/abc?width=32';
 
 describe('useMediaAuthenticationUnavailable', () => {
   it('turns on once a legacy media image fails on a page that cannot run the service worker', async () => {

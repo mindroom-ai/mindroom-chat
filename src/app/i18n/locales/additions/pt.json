@@ -276,6 +276,9 @@
     "passwordResetForm": {
       "emailResetUnavailable": "Este servidor não consegue redefinir senhas por e-mail.",
       "emailResetUnavailableSso": "Este servidor não consegue redefinir senhas por e-mail. Se você se cadastrou com {{provider}}, <authLink>entre com {{provider}}</authLink>."
+    },
+    "syncStatus": {
+      "mediaUnavailable": "As imagens não podem ser carregadas nesta janela: o navegador não executa aqui nenhum service worker para o MindRoom."
     }
   },
   "featureUi": {

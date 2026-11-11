@@ -276,6 +276,9 @@
     "passwordResetForm": {
       "emailResetUnavailable": "Questo server non può reimpostare le password via email.",
       "emailResetUnavailableSso": "Questo server non può reimpostare le password via email. Se ti sei registrato con {{provider}}, <authLink>accedi con {{provider}}</authLink>."
+    },
+    "syncStatus": {
+      "mediaUnavailable": "Le immagini non possono essere caricate in questa finestra: il browser qui non esegue alcun service worker per MindRoom."
     }
   },
   "featureUi": {

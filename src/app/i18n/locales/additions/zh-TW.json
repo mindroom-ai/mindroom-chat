@@ -268,6 +268,9 @@
     "passwordResetForm": {
       "emailResetUnavailable": "此伺服器無法透過電子郵件重設密碼。",
       "emailResetUnavailableSso": "此伺服器無法透過電子郵件重設密碼。如果你是用 {{provider}} 註冊的，請改為<authLink>使用 {{provider}} 登入</authLink>。"
+    },
+    "syncStatus": {
+      "mediaUnavailable": "此視窗無法載入圖片：瀏覽器在此處沒有為 MindRoom 執行 Service Worker。"
     }
   },
   "featureUi": {

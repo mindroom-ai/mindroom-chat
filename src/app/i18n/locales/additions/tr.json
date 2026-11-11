@@ -272,6 +272,9 @@
     "passwordResetForm": {
       "emailResetUnavailable": "Bu sunucu parolaları e-postayla sıfırlayamaz.",
       "emailResetUnavailableSso": "Bu sunucu parolaları e-postayla sıfırlayamaz. {{provider}} ile kaydolduysanız bunun yerine <authLink>{{provider}} ile oturum açın</authLink>."
+    },
+    "syncStatus": {
+      "mediaUnavailable": "Bu pencerede görseller yüklenemiyor: tarayıcı burada MindRoom için hizmet çalışanı çalıştırmıyor."
     }
   },
   "featureUi": {

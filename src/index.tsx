@@ -41,6 +41,7 @@ import {
 import { APP_BUILD_VERSION, startAppVersionMonitor } from './app/config/appVersion';
 import { watchForNewVersion } from './app/config/appUpdate';
 import { createServiceWorkerUrl } from './app/config/serviceWorkerRegistration';
+import { markServiceWorkerUnavailable } from './app/matrix/hooks/useMediaAuthentication';
 import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from './boot/serviceWorkerNavigation';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/lib/basePath';
 import { installErrorCapture } from './app/bug-reports/error-reporting/errorReporting';
@@ -135,12 +136,20 @@ const hasActivatedServiceWorker = async (): Promise<boolean> => {
 };
 
 /**
- * A signed-in page the service worker does not control cannot load
- * authenticated media. Reload once, marked as a recovery navigation, so the
- * worker can take the page; the address, history state and scroll target
- * stay as they were.
+ * A page the service worker does not control cannot load authenticated media. The worker claims
+ * it when asked (src/sw/sw.ts), and the media hook follows the new controller. A signed-in page
+ * that stays without one, as with an older worker that ignores the request, reloads once, marked
+ * as a recovery navigation; the address, history state and scroll target stay as they were.
  */
 const recoverServiceWorkerControl = async (): Promise<void> => {
+  if (!navigator.serviceWorker.controller) {
+    const worker = await getActiveServiceWorker();
+    try {
+      worker?.postMessage({ type: 'claim' });
+    } catch {
+      // A worker that cannot take the message leaves the reload below.
+    }
+  }
   if (!getActiveSession()) return;
   let alreadyReloaded = true;
   runSafely('recovery reload marker', () => {
@@ -181,7 +190,11 @@ const clearRecoveryMarker = (): void => {
 };
 
 const startServiceWorker = (): void => {
-  if (!isServiceWorkerEnabled() || typeof navigator === 'undefined' || !navigator.serviceWorker) {
+  if (!isServiceWorkerEnabled() || typeof navigator === 'undefined') return;
+  // Without a worker (none in this browser, or registration refused, as in some private windows)
+  // nothing adds the access token to media requests.
+  if (!navigator.serviceWorker) {
+    markServiceWorkerUnavailable();
     return;
   }
   const { serviceWorker } = navigator;
@@ -191,10 +204,15 @@ const startServiceWorker = (): void => {
       type: 'classic',
       updateViaCache: 'none',
     })
-  ).catch((error: unknown) => {
-    // eslint-disable-next-line no-console
-    console.warn('[startup] service worker registration failed', error, appUrl('sw.js'));
-  });
+  )
+    .then((registration: ServiceWorkerRegistration | undefined) => {
+      if (!registration) markServiceWorkerUnavailable();
+    })
+    .catch((error: unknown) => {
+      markServiceWorkerUnavailable();
+      // eslint-disable-next-line no-console
+      console.warn('[startup] service worker registration failed', error, appUrl('sw.js'));
+    });
   serviceWorker.addEventListener('controllerchange', pushActiveSession);
   // The worker asks when a media request arrives from a tab it has no session for.
   runSafely('session requests', () => {
