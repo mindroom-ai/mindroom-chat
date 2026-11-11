@@ -671,6 +671,22 @@
       "jobCountShowing": "バックグラウンドジョブ {{count}} 件（{{shown}} 件を表示）",
       "finished": "完了: {{tool}}",
       "jobCountFinished": "バックグラウンドジョブ {{count}} 件が完了"
+    },
+    "subagents": {
+      "title": "サブエージェント",
+      "close": "閉じる",
+      "empty": "このルームで実行中のサブエージェントはありません。",
+      "from": "{{name}} から",
+      "showTask": "タスクを表示",
+      "showOutput": "出力を表示",
+      "running": "実行中",
+      "awaiting_approval": "承認待ち",
+      "paused": "一時停止",
+      "completed": "完了",
+      "failed": "失敗",
+      "cancelled": "停止済み",
+      "denied": "拒否済み",
+      "count_other": "{{count}} 件実行中"
     }
   },
   "composer": {

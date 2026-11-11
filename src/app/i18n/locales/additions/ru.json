@@ -704,6 +704,25 @@
       "jobCountShowing": "Фоновых задач: {{count}} (показано: {{shown}})",
       "finished": "Завершено: {{tool}}",
       "jobCountFinished": "Завершено фоновых задач: {{count}}"
+    },
+    "subagents": {
+      "title": "Субагенты",
+      "close": "Закрыть",
+      "empty": "В этой комнате нет работающих субагентов.",
+      "from": "от {{name}}",
+      "showTask": "Показать задачу",
+      "showOutput": "Показать вывод",
+      "running": "Выполняется",
+      "awaiting_approval": "Ждёт одобрения",
+      "paused": "Пауза",
+      "completed": "Готово",
+      "failed": "Ошибка",
+      "cancelled": "Остановлено",
+      "denied": "Запрещено",
+      "count_one": "Выполняется: {{count}}",
+      "count_few": "Выполняется: {{count}}",
+      "count_many": "Выполняется: {{count}}",
+      "count_other": "Выполняется: {{count}}"
     }
   },
   "composer": {

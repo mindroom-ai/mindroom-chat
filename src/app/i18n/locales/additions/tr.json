@@ -682,6 +682,23 @@
       "jobCountShowing": "{{count}} arka plan işi ({{shown}} tanesi gösteriliyor)",
       "finished": "Tamamlandı: {{tool}}",
       "jobCountFinished": "{{count}} arka plan işi tamamlandı"
+    },
+    "subagents": {
+      "title": "Alt ajanlar",
+      "close": "Kapat",
+      "empty": "Bu odada çalışan alt ajan yok.",
+      "from": "Gönderen: {{name}}",
+      "showTask": "Görevi göster",
+      "showOutput": "Çıktıyı göster",
+      "running": "Çalışıyor",
+      "awaiting_approval": "Onay bekliyor",
+      "paused": "Duraklatıldı",
+      "completed": "Bitti",
+      "failed": "Başarısız",
+      "cancelled": "Durduruldu",
+      "denied": "Reddedildi",
+      "count_one": "{{count}} çalışıyor",
+      "count_other": "{{count}} çalışıyor"
     }
   },
   "composer": {

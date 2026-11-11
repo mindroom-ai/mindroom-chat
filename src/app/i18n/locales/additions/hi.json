@@ -682,6 +682,23 @@
       "jobCountShowing": "{{count}} बैकग्राउंड कार्य ({{shown}} दिखाए गए)",
       "finished": "पूरा हुआ: {{tool}}",
       "jobCountFinished": "{{count}} बैकग्राउंड कार्य पूरे हुए"
+    },
+    "subagents": {
+      "title": "सब-एजेंट",
+      "close": "बंद करें",
+      "empty": "इस रूम में कोई सब-एजेंट नहीं चल रहा है।",
+      "from": "{{name}} से",
+      "showTask": "काम दिखाएँ",
+      "showOutput": "आउटपुट दिखाएँ",
+      "running": "चल रहा है",
+      "awaiting_approval": "अनुमोदन की प्रतीक्षा में",
+      "paused": "रुका हुआ",
+      "completed": "हो गया",
+      "failed": "विफल",
+      "cancelled": "रोका गया",
+      "denied": "अस्वीकृत",
+      "count_one": "{{count}} चल रहा है",
+      "count_other": "{{count}} चल रहे हैं"
     }
   },
   "composer": {

@@ -671,6 +671,22 @@
       "jobCountShowing": "{{count}} 個背景工作（顯示 {{shown}} 個）",
       "finished": "已完成：{{tool}}",
       "jobCountFinished": "{{count}} 個背景工作已完成"
+    },
+    "subagents": {
+      "title": "子代理",
+      "close": "關閉",
+      "empty": "此聊天室中沒有正在執行的子代理。",
+      "from": "來自 {{name}}",
+      "showTask": "顯示任務",
+      "showOutput": "顯示輸出",
+      "running": "執行中",
+      "awaiting_approval": "等待批准",
+      "paused": "已暫停",
+      "completed": "完成",
+      "failed": "失敗",
+      "cancelled": "已停止",
+      "denied": "已拒絕",
+      "count_other": "{{count}} 個執行中"
     }
   },
   "composer": {

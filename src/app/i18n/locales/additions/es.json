@@ -693,6 +693,24 @@
       "jobCountShowing": "{{count}} tareas en segundo plano (se muestran {{shown}})",
       "finished": "Terminado: {{tool}}",
       "jobCountFinished": "{{count}} tareas en segundo plano terminadas"
+    },
+    "subagents": {
+      "title": "Subagentes",
+      "close": "Cerrar",
+      "empty": "No hay subagentes en ejecución en esta sala.",
+      "from": "de {{name}}",
+      "showTask": "Mostrar tarea",
+      "showOutput": "Mostrar salida",
+      "running": "En ejecución",
+      "awaiting_approval": "Esperando aprobación",
+      "paused": "En pausa",
+      "completed": "Listo",
+      "failed": "Falló",
+      "cancelled": "Detenido",
+      "denied": "Denegado",
+      "count_one": "{{count}} en ejecución",
+      "count_many": "{{count}} en ejecución",
+      "count_other": "{{count}} en ejecución"
     }
   },
   "composer": {

@@ -693,6 +693,24 @@
       "jobCountShowing": "{{count}} attività in background ({{shown}} mostrate)",
       "finished": "Completato: {{tool}}",
       "jobCountFinished": "{{count}} attività in background completate"
+    },
+    "subagents": {
+      "title": "Sottoagenti",
+      "close": "Chiudi",
+      "empty": "Nessun sottoagente è in esecuzione in questa stanza.",
+      "from": "da {{name}}",
+      "showTask": "Mostra compito",
+      "showOutput": "Mostra output",
+      "running": "In esecuzione",
+      "awaiting_approval": "In attesa di approvazione",
+      "paused": "In pausa",
+      "completed": "Fatto",
+      "failed": "Non riuscito",
+      "cancelled": "Interrotto",
+      "denied": "Negato",
+      "count_one": "{{count}} in esecuzione",
+      "count_many": "{{count}} in esecuzione",
+      "count_other": "{{count}} in esecuzione"
     }
   },
   "composer": {

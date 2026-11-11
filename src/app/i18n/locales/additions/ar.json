@@ -726,6 +726,27 @@
       "jobCountShowing": "مهام في الخلفية: ⁨{{count}}⁩ (المعروض: ⁨{{shown}}⁩)",
       "finished": "انتهى: ⁨{{tool}}⁩",
       "jobCountFinished": "مهام منتهية في الخلفية: ⁨{{count}}⁩"
+    },
+    "subagents": {
+      "title": "الوكلاء الفرعيون",
+      "close": "إغلاق",
+      "empty": "لا يعمل أي وكيل فرعي في هذه الغرفة.",
+      "from": "من ⁨{{name}}⁩",
+      "showTask": "عرض المهمة",
+      "showOutput": "عرض المخرجات",
+      "running": "قيد التشغيل",
+      "awaiting_approval": "بانتظار الموافقة",
+      "paused": "متوقف مؤقتًا",
+      "completed": "تم",
+      "failed": "فشل",
+      "cancelled": "تم الإيقاف",
+      "denied": "تم الرفض",
+      "count_zero": "قيد التشغيل: ⁨{{count}}⁩",
+      "count_one": "قيد التشغيل: ⁨{{count}}⁩",
+      "count_two": "قيد التشغيل: ⁨{{count}}⁩",
+      "count_few": "قيد التشغيل: ⁨{{count}}⁩",
+      "count_many": "قيد التشغيل: ⁨{{count}}⁩",
+      "count_other": "قيد التشغيل: ⁨{{count}}⁩"
     }
   },
   "composer": {

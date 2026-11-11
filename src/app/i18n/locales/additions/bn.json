@@ -682,6 +682,23 @@
       "jobCountShowing": "{{count}}টি ব্যাকগ্রাউন্ড কাজ ({{shown}}টি দেখানো হচ্ছে)",
       "finished": "শেষ হয়েছে: {{tool}}",
       "jobCountFinished": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে"
+    },
+    "subagents": {
+      "title": "সাব-এজেন্ট",
+      "close": "বন্ধ করুন",
+      "empty": "এই রুমে কোনো সাব-এজেন্ট চলছে না।",
+      "from": "{{name}} থেকে",
+      "showTask": "কাজ দেখান",
+      "showOutput": "আউটপুট দেখান",
+      "running": "চলছে",
+      "awaiting_approval": "অনুমোদনের অপেক্ষায়",
+      "paused": "থামানো",
+      "completed": "সম্পন্ন",
+      "failed": "ব্যর্থ",
+      "cancelled": "বন্ধ করা হয়েছে",
+      "denied": "প্রত্যাখ্যাত",
+      "count_one": "{{count}}টি চলছে",
+      "count_other": "{{count}}টি চলছে"
     }
   },
   "composer": {

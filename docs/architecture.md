@@ -79,6 +79,8 @@ src/
                          settings/
     schedules/           the scheduled tasks dialog and button
     search/              message search page, filters, results, highlighting
+    subagents/           the Sub-agents side panel: a card per live sub-agent run, nested under the run that
+                         started it
     rooms/               room management: cards, access control, leave prompt; create/, explore/ (route), join/,
                          settings/ (room settings pages), archive/
     threads/             thread features: overview/ (list, compact view, filters), open/ (session, bootstrap), tags/,
@@ -156,7 +158,7 @@ A domain imports only domains in a strictly lower layer. Runtime, type-only and 
 | 5 | `computer`, `emoji`, `event-store` |
 | 6 | `approvals`, `bug-reports`, `calls`, `connections`, `editor` |
 | 7 | `background-jobs`, `members`, `messages` |
-| 8 | `canvas`, `composer`, `notifications`, `schedules`, `search` |
+| 8 | `canvas`, `composer`, `notifications`, `schedules`, `search`, `subagents` |
 | 9 | `rooms`, `threads` |
 | 10 | `account`, `activity`, `spaces`, `timeline` |
 | 11 | `command-palette`, `local-mindroom`, `room` |
