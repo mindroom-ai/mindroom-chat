@@ -22,6 +22,7 @@ The person's latest message picks a scenario by hashtag:
   #canvas      show_canvas with a page that submits a color
   #canvasrtl   the same page, titled in Arabic around a Latin file name
   #job         a shell call that runs 45 s as a background job
+  #terminal    terminal_open, then terminal_run of an echo in the terminal it opened (stack.py --terminals)
 
 --scenarios FILE (repeatable; stack.py passes each plugin directory's e2e/stub-scenarios.json) adds tool scenarios in
 the same shape as TOOL_SCENARIOS below, as JSON: {"#hashtag": [["tool_function", {"argument": "value"}], ...]}.
@@ -77,7 +78,16 @@ CANVAS_PAGE = (
 # A tool step's arguments may hold this key: how long, in seconds, the model thinks before the call. It is not sent.
 THINK_SECONDS = "_think_seconds"
 
-TOOL_SCENARIOS: dict[str, list[tuple[str, dict]]] = {
+def terminal_command(turn: Turn) -> dict | str:
+    """#terminal's second step: the command, in the terminal whose ID terminal_open answered."""
+    opened = re.fullmatch(r"Opened terminal (\S+)\.", turn.results[-1].strip())
+    if not opened:
+        return f"The terminal did not open: {turn.results[-1]}"
+    # The terminal prints stub-terminal-42, which the typed line does not hold.
+    return {"session_id": opened.group(1), "command": "echo stub-terminal-$((6 * 7))"}
+
+
+TOOL_SCENARIOS: dict[str, list[Step]] = {
     "#shell": [("run_shell_command", {"args": "echo hello from the stub"})],
     "#multi": [
         ("run_shell_command", {"args": "echo step one"}),
@@ -102,6 +112,7 @@ TOOL_SCENARIOS: dict[str, list[tuple[str, dict]]] = {
     "#job": [
         ("run_shell_command", {"args": "sleep 45; echo background job finished", "background_after": 0})
     ],
+    "#terminal": [("terminal_open", {}), ("terminal_run", terminal_command)],
 }
 TEXT_SCENARIOS = ("#stopme", "#slow", "#long", "#think", "#markdown", "#error", "#ask")
 

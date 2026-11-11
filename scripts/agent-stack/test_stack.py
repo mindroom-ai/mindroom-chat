@@ -51,7 +51,9 @@ class ConfigTests(unittest.TestCase):
         self.assertNotIn(STUB_URL, config)
         # Every scenario of the stub has a line in the script.
         script = "\n".join(stack.REAL_INSTRUCTIONS)
-        for tag in ("#slow", "#stopme", "#long", "#multi", "#pause", "#approve", "#title", "#tag", "#expire", "#job"):
+        for tag in (
+            "#slow", "#stopme", "#long", "#multi", "#pause", "#approve", "#title", "#tag", "#expire", "#job", "#terminal"
+        ):
             self.assertIn(f"{tag}:", script)
 
     def test_a_key_in_the_environment_never_reaches_the_config(self) -> None:
@@ -260,6 +262,7 @@ def up_args(**changes: object) -> argparse.Namespace:
         "computers": False,
         "computer_image": None,
         "computer_tools": "browser_mcp",
+        "terminals": False,
         "approval_expiry_days": 0.0003,
     }
     return argparse.Namespace(**{**values, **changes})
@@ -275,6 +278,7 @@ class CommandLineTests(unittest.TestCase):
         environment = {
             "E2E_AGENT_STACK_ROOT": directory.name,
             "E2E_AGENT_MODEL": "",
+            "E2E_AGENT_TRANSCRIPTION": "",
             "E2E_PLUGIN_DIRS": "",
             "E2E_COMPUTER_IMAGE": "",
         }
@@ -328,6 +332,76 @@ class CommandLineTests(unittest.TestCase):
     def test_a_given_image_and_tools_replace_the_built_image_and_the_browser_alone(self) -> None:
         computers = self.computers_of("--computers", "--computer-image", "worker:given", "--computer-tools", "browser_mcp,shell")
         self.assertEqual(computers, {"image": "worker:given", "tools": ["browser_mcp", "shell"]})
+
+    def test_terminals_bring_the_client_session_settings_and_refuse_computers(self) -> None:
+        with mock.patch.object(stack, "up", return_value={}) as up:
+            self.assertEqual(self.main("5", "up", "--terminals"), 0)
+            self.assertTrue(up.call_args.args[1].client_sessions)
+            self.assertEqual(self.main("5", "up", "--terminals", "--computers"), 2)
+        self.assertIn("--terminals and --computers", self.stderr.getvalue())
+
+    def test_terminals_start_the_slot_runner_beside_the_backend_with_a_token_of_their_own(self) -> None:
+        with self.starting(), mock.patch.object(stack, "commit_has", return_value=True) as commit_has:
+            self.assertEqual(self.main("7", "up", "--terminals"), 0)
+        commit_has.assert_any_call(Path("/mindroom"), "a" * 40, "src/mindroom/tools/terminal.py")
+        runner_call = next(call for call in self.start_process.call_args_list if "-c" in call.args[0])
+        command, env = runner_call.args[0], runner_call.kwargs["env"]
+        # Loopback only, at the slot's own port, and marked as the slot's own process.
+        self.assertIn("host='127.0.0.1'", stack.SANDBOX_RUNNER)
+        self.assertEqual(command[command.index("-c") + 2 :], ["29907", str(self.slot_dir)])
+        settings = dict(line.split("=", 1) for line in (self.slot_dir / ".env").read_text().splitlines() if line)
+        token = settings["MINDROOM_SANDBOX_PROXY_TOKEN"]
+        self.assertGreaterEqual(len(token), 32)
+        self.assertEqual(env["MINDROOM_SANDBOX_PROXY_TOKEN"], token)
+        self.assertEqual(env["MINDROOM_SANDBOX_RUNNER_MODE"], "true")
+        # The runner works in the backend's storage, so the agents' workspaces are the ones it shows.
+        self.assertEqual(env["MINDROOM_STORAGE_PATH"], str(self.slot_dir / "storage"))
+        self.assertNotIn("MINDROOM_CONFIG_PATH", env)
+        self.assertEqual(settings["MINDROOM_WORKER_BACKEND"], "static_runner")
+        self.assertEqual(settings["MINDROOM_SANDBOX_PROXY_URL"], "http://127.0.0.1:29907")
+        self.assertEqual(settings["MINDROOM_STATIC_RUNNER_AGENT_STORAGE"], "true")
+        self.assertEqual(settings["MINDROOM_PUBLIC_URL"], "http://127.0.0.1:29607")
+        config = (self.slot_dir / "config.yaml").read_text()
+        self.assertIn("      - terminal\n", config)
+        self.assertNotIn("match: run_shell_command", config)
+        state = stack.read_state(self.slot_dir)
+        self.assertTrue(state["terminals"])
+        self.assertEqual(state["logs"]["runner"], str(self.slot_dir / "runner.log"))
+
+    def test_a_runner_that_exits_while_starting_stops_the_start_with_its_log(self) -> None:
+        def wait(description, check, *_args, **_kwargs):
+            if description == "the sandbox runner":
+                (self.slot_dir / "runner.log").write_text("Address already in use")
+                return check()
+            return {}
+
+        with (
+            self.starting(),
+            mock.patch.object(stack, "commit_has", return_value=True),
+            mock.patch.object(stack, "wait_until", side_effect=wait),
+        ):
+            self.assertEqual(self.main("7", "up", "--terminals"), 1)
+        self.assertIn("the sandbox runner exited while starting", self.stderr.getvalue())
+        self.assertIn("Address already in use", self.stderr.getvalue())
+
+    def test_terminals_refuse_a_commit_without_the_terminal_toolkit(self) -> None:
+        with self.starting(), mock.patch.object(stack, "commit_has", return_value=False):
+            self.assertEqual(self.main("7", "up", "--terminals"), stack.EXIT_NO_TERMINALS)
+        self.assertIn(f"MindRoom {'a' * 12} has no terminal toolkit", self.stderr.getvalue())
+        self.start_process.assert_not_called()
+        self.assertFalse(self.slot_dir.exists())
+
+    def test_down_stops_the_runner_with_the_backend_and_the_stub(self) -> None:
+        self.slot_dir.mkdir()
+        pids = {"backend": 11, "stub": 12, "runner": 13}
+        (self.slot_dir / "state.json").write_text(json.dumps({"pids": pids, "terminals": True}))
+        with mock.patch.object(stack, "stop_process") as stop_process:
+            self.assertEqual(self.main("7", "down"), 0)
+        self.assertEqual(
+            sorted(call.args for call in stop_process.call_args_list),
+            [(pid, str(self.slot_dir)) for pid in (11, 12, 13)],
+        )
+        self.assertFalse(self.slot_dir.exists())
 
     def mode(self, path: Path) -> int:
         return path.stat().st_mode & 0o777
@@ -623,10 +697,12 @@ class SlotTeardownTests(unittest.TestCase):
 class SlotTests(unittest.TestCase):
     def test_no_two_slots_up_to_99_share_a_port(self) -> None:
         self.assertEqual(
-            stack.ports(42), {"matrix": 28142, "app": 4342, "api": 29642, "stub": 29742, "origin": 29842}
+            stack.ports(42),
+            {"matrix": 28142, "app": 4342, "api": 29642, "stub": 29742, "origin": 29842, "runner": 29942},
         )
         self.assertEqual(
-            stack.ports(0), {"matrix": 28008, "app": 4200, "api": 29600, "stub": 29700, "origin": 29800}
+            stack.ports(0),
+            {"matrix": 28008, "app": 4200, "api": 29600, "stub": 29700, "origin": 29800, "runner": 29900},
         )
         taken = [port for slot in range(100) for port in stack.ports(slot).values()]
         self.assertEqual(len(taken), len(set(taken)))
@@ -678,6 +754,29 @@ class OptionTests(unittest.TestCase):
         self.assertNotIn("browser_mcp", plain)
         self.assertNotIn("worker_", plain)
 
+    def test_terminals_give_the_helper_a_terminal_it_types_in_beside_its_shell_in_the_runner(self) -> None:
+        for mode in ("stub", "real"):
+            config = stack.config_yaml(mode, TESTER, STUB_URL, 0.0003, terminals=True)
+            helper = config.split("  helper:\n", 1)[1].split("  scout:\n", 1)[0].split("\nrouter:", 1)[0]
+            self.assertIn("      - shell\n", helper, mode)
+            self.assertIn("      - terminal\n", helper, mode)
+            self.assertIn("    terminals: type\n", helper, mode)
+            self.assertIn("defaults:\n  markdown: true\n  worker_tools: [shell]\n", config, mode)
+            # The helper types only while no approval rule may ask for its shell calls.
+            self.assertNotIn("match: run_shell_command", config, mode)
+            self.assertNotIn("shell_review", config, mode)
+            self.assertIn("    - match: resolve_thread\n", config, mode)
+        plain = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003)
+        self.assertIn("    - match: run_shell_command\n      script: ./approval_scripts/shell_review.py\n", plain)
+        self.assertNotIn("terminal", plain)
+        self.assertNotIn("worker_tools", plain)
+
+    def test_a_terminals_stack_runs_only_while_its_runner_runs(self) -> None:
+        state = {"ready": True, "model": "stub", "terminals": True, "pids": {"backend": 1, "stub": 2, "runner": 3}}
+        with mock.patch.object(stack, "alive", side_effect=lambda pid, _marker: pid != 3):
+            self.assertFalse(stack.running(state, Path("/slot")))
+            self.assertTrue(stack.running({**state, "terminals": False}, Path("/slot")))
+
     def test_a_running_stack_is_reused_only_with_the_options_it_started_with(self) -> None:
         sha, homeserver = "a" * 40, "http://127.0.0.1:28142"
         state = {
@@ -702,6 +801,9 @@ class OptionTests(unittest.TestCase):
             client_sessions=True, computers=True, computer_image="worker:given", computer_tools="browser_mcp,shell"
         )
         self.assertFalse(stack.started_with(computers, with_shell, sha, homeserver))
+        self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True, terminals=True), sha, homeserver))
+        terminals = {**sessions, "terminals": True}
+        self.assertTrue(stack.started_with(terminals, up_args(client_sessions=True, terminals=True), sha, homeserver))
         self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True, model="real"), sha, homeserver))
         calls = up_args(client_sessions=True, calls="http://127.0.0.1:29542")
         self.assertFalse(stack.started_with(sessions, calls, sha, homeserver))
@@ -778,7 +880,7 @@ class TranscriptionTests(unittest.TestCase):
 
     def setting(self, model: str, transcription: str, has_them: bool = True) -> dict | None:
         args = mock.Mock(model=model, transcription=transcription)
-        with mock.patch.object(stack, "has_call_transcripts", return_value=has_them):
+        with mock.patch.object(stack, "commit_has", return_value=has_them):
             return stack.transcription_setting(args, Path("/checkout"), "abc")
 
     def test_a_mindroom_without_call_transcripts_runs_without_them(self) -> None:
@@ -820,16 +922,14 @@ class TranscriptionTests(unittest.TestCase):
         self.assertNotIn("  notes:\n", config)
 
     def test_real_transcripts_without_an_openai_key_do_not_start(self) -> None:
-        args = mock.Mock(
-            checkout=None, ref=None, model="stub", transcription="real", calls=None, calls_profile="realtime"
-        )
+        args = up_args(checkout=None, ref=None, transcription="real")
         with (
             tempfile.TemporaryDirectory() as directory,
             mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": directory, "ANTHROPIC_API_KEY": "a"}, clear=True),
             mock.patch.object(stack, "resolve_checkout", return_value=Path("/checkout")),
             mock.patch.object(stack, "http_json", return_value=(200, {})),
             mock.patch.object(stack, "resolve_commit", return_value="abc"),
-            mock.patch.object(stack, "has_call_transcripts", return_value=True),
+            mock.patch.object(stack, "commit_has", return_value=True),
             mock.patch.object(stack, "start") as start,
             self.assertRaises(stack.StackError) as raised,
         ):
@@ -1138,6 +1238,25 @@ class StubScenarioTests(unittest.TestCase):
             system = {"role": "system", "content": "You are the helper."}
             body["messages"][:0] = [system, {"role": "developer", "content": developer}]
         return body
+
+    def test_terminal_runs_its_command_in_the_terminal_its_first_call_opened(self) -> None:
+        scenarios = stub_model.tool_scenarios([])
+        terminal = [{"type": "function", "function": {"name": name}} for name in ("terminal_open", "terminal_run")]
+
+        def turn(*results: str) -> dict:
+            return {**self.turn("please #terminal", *results), "tools": terminal}
+
+        self.assertEqual(stub_model.plan(turn(), scenarios), ("tool", "terminal_open", {}))
+        self.assertEqual(
+            stub_model.plan(turn("Opened terminal t-Ab3_x9."), scenarios),
+            ("tool", "terminal_run", {"session_id": "t-Ab3_x9", "command": "echo stub-terminal-$((6 * 7))"}),
+        )
+        refused = "Error: This shell has no workspace to start a terminal in."
+        self.assertEqual(stub_model.plan(turn(refused), scenarios), ("text", f"The terminal did not open: {refused}"))
+        kind, text = stub_model.plan(turn("Opened terminal t1.", "stub-terminal-42\n[exit status 0]"), scenarios)
+        self.assertEqual(kind, "text")
+        self.assertIn("Finished **terminal** after 2 tool call(s)", text)
+        self.assertIn("stub-terminal-42", text)
 
     def test_a_module_computes_steps_from_the_turn(self) -> None:
         scenarios = stub_model.tool_scenarios([], [self.module(CHAIN_MODULE)])
