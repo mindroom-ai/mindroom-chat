@@ -57,8 +57,6 @@ export class SubagentRunStore {
   private readonly listeners = new Map<string, Set<() => void>>();
 
   public ingest(roomId: string, sender: string, frame: SubagentFrame, receivedAt: number): void {
-    // MindRoom never sends a delta without changes, and the parser refuses one.
-    if ('delta' in frame && Object.keys(frame.delta).length === 0) return;
     const runs = this.rooms.get(roomId) ?? new Map<string, SubagentRun>();
     const held = runs.get(frame.run);
     const next = nextLiveEntry(held, sender, frame, receivedAt);

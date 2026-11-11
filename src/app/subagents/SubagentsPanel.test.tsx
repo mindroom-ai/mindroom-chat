@@ -27,23 +27,28 @@ vi.mock('../matrix/hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
 
-// The room knows the lead and the researcher by their names; the writer is not a member.
+// The room knows the lead and the researcher by their names; the writer is not a member. The
+// helper and the coordinator are agents of a namespaced MindRoom (`mindroom_<agent>_<namespace>`).
 const MEMBERS: Record<string, string> = {
   '@mindroom_lead:example.org': 'Lead',
   '@mindroom_researcher:example.org': 'Research Desk',
+  '@mindroom_helper_ns4321:example.org': 'Helper Desk',
+  '@mindroom_coordinator_ns4321:example.org': 'Coordinator',
 };
+const PICTURES: Record<string, string> = {
+  '@mindroom_helper_ns4321:example.org': 'mxc://example.org/helper',
+};
+const member = (userId: string) => ({
+  userId,
+  name: MEMBERS[userId],
+  rawDisplayName: MEMBERS[userId],
+  membership: 'join',
+  getMxcAvatarUrl: () => PICTURES[userId],
+});
 const room = {
   roomId: ROOM_ID,
-  getMember: (userId: string) =>
-    MEMBERS[userId]
-      ? {
-          userId,
-          name: MEMBERS[userId],
-          rawDisplayName: MEMBERS[userId],
-          membership: 'join',
-          getMxcAvatarUrl: () => undefined,
-        }
-      : null,
+  getMember: (userId: string) => (MEMBERS[userId] ? member(userId) : null),
+  getJoinedMembers: () => Object.keys(MEMBERS).map(member),
   getMembers: () => [],
   membersLoaded: () => true,
   loadMembersIfNeeded: () => Promise.resolve(true),
@@ -54,7 +59,8 @@ const mx = {
   getUserId: () => VIEWER,
   getSafeUserId: () => VIEWER,
   getRoom: () => room,
-  mxcUrlToHttp: () => null,
+  getHomeserverUrl: () => 'https://example.org',
+  mxcUrlToHttp: (mxc: string) => `https://media.example.org/${mxc.slice('mxc://'.length)}`,
 } as unknown as MatrixClient;
 
 const meta = (status: SubagentStatus, extra: Partial<SubagentMeta> = {}): SubagentMeta => ({
@@ -122,8 +128,11 @@ const button = (scope: HTMLElement, name: string) => {
   if (!found) throw new Error(`no button ${name}`);
   return found;
 };
+/** The card's own transcript, not one of a card nested in it. */
 const transcript = (run: string) =>
-  card(run).querySelector<HTMLElement>(':scope > [data-subagent-transcript]');
+  [...card(run).querySelectorAll<HTMLElement>('[data-subagent-transcript]')].find(
+    (element) => element.closest('[data-subagent-run]') === card(run)
+  ) ?? null;
 
 beforeAll(async () => {
   await loadLiveMarkdown();
@@ -169,6 +178,18 @@ describe('SubagentsPanel', () => {
     expect(card('late').textContent).toContain('writer');
     expect(card('early').textContent).toContain('Running');
     expect(card('early').textContent).toContain('45 sec');
+  });
+
+  it("names a namespaced MindRoom's agent and caller by their accounts, with the agent's picture", () => {
+    ingest('run', meta('running', { agent: 'helper', caller: 'coordinator' }), docs('Looking.'));
+    render();
+
+    expect(card('run').querySelector('h3')?.textContent).toBe('Helper Desk');
+    expect(card('run').querySelector('img')?.getAttribute('src')).toBe(
+      'https://media.example.org/example.org/helper'
+    );
+    act(() => button(card('run'), 'from Coordinator').click());
+    expect(navigation.navigateRoomThread).toHaveBeenCalledWith(ROOM_ID, '$thread:example.org');
   });
 
   it('lists finished runs after the running ones, the one that ended last first', () => {
@@ -243,6 +264,18 @@ describe('SubagentsPanel', () => {
     expect(calls?.textContent).toContain('run_shell_command');
     act(() => calls?.click());
     expect(body?.querySelector('[data-tool-index="1"]')?.textContent).toContain('git tag');
+  });
+
+  it('shows the typing dots while a run is running, not while it waits for approval', () => {
+    ingest('waiting', meta('awaiting_approval'), docs('May I run it?'));
+    ingest('busy', meta('running', { startedAt: NOW - 30 }), docs('Working.'));
+    render();
+
+    const dots = (run: string) =>
+      transcript(run)?.querySelector('[aria-label="AI is responding"]') ?? null;
+    expect(transcript('waiting')?.textContent).toContain('May I run it?');
+    expect(dots('waiting')).toBeNull();
+    expect(dots('busy')).not.toBeNull();
   });
 
   it('shows the task on request', () => {

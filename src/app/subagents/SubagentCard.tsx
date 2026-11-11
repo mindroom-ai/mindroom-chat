@@ -1,8 +1,9 @@
-import { memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useId, useLayoutEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import type { HTMLReactParserOptions } from 'html-react-parser';
-import { Avatar, Icon, Icons, Text } from 'folds';
+import { Avatar, Icons, Text } from 'folds';
+import { agentMember } from '../approvals/approvalPeople';
 import { UserAvatar } from '../avatars/UserAvatar';
 import { isScrollNearBottom } from '../event-store/timeline/timelineScrollUtils';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
@@ -11,7 +12,7 @@ import { useResizeObserver } from '../lib/hooks/useResizeObserver';
 import { formatCallDuration } from '../lib/time';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
-import { getMxIdServer, mxcUrlToHttp } from '../matrix/matrix';
+import { mxcUrlToHttp } from '../matrix/matrix';
 import type { LiveDocs } from '../matrix/protocol/liveFrame';
 import { isActiveSubagentStatus, type SubagentMeta } from '../matrix/protocol/subagentFrame';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../matrix/room';
@@ -21,6 +22,7 @@ import { useLiveMarkdownReady } from '../messages/live/liveMarkdown';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
 import { liveDocsContent } from '../messages/live/useLiveReplyContent';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
+import { ActivityIcon, ThreadActivity } from '../ui/ThreadActivity';
 import * as css from './subagentsPanel.css';
 
 /** A run and the runs it started, as the panel nests them. */
@@ -33,14 +35,13 @@ const FOLLOW_SLACK_PX = 24;
 
 /**
  * The name and picture of the agent MindRoom calls `agent`: those of its account in the room
- * (localpart `mindroom_<agent>` on the viewer's homeserver), or the name itself.
+ * (`mindroom_<agent>`, or `mindroom_<agent>_<namespace>`), or the name itself.
  */
 const useAgentProfile = (room: Room, agent: string) => {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
-  const server = getMxIdServer(mx.getUserId() ?? '');
-  const userId = server ? `@mindroom_${agent}:${server}` : undefined;
-  if (!userId || !room.getMember(userId)) return { name: agent, colorId: agent };
+  const userId = agentMember(room, agent)?.userId;
+  if (!userId) return { name: agent, colorId: agent };
   const picture = getMemberAvatarMxc(room, userId);
   const src = picture
     ? mxcUrlToHttp(mx, picture, useAuthentication, PICTURE_SIZE, PICTURE_SIZE, 'crop')
@@ -130,17 +131,6 @@ const Transcript = memo(function Transcript({
   );
 });
 
-type ToggleProps = { label: string; open: boolean; onToggle: () => void };
-
-function Toggle({ label, open, onToggle }: ToggleProps) {
-  return (
-    <button type="button" className={css.TextButton} aria-expanded={open} onClick={onToggle}>
-      {label}
-      <Icon size="50" src={Icons.ChevronBottom} className={css.Chevron} aria-hidden />
-    </button>
-  );
-}
-
 type CardProps = {
   room: Room;
   node: SubagentRunNode;
@@ -163,22 +153,28 @@ export function SubagentCard({ room, node, now, parserOptions }: CardProps) {
   const { meta } = run;
   const agent = useAgentProfile(room, meta.agent);
   const caller = useAgentProfile(room, meta.caller).name;
-  const [taskShown, setTaskShown] = useState(false);
-  const [outputShown, setOutputShown] = useState(false);
 
   const active = isActiveSubagentStatus(meta.status);
-  // A paused or ended run's documents are `pending`, which would read as a reply about to stream.
+  // Only a running run shows the typing dots: one waiting for approval still has `streaming`
+  // documents and a paused or ended one `pending`, and both would read as a reply about to stream.
   const docs = useMemo(
-    () => (run.docs.status === 'streaming' ? run.docs : { ...run.docs, status: 'completed' }),
-    [run.docs]
+    () => (meta.status === 'running' ? run.docs : { ...run.docs, status: 'completed' }),
+    [meta.status, run.docs]
   );
   const hasOutput = docs.md !== '' || docs.tools.length > 0;
-  const outputToggle = !active && hasOutput;
-  // A run that works but wrote nothing yet shows the thinking placeholder; a quiet one, nothing.
-  const transcriptShown = active ? hasOutput || docs.status === 'streaming' : outputShown;
   const elapsed = elapsedSeconds(meta, now);
   const from = t('mindroomUi.subagents.from', { name: caller });
   const { threadId } = meta;
+  const transcript = (
+    <Transcript
+      docs={docs}
+      name={agent.name}
+      roomId={room.roomId}
+      threadId={threadId ?? undefined}
+      startedAt={meta.startedAt}
+      parserOptions={parserOptions}
+    />
+  );
 
   return (
     <article className={css.Card} data-subagent-run={run.run} aria-labelledby={nameId}>
@@ -224,38 +220,25 @@ export function SubagentCard({ room, node, now, parserOptions }: CardProps) {
           {meta.result}
         </Text>
       )}
-      {(meta.task || outputToggle) && (
-        <Text as="div" size="T200" className={css.Toggles}>
-          {meta.task && (
-            <Toggle
-              label={t('mindroomUi.subagents.showTask')}
-              open={taskShown}
-              onToggle={() => setTaskShown((shown) => !shown)}
-            />
-          )}
-          {outputToggle && (
-            <Toggle
-              label={t('mindroomUi.subagents.showOutput')}
-              open={outputShown}
-              onToggle={() => setOutputShown((shown) => !shown)}
-            />
-          )}
-        </Text>
+      {meta.task && (
+        <ThreadActivity
+          icon={<ActivityIcon src={Icons.Info} />}
+          title={t('mindroomUi.subagents.showTask')}
+        >
+          <Text as="p" size="T300" className={css.Task} dir="auto">
+            {meta.task}
+          </Text>
+        </ThreadActivity>
       )}
-      {meta.task && taskShown && (
-        <Text as="p" size="T300" className={css.Task} dir="auto">
-          {meta.task}
-        </Text>
-      )}
-      {transcriptShown && (
-        <Transcript
-          docs={docs}
-          name={agent.name}
-          roomId={room.roomId}
-          threadId={threadId ?? undefined}
-          startedAt={meta.startedAt}
-          parserOptions={parserOptions}
-        />
+      {/* A running run that wrote nothing yet shows the thinking placeholder; a quiet one, nothing. */}
+      {active && (hasOutput || docs.status === 'streaming') && transcript}
+      {!active && hasOutput && (
+        <ThreadActivity
+          icon={<ActivityIcon src={Icons.Message} />}
+          title={t('mindroomUi.subagents.showOutput')}
+        >
+          {transcript}
+        </ThreadActivity>
       )}
       {nested.length > 0 && (
         <ul className={css.Nested}>

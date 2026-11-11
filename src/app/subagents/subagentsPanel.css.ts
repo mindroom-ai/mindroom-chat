@@ -82,7 +82,7 @@ export const StatusDot = styleVariants({
   denied: [dot, { background: color.Critical.Main }],
 });
 
-/** A press that reads as text: the caller's thread, Show task, Show output. */
+/** A press that reads as text: the caller's thread. */
 export const TextButton = style({
   display: 'inline-flex',
   alignItems: 'center',
@@ -105,14 +105,6 @@ export const TextButton = style({
     },
   },
 });
-
-export const Chevron = style({
-  flexShrink: 0,
-  selectors: { '[aria-expanded="true"] > &': { transform: 'rotate(180deg)' } },
-});
-
-// Show task and Show output side by side, on two lines where the card is too narrow.
-export const Toggles = style({ display: 'flex', flexWrap: 'wrap', columnGap: space.S400 });
 
 // What the run was asked and what it answered keep their line breaks and wrap anywhere.
 export const Task = style({

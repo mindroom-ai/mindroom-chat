@@ -304,7 +304,8 @@ export function RoomViewHeader({
   const canToggleComputer = !!computerAvailable && !!onComputerToggle;
   const showCanvases = !!canvases && !!onCanvasOpen && !!onCanvasClose;
   // The Sub-agents toggle shows while the room keeps a sub-agent run (a working one, or one paused
-  // or ended not long ago), with a count of those still at it, as the panel's own header has.
+  // or ended not long ago), with a count of those still at it, as the panel's own header has. It
+  // stays while the panel shows, so a panel whose last run expired can still be hidden from it.
   const { total: keptSubagents, active: activeSubagents } = useRoomSubagentCounts(room.roomId);
   const subagentsVisible = shownPanel === 'subagents';
   const subagentsLabel = subagentsVisible
@@ -408,7 +409,7 @@ export function RoomViewHeader({
       active: !!computerOpen,
       run: () => onComputerToggle?.(),
     },
-    keptSubagents > 0 && {
+    (keptSubagents > 0 || subagentsVisible) && {
       id: 'subagents',
       label:
         activeSubagents > 0

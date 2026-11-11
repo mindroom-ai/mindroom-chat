@@ -164,23 +164,6 @@ describe('SubagentRunStore', () => {
     expect(run()).toMatchObject({ sid: NEWER_SID, seq: 1, docs: docs('Restarted') });
   });
 
-  it('ignores a delta without changes', () => {
-    store.ingest(ROOM, AGENT, snapshot(0, 'Hello'), 1000);
-    const held = run();
-    const listener = vi.fn();
-    store.subscribe(ROOM, listener);
-
-    store.ingest(
-      ROOM,
-      AGENT,
-      { run: RUN, sid: SID, seq: 1, meta: meta('running'), delta: {} },
-      1100
-    );
-
-    expect(run()).toBe(held);
-    expect(listener).not.toHaveBeenCalled();
-  });
-
   it('keeps the sender of the first frame for the run', () => {
     store.ingest(ROOM, AGENT, snapshot(0, 'Hello'), 1000);
     store.ingest(ROOM, '@mindroom_other:example', snapshot(5, 'Forged'), 1100);

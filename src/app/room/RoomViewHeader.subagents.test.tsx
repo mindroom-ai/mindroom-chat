@@ -199,6 +199,22 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     expect(badgeOf(toggle())).toBe('3');
   });
 
+  it('stays while the panel is shown after its last run is gone, so it can hide the panel', () => {
+    run('completed');
+    const onPanelToggle = vi.fn();
+    renderHeader({ onPanelToggle, shownPanel: 'subagents' });
+    act(() => store().clear());
+
+    expect(toggle()?.props).toMatchObject({
+      'aria-label': 'Hide sub-agents',
+      'aria-pressed': true,
+    });
+    act(() => {
+      toggle()?.props.onClick({});
+    });
+    expect(onPanelToggle).toHaveBeenCalledWith('subagents');
+  });
+
   it("is an entry of a phone's room menu, whose button a count marks with a dot", () => {
     screen.size = 'Mobile';
     run('running');

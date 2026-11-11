@@ -687,7 +687,7 @@
       "title": "Alt ajanlar",
       "close": "Kapat",
       "empty": "Bu odada çalışan alt ajan yok.",
-      "from": "Gönderen: {{name}}",
+      "from": "Başlatan: {{name}}",
       "showTask": "Görevi göster",
       "showOutput": "Çıktıyı göster",
       "running": "Çalışıyor",

@@ -38,6 +38,7 @@ import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
 import { computerOwnsKeyboardEvent } from '../computer/computerFocus';
 import { useSyncEngine } from '../event-store/engine/engineContext';
 import { FailedSendActions } from '../messages/FailedSendActions';
+import { useRoomSubagentCounts } from '../messages/live/subagentRunStore';
 import { isFailedLocalEchoEvent } from '../matrix/protocol/pendingLocalEcho';
 import { ThreadApprovalQueue } from '../approvals/ThreadApprovalControls';
 import { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
@@ -276,6 +277,7 @@ export function RoomView({
   const canMessage = permissions.event('m.room.message', myUserId);
   // Cancelling a background job sends an event, so it takes that event's power level.
   const canCancelJobs = permissions.event(BACKGROUND_JOB_CANCEL_EVENT, myUserId);
+  const subagentRuns = useRoomSubagentCounts(roomId).total > 0;
 
   const threadState = useRoomViewThreadState({ room, threadId, eventId, hasMindroomAgents });
   const { effectiveThreadId: openThreadId, viewMode } = threadState;
@@ -493,6 +495,7 @@ export function RoomView({
                   room={room}
                   threadId={effectiveThreadId ?? null}
                   canCancel={canCancelJobs}
+                  subagentRuns={subagentRuns}
                 />
                 {effectiveThreadId && <ThreadApprovalQueue />}
               </div>
@@ -567,7 +570,12 @@ export function RoomView({
             />
             {/* Under the thread, where its list of jobs opens upward over the timeline. */}
             {columnFills && (
-              <BackgroundJobsBar room={room} threadId={columnThreadId} canCancel={canCancelJobs} />
+              <BackgroundJobsBar
+                room={room}
+                threadId={columnThreadId}
+                canCancel={canCancelJobs}
+                subagentRuns={subagentRuns}
+              />
             )}
           </div>
         </ResizablePanel>
