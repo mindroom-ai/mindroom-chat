@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Editor, createEditor } from 'slate';
-import type { Room } from 'matrix-js-sdk';
+import {
+  createClient,
+  EventStatus,
+  MatrixEvent,
+  PendingEventOrdering,
+  RelationType,
+  Room,
+} from 'matrix-js-sdk';
 import {
   AutocompletePrefix,
   type AutocompleteQuery,
@@ -9,10 +16,12 @@ import {
   createRoomInputPasteMarkerElement,
   getRoomInputPasteMarkerFileNames,
   getRoomInputVoiceSendContext,
+  getRoomInputVoiceUploadRelation,
   isRoomInputAutocompleteQuery,
   RoomInputAutocomplete,
   RoomInputReplyContext,
   RoomInputThreadIndicator,
+  refreshRoomInputVoiceSendContext,
   removeRoomInputPasteMarkerElements,
 } from './RoomInputExtensions';
 import { BlockType } from '../editor/types';
@@ -160,5 +169,75 @@ describe('RoomInputMindroomExtensions', () => {
     expect(getRoomInputVoiceSendContext({ ...base, threadView: false })).not.toHaveProperty(
       'threadView'
     );
+  });
+
+  it('sends a voice reply to a threaded message without a thread relation in Classic mode', () => {
+    const room = { roomId: '!room:example.org', getMembers: () => [] } as unknown as Room;
+    const context = getRoomInputVoiceSendContext({
+      ownerSessionId: '@me:example.org',
+      roomId: room.roomId,
+      room,
+      threadId: undefined,
+      replyDraft: {
+        userId: '@you:example.org',
+        eventId: '$reply',
+        body: 'In the thread',
+        relation: { rel_type: RelationType.Thread, event_id: '$root' },
+      },
+      threadingEnabled: false,
+    });
+
+    expect(getRoomInputVoiceUploadRelation(context)).toEqual({
+      'm.in_reply_to': { event_id: '$reply' },
+    });
+  });
+
+  it('sends a voice message in a thread as a reply in that thread', () => {
+    const room = { roomId: '!room:example.org', getMembers: () => [] } as unknown as Room;
+    const context = getRoomInputVoiceSendContext({
+      ownerSessionId: '@me:example.org',
+      roomId: room.roomId,
+      room,
+      threadId: '$root',
+      replyDraft: undefined,
+    });
+
+    expect(getRoomInputVoiceUploadRelation(context)).toEqual({
+      event_id: '$root',
+      rel_type: RelationType.Thread,
+      is_falling_back: true,
+      'm.in_reply_to': { event_id: '$root' },
+    });
+  });
+
+  it("takes the thread root's own ID once the server confirmed it", () => {
+    const mx = createClient({ baseUrl: 'https://example.org', userId: '@me:example.org' });
+    const room = new Room('!room:example.org', mx, '@me:example.org', {
+      pendingEventOrdering: PendingEventOrdering.Chronological,
+    });
+    vi.spyOn(room, 'getMyMembership').mockReturnValue('join');
+    vi.spyOn(mx, 'getRoom').mockReturnValue(room);
+    const localId = `~${room.roomId}:txn-root`;
+    const root = new MatrixEvent({
+      event_id: localId,
+      room_id: room.roomId,
+      sender: '@me:example.org',
+      type: 'm.room.message',
+      content: { msgtype: 'm.text', body: 'Root' },
+    });
+    root.setStatus(EventStatus.SENDING);
+    room.addPendingEvent(root, 'txn-root');
+    const context = getRoomInputVoiceSendContext({
+      ownerSessionId: '@me:example.org',
+      roomId: room.roomId,
+      room,
+      threadId: localId,
+      replyDraft: undefined,
+    });
+    // Still sending, the root has only its local ID.
+    expect(refreshRoomInputVoiceSendContext(mx, context)?.threadId).toBe(localId);
+
+    room.updatePendingEvent(root, EventStatus.SENT, '$root');
+    expect(refreshRoomInputVoiceSendContext(mx, context)?.threadId).toBe('$root');
   });
 });

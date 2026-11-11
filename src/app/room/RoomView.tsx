@@ -32,8 +32,7 @@ import {
   composerReplyDraftAtom,
   composerUploadItemsAtom,
   voiceRecorderRoomAtom,
-  getRoomInputDraftKey,
-  roomIdToMsgDraftAtomFamily,
+  moveMessageDraft,
 } from '../composer/roomInputDrafts';
 import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
 import { computerOwnsKeyboardEvent } from '../computer/computerFocus';
@@ -69,6 +68,7 @@ import {
 import { useRoomViewThreadState } from './useRoomViewThreadState';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { ThreadView } from './ThreadView';
+import { noteThreadColumnKey } from './useRoomEscapeReadReceipts';
 import { storedThreadLayout, THREAD_COLUMN_WIDTH_KEY, useThreadLayout } from './threadLayout';
 
 const EMPTY_SUMMARY_MAP = new Map<string, ThreadSummaryInfo>();
@@ -325,7 +325,7 @@ export function RoomView({
     if (!columnFills) ReactEditor.focus(editor as ReactEditor);
     else focusColumn.current?.();
   }, [columnFills, editor]);
-  useTypeToCompose(focusComposer, columnFills ? !behindPanel : composerShown && !hidden);
+  useTypeToCompose(focusComposer, composerShown && (columnFills ? !behindPanel : !hidden));
   useRoomOverlayInsets(areaRef, headerRef, footerRef, dockRef, effectiveThreadId);
 
   // The open room (and thread) keeps its history downloads; leaving the room ends them.
@@ -348,10 +348,7 @@ export function RoomView({
   const onColumnGone = useCallback(
     (columnThread: string) => {
       if (deletedRoot.current !== columnThread) return;
-      const from = roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(myUserId, roomId, columnThread));
-      const to = roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(myUserId, roomId));
-      if (store.get(to).length === 0) store.set(to, store.get(from));
-      store.set(from, []);
+      moveMessageDraft(store, myUserId, roomId, columnThread);
     },
     [myUserId, roomId, store]
   );
@@ -532,8 +529,9 @@ export function RoomView({
           onExpand={showFull}
           expandLabel={t('thread.showFull')}
           testId="thread-column"
+          onKeyDown={noteThreadColumnKey}
         >
-          <div style={COLUMN_STYLE} data-thread-column>
+          <div style={COLUMN_STYLE}>
             {/* Filling the page, the column has the room's header the room area hides. */}
             {columnFills && (
               <div

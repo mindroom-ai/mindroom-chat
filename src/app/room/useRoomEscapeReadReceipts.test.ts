@@ -2,7 +2,7 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Provider, createStore } from 'jotai';
-import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
+import { noteThreadColumnKey, useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { shownConversationViewsAtom } from '../navigation/conversationView';
 import {
@@ -162,14 +162,9 @@ describe('useRoomEscapeReadReceipts', () => {
       { view: 'room-messages', roomId: '!room:server' },
       { view: 'column', roomId: '!room:server', threadId: '$thread' },
     ]);
-    // The key was pressed in the column, or outside it; the focus shortcut may have moved the
-    // focus to the room's composer since.
-    class TestElement {
-      closest(selector: string) {
-        return inColumn && selector === '[data-thread-column]' ? this : null;
-      }
-    }
-    vi.stubGlobal('Element', TestElement);
+    // The key was pressed in the column, which noted it as it passed, or outside it.
+    const evt = {} as KeyboardEvent;
+    if (inColumn) noteThreadColumnKey({ nativeEvent: evt } as React.KeyboardEvent);
     const renderer = create(
       React.createElement(
         Provider,
@@ -178,7 +173,7 @@ describe('useRoomEscapeReadReceipts', () => {
       )
     );
     act(() => {
-      state.handler?.({ target: new TestElement() } as unknown as KeyboardEvent);
+      state.handler?.(evt);
     });
     expect(markThreadAsReadMock).toHaveBeenCalledTimes(inColumn ? 1 : 0);
     expect(markMainTimelineAsReadMock).toHaveBeenCalledTimes(inColumn ? 0 : 1);

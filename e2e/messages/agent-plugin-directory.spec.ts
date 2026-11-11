@@ -56,6 +56,7 @@ test("a plugin directory's scenario drives the stub to its plugin's tool", async
     plugin: 'e2e-sample',
     tools: ['e2e_sample'],
     scenarios: join(dir, 'e2e/stub-scenarios.json'),
+    origins: false,
   });
 
   // The directory's scenario makes the stub call the plugin's tool, whose answer the reply quotes.

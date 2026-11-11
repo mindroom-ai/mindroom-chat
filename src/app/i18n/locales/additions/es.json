@@ -696,6 +696,8 @@
     }
   },
   "composer": {
+    "voicePausedInThisRoom": "La grabación de voz está en pausa; termina o descarta la grabación sin enviar en otro lugar de esta sala",
+    "voiceThreadRootUnsent": "El hilo de este mensaje de voz no tiene un primer mensaje enviado. Vuelve a intentarlo cuando ese mensaje se haya enviado o descarta la grabación.",
     "emoji": "Emoji",
     "cancelReply": "Cancelar respuesta",
     "moreActions": "Más acciones",
