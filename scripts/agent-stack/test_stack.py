@@ -252,6 +252,8 @@ def up_args(**changes: object) -> argparse.Namespace:
         "calls_profile": "realtime",
         "client_sessions": False,
         "computers": False,
+        "computer_image": None,
+        "computer_tools": "browser_mcp",
         "approval_expiry_days": 0.0003,
     }
     return argparse.Namespace(**{**values, **changes})
@@ -294,6 +296,25 @@ class CommandLineTests(unittest.TestCase):
         with mock.patch.object(stack, "up", return_value={}) as up:
             self.assertEqual(self.main("5", "up", "--computers"), 0)
         self.assertTrue(up.call_args.args[1].client_sessions)
+
+    def computers_of(self, *argv: str) -> dict | None:
+        """The computers that `stack.py 5 up <argv>` asks for."""
+        with mock.patch.object(stack, "up", return_value={}) as up:
+            self.assertEqual(self.main("5", "up", *argv), 0)
+        return stack.computers_setting(up.call_args.args[1], "0123456789abcdef")
+
+    def test_computers_run_the_browser_in_a_worker_of_the_image_built_from_the_commit(self) -> None:
+        self.assertIsNone(self.computers_of())
+        built = {"image": "mindroom-client-e2e-worker:0123456789ab", "tools": ["browser_mcp"]}
+        self.assertEqual(self.computers_of("--computers"), built)
+        # An image from the environment applies only to a stack with computers.
+        with mock.patch.dict(os.environ, {"E2E_COMPUTER_IMAGE": "worker:env"}):
+            self.assertIsNone(self.computers_of())
+            self.assertEqual(self.computers_of("--computers")["image"], "worker:env")
+
+    def test_a_given_image_and_tools_replace_the_built_image_and_the_browser_alone(self) -> None:
+        computers = self.computers_of("--computers", "--computer-image", "worker:given", "--computer-tools", "browser_mcp,shell")
+        self.assertEqual(computers, {"image": "worker:given", "tools": ["browser_mcp", "shell"]})
 
     def mode(self, path: Path) -> int:
         return path.stat().st_mode & 0o777
@@ -349,6 +370,55 @@ class CommandLineTests(unittest.TestCase):
         env, state = self.started_env_and_state(greeter)
         self.assertNotIn("MINDROOM_PLUGIN_ORIGIN_PORT", env)
         self.assertIsNone(state["pluginOriginPort"])
+
+    def started_with_computers(self, *argv: str) -> tuple[dict[str, str], dict, mock.Mock]:
+        """The backend's .env settings, the state and the image build of a start with computers."""
+        with self.starting(), mock.patch.object(stack, "worker_image") as worker_image:
+            self.assertEqual(self.main("7", "up", "--computers", *argv), 0)
+        env = dict(line.split("=", 1) for line in (self.slot_dir / ".env").read_text().splitlines() if line)
+        return env, stack.read_state(self.slot_dir), worker_image
+
+    def test_computers_build_their_image_from_the_commit_unless_one_is_given(self) -> None:
+        tag = f"mindroom-client-e2e-worker:{'a' * 12}"
+        env, state, worker_image = self.started_with_computers()
+        worker_image.assert_called_once_with(Path("/mindroom"), "a" * 40, tag)
+        self.assertEqual(env["MINDROOM_DOCKER_WORKER_IMAGE"], tag)
+        self.assertEqual(state["computers"], {"image": tag, "tools": ["browser_mcp"]})
+        env, state, worker_image = self.started_with_computers("--computer-image", "worker:given")
+        worker_image.assert_not_called()
+        self.assertEqual(env["MINDROOM_DOCKER_WORKER_IMAGE"], "worker:given")
+        self.assertEqual(state["computers"], {"image": "worker:given", "tools": ["browser_mcp"]})
+
+    def fake_docker(self) -> Path:
+        """A docker CLI on PATH that logs each call and lists two containers; returns its log."""
+        bin_dir = self.root / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        docker = bin_dir / "docker"
+        docker.write_text('#!/bin/sh\necho "$*" >> "$0.log"\n[ "$1" = ps ] && printf \'c1\\nc2\\n\'\nexit 0\n')
+        docker.chmod(0o755)
+        patcher = mock.patch.dict(os.environ, {"PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return bin_dir / "docker.log"
+
+    def test_down_removes_the_worker_containers_of_the_slot_by_its_label(self) -> None:
+        calls = self.fake_docker()
+        self.slot_dir.mkdir(mode=0o700)
+        computers = {"image": "worker:given", "tools": ["browser_mcp"]}
+        (self.slot_dir / "state.json").write_text(json.dumps({"slot": 7, "computers": computers}))
+        self.assertEqual(self.main("7", "down"), 0)
+        self.assertEqual(
+            calls.read_text().splitlines(),
+            ["ps --all --quiet --filter label=mindroom-client-e2e.slot=7", "rm --force c1 c2"],
+        )
+        self.assertFalse(self.slot_dir.exists())
+
+    def test_down_of_a_stack_without_computers_leaves_docker_alone(self) -> None:
+        calls = self.fake_docker()
+        self.slot_dir.mkdir(mode=0o700)
+        (self.slot_dir / "state.json").write_text(json.dumps({"slot": 7, "computers": None}))
+        self.assertEqual(self.main("7", "down"), 0)
+        self.assertFalse(calls.exists())
 
     def test_each_start_signs_the_test_account_up_with_a_password_of_its_own(self) -> None:
         passwords = []
@@ -517,6 +587,8 @@ class OptionTests(unittest.TestCase):
 
     def test_computers_run_docker_workers_from_the_image_and_admit_the_slot_chat(self) -> None:
         settings = self.settings(42, True, "mindroom-client-e2e-worker:0123456789ab")
+        # The slot's workers carry its name and label, so `down` finds the ones its backend left.
+        self.assertEqual(json.loads(settings.pop("MINDROOM_DOCKER_WORKER_LABELS_JSON")), {"mindroom-client-e2e.slot": "42"})
         self.assertGreaterEqual(len(settings.pop("MINDROOM_SANDBOX_PROXY_TOKEN")), 32)
         self.assertEqual(json.loads(settings.pop("MINDROOM_COMPUTER_ALLOWED_ORIGINS")), ["http://127.0.0.1:4342"])
         self.assertEqual(
@@ -527,15 +599,22 @@ class OptionTests(unittest.TestCase):
                 "MINDROOM_DOCKER_WORKER_IMAGE": "mindroom-client-e2e-worker:0123456789ab",
                 "MINDROOM_DOCKER_WORKER_SECURITY_POLICY": "computer",
                 "MINDROOM_WORKER_COMPUTER_ENABLED": "true",
+                "MINDROOM_DOCKER_WORKER_NAME_PREFIX": "mindroom-client-e2e-slot-42",
+                "MINDROOM_DOCKER_WORKER_READY_TIMEOUT_SECONDS": "300",
             },
         )
 
     def test_computers_give_the_helper_a_worker_browser_and_keep_other_tools_on_the_backend(self) -> None:
-        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, computers=True)
+        computers = {"image": "worker:given", "tools": ["browser_mcp"]}
+        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, computers=computers)
         helper, scout = config.split("  helper:\n", 1)[1].split("  scout:\n", 1)
         self.assertIn("      - browser_mcp\n", helper)
         self.assertIn("    tools: [shell]\n", scout)
-        self.assertIn("defaults:\n  markdown: true\n  worker_tools: [browser_mcp]\n  worker_scope: user_agent\n", config)
+        self.assertIn('defaults:\n  markdown: true\n  worker_tools: ["browser_mcp"]\n  worker_scope: user_agent\n', config)
+        # A shell beside the browser, which can open what the shell serves.
+        computers["tools"] = ["browser_mcp", "shell"]
+        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, computers=computers)
+        self.assertIn('  worker_tools: ["browser_mcp", "shell"]\n  worker_scope: user_agent\n', config)
         plain = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003)
         self.assertNotIn("browser_mcp", plain)
         self.assertNotIn("worker_", plain)
@@ -549,12 +628,18 @@ class OptionTests(unittest.TestCase):
             "homeserver": homeserver,
             "approvalExpiryDays": 0.0003,
         }
-        sessions = {**state, "clientSessions": True, "computers": False}
+        sessions = {**state, "clientSessions": True, "computers": None}
         # A stack that the script started before these options is one without them.
         self.assertTrue(stack.started_with(state, up_args(), sha, homeserver))
         self.assertTrue(stack.started_with(sessions, up_args(client_sessions=True), sha, homeserver))
         self.assertFalse(stack.started_with(sessions, up_args(), sha, homeserver))
         self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True, computers=True), sha, homeserver))
+        computers = {**sessions, "computers": {"image": "worker:given", "tools": ["browser_mcp"]}}
+        given = up_args(client_sessions=True, computers=True, computer_image="worker:given")
+        self.assertTrue(stack.started_with(computers, given, sha, homeserver))
+        self.assertFalse(stack.started_with(computers, up_args(client_sessions=True, computers=True), sha, homeserver))
+        with_shell = argparse.Namespace(**{**vars(given), "computer_tools": "browser_mcp,shell"})
+        self.assertFalse(stack.started_with(computers, with_shell, sha, homeserver))
         self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True, model="real"), sha, homeserver))
         calls = up_args(client_sessions=True, calls="http://127.0.0.1:29542")
         self.assertFalse(stack.started_with(sessions, calls, sha, homeserver))
@@ -608,8 +693,8 @@ class WorkerImageTests(unittest.TestCase):
 
     def test_the_image_of_a_commit_is_built_once_from_its_archive(self) -> None:
         tag = f"mindroom-client-e2e-worker:{self.sha[:12]}"
-        self.assertEqual(stack.worker_image(self.checkout, self.sha), tag)
-        self.assertEqual(stack.worker_image(self.checkout, self.sha), tag)
+        stack.worker_image(self.checkout, self.sha, tag)
+        stack.worker_image(self.checkout, self.sha, tag)
         self.assertEqual(
             (self.root / "docker.log").read_text().splitlines(),
             [f"image inspect {tag}", f"build --quiet --tag {tag} --file {self.DOCKERFILE} -", f"image inspect {tag}"],
@@ -620,7 +705,7 @@ class WorkerImageTests(unittest.TestCase):
     def test_a_failed_build_stops_the_start_with_its_error(self) -> None:
         with mock.patch.dict(os.environ, {"FAKE_DOCKER_FAIL": "no space left on device"}):
             with self.assertRaises(stack.StackError) as raised:
-                stack.worker_image(self.checkout, self.sha)
+                stack.worker_image(self.checkout, self.sha, "mindroom-client-e2e-worker:0123456789ab")
         self.assertIn("no space left on device", str(raised.exception))
 
 
