@@ -280,8 +280,8 @@ export const useRoomInputAttachments = ({
         syncUploadWatches();
         notify();
       },
-      clearEnrollment: () => {
-        enrolled.current = [];
+      clearEnrollment: (files) => {
+        enrolled.current = enrolled.current.filter((item) => !files.includes(item.file));
         syncUploadWatches();
         notify();
       },

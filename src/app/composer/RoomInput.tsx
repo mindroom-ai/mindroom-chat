@@ -755,7 +755,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 />
               ) : (
                 threadId &&
-                (submitPending || waitingForRoot) && (
+                (submitPending || waitingForRoot || sessions.joinedSendPending) && (
                   <RoomInputReplyContext room={room} relation={undefined} pendingSend />
                 )
               )}

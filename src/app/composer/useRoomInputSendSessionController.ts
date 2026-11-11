@@ -1,4 +1,12 @@
-import { MutableRefObject, useCallback, useEffect, useRef } from 'react';
+import {
+  MutableRefObject,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useSyncExternalStore,
+} from 'react';
+import { useStore } from 'jotai';
 import { IContent, MatrixClient, Room } from 'matrix-js-sdk';
 import { Descendant, Editor } from 'slate';
 import {
@@ -6,7 +14,8 @@ import {
   resetEditorHistory,
   restoreEditorContent,
 } from '../editor/utils';
-import { IReplyDraft } from './roomInputDrafts';
+import { IReplyDraft, roomUploadAtomFamily, voiceComposerKey } from './roomInputDrafts';
+import { ConversationViewContext } from '../navigation/conversationView';
 import { TUploadItem, Upload } from '../matrix/state/upload';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
 import { TUploadContent } from '../matrix/matrix';
@@ -38,13 +47,63 @@ type SendSession = RoomInputSendSessionState & {
   threadingEnabled: boolean;
   textContent?: IContent;
   composerFallback?: Descendant[];
-  composerContext: Pick<RoomInputSendContext, 'roomId' | 'threadId'>;
+  composerContext: ComposerContext;
   replyCleared: boolean;
   signalBridgedRoom: boolean;
   failFast: boolean;
   uploads?: Upload[];
   onUploadSent?: (file: TUploadContent) => void;
+  /** What the session uses of the composer that started it, taken at Send. */
+  composer: SessionComposer;
 };
+
+type ComposerContext = Pick<RoomInputSendContext, 'roomId' | 'threadId'>;
+
+type SessionComposer = {
+  attachments: RoomInputAttachmentAccess;
+  buildUploadMessageContent: UseRoomInputSendSessionControllerOptions['buildUploadMessageContent'];
+  clearReplyDraft: UseRoomInputSendSessionControllerOptions['clearReplyDraft'];
+  /** Puts a caption back: in the editor while it shows `context`, else in its stored draft. */
+  restoreText: (context: ComposerContext, fragment: Descendant[]) => void;
+  /** Reports a sent room message, only while the composer is mounted and shows `context`. */
+  reportSent: (context: ComposerContext, eventId: string) => void;
+  /** False once the composer unmounted: no one can retry the session's files then. */
+  mounted: () => boolean;
+};
+
+/**
+ * The sends of one composer (the room's page in a room, or a thread's view): the session going
+ * out, the sends queued behind it, and the texts sent beside one that waits for the person. It
+ * outlives the composer, so a send keeps going as its composer unmounts, and a composer mounting
+ * again for it joins it.
+ */
+type SendSlot = {
+  session?: SendSession;
+  processing: boolean;
+  queued: (() => void)[];
+  textsBeside: Promise<void>;
+  /** Ends the session's watch of its uploads. */
+  stopWatching?: () => void;
+  listeners: Set<() => void>;
+};
+
+const sendSlots = new WeakMap<MatrixClient, Map<string, SendSlot>>();
+
+const getSendSlot = (mx: MatrixClient, key: string): SendSlot => {
+  let slots = sendSlots.get(mx);
+  if (!slots) {
+    slots = new Map();
+    sendSlots.set(mx, slots);
+  }
+  let slot = slots.get(key);
+  if (!slot) {
+    slot = { processing: false, queued: [], textsBeside: Promise.resolve(), listeners: new Set() };
+    slots.set(key, slot);
+  }
+  return slot;
+};
+
+const notifySlot = (slot: SendSlot) => slot.listeners.forEach((listener) => listener());
 
 export type RoomInputSendContext = {
   roomId: string;
@@ -136,7 +195,13 @@ const createSendSession = (
   files: TUploadContent[],
   fields: Pick<
     SendSession,
-    'textContent' | 'composerFallback' | 'composerContext' | 'failFast' | 'uploads' | 'onUploadSent'
+    | 'textContent'
+    | 'composerFallback'
+    | 'composerContext'
+    | 'failFast'
+    | 'uploads'
+    | 'onUploadSent'
+    | 'composer'
   >
 ): SendSession => ({
   ...fields,
@@ -173,31 +238,56 @@ export const useRoomInputSendSessionController = ({
   onRoomMessageSent,
 }: UseRoomInputSendSessionControllerOptions): {
   hasActiveSendSession: () => boolean;
+  /** A session another mount of this composer started is still going out. */
+  joinedSendPending: boolean;
   processSendSession: () => Promise<void>;
   startSendSession: (options?: StartRoomInputSendSessionOptions) => Promise<void>;
 } => {
-  const sendSessionRef = useRef<SendSession | undefined>();
-  const processingSendSessionRef = useRef(false);
-  // Messages sent while another is still going out, each started once the one before is done.
-  const queuedSendsRef = useRef<(() => void)[]>([]);
-  // Texts sent beside a session that waits for the person, one after the other.
-  const textsBesideRef = useRef<Promise<void>>(Promise.resolve());
+  const store = useStore();
+  const threadView = useContext(ConversationViewContext) !== undefined;
+  const slot = getSendSlot(mx, voiceComposerKey({ roomId, threadId, threadView }));
+  const slotRef = useRef(slot);
+  slotRef.current = slot;
   const startSendSessionRef =
-    useRef<(options?: StartRoomInputSendSessionOptions) => Promise<void>>();
+    useRef<(options: StartRoomInputSendSessionOptions, slot: SendSlot) => Promise<void>>();
   const composerContextRef = useRef({ roomId, threadId });
   composerContextRef.current = { roomId, threadId };
+  const onRoomMessageSentRef = useRef(onRoomMessageSent);
+  onRoomMessageSentRef.current = onRoomMessageSent;
+
+  const showsContext = useCallback(
+    (context: ComposerContext) =>
+      (mountedRef?.current ?? true) &&
+      composerContextRef.current.roomId === context.roomId &&
+      composerContextRef.current.threadId === context.threadId,
+    [mountedRef]
+  );
+  const restoreText = useCallback(
+    (context: ComposerContext, fragment: Descendant[]) => {
+      if (showsContext(context)) restoreEditorContent(editor, fragment);
+      else restoreComposerFallbackForRoom?.(context.roomId, fragment, context.threadId);
+    },
+    [editor, restoreComposerFallbackForRoom, showsContext]
+  );
+  // A composer that went, or shows another room or thread, does not open the sent thread.
+  const reportSent = useCallback(
+    (context: ComposerContext, eventId: string) => {
+      if (showsContext(context)) onRoomMessageSentRef.current?.(eventId);
+    },
+    [showsContext]
+  );
 
   const clearReplyDraftForSession = useCallback(
     (session: SendSession) => {
       if (session.replyCleared) return;
 
       session.replyCleared = true;
-      clearReplyDraft({
+      session.composer.clearReplyDraft({
         roomId: session.roomId,
         replyDraft: session.replyDraft,
       });
     },
-    [clearReplyDraft]
+    []
   );
 
   const sendSessionText = useCallback(
@@ -229,7 +319,7 @@ export const useRoomInputSendSessionController = ({
       let roomMessageSentNotified = false;
 
       const notifyRoomMessageSent = (eventId: string | undefined) => {
-        if (!eventId || roomMessageSentNotified || !onRoomMessageSent) return;
+        if (!eventId || roomMessageSentNotified) return;
 
         const sentEventIdToNotify = getRoomMessageSentNotificationEventId({
           eventId,
@@ -240,7 +330,7 @@ export const useRoomInputSendSessionController = ({
         if (!sentEventIdToNotify) return;
 
         roomMessageSentNotified = true;
-        onRoomMessageSent(sentEventIdToNotify);
+        session.composer.reportSent(session.composerContext, sentEventIdToNotify);
       };
 
       if (localEventId === `~${session.roomId}:${txnId}`) {
@@ -261,11 +351,12 @@ export const useRoomInputSendSessionController = ({
       session.textPending = false;
       clearReplyDraftForSession(session);
     },
-    [mx, clearReplyDraftForSession, onRoomMessageSent]
+    [mx, clearReplyDraftForSession]
   );
 
   const sendSessionUpload = useCallback(
     async (session: SendSession, file: TUploadContent, mxc: string, isRoot: boolean) => {
+      const { attachments, buildUploadMessageContent } = session.composer;
       const { staged, enrolled } = attachments.snapshot(session.roomId);
       const fileItem =
         staged.find((item) => item.file === file) ?? enrolled.find((item) => item.file === file);
@@ -305,10 +396,10 @@ export const useRoomInputSendSessionController = ({
       clearReplyDraftForSession(session);
       attachments.remove(session.roomId, [file]);
       if (sentEventIdToNotify) {
-        onRoomMessageSent?.(sentEventIdToNotify);
+        session.composer.reportSent(session.composerContext, sentEventIdToNotify);
       }
     },
-    [mx, attachments, buildUploadMessageContent, clearReplyDraftForSession, onRoomMessageSent]
+    [mx, clearReplyDraftForSession]
   );
 
   const restoreComposerFallback = useCallback(
@@ -320,34 +411,27 @@ export const useRoomInputSendSessionController = ({
       session.textPending = false;
       const fragment = session.composerFallback;
       session.composerFallback = undefined;
-      const sameComposer =
-        composerContextRef.current.roomId === session.composerContext.roomId &&
-        composerContextRef.current.threadId === session.composerContext.threadId;
-      if (fragment && (mountedRef?.current ?? true) && sameComposer) {
-        restoreEditorContent(editor, fragment);
-      } else if (fragment) {
-        restoreComposerFallbackForRoom?.(
-          session.composerContext.roomId,
-          fragment,
-          session.composerContext.threadId
-        );
-      }
+      if (fragment) session.composer.restoreText(session.composerContext, fragment);
     },
-    [editor, mountedRef, restoreComposerFallbackForRoom]
+    []
   );
 
-  const clearSendSession = useCallback(() => {
-    sendSessionRef.current = undefined;
-    attachments.clearEnrollment();
-  }, [attachments]);
+  const clearSendSession = useCallback((sendSlot: SendSlot) => {
+    const session = sendSlot.session;
+    sendSlot.session = undefined;
+    sendSlot.stopWatching?.();
+    sendSlot.stopWatching = undefined;
+    session?.composer.attachments.clearEnrollment(session.orderedFiles);
+    notifySlot(sendSlot);
+  }, []);
 
   const getSessionUploads = useCallback(
     (session: SendSession): [Upload[], TUploadContent[]] => {
-      const { staged, enrolled, uploads } = attachments.snapshot(session.roomId);
+      const { staged, enrolled, uploads } = session.composer.attachments.snapshot(session.roomId);
       const activeFiles = new Set([...staged, ...enrolled].map((fileItem) => fileItem.file));
       return [session.uploads ?? uploads, Array.from(activeFiles)];
     },
-    [attachments]
+    []
   );
 
   const isSessionStalled = useCallback(
@@ -357,30 +441,32 @@ export const useRoomInputSendSessionController = ({
 
   // Queued texts go out one at a time once the session is done, and all of them at once when it
   // can only go on after the person retries an attachment: they never wait for that.
-  const releaseQueuedSends = useCallback(() => {
-    const session = sendSessionRef.current;
+  const releaseQueuedSends = useCallback((sendSlot: SendSlot) => {
+    const session = sendSlot.session;
     if (!session) {
-      queuedSendsRef.current.shift()?.();
+      sendSlot.queued.shift()?.();
     } else if (isSessionStalled(session)) {
-      queuedSendsRef.current.splice(0).forEach((startQueued) => startQueued());
+      sendSlot.queued.splice(0).forEach((startQueued) => startQueued());
     }
   }, [isSessionStalled]);
 
-  const processSendSession = useCallback(async () => {
-    if (processingSendSessionRef.current) return;
+  const processSendSession = useCallback(async (sendSlot: SendSlot = slotRef.current) => {
+    if (sendSlot.processing) return;
 
-    processingSendSessionRef.current = true;
+    sendSlot.processing = true;
     try {
-      while (sendSessionRef.current) {
-        const session = sendSessionRef.current;
+      while (sendSlot.session) {
+        const session = sendSlot.session;
 
         const step = resolveRoomInputSendStep(session, ...getSessionUploads(session));
 
         if (step.kind === 'wait') {
+          // Once its composer went, no one can retry or remove the files it waits for.
+          if (!session.composer.mounted() && isSessionStalled(session)) clearSendSession(sendSlot);
           return;
         }
         if (step.kind === 'complete') {
-          clearSendSession();
+          clearSendSession(sendSlot);
           return;
         }
 
@@ -411,11 +497,12 @@ export const useRoomInputSendSessionController = ({
         }
       }
     } finally {
-      processingSendSessionRef.current = false;
-      releaseQueuedSends();
+      sendSlot.processing = false;
+      releaseQueuedSends(sendSlot);
     }
   }, [
     getSessionUploads,
+    isSessionStalled,
     sendSessionText,
     sendSessionUpload,
     restoreComposerFallback,
@@ -433,8 +520,17 @@ export const useRoomInputSendSessionController = ({
       composerContext,
       composerAlreadyReset = false,
       onUploadSent,
-    }: StartRoomInputSendSessionOptions = {}) => {
-      const existingSession = sendSessionRef.current;
+    }: StartRoomInputSendSessionOptions = {}, sendSlot: SendSlot = slotRef.current) => {
+      // The session takes what it needs of this composer now: it may outlive it.
+      const composer: SessionComposer = {
+        attachments,
+        buildUploadMessageContent,
+        clearReplyDraft,
+        restoreText,
+        reportSent,
+        mounted: () => mountedRef?.current ?? true,
+      };
+      const existingSession = sendSlot.session;
       if (existingSession) {
         if (completeWithinCall) {
           throw new Error(
@@ -446,7 +542,7 @@ export const useRoomInputSendSessionController = ({
           // in the composer meanwhile.
           existingSession.blockedRoot = false;
           existingSession.failedFiles.clear();
-          await processSendSession();
+          await processSendSession(sendSlot);
           return;
         }
         // Repeated sends while uploads are still resolving should not create duplicate events.
@@ -478,16 +574,17 @@ export const useRoomInputSendSessionController = ({
             composerFallback: nextFallback,
             composerContext: nextComposerContext,
             failFast: false,
+            composer,
           });
-          const sending = textsBesideRef.current.then(() =>
+          const sending = sendSlot.textsBeside.then(() =>
             sendSessionText(session).catch(() => restoreComposerFallback(session))
           );
-          textsBesideRef.current = sending;
+          sendSlot.textsBeside = sending;
           await sending;
           return;
         }
         // Otherwise it follows the message still going out, in order.
-        queuedSendsRef.current.push(() => {
+        sendSlot.queued.push(() => {
           startSendSessionRef
             .current?.({
               textContent,
@@ -496,7 +593,7 @@ export const useRoomInputSendSessionController = ({
               composerContext: nextComposerContext,
               composerAlreadyReset: true,
               onUploadSent,
-            })
+            }, sendSlot)
             .catch((error: unknown) => {
               // eslint-disable-next-line no-console
               console.warn('[room-input] could not send the queued message', error);
@@ -512,7 +609,7 @@ export const useRoomInputSendSessionController = ({
       if (hasFailedPasteMarkerInText(textContent, staged)) return;
       attachments.enroll(sendItems);
 
-      sendSessionRef.current = createSendSession(
+      const session = createSendSession(
         context ?? {
           roomId,
           room,
@@ -528,15 +625,24 @@ export const useRoomInputSendSessionController = ({
           failFast: completeWithinCall,
           uploads: batch?.uploads,
           onUploadSent,
+          composer,
         }
       );
+      sendSlot.session = session;
+      // The session wakes on its own uploads, with or without its composer.
+      const unsubscribes = sendFiles.map((file) =>
+        store.sub(roomUploadAtomFamily(file), () =>
+          queueMicrotask(() => void processSendSession(sendSlot))
+        )
+      );
+      sendSlot.stopWatching = () => unsubscribes.forEach((unsubscribe) => unsubscribe());
+      notifySlot(sendSlot);
       if (textContent) {
         // The caption sends last (after the uploads), so free the composer as soon as the
         // session has snapshotted the text instead of when the text event goes out. Keep a
         // clone of the composer content so a caption that never gets a row of its own can be
         // restored (slate mutates editor.children in place).
-        sendSessionRef.current.composerFallback =
-          composerFallback ?? structuredClone(editor.children);
+        session.composerFallback = composerFallback ?? structuredClone(editor.children);
         if (!composerAlreadyReset) {
           // Start the editor over, and stop the typing indicator, now that its text is captured.
           resetEditor(editor); resetEditorHistory(editor);
@@ -544,19 +650,19 @@ export const useRoomInputSendSessionController = ({
         }
       }
       try {
-        await processSendSession();
+        await processSendSession(sendSlot);
       } catch (error) {
         if (completeWithinCall) {
-          const failedSession = sendSessionRef.current;
+          const failedSession = sendSlot.session;
           if (failedSession?.textPending) {
             restoreComposerFallback(failedSession);
           }
-          clearSendSession();
+          clearSendSession(sendSlot);
         }
         throw error;
       }
-      if (completeWithinCall && sendSessionRef.current) {
-        clearSendSession();
+      if (completeWithinCall && sendSlot.session) {
+        clearSendSession(sendSlot);
         throw new Error('Lifecycle-complete send did not finish within the initiating call.');
       }
     },
@@ -569,6 +675,12 @@ export const useRoomInputSendSessionController = ({
       editor,
       sendTypingStatus,
       attachments,
+      buildUploadMessageContent,
+      clearReplyDraft,
+      restoreText,
+      reportSent,
+      mountedRef,
+      store,
       processSendSession,
       sendSessionText,
       isSessionStalled,
@@ -587,7 +699,7 @@ export const useRoomInputSendSessionController = ({
       // processing until the initiating operation finishes updating the send session.
       queueMicrotask(() => {
         queued = false;
-        if (!disposed) void processSendSession();
+        if (!disposed) void processSendSession(slot);
       });
     };
     const unsubscribe = attachments.subscribe(wake);
@@ -595,15 +707,29 @@ export const useRoomInputSendSessionController = ({
     return () => {
       disposed = true;
       unsubscribe();
+      // A session left waiting for the person ends with its composer (processSendSession).
+      queueMicrotask(() => void processSendSession(slot));
     };
-  }, [attachments, processSendSession]);
+  }, [attachments, processSendSession, slot]);
 
   startSendSessionRef.current = startSendSession;
 
-  const hasActiveSendSession = useCallback(() => sendSessionRef.current !== undefined, []);
+  const joinedSendPending = useSyncExternalStore(
+    useCallback(
+      (listener: () => void) => {
+        slot.listeners.add(listener);
+        return () => slot.listeners.delete(listener);
+      },
+      [slot]
+    ),
+    () => slot.session !== undefined && slot.session.composer.attachments !== attachments
+  );
+
+  const hasActiveSendSession = useCallback(() => slotRef.current.session !== undefined, []);
 
   return {
     hasActiveSendSession,
+    joinedSendPending,
     processSendSession,
     startSendSession,
   };

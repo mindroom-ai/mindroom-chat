@@ -2,7 +2,8 @@ import React, { MutableRefObject, useEffect, useMemo, useRef } from 'react';
 import { act, create } from 'react-test-renderer';
 import { EventStatus, MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { IReplyDraft } from './roomInputDrafts';
+import { getDefaultStore } from 'jotai';
+import { IReplyDraft, roomUploadAtomFamily } from './roomInputDrafts';
 import { TUploadItem, Upload, UploadStatus } from '../matrix/state/upload';
 import { TUploadContent, toMatrixUploadError } from '../matrix/matrix';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
@@ -32,6 +33,7 @@ type HarnessApi = {
   uploadsRef: MutableRefObject<Upload[]>;
   mountedRef: MutableRefObject<boolean>;
   hasActiveSendSession: () => boolean;
+  joinedSendPending: boolean;
   startSendSession: (options?: StartRoomInputSendSessionOptions) => Promise<void>;
   processSendSession: () => Promise<void>;
 };
@@ -272,8 +274,108 @@ const renderHarness = (
     changeThread: (threadId?: string) => {
       act(() => renderer.update(React.createElement(TestHarness, { ...props, threadId })));
     },
+    /** Unmounts the composer, as closing a thread's column or leaving the room does. */
+    unmount: () => {
+      api.mountedRef.current = false;
+      act(() => renderer.unmount());
+    },
+    /** Mounts the same composer again, with refs of its own. */
+    mountAgain: () => {
+      let next!: HarnessApi;
+      act(() => {
+        renderer = create(
+          React.createElement(TestHarness, {
+            ...props,
+            threadId: options.threadId,
+            onReady: (nextApi: HarnessApi) => {
+              next = nextApi;
+              api = nextApi;
+            },
+          })
+        );
+      });
+      return { api: next };
+    },
   };
 };
+
+describe('useRoomInputSendSessionController after its composer unmounts', () => {
+  it('sends the message once its upload finishes after the composer went', async () => {
+    const { api, mx, unmount } = renderHarness();
+    const file = createFile('slow.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'caption' } });
+    });
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+
+    unmount();
+    api.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      getDefaultStore().set(roomUploadAtomFamily(file), { mxc: 'mxc://mindroom/slow.txt' });
+      await Promise.resolve();
+    });
+
+    await vi.waitFor(() => expect(mx.sendMessage).toHaveBeenCalledTimes(2));
+    expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
+      'slow.txt',
+      'caption',
+    ]);
+    expect(api.hasActiveSendSession()).toBe(false);
+  });
+
+  it('lets a composer mounted again join the send instead of sending its files twice', async () => {
+    const { api, mx, unmount, mountAgain } = renderHarness();
+    const file = createFile('shared.txt');
+    const item = createUploadItem(file);
+    const fileSend = createDeferred<{ event_id: string }>();
+    mx.sendMessage.mockReturnValueOnce(fileSend.promise);
+    api.selectedFilesRef.current = [item];
+    api.uploadsRef.current = [successUpload(file)];
+    act(() => {
+      void api.startSendSession({ textContent: { msgtype: 'm.text', body: 'caption' } });
+    });
+    await vi.waitFor(() => expect(mx.sendMessage).toHaveBeenCalledTimes(1));
+
+    unmount();
+    // The room's page keeps its staged files: the composer mounted again still lists this one.
+    const { api: again } = mountAgain();
+    expect(again.joinedSendPending).toBe(true);
+    again.selectedFilesRef.current = [item];
+    again.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      await again.startSendSession();
+    });
+    expect(mx.sendMessage).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      fileSend.resolve({ event_id: '$file' });
+      await fileSend.promise;
+    });
+    await vi.waitFor(() => expect(again.hasActiveSendSession()).toBe(false));
+    expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
+      'shared.txt',
+      'caption',
+    ]);
+  });
+
+  it('ends a session left waiting for a retry once its composer went', async () => {
+    const { api, mx, unmount, mountAgain } = renderHarness();
+    const file = createFile('broken.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [prepErrorUpload(file)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    expect(api.hasActiveSendSession()).toBe(true);
+
+    unmount();
+    const { api: again } = mountAgain();
+    await vi.waitFor(() => expect(again.hasActiveSendSession()).toBe(false));
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+  });
+});
 
 describe('useRoomInputSendSessionController active session query', () => {
   it('tracks waiting, failed, retried, and completed sessions', async () => {
