@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
-import type { ComponentProps, ReactNode, RefObject } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createClient, EventStatus, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
-import type { Editor } from 'slate';
 import { Editable, Slate } from 'slate-react';
 import { getDefaultStore } from 'jotai';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -23,6 +22,7 @@ import {
   voiceRecorderRoomAtom,
 } from '../composer/roomInputDrafts';
 import { PanelRow } from '../members/PanelRow';
+import type { RoomInputProps } from '../composer/RoomInput';
 import type { RoomHeaderSlotComponent } from '../plugins/registry';
 import { RoomView, type RoomViewProps } from './RoomView';
 import type { ThreadView } from './ThreadView';
@@ -198,13 +198,7 @@ vi.mock('../composer/RoomInput', async () => {
   const { useFileDropZone } = await import('../lib/hooks/useFileDrop');
   const dropToRoom = () => state.dropped.push('room');
   return {
-    RoomInput: ({
-      editor,
-      fileDropContainerRef,
-    }: {
-      editor: Editor;
-      fileDropContainerRef: RefObject<HTMLElement>;
-    }) => {
+    RoomInput: ({ editor, fileDropContainerRef }: RoomInputProps) => {
       useFileDropZone(fileDropContainerRef, dropToRoom);
       return (
         <Slate editor={editor} initialValue={[{ type: 'paragraph', children: [{ text: '' }] }]}>
@@ -666,9 +660,7 @@ it("gives a file dropped on the thread column's header, beside the messages or f
     Object.defineProperty(event, 'dataTransfer', {
       value: { types: ['Files'], files: [new File(['dropped'], 'notes.txt')] },
     });
-    act(() => {
-      target.dispatchEvent(event);
-    });
+    fireEvent(target, event);
     expect(event.defaultPrevented).toBe(true);
   };
   // Beside the messages, the room's header takes it for their composer, the thread's banner for

@@ -25,7 +25,8 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // panel item, dragged onto the room's name, shows in the banner through the header element its slot
 // gets, while a file dropped there still goes to the composer. A thread shown beside the messages
 // leaves the banner above them; while the thread's column fills the page, made full or by a narrow
-// window, the banner shows once, under the column's copy of the room header, whose element it gets.
+// window, the banner shows once, under the column's copy of the room header, whose element it gets,
+// and a file dropped on that header goes to the thread's composer.
 // Set PLUGIN_SHOTS=<directory> to save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'room-header-slot-password';
