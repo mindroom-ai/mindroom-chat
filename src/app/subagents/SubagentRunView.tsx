@@ -104,16 +104,16 @@ export function SubagentRunView({
   const { threadId } = meta;
   // Only a running run shows the typing dots: one waiting for approval still has `streaming`
   // documents and a paused or ended one `pending`, and both would read as a reply about to stream.
-  // A run that wrote nothing answers with its result.
+  // A run that wrote nothing answers with its result, unless that result says why it failed.
+  const failed = (meta.status === 'failed' || meta.status === 'denied') && !!meta.result;
   const docs = useMemo((): LiveDocs => {
     const status = meta.status === 'running' ? run.docs.status : 'completed';
-    if (run.docs.md !== '' || run.docs.tools.length > 0 || !meta.result) {
-      return { ...run.docs, status };
-    }
-    return { ...run.docs, md: meta.result, status };
-  }, [meta.result, meta.status, run.docs]);
+    const quiet = run.docs.md === '' && run.docs.tools.length === 0;
+    return quiet && meta.result && !failed
+      ? { ...run.docs, md: meta.result, status }
+      : { ...run.docs, status };
+  }, [failed, meta.result, meta.status, run.docs]);
   const getContent = useDocsContent(docs);
-  const failed = (meta.status === 'failed' || meta.status === 'denied') && !!meta.result;
   // A run that wrote nothing has no reply; one at work shows the thinking placeholder.
   const wrote = docs.md !== '' || docs.tools.length > 0 || meta.status === 'running';
 
@@ -226,20 +226,22 @@ export function SubagentRunView({
             </section>
           )}
           {/* The runs it started, then its reply, which grows at the end where a reader follows it. */}
-          {wrote && (
+          {(wrote || failed) && (
             <RunMessage sender={agent} ts={meta.startedAt * 1000}>
-              <div className={css.Reply} data-subagent-transcript="">
-                <RenderMessageContent
-                  msgType="m.text"
-                  displayName={agent.name}
-                  roomId={room.roomId}
-                  threadId={threadId ?? undefined}
-                  ts={meta.startedAt * 1000}
-                  getContent={getContent}
-                  htmlReactParserOptions={parserOptions}
-                  linkifyOpts={LINKIFY_OPTS}
-                />
-              </div>
+              {wrote && (
+                <div className={css.Reply} data-subagent-transcript="">
+                  <RenderMessageContent
+                    msgType="m.text"
+                    displayName={agent.name}
+                    roomId={room.roomId}
+                    threadId={threadId ?? undefined}
+                    ts={meta.startedAt * 1000}
+                    getContent={getContent}
+                    htmlReactParserOptions={parserOptions}
+                    linkifyOpts={LINKIFY_OPTS}
+                  />
+                </div>
+              )}
               {failed && docs.md !== meta.result && (
                 <Text
                   as="p"

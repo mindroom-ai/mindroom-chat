@@ -327,6 +327,16 @@ describe('SubagentsPanel', () => {
     expect(view()?.querySelector('[data-subagent-failure]')?.textContent).toBe('Tool crashed.');
   });
 
+  it('says why a failed run that wrote nothing ended, not as its answer', () => {
+    ingest('broke', meta('failed', { result: 'Tool crashed.' }), docs('', [], false));
+    render();
+    open('broke');
+
+    expect(transcript()).toBeNull();
+    expect(view()?.querySelector('[data-subagent-failure]')?.textContent).toBe('Tool crashed.');
+    expect(view()?.querySelectorAll('[data-subagent-message]')).toHaveLength(1);
+  });
+
   it('shows no reply for a run that ended without writing anything', () => {
     ingest('quiet', meta('cancelled', { task: 'Wait.' }), docs('', [], false));
     render();
@@ -395,6 +405,8 @@ describe('SubagentsPanel', () => {
     act(() => getSubagentRunStore(mx).clear());
     expect(view()).toBeNull();
     expect(container.textContent).toContain('No sub-agents are running in this room.');
+    // The focus its Back held goes to the panel, not the page.
+    expect(document.activeElement).toBe(container.querySelector('[data-testid="subagents-panel"]'));
     // The run's next frame lists it again without opening it.
     seqs.clear();
     ingest('run', meta('running'), docs('Still looking.'));

@@ -80,12 +80,15 @@ export function SubagentsPanel({ room, onClose }: { room: Room; onClose: () => v
   const active = countActiveSubagentRuns(runs);
   const [openRun, setOpenRun] = useState<string | null>(null);
   const open = openRun === null ? undefined : byId.get(openRun);
-  // A run the store let go (no frame for a while) closes, so its next frame does not reopen it.
+  const section = useRef<HTMLElement>(null);
+  // A run the store let go (no frame for a while) closes, so its next frame does not reopen it;
+  // the focus its view held goes to the panel, not the page.
   useEffect(() => {
-    if (openRun !== null && !open) setOpenRun(null);
+    if (openRun === null || open) return;
+    setOpenRun(null);
+    if (document.activeElement === document.body) section.current?.focus();
   }, [open, openRun]);
   // Back gives focus to the card of the run it closed, as the reader left it.
-  const section = useRef<HTMLElement>(null);
   const [returnTo, setReturnTo] = useState<string | null>(null);
   const back = useCallback(() => {
     const parent = open?.run.meta.parent;
@@ -118,7 +121,13 @@ export function SubagentsPanel({ room, onClose }: { room: Room; onClose: () => v
   const title = t('mindroomUi.subagents.title');
 
   return (
-    <section ref={section} className={css.Panel} aria-label={title} data-testid="subagents-panel">
+    <section
+      ref={section}
+      tabIndex={-1}
+      className={css.Panel}
+      aria-label={title}
+      data-testid="subagents-panel"
+    >
       {open ? (
         <SubagentRunView
           key={open.run.run}

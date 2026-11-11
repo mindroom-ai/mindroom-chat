@@ -7,8 +7,8 @@ import { roomHeader } from '../helpers/roomMenu';
 
 // The Sub-agents panel follows MindRoom's live frames: an agent streams `io.mindroom.subagents`
 // frames (ephemeral, plaintext, as in e2e/composer/send-follows-streaming-reply.spec.ts) for two
-// runs, and the header's count, the panel's cards, a run's text and tool row, and a finished run's
-// result follow them. The frames come in the shapes of
+// runs, and the header's count, the panel's cards with what each run wrote, a run opened with its
+// task and tool row, and a finished run follow them. The frames come in the shapes of
 // src/app/messages/live/__fixtures__/subagent-frames-v1.json. A run counts as running only for 30
 // seconds after its last frame, so the frames all go out within the first seconds of the test.
 // The researcher is an agent of a namespaced MindRoom (`mindroom_researcher_<namespace>`), which
@@ -144,13 +144,21 @@ test('the Sub-agents panel follows two runs frame by frame', async ({
     'Looking it up. Checking the tags.'.length,
     '\n\n🔧 `run_shell_command` [1] ⏳\n\n'
   );
+  // The card previews the tool call as a thread card does; the run, opened, shows its row.
+  await expect(researcher).toContainText('1 tool');
+  await researcher.click();
+  await expect(panel.getByRole('heading', { name: 'Research Desk' })).toBeVisible();
+  await expect(panel.getByText('Find when version 2 shipped.')).toBeVisible();
   await expect(panel.getByRole('button', { name: /Running 1 tool call/ })).toBeVisible();
+  await panel.screenshot({ path: testInfo.outputPath('subagents-panel-open-run.png') });
+  await panel.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(cards).toHaveCount(2);
 
   await second.finish(
     'Reading the notes.\n\nThe notes agree.',
     'The release notes agree with tag v2.0.'
   );
-  const finished = cards.filter({ hasText: 'The release notes agree with tag v2.0.' });
+  const finished = cards.filter({ hasText: 'The notes agree.' });
   await expect(finished).toHaveCount(1);
   await expect(finished.getByText('Done', { exact: true })).toBeVisible();
   await expect(panel.getByText('1 active', { exact: true })).toBeVisible();
