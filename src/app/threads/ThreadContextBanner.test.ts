@@ -400,10 +400,7 @@ describe('ThreadContextBanner rendering', () => {
   const bannerElement = (
     summaryText?: string,
     threadId = '$root',
-    columnProps?: Pick<
-      ThreadContextBannerProps,
-      'onShowBeside' | 'showBesideBlocked' | 'onShowFull'
-    >
+    columnProps?: Pick<ThreadContextBannerProps, 'onShowBeside' | 'onShowFull'>
   ) =>
     React.createElement(
       Provider,
@@ -651,38 +648,22 @@ describe('ThreadContextBanner rendering', () => {
     pinned.unmount();
   });
 
-  it("offers Show beside as a button from the messages' place, waiting while the composer holds something", () => {
-    const label = 'Show the thread beside the messages';
+  it('leaves Show beside and Show in full to its More menu, with no button of their own', async () => {
     const onShowBeside = vi.fn();
-    const renderer = create(bannerElement(undefined, '$root', { onShowBeside }));
-    const button = renderer.root.findByProps({ 'aria-label': label });
-    expect(button.props['aria-disabled']).toBeUndefined();
-    act(() => button.props.onClick());
-    expect(onShowBeside).toHaveBeenCalledTimes(1);
-    renderer.unmount();
-
-    // Waiting, it keeps its place and name and says why in its tooltip.
-    const blocked = create(
-      bannerElement(undefined, '$root', { onShowBeside, showBesideBlocked: true })
-    );
-    const waiting = blocked.root.findByProps({ 'aria-label': label });
-    expect(waiting.props['aria-disabled']).toBe(true);
-    expect(waiting.props.onClick).toBeUndefined();
-    expect(blocked.root.findByProps({ label }).props.hint).toBe(
-      'Send or remove what the composer holds first'
-    );
-    blocked.unmount();
-
-    // In the column the composer under the messages stays, so Show in full never waits for it.
     const onShowFull = vi.fn();
-    const column = create(
-      bannerElement(undefined, '$root', { onShowFull, showBesideBlocked: true })
-    );
-    const full = column.root.findByProps({ 'aria-label': 'Show the thread in full' });
-    expect(full.props['aria-disabled']).toBeUndefined();
-    act(() => full.props.onClick());
-    expect(onShowFull).toHaveBeenCalledTimes(1);
-    column.unmount();
+    const renderer = create(bannerElement(undefined, '$root', { onShowBeside, onShowFull }));
+    const labels = renderer.root
+      .findAllByType('button')
+      .map((button) => button.props['aria-label'] as string | undefined);
+    expect(labels).not.toContain('Show the thread beside the messages');
+    expect(labels).not.toContain('Show the thread in full');
+    const more = renderer.root
+      .findAllByType('button')
+      .find((button) => button.props['aria-haspopup'] === 'menu')!;
+    const trigger = { getBoundingClientRect: () => ({ x: 0, y: 0, width: 30, height: 30 }) };
+    await act(async () => more.props.onClick({ currentTarget: trigger }));
+    expect(menuProps.mock.calls.at(-1)![0]).toMatchObject({ onShowBeside, onShowFull });
+    renderer.unmount();
   });
 
   it('drops the Thread View eyebrow once the thread has a title', () => {

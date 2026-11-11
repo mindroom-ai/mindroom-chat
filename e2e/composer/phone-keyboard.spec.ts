@@ -310,9 +310,10 @@ const checkSpaceRoomOnHomeKeepsView = async (page: Page, world: World, engine: s
   expect(new URL(page.url()).pathname, `${engine}: the link opens the room on Home`).toMatch(
     /^\/home\//
   );
-  // A mark on this room view's footer, which a room view mounted again would not carry.
+  // A mark on this room view's conversation, which a room view mounted again would not carry
+  // (its footer goes as the thread fills the page; the conversation's element stays).
   await page.locator('[data-room-footer]').evaluate((footer) => {
-    footer.setAttribute('data-e2e-opened-view', 'true');
+    footer.parentElement?.setAttribute('data-e2e-opened-view', 'true');
   });
   await textBox(page).tap();
   await expect(textBox(page)).toBeFocused();
@@ -328,7 +329,7 @@ const checkSpaceRoomOnHomeKeepsView = async (page: Page, world: World, engine: s
     `${engine}: the opened thread's text box keeps the focus`
   ).toBeFocused();
   await expect(
-    page.locator('[data-room-footer][data-e2e-opened-view="true"]'),
+    page.locator('[data-e2e-opened-view="true"]'),
     `${engine}: the room view stays mounted`
   ).toHaveCount(1);
   expect(new URL(page.url()).pathname, `${engine}: the thread opens on Home`).toMatch(

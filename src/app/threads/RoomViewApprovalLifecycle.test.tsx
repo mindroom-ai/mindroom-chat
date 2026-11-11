@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useSetAtom } from 'jotai';
+import {
+  threadViewVoiceComposersAtom,
+  voiceComposerKey,
+} from '../composer/roomInputDrafts';
+import { useInConversationView } from '../navigation/conversationView';
 import { act, create } from 'react-test-renderer';
 import { createClient, Room } from 'matrix-js-sdk';
 import { createEditor } from 'slate';
@@ -58,7 +64,15 @@ vi.mock('../event-store/engine', () => ({
 }));
 vi.mock('../event-store/timeline/roomLiveEventArrive', () => ({ useLiveEventArrive: () => undefined }));
 vi.mock('../matrix/hooks/useStateEvent', () => ({ useStateEvent: () => undefined }));
-vi.mock('../matrix/hooks/usePowerLevels', () => ({ usePowerLevelsContext: () => ({}) }));
+vi.mock('../matrix/hooks/usePowerLevels', () => {
+  // The thread column's view reads the room's levels itself, the same ones every render.
+  const levels = {};
+  return {
+    usePowerLevelsContext: () => ({}),
+    usePowerLevels: () => levels,
+    PowerLevelsContextProvider: ({ children }: { children: React.ReactNode }) => children,
+  };
+});
 vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => [] }));
 vi.mock('../matrix/hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({
@@ -99,15 +113,21 @@ vi.mock('../room/useRoomViewThreadState', () => ({
   useRoomViewThreadState: ({ threadId }: { threadId?: string }) => ({
     effectiveThreadId: threadId,
     viewMode: 'compact',
+    // As the room's handler, it says whether it opened the sent message's thread.
     handleRoomMessageSent: (id: string) => {
-      if (!threadId) navigate(id);
+      if (threadId) return false;
+      navigate(id);
+      return true;
     },
   }),
 }));
 vi.mock('../composer/RoomInput', () => ({ RoomInput: React.forwardRef(Composer) }));
 
 function Composer(
-  { threadId, onRoomMessageSent }: { threadId?: string; onRoomMessageSent?: (id: string) => void },
+  {
+    threadId,
+    onRoomMessageSent,
+  }: { threadId?: string; onRoomMessageSent?: (id: string) => boolean | void },
   _ref: React.ForwardedRef<HTMLDivElement>
 ) {
   const selectedFilesRef = useRef([item(first), item(second)]);
@@ -151,6 +171,13 @@ function Composer(
         setVersion((value) => value + 1);
       },
       protectPasteItems: () => noop,
+      release: (_roomId, files) => {
+        selectedFilesRef.current = selectedFilesRef.current.filter(
+          (value) => !files.includes(value.file)
+        );
+        enrolledRef.current = enrolledRef.current.filter((value) => !files.includes(value.file));
+        setVersion((value) => value + 1);
+      },
       subscribe: (listener) => {
         listenersRef.current.add(listener);
         return () => {
@@ -188,6 +215,15 @@ function Composer(
   useEffect(() => {
     mounts += 1;
   }, []);
+  // A thread view's composer lists itself, as RoomInput's voice hook does.
+  const threadView = useInConversationView();
+  const setThreadViewComposers = useSetAtom(threadViewVoiceComposersAtom);
+  useLayoutEffect(() => {
+    if (!threadView) return undefined;
+    const entry = { key: voiceComposerKey({ roomId: room.roomId, threadId, threadView }) };
+    setThreadViewComposers((entries) => [...entries, entry]);
+    return () => setThreadViewComposers((entries) => entries.filter((other) => other !== entry));
+  }, [setThreadViewComposers, threadId, threadView]);
   useEffect(() => {
     api = controller;
     completeUpload = () => {
@@ -223,7 +259,8 @@ it('continues the pending second upload and caption when the first upload opens 
       'second.png',
       'caption',
     ]);
-    expect(mounts).toBe(1);
+    // The room's composer goes as the thread fills the page; the thread's takes the send over.
+    expect(mounts).toBe(2);
     expect(send.mock.calls[1][1]['m.relates_to']).toMatchObject({
       rel_type: 'm.thread',
       event_id: '$sent-1',

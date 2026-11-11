@@ -14,7 +14,13 @@ import {
   resetEditorHistory,
   restoreEditorContent,
 } from '../editor/utils';
-import { IReplyDraft, roomUploadAtomFamily, voiceComposerKey } from './roomInputDrafts';
+import {
+  IReplyDraft,
+  roomUploadAtomFamily,
+  threadViewVoiceComposersAtom,
+  voiceComposerKey,
+} from './roomInputDrafts';
+import { resolveCanonicalThreadRootId } from '../event-store/threads/threadRouteUtils';
 import { useInConversationView } from '../navigation/conversationView';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { TUploadItem, Upload } from '../matrix/state/upload';
@@ -56,6 +62,14 @@ type SendSession = RoomInputSendSessionState & {
   onUploadSent?: (file: TUploadContent) => void;
   /** What the session uses of the composer that started it, taken at Send. */
   composer: SessionComposer;
+  /** The thread its root opened (Compact): the session parks for that thread's composer. */
+  openedThreadId?: string;
+  /**
+   * Whether it started in a conversation view's composer. A thread's view may take over a send the
+   * room's composer started, but only while mounted: as it goes, the send parks for the room's
+   * composer again, which holds its files' board.
+   */
+  originThreadView?: boolean;
 };
 
 type ComposerContext = Pick<RoomInputSendContext, 'roomId' | 'threadId'>;
@@ -66,8 +80,11 @@ type SessionComposer = {
   clearReplyDraft: UseRoomInputSendSessionControllerOptions['clearReplyDraft'];
   /** Puts a caption back: in the editor while it shows `context`, else in its stored draft. */
   restoreText: (context: ComposerContext, fragment: Descendant[]) => void;
-  /** Reports a sent room message, only while the composer is mounted and shows `context`. */
-  reportSent: (context: ComposerContext, eventId: string) => void;
+  /**
+   * Reports a sent room message, only while the composer is mounted and shows `context`: true when
+   * that opened the message's thread.
+   */
+  reportSent: (context: ComposerContext, eventId: string) => boolean;
   /** False once the composer unmounted: no one can retry the session's files then. */
   mounted: () => boolean;
 };
@@ -96,6 +113,32 @@ type SendSlot = {
   start?: (options: StartRoomInputSendSessionOptions, slot: SendSlot) => Promise<void>;
 };
 
+/**
+ * Reports a sent room message from the session's composer. The thread it opens is marked first:
+ * opening it can unmount that composer at once, which parks the session for that thread.
+ */
+const reportSentFromSession = (session: SendSession, eventId: string) => {
+  session.openedThreadId = eventId;
+  if (!session.composer.reportSent(session.composerContext, eventId)) {
+    session.openedThreadId = undefined;
+  }
+};
+
+/**
+ * The key of a mounted view of the thread `threadId` opened (`mountedViewKeys`, by
+ * `voiceComposerKey`), under its root's ID as sent or as the server confirmed it; none while no
+ * view of that thread is there to take a send over.
+ */
+export const openedThreadParkKey = (
+  room: Room,
+  roomId: string,
+  threadId: string,
+  mountedViewKeys: readonly string[]
+): string | undefined =>
+  [threadId, resolveCanonicalThreadRootId(room, threadId)]
+    .map((id) => voiceComposerKey({ roomId, threadId: id, threadView: true }))
+    .find((key) => mountedViewKeys.includes(key));
+
 const createSendSlot = (): SendSlot => ({
   processing: false,
   queued: [],
@@ -113,6 +156,11 @@ const ofClient = <T>(map: WeakMap<MatrixClient, T>, mx: MatrixClient, create: ()
   return map.get(mx) as T;
 };
 const parkedSlotsOf = (mx: MatrixClient) => ofClient(parkedSlots, mx, () => new Map());
+// Per client: the composers to tell when a slot parks for another composer, so a mounted one can
+// take it over.
+const parkListeners = new WeakMap<MatrixClient, Set<() => void>>();
+const parkListenersOf = (mx: MatrixClient) => ofClient(parkListeners, mx, () => new Set());
+const parkVersions = new WeakMap<MatrixClient, number>();
 const busySlotsOf = (mx: MatrixClient) => ofClient(busySlots, mx, () => new Set());
 
 const notifySlot = (slot: SendSlot) => slot.listeners.forEach((listener) => listener());
@@ -324,9 +372,8 @@ export const useRoomInputSendSessionController = ({
   );
   // A composer that went, or shows another room or thread, does not open the sent thread.
   const reportSent = useCallback(
-    (context: ComposerContext, eventId: string) => {
-      if (showsContext(context)) onRoomMessageSentRef.current?.(eventId);
-    },
+    (context: ComposerContext, eventId: string) =>
+      showsContext(context) && onRoomMessageSentRef.current?.(eventId) === true,
     [onRoomMessageSentRef, showsContext]
   );
 
@@ -370,7 +417,7 @@ export const useRoomInputSendSessionController = ({
         if (!sentEventIdToNotify) return;
 
         roomMessageSentNotified = true;
-        session.composer.reportSent(session.composerContext, sentEventIdToNotify);
+        reportSentFromSession(session, sentEventIdToNotify);
       };
 
       if (localEventId === `~${session.roomId}:${txnId}`) {
@@ -436,9 +483,7 @@ export const useRoomInputSendSessionController = ({
       clearReplyDraftForSession(session);
       // The composer that took the send over meanwhile holds the file now.
       session.composer.attachments.remove(session.roomId, [file]);
-      if (sentEventIdToNotify) {
-        session.composer.reportSent(session.composerContext, sentEventIdToNotify);
-      }
+      if (sentEventIdToNotify) reportSentFromSession(session, sentEventIdToNotify);
     },
     [mx]
   );
@@ -636,6 +681,7 @@ export const useRoomInputSendSessionController = ({
           composer,
         }
       );
+      session.originThreadView = threadView;
       sendSlot.session = session;
       busySlotsOf(mx).add(sendSlot);
       // A send queued in a parked slot waits there under its own key.
@@ -677,6 +723,7 @@ export const useRoomInputSendSessionController = ({
       }
     },
     [
+      threadView,
       roomId,
       threadId,
       replyDraft,
@@ -723,9 +770,31 @@ export const useRoomInputSendSessionController = ({
 
   slot.start = startSendSession;
 
-  // A composer showing the key of one that unmounted with a send under way, as it mounts or moves
-  // there, takes that send over: its board shows the files still to go, which it can cancel or
-  // retry, and its sends follow that one.
+  // A composer showing the key of one that unmounted with a send under way, as it mounts, moves
+  // there or the send parks there, takes that send over: its board shows the files still to go,
+  // which it can cancel or retry, and its sends follow that one.
+  const parkVersion = useSyncExternalStore(
+    useCallback(
+      (listener: () => void) => {
+        const listeners = parkListenersOf(mx);
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      [mx]
+    ),
+    () => parkVersions.get(mx) ?? 0
+  );
+  // A composer with a send of its own takes another over once its own is done.
+  const ownBusy = useSyncExternalStore(
+    useCallback(
+      (listener: () => void) => {
+        slot.listeners.add(listener);
+        return () => slot.listeners.delete(listener);
+      },
+      [slot]
+    ),
+    () => !!slot.session || slot.queued.length > 0
+  );
   useEffect(() => {
     const own = slotRef.current;
     if (own.session || own.queued.length > 0) return;
@@ -735,7 +804,8 @@ export const useRoomInputSendSessionController = ({
     parked.unpark?.();
     parked.unpark = undefined;
     parked.repark = undefined;
-    const { staged, enrolled } = session.composer.attachments.snapshot(session.roomId);
+    const previous = session.composer.attachments;
+    const { staged, enrolled } = previous.snapshot(session.roomId);
     const items = new Map(
       // The board's copy of a file is the newest.
       [...enrolled, ...staged]
@@ -751,12 +821,20 @@ export const useRoomInputSendSessionController = ({
       reportSent,
       mounted: isMounted,
     };
+    // Files from another board (the room's, taken over by a thread's view) leave that one.
+    const onBoard = new Set(attachments.snapshot(session.roomId).staged.map((item) => item.file));
+    if (previous !== attachments) {
+      previous.release(
+        session.roomId,
+        [...items.keys()].filter((file) => !onBoard.has(file))
+      );
+    }
     attachments.append(session.roomId, [...items.values()]);
     attachments.enroll([...items.values()]);
     parked.adopted = true;
     slotRef.current = parked;
     setSlot(parked);
-  }, [attachments, composerKey, isMounted, mx, reportSent, restoreText]);
+  }, [attachments, composerKey, isMounted, mx, ownBusy, parkVersion, reportSent, restoreText]);
 
   // Unmounting with a send under way parks it for the next composer of the same key.
   useEffect(
@@ -767,20 +845,41 @@ export const useRoomInputSendSessionController = ({
       const parked = parkedSlotsOf(mx);
       const park = () => {
         current.unpark?.();
-        const key = current.session
-          ? voiceComposerKey({ ...current.session.composerContext, threadView })
+        const { session: held } = current;
+        let key = held
+          ? voiceComposerKey({
+              ...held.composerContext,
+              threadView: held.originThreadView ?? threadView,
+            })
           : composerKeyRef.current;
+        // A send whose root opened its thread goes on with a view of that thread that is there
+        // (one that mounts as this composer goes has listed itself already); else with the room's.
+        const threadKey =
+          held?.openedThreadId &&
+          openedThreadParkKey(
+            held.room,
+            held.roomId,
+            held.openedThreadId,
+            store.get(threadViewVoiceComposersAtom).map((entry) => entry.key)
+          );
+        if (threadKey) key = threadKey;
         // A key another send still waits under stays that send's.
         if (parked.get(key)?.session) return;
         parked.set(key, current);
         current.unpark = () => {
           if (parked.get(key) === current) parked.delete(key);
         };
+        // A send handed to another composer (a thread's view, or back to the room's) finds it
+        // mounted already when the thread sat beside the messages: tell it.
+        if (key !== composerKeyRef.current) {
+          parkVersions.set(mx, (parkVersions.get(mx) ?? 0) + 1);
+          parkListenersOf(mx).forEach((listener) => listener());
+        }
       };
       current.repark = park;
       park();
     },
-    [composerKeyRef, mx, threadView]
+    [composerKeyRef, mx, store, threadView]
   );
 
   const joinedSendPending = useSyncExternalStore(

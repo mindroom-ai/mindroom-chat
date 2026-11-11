@@ -24,7 +24,6 @@ import {
   threadViewVoiceComposersAtom,
   voiceAutoSendPendingAtom,
   voiceComposerKey,
-  voiceRecorderRoomAtom,
 } from './roomInputDrafts';
 import { TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { pauseAllMediaElements } from '../lib/dom';
@@ -154,14 +153,6 @@ export const useRoomInputVoice = ({
     (draftKey === voiceComposerKey({ ...composerContext, threadView: true }) &&
       !threadViewComposers.some((entry) => entry.key === draftKey));
   const otherComposerOwnsPendingVoiceDraft = draftBelongsToCurrentSession && !ownsPendingVoiceDraft;
-  // The room page keeps an open thread where it is while its recorder shows (RoomView).
-  const recorderShown = view === undefined && (voiceRecorderOpen || ownsPendingVoiceDraft);
-  const setRecorderRoom = useSetAtom(voiceRecorderRoomAtom);
-  useEffect(() => {
-    if (!recorderShown) return undefined;
-    setRecorderRoom(roomId);
-    return () => setRecorderRoom((shown) => (shown === roomId ? undefined : shown));
-  }, [recorderShown, roomId, setRecorderRoom]);
   const voiceAutoSendClaimedRef = useRef(false);
   const voiceAutoSendInFlightRef = useRef(false);
   const voiceRecorderRef = useRef<VoiceRecorderComposerHandle>(null);

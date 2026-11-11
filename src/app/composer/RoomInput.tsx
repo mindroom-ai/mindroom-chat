@@ -51,6 +51,7 @@ import {
   getRoomInputDraftKey,
   type IReplyDraft,
   keepReplyDraft,
+  restoreTextToDraft,
   roomIdToMsgDraftAtomFamily,
   composerReplyDraftAtom,
 } from './roomInputDrafts';
@@ -370,13 +371,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
 
     const restoreComposerFallbackForRoom = useCallback(
-      (fallbackRoomId: string, fragment: Descendant[], fallbackThreadId?: string) => {
-        if (fragment.length === 0) return;
-        const draftAtom = roomIdToMsgDraftAtomFamily(
-          getRoomInputDraftKey(userId, fallbackRoomId, fallbackThreadId)
-        );
-        if (store.get(draftAtom).length === 0) store.set(draftAtom, fragment);
-      },
+      (fallbackRoomId: string, fragment: Descendant[], fallbackThreadId?: string) =>
+        // After any text typed there since: a failed caption is never dropped.
+        restoreTextToDraft(
+          store,
+          getRoomInputDraftKey(userId, fallbackRoomId, fallbackThreadId),
+          fragment
+        ),
       [store, userId]
     );
 

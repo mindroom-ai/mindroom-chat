@@ -150,6 +150,17 @@ export const roomIdToMsgDraftAtomFamily = atomFamily(createMsgDraftAtom);
 export const hasKeptDraft = (draftKey: string): boolean =>
   getStorageItemSafe(getSafeLocalStorage(), `${DRAFT_STORAGE_PREFIX}${draftKey}`) !== null;
 
+/** Puts text back into the stored draft `draftKey`, after any text typed there since. */
+export const restoreTextToDraft = (
+  store: JotaiStore,
+  draftKey: string,
+  fragment: Descendant[]
+): void => {
+  if (fragment.length === 0) return;
+  const draftAtom = roomIdToMsgDraftAtomFamily(draftKey);
+  store.set(draftAtom, [...store.get(draftAtom), ...fragment]);
+};
+
 /** Moves a thread's draft to another composer's in the room, after the text that one holds. */
 export const moveMessageDraft = (
   store: JotaiStore,
@@ -377,9 +388,6 @@ export const openVoiceRecorderAtom = atom<symbol | undefined>(undefined);
 /** The composers of thread views that are mounted, by `voiceComposerKey`, each one entry. */
 export const threadViewVoiceComposersAtom = atom<readonly { key: string }[]>([]);
 
-/** The room whose page composer shows its voice recorder: recording, or a recording to send. */
-export const voiceRecorderRoomAtom = atom<string | undefined>(undefined);
-
 // What a reload would lose.
 
 /** The keys a family holds atoms for, listed without creating or removing any. */
@@ -429,5 +437,4 @@ export const forgetComposerStateOfSession = (store: JotaiStore): void => {
   dropEveryEntry(roomIdToUploadItemsAtomFamily);
   store.set(voiceAutoSendPendingAtom, false);
   store.set(openVoiceRecorderAtom, undefined);
-  store.set(voiceRecorderRoomAtom, undefined);
 };

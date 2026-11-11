@@ -282,10 +282,29 @@ export const useRoomInputAttachments = ({
       notify();
     };
 
+    // A send another composer took over goes on there: its files leave this board and this
+    // composer's claim, their uploads going on. A composer that went watches nothing again.
+    const release = (targetRoomId: string, files: TUploadContent[]) => {
+      if (files.length === 0) return;
+      const released = new Set(files);
+      const listAtom = composerUploadItemsAtom(targetRoomId, view);
+      const items = store.get(listAtom).filter((item) => released.has(item.file));
+      if (items.length > 0) {
+        store.set(listAtom, { type: 'DELETE', item: items });
+        keepNames(targetRoomId);
+      }
+      files.forEach((file) => owners.current.delete(file));
+      enrolled.current = enrolled.current.filter((item) => !released.has(item.file));
+      releaseClaims();
+      if (mounted.current) syncUploadWatches();
+      notify();
+    };
+
     return {
       snapshot,
       append,
       remove,
+      release,
       enroll: (items) => {
         const known = new Set(enrolled.current.map((item) => item.file));
         enrolled.current = [...enrolled.current, ...items.filter((item) => !known.has(item.file))];

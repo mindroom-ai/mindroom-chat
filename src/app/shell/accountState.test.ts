@@ -36,7 +36,7 @@ const KEPT_MODULES: Record<string, string> = {
   'src/app/computer/computerServiceSettings.ts':
     'the computer service chosen on this device, saved in localStorage',
   'src/app/room/threadLayout.ts':
-    'how threads open on this device, beside the messages or in their place, saved in localStorage',
+    'how the thread column shows on this device, beside the messages or filling the page, saved in localStorage',
   'src/app/theme/useTheme.ts': "the deployment's default theme, from its config.json",
   // Not reset by the forget: it runs before the cleanups of the pages below the account's root,
   // whose own -1s would then take the count below 0.
