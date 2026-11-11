@@ -332,7 +332,11 @@ test("a thread's column filling the page has the banner under its own header, on
     // A file dropped on that header goes to the thread's composer, not the room's under it.
     await dropFile(column.locator('h1'), DROPPED_FILE);
     await expect(column.getByText(DROPPED_FILE)).toBeVisible();
-    await expect(page.locator('[data-room-footer]').getByText(DROPPED_FILE)).toHaveCount(0);
+    await expect(
+      page
+        .locator('[data-room-footer]:not([data-testid="thread-column"] *)')
+        .getByText(DROPPED_FILE)
+    ).toHaveCount(0);
     await shot(page, 'room-header-slot-thread-full-file-dropped');
 
     await column
