@@ -115,12 +115,6 @@ const card = (run: string) => {
   if (!found) throw new Error(`no card for ${run}`);
   return found;
 };
-/** The card's own part, without the cards nested in it. */
-const ownText = (element: HTMLElement) => {
-  const copy = element.cloneNode(true) as HTMLElement;
-  copy.querySelectorAll('[data-subagent-run]').forEach((nested) => nested.remove());
-  return copy.textContent ?? '';
-};
 const button = (scope: HTMLElement, name: string) => {
   const found = [...scope.querySelectorAll('button')].find(
     (candidate) => candidate.textContent === name || candidate.getAttribute('aria-label') === name
@@ -128,11 +122,11 @@ const button = (scope: HTMLElement, name: string) => {
   if (!found) throw new Error(`no button ${name}`);
   return found;
 };
-/** The card's own transcript, not one of a card nested in it. */
-const transcript = (run: string) =>
-  [...card(run).querySelectorAll<HTMLElement>('[data-subagent-transcript]')].find(
-    (element) => element.closest('[data-subagent-run]') === card(run)
-  ) ?? null;
+/** The open run, or null while the list shows. */
+const view = () => container.querySelector<HTMLElement>('[data-subagent-view]');
+const open = (run: string) => act(() => card(run).click());
+const transcript = () => view()?.querySelector<HTMLElement>('[data-subagent-transcript]') ?? null;
+const heading = () => container.querySelector('header h2')?.textContent;
 
 beforeAll(async () => {
   await loadLiveMarkdown();
@@ -166,13 +160,21 @@ describe('SubagentsPanel', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('shows two running runs as two cards, the one that started first on top', () => {
+  it('lists a card per run, the one that started first on top, titled by its task', () => {
     ingest('late', meta('running', { agent: 'writer', startedAt: NOW - 10 }), docs('Drafting.'));
-    ingest('early', meta('running', { startedAt: NOW - 45 }), docs('Looking it up.'));
+    ingest(
+      'early',
+      meta('running', { task: 'Find when version 2 shipped.\nCite the changelog.' }),
+      docs('Looking it up.')
+    );
     render();
 
     expect(cards().map((element) => element.dataset.subagentRun)).toEqual(['early', 'late']);
     expect(container.querySelector('header')?.textContent).toContain('2 active');
+    // The task's first line is the title; a run without a task goes by its agent.
+    expect(card('early').textContent).toContain('Find when version 2 shipped.');
+    expect(card('early').textContent).not.toContain('Cite the changelog.');
+    expect(card('early').textContent).toContain('Looking it up.');
     // A member shows by the room's name for them, an agent outside the room by its own name.
     expect(card('early').textContent).toContain('Research Desk');
     expect(card('late').textContent).toContain('writer');
@@ -180,16 +182,14 @@ describe('SubagentsPanel', () => {
     expect(card('early').textContent).toContain('45 sec');
   });
 
-  it("names a namespaced MindRoom's agent and caller by their accounts, with the agent's picture", () => {
+  it("names a namespaced MindRoom's agent by its account, with the agent's picture", () => {
     ingest('run', meta('running', { agent: 'helper', caller: 'coordinator' }), docs('Looking.'));
     render();
 
-    expect(card('run').querySelector('h3')?.textContent).toBe('Helper Desk');
+    expect(card('run').textContent).toContain('Helper Desk');
     expect(card('run').querySelector('img')?.getAttribute('src')).toBe(
       'https://media.example.org/example.org/helper'
     );
-    act(() => button(card('run'), 'from Coordinator').click());
-    expect(navigation.navigateRoomThread).toHaveBeenCalledWith(ROOM_ID, '$thread:example.org');
   });
 
   it('lists finished runs after the running ones, the one that ended last first', () => {
@@ -211,20 +211,6 @@ describe('SubagentsPanel', () => {
     expect(container.querySelector('header')?.textContent).toContain('2 active');
   });
 
-  it('shows a run inside the card of the run that started it, and an orphan on its own', () => {
-    ingest('parent', meta('running'), docs('Splitting the work.'));
-    ingest('child', meta('running', { agent: 'writer', parent: 'parent' }), docs('Writing.'));
-    ingest('orphan', meta('running', { parent: 'gone', startedAt: NOW - 5 }), docs('Alone.'));
-    render();
-
-    const nested = card('parent').querySelectorAll<HTMLElement>('[data-subagent-run]');
-    expect([...nested].map((element) => element.dataset.subagentRun)).toEqual(['child']);
-    const topLevel = cards().filter(
-      (element) => !element.parentElement?.closest('[data-subagent-run]')
-    );
-    expect(topLevel.map((element) => element.dataset.subagentRun)).toEqual(['parent', 'orphan']);
-  });
-
   it('names each status', () => {
     const statuses: Array<[SubagentStatus, string]> = [
       ['running', 'Running'],
@@ -240,13 +226,45 @@ describe('SubagentsPanel', () => {
     );
     render();
 
-    statuses.forEach(([status, label]) => expect(ownText(card(status))).toContain(label));
+    statuses.forEach(([status, label]) => expect(card(status).textContent).toContain(label));
   });
 
-  it("renders the run's Markdown and its tool rows as a reply shows them", () => {
+  it('previews what a run wrote as a thread card does, and why a failed one ended', () => {
+    ingest(
+      'tools',
+      meta('running'),
+      docs('Checking **the tags**.\n\n🔧 `run_shell_command` [1] ⏳\n\n', [
+        { type: 'tool_call_started', tool_name: 'run_shell_command' },
+      ])
+    );
+    ingest(
+      'broke',
+      meta('failed', { result: 'Tool **crashed**.', endedAt: NOW - 5 }),
+      docs('Trying.', [], false)
+    );
+    render();
+
+    expect(card('tools').textContent).toContain('1 tool');
+    expect(card('tools').textContent).toContain('Checking the tags.');
+    expect(card('broke').textContent).toContain('Tool crashed.');
+    expect(card('broke').textContent).not.toContain('Trying.');
+  });
+
+  it('lists the runs a run started inside it, counted on its card, and an orphan on its own', () => {
+    ingest('parent', meta('running'), docs('Splitting the work.'));
+    ingest('child', meta('running', { agent: 'writer', parent: 'parent' }), docs('Writing.'));
+    ingest('orphan', meta('running', { parent: 'gone', startedAt: NOW - 5 }), docs('Alone.'));
+    render();
+
+    expect(cards().map((element) => element.dataset.subagentRun)).toEqual(['parent', 'orphan']);
+    expect(card('parent').textContent).toContain('1 sub-agent');
+    expect(card('orphan').textContent).not.toContain('sub-agent');
+  });
+
+  it('opens a run as a thread: the caller asks, the run answers with its tool calls', () => {
     ingest(
       'run',
-      meta('running'),
+      meta('running', { task: 'Find the tags.' }),
       docs('Checking **the tags**.\n\n🔧 `run_shell_command` [1] ⏳\n\n', [
         {
           type: 'tool_call_started',
@@ -256,56 +274,113 @@ describe('SubagentsPanel', () => {
       ])
     );
     render();
+    open('run');
 
-    const body = transcript('run');
+    expect(heading()).toBe('Research Desk');
+    expect(container.querySelector('header')?.textContent).toContain('Running');
+    expect(view()?.querySelector('[data-subagent-task]')?.textContent).toBe('Find the tags.');
+    // The caller's message, then the run's.
+    const [asked, answer] = [...(view()?.querySelectorAll('[data-subagent-message]') ?? [])];
+    expect(asked?.textContent).toContain('Lead');
+    expect(asked?.textContent).toContain('Find the tags.');
+    expect(answer?.textContent).toContain('Research Desk');
+    const body = transcript();
     expect(body?.querySelector('strong')?.textContent).toBe('the tags');
     const calls = body?.querySelector<HTMLButtonElement>('[data-message-disclosure] > button');
     expect(calls?.textContent).toContain('Running 1 tool call');
-    expect(calls?.textContent).toContain('run_shell_command');
     act(() => calls?.click());
     expect(body?.querySelector('[data-tool-index="1"]')?.textContent).toContain('git tag');
   });
 
-  it('shows the typing dots while a run is running, not while it waits for approval', () => {
+  it('shows the typing dots while an open run is running, not while it waits for approval', () => {
     ingest('waiting', meta('awaiting_approval'), docs('May I run it?'));
     ingest('busy', meta('running', { startedAt: NOW - 30 }), docs('Working.'));
     render();
+    const dots = () => transcript()?.querySelector('[aria-label="AI is responding"]') ?? null;
 
-    const dots = (run: string) =>
-      transcript(run)?.querySelector('[aria-label="AI is responding"]') ?? null;
-    expect(transcript('waiting')?.textContent).toContain('May I run it?');
-    expect(dots('waiting')).toBeNull();
-    expect(dots('busy')).not.toBeNull();
+    open('waiting');
+    expect(transcript()?.textContent).toContain('May I run it?');
+    expect(dots()).toBeNull();
+    act(() => button(container, 'Back').click());
+    open('busy');
+    expect(dots()).not.toBeNull();
   });
 
-  it('shows the task on request', () => {
-    ingest('run', meta('running', { task: 'Find when version 2 shipped.' }), docs('Looking.'));
-    render();
-
-    expect(card('run').textContent).not.toContain('Find when version 2 shipped.');
-    const toggle = button(card('run'), 'Show task');
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    act(() => toggle.click());
-    expect(toggle.getAttribute('aria-expanded')).toBe('true');
-    expect(card('run').textContent).toContain('Find when version 2 shipped.');
-  });
-
-  it('shows a finished run by its result, with its transcript on request', () => {
+  it('answers with the result when a run wrote nothing, and says why a failed run ended', () => {
     ingest(
-      'run',
+      'quiet',
       meta('completed', { result: 'Version 2 shipped in **March**.' }),
-      docs('Reading the **changelog**.', [], false)
+      docs('', [], false)
+    );
+    ingest(
+      'broke',
+      meta('failed', { result: 'Tool crashed.', endedAt: NOW - 5 }),
+      docs('Trying.', [], false)
     );
     render();
 
-    // The result is Markdown, as agents write it, and shows formatted like the transcript.
-    const result = card('run').querySelector('[data-subagent-result]');
-    expect(result?.textContent).toContain('Version 2 shipped in March.');
-    expect(result?.querySelector('strong')?.textContent).toBe('March');
-    expect(card('run').textContent).toContain('Done');
-    expect(transcript('run')).toBeNull();
-    act(() => button(card('run'), 'Show output').click());
-    expect(transcript('run')?.querySelector('strong')?.textContent).toBe('changelog');
+    open('quiet');
+    expect(transcript()?.querySelector('strong')?.textContent).toBe('March');
+    act(() => button(container, 'Back').click());
+    open('broke');
+    expect(transcript()?.textContent).toContain('Trying.');
+    expect(view()?.querySelector('[data-subagent-failure]')?.textContent).toBe('Tool crashed.');
+  });
+
+  it('says why a failed run that wrote nothing ended, not as its answer', () => {
+    ingest('broke', meta('failed', { result: 'Tool crashed.' }), docs('', [], false));
+    render();
+    open('broke');
+
+    expect(transcript()).toBeNull();
+    expect(view()?.querySelector('[data-subagent-failure]')?.textContent).toBe('Tool crashed.');
+    expect(view()?.querySelectorAll('[data-subagent-message]')).toHaveLength(1);
+  });
+
+  it('shows no reply for a run that ended without writing anything', () => {
+    ingest('quiet', meta('cancelled', { task: 'Wait.' }), docs('', [], false));
+    render();
+    open('quiet');
+
+    expect(view()?.textContent).toContain('Wait.');
+    expect(transcript()).toBeNull();
+    expect(view()?.textContent).not.toContain('Thinking');
+  });
+
+  it('opens a run it started from its cards, and goes back up one run at a time', () => {
+    ingest(
+      'parent',
+      meta('completed', { result: 'All done.' }),
+      docs('Asked a writer.', [], false)
+    );
+    ingest(
+      'child',
+      meta('completed', { agent: 'writer', parent: 'parent', task: 'Write it.' }),
+      docs('Written.', [], false)
+    );
+    render();
+
+    open('parent');
+    expect(heading()).toBe('Research Desk');
+    // The card that opened it is gone; focus moves to the way back.
+    expect(document.activeElement).toBe(button(container, 'Back'));
+    expect(card('child').textContent).toContain('Write it.');
+    // Its cards come before its reply, whose end a reader follows.
+    const reply = transcript();
+    expect(reply && card('child').compareDocumentPosition(reply)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    open('child');
+    expect(heading()).toBe('writer');
+    expect(transcript()?.textContent).toContain('Written.');
+    act(() => button(container, 'Back').click());
+    expect(heading()).toBe('Research Desk');
+    // Back gives focus to the card of the run it closed.
+    expect(document.activeElement).toBe(card('child'));
+    act(() => button(container, 'Back').click());
+    expect(view()).toBeNull();
+    expect(heading()).toBe('Sub-agents');
+    expect(document.activeElement).toBe(card('parent'));
   });
 
   it('opens the thread the run was started from', () => {
@@ -313,18 +388,51 @@ describe('SubagentsPanel', () => {
     ingest('loose', meta('running', { threadId: null, startedAt: NOW - 5 }), docs('Looking.'));
     render();
 
-    act(() => button(card('run'), 'from Lead').click());
+    open('run');
+    act(() => button(container, 'Open thread').click());
     expect(navigation.navigateRoomThread).toHaveBeenCalledWith(ROOM_ID, '$thread:example.org');
-    // Without a thread, the caller is only named.
-    expect(ownText(card('loose'))).toContain('from Lead');
-    expect(() => button(card('loose'), 'from Lead')).toThrow();
+    act(() => button(container, 'Back').click());
+    open('loose');
+    expect(() => button(container, 'Open thread')).toThrow();
   });
 
-  it('follows new text at the end of a transcript until the reader scrolls up more than 24 px', () => {
+  it('shows the list again when the open run is gone', () => {
+    ingest('run', meta('running'), docs('Looking.'));
+    render();
+    open('run');
+    expect(view()).not.toBeNull();
+
+    act(() => getSubagentRunStore(mx).clear());
+    expect(view()).toBeNull();
+    expect(container.textContent).toContain('No sub-agents are running in this room.');
+    // The focus its Back held goes to the panel, not the page.
+    expect(document.activeElement).toBe(container.querySelector('[data-testid="subagents-panel"]'));
+    // The run's next frame lists it again without opening it.
+    seqs.clear();
+    ingest('run', meta('running'), docs('Still looking.'));
+    expect(view()).toBeNull();
+    expect(card('run').textContent).toContain('Still looking.');
+  });
+
+  it('opens an ended run at its task and stays there', () => {
+    ingest('run', meta('completed'), docs('First line.', [], false));
+    render();
+    open('run');
+    const box = view();
+    if (!box) throw new Error('no open run');
+    Object.defineProperty(box, 'scrollHeight', { configurable: true, get: () => 1_000 });
+    Object.defineProperty(box, 'clientHeight', { configurable: true, value: 200 });
+
+    ingest('run', meta('completed'), docs('First line. Second line.', [], false));
+    expect(box.scrollTop).toBe(0);
+  });
+
+  it('follows new text at the end of a running run until the reader scrolls up more than 24 px', () => {
     ingest('run', meta('running'), docs('First line.'));
     render();
-    const box = transcript('run');
-    if (!box) throw new Error('no transcript');
+    open('run');
+    const box = view();
+    if (!box) throw new Error('no open run');
     let height = 1_000;
     Object.defineProperty(box, 'scrollHeight', { configurable: true, get: () => height });
     Object.defineProperty(box, 'clientHeight', { configurable: true, value: 200 });
