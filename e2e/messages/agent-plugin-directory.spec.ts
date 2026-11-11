@@ -56,6 +56,7 @@ test("a plugin directory's scenario drives the stub to its plugin's tool", async
     plugin: 'e2e-sample',
     tools: ['e2e_sample'],
     scenarios: join(dir, 'e2e/stub-scenarios.json'),
+    origins: false,
   });
 
   // The directory's scenario makes the stub call the plugin's tool, whose answer the reply quotes.
@@ -75,7 +76,10 @@ pageTest("a plugin directory's fixture page is served", async ({ page }) => {
   await page.goto(
     `/e2e-plugins/${encodeURIComponent(basename(sampleDir ?? ''))}/e2e/fixtures/page.html`
   );
-  await expect(page.getByText("Rendered by the sample plugin's page")).toBeVisible();
+  // Set up by the SDK's `bootFixturePage`: the plugin's strings, the dark theme and the app's styles.
+  await expect(page.getByText("Rendered by the sample plugin's page, dark")).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme-kind', 'dark');
+  await expect(page.locator('body')).toHaveCSS('font-family', /InterVariable/);
 });
 
 test('a plugin that fails its check refuses the start and leaves the running stack', async ({

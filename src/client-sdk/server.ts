@@ -10,19 +10,14 @@ import {
   createComputerSession,
   type ComputerSessionClient,
 } from '../app/computer/api';
-import {
-  MindroomServerError,
-  clientSessions,
-  tokenError,
-  untilAborted,
-  type ClientSessions,
-} from '../app/computer/clientSessions';
+import { MindroomServerError, tokenError, untilAborted } from '../app/computer/clientSessions';
 import { useRoomAgentServers } from '../app/computer/useAgentServers';
 import { useRoomComputer } from '../app/computer/useRoomComputer';
 import { useRoomMindroomServer } from '../app/computer/useRoomMindroomServer';
 import { useMatrixClient } from '../app/matrix/hooks/useMatrixClient';
 import { useRoomMembers } from '../app/matrix/hooks/useRoomMembers';
 import { requestAudienceOpenIdToken } from '../app/matrix/openidAudience';
+import { serverAt } from './internal/serverAt';
 
 export { ComputerApiError, MindroomServerError };
 export type { ComputerSessionClient };
@@ -66,44 +61,6 @@ export type MindroomServer = {
    * sign-in. Rejects as `request` does when the sign-in fails.
    */
   token: (options?: { signal?: AbortSignal; refused?: string }) => Promise<string>;
-};
-
-const request = async <T>(sessions: ClientSessions, path: string, init?: RequestInit) => {
-  const response = await sessions.send(path, init);
-  let body: unknown;
-  try {
-    const text = await response.text();
-    body = text ? JSON.parse(text) : undefined;
-  } catch {
-    if (response.ok) throw new MindroomServerError(`MindRoom answered ${path} without JSON.`, 0);
-  }
-  if (!response.ok) {
-    throw new MindroomServerError(
-      `MindRoom answered ${response.status} to ${path}.`,
-      response.status,
-      body
-    );
-  }
-  return body as T;
-};
-
-const knownServers = new WeakMap<ClientSessions, MindroomServer>();
-
-/**
- * The `MindroomServer` at `apiUrl`, over the account's one session there: one object for each
- * account and server, so a plugin may key work on it.
- */
-const serverAt = (mx: MatrixClient, apiUrl: string): MindroomServer => {
-  const sessions = clientSessions(mx, apiUrl);
-  const server: MindroomServer = knownServers.get(sessions) ?? {
-    origin: apiUrl,
-    request: <T>(path: string, init?: RequestInit) => request<T>(sessions, path, init),
-    send: (path, init) => sessions.send(path, init),
-    openSocket: (path) => sessions.openSocket(path),
-    token: (options) => sessions.token(options),
-  };
-  knownServers.set(sessions, server);
-  return server;
 };
 
 /**
