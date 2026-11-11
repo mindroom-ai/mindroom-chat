@@ -794,14 +794,15 @@ def stop_processes(slot_dir: Path) -> None:
 
 
 def remove_workers(slot: int) -> None:
-    """Removes the slot's worker containers, which a backend that was killed or crashed leaves behind."""
+    """Removes the slot's worker containers, which a backend that was killed or crashed leaves behind. A failure stops
+    before the slot's state is deleted, so the next `down` tries again."""
     found = subprocess.run(
         ["docker", "ps", "--all", "--quiet", "--filter", f"label={SLOT_LABEL}={slot}"], capture_output=True, text=True
     )
     ids = found.stdout.split()
     removed = subprocess.run(["docker", "rm", "--force", *ids], capture_output=True, text=True) if ids else found
     if removed.returncode != 0:
-        log(f"removing the worker containers of slot {slot} failed: {removed.stderr.strip()[-3000:]}")
+        raise StackError(f"removing the worker containers of slot {slot} failed: {removed.stderr.strip()[-3000:]}")
 
 
 def stop(slot_dir: Path) -> None:

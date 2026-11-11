@@ -433,12 +433,14 @@ class CommandLineTests(unittest.TestCase):
         self.assertEqual(env["MINDROOM_DOCKER_WORKER_IMAGE"], "worker:given")
         self.assertEqual(state["computers"], {"image": "worker:given", "tools": ["browser_mcp"]})
 
-    def fake_docker(self) -> Path:
-        """A docker CLI on PATH that logs each call and lists two containers; returns its log."""
+    def fake_docker(self, rm_error: str = "") -> Path:
+        """A docker CLI on PATH that logs each call, lists two containers and fails `rm` with `rm_error`; returns its
+        log."""
         bin_dir = self.root / "bin"
         bin_dir.mkdir(exist_ok=True)
         docker = bin_dir / "docker"
-        docker.write_text('#!/bin/sh\necho "$*" >> "$0.log"\n[ "$1" = ps ] && printf \'c1\\nc2\\n\'\nexit 0\n')
+        fail = f'[ "$1" = rm ] && echo "{rm_error}" >&2 && exit 1\n' if rm_error else ""
+        docker.write_text(f'#!/bin/sh\necho "$*" >> "$0.log"\n{fail}[ "$1" = ps ] && printf \'c1\\nc2\\n\'\nexit 0\n')
         docker.chmod(0o755)
         patcher = mock.patch.dict(os.environ, {"PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"})
         patcher.start()
@@ -455,6 +457,19 @@ class CommandLineTests(unittest.TestCase):
             calls.read_text().splitlines(),
             ["ps --all --quiet --filter label=mindroom-client-e2e.slot=7", "rm --force c1 c2"],
         )
+        self.assertFalse(self.slot_dir.exists())
+
+    def test_a_failed_removal_keeps_the_slot_so_down_can_try_again(self) -> None:
+        self.fake_docker("Cannot connect to the Docker daemon")
+        self.slot_dir.mkdir(mode=0o700)
+        computers = {"image": "worker:given", "tools": ["browser_mcp"]}
+        (self.slot_dir / "state.json").write_text(json.dumps({"slot": 7, "computers": computers}))
+        self.assertEqual(self.main("7", "down"), 1)
+        self.assertIn("Cannot connect to the Docker daemon", self.stderr.getvalue())
+        self.assertTrue((self.slot_dir / "state.json").exists())
+        calls = self.fake_docker()
+        self.assertEqual(self.main("7", "down"), 0)
+        self.assertIn("rm --force c1 c2", calls.read_text().splitlines())
         self.assertFalse(self.slot_dir.exists())
 
     def test_down_of_a_stack_without_computers_leaves_docker_alone(self) -> None:
