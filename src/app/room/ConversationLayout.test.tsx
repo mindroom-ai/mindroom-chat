@@ -3,7 +3,9 @@ import { createRef, type ReactNode, type RefObject } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import { createClient, Room } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';
+import { HeaderInThread } from '../ui/styles/RoomOverlay.css';
 import { ConversationLayout } from './ConversationLayout';
+import { HeaderInShortArea } from './RoomView.css';
 
 const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
 const room = new Room('!room:example.org', mx, '@alice:example.org');
@@ -110,4 +112,13 @@ it('shows only its children while collapsed', () => {
   expect(document.querySelector('[data-room-footer="true"]')).toBeNull();
   expect(areaRef.current?.style.flex).toBe('0 0 0px');
   expect(areaRef.current?.style.getPropertyValue('content-visibility')).toBe('hidden');
+});
+
+it("marks its header for the short screen's place, and for the banner's inside a thread", () => {
+  const header = () => screen.getByTestId('header').parentElement as HTMLElement;
+  const { rerender } = render(layout({ header: () => <div data-testid="header" /> }));
+  expect(header().classList.contains(HeaderInShortArea)).toBe(true);
+  expect(header().classList.contains(HeaderInThread)).toBe(false);
+  rerender(layout({ threadId: '$root', header: () => <div data-testid="header" /> }));
+  expect(header().classList.contains(HeaderInThread)).toBe(true);
 });

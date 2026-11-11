@@ -14,13 +14,7 @@ import {
 import { shownConversationViewsAtom } from '../navigation/conversationView';
 import type { RoomTimelineProps } from '../timeline/RoomTimeline';
 import type { ThreadContextBannerProps } from '../threads/ThreadContextBanner';
-import {
-  composerReplyDraftAtom,
-  composerUploadItemsAtom,
-  getRoomInputDraftKey,
-  roomIdToMsgDraftAtomFamily,
-  voiceRecorderRoomAtom,
-} from '../composer/roomInputDrafts';
+import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../composer/roomInputDrafts';
 import { PanelRow } from '../members/PanelRow';
 import type { RoomInputProps } from '../composer/RoomInput';
 import type { RoomHeaderSlotComponent } from '../plugins/registry';
@@ -46,6 +40,9 @@ const state = vi.hoisted(() => ({
   slotHeader: undefined as HTMLElement | null | undefined,
   // The composer, the room's or a thread's, that each dropped file went to.
   dropped: [] as string[],
+  // How often the thread's view and the plugin cover mounted.
+  viewMounts: 0,
+  coverMounts: 0,
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
@@ -87,7 +84,17 @@ vi.mock('../plugins/pluginEntries', async () => {
     pluginEntries: [{ id: 'example', version: '1.0.0', plugin: { roomHeaderSlot: [Marker] } }],
   };
 });
-vi.mock('./ConversationCover', () => ({ ConversationCover: () => null }));
+vi.mock('./ConversationCover', async () => {
+  const { useEffect } = await import('react');
+  return {
+    ConversationCover: () => {
+      useEffect(() => {
+        state.coverMounts += 1;
+      }, []);
+      return null;
+    },
+  };
+});
 vi.mock('../timeline/RoomTimeline', () => ({
   RoomTimeline: (props: RoomTimelineProps) => {
     state.main = props;
@@ -112,30 +119,19 @@ vi.mock('../approvals/ThreadApprovalProvider', () => ({
 }));
 vi.mock('../approvals/ThreadApprovalControls', () => ({ ThreadApprovalQueue: () => null }));
 vi.mock('../threads/ThreadContextBanner', () => ({
-  ThreadContextBanner: ({
-    onShowBeside,
-    showBesideBlocked,
-    onShowFull,
-    onRestore,
-    onExitThread,
-  }: ThreadContextBannerProps) => (
+  ThreadContextBanner: ({ onShowBeside, onShowFull, onExitThread }: ThreadContextBannerProps) => (
     <div>
       <button type="button" onClick={onExitThread}>
         Back
       </button>
       {onShowBeside && (
-        <button type="button" onClick={onShowBeside} disabled={showBesideBlocked}>
+        <button type="button" onClick={onShowBeside}>
           Beside
         </button>
       )}
       {onShowFull && (
         <button type="button" onClick={onShowFull}>
           Full
-        </button>
-      )}
-      {onRestore && (
-        <button type="button" onClick={onRestore}>
-          Restore
         </button>
       )}
     </div>
@@ -175,7 +171,10 @@ vi.mock('./ThreadView', async () => {
       }, [focusRef]);
       const last = useRef({ threadId, onUnmount });
       last.current = { threadId, onUnmount };
-      useEffect(() => () => last.current.onUnmount?.(last.current.threadId), []);
+      useEffect(() => {
+        state.viewMounts += 1;
+        return () => last.current.onUnmount?.(last.current.threadId);
+      }, []);
       state.columnLoadError = onThreadLoadError;
       return (
         <div
@@ -238,6 +237,8 @@ beforeEach(() => {
   state.read = [];
   state.slotHeader = undefined;
   state.dropped = [];
+  state.viewMounts = 0;
+  state.coverMounts = 0;
   localStorage.clear();
   vi.stubGlobal('PointerEvent', TestPointerEvent);
   vi.stubGlobal(
@@ -315,20 +316,23 @@ it("shows the plugins' header slot once, under the header people see, as the col
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
   expect(slotInColumn()).toBe(true);
 
-  fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Beside' }));
   expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
   expect(slotInColumn()).toBe(false);
 });
 
-it("opens a thread in the messages' place on first use", () => {
+it('opens every thread in the column, filling the page with the layout full', () => {
   renderView();
-  expect(state.main?.threadId).toBe('$thread');
-  expect(state.approvalThread).toBe('$thread');
-  expect(column()).toBeNull();
+  expect(column()?.dataset).toMatchObject({ thread: '$thread', autofocus: 'false' });
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  // The room's conversation goes from under it: one timeline, one composer, the thread's.
+  expect(screen.queryByTestId('messages')).toBeNull();
+  expect(screen.queryByRole('textbox', { name: 'Message' })).toBeNull();
+  expect(screen.getByLabelText('Reply')).toBeDefined();
   // From there it can move beside them.
   expect(screen.getByRole('button', { name: 'Beside' })).toBeDefined();
+  expect(screen.queryByRole('button', { name: 'Full' })).toBeNull();
 });
-
 it("shows the thread in its own column beside the room's messages once chosen, as it opens", () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   renderView({ eventId: '$reply' });
@@ -342,8 +346,10 @@ it("shows the thread in its own column beside the room's messages once chosen, a
     autofocus: 'true',
     hidden: 'false',
   });
-  // The thread's approvals are the column's.
+  // The thread's approvals are the column's; the room keeps its own composer beside it.
   expect(state.approvalThread).toBeUndefined();
+  expect(screen.getByRole('textbox', { name: 'Message' })).toBeDefined();
+  expect(screen.getByLabelText('Reply')).toBeDefined();
   expect(screen.getByRole('separator', { name: 'Resize the thread' })).toBeDefined();
   // In the column the banner offers Full, not the menu's Show beside.
   expect(screen.getByRole('button', { name: 'Full' })).toBeDefined();
@@ -368,7 +374,7 @@ it('stores each choice and opens the next thread the way chosen last', () => {
   expect(column()?.dataset.thread).toBe('$next');
 
   // Full fills the page with the column, which keeps the thread and its composer; focus left in
-  // the room's composer goes, as the composer turns inert.
+  // the room's composer goes with that composer.
   screen.getByRole('textbox', { name: 'Message' }).focus();
   fireEvent.click(screen.getByRole('button', { name: 'Full' }));
   expect(document.activeElement).toBe(document.body);
@@ -378,25 +384,24 @@ it('stores each choice and opens the next thread the way chosen last', () => {
   expect(screen.queryByRole('separator')).toBeNull();
   // It has the room's header, which the room area no longer shows.
   expect(within(screen.getByTestId('thread-column')).getByTestId('room-header')).toBeDefined();
-  // Filling the page, the column offers the way back, not Full or Show beside's menu entry.
+  // Filling the page, the column offers the way back beside the messages, not Full.
   expect(screen.queryByRole('button', { name: 'Full' })).toBeNull();
-  expect(screen.queryByRole('button', { name: 'Beside' })).toBeNull();
   expect(getDefaultStore().get(conversationHiddenAtom)).toBe(true);
   // The room's messages go from under it, and come back beside it.
   expect(screen.queryByTestId('messages')).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Beside' }));
   expect(screen.getByTestId('messages').closest('[aria-hidden="true"]')).toBeNull();
   expect(within(screen.getByTestId('thread-column')).queryByTestId('room-header')).toBeNull();
   expect(storedLayout()).toBe('"beside"');
   expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
   expect(getDefaultStore().get(conversationHiddenAtom)).toBe(false);
 
-  // The next thread opens in the messages' place once full was chosen last.
+  // The next thread opens filling the page once full was chosen last.
   fireEvent.click(screen.getByRole('button', { name: 'Full' }));
   state.thread = '$third';
   rerenderView(rerender);
-  expect(column()).toBeNull();
-  expect(state.main?.threadId).toBe('$third');
+  expect(column()?.dataset.thread).toBe('$third');
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
 });
 
 it("fills the page with the column when its edge is dragged past the messages' least width, and stores that", () => {
@@ -457,31 +462,34 @@ it('counts nothing more on screen while a side panel takes the place of the mess
   expect(getDefaultStore().get(shownConversationViewsAtom)).toEqual([]);
 });
 
-it("keeps the history downloads of the thread in its column, and its unsent root's notice", () => {
+it('keeps the history downloads of the thread in its column, and asks for none of an unsent root', () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
-  vi.spyOn(room, 'findEventById').mockReturnValue({ status: 'not_sent' } as never);
   state.thread = '$confirmed';
   const { rerender } = renderView();
   expect(new Set(state.focused)).toEqual(new Set(['$confirmed']));
   state.thread = '~!room:example.org:m1.1';
   rerenderView(rerender);
   expect(column()?.dataset.thread).toBe('~!room:example.org:m1.1');
-  expect(screen.getByText('Root not sent')).toBeDefined();
+  expect(state.focused.at(-1)).toBeUndefined();
+  // The unsent root's Retry and Delete are the thread view's (ThreadView.test.tsx).
+  expect(screen.queryByText('Root not sent')).toBeNull();
 });
 
 it.each([
   ['on a phone', ScreenSize.Mobile, 0],
   ['on a page narrower than two conversations', ScreenSize.Desktop, 719],
-])("keeps the thread in the messages' place %s, with no way beside them", (_, size, width) => {
+])('fills the page with every thread %s, with no way beside the messages', (_, size, width) => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(width);
   renderView({}, size);
-  expect(state.main?.threadId).toBe('$thread');
-  expect(column()).toBeNull();
+  expect(column()?.dataset.thread).toBe('$thread');
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  // The room's header, with its Back, is the column's.
+  expect(within(screen.getByTestId('thread-column')).getByTestId('room-header')).toBeDefined();
   expect(screen.queryByRole('button', { name: 'Beside' })).toBeNull();
 });
 
-it("passes a thread that does not load to the page, as the thread in the messages' place does", () => {
+it('passes a thread that does not load to the page', () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   const onLoadError = vi.fn();
   renderView({ onThreadLoadError: onLoadError });
@@ -534,72 +542,45 @@ it("keeps another thread's text where it is as the column closes", () => {
   store.set(threadDraft, []);
 });
 
-it("lets a thread in the messages' place move beside them only with no reply or file in its composer", () => {
+it("keeps the thread's view, and so its composer, as the column changes width", () => {
   const store = getDefaultStore();
-  const file = new File(['x'], 'notes.txt');
-  const item = {
-    file,
-    originalFile: file,
-    encInfo: undefined,
-    metadata: { markedAsSpoiler: false },
-  };
   renderView();
-  const beside = () => screen.getByRole('button', { name: 'Beside' });
-  act(() => store.set(composerUploadItemsAtom(room.roomId, undefined), { type: 'PUT', item }));
-  expect(beside().hasAttribute('disabled')).toBe(true);
-  act(() => store.set(composerUploadItemsAtom(room.roomId, undefined), { type: 'RESET' }));
-  act(() =>
-    store.set(composerReplyDraftAtom(room.roomId, undefined), {
-      userId: '@bob:example.org',
-      eventId: '$reply',
-      body: 'Reply',
-    })
-  );
-  expect(beside().hasAttribute('disabled')).toBe(true);
-  act(() => store.set(composerReplyDraftAtom(room.roomId, undefined), undefined));
-  // So does a voice recorder in this room's composer; another room's leaves it.
-  act(() => store.set(voiceRecorderRoomAtom, room.roomId));
-  expect(beside().hasAttribute('disabled')).toBe(true);
-  act(() => store.set(voiceRecorderRoomAtom, '!other:example.org'));
-  expect(beside().hasAttribute('disabled')).toBe(false);
-  act(() => store.set(voiceRecorderRoomAtom, undefined));
-  fireEvent.click(beside());
-  expect(column()?.dataset.thread).toBe('$thread');
+  fireEvent.click(screen.getByRole('button', { name: 'Beside' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Full' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Beside' }));
+  expect(state.viewMounts).toBe(1);
+  // The room's conversation unmounted and mounted again; the plugin cover stayed.
+  expect(screen.getByTestId('messages')).toBeDefined();
+  expect(state.coverMounts).toBe(1);
+  expect(store.get(conversationHiddenAtom)).toBe(false);
 });
-
-it('keeps an open thread where it opened as the page widens or narrows: a column fills the page instead', () => {
+it('fills the page with the column while the page is too narrow for it beside the messages', () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   const width = vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(600);
   const resize = (next: number) => {
     width.mockReturnValue(next);
     act(() => state.resized.forEach((resized) => resized()));
   };
-  const { rerender } = renderView();
-  // Opened on a narrow page, it stays in the messages' place as the page widens.
-  expect(column()).toBeNull();
+  renderView();
+  // Opened on a narrow page, it fills the page, with no way beside the messages.
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  expect(screen.queryByRole('button', { name: 'Beside' })).toBeNull();
+  expect(slotInColumn()).toBe(true);
+  // Widened, it goes beside them, as the person chose.
   resize(1000);
-  expect(column()).toBeNull();
-  expect(state.main?.threadId).toBe('$thread');
-
-  // The next thread opens beside; narrowed, its column fills the page, with no way back beside.
-  state.thread = '$next';
-  rerenderView(rerender);
-  expect(column()?.dataset.thread).toBe('$next');
+  expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
   expect(slotInColumn()).toBe(false);
   resize(600);
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
-  expect(screen.queryByRole('button', { name: 'Restore' })).toBeNull();
-  expect(slotInColumn()).toBe(true);
   // No width, as behind a side panel that fills the room, keeps the last answer.
   resize(0);
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
   resize(1000);
   expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
-  expect(slotInColumn()).toBe(false);
   expect(storedLayout()).toBe('"beside"');
+  expect(state.viewMounts).toBe(1);
 });
-
-it('keeps the thread in its column as its unsent root gets its own ID, and only that thread', () => {
+it("keeps the thread's view as its unsent root gets its own ID", () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   vi.spyOn(room, 'getEventForTxnId').mockImplementation((txnId) =>
     txnId === 'm3.1' ? new MatrixEvent({ event_id: '$confirmed' }) : undefined
@@ -607,26 +588,12 @@ it('keeps the thread in its column as its unsent root gets its own ID, and only 
   state.thread = '~!room:example.org:m3.1';
   const { rerender } = renderView();
   expect(column()?.dataset.thread).toBe('~!room:example.org:m3.1');
-  localStorage.setItem(LAYOUT_KEY, JSON.stringify('full'));
   state.thread = '$confirmed';
   rerenderView(rerender);
   expect(column()?.dataset.thread).toBe('$confirmed');
-
-  // Another thread opened after an unsent root in the column opens as stored.
-  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
-  state.thread = undefined;
-  rerenderView(rerender);
-  state.thread = '~!room:example.org:m4.1';
-  rerenderView(rerender);
-  expect(column()?.dataset.thread).toBe('~!room:example.org:m4.1');
-  localStorage.setItem(LAYOUT_KEY, JSON.stringify('full'));
-  state.thread = '$unrelated';
-  rerenderView(rerender);
-  expect(column()).toBeNull();
-  expect(state.main?.threadId).toBe('$unrelated');
+  expect(state.viewMounts).toBe(1);
 });
-
-it("opens a thread in the messages' place when the room's row is wide but the page beside a side panel is not", () => {
+it("fills the page with a thread when the room's row is wide but the page beside a side panel is not", () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   // The row, the render container's child, is wide; the page inside it is narrow.
   vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(function width(
@@ -635,10 +602,8 @@ it("opens a thread in the messages' place when the room's row is wide but the pa
     return this.parentElement?.parentElement === document.body ? 1000 : 600;
   });
   renderView();
-  expect(column()).toBeNull();
-  expect(state.main?.threadId).toBe('$thread');
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
 });
-
 it('gives the letters typed with nothing focused to the column that fills the page', () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   renderView();

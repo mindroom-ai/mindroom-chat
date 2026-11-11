@@ -147,16 +147,6 @@ describe('ThreadActionsMenu rows', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it('refuses to show the thread beside the messages while its composer holds a reply or files, and says why', () => {
-    const onShowBeside = vi.fn();
-    const items = renderMenu({ onShowBeside, showBesideBlocked: true });
-    const entry = rowOf(items, 'showBeside');
-    expect(entry?.getAttribute('aria-disabled')).toBe('true');
-    expect(entry?.textContent).toContain('Send or remove what the composer holds first');
-    act(() => entry?.click());
-    expect(onShowBeside).not.toHaveBeenCalled();
-  });
-
   it('starts a card menu with Open thread, and gives Reopen its own icon', () => {
     state.resolved = true;
     const menuItems = renderMenu({ onOpenThread: () => undefined });

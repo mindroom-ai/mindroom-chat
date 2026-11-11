@@ -247,6 +247,37 @@ it('shows the room header it is given in its floating header', () => {
   expect(headerRef?.current?.contains(screen.getByText('Room header'))).toBe(true);
 });
 
+it("shares the thread's summaries with the page that gives it its map", () => {
+  const summaryMap = new Map([['$root', { summaryText: 'Title' }]]);
+  const onStoreThreadSummary = vi.fn();
+  render(
+    <ThreadView
+      room={room}
+      threadId={THREAD}
+      summaryMap={summaryMap as never}
+      onStoreThreadSummary={onStoreThreadSummary}
+    />
+  );
+  expect(state.timeline?.summaryMap).toBe(summaryMap);
+  expect(state.timeline?.onStoreThreadSummary).toBe(onStoreThreadSummary);
+});
+
+it('keeps the composer while its unsent root waits for the server', () => {
+  render(<ThreadView room={room} threadId="~!room:example.org:m1.1" />);
+  expect(screen.getByRole('textbox', { name: 'Reply in ~!room:example.org:m1.1' })).toBeDefined();
+});
+
+it('keeps Retry and Delete for its unsent root after losing permission to post', () => {
+  state.mayPost = false;
+  const root = new MatrixEvent({ event_id: '~!room:example.org:m1.1', type: 'm.room.message' });
+  root.setStatus(EventStatus.NOT_SENT);
+  const find = vi.spyOn(room, 'findEventById').mockReturnValue(root);
+  render(<ThreadView room={room} threadId="~!room:example.org:m1.1" />);
+  expect(screen.getByTestId('failed-root')).toBeDefined();
+  expect(screen.queryByText('You do not have permission to post in this room')).toBeNull();
+  find.mockRestore();
+});
+
 it('focuses the composer only as a thread opens or changes', () => {
   const focus = vi.spyOn(ReactEditor, 'focus');
   const { rerender } = render(<ThreadView room={room} threadId={THREAD} autoFocus={false} />);

@@ -10,9 +10,9 @@ import { CONVERSATION_MIN_WIDTH } from '../ui/panels/ResizablePanel';
 import { usePanelRowWidth } from '../members/PanelRow';
 
 /**
- * How a thread opens on a room page wide enough for two columns: in a column beside the room's
- * messages, or in their place. The last choice holds on this device, for every account; until
- * one is made, threads open in the messages' place.
+ * How the thread column shows on a room page wide enough for two columns: beside the room's
+ * messages, or filling the page. The last choice holds on this device, for every account; until
+ * one is made, threads fill the page.
  */
 export type ThreadLayout = 'beside' | 'full';
 
@@ -21,11 +21,8 @@ export const THREAD_COLUMN_WIDTH_KEY = 'mindroom.threadColumn.width';
 
 const LAYOUT_KEY = 'mindroom.threadColumn.layout';
 
-/**
- * The stored layout as storage has it now, for a thread that opens: the atom, which another tab
- * may have changed while it was not mounted, reads it again only after its first render.
- */
-export const storedThreadLayout = (): ThreadLayout =>
+/** The stored layout as storage has it now. */
+const storedThreadLayout = (): ThreadLayout =>
   getLocalStorageItem<unknown>(LAYOUT_KEY, undefined) === 'beside' ? 'beside' : 'full';
 
 const threadLayoutAtom = atomWithLocalStorage<ThreadLayout>(
@@ -39,22 +36,20 @@ const BESIDE_MIN_WIDTH = 2 * CONVERSATION_MIN_WIDTH;
 
 /**
  * The layout threads show in on the room page `pageRef` holds: `roomy` while the page has room for
- * a thread beside the messages (never on phones), `measured` once the page itself said so, the
- * stored `layout`, and `setLayout`, which stores a choice. Before the page has a layout the room's
- * row answers; a row with none either (a test renderer's) counts as roomy.
+ * a thread beside the messages (never on phones), the stored `layout`, and `setLayout`, which
+ * stores a choice. Before the page has a layout the room's row answers; a row with none either (a
+ * test renderer's) counts as roomy.
  */
 export const useThreadLayout = (pageRef: RefObject<HTMLElement>) => {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const [layout, setLayout] = useAtom(threadLayoutAtom);
   // Whether the page is wide enough, not its width: a page that resizes as a panel moves renders
-  // again only when that changes. Before the page has a layout, the room's row answers, which a
-  // side panel beside the page makes wider than the page: `measured` says when the page answered.
+  // again only when that changes. Before the page has a layout, the room's row answers.
   const rowWidth = usePanelRowWidth();
   const [wide, setWide] = useState(() => {
     const width = rowWidth();
     return width === 0 || width >= BESIDE_MIN_WIDTH;
   });
-  const [measured, setMeasured] = useState(false);
   useLayoutEffect(() => {
     const page = pageRef.current;
     if (!page) return undefined;
@@ -63,12 +58,11 @@ export const useThreadLayout = (pageRef: RefObject<HTMLElement>) => {
       if (page.clientWidth > 0) setWide(page.clientWidth >= BESIDE_MIN_WIDTH);
     };
     measure();
-    setMeasured(true);
     if (typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(measure);
     observer.observe(page);
     return () => observer.disconnect();
   }, [pageRef]);
   const roomy = !phone && wide;
-  return { roomy, measured, layout, setLayout };
+  return { roomy, layout, setLayout };
 };

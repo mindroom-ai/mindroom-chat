@@ -36,7 +36,7 @@ import {
   roomIdToReplyDraftAtomFamily,
   roomIdToUploadItemsAtomFamily,
 } from '../composer/roomInputDrafts';
-import { RoomTimeline } from '../timeline/RoomTimeline';
+import { RoomTimeline, type RoomTimelineProps } from '../timeline/RoomTimeline';
 import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { MessageLinkCards } from './MessageLinkCards';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
@@ -54,14 +54,14 @@ const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
  * room page draws a conversation (`ConversationLayout`): the timeline, with the typing notice, the
  * composer (or why there is none, and the Retry of a root that did not send) and read receipts
  * floating under it, and the thread's background jobs and approvals above the composer. Timeline
- * and composer share one editor, as in the room view; it has no filter bar or thread summaries,
- * the whole view takes dropped files, and it adds no key handling of its own. The room page's
- * thread column gives it the thread's banner as its `header`, the room's header as `roomHeader`
- * while it fills the page, the column as its `fileDropContainerRef` (the column's header takes
- * dropped files too), the event its address names, the focus as it opens (`autoFocus`, read as a
- * thread opens or changes), `hidden` while a side panel takes the page's place, the page's handler
- * of a thread that does not load, `onUnmount`, which gets the thread it showed last as it goes, and
- * `focusRef`.
+ * and composer share one editor, as in the room view; it has no filter bar, the whole view takes
+ * dropped files, and it adds no key handling of its own. The room page's thread column gives it
+ * the thread's banner as its `header`, the room's header as `roomHeader` while it fills the page,
+ * the page's thread summaries (`summaryMap`, `onStoreThreadSummary`), the column as its
+ * `fileDropContainerRef` (the column's header takes dropped files too), the event its address
+ * names, the focus as it opens (`autoFocus`, read as a thread opens or changes), `hidden` while a
+ * side panel takes the page's place, the page's handler of a thread that does not load,
+ * `onUnmount`, which gets the thread it showed last as it goes, and `focusRef`.
  */
 export function ThreadView({
   room,
@@ -75,6 +75,8 @@ export function ThreadView({
   focusRef,
   fileDropContainerRef,
   roomHeader,
+  summaryMap = NO_SUMMARIES,
+  onStoreThreadSummary = ignore,
 }: {
   room: Room;
   threadId: string;
@@ -90,6 +92,9 @@ export function ThreadView({
   fileDropContainerRef?: RefObject<HTMLElement>;
   /** The room's header, over the thread as over the room's messages, given its element. */
   roomHeader?: (headerRef: RefObject<HTMLDivElement>) => ReactNode;
+  /** The room page's thread summaries, which the thread's own events bring up to date. */
+  summaryMap?: ReadonlyMap<string, ThreadSummaryInfo>;
+  onStoreThreadSummary?: RoomTimelineProps['onStoreThreadSummary'];
 }) {
   const client = useMatrixClient();
   const editor = useEditor();
@@ -174,8 +179,8 @@ export function ThreadView({
                 viewMode="threaded"
                 hasMindroomAgents={hasMindroomAgents}
                 editor={editor}
-                summaryMap={NO_SUMMARIES}
-                onStoreThreadSummary={ignore}
+                summaryMap={summaryMap}
+                onStoreThreadSummary={onStoreThreadSummary}
                 threadFilterState={DIRECT_ROOM_TIMELINE_FILTER_STATE}
               />
             }

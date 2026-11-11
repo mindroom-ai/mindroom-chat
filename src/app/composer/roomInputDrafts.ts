@@ -377,9 +377,6 @@ export const openVoiceRecorderAtom = atom<symbol | undefined>(undefined);
 /** The composers of thread views that are mounted, by `voiceComposerKey`, each one entry. */
 export const threadViewVoiceComposersAtom = atom<readonly { key: string }[]>([]);
 
-/** The room whose page composer shows its voice recorder: recording, or a recording to send. */
-export const voiceRecorderRoomAtom = atom<string | undefined>(undefined);
-
 // What a reload would lose.
 
 /** The keys a family holds atoms for, listed without creating or removing any. */
@@ -429,5 +426,4 @@ export const forgetComposerStateOfSession = (store: JotaiStore): void => {
   dropEveryEntry(roomIdToUploadItemsAtomFamily);
   store.set(voiceAutoSendPendingAtom, false);
   store.set(openVoiceRecorderAtom, undefined);
-  store.set(voiceRecorderRoomAtom, undefined);
 };

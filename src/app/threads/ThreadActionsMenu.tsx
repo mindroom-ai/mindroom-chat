@@ -41,10 +41,8 @@ export type ThreadActionsMenuProps = {
   onOpenThread?: () => void;
   /** Offered from the thread banner only. */
   onHideDetails?: () => void;
-  /** Offered from the banner of a thread in the messages' place where it may show beside them. */
+  /** Offered from the banner of a thread filling the page where it may show beside the messages. */
   onShowBeside?: () => void;
-  /** Show beside is refused while the composer holds a reply, files or a recording, and says so. */
-  showBesideBlocked?: boolean;
 };
 
 type OpenDialog = 'tags' | 'editSummary' | 'regenerate';
@@ -73,7 +71,6 @@ export function ThreadActionsMenu({
   onOpenThread,
   onHideDetails,
   onShowBeside,
-  showBesideBlocked,
 }: ThreadActionsMenuProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -361,8 +358,6 @@ export function ThreadActionsMenu({
     onSelect: () => void;
     /** Resolve and pin wait for the previous save. */
     mutates?: boolean;
-    /** Why it does nothing now. */
-    disabledReason?: string;
     shortcut?: ShortcutId;
   }> = [];
   if (onOpenThread) {
@@ -432,7 +427,6 @@ export function ThreadActionsMenu({
       action: 'showBeside',
       label: t('thread.showBeside'),
       icon: ShrinkIcon,
-      disabledReason: showBesideBlocked ? t('thread.showBesideBlocked') : undefined,
       onSelect: () => {
         onShowBeside();
         onClose();
@@ -477,7 +471,6 @@ export function ThreadActionsMenu({
                   icon={item.icon}
                   shortcut={item.shortcut}
                   data-thread-action={item.action}
-                  disabledReason={item.disabledReason}
                   disabled={item.mutates && saving}
                   aria-busy={item.mutates && saving ? true : undefined}
                   onSelect={() => item.onSelect()}

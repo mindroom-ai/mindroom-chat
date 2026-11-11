@@ -199,9 +199,15 @@ vi.mock('../../matrix/hooks/useStateEvent', () => ({
   useStateEvent: () => undefined,
 }));
 
-vi.mock('../../matrix/hooks/usePowerLevels', () => ({
-  usePowerLevelsContext: () => ({}),
-}));
+vi.mock('../../matrix/hooks/usePowerLevels', () => {
+  // The thread column's view reads the room's levels itself, the same ones every render.
+  const levels = {};
+  return {
+    usePowerLevelsContext: () => ({}),
+    usePowerLevels: () => levels,
+    PowerLevelsContextProvider: ({ children }: { children: React.ReactNode }) => children,
+  };
+});
 
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
@@ -617,7 +623,8 @@ describe('RoomView', { timeout: 30_000 }, () => {
       renderer?.update(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
     });
 
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
+    // The thread fills the page; the room's timeline goes from under it.
+    expect(renderer!.root.findAllByType(roomTimelineType as never)).toHaveLength(0);
 
     // Exit thread — filter should persist
     await act(async () => {
@@ -833,7 +840,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       renderer?.update(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
     });
 
-    expect(getTimeline(renderer!).props.threadSortFreezeState).not.toBeNull();
+    expect(renderer!.root.findAllByType(roomTimelineType as never)).toHaveLength(0);
 
     await act(async () => {
       renderer?.update(React.createElement(RoomView, { room: room as never }));
@@ -1552,7 +1559,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
     expect(JSON.stringify(pageState.props?.style ?? {})).not.toContain('--app-height');
   });
 
-  it('marks the room header for replacement by the thread banner only inside a thread', async () => {
+  it('marks the room header for its short-screen place, and leaves it to the thread view inside a thread', async () => {
     const { RoomView } = await import('../RoomView');
     const room = makeRoom(nextRoomId('short-screen'));
     let renderer: ReturnType<typeof create> | undefined;
@@ -1571,7 +1578,10 @@ describe('RoomView', { timeout: 30_000 }, () => {
     await act(async () => {
       renderer?.update(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
     });
-    expect(headerClass()).toBe(`room-header ${HeaderInShortArea} room-header-in-thread`);
+    // Inside a thread, which fills the page, the thread's view has the room's header
+    // (ConversationLayout marks it for the banner, ConversationLayout.test.tsx).
+    expect(() => headerClass()).toThrow();
+    expect(renderer!.root.findByType('thread-view' as never).props.threadId).toBe('$thread');
   });
 
   it('forwards the computer and canvas state to the room header', async () => {
@@ -1671,7 +1681,9 @@ describe('RoomView', { timeout: 30_000 }, () => {
       '$focus',
       { replace: true }
     );
-    expect(getTimeline(renderer!).props.threadId).toBe('$confirmed-thread');
+    expect(renderer!.root.findByType('thread-view' as never).props.threadId).toBe(
+      '$confirmed-thread'
+    );
   });
 
   it('replaces a local route while translating its browser-back exit target', async () => {
@@ -1862,26 +1874,6 @@ describe('RoomView', { timeout: 30_000 }, () => {
     expect(navigateRoomThreadMock).toHaveBeenCalledWith(room.roomId, '~local-echo');
   });
 
-  it('keeps the composer while a local-echo thread root waits for the server', async () => {
-    const { RoomView } = await import('../RoomView');
-    const room = makeRoom(nextRoomId('room-a'));
-    useThreadRootEventMock.mockReturnValue('~pending-thread');
-
-    let renderer: ReturnType<typeof create> | undefined;
-    await act(async () => {
-      renderer = create(
-        React.createElement(RoomView, {
-          room: room as never,
-          threadId: '~pending-thread',
-        })
-      );
-    });
-
-    const inputs = renderer?.root.findAllByType('room-input') ?? [];
-    expect(inputs).toHaveLength(1);
-    expect(inputs[0]?.props.threadId).toBe('~pending-thread');
-  });
-
   const renderFailedLocalRoot = async () => {
     const { RoomView } = await import('../RoomView');
     const roomId = nextRoomId('room-a');
@@ -1907,39 +1899,6 @@ describe('RoomView', { timeout: 30_000 }, () => {
     });
     return { renderer: renderer!, room, root };
   };
-
-  it('offers Retry and Delete instead of waiting when a local-echo thread root failed', async () => {
-    const { renderer, room, root } = await renderFailedLocalRoot();
-
-    // The real room is circular, so read rendered strings instead of serializing the tree.
-    const renderedText = () =>
-      renderer.root
-        .findAll(() => true)
-        .flatMap((node) => node.children.filter((child) => typeof child === 'string'))
-        .join('|');
-    const composers = () => renderer.root.findAllByType('room-input');
-    expect(composers()).toHaveLength(1);
-    expect(renderedText()).toContain('Not sent|Retry|Delete');
-
-    await act(async () => {
-      room.updatePendingEvent(root, EventStatus.SENDING);
-    });
-
-    expect(composers()).toHaveLength(1);
-    expect(renderedText()).not.toContain('Not sent');
-  });
-
-  it('keeps Retry and Delete for a failed local-echo root after losing permission to post', async () => {
-    permissionState.canMessage = false;
-    const { renderer } = await renderFailedLocalRoot();
-
-    const rendered = renderer.root
-      .findAll(() => true)
-      .flatMap((node) => node.children.filter((child) => typeof child === 'string'))
-      .join('|');
-    expect(rendered).toContain('Not sent|Retry|Delete');
-    expect(rendered).not.toContain('You do not have permission to post in this room');
-  });
 
   it('leaves the thread when its unsent local-echo root is deleted', async () => {
     const { room, root } = await renderFailedLocalRoot();
@@ -2006,4 +1965,16 @@ vi.mock('../../approvals/ThreadApprovalControls', () => ({ ThreadApprovalQueue: 
 vi.mock('../../background-jobs/BackgroundJobsBar', () => ({ BackgroundJobsBar: () => null }));
 vi.mock('../../approvals/ThreadApprovalProvider', () => ({
   ThreadApprovalProvider: 'thread-approval-provider',
+}));
+// The thread column's view has tests of its own (ThreadView.test.tsx).
+vi.mock('../ThreadView', () => ({
+  ThreadView: ({
+    header,
+    roomHeader,
+    ...props
+  }: {
+    header?: React.ReactNode;
+    roomHeader?: (headerRef: React.RefObject<HTMLDivElement>) => React.ReactNode;
+  }) =>
+    React.createElement('thread-view', props, roomHeader?.({ current: null }), header),
 }));

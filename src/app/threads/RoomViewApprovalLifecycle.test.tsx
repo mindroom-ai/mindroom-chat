@@ -58,7 +58,15 @@ vi.mock('../event-store/engine', () => ({
 }));
 vi.mock('../event-store/timeline/roomLiveEventArrive', () => ({ useLiveEventArrive: () => undefined }));
 vi.mock('../matrix/hooks/useStateEvent', () => ({ useStateEvent: () => undefined }));
-vi.mock('../matrix/hooks/usePowerLevels', () => ({ usePowerLevelsContext: () => ({}) }));
+vi.mock('../matrix/hooks/usePowerLevels', () => {
+  // The thread column's view reads the room's levels itself, the same ones every render.
+  const levels = {};
+  return {
+    usePowerLevelsContext: () => ({}),
+    usePowerLevels: () => levels,
+    PowerLevelsContextProvider: ({ children }: { children: React.ReactNode }) => children,
+  };
+});
 vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => [] }));
 vi.mock('../matrix/hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({
@@ -99,15 +107,21 @@ vi.mock('../room/useRoomViewThreadState', () => ({
   useRoomViewThreadState: ({ threadId }: { threadId?: string }) => ({
     effectiveThreadId: threadId,
     viewMode: 'compact',
+    // As the room's handler, it says whether it opened the sent message's thread.
     handleRoomMessageSent: (id: string) => {
-      if (!threadId) navigate(id);
+      if (threadId) return false;
+      navigate(id);
+      return true;
     },
   }),
 }));
 vi.mock('../composer/RoomInput', () => ({ RoomInput: React.forwardRef(Composer) }));
 
 function Composer(
-  { threadId, onRoomMessageSent }: { threadId?: string; onRoomMessageSent?: (id: string) => void },
+  {
+    threadId,
+    onRoomMessageSent,
+  }: { threadId?: string; onRoomMessageSent?: (id: string) => boolean | void },
   _ref: React.ForwardedRef<HTMLDivElement>
 ) {
   const selectedFilesRef = useRef([item(first), item(second)]);
@@ -223,7 +237,8 @@ it('continues the pending second upload and caption when the first upload opens 
       'second.png',
       'caption',
     ]);
-    expect(mounts).toBe(1);
+    // The room's composer goes as the thread fills the page; the thread's takes the send over.
+    expect(mounts).toBe(2);
     expect(send.mock.calls[1][1]['m.relates_to']).toMatchObject({
       rel_type: 'm.thread',
       event_id: '$sent-1',

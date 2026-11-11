@@ -101,6 +101,17 @@ type SendSlot = {
   start?: (options: StartRoomInputSendSessionOptions, slot: SendSlot) => Promise<void>;
 };
 
+/**
+ * Reports a sent room message from the session's composer. The thread it opens is marked first:
+ * opening it can unmount that composer at once, which parks the session for that thread.
+ */
+const reportSentFromSession = (session: SendSession, eventId: string) => {
+  session.openedThreadId = eventId;
+  if (!session.composer.reportSent(session.composerContext, eventId)) {
+    session.openedThreadId = undefined;
+  }
+};
+
 const createSendSlot = (): SendSlot => ({
   processing: false,
   queued: [],
@@ -374,9 +385,7 @@ export const useRoomInputSendSessionController = ({
         if (!sentEventIdToNotify) return;
 
         roomMessageSentNotified = true;
-        if (session.composer.reportSent(session.composerContext, sentEventIdToNotify)) {
-          session.openedThreadId = sentEventIdToNotify;
-        }
+        reportSentFromSession(session, sentEventIdToNotify);
       };
 
       if (localEventId === `~${session.roomId}:${txnId}`) {
@@ -442,12 +451,7 @@ export const useRoomInputSendSessionController = ({
       clearReplyDraftForSession(session);
       // The composer that took the send over meanwhile holds the file now.
       session.composer.attachments.remove(session.roomId, [file]);
-      if (
-        sentEventIdToNotify &&
-        session.composer.reportSent(session.composerContext, sentEventIdToNotify)
-      ) {
-        session.openedThreadId = sentEventIdToNotify;
-      }
+      if (sentEventIdToNotify) reportSentFromSession(session, sentEventIdToNotify);
     },
     [mx]
   );

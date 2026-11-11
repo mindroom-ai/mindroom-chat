@@ -400,10 +400,7 @@ describe('ThreadContextBanner rendering', () => {
   const bannerElement = (
     summaryText?: string,
     threadId = '$root',
-    columnProps?: Pick<
-      ThreadContextBannerProps,
-      'onShowBeside' | 'showBesideBlocked' | 'onShowFull'
-    >
+    columnProps?: Pick<ThreadContextBannerProps, 'onShowBeside' | 'onShowFull'>
   ) =>
     React.createElement(
       Provider,
@@ -651,38 +648,20 @@ describe('ThreadContextBanner rendering', () => {
     pinned.unmount();
   });
 
-  it("offers Show beside as a button from the messages' place, waiting while the composer holds something", () => {
-    const label = 'Show the thread beside the messages';
+  it('offers Show beside or Show in full as a button, whichever the column has', () => {
     const onShowBeside = vi.fn();
-    const renderer = create(bannerElement(undefined, '$root', { onShowBeside }));
-    const button = renderer.root.findByProps({ 'aria-label': label });
-    expect(button.props['aria-disabled']).toBeUndefined();
-    act(() => button.props.onClick());
+    const filled = create(bannerElement(undefined, '$root', { onShowBeside }));
+    const label = 'Show the thread beside the messages';
+    const toBeside = filled.root.findByProps({ 'aria-label': label });
+    act(() => toBeside.props.onClick());
     expect(onShowBeside).toHaveBeenCalledTimes(1);
-    renderer.unmount();
+    filled.unmount();
 
-    // Waiting, it keeps its place and name and says why in its tooltip.
-    const blocked = create(
-      bannerElement(undefined, '$root', { onShowBeside, showBesideBlocked: true })
-    );
-    const waiting = blocked.root.findByProps({ 'aria-label': label });
-    expect(waiting.props['aria-disabled']).toBe(true);
-    expect(waiting.props.onClick).toBeUndefined();
-    expect(blocked.root.findByProps({ label }).props.hint).toBe(
-      'Send or remove what the composer holds first'
-    );
-    blocked.unmount();
-
-    // In the column the composer under the messages stays, so Show in full never waits for it.
     const onShowFull = vi.fn();
-    const column = create(
-      bannerElement(undefined, '$root', { onShowFull, showBesideBlocked: true })
-    );
-    const full = column.root.findByProps({ 'aria-label': 'Show the thread in full' });
-    expect(full.props['aria-disabled']).toBeUndefined();
-    act(() => full.props.onClick());
+    const beside = create(bannerElement(undefined, '$root', { onShowFull }));
+    act(() => beside.root.findByProps({ 'aria-label': 'Show the thread in full' }).props.onClick());
     expect(onShowFull).toHaveBeenCalledTimes(1);
-    column.unmount();
+    beside.unmount();
   });
 
   it('drops the Thread View eyebrow once the thread has a title', () => {
