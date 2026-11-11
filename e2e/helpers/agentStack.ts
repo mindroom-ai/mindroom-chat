@@ -25,6 +25,7 @@ import { matrixFetch, sendRoomMessage } from './matrix';
  * The specs skip themselves when there is no MindRoom checkout (E2E_MINDROOM_CHECKOUT, default
  * /home/basnijholt/Work/dev/mindroom) or no homeserver on the slot's port. E2E_PLUGIN_DIRS adds plugin
  * directories to the stack (stack.py's docstring), and a stack started with other ones restarts.
+ * The options `clientApiUrl` and `clientConfig` add to the client config of the `page` fixture.
  */
 
 /** One of the thread's two models: its config key, provider model ID and the name clients show. */
@@ -52,9 +53,21 @@ export type AgentStack = {
   calls?: { serviceUrl: string; profile: 'realtime' | 'live'; model: string } | null;
   /**
    * The plugin directories of E2E_PLUGIN_DIRS: each one's MindRoom plugin (its manifest name, or null without one),
-   * the tools the helper took from it, and its stub-model scenario file or null.
+   * the tools the helper took from it, its stub-model scenario file or null, and whether its manifest names an
+   * `origin_module`.
    */
-  pluginDirs?: { dir: string; plugin: string | null; tools: string[]; scenarios: string | null }[];
+  pluginDirs?: {
+    dir: string;
+    plugin: string | null;
+    tools: string[];
+    scenarios: string | null;
+    origins: boolean;
+  }[];
+  /**
+   * The port of the backend's plugin origins, on while a plugin of `pluginDirs` has an `origin_module`, else
+   * null: plugin `<plugin>` serves host `<label>` at `http://<label>.<plugin>.localhost:<port>`.
+   */
+  pluginOriginPort?: number | null;
   /**
    * Call transcripts (`calls.transcripts`): `stub` speech-to-text is a stand-in that answers from
    * each recording's length, `real` is OpenAI's (`--transcription real`); and the model that writes
@@ -105,13 +118,15 @@ const startAgentStack = (args: string[]): AgentStack | string => {
 };
 
 /**
- * The client config the specs need: the slot's homeserver, and canvases on. A spec may route it again
- * with more `mindroom` settings; the route added last answers.
+ * The client config the specs need: the slot's homeserver, and canvases on, then the `topLevel` keys
+ * and the `mindroom` settings given. A spec may route it again with other ones; the route added last
+ * answers.
  */
 export const routeClientConfig = async (
   page: Page,
   stack: AgentStack,
-  mindroom: Record<string, unknown> = {}
+  mindroom: Record<string, unknown> = {},
+  topLevel: Record<string, unknown> = {}
 ): Promise<void> => {
   await page.route('**/config.json', async (route) => {
     const response = await route.fetch();
@@ -122,6 +137,7 @@ export const routeClientConfig = async (
         ...config,
         homeserverList: [stack.homeserver],
         defaultHomeserver: 0,
+        ...topLevel,
         mindroom: {
           ...config.mindroom,
           canvas: { enabled: true, libraries: false },
@@ -196,8 +212,18 @@ type WorkerFixtures = {
   testerStorageState: string | undefined;
 };
 
-export const test = base.extend<{ stack: AgentStack }, WorkerFixtures>({
+type TestFixtures = {
+  stack: AgentStack;
+  /** The stack's API as the `page` fixture's `mindroom.computers.apiUrl`. */
+  clientApiUrl: boolean;
+  /** Top-level keys of the `page` fixture's client config, such as `{ createRoom: { ... } }`. */
+  clientConfig: Record<string, unknown>;
+};
+
+export const test = base.extend<TestFixtures, WorkerFixtures>({
   agentStackArgs: [[], { scope: 'worker', option: true }],
+  clientApiUrl: [false, { option: true }],
+  clientConfig: [{}, { option: true }],
   agentStackOrSkip: [
     async ({ agentStackArgs }, use) => {
       await use(startAgentStack(agentStackArgs));
@@ -239,8 +265,11 @@ export const test = base.extend<{ stack: AgentStack }, WorkerFixtures>({
     testInfo.skip(typeof agentStackOrSkip === 'string', String(agentStackOrSkip));
     await use(agentStackOrSkip as AgentStack);
   },
-  page: async ({ page, agentStackOrSkip }, use) => {
-    if (typeof agentStackOrSkip !== 'string') await routeClientConfig(page, agentStackOrSkip);
+  page: async ({ page, agentStackOrSkip, clientApiUrl, clientConfig }, use) => {
+    if (typeof agentStackOrSkip !== 'string') {
+      const mindroom = clientApiUrl ? { computers: { apiUrl: agentStackOrSkip.apiUrl } } : {};
+      await routeClientConfig(page, agentStackOrSkip, mindroom, clientConfig);
+    }
     await use(page);
   },
 });

@@ -20,8 +20,9 @@ test account never meet accounts an earlier start left on the homeserver. The mo
 scripts/agent-stack/stub_model.py, an OpenAI-compatible server that never calls a real model.
 
 Ports for slot N: homeserver 28100+N (slot 0: 28008, as scripts/e2e-slot.sh), MindRoom API 29600+N, stub
-model 29700+N; each range holds 100 ports, so slots 0-99 never share one. Exit codes: 3 no MindRoom checkout,
-4 no homeserver, 5 no provider keys for --model real, --transcription real or --calls, 1 anything else.
+model 29700+N, plugin origins 29800+N; each range holds 100 ports, so slots 0-99 never share one. Exit codes: 3 no
+MindRoom checkout, 4 no homeserver, 5 no provider keys for --model real, --transcription real or --calls, 1 anything
+else.
 
 --model real (or $E2E_AGENT_MODEL=real) runs the helper on Claude Haiku 5.5, with GPT-6 Luna as the thread's other
 model, the router's and the thread summaries' model. The helper's instructions turn the stub's hashtags into a script
@@ -62,11 +63,16 @@ scripts/e2e-slot.sh snapshot, to the snapshot). Each part of a directory is opti
   mindroom.plugin.json and its modules  a MindRoom plugin (MindRoom's docs/plugins.md). `mindroom plugins check --json`
                                         checks it before the stack starts or is reused, and a failed check refuses the
                                         start with its detail; the backend then loads it and the helper offers its tools.
+                                        A manifest with an `origin_module` turns plugin origins on: the backend serves
+                                        its pages at http://<label>.<plugin name>.localhost:29800+N, the state's
+                                        pluginOriginPort (null without one). Chat frames those pages and signs in to
+                                        the plugin's routes only with --client-sessions, which a spec passes itself.
   e2e/stub-scenarios.json               more scenarios for the stub model (stub_model.py --scenarios).
   e2e/fixtures/*.html                   fixture pages. The slot's Chat serves each directory at
                                         /e2e-plugins/<directory name>/ (scripts/e2e-plugin-pages.mjs), so a page is at
                                         /e2e-plugins/<directory name>/e2e/fixtures/<page>.html.
-e2e/fixtures/sample-plugin is one, which e2e/messages/agent-plugin-directory.spec.ts uses.
+e2e/fixtures/sample-plugin is one, which e2e/messages/agent-plugin-directory.spec.ts uses, and
+e2e/fixtures/origin-plugin, with e2e/plugins/agent-plugin-origin.spec.ts, has plugin origins.
 """
 
 from __future__ import annotations
@@ -164,6 +170,8 @@ def ports(slot: int) -> dict[str, int]:
         "app": 4200 if slot == 0 else 4300 + slot,
         "api": 29600 + slot,
         "stub": 29700 + slot,
+        # The backend's plugin origins, on while a plugin directory's plugin has an origin_module.
+        "origin": 29800 + slot,
     }
 
 
@@ -363,12 +371,13 @@ def plugin_dir_paths() -> list[Path]:
 
 def check_plugin_dirs(venv_bin: Path, directories: list[Path]) -> list[dict]:
     """Each plugin directory as the state records it: its MindRoom plugin's name and tools, which
-    `mindroom plugins check --json` reports, and its scenario file. A plugin that fails the check refuses the start."""
+    `mindroom plugins check --json` reports, whether its manifest names an origin_module, and its scenario file. A
+    plugin that fails the check refuses the start."""
     checked = []
     for directory in directories:
         if not directory.is_dir():
             raise StackError(f"E2E_PLUGIN_DIRS names {directory}, which is not a directory")
-        plugin, tools = None, []
+        plugin, tools, origins = None, [], False
         if (directory / PLUGIN_MANIFEST).is_file():
             result = subprocess.run(
                 [str(venv_bin / "mindroom"), "plugins", "check", "--json", str(directory)],
@@ -385,6 +394,8 @@ def check_plugin_dirs(venv_bin: Path, directories: list[Path]) -> list[dict]:
             if report.get("status") != "compatible":
                 raise StackError(f"the plugin in {directory} failed `mindroom plugins check`: {report.get('detail')}")
             plugin, tools = report["name"], report["tools"]
+            # The check loaded the manifest, so it is JSON.
+            origins = bool(json.loads((directory / PLUGIN_MANIFEST).read_text()).get("origin_module"))
         scenarios = directory / PLUGIN_SCENARIOS
         checked.append(
             {
@@ -392,6 +403,7 @@ def check_plugin_dirs(venv_bin: Path, directories: list[Path]) -> list[dict]:
                 "plugin": plugin,
                 "tools": tools,
                 "scenarios": str(scenarios) if scenarios.is_file() else None,
+                "origins": origins,
             }
         )
     return checked
@@ -1077,6 +1089,7 @@ def start(
         )
     )
     api_url = f"http://127.0.0.1:{port['api']}"
+    origin_port = port["origin"] if any(d["origins"] for d in plugin_dirs) else None
     (slot_dir / ".env").write_text(
         "\n".join(
             [
@@ -1088,6 +1101,8 @@ def start(
                 f"MINDROOM_API_KEY={secrets.token_hex(16)}",
                 "MINDROOM_AUTO_BUILD_FRONTEND=0",
                 *option_env(slot, args.client_sessions, image),
+                # Under the default domain, localhost: browsers send every *.localhost host to this machine.
+                *([f"MINDROOM_PLUGIN_ORIGIN_PORT={origin_port}"] if origin_port else []),
                 "",
             ]
         )
@@ -1124,6 +1139,7 @@ def start(
         "homeserver": homeserver,
         "serverName": SERVER_NAME,
         "apiUrl": api_url,
+        "pluginOriginPort": origin_port,
         "stubUrl": stub_url,
         "dir": str(slot_dir),
         "logs": {"backend": str(slot_dir / "backend.log"), "stub": str(slot_dir / "stub.log")},

@@ -328,6 +328,29 @@ class CommandLineTests(unittest.TestCase):
         for name in ("state.json", ".env", "config.yaml"):
             self.assertEqual(self.mode(self.slot_dir / name), 0o600, name)
 
+    def started_env_and_state(self, *plugin_dirs: dict) -> tuple[dict[str, str], dict]:
+        """The backend's .env settings and the state of a start with these checked plugin directories."""
+        with (
+            self.starting(),
+            mock.patch.dict(os.environ, {"E2E_PLUGIN_DIRS": "/plugins"}),
+            mock.patch.object(stack, "check_plugin_dirs", return_value=list(plugin_dirs)),
+        ):
+            self.assertEqual(self.main("7", "up"), 0)
+        env = dict(line.split("=", 1) for line in (self.slot_dir / ".env").read_text().splitlines() if line)
+        return env, json.loads((self.slot_dir / "state.json").read_text())
+
+    def test_a_plugin_with_origins_turns_the_backend_origins_on_at_the_slot_port(self) -> None:
+        apps = {"dir": "/plugins/apps", "plugin": "apps", "tools": [], "scenarios": None, "origins": True}
+        greeter = {**apps, "dir": "/plugins/greeter", "plugin": "greeter", "origins": False}
+        env, state = self.started_env_and_state(greeter, apps)
+        self.assertEqual(env["MINDROOM_PLUGIN_ORIGIN_PORT"], "29807")
+        self.assertNotIn("MINDROOM_PLUGIN_ORIGIN_DOMAIN", env)
+        self.assertEqual(state["pluginOriginPort"], 29807)
+        # Plugins without an origin_module leave origins off.
+        env, state = self.started_env_and_state(greeter)
+        self.assertNotIn("MINDROOM_PLUGIN_ORIGIN_PORT", env)
+        self.assertIsNone(state["pluginOriginPort"])
+
     def test_each_start_signs_the_test_account_up_with_a_password_of_its_own(self) -> None:
         passwords = []
         for _ in range(2):
@@ -471,8 +494,12 @@ class SlotTeardownTests(unittest.TestCase):
 
 class SlotTests(unittest.TestCase):
     def test_no_two_slots_up_to_99_share_a_port(self) -> None:
-        self.assertEqual(stack.ports(42), {"matrix": 28142, "app": 4342, "api": 29642, "stub": 29742})
-        self.assertEqual(stack.ports(0), {"matrix": 28008, "app": 4200, "api": 29600, "stub": 29700})
+        self.assertEqual(
+            stack.ports(42), {"matrix": 28142, "app": 4342, "api": 29642, "stub": 29742, "origin": 29842}
+        )
+        self.assertEqual(
+            stack.ports(0), {"matrix": 28008, "app": 4200, "api": 29600, "stub": 29700, "origin": 29800}
+        )
         taken = [port for slot in range(100) for port in stack.ports(slot).values()]
         self.assertEqual(len(taken), len(set(taken)))
 
@@ -716,10 +743,11 @@ class PluginDirTests(unittest.TestCase):
         (self.venv_bin / "mindroom").write_text(FAKE_MINDROOM)
         (self.venv_bin / "mindroom").chmod(0o755)
 
-    def plugin(self, name: str, report: dict, code: int = 0, scenarios: bool = False) -> Path:
+    def plugin(self, name: str, report: dict, code: int = 0, scenarios: bool = False, origins: bool = False) -> Path:
         directory = self.root / name
         (directory / "e2e").mkdir(parents=True)
-        (directory / "mindroom.plugin.json").write_text(json.dumps({"name": name}))
+        manifest = {"name": name, **({"origin_module": "origin.py"} if origins else {})}
+        (directory / "mindroom.plugin.json").write_text(json.dumps(manifest))
         (directory / "check.json").write_text(json.dumps(report))
         (directory / "check.code").write_text(str(code))
         if scenarios:
@@ -736,10 +764,11 @@ class PluginDirTests(unittest.TestCase):
     def test_a_checked_plugin_brings_its_name_tools_and_scenarios(self) -> None:
         report = {"status": "compatible", "name": "greeter", "tools": ["greeter"], "hooks": [], "skills": []}
         greeter = self.plugin("greeter", report, scenarios=True)
+        apps = self.plugin("apps", {**report, "name": "apps", "tools": []}, origins=True)
         pages_only = self.root / "pages-only"
         (pages_only / "e2e" / "fixtures").mkdir(parents=True)
         with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-secret"}):
-            checked = stack.check_plugin_dirs(self.venv_bin, [greeter, pages_only])
+            checked = stack.check_plugin_dirs(self.venv_bin, [greeter, apps, pages_only])
         self.assertEqual(
             checked,
             [
@@ -748,13 +777,18 @@ class PluginDirTests(unittest.TestCase):
                     "plugin": "greeter",
                     "tools": ["greeter"],
                     "scenarios": str(greeter / "e2e" / "stub-scenarios.json"),
+                    "origins": False,
                 },
-                {"dir": str(pages_only), "plugin": None, "tools": [], "scenarios": None},
+                # Its manifest names an origin_module.
+                {"dir": str(apps), "plugin": "apps", "tools": [], "scenarios": None, "origins": True},
+                {"dir": str(pages_only), "plugin": None, "tools": [], "scenarios": None, "origins": False},
             ],
         )
-        # Only the directory with a plugin is checked, and the provider keys stay out of the check.
+        # Only the directories with a plugin are checked, and the provider keys stay out of the check.
         log = (self.venv_bin / "mindroom.log").read_text()
-        self.assertEqual(log, f"plugins check --json {greeter} without keys\n")
+        self.assertEqual(
+            log, f"plugins check --json {greeter} without keys\nplugins check --json {apps} without keys\n"
+        )
 
     def test_a_plugin_that_fails_its_check_refuses_the_start_with_the_detail(self) -> None:
         broken = self.plugin("broken", {"status": "failed", "detail": "Plugin module not found: tools.py"}, 1)
