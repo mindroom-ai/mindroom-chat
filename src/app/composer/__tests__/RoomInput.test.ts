@@ -444,10 +444,9 @@ vi.mock('../commands/useCommands', () => ({
 
 vi.mock('../commands/agentCommandQuery', () => ({ getAgentCommandQuery: () => undefined }));
 vi.mock('../RoomInputExtensions', async () => {
-  const { createRoomInputSendSessionState, getUploadRelationForSendSession } =
-    await vi.importActual<typeof import('../roomInputSendSession')>(
-      '../roomInputSendSession'
-    );
+  const { getMessageRelation } = await vi.importActual<
+    typeof import('../../matrix/send/composeMessageRelation')
+  >('../../matrix/send/composeMessageRelation');
 
   return {
     createRoomInputPasteMarkerElement: (marker: {
@@ -491,6 +490,7 @@ vi.mock('../RoomInputExtensions', async () => {
           : node
       );
     },
+    confirmedVoiceThreadId: (_room: unknown, threadId: string | undefined) => threadId,
     getRoomInputVoiceSendContext: ({
       ownerSessionId,
       roomId,
@@ -537,26 +537,14 @@ vi.mock('../RoomInputExtensions', async () => {
         signalBridgedRoom: false,
       };
     },
-    getRoomInputVoiceUploadRelation: (
-      context: {
-        threadId: string | undefined;
-        replyDraft: IReplyDraft | undefined;
-      },
-      file: File
-    ) =>
-      getUploadRelationForSendSession(
-        {
-          threadId: context.threadId,
-          replyDraft: context.replyDraft,
-          ...createRoomInputSendSessionState({
-            files: [file],
-            hasText: false,
-            threadId: context.threadId,
-            replyDraft: context.replyDraft,
-          }),
-        },
-        false
-      ),
+    getRoomInputVoiceUploadRelation: (context: {
+      threadId: string | undefined;
+      replyDraft: IReplyDraft | undefined;
+      threadingEnabled: boolean;
+    }) =>
+      getMessageRelation(context.replyDraft?.eventId, context.replyDraft?.relation, context.threadId, {
+        allowThreadRelation: context.threadingEnabled,
+      }),
     isRoomInputAutocompleteQuery: (query?: { prefix?: string }) => query?.prefix === '!',
     RoomInputAutocomplete: () => null,
     RoomInputReplyContext: ({
@@ -2844,6 +2832,32 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
+  it("refuses a voice send under its thread root's local ID", async () => {
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { roomId: ROOM_ID, threadId: '$thread-a' });
+    await openVoiceRecorder(renderer);
+    // Recorded in a thread whose root the server had not confirmed, then sent from another room.
+    const capturedContext = {
+      ...voiceRecorderState.props!.getSendContext(),
+      threadId: `~${ROOM_ID}:txn-root`,
+    };
+    await updateRoomInput(renderer, store, { roomId: OTHER_ROOM_ID });
+    queuePrimaryVoiceSend(
+      new File(['voice'], 'voice.m4a', { type: 'audio/mp4' }),
+      1100,
+      undefined,
+      capturedContext
+    );
+    await act(async () => {
+      await expect(getPrimarySendButton(renderer).props.onClick()).rejects.toThrow(
+        "This voice message's thread has no sent first message."
+      );
+    });
+    expect(mxState.uploadContent).not.toHaveBeenCalled();
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
+
   it('keeps voice sends targeted to the room captured when recording starts', async () => {
     const store = createStore();
     const { renderer } = await renderRoomInput(store, { roomId: ROOM_ID, threadId: '$thread-a' });
@@ -3778,7 +3792,8 @@ describe('RoomInput', () => {
     // The room page's composer and, unless closed, a thread view's composer of the same room.
     const composersTree = (
       store: ReturnType<typeof createStore>,
-      view: { key?: string; threadId?: string } | null = {}
+      view: { key?: string; threadId?: string } | null = {},
+      pageThreadId?: string
     ) =>
       React.createElement(
         Provider,
@@ -3791,6 +3806,7 @@ describe('RoomInput', () => {
             fileDropContainerRef: createRef<HTMLElement>(),
             roomId: ROOM_ID,
             room: createRoom(ROOM_ID),
+            threadId: pageThreadId,
           })
         ),
         view &&
@@ -3904,7 +3920,7 @@ describe('RoomInput', () => {
       act(() => renderer.unmount());
     });
 
-    it("brings a failed send back in a view of its thread only, never on the room's page", async () => {
+    it("brings a failed send back in a view of its thread only, not on the room's page elsewhere", async () => {
       const store = createStore();
       const renderer = await renderComposers(store);
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -3951,6 +3967,46 @@ describe('RoomInput', () => {
       expect(voiceRecorderState.byView.size).toBe(0);
       expect(micOf(renderer, 'page').props.disabled).toBe(false);
       consoleError.mockRestore();
+      act(() => renderer.unmount());
+    });
+
+    it("offers a view's failed send on the room's page while the page shows its thread", async () => {
+      const store = createStore();
+      const renderer = await renderComposers(store);
+      await openRecorder(renderer, 'view');
+      const context = voiceRecorderState.byView.get(VIEW).getSendContext();
+      await act(async () => {
+        store.set(pendingVoiceSendDraftAtom, { file: voiceFile(), duration: 900, context });
+      });
+      await act(async () => {
+        renderer.update(composersTree(store, null));
+      });
+      // On its room's own page, the microphone does not send the person to that room.
+      expect(micOf(renderer, 'page').props).toMatchObject({
+        disabled: true,
+        'aria-label':
+          'Voice recording paused — finish or discard your unsent recording elsewhere in this room',
+      });
+
+      // While a view of the thread is open beside it, the page leaves the recording to that view.
+      await act(async () => {
+        renderer.update(composersTree(store, {}, VIEW_THREAD));
+      });
+      expect([...voiceRecorderState.byView.keys()]).toEqual([VIEW]);
+
+      // Without one, the page showing the thread in the messages' place offers it.
+      await act(async () => {
+        renderer.update(composersTree(store, null, VIEW_THREAD));
+      });
+      expect([...voiceRecorderState.byView.keys()]).toEqual([undefined]);
+      expect(voiceRecorderState.byView.get(undefined).active).toBe(true);
+
+      // Back on the room's messages, it waits for its thread again.
+      await act(async () => {
+        renderer.update(composersTree(store, null));
+      });
+      expect(voiceRecorderState.byView.size).toBe(0);
+      expect(micOf(renderer, 'page').props.disabled).toBe(true);
       act(() => renderer.unmount());
     });
 

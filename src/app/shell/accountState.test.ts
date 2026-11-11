@@ -129,6 +129,10 @@ const keptAtoms = (): Map<object, string> =>
       loaded.drafts.pendingVoiceSendDraftAtom,
       'names the account that recorded it: no other account sends it, its own can retry',
     ],
+    [
+      loaded.drafts.threadViewVoiceComposersAtom,
+      'lists the mounted thread views, each taken out as its composer goes',
+    ],
     [loaded.membersDrawer.phoneDrawerOpenAtom, "keyed by user ID: each account's own drawer"],
     [
       loaded.spaceTabs.openFoldersAtom,

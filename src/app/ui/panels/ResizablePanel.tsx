@@ -59,6 +59,7 @@ export function ResizablePanel({
   collapseLabel,
   testId,
   overlay,
+  onKeyDown,
 }: {
   children: ReactNode;
   onCollapse?: () => void;
@@ -87,6 +88,8 @@ export function ResizablePanel({
    * keeps clear of the splitter's reach into the panel (`--mr-panel-handle-inset`).
    */
   overlay?: ReactNode;
+  /** Sees the keys pressed in the panel, on its splitter, and in what its content opens elsewhere. */
+  onKeyDown?: React.KeyboardEventHandler<HTMLDivElement>;
 }) {
   const widthAtom = useMemo(
     () =>
@@ -322,6 +325,7 @@ export function ResizablePanel({
       data-filled={full || undefined}
       data-collapse-preview={collapseOnRelease || undefined}
       data-expand-preview={expandOnRelease || undefined}
+      onKeyDown={onKeyDown}
     >
       {/* The frame's strip opens the panel's box; folded, the content stays mounted out of sight
           beside it (a call or a computer keeps its connection). */}
