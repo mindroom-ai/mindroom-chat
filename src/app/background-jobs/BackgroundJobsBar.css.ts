@@ -110,14 +110,23 @@ export const Job = style({
 // A long tool name and its status both give way, so its Stop stays in view; the full text is its title.
 export const Label = style({ flexGrow: 1, minWidth: 0 });
 
-// A sub-agent's name opens the Sub-agents panel: the row's text still, underlined to the pointer.
+// A text button that opens the Sub-agents panel, underlined to the pointer.
+const panelLinkSelectors = {
+  '&:hover': { textDecoration: 'underline' },
+  '&:focus-visible': keyboardRing,
+};
+
+// A sub-agent's name in its row opens the panel: the row's text still.
 export const LabelButton = style([
   Label,
-  {
-    display: 'flex',
-    ...textButton,
-    selectors: { '&:hover': { textDecoration: 'underline' }, '&:focus-visible': keyboardRing },
-  },
+  { display: 'flex', ...textButton, selectors: panelLinkSelectors },
+]);
+
+// Beside one sub-agent job's title, the way to the panel: as wide as its words, the title giving
+// way first. To a finger it reaches half the gap toward its neighbours.
+export const TitleLink = style([
+  touchTarget('6px'),
+  { flexShrink: 0, ...textButton, selectors: panelLinkSelectors },
 ]);
 
 export const Muted = style({ minWidth: 0, opacity: config.opacity.P300 });

@@ -749,6 +749,7 @@
       "count_other": "نشطة: ⁨{{count}}⁩",
       "show": "إظهار الوكلاء الفرعيين",
       "hide": "إخفاء الوكلاء الفرعيين",
+      "showFor": "إظهار الوكلاء الفرعيين: ⁨{{name}}⁩",
       "withCount_zero": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
       "withCount_one": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",
       "withCount_two": "⁨{{label}}⁩، نشطة: ⁨{{count}}⁩",

@@ -701,6 +701,7 @@
       "count_other": "{{count}} active",
       "show": "Show sub-agents",
       "hide": "Hide sub-agents",
+      "showFor": "Show sub-agents: {{name}}",
       "withCount_one": "{{label}}, {{count}} active",
       "withCount_other": "{{label}}, {{count}} active",
       "resize": "Resize the sub-agents panel"

@@ -156,3 +156,21 @@ export const useRoomSubagentRuns = (roomId: string): readonly SubagentRun[] => {
   const getRuns = useCallback(() => store.runs(roomId), [roomId, store]);
   return useSyncExternalStore(subscribe, getRuns);
 };
+
+/**
+ * How many runs the room keeps (`total`) and how many of them are still at it (`active`), rendered
+ * again only when either changes: a run's frames, which stream several times a second, change
+ * neither.
+ */
+export const useRoomSubagentCounts = (roomId: string): { total: number; active: number } => {
+  const store = getSubagentRunStore(useMatrixClient());
+  const subscribe = useCallback(
+    (onChange: () => void) => store.subscribe(roomId, onChange),
+    [roomId, store]
+  );
+  const getTotal = useCallback(() => store.runs(roomId).length, [roomId, store]);
+  const getActive = useCallback(() => countActiveSubagentRuns(store.runs(roomId)), [roomId, store]);
+  const total = useSyncExternalStore(subscribe, getTotal);
+  const active = useSyncExternalStore(subscribe, getActive);
+  return { total, active };
+};

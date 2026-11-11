@@ -273,7 +273,21 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
               <Icon src={Icons.ChevronTop} size="50" className={css.Chevron} aria-hidden />
             </button>
           ) : (
-            status
+            <>
+              {status}
+              {single?.subagent && (
+                // Beside the title, which stays the live status, not inside a button around it.
+                <button
+                  type="button"
+                  className={css.TitleLink}
+                  onClick={() => openSubagentsPanel(store, room.roomId)}
+                >
+                  <Text as="span" size="B300">
+                    {t('mindroomUi.subagents.show')}
+                  </Text>
+                </button>
+              )}
+            </>
           )}
         </small>
         {expanded && (
@@ -285,11 +299,12 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
             {model.items.map((item) => (
               <li key={item.jobId} className={css.Job}>
                 {item.subagent ? (
-                  // A sub-agent's run shows in the room's Sub-agents panel, which its name opens.
+                  // A sub-agent's run shows in the room's Sub-agents panel, which its name opens;
+                  // its title says so, while its name stays the job's.
                   <button
                     type="button"
                     className={css.LabelButton}
-                    title={item.name}
+                    title={t('mindroomUi.subagents.showFor', { name: item.name })}
                     onClick={() => openSubagentsPanel(store, room.roomId)}
                   >
                     <Text as="span" size="T200" truncate>

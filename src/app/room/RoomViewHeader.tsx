@@ -5,7 +5,7 @@ import FocusTrap from 'focus-trap-react';
 import { useAtomValue } from 'jotai';
 import classNames from 'classnames';
 import type { Room } from 'matrix-js-sdk';
-import { Avatar, Badge, Box, Icons, Text, toRem, type RectCords } from 'folds';
+import { Avatar, Badge, Box, Icons, Text, config, toRem, type RectCords } from 'folds';
 import { PopOut, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { PageHeader } from '../ui/page/Page';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
@@ -32,7 +32,7 @@ import { useParentRooms } from '../matrix/state/subRooms';
 import { getDirectPath, getHomePath, getSpacePath } from '../routes/pathUtils';
 import { previousHistoryOrigin, showsRoom } from '../routes/historyStack';
 import { RoomPinMenu } from '../messages/pins/RoomPinMenu';
-import { countActiveSubagentRuns, useRoomSubagentRuns } from '../messages/live/subagentRunStore';
+import { useRoomSubagentCounts } from '../messages/live/subagentRunStore';
 import { SubagentsIcon } from '../subagents/SubagentsIcon';
 import {
   RoomSchedulesButton,
@@ -113,11 +113,12 @@ export type HeaderCallPlacement =
   | { at: 'menu'; requestClose: () => void };
 
 // A count on a button's top end corner, out of the pointer's way, in a badge tall enough for its
-// digits (the 200 size is a dot's).
+// digits (the 200 size is a dot's), with room beside two of them as the 500 size has.
 const countBadgeStyle = {
   position: 'absolute',
   top: 0,
   insetInlineEnd: 0,
+  paddingInline: config.space.S100,
   pointerEvents: 'none',
 } as const;
 const cornerCount = (count: number) => (
@@ -304,8 +305,7 @@ export function RoomViewHeader({
   const showCanvases = !!canvases && !!onCanvasOpen && !!onCanvasClose;
   // The Sub-agents toggle shows while the room keeps a sub-agent run (a working one, or one paused
   // or ended not long ago), with a count of those still at it, as the panel's own header has.
-  const subagentRuns = useRoomSubagentRuns(room.roomId);
-  const activeSubagents = countActiveSubagentRuns(subagentRuns);
+  const { total: keptSubagents, active: activeSubagents } = useRoomSubagentCounts(room.roomId);
   const subagentsVisible = shownPanel === 'subagents';
   const subagentsLabel = subagentsVisible
     ? t('mindroomUi.subagents.hide')
@@ -408,7 +408,7 @@ export function RoomViewHeader({
       active: !!computerOpen,
       run: () => onComputerToggle?.(),
     },
-    subagentRuns.length > 0 && {
+    keptSubagents > 0 && {
       id: 'subagents',
       label:
         activeSubagents > 0

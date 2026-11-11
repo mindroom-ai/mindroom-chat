@@ -713,6 +713,7 @@
       "count_other": "{{count}} ativos",
       "show": "Mostrar subagentes",
       "hide": "Ocultar subagentes",
+      "showFor": "Mostrar subagentes: {{name}}",
       "withCount_one": "{{label}}, {{count}} ativo",
       "withCount_many": "{{label}}, {{count}} ativos",
       "withCount_other": "{{label}}, {{count}} ativos",

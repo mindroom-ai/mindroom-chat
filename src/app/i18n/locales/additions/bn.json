@@ -701,6 +701,7 @@
       "count_other": "{{count}}টি সক্রিয়",
       "show": "সাব-এজেন্ট দেখান",
       "hide": "সাব-এজেন্ট লুকান",
+      "showFor": "সাব-এজেন্ট দেখান: {{name}}",
       "withCount_one": "{{label}}, {{count}}টি সক্রিয়",
       "withCount_other": "{{label}}, {{count}}টি সক্রিয়",
       "resize": "সাব-এজেন্ট প্যানেলের আকার বদলান"

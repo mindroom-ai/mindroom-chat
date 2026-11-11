@@ -701,6 +701,7 @@
       "count_other": "{{count}} aktiv",
       "show": "Sub-Agenten anzeigen",
       "hide": "Sub-Agenten ausblenden",
+      "showFor": "Sub-Agenten anzeigen: {{name}}",
       "withCount_one": "{{label}}, {{count}} aktiv",
       "withCount_other": "{{label}}, {{count}} aktiv",
       "resize": "Größe des Sub-Agenten-Bereichs ändern"

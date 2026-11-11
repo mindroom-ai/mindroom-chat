@@ -689,6 +689,7 @@
       "count_other": "{{count}} 个活跃",
       "show": "显示子智能体",
       "hide": "隐藏子智能体",
+      "showFor": "显示子智能体：{{name}}",
       "withCount_other": "{{label}}，{{count}} 个活跃",
       "resize": "调整子智能体面板大小"
     }

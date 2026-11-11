@@ -689,6 +689,7 @@
       "count_other": "{{count}} aktif",
       "show": "Tampilkan subagen",
       "hide": "Sembunyikan subagen",
+      "showFor": "Tampilkan subagen: {{name}}",
       "withCount_other": "{{label}}, {{count}} aktif",
       "resize": "Ubah ukuran panel subagen"
     }

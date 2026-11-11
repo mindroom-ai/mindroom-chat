@@ -725,6 +725,7 @@
       "count_other": "Активно: {{count}}",
       "show": "Показать субагентов",
       "hide": "Скрыть субагентов",
+      "showFor": "Показать субагентов: {{name}}",
       "withCount_one": "{{label}}, активно: {{count}}",
       "withCount_few": "{{label}}, активно: {{count}}",
       "withCount_many": "{{label}}, активно: {{count}}",

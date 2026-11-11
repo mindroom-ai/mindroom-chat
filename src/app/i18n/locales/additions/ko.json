@@ -689,6 +689,7 @@
       "count_other": "{{count}}개 활성",
       "show": "하위 에이전트 표시",
       "hide": "하위 에이전트 숨기기",
+      "showFor": "하위 에이전트 표시: {{name}}",
       "withCount_other": "{{label}}, {{count}}개 활성",
       "resize": "하위 에이전트 패널 크기 조정"
     }

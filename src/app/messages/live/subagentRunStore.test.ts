@@ -17,6 +17,7 @@ import {
   SUBAGENT_QUIET_RUN_KEPT_MS,
   SUBAGENT_WORKING_RUN_FRESHNESS_MS,
   SubagentRunStore,
+  useRoomSubagentCounts,
   useRoomSubagentRuns,
   type SubagentRun,
 } from './subagentRunStore';
@@ -377,5 +378,41 @@ describe('useRoomSubagentRuns', () => {
     store.clear();
     expect(getSubagentRunStore(mx)).toBe(store);
     expect(getSubagentRunStore({} as MatrixClient)).not.toBe(store);
+  });
+});
+
+describe('useRoomSubagentCounts', () => {
+  it("renders the room's run counts again only when a count changes, not for each frame", () => {
+    vi.useFakeTimers();
+    const mx = {} as MatrixClient;
+    const store = getSubagentRunStore(mx);
+    const seen: { total: number; active: number }[] = [];
+    function Probe() {
+      seen.push(useRoomSubagentCounts(ROOM));
+      return null;
+    }
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(
+        React.createElement(MatrixClientProvider, { value: mx }, React.createElement(Probe))
+      );
+    });
+    expect(seen.at(-1)).toEqual({ total: 0, active: 0 });
+
+    act(() => store.ingest(ROOM, AGENT, snapshot(0, 'Hello'), 1000));
+    expect(seen.at(-1)).toEqual({ total: 1, active: 1 });
+    const renders = seen.length;
+
+    // The run streams on: the same counts, no render.
+    act(() => store.ingest(ROOM, AGENT, append(1, 'Hello', '!'), 1100));
+    act(() => store.ingest(ROOM, AGENT, append(2, 'Hello!', '!'), 1200));
+    expect(seen).toHaveLength(renders);
+
+    act(() => store.ingest(ROOM, AGENT, snapshot(3, 'Done.', { status: 'completed' }), 1300));
+    expect(seen.at(-1)).toEqual({ total: 1, active: 0 });
+
+    act(() => renderer?.unmount());
+    store.clear();
+    vi.useRealTimers();
   });
 });

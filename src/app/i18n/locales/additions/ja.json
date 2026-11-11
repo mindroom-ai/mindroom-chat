@@ -689,6 +689,7 @@
       "count_other": "{{count}} 件がアクティブ",
       "show": "サブエージェントを表示",
       "hide": "サブエージェントを隠す",
+      "showFor": "サブエージェントを表示: {{name}}",
       "withCount_other": "{{label}}、{{count}} 件がアクティブ",
       "resize": "サブエージェントパネルのサイズを変更"
     }
