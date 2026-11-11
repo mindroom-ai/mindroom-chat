@@ -1,0 +1,5 @@
+{
+  "name": "e2e-origin",
+  "mindroom_plugin_api": "1.23",
+  "origin_module": "origin.py"
+}
