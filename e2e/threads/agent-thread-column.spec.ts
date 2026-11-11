@@ -15,9 +15,9 @@ import { roomHeader } from '../helpers/roomMenu';
 
 // The thread column end to end: a production build with the example client plugin
 // (src/app/plugins/__fixtures__/example-plugin) against the agent stack. Every thread shows in the
-// thread column. It first fills the page, with the page's one composer; Show beside (a button on
-// the thread's banner, also in its More menu) takes it beside the room's messages, inside the
-// page's card rather than in a card of its own. A reply sent from the column leaves the room
+// thread column. It first fills the page, with the page's one composer; Show beside (in the
+// thread banner's More menu, which a right click opens too) takes it beside the room's messages,
+// inside the page's card rather than in a card of its own. A reply sent from the column leaves the room
 // composer's draft alone. The plugin's panel opens to the right of the thread, three columns, and
 // closing it leaves two. Dragging the column's edge over the messages fills the page with the
 // column, which keeps its composer; the next thread then fills the page too, and Show beside takes
@@ -45,8 +45,6 @@ const pageComposer = (page: Page): Locator =>
 const columnComposer = (page: Page): Locator =>
   column(page).locator('[data-editable-name="RoomInput"]');
 const banner = (scope: Page | Locator): Locator => scope.locator('[data-thread-context-banner]');
-const besideButton = (scope: Page | Locator): Locator =>
-  banner(scope).getByRole('button', { name: 'Show the thread beside the messages', exact: true });
 /** The box a side panel draws its card on; the thread column, in the page's card, draws none. */
 const columnBox = (page: Page): Locator => column(page).locator(':scope > :first-child');
 const examplePanel = (page: Page): Locator =>
@@ -110,7 +108,7 @@ test('a thread fills the page, goes beside the messages once chosen, fills it ag
   await expect(page.locator('[data-editable-name="RoomInput"]')).toHaveCount(1);
   await expect(pageComposer(page)).toHaveCount(0);
   await shot(page, 'first-use-full');
-  await besideButton(page).click();
+  await showBeside(page);
   await expect(column(page)).not.toHaveAttribute('data-filled', 'true');
   await expect(messageRow(column(page), first)).toBeVisible();
   // The room's messages beside it: the room composer, and the thread's card in the list.
@@ -207,9 +205,12 @@ test('a thread fills the page, goes beside the messages once chosen, fills it ag
   await page.keyboard.type(unsent);
   const fileName = `${word}-column.txt`;
   await stageFile(page, column(page), fileName);
-  await banner(column(page))
-    .getByRole('button', { name: 'Show the thread in full', exact: true })
-    .click();
+  // The banner has no button for it: its More menu, also on a right click, has Show in full.
+  await expect(
+    banner(column(page)).getByRole('button', { name: 'Show the thread in full', exact: true })
+  ).toHaveCount(0);
+  await banner(column(page)).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Show the thread in full', exact: true }).click();
   await expect(column(page)).toHaveAttribute('data-filled', 'true');
   await expect(columnComposer(page)).toHaveText(unsent);
   // Letters typed with the focus on the thread's text go on in the column's composer, where it
@@ -219,7 +220,7 @@ test('a thread fills the page, goes beside the messages once chosen, fills it ag
   await expect(columnComposer(page)).toHaveText(`${unsent}more`);
   await expect(column(page).getByText(fileName, { exact: true })).toBeVisible();
   expect(await storedLayout(page)).toBe('"full"');
-  await besideButton(column(page)).click();
+  await showBeside(page);
   await expect(column(page)).not.toHaveAttribute('data-filled', 'true');
   await expect(pageComposer(page)).toBeVisible();
   expect(await storedLayout(page)).toBe('"beside"');
@@ -238,7 +239,6 @@ test('a thread fills the page, goes beside the messages once chosen, fills it ag
   await page.setViewportSize({ width: 390, height: 844 });
   await showThread(page, stack, first);
   await expect(column(page)).toHaveAttribute('data-filled', 'true');
-  await expect(besideButton(page)).toHaveCount(0);
   await openThreadOptions(page);
   await expect(page.getByRole('menuitem', { name: 'Copy thread link', exact: true })).toBeVisible();
   await expect(

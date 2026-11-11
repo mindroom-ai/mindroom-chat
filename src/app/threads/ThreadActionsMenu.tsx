@@ -28,7 +28,7 @@ import type { ShortcutId } from '../shortcuts/shortcuts';
 import { ActionDialog } from '../ui/ActionDialog';
 import { describeError } from '../lib/describeError';
 import { ErrorDetail } from '../ui/ErrorDetail';
-import { ShrinkIcon } from '../ui/panels/panelIcons';
+import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
 
 export type ThreadActionsMenuProps = {
   room: Room;
@@ -43,6 +43,8 @@ export type ThreadActionsMenuProps = {
   onHideDetails?: () => void;
   /** Offered from the banner of a thread filling the page where it may show beside the messages. */
   onShowBeside?: () => void;
+  /** Offered from the banner of a thread beside the messages, to fill the page with it. */
+  onShowFull?: () => void;
 };
 
 type OpenDialog = 'tags' | 'editSummary' | 'regenerate';
@@ -71,6 +73,7 @@ export function ThreadActionsMenu({
   onOpenThread,
   onHideDetails,
   onShowBeside,
+  onShowFull,
 }: ThreadActionsMenuProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -429,6 +432,17 @@ export function ThreadActionsMenu({
       icon: ShrinkIcon,
       onSelect: () => {
         onShowBeside();
+        onClose();
+      },
+    });
+  }
+  if (onShowFull) {
+    items.push({
+      action: 'showFull',
+      label: t('thread.showFull'),
+      icon: ExpandIcon,
+      onSelect: () => {
+        onShowFull();
         onClose();
       },
     });

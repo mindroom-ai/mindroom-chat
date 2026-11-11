@@ -7,7 +7,7 @@ import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { Icons, config, type IconSrc } from 'folds';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThreadActionsMenu, type ThreadActionsMenuProps } from './ThreadActionsMenu';
-import { ShrinkIcon } from '../ui/panels/panelIcons';
+import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
 
 vi.mock('./ThreadContextBanner.css', () => ({ TagPickerInput: 'i', TagPickerInputContainer: 'c' }));
 vi.mock('../ui/styles/Motion.css', () => ({
@@ -144,6 +144,20 @@ describe('ThreadActionsMenu rows', () => {
     ]);
     act(() => rowOf(items, 'showBeside')?.click());
     expect(onShowBeside).toHaveBeenCalledOnce();
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('offers to show the thread in full before Hide where the banner asks for it', () => {
+    const onShowFull = vi.fn();
+    const onClose = vi.fn();
+    const items = renderMenu({ onShowFull, onHideDetails: () => undefined, onClose });
+
+    expect(rows(items).slice(-2)).toEqual([
+      { action: 'showFull', label: 'Show the thread in full', icon: glyph(ExpandIcon) },
+      { action: 'hideDetails', label: 'Hide thread details', icon: glyph(Icons.ChevronTop) },
+    ]);
+    act(() => rowOf(items, 'showFull')?.click());
+    expect(onShowFull).toHaveBeenCalledOnce();
     expect(onClose).toHaveBeenCalledOnce();
   });
 

@@ -317,7 +317,8 @@ test("a thread's column filling the page has the banner under its own header, on
     await besideMessages();
     await shot(page, 'room-header-slot-thread-beside');
 
-    await column.getByRole('button', { name: 'Show the thread in full', exact: true }).click();
+    await threadBanner.getByRole('button', { name: 'Thread options', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Show the thread in full', exact: true }).click();
     await fillingPage();
     await shot(page, 'room-header-slot-thread-full');
     // It gets the column's header: the example panel's item dropped on the name there shows in it.
@@ -339,8 +340,9 @@ test("a thread's column filling the page has the banner under its own header, on
     ).toHaveCount(0);
     await shot(page, 'room-header-slot-thread-full-file-dropped');
 
-    await column
-      .getByRole('button', { name: 'Show the thread beside the messages', exact: true })
+    await threadBanner.getByRole('button', { name: 'Thread options', exact: true }).click();
+    await page
+      .getByRole('menuitem', { name: 'Show the thread beside the messages', exact: true })
       .click();
     await besideMessages();
 

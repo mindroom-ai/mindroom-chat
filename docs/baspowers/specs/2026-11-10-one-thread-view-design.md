@@ -33,12 +33,13 @@ Bas Nijholt asked on 2026-11-10 to "fix the thing properly" after #257 fixed two
 - A thread opened with the layout `full`, or on a phone, now has its own composer. What the room's composer holds stays with the room: a reply, staged files or a recording no longer follow into the thread (before, they did, and were sent there), and they are there again on the way back. A recording under way in the room's composer ends as the thread opens, as leaving the room ends it.
 - A thread's reply and staged files go with it as it closes, as they do in the column today (#235), and a reload no longer brings a thread's reply target back (the room composer's still comes back); its unsent text stays, under the thread, as now.
 - Show beside works at any time, also with a reply, files or a recording in a composer.
+- Show beside and Show in full leave the banner: they are entries of the thread's More menu, which a right click on the banner opens too, beside the splitter's drag over the messages. The banner keeps Back, its title, More and Resolve.
 - A plugin's cover no longer covers a thread opened while it shows: the thread fills the page over the room area, as the column does today.
 - Plugins' `ThreadView` shows typing, read receipts, the thread's background jobs and the composer notices, and its composer floats over the timeline's bottom like the room page's.
 
 ## Not changed
 
-- The stored layout, its key, the column's width and its splitter; Show beside and Show in full in the banner and the More menu; the phone, which never shows the column beside.
+- The stored layout, its key, the column's width and its splitter; the phone, which never shows the column beside.
 - Escape and read receipts: `useRoomEscapeReadReceipts` already handles a thread in the column, beside the messages or filling the page.
 - Draft moves for an unsent root deleted in the column (`onColumnGone`), and the unconfirmed root handling of #254.
 - The SDK's `ThreadView` props and `navigateRoomThread`.

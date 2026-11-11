@@ -648,20 +648,22 @@ describe('ThreadContextBanner rendering', () => {
     pinned.unmount();
   });
 
-  it('offers Show beside or Show in full as a button, whichever the column has', () => {
+  it('leaves Show beside and Show in full to its More menu, with no button of their own', async () => {
     const onShowBeside = vi.fn();
-    const filled = create(bannerElement(undefined, '$root', { onShowBeside }));
-    const label = 'Show the thread beside the messages';
-    const toBeside = filled.root.findByProps({ 'aria-label': label });
-    act(() => toBeside.props.onClick());
-    expect(onShowBeside).toHaveBeenCalledTimes(1);
-    filled.unmount();
-
     const onShowFull = vi.fn();
-    const beside = create(bannerElement(undefined, '$root', { onShowFull }));
-    act(() => beside.root.findByProps({ 'aria-label': 'Show the thread in full' }).props.onClick());
-    expect(onShowFull).toHaveBeenCalledTimes(1);
-    beside.unmount();
+    const renderer = create(bannerElement(undefined, '$root', { onShowBeside, onShowFull }));
+    const labels = renderer.root
+      .findAllByType('button')
+      .map((button) => button.props['aria-label'] as string | undefined);
+    expect(labels).not.toContain('Show the thread beside the messages');
+    expect(labels).not.toContain('Show the thread in full');
+    const more = renderer.root
+      .findAllByType('button')
+      .find((button) => button.props['aria-haspopup'] === 'menu')!;
+    const trigger = { getBoundingClientRect: () => ({ x: 0, y: 0, width: 30, height: 30 }) };
+    await act(async () => more.props.onClick({ currentTarget: trigger }));
+    expect(menuProps.mock.calls.at(-1)![0]).toMatchObject({ onShowBeside, onShowFull });
+    renderer.unmount();
   });
 
   it('drops the Thread View eyebrow once the thread has a title', () => {

@@ -45,7 +45,6 @@ import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { getThreadRootTitle, ThreadRootTitle } from './ThreadRootTitle';
-import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
 
 const ThreadActionsMenu = lazy(() =>
   import('./ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -64,9 +63,9 @@ export interface ThreadContextBannerProps {
   threadId: string;
   summaryInfo?: ThreadSummaryInfo;
   onExitThread: () => void;
-  /** Takes the thread's column beside the room's messages from filling the page (button, More). */
+  /** Takes the thread's column beside the room's messages from filling the page (More menu). */
   onShowBeside?: () => void;
-  /** Fills the room page with the thread's column. */
+  /** Fills the room page with the thread's column (More menu). */
   onShowFull?: () => void;
 }
 
@@ -284,11 +283,6 @@ export function ThreadContextBanner({
   // which hide it.
   const resolverBylineId = useId();
 
-  // The column's button: fill the page with it, or take it beside the messages.
-  const columnToggle = onShowFull
-    ? { label: t('thread.showFull'), icon: ExpandIcon, onClick: onShowFull }
-    : onShowBeside && { label: t('thread.showBeside'), icon: ShrinkIcon, onClick: onShowBeside };
-
   const backButton = phone ? (
     <PhoneBackButton label={t('thread.back')} onBack={onExitThread} />
   ) : (
@@ -492,22 +486,6 @@ export function ThreadContextBanner({
               )}
             </div>
             <Box alignItems="Center" gap="100" shrink="No">
-              {columnToggle && (
-                <IconTooltip label={columnToggle.label}>
-                  {(triggerRef) => (
-                    <IconButton
-                      ref={triggerRef}
-                      className={toolbarCss.MessageOptionsButton}
-                      variant="SurfaceVariant"
-                      fill="None"
-                      aria-label={columnToggle.label}
-                      onClick={columnToggle.onClick}
-                    >
-                      <Icon size="100" src={columnToggle.icon} />
-                    </IconButton>
-                  )}
-                </IconTooltip>
-              )}
               <IconTooltip label={t('threadActions.more')}>
                 {(triggerRef) => (
                   <IconButton
@@ -634,6 +612,7 @@ export function ThreadContextBanner({
             summaryText={headerModel.summaryText}
             onHideDetails={collapsed ? undefined : () => toggleCollapsed(true)}
             onShowBeside={onShowBeside}
+            onShowFull={onShowFull}
             anchor={activeMenu.anchor}
             onClose={() => closeMenu(activeMenu)}
           />
