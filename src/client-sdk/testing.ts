@@ -16,6 +16,7 @@ import { registerPluginTranslations } from '../app/plugins/pluginTranslations';
 import type { ClientPlugin } from '../app/plugins/registry';
 import type { ThemeKind } from '../app/theme/useTheme';
 import { PanelFrameProvider, type PanelFrame } from '../app/ui/panels/panelFrameContext';
+import { usePanelSlot } from '../app/ui/panels/panelPresence';
 
 // The app's vitest has no globals, so React Testing Library does not unmount after each test itself.
 afterEach(cleanup);
@@ -127,3 +128,15 @@ export const renderPluginComponent = async (
     );
   return render(ui, { wrapper });
 };
+
+/**
+ * The room's place for a side panel, holding `children`, the panel shown there under its key, or
+ * none, as the room holds a plugin's panel: `usePanelPresence` inside gives the panel its phase,
+ * `done` and `register`, and a panel that registered stays while it moves out until its
+ * registration's `done`. A test rerenders it with another key to swap panels and with none to
+ * close the panel, inside `renderPluginComponent` for the panel's frame. The room catches a panel
+ * that fails inside the place, so a test of one puts its own error boundary around the panel.
+ */
+export function PanelPlace({ children }: { children?: ReactElement | null }) {
+  return usePanelSlot(children ?? undefined) ?? null;
+}
