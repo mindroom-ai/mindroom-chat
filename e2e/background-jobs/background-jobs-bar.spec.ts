@@ -136,6 +136,20 @@ test('the jobs bar lists agents’ background jobs, cancels them, and marks the 
   await page.keyboard.press('Escape');
   await expect(title).toBeFocused();
   await expect(bar.getByRole('listitem')).toHaveCount(0);
+  // The composer's suggestions open over the jobs, not under them.
+  const titleBox = (await title.boundingBox())!;
+  await footer.locator('[contenteditable="true"]').click();
+  await page.keyboard.type('/');
+  const suggestions = page.getByRole('listbox', { name: 'Commands' });
+  await expect(suggestions).toBeVisible();
+  const covers = await suggestions.evaluate(
+    (listbox, { x, y }) => listbox.contains(document.elementFromPoint(x, y)),
+    { x: titleBox.x + titleBox.width / 2, y: titleBox.y + titleBox.height / 2 }
+  );
+  await page.screenshot({ path: testInfo.outputPath('desktop-suggestions-over-jobs.png') });
+  expect(covers).toBe(true);
+  await page.keyboard.press('Backspace');
+  await expect(suggestions).toHaveCount(0);
   // Pressing the title keeps them listed.
   await title.click();
   await page.mouse.move(0, 0);

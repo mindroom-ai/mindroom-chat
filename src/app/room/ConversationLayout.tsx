@@ -34,7 +34,8 @@ const COLLAPSED_STYLE: CSSProperties = {
 const TIMELINE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
 // Groups what a plugin's cover hides, without a box of its own in the layout.
 const CONVERSATION_STYLE: CSSProperties = { display: 'contents' };
-// Background jobs and approvals float just above the composer.
+// Background jobs and approvals float just above the composer, under what rises from it (the
+// footer, at the same z-index, comes later).
 const DOCK_STYLE: CSSProperties = {
   position: 'absolute',
   insetInline: 0,
