@@ -83,8 +83,11 @@ jobs:
       - name: Start the test homeserver
         run: docker compose -f e2e/docker-compose.yaml up -d --wait
       # Playwright's own Chromium: no CHROMIUM_PATH is set here, so the config falls back to it.
+      # The runner image already has the libraries Chromium needs; `--with-deps` only added fonts the
+      # smoke specs do not look at (no screenshots), and its apt step fails whenever the Ubuntu archive
+      # mirrors cannot be reached.
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
       - name: Build
         run: npx vite build
       # The production build through `vite preview`, as `scripts/e2e-slot.sh --preview` serves it.
