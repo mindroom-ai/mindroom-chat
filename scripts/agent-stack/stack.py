@@ -1007,7 +1007,8 @@ def started_with(
         and state.get("calls") == calls_setting(args)
         and state.get("transcription") == transcription
         and state.get("clientSessions", False) == args.client_sessions
-        and state.get("computers") == computers_setting(args, sha)
+        # Earlier starts recorded false without computers.
+        and (state.get("computers") or None) == computers_setting(args, sha)
         and state.get("approvalExpiryDays") == args.approval_expiry_days
         and state.get("pluginDirs", []) == (plugin_dirs or [])
         and state.get("sha") == sha

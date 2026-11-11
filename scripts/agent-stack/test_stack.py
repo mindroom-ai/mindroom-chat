@@ -266,7 +266,12 @@ class CommandLineTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         # A real model or plugin directories that the shell running the tests sets stay out of them.
-        environment = {"E2E_AGENT_STACK_ROOT": directory.name, "E2E_AGENT_MODEL": "", "E2E_PLUGIN_DIRS": ""}
+        environment = {
+            "E2E_AGENT_STACK_ROOT": directory.name,
+            "E2E_AGENT_MODEL": "",
+            "E2E_PLUGIN_DIRS": "",
+            "E2E_COMPUTER_IMAGE": "",
+        }
         patcher = mock.patch.dict(os.environ, environment)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -372,8 +377,13 @@ class CommandLineTests(unittest.TestCase):
         self.assertIsNone(state["pluginOriginPort"])
 
     def started_with_computers(self, *argv: str) -> tuple[dict[str, str], dict, mock.Mock]:
-        """The backend's .env settings, the state and the image build of a start with computers."""
-        with self.starting(), mock.patch.object(stack, "worker_image") as worker_image:
+        """The backend's .env settings, the state and the image build of a start with computers; the containers
+        of an earlier start are never looked for, since this machine's Docker may run a real slot 7."""
+        with (
+            self.starting(),
+            mock.patch.object(stack, "worker_image") as worker_image,
+            mock.patch.object(stack, "remove_workers"),
+        ):
             self.assertEqual(self.main("7", "up", "--computers", *argv), 0)
         env = dict(line.split("=", 1) for line in (self.slot_dir / ".env").read_text().splitlines() if line)
         return env, stack.read_state(self.slot_dir), worker_image
@@ -631,6 +641,7 @@ class OptionTests(unittest.TestCase):
         sessions = {**state, "clientSessions": True, "computers": None}
         # A stack that the script started before these options is one without them.
         self.assertTrue(stack.started_with(state, up_args(), sha, homeserver))
+        self.assertTrue(stack.started_with({**sessions, "computers": False}, up_args(client_sessions=True), sha, homeserver))
         self.assertTrue(stack.started_with(sessions, up_args(client_sessions=True), sha, homeserver))
         self.assertFalse(stack.started_with(sessions, up_args(), sha, homeserver))
         self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True, computers=True), sha, homeserver))
