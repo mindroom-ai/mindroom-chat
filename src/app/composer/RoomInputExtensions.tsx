@@ -13,10 +13,10 @@ import { PendingSendIndicator } from '../ui/PendingSendIndicator';
 import { ThreadIndicator } from '../messages/ThreadIndicator';
 import { isSignalBridgeRoom } from '../matrix/bridgeDetection';
 import {
-  createRoomInputSendSessionState,
-  getUploadRelationForSendSession,
-} from './roomInputSendSession';
-import type { TUploadContent } from '../matrix/matrix';
+  isLocalEchoEventId,
+  resolveCanonicalThreadRootId,
+} from '../event-store/threads/threadRouteUtils';
+import { getMessageRelation } from '../matrix/send/composeMessageRelation';
 import type { PasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
 
 export type RoomInputAutocompletePrefix = typeof MINDROOM_COMMAND_PREFIX;
@@ -74,6 +74,13 @@ export const getRoomInputVoiceSendContext = ({
 });
 
 /**
+ * A thread opened by a message that was still sending goes by that message's own ID once the
+ * server confirms it.
+ */
+export const confirmedVoiceThreadId = (room: Room, threadId: string | undefined) =>
+  isLocalEchoEventId(threadId) ? resolveCanonicalThreadRootId(room, threadId) : threadId;
+
+/**
  * Re-resolve a captured voice send context against the live Matrix client
  * just before sending. Returns null if the source room is no longer
  * available (missing or non-Joined). This is the boundary that closes the
@@ -91,28 +98,16 @@ export const refreshRoomInputVoiceSendContext = (
   return {
     ...context,
     room: liveRoom,
+    threadId: confirmedVoiceThreadId(liveRoom, context.threadId),
     signalBridgedRoom: isSignalBridgeRoom(liveRoom),
   };
 };
 
-export const getRoomInputVoiceUploadRelation = (
-  context: PendingVoiceSendContext,
-  file: TUploadContent
-) => {
-  const session = {
-    threadId: context.threadId,
-    replyDraft: context.replyDraft,
-    ...createRoomInputSendSessionState({
-      files: [file],
-      hasText: false,
-      threadId: context.threadId,
-      replyDraft: context.replyDraft,
-      threadingEnabled: context.threadingEnabled,
-    }),
-  };
-
-  return getUploadRelationForSendSession(session, false);
-};
+/** A voice message is one file without text: a reply, a thread reply, or neither. */
+export const getRoomInputVoiceUploadRelation = (context: PendingVoiceSendContext) =>
+  getMessageRelation(context.replyDraft?.eventId, context.replyDraft?.relation, context.threadId, {
+    allowThreadRelation: context.threadingEnabled,
+  });
 
 export const createRoomInputPasteMarkerElement = (
   marker: PasteMarker

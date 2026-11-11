@@ -674,6 +674,8 @@
     }
   },
   "composer": {
+    "voicePausedInThisRoom": "录音已暂停 — 完成或放弃在此房间其他位置未发送的录音",
+    "voiceThreadRootUnsent": "此语音消息所在的话题没有已发送的第一条消息。请在该消息发送后重试，或放弃此录音。",
     "emoji": "表情符号",
     "cancelReply": "取消回复",
     "moreActions": "更多操作",

@@ -2,7 +2,14 @@
 import type { ReactNode } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
+import {
+  createClient,
+  EventStatus,
+  MatrixEvent,
+  PendingEventOrdering,
+  Room,
+  type MatrixClient,
+} from 'matrix-js-sdk';
 import { expect, it, vi } from 'vitest';
 import {
   pendingVoiceSendDraftAtom,
@@ -81,4 +88,29 @@ it('names no room for a recording that waits in a thread view', () => {
   renderVoice(store, '!room:example.org', 'view');
   act(() => store.set(pendingVoiceSendDraftAtom, draft('!room:example.org', true)));
   expect(store.get(voiceRecorderRoomAtom)).toBeUndefined();
+});
+
+it("offers a view's recording made while its thread's root was sending, once the root is sent", () => {
+  const client = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
+  const room = new Room('!room:example.org', client, '@alice:example.org', {
+    pendingEventOrdering: PendingEventOrdering.Chronological,
+  });
+  const localId = `~${room.roomId}:txn-root`;
+  const root = new MatrixEvent({
+    event_id: localId,
+    room_id: room.roomId,
+    sender: '@alice:example.org',
+    type: 'm.room.message',
+    content: { msgtype: 'm.text', body: 'Root' },
+  });
+  root.setStatus(EventStatus.SENDING);
+  room.addPendingEvent(root, 'txn-root');
+  room.updatePendingEvent(root, EventStatus.SENT, '$thread');
+  const store = createStore();
+  const parked = draft(room.roomId, true);
+  parked.context = { ...parked.context, room, threadId: localId };
+  store.set(pendingVoiceSendDraftAtom, parked);
+
+  const { result } = renderVoice(store, room.roomId, 'view');
+  expect(result.current.renderRecorder(() => undefined)).not.toBeNull();
 });
