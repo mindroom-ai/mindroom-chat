@@ -157,9 +157,11 @@ vi.mock('./ThreadView', async () => {
       onUnmount,
       focusRef,
       fileDropContainerRef,
+      roomHeader,
     }: ComponentProps<typeof ThreadView>) => {
       const reply = useRef<HTMLDivElement>(null);
       const viewRef = useRef<HTMLDivElement>(null);
+      const headerRef = useRef<HTMLDivElement>(null);
       useFileDropZone(
         fileDropContainerRef ?? viewRef,
         useCallback(() => state.dropped.push(threadId), [threadId])
@@ -184,6 +186,11 @@ vi.mock('./ThreadView', async () => {
           data-autofocus={autoFocus}
           data-hidden={hidden}
         >
+          {roomHeader && (
+            <div ref={headerRef} data-glass-flat="true">
+              {roomHeader(headerRef)}
+            </div>
+          )}
           {header}
           <div ref={reply} contentEditable suppressContentEditableWarning aria-label="Reply" />
           {/* A menu it opens renders outside it, as the app's menus and dialogs do. */}
@@ -632,21 +639,14 @@ it("opens a thread in the messages' place when the room's row is wide but the pa
   expect(state.main?.threadId).toBe('$thread');
 });
 
-it("gives the column that fills the page the thread's background jobs and the letters typed with nothing focused", () => {
+it('gives the letters typed with nothing focused to the column that fills the page', () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   renderView();
-  const jobs = () => screen.getAllByTestId('jobs').map((bar) => bar.dataset.thread);
-  // Beside the messages, the room's bar lists every job, the thread's too.
-  expect(jobs()).toEqual(['room']);
   fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA' });
   expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' }));
   (document.activeElement as HTMLElement).blur();
 
   fireEvent.click(screen.getByRole('button', { name: 'Full' }));
-  expect(jobs()).toEqual(['$thread']);
-  expect(within(screen.getByTestId('thread-column')).getByTestId('jobs').dataset.thread).toBe(
-    '$thread'
-  );
   fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA' });
   expect(document.activeElement).toBe(screen.getByLabelText('Reply'));
 });
@@ -669,10 +669,10 @@ it("gives a file dropped on the thread column's header, beside the messages or f
   drop(inColumn().getByRole('button', { name: 'Full' }));
   expect(state.dropped).toEqual(['room', '$thread']);
 
-  // Filling the page, the column's own header and the jobs under the thread take it for the thread.
+  // Filling the page, the room's header in the column and the thread's view take it for the thread.
   fireEvent.click(inColumn().getByRole('button', { name: 'Full' }));
   drop(inColumn().getByTestId('room-header'));
-  drop(inColumn().getByTestId('jobs'));
+  drop(inColumn().getByTestId('thread-view'));
   expect(state.dropped).toEqual(['room', '$thread', '$thread', '$thread']);
 });
 

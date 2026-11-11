@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
 } from 'react';
-import classNames from 'classnames';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -28,7 +27,6 @@ import {
   voiceRecorderRoomAtom,
   moveMessageDraft,
 } from '../composer/roomInputDrafts';
-import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
 import { computerOwnsKeyboardEvent } from '../computer/computerFocus';
 import { useSyncEngine } from '../event-store/engine/engineContext';
 import { isFailedLocalEchoEvent } from '../matrix/protocol/pendingLocalEcho';
@@ -47,8 +45,6 @@ import {
 import { useInert } from '../lib/hooks/useInert';
 import { ROOM_MESSAGES_VIEW, useShownConversationView } from '../navigation/conversationView';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
-import * as overlay from '../ui/styles/RoomOverlay.css';
-import { SurfaceProvider } from '../ui/glass/SurfaceContext';
 import { ThreadContextBanner } from '../threads/ThreadContextBanner';
 import {
   isConfirmedMatrixEventId,
@@ -75,14 +71,13 @@ const THREAD_COLUMN_MAX_WIDTH = 4096;
 const PAGE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
 const PAGE_ROW_STYLE: CSSProperties = { ...PAGE_STYLE, flexDirection: 'row' };
 
-// The column stacks the room's header, while it fills the page, over the thread.
+// The column holds the thread's view, and takes the files dropped anywhere on it.
 const COLUMN_STYLE: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   minHeight: 0,
   minWidth: 0,
 };
-const COLUMN_HEADER_STYLE: CSSProperties = { position: 'relative', flexShrink: 0 };
 
 /** Where a thread shows, chosen as it opens: in the column of its own, or in the messages' place. */
 type ThreadPlace = { threadId: string; column: boolean };
@@ -155,7 +150,6 @@ export function RoomView({
   const { roomId } = room;
   const areaRef = useRef<HTMLDivElement>(null);
   const columnRef = useRef<HTMLDivElement>(null);
-  const columnHeaderRef = useRef<HTMLDivElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
   const compactRoomScrollStateRef = useRef<ScrollAnchorMemory>(new Map());
@@ -387,30 +381,27 @@ export function RoomView({
           onKeyDown={noteThreadColumnKey}
         >
           <div ref={columnRef} style={COLUMN_STYLE}>
-            {/* Filling the page, the column has the room's header the room area hides. */}
-            {columnFills && (
-              <div
-                ref={columnHeaderRef}
-                data-glass-flat="true"
-                className={classNames(overlay.Header, overlay.HeaderInThread)}
-                style={COLUMN_HEADER_STYLE}
-              >
-                <SurfaceProvider value>
-                  <RoomViewHeader
-                    hasMindroomAgents={hasMindroomAgents}
-                    threadId={columnThreadId}
-                    threadFilterState={threadState.threadFilterState}
-                    {...headerProps}
-                  />
-                  <RoomHeaderSlot room={room} headerRef={columnHeaderRef} />
-                </SurfaceProvider>
-              </div>
-            )}
             <ThreadView
               room={room}
               threadId={columnThreadId}
               eventId={focusEventInRoom ? undefined : eventId}
               header={threadBanner}
+              // Filling the page, the column has the room's header the room area hides.
+              roomHeader={
+                columnFills
+                  ? (headerRef) => (
+                      <>
+                        <RoomViewHeader
+                          hasMindroomAgents={hasMindroomAgents}
+                          threadId={columnThreadId}
+                          threadFilterState={threadState.threadFilterState}
+                          {...headerProps}
+                        />
+                        <RoomHeaderSlot room={room} headerRef={headerRef} />
+                      </>
+                    )
+                  : undefined
+              }
               autoFocus
               hidden={behindPanel}
               onThreadLoadError={onThreadLoadError}
@@ -419,10 +410,6 @@ export function RoomView({
               // Files dropped anywhere on the column, its header too, go to the thread's composer.
               fileDropContainerRef={columnRef}
             />
-            {/* Under the thread, where its list of jobs opens upward over the timeline. */}
-            {columnFills && (
-              <BackgroundJobsBar room={room} threadId={columnThreadId} canCancel={canCancelJobs} />
-            )}
           </div>
         </ResizablePanel>
       )}

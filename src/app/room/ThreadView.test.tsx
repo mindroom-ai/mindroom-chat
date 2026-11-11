@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { getDefaultStore } from 'jotai';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { createClient, MatrixEvent, Room, type RoomMember } from 'matrix-js-sdk';
+import { createClient, EventStatus, MatrixEvent, Room, type RoomMember } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Editable, ReactEditor, Slate } from 'slate-react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -71,6 +71,29 @@ vi.mock('../approvals/ThreadApprovalProvider', () => ({
 }));
 vi.mock('../approvals/ThreadApprovalControls', () => ({
   ThreadApprovalQueue: () => <div data-testid="approvals" />,
+}));
+vi.mock('../timeline/typing/RoomViewTyping', () => ({
+  RoomViewTyping: ({ threadId }: { threadId?: string }) => (
+    <div data-testid="typing" data-thread={threadId} />
+  ),
+}));
+vi.mock('../timeline/RoomViewFollowing', () => ({
+  RoomViewFollowing: ({ threadId }: { threadId?: string }) => (
+    <div data-testid="following" data-thread={threadId} />
+  ),
+}));
+vi.mock('../background-jobs/BackgroundJobsBar', () => ({
+  BackgroundJobsBar: ({ threadId }: { threadId: string | null }) => (
+    <div data-testid="jobs" data-thread={threadId ?? undefined} />
+  ),
+}));
+vi.mock('../messages/FailedSendActions', () => ({
+  FailedSendActions: ({ event }: { event: MatrixEvent }) => (
+    <div data-testid="failed-root">{event.getId()}</div>
+  ),
+}));
+vi.mock('./RoomTombstone', () => ({
+  RoomTombstone: () => <div data-testid="tombstone" />,
 }));
 // The composer is its Slate text box.
 vi.mock('../composer/RoomInput', () => ({
@@ -180,12 +203,58 @@ it('takes the files dropped on the element the page names instead, as the thread
   expect(state.dropTarget).toBe(column);
 });
 
-it("sets the room view's insets to none, as no floating header or composer covers its rows", () => {
-  const { container } = render(<ThreadView room={room} threadId={THREAD} />);
-  const view = container.firstElementChild as HTMLElement;
-  ['--room-header-height', '--room-footer-height', '--room-composer-height'].forEach((name) =>
-    expect(view.style.getPropertyValue(name)).toBe('0px')
+it("shows typing, read receipts and the thread's background jobs", () => {
+  render(<ThreadView room={room} threadId={THREAD} />);
+  ['typing', 'following', 'jobs'].forEach((part) =>
+    expect(screen.getByTestId(part).dataset.thread).toBe(THREAD)
   );
+});
+
+it('offers Retry and Delete for its unsent root', () => {
+  const root = new MatrixEvent({ event_id: '~!room:example.org:m1.1', type: 'm.room.message' });
+  root.setStatus(EventStatus.NOT_SENT);
+  const find = vi.spyOn(room, 'findEventById').mockReturnValue(root);
+  render(<ThreadView room={room} threadId="~!room:example.org:m1.1" />);
+  expect(screen.getByTestId('failed-root').textContent).toBe('~!room:example.org:m1.1');
+  find.mockRestore();
+});
+
+it('tells an upgraded room or a missing permission where the composer would be', () => {
+  state.tombstone = true;
+  const { rerender } = render(<ThreadView room={room} threadId={THREAD} />);
+  expect(screen.getByTestId('tombstone')).toBeDefined();
+  expect(composer()).toBeNull();
+  state.tombstone = false;
+  state.mayPost = false;
+  rerender(<ThreadView room={room} threadId={`${THREAD}-2`} />);
+  expect(screen.queryByTestId('tombstone')).toBeNull();
+  expect(screen.getByText('You do not have permission to post in this room')).toBeDefined();
+});
+
+it('shows the room header it is given in its floating header', () => {
+  let headerRef: RefObject<HTMLDivElement> | undefined;
+  render(
+    <ThreadView
+      room={room}
+      threadId={THREAD}
+      roomHeader={(ref) => {
+        headerRef = ref;
+        return <b>Room header</b>;
+      }}
+    />
+  );
+  expect(headerRef?.current?.dataset.glassFlat).toBe('true');
+  expect(headerRef?.current?.contains(screen.getByText('Room header'))).toBe(true);
+});
+
+it('focuses the composer only as a thread opens or changes', () => {
+  const focus = vi.spyOn(ReactEditor, 'focus');
+  const { rerender } = render(<ThreadView room={room} threadId={THREAD} autoFocus={false} />);
+  rerender(<ThreadView room={room} threadId={THREAD} autoFocus />);
+  expect(focus).not.toHaveBeenCalled();
+  rerender(<ThreadView room={room} threadId="$other" autoFocus />);
+  expect(focus).toHaveBeenCalledTimes(1);
+  focus.mockRestore();
 });
 
 it('is a conversation view of its own, apart from the room page and from another view of the thread, whose reply and staged files go with it', () => {

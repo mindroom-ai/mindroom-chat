@@ -1,5 +1,4 @@
 import {
-  type CSSProperties,
   type MutableRefObject,
   type ReactNode,
   type RefObject,
@@ -11,13 +10,9 @@ import {
 } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
-import { Box } from 'folds';
-import { ThreadApprovalQueue } from '../approvals/ThreadApprovalControls';
-import { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
 import { RoomInput } from '../composer/RoomInput';
 import { useEditor } from '../editor/Editor';
 import {
-  isConfirmedMatrixEventId,
   isLocalEchoEventId,
   resolveCanonicalThreadRootId,
 } from '../event-store/threads/threadRouteUtils';
@@ -29,6 +24,7 @@ import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { hasActiveMindroomAgent } from '../matrix/protocol/agentIdentity';
+import { isFailedLocalEchoEvent } from '../matrix/protocol/pendingLocalEcho';
 import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import { StateEvent } from '../matrix/types/room';
 import {
@@ -44,35 +40,28 @@ import { RoomTimeline } from '../timeline/RoomTimeline';
 import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { MessageLinkCards } from './MessageLinkCards';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
+import { ComposerNotice, ConversationLayout } from './ConversationLayout';
+import { useLocalEchoRoot } from './useLocalEchoRoot';
 
 const NO_SUMMARIES: ReadonlyMap<string, ThreadSummaryInfo> = new Map();
 const ignore = () => undefined;
-
-// It fills its parent, a flex column. No floating header or composer covers its rows, so the
-// insets the room view measures for them are none here.
-const VIEW_STYLE = {
-  display: 'flex',
-  flexDirection: 'column',
-  flex: '1 1 auto',
-  minHeight: 0,
-  minWidth: 0,
-  overflow: 'hidden',
-  '--room-header-height': '0px',
-  '--room-footer-height': '0px',
-  '--room-composer-height': '0px',
-} as CSSProperties;
-const TIMELINE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
+const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
 
 /**
  * The app side of `ThreadView` in `@mindroom/client-sdk/room`, whose contract lives there and in
  * docs/architecture.md. It is a conversation view of its own (`ConversationViewContext`), shown
- * (`shownConversationViewsAtom`) while its side panel is not folded. Timeline and composer share
- * one editor, as in the room view; it has no filter bar or thread summaries, the whole view takes
- * dropped files, and it adds no key handling of its own. The room page's thread column gives it
- * the thread's banner as its `header`, the column as its `fileDropContainerRef` (the column's
- * header takes dropped files too), the event its address names, the focus as it opens,
- * `hidden` while a side panel takes the page's place, the page's handler of a thread that does not
- * load, `onUnmount`, which gets the thread it showed last as it goes, and `focusRef`.
+ * (`shownConversationViewsAtom`) while its side panel is not folded, and draws the thread as the
+ * room page draws a conversation (`ConversationLayout`): the timeline, with the typing notice, the
+ * composer (or why there is none, and the Retry of a root that did not send) and read receipts
+ * floating under it, and the thread's background jobs and approvals above the composer. Timeline
+ * and composer share one editor, as in the room view; it has no filter bar or thread summaries,
+ * the whole view takes dropped files, and it adds no key handling of its own. The room page's
+ * thread column gives it the thread's banner as its `header`, the room's header as `roomHeader`
+ * while it fills the page, the column as its `fileDropContainerRef` (the column's header takes
+ * dropped files too), the event its address names, the focus as it opens (`autoFocus`, read as a
+ * thread opens or changes), `hidden` while a side panel takes the page's place, the page's handler
+ * of a thread that does not load, `onUnmount`, which gets the thread it showed last as it goes, and
+ * `focusRef`.
  */
 export function ThreadView({
   room,
@@ -85,6 +74,7 @@ export function ThreadView({
   onUnmount,
   focusRef,
   fileDropContainerRef,
+  roomHeader,
 }: {
   room: Room;
   threadId: string;
@@ -98,6 +88,8 @@ export function ThreadView({
   focusRef?: MutableRefObject<(() => void) | undefined>;
   /** The element whose dropped files its composer takes, in place of the view. */
   fileDropContainerRef?: RefObject<HTMLElement>;
+  /** The room's header, over the thread as over the room's messages, given its element. */
+  roomHeader?: (headerRef: RefObject<HTMLDivElement>) => ReactNode;
 }) {
   const client = useMatrixClient();
   const editor = useEditor();
@@ -109,7 +101,16 @@ export function ThreadView({
   const permissions = useRoomPermissions(useRoomCreators(room), powerLevels);
   // As in the room view, an upgraded room takes no more messages.
   const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
-  const composerShown = !tombstone && permissions.event('m.room.message', client.getSafeUserId());
+  const myUserId = client.getSafeUserId();
+  const canMessage = permissions.event('m.room.message', myUserId);
+  const composerShown = !tombstone && canMessage;
+  // Cancelling a background job sends an event, so it takes that event's power level.
+  const canCancelJobs = permissions.event(BACKGROUND_JOB_CANCEL_EVENT, myUserId);
+  const localRoot = useLocalEchoRoot(room, threadId);
+  const failedRoot =
+    localRoot.pending && localRoot.event && isFailedLocalEchoEvent(localRoot.event)
+      ? localRoot.event
+      : undefined;
 
   // The view shows, for read receipts and notifications, while it is mounted, but not while the
   // side panel it is in is folded to its tab, which keeps it mounted out of sight, nor while hidden.
@@ -142,56 +143,66 @@ export function ThreadView({
     };
   }, [focusConversation, focusRef]);
   // Without a composer on screen there is nothing to focus. A root that gets its own ID is the
-  // same thread: the focus stays where the person took it meanwhile.
+  // same thread: the focus stays where the person took it meanwhile. `autoFocus` counts as a thread
+  // opens or changes: changing it alone (the column changing width) moves no focus.
   const previousThreadId = useRef<string>();
+  const autoFocusRef = useLatestRef(autoFocus);
   useEffect(() => {
     const previous = previousThreadId.current;
     previousThreadId.current = threadId;
     const rootConfirmed =
       isLocalEchoEventId(previous) && resolveCanonicalThreadRootId(room, previous) === threadId;
-    if (autoFocus && !rootConfirmed) focusConversation();
-  }, [autoFocus, focusConversation, room, threadId]);
+    if (autoFocusRef.current && !rootConfirmed) focusConversation();
+  }, [autoFocusRef, focusConversation, room, threadId]);
 
   return (
     <ConversationViewContext.Provider value={view}>
-      <div ref={viewRef} style={VIEW_STYLE}>
-        <PowerLevelsContextProvider value={powerLevels}>
-          <MessageLinkCards roomId={roomId}>
-            <ThreadApprovalProvider
-              room={room}
-              // A message not yet on the server has no approvals, and no relations to ask for.
-              threadId={isConfirmedMatrixEventId(threadId) ? threadId : undefined}
-              focusConversation={focusConversation}
-            >
-              <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
-                <RoomTimeline
+      <PowerLevelsContextProvider value={powerLevels}>
+        <MessageLinkCards roomId={roomId}>
+          <ConversationLayout
+            room={room}
+            threadId={threadId}
+            areaRef={viewRef}
+            header={roomHeader}
+            timeline={
+              <RoomTimeline
+                room={room}
+                threadId={threadId}
+                eventId={eventId}
+                threadHeader={header}
+                onThreadLoadError={onThreadLoadError}
+                viewMode="threaded"
+                hasMindroomAgents={hasMindroomAgents}
+                editor={editor}
+                summaryMap={NO_SUMMARIES}
+                onStoreThreadSummary={ignore}
+                threadFilterState={DIRECT_ROOM_TIMELINE_FILTER_STATE}
+              />
+            }
+            focusConversation={focusConversation}
+            canCancelJobs={canCancelJobs}
+            notice={
+              <ComposerNotice
+                room={room}
+                failedRoot={failedRoot}
+                tombstone={tombstone}
+                canMessage={canMessage}
+              />
+            }
+            composer={
+              composerShown && (
+                <RoomInput
                   room={room}
+                  roomId={roomId}
                   threadId={threadId}
-                  eventId={eventId}
-                  threadHeader={header}
-                  onThreadLoadError={onThreadLoadError}
-                  viewMode="threaded"
-                  hasMindroomAgents={hasMindroomAgents}
                   editor={editor}
-                  summaryMap={NO_SUMMARIES}
-                  onStoreThreadSummary={ignore}
-                  threadFilterState={DIRECT_ROOM_TIMELINE_FILTER_STATE}
+                  fileDropContainerRef={fileDropContainerRef ?? viewRef}
                 />
-              </Box>
-              <ThreadApprovalQueue />
-            </ThreadApprovalProvider>
-          </MessageLinkCards>
-          {composerShown && (
-            <RoomInput
-              room={room}
-              roomId={roomId}
-              threadId={threadId}
-              editor={editor}
-              fileDropContainerRef={fileDropContainerRef ?? viewRef}
-            />
-          )}
-        </PowerLevelsContextProvider>
-      </div>
+              )
+            }
+          />
+        </MessageLinkCards>
+      </PowerLevelsContextProvider>
     </ConversationViewContext.Provider>
   );
 }
