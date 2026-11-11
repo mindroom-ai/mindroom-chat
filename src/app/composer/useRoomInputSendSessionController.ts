@@ -732,7 +732,8 @@ export const useRoomInputSendSessionController = ({
     parked.unpark = undefined;
     const { staged, enrolled } = session.composer.attachments.snapshot(session.roomId);
     const items = new Map(
-      [...staged, ...enrolled]
+      // The board's copy of a file is the newest.
+      [...enrolled, ...staged]
         .filter(
           (item) => session.orderedFiles.includes(item.file) && !session.sentFiles.has(item.file)
         )

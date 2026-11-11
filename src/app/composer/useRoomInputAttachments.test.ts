@@ -308,6 +308,17 @@ describe('attachment staging ownership', () => {
     });
   });
 
+  it('releases a file removed in one composer from the sends of every other', () => {
+    const holder = renderHarness();
+    const other = renderHarness();
+    const item = createUploadItem('cancelled.txt');
+    act(() => {
+      holder.feature.access.enroll([item]);
+      other.feature.access.remove(ROOM_ID, [item.file]);
+    });
+    expect(holder.feature.access.snapshot().enrolled).toEqual([]);
+  });
+
   it('keeps a file a send claimed as the board changes it', () => {
     const harness = renderHarness();
     const { access } = harness.feature;

@@ -482,6 +482,23 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     expect(sentBodies(mx)).toEqual(['first.txt']);
   });
 
+  it('takes a file over as the board last changed it', async () => {
+    const { api, unmount, mountAgain } = renderHarness();
+    const file = createFile('photo.png');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    // Marked as a spoiler on the board after Send.
+    const spoiler = { ...createUploadItem(file), metadata: { markedAsSpoiler: true } };
+    api.selectedFilesRef.current = [spoiler];
+    unmount();
+    const again = mountAgain();
+    expect(again.api.selectedFilesRef.current).toEqual([spoiler]);
+    expect(again.api.selectedFilesRef.current[0]).toBe(spoiler);
+  });
+
   it('takes a send over when the composer moves to its room, not only as it mounts', async () => {
     const { api, mx, unmount, mountAgain } = renderHarness();
     const file = createFile('room-a.txt');
