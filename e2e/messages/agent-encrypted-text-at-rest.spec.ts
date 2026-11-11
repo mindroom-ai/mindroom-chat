@@ -216,10 +216,11 @@ test('an encrypted room leaves no thread preview and no quoted reply text in loc
   const ownDraftKey = `roomInputDraft:${JSON.stringify([user, secret, secretIds.rootId])}`;
   expect(holds(storage[ownDraftKey], unsent)).toBe(true);
 
-  // An older version stored the encrypted room's texts, its room composer's reply target among
-  // them: they are deleted once the client starts, the target kept without its text.
+  // An older version stored the encrypted room's texts, its room composer's reply target (the
+  // thread's root) among them: they are deleted once the client starts, the target kept without
+  // its text.
   await page.evaluate(
-    ({ userId, roomId, rootId, replyId, word, title }) => {
+    ({ userId, roomId, rootId, word, title }) => {
       const recentKey = `recentThreads:${userId}`;
       const recent = JSON.parse(localStorage.getItem(recentKey) ?? '{}') as {
         entries?: Array<{ roomId: string; summaryText?: string }>;
@@ -231,15 +232,14 @@ test('an encrypted room leaves no thread preview and no quoted reply text in loc
       localStorage.setItem(
         `roomInputReply:${JSON.stringify([userId, roomId])}`,
         JSON.stringify({
-          userId: '@helper:localhost',
-          eventId: replyId,
-          body: `Hello from stub-fast. You said: where is the ${word}?`,
-          formattedBody: `Hello from <b>stub-fast</b>. You said: where is the ${word}?`,
-          relation: { rel_type: 'm.thread', event_id: rootId },
+          userId,
+          eventId: rootId,
+          body: `where is the ${word}?`,
+          formattedBody: `where is the <b>${word}</b>?`,
         })
       );
     },
-    { userId: user, roomId: secret, ...secretIds, word: secretWord, title: secretTitle }
+    { userId: user, roomId: secret, rootId: secretIds.rootId, word: secretWord, title: secretTitle }
   );
   await page.goto('/home/', { timeout: 180_000 });
   await openRecentlyOpened(page);
@@ -254,11 +254,11 @@ test('an encrypted room leaves no thread preview and no quoted reply text in loc
     .toBe(false);
   storage = await readStorage(page);
   expect(!!recentEntry(storage, user, plain)?.summaryText).toBe(true);
-  expect(replyEntry(storage, user, secret)).toMatchObject({ eventId: secretIds.replyId, body: '' });
+  expect(replyEntry(storage, user, secret)).toMatchObject({ eventId: secretIds.rootId, body: '' });
   expect(holds(storage[ownDraftKey], unsent)).toBe(true);
 
   // After the next reload the page reads the texts again from the decrypted events: the recently
-  // opened thread shows its text, and back in the room the composer's reply bar quotes the answer.
+  // opened thread shows its text, and back in the room the composer's reply bar quotes the root.
   await page.goto('/home/', { timeout: 180_000 });
   await openRecentlyOpened(page);
   await expect
@@ -280,8 +280,7 @@ test('an encrypted room leaves no thread preview and no quoted reply text in loc
     .getByRole('button', { name: 'Back', exact: true })
     .click();
   const replyBar = page.getByRole('button', { name: 'Cancel reply' }).locator('xpath=..');
-  await expect(replyBar).toContainText('You said', { timeout: 90_000 });
-  await expect(replyBar).toContainText(secretWord);
+  await expect(replyBar).toContainText(secretWord, { timeout: 90_000 });
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/text-at-rest-thread-after-reload.png` });
   // Showing them stores nothing again.
   await page.waitForTimeout(3_000);
