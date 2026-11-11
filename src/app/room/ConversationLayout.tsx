@@ -8,6 +8,7 @@ import { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
 import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { FailedSendActions } from '../messages/FailedSendActions';
+import { useRoomSubagentCounts } from '../messages/live/subagentRunStore';
 import { RoomViewFollowing } from '../timeline/RoomViewFollowing';
 import { RoomViewTyping } from '../timeline/typing/RoomViewTyping';
 import { SurfaceProvider } from '../ui/glass/SurfaceContext';
@@ -160,6 +161,7 @@ export function ConversationLayout({
   const headerRef = useRef<HTMLDivElement>(null);
   const footerRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
+  const subagentRuns = useRoomSubagentCounts(room.roomId).total > 0;
   const shownHeader = !collapsed && header;
   useOverlayInsets(
     areaRef,
@@ -204,6 +206,7 @@ export function ConversationLayout({
                     room={room}
                     threadId={threadId ?? null}
                     canCancel={canCancelJobs}
+                    subagentRuns={subagentRuns}
                   />
                   {threadId && <ThreadApprovalQueue />}
                 </div>

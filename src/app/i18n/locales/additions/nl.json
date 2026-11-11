@@ -682,6 +682,29 @@
       "jobCountShowing": "{{count}} achtergrondtaken ({{shown}} getoond)",
       "finished": "Voltooid: {{tool}}",
       "jobCountFinished": "{{count}} achtergrondtaken voltooid"
+    },
+    "subagents": {
+      "title": "Subagenten",
+      "close": "Sluiten",
+      "empty": "Er zijn geen subagenten actief in deze kamer.",
+      "from": "van {{name}}",
+      "showTask": "Taak tonen",
+      "showOutput": "Uitvoer tonen",
+      "running": "Actief",
+      "awaiting_approval": "Wacht op goedkeuring",
+      "paused": "Gepauzeerd",
+      "completed": "Klaar",
+      "failed": "Mislukt",
+      "cancelled": "Gestopt",
+      "denied": "Geweigerd",
+      "count_one": "{{count}} actief",
+      "count_other": "{{count}} actief",
+      "show": "Subagenten tonen",
+      "hide": "Subagenten verbergen",
+      "showFor": "Subagenten tonen: {{name}}",
+      "withCount_one": "{{label}}, {{count}} actief",
+      "withCount_other": "{{label}}, {{count}} actief",
+      "resize": "Formaat van het subagentenpaneel wijzigen"
     }
   },
   "composer": {

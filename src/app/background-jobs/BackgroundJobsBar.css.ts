@@ -38,13 +38,8 @@ export const Status = style([
 
 export const Action = style({ gridArea: 'action', display: 'flex' });
 
-// Several jobs' title lists them when pressed; it reads as the title, with a chevron.
-export const Toggle = style({
-  position: 'relative',
-  display: 'flex',
-  alignItems: 'center',
-  gap: config.space.S300,
-  minWidth: 0,
+// A button that reads as the bar's own text, ringed when the keyboard is on it.
+const textButton = {
   padding: 0,
   border: 0,
   borderRadius: config.radii.R300,
@@ -53,8 +48,19 @@ export const Toggle = style({
   font: 'inherit',
   textAlign: 'start',
   cursor: 'pointer',
+} as const;
+const keyboardRing = { outline: `2px solid ${color.Primary.Main}`, outlineOffset: 2 };
+
+// Several jobs' title lists them when pressed; it reads as the title, with a chevron.
+export const Toggle = style({
+  position: 'relative',
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S300,
+  minWidth: 0,
+  ...textButton,
   selectors: {
-    '&:focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: 2 },
+    '&:focus-visible': keyboardRing,
     // As tall as the bar to a finger, without growing the line; on a phone it is the way to the Stops.
     '&::after': { content: '""', position: 'absolute', inset: `calc(-1 * ${config.space.S200}) 0` },
   },
@@ -103,6 +109,25 @@ export const Job = style({
 
 // A long tool name and its status both give way, so its Stop stays in view; the full text is its title.
 export const Label = style({ flexGrow: 1, minWidth: 0 });
+
+// A text button that opens the Sub-agents panel, underlined to the pointer.
+const panelLinkSelectors = {
+  '&:hover': { textDecoration: 'underline' },
+  '&:focus-visible': keyboardRing,
+};
+
+// A sub-agent's name in its row opens the panel: the row's text still.
+export const LabelButton = style([
+  Label,
+  { display: 'flex', ...textButton, selectors: panelLinkSelectors },
+]);
+
+// Beside one sub-agent job's title, the way to the panel: as wide as its words, the title giving
+// way first. To a finger it reaches half the gap toward its neighbours.
+export const TitleLink = style([
+  touchTarget('6px'),
+  { flexShrink: 0, ...textButton, selectors: panelLinkSelectors },
+]);
 
 export const Muted = style({ minWidth: 0, opacity: config.opacity.P300 });
 

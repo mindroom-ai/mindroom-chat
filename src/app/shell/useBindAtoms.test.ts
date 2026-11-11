@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { useBindAtoms } from './useBindAtoms';
 import { useBindLiveReplyFrames } from '../messages/live/bindLiveReplyFrames';
+import { useBindSubagentFrames } from '../messages/live/bindSubagentFrames';
 import { useModelControllerLifetime } from '../models/useModelPicker';
 import { useBindArchivedRoomsAtom } from '../matrix/state/archivedRooms';
 import { useBindReplacedRoomsAtom } from '../matrix/state/replacedRooms';
@@ -23,6 +24,7 @@ vi.mock('../matrix/state/typingMembers', () => ({
   useBindRoomIdToTypingMembersAtom: vi.fn(),
 }));
 vi.mock('../messages/live/bindLiveReplyFrames', () => ({ useBindLiveReplyFrames: vi.fn() }));
+vi.mock('../messages/live/bindSubagentFrames', () => ({ useBindSubagentFrames: vi.fn() }));
 vi.mock('../models/useModelPicker', () => ({ useModelControllerLifetime: vi.fn() }));
 vi.mock('../matrix/state/archivedRooms', () => ({ useBindArchivedRoomsAtom: vi.fn() }));
 vi.mock('../matrix/state/replacedRooms', () => ({ useBindReplacedRoomsAtom: vi.fn() }));
@@ -32,7 +34,7 @@ vi.mock('../matrix/hooks/useAccountSettings', () => ({
 vi.mock('../matrix/hooks/useBindRoamingSettings', () => ({ useBindRoamingSettings: vi.fn() }));
 
 describe('useBindAtoms', () => {
-  it("feeds the account's live reply frames to its store, so streamed replies update live", () => {
+  it("feeds the account's live reply and sub-agent frames to their stores, so both update live", () => {
     const client = { id: 'account' } as unknown as MatrixClient;
     function Probe() {
       useBindAtoms(client);
@@ -45,6 +47,7 @@ describe('useBindAtoms', () => {
     });
 
     expect(useBindLiveReplyFrames).toHaveBeenCalledWith(client);
+    expect(useBindSubagentFrames).toHaveBeenCalledWith(client);
     act(() => renderer?.unmount());
   });
 

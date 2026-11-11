@@ -16,6 +16,7 @@ import {
   type CallWindowMode,
 } from '../calls/window/callWindowState';
 import { conversationOutOfSightAtom } from '../navigation/conversationCover';
+import { openSubagentsPanel, subagentsPanelAtom } from '../navigation/subagentsPanel';
 import type { AgentServer } from '../computer/agentServer';
 import { computerServicePreferenceAtom } from '../computer/computerServiceSettings';
 import * as membersDrawer from '../members/useMembersDrawer';
@@ -27,11 +28,11 @@ import type { RoomViewProps } from './RoomView';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
 import { makeUiEvent } from '../ui-actions/testUtils';
 
-// The room's side panels (the computer, a canvas, the call, its live transcript, the members and a
-// plugin's panel), opened as their users open them, through the room: the header's controls, an
-// agent's live request, the call store, which the call buttons, a call started elsewhere, the call
-// controls' Transcript and a call row's Transcript set, and a plugin's code in the room (a card in
-// the conversation).
+// The room's side panels (the computer, a canvas, the call, its live transcript, the sub-agents, the
+// members and a plugin's panel), opened as their users open them, through the room: the header's
+// controls, an agent's live request, the call store, which the call buttons, a call started
+// elsewhere, the call controls' Transcript and a call row's Transcript set, the jobs bar's sub-agent
+// rows, and a plugin's code in the room (a card in the conversation).
 
 const reportBoundaryError = vi.hoisted(() => vi.fn());
 vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) => ({
@@ -124,6 +125,13 @@ vi.mock('../canvas/RoomCanvasPanel', () => ({
 }));
 vi.mock('../calls/CallPanel', () => ({ CallPanel: () => null }));
 vi.mock('../calls/transcription/LiveTranscriptPanel', () => ({ LiveTranscriptPanel: () => null }));
+vi.mock('../subagents/SubagentsPanel', () => ({
+  SubagentsPanel: ({ onClose }: { onClose: () => void }) => (
+    <button type="button" onClick={onClose}>
+      Close the sub-agents
+    </button>
+  ),
+}));
 vi.mock('../canvas/canvasIndex', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../canvas/canvasIndex')>()),
   useConversationCanvases: () => [],
@@ -289,13 +297,14 @@ const setCallMode = (mode: CallWindowMode) =>
   act(async () => store.set(getCallWindowSettingsAtom(ALICE), { mode }));
 const { membersOpenAtom } = membersDrawer as unknown as { membersOpenAtom: PrimitiveAtom<boolean> };
 
-const PANELS = ['computer', 'canvas', 'call', 'transcript', 'members'] as const;
+const PANELS = ['computer', 'canvas', 'call', 'transcript', 'subagents', 'members'] as const;
 type CorePanel = (typeof PANELS)[number];
 const TEST_IDS: Record<CorePanel, string> = {
   computer: 'resizable-computer-panel',
   canvas: 'room-canvas-panel',
   call: 'resizable-call-panel',
   transcript: 'resizable-transcript-panel',
+  subagents: 'resizable-subagents-panel',
   members: 'resizable-members-panel',
 };
 /** The panels the members stay open behind. */
@@ -326,6 +335,9 @@ const open = async (panel: CorePanel) => {
     await act(async () => store.set(callPanelRoomAtom, room.roomId));
   } else if (panel === 'transcript') {
     await act(async () => openTranscriptPanel(store, room.roomId));
+  } else if (panel === 'subagents') {
+    // A sub-agent job's row in the jobs bar opens it so; the header's toggle by the room's rule.
+    await act(async () => openSubagentsPanel(store, room.roomId));
   } else {
     await agentRequest('open_panel', { panel: 'members' });
   }
@@ -336,6 +348,7 @@ const isOpen = (panel: CorePanel): boolean => {
   if (panel === 'canvas') return state.view?.openCanvasId !== undefined;
   if (panel === 'call') return store.get(callPanelRoomAtom) === room.roomId;
   if (panel === 'transcript') return store.get(transcriptPanelAtom)?.roomId === room.roomId;
+  if (panel === 'subagents') return store.get(subagentsPanelAtom)?.roomId === room.roomId;
   return store.get(membersOpenAtom);
 };
 
@@ -380,6 +393,7 @@ describe('the side panels of a room', () => {
     cleanup();
     store.set(callPanelRoomAtom, undefined);
     store.set(transcriptPanelAtom, undefined);
+    store.set(subagentsPanelAtom, undefined);
     store.set(membersOpenAtom, false);
     store.set(computerServicePreferenceAtom, null);
     clearCallWindowStore(ALICE);
@@ -492,7 +506,7 @@ describe('the side panels of a room', () => {
     expect(isOpen('call')).toBe(true);
   });
 
-  it.each(['canvas', 'call', 'transcript', 'members'] as const)(
+  it.each(['canvas', 'call', 'transcript', 'subagents', 'members'] as const)(
     "an agent's request for the computer takes the side panel from %s",
     async (first) => {
       await renderRoom();
@@ -549,6 +563,24 @@ describe('the side panels of a room', () => {
 
     await act(async () => state.view?.onPanelToggle?.('members'));
     expect(isOpen('members')).toBe(false);
+    expect(shown()).toEqual([]);
+  });
+
+  it('toggles the sub-agents from the header by the same rule, and closes them from their panel', async () => {
+    await renderRoom();
+    await open('members');
+    await act(async () => state.view?.onPanelToggle?.('subagents'));
+    expect(isOpen('members')).toBe(false);
+    expect(shown()).toEqual(['subagents']);
+    expect(state.view?.shownPanel).toBe('subagents');
+
+    await act(async () => state.view?.onPanelToggle?.('subagents'));
+    expect(isOpen('subagents')).toBe(false);
+    expect(shown()).toEqual([]);
+
+    await act(async () => state.view?.onPanelToggle?.('subagents'));
+    await act(async () => screen.getByRole('button', { name: 'Close the sub-agents' }).click());
+    expect(isOpen('subagents')).toBe(false);
     expect(shown()).toEqual([]);
   });
 
@@ -825,7 +857,7 @@ describe('the side panels of a room', () => {
     expect(board()).toBeNull();
   });
 
-  it.each(['call', 'transcript', 'members'] as const)(
+  it.each(['call', 'transcript', 'subagents', 'members'] as const)(
     'opens a panel that remembers again only when no other panel of its room is open: %s',
     async (core) => {
       signIn();
@@ -835,6 +867,7 @@ describe('the side panels of a room', () => {
       cleanup();
       if (core === 'call') store.set(callPanelRoomAtom, room.roomId);
       else if (core === 'transcript') openTranscriptPanel(store, room.roomId);
+      else if (core === 'subagents') openSubagentsPanel(store, room.roomId);
       else store.set(membersOpenAtom, true);
       await renderRoom();
       expect(board()).toBeNull();
@@ -843,6 +876,7 @@ describe('the side panels of a room', () => {
       await act(async () => {
         if (core === 'call') store.set(callPanelRoomAtom, undefined);
         else if (core === 'transcript') closeTranscriptPanel(store, room.roomId);
+        else if (core === 'subagents') store.set(subagentsPanelAtom, undefined);
         else store.set(membersOpenAtom, false);
       });
       expect(board()).toBeNull();
@@ -920,6 +954,7 @@ describe('the side panels of a room', () => {
 
   it.each([
     ['the call', 'call', 'Call'],
+    ['the Sub-agents panel', 'subagents', 'Sub-agents'],
     ["a plugin's panel", 'notes/panel', 'Notes'],
   ])(
     '%s fills the room and folds to a tab, per room, and the conversation follows',
@@ -1120,6 +1155,37 @@ describe('the side panels of a room', () => {
 
     await act(async () => closeTranscriptPanel(store, room.roomId));
     expect(shown()).toEqual(['call']);
+  });
+
+  it('unfolds the folded sub-agents when a sub-agent job opens them again, beside the conversation', async () => {
+    await renderRoom();
+    await open('subagents');
+    await act(async () => frameButton('Fold Sub-agents to the edge')?.click());
+    expect(frameButton('Unfold Sub-agents')).not.toBeNull();
+    expect(state.view?.shownPanel).toBeUndefined();
+
+    await open('subagents');
+    expect(frameButton('Unfold Sub-agents')).toBeNull();
+    expect(frameButton('Fill the room with Sub-agents')?.getAttribute('aria-pressed')).toBe(
+      'false'
+    );
+    expect(state.view?.shownPanel).toBe('subagents');
+  });
+
+  it('opens the sub-agents of the room the jobs bar names, not of the room shown', async () => {
+    await renderRoom();
+    await act(async () => openSubagentsPanel(store, '!other:example.org'));
+    expect(shown()).toEqual([]);
+  });
+
+  it('covers the conversation with the sub-agents on phones, with no frame, until they close', async () => {
+    await renderRoom(ScreenSize.Mobile);
+    await open('subagents');
+    expect(shown()).toEqual(['subagents']);
+    expect(hidden()).toBe(true);
+    expect(frameButton('Fold Sub-agents to the edge')).toBeNull();
+    await act(async () => screen.getByRole('button', { name: 'Close the sub-agents' }).click());
+    expect(hidden()).toBe(false);
   });
 
   it("unfolds a plugin's folded panel from its toggle in the header, with its request, and closes it then", async () => {

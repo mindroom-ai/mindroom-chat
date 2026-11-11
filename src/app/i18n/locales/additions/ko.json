@@ -671,6 +671,27 @@
       "jobCountShowing": "백그라운드 작업 {{count}}개 ({{shown}}개 표시)",
       "finished": "완료됨: {{tool}}",
       "jobCountFinished": "백그라운드 작업 {{count}}개 완료됨"
+    },
+    "subagents": {
+      "title": "하위 에이전트",
+      "close": "닫기",
+      "empty": "이 방에서 실행 중인 하위 에이전트가 없습니다.",
+      "from": "요청자: {{name}}",
+      "showTask": "작업 보기",
+      "showOutput": "출력 보기",
+      "running": "실행 중",
+      "awaiting_approval": "승인 대기 중",
+      "paused": "일시 중지됨",
+      "completed": "완료",
+      "failed": "실패",
+      "cancelled": "중지됨",
+      "denied": "거부됨",
+      "count_other": "{{count}}개 활성",
+      "show": "하위 에이전트 표시",
+      "hide": "하위 에이전트 숨기기",
+      "showFor": "하위 에이전트 표시: {{name}}",
+      "withCount_other": "{{label}}, {{count}}개 활성",
+      "resize": "하위 에이전트 패널 크기 조정"
     }
   },
   "composer": {

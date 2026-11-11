@@ -75,6 +75,10 @@ const getLiveContent = (content: IContent, docs: LiveDocs, renderMarkdown: boole
   return live;
 };
 
+/** Live documents as message content with no durable reply under them (a sub-agent run's). */
+export const liveDocsContent = (docs: LiveDocs, renderMarkdown: boolean): IContent =>
+  getLiveContent({ msgtype: 'm.text' }, docs, renderMarkdown);
+
 /**
  * The durable reply with its warm-up lines moved out of the body to the activity line, where
  * live frames put them, so the line keeps one look while frames and checkpoints alternate.

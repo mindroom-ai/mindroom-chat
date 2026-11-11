@@ -671,6 +671,27 @@
       "jobCountShowing": "{{count}} tugas latar belakang (menampilkan {{shown}})",
       "finished": "Selesai: {{tool}}",
       "jobCountFinished": "{{count}} tugas latar belakang selesai"
+    },
+    "subagents": {
+      "title": "Subagen",
+      "close": "Tutup",
+      "empty": "Tidak ada subagen yang berjalan di ruangan ini.",
+      "from": "dari {{name}}",
+      "showTask": "Tampilkan tugas",
+      "showOutput": "Tampilkan keluaran",
+      "running": "Berjalan",
+      "awaiting_approval": "Menunggu persetujuan",
+      "paused": "Dijeda",
+      "completed": "Selesai",
+      "failed": "Gagal",
+      "cancelled": "Dihentikan",
+      "denied": "Ditolak",
+      "count_other": "{{count}} aktif",
+      "show": "Tampilkan subagen",
+      "hide": "Sembunyikan subagen",
+      "showFor": "Tampilkan subagen: {{name}}",
+      "withCount_other": "{{label}}, {{count}} aktif",
+      "resize": "Ubah ukuran panel subagen"
     }
   },
   "composer": {

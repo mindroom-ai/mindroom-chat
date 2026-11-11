@@ -108,7 +108,7 @@ const LAYERS = [
   ['computer', 'emoji', 'event-store'],
   ['approvals', 'bug-reports', 'calls', 'connections', 'editor'],
   ['background-jobs', 'members', 'messages'],
-  ['canvas', 'composer', 'notifications', 'schedules', 'search'],
+  ['canvas', 'composer', 'notifications', 'schedules', 'search', 'subagents'],
   ['rooms', 'threads'],
   ['account', 'activity', 'spaces', 'timeline'],
   ['command-palette', 'local-mindroom', 'room'],

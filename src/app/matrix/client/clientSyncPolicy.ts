@@ -29,8 +29,8 @@ export const STARTUP_SYNC_TIMELINE_LIMIT = 20;
  */
 export const LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT = 500;
 
-/** Room ephemeral events to receive: typing, receipts and MindRoom's live reply frames. */
-const SYNC_EPHEMERAL_TYPES = ['m.typing', 'm.receipt', 'io.mindroom.live'];
+/** Room ephemeral events to receive: typing, receipts, MindRoom's reply and sub-agent frames. */
+const SYNC_EPHEMERAL_TYPES = ['m.typing', 'm.receipt', 'io.mindroom.live', 'io.mindroom.subagents'];
 
 type ServerVersionsClient = MatrixClient & { serverVersionsPromise?: Promise<unknown> };
 

@@ -693,6 +693,31 @@
       "jobCountShowing": "{{count}} tarefas em segundo plano (mostrando {{shown}})",
       "finished": "Concluído: {{tool}}",
       "jobCountFinished": "{{count}} tarefas em segundo plano concluídas"
+    },
+    "subagents": {
+      "title": "Subagentes",
+      "close": "Fechar",
+      "empty": "Nenhum subagente está em execução nesta sala.",
+      "from": "de {{name}}",
+      "showTask": "Mostrar tarefa",
+      "showOutput": "Mostrar saída",
+      "running": "Em execução",
+      "awaiting_approval": "A aguardar aprovação",
+      "paused": "Em pausa",
+      "completed": "Concluído",
+      "failed": "Falhou",
+      "cancelled": "Parado",
+      "denied": "Recusado",
+      "count_one": "{{count}} ativo",
+      "count_many": "{{count}} ativos",
+      "count_other": "{{count}} ativos",
+      "show": "Mostrar subagentes",
+      "hide": "Ocultar subagentes",
+      "showFor": "Mostrar subagentes: {{name}}",
+      "withCount_one": "{{label}}, {{count}} ativo",
+      "withCount_many": "{{label}}, {{count}} ativos",
+      "withCount_other": "{{label}}, {{count}} ativos",
+      "resize": "Redimensionar o painel de subagentes"
     }
   },
   "composer": {

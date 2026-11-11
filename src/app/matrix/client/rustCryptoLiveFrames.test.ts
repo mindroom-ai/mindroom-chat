@@ -107,4 +107,12 @@ describe('Rust crypto decryption of live reply frames', () => {
     expect(pending).toEqual([]);
     expect(backupDownload).not.toHaveBeenCalled();
   });
+
+  it('drops a sub-agent frame without its key the same way', async () => {
+    const { event, pending, backupDownload } = await decryptAs('$io.mindroom.live.subagents.1');
+
+    expect(event.isDecryptionFailure()).toBe(true);
+    expect(pending).toEqual([]);
+    expect(backupDownload).not.toHaveBeenCalled();
+  });
 });

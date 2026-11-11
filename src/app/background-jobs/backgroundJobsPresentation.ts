@@ -11,6 +11,8 @@ export type BackgroundJobsBarItem = {
   stopping: boolean;
   // It ended, and the bar keeps it while the agent's reply goes on; nothing is left to stop.
   finished: boolean;
+  // A sub-agent's run, which the room's Sub-agents panel shows: its row's name opens the panel.
+  subagent: boolean;
 };
 
 export type BackgroundJobsBarModel = {
@@ -46,6 +48,7 @@ export const presentBackgroundJobs = (
       waiting: !finished && several && awaitingApproval(job),
       stopping: !finished && (job.status === 'cancel_requested' || cancelSent(job.jobId)),
       finished,
+      subagent: job.kind === 'subagent',
     };
   });
   const finished = items.every((item) => item.finished);

@@ -10,9 +10,9 @@ import {
 } from '../helpers/sidePanels';
 
 // One side panel at a time beside a room, against the disposable homeserver: for every pair of
-// the computer, a canvas, the call and the members, opening the second takes the side panel from
-// the first, which closes and does not come back when the second closes; only the members stay
-// open behind the call, and show again once it closes.
+// the computer, a canvas, the call, the sub-agents and the members, opening the second takes the
+// side panel from the first, which closes and does not come back when the second closes; only the
+// members stay open behind the call, and show again once it closes.
 
 test.use({ viewport: { width: 1600, height: 1000 }, video: 'off' });
 // The page's live sync may still be in a route when the test ends.

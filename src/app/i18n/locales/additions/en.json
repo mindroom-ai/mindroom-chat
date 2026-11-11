@@ -682,6 +682,29 @@
       "jobCountShowing": "{{count}} background jobs (showing {{shown}})",
       "finished": "Finished: {{tool}}",
       "jobCountFinished": "{{count}} background jobs finished"
+    },
+    "subagents": {
+      "title": "Sub-agents",
+      "close": "Close",
+      "empty": "No sub-agents are running in this room.",
+      "from": "from {{name}}",
+      "showTask": "Show task",
+      "showOutput": "Show output",
+      "running": "Running",
+      "awaiting_approval": "Waiting for approval",
+      "paused": "Paused",
+      "completed": "Done",
+      "failed": "Failed",
+      "cancelled": "Stopped",
+      "denied": "Denied",
+      "count_one": "{{count}} active",
+      "count_other": "{{count}} active",
+      "show": "Show sub-agents",
+      "hide": "Hide sub-agents",
+      "showFor": "Show sub-agents: {{name}}",
+      "withCount_one": "{{label}}, {{count}} active",
+      "withCount_other": "{{label}}, {{count}} active",
+      "resize": "Resize the sub-agents panel"
     }
   },
   "composer": {

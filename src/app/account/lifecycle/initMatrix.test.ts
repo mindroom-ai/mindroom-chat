@@ -940,7 +940,7 @@ describe('startClient', () => {
     }
   });
 
-  it('starts syncing with a bounded timeline, lazy-loaded members and live reply frames', async () => {
+  it('starts syncing with a bounded timeline, lazy-loaded members and live frames', async () => {
     const matrixStartClient = vi.fn().mockResolvedValue(undefined);
     const mx = {
       baseUrl: 'https://example.com',
@@ -967,7 +967,7 @@ describe('startClient', () => {
           lazy_load_members: true,
         },
         ephemeral: {
-          types: ['m.typing', 'm.receipt', 'io.mindroom.live'],
+          types: ['m.typing', 'm.receipt', 'io.mindroom.live', 'io.mindroom.subagents'],
         },
       },
     });

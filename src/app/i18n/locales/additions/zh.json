@@ -671,6 +671,27 @@
       "jobCountShowing": "{{count}} 个后台任务（显示 {{shown}} 个）",
       "finished": "已完成：{{tool}}",
       "jobCountFinished": "{{count}} 个后台任务已完成"
+    },
+    "subagents": {
+      "title": "子智能体",
+      "close": "关闭",
+      "empty": "此房间中没有正在运行的子智能体。",
+      "from": "来自 {{name}}",
+      "showTask": "显示任务",
+      "showOutput": "显示输出",
+      "running": "运行中",
+      "awaiting_approval": "等待批准",
+      "paused": "已暂停",
+      "completed": "完成",
+      "failed": "失败",
+      "cancelled": "已停止",
+      "denied": "已拒绝",
+      "count_other": "{{count}} 个活跃",
+      "show": "显示子智能体",
+      "hide": "隐藏子智能体",
+      "showFor": "显示子智能体：{{name}}",
+      "withCount_other": "{{label}}，{{count}} 个活跃",
+      "resize": "调整子智能体面板大小"
     }
   },
   "composer": {

@@ -1,5 +1,6 @@
 import type { MatrixClient } from 'matrix-js-sdk';
 import { useBindLiveReplyFrames } from '../messages/live/bindLiveReplyFrames';
+import { useBindSubagentFrames } from '../messages/live/bindSubagentFrames';
 import { useBindArchivedRoomsAtom } from '../matrix/state/archivedRooms';
 import { useBindReplacedRoomsAtom } from '../matrix/state/replacedRooms';
 import { useModelControllerLifetime } from '../models/useModelPicker';
@@ -34,6 +35,8 @@ export function useBindAtoms(client: MatrixClient): void {
   useBindRoomToUnreadAtom(client, roomToUnreadAtom);
   // Agents' live reply frames, kept for any room, so a reply streams wherever it is opened.
   useBindLiveReplyFrames(client);
+  // Agents' sub-agent runs, kept per room the same way, so a room's runs show as soon as it opens.
+  useBindSubagentFrames(client);
   // The model picker's owner listens from the start, instead of from the first thread that shows
   // a model chip; it reads the same client from MatrixClientProvider.
   useModelControllerLifetime();

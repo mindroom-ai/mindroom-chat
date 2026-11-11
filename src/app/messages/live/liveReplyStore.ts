@@ -1,5 +1,12 @@
 import type { MatrixClient } from 'matrix-js-sdk';
-import { applyLiveDelta, compareLiveOrder, type LiveDocs, type LiveFrame } from '../../matrix/protocol/liveFrame';
+import {
+  applyLiveDelta,
+  compareLiveOrder,
+  type LiveDelta,
+  type LiveDocs,
+  type LiveFrame,
+  type LiveOrder,
+} from '../../matrix/protocol/liveFrame';
 
 /** A live entry counts for this long after the last frame that changed it. */
 export const LIVE_REPLY_FRESHNESS_MS = 12_000;
@@ -25,12 +32,12 @@ const fitsCap = ({ md, reasoning, activity }: LiveDocs): boolean =>
 
 /**
  * The entry after a frame: a new entry when the frame applies, a stale copy of `entry` when it
- * does not, or undefined when the frame changes nothing.
+ * does not, or undefined when the frame changes nothing. Sub-agent runs follow it too.
  */
-const nextEntry = (
+export const nextLiveEntry = (
   entry: LiveReplyEntry | undefined,
   sender: string,
-  frame: LiveFrame,
+  frame: LiveOrder & ({ snapshot: LiveDocs } | { delta: LiveDelta }),
   receivedAt: number
 ): LiveReplyEntry | undefined => {
   if (entry && (entry.sender !== sender || compareLiveOrder(frame, entry) <= 0)) return undefined;
@@ -63,7 +70,7 @@ export class LiveReplyStore {
   public ingest(roomId: string, sender: string, frame: LiveFrame, receivedAt: number): void {
     const key = entryKey(roomId, frame.reply);
     const entry = this.entries.get(key);
-    const next = nextEntry(entry, sender, frame, receivedAt);
+    const next = nextLiveEntry(entry, sender, frame, receivedAt);
     if (!next) return;
     this.entries.set(key, next);
     if (!next.stale) this.roomFrames.set(roomId, this.frameCount(roomId) + 1);

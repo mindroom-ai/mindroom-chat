@@ -2,8 +2,10 @@
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
+import { getDefaultStore } from 'jotai';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
+import { subagentsPanelAtom } from '../navigation/subagentsPanel';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import { BackgroundJobsBar } from './BackgroundJobsBar';
 import { keepCancelsOf } from './sentCancels';
@@ -28,6 +30,8 @@ vi.mock('./BackgroundJobsBar.css', () => ({
   Jobs: 'Jobs',
   Job: 'Job',
   Label: 'Label',
+  LabelButton: 'LabelButton',
+  TitleLink: 'TitleLink',
   Muted: 'Muted',
   Stopping: 'Stopping',
   Action: 'Action',
@@ -64,9 +68,16 @@ const room = {
 let container: HTMLDivElement;
 let root: Root;
 
-const render = (threadId: string | null = '$thread', canCancel = true) =>
+const render = (threadId: string | null = '$thread', canCancel = true, subagentRuns = false) =>
   act(() => {
-    root.render(<BackgroundJobsBar room={room} threadId={threadId} canCancel={canCancel} />);
+    root.render(
+      <BackgroundJobsBar
+        room={room}
+        threadId={threadId}
+        canCancel={canCancel}
+        subagentRuns={subagentRuns}
+      />
+    );
   });
 const cancelA = 'mindroomUi.backgroundJobs.stopJob{"tool":"tool_a"}';
 const cancelB = 'mindroomUi.backgroundJobs.stopJob{"tool":"tool_b"}';
@@ -112,6 +123,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  getDefaultStore().set(subagentsPanelAtom, undefined);
   vi.unstubAllGlobals();
 });
 
@@ -474,6 +486,66 @@ it('leaves focus where the person moved it when the jobs change later', async ()
   state.jobs = [job('a'), job('b')];
   render();
   expect(document.activeElement).toBe(document.body);
+});
+
+// The mocked t, for a sub-agent job's strings.
+const subagentName = 'mindroomUi.backgroundJobs.subagent{"tool":"run_subagent"}';
+const tr = (key: string, values: Record<string, unknown>) => `${key}${JSON.stringify(values)}`;
+
+it("opens the room's Sub-agents panel from a sub-agent job's name in its row, and from no other", async () => {
+  state.jobs = [job('a', { kind: 'subagent', tool: 'run_subagent' }), job('b')];
+  render('$thread', true, true);
+  expand();
+  const [subagent, tool] = [...container.querySelectorAll('li')];
+  const link = subagent?.querySelector('button:not([data-cancel-job])');
+  expect(link?.textContent).toBe(subagentName);
+  // Its name stays the job's; its title says what it opens.
+  expect(link?.getAttribute('title')).toBe(
+    tr('mindroomUi.subagents.showFor', { name: subagentName })
+  );
+  expect(tool?.querySelector('button:not([data-cancel-job])')).toBeNull();
+  await click(subagentName);
+  expect(getDefaultStore().get(subagentsPanelAtom)).toEqual({ roomId: room.roomId });
+  // The list stays as it was; the panel opens beside it.
+  expect(container.querySelectorAll('li')).toHaveLength(2);
+});
+
+it("opens the room's Sub-agents panel from beside the title of one sub-agent job, whose title stays the status", async () => {
+  state.jobs = [job('a', { kind: 'subagent', tool: 'run_subagent' })];
+  render('$thread', true, true);
+  const show = button('mindroomUi.subagents.show');
+  expect(show).toBeDefined();
+  // The title's live text is not inside the button, so its changes are still announced.
+  expect(show?.querySelector('[role="status"]')).toBeNull();
+  expect(container.querySelector('[role="status"]')?.textContent).toBe(
+    tr('mindroomUi.backgroundJobs.running', { tool: subagentName })
+  );
+  expect(button(tr('mindroomUi.backgroundJobs.stopJob', { tool: subagentName }))).toBeDefined();
+  await click('mindroomUi.subagents.show');
+  expect(getDefaultStore().get(subagentsPanelAtom)).toEqual({ roomId: room.roomId });
+
+  // One tool job has no such button.
+  getDefaultStore().set(subagentsPanelAtom, undefined);
+  state.jobs = [job('a')];
+  render();
+  expect(button('mindroomUi.subagents.show')).toBeUndefined();
+});
+
+it('links no sub-agent job to the Sub-agents panel while the room has no runs to show there', () => {
+  // Older backends announce sub-agent jobs without sending the panel's frames.
+  state.jobs = [job('a', { kind: 'subagent', tool: 'run_subagent' })];
+  render();
+  expect(button('mindroomUi.subagents.show')).toBeUndefined();
+  expect(container.querySelector('[role="status"]')?.textContent).toBe(
+    tr('mindroomUi.backgroundJobs.running', { tool: subagentName })
+  );
+
+  state.jobs = [job('a', { kind: 'subagent', tool: 'run_subagent' }), job('b')];
+  render();
+  expand();
+  const [subagent] = [...container.querySelectorAll('li')];
+  expect(subagent?.textContent).toContain(subagentName);
+  expect(subagent?.querySelector('button:not([data-cancel-job])')).toBeNull();
 });
 
 it('says in its row that a job waits for approval, until it is stopping', () => {

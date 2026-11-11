@@ -11,7 +11,9 @@ import React, {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useStore } from 'jotai';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { openSubagentsPanel } from '../navigation/subagentsPanel';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import * as css from './BackgroundJobsBar.css';
 import { jobsInView } from '../matrix/protocol/backgroundJobsContract';
@@ -26,6 +28,9 @@ type BackgroundJobsBarProps = {
   threadId: string | null;
   // Whether the viewer may send the cancel event here; without it the jobs show without controls.
   canCancel: boolean;
+  // Whether the room's Sub-agents panel has runs; only then do sub-agent jobs link to it, since
+  // older backends announce the jobs without sending the panel's frames.
+  subagentRuns: boolean;
 };
 
 // The last failed cancel of a job, with the view it was sent from, where it shows.
@@ -38,9 +43,15 @@ type OpenMode = 'hover' | 'pinned';
  * The view's background jobs above the composer, on one line: one job with Stop, or several with
  * Stop all, which list each job with its own Stop on hover or when the title is pressed.
  */
-export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsBarProps) {
+export function BackgroundJobsBar({
+  room,
+  threadId,
+  canCancel,
+  subagentRuns,
+}: BackgroundJobsBarProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
+  const store = useStore();
   const { jobs: roomJobs, total: roomTotal } = useRoomBackgroundJobs(room);
   const sent = useSentCancels(room.roomId);
   const viewJobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
@@ -270,7 +281,21 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
               <Icon src={Icons.ChevronTop} size="50" className={css.Chevron} aria-hidden />
             </button>
           ) : (
-            status
+            <>
+              {status}
+              {single?.subagent && subagentRuns && (
+                // Beside the title, which stays the live status, not inside a button around it.
+                <button
+                  type="button"
+                  className={css.TitleLink}
+                  onClick={() => openSubagentsPanel(store, room.roomId)}
+                >
+                  <Text as="span" size="B300">
+                    {t('mindroomUi.subagents.show')}
+                  </Text>
+                </button>
+              )}
+            </>
           )}
         </small>
         {expanded && (
@@ -281,9 +306,24 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
           <ul id={listId} role="list" className={css.Jobs} onFocus={() => setOpen('pinned')}>
             {model.items.map((item) => (
               <li key={item.jobId} className={css.Job}>
-                <Text as="span" size="T200" truncate className={css.Label} title={item.name}>
-                  {item.name}
-                </Text>
+                {item.subagent && subagentRuns ? (
+                  // A sub-agent's run shows in the room's Sub-agents panel, which its name opens;
+                  // its title says so, while its name stays the job's.
+                  <button
+                    type="button"
+                    className={css.LabelButton}
+                    title={t('mindroomUi.subagents.showFor', { name: item.name })}
+                    onClick={() => openSubagentsPanel(store, room.roomId)}
+                  >
+                    <Text as="span" size="T200" truncate>
+                      {item.name}
+                    </Text>
+                  </button>
+                ) : (
+                  <Text as="span" size="T200" truncate className={css.Label} title={item.name}>
+                    {item.name}
+                  </Text>
+                )}
                 {item.waiting && !item.stopping && (
                   <Text as="span" size="T200" truncate className={css.Muted}>
                     {t('mindroomUi.backgroundJobs.waiting')}
