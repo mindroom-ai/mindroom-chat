@@ -90,6 +90,8 @@ type SendSlot = {
   adopted: boolean;
   /** Takes the slot out of the parked ones. */
   unpark?: () => void;
+  /** Starts a send with the composer holding the slot, for the sends queued in it. */
+  start?: (options: StartRoomInputSendSessionOptions, slot: SendSlot) => Promise<void>;
 };
 
 const createSendSlot = (): SendSlot => ({
@@ -258,8 +260,6 @@ export const useRoomInputSendSessionController = ({
   slotRef.current = slot;
   const composerKeyRef = useRef('');
   composerKeyRef.current = voiceComposerKey({ roomId, threadId, threadView });
-  const startSendSessionRef =
-    useRef<(options: StartRoomInputSendSessionOptions, slot: SendSlot) => Promise<void>>();
   const composerContextRef = useRef({ roomId, threadId });
   composerContextRef.current = { roomId, threadId };
   const onRoomMessageSentRef = useRef(onRoomMessageSent);
@@ -598,8 +598,8 @@ export const useRoomInputSendSessionController = ({
         }
         // Otherwise it follows the message still going out, in order.
         sendSlot.queued.push(() => {
-          startSendSessionRef
-            .current?.({
+          sendSlot
+            .start?.({
               textContent,
               context: nextContext,
               composerFallback: nextFallback,
@@ -731,7 +731,7 @@ export const useRoomInputSendSessionController = ({
     };
   }, [attachments, processSendSession, slot]);
 
-  startSendSessionRef.current = startSendSession;
+  slot.start = startSendSession;
 
   // A composer showing the key of one that unmounted with a send under way, as it mounts or moves
   // there, takes that send over: its board shows the files still to go, which it can cancel or

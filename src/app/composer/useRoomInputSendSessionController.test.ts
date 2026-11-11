@@ -435,6 +435,33 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     expect(mx.sendMessage).toHaveBeenCalledTimes(1);
   });
 
+  it('starts the sends queued behind a taken-over send with the composer holding it', async () => {
+    const { api, mx, unmount, mountAgain } = renderHarness();
+    const file = createFile('first.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession();
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'queued' } });
+    });
+    unmount();
+    const again = mountAgain();
+    // Staged in the composer that took over, as the queued text goes out with it.
+    const later = createFile('later.txt');
+    again.api.selectedFilesRef.current = [
+      ...again.api.selectedFilesRef.current,
+      createUploadItem(later),
+    ];
+    again.api.uploadsRef.current = [successUpload(file), loadingUpload(later)];
+    await act(async () => {
+      await again.api.processSendSession();
+    });
+    await vi.waitFor(() => expect(again.api.sendSessionFilesRef.current).toEqual([later]));
+    expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
+      'first.txt',
+    ]);
+  });
+
   it('takes a send over when the composer moves to its room, not only as it mounts', async () => {
     const { api, mx, unmount, mountAgain } = renderHarness();
     const file = createFile('room-a.txt');
