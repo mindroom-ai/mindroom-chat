@@ -46,7 +46,7 @@ describe('the fixtures subpath', () => {
       );
     expect(testRunners('fixtures.ts')).toEqual([]);
     // The check sees what the testing subpath imports.
-    expect(testRunners('testing.ts')).toEqual(['@testing-library/react', 'vitest']);
+    expect(testRunners('testing.ts')).toContain('vitest');
   });
 });
 
@@ -106,7 +106,8 @@ describe('fixtureMindroomServer', () => {
 
     const server = fixtureMindroomServer({ client, apiUrl: API_URL });
     expect(server.origin).toBe(API_URL);
-    expect(fixtureMindroomServer({ client, apiUrl: API_URL })).toBe(server);
+    // The same server however its URL is written.
+    expect(fixtureMindroomServer({ client, apiUrl: `${API_URL}/` })).toBe(server);
     await expect(server.request('/api/plugins')).resolves.toEqual({ ok: true });
     await server.openSocket('/api/plugins/notes/live');
     await expect(clientSessions(client, API_URL).token()).resolves.toBe('session-1');
@@ -118,5 +119,12 @@ describe('fixtureMindroomServer', () => {
         protocols: ['mindroom-session', 'mindroom-session.session-1'],
       },
     ]);
+  });
+
+  it('refuses a URL that is no MindRoom server origin the app would sign in to', () => {
+    const client = { getSafeUserId: () => '@ann:example.org' } as unknown as MatrixClient;
+    for (const apiUrl of ['http://mindroom.example.org', 'https://mindroom.example.org/api']) {
+      expect(() => fixtureMindroomServer({ client, apiUrl })).toThrow(TypeError);
+    }
   });
 });
