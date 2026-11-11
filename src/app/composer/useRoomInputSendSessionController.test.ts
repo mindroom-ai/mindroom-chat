@@ -3,7 +3,11 @@ import { act, create } from 'react-test-renderer';
 import { EventStatus, MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDefaultStore } from 'jotai';
-import { IReplyDraft, roomUploadAtomFamily } from './roomInputDrafts';
+import {
+  IReplyDraft,
+  roomUploadAtomFamily,
+  threadViewVoiceComposersAtom,
+} from './roomInputDrafts';
 import { ConversationViewContext } from '../navigation/conversationView';
 import { TUploadItem, Upload, UploadStatus } from '../matrix/state/upload';
 import { TUploadContent, toMatrixUploadError } from '../matrix/matrix';
@@ -12,6 +16,7 @@ import { createPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
 import { parseLongTextJsonSidecar } from '../matrix/protocol/longText';
 import {
   StartRoomInputSendSessionOptions,
+  openedThreadParkKey,
   useRoomInputSendSessionController,
 } from './useRoomInputSendSessionController';
 
@@ -187,6 +192,8 @@ const TestHarness = ({
     room: {
       roomId,
       getEventForTxnId: mx.getEventForTxnId,
+      getThread: () => undefined,
+      findEventById: () => undefined,
       getLiveTimeline: () => undefined,
       getMembers: () => [],
       hasEncryptionStateEvent: () => false,
@@ -404,10 +411,14 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     });
     expect(sentBodies(mx)).toEqual(['root.txt']);
 
-    // The root opened its thread, which fills the page: the room's composer goes, the thread's
-    // composer comes and holds what is still to go.
-    unmount();
+    // The root opened its thread, which fills the page: the thread's composer comes (it lists
+    // itself before the room's goes, as in one commit), the room's goes, and the thread's holds
+    // what is still to go.
     const { api: thread, current } = mountThreadView('$event-0');
+    const listed = [{ key: JSON.stringify(['!room:example.org', '$event-0']) }];
+    getDefaultStore().set(threadViewVoiceComposersAtom, listed);
+    unmount();
+    getDefaultStore().set(threadViewVoiceComposersAtom, []);
     expect(current().joinedSendPending).toBe(true);
     expect(thread.selectedFilesRef.current.map((item) => item.file.name)).toEqual(['child.txt']);
     // It left the room's board, which would otherwise offer it to the room's next message.
@@ -424,6 +435,20 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     expect(childContent).toMatchObject({
       'm.relates_to': { rel_type: 'm.thread', event_id: '$event-0' },
     });
+  });
+
+  it('parks a send under its room when no view of the thread it opened is there to take it', async () => {
+    const { api, unmount, mountAgain } = renderHarness({ onRoomMessageSent: () => true });
+    const root = createFile('root.txt');
+    const child = createFile('child.txt');
+    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
+    api.uploadsRef.current = [successUpload(root, 'mxc://mindroom/root'), loadingUpload(child)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    // The thread opened beside the messages and closed again; the room's composer goes later.
+    unmount();
+    expect(mountAgain().current().joinedSendPending).toBe(true);
   });
 
   it('parks a send that opened no thread under its room, as before', async () => {
@@ -1703,5 +1728,28 @@ describe('useRoomInputSendSessionController sends that cannot go out yet', () =>
     });
     expect(textBodies(mx)).toEqual(['one', 'two']);
     expect(api.hasActiveSendSession()).toBe(true);
+  });
+});
+
+describe('openedThreadParkKey', () => {
+  const room = {
+    getThread: (id: string) =>
+      id === '~!room:example.org:txn-1' ? { rootEvent: { getId: () => '$confirmed' } } : undefined,
+    findEventById: () => undefined,
+  } as never;
+  const viewKey = (threadId: string) => JSON.stringify(['!room:example.org', threadId]);
+
+  it("names the view of the thread by its root's confirmed ID once the root has one", () => {
+    expect(
+      openedThreadParkKey(room, '!room:example.org', '~!room:example.org:txn-1', [
+        viewKey('$confirmed'),
+      ])
+    ).toBe(viewKey('$confirmed'));
+  });
+
+  it('names no view of a thread that has none mounted', () => {
+    expect(openedThreadParkKey(room, '!room:example.org', '$event-0', [viewKey('$other')])).toBe(
+      undefined
+    );
   });
 });

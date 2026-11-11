@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useSetAtom } from 'jotai';
+import {
+  threadViewVoiceComposersAtom,
+  voiceComposerKey,
+} from '../composer/roomInputDrafts';
+import { useInConversationView } from '../navigation/conversationView';
 import { act, create } from 'react-test-renderer';
 import { createClient, Room } from 'matrix-js-sdk';
 import { createEditor } from 'slate';
@@ -209,6 +215,15 @@ function Composer(
   useEffect(() => {
     mounts += 1;
   }, []);
+  // A thread view's composer lists itself, as RoomInput's voice hook does.
+  const threadView = useInConversationView();
+  const setThreadViewComposers = useSetAtom(threadViewVoiceComposersAtom);
+  useLayoutEffect(() => {
+    if (!threadView) return undefined;
+    const entry = { key: voiceComposerKey({ roomId: room.roomId, threadId, threadView }) };
+    setThreadViewComposers((entries) => [...entries, entry]);
+    return () => setThreadViewComposers((entries) => entries.filter((other) => other !== entry));
+  }, [setThreadViewComposers, threadId, threadView]);
   useEffect(() => {
     api = controller;
     completeUpload = () => {

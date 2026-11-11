@@ -129,6 +129,8 @@ export type ConversationLayoutProps = {
   composer?: ReactNode;
   /** Takes no room in its row and shows only `children` (the room under a filling thread). */
   collapsed?: boolean;
+  /** Collapsed, keeps the conversation mounted out of sight (a recording under way in it). */
+  keepMounted?: boolean;
   /** The element a plugin's cover hides: timeline, dock and footer. */
   conversationRef?: RefObject<HTMLDivElement>;
   /** Layers over the conversation, under the header: the plugin cover. */
@@ -153,6 +155,7 @@ export function ConversationLayout({
   notice,
   composer,
   collapsed = false,
+  keepMounted = false,
   conversationRef,
   children,
 }: ConversationLayoutProps) {
@@ -186,7 +189,7 @@ export function ConversationLayout({
       )}
       {/* The element stays as the conversation goes: a plugin's cover keeps holding it. */}
       <div ref={conversationRef} style={CONVERSATION_STYLE}>
-        {!collapsed && (
+        {(!collapsed || keepMounted) && (
           <>
             <ThreadApprovalProvider
               room={room}

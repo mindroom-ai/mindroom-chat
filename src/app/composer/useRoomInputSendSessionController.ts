@@ -14,7 +14,13 @@ import {
   resetEditorHistory,
   restoreEditorContent,
 } from '../editor/utils';
-import { IReplyDraft, roomUploadAtomFamily, voiceComposerKey } from './roomInputDrafts';
+import {
+  IReplyDraft,
+  roomUploadAtomFamily,
+  threadViewVoiceComposersAtom,
+  voiceComposerKey,
+} from './roomInputDrafts';
+import { resolveCanonicalThreadRootId } from '../event-store/threads/threadRouteUtils';
 import { useInConversationView } from '../navigation/conversationView';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { TUploadItem, Upload } from '../matrix/state/upload';
@@ -112,6 +118,21 @@ const reportSentFromSession = (session: SendSession, eventId: string) => {
   }
 };
 
+/**
+ * The key of a mounted view of the thread `threadId` opened (`mountedViewKeys`, by
+ * `voiceComposerKey`), under its root's ID as sent or as the server confirmed it; none while no
+ * view of that thread is there to take a send over.
+ */
+export const openedThreadParkKey = (
+  room: Room,
+  roomId: string,
+  threadId: string,
+  mountedViewKeys: readonly string[]
+): string | undefined =>
+  [threadId, resolveCanonicalThreadRootId(room, threadId)]
+    .map((id) => voiceComposerKey({ roomId, threadId: id, threadView: true }))
+    .find((key) => mountedViewKeys.includes(key));
+
 const createSendSlot = (): SendSlot => ({
   processing: false,
   queued: [],
@@ -129,6 +150,11 @@ const ofClient = <T>(map: WeakMap<MatrixClient, T>, mx: MatrixClient, create: ()
   return map.get(mx) as T;
 };
 const parkedSlotsOf = (mx: MatrixClient) => ofClient(parkedSlots, mx, () => new Map());
+// Per client: the composers to tell when a slot parks for a thread's view, so a mounted one can
+// take it over.
+const parkListeners = new WeakMap<MatrixClient, Set<() => void>>();
+const parkListenersOf = (mx: MatrixClient) => ofClient(parkListeners, mx, () => new Set());
+const parkVersions = new WeakMap<MatrixClient, number>();
 const busySlotsOf = (mx: MatrixClient) => ofClient(busySlots, mx, () => new Set());
 
 const notifySlot = (slot: SendSlot) => slot.listeners.forEach((listener) => listener());
@@ -736,9 +762,20 @@ export const useRoomInputSendSessionController = ({
 
   slot.start = startSendSession;
 
-  // A composer showing the key of one that unmounted with a send under way, as it mounts or moves
-  // there, takes that send over: its board shows the files still to go, which it can cancel or
-  // retry, and its sends follow that one.
+  // A composer showing the key of one that unmounted with a send under way, as it mounts, moves
+  // there or the send parks there, takes that send over: its board shows the files still to go,
+  // which it can cancel or retry, and its sends follow that one.
+  const parkVersion = useSyncExternalStore(
+    useCallback(
+      (listener: () => void) => {
+        const listeners = parkListenersOf(mx);
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      [mx]
+    ),
+    () => parkVersions.get(mx) ?? 0
+  );
   useEffect(() => {
     const own = slotRef.current;
     if (own.session || own.queued.length > 0) return;
@@ -778,7 +815,7 @@ export const useRoomInputSendSessionController = ({
     parked.adopted = true;
     slotRef.current = parked;
     setSlot(parked);
-  }, [attachments, composerKey, isMounted, mx, reportSent, restoreText]);
+  }, [attachments, composerKey, isMounted, mx, parkVersion, reportSent, restoreText]);
 
   // Unmounting with a send under way parks it for the next composer of the same key.
   useEffect(
@@ -790,26 +827,36 @@ export const useRoomInputSendSessionController = ({
       const park = () => {
         current.unpark?.();
         const { session: held } = current;
-        // A send whose root opened its thread goes on with that thread's own composer.
-        let key = composerKeyRef.current;
-        if (held?.openedThreadId) {
-          key = voiceComposerKey({
-            roomId: held.roomId,
-            threadId: held.openedThreadId,
-            threadView: true,
-          });
-        } else if (held) key = voiceComposerKey({ ...held.composerContext, threadView });
+        let key = held
+          ? voiceComposerKey({ ...held.composerContext, threadView })
+          : composerKeyRef.current;
+        // A send whose root opened its thread goes on with a view of that thread that is there
+        // (one that mounts as this composer goes has listed itself already); else with the room's.
+        const threadKey =
+          held?.openedThreadId &&
+          openedThreadParkKey(
+            held.room,
+            held.roomId,
+            held.openedThreadId,
+            store.get(threadViewVoiceComposersAtom).map((entry) => entry.key)
+          );
+        if (threadKey) key = threadKey;
         // A key another send still waits under stays that send's.
         if (parked.get(key)?.session) return;
         parked.set(key, current);
         current.unpark = () => {
           if (parked.get(key) === current) parked.delete(key);
         };
+        // The view of that thread may be mounted already (the thread was beside the messages).
+        if (threadKey) {
+          parkVersions.set(mx, (parkVersions.get(mx) ?? 0) + 1);
+          parkListenersOf(mx).forEach((listener) => listener());
+        }
       };
       current.repark = park;
       park();
     },
-    [composerKeyRef, mx, threadView]
+    [composerKeyRef, mx, store, threadView]
   );
 
   const joinedSendPending = useSyncExternalStore(
