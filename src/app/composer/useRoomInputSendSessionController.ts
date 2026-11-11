@@ -102,27 +102,16 @@ const createSendSlot = (): SendSlot => ({
   adopted: false,
 });
 
+// Per client: the slots parked by composer key, and the slots with a session going out.
 const parkedSlots = new WeakMap<MatrixClient, Map<string, SendSlot>>();
-// The slots of a client with a session going out, parked or not.
 const busySlots = new WeakMap<MatrixClient, Set<SendSlot>>();
 
-const parkedSlotsOf = (mx: MatrixClient): Map<string, SendSlot> => {
-  let slots = parkedSlots.get(mx);
-  if (!slots) {
-    slots = new Map();
-    parkedSlots.set(mx, slots);
-  }
-  return slots;
+const ofClient = <T>(map: WeakMap<MatrixClient, T>, mx: MatrixClient, create: () => T): T => {
+  if (!map.has(mx)) map.set(mx, create());
+  return map.get(mx) as T;
 };
-
-const busySlotsOf = (mx: MatrixClient): Set<SendSlot> => {
-  let slots = busySlots.get(mx);
-  if (!slots) {
-    slots = new Set();
-    busySlots.set(mx, slots);
-  }
-  return slots;
-};
+const parkedSlotsOf = (mx: MatrixClient) => ofClient(parkedSlots, mx, () => new Map());
+const busySlotsOf = (mx: MatrixClient) => ofClient(busySlots, mx, () => new Set());
 
 const notifySlot = (slot: SendSlot) => slot.listeners.forEach((listener) => listener());
 
