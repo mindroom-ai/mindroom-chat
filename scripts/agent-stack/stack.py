@@ -347,7 +347,7 @@ def prepare_source(checkout: Path, sha: str, extras: tuple[str, ...] = ()) -> Pa
     return source
 
 
-def worker_image(checkout: Path, sha: str, image: str) -> None:
+def build_worker_image(checkout: Path, sha: str, image: str) -> None:
     """Builds `image`, of the commit's Worker Computers, once: MindRoom refuses a worker whose protocol differs from
     the backend's."""
     with locked(stack_root() / "src" / f"{sha}-worker.lock"):
@@ -677,10 +677,9 @@ def config_yaml(
     plugins = f"plugins:\n{plugin_paths}" if plugin_paths else ""
     # A Worker Computer is a browser in a worker of one person and agent; the tools that share it run there too, and
     # every other tool stays in the backend.
-    worker_defaults = (
-        f"  worker_tools: {json.dumps(computers['tools'])}\n  worker_scope: user_agent\n" if computers else ""
-    )
+    worker_defaults = ""
     if computers:
+        worker_defaults = f"  worker_tools: {json.dumps(computers['tools'])}\n  worker_scope: user_agent\n"
         agent_tools += "\n      - browser_mcp"
     if mode == "real":
         # JSON strings are YAML flow scalars, so the script needs no escaping of its own.
@@ -1093,7 +1092,7 @@ def start(
     venv_bin = backend_bin(checkout, sha, args)
     computers = computers_setting(args, sha)
     if computers and not args.computer_image:
-        worker_image(checkout, sha, computers["image"])
+        build_worker_image(checkout, sha, computers["image"])
     real = args.model == "real"
     agents = AGENTS[args.model]
     slot_dir.mkdir(parents=True)

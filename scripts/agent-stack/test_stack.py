@@ -297,16 +297,18 @@ class CommandLineTests(unittest.TestCase):
         self.assertEqual(self.main("99", "status"), 1)
         self.assertEqual(self.main("100", "status"), 2)
 
-    def test_computers_bring_the_client_session_settings(self) -> None:
+    def up_args_of(self, *argv: str) -> argparse.Namespace:
+        """The arguments that `stack.py 5 up <argv>` starts the stack with."""
         with mock.patch.object(stack, "up", return_value={}) as up:
-            self.assertEqual(self.main("5", "up", "--computers"), 0)
-        self.assertTrue(up.call_args.args[1].client_sessions)
+            self.assertEqual(self.main("5", "up", *argv), 0)
+        return up.call_args.args[1]
+
+    def test_computers_bring_the_client_session_settings(self) -> None:
+        self.assertTrue(self.up_args_of("--computers").client_sessions)
 
     def computers_of(self, *argv: str) -> dict | None:
         """The computers that `stack.py 5 up <argv>` asks for."""
-        with mock.patch.object(stack, "up", return_value={}) as up:
-            self.assertEqual(self.main("5", "up", *argv), 0)
-        return stack.computers_setting(up.call_args.args[1], "0123456789abcdef")
+        return stack.computers_setting(self.up_args_of(*argv), "0123456789abcdef")
 
     def test_computers_run_the_browser_in_a_worker_of_the_image_built_from_the_commit(self) -> None:
         self.assertIsNone(self.computers_of())
@@ -362,8 +364,11 @@ class CommandLineTests(unittest.TestCase):
             mock.patch.object(stack, "check_plugin_dirs", return_value=list(plugin_dirs)),
         ):
             self.assertEqual(self.main("7", "up"), 0)
-        env = dict(line.split("=", 1) for line in (self.slot_dir / ".env").read_text().splitlines() if line)
-        return env, stack.read_state(self.slot_dir)
+        return self.slot_env(), stack.read_state(self.slot_dir)
+
+    def slot_env(self) -> dict[str, str]:
+        """The backend's .env settings of the slot's last start."""
+        return dict(line.split("=", 1) for line in (self.slot_dir / ".env").read_text().splitlines() if line)
 
     def test_a_plugin_with_origins_turns_the_backend_origins_on_at_the_slot_port(self) -> None:
         apps = {"dir": "/plugins/apps", "plugin": "apps", "tools": [], "scenarios": None, "origins": True}
@@ -381,21 +386,20 @@ class CommandLineTests(unittest.TestCase):
         of an earlier start are never looked for, since this machine's Docker may run a real slot 7."""
         with (
             self.starting(),
-            mock.patch.object(stack, "worker_image") as worker_image,
+            mock.patch.object(stack, "build_worker_image") as build,
             mock.patch.object(stack, "remove_workers"),
         ):
             self.assertEqual(self.main("7", "up", "--computers", *argv), 0)
-        env = dict(line.split("=", 1) for line in (self.slot_dir / ".env").read_text().splitlines() if line)
-        return env, stack.read_state(self.slot_dir), worker_image
+        return self.slot_env(), stack.read_state(self.slot_dir), build
 
     def test_computers_build_their_image_from_the_commit_unless_one_is_given(self) -> None:
         tag = f"mindroom-client-e2e-worker:{'a' * 12}"
-        env, state, worker_image = self.started_with_computers()
-        worker_image.assert_called_once_with(Path("/mindroom"), "a" * 40, tag)
+        env, state, build = self.started_with_computers()
+        build.assert_called_once_with(Path("/mindroom"), "a" * 40, tag)
         self.assertEqual(env["MINDROOM_DOCKER_WORKER_IMAGE"], tag)
         self.assertEqual(state["computers"], {"image": tag, "tools": ["browser_mcp"]})
-        env, state, worker_image = self.started_with_computers("--computer-image", "worker:given")
-        worker_image.assert_not_called()
+        env, state, build = self.started_with_computers("--computer-image", "worker:given")
+        build.assert_not_called()
         self.assertEqual(env["MINDROOM_DOCKER_WORKER_IMAGE"], "worker:given")
         self.assertEqual(state["computers"], {"image": "worker:given", "tools": ["browser_mcp"]})
 
@@ -649,7 +653,9 @@ class OptionTests(unittest.TestCase):
         given = up_args(client_sessions=True, computers=True, computer_image="worker:given")
         self.assertTrue(stack.started_with(computers, given, sha, homeserver))
         self.assertFalse(stack.started_with(computers, up_args(client_sessions=True, computers=True), sha, homeserver))
-        with_shell = argparse.Namespace(**{**vars(given), "computer_tools": "browser_mcp,shell"})
+        with_shell = up_args(
+            client_sessions=True, computers=True, computer_image="worker:given", computer_tools="browser_mcp,shell"
+        )
         self.assertFalse(stack.started_with(computers, with_shell, sha, homeserver))
         self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True, model="real"), sha, homeserver))
         calls = up_args(client_sessions=True, calls="http://127.0.0.1:29542")
@@ -704,8 +710,8 @@ class WorkerImageTests(unittest.TestCase):
 
     def test_the_image_of_a_commit_is_built_once_from_its_archive(self) -> None:
         tag = f"mindroom-client-e2e-worker:{self.sha[:12]}"
-        stack.worker_image(self.checkout, self.sha, tag)
-        stack.worker_image(self.checkout, self.sha, tag)
+        stack.build_worker_image(self.checkout, self.sha, tag)
+        stack.build_worker_image(self.checkout, self.sha, tag)
         self.assertEqual(
             (self.root / "docker.log").read_text().splitlines(),
             [f"image inspect {tag}", f"build --quiet --tag {tag} --file {self.DOCKERFILE} -", f"image inspect {tag}"],
@@ -716,7 +722,7 @@ class WorkerImageTests(unittest.TestCase):
     def test_a_failed_build_stops_the_start_with_its_error(self) -> None:
         with mock.patch.dict(os.environ, {"FAKE_DOCKER_FAIL": "no space left on device"}):
             with self.assertRaises(stack.StackError) as raised:
-                stack.worker_image(self.checkout, self.sha, "mindroom-client-e2e-worker:0123456789ab")
+                stack.build_worker_image(self.checkout, self.sha, "mindroom-client-e2e-worker:0123456789ab")
         self.assertIn("no space left on device", str(raised.exception))
 
 
