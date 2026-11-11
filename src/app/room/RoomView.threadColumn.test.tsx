@@ -369,14 +369,14 @@ it('stores each choice and opens the next thread the way chosen last', () => {
   expect(column()?.dataset.thread).toBe('$next');
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
   expect(screen.queryByRole('separator')).toBeNull();
-  // It has the room's header, which the hidden room area holds too.
+  // It has the room's header, which the room area no longer shows.
   expect(within(screen.getByTestId('thread-column')).getByTestId('room-header')).toBeDefined();
   // Filling the page, the column offers the way back, not Full or Show beside's menu entry.
   expect(screen.queryByRole('button', { name: 'Full' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Beside' })).toBeNull();
   expect(getDefaultStore().get(conversationHiddenAtom)).toBe(true);
-  // The room's messages stay under it, out of reach.
-  expect(screen.getByTestId('messages').closest('[aria-hidden="true"]')).not.toBeNull();
+  // The room's messages go from under it, and come back beside it.
+  expect(screen.queryByTestId('messages')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
   expect(screen.getByTestId('messages').closest('[aria-hidden="true"]')).toBeNull();
   expect(within(screen.getByTestId('thread-column')).queryByTestId('room-header')).toBeNull();
@@ -643,7 +643,7 @@ it("gives the column that fills the page the thread's background jobs and the le
   (document.activeElement as HTMLElement).blur();
 
   fireEvent.click(screen.getByRole('button', { name: 'Full' }));
-  expect(jobs()).toEqual(['room', '$thread']);
+  expect(jobs()).toEqual(['$thread']);
   expect(within(screen.getByTestId('thread-column')).getByTestId('jobs').dataset.thread).toBe(
     '$thread'
   );

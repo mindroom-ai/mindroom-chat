@@ -1,19 +1,16 @@
-import React, {
+import {
   type CSSProperties,
-  type RefObject,
   useCallback,
   useEffect,
   useLayoutEffect,
-  useReducer,
   useRef,
   useState,
 } from 'react';
 import classNames from 'classnames';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { EventStatus, RoomEvent, type Room, type RoomEventHandlerMap } from 'matrix-js-sdk';
+import type { Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
-import { Box, Text, color, config } from 'folds';
 import { useEditor } from '../editor/Editor';
 import { Page } from '../ui/page/Page';
 import { useKeyDown } from '../lib/hooks/useKeyDown';
@@ -22,9 +19,6 @@ import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { editableActiveElement } from '../lib/dom';
-import { RoomViewFollowing } from '../timeline/RoomViewFollowing';
-import { RoomViewTyping } from '../timeline/typing/RoomViewTyping';
-import { RoomTombstone } from './RoomTombstone';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { RoomInput } from '../composer/RoomInput';
@@ -37,10 +31,7 @@ import {
 import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
 import { computerOwnsKeyboardEvent } from '../computer/computerFocus';
 import { useSyncEngine } from '../event-store/engine/engineContext';
-import { FailedSendActions } from '../messages/FailedSendActions';
 import { isFailedLocalEchoEvent } from '../matrix/protocol/pendingLocalEcho';
-import { ThreadApprovalQueue } from '../approvals/ThreadApprovalControls';
-import { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
 import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
 import type { RoomRowsPlace } from '../timeline/roomTimelineScroll';
@@ -58,7 +49,6 @@ import { ROOM_MESSAGES_VIEW, useShownConversationView } from '../navigation/conv
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
 import * as overlay from '../ui/styles/RoomOverlay.css';
 import { SurfaceProvider } from '../ui/glass/SurfaceContext';
-import * as css from './RoomView.css';
 import { ThreadContextBanner } from '../threads/ThreadContextBanner';
 import {
   isConfirmedMatrixEventId,
@@ -68,6 +58,8 @@ import {
 import { useRoomViewThreadState } from './useRoomViewThreadState';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { ThreadView } from './ThreadView';
+import { ComposerNotice, ConversationLayout } from './ConversationLayout';
+import { useLocalEchoRoot } from './useLocalEchoRoot';
 import { noteThreadColumnKey } from './useRoomEscapeReadReceipts';
 import { storedThreadLayout, THREAD_COLUMN_WIDTH_KEY, useThreadLayout } from './threadLayout';
 
@@ -104,78 +96,6 @@ export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId' | 'threadFilter
   onThreadLoadError?: (threadId: string) => void;
 };
 
-/** Timeline props this view passes beyond the timeline's own contract, for the parts that use them. */
-// The room area is the positioning box of the floating header, dock and footer.
-const AREA_STYLE: CSSProperties = {
-  position: 'relative',
-  display: 'flex',
-  flexDirection: 'column',
-  flex: '1 1 auto',
-  minHeight: 0,
-  minWidth: 0,
-  overflow: 'hidden',
-};
-// Under the thread column that fills the page, the room area takes no room in the row but stays as
-// it was laid out, its scroll position too (as behind a side panel in Room.tsx).
-const AREA_UNDER_THREAD_STYLE: CSSProperties = {
-  ...AREA_STYLE,
-  flex: '0 0 0',
-  contentVisibility: 'hidden',
-};
-const TIMELINE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
-// Groups what a plugin's cover hides, without a box of its own in the room area's layout.
-const CONVERSATION_STYLE: CSSProperties = { display: 'contents' };
-// Background jobs and approvals float just above the composer.
-const DOCK_STYLE: CSSProperties = {
-  position: 'absolute',
-  insetInline: 0,
-  bottom: 'var(--room-composer-height, 0px)',
-  zIndex: 5,
-  pointerEvents: 'none',
-};
-const DOCK_CONTENT_STYLE: CSSProperties = { pointerEvents: 'auto' };
-// Where the composer would be: why it is not there; or above it, what to do about the unsent root.
-const NOTICE_GAP = config.space.S400;
-const NOTICE_STYLE: CSSProperties = {
-  background: color.SurfaceVariant.Container,
-  margin: `0 ${NOTICE_GAP} ${NOTICE_GAP}`,
-  color: color.SurfaceVariant.OnContainer,
-  padding: `${config.space.S300} ${NOTICE_GAP}`,
-  borderRadius: config.radii.R400,
-};
-
-/**
- * Keeps the heights of the floating header and footer on the room area, where the scroll areas
- * read them (`--room-header-height`, `--room-footer-height`) to pad their content clear of both.
- * The dock remounts with each thread, so it is measured again whenever the thread changes.
- */
-const useRoomOverlayInsets = (
-  areaRef: RefObject<HTMLElement>,
-  headerRef: RefObject<HTMLElement>,
-  footerRef: RefObject<HTMLElement>,
-  dockRef: RefObject<HTMLElement>,
-  threadId: string | undefined
-) => {
-  useLayoutEffect(() => {
-    const area = areaRef.current;
-    if (!area || typeof ResizeObserver === 'undefined') return undefined;
-    const measure = () => {
-      const header = headerRef.current?.offsetHeight ?? 0;
-      const composer = footerRef.current?.offsetHeight ?? 0;
-      const dock = dockRef.current?.offsetHeight ?? 0;
-      area.style.setProperty('--room-header-height', `${header}px`);
-      area.style.setProperty('--room-composer-height', `${composer}px`);
-      area.style.setProperty('--room-footer-height', `${composer + dock}px`);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    [headerRef, footerRef, dockRef].forEach((ref) => {
-      if (ref.current) observer.observe(ref.current);
-    });
-    return () => observer.disconnect();
-  }, [areaRef, dockRef, footerRef, headerRef, threadId]);
-};
-
 // Dialogs, menus and lists keep their own typing (fields, type-ahead), and so does a region
 // marked `data-keeps-typing`.
 const OWNS_TYPING_SELECTOR =
@@ -210,33 +130,6 @@ const useTypeToCompose = (focusComposer: () => void, enabled: boolean) => {
 };
 
 /**
- * The open thread's root while it is still a local echo: its event, when the room holds it.
- * Re-renders as the echo's send state changes, and reports a root that was deleted unsent.
- */
-const useLocalEchoRoot = (room: Room, threadId: string | undefined, onDeleted: () => void) => {
-  const [, refresh] = useReducer((count: number) => count + 1, 0);
-  const pending = isLocalEchoEventId(threadId);
-  const latestOnDeleted = useRef(onDeleted);
-  latestOnDeleted.current = onDeleted;
-
-  useEffect(() => {
-    if (!pending) return undefined;
-    const onEcho: RoomEventHandlerMap[RoomEvent.LocalEchoUpdated] = (event, _room, oldId) => {
-      if (oldId !== threadId && event.getId() !== threadId) return;
-      if (event.status === EventStatus.CANCELLED) latestOnDeleted.current();
-      else refresh();
-    };
-    room.on(RoomEvent.LocalEchoUpdated, onEcho);
-    return () => {
-      room.removeListener(RoomEvent.LocalEchoUpdated, onEcho);
-    };
-  }, [pending, room, threadId]);
-
-  if (!pending || !threadId) return { pending: false as const };
-  return { pending: true as const, event: room.findEventById(threadId) ?? undefined };
-};
-
-/**
  * The main area of a room: the timeline (Compact cards, the Full timeline, or the open thread
  * with its banner) under a floating header and footer, with approvals and background jobs
  * above the composer. The composer stays mounted when a thread opens, so a send that opened
@@ -261,11 +154,8 @@ export function RoomView({
   const engine = useSyncEngine();
   const { roomId } = room;
   const areaRef = useRef<HTMLDivElement>(null);
-  const headerRef = useRef<HTMLDivElement>(null);
   const columnRef = useRef<HTMLDivElement>(null);
   const columnHeaderRef = useRef<HTMLDivElement>(null);
-  const footerRef = useRef<HTMLDivElement>(null);
-  const dockRef = useRef<HTMLDivElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
   const compactRoomScrollStateRef = useRef<ScrollAnchorMemory>(new Map());
@@ -327,7 +217,6 @@ export function RoomView({
     else focusColumn.current?.();
   }, [columnFills, editor]);
   useTypeToCompose(focusComposer, composerShown && (columnFills ? !behindPanel : !hidden));
-  useRoomOverlayInsets(areaRef, headerRef, footerRef, dockRef, effectiveThreadId);
 
   // The open room (and thread) keeps its history downloads; leaving the room ends them.
   const focusedThreadId = isConfirmedMatrixEventId(openThreadId) ? openThreadId : undefined;
@@ -337,7 +226,9 @@ export function RoomView({
   useEffect(() => () => engine.clearRoomFocus(roomId), [engine, roomId]);
 
   const focusConversation = useCallback(() => {
-    footerRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus();
+    areaRef.current
+      ?.querySelector<HTMLElement>('[data-room-footer="true"] [contenteditable="true"]')
+      ?.focus();
   }, []);
 
   // Beside its thread, the page shows the room's messages too, which its address does not name:
@@ -433,39 +324,15 @@ export function RoomView({
     onThreadLoadError,
   };
 
-  let composerNotice: React.ReactNode;
-  if (failedRoot) {
-    composerNotice = <FailedSendActions room={room} event={failedRoot} style={NOTICE_STYLE} />;
-  } else if (tombstone) {
-    composerNotice = <RoomTombstone tombstone={tombstone} style={NOTICE_STYLE} />;
-  } else if (!canMessage) {
-    composerNotice = (
-      <Box justifyContent="Center" style={NOTICE_STYLE}>
-        <Text size="T300" priority="300">
-          {t('mindroomUi.threads.mindroomRoomView.youDoNotHavePermissionToPostInThisRoom')}
-        </Text>
-      </Box>
-    );
-  }
-
   return (
     <Page ref={pageRef} style={columnThreadId ? PAGE_ROW_STYLE : PAGE_STYLE}>
-      <div
-        ref={areaRef}
-        className={css.RoomArea}
-        style={columnFills ? AREA_UNDER_THREAD_STYLE : AREA_STYLE}
-      >
-        {/* The element draws the header's surface; the row inside shows it and paints none. */}
-        <div
-          ref={headerRef}
-          data-glass-flat="true"
-          className={classNames(
-            overlay.Header,
-            css.HeaderInShortArea,
-            effectiveThreadId && overlay.HeaderInThread
-          )}
-        >
-          <SurfaceProvider value>
+      <ConversationLayout
+        room={room}
+        threadId={effectiveThreadId}
+        areaRef={areaRef}
+        // The plugins' slot shows under the header people see: the column's as it fills.
+        header={(headerRef) => (
+          <>
             <RoomViewHeader
               hasMindroomAgents={hasMindroomAgents}
               threadId={effectiveThreadId}
@@ -473,51 +340,38 @@ export function RoomView({
               threadFilterState={threadState.threadFilterState}
               {...headerProps}
             />
-            {/* The plugins' slot shows under the header people see: the column's as it fills. */}
-            {!columnFills && <RoomHeaderSlot room={room} headerRef={headerRef} />}
-          </SurfaceProvider>
-        </div>
-        <div ref={conversationRef} style={CONVERSATION_STYLE}>
-          <ThreadApprovalProvider
+            <RoomHeaderSlot room={room} headerRef={headerRef} />
+          </>
+        )}
+        timeline={<RoomTimeline {...timelineProps} />}
+        focusConversation={focusConversation}
+        canCancelJobs={canCancelJobs}
+        notice={
+          <ComposerNotice
             room={room}
-            // A message not yet on the server has no approvals, and no relations to ask for.
-            threadId={columnThreadId ? undefined : focusedThreadId}
-            focusConversation={focusConversation}
-          >
-            <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
-              <RoomTimeline {...timelineProps} />
-            </Box>
-            <div ref={dockRef} style={DOCK_STYLE}>
-              <div style={DOCK_CONTENT_STYLE}>
-                <BackgroundJobsBar
-                  room={room}
-                  threadId={effectiveThreadId ?? null}
-                  canCancel={canCancelJobs}
-                />
-                {effectiveThreadId && <ThreadApprovalQueue />}
-              </div>
-            </div>
-          </ThreadApprovalProvider>
-          {/* Outside the approval provider: opening a thread must not remount the composer. */}
-          <div ref={footerRef} className={overlay.Footer} data-room-footer="true">
-            <RoomViewTyping room={room} threadId={effectiveThreadId} />
-            {composerNotice}
-            {composerShown && (
-              <RoomInput
-                room={room}
-                roomId={roomId}
-                threadId={effectiveThreadId}
-                threadingEnabled={viewMode !== 'classic'}
-                editor={editor}
-                fileDropContainerRef={areaRef}
-                onRoomMessageSent={threadState.handleRoomMessageSent}
-              />
-            )}
-            <RoomViewFollowing room={room} threadId={effectiveThreadId} />
-          </div>
-        </div>
+            failedRoot={failedRoot}
+            tombstone={tombstone}
+            canMessage={canMessage}
+          />
+        }
+        composer={
+          composerShown && (
+            <RoomInput
+              room={room}
+              roomId={roomId}
+              threadId={effectiveThreadId}
+              threadingEnabled={viewMode !== 'classic'}
+              editor={editor}
+              fileDropContainerRef={areaRef}
+              onRoomMessageSent={threadState.handleRoomMessageSent}
+            />
+          )
+        }
+        collapsed={columnFills}
+        conversationRef={conversationRef}
+      >
         <ConversationCover key={roomId} room={room} conversationRef={conversationRef} />
-      </div>
+      </ConversationLayout>
       {columnThreadId && (
         <ResizablePanel
           side="end"
