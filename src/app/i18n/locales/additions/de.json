@@ -272,6 +272,9 @@
     "passwordResetForm": {
       "emailResetUnavailable": "Dieser Server kann Passwörter nicht per E-Mail zurücksetzen.",
       "emailResetUnavailableSso": "Dieser Server kann Passwörter nicht per E-Mail zurücksetzen. Wenn du dich mit {{provider}} registriert hast, <authLink>melde dich stattdessen mit {{provider}} an</authLink>."
+    },
+    "syncStatus": {
+      "mediaUnavailable": "Einige Bilder können in diesem Fenster nicht geladen werden: Der Browser führt hier keinen Service Worker für MindRoom aus."
     }
   },
   "featureUi": {

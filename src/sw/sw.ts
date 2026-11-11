@@ -264,6 +264,11 @@ self.addEventListener('message', (event) => {
     void self.skipWaiting();
     return;
   }
+  // A page loaded past the worker (a hard reload) stays without one until the worker claims it.
+  if (message.type === 'claim') {
+    self.clients.claim().catch(() => undefined);
+    return;
+  }
   if (message.type !== 'setSession') return;
 
   if (isUsableSession(message)) {

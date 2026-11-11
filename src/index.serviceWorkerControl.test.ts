@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   getActiveSession: vi.fn(),
   waitForServiceWorkerControl: vi.fn(),
+  markServiceWorkerUnavailable: vi.fn(),
 }));
 
 vi.mock('react-dom/client', () => ({ createRoot: () => ({ render: vi.fn() }) }));
@@ -52,6 +53,9 @@ vi.mock('./app/config/appVersion', () => ({
 }));
 vi.mock('./app/config/serviceWorkerRegistration', () => ({ createServiceWorkerUrl: vi.fn() }));
 vi.mock('./app/shell/App', () => ({ default: () => null }));
+vi.mock('./app/matrix/hooks/useMediaAuthentication', () => ({
+  markServiceWorkerUnavailable: mocks.markServiceWorkerUnavailable,
+}));
 vi.mock('./app/i18n/i18n', () => ({}));
 vi.mock('./app/theme/Typography.css', () => ({}));
 
@@ -126,6 +130,65 @@ describe('service worker control recovery at startup', () => {
     });
   };
 
+  it('asks an active worker to claim the page instead of reloading it', async () => {
+    const worker = {
+      state: 'activated' as ServiceWorkerState,
+      postMessage: vi.fn((message: unknown) => {
+        if ((message as { type?: unknown }).type === 'claim') container.controller = worker;
+      }),
+    };
+    installServiceWorker(worker);
+
+    await import('./index');
+
+    await vi.waitFor(() => expect(worker.postMessage).toHaveBeenCalledWith({ type: 'claim' }));
+    await vi.waitFor(() => expect(mocks.waitForServiceWorkerControl).toHaveBeenCalled());
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+    expect(reloads).toBe(0);
+    expect(window.sessionStorage.getItem('mindroom_sw_control_reloaded')).toBeNull();
+  });
+
+  it('asks for the claim on a signed-out page too, which stays put', async () => {
+    mocks.getActiveSession.mockReturnValue(undefined);
+    const worker = { state: 'activated' as ServiceWorkerState, postMessage: vi.fn() };
+    installServiceWorker(worker);
+
+    await import('./index');
+
+    await vi.waitFor(() => expect(worker.postMessage).toHaveBeenCalledWith({ type: 'claim' }));
+    expect(reloads).toBe(0);
+  });
+
+  it('reloads once, and only once per tab, when an older worker ignores the claim', async () => {
+    const worker = { state: 'activated' as ServiceWorkerState, postMessage: vi.fn() };
+    installServiceWorker(worker);
+
+    await import('./index');
+    await vi.waitFor(() => expect(reloads).toBe(1));
+
+    vi.resetModules();
+    await import('./index');
+    await vi.waitFor(() => expect(worker.postMessage).toHaveBeenCalledTimes(2));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+    expect(reloads).toBe(1);
+  });
+
+  it('asks nothing of a page that a worker already controls', async () => {
+    const worker = { state: 'activated' as ServiceWorkerState, postMessage: vi.fn() };
+    installServiceWorker(worker);
+    container.controller = worker;
+
+    await import('./index');
+    await vi.waitFor(() => expect(mocks.waitForServiceWorkerControl).toHaveBeenCalled());
+
+    expect(worker.postMessage).not.toHaveBeenCalled();
+    expect(reloads).toBe(0);
+  });
+
   it('keeps the page when the worker claims it as it finishes activating', async () => {
     const { worker, finish, listening } = makeActivatingWorker();
     installServiceWorker(worker);
@@ -169,5 +232,47 @@ describe('service worker control recovery at startup', () => {
     });
     expect(listening()).toBe(false);
     expect(reloads).toBe(0);
+  });
+
+  it('reports that no worker can exist where the browser has none, and stays put', async () => {
+    Reflect.deleteProperty(navigator, 'serviceWorker');
+    expect('serviceWorker' in navigator).toBe(false);
+
+    await import('./index');
+
+    expect(mocks.markServiceWorkerUnavailable).toHaveBeenCalledOnce();
+    expect(reloads).toBe(0);
+  });
+
+  it.each([
+    ['refused', () => Promise.reject(new DOMException('Blocked', 'SecurityError'))],
+    ['answered without one', () => Promise.resolve(undefined)],
+  ])('reports that no worker can exist when registration is %s', async (_name, register) => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    installServiceWorker({ state: 'activated', postMessage: vi.fn() });
+    Object.assign(navigator.serviceWorker, {
+      register: vi.fn(register),
+      getRegistration: vi.fn().mockResolvedValue(undefined),
+    });
+
+    await import('./index');
+
+    await vi.waitFor(() => expect(mocks.markServiceWorkerUnavailable).toHaveBeenCalledOnce());
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+    expect(reloads).toBe(0);
+  });
+
+  it('reports nothing while the worker registers', async () => {
+    installServiceWorker({ state: 'activated', postMessage: vi.fn() });
+
+    await import('./index');
+    await vi.waitFor(() => expect(navigator.serviceWorker.register).toHaveBeenCalled());
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+
+    expect(mocks.markServiceWorkerUnavailable).not.toHaveBeenCalled();
   });
 });

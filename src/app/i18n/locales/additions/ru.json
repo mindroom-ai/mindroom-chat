@@ -280,6 +280,9 @@
     "passwordResetForm": {
       "emailResetUnavailable": "Этот сервер не может сбрасывать пароли по электронной почте.",
       "emailResetUnavailableSso": "Этот сервер не может сбрасывать пароли по электронной почте. Если вы зарегистрировались через {{provider}}, <authLink>войдите через {{provider}}</authLink>."
+    },
+    "syncStatus": {
+      "mediaUnavailable": "Некоторые изображения не загружаются в этом окне: браузер не запускает здесь сервис-воркер MindRoom."
     }
   },
   "featureUi": {

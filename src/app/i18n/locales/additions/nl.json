@@ -272,6 +272,9 @@
     "passwordResetForm": {
       "emailResetUnavailable": "Deze server kan wachtwoorden niet per e-mail opnieuw instellen.",
       "emailResetUnavailableSso": "Deze server kan wachtwoorden niet per e-mail opnieuw instellen. Heb je je aangemeld met {{provider}}, <authLink>log dan in met {{provider}}</authLink>."
+    },
+    "syncStatus": {
+      "mediaUnavailable": "Sommige afbeeldingen kunnen in dit venster niet laden: de browser draait hier geen service worker voor MindRoom."
     }
   },
   "featureUi": {

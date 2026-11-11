@@ -272,6 +272,9 @@
     "passwordResetForm": {
       "emailResetUnavailable": "यह सर्वर ईमेल से पासवर्ड रीसेट नहीं कर सकता।",
       "emailResetUnavailableSso": "यह सर्वर ईमेल से पासवर्ड रीसेट नहीं कर सकता। अगर आपने {{provider}} से साइन अप किया था, तो इसके बजाय <authLink>{{provider}} से साइन इन करें</authLink>।"
+    },
+    "syncStatus": {
+      "mediaUnavailable": "इस विंडो में कुछ चित्र लोड नहीं हो सकते: ब्राउज़र यहाँ MindRoom के लिए कोई सर्विस वर्कर नहीं चलाता।"
     }
   },
   "featureUi": {

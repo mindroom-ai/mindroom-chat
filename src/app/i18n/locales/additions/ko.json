@@ -268,6 +268,9 @@
     "passwordResetForm": {
       "emailResetUnavailable": "이 서버는 이메일로 비밀번호를 재설정할 수 없습니다.",
       "emailResetUnavailableSso": "이 서버는 이메일로 비밀번호를 재설정할 수 없습니다. {{provider}}(으)로 가입했다면 대신 <authLink>{{provider}}(으)로 로그인</authLink>하세요."
+    },
+    "syncStatus": {
+      "mediaUnavailable": "이 창에서는 일부 이미지를 불러올 수 없습니다: 브라우저가 여기서 MindRoom의 서비스 워커를 실행하지 않습니다."
     }
   },
   "featureUi": {

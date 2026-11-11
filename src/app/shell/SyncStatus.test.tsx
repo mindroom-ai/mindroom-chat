@@ -12,6 +12,11 @@ import {
 } from '../matrix/client/homeserverReachability';
 
 const access = vi.hoisted(() => ({ signInRequired: false }));
+const media = vi.hoisted(() => ({ unavailable: false }));
+
+vi.mock('../matrix/hooks/useMediaAuthentication', () => ({
+  useMediaAuthenticationUnavailable: () => media.unavailable,
+}));
 
 vi.mock('../native/cloudflareAccess', () => ({
   discoverCloudflareAccess: vi.fn(),
@@ -60,6 +65,7 @@ describe('SyncStatus', () => {
   afterEach(() => {
     renderer?.unmount();
     renderer = undefined;
+    media.unavailable = false;
     vi.useRealTimers();
   });
 
@@ -201,5 +207,20 @@ describe('SyncStatus', () => {
       vi.advanceTimersByTime(NOTICE_LEAVE_MS);
     });
     expect(pill()).toHaveLength(0);
+  });
+
+  it('says why images cannot load when nothing in this window can sign media requests', async () => {
+    media.unavailable = true;
+    const { mx, request } = createClient();
+    const text = render(mx);
+    expect(text()).toBe(
+      "Some images can't load in this window: the browser runs no service worker for MindRoom here."
+    );
+    // Without a spinner: nothing is in progress.
+    expect(renderer!.root.findAll((node) => node.props.variant === 'Secondary')).toHaveLength(0);
+
+    // A lost connection says so first.
+    await request({ reachable: false });
+    expect(text()).toBe('Connection Lost!');
   });
 });
