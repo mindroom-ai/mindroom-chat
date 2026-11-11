@@ -6,7 +6,7 @@ import { Panel as DisclosurePanel } from '../ui/ThreadActivity.css';
 const { space, radii, borderWidth } = config;
 const AVATAR = toRem(24);
 const quietLine = `${borderWidth.B300} solid ${color.Surface.ContainerLine}`;
-// Inside a Show task or Show output panel, set in from its border as that panel's rows are
+// Inside a Show output panel, set in from its border as that panel's rows are
 // (ThreadActivity.css.ts `Row`); the panel's border is their frame.
 const inDisclosure = {
   paddingBlock: toRem(10),
@@ -51,10 +51,11 @@ export const Card = style({
   color: color.Surface.OnContainer,
 });
 
-// The avatar beside the name over the status line, as a reply's sender sits by its body.
+// The avatar beside the name over the status line, as a reply's sender sits by its body; the way
+// back to the caller's thread at the end.
 export const Who = style({
   display: 'grid',
-  gridTemplateColumns: `${AVATAR} minmax(0, 1fr)`,
+  gridTemplateColumns: `${AVATAR} minmax(0, 1fr) auto`,
   columnGap: space.S200,
   alignItems: 'center',
 });
@@ -90,40 +91,35 @@ export const StatusDot = styleVariants({
   denied: [dot, { background: color.Critical.Main }],
 });
 
-/** A press that reads as text: the caller's thread. */
-export const TextButton = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: space.S100,
-  alignSelf: 'flex-start',
-  maxWidth: '100%',
-  padding: 0,
-  border: 0,
-  font: 'inherit',
-  color: color.Primary.Main,
-  background: 'none',
-  textAlign: 'start',
-  cursor: 'pointer',
-  borderRadius: radii.R300,
-  selectors: {
-    '&:hover': { textDecoration: 'underline' },
-    '&:focus-visible': {
-      outline: `${borderWidth.B400} solid ${color.Primary.Main}`,
-      outlineOffset: toRem(1),
-    },
-  },
+// The task beside its press to show all of it, when two lines cut it short.
+export const TaskRow = style({
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) auto',
+  columnGap: space.S100,
+  alignItems: 'start',
 });
 
-// What the run was asked and what it answered keep their line breaks and wrap anywhere.
+// What the run was asked, quieter than what it answers, keeps its line breaks and wraps anywhere.
 export const Task = style({
-  ...inDisclosure,
   margin: 0,
-  color: color.SurfaceVariant.OnContainer,
   whiteSpace: 'pre-wrap',
   overflowWrap: 'anywhere',
 });
 
-export const Result = style({ minWidth: 0, overflowWrap: 'anywhere' });
+/** Two lines of the task at most. */
+export const TaskExcerpt = style([
+  Task,
+  { overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' },
+]);
+
+export const Result = style({
+  minWidth: 0,
+  overflowWrap: 'anywhere',
+  selectors: {
+    // A folded run's, in its Show output panel above its transcript.
+    [`${DisclosurePanel} > &`]: inDisclosure,
+  },
+});
 
 // A transcript as long as a reply would be scrolls in a box of its own, so the runs below it
 // stay in reach; its newest text shows at the box's end.
@@ -137,6 +133,7 @@ export const Transcript = style({
   selectors: {
     // A finished run's, in its Show output panel, has no line of its own under the panel's.
     [`${DisclosurePanel} > &`]: { ...inDisclosure, borderBlockStart: 'none' },
+    [`${DisclosurePanel} > ${Result} + &`]: { borderBlockStart: quietLine },
   },
 });
 

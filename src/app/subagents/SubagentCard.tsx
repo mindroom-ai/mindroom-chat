@@ -1,8 +1,8 @@
-import { memo, useCallback, useId, useLayoutEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import type { HTMLReactParserOptions } from 'html-react-parser';
-import { Avatar, Icons, Text } from 'folds';
+import { Avatar, Icon, IconButton, Icons, Text } from 'folds';
 import { agentMember } from '../approvals/approvalPeople';
 import { UserAvatar } from '../avatars/UserAvatar';
 import { isScrollNearBottom } from '../event-store/timeline/timelineScrollUtils';
@@ -168,20 +168,71 @@ const Transcript = memo(function Transcript({
   );
 });
 
+/**
+ * What the run was asked, two lines of it: runs of one agent tell apart by their tasks. When two
+ * lines cut it short, a press shows all of it.
+ */
+function TaskExcerpt({ text }: { text: string }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [cut, setCut] = useState(false);
+  const textRef = useRef<HTMLParagraphElement>(null);
+  // Measured while it shows two lines; open, it keeps its press to close it again.
+  const measure = useCallback(() => {
+    const element = textRef.current;
+    if (element && !open) setCut(element.scrollHeight > element.clientHeight);
+  }, [open]);
+  useLayoutEffect(() => measure(), [measure, text]);
+  const getText = useCallback(() => textRef.current, []);
+  useResizeObserver(measure, getText);
+
+  return (
+    <div className={css.TaskRow}>
+      <Text
+        as="p"
+        ref={textRef}
+        size="T200"
+        priority="300"
+        className={open ? css.Task : css.TaskExcerpt}
+        dir="auto"
+        data-subagent-task=""
+      >
+        {text}
+      </Text>
+      {(cut || open) && (
+        <IconButton
+          size="300"
+          radii="300"
+          variant="Surface"
+          aria-label={t('mindroomUi.subagents.showTask')}
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <Icon size="50" src={open ? Icons.ChevronTop : Icons.ChevronBottom} />
+        </IconButton>
+      )}
+    </div>
+  );
+}
+
 type CardProps = {
   room: Room;
   node: SubagentRunNode;
   /** The panel's clock, in Unix milliseconds. */
   now: number;
   parserOptions: HTMLReactParserOptions;
+  /** Inside the card of the run that started it, which says where it came from. */
+  inParent?: boolean;
 };
 
 /**
- * One sub-agent run: the agent, how it stands and the caller it works for (a way back to the
- * caller's thread), its task on request, and its transcript while it works. A finished run shows
- * its result, its transcript on request. The runs it started follow inside it.
+ * One sub-agent run: the agent, how it stands, its task, and its transcript while it works. A
+ * finished run shows its result, its transcript on request. A top-level card names its caller when
+ * that is another agent and leads back to the caller's thread. The runs it started follow inside
+ * it; one of those that finished well folds its result in with its transcript, as the run that
+ * started it usually passes that result on.
  */
-export function SubagentCard({ room, node, now, parserOptions }: CardProps) {
+export function SubagentCard({ room, node, now, parserOptions, inParent = false }: CardProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const nameId = useId();
@@ -200,11 +251,26 @@ export function SubagentCard({ room, node, now, parserOptions }: CardProps) {
   );
   const hasOutput = docs.md !== '' || docs.tools.length > 0;
   const elapsed = elapsedSeconds(meta, now);
-  const from = t('mindroomUi.subagents.from', { name: caller });
   const { threadId } = meta;
+  // An agent that started a copy of itself would read "Harry, from Harry".
+  const from =
+    !inParent && meta.caller !== meta.agent
+      ? t('mindroomUi.subagents.from', { name: caller })
+      : null;
+  const folded = inParent && meta.status === 'completed';
   const transcript = (
     <Transcript
       docs={docs}
+      name={agent.name}
+      roomId={room.roomId}
+      threadId={threadId ?? undefined}
+      startedAt={meta.startedAt}
+      parserOptions={parserOptions}
+    />
+  );
+  const result = meta.result && (
+    <Result
+      text={meta.result}
       name={agent.name}
       roomId={room.roomId}
       threadId={threadId ?? undefined}
@@ -238,55 +304,46 @@ export function SubagentCard({ room, node, now, parserOptions }: CardProps) {
               {t(`mindroomUi.subagents.${meta.status}`)}
             </span>
             {elapsed !== undefined && <span>{formatCallDuration(elapsed, language)}</span>}
-            {threadId ? (
-              <button
-                type="button"
-                className={css.TextButton}
-                onClick={() => navigateRoomThread(room.roomId, threadId)}
-              >
-                {from}
-              </button>
-            ) : (
-              <span>{from}</span>
-            )}
+            {from && <span>{from}</span>}
           </Text>
         </div>
+        {!inParent && threadId && (
+          <IconButton
+            size="300"
+            radii="300"
+            variant="Surface"
+            aria-label={t('threadActions.open')}
+            title={t('threadActions.open')}
+            onClick={() => navigateRoomThread(room.roomId, threadId)}
+          >
+            <Icon size="50" src={Icons.Thread} />
+          </IconButton>
+        )}
       </div>
-      {!active && meta.result && (
-        <Result
-          text={meta.result}
-          name={agent.name}
-          roomId={room.roomId}
-          threadId={threadId ?? undefined}
-          startedAt={meta.startedAt}
-          parserOptions={parserOptions}
-        />
-      )}
-      {meta.task && (
-        <ThreadActivity
-          icon={<ActivityIcon src={Icons.Info} />}
-          title={t('mindroomUi.subagents.showTask')}
-        >
-          <Text as="p" size="T300" className={css.Task} dir="auto">
-            {meta.task}
-          </Text>
-        </ThreadActivity>
-      )}
+      {meta.task && <TaskExcerpt text={meta.task} />}
+      {!active && !folded && result}
       {/* A running run that wrote nothing yet shows the thinking placeholder; a quiet one, nothing. */}
       {active && (hasOutput || docs.status === 'streaming') && transcript}
-      {!active && hasOutput && (
+      {!active && (hasOutput || (folded && result)) && (
         <ThreadActivity
           icon={<ActivityIcon src={Icons.Message} />}
           title={t('mindroomUi.subagents.showOutput')}
         >
-          {transcript}
+          {folded && result}
+          {hasOutput && transcript}
         </ThreadActivity>
       )}
       {nested.length > 0 && (
         <ul className={css.Nested}>
           {nested.map((child) => (
             <li key={child.run.run}>
-              <SubagentCard room={room} node={child} now={now} parserOptions={parserOptions} />
+              <SubagentCard
+                room={room}
+                node={child}
+                now={now}
+                parserOptions={parserOptions}
+                inParent
+              />
             </li>
           ))}
         </ul>

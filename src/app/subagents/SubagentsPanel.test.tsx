@@ -11,6 +11,7 @@ import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
 import { loadLiveMarkdown } from '../messages/live/liveMarkdown';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
 import { SubagentsPanel } from './SubagentsPanel';
+import * as css from './subagentsPanel.css';
 
 const ROOM_ID = '!room:example.org';
 const VIEWER = '@ann:example.org';
@@ -188,8 +189,7 @@ describe('SubagentsPanel', () => {
     expect(card('run').querySelector('img')?.getAttribute('src')).toBe(
       'https://media.example.org/example.org/helper'
     );
-    act(() => button(card('run'), 'from Coordinator').click());
-    expect(navigation.navigateRoomThread).toHaveBeenCalledWith(ROOM_ID, '$thread:example.org');
+    expect(ownText(card('run'))).toContain('from Coordinator');
   });
 
   it('lists finished runs after the running ones, the one that ended last first', () => {
@@ -209,6 +209,56 @@ describe('SubagentsPanel', () => {
     render();
 
     expect(container.querySelector('header')?.textContent).toContain('2 active');
+  });
+
+  it('names the caller only when it is another agent and the run is not inside its card', () => {
+    ingest('copy', meta('running', { agent: 'lead' }), docs('Working.'));
+    ingest('other', meta('running', { startedAt: NOW - 30 }), docs('Working.'));
+    ingest('child', meta('running', { agent: 'writer', parent: 'other' }), docs('Writing.'));
+    render();
+
+    // An agent that started a copy of itself does not read "Lead, from Lead".
+    expect(ownText(card('copy'))).not.toContain('from');
+    expect(ownText(card('other'))).toContain('from Lead');
+    // The card it sits in says where a nested run came from; its thread is that card's too.
+    expect(ownText(card('child'))).not.toContain('from');
+    expect(() => button(card('child'), 'Open thread')).toThrow();
+  });
+
+  it('folds a nested run that finished well into Show output, and keeps a failed one open', () => {
+    ingest(
+      'parent',
+      meta('completed', { result: 'They answered **42**.' }),
+      docs('Asked.', [], false)
+    );
+    ingest(
+      'done',
+      meta('completed', { agent: 'writer', parent: 'parent', result: 'The answer is **42**.' }),
+      docs('Counting.', [], false)
+    );
+    ingest(
+      'broke',
+      meta('failed', {
+        agent: 'writer',
+        parent: 'parent',
+        result: 'Tool **crashed**.',
+        endedAt: NOW - 5,
+      }),
+      docs('Trying.', [], false)
+    );
+    render();
+
+    const ownResult = (run: string) =>
+      [...card(run).querySelectorAll('[data-subagent-result]')].find(
+        (element) => element.closest('[data-subagent-run]') === card(run)
+      );
+    expect(ownResult('parent')?.textContent).toContain('They answered 42.');
+    expect(ownResult('broke')?.textContent).toContain('Tool crashed.');
+    // The run that started it passes the answer on, so the nested one keeps it under Show output.
+    expect(ownResult('done')).toBeUndefined();
+    act(() => button(card('done'), 'Show output').click());
+    expect(ownResult('done')?.querySelector('strong')?.textContent).toBe('42');
+    expect(transcript('done')?.textContent).toContain('Counting.');
   });
 
   it('shows a run inside the card of the run that started it, and an orphan on its own', () => {
@@ -278,16 +328,44 @@ describe('SubagentsPanel', () => {
     expect(dots('busy')).not.toBeNull();
   });
 
-  it('shows the task on request', () => {
-    ingest('run', meta('running', { task: 'Find when version 2 shipped.' }), docs('Looking.'));
+  it('shows two lines of the task, and all of it on request when they cut it short', () => {
+    ingest('short', meta('running', { task: 'Find when version 2 shipped.' }), docs('Looking.'));
     render();
+    const task = (run: string) => card(run).querySelector<HTMLElement>('[data-subagent-task]');
+    // `TaskExcerpt` composes `Task`, so it is more than one class.
+    const clamped = (run: string) =>
+      css.TaskExcerpt.split(' ').every((name) => task(run)?.classList.contains(name));
 
-    expect(card('run').textContent).not.toContain('Find when version 2 shipped.');
-    const toggle = button(card('run'), 'Show task');
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    act(() => toggle.click());
-    expect(toggle.getAttribute('aria-expanded')).toBe('true');
-    expect(card('run').textContent).toContain('Find when version 2 shipped.');
+    expect(task('short')?.textContent).toBe('Find when version 2 shipped.');
+    expect(clamped('short')).toBe(true);
+    // Two lines hold it, so there is nothing more to show.
+    expect(() => button(card('short'), 'Show task')).toThrow();
+
+    // The task's paragraph is twice as tall as the two lines it shows.
+    const tall = (height: number) =>
+      function measured(this: Element) {
+        return this.hasAttribute('data-subagent-task') ? height : 0;
+      };
+    const scroll = vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockImplementation(tall(80));
+    const client = vi.spyOn(Element.prototype, 'clientHeight', 'get').mockImplementation(tall(40));
+    try {
+      ingest(
+        'long',
+        meta('running', { task: 'Read every changelog.', startedAt: NOW - 5 }),
+        docs('')
+      );
+      render();
+      const toggle = button(card('long'), 'Show task');
+      expect(toggle.getAttribute('aria-expanded')).toBe('false');
+      act(() => toggle.click());
+      expect(toggle.getAttribute('aria-expanded')).toBe('true');
+      expect(clamped('long')).toBe(false);
+      act(() => toggle.click());
+      expect(clamped('long')).toBe(true);
+    } finally {
+      scroll.mockRestore();
+      client.mockRestore();
+    }
   });
 
   it('shows a finished run by its result, with its transcript on request', () => {
@@ -313,11 +391,11 @@ describe('SubagentsPanel', () => {
     ingest('loose', meta('running', { threadId: null, startedAt: NOW - 5 }), docs('Looking.'));
     render();
 
-    act(() => button(card('run'), 'from Lead').click());
+    act(() => button(card('run'), 'Open thread').click());
     expect(navigation.navigateRoomThread).toHaveBeenCalledWith(ROOM_ID, '$thread:example.org');
     // Without a thread, the caller is only named.
     expect(ownText(card('loose'))).toContain('from Lead');
-    expect(() => button(card('loose'), 'from Lead')).toThrow();
+    expect(() => button(card('loose'), 'Open thread')).toThrow();
   });
 
   it('follows new text at the end of a transcript until the reader scrolls up more than 24 px', () => {
