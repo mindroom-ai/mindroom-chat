@@ -1,10 +1,18 @@
 import { style, styleVariants } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { Panel as SidePanelPanel } from '../ui/panels/SidePanel.css';
+import { Panel as DisclosurePanel } from '../ui/ThreadActivity.css';
 
 const { space, radii, borderWidth } = config;
 const AVATAR = toRem(24);
 const quietLine = `${borderWidth.B300} solid ${color.Surface.ContainerLine}`;
+// Inside a Show task or Show output panel, set in from its border as that panel's rows are
+// (ThreadActivity.css.ts `Row`); the panel's border is their frame.
+const inDisclosure = {
+  paddingBlock: toRem(10),
+  paddingInlineStart: toRem(12),
+  paddingInlineEnd: toRem(14),
+};
 
 // It fills its column, and on phones the room's width, as the room's other side panels do.
 export const Panel = style([SidePanelPanel, { flexGrow: 1 }]);
@@ -108,9 +116,8 @@ export const TextButton = style({
 
 // What the run was asked and what it answered keep their line breaks and wrap anywhere.
 export const Task = style({
+  ...inDisclosure,
   margin: 0,
-  paddingInlineStart: space.S200,
-  borderInlineStart: `${borderWidth.B600} solid ${color.Surface.ContainerLine}`,
   color: color.SurfaceVariant.OnContainer,
   whiteSpace: 'pre-wrap',
   overflowWrap: 'anywhere',
@@ -127,6 +134,10 @@ export const Transcript = style({
   overflowWrap: 'anywhere',
   paddingBlockStart: space.S200,
   borderBlockStart: quietLine,
+  selectors: {
+    // A finished run's, in its Show output panel, has no line of its own under the panel's.
+    [`${DisclosurePanel} > &`]: { ...inDisclosure, borderBlockStart: 'none' },
+  },
 });
 
 /** Cards one under the other, without the marks of a list. */
