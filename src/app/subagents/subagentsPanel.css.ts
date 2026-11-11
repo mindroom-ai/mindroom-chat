@@ -123,7 +123,7 @@ export const Task = style({
   overflowWrap: 'anywhere',
 });
 
-export const Result = style({ margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' });
+export const Result = style({ minWidth: 0, overflowWrap: 'anywhere' });
 
 // A transcript as long as a reply would be scrolls in a box of its own, so the runs below it
 // stay in reach; its newest text shows at the box's end.

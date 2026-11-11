@@ -293,12 +293,15 @@ describe('SubagentsPanel', () => {
   it('shows a finished run by its result, with its transcript on request', () => {
     ingest(
       'run',
-      meta('completed', { result: 'Version 2 shipped in March.' }),
+      meta('completed', { result: 'Version 2 shipped in **March**.' }),
       docs('Reading the **changelog**.', [], false)
     );
     render();
 
-    expect(card('run').textContent).toContain('Version 2 shipped in March.');
+    // The result is Markdown, as agents write it, and shows formatted like the transcript.
+    const result = card('run').querySelector('[data-subagent-result]');
+    expect(result?.textContent).toContain('Version 2 shipped in March.');
+    expect(result?.querySelector('strong')?.textContent).toBe('March');
     expect(card('run').textContent).toContain('Done');
     expect(transcript('run')).toBeNull();
     act(() => button(card('run'), 'Show output').click());

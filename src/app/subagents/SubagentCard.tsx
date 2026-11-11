@@ -72,6 +72,45 @@ type TranscriptProps = {
  * What the run wrote, as a streamed reply shows it, in a box of its own that keeps the newest text
  * in view until the reader scrolls up from the end. Memoized: the panel's clock does not touch it.
  */
+/** The documents as a reply's content, for `RenderMessageContent`: Markdown once its renderer is in. */
+const useDocsContent = (docs: LiveDocs) => {
+  const markdownReady = useLiveMarkdownReady();
+  const content = useMemo(() => liveDocsContent(docs, markdownReady), [docs, markdownReady]);
+  return useCallback(() => content, [content]) as <T>() => T;
+};
+
+type ResultProps = Omit<TranscriptProps, 'docs'> & { text: string };
+
+/** A finished run's answer. Agents answer in Markdown, so it shows formatted, like the transcript. */
+const Result = memo(function Result({
+  text,
+  name,
+  roomId,
+  threadId,
+  startedAt,
+  parserOptions,
+}: ResultProps) {
+  const docs = useMemo(
+    (): LiveDocs => ({ md: text, reasoning: '', tools: [], status: 'completed', activity: '' }),
+    [text]
+  );
+  const getContent = useDocsContent(docs);
+  return (
+    <div className={css.Result} dir="auto" data-subagent-result="">
+      <RenderMessageContent
+        msgType="m.text"
+        displayName={name}
+        roomId={roomId}
+        threadId={threadId}
+        ts={startedAt * 1000}
+        getContent={getContent}
+        htmlReactParserOptions={parserOptions}
+        linkifyOpts={LINKIFY_OPTS}
+      />
+    </div>
+  );
+});
+
 const Transcript = memo(function Transcript({
   docs,
   name,
@@ -80,9 +119,7 @@ const Transcript = memo(function Transcript({
   startedAt,
   parserOptions,
 }: TranscriptProps) {
-  const markdownReady = useLiveMarkdownReady();
-  const content = useMemo(() => liveDocsContent(docs, markdownReady), [docs, markdownReady]);
-  const getContent = useCallback(() => content, [content]) as <T>() => T;
+  const getContent = useDocsContent(docs);
 
   const box = useRef<HTMLDivElement>(null);
   const following = useRef(true);
@@ -94,7 +131,7 @@ const Transcript = memo(function Transcript({
     element.scrollTop = element.scrollHeight;
     pinnedTop.current = element.scrollTop;
   }, []);
-  useLayoutEffect(() => keepEnd(), [keepEnd, content]);
+  useLayoutEffect(() => keepEnd(), [keepEnd, getContent]);
   // Text that grows without new documents (the Markdown renderer arriving, a block unfolding).
   const getText = useCallback(() => box.current?.firstElementChild, []);
   useResizeObserver(keepEnd, getText);
@@ -216,9 +253,14 @@ export function SubagentCard({ room, node, now, parserOptions }: CardProps) {
         </div>
       </div>
       {!active && meta.result && (
-        <Text as="p" size="T300" className={css.Result} dir="auto">
-          {meta.result}
-        </Text>
+        <Result
+          text={meta.result}
+          name={agent.name}
+          roomId={room.roomId}
+          threadId={threadId ?? undefined}
+          startedAt={meta.startedAt}
+          parserOptions={parserOptions}
+        />
       )}
       {meta.task && (
         <ThreadActivity
