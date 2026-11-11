@@ -42,6 +42,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
+  window.history.replaceState(null, '', '/');
 });
 
 describe('useCompleteSession for an account this browser has already', () => {
@@ -54,6 +55,8 @@ describe('useCompleteSession for an account this browser has already', () => {
       accessToken: 'bob',
     });
 
+    // Bob is signed in, so Alice signs in again through Add account.
+    window.history.replaceState(null, '', '/login?addAccount=1');
     await complete({ user_id: ALICE, device_id: 'NEW', access_token: 'new' });
 
     const alice = listSessions().filter((session) => session.userId === ALICE);
