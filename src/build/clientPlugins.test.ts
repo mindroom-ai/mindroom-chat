@@ -254,16 +254,12 @@ describe('clientPlugins', () => {
   });
 
   it("resolves the fixtures subpath for the dev server and the fixture pages, not for the app's build", () => {
-    const resolves = (env: Record<string, string | undefined>, command: 'build' | 'serve') =>
-      Object.keys(appConfig(env, command).resolve?.alias ?? {}).includes(
-        '@mindroom/client-sdk/fixtures'
-      );
-    expect(resolves({}, 'serve')).toBe(true);
-    expect(resolves({ E2E_FIXTURE_PAGES: '1' }, 'build')).toBe(true);
-    expect(resolves({}, 'build')).toBe(false);
-    expect(Object.keys(appConfig({}, 'build').resolve?.alias ?? {})).toContain(
-      '@mindroom/client-sdk/core'
-    );
+    const aliases = (env: Record<string, string | undefined>, command: 'build' | 'serve') =>
+      Object.keys(appConfig(env, command).resolve?.alias ?? {});
+    expect(aliases({}, 'serve')).toContain('@mindroom/client-sdk/fixtures');
+    expect(aliases({ E2E_FIXTURE_PAGES: '1' }, 'build')).toContain('@mindroom/client-sdk/fixtures');
+    expect(aliases({}, 'build')).not.toContain('@mindroom/client-sdk/fixtures');
+    expect(aliases({}, 'build')).toContain('@mindroom/client-sdk/core');
   });
 
   it('resolves the client SDK for a plugin outside this repository', async () => {

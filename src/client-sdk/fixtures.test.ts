@@ -1,13 +1,11 @@
 // @vitest-environment jsdom
 // `bootFixturePage` and `fixtureMindroomServer`, as a plugin's fixture page meets them: through the
-// SDK only, with nothing the subpath needs from Vitest.
-import { resolve } from 'node:path';
+// SDK only (registryImports.test.ts checks that the subpath imports nothing of Vitest).
 import type { IOpenIDToken, MatrixClient } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getPluginTranslation } from '@mindroom/client-sdk/core';
 import { bootFixturePage, fixtureMindroomServer } from '@mindroom/client-sdk/fixtures';
 import { clientSessions } from '../app/computer/clientSessions';
-import { REPO_ROOT, moduleDependencies, resolveRelativeModule } from '../test/architecture';
 
 vi.mock('../app/matrix/openidAudience', () => ({
   requestAudienceOpenIdToken: async (): Promise<IOpenIDToken> => ({
@@ -20,34 +18,6 @@ vi.mock('../app/matrix/openidAudience', () => ({
 
 afterEach(() => {
   vi.unstubAllGlobals();
-});
-
-/** The packages that the modules `file` imports statically import, through its relative imports. */
-const packagesImported = (file: string): string[] => {
-  const seen = new Set([file]);
-  const packages = new Set<string>();
-  for (const module of seen) {
-    moduleDependencies(module)
-      .filter(({ kind, typeOnly }) => (kind === 'import' || kind === 'export') && !typeOnly)
-      .forEach(({ specifier }) => {
-        const relative = resolveRelativeModule(module, specifier);
-        if (relative === undefined) packages.add(specifier);
-        else if (/\.[jt]sx?$/.test(relative)) seen.add(relative);
-      });
-  }
-  return [...packages];
-};
-
-describe('the fixtures subpath', () => {
-  it('imports no test runner or testing library, which a browser page cannot load', () => {
-    const testRunners = (file: string) =>
-      packagesImported(resolve(REPO_ROOT, 'src/client-sdk', file)).filter((name) =>
-        /^(vitest|@testing-library)(\/|$)/.test(name)
-      );
-    expect(testRunners('fixtures.ts')).toEqual([]);
-    // The check sees what the testing subpath imports.
-    expect(testRunners('testing.ts')).toContain('vitest');
-  });
 });
 
 describe('bootFixturePage', () => {
@@ -81,6 +51,8 @@ describe('bootFixturePage', () => {
 });
 
 describe('fixtureMindroomServer', () => {
+  const client = { getSafeUserId: () => '@ann:example.org' } as unknown as MatrixClient;
+
   it("signs in once, shares the app's session and opens sockets with it as subprotocols", async () => {
     const API_URL = 'https://mindroom.example.org';
     let signIns = 0;
@@ -102,7 +74,6 @@ describe('fixtureMindroomServer', () => {
         }
       }
     );
-    const client = { getSafeUserId: () => '@ann:example.org' } as unknown as MatrixClient;
 
     const server = fixtureMindroomServer({ client, apiUrl: API_URL });
     expect(server.origin).toBe(API_URL);
@@ -122,7 +93,6 @@ describe('fixtureMindroomServer', () => {
   });
 
   it('refuses a URL that is no MindRoom server origin the app would sign in to', () => {
-    const client = { getSafeUserId: () => '@ann:example.org' } as unknown as MatrixClient;
     for (const apiUrl of ['http://mindroom.example.org', 'https://mindroom.example.org/api']) {
       expect(() => fixtureMindroomServer({ client, apiUrl })).toThrow(TypeError);
     }
