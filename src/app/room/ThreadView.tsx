@@ -2,6 +2,7 @@ import {
   type CSSProperties,
   type MutableRefObject,
   type ReactNode,
+  type RefObject,
   useCallback,
   useEffect,
   useId,
@@ -68,7 +69,8 @@ const TIMELINE_STYLE: CSSProperties = { minHeight: 0, minWidth: 0 };
  * (`shownConversationViewsAtom`) while its side panel is not folded. Timeline and composer share
  * one editor, as in the room view; it has no filter bar or thread summaries, the whole view takes
  * dropped files, and it adds no key handling of its own. The room page's thread column gives it
- * the thread's banner as its `header`, the event its address names, the focus as it opens,
+ * the thread's banner as its `header`, the column as its `fileDropContainerRef` (the column's
+ * header takes dropped files too), the event its address names, the focus as it opens,
  * `hidden` while a side panel takes the page's place, the page's handler of a thread that does not
  * load, `onUnmount`, which gets the thread it showed last as it goes, and `focusRef`.
  */
@@ -82,6 +84,7 @@ export function ThreadView({
   onThreadLoadError,
   onUnmount,
   focusRef,
+  fileDropContainerRef,
 }: {
   room: Room;
   threadId: string;
@@ -93,6 +96,8 @@ export function ThreadView({
   onUnmount?: (threadId: string) => void;
   /** Holds, while it is mounted, the function that takes the focus to its composer. */
   focusRef?: MutableRefObject<(() => void) | undefined>;
+  /** The element whose dropped files its composer takes, in place of the view. */
+  fileDropContainerRef?: RefObject<HTMLElement>;
 }) {
   const client = useMatrixClient();
   const editor = useEditor();
@@ -182,7 +187,7 @@ export function ThreadView({
               roomId={roomId}
               threadId={threadId}
               editor={editor}
-              fileDropContainerRef={viewRef}
+              fileDropContainerRef={fileDropContainerRef ?? viewRef}
             />
           )}
         </PowerLevelsContextProvider>

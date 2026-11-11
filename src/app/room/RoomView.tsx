@@ -262,6 +262,7 @@ export function RoomView({
   const { roomId } = room;
   const areaRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
+  const columnRef = useRef<HTMLDivElement>(null);
   const columnHeaderRef = useRef<HTMLDivElement>(null);
   const footerRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
@@ -531,7 +532,7 @@ export function RoomView({
           testId="thread-column"
           onKeyDown={noteThreadColumnKey}
         >
-          <div style={COLUMN_STYLE}>
+          <div ref={columnRef} style={COLUMN_STYLE}>
             {/* Filling the page, the column has the room's header the room area hides. */}
             {columnFills && (
               <div
@@ -561,6 +562,8 @@ export function RoomView({
               onThreadLoadError={onThreadLoadError}
               onUnmount={onColumnGone}
               focusRef={focusColumn}
+              // Files dropped anywhere on the column, its header too, go to the thread's composer.
+              fileDropContainerRef={columnRef}
             />
             {/* Under the thread, where its list of jobs opens upward over the timeline. */}
             {columnFills && (

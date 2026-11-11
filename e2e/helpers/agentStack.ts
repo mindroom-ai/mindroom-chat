@@ -52,14 +52,15 @@ export type AgentStack = {
   calls?: { serviceUrl: string; profile: 'realtime' | 'live'; model: string } | null;
   /**
    * The plugin directories of E2E_PLUGIN_DIRS: each one's MindRoom plugin (its manifest name, or null without one),
-   * the tools the helper took from it, its stub-model scenario file or null, and whether its manifest names an
-   * `origin_module`.
+   * the tools the helper took from it, its stub-model scenario file and module or null, and whether its manifest
+   * names an `origin_module`.
    */
   pluginDirs?: {
     dir: string;
     plugin: string | null;
     tools: string[];
     scenarios: string | null;
+    scenarioModule: string | null;
     origins: boolean;
   }[];
   /**
@@ -89,6 +90,8 @@ export const STACK_SCRIPT = fileURLToPath(
 const EXIT_NO_CHECKOUT = 3;
 const EXIT_NO_HOMESERVER = 4;
 const EXIT_NO_KEYS = 5;
+/** `--terminals` on a MindRoom without the terminal toolkit. */
+const EXIT_NO_TERMINALS = 6;
 
 const slotNumber = (): number => {
   const port = Number(process.env.E2E_MATRIX_PORT ?? '28008');
@@ -103,7 +106,11 @@ const startAgentStack = (args: string[]): AgentStack | string => {
   });
   if (result.status === 0) return JSON.parse(result.stdout) as AgentStack;
   const message = (result.stderr || String(result.error ?? '')).trim();
-  if ([EXIT_NO_CHECKOUT, EXIT_NO_HOMESERVER, EXIT_NO_KEYS].includes(result.status ?? -1))
+  if (
+    [EXIT_NO_CHECKOUT, EXIT_NO_HOMESERVER, EXIT_NO_KEYS, EXIT_NO_TERMINALS].includes(
+      result.status ?? -1
+    )
+  )
     return message;
   // stack.py's last line of its own names the reason; the tail of the backend log follows it.
   const reason =
@@ -184,6 +191,29 @@ export const signIn = async (
     page.getByRole('button', { name: activeAccountButtonNamePattern }).first()
   ).toBeVisible({ timeout: 240_000 });
   await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
+};
+
+/**
+ * Signs the tester in to MindRoom's client sessions from outside the page, with a token of its own
+ * bound to the stack's API, and returns the session token.
+ */
+export const clientSessionToken = async (stack: AgentStack): Promise<string> => {
+  const openIdToken = await matrixFetch<Record<string, unknown>>(
+    stack.homeserver,
+    `/user/${encodeURIComponent(stack.tester.userId)}/openid/request_token`,
+    {
+      method: 'POST',
+      accessToken: stack.tester.accessToken,
+      body: JSON.stringify({ 'io.mindroom.audience': new URL(stack.apiUrl).origin }),
+    }
+  );
+  const response = await fetch(`${stack.apiUrl}/api/client-sessions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ openid_token: openIdToken }),
+  });
+  expect(response.status).toBe(200);
+  return ((await response.json()) as { session_token: string }).session_token;
 };
 
 /**

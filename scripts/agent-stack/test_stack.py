@@ -51,7 +51,9 @@ class ConfigTests(unittest.TestCase):
         self.assertNotIn(STUB_URL, config)
         # Every scenario of the stub has a line in the script.
         script = "\n".join(stack.REAL_INSTRUCTIONS)
-        for tag in ("#slow", "#stopme", "#long", "#multi", "#pause", "#approve", "#title", "#tag", "#expire", "#job"):
+        for tag in (
+            "#slow", "#stopme", "#long", "#multi", "#pause", "#approve", "#title", "#tag", "#expire", "#job", "#terminal"
+        ):
             self.assertIn(f"{tag}:", script)
 
     def test_a_key_in_the_environment_never_reaches_the_config(self) -> None:
@@ -244,6 +246,12 @@ class CallsTests(unittest.TestCase):
         )
 
 
+def checked_dir(directory: str, **fields: object) -> dict:
+    """A plugin directory as check_plugin_dirs records it, with nothing in it but `fields`."""
+    empty = {"plugin": None, "tools": [], "scenarios": None, "scenarioModule": None, "origins": False}
+    return {"dir": directory, **empty, **fields}
+
+
 def up_args(**changes: object) -> argparse.Namespace:
     """The arguments of `stack.py <slot> up` without options, with `changes` applied."""
     values = {
@@ -252,6 +260,9 @@ def up_args(**changes: object) -> argparse.Namespace:
         "calls_profile": "realtime",
         "client_sessions": False,
         "computers": False,
+        "computer_image": None,
+        "computer_tools": "browser_mcp",
+        "terminals": False,
         "approval_expiry_days": 0.0003,
     }
     return argparse.Namespace(**{**values, **changes})
@@ -264,7 +275,13 @@ class CommandLineTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         # A real model or plugin directories that the shell running the tests sets stay out of them.
-        environment = {"E2E_AGENT_STACK_ROOT": directory.name, "E2E_AGENT_MODEL": "", "E2E_PLUGIN_DIRS": ""}
+        environment = {
+            "E2E_AGENT_STACK_ROOT": directory.name,
+            "E2E_AGENT_MODEL": "",
+            "E2E_AGENT_TRANSCRIPTION": "",
+            "E2E_PLUGIN_DIRS": "",
+            "E2E_COMPUTER_IMAGE": "",
+        }
         patcher = mock.patch.dict(os.environ, environment)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -290,10 +307,101 @@ class CommandLineTests(unittest.TestCase):
         self.assertEqual(self.main("99", "status"), 1)
         self.assertEqual(self.main("100", "status"), 2)
 
-    def test_computers_bring_the_client_session_settings(self) -> None:
+    def up_args_of(self, *argv: str) -> argparse.Namespace:
+        """The arguments that `stack.py 5 up <argv>` starts the stack with."""
         with mock.patch.object(stack, "up", return_value={}) as up:
-            self.assertEqual(self.main("5", "up", "--computers"), 0)
-        self.assertTrue(up.call_args.args[1].client_sessions)
+            self.assertEqual(self.main("5", "up", *argv), 0)
+        return up.call_args.args[1]
+
+    def test_computers_bring_the_client_session_settings(self) -> None:
+        self.assertTrue(self.up_args_of("--computers").client_sessions)
+
+    def computers_of(self, *argv: str) -> dict | None:
+        """The computers that `stack.py 5 up <argv>` asks for."""
+        return stack.computers_setting(self.up_args_of(*argv), "0123456789abcdef")
+
+    def test_computers_run_the_browser_in_a_worker_of_the_image_built_from_the_commit(self) -> None:
+        self.assertIsNone(self.computers_of())
+        built = {"image": "mindroom-client-e2e-worker:0123456789ab", "tools": ["browser_mcp"]}
+        self.assertEqual(self.computers_of("--computers"), built)
+        # An image from the environment applies only to a stack with computers.
+        with mock.patch.dict(os.environ, {"E2E_COMPUTER_IMAGE": "worker:env"}):
+            self.assertIsNone(self.computers_of())
+            self.assertEqual(self.computers_of("--computers")["image"], "worker:env")
+
+    def test_a_given_image_and_tools_replace_the_built_image_and_the_browser_alone(self) -> None:
+        computers = self.computers_of("--computers", "--computer-image", "worker:given", "--computer-tools", "browser_mcp,shell")
+        self.assertEqual(computers, {"image": "worker:given", "tools": ["browser_mcp", "shell"]})
+
+    def test_terminals_bring_the_client_session_settings_and_refuse_computers(self) -> None:
+        with mock.patch.object(stack, "up", return_value={}) as up:
+            self.assertEqual(self.main("5", "up", "--terminals"), 0)
+            self.assertTrue(up.call_args.args[1].client_sessions)
+            self.assertEqual(self.main("5", "up", "--terminals", "--computers"), 2)
+        self.assertIn("--terminals and --computers", self.stderr.getvalue())
+
+    def test_terminals_start_the_slot_runner_beside_the_backend_with_a_token_of_their_own(self) -> None:
+        with self.starting(), mock.patch.object(stack, "commit_has", return_value=True) as commit_has:
+            self.assertEqual(self.main("7", "up", "--terminals"), 0)
+        commit_has.assert_any_call(Path("/mindroom"), "a" * 40, "src/mindroom/tools/terminal.py")
+        runner_call = next(call for call in self.start_process.call_args_list if "-c" in call.args[0])
+        command, env = runner_call.args[0], runner_call.kwargs["env"]
+        # Loopback only, at the slot's own port, and marked as the slot's own process.
+        self.assertIn("host='127.0.0.1'", stack.SANDBOX_RUNNER)
+        self.assertEqual(command[command.index("-c") + 2 :], ["29907", str(self.slot_dir)])
+        settings = dict(line.split("=", 1) for line in (self.slot_dir / ".env").read_text().splitlines() if line)
+        token = settings["MINDROOM_SANDBOX_PROXY_TOKEN"]
+        self.assertGreaterEqual(len(token), 32)
+        self.assertEqual(env["MINDROOM_SANDBOX_PROXY_TOKEN"], token)
+        self.assertEqual(env["MINDROOM_SANDBOX_RUNNER_MODE"], "true")
+        # The runner works in the backend's storage, so the agents' workspaces are the ones it shows.
+        self.assertEqual(env["MINDROOM_STORAGE_PATH"], str(self.slot_dir / "storage"))
+        self.assertNotIn("MINDROOM_CONFIG_PATH", env)
+        self.assertEqual(settings["MINDROOM_WORKER_BACKEND"], "static_runner")
+        self.assertEqual(settings["MINDROOM_SANDBOX_PROXY_URL"], "http://127.0.0.1:29907")
+        self.assertEqual(settings["MINDROOM_STATIC_RUNNER_AGENT_STORAGE"], "true")
+        self.assertEqual(settings["MINDROOM_PUBLIC_URL"], "http://127.0.0.1:29607")
+        config = (self.slot_dir / "config.yaml").read_text()
+        self.assertIn("      - terminal\n", config)
+        self.assertNotIn("match: run_shell_command", config)
+        state = stack.read_state(self.slot_dir)
+        self.assertTrue(state["terminals"])
+        self.assertEqual(state["logs"]["runner"], str(self.slot_dir / "runner.log"))
+
+    def test_a_runner_that_exits_while_starting_stops_the_start_with_its_log(self) -> None:
+        def wait(description, check, *_args, **_kwargs):
+            if description == "the sandbox runner":
+                (self.slot_dir / "runner.log").write_text("Address already in use")
+                return check()
+            return {}
+
+        with (
+            self.starting(),
+            mock.patch.object(stack, "commit_has", return_value=True),
+            mock.patch.object(stack, "wait_until", side_effect=wait),
+        ):
+            self.assertEqual(self.main("7", "up", "--terminals"), 1)
+        self.assertIn("the sandbox runner exited while starting", self.stderr.getvalue())
+        self.assertIn("Address already in use", self.stderr.getvalue())
+
+    def test_terminals_refuse_a_commit_without_the_terminal_toolkit(self) -> None:
+        with self.starting(), mock.patch.object(stack, "commit_has", return_value=False):
+            self.assertEqual(self.main("7", "up", "--terminals"), stack.EXIT_NO_TERMINALS)
+        self.assertIn(f"MindRoom {'a' * 12} has no terminal toolkit", self.stderr.getvalue())
+        self.start_process.assert_not_called()
+        self.assertFalse(self.slot_dir.exists())
+
+    def test_down_stops_the_runner_with_the_backend_and_the_stub(self) -> None:
+        self.slot_dir.mkdir()
+        pids = {"backend": 11, "stub": 12, "runner": 13}
+        (self.slot_dir / "state.json").write_text(json.dumps({"pids": pids, "terminals": True}))
+        with mock.patch.object(stack, "stop_process") as stop_process:
+            self.assertEqual(self.main("7", "down"), 0)
+        self.assertEqual(
+            sorted(call.args for call in stop_process.call_args_list),
+            [(pid, str(self.slot_dir)) for pid in (11, 12, 13)],
+        )
+        self.assertFalse(self.slot_dir.exists())
 
     def mode(self, path: Path) -> int:
         return path.stat().st_mode & 0o777
@@ -317,7 +425,7 @@ class CommandLineTests(unittest.TestCase):
         account = {"user_id": TESTER, "access_token": "tester-token"}
         self.register = patches.enter_context(mock.patch.object(stack, "register", return_value=account))
         patches.enter_context(mock.patch.object(stack, "matrix", return_value=(200, {})))
-        patches.enter_context(mock.patch.object(stack, "start_process", return_value=0))
+        self.start_process = patches.enter_context(mock.patch.object(stack, "start_process", return_value=0))
         patches.enter_context(mock.patch.object(stack, "wait_until", return_value=backend_state))
         return patches
 
@@ -336,12 +444,15 @@ class CommandLineTests(unittest.TestCase):
             mock.patch.object(stack, "check_plugin_dirs", return_value=list(plugin_dirs)),
         ):
             self.assertEqual(self.main("7", "up"), 0)
-        env = dict(line.split("=", 1) for line in (self.slot_dir / ".env").read_text().splitlines() if line)
-        return env, stack.read_state(self.slot_dir)
+        return self.slot_env(), stack.read_state(self.slot_dir)
+
+    def slot_env(self) -> dict[str, str]:
+        """The backend's .env settings of the slot's last start."""
+        return dict(line.split("=", 1) for line in (self.slot_dir / ".env").read_text().splitlines() if line)
 
     def test_a_plugin_with_origins_turns_the_backend_origins_on_at_the_slot_port(self) -> None:
-        apps = {"dir": "/plugins/apps", "plugin": "apps", "tools": [], "scenarios": None, "origins": True}
-        greeter = {**apps, "dir": "/plugins/greeter", "plugin": "greeter", "origins": False}
+        apps = checked_dir("/plugins/apps", plugin="apps", origins=True)
+        greeter = checked_dir("/plugins/greeter", plugin="greeter")
         env, state = self.started_env_and_state(greeter, apps)
         self.assertEqual(env["MINDROOM_PLUGIN_ORIGIN_PORT"], "29807")
         self.assertEqual(state["pluginOriginPort"], 29807)
@@ -349,6 +460,98 @@ class CommandLineTests(unittest.TestCase):
         env, state = self.started_env_and_state(greeter)
         self.assertNotIn("MINDROOM_PLUGIN_ORIGIN_PORT", env)
         self.assertIsNone(state["pluginOriginPort"])
+
+    def test_the_stub_plays_the_scenario_files_and_modules_of_the_plugin_dirs(self) -> None:
+        greeter = checked_dir(
+            "/plugins/greeter",
+            plugin="greeter",
+            tools=["greeter"],
+            scenarios="/plugins/greeter/e2e/stub-scenarios.json",
+            scenarioModule="/plugins/greeter/e2e/stub_scenarios.py",
+        )
+        pages = checked_dir("/plugins/pages", scenarioModule="/plugins/pages/e2e/stub_scenarios.py")
+        _, state = self.started_env_and_state(greeter, pages)
+        stub = next(call.args[0] for call in self.start_process.call_args_list if "--log" in call.args[0])
+        self.assertEqual(
+            stub[stub.index("--tag") + 2 :],
+            [
+                "--scenarios",
+                "/plugins/greeter/e2e/stub-scenarios.json",
+                "--scenario-module",
+                "/plugins/greeter/e2e/stub_scenarios.py",
+                "--scenario-module",
+                "/plugins/pages/e2e/stub_scenarios.py",
+            ],
+        )
+        self.assertEqual(state["pluginDirs"], [greeter, pages])
+
+    def started_with_computers(self, *argv: str) -> tuple[dict[str, str], dict, mock.Mock]:
+        """The backend's .env settings, the state and the image build of a start with computers; the containers
+        of an earlier start are never looked for, since this machine's Docker may run a real slot 7."""
+        with (
+            self.starting(),
+            mock.patch.object(stack, "build_worker_image") as build,
+            mock.patch.object(stack, "remove_workers"),
+        ):
+            self.assertEqual(self.main("7", "up", "--computers", *argv), 0)
+        return self.slot_env(), stack.read_state(self.slot_dir), build
+
+    def test_computers_build_their_image_from_the_commit_unless_one_is_given(self) -> None:
+        tag = f"mindroom-client-e2e-worker:{'a' * 12}"
+        env, state, build = self.started_with_computers()
+        build.assert_called_once_with(Path("/mindroom"), "a" * 40, tag)
+        self.assertEqual(env["MINDROOM_DOCKER_WORKER_IMAGE"], tag)
+        self.assertEqual(state["computers"], {"image": tag, "tools": ["browser_mcp"]})
+        env, state, build = self.started_with_computers("--computer-image", "worker:given")
+        build.assert_not_called()
+        self.assertEqual(env["MINDROOM_DOCKER_WORKER_IMAGE"], "worker:given")
+        self.assertEqual(state["computers"], {"image": "worker:given", "tools": ["browser_mcp"]})
+
+    def fake_docker(self, rm_error: str = "") -> Path:
+        """A docker CLI on PATH that logs each call, lists two containers and fails `rm` with `rm_error`; returns its
+        log."""
+        bin_dir = self.root / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        docker = bin_dir / "docker"
+        fail = f'[ "$1" = rm ] && echo "{rm_error}" >&2 && exit 1\n' if rm_error else ""
+        docker.write_text(f'#!/bin/sh\necho "$*" >> "$0.log"\n{fail}[ "$1" = ps ] && printf \'c1\\nc2\\n\'\nexit 0\n')
+        docker.chmod(0o755)
+        patcher = mock.patch.dict(os.environ, {"PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return bin_dir / "docker.log"
+
+    def test_down_removes_the_worker_containers_of_the_slot_by_its_label(self) -> None:
+        calls = self.fake_docker()
+        self.slot_dir.mkdir(mode=0o700)
+        computers = {"image": "worker:given", "tools": ["browser_mcp"]}
+        (self.slot_dir / "state.json").write_text(json.dumps({"slot": 7, "computers": computers}))
+        self.assertEqual(self.main("7", "down"), 0)
+        self.assertEqual(
+            calls.read_text().splitlines(),
+            ["ps --all --quiet --filter label=mindroom-client-e2e.slot=7", "rm --force c1 c2"],
+        )
+        self.assertFalse(self.slot_dir.exists())
+
+    def test_a_failed_removal_keeps_the_slot_so_down_can_try_again(self) -> None:
+        self.fake_docker("Cannot connect to the Docker daemon")
+        self.slot_dir.mkdir(mode=0o700)
+        computers = {"image": "worker:given", "tools": ["browser_mcp"]}
+        (self.slot_dir / "state.json").write_text(json.dumps({"slot": 7, "computers": computers}))
+        self.assertEqual(self.main("7", "down"), 1)
+        self.assertIn("Cannot connect to the Docker daemon", self.stderr.getvalue())
+        self.assertTrue((self.slot_dir / "state.json").exists())
+        calls = self.fake_docker()
+        self.assertEqual(self.main("7", "down"), 0)
+        self.assertIn("rm --force c1 c2", calls.read_text().splitlines())
+        self.assertFalse(self.slot_dir.exists())
+
+    def test_down_of_a_stack_without_computers_leaves_docker_alone(self) -> None:
+        calls = self.fake_docker()
+        self.slot_dir.mkdir(mode=0o700)
+        (self.slot_dir / "state.json").write_text(json.dumps({"slot": 7, "computers": None}))
+        self.assertEqual(self.main("7", "down"), 0)
+        self.assertFalse(calls.exists())
 
     def test_each_start_signs_the_test_account_up_with_a_password_of_its_own(self) -> None:
         passwords = []
@@ -494,10 +697,12 @@ class SlotTeardownTests(unittest.TestCase):
 class SlotTests(unittest.TestCase):
     def test_no_two_slots_up_to_99_share_a_port(self) -> None:
         self.assertEqual(
-            stack.ports(42), {"matrix": 28142, "app": 4342, "api": 29642, "stub": 29742, "origin": 29842}
+            stack.ports(42),
+            {"matrix": 28142, "app": 4342, "api": 29642, "stub": 29742, "origin": 29842, "runner": 29942},
         )
         self.assertEqual(
-            stack.ports(0), {"matrix": 28008, "app": 4200, "api": 29600, "stub": 29700, "origin": 29800}
+            stack.ports(0),
+            {"matrix": 28008, "app": 4200, "api": 29600, "stub": 29700, "origin": 29800, "runner": 29900},
         )
         taken = [port for slot in range(100) for port in stack.ports(slot).values()]
         self.assertEqual(len(taken), len(set(taken)))
@@ -517,6 +722,8 @@ class OptionTests(unittest.TestCase):
 
     def test_computers_run_docker_workers_from_the_image_and_admit_the_slot_chat(self) -> None:
         settings = self.settings(42, True, "mindroom-client-e2e-worker:0123456789ab")
+        # The slot's workers carry its name and label, so `down` finds the ones its backend left.
+        self.assertEqual(json.loads(settings.pop("MINDROOM_DOCKER_WORKER_LABELS_JSON")), {"mindroom-client-e2e.slot": "42"})
         self.assertGreaterEqual(len(settings.pop("MINDROOM_SANDBOX_PROXY_TOKEN")), 32)
         self.assertEqual(json.loads(settings.pop("MINDROOM_COMPUTER_ALLOWED_ORIGINS")), ["http://127.0.0.1:4342"])
         self.assertEqual(
@@ -527,18 +734,48 @@ class OptionTests(unittest.TestCase):
                 "MINDROOM_DOCKER_WORKER_IMAGE": "mindroom-client-e2e-worker:0123456789ab",
                 "MINDROOM_DOCKER_WORKER_SECURITY_POLICY": "computer",
                 "MINDROOM_WORKER_COMPUTER_ENABLED": "true",
+                "MINDROOM_DOCKER_WORKER_NAME_PREFIX": "mindroom-client-e2e-slot-42",
+                "MINDROOM_DOCKER_WORKER_READY_TIMEOUT_SECONDS": "300",
             },
         )
 
     def test_computers_give_the_helper_a_worker_browser_and_keep_other_tools_on_the_backend(self) -> None:
-        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, computers=True)
+        computers = {"image": "worker:given", "tools": ["browser_mcp"]}
+        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, computers=computers)
         helper, scout = config.split("  helper:\n", 1)[1].split("  scout:\n", 1)
         self.assertIn("      - browser_mcp\n", helper)
         self.assertIn("    tools: [shell]\n", scout)
-        self.assertIn("defaults:\n  markdown: true\n  worker_tools: [browser_mcp]\n  worker_scope: user_agent\n", config)
+        self.assertIn('defaults:\n  markdown: true\n  worker_tools: ["browser_mcp"]\n  worker_scope: user_agent\n', config)
+        # A shell beside the browser, which can open what the shell serves.
+        computers["tools"] = ["browser_mcp", "shell"]
+        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, computers=computers)
+        self.assertIn('  worker_tools: ["browser_mcp", "shell"]\n  worker_scope: user_agent\n', config)
         plain = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003)
         self.assertNotIn("browser_mcp", plain)
         self.assertNotIn("worker_", plain)
+
+    def test_terminals_give_the_helper_a_terminal_it_types_in_beside_its_shell_in_the_runner(self) -> None:
+        for mode in ("stub", "real"):
+            config = stack.config_yaml(mode, TESTER, STUB_URL, 0.0003, terminals=True)
+            helper = config.split("  helper:\n", 1)[1].split("  scout:\n", 1)[0].split("\nrouter:", 1)[0]
+            self.assertIn("      - shell\n", helper, mode)
+            self.assertIn("      - terminal\n", helper, mode)
+            self.assertIn("    terminals: type\n", helper, mode)
+            self.assertIn("defaults:\n  markdown: true\n  worker_tools: [shell]\n", config, mode)
+            # The helper types only while no approval rule may ask for its shell calls.
+            self.assertNotIn("match: run_shell_command", config, mode)
+            self.assertNotIn("shell_review", config, mode)
+            self.assertIn("    - match: resolve_thread\n", config, mode)
+        plain = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003)
+        self.assertIn("    - match: run_shell_command\n      script: ./approval_scripts/shell_review.py\n", plain)
+        self.assertNotIn("terminal", plain)
+        self.assertNotIn("worker_tools", plain)
+
+    def test_a_terminals_stack_runs_only_while_its_runner_runs(self) -> None:
+        state = {"ready": True, "model": "stub", "terminals": True, "pids": {"backend": 1, "stub": 2, "runner": 3}}
+        with mock.patch.object(stack, "alive", side_effect=lambda pid, _marker: pid != 3):
+            self.assertFalse(stack.running(state, Path("/slot")))
+            self.assertTrue(stack.running({**state, "terminals": False}, Path("/slot")))
 
     def test_a_running_stack_is_reused_only_with_the_options_it_started_with(self) -> None:
         sha, homeserver = "a" * 40, "http://127.0.0.1:28142"
@@ -549,12 +786,24 @@ class OptionTests(unittest.TestCase):
             "homeserver": homeserver,
             "approvalExpiryDays": 0.0003,
         }
-        sessions = {**state, "clientSessions": True, "computers": False}
+        sessions = {**state, "clientSessions": True, "computers": None}
         # A stack that the script started before these options is one without them.
         self.assertTrue(stack.started_with(state, up_args(), sha, homeserver))
+        self.assertTrue(stack.started_with({**sessions, "computers": False}, up_args(client_sessions=True), sha, homeserver))
         self.assertTrue(stack.started_with(sessions, up_args(client_sessions=True), sha, homeserver))
         self.assertFalse(stack.started_with(sessions, up_args(), sha, homeserver))
         self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True, computers=True), sha, homeserver))
+        computers = {**sessions, "computers": {"image": "worker:given", "tools": ["browser_mcp"]}}
+        given = up_args(client_sessions=True, computers=True, computer_image="worker:given")
+        self.assertTrue(stack.started_with(computers, given, sha, homeserver))
+        self.assertFalse(stack.started_with(computers, up_args(client_sessions=True, computers=True), sha, homeserver))
+        with_shell = up_args(
+            client_sessions=True, computers=True, computer_image="worker:given", computer_tools="browser_mcp,shell"
+        )
+        self.assertFalse(stack.started_with(computers, with_shell, sha, homeserver))
+        self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True, terminals=True), sha, homeserver))
+        terminals = {**sessions, "terminals": True}
+        self.assertTrue(stack.started_with(terminals, up_args(client_sessions=True, terminals=True), sha, homeserver))
         self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True, model="real"), sha, homeserver))
         calls = up_args(client_sessions=True, calls="http://127.0.0.1:29542")
         self.assertFalse(stack.started_with(sessions, calls, sha, homeserver))
@@ -608,8 +857,8 @@ class WorkerImageTests(unittest.TestCase):
 
     def test_the_image_of_a_commit_is_built_once_from_its_archive(self) -> None:
         tag = f"mindroom-client-e2e-worker:{self.sha[:12]}"
-        self.assertEqual(stack.worker_image(self.checkout, self.sha), tag)
-        self.assertEqual(stack.worker_image(self.checkout, self.sha), tag)
+        stack.build_worker_image(self.checkout, self.sha, tag)
+        stack.build_worker_image(self.checkout, self.sha, tag)
         self.assertEqual(
             (self.root / "docker.log").read_text().splitlines(),
             [f"image inspect {tag}", f"build --quiet --tag {tag} --file {self.DOCKERFILE} -", f"image inspect {tag}"],
@@ -620,7 +869,7 @@ class WorkerImageTests(unittest.TestCase):
     def test_a_failed_build_stops_the_start_with_its_error(self) -> None:
         with mock.patch.dict(os.environ, {"FAKE_DOCKER_FAIL": "no space left on device"}):
             with self.assertRaises(stack.StackError) as raised:
-                stack.worker_image(self.checkout, self.sha)
+                stack.build_worker_image(self.checkout, self.sha, "mindroom-client-e2e-worker:0123456789ab")
         self.assertIn("no space left on device", str(raised.exception))
 
 
@@ -631,7 +880,7 @@ class TranscriptionTests(unittest.TestCase):
 
     def setting(self, model: str, transcription: str, has_them: bool = True) -> dict | None:
         args = mock.Mock(model=model, transcription=transcription)
-        with mock.patch.object(stack, "has_call_transcripts", return_value=has_them):
+        with mock.patch.object(stack, "commit_has", return_value=has_them):
             return stack.transcription_setting(args, Path("/checkout"), "abc")
 
     def test_a_mindroom_without_call_transcripts_runs_without_them(self) -> None:
@@ -673,16 +922,14 @@ class TranscriptionTests(unittest.TestCase):
         self.assertNotIn("  notes:\n", config)
 
     def test_real_transcripts_without_an_openai_key_do_not_start(self) -> None:
-        args = mock.Mock(
-            checkout=None, ref=None, model="stub", transcription="real", calls=None, calls_profile="realtime"
-        )
+        args = up_args(checkout=None, ref=None, transcription="real")
         with (
             tempfile.TemporaryDirectory() as directory,
             mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": directory, "ANTHROPIC_API_KEY": "a"}, clear=True),
             mock.patch.object(stack, "resolve_checkout", return_value=Path("/checkout")),
             mock.patch.object(stack, "http_json", return_value=(200, {})),
             mock.patch.object(stack, "resolve_commit", return_value="abc"),
-            mock.patch.object(stack, "has_call_transcripts", return_value=True),
+            mock.patch.object(stack, "commit_has", return_value=True),
             mock.patch.object(stack, "start") as start,
             self.assertRaises(stack.StackError) as raised,
         ):
@@ -751,6 +998,7 @@ class PluginDirTests(unittest.TestCase):
         (directory / "check.code").write_text(str(code))
         if scenarios:
             (directory / "e2e" / "stub-scenarios.json").write_text("{}")
+            (directory / "e2e" / "stub_scenarios.py").write_text("")
         return directory
 
     def test_the_directories_come_from_the_environment_relative_to_this_repository(self) -> None:
@@ -771,16 +1019,16 @@ class PluginDirTests(unittest.TestCase):
         self.assertEqual(
             checked,
             [
-                {
-                    "dir": str(greeter),
-                    "plugin": "greeter",
-                    "tools": ["greeter"],
-                    "scenarios": str(greeter / "e2e" / "stub-scenarios.json"),
-                    "origins": False,
-                },
+                checked_dir(
+                    str(greeter),
+                    plugin="greeter",
+                    tools=["greeter"],
+                    scenarios=str(greeter / "e2e" / "stub-scenarios.json"),
+                    scenarioModule=str(greeter / "e2e" / "stub_scenarios.py"),
+                ),
                 # Its manifest names an origin_module.
-                {"dir": str(apps), "plugin": "apps", "tools": [], "scenarios": None, "origins": True},
-                {"dir": str(pages_only), "plugin": None, "tools": [], "scenarios": None, "origins": False},
+                checked_dir(str(apps), plugin="apps", origins=True),
+                checked_dir(str(pages_only)),
             ],
         )
         # Only the directories with a plugin are checked, and the provider keys stay out of the check.
@@ -862,12 +1110,27 @@ class PluginDirTests(unittest.TestCase):
         start.assert_not_called()
 
 
-TOOLS = [{"type": "function", "function": {"name": "sample_greet"}}]
+TOOLS = [{"type": "function", "function": {"name": name}} for name in ("sample_make", "sample_use", "sample_greet")]
 
 
 def chat(text: str, *later: dict) -> dict:
-    """A request whose person wrote `text`, with the sample plugin's tool, followed by `later` messages."""
+    """A request whose person wrote `text`, with the sample plugin's tools, followed by `later` messages."""
     return {"model": "stub-fast", "messages": [{"role": "user", "content": text}, *later], "tools": TOOLS}
+
+
+# A --scenario-module: a step computed from the previous result, one from the person's words, one ending in a text,
+# and a computed reply.
+CHAIN_MODULE = """
+SCENARIOS = {
+    "#Chain": [
+        ("sample_make", {"label": "first"}),
+        ("sample_use", lambda turn: {"item_id": turn.results[0]}),
+        ("sample_greet", lambda turn: {"name": turn.said.split()[-1]}),
+        ("sample_greet", lambda turn: f"Made {turn.results[0]}, then: {turn.results[1]}"),
+    ],
+}
+REPLIES = {"#prompted": lambda turn: " | ".join([turn.system, *turn.tools])}
+"""
 
 
 class StubScenarioTests(unittest.TestCase):
@@ -901,6 +1164,9 @@ class StubScenarioTests(unittest.TestCase):
         self.assertEqual(kind, "text")
         self.assertIn("Finished **samplegreet** after 1 tool call(s)", text)
         self.assertIn("Hello Ada, from the sample plugin", text)
+        # The reply quotes the first 400 characters of the result.
+        _, text = stub_model.plan(chat("please #samplegreet", {"role": "tool", "content": "a" * 399 + "bc"}), scenarios)
+        self.assertIn("a" * 399 + "b\n```", text)
 
     def test_ask_streams_a_question_with_options_for_reactions(self) -> None:
         kind, text, seconds = stub_model.plan(chat("which deck? #ask"), stub_model.tool_scenarios([]))
@@ -928,9 +1194,9 @@ class StubScenarioTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             stub_model.tool_scenarios([self.root / "missing.json"])
 
-    def answer(self, scenario_files: list[Path], body: dict) -> dict:
+    def answer(self, scenario_files: list[Path], body: dict, modules: list[Path] | None = None) -> dict:
         """The stub's non-streamed answer to `body`, as it hands it to aiohttp."""
-        stub = stub_model.Stub(self.root / "requests.jsonl", scenario_files)
+        stub = stub_model.Stub(self.root / "requests.jsonl", scenario_files, modules or [])
         request = mock.Mock(json=mock.AsyncMock(return_value=body))
         with mock.patch.object(stub_model, "web") as web:
             asyncio.run(stub.completions(request))
@@ -954,8 +1220,119 @@ class StubScenarioTests(unittest.TestCase):
 
     def test_the_stub_says_in_its_reply_that_a_file_is_broken(self) -> None:
         broken = self.scenarios("{not json")
-        message = self.answer([broken], chat("#samplegreet"))
+        message = self.answer([broken], chat("hello"))
         self.assertTrue(message["content"].startswith(f"The stub could not read its scenarios: {broken}: "))
+        message = self.answer([broken], chat("please #SampleGreet and #shell"))
+        self.assertTrue(
+            message["content"].startswith(f"The stub could not read its scenarios for #samplegreet #shell: {broken}: ")
+        )
+
+    def module(self, source: str) -> Path:
+        path = self.root / f"stub_scenarios_{len(list(self.root.iterdir()))}.py"
+        path.write_text(source)
+        return path
+
+    def turn(self, text: str, *results: str, developer: str = "") -> dict:
+        body = chat(text, *({"role": "tool", "content": r} for r in results))
+        if developer:
+            system = {"role": "system", "content": "You are the helper."}
+            body["messages"][:0] = [system, {"role": "developer", "content": developer}]
+        return body
+
+    def test_terminal_runs_its_command_in_the_terminal_its_first_call_opened(self) -> None:
+        scenarios = stub_model.tool_scenarios([])
+        terminal = [{"type": "function", "function": {"name": name}} for name in ("terminal_open", "terminal_run")]
+
+        def turn(*results: str) -> dict:
+            return {**self.turn("please #terminal", *results), "tools": terminal}
+
+        self.assertEqual(stub_model.plan(turn(), scenarios), ("tool", "terminal_open", {}))
+        self.assertEqual(
+            stub_model.plan(turn("Opened terminal t-Ab3_x9."), scenarios),
+            ("tool", "terminal_run", {"session_id": "t-Ab3_x9", "command": "echo stub-terminal-$((6 * 7))"}),
+        )
+        refused = "Error: This shell has no workspace to start a terminal in."
+        self.assertEqual(stub_model.plan(turn(refused), scenarios), ("text", f"The terminal did not open: {refused}"))
+        kind, text = stub_model.plan(turn("Opened terminal t1.", "stub-terminal-42\n[exit status 0]"), scenarios)
+        self.assertEqual(kind, "text")
+        self.assertIn("Finished **terminal** after 2 tool call(s)", text)
+        self.assertIn("stub-terminal-42", text)
+
+    def test_a_module_computes_steps_from_the_turn(self) -> None:
+        scenarios = stub_model.tool_scenarios([], [self.module(CHAIN_MODULE)])
+        said = "please #chain for Ada"
+        self.assertEqual(
+            stub_model.plan(self.turn(said), scenarios), ("tool", "sample_make", {"label": "first"})
+        )
+        self.assertEqual(
+            stub_model.plan(self.turn(said, "item-7"), scenarios), ("tool", "sample_use", {"item_id": "item-7"})
+        )
+        self.assertEqual(
+            stub_model.plan(self.turn(said, "item-7", "Used item-7"), scenarios),
+            ("tool", "sample_greet", {"name": "Ada"}),
+        )
+        self.assertEqual(
+            stub_model.plan(self.turn(said, "item-7", "Used item-7", "Hello Ada"), scenarios),
+            ("text", "Made item-7, then: Used item-7"),
+        )
+
+    def test_the_sample_plugins_chain_uses_the_id_its_first_call_returned(self) -> None:
+        scenarios = stub_model.tool_scenarios([], [SAMPLE_PLUGIN / "e2e" / "stub_scenarios.py"])
+        self.assertEqual(stub_model.plan(self.turn("#chain"), scenarios), ("tool", "sample_make", {}))
+        self.assertEqual(
+            stub_model.plan(self.turn("#chain", "item-7"), scenarios), ("tool", "sample_use", {"item_id": "item-7"})
+        )
+
+    def test_a_reply_sees_the_system_prompt_and_the_tools(self) -> None:
+        scenarios = stub_model.tool_scenarios([], [self.module(CHAIN_MODULE)])
+        tools = "sample_make | sample_use | sample_greet"
+        self.assertEqual(
+            stub_model.plan(self.turn("#prompted", developer="Please be brief."), scenarios),
+            ("text", f"You are the helper.\nPlease be brief. | {tools}"),
+        )
+        self.assertEqual(stub_model.plan(self.turn("#prompted"), scenarios), ("text", f" | {tools}"))
+
+    def test_a_module_wins_over_a_file_and_a_file_over_the_built_in_ones(self) -> None:
+        file = self.scenarios({"#shell": [["sample_greet", {"name": "file"}]], "#chain": [["sample_greet", {}]]})
+        scenarios = stub_model.tool_scenarios([file], [self.module(CHAIN_MODULE)])
+        self.assertEqual(stub_model.plan(chat("#shell"), scenarios), ("tool", "sample_greet", {"name": "file"}))
+        self.assertEqual(stub_model.plan(self.turn("#chain"), scenarios), ("tool", "sample_make", {"label": "first"}))
+        self.assertEqual(scenarios["#multi"], stub_model.TOOL_SCENARIOS["#multi"])
+
+    def test_a_module_is_read_for_every_request(self) -> None:
+        module = self.module('REPLIES = {"#ping": lambda turn: "one"}')
+        self.assertEqual(self.answer([], chat("#ping"), [module])["content"], "one")
+        module.write_text('REPLIES = {"#ping": lambda turn: "two"}')
+        self.assertEqual(self.answer([], chat("#ping"), [module])["content"], "two")
+
+    def test_a_module_that_fails_to_import_is_named_in_the_reply(self) -> None:
+        for source in ("SCENARIOS = {", "raise RuntimeError('no fixture')", 'SCENARIOS = {"#a": [("only-a-name",)]}'):
+            module = self.module(source)
+            message = self.answer([], chat("#chain"), [module])
+            self.assertTrue(
+                message["content"].startswith(f"The stub could not read its scenarios for #chain: {module}: "), message
+            )
+        missing = self.root / "missing.py"
+        self.assertIn(str(missing), self.answer([], chat("#samplegreet"), [missing])["content"])
+
+    def test_a_step_that_fails_is_named_with_its_tag_in_the_reply(self) -> None:
+        module = self.module(
+            'SCENARIOS = {"#Chain": [("sample_greet", lambda turn: {"name": turn.results[0]})]}\n'
+            'SCENARIOS["#odd"] = [("sample_greet", lambda turn: 5)]\n'
+            'REPLIES = {"#dict": lambda turn: {"name": "Ada"}}'
+        )
+        message = self.answer([], chat("#chain"), [module])
+        self.assertEqual(
+            message["content"],
+            f"The stub's scenario #chain of {module} failed: IndexError: tuple index out of range",
+        )
+        message = self.answer([], chat("#odd"), [module])
+        self.assertEqual(
+            message["content"],
+            f"The stub's scenario #odd of {module} failed: it gave int, not a dict of arguments or a text",
+        )
+        message = self.answer([], chat("#dict"), [module])
+        self.assertEqual(message["content"], f"The stub's scenario #dict of {module} failed: it gave dict, not a text")
 
 
 if __name__ == "__main__":

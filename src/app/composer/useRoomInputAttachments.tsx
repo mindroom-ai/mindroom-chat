@@ -92,6 +92,10 @@ type RoomInputAttachments = {
   settlePastes: () => true | Promise<boolean>;
 };
 
+// The files each composer's sends claim, of mounted composers and of ones whose sends still go
+// out: a file removed in any composer leaves every send that holds it.
+const claims = new Set<{ current: TUploadItem[] }>();
+
 const isPasteItem = (item: TUploadItem): boolean => !!item.metadata.mindroomPasteAttachment;
 
 const pasteFileNameOf = (item: TUploadItem): string | undefined =>
@@ -146,12 +150,17 @@ export const useRoomInputAttachments = ({
   const current = useRef({ roomId, draftKey, editor });
   current.current = { roomId, draftKey, editor };
 
+  const releaseClaims = useCallback(() => {
+    if (!mounted.current && enrolled.current.length === 0) claims.delete(enrolled);
+  }, []);
   useEffect(() => {
     mounted.current = true;
+    claims.add(enrolled);
     return () => {
       mounted.current = false;
+      releaseClaims();
     };
-  }, []);
+  }, [releaseClaims]);
 
   const notify = useCallback(() => {
     if (notifyQueued.current) return;
@@ -265,7 +274,10 @@ export const useRoomInputAttachments = ({
         keepNames(targetRoomId);
       }
       files.forEach((file) => owners.current.delete(file));
-      enrolled.current = enrolled.current.filter((item) => !removed.has(item.file));
+      claims.forEach((claim) => {
+        claim.current = claim.current.filter((item) => !removed.has(item.file));
+      });
+      releaseClaims();
       syncUploadWatches();
       notify();
     };
@@ -280,8 +292,9 @@ export const useRoomInputAttachments = ({
         syncUploadWatches();
         notify();
       },
-      clearEnrollment: () => {
-        enrolled.current = [];
+      clearEnrollment: (files) => {
+        enrolled.current = enrolled.current.filter((item) => !files.includes(item.file));
+        releaseClaims();
         syncUploadWatches();
         notify();
       },
@@ -306,7 +319,7 @@ export const useRoomInputAttachments = ({
         };
       },
     };
-  }, [keepNames, mx, notify, ownedByCurrent, store, syncUploadWatches, view]);
+  }, [keepNames, mx, notify, ownedByCurrent, releaseClaims, store, syncUploadWatches, view]);
 
   // Files staged from outside (another composer instance, a restored draft) are watched as well.
   useEffect(() => {
@@ -576,6 +589,8 @@ export const useRoomInputAttachments = ({
 
   const replaceItem = (item: TUploadItem, replacement: TUploadItem) => {
     store.set(itemsAtom, { type: 'REPLACE', item, replacement });
+    // A send that claimed the file sends it as changed (a spoiler set after Send, say).
+    enrolled.current = enrolled.current.map((entry) => (entry === item ? replacement : entry));
     keepNames(roomId);
   };
 

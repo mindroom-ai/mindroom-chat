@@ -1,6 +1,7 @@
 import type { Page, Request } from '@playwright/test';
 import { logoutActiveAccount } from '../helpers/accounts';
 import {
+  clientSessionToken,
   composer,
   expect,
   openLobby,
@@ -11,7 +12,7 @@ import {
   uniqueWord,
   type AgentStack,
 } from '../helpers/agentStack';
-import { createPrivateRoom, matrixFetch } from '../helpers/matrix';
+import { createPrivateRoom } from '../helpers/matrix';
 import { roomHeader } from '../helpers/roomMenu';
 
 // The client SDK's `server` subpath end to end: a production build with the example client plugin
@@ -62,25 +63,6 @@ const serverRequests = (page: Page, stack: AgentStack) => {
   };
 };
 
-/** Signs the tester in to MindRoom's client sessions from outside the page, with a token of its own. */
-const signInElsewhere = async (stack: AgentStack) => {
-  const openIdToken = await matrixFetch<Record<string, unknown>>(
-    stack.homeserver,
-    `/user/${encodeURIComponent(stack.tester.userId)}/openid/request_token`,
-    {
-      method: 'POST',
-      accessToken: stack.tester.accessToken,
-      body: JSON.stringify({ 'io.mindroom.audience': new URL(stack.apiUrl).origin }),
-    }
-  );
-  const response = await fetch(`${stack.apiUrl}/api/client-sessions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ openid_token: openIdToken }),
-  });
-  expect(response.status).toBe(200);
-};
-
 /** What `GET /api/plugins` answers for a session token. */
 const pluginsStatus = async (stack: AgentStack, token: string) =>
   (await fetch(`${stack.apiUrl}/api/plugins`, { headers: { Authorization: `Bearer ${token}` } }))
@@ -123,7 +105,7 @@ test("a plugin's panel calls its MindRoom routes and websocket, signs in again, 
   // MindRoom keeps eight sessions per user, so eight more end the page's.
   for (let count = 0; count < 8; count += 1) {
     // eslint-disable-next-line no-await-in-loop
-    await signInElsewhere(stack);
+    await clientSessionToken(stack);
   }
   await expect(panel.getByText('Last close: 4401')).toBeVisible({ timeout: 30_000 });
   await expect(panel.getByText('Socket: open')).toBeVisible({ timeout: 30_000 });
