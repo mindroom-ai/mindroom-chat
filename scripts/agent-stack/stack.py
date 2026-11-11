@@ -976,7 +976,7 @@ def computers_setting(args: argparse.Namespace, sha: str) -> dict | None:
         return None
     return {
         "image": args.computer_image or f"mindroom-client-e2e-worker:{sha[:12]}",
-        "tools": [tool.strip() for tool in args.computer_tools.split(",") if tool.strip()],
+        "tools": [tool for tool in args.computer_tools.split(",") if tool],
     }
 
 
