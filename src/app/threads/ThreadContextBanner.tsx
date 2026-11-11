@@ -45,7 +45,6 @@ import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { getThreadRootTitle, ThreadRootTitle } from './ThreadRootTitle';
-import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
 
 const ThreadActionsMenu = lazy(() =>
   import('./ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -64,14 +63,10 @@ export interface ThreadContextBannerProps {
   threadId: string;
   summaryInfo?: ThreadSummaryInfo;
   onExitThread: () => void;
-  /** Shows the thread in a column beside the room's messages, from their place (button, More). */
+  /** Takes the thread's column beside the room's messages from filling the page (More menu). */
   onShowBeside?: () => void;
-  /** Show beside is offered but refused: the composer holds a reply, files or a recording. */
-  showBesideBlocked?: boolean;
-  /** Fills the room page with the thread's column. */
+  /** Fills the room page with the thread's column (More menu). */
   onShowFull?: () => void;
-  /** Takes the thread's column back beside the room's messages from filling the page. */
-  onRestore?: () => void;
 }
 
 const DESKTOP_MAX_PILLS = 3;
@@ -113,9 +108,7 @@ export function ThreadContextBanner({
   summaryInfo,
   onExitThread,
   onShowBeside,
-  showBesideBlocked,
   onShowFull,
-  onRestore,
 }: ThreadContextBannerProps) {
   const { t, i18n } = useTranslation();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
@@ -289,18 +282,6 @@ export function ThreadContextBanner({
   // The Resolved button is described by the byline, also on short screens,
   // which hide it.
   const resolverBylineId = useId();
-
-  // The column's button: fill the page with it, or take it (or the thread in the messages' place)
-  // beside the messages. Only from the messages' place does it wait, while their composer is busy.
-  const toBeside = onRestore ?? onShowBeside;
-  const columnToggle = onShowFull
-    ? { label: t('thread.showFull'), icon: ExpandIcon, onClick: onShowFull, blocked: false }
-    : toBeside && {
-        label: t('thread.showBeside'),
-        icon: ShrinkIcon,
-        onClick: toBeside,
-        blocked: !onRestore && !!showBesideBlocked,
-      };
 
   const backButton = phone ? (
     <PhoneBackButton label={t('thread.back')} onBack={onExitThread} />
@@ -505,27 +486,6 @@ export function ThreadContextBanner({
               )}
             </div>
             <Box alignItems="Center" gap="100" shrink="No">
-              {columnToggle && (
-                <IconTooltip
-                  label={columnToggle.label}
-                  hint={columnToggle.blocked ? t('thread.showBesideBlocked') : undefined}
-                >
-                  {(triggerRef) => (
-                    // Waiting, it keeps its focus and name, and its tooltip says why.
-                    <IconButton
-                      ref={triggerRef}
-                      className={toolbarCss.MessageOptionsButton}
-                      variant="SurfaceVariant"
-                      fill="None"
-                      aria-label={columnToggle.label}
-                      aria-disabled={columnToggle.blocked || undefined}
-                      onClick={columnToggle.blocked ? undefined : columnToggle.onClick}
-                    >
-                      <Icon size="100" src={columnToggle.icon} />
-                    </IconButton>
-                  )}
-                </IconTooltip>
-              )}
               <IconTooltip label={t('threadActions.more')}>
                 {(triggerRef) => (
                   <IconButton
@@ -652,7 +612,7 @@ export function ThreadContextBanner({
             summaryText={headerModel.summaryText}
             onHideDetails={collapsed ? undefined : () => toggleCollapsed(true)}
             onShowBeside={onShowBeside}
-            showBesideBlocked={showBesideBlocked}
+            onShowFull={onShowFull}
             anchor={activeMenu.anchor}
             onClose={() => closeMenu(activeMenu)}
           />

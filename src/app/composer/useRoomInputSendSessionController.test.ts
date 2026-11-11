@@ -3,7 +3,12 @@ import { act, create } from 'react-test-renderer';
 import { EventStatus, MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDefaultStore } from 'jotai';
-import { IReplyDraft, roomUploadAtomFamily } from './roomInputDrafts';
+import {
+  IReplyDraft,
+  roomUploadAtomFamily,
+  threadViewVoiceComposersAtom,
+} from './roomInputDrafts';
+import { ConversationViewContext } from '../navigation/conversationView';
 import { TUploadItem, Upload, UploadStatus } from '../matrix/state/upload';
 import { TUploadContent, toMatrixUploadError } from '../matrix/matrix';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
@@ -11,6 +16,7 @@ import { createPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
 import { parseLongTextJsonSidecar } from '../matrix/protocol/longText';
 import {
   StartRoomInputSendSessionOptions,
+  openedThreadParkKey,
   useRoomInputSendSessionController,
 } from './useRoomInputSendSessionController';
 
@@ -157,6 +163,14 @@ const TestHarness = ({
       },
       protectPasteItems: () => () => {},
       subscribe: () => () => {},
+      release: (_roomId, files) => {
+        selectedFilesRef.current = selectedFilesRef.current.filter(
+          (item) => !files.includes(item.file)
+        );
+        sendSessionUploadItemsRef.current = sendSessionUploadItemsRef.current.filter(
+          (item) => !files.includes(item.file)
+        );
+      },
       remove: (_roomId, uploadList) => {
         selectedFilesRef.current = selectedFilesRef.current.filter(
           (item) => !uploadList.includes(item.file)
@@ -178,6 +192,8 @@ const TestHarness = ({
     room: {
       roomId,
       getEventForTxnId: mx.getEventForTxnId,
+      getThread: () => undefined,
+      findEventById: () => undefined,
       getLiveTimeline: () => undefined,
       getMembers: () => [],
       hasEncryptionStateEvent: () => false,
@@ -295,6 +311,35 @@ const renderHarness = (
       api.mountedRef.current = false;
       act(() => renderer.unmount());
     },
+    /** Mounts the composer of a thread's own view (the thread column) for `threadId`. */
+    mountThreadView: (threadId: string) => {
+      let view!: HarnessApi;
+      let viewRenderer!: ReturnType<typeof create>;
+      act(() => {
+        viewRenderer = create(
+          React.createElement(
+            ConversationViewContext.Provider,
+            { value: 'thread-view' },
+            React.createElement(TestHarness, {
+              ...props,
+              threadId,
+              onRoomMessageSent: undefined,
+              onReady: (nextApi: HarnessApi) => {
+                view = nextApi;
+              },
+            })
+          )
+        );
+      });
+      return {
+        api: view,
+        current: () => view,
+        unmount: () => {
+          view.mountedRef.current = false;
+          act(() => viewRenderer.unmount());
+        },
+      };
+    },
     /** Mounts the same composer again, with refs of its own, in `roomId` if given. */
     mountAgain: (roomId?: string) => {
       let next!: HarnessApi;
@@ -361,6 +406,154 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     expect(api.hasActiveSendSession()).toBe(false);
     // The composer that went opens no thread for the root it sent.
     expect(onRoomMessageSent).not.toHaveBeenCalled();
+  });
+
+  it("parks a send that opened its thread for that thread's composer", async () => {
+    const { api, mx, unmount, mountThreadView } = renderHarness({ onRoomMessageSent: () => true });
+    const root = createFile('root.txt');
+    const child = createFile('child.txt');
+    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
+    api.uploadsRef.current = [successUpload(root, 'mxc://mindroom/root'), loadingUpload(child)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    expect(sentBodies(mx)).toEqual(['root.txt']);
+
+    // The root opened its thread, which fills the page: the thread's composer comes (it lists
+    // itself before the room's goes, as in one commit), the room's goes, and the thread's holds
+    // what is still to go.
+    const { api: thread, current } = mountThreadView('$event-0');
+    const listed = [{ key: JSON.stringify(['!room:example.org', '$event-0']) }];
+    getDefaultStore().set(threadViewVoiceComposersAtom, listed);
+    unmount();
+    getDefaultStore().set(threadViewVoiceComposersAtom, []);
+    expect(current().joinedSendPending).toBe(true);
+    expect(thread.selectedFilesRef.current.map((item) => item.file.name)).toEqual(['child.txt']);
+    // It left the room's board, which would otherwise offer it to the room's next message.
+    expect(api.selectedFilesRef.current).toEqual([]);
+
+    thread.uploadsRef.current = [successUpload(child, 'mxc://mindroom/child')];
+    await act(async () => {
+      getDefaultStore().set(roomUploadAtomFamily(child), { mxc: 'mxc://mindroom/child' });
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(mx.sendMessage).toHaveBeenCalledTimes(2));
+    expect(sentBodies(mx)).toEqual(['root.txt', 'child.txt']);
+    const [, childContent] = mx.sendMessage.mock.calls[1] ?? [];
+    expect(childContent).toMatchObject({
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$event-0' },
+    });
+  });
+
+  it("gives a send the thread's view took over back to the room's composer as the view goes", async () => {
+    const store = getDefaultStore();
+    const { api, unmount, mountThreadView, mountAgain } = renderHarness({
+      onRoomMessageSent: () => true,
+    });
+    const root = createFile('root.txt');
+    const child = createFile('child.txt');
+    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
+    api.uploadsRef.current = [successUpload(root, 'mxc://mindroom/root'), loadingUpload(child)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    const viewKey = { key: JSON.stringify(['!room:example.org', '$event-0']) };
+    const thread = mountThreadView('$event-0');
+    store.set(threadViewVoiceComposersAtom, [viewKey]);
+    unmount();
+    expect(thread.current().joinedSendPending).toBe(true);
+    // Back to the room while the file still uploads (the root may have its own ID by now): the
+    // room's composer, which the send started in, takes it back, with its Retry should it fail.
+    store.set(threadViewVoiceComposersAtom, []);
+    thread.unmount();
+    const room = mountAgain();
+    expect(room.current().joinedSendPending).toBe(true);
+    expect(room.api.selectedFilesRef.current.map((item) => item.file.name)).toEqual(['child.txt']);
+  });
+
+  it("gives a send back to the room's composer that is mounted already as the thread's view goes", async () => {
+    const store = getDefaultStore();
+    const { api, unmount, mountThreadView, mountAgain } = renderHarness({
+      onRoomMessageSent: () => true,
+    });
+    const root = createFile('root.txt');
+    const child = createFile('child.txt');
+    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
+    api.uploadsRef.current = [successUpload(root, 'mxc://mindroom/root'), loadingUpload(child)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    const thread = mountThreadView('$event-0');
+    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']) }]);
+    unmount();
+    expect(thread.current().joinedSendPending).toBe(true);
+    // Show beside: the room's composer comes back while the thread's view holds the send; then Back.
+    const room = mountAgain();
+    expect(room.current().joinedSendPending).toBe(false);
+    store.set(threadViewVoiceComposersAtom, []);
+    thread.unmount();
+    expect(room.current().joinedSendPending).toBe(true);
+  });
+
+  it("takes a send parked for its thread over once its own send is done", async () => {
+    const store = getDefaultStore();
+    const { api, mx, unmount, mountThreadView } = renderHarness({ onRoomMessageSent: () => true });
+    const root = createFile('root.txt');
+    const child = createFile('child.txt');
+    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
+    api.uploadsRef.current = [successUpload(root, 'mxc://mindroom/root'), loadingUpload(child)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    // The thread beside the messages has a send of its own going out.
+    const thread = mountThreadView('$event-0');
+    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']) }]);
+    const own = createFile('own.txt');
+    thread.api.selectedFilesRef.current = [createUploadItem(own)];
+    thread.api.uploadsRef.current = [loadingUpload(own)];
+    await act(async () => {
+      await thread.api.startSendSession();
+    });
+    unmount();
+    store.set(threadViewVoiceComposersAtom, []);
+    expect(thread.current().joinedSendPending).toBe(false);
+
+    thread.api.uploadsRef.current = [successUpload(own, 'mxc://mindroom/own'), loadingUpload(child)];
+    await act(async () => {
+      store.set(roomUploadAtomFamily(own), { mxc: 'mxc://mindroom/own' });
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(sentBodies(mx)).toContain('own.txt'));
+    await vi.waitFor(() => expect(thread.current().joinedSendPending).toBe(true));
+  });
+
+  it('parks a send under its room when no view of the thread it opened is there to take it', async () => {
+    const { api, unmount, mountAgain } = renderHarness({ onRoomMessageSent: () => true });
+    const root = createFile('root.txt');
+    const child = createFile('child.txt');
+    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
+    api.uploadsRef.current = [successUpload(root, 'mxc://mindroom/root'), loadingUpload(child)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    // The thread opened beside the messages and closed again; the room's composer goes later.
+    unmount();
+    expect(mountAgain().current().joinedSendPending).toBe(true);
+  });
+
+  it('parks a send that opened no thread under its room, as before', async () => {
+    const { api, unmount, mountThreadView, mountAgain } = renderHarness();
+    const root = createFile('root.txt');
+    const child = createFile('child.txt');
+    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
+    api.uploadsRef.current = [successUpload(root, 'mxc://mindroom/root'), loadingUpload(child)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    unmount();
+    expect(mountThreadView('$event-0').current().joinedSendPending).toBe(false);
+    expect(mountAgain().current().joinedSendPending).toBe(true);
   });
 
   it('lets a composer mounted again join the send instead of sending its files twice', async () => {
@@ -557,7 +750,9 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
   });
 
   it("keeps another room's parked send where it is as a queued send parks again", async () => {
-    const { mx, mountAgain } = renderHarness();
+    const { mx, mountAgain, unmount } = renderHarness();
+    // One room page composer at a time: the first one goes, the ones below come and go.
+    unmount();
     // Room B's send, parked as its composer went.
     const inB = mountAgain('!b:example.org');
     const fileB = createFile('room-b.txt');
@@ -1625,5 +1820,28 @@ describe('useRoomInputSendSessionController sends that cannot go out yet', () =>
     });
     expect(textBodies(mx)).toEqual(['one', 'two']);
     expect(api.hasActiveSendSession()).toBe(true);
+  });
+});
+
+describe('openedThreadParkKey', () => {
+  const room = {
+    getThread: (id: string) =>
+      id === '~!room:example.org:txn-1' ? { rootEvent: { getId: () => '$confirmed' } } : undefined,
+    findEventById: () => undefined,
+  } as never;
+  const viewKey = (threadId: string) => JSON.stringify(['!room:example.org', threadId]);
+
+  it("names the view of the thread by its root's confirmed ID once the root has one", () => {
+    expect(
+      openedThreadParkKey(room, '!room:example.org', '~!room:example.org:txn-1', [
+        viewKey('$confirmed'),
+      ])
+    ).toBe(viewKey('$confirmed'));
+  });
+
+  it('names no view of a thread that has none mounted', () => {
+    expect(openedThreadParkKey(room, '!room:example.org', '$event-0', [viewKey('$other')])).toBe(
+      undefined
+    );
   });
 });

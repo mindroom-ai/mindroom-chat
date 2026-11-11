@@ -796,8 +796,7 @@
     "back": "Indietro",
     "resize": "Ridimensiona il thread",
     "showFull": "Mostra il thread a tutta larghezza",
-    "showBeside": "Mostra il thread accanto ai messaggi",
-    "showBesideBlocked": "Invia o rimuovi prima ciò che c'è nel compositore"
+    "showBeside": "Mostra il thread accanto ai messaggi"
   },
   "activity": {
     "title": "Attività",

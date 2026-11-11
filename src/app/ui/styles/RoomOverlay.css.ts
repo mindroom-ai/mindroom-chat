@@ -24,11 +24,12 @@ export const Header = style([
 export const HeaderInThread = style({ '@media': { [shortViewport]: { display: 'none' } } });
 // Read receipts give way to messages on short screens, where the footer keeps a small gap
 // below the composer. The footer ends above the home indicator: its safe area stays outside
-// the composer's box.
+// the composer's box. It shares the z-index of the dock of jobs and approvals above it and
+// comes after it, so what rises from the composer, such as its suggestions, covers the dock.
 export const Footer = style({
   position: 'absolute',
   inset: 'auto 0 0',
-  zIndex: 4,
+  zIndex: 5,
   pointerEvents: 'none',
   paddingBottom: 'env(safe-area-inset-bottom, 0px)',
   '@media': {

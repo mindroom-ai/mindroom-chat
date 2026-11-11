@@ -72,9 +72,21 @@ vi.mock('../../matrix/hooks/useStateEvent', () => ({
   useStateEvent: () => undefined,
 }));
 
-vi.mock('../../matrix/hooks/usePowerLevels', () => ({
-  usePowerLevelsContext: () => ({}),
-}));
+vi.mock('../../matrix/hooks/usePowerLevels', () => {
+  // The thread column's view reads the room's levels itself, the same ones every render.
+  const levels = {};
+  return {
+    usePowerLevelsContext: () => ({}),
+    usePowerLevels: () => levels,
+    PowerLevelsContextProvider: ({ children }: { children: React.ReactNode }) => children,
+  };
+});
+
+// The thread column's view lists the room's members, of a client this test makes anew each render.
+vi.mock('../../matrix/hooks/useRoomMembers', () => {
+  const members: never[] = [];
+  return { useRoomMembers: () => members };
+});
 
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({

@@ -783,8 +783,7 @@
     "back": "Zurück",
     "resize": "Thread-Breite ändern",
     "showFull": "Thread ganz anzeigen",
-    "showBeside": "Thread neben den Nachrichten anzeigen",
-    "showBesideBlocked": "Sende oder entferne zuerst, was im Eingabefeld liegt"
+    "showBeside": "Thread neben den Nachrichten anzeigen"
   },
   "activity": {
     "title": "Aktivität",

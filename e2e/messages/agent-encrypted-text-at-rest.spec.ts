@@ -17,8 +17,9 @@ import { matrixFetch } from '../helpers/matrix';
 // decrypted events in the clear in localStorage: the preview of a recently opened thread (up to
 // 120 characters of the thread's root) and the text of the message a reply draft quotes. Neither
 // may hold an encrypted room's text, an older version's copies are deleted, and the person's own
-// unsent draft stays. After a reload the sidebar and the reply bar show the text again, read from
-// the decrypted events.
+// unsent draft stays. A thread's reply target goes with its view and is not kept at all; the room
+// composer's is, without an encrypted room's text. After a reload the sidebar and the room
+// composer's reply bar show the text again, read from the decrypted events.
 test.describe.configure({ timeout: 360_000 });
 
 // Set E2EE_SHOTS=<directory> to save the page after the reload.
@@ -191,8 +192,8 @@ test('an encrypted room leaves no thread preview and no quoted reply text in loc
     )
     .toBe(true);
 
-  // The unencrypted room keeps both texts; the encrypted room names its thread and the message
-  // replied to, without their text, and keeps the person's own unsent words.
+  // The unencrypted room keeps its thread's text; the encrypted room names its thread without its
+  // text, and keeps the person's own unsent words. The threads' reply targets went with their views.
   let storage: Record<string, unknown> = {};
   await expect
     .poll(
@@ -200,25 +201,26 @@ test('an encrypted room leaves no thread preview and no quoted reply text in loc
         storage = await readStorage(page);
         return [
           !!recentEntry(storage, user, plain)?.summaryText,
-          holds(replyEntry(storage, user, plain), 'You said'),
           recentEntry(storage, user, secret)?.threadId === secretIds.rootId,
-          replyEntry(storage, user, secret)?.eventId === secretIds.replyId,
         ];
       },
       { timeout: 30_000, message: 'both rooms are in the stores' }
     )
-    .toEqual([true, true, true, true]);
+    .toEqual([true, true]);
   expect(recentEntry(storage, user, secret)?.summaryText).toBeUndefined();
-  expect(replyEntry(storage, user, secret)).toMatchObject({ body: '' });
+  expect(replyEntry(storage, user, plain)).toBeUndefined();
+  expect(replyEntry(storage, user, secret)).toBeUndefined();
   for (const text of [secretTitle, 'You said', secretWord]) {
     expect(holds(secretEntries(storage, user, secret), text), text).toBe(false);
   }
   const ownDraftKey = `roomInputDraft:${JSON.stringify([user, secret, secretIds.rootId])}`;
   expect(holds(storage[ownDraftKey], unsent)).toBe(true);
 
-  // An older version stored the encrypted room's texts: they are deleted once the client starts.
+  // An older version stored the encrypted room's texts, its room composer's reply target (the
+  // thread's root) among them: they are deleted once the client starts, the target kept without
+  // its text.
   await page.evaluate(
-    ({ userId, roomId, rootId, replyId, word, title }) => {
+    ({ userId, roomId, rootId, word, title }) => {
       const recentKey = `recentThreads:${userId}`;
       const recent = JSON.parse(localStorage.getItem(recentKey) ?? '{}') as {
         entries?: Array<{ roomId: string; summaryText?: string }>;
@@ -230,15 +232,14 @@ test('an encrypted room leaves no thread preview and no quoted reply text in loc
       localStorage.setItem(
         `roomInputReply:${JSON.stringify([userId, roomId])}`,
         JSON.stringify({
-          userId: '@helper:localhost',
-          eventId: replyId,
-          body: `Hello from stub-fast. You said: where is the ${word}?`,
-          formattedBody: `Hello from <b>stub-fast</b>. You said: where is the ${word}?`,
-          relation: { rel_type: 'm.thread', event_id: rootId },
+          userId,
+          eventId: rootId,
+          body: `where is the ${word}?`,
+          formattedBody: `where is the <b>${word}</b>?`,
         })
       );
     },
-    { userId: user, roomId: secret, ...secretIds, word: secretWord, title: secretTitle }
+    { userId: user, roomId: secret, rootId: secretIds.rootId, word: secretWord, title: secretTitle }
   );
   await page.goto('/home/', { timeout: 180_000 });
   await openRecentlyOpened(page);
@@ -253,11 +254,11 @@ test('an encrypted room leaves no thread preview and no quoted reply text in loc
     .toBe(false);
   storage = await readStorage(page);
   expect(!!recentEntry(storage, user, plain)?.summaryText).toBe(true);
-  expect(holds(replyEntry(storage, user, plain), 'You said')).toBe(true);
+  expect(replyEntry(storage, user, secret)).toMatchObject({ eventId: secretIds.rootId, body: '' });
   expect(holds(storage[ownDraftKey], unsent)).toBe(true);
 
   // After the next reload the page reads the texts again from the decrypted events: the recently
-  // opened thread shows its text, and the reply bar quotes the answer.
+  // opened thread shows its text, and back in the room the composer's reply bar quotes the root.
   await page.goto('/home/', { timeout: 180_000 });
   await openRecentlyOpened(page);
   await expect
@@ -273,10 +274,11 @@ test('an encrypted room leaves no thread preview and no quoted reply text in loc
     .getByRole('button')
     .first()
     .click();
+  await expect(composer(page)).toContainText(unsent, { timeout: 90_000 });
+  // Back leads to Home, where the thread was opened from; the room's row opens the room.
+  await page.locator(`[data-room-id="${secret}"]`).first().click();
   const replyBar = page.getByRole('button', { name: 'Cancel reply' }).locator('xpath=..');
-  await expect(replyBar).toContainText('You said', { timeout: 90_000 });
-  await expect(replyBar).toContainText(secretWord);
-  await expect(composer(page)).toContainText(unsent);
+  await expect(replyBar).toContainText(secretWord, { timeout: 90_000 });
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/text-at-rest-thread-after-reload.png` });
   // Showing them stores nothing again.
   await page.waitForTimeout(3_000);

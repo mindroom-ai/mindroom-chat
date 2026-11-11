@@ -102,3 +102,27 @@ describe('upload progress watches of the composer', () => {
     expect(subscriptions(upload)).toBe(0);
   });
 });
+
+describe('a file another composer took over', () => {
+  it('leaves the board of the composer that went, its upload going on and unwatched', () => {
+    const item = stagedFile('child.txt');
+    const kept = stagedFile('kept.txt');
+    const { store, subscriptions, renderer, access } = mountComposer([item, kept]);
+    const loading = {
+      status: UploadStatus.Loading,
+      promise: new Promise<never>(() => undefined),
+      progress: { loaded: 0, total: 7 },
+    };
+    act(() => store.set(roomUploadAtomFamily(item.file), loading as never));
+    const board = access();
+    act(() => renderer.unmount());
+
+    act(() => board.release(ROOM_ID, [item.file]));
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)).map((staged) => staged.file)).toEqual([
+      kept.file,
+    ]);
+    expect(store.get(roomUploadAtomFamily(item.file)).status).toBe(UploadStatus.Loading);
+    // A composer that went watches nothing again.
+    expect(subscriptions(roomUploadAtomFamily(kept.file))).toBe(0);
+  });
+});

@@ -44,9 +44,11 @@ const APPROVAL_EVENT = 'io.mindroom.tool_approval';
 const threadPanel = (page: Page): Locator =>
   page.getByRole('region', { name: 'Example thread', exact: true });
 
-/** The room page's own composer, not the panel's. */
+/** The room page's own composer, not the panel's (whose thread view has a footer of its own). */
 const pageComposer = (page: Page): Locator =>
-  page.locator('[data-room-footer] [data-editable-name="RoomInput"]');
+  page.locator(
+    '[data-room-footer]:not([aria-label="Example thread"] *) [data-editable-name="RoomInput"]'
+  );
 
 /** Opens the "Example thread" panel from the room menu. */
 const openThreadPanel = async (page: Page): Promise<Locator> => {

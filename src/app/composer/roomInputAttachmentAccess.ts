@@ -12,6 +12,8 @@ export type RoomInputAttachmentAccess = {
   snapshot: (roomId?: string) => AttachmentSnapshot;
   append: (roomId: string, items: TUploadItem[]) => void;
   remove: (roomId: string, files: TUploadContent[]) => void;
+  /** Takes files off the board without cancelling their uploads: another composer took them. */
+  release: (roomId: string, files: TUploadContent[]) => void;
   enroll: (items: TUploadItem[]) => void;
   /** Releases the files a send session claimed with `enroll`. */
   clearEnrollment: (files: TUploadContent[]) => void;

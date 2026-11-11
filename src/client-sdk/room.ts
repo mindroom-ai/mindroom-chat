@@ -44,8 +44,9 @@ export type RoomNavigate = {
   /**
    * Opens the thread `threadId` (its root's event ID) of the room; its back button returns here,
    * unless it replaced this page: then it leads to the page before, or to the room. It opens where
-   * the app's own thread links open it: in a column beside the room's messages once the person
-   * chose that on this device and the page has room for both, else in the messages' place.
+   * the app's own thread links open it: in the room page's thread column, beside the room's
+   * messages once the person chose that on this device and the page has room for both, else
+   * filling the page.
    */
   navigateRoomThread: {
     (roomId: string, threadId: string): void;
@@ -164,19 +165,19 @@ const LazyThreadView = lazy(() =>
 
 /**
  * The thread `threadId` (its root's event ID) of `room` as the room's page shows it, for a plugin's
- * own surface such as its side panel: the root and its replies with the app's message actions, the
- * thread's tool approvals under them, and the composer under those while the signed-in account may
- * post in the room. It fills its parent, a flex column, and scrolls inside it; it shows nothing
+ * own surface such as its side panel: the root and its replies with the app's message actions, and
+ * under them, floating over the timeline's end, the thread's background jobs and tool approvals,
+ * the typing notice, the composer while the signed-in account may post in the room (else why not)
+ * and read receipts. It fills its parent, a flex column, and scrolls inside it; it shows nothing
  * while its code loads. It may show a thread of the room whose page is open, also the one that page
  * shows: its composer has a reply and staged files of its own, which go with it as it unmounts,
  * shares the thread's unsent text with the page's, and records voice messages into its thread (one
- * recorder is open in the app at a time, and a failed send comes back in a view of that thread, or
- * on the page while it shows that thread in the messages' place and no view of that thread is
- * mounted). Read receipts and notifications count the thread as seen while the view shows it,
- * also while the room's page is behind the panel, but not while its side panel is folded or under a
- * phone's navigation drawer. Its menus, and the profile card its rows open, take their Escape at
- * the document, after it bubbled through the plugin's elements; so a plugin that closes its surface
- * on Escape listens on the window, which only an Escape nothing took reaches (one that is not
+ * recorder is open in the app at a time, and a failed send comes back in a view of that thread).
+ * Read receipts and notifications count the thread as seen while the view shows it, also while the
+ * room's page is behind the panel, but not while its side panel is folded or under a phone's
+ * navigation drawer. Its menus, and the profile card its rows open, take their Escape at the
+ * document, after it bubbled through the plugin's elements; so a plugin that closes its surface on
+ * Escape listens on the window, which only an Escape nothing took reaches (one that is not
  * `defaultPrevented`).
  */
 export const ThreadView = (props: { room: Room; threadId: string }) =>

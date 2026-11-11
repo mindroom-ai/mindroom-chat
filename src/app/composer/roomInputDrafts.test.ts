@@ -1,6 +1,11 @@
 import { createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRoomInputDrafts, roomIdToMsgDraftAtomFamily } from './roomInputDrafts';
+import {
+  clearRoomInputDrafts,
+  getRoomInputDraftKey,
+  restoreTextToDraft,
+  roomIdToMsgDraftAtomFamily,
+} from './roomInputDrafts';
 
 const KEY = JSON.stringify(['@alice:example.org', '!room:example.org', '$thread']);
 const draft = [{ type: 'paragraph' as const, children: [{ text: 'Unsent draft', bold: true }] }];
@@ -81,4 +86,17 @@ describe('message draft persistence', () => {
       expect(createStore().get(roomIdToMsgDraftAtomFamily(KEY))).toEqual([]);
     }
   );
+});
+
+describe('restoreTextToDraft', () => {
+  it("puts a failed caption after the text a composer's stored draft holds, losing neither", () => {
+    const store = createStore();
+    const key = getRoomInputDraftKey('@alice:example.org', '!restore:example.org');
+    const typed = [{ type: 'paragraph', children: [{ text: 'typed since' }] }] as never[];
+    const caption = [{ type: 'paragraph', children: [{ text: 'the caption' }] }] as never[];
+    store.set(roomIdToMsgDraftAtomFamily(key), typed);
+    restoreTextToDraft(store, key, caption);
+    expect(store.get(roomIdToMsgDraftAtomFamily(key))).toEqual([...typed, ...caption]);
+    store.set(roomIdToMsgDraftAtomFamily(key), []);
+  });
 });
