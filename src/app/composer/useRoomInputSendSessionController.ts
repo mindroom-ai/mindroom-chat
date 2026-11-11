@@ -64,8 +64,12 @@ type SendSession = RoomInputSendSessionState & {
   composer: SessionComposer;
   /** The thread its root opened (Compact): the session parks for that thread's composer. */
   openedThreadId?: string;
-  /** The key of the composer that took the session over, which it parks under as that one goes. */
-  parkKey?: string;
+  /**
+   * Whether it started in a conversation view's composer. A thread's view may take over a send the
+   * room's composer started, but only while mounted: as it goes, the send parks for the room's
+   * composer again, which holds its files' board.
+   */
+  originThreadView?: boolean;
 };
 
 type ComposerContext = Pick<RoomInputSendContext, 'roomId' | 'threadId'>;
@@ -677,6 +681,7 @@ export const useRoomInputSendSessionController = ({
           composer,
         }
       );
+      session.originThreadView = threadView;
       sendSlot.session = session;
       busySlotsOf(mx).add(sendSlot);
       // A send queued in a parked slot waits there under its own key.
@@ -718,6 +723,7 @@ export const useRoomInputSendSessionController = ({
       }
     },
     [
+      threadView,
       roomId,
       threadId,
       replyDraft,
@@ -815,7 +821,6 @@ export const useRoomInputSendSessionController = ({
       reportSent,
       mounted: isMounted,
     };
-    session.parkKey = composerKey;
     // Files from another board (the room's, taken over by a thread's view) leave that one.
     const onBoard = new Set(attachments.snapshot(session.roomId).staged.map((item) => item.file));
     if (previous !== attachments) {
@@ -842,7 +847,10 @@ export const useRoomInputSendSessionController = ({
         current.unpark?.();
         const { session: held } = current;
         let key = held
-          ? (held.parkKey ?? voiceComposerKey({ ...held.composerContext, threadView }))
+          ? voiceComposerKey({
+              ...held.composerContext,
+              threadView: held.originThreadView ?? threadView,
+            })
           : composerKeyRef.current;
         // A send whose root opened its thread goes on with a view of that thread that is there
         // (one that mounts as this composer goes has listed itself already); else with the room's.

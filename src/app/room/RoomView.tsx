@@ -356,7 +356,8 @@ export function RoomView({
                   : undefined
               }
               // Beside the messages, where typing goes to the room's composer, it takes the focus,
-              // and from the room's composer whose send opened it.
+              // and from the room's composer whose send opened it. ThreadView reads it as the
+              // thread opens, in the effects of the commit that opens it, before this view's reset.
               autoFocus={!columnFills || focusOpenedThread.current}
               hidden={behindPanel}
               onThreadLoadError={onThreadLoadError}

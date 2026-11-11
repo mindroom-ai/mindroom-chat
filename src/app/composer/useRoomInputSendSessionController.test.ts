@@ -445,9 +445,11 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     });
   });
 
-  it("parks a send the thread's view took over for that thread again as the view goes", async () => {
+  it("gives a send the thread's view took over back to the room's composer as the view goes", async () => {
     const store = getDefaultStore();
-    const { api, unmount, mountThreadView } = renderHarness({ onRoomMessageSent: () => true });
+    const { api, unmount, mountThreadView, mountAgain } = renderHarness({
+      onRoomMessageSent: () => true,
+    });
     const root = createFile('root.txt');
     const child = createFile('child.txt');
     api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
@@ -456,15 +458,17 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
       await api.startSendSession();
     });
     const viewKey = { key: JSON.stringify(['!room:example.org', '$event-0']) };
-    const first = mountThreadView('$event-0');
+    const thread = mountThreadView('$event-0');
     store.set(threadViewVoiceComposersAtom, [viewKey]);
     unmount();
-    expect(first.current().joinedSendPending).toBe(true);
-    // The thread closes and opens again while the file still uploads.
+    expect(thread.current().joinedSendPending).toBe(true);
+    // Back to the room while the file still uploads (the root may have its own ID by now): the
+    // room's composer, which the send started in, takes it back, with its Retry should it fail.
     store.set(threadViewVoiceComposersAtom, []);
-    first.unmount();
-    const again = mountThreadView('$event-0');
-    expect(again.current().joinedSendPending).toBe(true);
+    thread.unmount();
+    const room = mountAgain();
+    expect(room.current().joinedSendPending).toBe(true);
+    expect(room.api.selectedFilesRef.current.map((item) => item.file.name)).toEqual(['child.txt']);
   });
 
   it("takes a send parked for its thread over once its own send is done", async () => {
