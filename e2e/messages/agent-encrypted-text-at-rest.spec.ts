@@ -275,10 +275,8 @@ test('an encrypted room leaves no thread preview and no quoted reply text in loc
     .first()
     .click();
   await expect(composer(page)).toContainText(unsent, { timeout: 90_000 });
-  await page
-    .locator('[data-thread-context-banner]')
-    .getByRole('button', { name: 'Back', exact: true })
-    .click();
+  // Back leads to Home, where the thread was opened from; the room's row opens the room.
+  await page.locator(`[data-room-id="${secret}"]`).first().click();
   const replyBar = page.getByRole('button', { name: 'Cancel reply' }).locator('xpath=..');
   await expect(replyBar).toContainText(secretWord, { timeout: 90_000 });
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/text-at-rest-thread-after-reload.png` });
