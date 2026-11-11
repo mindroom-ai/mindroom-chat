@@ -32,6 +32,7 @@ import { buildAuthRoutePath, isServerChoiceLocked, resolveAuthServer } from './a
 import { AuthFooter } from './AuthFooter';
 import { deploymentDefaultServer } from './unlistedServer';
 import { UnlistedServerCheck } from './UnlistedServerCheck';
+import { openAfterSignIn } from './completeSession';
 import * as css from './styles.css';
 
 /** The configured servers, offered as suggestions in the free-text server field. */
@@ -244,8 +245,10 @@ export function AuthLayout() {
 
   const homeRedirect =
     typeof window !== 'undefined' ? resolveAuthRouteRedirect(window.location.href) : null;
+  // An active session leaves these pages for the page asked for before sign-in, or Home. A
+  // sign-in on them leaves its navigation to this redirect (useCompleteSession).
   useEffect(() => {
-    if (homeRedirect) navigate(homeRedirect, { replace: true });
+    if (homeRedirect) openAfterSignIn(navigate);
   }, [homeRedirect, navigate]);
 
   const registrationAllowed = auth?.allowRegistration !== false;

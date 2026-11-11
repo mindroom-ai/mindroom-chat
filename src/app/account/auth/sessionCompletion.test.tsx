@@ -58,6 +58,7 @@ describe('authentication session completion', () => {
   afterEach(() => {
     renderer?.unmount();
     renderer = undefined;
+    window.history.replaceState(null, '', '/');
     Object.defineProperty(globalThis, 'localStorage', {
       configurable: true,
       value: originalLocalStorage,
@@ -110,9 +111,11 @@ describe('authentication session completion', () => {
     expect(renderer?.root.findByType('span').children).toEqual(['storage-error']);
   });
 
-  // Login and add-account share this completion, so add-account flows return too.
-  it('returns to the saved after-login path after login', async () => {
+  // Adding an account stays on the sign-in pages, so the completion opens the page itself; a
+  // plain sign-in leaves that to AuthLayout (AuthLayout.signIn.test.tsx).
+  it('returns to the saved after-login path after adding an account', async () => {
     localStorage.clear();
+    window.history.replaceState(null, '', '/login?addAccount=1');
     setAfterLoginRedirectPath('/connect?code=ABCD-EFGH');
 
     await act(async () => {
@@ -125,8 +128,9 @@ describe('authentication session completion', () => {
     expect(getActiveSession()?.userId).toBe('@alice:example.org');
   });
 
-  it('opens home without a saved after-login path', async () => {
+  it('opens home without a saved after-login path after adding an account', async () => {
     localStorage.clear();
+    window.history.replaceState(null, '', '/login?addAccount=1');
 
     await act(async () => {
       renderer = renderLoginRoutes();
