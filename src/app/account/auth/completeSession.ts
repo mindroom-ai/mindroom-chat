@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { type NavigateFunction, useNavigate } from 'react-router-dom';
 import {
   createSessionId,
   listSessions,
@@ -14,6 +14,7 @@ import {
   isInAppPath,
 } from '../../routes/afterLoginRedirectPath';
 import { getHomePath } from '../../routes/pathUtils';
+import { resolveAuthRouteRedirect } from '../../navigation/routeSessionGuards';
 
 /** Credentials a successful login or registration hands back. */
 export type SessionCredentials = {
@@ -50,10 +51,18 @@ const discardLogin = (baseUrl: string, userId: string, deviceId: string, accessT
     });
 };
 
+/** Opens the page saved before sign-in, or Home, and forgets the saved page. */
+export const openAfterSignIn = (navigate: NavigateFunction): void => {
+  const redirectPath = getAfterLoginRedirectPath();
+  deleteAfterLoginRedirectPath();
+  navigate(isInAppPath(redirectPath) ? redirectPath : getHomePath(), { replace: true });
+};
+
 /**
  * Stores the new session, makes it active, and opens the page saved before
- * sign-in (or home). Returns true when the browser refused to store the
- * credentials, so the page can tell the user instead of looping.
+ * sign-in (or home), through AuthLayout's redirect unless adding an account.
+ * Returns true when the browser refused to store the credentials, so the page
+ * can tell the user instead of looping.
  *
  * Signing in again to an account this browser has already (Add account, a second login tab)
  * keeps the stored session and its device, with its keys and verification, and signs the new
@@ -96,9 +105,10 @@ export const useCompleteSession = <T extends SessionCredentials>(
       return;
     }
 
-    const redirectPath = getAfterLoginRedirectPath();
-    deleteAfterLoginRedirectPath();
-    navigate(isInAppPath(redirectPath) ? redirectPath : getHomePath(), { replace: true });
+    // AuthLayout sends an active session off the sign-in pages, after this effect, and so opens
+    // the page itself; a navigation from here would lose to its redirect. When adding an account
+    // it stays, and the page opens from here.
+    if (!resolveAuthRouteRedirect(window.location.href)) openAfterSignIn(navigate);
   }, [baseUrl, response, navigate]);
 
   return storeFailed;
