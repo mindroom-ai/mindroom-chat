@@ -1,12 +1,22 @@
 // @vitest-environment jsdom
-// `renderPluginComponent`'s stand-in client, side panel frame, screen size and theme kind, and
-// `registerPluginStrings`, as a plugin's test meets them: through the SDK only.
-import { fireEvent, renderHook } from '@testing-library/react';
+// `renderPluginComponent`'s stand-in client, side panel frame, screen size and theme kind,
+// `registerPluginStrings` and `PanelPlace`, as a plugin's test meets them: through the SDK only.
+import { act, fireEvent, renderHook } from '@testing-library/react';
+import { useLayoutEffect } from 'react';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { usePanelFrame, usePluginTranslation } from '@mindroom/client-sdk/core';
 import { mxcUrlToHttp, useMatrixClient, useMediaAuthentication } from '@mindroom/client-sdk/matrix';
-import { registerPluginStrings, renderPluginComponent } from '@mindroom/client-sdk/testing';
-import { useScreenSize, useThemeKind } from '@mindroom/client-sdk/ui';
+import {
+  PanelPlace,
+  registerPluginStrings,
+  renderPluginComponent,
+} from '@mindroom/client-sdk/testing';
+import {
+  type PanelRegistration,
+  usePanelPresence,
+  useScreenSize,
+  useThemeKind,
+} from '@mindroom/client-sdk/ui';
 
 /** An avatar as a plugin draws one: authenticated as the app asks, unless the test says. */
 function Avatar({ authenticated }: { authenticated?: boolean }) {
@@ -130,5 +140,58 @@ describe('registerPluginStrings', () => {
     registerPluginStrings('strings', { translations: { en: { greeting: 'Hello, {{name}}' } } });
     const { result } = renderHook(() => usePluginTranslation('strings'));
     expect(result.current('greeting', { name: 'Ada' })).toBe('Hello, Ada');
+  });
+});
+
+describe('PanelPlace', () => {
+  /** The registration of the last moving panel that registered. */
+  let registration: PanelRegistration;
+
+  /** A side panel with `frame: 'own'` that moves, as a plugin's does: it registers with its place. */
+  function MovingCard({ name }: { name: string }) {
+    const presence = usePanelPresence();
+    const register = presence?.register;
+    useLayoutEffect(() => {
+      if (!register) return undefined;
+      registration = register();
+      return registration;
+    }, [register]);
+    return <p>{`${name}, ${presence?.phase ?? 'no place'}`}</p>;
+  }
+
+  /** The place holding the card `open`, or none. */
+  const place = (open?: string) => (
+    <PanelPlace>{open ? <MovingCard key={open} name={open} /> : null}</PanelPlace>
+  );
+
+  const renderPlace = async () => {
+    const view = await renderPluginComponent(place(), { id: 'card', plugin: {} });
+    return { ...view, setOpen: (open?: string) => view.rerender(place(open)) };
+  };
+
+  it('keeps a panel that registered while it moves out, until its done', async () => {
+    const { container, setOpen } = await renderPlace();
+    expect(container.textContent).toBe('');
+    setOpen('First');
+    expect(container.textContent).toBe('First, enter');
+    setOpen();
+    expect(container.textContent).toBe('First, exit');
+    act(() => registration.done());
+    expect(container.textContent).toBe('');
+  });
+
+  it('leaves the place to the panel that took it while the first moved out, whose late done ends nothing', async () => {
+    const { container, setOpen } = await renderPlace();
+    setOpen('First');
+    setOpen();
+    const firstDone = registration.done;
+    setOpen('Second');
+    expect(container.textContent).toBe('Second, swap');
+    setOpen();
+    // The first panel's motion ends only now, after the second started to move out.
+    act(() => firstDone());
+    expect(container.textContent).toBe('Second, exit');
+    act(() => registration.done());
+    expect(container.textContent).toBe('');
   });
 });

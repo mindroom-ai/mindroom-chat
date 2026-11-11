@@ -3,7 +3,6 @@ import type { ComponentProps, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createClient, EventStatus, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
-import type { Editor } from 'slate';
 import { Editable, Slate } from 'slate-react';
 import { getDefaultStore } from 'jotai';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -23,6 +22,7 @@ import {
   voiceRecorderRoomAtom,
 } from '../composer/roomInputDrafts';
 import { PanelRow } from '../members/PanelRow';
+import type { RoomInputProps } from '../composer/RoomInput';
 import type { RoomHeaderSlotComponent } from '../plugins/registry';
 import { RoomView, type RoomViewProps } from './RoomView';
 import type { ThreadView } from './ThreadView';
@@ -44,6 +44,8 @@ const state = vi.hoisted(() => ({
   read: [] as string[],
   // The header the plugin header slot's marker was last given.
   slotHeader: undefined as HTMLElement | null | undefined,
+  // The composer, the room's or a thread's, that each dropped file went to.
+  dropped: [] as string[],
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
@@ -139,9 +141,11 @@ vi.mock('../threads/ThreadContextBanner', () => ({
     </div>
   ),
 }));
-// The column's view, which reports its last thread as it unmounts.
+// The column's view, which reports its last thread as it unmounts, and whose composer takes the
+// files dropped on the element the page names, else on the view.
 vi.mock('./ThreadView', async () => {
-  const { useEffect, useRef } = await import('react');
+  const { useCallback, useEffect, useRef } = await import('react');
+  const { useFileDropZone } = await import('../lib/hooks/useFileDrop');
   return {
     ThreadView: ({
       threadId,
@@ -152,8 +156,14 @@ vi.mock('./ThreadView', async () => {
       onThreadLoadError,
       onUnmount,
       focusRef,
+      fileDropContainerRef,
     }: ComponentProps<typeof ThreadView>) => {
       const reply = useRef<HTMLDivElement>(null);
+      const viewRef = useRef<HTMLDivElement>(null);
+      useFileDropZone(
+        fileDropContainerRef ?? viewRef,
+        useCallback(() => state.dropped.push(threadId), [threadId])
+      );
       useEffect(() => {
         if (!focusRef) return undefined;
         focusRef.current = () => reply.current?.focus();
@@ -167,6 +177,7 @@ vi.mock('./ThreadView', async () => {
       state.columnLoadError = onThreadLoadError;
       return (
         <div
+          ref={viewRef}
           data-testid="thread-view"
           data-thread={threadId}
           data-event={eventId}
@@ -182,14 +193,21 @@ vi.mock('./ThreadView', async () => {
     },
   };
 });
-// The composer is its Slate text box.
-vi.mock('../composer/RoomInput', () => ({
-  RoomInput: ({ editor }: { editor: Editor }) => (
-    <Slate editor={editor} initialValue={[{ type: 'paragraph', children: [{ text: '' }] }]}>
-      <Editable aria-label="Message" />
-    </Slate>
-  ),
-}));
+// The composer is its Slate text box, and takes the files dropped on the element it is given.
+vi.mock('../composer/RoomInput', async () => {
+  const { useFileDropZone } = await import('../lib/hooks/useFileDrop');
+  const dropToRoom = () => state.dropped.push('room');
+  return {
+    RoomInput: ({ editor, fileDropContainerRef }: RoomInputProps) => {
+      useFileDropZone(fileDropContainerRef, dropToRoom);
+      return (
+        <Slate editor={editor} initialValue={[{ type: 'paragraph', children: [{ text: '' }] }]}>
+          <Editable aria-label="Message" />
+        </Slate>
+      );
+    },
+  };
+});
 
 class TestPointerEvent extends MouseEvent {
   pointerId: number;
@@ -212,6 +230,7 @@ beforeEach(() => {
   state.canMessage = true;
   state.read = [];
   state.slotHeader = undefined;
+  state.dropped = [];
   localStorage.clear();
   vi.stubGlobal('PointerEvent', TestPointerEvent);
   vi.stubGlobal(
@@ -630,6 +649,31 @@ it("gives the column that fills the page the thread's background jobs and the le
   );
   fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA' });
   expect(document.activeElement).toBe(screen.getByLabelText('Reply'));
+});
+
+it("gives a file dropped on the thread column's header, beside the messages or filling the page, to the thread's composer", () => {
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  renderView();
+  const inColumn = () => within(screen.getByTestId('thread-column'));
+  const drop = (target: HTMLElement) => {
+    const event = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'dataTransfer', {
+      value: { types: ['Files'], files: [new File(['dropped'], 'notes.txt')] },
+    });
+    fireEvent(target, event);
+    expect(event.defaultPrevented).toBe(true);
+  };
+  // Beside the messages, the room's header takes it for their composer, the thread's banner for
+  // the thread's.
+  drop(screen.getByTestId('room-header'));
+  drop(inColumn().getByRole('button', { name: 'Full' }));
+  expect(state.dropped).toEqual(['room', '$thread']);
+
+  // Filling the page, the column's own header and the jobs under the thread take it for the thread.
+  fireEvent.click(inColumn().getByRole('button', { name: 'Full' }));
+  drop(inColumn().getByTestId('room-header'));
+  drop(inColumn().getByTestId('jobs'));
+  expect(state.dropped).toEqual(['room', '$thread', '$thread', '$thread']);
 });
 
 it('leaves typed letters alone in a column that fills the page without a composer', () => {

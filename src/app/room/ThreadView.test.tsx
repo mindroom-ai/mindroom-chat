@@ -174,6 +174,12 @@ it("gives the timeline its room's power levels, also outside that room's page, a
   expect(state.dropTarget).toBe(container.firstElementChild);
 });
 
+it('takes the files dropped on the element the page names instead, as the thread column does', () => {
+  const column = document.createElement('div');
+  render(<ThreadView room={room} threadId={THREAD} fileDropContainerRef={{ current: column }} />);
+  expect(state.dropTarget).toBe(column);
+});
+
 it("sets the room view's insets to none, as no floating header or composer covers its rows", () => {
   const { container } = render(<ThreadView room={room} threadId={THREAD} />);
   const view = container.firstElementChild as HTMLElement;
