@@ -1,18 +1,9 @@
 import { style, styleVariants } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { Panel as SidePanelPanel } from '../ui/panels/SidePanel.css';
-import { Panel as DisclosurePanel } from '../ui/ThreadActivity.css';
 
 const { space, radii, borderWidth } = config;
-const AVATAR = toRem(24);
 const quietLine = `${borderWidth.B300} solid ${color.Surface.ContainerLine}`;
-// Inside a Show output panel, set in from its border as that panel's rows are
-// (ThreadActivity.css.ts `Row`); the panel's border is their frame.
-const inDisclosure = {
-  paddingBlock: toRem(10),
-  paddingInlineStart: toRem(12),
-  paddingInlineEnd: toRem(14),
-};
 
 // It fills its column, and on phones the room's width, as the room's other side panels do.
 export const Panel = style([SidePanelPanel, { flexGrow: 1 }]);
@@ -24,56 +15,86 @@ export const Heading = style({
   minWidth: 0,
 });
 
-// The runs, top to bottom; the panel scrolls, each running transcript in its own box too.
-export const Runs = style({
+/** The open run's status and time under its name. */
+export const Standing = style({
   display: 'flex',
-  flexDirection: 'column',
-  gap: space.S300,
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  columnGap: space.S200,
+});
+
+// The list, or the open run; the panel's header stays put above it.
+export const Body = style({
   flex: '1 1 auto',
   minHeight: 0,
   overflowY: 'auto',
   padding: space.S300,
 });
 
-export const Empty = style({ paddingBlock: space.S400, textAlign: 'center' });
+export const Empty = style({ display: 'block', paddingBlock: space.S400, textAlign: 'center' });
 
-/** One run: who and how it stands, where it came from, then what it wrote. */
-export const Card = style({
+/** Cards one under the other, without the marks of a list. */
+export const List = style({
   display: 'flex',
   flexDirection: 'column',
   gap: space.S200,
+  margin: 0,
+  padding: 0,
+  listStyle: 'none',
+});
+
+/** One run as a compact thread card: title and time, a line of text, then who and how. */
+export const Card = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: space.S100,
+  width: '100%',
   minWidth: 0,
-  paddingBlock: space.S300,
-  paddingInline: space.S300,
-  borderRadius: radii.R400,
+  padding: `${space.S200} ${space.S300}`,
   border: quietLine,
+  borderRadius: radii.R400,
   background: color.Surface.Container,
   color: color.Surface.OnContainer,
+  font: 'inherit',
+  textAlign: 'start',
+  cursor: 'pointer',
+  selectors: {
+    '&:hover': { background: color.Surface.ContainerHover },
+    '&:focus-visible': {
+      outline: `${borderWidth.B600} solid ${color.Primary.Main}`,
+      outlineOffset: toRem(-1),
+    },
+  },
 });
 
-// The avatar beside the name over the status line, as a reply's sender sits by its body; the way
-// back to the caller's thread at the end.
-export const Who = style({
-  display: 'grid',
-  gridTemplateColumns: `${AVATAR} minmax(0, 1fr) auto`,
-  columnGap: space.S200,
-  alignItems: 'center',
-});
-
-export const Name = style({ fontWeight: 600 });
-
-export const Standing = style({
+export const TitleRow = style({
   display: 'flex',
-  flexWrap: 'wrap',
-  alignItems: 'center',
-  columnGap: space.S200,
-  color: color.SurfaceVariant.OnContainer,
+  alignItems: 'baseline',
+  gap: space.S200,
+  minWidth: 0,
 });
 
-// A small round mark in the status's color, on the line before its word.
+export const Title = style({ flex: '1 1 auto', minWidth: 0 });
+
+export const Time = style({ flexShrink: 0 });
+
+export const PreviewFailed = style({ color: color.Critical.Main });
+
+export const Meta = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: space.S200,
+  minWidth: 0,
+  marginBlockStart: space.S100,
+});
+
+export const NestedCount = style({ marginInlineStart: 'auto', flexShrink: 0 });
+
+export const Status = style({ display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' });
+
+// A small round mark in the status's color, before its word.
 const dot = style({
   display: 'inline-block',
-  verticalAlign: 'middle',
   inlineSize: toRem(8),
   blockSize: toRem(8),
   marginInlineEnd: space.S100,
@@ -91,68 +112,25 @@ export const StatusDot = styleVariants({
   denied: [dot, { background: color.Critical.Main }],
 });
 
-// The task beside its press to show all of it, when two lines cut it short.
-export const TaskRow = style({
-  display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1fr) auto',
-  columnGap: space.S100,
-  alignItems: 'start',
-});
+/** The open run's messages, then the cards of the runs it started. */
+export const Thread = style({ display: 'flex', flexDirection: 'column', gap: space.S300 });
 
-// What the run was asked, quieter than what it answers, keeps its line breaks and wraps anywhere.
-export const Task = style({
-  margin: 0,
-  whiteSpace: 'pre-wrap',
-  overflowWrap: 'anywhere',
-});
+// What the run was asked keeps its line breaks and wraps anywhere.
+export const Task = style({ margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' });
 
-/** Two lines of the task at most. */
-export const TaskExcerpt = style([
-  Task,
-  { overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' },
-]);
+export const Reply = style({ minWidth: 0, overflowWrap: 'anywhere' });
 
-export const Result = style({
-  minWidth: 0,
-  overflowWrap: 'anywhere',
-  selectors: {
-    // A folded run's, in its Show output panel above its transcript.
-    [`${DisclosurePanel} > &`]: inDisclosure,
-  },
-});
+export const Failure = style({ margin: 0, color: color.Critical.Main, overflowWrap: 'anywhere' });
 
-// A transcript as long as a reply would be scrolls in a box of its own, so the runs below it
-// stay in reach; its newest text shows at the box's end.
-export const Transcript = style({
-  maxHeight: toRem(320),
-  minWidth: 0,
-  overflowY: 'auto',
-  overflowWrap: 'anywhere',
-  paddingBlockStart: space.S200,
-  borderBlockStart: quietLine,
-  selectors: {
-    // A finished run's, in its Show output panel, has no line of its own under the panel's.
-    [`${DisclosurePanel} > &`]: { ...inDisclosure, borderBlockStart: 'none' },
-    [`${DisclosurePanel} > ${Result} + &`]: { borderBlockStart: quietLine },
-  },
-});
+export const NestedRuns = style({ display: 'flex', flexDirection: 'column', gap: space.S200 });
 
-/** Cards one under the other, without the marks of a list. */
-export const List = style({
+/** The label over the runs it started, between two quiet lines. */
+export const Divider = style({
   display: 'flex',
-  flexDirection: 'column',
-  gap: space.S300,
+  alignItems: 'center',
+  gap: space.S200,
   margin: 0,
-  padding: 0,
-  listStyle: 'none',
-});
-
-/** The runs a run started, inside its card and set in from the start edge by a quiet line. */
-export const Nested = style([
-  List,
-  {
-    gap: space.S200,
-    paddingInlineStart: space.S300,
-    borderInlineStart: `${borderWidth.B600} solid ${color.Surface.ContainerLine}`,
+  selectors: {
+    '&::before, &::after': { content: '""', flex: '1 1 0', borderBlockStart: quietLine },
   },
-]);
+});
