@@ -3,7 +3,7 @@
 
 Usage: python3 scripts/agent-stack/stack.py <slot 0-99> up|down|status|usage [--model stub|real]
        [--transcription stub|real] [--calls SERVICE_URL [--calls-profile realtime|live]] [--client-sessions]
-       [--computers] [--checkout DIR] [--ref REV]
+       [--computers] [--terminals] [--checkout DIR] [--ref REV]
 
   up      start the stack, or reuse the one already running for this slot, and print its state as JSON
   down    stop the slot's stack and delete its storage (a real-model stack first saves its usage, see below)
@@ -20,9 +20,9 @@ test account never meet accounts an earlier start left on the homeserver. The mo
 scripts/agent-stack/stub_model.py, an OpenAI-compatible server that never calls a real model.
 
 Ports for slot N: homeserver 28100+N (slot 0: 28008, as scripts/e2e-slot.sh), MindRoom API 29600+N, stub
-model 29700+N, plugin origins 29800+N; each range holds 100 ports, so slots 0-99 never share one. Exit codes: 3 no
-MindRoom checkout, 4 no homeserver, 5 no provider keys for --model real, --transcription real or --calls, 1 anything
-else.
+model 29700+N, plugin origins 29800+N, sandbox runner 29900+N; each range holds 100 ports, so slots 0-99 never share
+one. Exit codes: 3 no MindRoom checkout, 4 no homeserver, 5 no provider keys for --model real, --transcription real or
+--calls, 6 --terminals on a MindRoom without the terminal toolkit, 1 anything else.
 
 --model real (or $E2E_AGENT_MODEL=real) runs the helper on Claude Haiku 5.5, with GPT-6 Luna as the thread's other
 model, the router's and the thread summaries' model. The helper's instructions turn the stub's hashtags into a script
@@ -44,6 +44,16 @@ sessions, which plugin routes accept: the Chat origin goes into MINDROOM_COMPUTE
 into MINDROOM_PUBLIC_URL, which makes it the OpenID audience and the origin the agents publish. Sign-in also needs a
 homeserver that binds OpenID tokens, MindRoom's Tuwunel with TUWUNEL_MINDROOM_OPENID_AUDIENCE=true, as
 e2e/docker-compose.yaml starts it for every slot; on any other, POST /api/client-sessions answers 403.
+
+--terminals gives the helper MindRoom's persistent terminals (its docs/architecture/terminals.md): the `terminal`
+toolkit beside its shell, which runs in a sandbox runner of the slot (the static_runner backend) on 127.0.0.1:29900+N
+with a token of this start's own, and `terminals: type`, so people in the lobby may type in them too. The runner works
+in the backend's storage, as the Kubernetes chart's sidecar mounts the agents' storage, so it isolates nothing. An agent
+types in its terminals only while no approval rule may ask for its shell calls, so this stack has no approval script
+for run_shell_command: specs of shell approvals (#approve, #bidi) need a stack without --terminals. The stub's
+#terminal opens a terminal and runs an echo in it. A MindRoom without the toolkit (src/mindroom/tools/terminal.py)
+refuses the start with exit code 6, which the agent specs skip on. --terminals implies --client-sessions, since Chat
+reaches terminals through the backend's client routes, and cannot go with --computers, whose workers are Docker's.
 
 --computers gives the helper a Worker Computer (MindRoom's docs/tools/worker-computer.md): MindRoom runs Docker
 workers with the computer security policy from mindroom-client-e2e-worker:<commit>, an image the first start builds
@@ -106,6 +116,7 @@ SERVER_NAME = "matrix.localhost"
 EXIT_NO_CHECKOUT = 3
 EXIT_NO_HOMESERVER = 4
 EXIT_NO_KEYS = 5
+EXIT_NO_TERMINALS = 6
 MODES = ("stub", "real")
 # The agents of each mode. A real model runs only the helper, so the router never needs a model to pick one and the
 # helper gets the person's own message, not the router's handoff.
@@ -145,6 +156,9 @@ WORKER_DOCKERFILE = "local/instances/deploy/Dockerfile.mindroom"
 PLUGIN_MANIFEST = "mindroom.plugin.json"
 PLUGIN_SCENARIOS = "e2e/stub-scenarios.json"
 PLUGIN_SCENARIO_MODULE = "e2e/stub_scenarios.py"
+# What a commit has when it transcribes calls between people, and when it has persistent terminals (--terminals).
+CALL_TRANSCRIPTS = "src/mindroom/call_transcripts"
+TERMINAL_TOOLKIT = "src/mindroom/tools/terminal.py"
 TRANSCRIPTION_MODES = ("stub", "real")
 # The model that writes a call's notes when a stub-model stack transcribes with OpenAI. With the stand-in the stub
 # model writes them, and a real-model stack has its own GPT-6 Luna write them.
@@ -173,6 +187,7 @@ def ports(slot: int) -> dict[str, int]:
         "api": 29600 + slot,
         "stub": 29700 + slot,
         "origin": 29800 + slot,
+        "runner": 29900 + slot,
     }
 
 
@@ -284,11 +299,9 @@ def resolve_commit(checkout: Path, ref: str | None) -> str:
         raise StackError(f"{ref} is not a commit in {checkout}") from error
 
 
-def has_call_transcripts(checkout: Path, sha: str) -> bool:
-    """Whether the commit transcribes calls between people (`calls.transcripts`)."""
-    found = subprocess.run(
-        ["git", "-C", str(checkout), "cat-file", "-e", f"{sha}:src/mindroom/call_transcripts"], capture_output=True
-    )
+def commit_has(checkout: Path, sha: str, path: str) -> bool:
+    """Whether the commit has the file or directory `path`."""
+    found = subprocess.run(["git", "-C", str(checkout), "cat-file", "-e", f"{sha}:{path}"], capture_output=True)
     return found.returncode == 0
 
 
@@ -484,6 +497,30 @@ def option_env(slot: int, client_sessions: bool, image: str | None) -> list[str]
     return lines
 
 
+def runner_env(slot: int, token: str) -> list[str]:
+    """The .env lines of --terminals: the helper's shell runs in the slot's sandbox runner, which mounts the agents'
+    storage."""
+    return [
+        "MINDROOM_WORKER_BACKEND=static_runner",
+        f"MINDROOM_SANDBOX_PROXY_URL=http://127.0.0.1:{ports(slot)['runner']}",
+        f"MINDROOM_SANDBOX_PROXY_TOKEN={token}",
+        "MINDROOM_STATIC_RUNNER_AGENT_STORAGE=true",
+    ]
+
+
+# The slot's sandbox runner, as MindRoom's run-sandbox-runner.sh starts it, but on loopback only: python -c this <port>
+# <slot dir>, where the slot directory marks the process as the stack's own.
+SANDBOX_RUNNER = """import os, sys
+import uvicorn
+from mindroom.constants import resolve_primary_runtime_paths, write_startup_manifest
+paths = resolve_primary_runtime_paths(process_env=dict(os.environ))
+manifest = write_startup_manifest(paths.storage_root, paths, public_runtime=True)
+os.environ["MINDROOM_SANDBOX_STARTUP_MANIFEST_PATH"] = str(manifest)
+from mindroom.api.sandbox_runner_app import app
+uvicorn.run(app, host='127.0.0.1', port=int(sys.argv[1]))
+"""
+
+
 def stub_models_yaml(stub_url: str) -> str:
     return f"""models:
   default:
@@ -594,6 +631,8 @@ REAL_INSTRUCTIONS = [
     "#job: call run_shell_command once with args 'sleep 45; echo background job finished' and background_after 0, "
     "then reply 'Started.' When you are told that background jobs ended, collect them with the job tool and reply "
     "with the result.",
+    "#terminal: call terminal_open once, then terminal_run once with the session ID it returned and command "
+    "'echo stub-terminal-$((6 * 7))', then reply with its output.",
     "When a tool call is denied, quote the reason word for word. Never retry a denied or expired call.",
 ]
 
@@ -655,6 +694,7 @@ def config_yaml(
     computers: bool = False,
     plugin_dirs: list[dict] | None = None,
     transcription: dict | None = None,
+    terminals: bool = False,
 ) -> str:
     plugin_dirs = plugin_dirs or []
     agent_tools = """      - shell
@@ -673,6 +713,17 @@ def config_yaml(
     worker_defaults = "  worker_tools: [browser_mcp]\n  worker_scope: user_agent\n" if computers else ""
     if computers:
         agent_tools += "\n      - browser_mcp"
+    # Terminals run beside the shell in the slot's sandbox runner, and people may type in them (the docstring).
+    helper_terminals = "    terminals: type\n" if terminals else ""
+    if terminals:
+        agent_tools += "\n      - terminal"
+        worker_defaults = "  worker_tools: [shell]\n"
+    # An agent types in its terminals only while no rule may ask for its shell calls.
+    shell_review = (
+        ""
+        if terminals
+        else "    - match: run_shell_command\n      script: ./approval_scripts/shell_review.py\n"
+    )
     if mode == "real":
         # JSON strings are YAML flow scalars, so the script needs no escaping of its own.
         instructions = "\n".join(f"      - {json.dumps(line)}" for line in REAL_INSTRUCTIONS)
@@ -687,7 +738,7 @@ def config_yaml(
 {instructions}
     tools:
 {agent_tools}
-"""
+{helper_terminals}"""
         router_model = second
         summary_model = f"  thread_summary_model: {second}\n"
         header = "# Written by scripts/agent-stack/stack.py --model real; the helper follows a script keyed by hashtags."
@@ -700,7 +751,7 @@ def config_yaml(
     rooms: [lobby]
     tools:
 {agent_tools}
-  scout:
+{helper_terminals}  scout:
     display_name: Scout
     role: Second test agent on the deep stub model
     model: deep
@@ -727,9 +778,7 @@ tool_approval:
     - match: untag_thread
       action: require_approval
       timeout_days: {approval_expiry_days}
-    - match: run_shell_command
-      script: ./approval_scripts/shell_review.py
-
+{shell_review}
 background_tool_jobs:
   approval_wait_timeout: 20
 
@@ -773,12 +822,13 @@ def running(state: dict | None, slot_dir: Path) -> bool:
     marker = str(slot_dir)
     pids = state.get("pids") or {}
     stub_ok = state.get("model") == "real" or alive(pids.get("stub"), marker)
-    return alive(pids.get("backend"), marker) and stub_ok
+    runner_ok = not state.get("terminals") or alive(pids.get("runner"), marker)
+    return alive(pids.get("backend"), marker) and stub_ok and runner_ok
 
 
 def stop_processes(slot_dir: Path) -> None:
     state = read_state(slot_dir) or {}
-    for name in ("backend", "stub"):
+    for name in ("backend", "stub", "runner"):
         stop_process((state.get("pids") or {}).get(name), str(slot_dir))
 
 
@@ -949,7 +999,7 @@ def calls_setting(args: argparse.Namespace) -> dict | None:
 
 def transcription_setting(args: argparse.Namespace, checkout: Path, sha: str) -> dict | None:
     """How the stack transcribes calls between people, as the state records it; None for a commit without them."""
-    if not has_call_transcripts(checkout, sha):
+    if not commit_has(checkout, sha, CALL_TRANSCRIPTS):
         return None
     if args.model == "real":
         # Its own Luna writes the notes: a second entry of the same model would list it twice in the model picker.
@@ -967,14 +1017,16 @@ def started_with(
     transcription: dict | None = None,
 ) -> bool:
     """Whether a stack's state comes from a start with this model, calls, call transcripts, client sessions, computers,
-    approval expiry and plugin directories (as check_plugin_dirs reports them), of this commit, on this homeserver; a
-    state without clientSessions, computers or pluginDirs counts as one started without them."""
+    terminals, approval expiry and plugin directories (as check_plugin_dirs reports them), of this commit, on this
+    homeserver; a state without clientSessions, computers, terminals or pluginDirs counts as one started without
+    them."""
     return (
         state.get("model", "stub") == args.model
         and state.get("calls") == calls_setting(args)
         and state.get("transcription") == transcription
         and state.get("clientSessions", False) == args.client_sessions
         and state.get("computers", False) == args.computers
+        and state.get("terminals", False) == args.terminals
         and state.get("approvalExpiryDays") == args.approval_expiry_days
         and state.get("pluginDirs", []) == (plugin_dirs or [])
         and state.get("sha") == sha
@@ -998,6 +1050,11 @@ def up(slot: int, args: argparse.Namespace) -> dict:
             f"no homeserver at {homeserver}; start the slot's homeserver first", EXIT_NO_HOMESERVER
         )
     sha = resolve_commit(checkout, args.ref)
+    if args.terminals and not commit_has(checkout, sha, TERMINAL_TOOLKIT):
+        raise StackError(
+            f"MindRoom {sha[:12]} has no terminal toolkit ({TERMINAL_TOOLKIT}); --terminals needs a newer commit",
+            EXIT_NO_TERMINALS,
+        )
     calls = calls_setting(args)
     transcription = transcription_setting(args, checkout, sha)
     # Before the stack is reused or stopped: a broken plugin leaves a running stack as it is, and a plugin that gained
@@ -1088,10 +1145,12 @@ def start(
             args.computers,
             plugin_dirs,
             transcription,
+            args.terminals,
         )
     )
     api_url = f"http://127.0.0.1:{port['api']}"
     origin_port = port["origin"] if any(d["origins"] for d in plugin_dirs) else None
+    runner_token = secrets.token_hex(16) if args.terminals else None
     (slot_dir / ".env").write_text(
         "\n".join(
             [
@@ -1103,6 +1162,7 @@ def start(
                 f"MINDROOM_API_KEY={secrets.token_hex(16)}",
                 "MINDROOM_AUTO_BUILD_FRONTEND=0",
                 *option_env(slot, args.client_sessions, image),
+                *(runner_env(slot, runner_token) if runner_token else []),
                 # Under the default domain, localhost: browsers send every *.localhost host to this machine.
                 *([f"MINDROOM_PLUGIN_ORIGIN_PORT={origin_port}"] if origin_port else []),
                 "",
@@ -1132,6 +1192,7 @@ def start(
         "transcription": transcription,
         "clientSessions": args.client_sessions,
         "computers": args.computers,
+        "terminals": args.terminals,
         # The config's timeout_days, exactly: approvalExpirySeconds below is rounded.
         "approvalExpiryDays": args.approval_expiry_days,
         "pluginDirs": plugin_dirs,
@@ -1144,7 +1205,11 @@ def start(
         "pluginOriginPort": origin_port,
         "stubUrl": stub_url,
         "dir": str(slot_dir),
-        "logs": {"backend": str(slot_dir / "backend.log"), "stub": str(slot_dir / "stub.log")},
+        "logs": {
+            "backend": str(slot_dir / "backend.log"),
+            "stub": str(slot_dir / "stub.log"),
+            **({"runner": str(slot_dir / "runner.log")} if args.terminals else {}),
+        },
         "stubRequests": str(slot_dir / "stub" / "requests.jsonl"),
         "pids": {},
     }
@@ -1174,6 +1239,26 @@ def start(
         )
         (slot_dir / "state.json").write_text(json.dumps(state, indent=1))
         wait_until("the stub model", lambda: http_json("GET", f"{stub_url}/models")[0] == 200, 60, 0.5)
+
+    if runner_token:
+        (slot_dir / "runner").mkdir()
+        # No config and no .env, as MindRoom's docs ask of a runner; its storage is the backend's (the docstring).
+        runner_env_vars = {
+            **{name: env[name] for name in ("PATH", "LANG", "TZ", "PYTHONUNBUFFERED")},
+            "HOME": str(slot_dir / "runner"),
+            "MINDROOM_SANDBOX_RUNNER_MODE": "true",
+            "MINDROOM_SANDBOX_PROXY_TOKEN": runner_token,
+            "MINDROOM_STORAGE_PATH": str(slot_dir / "storage"),
+        }
+        state["pids"]["runner"] = start_process(
+            [str(venv_bin / "python"), "-P", "-s", "-c", SANDBOX_RUNNER, str(port["runner"]), str(slot_dir)],
+            cwd=slot_dir / "runner",
+            env=runner_env_vars,
+            log_path=slot_dir / "runner.log",
+        )
+        (slot_dir / "state.json").write_text(json.dumps(state, indent=1))
+        runner_url = f"http://127.0.0.1:{port['runner']}/healthz"
+        wait_until("the sandbox runner", lambda: http_json("GET", runner_url)[0] == 200, 120, 0.5)
 
     voice = f", calls on {calls['model']}" if calls else ""
     log(f"starting MindRoom {sha[:12]} (namespace {namespace}, {args.model} model{voice}) on {api_url}")
@@ -1359,6 +1444,12 @@ def main() -> int:
         "--client-sessions",
     )
     parser.add_argument(
+        "--terminals",
+        action="store_true",
+        help="the helper gets persistent terminals it types in, beside its shell in a sandbox runner of the slot; "
+        "implies --client-sessions, and the stack has no approval rule for shell calls",
+    )
+    parser.add_argument(
         "--checkout", help=f"MindRoom checkout (default $E2E_MINDROOM_CHECKOUT or {DEFAULT_CHECKOUT})"
     )
     parser.add_argument(
@@ -1377,8 +1468,10 @@ def main() -> int:
         parser.error(f"--transcription must be one of {', '.join(TRANSCRIPTION_MODES)}")
     if not 0 <= args.slot <= 99:
         parser.error("slot must be 0-99")
-    # Chat opens a computer through the same origin settings as a client session.
-    args.client_sessions = args.client_sessions or args.computers
+    if args.terminals and args.computers:
+        parser.error("--terminals and --computers need different worker backends; start them in separate stacks")
+    # Chat opens a computer, and reaches terminals, through the same origin settings as a client session.
+    args.client_sessions = args.client_sessions or args.computers or args.terminals
     # A slot holds the stack's tokens and keys, so what this script and the stack's processes write is the owner's only.
     os.umask(0o077)
     signal.signal(signal.SIGTERM, exit_on_sigterm)

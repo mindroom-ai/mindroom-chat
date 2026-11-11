@@ -90,6 +90,8 @@ export const STACK_SCRIPT = fileURLToPath(
 const EXIT_NO_CHECKOUT = 3;
 const EXIT_NO_HOMESERVER = 4;
 const EXIT_NO_KEYS = 5;
+/** `--terminals` on a MindRoom without the terminal toolkit. */
+const EXIT_NO_TERMINALS = 6;
 
 const slotNumber = (): number => {
   const port = Number(process.env.E2E_MATRIX_PORT ?? '28008');
@@ -104,7 +106,11 @@ const startAgentStack = (args: string[]): AgentStack | string => {
   });
   if (result.status === 0) return JSON.parse(result.stdout) as AgentStack;
   const message = (result.stderr || String(result.error ?? '')).trim();
-  if ([EXIT_NO_CHECKOUT, EXIT_NO_HOMESERVER, EXIT_NO_KEYS].includes(result.status ?? -1))
+  if (
+    [EXIT_NO_CHECKOUT, EXIT_NO_HOMESERVER, EXIT_NO_KEYS, EXIT_NO_TERMINALS].includes(
+      result.status ?? -1
+    )
+  )
     return message;
   // stack.py's last line of its own names the reason; the tail of the backend log follows it.
   const reason =
