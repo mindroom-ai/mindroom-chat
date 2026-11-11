@@ -79,8 +79,8 @@ type ViewProps = {
 };
 
 /**
- * One run, as a thread shows a conversation: the caller's task, then the run's reply as it streams,
- * with its tool calls, and why it ended when it ended badly. The runs it started follow as cards.
+ * One run, as a thread shows a conversation: the caller's task, cards for the runs it started,
+ * then its reply as it streams, with its tool calls, and why it ended when it ended badly.
  * A reader at the end follows new text until they scroll up.
  */
 export function SubagentRunView({
@@ -114,6 +114,8 @@ export function SubagentRunView({
   }, [meta.result, meta.status, run.docs]);
   const getContent = useDocsContent(docs);
   const failed = (meta.status === 'failed' || meta.status === 'denied') && !!meta.result;
+  // A run that wrote nothing has no reply; one at work shows the thinking placeholder.
+  const wrote = docs.md !== '' || docs.tools.length > 0 || meta.status === 'running';
 
   // A running run opens at its newest text; an ended one at its task.
   const box = useRef<HTMLDivElement>(null);
@@ -209,25 +211,6 @@ export function SubagentRunView({
               </Text>
             </RunMessage>
           )}
-          <RunMessage sender={agent} ts={meta.startedAt * 1000}>
-            <div className={css.Reply} data-subagent-transcript="">
-              <RenderMessageContent
-                msgType="m.text"
-                displayName={agent.name}
-                roomId={room.roomId}
-                threadId={threadId ?? undefined}
-                ts={meta.startedAt * 1000}
-                getContent={getContent}
-                htmlReactParserOptions={parserOptions}
-                linkifyOpts={LINKIFY_OPTS}
-              />
-            </div>
-            {failed && docs.md !== meta.result && (
-              <Text as="p" size="T300" className={css.Failure} dir="auto" data-subagent-failure="">
-                {meta.result}
-              </Text>
-            )}
-          </RunMessage>
           {nested.length > 0 && (
             <section className={css.NestedRuns} aria-label={t('mindroomUi.subagents.title')}>
               <Text as="h3" size="L400" priority="300" className={css.Divider}>
@@ -241,6 +224,34 @@ export function SubagentRunView({
                 ))}
               </ul>
             </section>
+          )}
+          {/* The runs it started, then its reply, which grows at the end where a reader follows it. */}
+          {wrote && (
+            <RunMessage sender={agent} ts={meta.startedAt * 1000}>
+              <div className={css.Reply} data-subagent-transcript="">
+                <RenderMessageContent
+                  msgType="m.text"
+                  displayName={agent.name}
+                  roomId={room.roomId}
+                  threadId={threadId ?? undefined}
+                  ts={meta.startedAt * 1000}
+                  getContent={getContent}
+                  htmlReactParserOptions={parserOptions}
+                  linkifyOpts={LINKIFY_OPTS}
+                />
+              </div>
+              {failed && docs.md !== meta.result && (
+                <Text
+                  as="p"
+                  size="T300"
+                  className={css.Failure}
+                  dir="auto"
+                  data-subagent-failure=""
+                >
+                  {meta.result}
+                </Text>
+              )}
+            </RunMessage>
           )}
         </div>
       </div>

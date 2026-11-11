@@ -327,6 +327,16 @@ describe('SubagentsPanel', () => {
     expect(view()?.querySelector('[data-subagent-failure]')?.textContent).toBe('Tool crashed.');
   });
 
+  it('shows no reply for a run that ended without writing anything', () => {
+    ingest('quiet', meta('cancelled', { task: 'Wait.' }), docs('', [], false));
+    render();
+    open('quiet');
+
+    expect(view()?.textContent).toContain('Wait.');
+    expect(transcript()).toBeNull();
+    expect(view()?.textContent).not.toContain('Thinking');
+  });
+
   it('opens a run it started from its cards, and goes back up one run at a time', () => {
     ingest(
       'parent',
@@ -345,6 +355,11 @@ describe('SubagentsPanel', () => {
     // The card that opened it is gone; focus moves to the way back.
     expect(document.activeElement).toBe(button(container, 'Back'));
     expect(card('child').textContent).toContain('Write it.');
+    // Its cards come before its reply, whose end a reader follows.
+    const reply = transcript();
+    expect(reply && card('child').compareDocumentPosition(reply)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
     open('child');
     expect(heading()).toBe('writer');
     expect(transcript()?.textContent).toContain('Written.');
