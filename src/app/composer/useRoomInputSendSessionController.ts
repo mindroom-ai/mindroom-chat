@@ -770,6 +770,8 @@ export const useRoomInputSendSessionController = ({
         const key = current.session
           ? voiceComposerKey({ ...current.session.composerContext, threadView })
           : composerKeyRef.current;
+        // A key another send still waits under stays that send's.
+        if (parked.get(key)?.session) return;
         parked.set(key, current);
         current.unpark = () => {
           if (parked.get(key) === current) parked.delete(key);

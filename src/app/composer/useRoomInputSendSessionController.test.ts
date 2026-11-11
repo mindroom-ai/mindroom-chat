@@ -315,6 +315,11 @@ const renderHarness = (
         api: next,
         /** This composer's controller as it rendered last. */
         current: () => next,
+        /** Unmounts the composer mounted again. */
+        unmount: () => {
+          next.mountedRef.current = false;
+          act(() => again.unmount());
+        },
         /** Moves the composer mounted again to another room, as the room's page does. */
         changeRoom: (nextRoomId: string) =>
           act(() =>
@@ -549,6 +554,43 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     });
     await vi.waitFor(() => expect(sentBodies(mx)).toHaveLength(3));
     expect(sentBodies(mx)[2]).toBe('next');
+  });
+
+  it("keeps another room's parked send where it is as a queued send parks again", async () => {
+    const { mx, mountAgain } = renderHarness();
+    // Room B's send, parked as its composer went.
+    const inB = mountAgain('!b:example.org');
+    const fileB = createFile('room-b.txt');
+    inB.api.selectedFilesRef.current = [createUploadItem(fileB)];
+    inB.api.uploadsRef.current = [loadingUpload(fileB)];
+    await act(async () => {
+      await inB.api.startSendSession();
+    });
+    inB.unmount();
+    // Room A's send, with a text for room B queued behind it, parked as its composer went.
+    const inA = mountAgain();
+    const fileA = createFile('room-a.txt');
+    inA.api.selectedFilesRef.current = [createUploadItem(fileA)];
+    inA.api.uploadsRef.current = [loadingUpload(fileA)];
+    await act(async () => {
+      await inA.api.startSendSession();
+    });
+    inA.changeRoom('!b:example.org');
+    await act(async () => {
+      await inA.current().startSendSession({ textContent: { msgtype: 'm.text', body: 'hi' } });
+    });
+    inA.unmount();
+    inA.api.uploadsRef.current = [successUpload(fileA)];
+    await act(async () => {
+      getDefaultStore().set(roomUploadAtomFamily(fileA), { mxc: 'mxc://mindroom/room-a.txt' });
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(sentBodies(mx)).toEqual(['room-a.txt', 'hi']));
+
+    // Room B's composer still takes room B's file over.
+    const backInB = mountAgain('!b:example.org');
+    expect(backInB.current().joinedSendPending).toBe(true);
+    expect(backInB.api.selectedFilesRef.current.map((item) => item.file)).toEqual([fileB]);
   });
 
   it('takes a send over when the composer moves to its room, not only as it mounts', async () => {
