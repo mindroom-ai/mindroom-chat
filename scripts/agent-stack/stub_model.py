@@ -34,7 +34,7 @@ A step function sees a Turn: `results` (the turn's tool results so far, as text,
 latest words), `system` (the system and developer messages, joined) and `tools` (the tool names offered). Files and
 modules are read for every request, so an edit applies at once. A hashtag the stub already has gets a file's steps,
 and a module's win over both. A file or module that cannot be read, and a step function that fails, make the reply say
-why, naming the file, and for a step its hashtag.
+why, naming the file and the hashtag (for a file or module, those of the latest message).
 
 Anything else gets a short echo naming the model ("Hello from **stub-fast**. You said: <message>").
 A call's notes (structured, about the call's <transcript>) say "Stub notes of the call." and "stub" in each list.
@@ -419,8 +419,9 @@ class Stub:
             try:
                 scenarios = tool_scenarios(self.scenario_files, self.scenario_modules)
             except ValueError as error:
-                # The reply says why, in the thread the spec's author looks at.
-                step = ("text", f"The stub could not read its scenarios: {error}")
+                # The reply says why, in the thread the spec's author looks at, with the hashtags it was asked for.
+                tags = " ".join(re.findall(r"#[\w-]+", person_said(messages).lower()))
+                step = ("text", f"The stub could not read its scenarios{f' for {tags}' if tags else ''}: {error}")
             else:
                 step = plan(body, scenarios)
         think = 0.0

@@ -1003,8 +1003,12 @@ class StubScenarioTests(unittest.TestCase):
 
     def test_the_stub_says_in_its_reply_that_a_file_is_broken(self) -> None:
         broken = self.scenarios("{not json")
-        message = self.answer([broken], chat("#samplegreet"))
+        message = self.answer([broken], chat("hello"))
         self.assertTrue(message["content"].startswith(f"The stub could not read its scenarios: {broken}: "))
+        message = self.answer([broken], chat("please #SampleGreet and #shell"))
+        self.assertTrue(
+            message["content"].startswith(f"The stub could not read its scenarios for #samplegreet #shell: {broken}: ")
+        )
 
     def module(self, source: str) -> Path:
         path = self.root / f"stub_scenarios_{len(list(self.root.iterdir()))}.py"
@@ -1068,9 +1072,9 @@ class StubScenarioTests(unittest.TestCase):
     def test_a_module_that_fails_to_import_is_named_in_the_reply(self) -> None:
         for source in ("SCENARIOS = {", "raise RuntimeError('no fixture')", 'SCENARIOS = {"#a": [("only-a-name",)]}'):
             module = self.module(source)
-            message = self.answer([], chat("#samplegreet"), [module])
+            message = self.answer([], chat("#chain"), [module])
             self.assertTrue(
-                message["content"].startswith(f"The stub could not read its scenarios: {module}: "), message
+                message["content"].startswith(f"The stub could not read its scenarios for #chain: {module}: "), message
             )
         missing = self.root / "missing.py"
         self.assertIn(str(missing), self.answer([], chat("#samplegreet"), [missing])["content"])
