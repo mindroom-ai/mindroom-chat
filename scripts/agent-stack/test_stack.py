@@ -911,7 +911,7 @@ SCENARIOS = {
         ("sample_greet", lambda turn: f"Made {turn.results[0]}, then: {turn.results[1]}"),
     ],
 }
-REPLIES = {"#prompted": lambda turn: f"injected: {'be brief' in turn.system}; tools: {', '.join(turn.tools)}"}
+REPLIES = {"#prompted": lambda turn: " | ".join([turn.system, *turn.tools])}
 """
 CHAIN_TOOLS = [
     {"type": "function", "function": {"name": name}} for name in ("sample_make", "sample_use", "sample_greet")
@@ -1010,10 +1010,11 @@ class StubScenarioTests(unittest.TestCase):
         path.write_text(source)
         return path
 
-    def turn(self, text: str, *results: str, system: str = "") -> dict:
+    def turn(self, text: str, *results: str, developer: str = "") -> dict:
         messages = [{"role": "user", "content": text}, *({"role": "tool", "content": r} for r in results)]
-        if system:
-            messages.insert(0, {"role": "system", "content": system})
+        if developer:
+            system = {"role": "system", "content": "You are the helper."}
+            messages[:0] = [system, {"role": "developer", "content": developer}]
         return {"model": "stub-fast", "messages": messages, "tools": CHAIN_TOOLS}
 
     def test_a_module_computes_steps_from_the_turn(self) -> None:
@@ -1043,12 +1044,12 @@ class StubScenarioTests(unittest.TestCase):
 
     def test_a_reply_sees_the_system_prompt_and_the_tools(self) -> None:
         scenarios = stub_model.tool_scenarios([], [self.module(CHAIN_MODULE)])
-        tools = "tools: sample_make, sample_use, sample_greet"
+        tools = "sample_make | sample_use | sample_greet"
         self.assertEqual(
-            stub_model.plan(self.turn("#prompted", system="You are the helper. be brief"), scenarios),
-            ("text", f"injected: True; {tools}"),
+            stub_model.plan(self.turn("#prompted", developer="Please be brief."), scenarios),
+            ("text", f"You are the helper.\nPlease be brief. | {tools}"),
         )
-        self.assertEqual(stub_model.plan(self.turn("#prompted"), scenarios), ("text", f"injected: False; {tools}"))
+        self.assertEqual(stub_model.plan(self.turn("#prompted"), scenarios), ("text", f" | {tools}"))
 
     def test_a_module_wins_over_a_file_and_a_file_over_the_built_in_ones(self) -> None:
         file = self.scenarios({"#shell": [["sample_greet", {"name": "file"}]], "#chain": [["sample_greet", {}]]})
