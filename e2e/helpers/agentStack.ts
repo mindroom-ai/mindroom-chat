@@ -52,14 +52,15 @@ export type AgentStack = {
   calls?: { serviceUrl: string; profile: 'realtime' | 'live'; model: string } | null;
   /**
    * The plugin directories of E2E_PLUGIN_DIRS: each one's MindRoom plugin (its manifest name, or null without one),
-   * the tools the helper took from it, its stub-model scenario file or null, and whether its manifest names an
-   * `origin_module`.
+   * the tools the helper took from it, its stub-model scenario file and module or null, and whether its manifest
+   * names an `origin_module`.
    */
   pluginDirs?: {
     dir: string;
     plugin: string | null;
     tools: string[];
     scenarios: string | null;
+    scenarioModule: string | null;
     origins: boolean;
   }[];
   /**
