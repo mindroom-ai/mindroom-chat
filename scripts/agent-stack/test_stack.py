@@ -244,6 +244,12 @@ class CallsTests(unittest.TestCase):
         )
 
 
+def checked_dir(directory: str, **fields: object) -> dict:
+    """A plugin directory as check_plugin_dirs records it, with nothing in it but `fields`."""
+    empty = {"plugin": None, "tools": [], "scenarios": None, "scenarioModule": None, "origins": False}
+    return {"dir": directory, **empty, **fields}
+
+
 def up_args(**changes: object) -> argparse.Namespace:
     """The arguments of `stack.py <slot> up` without options, with `changes` applied."""
     values = {
@@ -340,9 +346,8 @@ class CommandLineTests(unittest.TestCase):
         return env, stack.read_state(self.slot_dir)
 
     def test_a_plugin_with_origins_turns_the_backend_origins_on_at_the_slot_port(self) -> None:
-        apps = {"dir": "/plugins/apps", "plugin": "apps", "tools": [], "scenarios": None, "scenarioModule": None}
-        apps["origins"] = True
-        greeter = {**apps, "dir": "/plugins/greeter", "plugin": "greeter", "origins": False}
+        apps = checked_dir("/plugins/apps", plugin="apps", origins=True)
+        greeter = checked_dir("/plugins/greeter", plugin="greeter")
         env, state = self.started_env_and_state(greeter, apps)
         self.assertEqual(env["MINDROOM_PLUGIN_ORIGIN_PORT"], "29807")
         self.assertEqual(state["pluginOriginPort"], 29807)
@@ -352,16 +357,14 @@ class CommandLineTests(unittest.TestCase):
         self.assertIsNone(state["pluginOriginPort"])
 
     def test_the_stub_plays_the_scenario_files_and_modules_of_the_plugin_dirs(self) -> None:
-        greeter = {
-            "dir": "/plugins/greeter",
-            "plugin": "greeter",
-            "tools": ["greeter"],
-            "scenarios": "/plugins/greeter/e2e/stub-scenarios.json",
-            "scenarioModule": "/plugins/greeter/e2e/stub_scenarios.py",
-            "origins": False,
-        }
-        pages = {**greeter, "dir": "/plugins/pages", "plugin": None, "tools": [], "scenarios": None}
-        pages["scenarioModule"] = "/plugins/pages/e2e/stub_scenarios.py"
+        greeter = checked_dir(
+            "/plugins/greeter",
+            plugin="greeter",
+            tools=["greeter"],
+            scenarios="/plugins/greeter/e2e/stub-scenarios.json",
+            scenarioModule="/plugins/greeter/e2e/stub_scenarios.py",
+        )
+        pages = checked_dir("/plugins/pages", scenarioModule="/plugins/pages/e2e/stub_scenarios.py")
         _, state = self.started_env_and_state(greeter, pages)
         stub = next(call.args[0] for call in self.start_process.call_args_list if "--log" in call.args[0])
         self.assertEqual(
@@ -796,21 +799,19 @@ class PluginDirTests(unittest.TestCase):
         (pages_only / "e2e" / "fixtures").mkdir(parents=True)
         with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-secret"}):
             checked = stack.check_plugin_dirs(self.venv_bin, [greeter, apps, pages_only])
-        none = {"tools": [], "scenarios": None, "scenarioModule": None}
         self.assertEqual(
             checked,
             [
-                {
-                    "dir": str(greeter),
-                    "plugin": "greeter",
-                    "tools": ["greeter"],
-                    "scenarios": str(greeter / "e2e" / "stub-scenarios.json"),
-                    "scenarioModule": str(greeter / "e2e" / "stub_scenarios.py"),
-                    "origins": False,
-                },
+                checked_dir(
+                    str(greeter),
+                    plugin="greeter",
+                    tools=["greeter"],
+                    scenarios=str(greeter / "e2e" / "stub-scenarios.json"),
+                    scenarioModule=str(greeter / "e2e" / "stub_scenarios.py"),
+                ),
                 # Its manifest names an origin_module.
-                {**none, "dir": str(apps), "plugin": "apps", "origins": True},
-                {**none, "dir": str(pages_only), "plugin": None, "origins": False},
+                checked_dir(str(apps), plugin="apps", origins=True),
+                checked_dir(str(pages_only)),
             ],
         )
         # Only the directories with a plugin are checked, and the provider keys stay out of the check.
@@ -892,11 +893,11 @@ class PluginDirTests(unittest.TestCase):
         start.assert_not_called()
 
 
-TOOLS = [{"type": "function", "function": {"name": "sample_greet"}}]
+TOOLS = [{"type": "function", "function": {"name": name}} for name in ("sample_make", "sample_use", "sample_greet")]
 
 
 def chat(text: str, *later: dict) -> dict:
-    """A request whose person wrote `text`, with the sample plugin's tool, followed by `later` messages."""
+    """A request whose person wrote `text`, with the sample plugin's tools, followed by `later` messages."""
     return {"model": "stub-fast", "messages": [{"role": "user", "content": text}, *later], "tools": TOOLS}
 
 
@@ -913,9 +914,6 @@ SCENARIOS = {
 }
 REPLIES = {"#prompted": lambda turn: " | ".join([turn.system, *turn.tools])}
 """
-CHAIN_TOOLS = [
-    {"type": "function", "function": {"name": name}} for name in ("sample_make", "sample_use", "sample_greet")
-]
 
 
 class StubScenarioTests(unittest.TestCase):
@@ -949,6 +947,9 @@ class StubScenarioTests(unittest.TestCase):
         self.assertEqual(kind, "text")
         self.assertIn("Finished **samplegreet** after 1 tool call(s)", text)
         self.assertIn("Hello Ada, from the sample plugin", text)
+        # The reply quotes the first 400 characters of the result.
+        _, text = stub_model.plan(chat("please #samplegreet", {"role": "tool", "content": "a" * 399 + "bc"}), scenarios)
+        self.assertIn("a" * 399 + "b\n```", text)
 
     def test_ask_streams_a_question_with_options_for_reactions(self) -> None:
         kind, text, seconds = stub_model.plan(chat("which deck? #ask"), stub_model.tool_scenarios([]))
@@ -1011,11 +1012,11 @@ class StubScenarioTests(unittest.TestCase):
         return path
 
     def turn(self, text: str, *results: str, developer: str = "") -> dict:
-        messages = [{"role": "user", "content": text}, *({"role": "tool", "content": r} for r in results)]
+        body = chat(text, *({"role": "tool", "content": r} for r in results))
         if developer:
             system = {"role": "system", "content": "You are the helper."}
-            messages[:0] = [system, {"role": "developer", "content": developer}]
-        return {"model": "stub-fast", "messages": messages, "tools": CHAIN_TOOLS}
+            body["messages"][:0] = [system, {"role": "developer", "content": developer}]
+        return body
 
     def test_a_module_computes_steps_from_the_turn(self) -> None:
         scenarios = stub_model.tool_scenarios([], [self.module(CHAIN_MODULE)])
@@ -1076,8 +1077,9 @@ class StubScenarioTests(unittest.TestCase):
 
     def test_a_step_that_fails_is_named_with_its_tag_in_the_reply(self) -> None:
         module = self.module(
-            'SCENARIOS = {"#chain": [("sample_greet", lambda turn: {"name": turn.results[0]})]}\n'
-            'REPLIES = {"#odd": lambda turn: 5}'
+            'SCENARIOS = {"#Chain": [("sample_greet", lambda turn: {"name": turn.results[0]})]}\n'
+            'SCENARIOS["#odd"] = [("sample_greet", lambda turn: 5)]\n'
+            'REPLIES = {"#dict": lambda turn: {"name": "Ada"}}'
         )
         message = self.answer([], chat("#chain"), [module])
         self.assertEqual(
@@ -1089,6 +1091,8 @@ class StubScenarioTests(unittest.TestCase):
             message["content"],
             f"The stub's scenario #odd of {module} failed: it gave int, not a dict of arguments or a text",
         )
+        message = self.answer([], chat("#dict"), [module])
+        self.assertEqual(message["content"], f"The stub's scenario #dict of {module} failed: it gave dict, not a text")
 
 
 if __name__ == "__main__":

@@ -23,8 +23,8 @@ import {
   waitForAgentReply,
 } from '../helpers/agentStack';
 
-// The agent stack with a plugin directory (scripts/agent-stack/stack.py's docstring). The first two tests need
-// E2E_PLUGIN_DIRS to name e2e/fixtures/sample-plugin, or a copy of it: the first for the stack, the second for
+// The agent stack with a plugin directory (scripts/agent-stack/stack.py's docstring). The first three tests need
+// E2E_PLUGIN_DIRS to name e2e/fixtures/sample-plugin, or a copy of it: the first two for the stack, the third for
 // the app server:
 //   E2E_PLUGIN_DIRS=e2e/fixtures/sample-plugin just e2e-slot 3 --preview npx playwright test <this spec>
 test.describe.configure({ timeout: 300_000 });
@@ -80,13 +80,10 @@ test("a plugin directory's scenario module passes one tool's result to the next 
   const rootId = await startThread(stack, `${uniqueWord('chain')} #chain`);
   await openThread(page, stack, rootId);
   const reply = await waitForAgentReply(stack, rootId, (body) => body.includes('then: Used item-'));
-  const chained =
-    /Made (item-[0-9a-f]{8}), then: Used (item-[0-9a-f]{8}), from the sample plugin/.exec(
-      bodyOf(reply)
-    );
-  expect(chained, bodyOf(reply)).not.toBeNull();
-  expect(chained?.[2]).toBe(chained?.[1]);
-  await expect(messageRow(page, reply.event_id)).toContainText(`Used ${chained?.[1] ?? ''}`);
+  const text = bodyOf(reply);
+  const made = /Made (item-[0-9a-f]{8}), then: Used \1, from the sample plugin/.exec(text);
+  expect(made, text).not.toBeNull();
+  await expect(messageRow(page, reply.event_id)).toContainText(`Used ${made?.[1] ?? ''}`);
 });
 
 // Its own test, without the agent stack, so the page opens in a browser that has not loaded the app: in a

@@ -130,18 +130,22 @@ class Turn:
 Step = tuple[str, dict | Callable[[Turn], dict | str]]
 
 
-def guarded(module: Path, tag: str, function: Callable[[Turn], object]) -> Callable[[Turn], dict | str]:
-    """`function`, with its failure, or an answer that is neither arguments nor a text, as a text naming the step."""
+def guarded(
+    module: Path, tag: str, function: Callable[[Turn], object], text_only: bool = False
+) -> Callable[[Turn], dict | str]:
+    """`function`, with its failure, or an answer it may not give (a REPLIES one gives a text), as a text naming the
+    step."""
+    failed = f"The stub's scenario {tag} of {module} failed"
+    wanted = "a text" if text_only else "a dict of arguments or a text"
 
     def step(turn: Turn) -> dict | str:
         try:
             answer = function(turn)
         except Exception as error:
-            return f"The stub's scenario {tag} of {module} failed: {type(error).__name__}: {error}"
-        if isinstance(answer, (dict, str)):
+            return f"{failed}: {type(error).__name__}: {error}"
+        if isinstance(answer, str) or (isinstance(answer, dict) and not text_only):
             return answer
-        kind = type(answer).__name__
-        return f"The stub's scenario {tag} of {module} failed: it gave {kind}, not a dict of arguments or a text"
+        return f"{failed}: it gave {type(answer).__name__}, not {wanted}"
 
     return step
 
@@ -160,11 +164,12 @@ def tool_scenarios(files: list[Path], modules: Iterable[Path] = ()) -> dict[str,
         try:
             names = runpy.run_path(str(module))
             for tag, steps in names.get("SCENARIOS", {}).items():
-                scenarios[tag.lower()] = [
-                    (name, guarded(module, tag.lower(), args) if callable(args) else args) for name, args in steps
+                key = tag.lower()
+                scenarios[key] = [
+                    (name, guarded(module, key, args) if callable(args) else args) for name, args in steps
                 ]
             for tag, reply in names.get("REPLIES", {}).items():
-                scenarios[tag.lower()] = [("", guarded(module, tag.lower(), reply))]
+                scenarios[tag.lower()] = [("", guarded(module, tag.lower(), reply, text_only=True))]
         except Exception as error:
             raise ValueError(f"{module}: {type(error).__name__}: {error}") from error
     return scenarios
@@ -306,8 +311,10 @@ def plan(body: dict, scenarios: dict[str, list[Step]]) -> tuple:
     # The latest message decides when it names a scenario; otherwise the whole turn does.
     if any(has_tag(latest, tag) for tag in [*scenarios, *TEXT_SCENARIOS]):
         text = latest
-    results = [m for m in messages[index + 1 :] if m.get("role") == "tool"] if index >= 0 else []
-    last_result = text_of(results[-1].get("content"))[:400] if results else ""
+    results = (
+        [text_of(m.get("content")) for m in messages[index + 1 :] if m.get("role") == "tool"] if index >= 0 else []
+    )
+    last_result = results[-1][:400] if results else ""
     available = [tool.get("function", {}).get("name", "") for tool in body.get("tools") or []]
     # When background jobs end, MindRoom asks the agent to collect their results and report them.
     if JOBS_ENDED in latest and "job" in available:
@@ -323,10 +330,9 @@ def plan(body: dict, scenarios: dict[str, list[Step]]) -> tuple:
                 system = "\n".join(
                     text_of(m.get("content")) for m in messages if m.get("role") in ("system", "developer")
                 )
-                said = person_said(messages)
-                args = args(Turn(tuple(text_of(r.get("content")) for r in results), said, system, tuple(available)))
-            if isinstance(args, str):
-                return ("text", args)
+                args = args(Turn(tuple(results), person_said(messages), system, tuple(available)))
+                if isinstance(args, str):
+                    return ("text", args)
             if name not in available:
                 return (
                     "text",
