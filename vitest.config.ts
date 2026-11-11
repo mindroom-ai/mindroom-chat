@@ -5,6 +5,7 @@ import { normalizePath, searchForWorkspaceRoot } from 'vite';
 import { defineConfig } from 'vitest/config';
 import {
   CLIENT_SDK_ALIAS,
+  CLIENT_SDK_FIXTURES_ALIAS,
   SHARED_PACKAGES,
   buildModulePlugins,
   readClientPlugins,
@@ -53,9 +54,11 @@ export default defineConfig({
   plugins: [buildModulePlugins(plugins)],
   resolve: {
     // Plugins import the app through the client SDK; their tests also through its `/testing`
-    // subpath, which the build leaves out so that code that ships cannot import it.
+    // subpath, which the build leaves out so that code that ships cannot import it, as it leaves out
+    // `/fixtures`.
     alias: {
       ...CLIENT_SDK_ALIAS,
+      ...CLIENT_SDK_FIXTURES_ALIAS,
       '@mindroom/client-sdk/testing': fileURLToPath(
         new URL('src/client-sdk/testing.ts', import.meta.url)
       ),

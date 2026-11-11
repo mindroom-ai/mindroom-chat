@@ -14,13 +14,18 @@ const REGISTRY = ['registry.ts', 'pluginEntries.ts'].map((name) =>
 );
 
 /**
- * The modules `file` imports statically: its imports and re-exports, but no type-only ones, which
- * the build drops, or `import()`.
+ * What `file` imports statically: its imports and re-exports, but no type-only ones, which the
+ * build drops, or `import()`.
  */
-const staticImports = (file: string): string[] =>
+const staticSpecifiers = (file: string): string[] =>
   moduleDependencies(file)
     .filter(({ kind, typeOnly }) => (kind === 'import' || kind === 'export') && !typeOnly)
-    .flatMap(({ specifier }) => resolveRelativeModule(file, specifier) ?? [])
+    .map(({ specifier }) => specifier);
+
+/** The modules of this repository that `file` imports statically. */
+const staticImports = (file: string): string[] =>
+  staticSpecifiers(file)
+    .flatMap((specifier) => resolveRelativeModule(file, specifier) ?? [])
     .filter((path) => /\.[jt]sx?$/.test(path));
 
 /** The chain of static imports from `start` to one of `targets`, if any. */
@@ -54,6 +59,21 @@ describe('the client SDK subpaths', () => {
       expect(chainTo(resolve(SDK, name), REGISTRY)).toBeUndefined();
     }
   );
+
+  it('fixtures imports no test runner or testing library, which a browser page cannot load', () => {
+    const testRunners = (name: string) => {
+      const modules = new Set([resolve(SDK, name)]);
+      for (const module of modules) staticImports(module).forEach((next) => modules.add(next));
+      return [...modules].flatMap((module) =>
+        staticSpecifiers(module).filter((specifier) =>
+          /^(vitest|@testing-library)(\/|$)/.test(specifier)
+        )
+      );
+    };
+    expect(testRunners('fixtures.ts')).toEqual([]);
+    // The check sees what the testing subpath imports.
+    expect(testRunners('testing.ts')).toContain('vitest');
+  });
 
   it('room has no static import chain to the thread view, its timeline or its composer', () => {
     const threadView = [
