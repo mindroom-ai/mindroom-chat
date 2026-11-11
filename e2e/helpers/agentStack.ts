@@ -25,7 +25,6 @@ import { matrixFetch, sendRoomMessage } from './matrix';
  * The specs skip themselves when there is no MindRoom checkout (E2E_MINDROOM_CHECKOUT, default
  * /home/basnijholt/Work/dev/mindroom) or no homeserver on the slot's port. E2E_PLUGIN_DIRS adds plugin
  * directories to the stack (stack.py's docstring), and a stack started with other ones restarts.
- * The options `clientApiUrl` and `clientConfig` add to the client config of the `page` fixture.
  */
 
 /** One of the thread's two models: its config key, provider model ID and the name clients show. */
@@ -216,7 +215,10 @@ type TestFixtures = {
   stack: AgentStack;
   /** The stack's API as the `page` fixture's `mindroom.computers.apiUrl`. */
   clientApiUrl: boolean;
-  /** Top-level keys of the `page` fixture's client config, such as `{ createRoom: { ... } }`. */
+  /**
+   * Top-level keys of the `page` fixture's client config, such as `{ createRoom: { ... } }`; its
+   * `mindroom` settings come from `clientApiUrl` or `routeClientConfig`'s third argument.
+   */
   clientConfig: Record<string, unknown>;
 };
 

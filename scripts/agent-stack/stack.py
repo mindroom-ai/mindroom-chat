@@ -170,7 +170,6 @@ def ports(slot: int) -> dict[str, int]:
         "app": 4200 if slot == 0 else 4300 + slot,
         "api": 29600 + slot,
         "stub": 29700 + slot,
-        # The backend's plugin origins, on while a plugin directory's plugin has an origin_module.
         "origin": 29800 + slot,
     }
 

@@ -50,5 +50,5 @@ test('without the options the client config is the default one', async ({ page, 
     mindroom: { canvas: { enabled: true } },
   });
   expect(config.createRoom).toBeUndefined();
-  expect(config.mindroom?.computers).not.toEqual({ apiUrl: stack.apiUrl });
+  expect(config.mindroom).not.toMatchObject({ computers: { apiUrl: stack.apiUrl } });
 });

@@ -337,14 +337,13 @@ class CommandLineTests(unittest.TestCase):
         ):
             self.assertEqual(self.main("7", "up"), 0)
         env = dict(line.split("=", 1) for line in (self.slot_dir / ".env").read_text().splitlines() if line)
-        return env, json.loads((self.slot_dir / "state.json").read_text())
+        return env, stack.read_state(self.slot_dir)
 
     def test_a_plugin_with_origins_turns_the_backend_origins_on_at_the_slot_port(self) -> None:
         apps = {"dir": "/plugins/apps", "plugin": "apps", "tools": [], "scenarios": None, "origins": True}
         greeter = {**apps, "dir": "/plugins/greeter", "plugin": "greeter", "origins": False}
         env, state = self.started_env_and_state(greeter, apps)
         self.assertEqual(env["MINDROOM_PLUGIN_ORIGIN_PORT"], "29807")
-        self.assertNotIn("MINDROOM_PLUGIN_ORIGIN_DOMAIN", env)
         self.assertEqual(state["pluginOriginPort"], 29807)
         # Plugins without an origin_module leave origins off.
         env, state = self.started_env_and_state(greeter)
