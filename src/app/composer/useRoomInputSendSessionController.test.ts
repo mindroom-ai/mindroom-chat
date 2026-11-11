@@ -158,6 +158,14 @@ const TestHarness = ({
       },
       protectPasteItems: () => () => {},
       subscribe: () => () => {},
+      release: (_roomId, files) => {
+        selectedFilesRef.current = selectedFilesRef.current.filter(
+          (item) => !files.includes(item.file)
+        );
+        sendSessionUploadItemsRef.current = sendSessionUploadItemsRef.current.filter(
+          (item) => !files.includes(item.file)
+        );
+      },
       remove: (_roomId, uploadList) => {
         selectedFilesRef.current = selectedFilesRef.current.filter(
           (item) => !uploadList.includes(item.file)
@@ -402,6 +410,8 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     const { api: thread, current } = mountThreadView('$event-0');
     expect(current().joinedSendPending).toBe(true);
     expect(thread.selectedFilesRef.current.map((item) => item.file.name)).toEqual(['child.txt']);
+    // It left the room's board, which would otherwise offer it to the room's next message.
+    expect(api.selectedFilesRef.current).toEqual([]);
 
     thread.uploadsRef.current = [successUpload(child, 'mxc://mindroom/child')];
     await act(async () => {

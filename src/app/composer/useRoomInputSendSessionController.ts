@@ -748,7 +748,8 @@ export const useRoomInputSendSessionController = ({
     parked.unpark?.();
     parked.unpark = undefined;
     parked.repark = undefined;
-    const { staged, enrolled } = session.composer.attachments.snapshot(session.roomId);
+    const previous = session.composer.attachments;
+    const { staged, enrolled } = previous.snapshot(session.roomId);
     const items = new Map(
       // The board's copy of a file is the newest.
       [...enrolled, ...staged]
@@ -764,6 +765,14 @@ export const useRoomInputSendSessionController = ({
       reportSent,
       mounted: isMounted,
     };
+    // Files from another board (the room's, taken over by a thread's view) leave that one.
+    const onBoard = new Set(attachments.snapshot(session.roomId).staged.map((item) => item.file));
+    if (previous !== attachments) {
+      previous.release(
+        session.roomId,
+        [...items.keys()].filter((file) => !onBoard.has(file))
+      );
+    }
     attachments.append(session.roomId, [...items.values()]);
     attachments.enroll([...items.values()]);
     parked.adopted = true;

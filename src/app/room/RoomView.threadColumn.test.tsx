@@ -43,6 +43,10 @@ const state = vi.hoisted(() => ({
   // How often the thread's view and the plugin cover mounted.
   viewMounts: 0,
   coverMounts: 0,
+  // The room composer's report of a sent room message.
+  roomMessageSent: undefined as ((eventId: string) => boolean | void) | undefined,
+  // Whether the thread's view took the focus as each thread opened in it, as ThreadView reads it.
+  openFocus: [] as [string, boolean | undefined][],
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
@@ -68,6 +72,11 @@ vi.mock('./useRoomViewThreadState', () => ({
     viewMode: 'compact',
     effectiveThreadId: state.thread,
     handleThreadRootDeleted: state.rootDeleted,
+    // A Compact send opens its root's thread.
+    handleRoomMessageSent: (eventId: string) => {
+      state.thread = eventId;
+      return true;
+    },
   }),
 }));
 vi.mock('./RoomViewHeader', () => ({ RoomViewHeader: () => <div data-testid="room-header" /> }));
@@ -172,6 +181,10 @@ vi.mock('./ThreadView', async () => {
       const last = useRef({ threadId, onUnmount });
       last.current = { threadId, onUnmount };
       useEffect(() => {
+        state.openFocus.push([threadId, autoFocus]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- read as the thread opens
+      }, [threadId]);
+      useEffect(() => {
         state.viewMounts += 1;
         return () => last.current.onUnmount?.(last.current.threadId);
       }, []);
@@ -204,8 +217,9 @@ vi.mock('../composer/RoomInput', async () => {
   const { useFileDropZone } = await import('../lib/hooks/useFileDrop');
   const dropToRoom = () => state.dropped.push('room');
   return {
-    RoomInput: ({ editor, fileDropContainerRef }: RoomInputProps) => {
+    RoomInput: ({ editor, fileDropContainerRef, onRoomMessageSent }: RoomInputProps) => {
       useFileDropZone(fileDropContainerRef, dropToRoom);
+      state.roomMessageSent = onRoomMessageSent;
       return (
         <Slate editor={editor} initialValue={[{ type: 'paragraph', children: [{ text: '' }] }]}>
           <Editable aria-label="Message" />
@@ -239,6 +253,7 @@ beforeEach(() => {
   state.dropped = [];
   state.viewMounts = 0;
   state.coverMounts = 0;
+  state.openFocus = [];
   localStorage.clear();
   vi.stubGlobal('PointerEvent', TestPointerEvent);
   vi.stubGlobal(
@@ -443,6 +458,14 @@ it("returns the focus to the messages' composer when the column closes", () => {
   expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' }));
 });
 
+it('leaves the focus alone on a phone as the thread closes, which would raise the keyboard', () => {
+  const { rerender } = render(tree({}, ScreenSize.Mobile));
+  state.thread = undefined;
+  rerender(tree({}, ScreenSize.Mobile));
+  expect(screen.getByRole('textbox', { name: 'Message' })).toBeDefined();
+  expect(document.activeElement).toBe(document.body);
+});
+
 it('counts the whole room as on screen for notifications while its messages show beside the thread', () => {
   const store = getDefaultStore();
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
@@ -604,6 +627,26 @@ it("fills the page with a thread when the room's row is wide but the page beside
   renderView();
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
 });
+it("hands the room composer's focus to the thread that a send opens, filling the page", () => {
+  state.thread = undefined;
+  const { rerender } = renderView();
+  // A letter typed with nothing focused takes the focus to the room's composer.
+  fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA' });
+  expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' }));
+  act(() => {
+    state.roomMessageSent?.('$sent');
+  });
+  rerenderView(rerender);
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  // A thread opened another way, filling the page, leaves the focus alone.
+  state.thread = '$other';
+  rerenderView(rerender);
+  expect(state.openFocus).toEqual([
+    ['$sent', true],
+    ['$other', false],
+  ]);
+});
+
 it('gives the letters typed with nothing focused to the column that fills the page', () => {
   localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
   renderView();

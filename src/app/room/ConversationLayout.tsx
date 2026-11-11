@@ -184,37 +184,40 @@ export function ConversationLayout({
           <SurfaceProvider value>{shownHeader(headerRef)}</SurfaceProvider>
         </div>
       )}
-      {!collapsed && (
-        <div ref={conversationRef} style={CONVERSATION_STYLE}>
-          <ThreadApprovalProvider
-            room={room}
-            // A message not yet on the server has no approvals, and no relations to ask for.
-            threadId={isConfirmedMatrixEventId(threadId) ? threadId : undefined}
-            focusConversation={focusConversation}
-          >
-            <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
-              {timeline}
-            </Box>
-            <div ref={dockRef} style={DOCK_STYLE}>
-              <div style={DOCK_CONTENT_STYLE}>
-                <BackgroundJobsBar
-                  room={room}
-                  threadId={threadId ?? null}
-                  canCancel={canCancelJobs}
-                />
-                {threadId && <ThreadApprovalQueue />}
+      {/* The element stays as the conversation goes: a plugin's cover keeps holding it. */}
+      <div ref={conversationRef} style={CONVERSATION_STYLE}>
+        {!collapsed && (
+          <>
+            <ThreadApprovalProvider
+              room={room}
+              // A message not yet on the server has no approvals, and no relations to ask for.
+              threadId={isConfirmedMatrixEventId(threadId) ? threadId : undefined}
+              focusConversation={focusConversation}
+            >
+              <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
+                {timeline}
+              </Box>
+              <div ref={dockRef} style={DOCK_STYLE}>
+                <div style={DOCK_CONTENT_STYLE}>
+                  <BackgroundJobsBar
+                    room={room}
+                    threadId={threadId ?? null}
+                    canCancel={canCancelJobs}
+                  />
+                  {threadId && <ThreadApprovalQueue />}
+                </div>
               </div>
+            </ThreadApprovalProvider>
+            {/* Outside the approval provider: opening a thread must not remount the composer. */}
+            <div ref={footerRef} className={overlay.Footer} data-room-footer="true">
+              <RoomViewTyping room={room} threadId={threadId} />
+              {notice}
+              {composer}
+              <RoomViewFollowing room={room} threadId={threadId} />
             </div>
-          </ThreadApprovalProvider>
-          {/* Outside the approval provider: opening a thread must not remount the composer. */}
-          <div ref={footerRef} className={overlay.Footer} data-room-footer="true">
-            <RoomViewTyping room={room} threadId={threadId} />
-            {notice}
-            {composer}
-            <RoomViewFollowing room={room} threadId={threadId} />
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </div>
       {children}
     </div>
   );

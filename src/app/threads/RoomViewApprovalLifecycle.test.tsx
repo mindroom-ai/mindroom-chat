@@ -165,6 +165,13 @@ function Composer(
         setVersion((value) => value + 1);
       },
       protectPasteItems: () => noop,
+      release: (_roomId, files) => {
+        selectedFilesRef.current = selectedFilesRef.current.filter(
+          (value) => !files.includes(value.file)
+        );
+        enrolledRef.current = enrolledRef.current.filter((value) => !files.includes(value.file));
+        setVersion((value) => value + 1);
+      },
       subscribe: (listener) => {
         listenersRef.current.add(listener);
         return () => {

@@ -6,6 +6,7 @@ import { ReactEditor } from 'slate-react';
 import { useEditor } from '../editor/Editor';
 import { Page } from '../ui/page/Page';
 import { useKeyDown } from '../lib/hooks/useKeyDown';
+import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
@@ -207,19 +208,33 @@ export function RoomView({
     if (focused && area?.contains(focused)) (focused as HTMLElement).blur();
     return () => setUnderThread(false);
   }, [columnFills, setUnderThread]);
+  // A Compact send whose root opens its thread: the focus, in the room's composer as it went, goes
+  // on in the thread's composer, also where the column fills the page and the room's goes.
+  const focusOpenedThread = useRef(false);
+  const onRoomMessageSent = (eventId: string) => {
+    const opened = threadState.handleRoomMessageSent(eventId);
+    const focused = areaRef.current?.ownerDocument.activeElement;
+    focusOpenedThread.current = opened && !!focused && !!areaRef.current?.contains(focused);
+    return opened;
+  };
+  useEffect(() => {
+    focusOpenedThread.current = false;
+  }, [openThreadId]);
   // Show beside and Show in full change only the column's width: the thread and its composer stay.
   const showBeside = () => threadLayout.setLayout('beside');
   const showFull = () => threadLayout.setLayout('full');
-  // Focus left in a thread column that closed goes to the room's composer.
+  // Focus left in a thread column that closed goes to the room's composer; not on a phone, where
+  // that would raise the keyboard over the room's messages.
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const hadColumn = useRef(false);
   useEffect(() => {
     const closed = hadColumn.current && !openThreadId;
     hadColumn.current = !!openThreadId;
     const doc = areaRef.current?.ownerDocument;
-    if (closed && doc && (!doc.activeElement || doc.activeElement === doc.body)) {
+    if (closed && !phone && doc && (!doc.activeElement || doc.activeElement === doc.body)) {
       focusConversation();
     }
-  }, [openThreadId, focusConversation]);
+  }, [openThreadId, focusConversation, phone]);
 
   // The open thread's banner, with the way to fill the page or to go beside the messages.
   const threadBanner = openThreadId && (
@@ -292,7 +307,7 @@ export function RoomView({
               threadingEnabled={viewMode !== 'classic'}
               editor={editor}
               fileDropContainerRef={areaRef}
-              onRoomMessageSent={threadState.handleRoomMessageSent}
+              onRoomMessageSent={onRoomMessageSent}
             />
           )
         }
@@ -340,8 +355,9 @@ export function RoomView({
                     )
                   : undefined
               }
-              // Beside the messages, where typing goes to the room's composer, it takes the focus.
-              autoFocus={!columnFills}
+              // Beside the messages, where typing goes to the room's composer, it takes the focus,
+              // and from the room's composer whose send opened it.
+              autoFocus={!columnFills || focusOpenedThread.current}
               hidden={behindPanel}
               onThreadLoadError={onThreadLoadError}
               onUnmount={onColumnGone}

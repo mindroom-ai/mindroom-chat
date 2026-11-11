@@ -122,3 +122,13 @@ it("marks its header for the short screen's place, and for the banner's inside a
   rerender(layout({ threadId: '$root', header: () => <div data-testid="header" /> }));
   expect(header().classList.contains(HeaderInThread)).toBe(true);
 });
+
+it("keeps the element a plugin's cover hides across a collapse, so the cover still holds it", () => {
+  const conversationRef = createRef<HTMLDivElement>();
+  const { rerender } = render(layout({ conversationRef }));
+  const element = conversationRef.current;
+  expect(element).not.toBeNull();
+  rerender(layout({ conversationRef, collapsed: true }));
+  rerender(layout({ conversationRef }));
+  expect(conversationRef.current).toBe(element);
+});
