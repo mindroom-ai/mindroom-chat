@@ -1,4 +1,13 @@
-import { memo, useCallback, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import type { HTMLReactParserOptions } from 'html-react-parser';
@@ -185,6 +194,15 @@ function TaskExcerpt({ text }: { text: string }) {
   useLayoutEffect(() => measure(), [measure, text]);
   const getText = useCallback(() => textRef.current, []);
   useResizeObserver(measure, getText);
+  // A web font that arrives after the first measure rewraps the text inside the same two lines.
+  useEffect(() => {
+    if (!('fonts' in document)) return undefined;
+    let mounted = true;
+    void document.fonts.ready.then(() => mounted && measure());
+    return () => {
+      mounted = false;
+    };
+  }, [measure]);
 
   return (
     <div className={css.TaskRow}>

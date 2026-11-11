@@ -368,6 +368,42 @@ describe('SubagentsPanel', () => {
     }
   });
 
+  it('measures the task again once the web fonts have loaded', async () => {
+    let fontsLoaded = () => {};
+    const ready = new Promise<void>((resolve) => {
+      fontsLoaded = resolve;
+    });
+    Object.defineProperty(document, 'fonts', { configurable: true, value: { ready } });
+    let scrollHeight = 40;
+    const scroll = vi
+      .spyOn(Element.prototype, 'scrollHeight', 'get')
+      .mockImplementation(function measured(this: Element) {
+        return this.hasAttribute('data-subagent-task') ? scrollHeight : 0;
+      });
+    const client = vi
+      .spyOn(Element.prototype, 'clientHeight', 'get')
+      .mockImplementation(function measured(this: Element) {
+        return this.hasAttribute('data-subagent-task') ? 40 : 0;
+      });
+    try {
+      ingest('run', meta('running', { task: 'Read every changelog.' }), docs('Looking.'));
+      render();
+      expect(() => button(card('run'), 'Show task')).toThrow();
+
+      // The font rewraps the task into a third line within the same two-line box.
+      scrollHeight = 60;
+      await act(async () => {
+        fontsLoaded();
+        await ready;
+      });
+      expect(button(card('run'), 'Show task').getAttribute('aria-expanded')).toBe('false');
+    } finally {
+      scroll.mockRestore();
+      client.mockRestore();
+      delete (document as { fonts?: unknown }).fonts;
+    }
+  });
+
   it('shows a finished run by its result, with its transcript on request', () => {
     ingest(
       'run',
