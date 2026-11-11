@@ -119,7 +119,6 @@ test('a send from the thread column arrives once after the column closes or open
   await second.release();
   await waitForOwn(stack, rootId, `${word} reopened caption`);
   await expect(pendingSend(page)).toHaveCount(0, { timeout: 30_000 });
-  expect(await ownBodies(stack, rootId)).toEqual(expect.arrayContaining([firstFile, secondFile]));
   const bodies = await ownBodies(stack, rootId);
   expect(bodies.filter((body) => body === firstFile)).toHaveLength(1);
   expect(bodies.filter((body) => body === secondFile)).toHaveLength(1);

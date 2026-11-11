@@ -82,6 +82,10 @@ const successUpload = (file: File, mxc = `mxc://mindroom/${file.name}`): Upload 
   mxc,
 });
 
+/** The bodies of the messages sent so far, in order. */
+const sentBodies = (mx: { sendMessage: ReturnType<typeof vi.fn> }): string[] =>
+  mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body);
+
 const loadingUpload = (file: File): Upload => ({
   file,
   status: UploadStatus.Loading,
@@ -301,7 +305,8 @@ const renderHarness = (
       const again = renderer;
       return {
         api: next,
-        current: () => api,
+        /** This composer's controller as it rendered last. */
+        current: () => next,
         /** Moves the composer mounted again to another room, as the room's page does. */
         changeRoom: (nextRoomId: string) =>
           act(() =>
@@ -315,7 +320,7 @@ const renderHarness = (
 describe('useRoomInputSendSessionController after its composer unmounts', () => {
   it('sends the message once its upload finishes after the composer went', async () => {
     const onRoomMessageSent = vi.fn();
-    const { api, mx, unmount, current } = renderHarness({ onRoomMessageSent });
+    const { api, mx, unmount, current, changeThread } = renderHarness({ onRoomMessageSent });
     const file = createFile('slow.txt');
     api.selectedFilesRef.current = [createUploadItem(file)];
     api.uploadsRef.current = [loadingUpload(file)];
@@ -324,6 +329,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     });
     expect(mx.sendMessage).not.toHaveBeenCalled();
     // Its own send shows on its board, not as another composer's.
+    changeThread(undefined);
     expect(current().joinedSendPending).toBe(false);
 
     unmount();
@@ -338,10 +344,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     });
 
     await vi.waitFor(() => expect(mx.sendMessage).toHaveBeenCalledTimes(2));
-    expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
-      'slow.txt',
-      'caption',
-    ]);
+    expect(sentBodies(mx)).toEqual(['slow.txt', 'caption']);
     expect(api.hasActiveSendSession()).toBe(false);
     // The composer that went opens no thread for the root it sent.
     expect(onRoomMessageSent).not.toHaveBeenCalled();
@@ -377,10 +380,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     });
     await vi.waitFor(() => expect(again.hasActiveSendSession()).toBe(false));
     expect(current().joinedSendPending).toBe(false);
-    expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
-      'shared.txt',
-      'caption',
-    ]);
+    expect(sentBodies(mx)).toEqual(['shared.txt', 'caption']);
 
     // Its own next send is its own, not the one it took over.
     const next = createFile('next.txt');
@@ -392,6 +392,28 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     expect(again.hasActiveSendSession()).toBe(true);
     changeThread(undefined);
     expect(current().joinedSendPending).toBe(false);
+  });
+
+  it('sends the caption on its own when the root fails to send after the composer went', async () => {
+    const { api, mx, unmount } = renderHarness();
+    const file = createFile('root.txt');
+    const rootSend = createDeferred<{ event_id: string }>();
+    mx.sendMessage.mockReturnValueOnce(rootSend.promise);
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [successUpload(file)];
+    act(() => {
+      void api.startSendSession({ textContent: { msgtype: 'm.text', body: 'caption' } });
+    });
+    await vi.waitFor(() => expect(mx.sendMessage).toHaveBeenCalledTimes(1));
+
+    unmount();
+    await act(async () => {
+      rootSend.reject(new Error('offline'));
+      await rootSend.promise.catch(() => undefined);
+    });
+    await vi.waitFor(() => expect(mx.sendMessage).toHaveBeenCalledTimes(2));
+    expect((mx.sendMessage.mock.calls[1][1] as { body: string }).body).toBe('caption');
+    await vi.waitFor(() => expect(api.hasActiveSendSession()).toBe(false));
   });
 
   it('ends a session left waiting for a retry once its composer went', async () => {
@@ -457,9 +479,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
       await again.api.processSendSession();
     });
     await vi.waitFor(() => expect(again.api.sendSessionFilesRef.current).toEqual([later]));
-    expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
-      'first.txt',
-    ]);
+    expect(sentBodies(mx)).toEqual(['first.txt']);
   });
 
   it('takes a send over when the composer moves to its room, not only as it mounts', async () => {
@@ -484,11 +504,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
       await again.api.startSendSession({ textContent: { msgtype: 'm.text', body: 'later' } });
       await again.api.processSendSession();
     });
-    await vi.waitFor(() =>
-      expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual(
-        ['room-a.txt', 'caption', 'later']
-      )
-    );
+    await vi.waitFor(() => expect(sentBodies(mx)).toEqual(['room-a.txt', 'caption', 'later']));
   });
 
   it('sends no file a send nobody took over still claims', async () => {
@@ -509,9 +525,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     await act(async () => {
       await elsewhere.api.startSendSession({ textContent: { msgtype: 'm.text', body: 'own' } });
     });
-    expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
-      'own',
-    ]);
+    expect(sentBodies(mx)).toEqual(['own']);
   });
 
   it("sends no file another mounted composer's send holds", async () => {
@@ -531,9 +545,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     await act(async () => {
       await other.api.startSendSession({ textContent: { msgtype: 'm.text', body: 'other' } });
     });
-    expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
-      'other',
-    ]);
+    expect(sentBodies(mx)).toEqual(['other']);
   });
 
   it('keeps the sends of two composers mounted at once apart', async () => {
@@ -552,9 +564,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     await act(async () => {
       await other.api.startSendSession();
     });
-    expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
-      'own.txt',
-    ]);
+    expect(sentBodies(mx)).toEqual(['own.txt']);
     expect(other.current().joinedSendPending).toBe(false);
   });
 
@@ -574,11 +584,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     await act(async () => {
       await api.processSendSession();
     });
-    await vi.waitFor(() =>
-      expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual(
-        ['first.txt', 'caption', 'second']
-      )
-    );
+    await vi.waitFor(() => expect(sentBodies(mx)).toEqual(['first.txt', 'caption', 'second']));
   });
 
   it('lets the composer that took a send over cancel its file, and sends what follows', async () => {
@@ -605,11 +611,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     await act(async () => {
       await again.api.startSendSession({ textContent: { msgtype: 'm.text', body: 'next' } });
     });
-    await vi.waitFor(() =>
-      expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual(
-        ['caption', 'next']
-      )
-    );
+    await vi.waitFor(() => expect(sentBodies(mx)).toEqual(['caption', 'next']));
   });
 });
 
@@ -708,9 +710,7 @@ describe('useRoomInputSendSessionController active session query', () => {
 
       expect(failure).toBe(sendFailure);
       expect(mx.sendMessage).toHaveBeenCalledTimes(expectedBodies.length);
-      expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
-        ...expectedBodies,
-      ]);
+      expect(sentBodies(mx)).toEqual([...expectedBodies]);
       expect(api.hasActiveSendSession()).toBe(false);
       expect(api.sendSessionFilesRef.current).toEqual([]);
       expect(api.sendSessionUploadItemsRef.current).toEqual([]);
@@ -1416,15 +1416,13 @@ describe('useRoomInputSendSessionController sends that cannot go out yet', () =>
     localEvents: ReturnType<typeof renderHarness>['localEvents']
   ) => {
     const held: ReturnType<typeof createDeferred<{ event_id: string }>>[] = [];
-    mx.sendMessage.mockImplementation(
-      (targetRoomId: string, _content: unknown, txnId?: string) => {
-        if (!txnId) throw new Error('Expected a transaction id');
-        localEvents.set(txnId, { getId: () => `~${targetRoomId}:${txnId}` });
-        const send = createDeferred<{ event_id: string }>();
-        held.push(send);
-        return send.promise;
-      }
-    );
+    mx.sendMessage.mockImplementation((targetRoomId: string, _content: unknown, txnId?: string) => {
+      if (!txnId) throw new Error('Expected a transaction id');
+      localEvents.set(txnId, { getId: () => `~${targetRoomId}:${txnId}` });
+      const send = createDeferred<{ event_id: string }>();
+      held.push(send);
+      return send.promise;
+    });
     return held;
   };
 

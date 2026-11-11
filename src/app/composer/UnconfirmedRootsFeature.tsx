@@ -22,7 +22,7 @@ export function UnconfirmedRootsFeature() {
 
   useEffect(() => {
     const onEcho: RoomEventHandlerMap[RoomEvent.LocalEchoUpdated] = (event, room, oldId) => {
-      if (!oldId || !isLocalEchoEventId(oldId)) return;
+      if (!isLocalEchoEventId(oldId)) return;
       const confirmedId = event.getId();
       if (confirmedId && !isLocalEchoEventId(confirmedId)) {
         const userId = mx.getSafeUserId();
