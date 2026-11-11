@@ -11,7 +11,7 @@ import type { LiveDocs } from '../matrix/protocol/liveFrame';
 import { isActiveSubagentStatus } from '../matrix/protocol/subagentFrame';
 import { RenderMessageContent } from '../messages/content/RenderMessageContent';
 import { LINKIFY_OPTS } from '../messages/html/react-custom-html-parser';
-import { MessageBase, ModernLayout, Username, UsernameBold } from '../messages/layout/layout';
+import { MessageBase, ModernLayout, UsernameBold } from '../messages/layout/layout';
 import { useLiveMarkdownReady } from '../messages/live/liveMarkdown';
 import { liveDocsContent } from '../messages/live/useLiveReplyContent';
 import { Time } from '../messages/Time';
@@ -47,11 +47,10 @@ function RunMessage({
     <MessageBase space="400" data-subagent-message="">
       <ModernLayout before={<AgentAvatar agent={sender} size="300" />}>
         <Box justifyContent="SpaceBetween" alignItems="Center" gap="300">
-          <Username>
-            <Text as="span" size="T400" truncate>
-              <UsernameBold>{sender.name}</UsernameBold>
-            </Text>
-          </Username>
+          {/* A thread's sender opens their profile; an agent's name here only names it. */}
+          <Text as="span" size="T400" truncate>
+            <UsernameBold>{sender.name}</UsernameBold>
+          </Text>
           <Time ts={ts} hour24Clock={hour24Clock} />
         </Box>
         {children}
