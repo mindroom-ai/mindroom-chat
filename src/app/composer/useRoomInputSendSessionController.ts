@@ -103,12 +103,23 @@ const createSendSlot = (): SendSlot => ({
 });
 
 const parkedSlots = new WeakMap<MatrixClient, Map<string, SendSlot>>();
+// The slots of a client with a session going out, parked or not.
+const busySlots = new WeakMap<MatrixClient, Set<SendSlot>>();
 
 const parkedSlotsOf = (mx: MatrixClient): Map<string, SendSlot> => {
   let slots = parkedSlots.get(mx);
   if (!slots) {
     slots = new Map();
     parkedSlots.set(mx, slots);
+  }
+  return slots;
+};
+
+const busySlotsOf = (mx: MatrixClient): Set<SendSlot> => {
+  let slots = busySlots.get(mx);
+  if (!slots) {
+    slots = new Set();
+    busySlots.set(mx, slots);
   }
   return slots;
 };
@@ -430,13 +441,14 @@ export const useRoomInputSendSessionController = ({
   const clearSendSession = useCallback((sendSlot: SendSlot) => {
     const session = sendSlot.session;
     sendSlot.session = undefined;
+    busySlotsOf(mx).delete(sendSlot);
     sendSlot.stopWatching?.();
     sendSlot.stopWatching = undefined;
     sendSlot.adopted = false;
     if (sendSlot.queued.length === 0) sendSlot.unpark?.();
     session?.composer.attachments.clearEnrollment(session.orderedFiles);
     notifySlot(sendSlot);
-  }, []);
+  }, [mx]);
 
   const getSessionUploads = useCallback(
     (session: SendSession): [Upload[], TUploadContent[]] => {
@@ -616,12 +628,12 @@ export const useRoomInputSendSessionController = ({
       }
 
       const { staged } = attachments.snapshot(context?.roomId);
-      // Files a send nobody took over still claims go with that send only.
-      const parkedFiles = new Set(
-        [...parkedSlotsOf(mx).values()].flatMap((parked) => parked.session?.orderedFiles ?? [])
+      // A file goes with one send at a time: one another send holds stays with that one.
+      const heldFiles = new Set(
+        [...busySlotsOf(mx)].flatMap((busy) => busy.session?.orderedFiles ?? [])
       );
       const sendItems = (batch?.fileItems ?? staged).filter(
-        (fileItem) => !fileItem.prepError && !parkedFiles.has(fileItem.file)
+        (fileItem) => !fileItem.prepError && !heldFiles.has(fileItem.file)
       );
       const sendFiles = sendItems.map((item) => item.file);
       if (sendFiles.length === 0 && !textContent) return;
@@ -648,6 +660,7 @@ export const useRoomInputSendSessionController = ({
         }
       );
       sendSlot.session = session;
+      busySlotsOf(mx).add(sendSlot);
       // The session wakes on its own uploads, with or without its composer.
       const unsubscribes = sendFiles.map((file) =>
         store.sub(roomUploadAtomFamily(file), () =>

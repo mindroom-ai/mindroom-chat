@@ -514,6 +514,28 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     ]);
   });
 
+  it("sends no file another mounted composer's send holds", async () => {
+    const { api, mx, mountAgain } = renderHarness();
+    const file = createFile('held.txt');
+    const item = createUploadItem(file);
+    api.selectedFilesRef.current = [item];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    // Another composer of the room lists the same file, as a queued send of one that unmounted
+    // would read the room's board.
+    const other = mountAgain('!other:example.org');
+    other.api.selectedFilesRef.current = [item];
+    other.api.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      await other.api.startSendSession({ textContent: { msgtype: 'm.text', body: 'other' } });
+    });
+    expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
+      'other',
+    ]);
+  });
+
   it('keeps the sends of two composers mounted at once apart', async () => {
     const { api, mx, mountAgain } = renderHarness();
     // A second view of the same thread, mounted beside the first, with files of its own.
