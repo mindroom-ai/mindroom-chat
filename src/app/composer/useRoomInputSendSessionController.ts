@@ -64,6 +64,8 @@ type SendSession = RoomInputSendSessionState & {
   composer: SessionComposer;
   /** The thread its root opened (Compact): the session parks for that thread's composer. */
   openedThreadId?: string;
+  /** The key of the composer that took the session over, which it parks under as that one goes. */
+  parkKey?: string;
 };
 
 type ComposerContext = Pick<RoomInputSendContext, 'roomId' | 'threadId'>;
@@ -776,6 +778,17 @@ export const useRoomInputSendSessionController = ({
     ),
     () => parkVersions.get(mx) ?? 0
   );
+  // A composer with a send of its own takes another over once its own is done.
+  const ownBusy = useSyncExternalStore(
+    useCallback(
+      (listener: () => void) => {
+        slot.listeners.add(listener);
+        return () => slot.listeners.delete(listener);
+      },
+      [slot]
+    ),
+    () => !!slot.session || slot.queued.length > 0
+  );
   useEffect(() => {
     const own = slotRef.current;
     if (own.session || own.queued.length > 0) return;
@@ -802,6 +815,7 @@ export const useRoomInputSendSessionController = ({
       reportSent,
       mounted: isMounted,
     };
+    session.parkKey = composerKey;
     // Files from another board (the room's, taken over by a thread's view) leave that one.
     const onBoard = new Set(attachments.snapshot(session.roomId).staged.map((item) => item.file));
     if (previous !== attachments) {
@@ -815,7 +829,7 @@ export const useRoomInputSendSessionController = ({
     parked.adopted = true;
     slotRef.current = parked;
     setSlot(parked);
-  }, [attachments, composerKey, isMounted, mx, parkVersion, reportSent, restoreText]);
+  }, [attachments, composerKey, isMounted, mx, ownBusy, parkVersion, reportSent, restoreText]);
 
   // Unmounting with a send under way parks it for the next composer of the same key.
   useEffect(
@@ -828,7 +842,7 @@ export const useRoomInputSendSessionController = ({
         current.unpark?.();
         const { session: held } = current;
         let key = held
-          ? voiceComposerKey({ ...held.composerContext, threadView })
+          ? (held.parkKey ?? voiceComposerKey({ ...held.composerContext, threadView }))
           : composerKeyRef.current;
         // A send whose root opened its thread goes on with a view of that thread that is there
         // (one that mounts as this composer goes has listed itself already); else with the room's.

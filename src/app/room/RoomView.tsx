@@ -15,7 +15,7 @@ import { editableActiveElement } from '../lib/dom';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
 import { RoomInput } from '../composer/RoomInput';
-import { moveMessageDraft, roomComposerRecordingAtom } from '../composer/roomInputDrafts';
+import { moveMessageDraft } from '../composer/roomInputDrafts';
 import { computerOwnsKeyboardEvent } from '../computer/computerFocus';
 import { useSyncEngine } from '../event-store/engine/engineContext';
 import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
@@ -161,7 +161,6 @@ export function RoomView({
   const hidden = useAtomValue(conversationHiddenAtom);
   // A side panel in the page's place hides the thread column too; a plugin's cover leaves it.
   const behindPanel = useAtomValue(conversationBehindPanelAtom);
-  const roomRecording = useAtomValue(roomComposerRecordingAtom) === roomId;
   // Under the column that fills the page, typing goes to the column's composer instead.
   const focusColumn = useRef<() => void>();
   const focusComposer = useCallback(() => {
@@ -313,8 +312,6 @@ export function RoomView({
           )
         }
         collapsed={columnFills}
-        // A recording under way in the room's composer ends as it unmounts: it stays, out of sight.
-        keepMounted={roomRecording}
         conversationRef={conversationRef}
       >
         <ConversationCover key={roomId} room={room} conversationRef={conversationRef} />

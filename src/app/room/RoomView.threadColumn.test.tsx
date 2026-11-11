@@ -14,11 +14,7 @@ import {
 import { shownConversationViewsAtom } from '../navigation/conversationView';
 import type { RoomTimelineProps } from '../timeline/RoomTimeline';
 import type { ThreadContextBannerProps } from '../threads/ThreadContextBanner';
-import {
-  getRoomInputDraftKey,
-  roomComposerRecordingAtom,
-  roomIdToMsgDraftAtomFamily,
-} from '../composer/roomInputDrafts';
+import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../composer/roomInputDrafts';
 import { PanelRow } from '../members/PanelRow';
 import type { RoomInputProps } from '../composer/RoomInput';
 import type { RoomHeaderSlotComponent } from '../plugins/registry';
@@ -649,19 +645,6 @@ it("hands the room composer's focus to the thread that a send opens, filling the
     ['$sent', true],
     ['$other', false],
   ]);
-});
-
-it("keeps the room's conversation, and so a recording under way in its composer, as the column comes to fill the page", () => {
-  const store = getDefaultStore();
-  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
-  renderView();
-  act(() => store.set(roomComposerRecordingAtom, room.roomId));
-  fireEvent.click(screen.getByRole('button', { name: 'Full' }));
-  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
-  // Under the column, out of reach, until the recording is done.
-  expect(screen.getByTestId('messages').closest('[aria-hidden="true"]')).not.toBeNull();
-  act(() => store.set(roomComposerRecordingAtom, undefined));
-  expect(screen.queryByTestId('messages')).toBeNull();
 });
 
 it('gives the letters typed with nothing focused to the column that fills the page', () => {
