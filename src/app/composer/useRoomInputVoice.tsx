@@ -1,4 +1,11 @@
-import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { IContent, MatrixClient } from 'matrix-js-sdk';
@@ -14,6 +21,7 @@ import {
   openVoiceRecorderAtom,
   pendingVoiceSendDraftAtom,
   roomUploadAtomFamily,
+  threadViewVoiceComposersAtom,
   voiceAutoSendPendingAtom,
   voiceComposerKey,
   voiceRecorderRoomAtom,
@@ -27,6 +35,7 @@ import {
 } from '../matrix/matrix';
 import { Membership } from '../matrix/types/room';
 import {
+  confirmedVoiceThreadId,
   getRoomInputVoiceSendContext,
   refreshRoomInputVoiceSendContext,
 } from './RoomInputExtensions';
@@ -41,6 +50,7 @@ import type { useRoomInputUploadTransport } from './useRoomInputUploadTransport'
 import { ComposerIconButton } from './RoomInput.css';
 import { revealDirectionControls } from '../ui/directional';
 import { ConversationViewContext } from '../navigation/conversationView';
+import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 
 type VoiceComposerAdapter = {
   getContext: () => Pick<
@@ -117,8 +127,32 @@ export const useRoomInputVoice = ({
   const { roomId } = composerContext;
   const draftBelongsToCurrentSession =
     !!pendingVoiceSendDraft && pendingVoiceSendDraft.context.ownerSessionId === currentSessionId;
+  // A recording made while its thread's root was still sending belongs to that thread after.
+  const draftKey = draftBelongsToCurrentSession
+    ? voiceComposerKey({
+        ...pendingVoiceSendDraft.context,
+        threadId: confirmedVoiceThreadId(
+          pendingVoiceSendDraft.context.room,
+          pendingVoiceSendDraft.context.threadId
+        ),
+      })
+    : undefined;
+  // A thread view's composer, while mounted, is the one to offer its thread's recording.
+  const setThreadViewComposers = useSetAtom(threadViewVoiceComposersAtom);
+  // Before the page paints: it would show the recording for a frame.
+  useLayoutEffect(() => {
+    if (view === undefined) return undefined;
+    const entry = { key: composerKey };
+    setThreadViewComposers((entries) => [...entries, entry]);
+    return () => setThreadViewComposers((entries) => entries.filter((other) => other !== entry));
+  }, [composerKey, setThreadViewComposers, view]);
+  const threadViewComposers = useAtomValue(threadViewVoiceComposersAtom);
+  // Without one, the room's page offers it while it shows that thread: on a page with no room for
+  // the thread's column, the thread shows only there.
   const ownsPendingVoiceDraft =
-    draftBelongsToCurrentSession && voiceComposerKey(pendingVoiceSendDraft.context) === composerKey;
+    draftKey === composerKey ||
+    (draftKey === voiceComposerKey({ ...composerContext, threadView: true }) &&
+      !threadViewComposers.some((entry) => entry.key === draftKey));
   const otherComposerOwnsPendingVoiceDraft = draftBelongsToCurrentSession && !ownsPendingVoiceDraft;
   // The room page keeps an open thread where it is while its recorder shows (RoomView).
   const recorderShown = view === undefined && (voiceRecorderOpen || ownsPendingVoiceDraft);
@@ -128,12 +162,6 @@ export const useRoomInputVoice = ({
     setRecorderRoom(roomId);
     return () => setRecorderRoom((shown) => (shown === roomId ? undefined : shown));
   }, [recorderShown, roomId, setRecorderRoom]);
-  const otherPendingVoiceRoomName =
-    otherComposerOwnsPendingVoiceDraft && pendingVoiceSendDraft
-      ? revealDirectionControls(
-          pendingVoiceSendDraft.context.room.name ?? pendingVoiceSendDraft.context.roomId
-        )
-      : undefined;
   const voiceAutoSendClaimedRef = useRef(false);
   const voiceAutoSendInFlightRef = useRef(false);
   const voiceRecorderRef = useRef<VoiceRecorderComposerHandle>(null);
@@ -305,6 +333,11 @@ export const useRoomInputVoice = ({
         liveContext = refreshRoomInputVoiceSendContext(mx, sendContext);
         if (!liveContext) {
           throw new Error(t('composer.voiceRoomUnavailable'));
+        }
+        // No reply can point at a root the server has not confirmed (still sending, or deleted
+        // unsent); a retry once it has can.
+        if (isLocalEchoEventId(liveContext.threadId)) {
+          throw new Error(t('composer.voiceThreadRootUnsent'));
         }
 
         if (
@@ -531,9 +564,16 @@ export const useRoomInputVoice = ({
       />
     ) : null;
 
-  const microphoneLabel = otherPendingVoiceRoomName
-    ? t('composer.voicePausedInOtherRoom', { roomName: otherPendingVoiceRoomName })
-    : t('composer.recordVoice');
+  let microphoneLabel = t('composer.recordVoice');
+  if (otherComposerOwnsPendingVoiceDraft) {
+    const { room: draftRoom, roomId: draftRoomId } = pendingVoiceSendDraft.context;
+    microphoneLabel =
+      draftRoomId === roomId
+        ? t('composer.voicePausedInThisRoom')
+        : t('composer.voicePausedInOtherRoom', {
+            roomName: revealDirectionControls(draftRoom.name ?? draftRoomId),
+          });
+  }
   const microphone = (
     // The label says why the button is disabled while another composer holds a draft;
     // the tooltip shows it too where the browser reports hovering a disabled button.

@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import {
   build,
   createServer,
+  type ConfigEnv,
   optimizeDeps,
   resolveConfig,
   type Plugin,
@@ -236,13 +237,29 @@ describe('clientPlugins', () => {
     expect(code).not.toContain('EXAMPLE_BANNER');
   });
 
+  /** The config the app's Vite plugin gives for `command`, with these build variables. */
+  const appConfig = (env: Record<string, string | undefined>, command: 'build' | 'serve') => {
+    const [, app] = clientPlugins(env) as [unknown, Plugin];
+    return (app.config as (config: UserConfig, env: ConfigEnv) => UserConfig)(
+      {},
+      { command, mode: command === 'build' ? 'production' : 'development' }
+    );
+  };
+
   it('lets the dev server serve the plugin directories besides the workspace', () => {
-    const config = (plugins: string | undefined) => {
-      const [, app] = clientPlugins({ MINDROOM_CLIENT_PLUGINS: plugins }) as [unknown, Plugin];
-      return (app.config as () => UserConfig)();
-    };
+    const config = (plugins: string | undefined) =>
+      appConfig({ MINDROOM_CLIENT_PLUGINS: plugins }, 'serve');
     expect(config(EXAMPLE).server?.fs?.allow).toEqual([path.resolve(ROOT), EXAMPLE]);
     expect(config(undefined).server).toBeUndefined();
+  });
+
+  it("resolves the fixtures subpath for the dev server and the fixture pages, not for the app's build", () => {
+    const aliases = (env: Record<string, string | undefined>, command: 'build' | 'serve') =>
+      Object.keys(appConfig(env, command).resolve?.alias ?? {});
+    expect(aliases({}, 'serve')).toContain('@mindroom/client-sdk/fixtures');
+    expect(aliases({ E2E_FIXTURE_PAGES: '1' }, 'build')).toContain('@mindroom/client-sdk/fixtures');
+    expect(aliases({}, 'build')).not.toContain('@mindroom/client-sdk/fixtures');
+    expect(aliases({}, 'build')).toContain('@mindroom/client-sdk/core');
   });
 
   it('resolves the client SDK for a plugin outside this repository', async () => {

@@ -19,7 +19,7 @@ import { normalizePath, searchForWorkspaceRoot } from 'vite';
  * `apiVersion`, the one it needs. Version 1 had no SDK; each later addition to the SDK (an export,
  * a contribution kind in `ClientPlugin`, or a field of the declaration) raises it.
  */
-export const CLIENT_PLUGIN_API_VERSION = 52;
+export const CLIENT_PLUGIN_API_VERSION = 53;
 
 /** The SDK's subpaths a build resolves, which plugins import, and the modules they are. */
 export const CLIENT_SDK_ALIAS = {
@@ -32,6 +32,17 @@ export const CLIENT_SDK_ALIAS = {
     new URL('../src/client-sdk/server.ts', import.meta.url)
   ),
   '@mindroom/client-sdk/ui': fileURLToPath(new URL('../src/client-sdk/ui.ts', import.meta.url)),
+};
+
+/**
+ * The SDK's subpath for a plugin's end-to-end fixture pages, which the dev server and the fixture page
+ * build (`E2E_FIXTURE_PAGES=1`) resolve, and the unit tests, but not the app's build, so that code
+ * that ships cannot import it.
+ */
+export const CLIENT_SDK_FIXTURES_ALIAS = {
+  '@mindroom/client-sdk/fixtures': fileURLToPath(
+    new URL('../src/client-sdk/fixtures.ts', import.meta.url)
+  ),
 };
 
 const KEBAB_CASE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
@@ -301,8 +312,13 @@ export const clientPlugins = (env = process.env) => {
   const app = {
     name: 'mindroom-client-plugins',
     enforce: 'pre',
-    config: () => ({
-      resolve: { alias: CLIENT_SDK_ALIAS },
+    config: (_config, { command }) => ({
+      resolve: {
+        alias:
+          command === 'serve' || env.E2E_FIXTURE_PAGES === '1'
+            ? { ...CLIENT_SDK_ALIAS, ...CLIENT_SDK_FIXTURES_ALIAS }
+            : CLIENT_SDK_ALIAS,
+      },
       // The dev server pre-bundles the packages a plugin installed with esbuild, without plugin
       // hooks: there their imports and requires of the packages the app shares resolve as the app
       // imports them, to the module the app's own pre-bundle has.

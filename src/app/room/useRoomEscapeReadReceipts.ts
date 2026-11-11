@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { type KeyboardEvent as ReactKeyboardEvent, useCallback } from 'react';
 import { isKeyHotkey } from 'is-hotkey';
 import { useStore } from 'jotai';
 import { useKeyDown } from '../lib/hooks/useKeyDown';
@@ -7,6 +7,13 @@ import { markMainTimelineAsRead, markThreadAsRead } from '../notifications/readR
 import { conversationOutOfSightAtom } from '../navigation/conversationCover';
 import { ROOM_MESSAGES_VIEW, shownConversationViewsAtom } from '../navigation/conversationView';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+
+// Keys pressed in the thread's column, as its React tree sees them: on its resize handle too, and
+// in the menus and dialogs it opens, which render outside it on the page.
+const threadColumnKeys = new WeakSet<Event>();
+export const noteThreadColumnKey = (evt: ReactKeyboardEvent): void => {
+  threadColumnKeys.add(evt.nativeEvent);
+};
 
 type UseRoomEscapeReadReceiptsOptions = {
   hideActivity: boolean;
@@ -39,16 +46,12 @@ export const useRoomEscapeReadReceipts = ({
             .some((place) => place.roomId === roomId && place.threadId === threadId);
         if (store.get(conversationOutOfSightAtom) && !threadShows) return;
         if (!isKeyHotkey('escape', evt)) return;
-        // Beside the thread's column, Escape outside the column is the room's messages'. The key's
-        // target says where it was pressed: the focus shortcut may have moved the focus since.
+        // Beside the thread's column, Escape outside the column is the room's messages'. The column
+        // noted the key as it passed, wherever the focus shortcut has moved the focus since.
         const messagesBeside = store
           .get(shownConversationViewsAtom)
           .some((place) => place.roomId === roomId && place.view === ROOM_MESSAGES_VIEW);
-        if (
-          threadId &&
-          (!messagesBeside ||
-            (evt.target instanceof Element && !!evt.target.closest('[data-thread-column]')))
-        ) {
+        if (threadId && (!messagesBeside || threadColumnKeys.has(evt))) {
           markThreadAsRead(mx, roomId, threadId, hideActivity);
           return;
         }

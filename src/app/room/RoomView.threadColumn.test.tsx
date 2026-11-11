@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type { ComponentProps, ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createClient, EventStatus, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
@@ -22,8 +23,10 @@ import {
   voiceRecorderRoomAtom,
 } from '../composer/roomInputDrafts';
 import { PanelRow } from '../members/PanelRow';
+import type { RoomHeaderSlotComponent } from '../plugins/registry';
 import { RoomView, type RoomViewProps } from './RoomView';
 import type { ThreadView } from './ThreadView';
+import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 
 const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
 const room = new Room('!room:example.org', mx, '@alice:example.org');
@@ -37,13 +40,22 @@ const state = vi.hoisted(() => ({
   columnLoadError: undefined as ((threadId: string) => void) | undefined,
   rootDeleted: () => undefined as void,
   resized: [] as (() => void)[],
+  canMessage: true,
+  read: [] as string[],
+  // The header the plugin header slot's marker was last given.
+  slotHeader: undefined as HTMLElement | null | undefined,
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({ usePowerLevelsContext: () => ({}) }));
 vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
 vi.mock('../matrix/hooks/useRoomPermissions', () => ({
-  useRoomPermissions: () => ({ event: () => true }),
+  useRoomPermissions: () => ({ event: () => state.canMessage }),
+}));
+vi.mock('../notifications/readReceipts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../notifications/readReceipts')>()),
+  markMainTimelineAsRead: () => state.read.push('messages'),
+  markThreadAsRead: (_mx: unknown, _roomId: string, threadId: string) => state.read.push(threadId),
 }));
 vi.mock('../matrix/hooks/useStateEvent', () => ({ useStateEvent: () => undefined }));
 vi.mock('../event-store/engine/engineContext', () => ({
@@ -60,7 +72,19 @@ vi.mock('./useRoomViewThreadState', () => ({
   }),
 }));
 vi.mock('./RoomViewHeader', () => ({ RoomViewHeader: () => <div data-testid="room-header" /> }));
-vi.mock('./RoomHeaderSlot', () => ({ RoomHeaderSlot: () => null }));
+// A plugin of the build whose header slot shows a marker.
+vi.mock('../plugins/pluginEntries', async () => {
+  const { useEffect } = await import('react');
+  function Marker({ headerRef }: ComponentProps<RoomHeaderSlotComponent>) {
+    useEffect(() => {
+      state.slotHeader = headerRef.current;
+    }, [headerRef]);
+    return <div data-testid="header-slot" />;
+  }
+  return {
+    pluginEntries: [{ id: 'example', version: '1.0.0', plugin: { roomHeaderSlot: [Marker] } }],
+  };
+});
 vi.mock('./ConversationCover', () => ({ ConversationCover: () => null }));
 vi.mock('../timeline/RoomTimeline', () => ({
   RoomTimeline: (props: RoomTimelineProps) => {
@@ -151,6 +175,8 @@ vi.mock('./ThreadView', async () => {
         >
           {header}
           <div ref={reply} contentEditable suppressContentEditableWarning aria-label="Reply" />
+          {/* A menu it opens renders outside it, as the app's menus and dialogs do. */}
+          {createPortal(<button type="button">Column menu item</button>, document.body)}
         </div>
       );
     },
@@ -183,6 +209,9 @@ beforeEach(() => {
   state.focused = [];
   state.rootDeleted = () => undefined;
   state.resized = [];
+  state.canMessage = true;
+  state.read = [];
+  state.slotHeader = undefined;
   localStorage.clear();
   vi.stubGlobal('PointerEvent', TestPointerEvent);
   vi.stubGlobal(
@@ -210,9 +239,15 @@ afterEach(() => {
   getDefaultStore().set(conversationBehindPanelAtom, false);
 });
 
+// The room's Escape handler (Room.tsx), which reads the open thread or the room's messages.
+function EscapeReads() {
+  useRoomEscapeReadReceipts({ hideActivity: false, roomId: room.roomId, threadId: state.thread });
+  return null;
+}
 // In the room's row, which measures itself before the view mounts.
 const tree = (props: Partial<RoomViewProps> = {}, screenSize = ScreenSize.Desktop) => (
   <ScreenSizeProvider value={screenSize}>
+    <EscapeReads />
     <PanelRow>
       <RoomView room={room} {...props} />
     </PanelRow>
@@ -225,6 +260,39 @@ const column = () => screen.queryByTestId('thread-view');
 const draftAtom = (threadId?: string) =>
   roomIdToMsgDraftAtomFamily(getRoomInputDraftKey('@alice:example.org', room.roomId, threadId));
 const storedLayout = () => localStorage.getItem(LAYOUT_KEY);
+// Whether the plugins' slot, which only one header on the page mounts, is the thread column's.
+const slotInColumn = () => {
+  const markers = screen.getAllByTestId('header-slot');
+  expect(markers).toHaveLength(1);
+  const header = markers[0]?.closest<HTMLElement>('[data-glass-flat]');
+  if (!header) throw new Error('the slot shows in no header');
+  // The slot's components are given the element of the header they show in.
+  expect(state.slotHeader).toBe(header);
+  expect(within(header).getByTestId('room-header')).toBeDefined();
+  return !!screen.queryByTestId('thread-column')?.contains(header);
+};
+
+it("shows the plugins' header slot once, under the header people see, as the column fills the page and goes back", () => {
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  state.thread = undefined;
+  const { rerender } = renderView();
+  expect(slotInColumn()).toBe(false);
+
+  // Beside the messages, the room's header above them keeps it; the column shows none.
+  state.thread = '$thread';
+  rerenderView(rerender);
+  expect(column()).not.toBeNull();
+  expect(slotInColumn()).toBe(false);
+
+  // Filling the page, the column's header has it, and the hidden room area none.
+  fireEvent.click(screen.getByRole('button', { name: 'Full' }));
+  expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
+  expect(slotInColumn()).toBe(true);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Restore' }));
+  expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
+  expect(slotInColumn()).toBe(false);
+});
 
 it("opens a thread in the messages' place on first use", () => {
   renderView();
@@ -394,31 +462,38 @@ it("passes a thread that does not load to the page, as the thread in the message
   expect(state.columnLoadError).toBe(onLoadError);
 });
 
-it("moves a reply's text to the room's composer when the column's unsent root is deleted", () => {
-  const store = getDefaultStore();
-  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
-  const local = '~!room:example.org:m2.1';
-  const threadDraft = draftAtom(local);
-  const roomDraft = draftAtom();
-  const text = [{ type: 'paragraph', children: [{ text: 'my reply' }] }] as never;
-  store.set(threadDraft, text);
-  const root = new MatrixEvent({ event_id: local, type: 'm.room.message', content: {} });
-  vi.spyOn(room, 'findEventById').mockReturnValue(root);
-  state.thread = local;
-  state.rootDeleted = vi.fn();
-  const { rerender } = renderView();
+it.each([
+  ['to', []],
+  ['after the text in', [{ type: 'paragraph', children: [{ text: 'room text' }] }]],
+])(
+  "moves a reply's text %s the room's composer when the column's unsent root is deleted",
+  (_, roomText) => {
+    const store = getDefaultStore();
+    localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+    const local = '~!room:example.org:m2.1';
+    const threadDraft = draftAtom(local);
+    const roomDraft = draftAtom();
+    const reply = { type: 'paragraph', children: [{ text: 'my reply' }] };
+    store.set(roomDraft, roomText as never);
+    store.set(threadDraft, [reply] as never);
+    const root = new MatrixEvent({ event_id: local, type: 'm.room.message', content: {} });
+    vi.spyOn(room, 'findEventById').mockReturnValue(root);
+    state.thread = local;
+    state.rootDeleted = vi.fn();
+    const { rerender } = renderView();
 
-  root.status = EventStatus.CANCELLED;
-  act(() => {
-    room.emit(RoomEvent.LocalEchoUpdated, root, room, local);
-  });
-  expect(state.rootDeleted).toHaveBeenCalledOnce();
-  state.thread = undefined;
-  rerenderView(rerender);
-  expect(store.get(roomDraft)).toEqual(text);
-  expect(store.get(threadDraft)).toEqual([]);
-  store.set(roomDraft, []);
-});
+    root.status = EventStatus.CANCELLED;
+    act(() => {
+      room.emit(RoomEvent.LocalEchoUpdated, root, room, local);
+    });
+    expect(state.rootDeleted).toHaveBeenCalledOnce();
+    state.thread = undefined;
+    rerenderView(rerender);
+    expect(store.get(roomDraft)).toEqual([...roomText, reply]);
+    expect(store.get(threadDraft)).toEqual([]);
+    store.set(roomDraft, []);
+  }
+);
 
 it("keeps another thread's text where it is as the column closes", () => {
   const store = getDefaultStore();
@@ -484,14 +559,17 @@ it('keeps an open thread where it opened as the page widens or narrows: a column
   state.thread = '$next';
   rerenderView(rerender);
   expect(column()?.dataset.thread).toBe('$next');
+  expect(slotInColumn()).toBe(false);
   resize(600);
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
   expect(screen.queryByRole('button', { name: 'Restore' })).toBeNull();
+  expect(slotInColumn()).toBe(true);
   // No width, as behind a side panel that fills the room, keeps the last answer.
   resize(0);
   expect(screen.getByTestId('thread-column').dataset.filled).toBe('true');
   resize(1000);
   expect(screen.getByTestId('thread-column').dataset.filled).toBeUndefined();
+  expect(slotInColumn()).toBe(false);
   expect(storedLayout()).toBe('"beside"');
 });
 
@@ -552,4 +630,26 @@ it("gives the column that fills the page the thread's background jobs and the le
   );
   fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA' });
   expect(document.activeElement).toBe(screen.getByLabelText('Reply'));
+});
+
+it('leaves typed letters alone in a column that fills the page without a composer', () => {
+  state.canMessage = false;
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  renderView();
+  fireEvent.click(screen.getByRole('button', { name: 'Full' }));
+  fireEvent.keyDown(document.body, { key: 'a', code: 'KeyA' });
+  expect(document.activeElement).toBe(document.body);
+});
+
+it('marks the thread read on Escape in its column, in a menu it opened and on its edge', () => {
+  localStorage.setItem(LAYOUT_KEY, JSON.stringify('beside'));
+  renderView();
+  const escape = (target: Element) => fireEvent.keyDown(target, { key: 'Escape' });
+  escape(screen.getByLabelText('Reply'));
+  escape(screen.getByRole('button', { name: 'Column menu item' }));
+  escape(screen.getByRole('separator', { name: 'Resize the thread' }));
+  expect(state.read).toEqual(['$thread', '$thread', '$thread']);
+  // Beside the column, the room's messages are read.
+  escape(screen.getByRole('textbox', { name: 'Message' }));
+  expect(state.read).toEqual(['$thread', '$thread', '$thread', 'messages']);
 });
