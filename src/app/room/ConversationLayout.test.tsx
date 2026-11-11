@@ -31,6 +31,10 @@ vi.mock('../background-jobs/BackgroundJobsBar', () => ({
     return <div data-testid="jobs" />;
   },
 }));
+// The jobs bar's link to the Sub-agents panel reads the room's runs, which need a client.
+vi.mock('../messages/live/subagentRunStore', () => ({
+  useRoomSubagentCounts: () => ({ total: 0, active: 0 }),
+}));
 vi.mock('../approvals/ThreadApprovalProvider', () => ({
   ThreadApprovalProvider: ({ threadId, children }: { threadId?: string; children: ReactNode }) => {
     seen.approvals.push(threadId);
