@@ -156,7 +156,7 @@ const ofClient = <T>(map: WeakMap<MatrixClient, T>, mx: MatrixClient, create: ()
   return map.get(mx) as T;
 };
 const parkedSlotsOf = (mx: MatrixClient) => ofClient(parkedSlots, mx, () => new Map());
-// Per client: the composers to tell when a slot parks for a thread's view, so a mounted one can
+// Per client: the composers to tell when a slot parks for another composer, so a mounted one can
 // take it over.
 const parkListeners = new WeakMap<MatrixClient, Set<() => void>>();
 const parkListenersOf = (mx: MatrixClient) => ofClient(parkListeners, mx, () => new Set());
@@ -869,8 +869,9 @@ export const useRoomInputSendSessionController = ({
         current.unpark = () => {
           if (parked.get(key) === current) parked.delete(key);
         };
-        // The view of that thread may be mounted already (the thread was beside the messages).
-        if (threadKey) {
+        // A send handed to another composer (a thread's view, or back to the room's) finds it
+        // mounted already when the thread sat beside the messages: tell it.
+        if (key !== composerKeyRef.current) {
           parkVersions.set(mx, (parkVersions.get(mx) ?? 0) + 1);
           parkListenersOf(mx).forEach((listener) => listener());
         }

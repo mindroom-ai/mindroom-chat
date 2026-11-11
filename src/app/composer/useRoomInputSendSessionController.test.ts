@@ -471,6 +471,30 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     expect(room.api.selectedFilesRef.current.map((item) => item.file.name)).toEqual(['child.txt']);
   });
 
+  it("gives a send back to the room's composer that is mounted already as the thread's view goes", async () => {
+    const store = getDefaultStore();
+    const { api, unmount, mountThreadView, mountAgain } = renderHarness({
+      onRoomMessageSent: () => true,
+    });
+    const root = createFile('root.txt');
+    const child = createFile('child.txt');
+    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
+    api.uploadsRef.current = [successUpload(root, 'mxc://mindroom/root'), loadingUpload(child)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    const thread = mountThreadView('$event-0');
+    store.set(threadViewVoiceComposersAtom, [{ key: JSON.stringify(['!room:example.org', '$event-0']) }]);
+    unmount();
+    expect(thread.current().joinedSendPending).toBe(true);
+    // Show beside: the room's composer comes back while the thread's view holds the send; then Back.
+    const room = mountAgain();
+    expect(room.current().joinedSendPending).toBe(false);
+    store.set(threadViewVoiceComposersAtom, []);
+    thread.unmount();
+    expect(room.current().joinedSendPending).toBe(true);
+  });
+
   it("takes a send parked for its thread over once its own send is done", async () => {
     const store = getDefaultStore();
     const { api, mx, unmount, mountThreadView } = renderHarness({ onRoomMessageSent: () => true });
@@ -726,7 +750,9 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
   });
 
   it("keeps another room's parked send where it is as a queued send parks again", async () => {
-    const { mx, mountAgain } = renderHarness();
+    const { mx, mountAgain, unmount } = renderHarness();
+    // One room page composer at a time: the first one goes, the ones below come and go.
+    unmount();
     // Room B's send, parked as its composer went.
     const inB = mountAgain('!b:example.org');
     const fileB = createFile('room-b.txt');
