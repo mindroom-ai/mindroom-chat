@@ -4,6 +4,7 @@ import { EventStatus, MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDefaultStore } from 'jotai';
 import { IReplyDraft, roomUploadAtomFamily } from './roomInputDrafts';
+import { ConversationViewContext } from '../navigation/conversationView';
 import { TUploadItem, Upload, UploadStatus } from '../matrix/state/upload';
 import { TUploadContent, toMatrixUploadError } from '../matrix/matrix';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
@@ -295,6 +296,27 @@ const renderHarness = (
       api.mountedRef.current = false;
       act(() => renderer.unmount());
     },
+    /** Mounts the composer of a thread's own view (the thread column) for `threadId`. */
+    mountThreadView: (threadId: string) => {
+      let view!: HarnessApi;
+      act(() => {
+        create(
+          React.createElement(
+            ConversationViewContext.Provider,
+            { value: 'thread-view' },
+            React.createElement(TestHarness, {
+              ...props,
+              threadId,
+              onRoomMessageSent: undefined,
+              onReady: (nextApi: HarnessApi) => {
+                view = nextApi;
+              },
+            })
+          )
+        );
+      });
+      return { api: view, current: () => view };
+    },
     /** Mounts the same composer again, with refs of its own, in `roomId` if given. */
     mountAgain: (roomId?: string) => {
       let next!: HarnessApi;
@@ -361,6 +383,52 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     expect(api.hasActiveSendSession()).toBe(false);
     // The composer that went opens no thread for the root it sent.
     expect(onRoomMessageSent).not.toHaveBeenCalled();
+  });
+
+  it("parks a send that opened its thread for that thread's composer", async () => {
+    const { api, mx, unmount, mountThreadView } = renderHarness({ onRoomMessageSent: () => true });
+    const root = createFile('root.txt');
+    const child = createFile('child.txt');
+    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
+    api.uploadsRef.current = [successUpload(root, 'mxc://mindroom/root'), loadingUpload(child)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+    expect(sentBodies(mx)).toEqual(['root.txt']);
+
+    // The root opened its thread, which fills the page: the room's composer goes, the thread's
+    // composer comes and holds what is still to go.
+    unmount();
+    const { api: thread, current } = mountThreadView('$event-0');
+    expect(current().joinedSendPending).toBe(true);
+    expect(thread.selectedFilesRef.current.map((item) => item.file.name)).toEqual(['child.txt']);
+
+    thread.uploadsRef.current = [successUpload(child, 'mxc://mindroom/child')];
+    await act(async () => {
+      getDefaultStore().set(roomUploadAtomFamily(child), { mxc: 'mxc://mindroom/child' });
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(mx.sendMessage).toHaveBeenCalledTimes(2));
+    expect(sentBodies(mx)).toEqual(['root.txt', 'child.txt']);
+    const [, childContent] = mx.sendMessage.mock.calls[1] ?? [];
+    expect(childContent).toMatchObject({
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$event-0' },
+    });
+  });
+
+  it('parks a send that opened no thread under its room, as before', async () => {
+    const { api, unmount, mountThreadView, mountAgain } = renderHarness();
+    const root = createFile('root.txt');
+    const child = createFile('child.txt');
+    api.selectedFilesRef.current = [createUploadItem(root), createUploadItem(child)];
+    api.uploadsRef.current = [successUpload(root, 'mxc://mindroom/root'), loadingUpload(child)];
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    unmount();
+    expect(mountThreadView('$event-0').current().joinedSendPending).toBe(false);
+    expect(mountAgain().current().joinedSendPending).toBe(true);
   });
 
   it('lets a composer mounted again join the send instead of sending its files twice', async () => {

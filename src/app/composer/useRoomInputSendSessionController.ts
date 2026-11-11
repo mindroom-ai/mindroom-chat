@@ -56,6 +56,8 @@ type SendSession = RoomInputSendSessionState & {
   onUploadSent?: (file: TUploadContent) => void;
   /** What the session uses of the composer that started it, taken at Send. */
   composer: SessionComposer;
+  /** The thread its root opened (Compact): the session parks for that thread's composer. */
+  openedThreadId?: string;
 };
 
 type ComposerContext = Pick<RoomInputSendContext, 'roomId' | 'threadId'>;
@@ -66,8 +68,11 @@ type SessionComposer = {
   clearReplyDraft: UseRoomInputSendSessionControllerOptions['clearReplyDraft'];
   /** Puts a caption back: in the editor while it shows `context`, else in its stored draft. */
   restoreText: (context: ComposerContext, fragment: Descendant[]) => void;
-  /** Reports a sent room message, only while the composer is mounted and shows `context`. */
-  reportSent: (context: ComposerContext, eventId: string) => void;
+  /**
+   * Reports a sent room message, only while the composer is mounted and shows `context`: true when
+   * that opened the message's thread.
+   */
+  reportSent: (context: ComposerContext, eventId: string) => boolean;
   /** False once the composer unmounted: no one can retry the session's files then. */
   mounted: () => boolean;
 };
@@ -324,9 +329,8 @@ export const useRoomInputSendSessionController = ({
   );
   // A composer that went, or shows another room or thread, does not open the sent thread.
   const reportSent = useCallback(
-    (context: ComposerContext, eventId: string) => {
-      if (showsContext(context)) onRoomMessageSentRef.current?.(eventId);
-    },
+    (context: ComposerContext, eventId: string) =>
+      showsContext(context) && onRoomMessageSentRef.current?.(eventId) === true,
     [onRoomMessageSentRef, showsContext]
   );
 
@@ -370,7 +374,9 @@ export const useRoomInputSendSessionController = ({
         if (!sentEventIdToNotify) return;
 
         roomMessageSentNotified = true;
-        session.composer.reportSent(session.composerContext, sentEventIdToNotify);
+        if (session.composer.reportSent(session.composerContext, sentEventIdToNotify)) {
+          session.openedThreadId = sentEventIdToNotify;
+        }
       };
 
       if (localEventId === `~${session.roomId}:${txnId}`) {
@@ -436,8 +442,11 @@ export const useRoomInputSendSessionController = ({
       clearReplyDraftForSession(session);
       // The composer that took the send over meanwhile holds the file now.
       session.composer.attachments.remove(session.roomId, [file]);
-      if (sentEventIdToNotify) {
-        session.composer.reportSent(session.composerContext, sentEventIdToNotify);
+      if (
+        sentEventIdToNotify &&
+        session.composer.reportSent(session.composerContext, sentEventIdToNotify)
+      ) {
+        session.openedThreadId = sentEventIdToNotify;
       }
     },
     [mx]
@@ -767,9 +776,16 @@ export const useRoomInputSendSessionController = ({
       const parked = parkedSlotsOf(mx);
       const park = () => {
         current.unpark?.();
-        const key = current.session
-          ? voiceComposerKey({ ...current.session.composerContext, threadView })
-          : composerKeyRef.current;
+        const { session: held } = current;
+        // A send whose root opened its thread goes on with that thread's own composer.
+        let key = composerKeyRef.current;
+        if (held?.openedThreadId) {
+          key = voiceComposerKey({
+            roomId: held.roomId,
+            threadId: held.openedThreadId,
+            threadView: true,
+          });
+        } else if (held) key = voiceComposerKey({ ...held.composerContext, threadView });
         // A key another send still waits under stays that send's.
         if (parked.get(key)?.session) return;
         parked.set(key, current);
