@@ -337,7 +337,7 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
   });
 
   it('lets a composer mounted again join the send instead of sending its files twice', async () => {
-    const { api, mx, unmount, mountAgain } = renderHarness();
+    const { api, mx, unmount, mountAgain, changeThread } = renderHarness();
     const file = createFile('shared.txt');
     const item = createUploadItem(file);
     const fileSend = createDeferred<{ event_id: string }>();
@@ -370,6 +370,17 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
       'shared.txt',
       'caption',
     ]);
+
+    // Its own next send is its own, not the one it took over.
+    const next = createFile('next.txt');
+    again.selectedFilesRef.current = [createUploadItem(next)];
+    again.uploadsRef.current = [loadingUpload(next)];
+    await act(async () => {
+      await again.startSendSession();
+    });
+    expect(again.hasActiveSendSession()).toBe(true);
+    changeThread(undefined);
+    expect(current().joinedSendPending).toBe(false);
   });
 
   it('ends a session left waiting for a retry once its composer went', async () => {
@@ -387,17 +398,80 @@ describe('useRoomInputSendSessionController after its composer unmounts', () => 
     expect(mx.sendMessage).not.toHaveBeenCalled();
   });
 
-  it('shows a send as pending in another mount of the composer while it goes out', async () => {
-    const { api, mountAgain } = renderHarness();
-    // A second view of the same thread, mounted beside the first.
+  it('keeps the sends of two composers mounted at once apart', async () => {
+    const { api, mx, mountAgain } = renderHarness();
+    // A second view of the same thread, mounted beside the first, with files of its own.
     const other = mountAgain();
-    const file = createFile('beside.txt');
-    api.selectedFilesRef.current = [createUploadItem(file)];
-    api.uploadsRef.current = [loadingUpload(file)];
+    const slow = createFile('slow.txt');
+    api.selectedFilesRef.current = [createUploadItem(slow)];
+    api.uploadsRef.current = [loadingUpload(slow)];
     await act(async () => {
       await api.startSendSession();
     });
-    expect(other.current().joinedSendPending).toBe(true);
+    const own = createFile('own.txt');
+    other.api.selectedFilesRef.current = [createUploadItem(own)];
+    other.api.uploadsRef.current = [successUpload(own)];
+    await act(async () => {
+      await other.api.startSendSession();
+    });
+    expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual([
+      'own.txt',
+    ]);
+    expect(other.current().joinedSendPending).toBe(false);
+  });
+
+  it('sends a file once when the composer moves to another thread before it goes', async () => {
+    const { api, mx, changeThread } = renderHarness({ threadId: '$first' });
+    const file = createFile('first.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'caption' } });
+    });
+    changeThread('$second');
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'second' } });
+    });
+    api.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      await api.processSendSession();
+    });
+    await vi.waitFor(() =>
+      expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual(
+        ['first.txt', 'caption', 'second']
+      )
+    );
+  });
+
+  it('lets the composer that took a send over cancel its file, and sends what follows', async () => {
+    const { api, mx, unmount, mountAgain } = renderHarness();
+    const file = createFile('cancelled.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'caption' } });
+    });
+    unmount();
+    const again = mountAgain();
+    // The file shows on its board again, claimed by the send it took over.
+    expect(again.api.selectedFilesRef.current.map((item) => item.file)).toEqual([file]);
+    expect(again.api.sendSessionFilesRef.current).toEqual([file]);
+
+    // Cancelled there, as the card's cancel removes it.
+    again.api.selectedFilesRef.current = [];
+    again.api.sendSessionUploadItemsRef.current = [];
+    again.api.uploadsRef.current = [];
+    await act(async () => {
+      await again.api.processSendSession();
+    });
+    await act(async () => {
+      await again.api.startSendSession({ textContent: { msgtype: 'm.text', body: 'next' } });
+    });
+    await vi.waitFor(() =>
+      expect(mx.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)).toEqual(
+        ['caption', 'next']
+      )
+    );
   });
 });
 

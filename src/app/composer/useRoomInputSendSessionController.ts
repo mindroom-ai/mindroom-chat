@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useRef,
+  useState,
   useSyncExternalStore,
 } from 'react';
 import { useStore } from 'jotai';
@@ -72,10 +73,10 @@ type SessionComposer = {
 };
 
 /**
- * The sends of one composer (the room's page in a room, or a thread's view): the session going
- * out, the sends queued behind it, and the texts sent beside one that waits for the person. It
- * outlives the composer, so a send keeps going as its composer unmounts, and a composer mounting
- * again for it joins it.
+ * The sends of one composer: the session going out, the sends queued behind it, and the texts
+ * sent beside one that waits for the person. It outlives the composer: as the composer unmounts
+ * with a send under way, the slot is parked under the composer's key (`voiceComposerKey`), and
+ * the next composer mounting for that key takes it over.
  */
 type SendSlot = {
   session?: SendSession;
@@ -85,22 +86,29 @@ type SendSlot = {
   /** Ends the session's watch of its uploads. */
   stopWatching?: () => void;
   listeners: Set<() => void>;
+  /** The session came from a composer that unmounted. */
+  adopted: boolean;
+  /** Takes the slot out of the parked ones. */
+  unpark?: () => void;
 };
 
-const sendSlots = new WeakMap<MatrixClient, Map<string, SendSlot>>();
+const createSendSlot = (): SendSlot => ({
+  processing: false,
+  queued: [],
+  textsBeside: Promise.resolve(),
+  listeners: new Set(),
+  adopted: false,
+});
 
-const getSendSlot = (mx: MatrixClient, key: string): SendSlot => {
-  let slots = sendSlots.get(mx);
+const parkedSlots = new WeakMap<MatrixClient, Map<string, SendSlot>>();
+
+const parkedSlotsOf = (mx: MatrixClient): Map<string, SendSlot> => {
+  let slots = parkedSlots.get(mx);
   if (!slots) {
     slots = new Map();
-    sendSlots.set(mx, slots);
+    parkedSlots.set(mx, slots);
   }
-  let slot = slots.get(key);
-  if (!slot) {
-    slot = { processing: false, queued: [], textsBeside: Promise.resolve(), listeners: new Set() };
-    slots.set(key, slot);
-  }
-  return slot;
+  return slots;
 };
 
 const notifySlot = (slot: SendSlot) => slot.listeners.forEach((listener) => listener());
@@ -238,16 +246,18 @@ export const useRoomInputSendSessionController = ({
   onRoomMessageSent,
 }: UseRoomInputSendSessionControllerOptions): {
   hasActiveSendSession: () => boolean;
-  /** A session another mount of this composer started is still going out. */
+  /** A send this composer took over from one that unmounted is still going out. */
   joinedSendPending: boolean;
   processSendSession: () => Promise<void>;
   startSendSession: (options?: StartRoomInputSendSessionOptions) => Promise<void>;
 } => {
   const store = useStore();
   const threadView = useContext(ConversationViewContext) !== undefined;
-  const slot = getSendSlot(mx, voiceComposerKey({ roomId, threadId, threadView }));
+  const [slot, setSlot] = useState(createSendSlot);
   const slotRef = useRef(slot);
   slotRef.current = slot;
+  const composerKeyRef = useRef('');
+  composerKeyRef.current = voiceComposerKey({ roomId, threadId, threadView });
   const startSendSessionRef =
     useRef<(options: StartRoomInputSendSessionOptions, slot: SendSlot) => Promise<void>>();
   const composerContextRef = useRef({ roomId, threadId });
@@ -421,6 +431,8 @@ export const useRoomInputSendSessionController = ({
     sendSlot.session = undefined;
     sendSlot.stopWatching?.();
     sendSlot.stopWatching = undefined;
+    sendSlot.adopted = false;
+    if (sendSlot.queued.length === 0) sendSlot.unpark?.();
     session?.composer.attachments.clearEnrollment(session.orderedFiles);
     notifySlot(sendSlot);
   }, []);
@@ -636,7 +648,6 @@ export const useRoomInputSendSessionController = ({
         )
       );
       sendSlot.stopWatching = () => unsubscribes.forEach((unsubscribe) => unsubscribe());
-      notifySlot(sendSlot);
       if (textContent) {
         // The caption sends last (after the uploads), so free the composer as soon as the
         // session has snapshotted the text instead of when the text event goes out. Keep a
@@ -714,6 +725,57 @@ export const useRoomInputSendSessionController = ({
 
   startSendSessionRef.current = startSendSession;
 
+  // A composer mounting for the key of one that unmounted with a send under way takes that send
+  // over: its board shows the files still to go, which it can cancel or retry, and its sends
+  // follow that one.
+  const mountedOnce = useRef(false);
+  useEffect(() => {
+    if (mountedOnce.current) return;
+    mountedOnce.current = true;
+    const parked = parkedSlotsOf(mx).get(composerKeyRef.current);
+    const session = parked?.session;
+    if (!parked || !session || session.failFast) return;
+    parked.unpark?.();
+    parked.unpark = undefined;
+    const { staged, enrolled } = session.composer.attachments.snapshot(session.roomId);
+    const items = new Map(
+      [...staged, ...enrolled]
+        .filter((item) => session.orderedFiles.includes(item.file))
+        .filter((item) => !session.sentFiles.has(item.file))
+        .map((item) => [item.file, item])
+    );
+    session.composer = {
+      ...session.composer,
+      attachments,
+      restoreText,
+      reportSent,
+      mounted: () => mountedRef?.current ?? true,
+    };
+    attachments.append(session.roomId, [...items.values()]);
+    attachments.enroll([...items.values()]);
+    parked.adopted = true;
+    slotRef.current = parked;
+    setSlot(parked);
+  }, [attachments, mountedRef, mx, reportSent, restoreText]);
+
+  // Unmounting with a send under way parks it for the next composer of the same key.
+  useEffect(
+    () => () => {
+      const current = slotRef.current;
+      const { session } = current;
+      if (!session && current.queued.length === 0) return;
+      const key = session
+        ? voiceComposerKey({ ...session.composerContext, threadView })
+        : composerKeyRef.current;
+      const parked = parkedSlotsOf(mx);
+      parked.set(key, current);
+      current.unpark = () => {
+        if (parked.get(key) === current) parked.delete(key);
+      };
+    },
+    [mx, threadView]
+  );
+
   const joinedSendPending = useSyncExternalStore(
     useCallback(
       (listener: () => void) => {
@@ -722,7 +784,7 @@ export const useRoomInputSendSessionController = ({
       },
       [slot]
     ),
-    () => slot.session !== undefined && slot.session.composer.attachments !== attachments
+    () => slot.session !== undefined && slot.adopted
   );
 
   const hasActiveSendSession = useCallback(() => slotRef.current.session !== undefined, []);

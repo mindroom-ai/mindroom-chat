@@ -103,6 +103,22 @@ describe('UnconfirmedRootsFeature', () => {
     expect(store.get(draftAtom(LOCAL_ROOT))).toEqual([]);
   });
 
+  it('leaves the drafts alone for a confirmed message no draft was written under', () => {
+    mount();
+    const writes = stored.size;
+
+    echo('$message', EventStatus.SENT);
+
+    expect(stored.size).toBe(writes);
+    const draftKeys: string[] = [];
+    roomIdToMsgDraftAtomFamily.setShouldRemove((_createdAt, key) => {
+      draftKeys.push(key);
+      return false;
+    });
+    roomIdToMsgDraftAtomFamily.setShouldRemove(null);
+    expect(draftKeys).toEqual([]);
+  });
+
   it('leaves the draft to a composer that shows the thread', () => {
     store.set(draftAtom(LOCAL_ROOT), draft('on screen'));
     mount(LOCAL_ROOT);

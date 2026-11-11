@@ -5,6 +5,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import {
   getRoomInputDraftKey,
+  hasKeptDraft,
   moveMessageDraft,
   pendingVoiceSendDraftAtom,
 } from './roomInputDrafts';
@@ -25,8 +26,9 @@ export function UnconfirmedRootsFeature() {
       const confirmedId = event.getId();
       if (confirmedId && !isLocalEchoEventId(confirmedId)) {
         const userId = mx.getSafeUserId();
+        const draftKey = getRoomInputDraftKey(userId, room.roomId, oldId);
         // A composer showing the thread moves its draft itself as it follows the root.
-        if (!isDraftShown(getRoomInputDraftKey(userId, room.roomId, oldId))) {
+        if (hasKeptDraft(draftKey) && !isDraftShown(draftKey)) {
           moveMessageDraft(store, userId, room.roomId, oldId, confirmedId);
         }
         return;
