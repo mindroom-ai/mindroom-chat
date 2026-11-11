@@ -3,10 +3,11 @@
 
 Usage: python3 scripts/agent-stack/stack.py <slot 0-99> up|down|status|usage [--model stub|real]
        [--transcription stub|real] [--calls SERVICE_URL [--calls-profile realtime|live]] [--client-sessions]
-       [--computers] [--checkout DIR] [--ref REV]
+       [--computers [--computer-image IMAGE] [--computer-tools LIST]] [--checkout DIR] [--ref REV]
 
   up      start the stack, or reuse the one already running for this slot, and print its state as JSON
-  down    stop the slot's stack and delete its storage (a real-model stack first saves its usage, see below)
+  down    stop the slot's stack and delete its storage and worker containers (a real-model stack first saves its
+          usage, see below)
   status  print the state of the running stack, or exit 1
   usage   print the model calls and tokens of the running stack's backend log as JSON
 
@@ -47,7 +48,11 @@ e2e/docker-compose.yaml starts it for every slot; on any other, POST /api/client
 
 --computers gives the helper a Worker Computer (MindRoom's docs/tools/worker-computer.md): MindRoom runs Docker
 workers with the computer security policy from mindroom-client-e2e-worker:<commit>, an image the first start builds
-from the commit (a few minutes), and only the helper's browser_mcp runs in a worker. It needs Docker and implies
+from the commit (a few minutes), or from --computer-image IMAGE ($E2E_COMPUTER_IMAGE), which must speak the
+backend's worker protocol. The tools of --computer-tools (comma-separated, default browser_mcp) run in the agents'
+workers and every other tool in the backend: with browser_mcp,shell the helper's browser opens what its shell serves
+on the worker's loopback. The slot's worker containers are named mindroom-client-e2e-slot-N-* and labelled
+mindroom-client-e2e.slot=N, and `down` removes those that the backend left. It needs Docker and implies
 --client-sessions, since Chat opens a computer through the same origin settings.
 
 A MindRoom commit with call transcripts (src/mindroom/call_transcripts) runs with `calls.transcripts` on; the slot's
@@ -141,6 +146,8 @@ CALLS_EXTRA = "matrix_calls"
 # from the commit with this Dockerfile (docs/tools/worker-computer.md).
 DOCKER_EXTRA = "docker"
 WORKER_DOCKERFILE = "local/instances/deploy/Dockerfile.mindroom"
+# Each worker container of slot N carries this label with the value N.
+SLOT_LABEL = "mindroom-client-e2e.slot"
 # The parts of a plugin directory that this script reads ($E2E_PLUGIN_DIRS, see the docstring).
 PLUGIN_MANIFEST = "mindroom.plugin.json"
 PLUGIN_SCENARIOS = "e2e/stub-scenarios.json"
@@ -342,13 +349,12 @@ def prepare_source(checkout: Path, sha: str, extras: tuple[str, ...] = ()) -> Pa
     return source
 
 
-def worker_image(checkout: Path, sha: str) -> str:
-    """The Docker image of the commit's Worker Computers, built once: MindRoom refuses a worker whose protocol differs
-    from the backend's."""
-    image = f"mindroom-client-e2e-worker:{sha[:12]}"
+def build_worker_image(checkout: Path, sha: str, image: str) -> None:
+    """Builds `image`, of the commit's Worker Computers, once: MindRoom refuses a worker whose protocol differs from
+    the backend's."""
     with locked(stack_root() / "src" / f"{sha}-worker.lock"):
         if subprocess.run(["docker", "image", "inspect", image], capture_output=True).returncode == 0:
-            return image
+            return
         log(f"building the worker image {image} (the first time takes a few minutes)")
         archive = subprocess.Popen(["git", "-C", str(checkout), "archive", sha], stdout=subprocess.PIPE)
         # Closing this end once the build ends stops an archive the build did not read to its end.
@@ -361,7 +367,6 @@ def worker_image(checkout: Path, sha: str) -> str:
             )
         if archive.wait() != 0 or build.returncode != 0:
             raise StackError(f"building {image} failed:\n{build.stderr[-3000:]}")
-    return image
 
 
 def plugin_dir_paths() -> list[Path]:
@@ -478,6 +483,10 @@ def option_env(slot: int, client_sessions: bool, image: str | None) -> list[str]
             f"MINDROOM_DOCKER_WORKER_IMAGE={image}",
             "MINDROOM_DOCKER_WORKER_SECURITY_POLICY=computer",
             "MINDROOM_WORKER_COMPUTER_ENABLED=true",
+            f"MINDROOM_DOCKER_WORKER_NAME_PREFIX=mindroom-client-e2e-slot-{slot}",
+            f"MINDROOM_DOCKER_WORKER_LABELS_JSON={json.dumps({SLOT_LABEL: str(slot)}, separators=(',', ':'))}",
+            # A worker's first start on a busy machine can take longer than MindRoom's default of 60 s.
+            "MINDROOM_DOCKER_WORKER_READY_TIMEOUT_SECONDS=300",
             # MindRoom derives each worker's token from it.
             f"MINDROOM_SANDBOX_PROXY_TOKEN={secrets.token_hex(16)}",
         ]
@@ -652,7 +661,7 @@ def config_yaml(
     stub_url: str,
     approval_expiry_days: float,
     calls: dict | None = None,
-    computers: bool = False,
+    computers: dict | None = None,
     plugin_dirs: list[dict] | None = None,
     transcription: dict | None = None,
 ) -> str:
@@ -669,9 +678,11 @@ def config_yaml(
     agent_tools += "".join(f"\n      - {tool}" for directory in plugin_dirs for tool in directory["tools"])
     plugin_paths = "".join(f"  - path: {json.dumps(d['dir'])}\n" for d in plugin_dirs if d["plugin"])
     plugins = f"plugins:\n{plugin_paths}" if plugin_paths else ""
-    # A Worker Computer is a browser in a worker of one person and agent; every other tool stays in the backend.
-    worker_defaults = "  worker_tools: [browser_mcp]\n  worker_scope: user_agent\n" if computers else ""
+    # A Worker Computer is a browser in a worker of one person and agent; the tools that share it run there too, and
+    # every other tool stays in the backend.
+    worker_defaults = ""
     if computers:
+        worker_defaults = f"  worker_tools: {json.dumps(computers['tools'])}\n  worker_scope: user_agent\n"
         agent_tools += "\n      - browser_mcp"
     if mode == "real":
         # JSON strings are YAML flow scalars, so the script needs no escaping of its own.
@@ -782,8 +793,23 @@ def stop_processes(slot_dir: Path) -> None:
         stop_process((state.get("pids") or {}).get(name), str(slot_dir))
 
 
+def remove_workers(slot: int) -> None:
+    """Removes the slot's worker containers, which a backend that was killed or crashed leaves behind. A failure stops
+    before the slot's state is deleted, so the next `down` tries again."""
+    found = subprocess.run(
+        ["docker", "ps", "--all", "--quiet", "--filter", f"label={SLOT_LABEL}={slot}"], capture_output=True, text=True
+    )
+    ids = found.stdout.split()
+    removed = subprocess.run(["docker", "rm", "--force", *ids], capture_output=True, text=True) if ids else found
+    if removed.returncode != 0:
+        raise StackError(f"removing the worker containers of slot {slot} failed: {removed.stderr.strip()[-3000:]}")
+
+
 def stop(slot_dir: Path) -> None:
     stop_processes(slot_dir)
+    state = read_state(slot_dir)
+    if state and state.get("computers"):
+        remove_workers(state["slot"])
     save_usage(slot_dir)
     shutil.rmtree(slot_dir, ignore_errors=True)
 
@@ -947,6 +973,16 @@ def calls_setting(args: argparse.Namespace) -> dict | None:
     }
 
 
+def computers_setting(args: argparse.Namespace, sha: str) -> dict | None:
+    """What --computers asks for, as the state records it: the workers' image and the tools that run in them."""
+    if not args.computers:
+        return None
+    return {
+        "image": args.computer_image or f"mindroom-client-e2e-worker:{sha[:12]}",
+        "tools": [tool for tool in args.computer_tools.split(",") if tool],
+    }
+
+
 def transcription_setting(args: argparse.Namespace, checkout: Path, sha: str) -> dict | None:
     """How the stack transcribes calls between people, as the state records it; None for a commit without them."""
     if not has_call_transcripts(checkout, sha):
@@ -974,7 +1010,8 @@ def started_with(
         and state.get("calls") == calls_setting(args)
         and state.get("transcription") == transcription
         and state.get("clientSessions", False) == args.client_sessions
-        and state.get("computers", False) == args.computers
+        # Earlier starts recorded false without computers.
+        and (state.get("computers") or None) == computers_setting(args, sha)
         and state.get("approvalExpiryDays") == args.approval_expiry_days
         and state.get("pluginDirs", []) == (plugin_dirs or [])
         and state.get("sha") == sha
@@ -1057,7 +1094,9 @@ def start(
     environment and nowhere else."""
     calls = calls_setting(args)
     venv_bin = backend_bin(checkout, sha, args)
-    image = worker_image(checkout, sha) if args.computers else None
+    computers = computers_setting(args, sha)
+    if computers and not args.computer_image:
+        build_worker_image(checkout, sha, computers["image"])
     real = args.model == "real"
     agents = AGENTS[args.model]
     slot_dir.mkdir(parents=True)
@@ -1085,7 +1124,7 @@ def start(
             stub_url,
             args.approval_expiry_days,
             calls,
-            args.computers,
+            computers,
             plugin_dirs,
             transcription,
         )
@@ -1102,7 +1141,7 @@ def start(
                 *([] if keys else ["OPENAI_API_KEY=stub-key-no-model-is-called"]),
                 f"MINDROOM_API_KEY={secrets.token_hex(16)}",
                 "MINDROOM_AUTO_BUILD_FRONTEND=0",
-                *option_env(slot, args.client_sessions, image),
+                *option_env(slot, args.client_sessions, computers["image"] if computers else None),
                 # Under the default domain, localhost: browsers send every *.localhost host to this machine.
                 *([f"MINDROOM_PLUGIN_ORIGIN_PORT={origin_port}"] if origin_port else []),
                 "",
@@ -1131,7 +1170,7 @@ def start(
         "calls": calls,
         "transcription": transcription,
         "clientSessions": args.client_sessions,
-        "computers": args.computers,
+        "computers": computers,
         # The config's timeout_days, exactly: approvalExpirySeconds below is rounded.
         "approvalExpiryDays": args.approval_expiry_days,
         "pluginDirs": plugin_dirs,
@@ -1357,6 +1396,19 @@ def main() -> int:
         action="store_true",
         help="the helper gets a Worker Computer, in a Docker worker built from the same commit; implies "
         "--client-sessions",
+    )
+    parser.add_argument(
+        "--computer-image",
+        default=os.environ.get("E2E_COMPUTER_IMAGE") or None,
+        help="with --computers, the workers' image instead of one built from the commit (default "
+        "$E2E_COMPUTER_IMAGE); it must speak the backend's worker protocol",
+    )
+    parser.add_argument(
+        "--computer-tools",
+        metavar="LIST",
+        default="browser_mcp",
+        help="with --computers, the comma-separated tools that run in the agents' workers (default browser_mcp; "
+        "browser_mcp,shell runs the shell beside the browser)",
     )
     parser.add_argument(
         "--checkout", help=f"MindRoom checkout (default $E2E_MINDROOM_CHECKOUT or {DEFAULT_CHECKOUT})"
