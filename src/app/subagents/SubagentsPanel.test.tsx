@@ -522,6 +522,35 @@ describe('SubagentsPanel', () => {
     expect(box.scrollTop).toBe(0);
   });
 
+  it("follows a sub-agent's next turn when the reader is at the end, not when they scrolled up", () => {
+    const turn = (run: string, status: SubagentStatus, startedAt: number) =>
+      ingest(run, meta(status, { subagent: 'sub', task: run, startedAt }), docs(`${run} text`));
+    turn('first', 'completed', NOW - 40);
+    render();
+    open('sub');
+    const box = view();
+    if (!box) throw new Error('no open sub-agent');
+    let height = 150;
+    Object.defineProperty(box, 'scrollHeight', { configurable: true, get: () => height });
+    Object.defineProperty(box, 'clientHeight', { configurable: true, value: 200 });
+
+    // The whole thread fits: the reader sees its end, so the next turn is followed.
+    turn('first', 'completed', NOW - 40);
+    height = 1_000;
+    turn('second', 'running', NOW - 20);
+    expect(box.scrollTop).toBe(1_000);
+
+    // A reader who scrolled up keeps their place when another turn starts.
+    box.scrollTop = 300;
+    act(() => {
+      box.dispatchEvent(new Event('scroll'));
+    });
+    turn('second', 'completed', NOW - 20);
+    height = 2_000;
+    turn('third', 'running', NOW - 10);
+    expect(box.scrollTop).toBe(300);
+  });
+
   it('follows new text at the end of a running run until the reader scrolls up more than 24 px', () => {
     ingest('run', meta('running'), docs('First line.'));
     render();

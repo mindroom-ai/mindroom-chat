@@ -190,7 +190,7 @@ export function SubagentRunView({
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const { navigateRoomThread } = useRoomNavigate();
-  const { meta } = latestTurn(node);
+  const { run: newestRun, meta } = latestTurn(node);
   const agent = useAgentProfile(room, meta.agent);
   const active = isActiveSubagentStatus(meta.status);
   const elapsed = elapsedSeconds(meta, now);
@@ -207,7 +207,26 @@ export function SubagentRunView({
     element.scrollTop = element.scrollHeight;
     pinnedTop.current = element.scrollTop;
   }, []);
-  useLayoutEffect(() => keepEnd(), [keepEnd, node]);
+  // A turn that starts while the reader is at the end is followed, as a sub-agent at work is on
+  // opening; one who scrolled up keeps their place.
+  const shownNewest = useRef(newestRun);
+  const atEnd = useRef(false);
+  useLayoutEffect(() => {
+    if (shownNewest.current !== newestRun) {
+      shownNewest.current = newestRun;
+      if (atEnd.current) following.current = true;
+    }
+    keepEnd();
+    const element = box.current;
+    atEnd.current =
+      !!element &&
+      isScrollNearBottom({
+        scrollHeight: element.scrollHeight,
+        scrollTop: element.scrollTop,
+        clientHeight: element.clientHeight,
+        thresholdPx: FOLLOW_SLACK_PX,
+      });
+  }, [keepEnd, newestRun, node]);
   // Text that grows without new frames (the Markdown renderer arriving, a block unfolding).
   const getThread = useCallback(() => box.current?.firstElementChild, []);
   useResizeObserver(keepEnd, getThread);
