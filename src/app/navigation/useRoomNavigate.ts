@@ -167,7 +167,10 @@ export const useRoomNavigate = () => {
     [navigate, roomPath]
   );
 
-  /** Opens a thread and records the current page as the place its back button returns to. */
+  /**
+   * Opens a thread and records the current page as the one it was opened from: its back button
+   * steps back there when that page is the thread's room.
+   */
   const navigateRoomThread = useCallback(
     (roomId: string, threadId: string, eventId?: string, opts?: NavigateOptions) =>
       navigateToRoomThread({

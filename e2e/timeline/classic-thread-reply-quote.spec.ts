@@ -153,7 +153,7 @@ const check = async (
     expect(new URL(page.url()).searchParams.get('threadId')).toBe(rootId);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-thread.png` });
 
-    // The thread's back button goes back to wherever the thread was opened from: it is "Back".
+    // The thread's back button leads to the thread's room: it is "Back".
     const back = page.locator('[data-thread-context-banner] button').first();
     if (!options.isMobile) {
       await back.hover();
