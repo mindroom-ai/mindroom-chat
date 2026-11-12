@@ -5,15 +5,16 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, loginToMatrix, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
 
-// Agent replies hide their tool calls by default: a small chip with an icon per call sits where the
-// calls ran, says "Working…" while one runs and how many tools the reply used once they finish, and
-// opens the calls in place. The thread menu shows them in its thread, the room menu in the whole
-// room, and each choice stays after a reload.
-// Set TOOL_CALLS_SHOTS=<directory> to save the chips, the open chip, the thread and both menus.
+// Agent replies hide their tool calls by default: a faint cog at the end of the reply counts them
+// and turns while one runs, and shows each run of calls where it ran, folded as when tool calls
+// show. The thread menu shows them in its thread, the room menu in the whole room, and each choice
+// stays after a reload.
+// Set TOOL_CALLS_SHOTS=<directory> to save the cog, the open cog, the thread and both menus.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'tool-calls-toggle-spec-password';
 const RUN = Date.now().toString(36);
 const ANSWER = 'Q3 monthly churn came in at 2.9%, down from 3.4% in Q2.';
+const BETWEEN = 'The benchmarks put SaaS churn at 3 to 5% a month. Now our numbers.';
 const SHOTS = process.env.TOOL_CALLS_SHOTS;
 
 const shot = async (page: Page, name: string) => {
@@ -45,7 +46,10 @@ const threadReply = (rootId: string, content: Record<string, unknown>) => ({
   },
 });
 
-/** Two threads: in one the agent answered after running two tools, in the other a tool still runs. */
+/**
+ * Two threads: in one the agent answered after two runs of one tool each, with text between them;
+ * in the other a tool still runs.
+ */
 const seed = async () => {
   const username = `tct_reader_${RUN}`;
   const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
@@ -76,8 +80,8 @@ const seed = async () => {
     agent.accessToken,
     roomId,
     threadReply(doneRoot, {
-      body: `🔧 \`web_search\` [1]\n\n🔧 \`run_python_code\` [2]\n\n${ANSWER}`,
-      formatted_body: `<p>🔧 <code>web_search</code> [1]</p><p>🔧 <code>run_python_code</code> [2]</p><p>${ANSWER}</p>`,
+      body: `🔧 \`web_search\` [1]\n\n${BETWEEN}\n\n🔧 \`run_python_code\` [2]\n\n${ANSWER}`,
+      formatted_body: `<p>🔧 <code>web_search</code> [1]</p><p>${BETWEEN}</p><p>🔧 <code>run_python_code</code> [2]</p><p>${ANSWER}</p>`,
       'io.mindroom.stream_status': 'completed',
       'io.mindroom.tool_trace': {
         version: 2,
@@ -146,42 +150,54 @@ test('agent replies hide their tool calls until a thread or room shows them', as
     );
   };
 
-  // A tool that still runs: a chip that says "Working…" in its place, no tool line.
+  // A tool that still runs: the cog at the end of the reply turns, and no tool line shows.
   await openThread(world.runningRoot);
   await expect(page.getByText('Looking at the invoices.', { exact: true })).toBeVisible({
     timeout: 60_000,
   });
-  const chip = page.locator('[data-tool-calls-chip]');
-  await expect(chip).toBeVisible();
-  await expect(chip).toContainText('Working…');
-  await expect(chip).toHaveAttribute('data-state', 'running');
+  const cog = page.locator('[data-tool-calls-fold]');
+  const cogButton = cog.getByRole('button');
+  await expect(cog).toHaveAttribute('data-state', 'running');
+  await expect(cogButton).toHaveAccessibleName('Running 1 tool call');
+  await expect(cogButton).toHaveText('1');
   await expect(toolLines(page, 'fetch_invoices')).toHaveCount(0);
   await shot(page, 'thread-working');
 
-  // A finished reply: its text and a quiet chip, which opens the calls where they ran.
+  // A finished reply: its text and, under it, the cog, which counts both runs' calls.
   await openThread(world.doneRoot);
   const answer = page.getByText(ANSWER, { exact: true });
   await expect(answer).toBeVisible({ timeout: 60_000 });
-  await expect(chip).toContainText('Used 2 tools');
+  await expect(cog).toHaveAttribute('data-state', 'done');
+  await expect(cogButton).toHaveAccessibleName('Used 2 tools');
+  await expect(cogButton).toHaveText('2');
   await expect(toolLines(page, 'web_search')).toHaveCount(0);
-  const toolRow = page.getByText('web_search', { exact: true });
-  await expect(toolRow).toHaveCount(0);
+  await expect(toolLines(page, 'run_python_code')).toHaveCount(0);
+  const top = async (locator: ReturnType<Page['locator']>) =>
+    (await locator.boundingBox())?.y ?? Number.NaN;
+  expect(await top(cog), 'the cog sits under the answer').toBeGreaterThan(await top(answer));
   await shot(page, 'thread-hidden');
-  await chip.locator(':scope > button').click();
-  await expect(toolRow).toBeVisible();
-  await expect(page.getByText('run_python_code', { exact: true })).toBeVisible();
-  const rowBox = await toolRow.boundingBox();
-  const answerBox = await answer.boundingBox();
-  expect(rowBox && answerBox && rowBox.y < answerBox.y, 'the calls open above the answer').toBe(
-    true
-  );
-  await shot(page, 'thread-chip-open');
-  await chip.locator(':scope > button').click();
-  await expect(toolRow).toHaveCount(0);
+
+  // Open, each run shows where it ran, folded as when tool calls show; its line opens its calls.
+  await cogButton.click();
+  const search = toolLines(page, 'web_search');
+  const python = toolLines(page, 'run_python_code');
+  await expect(search).toHaveAttribute('aria-expanded', 'false');
+  await expect(python).toHaveAttribute('aria-expanded', 'false');
+  const between = page.getByText(BETWEEN, { exact: true });
+  expect(await top(search)).toBeLessThan(await top(between));
+  expect(await top(between)).toBeLessThan(await top(python));
+  expect(await top(python)).toBeLessThan(await top(answer));
+  await shot(page, 'thread-cog-open');
+  await search.click();
+  await expect(page.getByText('8 results', { exact: true })).toBeVisible();
+  await shot(page, 'thread-cog-run-open');
+  await cogButton.click();
+  await expect(toolLines(page, 'web_search')).toHaveCount(0);
 
   // The thread menu shows them in this thread, and the choice stays.
   await chooseShowToolCalls(page, 'Thread options', false, 'menu-thread');
   await expect(toolLines(page, 'web_search')).toHaveCount(1);
+  await expect(cog).toHaveCount(0);
   await page.reload();
   await expect(answer).toBeVisible({ timeout: 60_000 });
   await expect(toolLines(page, 'web_search')).toHaveCount(1);
@@ -193,5 +209,5 @@ test('agent replies hide their tool calls until a thread or room shows them', as
   await expect(toolLines(page, 'web_search')).toHaveCount(1);
   await openThread(world.runningRoot);
   await expect(toolLines(page, 'fetch_invoices')).toHaveCount(1, { timeout: 60_000 });
-  await expect(chip).toHaveCount(0);
+  await expect(cog).toHaveCount(0);
 });

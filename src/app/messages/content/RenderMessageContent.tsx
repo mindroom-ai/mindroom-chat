@@ -40,6 +40,7 @@ import {
 import { MessageEvent } from '../../matrix/types/room';
 import { MEDIA_SPOILER_PROPERTY } from '../../matrix/send/msgContent';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
+import { ToolCallsFold } from '../agent-run/ToolCallsFold';
 import { readCallTranscript } from '../../matrix/protocol/callTranscript';
 import { readCallRow } from '../../matrix/protocol/callRow';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
@@ -191,7 +192,7 @@ function CoreMessageContent({
   // An agent reply's tool rows find the approval cards MindRoom posted for its calls by its ID.
   const agentMessage = agentContent !== undefined && (
     <ToolCallMessageContext.Provider value={toolCallMessage}>
-      {agentContent}
+      <ToolCallsFold>{agentContent}</ToolCallsFold>
     </ToolCallMessageContext.Provider>
   );
   if (callTranscript && agentMessage) {

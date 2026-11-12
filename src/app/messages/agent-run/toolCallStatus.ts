@@ -1,4 +1,4 @@
-import { createContext } from 'react';
+import { createContext, useContext, useEffect, useId } from 'react';
 import type { ToolApprovalStatus } from '../../matrix/protocol/toolApproval';
 import type { ToolJobHandle } from '../../matrix/protocol/toolJobHandle';
 
@@ -10,6 +10,43 @@ export type ToolCallState = 'running' | 'waiting' | 'done' | 'denied' | 'expired
  */
 export type ToolCallMessage = { eventId?: string; roomId?: string; threadId?: string };
 export const ToolCallMessageContext = createContext<ToolCallMessage | undefined>(undefined);
+
+/** A call of a reply's hidden tool calls, as the reply's cog counts it (ToolCallsFold.tsx). */
+export type FoldedToolCall = { toolName: string; state: ToolCallState };
+
+/**
+ * The cog at the end of a reply whose tool calls are hidden: whether it shows the reply's runs of
+ * calls, and where each run reports its calls (none once it is gone).
+ */
+export type ToolCallsFoldState = {
+  open: boolean;
+  report: (key: string, calls?: readonly FoldedToolCall[]) => void;
+};
+export const ToolCallsFoldContext = createContext<ToolCallsFoldState | undefined>(undefined);
+
+/** Counts a run's calls on the reply's cog while `calls` is given, and takes them back after. */
+export const useFoldedToolCalls = (calls: readonly FoldedToolCall[] | undefined): void => {
+  const report = useContext(ToolCallsFoldContext)?.report;
+  const key = useId();
+  const counted = calls !== undefined;
+  useEffect(() => {
+    if (!report || !counted) return undefined;
+    return () => report(key, undefined);
+  }, [counted, key, report]);
+  // After every render; the cog keeps its state while the calls stay the same.
+  useEffect(() => {
+    if (report && calls) report(key, calls);
+  });
+};
+
+/** What a run of calls, or a reply's cog, says about them by their state (summarizeToolCalls). */
+export const TOOL_STATE_TITLE = {
+  running: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsRunning',
+  waiting: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsWaiting',
+  done: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsRan',
+  denied: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsDenied',
+  expired: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsExpired',
+} as const satisfies Record<ToolCallState, string>;
 
 /**
  * What happened to each call. The public trace only says started or completed, and a denied

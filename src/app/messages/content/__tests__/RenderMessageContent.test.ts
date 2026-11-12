@@ -103,6 +103,8 @@ vi.mock('../../../ui/PendingSendIndicator.css', () => ({
   Container: 'PendingSendIndicator',
 }));
 
+vi.mock('../../agent-run/ToolCallsFold.css', () => ({}));
+
 vi.mock('../../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@viewer:example.org' }),
 }));

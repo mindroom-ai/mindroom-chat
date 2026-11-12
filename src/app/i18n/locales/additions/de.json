@@ -616,7 +616,7 @@
         "tooLargeToApprove": "Die Argumente sind zu groß zum Prüfen, daher kann diese Anfrage nur abgelehnt werden."
       },
       "showToolCalls": "Tool-Aufrufe anzeigen",
-      "showToolCallsDescription": "Die Vorgabe für jeden Raum: Antworten von Agenten listen die ausgeführten Tools auf oder zeigen jede Reihe von Tools als kleine Schaltfläche, die sie öffnet. Das Menü eines Raums oder Threads ändert es dort.",
+      "showToolCallsDescription": "Die Vorgabe für jeden Raum: Antworten von Agenten listen die ausgeführten Tools auf oder zeigen an ihrem Ende nur ein kleines Zahnrad, das sie zählt und bei einem Klick anzeigt. Das Menü eines Raums oder Threads ändert es dort.",
       "toolCallsWorking": "Arbeitet…"
     },
     "message-search": {
