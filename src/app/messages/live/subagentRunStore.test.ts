@@ -12,7 +12,7 @@ import {
 } from '../../matrix/protocol/subagentFrame';
 import fixture from './__fixtures__/subagent-frames-v1.json';
 import {
-  countActiveSubagentRuns,
+  countActiveSubagents,
   getSubagentRunStore,
   SUBAGENT_QUIET_RUN_KEPT_MS,
   SUBAGENT_WORKING_RUN_FRESHNESS_MS,
@@ -33,6 +33,7 @@ type FrameOptions = { sid?: string; status?: SubagentStatus; extra?: Partial<Sub
 
 const meta = (status: SubagentStatus, extra: Partial<SubagentMeta> = {}): SubagentMeta => ({
   agent: 'helper',
+  subagent: RUN,
   caller: 'lead',
   root: 'lead',
   parent: null,
@@ -190,12 +191,30 @@ describe('SubagentRunStore', () => {
       'denied',
     ];
     statuses.forEach((status) =>
-      store.ingest(ROOM, AGENT, { ...snapshot(0, status, { status }), run: status }, 1000)
+      store.ingest(
+        ROOM,
+        AGENT,
+        { ...snapshot(0, status, { status, extra: { subagent: status } }), run: status },
+        1000
+      )
     );
 
     expect(store.runs(ROOM)).toHaveLength(7);
-    expect(countActiveSubagentRuns(store.runs(ROOM))).toBe(3);
-    expect(countActiveSubagentRuns(store.runs(OTHER_ROOM))).toBe(0);
+    expect(countActiveSubagents(store.runs(ROOM))).toBe(3);
+    expect(countActiveSubagents(store.runs(OTHER_ROOM))).toBe(0);
+  });
+
+  it('counts a sub-agent by its newest turn, not an older one that missed its end', () => {
+    const turn = (run: string, startedAt: number, status: SubagentStatus, seq = 0) => ({
+      ...snapshot(seq, run, { status, extra: { task: run, startedAt } }),
+      run,
+    });
+    store.ingest(ROOM, AGENT, turn('first', 1, 'running'), 1000);
+    store.ingest(ROOM, AGENT, turn('second', 2, 'running'), 1000);
+    expect(countActiveSubagents(store.runs(ROOM))).toBe(1);
+
+    store.ingest(ROOM, AGENT, turn('second', 2, 'completed', 1), 1000);
+    expect(countActiveSubagents(store.runs(ROOM))).toBe(0);
   });
 
   it('shows each run of the fixture as its last frame leaves it', () => {
@@ -272,6 +291,48 @@ describe('SubagentRunStore', () => {
       vi.advanceTimersByTime(SUBAGENT_WORKING_RUN_FRESHNESS_MS);
 
       expect(store.runs(ROOM)).toEqual([]);
+    });
+
+    describe("a sub-agent's turns", () => {
+      const turn = (
+        run: string,
+        subagent: string,
+        status: SubagentStatus,
+        seq = 0
+      ): SubagentFrame => ({
+        run,
+        sid: SID,
+        seq,
+        meta: meta(status, { subagent, task: run }),
+        snapshot: docs(run),
+      });
+      const listed = () => store.runs(ROOM).map(({ run: id }) => id);
+
+      it('stay while it sends frames, each as long as its own status says', () => {
+        store.ingest(ROOM, AGENT, turn('first', 'first', 'completed'), Date.now());
+        store.ingest(ROOM, AGENT, turn('other', 'other', 'completed'), Date.now());
+        vi.advanceTimersByTime(SUBAGENT_QUIET_RUN_KEPT_MS - 1000);
+        store.ingest(ROOM, AGENT, turn('second', 'first', 'completed'), Date.now());
+        vi.advanceTimersByTime(1000);
+        expect(listed()).toEqual(['first', 'second']);
+
+        // A working turn that goes quiet goes alone; the finished ones stay.
+        store.ingest(ROOM, AGENT, turn('third', 'first', 'running'), Date.now());
+        vi.advanceTimersByTime(SUBAGENT_WORKING_RUN_FRESHNESS_MS);
+        expect(listed()).toEqual(['first', 'second']);
+        vi.advanceTimersByTime(SUBAGENT_QUIET_RUN_KEPT_MS - SUBAGENT_WORKING_RUN_FRESHNESS_MS);
+        expect(listed()).toEqual([]);
+      });
+
+      it('let a turn that missed its end go 30 seconds after the last frame', () => {
+        store.ingest(ROOM, AGENT, turn('first', 'sub', 'running'), Date.now());
+        store.ingest(ROOM, AGENT, turn('second', 'sub', 'running'), Date.now());
+        vi.advanceTimersByTime(20_000);
+        store.ingest(ROOM, AGENT, turn('second', 'sub', 'completed', 1), Date.now());
+
+        vi.advanceTimersByTime(SUBAGENT_WORKING_RUN_FRESHNESS_MS);
+        expect(listed()).toEqual(['second']);
+      });
     });
 
     it('does not count a frame that did not apply as a sign of life', () => {

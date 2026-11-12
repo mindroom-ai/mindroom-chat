@@ -9,98 +9,117 @@ import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { isActiveSubagentStatus } from '../matrix/protocol/subagentFrame';
 import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../messages/html/react-custom-html-parser';
 import {
-  countActiveSubagentRuns,
+  countActiveSubagents,
   useRoomSubagentRuns,
   type SubagentRun,
 } from '../messages/live/subagentRunStore';
 import { useMentionClickHandler } from '../messages/useMentionClickHandler';
 import { Header as SidePanelHeader } from '../ui/panels/SidePanel.css';
-import { SubagentRunCard, type SubagentRunNode } from './SubagentRunCard';
+import { SubagentRunCard, latestTurn, type SubagentNode } from './SubagentRunCard';
 import { SubagentRunView } from './SubagentRunView';
 import * as css from './subagentsPanel.css';
 
 /** How often a running run's time moves on. */
 const CLOCK_MS = 1_000;
 
-/** Running runs first, the one that started first on top; then the finished, the last to end first. */
-const panelOrder = (a: SubagentRun, b: SubagentRun): number => {
-  const aRuns = isActiveSubagentStatus(a.meta.status);
-  if (aRuns !== isActiveSubagentStatus(b.meta.status)) return aRuns ? -1 : 1;
-  if (aRuns) return a.meta.startedAt - b.meta.startedAt;
-  return (b.meta.endedAt ?? b.meta.startedAt) - (a.meta.endedAt ?? a.meta.startedAt);
+/**
+ * Sub-agents at work first, the one that started first on top; then the finished, the last to end
+ * first. A sub-agent stands as its newest turn does.
+ */
+const panelOrder = (a: SubagentNode, b: SubagentNode): number => {
+  const [aNewest, bNewest] = [latestTurn(a).meta, latestTurn(b).meta];
+  const aRuns = isActiveSubagentStatus(aNewest.status);
+  if (aRuns !== isActiveSubagentStatus(bNewest.status)) return aRuns ? -1 : 1;
+  if (aRuns) return a.turns[0].run.meta.startedAt - b.turns[0].run.meta.startedAt;
+  return (bNewest.endedAt ?? bNewest.startedAt) - (aNewest.endedAt ?? aNewest.startedAt);
 };
 
 /**
- * Each run under the run that started it while that one is listed too, else on its own. Every run
- * has one parent, so the nesting ends; runs whose parents name each other in a ring, which MindRoom
- * never sends, are left out.
+ * The runs as sub-agents, each its turns in the order they started. A sub-agent sits under the
+ * turn that started its first turn while that turn is listed, else on its own. Each sub-agent has
+ * one such place, so the nesting ends; sub-agents that started each other in a ring, which
+ * MindRoom never sends, are left out.
  */
-const nestRuns = (runs: readonly SubagentRun[]): SubagentRunNode[] => {
-  const listed = new Set(runs.map(({ run }) => run));
-  const startedBy = new Map<string, SubagentRun[]>();
-  const unnested: SubagentRun[] = [];
+const nestSubagents = (runs: readonly SubagentRun[]): SubagentNode[] => {
+  const turnsOf = new Map<string, [SubagentRun, ...SubagentRun[]]>();
   runs.forEach((run) => {
-    const { parent } = run.meta;
-    if (parent && parent !== run.run && listed.has(parent)) {
-      startedBy.set(parent, [...(startedBy.get(parent) ?? []), run]);
+    const turns = turnsOf.get(run.meta.subagent);
+    if (turns) turns.push(run);
+    else turnsOf.set(run.meta.subagent, [run]);
+  });
+  const subagentOf = new Map(runs.map(({ run, meta }) => [run, meta.subagent]));
+  const startedBy = new Map<string, string[]>();
+  const parents = new Map<string, string>();
+  const unnested: string[] = [];
+  turnsOf.forEach((turns, subagent) => {
+    turns.sort((a, b) => a.meta.startedAt - b.meta.startedAt);
+    const { parent } = turns[0].meta;
+    const parentSubagent = parent === null ? undefined : subagentOf.get(parent);
+    if (parent !== null && parentSubagent !== undefined && parentSubagent !== subagent) {
+      startedBy.set(parent, [...(startedBy.get(parent) ?? []), subagent]);
+      parents.set(subagent, parentSubagent);
     } else {
-      unnested.push(run);
+      unnested.push(subagent);
     }
   });
-  const arrange = (level: readonly SubagentRun[]): SubagentRunNode[] =>
-    [...level]
-      .sort(panelOrder)
-      .map((run) => ({ run, nested: arrange(startedBy.get(run.run) ?? []) }));
+  const turn = (run: SubagentRun) => ({ run, nested: arrange(startedBy.get(run.run) ?? []) });
+  const arrange = (level: readonly string[]): SubagentNode[] =>
+    level
+      .flatMap((id): SubagentNode[] => {
+        const [first, ...later] = turnsOf.get(id) ?? [];
+        if (!first) return [];
+        return [{ id, parent: parents.get(id) ?? null, turns: [turn(first), ...later.map(turn)] }];
+      })
+      .sort(panelOrder);
   return arrange(unnested);
 };
 
-/** Every listed run by its ID, those nested in others too. */
-const runsById = (nodes: readonly SubagentRunNode[]): Map<string, SubagentRunNode> => {
-  const byId = new Map<string, SubagentRunNode>();
-  const add = (node: SubagentRunNode) => {
-    byId.set(node.run.run, node);
-    node.nested.forEach(add);
+/** Every listed sub-agent by its ID, those nested in others too. */
+const subagentsById = (nodes: readonly SubagentNode[]): Map<string, SubagentNode> => {
+  const byId = new Map<string, SubagentNode>();
+  const add = (node: SubagentNode) => {
+    byId.set(node.id, node);
+    node.turns.forEach(({ nested }) => nested.forEach(add));
   };
   nodes.forEach(add);
   return byId;
 };
 
 /**
- * The room's live sub-agent runs, in the room's side panel, as the room's compact view shows
- * threads: a card per run its agents started, with how many are still at it in the header.
- * Pressing a card shows that run as a thread, with cards for the runs it started; Back leads to
- * the run that started it, or to the list.
+ * The room's live sub-agents, in the room's side panel, as the room's compact view shows threads:
+ * a card per sub-agent its agents started, with how many are still at it in the header. Pressing
+ * a card shows that sub-agent's turns as a thread, with cards for the sub-agents it started; Back
+ * leads to the sub-agent that started it, or to the list.
  */
 export function SubagentsPanel({ room, onClose }: { room: Room; onClose: () => void }) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const runs = useRoomSubagentRuns(room.roomId);
-  const nodes = useMemo(() => nestRuns(runs), [runs]);
-  const byId = useMemo(() => runsById(nodes), [nodes]);
-  const active = countActiveSubagentRuns(runs);
-  const [openRun, setOpenRun] = useState<string | null>(null);
-  const open = openRun === null ? undefined : byId.get(openRun);
+  const nodes = useMemo(() => nestSubagents(runs), [runs]);
+  const byId = useMemo(() => subagentsById(nodes), [nodes]);
+  const active = countActiveSubagents(runs);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const open = openId === null ? undefined : byId.get(openId);
   const section = useRef<HTMLElement>(null);
-  // A run the store let go (no frame for a while) closes, so its next frame does not reopen it;
-  // the focus its view held goes to the panel, not the page.
+  // A sub-agent the store let go (no frame for a while) closes, so its next frame does not reopen
+  // it; the focus its view held goes to the panel, not the page.
   useEffect(() => {
-    if (openRun === null || open) return;
-    setOpenRun(null);
+    if (openId === null || open) return;
+    setOpenId(null);
     if (document.activeElement === document.body) section.current?.focus();
-  }, [open, openRun]);
-  // Back gives focus to the card of the run it closed, as the reader left it.
+  }, [open, openId]);
+  // Back gives focus to the card of the sub-agent it closed, as the reader left it.
   const [returnTo, setReturnTo] = useState<string | null>(null);
   const back = useCallback(() => {
-    const parent = open?.run.meta.parent;
-    setReturnTo(open?.run.run ?? null);
-    setOpenRun(parent && byId.has(parent) ? parent : null);
-  }, [byId, open]);
+    setReturnTo(open?.id ?? null);
+    setOpenId(open?.parent ?? null);
+  }, [open]);
   useLayoutEffect(() => {
     if (returnTo === null) return;
-    const cards = section.current?.querySelectorAll<HTMLElement>('[data-subagent-run]') ?? [];
-    [...cards].find((card) => card.dataset.subagentRun === returnTo)?.focus();
+    const cards = section.current?.querySelectorAll<HTMLElement>('[data-subagent]') ?? [];
+    [...cards].find((card) => card.dataset.subagent === returnTo)?.focus();
     setReturnTo(null);
-  }, [openRun, returnTo]);
+  }, [openId, returnTo]);
   // One clock for every card, ticking only while a run is at it.
   const [now, setNow] = useState(Date.now);
   useInterval(() => setNow(Date.now()), active > 0 ? CLOCK_MS : -1);
@@ -130,13 +149,13 @@ export function SubagentsPanel({ room, onClose }: { room: Room; onClose: () => v
     >
       {open ? (
         <SubagentRunView
-          key={open.run.run}
+          key={open.id}
           room={room}
           node={open}
           now={now}
           parserOptions={parserOptions}
           onBack={back}
-          onOpen={setOpenRun}
+          onOpen={setOpenId}
           onClose={onClose}
         />
       ) : (
@@ -170,8 +189,8 @@ export function SubagentsPanel({ room, onClose }: { room: Room; onClose: () => v
             ) : (
               <ul className={css.List}>
                 {nodes.map((node) => (
-                  <li key={node.run.run}>
-                    <SubagentRunCard room={room} node={node} now={now} onOpen={setOpenRun} />
+                  <li key={node.id}>
+                    <SubagentRunCard room={room} node={node} now={now} onOpen={setOpenId} />
                   </li>
                 ))}
               </ul>

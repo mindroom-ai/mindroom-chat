@@ -681,6 +681,7 @@
       "empty": "이 방에서 실행 중인 하위 에이전트가 없습니다.",
       "back": "뒤로",
       "nested_other": "하위 에이전트 {{count}}개",
+      "turns_other": "{{count}}턴",
       "running": "실행 중",
       "awaiting_approval": "승인 대기 중",
       "paused": "일시 중지됨",

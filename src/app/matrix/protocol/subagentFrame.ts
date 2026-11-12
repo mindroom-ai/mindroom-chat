@@ -17,6 +17,11 @@ export type SubagentStatus = (typeof SUBAGENT_STATUSES)[number];
 
 export type SubagentMeta = {
   agent: string;
+  /**
+   * The sub-agent the run is a turn of: the delegation ID of its first turn, which each later turn
+   * shares. MindRoom before the field sends none, and each run is then a sub-agent of its own.
+   */
+  subagent: string;
   caller: string;
   root: string;
   parent: string | null;
@@ -49,13 +54,14 @@ const isNullableString = (value: unknown): value is string | null =>
 const isStatus = (value: unknown): value is SubagentStatus =>
   typeof value === 'string' && (SUBAGENT_STATUSES as readonly string[]).includes(value);
 
-const parseMeta = (value: unknown): SubagentMeta | null => {
+const parseMeta = (value: unknown, run: string): SubagentMeta | null => {
   if (!isRecord(value)) return null;
   const { agent, caller, root, parent, thread_id: threadId, source, status } = value;
-  const { started_at: startedAt, ended_at: endedAt, task, result } = value;
+  const { subagent = run, started_at: startedAt, ended_at: endedAt, task, result } = value;
   if (typeof agent !== 'string' || typeof caller !== 'string' || typeof root !== 'string') {
     return null;
   }
+  if (typeof subagent !== 'string' || subagent.length === 0) return null;
   if (!isNullableString(parent) || !isNullableString(threadId)) return null;
   if (source !== 'delegate' && source !== 'workflow') return null;
   if (!isStatus(status) || typeof startedAt !== 'number' || !Number.isFinite(startedAt)) {
@@ -67,6 +73,7 @@ const parseMeta = (value: unknown): SubagentMeta | null => {
   if (result !== undefined && result !== null && typeof result !== 'string') return null;
   return {
     agent,
+    subagent,
     caller,
     root,
     parent,
@@ -85,7 +92,7 @@ export const parseSubagentFrame = (content: unknown): SubagentFrame | null => {
   if (!isRecord(content)) return null;
   const { run } = content;
   if (typeof run !== 'string' || run.length === 0) return null;
-  const meta = parseMeta(content.meta);
+  const meta = parseMeta(content.meta, run);
   if (!meta) return null;
   const live = parseLiveFrame({ ...content, reply: run });
   if (!live) return null;

@@ -693,6 +693,8 @@
       "back": "वापस",
       "nested_one": "{{count}} सब-एजेंट",
       "nested_other": "{{count}} सब-एजेंट",
+      "turns_one": "{{count}} बारी",
+      "turns_other": "{{count}} बारियाँ",
       "running": "चल रहा है",
       "awaiting_approval": "अनुमोदन की प्रतीक्षा में",
       "paused": "रुका हुआ",

@@ -693,6 +693,8 @@
       "back": "Zurück",
       "nested_one": "{{count}} Sub-Agent",
       "nested_other": "{{count}} Sub-Agenten",
+      "turns_one": "{{count}} Runde",
+      "turns_other": "{{count}} Runden",
       "running": "Läuft",
       "awaiting_approval": "Wartet auf Genehmigung",
       "paused": "Pausiert",

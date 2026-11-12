@@ -693,6 +693,8 @@
       "back": "Terug",
       "nested_one": "{{count}} subagent",
       "nested_other": "{{count}} subagenten",
+      "turns_one": "{{count}} beurt",
+      "turns_other": "{{count}} beurten",
       "running": "Actief",
       "awaiting_approval": "Wacht op goedkeuring",
       "paused": "Gepauzeerd",

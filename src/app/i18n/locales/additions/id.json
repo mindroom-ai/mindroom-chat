@@ -681,6 +681,7 @@
       "empty": "Tidak ada subagen yang berjalan di ruangan ini.",
       "back": "Kembali",
       "nested_other": "{{count}} subagen",
+      "turns_other": "{{count}} giliran",
       "running": "Berjalan",
       "awaiting_approval": "Menunggu persetujuan",
       "paused": "Dijeda",

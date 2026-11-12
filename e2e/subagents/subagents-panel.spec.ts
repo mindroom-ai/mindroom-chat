@@ -8,7 +8,8 @@ import { roomHeader } from '../helpers/roomMenu';
 // The Sub-agents panel follows MindRoom's live frames: an agent streams `io.mindroom.subagents`
 // frames (ephemeral, plaintext, as in e2e/composer/send-follows-streaming-reply.spec.ts) for two
 // runs, and the header's count, the panel's cards with what each run wrote, a run opened with its
-// task and tool row, and a finished run follow them. The frames come in the shapes of
+// task and tool row, a finished run, and that run's sub-agent taking a second turn, which joins
+// its card and its thread, follow them. The frames come in the shapes of
 // src/app/messages/live/__fixtures__/subagent-frames-v1.json. A run counts as running only for 30
 // seconds after its last frame, so the frames all go out within the first seconds of the test.
 // The researcher is an agent of a namespaced MindRoom (`mindroom_researcher_<namespace>`), which
@@ -44,14 +45,21 @@ const joinNamespacedAgent = async (room: PanelRoom, name: string, displayname: s
   await joinRoom(DISPOSABLE_HOMESERVER, agent.accessToken, room.roomId);
 };
 
-/** One sub-agent run of the room's agent, sending its frames in order. */
-const startRun = (room: PanelRoom, { name, task }: { name: string; task: string }) => {
+/**
+ * One sub-agent run of the room's agent, sending its frames in order: a sub-agent's first turn, or
+ * a later turn of the sub-agent `subagent` names.
+ */
+const startRun = (
+  room: PanelRoom,
+  { name, task, subagent }: { name: string; task: string; subagent?: string }
+) => {
   const startedAt = Date.now() / 1000;
   const sid = `${Date.now()}-${randomUUID().replaceAll('-', '').slice(0, 8)}`;
   const run = `delegation-${name}-${sid}`;
   let seq = 0;
   const meta = (extra: Record<string, unknown> = {}) => ({
     agent: name,
+    subagent: subagent ?? run,
     caller: 'panels',
     root: 'panels',
     parent: null,
@@ -88,6 +96,7 @@ const startRun = (room: PanelRoom, { name, task }: { name: string; task: string 
     activity: '',
   });
   return {
+    run,
     snapshot: (md: string) => send({ meta: meta({ task }), snapshot: doc(md, [], 'streaming') }),
     append: (at: number, ins: string) =>
       send({ meta: meta(), delta: { md: { at, del: 0, ins, len: at + ins.length } } }),
@@ -132,7 +141,7 @@ test('the Sub-agents panel follows two runs frame by frame', async ({
     .click();
   const panel = panelLocator(page, 'subagents');
   await expect(panel).toBeVisible();
-  const cards = panel.locator('[data-subagent-run]');
+  const cards = panel.locator('[data-subagent]');
   await expect(cards).toHaveCount(2);
   await expect(panel.getByText('2 active', { exact: true })).toBeVisible();
   const researcher = cards.filter({ hasText: 'Research Desk' });
@@ -165,6 +174,29 @@ test('the Sub-agents panel follows two runs frame by frame', async ({
   await expect(
     roomHeader(page).getByRole('button', { name: 'Hide sub-agents, 1 active', exact: true })
   ).toBeVisible();
+
+  // The finished sub-agent takes a second turn: a run of its own, on the same card and thread.
+  const secondTurn = startRun(room, {
+    name: 'reviewer',
+    task: 'Now compare them with the changelog.',
+    subagent: second.run,
+  });
+  await secondTurn.snapshot('Comparing with the changelog.');
+  await expect(cards).toHaveCount(2);
+  const continued = cards.filter({ hasText: 'Comparing with the changelog.' });
+  await expect(continued).toContainText('2 turns');
+  await expect(continued).toContainText('Running');
+  await expect(panel.getByText('2 active', { exact: true })).toBeVisible();
+  await continued.click();
+  const turns = panel.locator('[data-subagent-task]');
+  await expect(turns).toHaveText([
+    'Check the release notes.',
+    'Now compare them with the changelog.',
+  ]);
+  await expect(panel.getByText('The notes agree.')).toBeVisible();
+  await panel.screenshot({ path: testInfo.outputPath('subagents-panel-two-turns.png') });
+  await panel.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(cards).toHaveCount(2);
 
   await page.screenshot({ path: testInfo.outputPath('subagents-panel-desktop.png') });
   await panel.screenshot({ path: testInfo.outputPath('subagents-panel-desktop-panel.png') });

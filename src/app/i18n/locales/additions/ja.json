@@ -681,6 +681,7 @@
       "empty": "このルームで実行中のサブエージェントはありません。",
       "back": "戻る",
       "nested_other": "サブエージェント {{count}} 件",
+      "turns_other": "{{count}} ターン",
       "running": "実行中",
       "awaiting_approval": "承認待ち",
       "paused": "一時停止",
