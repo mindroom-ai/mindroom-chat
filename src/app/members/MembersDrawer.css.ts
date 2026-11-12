@@ -185,13 +185,19 @@ export const InviteButton = style({
 /** The button once the invitation went out: a confirmation, not dimmed like a control turned off. */
 export const InviteSent = style({
   vars: { [config.opacity.Disabled]: '1' },
+  selectors: { '&[aria-disabled="true"]': { cursor: 'default' } },
 });
 
 /** Read by screen readers only: the line that says an invitation went out. */
+// Pinned to the panel's top corner: left where it falls, below a long member list, the browser
+// would scroll the whole page to bring it into view for find in page or a screen reader.
 export const VisuallyHidden = style({
   position: 'absolute',
+  insetBlockStart: 0,
+  insetInlineStart: 0,
   inlineSize: 1,
   blockSize: 1,
+  margin: 0,
   overflow: 'hidden',
   clip: 'rect(0, 0, 0, 0)',
   whiteSpace: 'nowrap',
