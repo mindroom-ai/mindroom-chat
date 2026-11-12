@@ -78,7 +78,7 @@ const roomWith = async (published: Record<string, Record<string, unknown>>) => {
   return room;
 };
 
-/** The card's lines of text, from its heading on, without the buttons. */
+/** The card's lines of text, from its heading on, buttons' labels included. */
 const cardText = (room: Room, userId: string): string[] => {
   act(() => {
     renderer = create(<UserRoomProfile room={room} userId={userId} onDone={() => undefined} />);
@@ -96,6 +96,11 @@ describe('UserRoomProfile role', () => {
     const room = await roomWith({ [HELPER]: { api_origin: 'http://localhost:8765', role: ROLE } });
     const text = cardText(room, HELPER);
     expect(text.slice(0, 3)).toEqual(['Helper', HELPER, ROLE]);
+    // It may wrap, so its lines start under each other in its own direction.
+    const roleText = renderer!.root.find(
+      (node) => typeof node.type === 'string' && node.children.join('') === ROLE
+    );
+    expect(roleText.props['data-own-direction']).toBe('block');
   });
 
   it('shows no role line for an agent of an older runtime, which publishes none', async () => {

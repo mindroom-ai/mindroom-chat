@@ -27,7 +27,7 @@ import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { getMemberRawDisplayName, withoutNameDisguises } from '../../matrix/room';
 import { StateEvent } from '../../matrix/types/room';
 import { UserAvatar } from '../../avatars/UserAvatar';
-import { ownDirectionLine } from '../../ui/directional';
+import { ownDirectionBlock } from '../../ui/directional';
 import { MutualRoomsChip } from './MutualRoomsChip';
 import { PowerChip } from './PowerChip';
 import { moderationAbilities } from './profileModeration';
@@ -196,7 +196,7 @@ export function UserRoomProfile({
         </Box>
       </Box>
       {role && (
-        <Text size="T300" className={css.ProfileRole} {...ownDirectionLine}>
+        <Text size="T300" className={css.ProfileRole} {...ownDirectionBlock}>
           {role}
         </Text>
       )}
