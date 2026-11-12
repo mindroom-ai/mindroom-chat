@@ -65,6 +65,7 @@ describe('createRoom call membership level', () => {
 // with no power of their own, so each type needs level 0.
 const AGENT_STATE = [
   'com.mindroom.thread.tags',
+  'io.mindroom.accounts',
   'io.mindroom.auto_approve',
   'io.mindroom.background_jobs',
   'io.mindroom.server',
