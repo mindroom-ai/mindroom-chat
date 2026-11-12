@@ -112,6 +112,20 @@ it('names who types next to the dots, and drops the notice until the next update
   expect(view.querySelector('[role="status"]')?.textContent).toBe('Avery is typing...');
 });
 
+it('names people typing in the room view, and none in a thread view, as typing names no thread', () => {
+  const store = createStore();
+  typing(store, '@avery:example.org');
+  typing(store, '@code:example.org');
+
+  // Avery and Code may type in this thread, in another, or in the room: nothing tells which.
+  expect(render(store, '$thread').querySelector('[role="status"]')).toBeNull();
+  act(() => root?.unmount());
+  container?.remove();
+  expect(render(store).querySelector('[role="status"]')?.textContent).toBe(
+    'Avery and Code are typing...'
+  );
+});
+
 it('leaves out an agent whose job in the open thread waits for approval, as it waits for you', () => {
   jobsState = [
     new MatrixEvent({
@@ -134,16 +148,13 @@ it('leaves out an agent whose job in the open thread waits for approval, as it w
     }),
   ];
   const store = createStore();
-  typing(store, '@avery:example.org');
   typing(store, HELPER);
 
-  expect(render(store, '$waiting').querySelector('[role="status"]')?.textContent).toBe(
-    'Avery is typing...'
-  );
+  expect(render(store, '$waiting').querySelector('[role="status"]')).toBeNull();
   act(() => root?.unmount());
   container?.remove();
   expect(render(store, '$elsewhere').querySelector('[role="status"]')?.textContent).toBe(
-    'Avery and Helper are typing...'
+    'Helper is typing...'
   );
 });
 
@@ -162,12 +173,11 @@ it('leaves out an agent whose streaming reply shows on screen, and names it once
   streamingReplyId = '$streaming';
   const place = addRow('$streaming', { top: 120, bottom: 600 });
   const store = createStore();
-  typing(store, '@avery:example.org');
   typing(store, HELPER);
 
-  // The reply's dots and Stop say the helper writes; people typing still show.
+  // The reply's dots and Stop say the helper writes.
   const view = render(store, '$thread');
-  expect(view.querySelector('[role="status"]')?.textContent).toBe('Avery is typing...');
+  expect(view.querySelector('[role="status"]')).toBeNull();
 
   // Scrolled up: the reply is below the screen.
   place.top = 2000;
@@ -175,7 +185,7 @@ it('leaves out an agent whose streaming reply shows on screen, and names it once
   act(() => {
     vi.advanceTimersByTime(1000);
   });
-  expect(view.querySelector('[role="status"]')?.textContent).toBe('Avery and Helper are typing...');
+  expect(view.querySelector('[role="status"]')?.textContent).toBe('Helper is typing...');
 });
 
 it('hides the typing agent when its reply mounts after the typing notice, before the next poll', async () => {
