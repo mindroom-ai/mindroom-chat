@@ -162,8 +162,9 @@ export const useRoomViewThreadState = ({
 
   // Leaving a thread always leads to its room, wherever the thread was opened from (Activity,
   // search, another room's link). Opened from the room, it steps back to the room's own entry,
-  // which keeps the room as it was left; from anywhere else, `toRoom` puts the room in the
-  // thread's place, so the browser's back still returns to where the thread was opened from.
+  // which keeps the room as it was left (on native iOS and in the iOS home screen app, the room's
+  // path replaces the thread instead); from anywhere else, `toRoom` puts the room in the thread's
+  // place, so the browser's back still returns to where the thread was opened from.
   const leaveThread = useCallback(
     (toRoom: () => void) => {
       const historyExitTarget = getRoomThreadExitTargetFromHistoryState(window.history.state);
