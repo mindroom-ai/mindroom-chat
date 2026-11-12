@@ -96,6 +96,21 @@ describe('buildActivityRows', () => {
     expect(kinds(rows)).toEqual(['named:mention']);
   });
 
+  it('leaves out a resolved thread, whatever waits in it or names the user', () => {
+    const question = { eventId: '$q', senderId: '@mindroom_mind:x', text: 'q', options: [] };
+    const resolved = { isResolved: true };
+    const { rows, hiddenAutomations } = build([
+      [entry('asks', resolved), { pendingQuestion: question }],
+      [entry('approval', resolved), { pendingApproval: approvalRecord }],
+      [entry('named', resolved), { mentionedMe: true, newCount: 1 }],
+      [entry('reply', resolved), { newCount: 1, newSenderIds: ['@tom:x'] }],
+      [entry('run', { ...resolved, isInvolved: false }), { automation: true, newCount: 1 }],
+      [entry('open'), { pendingQuestion: question }],
+    ]);
+    expect(kinds(rows)).toEqual(['open:question']);
+    expect(hiddenAutomations).toBe(0);
+  });
+
   it('calls a thread whose root names the user unread, though no reply is new', () => {
     const { rows } = build([[entry('root'), { mentionedMe: true, newCount: 0 }]]);
     expect(rows.map((row) => [row.key, row.kind, row.unread])).toEqual([['root', 'mention', true]]);
