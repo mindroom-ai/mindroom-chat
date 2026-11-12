@@ -550,7 +550,6 @@
         "notInRoom": "Bu odada değil",
         "inviteUser": "{{user}} kişisini davet et",
         "inviteSent": "Davet edildi",
-        "notInDirectory": "Kullanıcı dizininde yok",
         "noMatchingMembers": "Eşleşen üye yok"
       }
     },

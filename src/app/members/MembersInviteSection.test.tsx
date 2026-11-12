@@ -27,7 +27,7 @@ vi.mock('./useInviteUserSearch', () => ({
   useInviteUserSearch: () => mocks.search,
 }));
 
-const memberships: Record<string, string> = { '@maya:example.org': 'join' };
+const memberships: Record<string, string> = {};
 const room = {
   roomId: '!room:example.org',
   getMember: (userId: string) =>
@@ -44,10 +44,15 @@ const rowNames = () =>
     .getAllByRole('listitem')
     .map((row) => row.querySelector('[title]')?.getAttribute('title'));
 
+const isOff = (button: HTMLElement) => button.getAttribute('aria-disabled') === 'true';
+const inviteButton = (name: string) => screen.getByRole('button', { name: `Invite ${name}` });
+
 describe('MembersInviteSection', () => {
   beforeEach(() => {
     mocks.search = { suggestions: [marco, mara], isFetching: false };
     mocks.invite.mockReset();
+    Object.keys(memberships).forEach((userId) => delete memberships[userId]);
+    memberships['@maya:example.org'] = 'join';
   });
   afterEach(cleanup);
 
@@ -60,7 +65,7 @@ describe('MembersInviteSection', () => {
     expect(
       screen.getByRole('button', { name: 'Invite Marco Rossi', description: '@marco:example.org' })
     ).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Invite Mara Lind' })).toBeTruthy();
+    expect(inviteButton('Mara Lind')).toBeTruthy();
   });
 
   it('invites on one click and keeps the row in place, marked invited', async () => {
@@ -68,24 +73,48 @@ describe('MembersInviteSection', () => {
     mocks.invite.mockReturnValue(new Promise((resolve) => (finish = resolve)));
     const { rerender } = render(<MembersInviteSection room={room} query="ma" />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Invite Marco Rossi' }));
-    expect(mocks.invite).toHaveBeenCalledWith('!room:example.org', '@marco:example.org');
-    expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: 'Invite Marco Rossi' }).disabled
-    ).toBe(true);
+    const button = inviteButton('Mara Lind');
+    fireEvent.click(button);
+    expect(mocks.invite).toHaveBeenCalledWith('!room:example.org', '@mara:example.org');
+    expect(isOff(button)).toBe(true);
+    fireEvent.click(button);
+    expect(mocks.invite).toHaveBeenCalledTimes(1);
 
-    // The invitation lands: the search no longer offers Marco, but the row stays where it was.
+    // The invitation lands: the search no longer offers Mara, but her row stays where it was,
+    // with the same button, which keeps the keyboard focus.
     await act(async () => finish({}));
-    mocks.search = { suggestions: [mara], isFetching: false };
+    mocks.search = { suggestions: [marco], isFetching: false };
     rerender(<MembersInviteSection room={room} query="ma" />);
 
     expect(rowNames()).toEqual(['Marco Rossi', 'Mara Lind']);
-    expect(screen.queryByRole('button', { name: 'Invite Marco Rossi' })).toBeNull();
-    expect(within(section()).getByText('Invited')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Invite Mara Lind' })).toBeNull();
+    const sent = within(section()).getByRole('button', { name: 'Invited' });
+    expect(sent).toBe(button);
+    expect(isOff(sent)).toBe(true);
+    expect(screen.getByRole('status').textContent).toBe('Invited Mara Lind.');
 
     // A new search starts over, also when it comes back to the first one.
     rerender(<MembersInviteSection room={room} query="mar" />);
-    expect(rowNames()).toEqual(['Mara Lind']);
+    expect(rowNames()).toEqual(['Marco Rossi']);
+    rerender(<MembersInviteSection room={room} query="ma" />);
+    expect(rowNames()).toEqual(['Marco Rossi']);
+  });
+
+  it('shows why an invitation failed under the user ID, and lets it be tried again', async () => {
+    mocks.invite.mockRejectedValueOnce(new Error('You are not allowed to invite'));
+    const { rerender } = render(<MembersInviteSection room={room} query="ma" />);
+
+    await act(async () => {
+      fireEvent.click(inviteButton('Marco Rossi'));
+    });
+
+    expect(within(section()).getByRole('alert').textContent).toBe('You are not allowed to invite');
+    expect(within(section()).getByText('@marco:example.org')).toBeTruthy();
+    expect(isOff(inviteButton('Marco Rossi'))).toBe(false);
+
+    // Invited some other way, he drops out with his failure.
+    memberships['@marco:example.org'] = 'invite';
+    mocks.search = { suggestions: [mara], isFetching: false };
     rerender(<MembersInviteSection room={room} query="ma" />);
     expect(rowNames()).toEqual(['Mara Lind']);
   });
@@ -94,48 +123,30 @@ describe('MembersInviteSection', () => {
     let fail: (reason: unknown) => void = () => undefined;
     mocks.invite.mockReturnValue(new Promise((_, reject) => (fail = reject)));
     const { rerender } = render(<MembersInviteSection room={room} query="ma" />);
-    fireEvent.click(screen.getByRole('button', { name: 'Invite Marco Rossi' }));
+    fireEvent.click(inviteButton('Mara Lind'));
 
     // The next name is typed before the invitation is answered.
     mocks.search = { suggestions: [], isFetching: false };
     rerender(<MembersInviteSection room={room} query="jor" />);
-    expect(rowNames()).toEqual(['Marco Rossi']);
-    const pending = screen.getByRole<HTMLButtonElement>('button', { name: 'Invite Marco Rossi' });
-    expect(pending.disabled).toBe(true);
+    expect(rowNames()).toEqual(['Mara Lind']);
+    expect(isOff(inviteButton('Mara Lind'))).toBe(true);
 
     await act(async () => fail(new Error('The remote server did not answer')));
     rerender(<MembersInviteSection room={room} query="" />);
-    expect(within(section()).getByText('The remote server did not answer')).toBeTruthy();
-    expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: 'Invite Marco Rossi' }).disabled
-    ).toBe(false);
+    expect(within(section()).getByRole('alert').textContent).toBe(
+      'The remote server did not answer'
+    );
+    expect(isOff(inviteButton('Mara Lind'))).toBe(false);
     expect(mocks.invite).toHaveBeenCalledTimes(1);
   });
 
-  it('shows why an invitation failed and lets it be tried again', async () => {
-    mocks.invite.mockRejectedValueOnce(new Error('You are not allowed to invite'));
-    render(<MembersInviteSection room={room} query="ma" />);
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Invite Marco Rossi' }));
-    });
-
-    expect(within(section()).getByText('You are not allowed to invite')).toBeTruthy();
-    const retry = screen.getByRole<HTMLButtonElement>('button', { name: 'Invite Marco Rossi' });
-    expect(retry.disabled).toBe(false);
-  });
-
-  it('offers a full user ID the directory does not know, unless it is already in the room', () => {
-    // Until the directory answers, it may still list the user ID.
+  it('offers a full user ID the directory does not return, unless it is already in the room', () => {
     mocks.search = { suggestions: [], isFetching: true };
     const { rerender } = render(<MembersInviteSection room={room} query=" @sam:other.org " />);
-    expect(within(section()).getByText('Searching users')).toBeTruthy();
+    expect(rowNames()).toEqual(['@sam:other.org']);
+    expect(inviteButton('@sam:other.org')).toBeTruthy();
 
     mocks.search = { suggestions: [], isFetching: false };
-    rerender(<MembersInviteSection room={room} query=" @sam:other.org " />);
-    expect(rowNames()).toEqual(['@sam:other.org']);
-    expect(within(section()).getByText('Not in the user directory')).toBeTruthy();
-
     rerender(<MembersInviteSection room={room} query="@maya:example.org" />);
     expect(screen.queryByRole('group', { name: 'Not in this room' })).toBeNull();
     rerender(<MembersInviteSection room={room} query="@me:example.org" />);

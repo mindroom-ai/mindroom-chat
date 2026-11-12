@@ -550,7 +550,6 @@
         "notInRoom": "Not in this room",
         "inviteUser": "Invite {{user}}",
         "inviteSent": "Invited",
-        "notInDirectory": "Not in the user directory",
         "noMatchingMembers": "No matching members"
       }
     },

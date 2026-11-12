@@ -182,12 +182,12 @@ export const InviteButton = style({
   flexShrink: 0,
 });
 
-/** Where the Invite button was, once the invitation went out. */
-export const InviteSent = style({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: config.space.S100,
-  flexShrink: 0,
-  paddingInline: config.space.S200,
-  color: color.Success.Main,
+/** Read by screen readers only: the line that says an invitation went out. */
+export const VisuallyHidden = style({
+  position: 'absolute',
+  inlineSize: 1,
+  blockSize: 1,
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
 });

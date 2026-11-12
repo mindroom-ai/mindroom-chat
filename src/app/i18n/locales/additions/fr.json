@@ -559,7 +559,6 @@
         "notInRoom": "Pas dans ce salon",
         "inviteUser": "Inviter {{user}}",
         "inviteSent": "Invité",
-        "notInDirectory": "Absent de l’annuaire des utilisateurs",
         "noMatchingMembers": "Aucun membre correspondant"
       }
     },

@@ -571,4 +571,20 @@ describe('MembersDrawer', () => {
     expect(renderer?.root.findAllByProps({ 'data-testid': 'invite-section' })).toHaveLength(0);
     expect(hasVisibleFilterLabel(renderer, 'No Results')).toBe(true);
   });
+
+  it('neither offers nor lists invitations on the Requests filter', () => {
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(
+        React.createElement(MembersDrawer, {
+          room: createRoom(),
+          members: [{ membership: 'knock', userId: '@alice:example.org' }],
+        })
+      );
+    });
+
+    expect(hasVisibleFilterLabel(renderer, 'Requests (1)')).toBe(true);
+    expect(renderer?.root.findByType('input').props.placeholder).toBe('Type name...');
+    expect(renderer?.root.findAllByProps({ 'data-testid': 'invite-section' })).toHaveLength(0);
+  });
 });

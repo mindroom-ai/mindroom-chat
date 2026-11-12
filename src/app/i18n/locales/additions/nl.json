@@ -550,7 +550,6 @@
         "notInRoom": "Niet in deze ruimte",
         "inviteUser": "{{user}} uitnodigen",
         "inviteSent": "Uitgenodigd",
-        "notInDirectory": "Niet in de gebruikersgids",
         "noMatchingMembers": "Geen overeenkomende leden"
       }
     },

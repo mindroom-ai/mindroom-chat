@@ -74,12 +74,17 @@ const inviteRows = (
   return rows;
 };
 
+/** How a row names its person: the directory's name, or the user ID typed for someone unlisted. */
+const rowName = ({ user, listed }: Candidate): string =>
+  listed ? getDisplayName(user) : user.userId;
+
 function InviteRowItem({ row, onInvite }: { row: InviteRow; onInvite: () => void }) {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
+  const userIdLine = useId();
   const { user, listed, state } = row;
-  const name = listed ? getDisplayName(user) : user.userId;
+  const name = rowName(row);
   const avatarSrc = user.avatarMxcUrl
     ? mxcUrlToHttp(client, user.avatarMxcUrl, authenticatedMedia, 64, 64, 'crop') ?? undefined
     : undefined;
@@ -88,10 +93,8 @@ function InviteRowItem({ row, onInvite }: { row: InviteRow; onInvite: () => void
     failure === undefined
       ? undefined
       : describeKnownError(t, failure) ?? errorDetail(failure) ?? t('errors.unknown');
-
-  const detailId = useId();
-  let detail = listed ? user.userId : t('featureUi.room.membersDrawer.notInDirectory');
-  if (failureText !== undefined) detail = failureText;
+  const inviting = state?.status === 'inviting';
+  const invited = state?.status === 'invited';
 
   return (
     <li className={css.InviteRow}>
@@ -112,50 +115,51 @@ function InviteRowItem({ row, onInvite }: { row: InviteRow; onInvite: () => void
         <Text as="span" size="T300" truncate title={name} {...ownDirectionLine}>
           {name}
         </Text>
-        <Text
-          as="span"
-          id={detailId}
-          size="T200"
-          priority="300"
-          truncate
-          role={failureText !== undefined ? 'alert' : undefined}
-          title={failure === undefined ? undefined : errorDetail(failure) ?? failureText}
-          style={failureText !== undefined ? { color: color.Critical.Main } : undefined}
-          {...ownDirectionLine}
-        >
-          {detail}
-        </Text>
-      </span>
-      {state?.status === 'invited' ? (
-        <Text as="span" size="T200" className={css.InviteSent}>
-          <Icon size="50" src={Icons.Check} />
-          {t('featureUi.room.membersDrawer.inviteSent')}
-        </Text>
-      ) : (
-        <Button
-          size="300"
-          variant="Primary"
-          fill="Soft"
-          radii="300"
-          className={css.InviteButton}
-          disabled={state?.status === 'inviting'}
-          aria-label={t('featureUi.room.membersDrawer.inviteUser', { user: name })}
-          // The user ID under the name tells apart two people of the same name.
-          aria-describedby={detailId}
-          onClick={onInvite}
-          before={
-            state?.status === 'inviting' ? (
-              <Spinner size="50" variant="Primary" />
-            ) : (
-              <Icon size="50" src={Icons.Plus} />
-            )
-          }
-        >
-          <Text as="span" size="B300">
-            {t('featureUi.room.membersDrawer.invite')}
+        {/* A typed user ID is the name already. */}
+        {listed && (
+          <Text as="span" id={userIdLine} size="T200" priority="300" truncate {...ownDirectionLine}>
+            {user.userId}
           </Text>
-        </Button>
-      )}
+        )}
+        {failureText !== undefined && (
+          <Text
+            as="span"
+            size="T200"
+            role="alert"
+            truncate
+            title={errorDetail(failure) ?? failureText}
+            style={{ color: color.Critical.Main }}
+          >
+            {failureText}
+          </Text>
+        )}
+      </span>
+      {/* One button through every state, so it keeps the keyboard focus once pressed. */}
+      <Button
+        size="300"
+        variant={invited ? 'Success' : 'Primary'}
+        fill={invited ? 'None' : 'Soft'}
+        radii="300"
+        className={css.InviteButton}
+        aria-disabled={inviting || invited}
+        aria-label={
+          invited ? undefined : t('featureUi.room.membersDrawer.inviteUser', { user: name })
+        }
+        // The user ID under the name tells apart two people of the same name.
+        aria-describedby={listed ? userIdLine : undefined}
+        onClick={inviting || invited ? undefined : onInvite}
+        before={
+          (inviting && <Spinner size="50" variant="Primary" />) || (
+            <Icon size="50" src={invited ? Icons.Check : Icons.Plus} />
+          )
+        }
+      >
+        <Text as="span" size="B300">
+          {invited
+            ? t('featureUi.room.membersDrawer.inviteSent')
+            : t('featureUi.room.membersDrawer.invite')}
+        </Text>
+      </Button>
     </li>
   );
 }
@@ -206,8 +210,7 @@ function InviteSearch({ room, query, attempts, onInvite }: InviteSearchProps) {
   const typedUser = isUserId(query)
     ? filterInviteUserCandidates([{ userId: query }], room, client.getSafeUserId())[0]
     : undefined;
-  // Until the directory answers, a typed user ID may still be one it lists.
-  const typed = typedUser && !isFetching ? { user: typedUser, listed: false } : undefined;
+  const typed = typedUser ? { user: typedUser, listed: false } : undefined;
   const rows = inviteRows(suggestions, typed, attempts);
   return <InviteList rows={rows} isFetching={isFetching} onInvite={onInvite} />;
 }
@@ -226,6 +229,7 @@ type MembersInviteSectionProps = {
  * Shows nothing when there is no one to offer.
  */
 export function MembersInviteSection({ room, query }: MembersInviteSectionProps) {
+  const { t } = useTranslation();
   const client = useMatrixClient();
   const alive = useAlive();
   const trimmed = query.trim();
@@ -234,7 +238,16 @@ export function MembersInviteSection({ room, query }: MembersInviteSectionProps)
   if (attempts.query !== trimmed) {
     setAttempts({ query: trimmed, byUser: carryOver(attempts.byUser) });
   }
-  const placed = attempts.query === trimmed ? attempts.byUser : {};
+  const [announcement, setAnnouncement] = useState('');
+  // A failed invitation drops out once the person joined or was invited some other way.
+  const selfUserId = client.getSafeUserId();
+  const placed = Object.fromEntries(
+    Object.entries(attempts.query === trimmed ? attempts.byUser : {}).filter(
+      ([, attempt]) =>
+        attempt.state.status !== 'failed' ||
+        filterInviteUserCandidates([attempt.user], room, selfUserId).length > 0
+    )
+  );
 
   const setState = (userId: string, state: InviteState) =>
     setAttempts((current) => {
@@ -255,17 +268,30 @@ export function MembersInviteSection({ room, query }: MembersInviteSectionProps)
     });
     try {
       await client.invite(room.roomId, user.userId);
-      if (alive()) setState(user.userId, { status: 'invited' });
+      if (!alive()) return;
+      setState(user.userId, { status: 'invited' });
+      setAnnouncement(t('sharedUi.inviteUserPrompt.invited', { user: rowName({ user, listed }) }));
     } catch (error) {
       if (alive()) setState(user.userId, { status: 'failed', error });
     }
   };
   const onInvite = (row: InviteRow, index: number) => void invite(row, index);
 
-  if (trimmed === '') {
-    return (
-      <InviteList rows={inviteRows([], undefined, placed)} isFetching={false} onInvite={onInvite} />
-    );
-  }
-  return <InviteSearch room={room} query={trimmed} attempts={placed} onInvite={onInvite} />;
+  return (
+    <>
+      {trimmed === '' ? (
+        <InviteList
+          rows={inviteRows([], undefined, placed)}
+          isFetching={false}
+          onInvite={onInvite}
+        />
+      ) : (
+        <InviteSearch room={room} query={trimmed} attempts={placed} onInvite={onInvite} />
+      )}
+      {/* An invitation that went out is said aloud; a failure is an alert in its row. */}
+      <p role="status" className={css.VisuallyHidden}>
+        {announcement}
+      </p>
+    </>
+  );
 }

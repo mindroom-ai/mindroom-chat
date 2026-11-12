@@ -550,7 +550,6 @@
         "notInRoom": "Nicht in diesem Raum",
         "inviteUser": "{{user}} einladen",
         "inviteSent": "Eingeladen",
-        "notInDirectory": "Nicht im Benutzerverzeichnis",
         "noMatchingMembers": "Keine passenden Mitglieder"
       }
     },

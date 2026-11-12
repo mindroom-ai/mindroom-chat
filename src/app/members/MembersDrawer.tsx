@@ -318,12 +318,12 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
     virtualizer.scrollToOffset(0);
   }, [selectedIndex, query, virtualizer]);
 
-  // People who may invite find others by the same search, under the members it matches.
-  const searchLabel = canInvite
+  // People who may invite find others by the same search, under the members it matches; it is
+  // mounted without a search too, so an invitation still going or failed stays in view.
+  const showInvites = canInvite && !showingRequests;
+  const searchLabel = showInvites
     ? t('featureUi.room.membersDrawer.searchOrInvite')
     : t('featureUi.room.membersDrawer.typeName');
-  // Mounted without a search too, so an invitation still going or failed stays in view.
-  const showInvites = canInvite && !showingRequests;
 
   const emptyText = () => {
     if (query.trim() !== '') {

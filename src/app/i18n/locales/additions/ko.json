@@ -541,7 +541,6 @@
         "notInRoom": "이 방에 없는 사람",
         "inviteUser": "{{user}} 초대",
         "inviteSent": "초대됨",
-        "notInDirectory": "사용자 디렉터리에 없음",
         "noMatchingMembers": "일치하는 멤버 없음"
       }
     },
