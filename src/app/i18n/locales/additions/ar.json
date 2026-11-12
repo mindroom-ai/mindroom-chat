@@ -586,7 +586,8 @@
         "notInRoom": "ليسوا في هذه الغرفة",
         "inviteUser": "دعوة ⁨{{user}}⁩",
         "inviteSent": "تمت الدعوة",
-        "notInDirectory": "غير موجود في دليل المستخدمين"
+        "notInDirectory": "غير موجود في دليل المستخدمين",
+        "noMatchingMembers": "لا يوجد أعضاء مطابقون"
       }
     },
     "accountMenu": {

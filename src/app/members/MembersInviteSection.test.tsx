@@ -56,7 +56,10 @@ describe('MembersInviteSection', () => {
 
     expect(rowNames()).toEqual(['Marco Rossi', 'Mara Lind']);
     expect(within(section()).getByText('@marco:example.org')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Invite Marco Rossi' })).toBeTruthy();
+    // The user ID tells apart two people of the same name.
+    expect(
+      screen.getByRole('button', { name: 'Invite Marco Rossi', description: '@marco:example.org' })
+    ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Invite Mara Lind' })).toBeTruthy();
   });
 
@@ -80,9 +83,33 @@ describe('MembersInviteSection', () => {
     expect(screen.queryByRole('button', { name: 'Invite Marco Rossi' })).toBeNull();
     expect(within(section()).getByText('Invited')).toBeTruthy();
 
-    // A new search starts over.
+    // A new search starts over, also when it comes back to the first one.
     rerender(<MembersInviteSection room={room} query="mar" />);
     expect(rowNames()).toEqual(['Mara Lind']);
+    rerender(<MembersInviteSection room={room} query="ma" />);
+    expect(rowNames()).toEqual(['Mara Lind']);
+  });
+
+  it('keeps an invitation still going in view through a new search, and shows its failure', async () => {
+    let fail: (reason: unknown) => void = () => undefined;
+    mocks.invite.mockReturnValue(new Promise((_, reject) => (fail = reject)));
+    const { rerender } = render(<MembersInviteSection room={room} query="ma" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Invite Marco Rossi' }));
+
+    // The next name is typed before the invitation is answered.
+    mocks.search = { suggestions: [], isFetching: false };
+    rerender(<MembersInviteSection room={room} query="jor" />);
+    expect(rowNames()).toEqual(['Marco Rossi']);
+    const pending = screen.getByRole<HTMLButtonElement>('button', { name: 'Invite Marco Rossi' });
+    expect(pending.disabled).toBe(true);
+
+    await act(async () => fail(new Error('The remote server did not answer')));
+    rerender(<MembersInviteSection room={room} query="" />);
+    expect(within(section()).getByText('The remote server did not answer')).toBeTruthy();
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Invite Marco Rossi' }).disabled
+    ).toBe(false);
+    expect(mocks.invite).toHaveBeenCalledTimes(1);
   });
 
   it('shows why an invitation failed and lets it be tried again', async () => {
@@ -99,9 +126,13 @@ describe('MembersInviteSection', () => {
   });
 
   it('offers a full user ID the directory does not know, unless it is already in the room', () => {
-    mocks.search = { suggestions: [], isFetching: false };
+    // Until the directory answers, it may still list the user ID.
+    mocks.search = { suggestions: [], isFetching: true };
     const { rerender } = render(<MembersInviteSection room={room} query=" @sam:other.org " />);
+    expect(within(section()).getByText('Searching users')).toBeTruthy();
 
+    mocks.search = { suggestions: [], isFetching: false };
+    rerender(<MembersInviteSection room={room} query=" @sam:other.org " />);
     expect(rowNames()).toEqual(['@sam:other.org']);
     expect(within(section()).getByText('Not in the user directory')).toBeTruthy();
 

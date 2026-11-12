@@ -559,7 +559,8 @@
         "notInRoom": "No están en esta sala",
         "inviteUser": "Invitar a {{user}}",
         "inviteSent": "Invitado",
-        "notInDirectory": "No está en el directorio de usuarios"
+        "notInDirectory": "No está en el directorio de usuarios",
+        "noMatchingMembers": "Ningún miembro coincide"
       }
     },
     "accountMenu": {

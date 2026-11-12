@@ -322,10 +322,16 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
   const searchLabel = canInvite
     ? t('featureUi.room.membersDrawer.searchOrInvite')
     : t('featureUi.room.membersDrawer.typeName');
-  const showInvites = canInvite && !showingRequests && query.trim() !== '';
+  // Mounted without a search too, so an invitation still going or failed stays in view.
+  const showInvites = canInvite && !showingRequests;
 
   const emptyText = () => {
-    if (query.trim() !== '') return t('featureUi.room.membersDrawer.noResults');
+    if (query.trim() !== '') {
+      // People outside the room may still match, in the section under this line.
+      return showInvites
+        ? t('featureUi.room.membersDrawer.noMatchingMembers')
+        : t('featureUi.room.membersDrawer.noResults');
+    }
     if (showingRequests) return t('featureUi.room.membersDrawer.noPendingJoinRequests');
     return t('featureUi.room.membersDrawer.noMembersForFilter', { filter: selectedFilter?.name });
   };

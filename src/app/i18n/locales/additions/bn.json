@@ -550,7 +550,8 @@
         "notInRoom": "এই রুমে নেই",
         "inviteUser": "{{user}}-কে আমন্ত্রণ জানান",
         "inviteSent": "আমন্ত্রিত",
-        "notInDirectory": "ব্যবহারকারী ডিরেক্টরিতে নেই"
+        "notInDirectory": "ব্যবহারকারী ডিরেক্টরিতে নেই",
+        "noMatchingMembers": "কোনো মিলে যাওয়া সদস্য নেই"
       }
     },
     "accountMenu": {

@@ -541,7 +541,8 @@
         "notInRoom": "不在此聊天室",
         "inviteUser": "邀请 {{user}}",
         "inviteSent": "已邀请",
-        "notInDirectory": "不在用户目录中"
+        "notInDirectory": "不在用户目录中",
+        "noMatchingMembers": "没有匹配的成员"
       }
     },
     "accountMenu": {

@@ -550,7 +550,8 @@
         "notInRoom": "इस रूम में नहीं",
         "inviteUser": "{{user}} को आमंत्रित करें",
         "inviteSent": "आमंत्रित",
-        "notInDirectory": "उपयोगकर्ता निर्देशिका में नहीं"
+        "notInDirectory": "उपयोगकर्ता निर्देशिका में नहीं",
+        "noMatchingMembers": "कोई मेल खाते सदस्य नहीं"
       }
     },
     "accountMenu": {

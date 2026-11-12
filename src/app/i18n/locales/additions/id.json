@@ -541,7 +541,8 @@
         "notInRoom": "Tidak ada di ruangan ini",
         "inviteUser": "Undang {{user}}",
         "inviteSent": "Diundang",
-        "notInDirectory": "Tidak ada di direktori pengguna"
+        "notInDirectory": "Tidak ada di direktori pengguna",
+        "noMatchingMembers": "Tidak ada anggota yang cocok"
       }
     },
     "accountMenu": {

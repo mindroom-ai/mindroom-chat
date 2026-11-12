@@ -542,14 +542,17 @@ describe('MembersDrawer', () => {
 
     const search = renderer?.root.findByType('input');
     expect(search?.props.placeholder).toBe('Search or invite people...');
-    expect(renderer?.root.findAllByProps({ 'data-testid': 'invite-section' })).toHaveLength(0);
+    // Mounted without a search, for an invitation still going when the search was cleared.
+    const section = () => renderer?.root.findByProps({ 'data-testid': 'invite-section' });
+    expect(section()?.props['data-query']).toBe('');
 
     act(() => {
       search?.props.onChange({ target: { value: 'ma' } });
     });
 
-    const section = renderer?.root.findByProps({ 'data-testid': 'invite-section' });
-    expect(section?.props['data-query']).toBe('ma');
+    expect(section()?.props['data-query']).toBe('ma');
+    // People outside the room may match under the section's line, so the empty line is for members.
+    expect(hasVisibleFilterLabel(renderer, 'No matching members')).toBe(true);
   });
 
   it('only searches members for someone who may not invite', () => {
@@ -566,5 +569,6 @@ describe('MembersDrawer', () => {
     });
 
     expect(renderer?.root.findAllByProps({ 'data-testid': 'invite-section' })).toHaveLength(0);
+    expect(hasVisibleFilterLabel(renderer, 'No Results')).toBe(true);
   });
 });

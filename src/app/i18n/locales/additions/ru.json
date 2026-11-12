@@ -568,7 +568,8 @@
         "notInRoom": "Не в этой комнате",
         "inviteUser": "Пригласить {{user}}",
         "inviteSent": "Приглашён",
-        "notInDirectory": "Нет в каталоге пользователей"
+        "notInDirectory": "Нет в каталоге пользователей",
+        "noMatchingMembers": "Нет подходящих участников"
       }
     },
     "accountMenu": {
