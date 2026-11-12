@@ -886,4 +886,37 @@ describe('useInviteUserSearch', () => {
     // Even without a destination room, the current user stays excluded.
     expect(userIds).not.toContain('@me:example.org');
   });
+
+  it('drops someone invited since the lists were built once the caller renders again', () => {
+    const memberships: Record<string, string> = {};
+    const room: Pick<Room, 'getMember'> = {
+      getMember: (userId: string) =>
+        (memberships[userId] ? { userId, membership: memberships[userId] } : null) as ReturnType<
+          Room['getMember']
+        >,
+    };
+    const mx = makeMx();
+    const view = renderSearch({
+      mx,
+      room,
+      query: 'ma',
+      cacheState: readyCache([
+        { userId: '@marco:example.org', displayName: 'Marco Rossi' },
+        { userId: '@mara:example.org', displayName: 'Mara Lind' },
+        { userId: '@maja:example.org', displayName: 'Maja Berg' },
+      ]),
+    });
+    const before = view.getResult().suggestions;
+    expect(before.map((user) => user.userId)).toContain('@marco:example.org');
+
+    // A render without a change keeps the same list, so a caller's keyboard focus stays put.
+    view.update(mx);
+    expect(view.getResult().suggestions).toBe(before);
+
+    memberships['@marco:example.org'] = 'invite';
+    view.update(mx);
+    expect(view.getResult().suggestions.map((user) => user.userId)).not.toContain(
+      '@marco:example.org'
+    );
+  });
 });
