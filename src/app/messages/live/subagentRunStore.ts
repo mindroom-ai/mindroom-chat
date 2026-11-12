@@ -9,11 +9,12 @@ import {
 import { nextLiveEntry, type LiveReplyEntry } from './liveReplyStore';
 
 /**
- * A sub-agent whose latest frame was of a working run stays this long after that frame; MindRoom
- * sends one every 10 s meanwhile. Its turns go together, so none of them leaves its others.
+ * A working run stays this long after its sub-agent's last frame; MindRoom sends one every 10 s
+ * meanwhile. Each frame keeps every turn of its sub-agent, so a finished turn stays while a later
+ * one works.
  */
 export const SUBAGENT_WORKING_RUN_FRESHNESS_MS = 30_000;
-/** One whose latest frame was of a paused or ended run stays this long, as a paused run goes quiet. */
+/** A paused or ended run stays this long after its sub-agent's last frame, as a paused run goes quiet. */
 export const SUBAGENT_QUIET_RUN_KEPT_MS = 30 * 60 * 1000;
 
 /** A sub-agent run as its frames left it, ordered and checked as a live reply's frames are. */
@@ -28,13 +29,20 @@ export type SubagentRun = LiveReplyEntry & {
 const NO_RUNS: readonly SubagentRun[] = [];
 
 /**
- * How many of the runs are still at it (running, waiting for approval or paused): the count the
- * room header's badge and the Sub-agents panel's own header show.
+ * How many sub-agents are still at it (their newest turn running, waiting for approval or paused):
+ * the count the room header's badge and the Sub-agents panel's own header show. A sub-agent takes
+ * one turn at a time, so an older turn still at it only missed its last frame.
  */
-export const countActiveSubagentRuns = (runs: readonly SubagentRun[]): number =>
-  runs.filter(({ meta }) => isActiveSubagentStatus(meta.status)).length;
+export const countActiveSubagents = (runs: readonly SubagentRun[]): number => {
+  const newest = new Map<string, SubagentRun>();
+  runs.forEach((run) => {
+    const held = newest.get(run.meta.subagent);
+    if (!held || run.meta.startedAt >= held.meta.startedAt) newest.set(run.meta.subagent, run);
+  });
+  return [...newest.values()].filter(({ meta }) => isActiveSubagentStatus(meta.status)).length;
+};
 
-const subagentKey = (roomId: string, subagent: string): string => `${roomId}\0${subagent}`;
+const runKey = (roomId: string, run: string): string => `${roomId}\0${run}`;
 
 const isWorking = ({ status }: SubagentMeta): boolean =>
   status === 'running' || status === 'awaiting_approval';
@@ -70,8 +78,13 @@ export class SubagentRunStore {
         : { ...next, roomId, run: frame.run, meta: nextMeta(held?.meta, frame.meta) };
     runs.set(frame.run, run);
     this.rooms.set(roomId, runs);
-    // A frame that did not apply is no sign of life: the run keeps its expiry.
-    if (!run.stale) this.expireLater(run);
+    // A frame that did not apply is no sign of life: the runs keep their expiry. One that did is
+    // the sub-agent's: each of its turns stays as long as its own status says from now.
+    if (!run.stale) {
+      runs.forEach((turn) => {
+        if (turn.meta.subagent === run.meta.subagent) this.expireLater(turn);
+      });
+    }
     this.changed(roomId);
   }
 
@@ -108,24 +121,20 @@ export class SubagentRunStore {
     roomIds.forEach((roomId) => this.notify(roomId));
   }
 
-  private expireLater({ roomId, meta }: SubagentRun): void {
-    const key = subagentKey(roomId, meta.subagent);
+  private expireLater({ roomId, run, meta }: SubagentRun): void {
+    const key = runKey(roomId, run);
     clearTimeout(this.expiries.get(key));
     const after = isWorking(meta) ? SUBAGENT_WORKING_RUN_FRESHNESS_MS : SUBAGENT_QUIET_RUN_KEPT_MS;
     this.expiries.set(
       key,
-      setTimeout(() => this.drop(roomId, meta.subagent), after)
+      setTimeout(() => this.drop(roomId, run), after)
     );
   }
 
-  /** Lets go of every turn of the sub-agent. */
-  private drop(roomId: string, subagent: string): void {
-    this.expiries.delete(subagentKey(roomId, subagent));
+  private drop(roomId: string, run: string): void {
+    this.expiries.delete(runKey(roomId, run));
     const runs = this.rooms.get(roomId);
-    if (!runs) return;
-    const turns = [...runs.values()].filter(({ meta }) => meta.subagent === subagent);
-    if (turns.length === 0) return;
-    turns.forEach(({ run }) => runs.delete(run));
+    if (!runs?.delete(run)) return;
     if (runs.size === 0) this.rooms.delete(roomId);
     this.changed(roomId);
   }
@@ -174,7 +183,7 @@ export const useRoomSubagentCounts = (roomId: string): { total: number; active: 
     [roomId, store]
   );
   const getTotal = useCallback(() => store.runs(roomId).length, [roomId, store]);
-  const getActive = useCallback(() => countActiveSubagentRuns(store.runs(roomId)), [roomId, store]);
+  const getActive = useCallback(() => countActiveSubagents(store.runs(roomId)), [roomId, store]);
   const total = useSyncExternalStore(subscribe, getTotal);
   const active = useSyncExternalStore(subscribe, getActive);
   return { total, active };

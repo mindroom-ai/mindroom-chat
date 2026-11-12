@@ -9,7 +9,7 @@ import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { isActiveSubagentStatus } from '../matrix/protocol/subagentFrame';
 import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../messages/html/react-custom-html-parser';
 import {
-  countActiveSubagentRuns,
+  countActiveSubagents,
   useRoomSubagentRuns,
   type SubagentRun,
 } from '../messages/live/subagentRunStore';
@@ -97,7 +97,7 @@ export function SubagentsPanel({ room, onClose }: { room: Room; onClose: () => v
   const runs = useRoomSubagentRuns(room.roomId);
   const nodes = useMemo(() => nestSubagents(runs), [runs]);
   const byId = useMemo(() => subagentsById(nodes), [nodes]);
-  const active = countActiveSubagentRuns(runs);
+  const active = countActiveSubagents(runs);
   const [openId, setOpenId] = useState<string | null>(null);
   const open = openId === null ? undefined : byId.get(openId);
   const section = useRef<HTMLElement>(null);

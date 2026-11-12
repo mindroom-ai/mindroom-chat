@@ -71,6 +71,8 @@ const useDocsContent = (docs: LiveDocs) => {
 type TurnProps = {
   room: Room;
   turn: SubagentTurn;
+  /** Whether it is the sub-agent's newest turn; an older one still at it only missed its end. */
+  newest: boolean;
   now: number;
   parserOptions: HTMLReactParserOptions;
   onOpen: (subagent: string) => void;
@@ -80,26 +82,27 @@ type TurnProps = {
  * One turn: the caller's task, cards for the sub-agents the turn started, then its reply as it
  * streams, with its tool calls, and why it ended when it ended badly.
  */
-function RunTurn({ room, turn, now, parserOptions, onOpen }: TurnProps) {
+function RunTurn({ room, turn, newest, now, parserOptions, onOpen }: TurnProps) {
   const { t } = useTranslation();
   const { run, nested } = turn;
   const { meta } = run;
   const agent = useAgentProfile(room, meta.agent);
   const caller = useAgentProfile(room, meta.caller);
-  // Only a running run shows the typing dots: one waiting for approval still has `streaming`
-  // documents and a paused or ended one `pending`, and both would read as a reply about to stream.
-  // A run that wrote nothing answers with its result, unless that result says why it failed.
+  // Only the newest turn, running, shows the typing dots: one waiting for approval still has
+  // `streaming` documents and a paused or ended one `pending`, and both would read as a reply about
+  // to stream. A run that wrote nothing answers with its result, unless that says why it failed.
+  const working = newest && meta.status === 'running';
   const failed = (meta.status === 'failed' || meta.status === 'denied') && !!meta.result;
   const docs = useMemo((): LiveDocs => {
-    const status = meta.status === 'running' ? run.docs.status : 'completed';
+    const status = working ? run.docs.status : 'completed';
     const quiet = run.docs.md === '' && run.docs.tools.length === 0;
     return quiet && meta.result && !failed
       ? { ...run.docs, md: meta.result, status }
       : { ...run.docs, status };
-  }, [failed, meta.result, meta.status, run.docs]);
+  }, [failed, meta.result, run.docs, working]);
   const getContent = useDocsContent(docs);
   // A run that wrote nothing has no reply; one at work shows the thinking placeholder.
-  const wrote = docs.md !== '' || docs.tools.length > 0 || meta.status === 'running';
+  const wrote = docs.md !== '' || docs.tools.length > 0 || working;
 
   return (
     <>
@@ -273,11 +276,12 @@ export function SubagentRunView({
         }}
       >
         <div className={css.Thread}>
-          {node.turns.map((turn) => (
+          {node.turns.map((turn, index) => (
             <RunTurn
               key={turn.run.run}
               room={room}
               turn={turn}
+              newest={index === node.turns.length - 1}
               now={now}
               parserOptions={parserOptions}
               onOpen={onOpen}

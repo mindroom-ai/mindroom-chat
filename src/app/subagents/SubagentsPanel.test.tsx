@@ -385,6 +385,22 @@ describe('SubagentsPanel', () => {
     expect(dots()).not.toBeNull();
   });
 
+  it('shows the typing dots only in the newest turn, not in one that missed its end', () => {
+    const turn = (run: string, startedAt: number) =>
+      ingest(run, meta('running', { subagent: 'sub', task: run, startedAt }), docs(`${run} text`));
+    turn('first', NOW - 30);
+    turn('second', NOW - 10);
+    render();
+    expect(container.textContent).toContain('1 active');
+    open('sub');
+
+    const answers = [...(view()?.querySelectorAll('[data-subagent-transcript]') ?? [])];
+    const typing = answers.map(
+      (answer) => !!answer.querySelector('[aria-label="AI is responding"]')
+    );
+    expect(typing).toEqual([false, true]);
+  });
+
   it('answers with the result when a run wrote nothing, and says why a failed run ended', () => {
     ingest(
       'quiet',
