@@ -28,6 +28,7 @@ vi.mock('../../matrix/hooks/useStateEvent', () => ({ useStateEvent: () => undefi
 vi.mock('../../matrix/hooks/useIgnoredUsers', () => ({ useIgnoredUsers: () => [] }));
 vi.mock('../useMemberPowerTag', () => ({ useGetMemberPowerTag: () => () => undefined }));
 vi.mock('../useUserProfile', () => ({ useUserProfile: () => shown.profile }));
+vi.mock('../useAgentRoles', () => ({ useAgentRoles: () => new Map() }));
 vi.mock('../../navigation/useRoomSettingsState', () => ({ useOpenRoomSettings: () => vi.fn() }));
 vi.mock('../../calls/agent/AgentCallButton', () => ({
   AgentCallButton: ({ displayName }: { displayName: string }) => {

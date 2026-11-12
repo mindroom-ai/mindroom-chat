@@ -193,6 +193,8 @@ vi.mock('../preferences/useSetting', () => ({
   useSetting: () => [0, vi.fn()],
 }));
 
+vi.mock('./useAgentRoles', () => ({ useAgentRoles: () => new Map() }));
+
 vi.mock('./useMembersDrawer', () => ({
   useMembersDrawer: () => [true, vi.fn()],
 }));

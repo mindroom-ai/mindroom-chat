@@ -23,6 +23,7 @@ import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { useMembershipFilterMenu } from '../../members/useMemberFilter';
 import { useMemberSort, useMemberSortMenu } from '../../members/useMemberSort';
 import { useFlattenPowerTagMembers, useGetMemberPowerTag } from '../../members/useMemberPowerTag';
+import { useAgentRoles } from '../../members/useAgentRoles';
 import { stopPropagation } from '../../lib/keyboard';
 import {
   type ListEntry,
@@ -110,6 +111,7 @@ export function RoomMembersPage({ room, requestClose }: { room: Room; requestClo
   const creators = useRoomCreators(room);
   const filters = useMembershipFilterMenu();
   const sorts = useMemberSortMenu();
+  const agentRoles = useAgentRoles(room);
   const [filterIndex, setFilterIndex] = useState(0);
   const [sortIndex, setSortIndex] = useState(0);
   const [search, setSearch] = useState('');
@@ -272,7 +274,11 @@ export function RoomMembersPage({ room, requestClose }: { room: Room; requestClo
                 {entry.kind === 'group' ? (
                   <MemberGroupTitle tag={entry.tag} spaced={entry.spaced} />
                 ) : (
-                  <MemberRow room={room} member={entry.member} />
+                  <MemberRow
+                    room={room}
+                    member={entry.member}
+                    role={agentRoles.get(entry.member.userId)}
+                  />
                 )}
               </div>
             );
