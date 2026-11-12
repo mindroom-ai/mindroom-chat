@@ -202,6 +202,7 @@ test('resolving a thread takes its question out of Activity until something new 
   await signIn(page, fixture.person);
   const bell = page.getByRole('button', { name: /^Activity/ }).first();
   await bell.click();
+  await expect(page.getByRole('dialog', { name: 'Activity' })).toBeVisible();
   await bell.click();
   await expect(page).toHaveURL(/\/activity\/$/);
 
