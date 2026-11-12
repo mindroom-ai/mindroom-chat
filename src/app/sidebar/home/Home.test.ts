@@ -3,9 +3,10 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Home } from './Home';
 
-const { homeRoomsState, navigate } = vi.hoisted(() => ({
+const { homeRoomsState, navigate, screen } = vi.hoisted(() => ({
   homeRoomsState: { roomIds: ['!room:example.org'] },
   navigate: vi.fn(),
+  screen: { size: 'Desktop' },
 }));
 
 vi.mock('react-i18next', async () => {
@@ -109,10 +110,15 @@ vi.mock('../../matrix/matrix', () => ({
   getCanonicalAliasOrRoomId: (_mx: unknown, roomId: string) => roomId,
 }));
 vi.mock('../../navigation/useSelectedRoom', () => ({ useSelectedRoom: () => undefined }));
-vi.mock('../../routes/useHomeSelected', () => ({
-  useHomeCreateSelected: () => false,
-  useHomeSearchSelected: () => false,
+vi.mock('../../routes/useHomeSelected', () => ({ useHomeCreateSelected: () => false }));
+vi.mock('../../lib/hooks/useScreenSize', () => ({
+  ScreenSize: { Desktop: 'Desktop', Tablet: 'Tablet', Mobile: 'Mobile' },
+  useScreenSizeContext: () => screen.size,
 }));
+vi.mock('../../command-palette/CommandPaletteSearchField', () => ({
+  CommandPaletteSearchField: () => React.createElement('div', { 'data-find-anything': true }),
+}));
+vi.mock('../../command-palette/CommandPaletteSearchField.css', () => ({ NavSearchField: 'nav' }));
 vi.mock('../../matrix/state/useHomeRooms', () => ({ useHomeRooms: () => homeRoomsState.roomIds }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getRoom: () => null, getSafeUserId: () => '@alice:example.org' }),
@@ -215,13 +221,18 @@ const expectRoomActionsWork = (renderer: ReactTestRenderer) => {
 describe('Home', () => {
   afterEach(() => {
     homeRoomsState.roomIds = ['!room:example.org'];
+    screen.size = 'Desktop';
     navigate.mockReset();
   });
+
+  const findFields = (renderer: ReactTestRenderer) =>
+    renderer.root.findAllByProps({ 'data-find-anything': true });
 
   it('keeps create and join actions available when rooms exist', () => {
     const renderer = create(React.createElement(Home));
 
     expectRoomActionsWork(renderer);
+    expect(findFields(renderer)).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-thread-nav': true })).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-recently-opened-nav': true })).toHaveLength(1);
     expect(
@@ -238,7 +249,18 @@ describe('Home', () => {
     const renderer = create(React.createElement(Home));
 
     expectRoomActionsWork(renderer);
+    expect(findFields(renderer)).toHaveLength(1);
     expect(renderer.root.findAllByProps({ 'data-recently-opened-nav': true })).toHaveLength(1);
+
+    renderer.unmount();
+  });
+
+  it('leaves the search field to the top bar on a phone', () => {
+    screen.size = 'Mobile';
+    const renderer = create(React.createElement(Home));
+
+    expect(findFields(renderer)).toHaveLength(0);
+    expectRoomActionsWork(renderer);
 
     renderer.unmount();
   });

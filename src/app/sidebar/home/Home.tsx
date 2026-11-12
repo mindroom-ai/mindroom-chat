@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Avatar, Box, Icon, Icons, Text } from 'folds';
 import type { IconSrc } from 'folds';
 import type { Room } from 'matrix-js-sdk';
-import { useAtom, useSetAtom } from 'jotai';
+import { useAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { PageNav, PageNavContent, PageNavHeader } from '../../ui/page/Page';
@@ -24,10 +24,7 @@ import { RoomNavItem } from '../room-nav/RoomNavItem';
 import { SubRoomRows, useSubRoomList } from '../room-nav/SubRoomRows';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useSelectedRoom } from '../../navigation/useSelectedRoom';
-import {
-  useHomeCreateSelected,
-  useHomeSearchSelected,
-} from '../../routes/useHomeSelected';
+import { useHomeCreateSelected } from '../../routes/useHomeSelected';
 import { useCategoryHandler } from '../../ui/nav/useCategoryHandler';
 import { useNavToActivePathMapper } from '../../routes/useNavToActivePathMapper';
 import {
@@ -45,7 +42,9 @@ import { useVisibleRooms } from '../../matrix/state/archivedRooms';
 import { ThreadNavCategory } from '../threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../threads/RecentlyOpenedNavCategory';
 import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
-import { commandPaletteOpenAtom } from '../../command-palette/commandPaletteState';
+import { CommandPaletteSearchField } from '../../command-palette/CommandPaletteSearchField';
+import * as searchFieldCss from '../../command-palette/CommandPaletteSearchField.css';
+import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { MenuEntry, MenuGroup } from '../../ui/MenuEntry';
 import { getHomeCreatePath, getHomeRoomPath, withSearchParam } from '../../routes/pathUtils';
 import { NavOptionsMenu } from '../../ui/nav/NavOptionsMenu';
@@ -101,7 +100,7 @@ function HomeHeader({ roomIds, onSortByName }: HomeHeaderProps) {
 
 type RoomActionProps = {
   /** Value of `data-home-room-action`, which tests and styles select on. */
-  action: 'create' | 'join' | 'search';
+  action: 'create' | 'join';
   icon: IconSrc;
   label: string;
   selected?: boolean;
@@ -148,8 +147,8 @@ export function Home() {
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const selectedRoomId = useSelectedRoom();
   const createSelected = useHomeCreateSelected();
-  const searchSelected = useHomeSearchSelected();
-  const openCommandPalette = useSetAtom(commandPaletteOpenAtom);
+  // A phone's top bar holds the same field.
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const [joinOpen, setJoinOpen] = useState(false);
 
   const roomsCategoryId = makeNavCategoryId('home', 'room');
@@ -202,6 +201,7 @@ export function Home() {
 
   const roomActions = (
     <NavCategory>
+      {!phone && <CommandPaletteSearchField className={searchFieldCss.NavSearchField} />}
       <RoomAction
         action="create"
         icon={Icons.Plus}
@@ -214,14 +214,6 @@ export function Home() {
         icon={Icons.Link}
         label={t('sharedUi.joinAddressPrompt.joinARoom')}
         onSelect={() => setJoinOpen(true)}
-      />
-      <RoomAction
-        action="search"
-        icon={Icons.Search}
-        label={t('nav.messageSearch')}
-        selected={searchSelected}
-        // Message search is the command palette's Messages tab; See all results opens the page.
-        onSelect={() => openCommandPalette('messages')}
       />
     </NavCategory>
   );

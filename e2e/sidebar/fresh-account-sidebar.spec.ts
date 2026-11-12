@@ -21,9 +21,10 @@ import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // Settings > Sidebar (Threads, Canvases, Explore Community, Create Space, Search, Local MindRoom)
 // are off until the account turns them on, and the THREADS category starts collapsed until the
 // person opens it. Each hidden page stays reachable the way its switch's description says:
-// Threads, Canvases (once the account has a canvas, as for its button), Explore Community, Create
-// Space and Search from Home's options menu, Create Space and Search from the command palette and
-// its shortcut too, Local MindRoom in Settings. Checked with 26 rooms and three threads, classic scrollbars, on a 1280 by 800 desktop
+// Threads, Canvases (once the account has a canvas, as for its button), Explore Community and Create
+// Space from Home's options menu, Search from the Find anything field (Home's list, a phone's top
+// bar), Create Space and Search from the command palette and its shortcut too, Local MindRoom in
+// Settings. Checked with 26 rooms and three threads, classic scrollbars, on a 1280 by 800 desktop
 // and a 390 by 844 touch phone, in Chromium and WebKit. Set SIDEBAR_DEFAULTS_SHOTS=<directory>
 // to save the fresh sidebar's screenshots.
 
@@ -275,12 +276,14 @@ const checkFreshAccount = async (page: Page, layout: Layout, user: Seeded) => {
   await expect(page.getByTestId('thread-nav-list')).toBeVisible();
 
   // Home's options menu lists every hidden button; Canvases waits for a canvas, as its button does.
+  // The search button needs no entry: the Find anything field is always on screen.
   await page.getByRole('button', { name: 'Home Options', exact: true }).click();
-  for (const entry of ['Threads', 'Explore Community', 'Create Space', 'Search']) {
+  for (const entry of ['Threads', 'Explore Community', 'Create Space']) {
     // eslint-disable-next-line no-await-in-loop
     await expect.soft(homeMenuEntry(page, entry)).toBeVisible();
   }
   await expect.soft(homeMenuEntry(page, 'Canvases')).toHaveCount(0);
+  await expect.soft(homeMenuEntry(page, 'Search')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(page.getByRole('menu')).toHaveCount(0);
   await pinCanvas(user);
@@ -307,14 +310,15 @@ const checkFreshAccount = async (page: Page, layout: Layout, user: Seeded) => {
   await expect(page).toHaveURL(/\/explore\//);
   await openHome(page);
 
-  // Create Space and Search: Home's options menu, on a desktop and a phone alike.
+  // Create Space from Home's options menu, and the palette from the Find anything field, in
+  // Home's list on a desktop and in the top bar on a phone.
   const createDialog = page.getByRole('dialog', { name: 'Create Space' });
   const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
   await chooseFromHomeMenu(page, 'Create Space');
   await expect(createDialog).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(createDialog).toHaveCount(0);
-  await chooseFromHomeMenu(page, 'Search');
+  await page.getByRole('button', { name: 'Find anything', exact: true }).click();
   await expect(palette).toBeVisible();
   await expect(palette.getByRole('combobox')).toBeFocused();
 

@@ -264,12 +264,13 @@ const CASES: Case[] = [
     },
   },
   {
-    // Home's Message Search: the rail's Search button is off until the account turns it on.
+    // The Find anything field, in Home's list or a phone's top bar: the rail's Search button is
+    // off until the account turns it on.
     name: 'command palette',
     from: 'home',
     screens: ['desktop', 'phone'],
     open: async (page, screen) => {
-      const opener = page.locator('[data-home-room-action="search"]');
+      const opener = page.getByRole('button', { name: 'Find anything', exact: true });
       await press(opener, screen);
       return opener;
     },

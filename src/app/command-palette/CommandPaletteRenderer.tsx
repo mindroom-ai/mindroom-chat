@@ -108,9 +108,9 @@ function PaletteDialog({ mobile, initialTab, requestClose, onLogout }: PaletteDi
 }
 
 /**
- * The command palette, opened from anywhere with Mod+K or the sidebar's search button on All,
- * and from the sidebar's Message Search on Messages. Its query and tab live only while it is
- * open. Logging out from it asks for confirmation first.
+ * The command palette, opened on All from anywhere with Mod+K, the Find anything field or the
+ * rail's search button, and on Messages with the message search shortcut. Its query and tab live
+ * only while it is open. Logging out from it asks for confirmation first.
  */
 export function CommandPaletteRenderer() {
   const [openTab, setOpenTab] = useAtom(commandPaletteOpenAtom);

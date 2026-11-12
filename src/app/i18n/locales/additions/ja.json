@@ -325,7 +325,7 @@
         "createSpace": "サイドバーに「スペースを作成」を表示する",
         "createSpaceDescription": "非表示にした場合は、ホームの ⋮ メニューまたはコマンドパレット（{{shortcut}}）からスペースを作成できます。",
         "search": "サイドバーに検索を表示する",
-        "searchDescription": "コマンドパレットを開くボタンです。非表示にした場合は、ホームの ⋮ メニューまたは {{shortcut}} で開けます。",
+        "searchDescription": "コマンドパレットを開くボタンです。非表示にした場合は、「何でも検索」欄または {{shortcut}} で開けます。",
         "localMindroom": "サイドバーに Local MindRoom を表示する",
         "localMindroomDescription": "お使いのコンピューターで動く MindRoom をペアリングします。非表示にしても、この設定の Local MindRoom から使えます。"
       },
@@ -404,8 +404,7 @@
       "failed": "チャットを開始できませんでした。もう一度試してください。"
     },
     "homeNav": {
-      "options": "ホームのオプション",
-      "search": "検索"
+      "options": "ホームのオプション"
     },
     "directNav": {
       "options": "ダイレクトメッセージのオプション"
@@ -556,7 +555,6 @@
       "searchEncrypted": "暗号化されたルームでは使用できません"
     },
     "phoneNav": {
-      "search": "検索",
       "navigation": "ナビゲーション"
     },
     "subRooms": {
@@ -719,6 +717,7 @@
     "tabsLabel": "結果の種類",
     "switchTabs": "タブを切り替え",
     "space": "スペース",
+    "findAnything": "何でも検索",
     "messageSearch": {
       "searching": "メッセージを検索中…",
       "hint": "入力すると、すべてのルームのメッセージを検索します。",

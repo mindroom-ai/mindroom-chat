@@ -512,17 +512,19 @@ test('left, right, Tab and Shift+Tab switch tabs without breaking text editing',
   await expect(field(page)).toHaveValue('');
 });
 
-test('the sidebar Message Search opens the palette on Messages, and See all results the page', async ({
+test('the sidebar Find anything field opens the palette on All, and See all results the page', async ({
   page,
 }) => {
   const { word } = seeded!;
   await login(page);
-  await page.locator('[data-home-room-action="search"]').click();
+  const findAnything = page.getByRole('button', { name: 'Find anything', exact: true });
+  await expect(findAnything).toContainText(/(Ctrl \+ K|⌘ K)$/);
+  await findAnything.click();
   await expect(field(page)).toBeFocused();
-  await expectSelectedTab(page, 'Messages');
-  await expect(palette(page).locator('[data-note="hint"]')).toBeVisible();
-  await expect(palette(page).locator('[data-note="encrypted"]')).toBeVisible();
+  await expectSelectedTab(page, 'All');
+  await expect(findAnything).toHaveAttribute('aria-expanded', 'true');
 
+  // All finds the messages too, and leads to the search page with its filters.
   await field(page).fill(word);
   await expect(options(page, 'message')).toHaveCount(3);
   await options(page, 'search-page').click();
@@ -533,10 +535,6 @@ test('the sidebar Message Search opens the palette on Messages, and See all resu
   await expect(page.getByRole('searchbox', { name: 'Search Messages' })).toHaveValue(word);
   await expect(page.getByText(`Root cause was the ${word} cache flush.`)).toBeVisible();
   await expect(page.getByText(`Ship the ${word} build on Friday.`)).toBeVisible();
-
-  // Any other opening starts on All again.
-  await openPalette(page);
-  await expectSelectedTab(page, 'All');
 });
 
 test.describe('on a phone', () => {

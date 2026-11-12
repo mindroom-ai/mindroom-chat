@@ -335,7 +335,7 @@
         "createSpace": "Afficher Créer un espace dans la barre latérale",
         "createSpaceDescription": "Masqué, créez un espace depuis le menu ⋮ de l’accueil ou la palette de commandes ({{shortcut}}).",
         "search": "Afficher Rechercher dans la barre latérale",
-        "searchDescription": "Le bouton qui ouvre la palette de commandes. Masqué, ouvrez-la depuis le menu ⋮ de l’accueil ou avec {{shortcut}}.",
+        "searchDescription": "Le bouton qui ouvre la palette de commandes. Masqué, ouvrez-la depuis le champ « Tout rechercher » ou avec {{shortcut}}.",
         "localMindroom": "Afficher MindRoom local dans la barre latérale",
         "localMindroomDescription": "Associe MindRoom sur votre ordinateur. Masqué, il reste ici dans les paramètres, sous MindRoom local."
       },
@@ -414,8 +414,7 @@
       "failed": "Impossible de démarrer la discussion. Réessayez."
     },
     "homeNav": {
-      "options": "Options de l’accueil",
-      "search": "Rechercher"
+      "options": "Options de l’accueil"
     },
     "directNav": {
       "options": "Options des messages directs"
@@ -574,7 +573,6 @@
       "searchEncrypted": "Indisponible dans les salles chiffrées"
     },
     "phoneNav": {
-      "search": "Rechercher",
       "navigation": "Navigation"
     },
     "subRooms": {
@@ -749,6 +747,7 @@
     "tabsLabel": "Types de résultats",
     "switchTabs": "Changer d'onglet",
     "space": "Espace",
+    "findAnything": "Tout rechercher",
     "messageSearch": {
       "searching": "Recherche des messages…",
       "hint": "Saisissez du texte pour rechercher les messages de toutes vos salles.",

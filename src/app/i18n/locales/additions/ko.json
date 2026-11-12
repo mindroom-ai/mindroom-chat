@@ -325,7 +325,7 @@
         "createSpace": "사이드바에 스페이스 만들기 표시",
         "createSpaceDescription": "숨기면 홈의 ⋮ 메뉴나 명령 팔레트({{shortcut}})에서 스페이스를 만들 수 있습니다.",
         "search": "사이드바에 검색 표시",
-        "searchDescription": "명령 팔레트를 여는 버튼입니다. 숨기면 홈의 ⋮ 메뉴나 {{shortcut}}로 열 수 있습니다.",
+        "searchDescription": "명령 팔레트를 여는 버튼입니다. 숨기면 \"무엇이든 찾기\" 입력란이나 {{shortcut}}로 열 수 있습니다.",
         "localMindroom": "사이드바에 로컬 MindRoom 표시",
         "localMindroomDescription": "컴퓨터에서 실행 중인 MindRoom을 연결합니다. 숨겨도 이곳 설정의 로컬 MindRoom에 남아 있습니다."
       },
@@ -404,8 +404,7 @@
       "failed": "채팅을 시작하지 못했습니다. 다시 시도하세요."
     },
     "homeNav": {
-      "options": "홈 옵션",
-      "search": "검색"
+      "options": "홈 옵션"
     },
     "directNav": {
       "options": "다이렉트 메시지 옵션"
@@ -556,7 +555,6 @@
       "searchEncrypted": "암호화된 방에서는 사용할 수 없습니다"
     },
     "phoneNav": {
-      "search": "검색",
       "navigation": "탐색"
     },
     "subRooms": {
@@ -719,6 +717,7 @@
     "tabsLabel": "결과 유형",
     "switchTabs": "탭 전환",
     "space": "스페이스",
+    "findAnything": "무엇이든 찾기",
     "messageSearch": {
       "searching": "메시지 검색 중…",
       "hint": "입력하면 모든 방의 메시지를 검색합니다.",

@@ -55,37 +55,8 @@ export const UnreadDot = style({
   },
 });
 
-/** The search field's outline, a hairline in the bar's line colour. */
-const fieldOutline = `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`;
-
-/** The search field: a button drawn as a text field, filling the room between the two buttons. */
-export const SearchField = style([
-  DefaultReset,
-  {
-    flexGrow: 1,
-    minInlineSize: 0,
-    blockSize: toRem(36),
-    display: 'flex',
-    alignItems: 'center',
-    columnGap: config.space.S200,
-    paddingInline: config.space.S300,
-    // Drawn as a field: a shade off the bar, ruled and rounded, in the bar's text colour.
-    background: color.Background.ContainerHover,
-    borderBlock: fieldOutline,
-    borderInline: fieldOutline,
-    borderRadius: config.radii.R400,
-    // A text field's pointer and alignment, though it is a button.
-    color: 'inherit',
-    cursor: 'text',
-    textAlign: 'start',
-    selectors: {
-      '&:focus-visible': { outline: `${toRem(2)} solid ${color.Primary.Main}`, outlineOffset: 0 },
-    },
-  },
-]);
-
-/** The placeholder, which gives way first when the bar is narrow. */
-export const SearchPlaceholder = style({ flexGrow: 1, minInlineSize: 0, opacity: 0.7 });
+/** The search field fills the room between the menu button and the bell. */
+export const SearchField = style({ flexGrow: 1 });
 
 /** Holds the Activity bell and its count. */
 export const BellFrame = style({ position: 'relative', flexShrink: 0 });

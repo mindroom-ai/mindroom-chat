@@ -2,13 +2,9 @@ import { useId, useState } from 'react';
 import classNames from 'classnames';
 import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { Badge, Icon, IconButton, Icons, Text, type IconSrc } from 'folds';
+import { Icon, IconButton, Icons, type IconSrc } from 'folds';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
-import { commandPaletteOpenAtom } from '../command-palette/commandPaletteState';
-import {
-  getCommandPaletteAriaKeyShortcuts,
-  getCommandPaletteShortcutLabel,
-} from '../command-palette/commandPaletteShortcut';
+import { CommandPaletteSearchField } from '../command-palette/CommandPaletteSearchField';
 import { allRoomsAtom } from '../matrix/state/roomList';
 import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
 import { useRoomsUnread } from '../matrix/state/useUnread';
@@ -106,31 +102,10 @@ function ActivityBell() {
  * bell, and the account.
  */
 export function PhoneTopBar() {
-  const { t } = useTranslation();
-  const [paletteTab, setPaletteTab] = useAtom(commandPaletteOpenAtom);
-  const search = t('featureUi.phoneNav.search');
   return (
     <div className={css.PhoneTopBar} data-phone-top-bar>
       <MenuButton />
-      <button
-        type="button"
-        className={classNames(css.SearchField, css.BarControl)}
-        aria-keyshortcuts={getCommandPaletteAriaKeyShortcuts()}
-        aria-haspopup="dialog"
-        aria-expanded={paletteTab !== undefined}
-        onClick={() => setPaletteTab('all')}
-      >
-        <Icon size="100" src={Icons.Search} />
-        <Text as="span" size="T300" truncate className={css.SearchPlaceholder}>
-          {search}
-        </Text>
-        {/* Named by aria-keyshortcuts; its glyphs would only lengthen the button's name. */}
-        <Badge as="kbd" variant="Secondary" fill="Soft" radii="300" aria-hidden>
-          <Text as="span" size="L400">
-            {getCommandPaletteShortcutLabel()}
-          </Text>
-        </Badge>
-      </button>
+      <CommandPaletteSearchField className={classNames(css.SearchField, css.BarControl)} />
       <ActivityBell />
       <SettingsTab inTopBar className={css.BarControl} />
     </div>

@@ -2,8 +2,6 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RailButtons } from '../../settings/railButtons';
-import { getDefaultStore } from 'jotai';
-import { commandPaletteOpenAtom } from '../../command-palette/commandPaletteState';
 import { HiddenRailPages } from './HiddenRailPages';
 
 const ALL: RailButtons = {
@@ -44,7 +42,6 @@ vi.mock('folds', () => ({
     Category: 'Category',
     Explore: 'Explore',
     Plus: 'Plus',
-    Search: 'Search',
   },
   Line: () => null,
 }));
@@ -64,7 +61,6 @@ describe('HiddenRailPages', () => {
   afterEach(() => {
     vi.clearAllMocks();
     state.hasCanvases = true;
-    getDefaultStore().set(commandPaletteOpenAtom, undefined);
   });
 
   it('adds nothing while the rail shows every button', () => {
@@ -84,9 +80,8 @@ describe('HiddenRailPages', () => {
       ['Canvases'],
       ['Explore Community'],
       ['Create Space'],
-      ['Search'],
     ]);
-    const [threads, canvases, explore, createSpace, search] = buttons;
+    const [threads, canvases, explore, createSpace] = buttons;
 
     act(() => {
       threads?.props.onClick();
@@ -105,20 +100,16 @@ describe('HiddenRailPages', () => {
       createSpace?.props.onClick();
     });
     expect(state.openCreateSpace).toHaveBeenCalledTimes(1);
-    expect(getDefaultStore().get(commandPaletteOpenAtom)).toBeUndefined();
-    act(() => {
-      search?.props.onClick();
-    });
-    expect(getDefaultStore().get(commandPaletteOpenAtom)).toBe('all');
-    expect(onClose).toHaveBeenCalledTimes(5);
+    expect(onClose).toHaveBeenCalledTimes(4);
   });
 
   it('lists only the hidden buttons', () => {
     state.offered = ALL;
     state.shown = { ...ALL, canvases: false };
     expect(entries().map((entry) => entry.children)).toEqual([['Canvases']]);
+    // The search field stands in for a hidden search button.
     state.shown = { ...ALL, search: false };
-    expect(entries().map((entry) => entry.children)).toEqual([['Search']]);
+    expect(entries()).toHaveLength(0);
   });
 
   it('lists Canvases only once the account has a canvas, as the rail button does', () => {

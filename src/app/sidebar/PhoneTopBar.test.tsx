@@ -33,10 +33,13 @@ vi.mock('./PhoneTopBar.css', () => ({
   MenuButtonFrame: 'menu',
   UnreadDot: 'dot',
   SearchField: 'search',
-  SearchPlaceholder: 'placeholder',
   BarControl: 'control',
   BellFrame: 'bell',
   BellBadge: 'bell-badge',
+}));
+vi.mock('../command-palette/CommandPaletteSearchField.css', () => ({
+  SearchField: 'field',
+  SearchPlaceholder: 'placeholder',
 }));
 vi.mock('folds', async () => {
   const reactModule = await import('react');
@@ -78,7 +81,7 @@ const renderBar = () => {
 describe('PhoneTopBar', () => {
   it('shows a search field that names the shortcut and opens the palette', () => {
     const { store, button } = renderBar();
-    const search = button('Search');
+    const search = button('Find anything');
     expect(textOf(search)).toContain('Ctrl + K');
     expect(search.props['aria-keyshortcuts']).toBe('Control+K');
     act(() => {
