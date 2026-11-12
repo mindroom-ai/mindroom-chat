@@ -247,7 +247,7 @@ describe('PasswordResetForm with names from the server', () => {
       const renderer = await render(<PasswordResetForm loginLink={loginLink} />);
       await submitResetRequest(renderer);
 
-      // The alert's own line, then the sign-in element and what it renders.
+      // Inside the alert's line, only the sign-in element and what it renders.
       const alert = renderer.root.findByProps({ role: 'alert' });
       const inside = elementsIn(alert).filter((node) => node.props.role !== 'alert');
       expect(inside.map((node) => node.type)).toEqual(elements);
