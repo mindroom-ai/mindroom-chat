@@ -171,6 +171,8 @@ for (const [router, hashRouter] of [
       expect(routerPath()).toBe(roomPath);
       await backToPage();
 
+      // The thread's Back leads to its room, which takes the thread's place: the browser's back
+      // then returns to the page.
       await page.getByRole('button', { name: 'Open the thread' }).click();
       await threadOpen();
       expect(routerPath()).toBe(threadPath);
@@ -178,7 +180,11 @@ for (const [router, hashRouter] of [
         .locator('[data-thread-context-banner]')
         .getByRole('button', { name: 'Back', exact: true })
         .click();
-      await expect(examplePage).toBeVisible({ timeout: 30_000 });
+      await expect
+        .poll(routerPath, { timeout: 30_000 })
+        .toBe(`${roomPath}/${encodeURIComponent(rootId)}?focusEvent=1`);
+      await roomOpen();
+      await backToPage();
 
       await roomLink.click();
       await roomOpen();

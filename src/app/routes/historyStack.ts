@@ -3,7 +3,7 @@ import { useLocation, useNavigationType, type NavigationType, type Path } from '
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { isRecord } from '../lib/isRecord';
 import { decodeRouteParam } from './pathUtils';
-import { DIRECT_PATH, HOME_PATH } from './paths';
+import { ACTIVITY_PATH, DIRECT_PATH, HOME_PATH, THREADS_PATH } from './paths';
 
 /** A page of this tab's history: its path and its query. */
 export type HistoryPage = { pathname: string; search: string };
@@ -113,14 +113,18 @@ export const previousHistoryOrigin = (
   isElsewhere: (page: HistoryPage) => boolean
 ): HistoryOrigin | undefined => findHistoryOrigin(current, isElsewhere);
 
+/** The sections that show a room as `/<section>/<room>`. */
+const ROOM_SECTIONS = [HOME_PATH, DIRECT_PATH, ACTIVITY_PATH, THREADS_PATH];
+
 /**
- * The rooms a page's route names: a room in Home or Direct (`/home/<room>`), and a space with a room
- * open in it (`/<space>/<room>`) or one of the space's own pages (`/<space>/lobby/`). No other route
- * names one, such as a plugin's page about a room (`/p/<plugin>/rooms/<room>`).
+ * The rooms a page's route names: a room in Home, Direct, Activity or Threads (`/home/<room>`), and
+ * a space with a room open in it (`/<space>/<room>`) or one of the space's own pages
+ * (`/<space>/lobby/`). No other route names one, such as a plugin's page about a room
+ * (`/p/<plugin>/rooms/<room>`).
  */
 const routeRooms = (pathname: string): string[] => {
   const [section = '', room = ''] = pathname.split('/').slice(1, 3).map(decodeRouteParam);
-  if (`/${section}/` === HOME_PATH || `/${section}/` === DIRECT_PATH) return [room];
+  if (ROOM_SECTIONS.includes(`/${section}/`)) return [room];
   // A space's routes start with its ID or alias, whose sigil no other section's name has.
   return /^[!#]/.test(section) ? [section, room] : [];
 };
@@ -133,3 +137,9 @@ const routeRooms = (pathname: string): string[] => {
 export const showsRoom = (page: HistoryPage, addresses: string[], threadIds?: string[]): boolean =>
   routeRooms(page.pathname).some((address) => addresses.includes(address)) &&
   (!threadIds || threadIds.includes(new URLSearchParams(page.search).get('threadId') ?? ''));
+
+/** The page an app path (`<pathname><search>`) opens, such as a path recorded earlier. */
+export const historyPageOf = (path: string): HistoryPage => {
+  const { pathname, search } = new URL(path, 'https://app.invalid');
+  return { pathname, search };
+};

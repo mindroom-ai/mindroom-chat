@@ -668,6 +668,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
     window.history.state = {
       usr: {
         [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+          exitPath: `/home/${encodeURIComponent(room.roomId)}`,
           roomId: room.roomId,
           threadId: '$thread',
           useHistoryBack: true,
@@ -1017,6 +1018,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
     window.history.state = {
       usr: {
         [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+          exitPath: `/home/${encodeURIComponent(room.roomId)}/`,
           roomId: room.roomId,
           threadId: '$thread',
         },
@@ -1040,8 +1042,8 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it("leaves a thread for its room when its exit target is another account's", async () => {
-    // Another account opened the thread from its own room, and a browser back step after the
-    // switch returned to it: that account's way back leads to a page this one cannot show.
+    // Another account opened the thread from the room, and a browser back step after the switch
+    // returned to it: that account's way back is its own history, not this one's.
     const { createSessionId, putSession } = await import('../../matrix/session/sessions');
     putSession({
       baseUrl: 'https://mindroom.chat',
@@ -1053,7 +1055,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
     const target = {
       roomId: room.roomId,
       threadId: '$thread',
-      exitPath: '/home/!bob-only:example.org/',
+      exitPath: `/home/${encodeURIComponent(room.roomId)}/`,
       useHistoryBack: true,
     };
     window.history.state = {
@@ -1102,6 +1104,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       key: `thread-entry-key:${room.roomId}`,
     };
     setRoomThreadExitTargetForHistoryState(window.history.state, {
+      exitPath: `/home/${encodeURIComponent(room.roomId)}/`,
       roomId: room.roomId,
       threadId: '$thread',
     });
@@ -1134,6 +1137,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       key: `thread-entry-key:${room.roomId}`,
     };
     setRoomThreadExitTargetForHistoryState(window.history.state, {
+      exitPath: `/home/${encodeURIComponent(room.roomId)}/`,
       roomId: room.roomId,
       threadId: '$thread',
       useHistoryBack: true,
@@ -1320,6 +1324,42 @@ describe('RoomView', { timeout: 30_000 }, () => {
     });
   });
 
+  it.each([
+    ['Activity', '/activity/'],
+    ['the search results', '/home/search/?term=crane'],
+    ['another room', '/home/!other:example.org/'],
+    ['another thread of the room', '?threadId=%24other'],
+  ])('leaves a thread opened from %s for its room, not for that page', async (_from, path) => {
+    const room = makeRoom(nextRoomId('room-a'));
+    const exitPath = path.startsWith('?')
+      ? `/home/${encodeURIComponent(room.roomId)}/${path}`
+      : path;
+    window.history.state = {
+      usr: {
+        [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+          exitPath,
+          roomId: room.roomId,
+          threadId: '$thread',
+          useHistoryBack: true,
+        },
+      },
+    };
+    const { RoomView } = await import('../RoomView');
+    await act(async () => {
+      create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+    });
+
+    await act(async () => {
+      threadContextBannerState.props?.onExitThread?.();
+    });
+
+    expect(historyBackMock).not.toHaveBeenCalled();
+    expect(navigatePathMock).not.toHaveBeenCalled();
+    expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(room.roomId, '$thread', {
+      replace: true,
+    });
+  });
+
   it('F1: preserves the last exited thread across same-instance exit rerender and reopens it on swipe-forward', async () => {
     const { lastExitedThreadAtom } = await import('../../threads/lastExitedThread');
     const { useRoomViewThreadState } = await import('../useRoomViewThreadState');
@@ -1401,6 +1441,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       window.history.state = {
         usr: {
           [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+            exitPath: `/home/${encodeURIComponent(navigatedRoomId)}/`,
             roomId: navigatedRoomId,
             threadId: navigatedThreadId,
           },
