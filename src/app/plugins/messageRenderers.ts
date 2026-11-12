@@ -1,6 +1,6 @@
-import type { ComponentType } from 'react';
+import { useCallback, type ComponentType } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useOptionalClientConfig } from '../config/useClientConfig';
+import { useOptionalClientConfig, type ClientConfig } from '../config/useClientConfig';
 import { getMxIdServer } from '../matrix/matrix';
 import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
 import { revealDirectionControls } from '../ui/directional';
@@ -33,6 +33,13 @@ export type MessageRenderer = {
    * `match` took the message. Pure and synchronous; undefined or blank leaves the app's own text.
    */
   preview?: (event: PluginEvent) => string | undefined;
+  /**
+   * Whether a reply in a thread that this renderer takes has no row in the timeline, such as a
+   * message only agents need, whose answer follows. Asked only after `match` took the message; a
+   * thread's root, a message outside any thread and the message a route or a jump opens keep their
+   * rows. Pure and synchronous; anything but `true`, or a throw, keeps the row.
+   */
+  hidden?: (event: PluginEvent) => boolean;
 };
 
 /** The renderer that takes a message, and its plugin's ID and tag. */
@@ -74,11 +81,11 @@ const PREVIEW_LENGTH = 240;
  * The first renderer that takes `event`: plugins in build order, each plugin's renderers in its
  * order, skipping plugins config.json turns off and renderers that do not trust the sender.
  */
-export const useMessageRenderer = (
+const pickRenderer = (
+  config: ClientConfig | undefined,
   event: PluginEvent | undefined,
   viewerId: string | undefined
 ): MatchedRenderer | undefined => {
-  const config = useOptionalClientConfig();
   if (!event || !viewerId) return undefined;
   for (const { id, tag, messageRenderers } of registeredPlugins) {
     if (!isPluginEnabled(config, id)) continue;
@@ -89,6 +96,48 @@ export const useMessageRenderer = (
     if (renderer) return { id, tag, renderer };
   }
   return undefined;
+};
+
+export const useMessageRenderer = (
+  event: PluginEvent | undefined,
+  viewerId: string | undefined
+): MatchedRenderer | undefined => pickRenderer(useOptionalClientConfig(), event, viewerId);
+
+/** Tags of the plugins whose `hidden` threw, so each is logged once. */
+const failedHidden = new Set<string>();
+
+/** Whether a renderer of this build has `hidden`: else the timeline asks nothing. */
+const hasHiddenRenderers = (): boolean =>
+  registeredPlugins.some(({ messageRenderers }) => messageRenderers.some(({ hidden }) => hidden));
+
+/**
+ * The test of whether the renderer the timeline picks for a message leaves it without a row
+ * (`hidden`), as the viewer with the app's config.json, which the timeline asks of each reply in a
+ * thread; undefined when no renderer of this build has `hidden`.
+ */
+export const useMessageRowHidden = (
+  viewerId: string | undefined
+): ((event: PluginEvent) => boolean) | undefined => {
+  const config = useOptionalClientConfig();
+  const test = useCallback(
+    (event: PluginEvent) => {
+      const matched = pickRenderer(config, event, viewerId);
+      if (!matched?.renderer.hidden) return false;
+      try {
+        return matched.renderer.hidden(event) === true;
+      } catch (error) {
+        logOnce(
+          failedHidden,
+          matched.tag,
+          "a message renderer's hidden failed; the row shows",
+          error
+        );
+        return false;
+      }
+    },
+    [config, viewerId]
+  );
+  return hasHiddenRenderers() ? test : undefined;
 };
 
 /** Whether a plugin of this build gives a message renderer a `preview`: else none is asked. */

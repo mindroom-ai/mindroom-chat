@@ -277,7 +277,8 @@ function UnreadDivider({ separatorRef }: { separatorRef: Ref<HTMLDivElement> }) 
 /**
  * The tiles of the rows the virtual list mounts. A row groups with the one above it and gets its
  * date and unread dividers from the fold over the mounted window (timelineRowFold); rows the
- * thread's plans hide, ignored senders and redactions take no place in that walk.
+ * thread's plans hide, replies a plugin hides, ignored senders and redactions take no place in
+ * that walk.
  */
 export const renderTimelineTiles = ({
   virtualItems,
@@ -292,6 +293,7 @@ export const renderTimelineTiles = ({
   timelineSet,
   focusItem,
   messageData,
+  isHiddenByPlugin,
   renderEvent,
   unreadMarkerRef,
   measureElement,
@@ -309,6 +311,8 @@ export const renderTimelineTiles = ({
   timelineSet: EventTimelineSet;
   focusItem: RoomTimelineFocusItem | undefined;
   messageData: TimelineMessageData;
+  /** Whether a plugin's message renderer leaves the event without a row (pluginHiddenRows). */
+  isHiddenByPlugin: (event: MatrixEvent) => boolean;
   renderEvent: (row: TimelineMessageRow, data: TimelineMessageData) => ReactNode | null;
   /** Receives the "New messages" line, so the timeline knows when it is in view. */
   unreadMarkerRef: Ref<HTMLDivElement>;
@@ -325,7 +329,8 @@ export const renderTimelineTiles = ({
     }
     const sender = event.getSender();
     if (sender && ignoredUsersSet.has(sender)) return true;
-    return event.isRedacted() && !showHiddenEvents;
+    if (event.isRedacted()) return !showHiddenEvents;
+    return isHiddenByPlugin(event);
   };
   const rowContexts = foldTimelineRowContexts({
     indexes: virtualItems.map((item) => item.index),

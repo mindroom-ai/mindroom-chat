@@ -156,6 +156,8 @@ import {
   useRoomUnreadInfo,
   useShownInScrollArea,
 } from './roomTimelineUnread';
+import { useMessageRowHidden } from '../plugins/messageRenderers';
+import { isPluginHiddenRow } from './pluginHiddenRows';
 import { renderTimelineTiles, timelineRowSizing, useRoomRowEntries } from './roomTimelineRows';
 import { collectThreadWriterIds, recordThreadWriters } from '../event-store/threads/threadWriters';
 import { useThreadWritersBackfill } from '../threads/overview/useThreadWritersBackfill';
@@ -695,6 +697,15 @@ export function RoomTimeline(props: RoomTimelineProps) {
     routeId: threadId ? eventId : undefined,
     focusId: threadId ? focusItem?.eventId : undefined,
   });
+  // Replies in a thread a plugin's renderer hides (`MessageRenderer.hidden`); the one the route or
+  // a jump opened keeps its row.
+  const messageRowHidden = useMessageRowHidden(mx.getUserId() ?? undefined);
+  const focusEventId = focusItem?.eventId;
+  const isHiddenByPlugin = useMemo(() => {
+    const revealed = new Set([eventId, focusEventId].filter((id): id is string => !!id));
+    return (event: MatrixEvent) =>
+      isPluginHiddenRow(event, getRowContent, messageRowHidden, revealed);
+  }, [eventId, focusEventId, getRowContent, messageRowHidden]);
   // What each agent reply of the open thread and the thread so far cost, for Reply details.
   const threadConversationCost = useThreadConversationCostSummary(
     threadId ? threadEvents : undefined,
@@ -1560,6 +1571,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     timelineSet: (threadId && threadState.threadTimelineSet) || room.getUnfilteredTimelineSet(),
     focusItem,
     messageData,
+    isHiddenByPlugin,
     renderEvent: feature.renderEvent,
     unreadMarkerRef: setUnreadMarker,
     measureElement: ledger.measureElement,

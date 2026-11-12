@@ -673,6 +673,10 @@ vi.mock('../RoomIntro', () => ({
   RoomIntro: roomIntroType,
 }));
 
+// No plugin of these tests' build hides a row (MessageRenderer.hidden); the real module would load
+// the plugins' translations, and with them the app's i18n setup.
+vi.mock('../../plugins/messageRenderers', () => ({ useMessageRowHidden: () => undefined }));
+
 vi.mock('../../messages/content/RenderMessageContent', () => ({
   RenderMessageContent: passthrough,
 }));
