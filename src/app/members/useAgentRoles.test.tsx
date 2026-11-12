@@ -10,16 +10,11 @@ const ROLE = 'Reviews pull requests and runs the test suite';
 let serial = 0;
 let renderer: ReactTestRenderer | undefined;
 
-const stateEvent = (
-  type: string,
-  sender: string,
-  content: Record<string, unknown>,
-  stateKey = sender
-) => {
+const stateEvent = (type: string, sender: string, content: Record<string, unknown>) => {
   serial += 1;
   return new MatrixEvent({
     type,
-    state_key: stateKey,
+    state_key: sender,
     sender,
     room_id: '!room:example.org',
     event_id: `$state${serial}`,

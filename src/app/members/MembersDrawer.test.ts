@@ -193,6 +193,8 @@ vi.mock('../preferences/useSetting', () => ({
   useSetting: () => [0, vi.fn()],
 }));
 
+vi.mock('./useAgentRoles', () => ({ useAgentRoles: () => new Map() }));
+
 vi.mock('./useMembersDrawer', () => ({
   useMembersDrawer: () => [true, vi.fn()],
 }));
@@ -271,10 +273,6 @@ vi.mock('../matrix/matrix', () => ({
 const createRoom = (invitedCount = 0): Room =>
   ({
     roomId: '!room:example.org',
-    myUserId: '@alice:example.org',
-    currentState: { getStateEvents: () => [] },
-    on: () => undefined,
-    removeListener: () => undefined,
     getJoinedMemberCount: () => 3,
     getInvitedMemberCount: () => invitedCount,
   } as Room);

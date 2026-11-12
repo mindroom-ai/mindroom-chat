@@ -76,6 +76,20 @@ test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
+/** With AGENT_ROLE_SHOTS, saves the page light and dark, then goes back to light. */
+const shootSchemes = async (page: Page, name: string) => {
+  if (!SHOTS) return;
+  for (const scheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    // The theme fades between schemes; shoot once it settles.
+    await page.waitForFunction(
+      () => !document.getAnimations().some((animation) => animation instanceof CSSTransition)
+    );
+    await page.screenshot({ path: `${SHOTS}/${name}-${scheme}.png` });
+  }
+  await page.emulateMedia({ colorScheme: 'light' });
+};
+
 /** How many lines of text the element shows. */
 const lines = async (text: Locator): Promise<number> => {
   const lineHeight = await text.evaluate((node) => parseFloat(getComputedStyle(node).lineHeight));
@@ -114,32 +128,12 @@ test('an agent shows its role in the member list and on its card; a person does 
   expect(await lines(helperRow.getByText(ROLE, { exact: true }))).toBe(1);
   await expect(memberRow(page, alice.userId)).not.toContainText(SPOOF);
 
-  if (SHOTS) {
-    for (const scheme of ['light', 'dark'] as const) {
-      await page.emulateMedia({ colorScheme: scheme });
-      // The theme fades between schemes; shoot once it settles.
-      await page.waitForFunction(
-        () => !document.getAnimations().some((animation) => animation instanceof CSSTransition)
-      );
-      await page.screenshot({ path: `${SHOTS}/members-${scheme}.png` });
-    }
-    await page.emulateMedia({ colorScheme: 'light' });
-  }
+  await shootSchemes(page, 'members');
 
   const helperCard = await openCard(page, agent.userId);
   await expect(helperCard.getByText(ROLE, { exact: true })).toBeVisible();
   expect(await lines(helperCard.getByText(ROLE, { exact: true }))).toBe(2);
-  if (SHOTS) {
-    for (const scheme of ['light', 'dark'] as const) {
-      await page.emulateMedia({ colorScheme: scheme });
-      // The theme fades between schemes; shoot once it settles.
-      await page.waitForFunction(
-        () => !document.getAnimations().some((animation) => animation instanceof CSSTransition)
-      );
-      await page.screenshot({ path: `${SHOTS}/card-${scheme}.png` });
-    }
-    await page.emulateMedia({ colorScheme: 'light' });
-  }
+  await shootSchemes(page, 'card');
   await page.keyboard.press('Escape');
   await expect(helperCard).toBeHidden();
 
