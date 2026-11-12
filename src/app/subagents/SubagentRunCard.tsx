@@ -23,8 +23,17 @@ import { getMemberAvatarMxc, getMemberDisplayName } from '../matrix/room';
 import type { SubagentRun } from '../messages/live/subagentRunStore';
 import * as css from './subagentsPanel.css';
 
-/** A run and the runs it started. */
-export type SubagentRunNode = { run: SubagentRun; nested: SubagentRunNode[] };
+/** One turn of a sub-agent, a run of its own, and the sub-agents that turn started. */
+export type SubagentTurn = { run: SubagentRun; nested: SubagentNode[] };
+
+/**
+ * A sub-agent: its turns, the first on top, and the sub-agent that started it while that one is
+ * listed too.
+ */
+export type SubagentNode = { id: string; parent: string | null; turns: SubagentTurn[] };
+
+/** The sub-agent's newest turn, which says how it stands. */
+export const latestTurn = ({ turns }: SubagentNode): SubagentRun => turns[turns.length - 1].run;
 
 /** Pictures show at most 28 px wide; twice that keeps them sharp on dense screens. */
 const PICTURE_SIZE = 56;
@@ -97,16 +106,17 @@ const runPreview = (meta: SubagentMeta, docs: LiveDocs, t: TFunction): string | 
 
 type CardProps = {
   room: Room;
-  node: SubagentRunNode;
+  node: SubagentNode;
   /** The panel's clock, in Unix milliseconds. */
   now: number;
-  onOpen: (run: string) => void;
+  onOpen: (subagent: string) => void;
 };
 
 /**
- * One run as the room's compact view shows a thread: its task as the title, how long it has been
- * at it or how long ago it ended, a line of what it wrote, then the agent, how it stands and how
- * many runs it started. Pressing it opens the run.
+ * One sub-agent as the room's compact view shows a thread: its first task as the title, how long
+ * its newest turn has been at it or how long ago it ended, a line of what that turn wrote, then the
+ * agent, how it stands, how many turns it took and how many sub-agents it started. Pressing it
+ * opens the sub-agent.
  */
 export const SubagentRunCard = memo(function SubagentRunCard({
   room,
@@ -116,8 +126,9 @@ export const SubagentRunCard = memo(function SubagentRunCard({
 }: CardProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-  const { run, nested } = node;
+  const run = latestTurn(node);
   const { meta } = run;
+  const nested = node.turns.reduce((count, turn) => count + turn.nested.length, 0);
   const agent = useAgentProfile(room, meta.agent);
   const active = isActiveSubagentStatus(meta.status);
   const ago = useRelativeTime(
@@ -125,7 +136,7 @@ export const SubagentRunCard = memo(function SubagentRunCard({
     'compact'
   );
   const time = active ? formatCallDuration(now / 1000 - meta.startedAt, language) : ago;
-  const title = meta.task?.split('\n', 1)[0] || agent.name;
+  const title = node.turns[0].run.meta.task?.split('\n', 1)[0] || agent.name;
   const preview = runPreview(meta, run.docs, t);
   const failed = meta.status === 'failed' || meta.status === 'denied';
 
@@ -133,8 +144,8 @@ export const SubagentRunCard = memo(function SubagentRunCard({
     <button
       type="button"
       className={css.Card}
-      data-subagent-run={run.run}
-      onClick={() => onOpen(run.run)}
+      data-subagent={node.id}
+      onClick={() => onOpen(node.id)}
     >
       <span className={css.TitleRow}>
         <Text as="span" size="B300" className={css.Title} dir="auto" truncate>
@@ -162,9 +173,12 @@ export const SubagentRunCard = memo(function SubagentRunCard({
         <Text as="span" size="T200" priority="300">
           <RunStatus status={meta.status} />
         </Text>
-        {nested.length > 0 && (
-          <Text as="span" size="T200" priority="300" className={css.NestedCount}>
-            {t('mindroomUi.subagents.nested', { count: nested.length })}
+        {(node.turns.length > 1 || nested > 0) && (
+          <Text as="span" size="T200" priority="300" className={css.Counts}>
+            {node.turns.length > 1 && (
+              <span>{t('mindroomUi.subagents.turns', { count: node.turns.length })}</span>
+            )}
+            {nested > 0 && <span>{t('mindroomUi.subagents.nested', { count: nested })}</span>}
           </Text>
         )}
       </span>

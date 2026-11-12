@@ -23,9 +23,11 @@ import {
   RunStatus,
   SubagentRunCard,
   elapsedSeconds,
+  latestTurn,
   useAgentProfile,
   type AgentProfile,
-  type SubagentRunNode,
+  type SubagentNode,
+  type SubagentTurn,
 } from './SubagentRunCard';
 import * as css from './subagentsPanel.css';
 
@@ -66,41 +68,24 @@ const useDocsContent = (docs: LiveDocs) => {
   return useCallback(() => content, [content]) as <T>() => T;
 };
 
-type ViewProps = {
+type TurnProps = {
   room: Room;
-  node: SubagentRunNode;
-  /** The panel's clock, in Unix milliseconds. */
+  turn: SubagentTurn;
   now: number;
   parserOptions: HTMLReactParserOptions;
-  onBack: () => void;
-  onOpen: (run: string) => void;
-  onClose: () => void;
+  onOpen: (subagent: string) => void;
 };
 
 /**
- * One run, as a thread shows a conversation: the caller's task, cards for the runs it started,
- * then its reply as it streams, with its tool calls, and why it ended when it ended badly.
- * A reader at the end follows new text until they scroll up.
+ * One turn: the caller's task, cards for the sub-agents the turn started, then its reply as it
+ * streams, with its tool calls, and why it ended when it ended badly.
  */
-export function SubagentRunView({
-  room,
-  node,
-  now,
-  parserOptions,
-  onBack,
-  onOpen,
-  onClose,
-}: ViewProps) {
+function RunTurn({ room, turn, now, parserOptions, onOpen }: TurnProps) {
   const { t } = useTranslation();
-  const language = useAppLanguageCode();
-  const { navigateRoomThread } = useRoomNavigate();
-  const { run, nested } = node;
+  const { run, nested } = turn;
   const { meta } = run;
   const agent = useAgentProfile(room, meta.agent);
   const caller = useAgentProfile(room, meta.caller);
-  const active = isActiveSubagentStatus(meta.status);
-  const elapsed = elapsedSeconds(meta, now);
-  const { threadId } = meta;
   // Only a running run shows the typing dots: one waiting for approval still has `streaming`
   // documents and a paused or ended one `pending`, and both would read as a reply about to stream.
   // A run that wrote nothing answers with its result, unless that result says why it failed.
@@ -116,7 +101,99 @@ export function SubagentRunView({
   // A run that wrote nothing has no reply; one at work shows the thinking placeholder.
   const wrote = docs.md !== '' || docs.tools.length > 0 || meta.status === 'running';
 
-  // A running run opens at its newest text; an ended one at its task.
+  return (
+    <>
+      {meta.task && (
+        <RunMessage sender={caller} ts={meta.startedAt * 1000}>
+          <Text
+            as="p"
+            size="T400"
+            priority="300"
+            className={css.Task}
+            dir="auto"
+            data-subagent-task=""
+          >
+            {meta.task}
+          </Text>
+        </RunMessage>
+      )}
+      {nested.length > 0 && (
+        <section className={css.NestedRuns} aria-label={t('mindroomUi.subagents.title')}>
+          <Text as="h3" size="L400" priority="300" className={css.Divider}>
+            {t('mindroomUi.subagents.title')}
+          </Text>
+          <ul className={css.List}>
+            {nested.map((child) => (
+              <li key={child.id}>
+                <SubagentRunCard room={room} node={child} now={now} onOpen={onOpen} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {/* The sub-agents it started, then its reply, which grows at the end where a reader follows it. */}
+      {(wrote || failed) && (
+        <RunMessage sender={agent} ts={meta.startedAt * 1000}>
+          {wrote && (
+            <div className={css.Reply} data-subagent-transcript="">
+              <RenderMessageContent
+                msgType="m.text"
+                displayName={agent.name}
+                roomId={room.roomId}
+                threadId={meta.threadId ?? undefined}
+                ts={meta.startedAt * 1000}
+                getContent={getContent}
+                htmlReactParserOptions={parserOptions}
+                linkifyOpts={LINKIFY_OPTS}
+              />
+            </div>
+          )}
+          {failed && docs.md !== meta.result && (
+            <Text as="p" size="T300" className={css.Failure} dir="auto" data-subagent-failure="">
+              {meta.result}
+            </Text>
+          )}
+        </RunMessage>
+      )}
+    </>
+  );
+}
+
+type ViewProps = {
+  room: Room;
+  node: SubagentNode;
+  /** The panel's clock, in Unix milliseconds. */
+  now: number;
+  parserOptions: HTMLReactParserOptions;
+  onBack: () => void;
+  onOpen: (subagent: string) => void;
+  onClose: () => void;
+};
+
+/**
+ * One sub-agent, as a thread shows a conversation: each turn the caller's task, cards for the
+ * sub-agents that turn started, then its reply. A reader at the end follows new text until they
+ * scroll up.
+ */
+export function SubagentRunView({
+  room,
+  node,
+  now,
+  parserOptions,
+  onBack,
+  onOpen,
+  onClose,
+}: ViewProps) {
+  const { t } = useTranslation();
+  const language = useAppLanguageCode();
+  const { navigateRoomThread } = useRoomNavigate();
+  const { meta } = latestTurn(node);
+  const agent = useAgentProfile(room, meta.agent);
+  const active = isActiveSubagentStatus(meta.status);
+  const elapsed = elapsedSeconds(meta, now);
+  const { threadId } = meta;
+
+  // A sub-agent at work opens at its newest text; an ended one at its first task.
   const box = useRef<HTMLDivElement>(null);
   const following = useRef(active);
   /** Where keeping the end left the box, so the scroll event that move fires is not the reader's. */
@@ -127,12 +204,12 @@ export function SubagentRunView({
     element.scrollTop = element.scrollHeight;
     pinnedTop.current = element.scrollTop;
   }, []);
-  useLayoutEffect(() => keepEnd(), [keepEnd, getContent]);
-  // Text that grows without new documents (the Markdown renderer arriving, a block unfolding).
+  useLayoutEffect(() => keepEnd(), [keepEnd, node]);
+  // Text that grows without new frames (the Markdown renderer arriving, a block unfolding).
   const getThread = useCallback(() => box.current?.firstElementChild, []);
   useResizeObserver(keepEnd, getThread);
   // The card that opened it is gone, so focus moves to the way back. Before the panel's own
-  // layout effect, which gives focus to the card of a run Back closed.
+  // layout effect, which gives focus to the card of a sub-agent Back closed.
   const backButton = useRef<HTMLButtonElement>(null);
   useLayoutEffect(() => backButton.current?.focus(), []);
 
@@ -183,7 +260,7 @@ export function SubagentRunView({
       <div
         ref={box}
         className={css.Body}
-        data-subagent-view={run.run}
+        data-subagent-view={node.id}
         onScroll={({ currentTarget }) => {
           if (currentTarget.scrollTop === pinnedTop.current) return;
           pinnedTop.current = undefined;
@@ -196,64 +273,16 @@ export function SubagentRunView({
         }}
       >
         <div className={css.Thread}>
-          {meta.task && (
-            <RunMessage sender={caller} ts={meta.startedAt * 1000}>
-              <Text
-                as="p"
-                size="T400"
-                priority="300"
-                className={css.Task}
-                dir="auto"
-                data-subagent-task=""
-              >
-                {meta.task}
-              </Text>
-            </RunMessage>
-          )}
-          {nested.length > 0 && (
-            <section className={css.NestedRuns} aria-label={t('mindroomUi.subagents.title')}>
-              <Text as="h3" size="L400" priority="300" className={css.Divider}>
-                {t('mindroomUi.subagents.title')}
-              </Text>
-              <ul className={css.List}>
-                {nested.map((child) => (
-                  <li key={child.run.run}>
-                    <SubagentRunCard room={room} node={child} now={now} onOpen={onOpen} />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-          {/* The runs it started, then its reply, which grows at the end where a reader follows it. */}
-          {(wrote || failed) && (
-            <RunMessage sender={agent} ts={meta.startedAt * 1000}>
-              {wrote && (
-                <div className={css.Reply} data-subagent-transcript="">
-                  <RenderMessageContent
-                    msgType="m.text"
-                    displayName={agent.name}
-                    roomId={room.roomId}
-                    threadId={threadId ?? undefined}
-                    ts={meta.startedAt * 1000}
-                    getContent={getContent}
-                    htmlReactParserOptions={parserOptions}
-                    linkifyOpts={LINKIFY_OPTS}
-                  />
-                </div>
-              )}
-              {failed && docs.md !== meta.result && (
-                <Text
-                  as="p"
-                  size="T300"
-                  className={css.Failure}
-                  dir="auto"
-                  data-subagent-failure=""
-                >
-                  {meta.result}
-                </Text>
-              )}
-            </RunMessage>
-          )}
+          {node.turns.map((turn) => (
+            <RunTurn
+              key={turn.run.run}
+              room={room}
+              turn={turn}
+              now={now}
+              parserOptions={parserOptions}
+              onOpen={onOpen}
+            />
+          ))}
         </div>
       </div>
     </>

@@ -88,7 +88,13 @@ export const Meta = style({
   marginBlockStart: space.S100,
 });
 
-export const NestedCount = style({ marginInlineStart: 'auto', flexShrink: 0 });
+/** How many turns it took and how many sub-agents it started, at the end of the line. */
+export const Counts = style({
+  display: 'flex',
+  gap: space.S200,
+  marginInlineStart: 'auto',
+  flexShrink: 0,
+});
 
 export const Status = style({ display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' });
 
@@ -112,7 +118,7 @@ export const StatusDot = styleVariants({
   denied: [dot, { background: color.Critical.Main }],
 });
 
-/** The open run's messages, then the cards of the runs it started. */
+/** The open sub-agent's turns, each the caller's task, the cards of what it started, then its reply. */
 export const Thread = style({ display: 'flex', flexDirection: 'column', gap: space.S300 });
 
 // What the run was asked keeps its line breaks and wraps anywhere.

@@ -8,9 +8,12 @@ import {
 } from '../../matrix/protocol/subagentFrame';
 import { nextLiveEntry, type LiveReplyEntry } from './liveReplyStore';
 
-/** A working run stays this long after its last frame; MindRoom sends one every 10 s meanwhile. */
+/**
+ * A sub-agent whose latest frame was of a working run stays this long after that frame; MindRoom
+ * sends one every 10 s meanwhile. Its turns go together, so none of them leaves its others.
+ */
 export const SUBAGENT_WORKING_RUN_FRESHNESS_MS = 30_000;
-/** A paused or ended run stays this long after its last frame, as a paused run goes quiet. */
+/** One whose latest frame was of a paused or ended run stays this long, as a paused run goes quiet. */
 export const SUBAGENT_QUIET_RUN_KEPT_MS = 30 * 60 * 1000;
 
 /** A sub-agent run as its frames left it, ordered and checked as a live reply's frames are. */
@@ -31,7 +34,7 @@ const NO_RUNS: readonly SubagentRun[] = [];
 export const countActiveSubagentRuns = (runs: readonly SubagentRun[]): number =>
   runs.filter(({ meta }) => isActiveSubagentStatus(meta.status)).length;
 
-const runKey = (roomId: string, run: string): string => `${roomId}\0${run}`;
+const subagentKey = (roomId: string, subagent: string): string => `${roomId}\0${subagent}`;
 
 const isWorking = ({ status }: SubagentMeta): boolean =>
   status === 'running' || status === 'awaiting_approval';
@@ -105,20 +108,24 @@ export class SubagentRunStore {
     roomIds.forEach((roomId) => this.notify(roomId));
   }
 
-  private expireLater({ roomId, run, meta }: SubagentRun): void {
-    const key = runKey(roomId, run);
+  private expireLater({ roomId, meta }: SubagentRun): void {
+    const key = subagentKey(roomId, meta.subagent);
     clearTimeout(this.expiries.get(key));
     const after = isWorking(meta) ? SUBAGENT_WORKING_RUN_FRESHNESS_MS : SUBAGENT_QUIET_RUN_KEPT_MS;
     this.expiries.set(
       key,
-      setTimeout(() => this.drop(roomId, run), after)
+      setTimeout(() => this.drop(roomId, meta.subagent), after)
     );
   }
 
-  private drop(roomId: string, run: string): void {
-    this.expiries.delete(runKey(roomId, run));
+  /** Lets go of every turn of the sub-agent. */
+  private drop(roomId: string, subagent: string): void {
+    this.expiries.delete(subagentKey(roomId, subagent));
     const runs = this.rooms.get(roomId);
-    if (!runs?.delete(run)) return;
+    if (!runs) return;
+    const turns = [...runs.values()].filter(({ meta }) => meta.subagent === subagent);
+    if (turns.length === 0) return;
+    turns.forEach(({ run }) => runs.delete(run));
     if (runs.size === 0) this.rooms.delete(roomId);
     this.changed(roomId);
   }

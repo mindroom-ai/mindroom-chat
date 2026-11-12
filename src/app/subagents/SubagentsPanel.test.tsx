@@ -63,7 +63,9 @@ const mx = {
   mxcUrlToHttp: (mxc: string) => `https://media.example.org/${mxc.slice('mxc://'.length)}`,
 } as unknown as MatrixClient;
 
-const meta = (status: SubagentStatus, extra: Partial<SubagentMeta> = {}): SubagentMeta => ({
+/** A run's meta; `ingest` makes a run without a `subagent` a sub-agent of its own. */
+type RunMeta = Omit<SubagentMeta, 'subagent'> & { subagent?: string };
+const meta = (status: SubagentStatus, extra: Partial<SubagentMeta> = {}): RunMeta => ({
   agent: 'researcher',
   caller: 'lead',
   root: 'lead',
@@ -86,10 +88,16 @@ const docs = (md: string, tools: ToolTraceEvent[] = [], working = true): LiveDoc
 });
 
 const seqs = new Map<string, number>();
-const ingest = (run: string, runMeta: SubagentMeta, runDocs: LiveDocs) => {
+const ingest = (run: string, runMeta: RunMeta, runDocs: LiveDocs) => {
   const seq = (seqs.get(run) ?? -1) + 1;
   seqs.set(run, seq);
-  const frame: SubagentFrame = { run, sid: SID, seq, meta: runMeta, snapshot: runDocs };
+  const frame: SubagentFrame = {
+    run,
+    sid: SID,
+    seq,
+    meta: { subagent: run, ...runMeta },
+    snapshot: runDocs,
+  };
   act(() => getSubagentRunStore(mx).ingest(ROOM_ID, SENDER, frame, Date.now()));
 };
 
@@ -109,9 +117,9 @@ const render = () => {
   });
 };
 
-const cards = () => [...container.querySelectorAll<HTMLElement>('[data-subagent-run]')];
+const cards = () => [...container.querySelectorAll<HTMLElement>('[data-subagent]')];
 const card = (run: string) => {
-  const found = container.querySelector<HTMLElement>(`[data-subagent-run="${run}"]`);
+  const found = container.querySelector<HTMLElement>(`[data-subagent="${run}"]`);
   if (!found) throw new Error(`no card for ${run}`);
   return found;
 };
@@ -169,7 +177,7 @@ describe('SubagentsPanel', () => {
     );
     render();
 
-    expect(cards().map((element) => element.dataset.subagentRun)).toEqual(['early', 'late']);
+    expect(cards().map((element) => element.dataset.subagent)).toEqual(['early', 'late']);
     expect(container.querySelector('header')?.textContent).toContain('2 active');
     // The task's first line is the title; a run without a task goes by its agent.
     expect(card('early').textContent).toContain('Find when version 2 shipped.');
@@ -198,7 +206,7 @@ describe('SubagentsPanel', () => {
     ingest('new', meta('failed', { endedAt: NOW - 20 }), docs('C', [], false));
     render();
 
-    expect(cards().map((element) => element.dataset.subagentRun)).toEqual(['busy', 'new', 'old']);
+    expect(cards().map((element) => element.dataset.subagent)).toEqual(['busy', 'new', 'old']);
     expect(container.querySelector('header')?.textContent).toContain('1 active');
   });
 
@@ -256,9 +264,80 @@ describe('SubagentsPanel', () => {
     ingest('orphan', meta('running', { parent: 'gone', startedAt: NOW - 5 }), docs('Alone.'));
     render();
 
-    expect(cards().map((element) => element.dataset.subagentRun)).toEqual(['parent', 'orphan']);
+    expect(cards().map((element) => element.dataset.subagent)).toEqual(['parent', 'orphan']);
     expect(card('parent').textContent).toContain('1 sub-agent');
     expect(card('orphan').textContent).not.toContain('sub-agent');
+  });
+
+  it("shows a sub-agent's turns as one card and opens them as one thread, in order", () => {
+    const turn = (run: string, subagent: string, n: number, status: SubagentStatus) =>
+      ingest(
+        run,
+        meta(status, {
+          subagent,
+          task: `Turn ${n}.`,
+          startedAt: NOW - 40 + n * 10,
+          endedAt: status === 'running' ? null : NOW - 35 + n * 10,
+        }),
+        docs(`Answer ${n} of ${subagent}.`, [], status === 'running')
+      );
+    turn('a3', 'a', 3, 'running');
+    turn('a1', 'a', 1, 'completed');
+    turn('b1', 'b', 1, 'completed');
+    turn('a2', 'a', 2, 'completed');
+    render();
+
+    expect(cards().map((element) => element.dataset.subagent)).toEqual(['a', 'b']);
+    expect(card('a').textContent).toContain('Turn 1.');
+    expect(card('a').textContent).toContain('Answer 3 of a.');
+    expect(card('a').textContent).toContain('Running');
+    expect(card('a').textContent).toContain('3 turns');
+    expect(card('b').textContent).not.toContain('turn');
+
+    open('a');
+    const tasks = [...(view()?.querySelectorAll('[data-subagent-task]') ?? [])];
+    expect(tasks.map((task) => task.textContent)).toEqual(['Turn 1.', 'Turn 2.', 'Turn 3.']);
+    const answers = [...(view()?.querySelectorAll('[data-subagent-transcript]') ?? [])];
+    expect(answers.map((answer) => answer.textContent?.trim())).toEqual([
+      'Answer 1 of a.',
+      'Answer 2 of a.',
+      'Answer 3 of a.',
+    ]);
+  });
+
+  it('nests a sub-agent under the turn that started it, and goes back to its starter', () => {
+    ingest('p1', meta('completed', { subagent: 'p', task: 'Plan it.' }), docs('Planned.'));
+    ingest(
+      'p2',
+      meta('running', { subagent: 'p', task: 'Do it.', startedAt: NOW - 20 }),
+      docs('Doing.')
+    );
+    ingest(
+      'c1',
+      meta('running', { agent: 'writer', parent: 'p2', task: 'Write it.', startedAt: NOW - 10 }),
+      docs('Writing.')
+    );
+    render();
+
+    expect(cards().map((element) => element.dataset.subagent)).toEqual(['p']);
+    expect(card('p').textContent).toContain('2 turns');
+    expect(card('p').textContent).toContain('1 sub-agent');
+    open('p');
+    // The second turn's task, then the card of the sub-agent it started, then its reply.
+    const parts = view()?.querySelectorAll<HTMLElement>(
+      '[data-subagent-task], [data-subagent], [data-subagent-transcript]'
+    );
+    const order = [...(parts ?? [])].map(
+      (part) => part.dataset.subagent ?? part.textContent?.trim()
+    );
+    expect(order).toEqual(['Plan it.', 'Planned.', 'Do it.', 'c1', 'Doing.']);
+
+    open('c1');
+    expect(heading()).toBe('writer');
+    act(() => button(container, 'Back').click());
+    expect(view()?.dataset.subagentView).toBe('p');
+    act(() => button(container, 'Back').click());
+    expect(document.activeElement).toBe(card('p'));
   });
 
   it('opens a run as a thread: the caller asks, the run answers with its tool calls', () => {

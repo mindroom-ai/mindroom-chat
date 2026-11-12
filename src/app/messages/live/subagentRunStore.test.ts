@@ -33,6 +33,7 @@ type FrameOptions = { sid?: string; status?: SubagentStatus; extra?: Partial<Sub
 
 const meta = (status: SubagentStatus, extra: Partial<SubagentMeta> = {}): SubagentMeta => ({
   agent: 'helper',
+  subagent: RUN,
   caller: 'lead',
   root: 'lead',
   parent: null,
@@ -271,6 +272,27 @@ describe('SubagentRunStore', () => {
 
       vi.advanceTimersByTime(SUBAGENT_WORKING_RUN_FRESHNESS_MS);
 
+      expect(store.runs(ROOM)).toEqual([]);
+    });
+
+    it("keeps a sub-agent's turns as long as its latest frame says and lets them go together", () => {
+      const turn = (run: string, subagent: string, status: SubagentStatus): SubagentFrame => ({
+        run,
+        sid: SID,
+        seq: 0,
+        meta: meta(status, { subagent, task: run }),
+        snapshot: docs(run),
+      });
+      store.ingest(ROOM, AGENT, turn('first', 'first', 'completed'), Date.now());
+      store.ingest(ROOM, AGENT, turn('other', 'other', 'completed'), Date.now());
+      vi.advanceTimersByTime(SUBAGENT_QUIET_RUN_KEPT_MS - 1000);
+      store.ingest(ROOM, AGENT, turn('second', 'first', 'completed'), Date.now());
+
+      vi.advanceTimersByTime(1000);
+      expect(store.runs(ROOM).map(({ run: id }) => id)).toEqual(['first', 'second']);
+
+      store.ingest(ROOM, AGENT, turn('third', 'first', 'running'), Date.now());
+      vi.advanceTimersByTime(SUBAGENT_WORKING_RUN_FRESHNESS_MS);
       expect(store.runs(ROOM)).toEqual([]);
     });
 

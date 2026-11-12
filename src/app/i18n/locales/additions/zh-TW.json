@@ -681,6 +681,7 @@
       "empty": "此聊天室中沒有正在執行的子代理。",
       "back": "返回",
       "nested_other": "{{count}} 個子代理",
+      "turns_other": "{{count}} 輪",
       "running": "執行中",
       "awaiting_approval": "等待批准",
       "paused": "已暫停",

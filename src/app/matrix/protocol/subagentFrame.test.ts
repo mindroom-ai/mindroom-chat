@@ -57,6 +57,7 @@ describe('sub-agent frames', () => {
     const first = fixture.cases.find((testCase) => testCase.name.startsWith('snapshot'))?.frame;
     expect(parseSubagentFrame(first)?.meta).toEqual({
       agent: 'researcher',
+      subagent: 'del-1',
       caller: 'lead',
       root: 'lead',
       parent: null,
@@ -67,6 +68,14 @@ describe('sub-agent frames', () => {
       endedAt: null,
       task: 'Find when version 2 shipped.',
     });
+  });
+
+  it('takes a frame without a sub-agent as a turn of a sub-agent of its own', () => {
+    expect(parseSubagentFrame(frame({}))?.meta.subagent).toBe('del-1');
+    expect(parseSubagentFrame(frame({ meta: { ...meta, subagent: 'first' } }))?.meta.subagent).toBe(
+      'first'
+    );
+    expect(parseSubagentFrame(frame({ meta: { ...meta, subagent: 7 } }))).toBeNull();
   });
 
   it('treats a null result as absent and keeps a text result', () => {
