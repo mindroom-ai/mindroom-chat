@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Avatar, Button, Icon, Icons, Spinner, Text, color } from 'folds';
+import classNames from 'classnames';
 import type { Room } from 'matrix-js-sdk';
 import { UserAvatar } from '../avatars/UserAvatar';
 import { nameInitials } from '../lib/common';
@@ -8,7 +9,7 @@ import { describeError } from '../lib/describeError';
 import { useAlive } from '../lib/hooks/useAlive';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
-import { isUserId } from '../matrix/matrix';
+import { getMxIdLocalPart, isUserId } from '../matrix/matrix';
 import { mxcUrlToHttp } from '../matrix/mediaUrl';
 import { ownDirectionLine } from '../ui/directional';
 import { ErrorDetail } from '../ui/ErrorDetail';
@@ -113,7 +114,7 @@ function InviteRowItem({ row, onInvite }: { row: InviteRow; onInvite: () => void
           src={avatarSrc}
           renderFallback={() => (
             <Text as="span" size="L400">
-              {nameInitials(name)}
+              {nameInitials(listed ? name : getMxIdLocalPart(user.userId))}
             </Text>
           )}
         />
@@ -147,7 +148,7 @@ function InviteRowItem({ row, onInvite }: { row: InviteRow; onInvite: () => void
         variant={invited ? 'Success' : 'Primary'}
         fill={invited ? 'None' : 'Soft'}
         radii="300"
-        className={css.InviteButton}
+        className={classNames(css.InviteButton, invited && css.InviteSent)}
         aria-disabled={inviting || invited}
         aria-label={
           invited ? undefined : t('featureUi.room.membersDrawer.inviteUser', { user: name })
@@ -247,15 +248,19 @@ export function MembersInviteSection({ room, query }: MembersInviteSectionProps)
   const offered = (attempt: Attempt) =>
     attempt.state.status !== 'failed' ||
     filterInviteUserCandidates([attempt.user], room, selfUserId).length > 0;
-  // A new search places the invitations for it before this render shows them.
+  // A new search places the invitations for it, and a failure no longer offered goes for good,
+  // before this render shows them.
   if (attempts.query !== trimmed) {
     setAttempts({ query: trimmed, byUser: carryOver(attempts.byUser, offered) });
+  } else if (!Object.values(attempts.byUser).every(offered)) {
+    setAttempts({
+      query: trimmed,
+      byUser: Object.fromEntries(
+        Object.entries(attempts.byUser).filter(([, attempt]) => offered(attempt))
+      ),
+    });
   }
-  const placed = Object.fromEntries(
-    Object.entries(attempts.query === trimmed ? attempts.byUser : {}).filter(([, attempt]) =>
-      offered(attempt)
-    )
-  );
+  const placed = attempts.query === trimmed ? attempts.byUser : {};
 
   const setState = (userId: string, state: InviteState) =>
     setAttempts((current) => {

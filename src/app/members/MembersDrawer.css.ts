@@ -182,6 +182,11 @@ export const InviteButton = style({
   flexShrink: 0,
 });
 
+/** The button once the invitation went out: a confirmation, not dimmed like a control turned off. */
+export const InviteSent = style({
+  vars: { [config.opacity.Disabled]: '1' },
+});
+
 /** Read by screen readers only: the line that says an invitation went out. */
 export const VisuallyHidden = style({
   position: 'absolute',

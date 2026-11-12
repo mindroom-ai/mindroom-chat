@@ -115,14 +115,15 @@ describe('MembersInviteSection', () => {
     expect(within(section()).getByText('@marco:example.org')).toBeTruthy();
     expect(isOff(inviteButton('Marco Rossi'))).toBe(false);
 
-    // Invited some other way, he drops out with his failure, and stays out on later searches
-    // even once he declines.
+    // Invited some other way, he drops out with his failure, and stays out even once he
+    // declines, under the same search and later ones.
     memberships['@marco:example.org'] = 'invite';
     mocks.search = { suggestions: [mara], isFetching: false };
     rerender(<MembersInviteSection room={room} query="ma" />);
     expect(rowNames()).toEqual(['Mara Lind']);
-    rerender(<MembersInviteSection room={room} query="mar" />);
     memberships['@marco:example.org'] = 'leave';
+    rerender(<MembersInviteSection room={room} query="ma" />);
+    expect(rowNames()).toEqual(['Mara Lind']);
     mocks.search = { suggestions: [], isFetching: false };
     rerender(<MembersInviteSection room={room} query="jor" />);
     expect(screen.queryByRole('group', { name: 'Not in this room' })).toBeNull();
