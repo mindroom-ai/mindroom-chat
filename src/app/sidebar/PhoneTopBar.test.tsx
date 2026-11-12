@@ -83,6 +83,7 @@ describe('PhoneTopBar', () => {
     const { store, button } = renderBar();
     const search = button('Find anything');
     expect(textOf(search)).toContain('Ctrl + K');
+    expect(search.findByType('kbd').props.dir).toBe('ltr');
     expect(search.props['aria-keyshortcuts']).toBe('Control+K');
     act(() => {
       search.props.onClick();
