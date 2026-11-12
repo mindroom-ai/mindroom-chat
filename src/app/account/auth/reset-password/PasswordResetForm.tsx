@@ -27,6 +27,10 @@ type EmailToken = {
 /** Answers of a server that resets no passwords by email: Tuwunel without email, or no endpoint. */
 const EMAIL_RESET_UNAVAILABLE = new Set(['M_THREEPID_DENIED', 'M_UNRECOGNIZED']);
 
+// Escaped, a `<` in the server name from the address or in a provider name from the server stays
+// text instead of reading as a tag, such as one that adds attributes to the element it fills.
+const ESCAPED = { interpolation: { escapeValue: true } };
+
 /** The names of the server's single sign-on; undefined when it offers none or the flows fail. */
 async function fetchSsoProviderNames(
   mx: Pick<MatrixClient, 'loginFlows'>
@@ -145,6 +149,8 @@ export function PasswordResetForm({ defaultEmail, loginLink }: PasswordResetForm
           i18nKey="sharedUi.passwordResetForm.resetEmailDescription"
           components={{ strong: <strong /> }}
           values={{ server: serverName }}
+          tOptions={ESCAPED}
+          shouldUnescape
         />
       </Text>
       <AuthField caption={t('sharedUi.passwordResetForm.email')}>
@@ -186,6 +192,8 @@ export function PasswordResetForm({ defaultEmail, loginLink }: PasswordResetForm
               i18nKey="sharedUi.passwordResetForm.emailResetUnavailableSso"
               values={{ provider: ssoProviderNames }}
               components={{ authLink: loginLink ? <Link to={loginLink} /> : <span /> }}
+              tOptions={ESCAPED}
+              shouldUnescape
             />
           ) : (
             t('sharedUi.passwordResetForm.emailResetUnavailable')
