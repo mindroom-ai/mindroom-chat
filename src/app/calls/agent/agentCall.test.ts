@@ -82,6 +82,7 @@ describe('MindRoom agent calls', () => {
           'io.mindroom.background_jobs': 0,
           'io.mindroom.server': 0,
           'io.mindroom.auto_approve': 0,
+          'io.mindroom.accounts': 0,
           'com.mindroom.thread.tags': 0,
           'io.mindroom.thread_mode': 0,
         },

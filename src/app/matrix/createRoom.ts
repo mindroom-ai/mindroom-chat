@@ -56,12 +56,13 @@ export const createRoomPowerLevelsOverride = (version?: string) => {
     [StateEvent.GroupCallMemberPrefix]: 0,
     // State MindRoom's agents and router publish; they join with no power. The client reads
     // server, jobs and auto-approve state only from an agent under its own user ID, a state key
-    // Matrix accepts only from that user; any member may write thread tags and the thread mode.
-    // The rooms MindRoom creates open the same types but the thread mode, which their router
-    // writes as an admin; the router of a room made here is not known when it is made.
+    // Matrix accepts only from that user, and the router lists the room's MindRoom accounts under
+    // its own; any member may write thread tags and the thread mode. The rooms MindRoom creates
+    // open the same types.
     'io.mindroom.server': 0,
     [MINDROOM_BACKGROUND_JOBS_EVENT]: 0,
     [MINDROOM_AUTO_APPROVE_EVENT]: 0,
+    'io.mindroom.accounts': 0,
     'com.mindroom.thread.tags': 0,
     [ROOM_THREAD_MODE_EVENT]: 0,
   };
