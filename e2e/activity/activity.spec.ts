@@ -11,13 +11,21 @@ import { createPrivateRoom, joinRoom, matrixFetch, sendRoomMessage } from '../he
 
 // The Activity bell: an agent's mention and its pending tool approval in the person's thread show
 // as rows and on the bell's count; Approve answers from the popover; a row opens its thread beside
-// the Activity list, and reading it clears the row; on a phone the top bar's bell opens a sheet.
+// the Activity list, and reading it clears the row; resolving a thread takes its question out of
+// Activity until something new happens in it; on a phone the top bar's bell opens a sheet.
 test.describe.configure({ mode: 'serial', timeout: 240_000 });
 
 const PASSWORD = 'activity-e2e-password';
 const RUN = Date.now().toString(36);
 
-type Fixture = { person: DisposableUser; roomId: string; askRoot: string; replyRoot: string };
+type Fixture = {
+  person: DisposableUser;
+  agent: DisposableUser;
+  roomId: string;
+  askRoot: string;
+  replyRoot: string;
+  questionRoot: string;
+};
 
 const thread = (rootId: string) => ({
   'm.relates_to': { rel_type: 'm.thread', event_id: rootId, is_falling_back: true },
@@ -74,7 +82,24 @@ const seed = async (browserName: string): Promise<Fixture> => {
     body: 'Leave at 7:45 AM.',
     ...thread(replyRoot),
   });
-  return { person, roomId, askRoot, replyRoot };
+
+  const questionRoot = await sendRoomMessage(HOMESERVER, person.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: `Clean up the release notes ${RUN}`,
+  });
+  await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: 'Which release should I clean up?',
+    'io.mindroom.interactive': {
+      creator_agent: 'code',
+      question_text: 'Which release should I clean up?',
+      options: { '✅': 'v3', '📄': 'v4', '1': 'v3', '2': 'v4' },
+      option_labels: { '✅': 'v3 final', '📄': 'v4 draft', '1': 'v3 final', '2': 'v4 draft' },
+      source_event_id: questionRoot,
+    },
+    ...thread(questionRoot),
+  });
+  return { person, agent, roomId, askRoot, replyRoot, questionRoot };
 };
 
 const signIn = async (page: Page, user: DisposableUser) => {
@@ -169,6 +194,41 @@ test('a row opens its thread beside the Activity list, and reading it clears the
   await page.goBack();
   await expect(page).toHaveURL(/\/activity\/$/);
   await expect(row).toBeHidden({ timeout: 60_000 });
+});
+
+test('resolving a thread takes its question out of Activity until something new happens in it', async ({
+  page,
+}) => {
+  await signIn(page, fixture.person);
+  const bell = page.getByRole('button', { name: /^Activity/ }).first();
+  await bell.click();
+  await expect(page.getByRole('dialog', { name: 'Activity' })).toBeVisible();
+  await bell.click();
+  await expect(page).toHaveURL(/\/activity\/$/);
+
+  const list = page.getByRole('navigation', { name: 'Activity' });
+  const questionRow = list.locator('[data-activity-row="question"]');
+  await expect(questionRow).toContainText('Which release should I clean up?', { timeout: 60_000 });
+  await questionRow.getByText(`Clean up the release notes ${RUN}`).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/activity/[^/?]+\\?threadId=${encodeURIComponent(fixture.questionRoot)}`)
+  );
+
+  // The row goes though its thread still shows beside the list: resolving is the person's answer.
+  await page.getByRole('main').getByRole('button', { name: 'Resolve', exact: true }).click();
+  await expect(page.getByRole('main').getByRole('button', { name: 'Resolved' })).toBeVisible();
+  await expect(questionRow).toHaveCount(0, { timeout: 30_000 });
+
+  await sendRoomMessage(HOMESERVER, fixture.agent.accessToken, fixture.roomId, {
+    msgtype: 'm.text',
+    body: `${fixture.person.userId} The v4 notes changed again.`,
+    'm.mentions': { user_ids: [fixture.person.userId] },
+    ...thread(fixture.questionRoot),
+  });
+  await expect(
+    list.locator('[data-activity-row]', { hasText: `Clean up the release notes ${RUN}` })
+  ).toBeVisible({ timeout: 60_000 });
+  await expect(questionRow).toHaveCount(0);
 });
 
 test('on a phone the top bar bell opens Activity as a sheet', async ({ page }) => {
