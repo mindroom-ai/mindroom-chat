@@ -85,10 +85,7 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   }),
 }));
 vi.mock('../../navigation/useSelectedRoom', () => ({ useSelectedRoom: () => undefined }));
-vi.mock('../../routes/useHomeSelected', () => ({
-  useHomeCreateSelected: () => false,
-  useHomeSearchSelected: () => false,
-}));
+vi.mock('../../routes/useHomeSelected', () => ({ useHomeCreateSelected: () => false }));
 vi.mock('../../ui/nav/useCategoryHandler', () => ({ useCategoryHandler: () => vi.fn() }));
 vi.mock('../../routes/useNavToActivePathMapper', () => ({
   useNavToActivePathMapper: () => undefined,

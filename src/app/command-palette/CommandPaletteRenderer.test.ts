@@ -369,7 +369,7 @@ describe('CommandPaletteRenderer', () => {
     expect(press('ctrlKey')).toBe(false);
   });
 
-  it('opens on the tab the atom names, such as Messages from the sidebar', () => {
+  it('opens on the tab the atom names, such as Messages from the search shortcut', () => {
     const { renderer } = renderRenderer('messages');
     const selected = renderer.root.findAll(
       (node) => node.props.role === 'tab' && node.props['aria-selected'] === true

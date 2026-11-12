@@ -12,7 +12,7 @@ import { getSpaceRoomPath } from '../../routes/pathUtils';
 // The space's navigation lists the rooms the user is in. The client also holds rooms the user
 // is only invited to or has left; those are not rows of the list.
 
-const { passthrough, rooms, subRooms } = vi.hoisted(() => {
+const { passthrough, rooms, screen, subRooms } = vi.hoisted(() => {
   const roomIds = {
     space: '!garden:example.org',
     joined: '!seedlings:example.org',
@@ -35,6 +35,7 @@ const { passthrough, rooms, subRooms } = vi.hoisted(() => {
   return {
     rooms: { ids: roomIds, of: roomOf },
     subRooms: { renderRoom: undefined as ((room: unknown) => React.ReactNode) | undefined },
+    screen: { size: 'Desktop' },
     passthrough: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
   };
 });
@@ -146,6 +147,13 @@ vi.mock('../threads/ThreadNavCategory', () => ({
 vi.mock('../threads/RecentlyOpenedNavCategory', () => ({
   RecentlyOpenedNavCategory: () => null,
 }));
+vi.mock('../../lib/hooks/useScreenSize', () => ({
+  ScreenSize: { Desktop: 'Desktop', Tablet: 'Tablet', Mobile: 'Mobile' },
+  useScreenSizeContext: () => screen.size,
+}));
+vi.mock('../../command-palette/CommandPaletteSearchField', () => ({
+  CommandPaletteSearchField: () => <div data-find-anything />,
+}));
 vi.mock('../../notifications/MarkRoomsReadMenuItem', () => ({
   MarkRoomsReadMenuItem: () => null,
 }));
@@ -156,6 +164,31 @@ describe('Space navigation', () => {
   afterEach(() => {
     act(() => renderer?.unmount());
     renderer = undefined;
+    screen.size = 'Desktop';
+  });
+
+  const renderSpace = () => {
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [rooms.ids.space] });
+    store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
+    store.set(roomToParentsAtom, { type: 'INITIALIZE', roomToParents: new Map() });
+    act(() => {
+      renderer = create(
+        <Provider store={store}>
+          <Space />
+        </Provider>
+      );
+    });
+    return renderer!.root.findAll(
+      (node) => typeof node.type === 'string' && 'data-find-anything' in node.props
+    );
+  };
+
+  it('puts the Find anything field atop the list, and leaves it to the top bar on a phone', () => {
+    expect(renderSpace()).toHaveLength(1);
+    act(() => renderer?.unmount());
+    screen.size = 'Mobile';
+    expect(renderSpace()).toHaveLength(0);
   });
 
   it('lists the joined rooms of the space, not the ones the user is invited to or left', () => {

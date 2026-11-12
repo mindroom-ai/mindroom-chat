@@ -233,7 +233,7 @@ for (const engine of ENGINES) {
 
         // A room picked in the search opens without the members over it.
         await openMembers(page);
-        await page.getByRole('button', { name: 'Search', exact: true }).tap();
+        await page.getByRole('button', { name: 'Find anything', exact: true }).tap();
         const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
         // Typed as a person types, into the field the palette focused, over the members.
         await expect(palette.getByRole('combobox')).toBeFocused();
@@ -245,11 +245,11 @@ for (const engine of ENGINES) {
 
         // Also when the search leads to a page of another kind, and back to the room.
         await openMembers(page);
-        await page.getByRole('button', { name: 'Search', exact: true }).tap();
+        await page.getByRole('button', { name: 'Find anything', exact: true }).tap();
         await palette.getByRole('combobox').fill('Field Trips');
         await palette.getByRole('option').filter({ hasText: 'Field Trips' }).first().tap();
         await expect(palette).toBeHidden();
-        await page.getByRole('button', { name: 'Search', exact: true }).tap();
+        await page.getByRole('button', { name: 'Find anything', exact: true }).tap();
         await palette.getByRole('combobox').fill('Harbor Plans');
         await palette.getByRole('option').filter({ hasText: 'Harbor Plans' }).first().tap();
         await expect.poll(() => decodeURIComponent(page.url())).toContain(other);

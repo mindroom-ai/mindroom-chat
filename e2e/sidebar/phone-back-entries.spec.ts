@@ -282,9 +282,10 @@ const openThread = async (page: Page, room: string, rootId: string) => {
 
 const palette = (page: Page) => page.getByRole('dialog', { name: 'Command palette', exact: true });
 
-/** Home's Message Search: the palette on its Messages tab, with `word` typed. */
+/** The top bar's search field: the palette, on its Messages tab, with `word` typed. */
 const searchMessages = async (page: Page, word: string) => {
-  await page.locator('[data-home-room-action="search"]').tap();
+  await page.getByRole('button', { name: 'Find anything', exact: true }).tap();
+  await palette(page).getByRole('tab', { name: 'Messages', exact: true }).tap();
   await palette(page).getByRole('combobox').fill(word);
 };
 
@@ -422,7 +423,7 @@ const FLOWS: Record<string, Flow> = {
     await roomBack(page).tap();
     await expectAt(page, HOME, 'then to the list');
 
-    // A message found in the palette's Message Search, in a thread. Its snippet starts a few
+    // A message found in the palette's Messages tab, in a thread. Its snippet starts a few
     // words before the match, so the row is picked by the words around the match.
     await searchMessages(page, word);
     await palette(page)

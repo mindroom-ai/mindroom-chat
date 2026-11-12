@@ -2,12 +2,12 @@ import { Fragment, ReactNode, Suspense, lazy, useMemo, useState } from 'react';
 import { Avatar, Box, Icon, Icons, Line, Text } from 'folds';
 import type { IconSrc } from 'folds';
 import { Navigate, useMatch, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useAtomValue, useSetAtom } from 'jotai';
+import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { PageNav, PageNavContent, PageNavHeader } from '../../ui/page/Page';
 import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
-import { NavButton, NavCategory, NavItem, NavItemContent, NavLink } from '../../ui/nav/NavItem';
+import { NavCategory, NavItem, NavItemContent, NavLink } from '../../ui/nav/NavItem';
 import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
 import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
 import { SortableRoomList, SortableRoomRow } from '../room-nav/SortableRoomList';
@@ -34,7 +34,9 @@ import { useVisibleRooms } from '../../matrix/state/archivedRooms';
 import { ThreadNavCategory } from '../threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../threads/RecentlyOpenedNavCategory';
 import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
-import { commandPaletteOpenAtom } from '../../command-palette/commandPaletteState';
+import { CommandPaletteSearchField } from '../../command-palette/CommandPaletteSearchField';
+import * as searchFieldCss from '../../command-palette/CommandPaletteSearchField.css';
+import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { MenuEntry, MenuGroup } from '../../ui/MenuEntry';
 import { NavOptionsMenu } from '../../ui/nav/NavOptionsMenu';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
@@ -291,13 +293,10 @@ function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
 }
 
 /** A shortcut row at the top of the space navigation, linking to one of the space's pages. */
-type SpacePageLinkProps = { icon: IconSrc; label: string; selected?: boolean } & (
-  | { to: string; onSelect?: undefined }
-  | { onSelect: () => void; to?: undefined }
-);
+type SpacePageLinkProps = { icon: IconSrc; label: string; to: string; selected?: boolean };
 
-/** One of the shortcuts above the space's rooms: a link when it opens a page, else a button. */
-function SpacePageLink({ icon, label, to, onSelect, selected }: SpacePageLinkProps) {
+/** One of the shortcuts above the space's rooms, linking to one of its pages. */
+function SpacePageLink({ icon, label, to, selected }: SpacePageLinkProps) {
   const content = (
     <NavItemContent>
       <Box as="span" alignItems="Center" gap="200" grow="Yes">
@@ -312,16 +311,12 @@ function SpacePageLink({ icon, label, to, onSelect, selected }: SpacePageLinkPro
   );
   return (
     <NavItem aria-selected={selected} radii="400" variant="Background">
-      {to === undefined ? (
-        <NavButton onClick={onSelect}>{content}</NavButton>
-      ) : (
-        <NavLink to={to}>{content}</NavLink>
-      )}
+      <NavLink to={to}>{content}</NavLink>
     </NavItem>
   );
 }
 
-/** The navigation of a space: lobby, message search, its rooms, threads, and recently opened. */
+/** The navigation of a space: the search field, lobby, its rooms, threads, and recently opened. */
 export function Space() {
   const client = useMatrixClient();
   const { t } = useTranslation();
@@ -342,7 +337,8 @@ export function Space() {
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const selectedRoomId = useSelectedRoom();
   const [roomsClosed, setRoomsClosed] = useState(false);
-  const openCommandPalette = useSetAtom(commandPaletteOpenAtom);
+  // A phone's top bar holds the same field.
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(client, space.roomId);
   const lobbySelected = useMatch(SPACE_LOBBY_PATH) !== null;
 
@@ -390,17 +386,12 @@ export function Space() {
       >
         <Box direction="Column" gap="300">
           <NavCategory>
+            {!phone && <CommandPaletteSearchField className={searchFieldCss.NavSearchField} />}
             <SpacePageLink
               icon={Icons.Flag}
               label={t('sharedUi.space.lobby')}
               to={getSpaceLobbyPath(spaceIdOrAlias)}
               selected={lobbySelected}
-            />
-            {/* Message search is the command palette's Messages tab, as on Home. */}
-            <SpacePageLink
-              icon={Icons.Search}
-              label={t('sharedUi.space.messageSearch')}
-              onSelect={() => openCommandPalette('messages')}
             />
             {subspaceIds.length > 0 && <SubspacesMenu subspaceIds={subspaceIds} />}
           </NavCategory>

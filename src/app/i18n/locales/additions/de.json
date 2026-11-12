@@ -330,7 +330,7 @@
         "createSpace": "„Space erstellen“ in der Seitenleiste anzeigen",
         "createSpaceDescription": "Ausgeblendet erstellst du einen Space über das ⋮-Menü auf der Startseite oder die Befehlspalette ({{shortcut}}).",
         "search": "Suche in der Seitenleiste anzeigen",
-        "searchDescription": "Die Schaltfläche, die die Befehlspalette öffnet. Ausgeblendet öffnest du sie über das ⋮-Menü auf der Startseite oder mit {{shortcut}}.",
+        "searchDescription": "Die Schaltfläche, die die Befehlspalette öffnet. Ausgeblendet öffnest du sie über das Feld „Alles finden“ oder mit {{shortcut}}.",
         "localMindroom": "Lokales MindRoom in der Seitenleiste anzeigen",
         "localMindroomDescription": "Koppelt MindRoom auf deinem Computer. Ausgeblendet bleibt es hier in den Einstellungen unter „Lokales MindRoom“."
       },
@@ -409,8 +409,7 @@
       "failed": "Der Chat konnte nicht gestartet werden. Versuche es erneut."
     },
     "homeNav": {
-      "options": "Optionen für die Startseite",
-      "search": "Suche"
+      "options": "Optionen für die Startseite"
     },
     "directNav": {
       "options": "Optionen für Direktnachrichten"
@@ -565,7 +564,6 @@
       "searchEncrypted": "In verschlüsselten Räumen nicht verfügbar"
     },
     "phoneNav": {
-      "search": "Suchen",
       "navigation": "Navigation"
     },
     "subRooms": {
@@ -734,6 +732,7 @@
     "tabsLabel": "Ergebnisarten",
     "switchTabs": "Tab wechseln",
     "space": "Space",
+    "findAnything": "Alles finden",
     "messageSearch": {
       "searching": "Nachrichten werden gesucht…",
       "hint": "Tippe, um die Nachrichten in all deinen Räumen zu durchsuchen.",

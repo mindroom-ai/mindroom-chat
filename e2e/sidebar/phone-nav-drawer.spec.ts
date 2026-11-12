@@ -363,7 +363,7 @@ for (const engine of ENGINES) {
         await expectDrawer(page, false, 'and leaves the drawer away');
 
         // The search field opens the command palette and names its shortcut.
-        const search = page.getByRole('button', { name: 'Search', exact: true });
+        const search = page.getByRole('button', { name: 'Find anything', exact: true });
         await expect(search).toContainText(/K$/);
         await search.tap();
         await expect(

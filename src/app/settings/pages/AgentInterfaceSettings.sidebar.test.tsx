@@ -110,7 +110,7 @@ describe('Settings > General > Sidebar', () => {
     expect(description('Show Explore Community in the sidebar')).toContain('⋮ menu in Home');
     expect(description('Show Create Space in the sidebar')).toContain('⋮ menu in Home');
     expect(description('Show Create Space in the sidebar')).toContain('command palette (Ctrl + K)');
-    expect(description('Show Search in the sidebar')).toContain('⋮ menu in Home');
+    expect(description('Show Search in the sidebar')).toContain('Find anything field');
     expect(description('Show Search in the sidebar')).toContain('with Ctrl + K');
     expect(description('Show Local MindRoom in the sidebar')).toContain(
       'Settings under Local MindRoom'

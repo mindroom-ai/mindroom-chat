@@ -330,7 +330,7 @@
         "createSpace": "Show Create Space in the sidebar",
         "createSpaceDescription": "When hidden, create a space from the ⋮ menu in Home or the command palette ({{shortcut}}).",
         "search": "Show Search in the sidebar",
-        "searchDescription": "The button that opens the command palette. When hidden, open it from the ⋮ menu in Home or with {{shortcut}}.",
+        "searchDescription": "The button that opens the command palette. When hidden, open it from the Find anything field or with {{shortcut}}.",
         "localMindroom": "Show Local MindRoom in the sidebar",
         "localMindroomDescription": "Pairs MindRoom running on your computer. When hidden, it stays here in Settings under Local MindRoom."
       },
@@ -409,8 +409,7 @@
       "failed": "Could not start the chat. Try again."
     },
     "homeNav": {
-      "options": "Home Options",
-      "search": "Search"
+      "options": "Home Options"
     },
     "directNav": {
       "options": "Direct Messages Options"
@@ -565,7 +564,6 @@
       "searchEncrypted": "Not available in encrypted rooms"
     },
     "phoneNav": {
-      "search": "Search",
       "navigation": "Navigation"
     },
     "subRooms": {
@@ -734,6 +732,7 @@
     "tabsLabel": "Result types",
     "switchTabs": "Switch tabs",
     "space": "Space",
+    "findAnything": "Find anything",
     "messageSearch": {
       "searching": "Searching messages…",
       "hint": "Type to search messages in all your rooms.",

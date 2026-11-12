@@ -335,7 +335,7 @@
         "createSpace": "Mostrar Criar espaço na barra lateral",
         "createSpaceDescription": "Se o ocultar, crie um espaço no menu ⋮ do Início ou na paleta de comandos ({{shortcut}}).",
         "search": "Mostrar Pesquisar na barra lateral",
-        "searchDescription": "O botão que abre a paleta de comandos. Se o ocultar, abra-a no menu ⋮ do Início ou com {{shortcut}}.",
+        "searchDescription": "O botão que abre a paleta de comandos. Se o ocultar, abra-a no campo «Encontrar qualquer coisa» ou com {{shortcut}}.",
         "localMindroom": "Mostrar MindRoom local na barra lateral",
         "localMindroomDescription": "Emparelha o MindRoom no seu computador. Se o ocultar, continua aqui nas Definições, em MindRoom local."
       },
@@ -414,8 +414,7 @@
       "failed": "Não foi possível iniciar a conversa. Tente novamente."
     },
     "homeNav": {
-      "options": "Opções do Início",
-      "search": "Pesquisar"
+      "options": "Opções do Início"
     },
     "directNav": {
       "options": "Opções das mensagens diretas"
@@ -574,7 +573,6 @@
       "searchEncrypted": "Indisponível em salas encriptadas"
     },
     "phoneNav": {
-      "search": "Pesquisar",
       "navigation": "Navegação"
     },
     "subRooms": {
@@ -749,6 +747,7 @@
     "tabsLabel": "Tipos de resultado",
     "switchTabs": "Mudar de separador",
     "space": "Espaço",
+    "findAnything": "Encontrar qualquer coisa",
     "messageSearch": {
       "searching": "A pesquisar mensagens…",
       "hint": "Escreva para pesquisar mensagens em todas as suas salas.",

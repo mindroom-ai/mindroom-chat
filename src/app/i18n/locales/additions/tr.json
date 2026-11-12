@@ -330,7 +330,7 @@
         "createSpace": "Alan oluştur düğmesini kenar çubuğunda göster",
         "createSpaceDescription": "Gizlendiğinde, Ana sayfadaki ⋮ menüsünden veya komut paletinden ({{shortcut}}) alan oluşturun.",
         "search": "Aramayı kenar çubuğunda göster",
-        "searchDescription": "Komut paletini açan düğme. Gizlendiğinde, paleti Ana sayfadaki ⋮ menüsünden veya {{shortcut}} ile açın.",
+        "searchDescription": "Komut paletini açan düğme. Gizlendiğinde, paleti \"Her şeyi bul\" alanından veya {{shortcut}} ile açın.",
         "localMindroom": "Yerel MindRoom'u kenar çubuğunda göster",
         "localMindroomDescription": "Bilgisayarınızda çalışan MindRoom'u eşleştirir. Gizlendiğinde, burada Ayarlar'da Yerel MindRoom altında kalır."
       },
@@ -409,8 +409,7 @@
       "failed": "Sohbet başlatılamadı. Tekrar deneyin."
     },
     "homeNav": {
-      "options": "Ana sayfa seçenekleri",
-      "search": "Arama"
+      "options": "Ana sayfa seçenekleri"
     },
     "directNav": {
       "options": "Doğrudan mesaj seçenekleri"
@@ -565,7 +564,6 @@
       "searchEncrypted": "Şifreli odalarda kullanılamaz"
     },
     "phoneNav": {
-      "search": "Ara",
       "navigation": "Gezinme"
     },
     "subRooms": {
@@ -734,6 +732,7 @@
     "tabsLabel": "Sonuç türleri",
     "switchTabs": "Sekme değiştir",
     "space": "Alan",
+    "findAnything": "Her şeyi bul",
     "messageSearch": {
       "searching": "Mesajlar aranıyor…",
       "hint": "Tüm odalarınızdaki mesajlarda aramak için yazın.",

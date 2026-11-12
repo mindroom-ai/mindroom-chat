@@ -325,7 +325,7 @@
         "createSpace": "Tampilkan Buat space di bilah sisi",
         "createSpaceDescription": "Saat disembunyikan, buat space dari menu ⋮ di Beranda atau palet perintah ({{shortcut}}).",
         "search": "Tampilkan Cari di bilah sisi",
-        "searchDescription": "Tombol yang membuka palet perintah. Saat disembunyikan, buka palet dari menu ⋮ di Beranda atau dengan {{shortcut}}.",
+        "searchDescription": "Tombol yang membuka palet perintah. Saat disembunyikan, buka palet dari kolom \"Cari apa saja\" atau dengan {{shortcut}}.",
         "localMindroom": "Tampilkan MindRoom lokal di bilah sisi",
         "localMindroomDescription": "Memasangkan MindRoom di komputer Anda. Saat disembunyikan, tetap ada di sini di Pengaturan, di bawah MindRoom lokal."
       },
@@ -404,8 +404,7 @@
       "failed": "Obrolan tidak dapat dimulai. Coba lagi."
     },
     "homeNav": {
-      "options": "Opsi Beranda",
-      "search": "Cari"
+      "options": "Opsi Beranda"
     },
     "directNav": {
       "options": "Opsi pesan langsung"
@@ -556,7 +555,6 @@
       "searchEncrypted": "Tidak tersedia di ruang terenkripsi"
     },
     "phoneNav": {
-      "search": "Cari",
       "navigation": "Navigasi"
     },
     "subRooms": {
@@ -719,6 +717,7 @@
     "tabsLabel": "Jenis hasil",
     "switchTabs": "Ganti tab",
     "space": "Space",
+    "findAnything": "Cari apa saja",
     "messageSearch": {
       "searching": "Mencari pesan…",
       "hint": "Ketik untuk mencari pesan di semua ruang Anda.",

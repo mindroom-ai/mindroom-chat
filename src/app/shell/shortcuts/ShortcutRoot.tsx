@@ -29,7 +29,7 @@ export function ShortcutRoot() {
     setHelpOpen((open) => !open);
     return true;
   });
-  // What the sidebar's Message Search does: the palette on its Messages tab.
+  // The palette on its Messages tab.
   useShortcut('messageSearch', () => {
     openPalette('messages');
     return true;

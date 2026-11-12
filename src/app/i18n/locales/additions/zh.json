@@ -325,7 +325,7 @@
         "createSpace": "在侧边栏显示“创建空间”",
         "createSpaceDescription": "隐藏后，可从首页的 ⋮ 菜单或命令面板（{{shortcut}}）创建空间。",
         "search": "在侧边栏显示搜索",
-        "searchDescription": "用于打开命令面板的按钮。隐藏后，可从首页的 ⋮ 菜单打开，或按 {{shortcut}}。",
+        "searchDescription": "用于打开命令面板的按钮。隐藏后，可从“查找任何内容”输入框打开，或按 {{shortcut}}。",
         "localMindroom": "在侧边栏显示 Local MindRoom",
         "localMindroomDescription": "配对在您电脑上运行的 MindRoom。隐藏后，仍可在此设置中的 Local MindRoom 找到。"
       },
@@ -404,8 +404,7 @@
       "failed": "无法开始聊天，请重试。"
     },
     "homeNav": {
-      "options": "首页选项",
-      "search": "搜索"
+      "options": "首页选项"
     },
     "directNav": {
       "options": "私信选项"
@@ -556,7 +555,6 @@
       "searchEncrypted": "在加密房间中不可用"
     },
     "phoneNav": {
-      "search": "搜索",
       "navigation": "导航"
     },
     "subRooms": {
@@ -719,6 +717,7 @@
     "tabsLabel": "结果类型",
     "switchTabs": "切换标签页",
     "space": "空间",
+    "findAnything": "查找任何内容",
     "messageSearch": {
       "searching": "正在搜索消息…",
       "hint": "输入内容以搜索你所有房间中的消息。",

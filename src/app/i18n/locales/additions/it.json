@@ -335,7 +335,7 @@
         "createSpace": "Mostra Crea spazio nella barra laterale",
         "createSpaceDescription": "Se nascosto, crea uno spazio dal menu ⋮ della Home o dalla tavolozza dei comandi ({{shortcut}}).",
         "search": "Mostra Cerca nella barra laterale",
-        "searchDescription": "Il pulsante che apre la tavolozza dei comandi. Se nascosto, aprila dal menu ⋮ della Home o con {{shortcut}}.",
+        "searchDescription": "Il pulsante che apre la tavolozza dei comandi. Se nascosto, aprila dal campo «Trova qualsiasi cosa» o con {{shortcut}}.",
         "localMindroom": "Mostra MindRoom locale nella barra laterale",
         "localMindroomDescription": "Associa MindRoom in esecuzione sul tuo computer. Se nascosto, resta qui nelle Impostazioni, in MindRoom locale."
       },
@@ -414,8 +414,7 @@
       "failed": "Impossibile avviare la chat. Riprova."
     },
     "homeNav": {
-      "options": "Opzioni della Home",
-      "search": "Cerca"
+      "options": "Opzioni della Home"
     },
     "directNav": {
       "options": "Opzioni dei messaggi diretti"
@@ -574,7 +573,6 @@
       "searchEncrypted": "Non disponibile nelle stanze cifrate"
     },
     "phoneNav": {
-      "search": "Cerca",
       "navigation": "Navigazione"
     },
     "subRooms": {
@@ -749,6 +747,7 @@
     "tabsLabel": "Tipi di risultato",
     "switchTabs": "Cambia scheda",
     "space": "Spazio",
+    "findAnything": "Trova qualsiasi cosa",
     "messageSearch": {
       "searching": "Ricerca dei messaggi…",
       "hint": "Scrivi per cercare i messaggi in tutte le tue stanze.",
