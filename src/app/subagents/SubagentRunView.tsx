@@ -34,6 +34,9 @@ import * as css from './subagentsPanel.css';
 /** A reader this close to the end still follows the newest text. */
 const FOLLOW_SLACK_PX = 24;
 
+const nearEnd = ({ scrollHeight, scrollTop, clientHeight }: HTMLElement): boolean =>
+  isScrollNearBottom({ scrollHeight, scrollTop, clientHeight, thresholdPx: FOLLOW_SLACK_PX });
+
 /** One message of the run, laid out as a thread's: picture, name and time, then the body. */
 function RunMessage({
   sender,
@@ -201,31 +204,26 @@ export function SubagentRunView({
   const following = useRef(active);
   /** Where keeping the end left the box, so the scroll event that move fires is not the reader's. */
   const pinnedTop = useRef<number>();
+  /** Whether the reader saw the end before the latest change: after it, or since they scrolled. */
+  const atEnd = useRef(false);
   const keepEnd = useCallback(() => {
     const element = box.current;
-    if (!element || !following.current) return;
-    element.scrollTop = element.scrollHeight;
-    pinnedTop.current = element.scrollTop;
+    if (!element) return;
+    if (following.current) {
+      element.scrollTop = element.scrollHeight;
+      pinnedTop.current = element.scrollTop;
+    }
+    atEnd.current = nearEnd(element);
   }, []);
   // A turn that starts while the reader is at the end is followed, as a sub-agent at work is on
   // opening; one who scrolled up keeps their place.
   const shownNewest = useRef(newestRun);
-  const atEnd = useRef(false);
   useLayoutEffect(() => {
     if (shownNewest.current !== newestRun) {
       shownNewest.current = newestRun;
       if (atEnd.current) following.current = true;
     }
     keepEnd();
-    const element = box.current;
-    atEnd.current =
-      !!element &&
-      isScrollNearBottom({
-        scrollHeight: element.scrollHeight,
-        scrollTop: element.scrollTop,
-        clientHeight: element.clientHeight,
-        thresholdPx: FOLLOW_SLACK_PX,
-      });
   }, [keepEnd, newestRun, node]);
   // Text that grows without new frames (the Markdown renderer arriving, a block unfolding).
   const getThread = useCallback(() => box.current?.firstElementChild, []);
@@ -286,12 +284,8 @@ export function SubagentRunView({
         onScroll={({ currentTarget }) => {
           if (currentTarget.scrollTop === pinnedTop.current) return;
           pinnedTop.current = undefined;
-          following.current = isScrollNearBottom({
-            scrollHeight: currentTarget.scrollHeight,
-            scrollTop: currentTarget.scrollTop,
-            clientHeight: currentTarget.clientHeight,
-            thresholdPx: FOLLOW_SLACK_PX,
-          });
+          atEnd.current = nearEnd(currentTarget);
+          following.current = atEnd.current;
         }}
       >
         <div className={css.Thread}>

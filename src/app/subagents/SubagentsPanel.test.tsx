@@ -540,12 +540,13 @@ describe('SubagentsPanel', () => {
     turn('second', 'running', NOW - 20);
     expect(box.scrollTop).toBe(1_000);
 
-    // A reader who scrolled up keeps their place when another turn starts.
+    // A reader who scrolled up after a turn ended keeps their place when another turn starts.
+    turn('second', 'completed', NOW - 20);
+    expect(box.scrollTop).toBe(1_000);
     box.scrollTop = 300;
     act(() => {
       box.dispatchEvent(new Event('scroll'));
     });
-    turn('second', 'completed', NOW - 20);
     height = 2_000;
     turn('third', 'running', NOW - 10);
     expect(box.scrollTop).toBe(300);
