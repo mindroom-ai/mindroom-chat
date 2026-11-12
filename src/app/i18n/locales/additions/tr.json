@@ -544,6 +544,13 @@
         "notFound": "O zamanda mesaj bulunamadı.",
         "failed": "O zamana gidilemedi: {{reason}}",
         "close": "Kapat"
+      },
+      "membersDrawer": {
+        "searchOrInvite": "Kişi arayın veya davet edin...",
+        "notInRoom": "Bu odada değil",
+        "inviteUser": "{{user}} kişisini davet et",
+        "inviteSent": "Davet edildi",
+        "notInDirectory": "Kullanıcı dizininde yok"
       }
     },
     "accountMenu": {

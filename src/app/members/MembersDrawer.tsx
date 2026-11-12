@@ -62,6 +62,7 @@ import { getMxIdLocalPart } from '../matrix/matrix';
 import { mxcUrlToHttp } from '../matrix/mediaUrl';
 import { getMemberDisplayName } from '../matrix/room';
 import { JoinRequestItem } from './JoinRequestItem';
+import { MembersInviteSection } from './MembersInviteSection';
 import * as css from './MembersDrawer.css';
 
 // Row heights of the list (see MembersDrawer.css.ts); the virtualizer measures the real ones.
@@ -204,6 +205,8 @@ export function MemberRow({ room, member }: { room: Room; member: RoomMember }) 
 /**
  * The room's people under their power level groups (Founder, Admin, Member, ...), one
  * membership filter at a time, in the chosen order, with a name search and the invite button.
+ * For someone who may invite, the search also lists the people outside the room it matches,
+ * each with an Invite button.
  * Moderators who may approve (invite) or decline (kick) also get a Requests filter for `knock`
  * memberships; it opens there while requests wait, until the moderator picks a filter themselves.
  */
@@ -314,6 +317,12 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
   useEffect(() => {
     virtualizer.scrollToOffset(0);
   }, [selectedIndex, query, virtualizer]);
+
+  // People who may invite find others by the same search, under the members it matches.
+  const searchLabel = canInvite
+    ? t('featureUi.room.membersDrawer.searchOrInvite')
+    : t('featureUi.room.membersDrawer.typeName');
+  const showInvites = canInvite && !showingRequests && query.trim() !== '';
 
   const emptyText = () => {
     if (query.trim() !== '') return t('featureUi.room.membersDrawer.noResults');
@@ -457,8 +466,8 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
             <Input
               value={query}
               onChange={(event: ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)}
-              placeholder={t('featureUi.room.membersDrawer.typeName')}
-              aria-label={t('featureUi.room.membersDrawer.typeName')}
+              placeholder={searchLabel}
+              aria-label={searchLabel}
               variant="Surface"
               size="400"
               radii="500"
@@ -511,6 +520,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                 </Text>
               </Box>
             )}
+            {showInvites && <MembersInviteSection room={room} query={query} />}
           </Box>
           <InsetScrollbar
             scrollRef={scrollRef}

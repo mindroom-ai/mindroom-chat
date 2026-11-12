@@ -535,6 +535,13 @@
         "notFound": "그 시간에 메시지가 없습니다.",
         "failed": "그 시간으로 이동할 수 없습니다: {{reason}}",
         "close": "닫기"
+      },
+      "membersDrawer": {
+        "searchOrInvite": "검색하거나 사람을 초대하세요...",
+        "notInRoom": "이 방에 없는 사람",
+        "inviteUser": "{{user}} 초대",
+        "inviteSent": "초대됨",
+        "notInDirectory": "사용자 디렉터리에 없음"
       }
     },
     "accountMenu": {

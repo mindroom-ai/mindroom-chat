@@ -535,6 +535,13 @@
         "notFound": "その時刻のメッセージは見つかりませんでした。",
         "failed": "その時刻に移動できませんでした: {{reason}}",
         "close": "閉じる"
+      },
+      "membersDrawer": {
+        "searchOrInvite": "検索またはユーザーを招待…",
+        "notInRoom": "このルームにいない人",
+        "inviteUser": "{{user}} を招待",
+        "inviteSent": "招待済み",
+        "notInDirectory": "ユーザーディレクトリにありません"
       }
     },
     "accountMenu": {

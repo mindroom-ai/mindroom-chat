@@ -535,6 +535,13 @@
         "notFound": "在该时间没有找到消息。",
         "failed": "无法跳转到该时间：{{reason}}",
         "close": "关闭"
+      },
+      "membersDrawer": {
+        "searchOrInvite": "搜索或邀请成员...",
+        "notInRoom": "不在此聊天室",
+        "inviteUser": "邀请 {{user}}",
+        "inviteSent": "已邀请",
+        "notInDirectory": "不在用户目录中"
       }
     },
     "accountMenu": {

@@ -128,3 +128,66 @@ export const JoinRequestMessage = style({
 export const JoinRequestActions = style({
   paddingTop: config.space.S100,
 });
+
+/** Under the matching members, the people outside the room the search found, after a line. */
+export const InviteSection = style({
+  marginTop: config.space.S300,
+  paddingTop: config.space.S100,
+  borderTop: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
+});
+
+/** The section's title, like a group's, with the directory search's spinner at the end. */
+export const InviteSectionTitle = style([
+  MemberGroupTitle,
+  { justifyContent: 'space-between', gap: config.space.S200 },
+]);
+
+/** "Searching users" while the directory has not answered and nothing else is listed. */
+export const InviteSearching = style({
+  paddingInline: config.space.S200,
+  paddingBlock: config.space.S100,
+});
+
+export const InviteList = style({
+  marginBlock: 0,
+  paddingInline: 0,
+  listStyle: 'none',
+});
+
+/** A person to invite: avatar, name over user ID, and the Invite button; 48 px high. */
+export const InviteRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S200,
+  minBlockSize: toRem(48),
+  paddingInline: config.space.S200,
+});
+
+export const InviteAvatar = style({
+  inlineSize: toRem(32),
+  blockSize: toRem(32),
+  flexShrink: 0,
+  borderRadius: '50%',
+  overflow: 'hidden',
+});
+
+export const InviteIdentity = style({
+  display: 'flex',
+  flexDirection: 'column',
+  flexGrow: 1,
+  minWidth: 0,
+});
+
+export const InviteButton = style({
+  flexShrink: 0,
+});
+
+/** Where the Invite button was, once the invitation went out. */
+export const InviteSent = style({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: config.space.S100,
+  flexShrink: 0,
+  paddingInline: config.space.S200,
+  color: color.Success.Main,
+});

@@ -544,6 +544,13 @@
         "notFound": "Zu dieser Zeit wurde keine Nachricht gefunden.",
         "failed": "Sprung zu dieser Zeit nicht möglich: {{reason}}",
         "close": "Schließen"
+      },
+      "membersDrawer": {
+        "searchOrInvite": "Personen suchen oder einladen...",
+        "notInRoom": "Nicht in diesem Raum",
+        "inviteUser": "{{user}} einladen",
+        "inviteSent": "Eingeladen",
+        "notInDirectory": "Nicht im Benutzerverzeichnis"
       }
     },
     "accountMenu": {
