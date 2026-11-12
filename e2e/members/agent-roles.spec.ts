@@ -111,6 +111,10 @@ test('an agent shows its role in the member list and on its card; a person does 
   if (SHOTS) {
     for (const scheme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme: scheme });
+      // The theme fades between schemes; shoot once it settles.
+      await page.waitForFunction(
+        () => !document.getAnimations().some((animation) => animation instanceof CSSTransition)
+      );
       await page.screenshot({ path: `${SHOTS}/members-${scheme}.png` });
     }
     await page.emulateMedia({ colorScheme: 'light' });
@@ -121,6 +125,10 @@ test('an agent shows its role in the member list and on its card; a person does 
   if (SHOTS) {
     for (const scheme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme: scheme });
+      // The theme fades between schemes; shoot once it settles.
+      await page.waitForFunction(
+        () => !document.getAnimations().some((animation) => animation instanceof CSSTransition)
+      );
       await page.screenshot({ path: `${SHOTS}/card-${scheme}.png` });
     }
     await page.emulateMedia({ colorScheme: 'light' });

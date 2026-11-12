@@ -63,13 +63,16 @@ const roomWith = async (published: Record<string, Record<string, unknown>>) => {
     '@me:x'
   );
   await room.addLiveEvents(
-    [HELPER, QUINN].flatMap((userId) => [
-      state('m.room.member', userId, {
-        membership: 'join',
-        displayname: userId === HELPER ? 'Helper' : 'Quinn',
-      }),
-      ...(published[userId] ? [state(MINDROOM_SERVER_EVENT, userId, published[userId])] : []),
-    ]),
+    [HELPER, QUINN].flatMap((userId) => {
+      const own = published[userId];
+      return [
+        state('m.room.member', userId, {
+          membership: 'join',
+          displayname: userId === HELPER ? 'Helper' : 'Quinn',
+        }),
+        ...(own ? [state(MINDROOM_SERVER_EVENT, userId, own)] : []),
+      ];
+    }),
     { addToState: true }
   );
   return room;
