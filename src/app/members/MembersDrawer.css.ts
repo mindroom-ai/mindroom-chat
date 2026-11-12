@@ -88,7 +88,8 @@ export const MemberRow = style({
   alignItems: 'center',
   gap: config.space.S200,
   inlineSize: '100%',
-  blockSize: toRem(40),
+  minBlockSize: toRem(40),
+  paddingBlock: config.space.S100,
   paddingInline: config.space.S200,
   border: 0,
   borderRadius: config.radii.R400,
@@ -111,7 +112,10 @@ export const MemberAvatar = style({
   overflow: 'hidden',
 });
 
-export const MemberName = style({
+/** The name, and an agent's role under it. */
+export const MemberText = style({
+  display: 'flex',
+  flexDirection: 'column',
   flexGrow: 1,
   minWidth: 0,
 });

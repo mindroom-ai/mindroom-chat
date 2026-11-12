@@ -50,6 +50,7 @@ import {
   useGetMemberPowerTag,
 } from './useMemberPowerTag';
 import { useMembersDrawer } from './useMembersDrawer';
+import { useAgentRoles } from './useAgentRoles';
 import { useOpenUserRoomProfile } from '../navigation/useUserRoomProfileState';
 import { MembershipFilterMenu } from './MembershipFilterMenu';
 import { MemberSortMenu } from './MemberSortMenu';
@@ -157,7 +158,16 @@ export function MemberGroupTitle({ tag, spaced }: { tag: MemberPowerTag; spaced:
   );
 }
 
-export function MemberRow({ room, member }: { room: Room; member: RoomMember }) {
+/** A member's row: avatar and name, and under an agent's name its role, cut to one line. */
+export function MemberRow({
+  room,
+  member,
+  role,
+}: {
+  room: Room;
+  member: RoomMember;
+  role?: string;
+}) {
   const client = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
   const openProfile = useOpenUserRoomProfile();
@@ -194,9 +204,16 @@ export function MemberRow({ room, member }: { room: Room; member: RoomMember }) 
           )}
         />
       </Avatar>
-      <Text as="span" size="T400" truncate className={css.MemberName} {...ownDirectionLine}>
-        {name}
-      </Text>
+      <span className={css.MemberText}>
+        <Text as="span" size="T400" truncate {...ownDirectionLine}>
+          {name}
+        </Text>
+        {role && (
+          <Text as="span" size="T200" priority="300" truncate {...ownDirectionLine}>
+            {role}
+          </Text>
+        )}
+      </span>
     </button>
   );
 }
@@ -213,6 +230,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
   const variant = useFloatingCards() ? 'Surface' : 'Background';
   const myUserId = useMatrixClient().getSafeUserId();
   const [, setDrawerOpen] = useMembersDrawer();
+  const agentRoles = useAgentRoles(room);
   const levels = usePowerLevelsContext();
   const roomCreators = useRoomCreators(room);
   const may = useRoomPermissions(roomCreators, levels);
@@ -489,7 +507,13 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                     />
                   );
                 } else {
-                  row = <MemberRow room={room} member={entry.member} />;
+                  row = (
+                    <MemberRow
+                      room={room}
+                      member={entry.member}
+                      role={agentRoles.get(entry.member.userId)}
+                    />
+                  );
                 }
                 return (
                   <div

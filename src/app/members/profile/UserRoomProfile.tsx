@@ -13,6 +13,7 @@ import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../../matrix/hooks/useRoomPermissions';
 import { useGetMemberPowerTag } from '../useMemberPowerTag';
 import { useUserProfile } from '../useUserProfile';
+import { useAgentRoles } from '../useAgentRoles';
 import { useStateEvent } from '../../matrix/hooks/useStateEvent';
 import { getDirectCreatePath, withSearchParam } from '../../routes/pathUtils';
 import { useOpenRoomSettings } from '../../navigation/useRoomSettingsState';
@@ -26,6 +27,7 @@ import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { getMemberRawDisplayName, withoutNameDisguises } from '../../matrix/room';
 import { StateEvent } from '../../matrix/types/room';
 import { UserAvatar } from '../../avatars/UserAvatar';
+import { ownDirectionLine } from '../../ui/directional';
 import { MutualRoomsChip } from './MutualRoomsChip';
 import { PowerChip } from './PowerChip';
 import { moderationAbilities } from './profileModeration';
@@ -94,7 +96,7 @@ function BlockControl({ userId }: { userId: string }) {
 }
 
 /**
- * Who a person is in a room: their avatar, name and user ID, their power tag (a menu for those
+ * Who a person is in a room: their avatar, name and user ID, an agent's role, their power tag (a menu for those
  * who may change it), the rooms shared with them, their server, a share menu for the ID, a
  * button to message them directly, moderation, and blocking. The person need not be a member:
  * the card falls back to their server profile.
@@ -120,6 +122,7 @@ export function UserRoomProfile({
   const may = useRoomPermissions(creators, levels);
   const getPowerTag = useGetMemberPowerTag(room, creators, levels);
   const profile = useUserProfile(userId);
+  const role = useAgentRoles(room).get(userId);
   // The card follows the person's membership, so a kick or ban from it shows at once.
   useStateEvent(room, StateEvent.RoomMember, userId);
 
@@ -192,6 +195,11 @@ export function UserRoomProfile({
           </Text>
         </Box>
       </Box>
+      {role && (
+        <Text size="T300" className={css.ProfileRole} {...ownDirectionLine}>
+          {role}
+        </Text>
+      )}
       <Box gap="200" wrap="Wrap">
         {tag && (
           <PowerChip

@@ -271,6 +271,10 @@ vi.mock('../matrix/matrix', () => ({
 const createRoom = (invitedCount = 0): Room =>
   ({
     roomId: '!room:example.org',
+    myUserId: '@alice:example.org',
+    currentState: { getStateEvents: () => [] },
+    on: () => undefined,
+    removeListener: () => undefined,
     getJoinedMemberCount: () => 3,
     getInvitedMemberCount: () => invitedCount,
   } as Room);

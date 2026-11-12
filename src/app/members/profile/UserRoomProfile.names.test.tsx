@@ -61,6 +61,10 @@ afterEach(() => {
 const room = (rawDisplayName?: string) =>
   ({
     roomId: '!r:x',
+    myUserId: '@me:x',
+    currentState: { getStateEvents: () => [] },
+    on: () => undefined,
+    removeListener: () => undefined,
     getMember: (userId: string) =>
       rawDisplayName !== undefined && userId === QUINN
         ? { userId, rawDisplayName, membership: 'join', getMxcAvatarUrl: () => undefined }

@@ -26,6 +26,17 @@ export const ProfileUserId = style({
   userSelect: 'text',
 });
 
+const ROLE_LINES = 2;
+
+/** An agent's role, cut to two lines. */
+export const ProfileRole = style({
+  display: '-webkit-box',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: ROLE_LINES,
+  overflow: 'hidden',
+  overflowWrap: 'anywhere',
+});
+
 const noteShape = style({
   borderRadius: config.radii.R400,
   padding: `${config.space.S200} ${config.space.S300}`,
