@@ -11,10 +11,7 @@ const SHOTS = process.env.MEMBERS_INVITE_SHOTS;
 const PASSWORD = 'members-search-invite-spec-password';
 const ROOM_NAME = 'Launch War Room';
 
-test.use({
-  launchOptions: { executablePath: process.env.CHROMIUM_PATH || undefined },
-  viewport: { width: 1440, height: 900 },
-});
+test.use({ viewport: { width: 1440, height: 900 } });
 
 const homeserverIsUp = async (): Promise<boolean> => {
   try {
