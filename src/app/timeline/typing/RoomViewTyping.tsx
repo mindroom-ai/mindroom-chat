@@ -33,8 +33,9 @@ type RoomViewTypingProps = {
 };
 
 /**
- * The senders whose reply in the thread still streams, or undefined outside a thread. An agent
- * keeps one typing notice for all its replies in a room, so only these name the agent as typing.
+ * The senders whose reply in the thread still streams, or undefined outside a thread. A typing
+ * notice is the room's and names no thread (an agent keeps one for all its replies in a room), so
+ * in a thread only these show as typing.
  */
 const useThreadStreamingSenders = (room: Room, threadId: string | undefined) => {
   // Re-renders whenever the thread's latest replies change.
@@ -177,13 +178,14 @@ const useAgentsAwaitingApproval = (room: Room, threadId: string | undefined): Se
 };
 
 /**
- * Names the other members who are typing in the room, in a strip above the composer; in a thread,
- * an agent only while its reply there streams. An agent whose streaming reply shows on screen is
- * left out, as MindRoom Chat shows no strip: the reply's dots and Stop say it writes, and the strip
- * would cover Stop as the reply grows. Dropping the status hides it until the next typing update
- * arrives for that member. In a thread, an agent whose job there waits for approval is left out:
- * MindRoom keeps its typing notice up while the reply waits for the decision, and the agent waits
- * for a person rather than writing.
+ * Names the other members who are typing in the room, in a strip above the composer. In a thread,
+ * only a member whose reply there streams: a typing notice says nothing of where the member types,
+ * so a person typing in the room or in another thread would show as typing here. An agent whose
+ * streaming reply shows on screen is left out, as MindRoom Chat shows no strip: the reply's dots
+ * and Stop say it writes, and the strip would cover Stop as the reply grows. Dropping the status
+ * hides it until the next typing update arrives for that member. In a thread, an agent whose job
+ * there waits for approval is left out: MindRoom keeps its typing notice up while the reply waits
+ * for the decision, and the agent waits for a person rather than writing.
  */
 export function RoomViewTyping({ room, threadId }: RoomViewTypingProps) {
   const { t } = useTranslation();
@@ -198,7 +200,7 @@ export function RoomViewTyping({ room, threadId }: RoomViewTypingProps) {
       receipt.userId !== myUserId &&
       receipt.isTyping() &&
       !awaitingApproval.has(receipt.userId) &&
-      (!streaming || streaming.has(receipt.userId) || !isAgent(receipt.userId))
+      (!streaming || streaming.has(receipt.userId))
   );
   const onScreen = useStreamingRepliesOnScreen(
     room,
