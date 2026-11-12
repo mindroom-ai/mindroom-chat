@@ -544,6 +544,13 @@
         "notFound": "সেই সময়ে কোনো বার্তা পাওয়া যায়নি।",
         "failed": "সেই সময়ে যাওয়া যায়নি: {{reason}}",
         "close": "বন্ধ করুন"
+      },
+      "membersDrawer": {
+        "searchOrInvite": "খুঁজুন বা লোকজনকে আমন্ত্রণ জানান...",
+        "notInRoom": "এই রুমে নেই",
+        "inviteUser": "{{user}}-কে আমন্ত্রণ জানান",
+        "inviteSent": "আমন্ত্রিত",
+        "noMatchingMembers": "কোনো মিলে যাওয়া সদস্য নেই"
       }
     },
     "accountMenu": {

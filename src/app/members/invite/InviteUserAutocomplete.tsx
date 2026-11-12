@@ -46,7 +46,7 @@ const getOptionId = (userId: string): string =>
   `invite-autocomplete-option-${sanitizeInviteAutocompleteOptionId(userId)}`;
 
 // The user ID shows beside the name, so the name goes without the characters that disguise it.
-const getDisplayName = (user: ServerUserDirectoryUser): string =>
+export const getDisplayName = (user: ServerUserDirectoryUser): string =>
   withoutNameDisguises(user.displayName ?? '')?.trim() ||
   getMxIdLocalPart(user.userId) ||
   user.userId;

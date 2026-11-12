@@ -246,9 +246,12 @@ test.describe.serial('keyboard and accessibility', () => {
     await check('home');
     await openInApp(page, `/home/${encodeURIComponent(roomId)}/`);
     await expect(page.getByRole('heading', { level: 1, name: ROOM_NAME })).toBeVisible();
-    // A wide screen lists the room's members beside it.
+    // A wide screen lists the room's members beside it. The owner may invite, so their search
+    // also invites.
     await expect(
-      page.getByRole('textbox', { name: label(code, 'featureUi.room.membersDrawer.typeName') })
+      page.getByRole('textbox', {
+        name: label(code, 'featureUi.room.membersDrawer.searchOrInvite'),
+      })
     ).toBeVisible();
     await check('room and members');
     await openInApp(

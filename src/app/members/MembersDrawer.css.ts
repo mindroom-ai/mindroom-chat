@@ -132,3 +132,77 @@ export const JoinRequestMessage = style({
 export const JoinRequestActions = style({
   paddingTop: config.space.S100,
 });
+
+/** Under the matching members, the people outside the room the search found, after a line. */
+export const InviteSection = style({
+  marginTop: config.space.S300,
+  paddingTop: config.space.S100,
+  borderTop: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
+});
+
+/** The section's title, like a group's, with the directory search's spinner at the end. */
+export const InviteSectionTitle = style([
+  MemberGroupTitle,
+  { justifyContent: 'space-between', gap: config.space.S200 },
+]);
+
+/** "Searching users" while the directory has not answered and nothing else is listed. */
+export const InviteSearching = style({
+  paddingInline: config.space.S200,
+  paddingBlock: config.space.S100,
+});
+
+export const InviteList = style({
+  marginBlock: 0,
+  paddingInline: 0,
+  listStyle: 'none',
+});
+
+/** A person to invite: avatar, name over user ID, and the Invite button; 48 px high. */
+export const InviteRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S200,
+  minBlockSize: toRem(48),
+  paddingInline: config.space.S200,
+});
+
+export const InviteAvatar = style({
+  inlineSize: toRem(32),
+  blockSize: toRem(32),
+  flexShrink: 0,
+  borderRadius: '50%',
+  overflow: 'hidden',
+});
+
+export const InviteIdentity = style({
+  display: 'flex',
+  flexDirection: 'column',
+  flexGrow: 1,
+  minWidth: 0,
+});
+
+export const InviteButton = style({
+  flexShrink: 0,
+});
+
+/** The button once the invitation went out: a confirmation, not dimmed like a control turned off. */
+export const InviteSent = style({
+  vars: { [config.opacity.Disabled]: '1' },
+  selectors: { '&[aria-disabled="true"]': { cursor: 'default' } },
+});
+
+/** Read by screen readers only: the line that says an invitation went out. */
+// Pinned to the panel's top corner: left where it falls, below a long member list, the browser
+// would scroll the whole page to bring it into view for find in page or a screen reader.
+export const VisuallyHidden = style({
+  position: 'absolute',
+  insetBlockStart: 0,
+  insetInlineStart: 0,
+  inlineSize: 1,
+  blockSize: 1,
+  margin: 0,
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+});

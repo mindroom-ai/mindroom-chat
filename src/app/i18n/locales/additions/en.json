@@ -544,6 +544,13 @@
         "notFound": "No message was found at that time.",
         "failed": "Could not jump to that time: {{reason}}",
         "close": "Close"
+      },
+      "membersDrawer": {
+        "searchOrInvite": "Search or invite people...",
+        "notInRoom": "Not in this room",
+        "inviteUser": "Invite {{user}}",
+        "inviteSent": "Invited",
+        "noMatchingMembers": "No matching members"
       }
     },
     "accountMenu": {

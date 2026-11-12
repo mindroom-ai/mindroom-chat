@@ -243,8 +243,19 @@ export const useInviteUserSearch = (
     trimmedQuery,
   ]);
 
+  // The lists above drop room members as they are built, so someone invited or joined since
+  // (from this very search, say) would stay. The few suggestions are checked against the room on
+  // every render instead; the list keeps its identity while the answer stays the same.
+  const kept = suggestions
+    .map((user) => (getFilteredUsers([user], room, selfUserId).length > 0 ? '1' : '0'))
+    .join('');
+  const currentSuggestions = useMemo(
+    () => suggestions.filter((_, index) => kept[index] === '1'),
+    [kept, suggestions]
+  );
+
   return {
-    suggestions,
+    suggestions: currentSuggestions,
     isFetching: isServerFetching,
   };
 };

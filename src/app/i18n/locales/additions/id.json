@@ -535,6 +535,13 @@
         "notFound": "Tidak ada pesan pada waktu itu.",
         "failed": "Tidak dapat melompat ke waktu itu: {{reason}}",
         "close": "Tutup"
+      },
+      "membersDrawer": {
+        "searchOrInvite": "Cari atau undang orang...",
+        "notInRoom": "Tidak ada di ruangan ini",
+        "inviteUser": "Undang {{user}}",
+        "inviteSent": "Diundang",
+        "noMatchingMembers": "Tidak ada anggota yang cocok"
       }
     },
     "accountMenu": {

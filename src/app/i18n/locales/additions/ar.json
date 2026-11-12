@@ -580,6 +580,13 @@
         "notFound": "لم يتم العثور على أي رسالة في ذلك الوقت.",
         "failed": "تعذّر الانتقال إلى ذلك الوقت: ⁨{{reason}}⁩",
         "close": "إغلاق"
+      },
+      "membersDrawer": {
+        "searchOrInvite": "ابحث أو ادعُ أشخاصًا...",
+        "notInRoom": "ليسوا في هذه الغرفة",
+        "inviteUser": "دعوة ⁨{{user}}⁩",
+        "inviteSent": "تمت الدعوة",
+        "noMatchingMembers": "لا يوجد أعضاء مطابقون"
       }
     },
     "accountMenu": {

@@ -544,6 +544,13 @@
         "notFound": "Er is op dat moment geen bericht gevonden.",
         "failed": "Kon niet naar dat moment springen: {{reason}}",
         "close": "Sluiten"
+      },
+      "membersDrawer": {
+        "searchOrInvite": "Personen zoeken of uitnodigen...",
+        "notInRoom": "Niet in deze ruimte",
+        "inviteUser": "{{user}} uitnodigen",
+        "inviteSent": "Uitgenodigd",
+        "noMatchingMembers": "Geen overeenkomende leden"
       }
     },
     "accountMenu": {

@@ -98,9 +98,10 @@ const expectHostKnown = async (page: Page, { host }: People, body: string) => {
   const showMembers = page.getByRole('button', { name: 'Members', exact: true });
   await expect(showMembers.or(page.getByRole('button', { name: 'Hide Members' }))).toBeVisible();
   if (await showMembers.isVisible()) await showMembers.click();
-  // The panel: the nearest box around its name filter that holds member rows.
+  // The panel: the nearest box around its name filter that holds member rows. The filter also
+  // invites for someone the room lets invite.
   const panel = page
-    .getByRole('textbox', { name: 'Type name...' })
+    .getByRole('textbox', { name: /^(Type name|Search or invite people)\.\.\.$/ })
     .locator('xpath=ancestor::*[.//button[@data-user-id]][1]');
   const hostRow = panel.locator(`button[data-user-id="${host.userId}"]`);
   await expect(hostRow).toContainText(HOST_NAME, { timeout: 20_000 });

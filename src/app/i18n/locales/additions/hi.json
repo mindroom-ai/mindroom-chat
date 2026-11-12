@@ -544,6 +544,13 @@
         "notFound": "उस समय कोई संदेश नहीं मिला।",
         "failed": "उस समय पर नहीं जा सके: {{reason}}",
         "close": "बंद करें"
+      },
+      "membersDrawer": {
+        "searchOrInvite": "खोजें या लोगों को आमंत्रित करें...",
+        "notInRoom": "इस रूम में नहीं",
+        "inviteUser": "{{user}} को आमंत्रित करें",
+        "inviteSent": "आमंत्रित",
+        "noMatchingMembers": "कोई मेल खाते सदस्य नहीं"
       }
     },
     "accountMenu": {

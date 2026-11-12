@@ -562,6 +562,13 @@
         "notFound": "В это время сообщений не найдено.",
         "failed": "Не удалось перейти к этому времени: {{reason}}",
         "close": "Закрыть"
+      },
+      "membersDrawer": {
+        "searchOrInvite": "Найдите или пригласите людей…",
+        "notInRoom": "Не в этой комнате",
+        "inviteUser": "Пригласить {{user}}",
+        "inviteSent": "Приглашён",
+        "noMatchingMembers": "Нет подходящих участников"
       }
     },
     "accountMenu": {

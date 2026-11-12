@@ -553,6 +553,13 @@
         "notFound": "Nessun messaggio trovato in quel momento.",
         "failed": "Impossibile andare a quel momento: {{reason}}",
         "close": "Chiudi"
+      },
+      "membersDrawer": {
+        "searchOrInvite": "Cerca o invita persone...",
+        "notInRoom": "Non in questa stanza",
+        "inviteUser": "Invita {{user}}",
+        "inviteSent": "Invitato",
+        "noMatchingMembers": "Nessun membro corrispondente"
       }
     },
     "accountMenu": {

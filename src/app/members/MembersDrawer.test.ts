@@ -118,6 +118,11 @@ vi.mock('./MembersDrawer.css', () => ({
   MembersGroupLabel: 'MembersGroupLabel',
 }));
 
+vi.mock('./MembersInviteSection', () => ({
+  MembersInviteSection: ({ query }: { query: string }) =>
+    React.createElement('div', { 'data-testid': 'invite-section', 'data-query': query }),
+}));
+
 vi.mock('./invite/InviteUserPrompt', () => ({
   InviteUserPrompt: () => React.createElement('div', { 'data-testid': 'invite-user-prompt' }),
 }));
@@ -529,5 +534,59 @@ describe('MembersDrawer', () => {
     });
 
     expect(hasVisibleFilterLabel(renderer, 'Joined')).toBe(true);
+  });
+
+  it('lists people to invite under the search for someone who may invite', () => {
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(React.createElement(MembersDrawer, { room: createRoom(), members: [] }));
+    });
+
+    const search = renderer?.root.findByType('input');
+    expect(search?.props.placeholder).toBe('Search or invite people...');
+    // Mounted without a search, for an invitation still going when the search was cleared.
+    const section = () => renderer?.root.findByProps({ 'data-testid': 'invite-section' });
+    expect(section()?.props['data-query']).toBe('');
+
+    act(() => {
+      search?.props.onChange({ target: { value: 'ma' } });
+    });
+
+    expect(section()?.props['data-query']).toBe('ma');
+    // People outside the room may match under the section's line, so the empty line is for members.
+    expect(hasVisibleFilterLabel(renderer, 'No matching members')).toBe(true);
+  });
+
+  it('only searches members for someone who may not invite', () => {
+    permissionState.canInvite = false;
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(React.createElement(MembersDrawer, { room: createRoom(), members: [] }));
+    });
+
+    const search = renderer?.root.findByType('input');
+    expect(search?.props.placeholder).toBe('Type name...');
+    act(() => {
+      search?.props.onChange({ target: { value: 'ma' } });
+    });
+
+    expect(renderer?.root.findAllByProps({ 'data-testid': 'invite-section' })).toHaveLength(0);
+    expect(hasVisibleFilterLabel(renderer, 'No Results')).toBe(true);
+  });
+
+  it('neither offers nor lists invitations on the Requests filter', () => {
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(
+        React.createElement(MembersDrawer, {
+          room: createRoom(),
+          members: [{ membership: 'knock', userId: '@alice:example.org' }],
+        })
+      );
+    });
+
+    expect(hasVisibleFilterLabel(renderer, 'Requests (1)')).toBe(true);
+    expect(renderer?.root.findByType('input').props.placeholder).toBe('Type name...');
+    expect(renderer?.root.findAllByProps({ 'data-testid': 'invite-section' })).toHaveLength(0);
   });
 });
