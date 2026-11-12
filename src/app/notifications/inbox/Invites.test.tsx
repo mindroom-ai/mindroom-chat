@@ -135,3 +135,27 @@ it('shows a name holding the label placeholder with the real ID close after it',
   const sender = renderer.root.find((node) => node.type === 'b' && node.props.title !== undefined);
   expect(sender.children).toEqual([label.replace('{{sender}}', label)]);
 });
+
+it('shows an inviter name that holds markup as text, in one bold name with no added props', () => {
+  // A name that would add an inline handler to the bold inviter it fills, read as markup.
+  const displayname = '<b is onclick="alert(1)">Maya</b>';
+  const renderer = create(
+    <MatrixClientProvider value={mx}>
+      <InviteCard
+        invite={makeInviteData(mx, inviteRoom('@mallory:evil.example', displayname), false)}
+        hour24Clock={false}
+        dateFormatString="D MMM YYYY"
+        onNavigate={vi.fn()}
+        hideAvatar={false}
+      />
+    </MatrixClientProvider>
+  );
+
+  const bold = renderer.root.findAll((node) => node.type === 'b');
+  expect(bold).toHaveLength(1);
+  expect(bold[0]?.children).toEqual([
+    `${FSI}${displayname}${PDI} (${LRI}@mallory:evil.example${PDI})`,
+  ]);
+  expect(Object.keys(bold[0]?.props ?? {}).sort()).toEqual(['children', 'style', 'title']);
+  expect(bold[0]?.props.title).toBe('@mallory:evil.example');
+});
