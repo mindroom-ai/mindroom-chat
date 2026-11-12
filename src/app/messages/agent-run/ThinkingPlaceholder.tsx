@@ -87,11 +87,20 @@ export function ThinkingPlaceholder({ startedAt }: ThinkingPlaceholderProps) {
   const text = elapsed === undefined ? message : `${message} (${elapsed})`;
 
   return (
-    <span
-      className={css.Placeholder}
-      role="status"
-      aria-label={t('mindroomUi.messages.mindroomThinkingPlaceholder.aiIsResponding')}
-    >
+    <ThinkingIndicator
+      text={text}
+      label={t('mindroomUi.messages.mindroomThinkingPlaceholder.aiIsResponding')}
+    />
+  );
+}
+
+/**
+ * The turning mark beside a shimmering line of text, announced as `label`: the thinking
+ * placeholder's look, which the hidden tool calls' working line shares.
+ */
+export function ThinkingIndicator({ text, label }: { text: string; label: string }) {
+  return (
+    <span className={css.Placeholder} role="status" aria-label={label}>
       <span className={css.Indicator} aria-hidden="true">
         <span className={css.Aura} />
         <span className={css.Rotor}>

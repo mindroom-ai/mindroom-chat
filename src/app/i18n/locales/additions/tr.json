@@ -616,7 +616,8 @@
         "tooLargeToApprove": "Argümanlar incelenemeyecek kadar büyük, bu yüzden bu istek yalnızca reddedilebilir."
       },
       "showToolCalls": "Araç çağrılarını göster",
-      "showToolCallsDescription": "Ajan yanıtları çalıştırdıkları araçları listeler. Oda menüsünde de bu anahtar var."
+      "showToolCallsDescription": "Her oda için varsayılan: ajan yanıtları çalıştırdıkları araçları listeler ya da araçlar çalışırken yalnızca “Çalışıyor…” gösterir. Bir odanın veya konunun menüsü bunu orada değiştirir.",
+      "toolCallsWorking": "Çalışıyor…"
     },
     "message-search": {
       "messageSearch": {

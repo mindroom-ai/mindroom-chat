@@ -213,15 +213,17 @@ describe('RenderMessageContent', () => {
     }
   );
 
-  it("gives an agent reply's tool rows its event ID to find its approval cards", () => {
+  it("gives an agent reply's tool rows its event ID, room and thread", () => {
     const ToolRows = () =>
-      React.createElement('span', null, React.useContext(ToolCallMessageContext));
+      React.createElement('span', null, JSON.stringify(React.useContext(ToolCallMessageContext)));
     renderAgentMessageContentMock.mockReset();
     renderAgentMessageContentMock.mockReturnValue(React.createElement(ToolRows));
     const renderer = create(
       React.createElement(RenderMessageContent, {
         displayName: 'Helper',
         eventId: '$reply',
+        roomId: '!room:example.org',
+        threadId: '$root',
         msgType: 'm.text',
         ts: 0,
         getContent: (() => ({ msgtype: 'm.text', body: 'Ran a tool' })) as <T>() => T,
@@ -230,7 +232,9 @@ describe('RenderMessageContent', () => {
       })
     );
 
-    expect(JSON.stringify(renderer.toJSON())).toContain('$reply');
+    expect(renderer.root.findByType('span').children).toEqual([
+      JSON.stringify({ eventId: '$reply', roomId: '!room:example.org', threadId: '$root' }),
+    ]);
     renderer.unmount();
   });
 

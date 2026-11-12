@@ -11,6 +11,7 @@ import { clearThreadSidebarPreferencesStore } from '../../threads/cross-room/thr
 import { clearThreadsScopeStore } from '../../threads/page/threadsScope';
 import { clearRoomThreadFiltersStore } from '../../threads/overview/roomThreadFilterState';
 import { clearRoomViewModeStore } from '../../navigation/roomViewMode';
+import { clearToolCallOverrides } from '../../messages/toolCallVisibility';
 import { clearThreadSummarySharedState } from '../../event-store/threads/threadSummaryState';
 import {
   accountStorageKeys,
@@ -157,6 +158,10 @@ vi.mock('../../navigation/roomViewMode', () => ({
   clearRoomViewModeStore: vi.fn(),
 }));
 
+vi.mock('../../messages/toolCallVisibility', () => ({
+  clearToolCallOverrides: vi.fn(),
+}));
+
 vi.mock('../../event-store/threads/threadSummaryState', () => ({
   clearThreadSummarySharedState: vi.fn(),
 }));
@@ -293,6 +298,7 @@ describe('MindRoom session cleanup', () => {
       '@alice:example.com'
     );
     expect(vi.mocked(clearRoomViewModeStore)).toHaveBeenCalledWith('session-a');
+    expect(vi.mocked(clearToolCallOverrides)).toHaveBeenCalledWith('session-a');
     expect(vi.mocked(clearThreadSummarySharedState)).toHaveBeenCalledWith('session-a');
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith('session-a');
     expect(vi.mocked(clearLongTextHydrationCache)).toHaveBeenCalledTimes(1);

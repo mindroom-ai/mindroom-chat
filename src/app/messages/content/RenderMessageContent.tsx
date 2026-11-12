@@ -151,6 +151,14 @@ function CoreMessageContent({
     [content, fromMindroomAgent]
   );
 
+  // A reply shown outside its thread's view (Classic lists them in the order sent) still follows
+  // its thread's choice of showing tool calls.
+  const toolThreadId = threadId ?? mEvent?.threadRootId;
+  const toolCallMessage = useMemo(
+    () => ({ eventId, roomId, threadId: toolThreadId }),
+    [eventId, roomId, toolThreadId]
+  );
+
   // A call between people starts with the router's row, shown as its latest edit has it: who is
   // in the call, Join and Transcript while live; how long it lasted once over.
   const callRow = fromMindroomAgent ? readCallRow(content) : undefined;
@@ -182,7 +190,7 @@ function CoreMessageContent({
   });
   // An agent reply's tool rows find the approval cards MindRoom posted for its calls by its ID.
   const agentMessage = agentContent !== undefined && (
-    <ToolCallMessageContext.Provider value={eventId}>
+    <ToolCallMessageContext.Provider value={toolCallMessage}>
       {agentContent}
     </ToolCallMessageContext.Provider>
   );

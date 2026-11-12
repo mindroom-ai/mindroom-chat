@@ -5,9 +5,10 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, loginToMatrix, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
 
-// The room menu's "Show tool calls" switch leaves the tool-call lines out of every agent reply,
-// keeps the reply's text, and stays off after a reload; switching it on brings the lines back.
-// Set TOOL_CALLS_SHOTS=<directory> to save the thread and the open menu.
+// Agent replies hide their tool calls by default: a reply that still runs one says "Working…", a
+// finished one shows only its text. The thread menu shows them in its thread, the room menu in the
+// whole room, and each choice stays after a reload.
+// Set TOOL_CALLS_SHOTS=<directory> to save the working line, the thread and both menus.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'tool-calls-toggle-spec-password';
 const RUN = Date.now().toString(36);
@@ -31,7 +32,19 @@ const homeserverIsUp = async (): Promise<boolean> => {
   }
 };
 
-/** A thread where an agent answered after running two tools. */
+const threadReply = (rootId: string, content: Record<string, unknown>) => ({
+  msgtype: 'm.text',
+  format: 'org.matrix.custom.html',
+  ...content,
+  'm.relates_to': {
+    rel_type: 'm.thread',
+    event_id: rootId,
+    is_falling_back: true,
+    'm.in_reply_to': { event_id: rootId },
+  },
+});
+
+/** Two threads: in one the agent answered after running two tools, in the other a tool still runs. */
 const seed = async () => {
   const username = `tct_reader_${RUN}`;
   const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
@@ -52,42 +65,64 @@ const seed = async () => {
     invite: [agent.userId],
   });
   await joinRoom(HOMESERVER, agent.accessToken, roomId);
-  const rootId = await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
+
+  const doneRoot = await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
     msgtype: 'm.text',
     body: 'Compare our Q3 churn against SaaS benchmarks.',
   });
-  await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+  await sendRoomMessage(
+    HOMESERVER,
+    agent.accessToken,
+    roomId,
+    threadReply(doneRoot, {
+      body: `🔧 \`web_search\` [1]\n\n🔧 \`run_python_code\` [2]\n\n${ANSWER}`,
+      formatted_body: `<p>🔧 <code>web_search</code> [1]</p><p>🔧 <code>run_python_code</code> [2]</p><p>${ANSWER}</p>`,
+      'io.mindroom.stream_status': 'completed',
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [
+          { type: 'tool_call_completed', tool_name: 'web_search', result_preview: '8 results' },
+          { type: 'tool_call_completed', tool_name: 'run_python_code', result_preview: '0.029' },
+        ],
+      },
+    })
+  );
+
+  const runningRoot = await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
     msgtype: 'm.text',
-    body: `🔧 \`web_search\` [1]\n\n🔧 \`run_python_code\` [2]\n\n${ANSWER}`,
-    format: 'org.matrix.custom.html',
-    formatted_body: `<p>🔧 <code>web_search</code> [1]</p><p>🔧 <code>run_python_code</code> [2]</p><p>${ANSWER}</p>`,
-    'io.mindroom.stream_status': 'completed',
-    'io.mindroom.tool_trace': {
-      version: 2,
-      events: [
-        { type: 'tool_call_completed', tool_name: 'web_search', result_preview: '8 results' },
-        { type: 'tool_call_completed', tool_name: 'run_python_code', result_preview: '0.029' },
-      ],
-    },
-    'm.relates_to': {
-      rel_type: 'm.thread',
-      event_id: rootId,
-      is_falling_back: true,
-      'm.in_reply_to': { event_id: rootId },
-    },
+    body: 'Pull the latest invoices.',
   });
-  return { username, roomId, rootId };
+  await sendRoomMessage(
+    HOMESERVER,
+    agent.accessToken,
+    roomId,
+    threadReply(runningRoot, {
+      body: 'Looking at the invoices.\n\n🔧 `fetch_invoices` [1] ⏳',
+      formatted_body: '<p>Looking at the invoices.</p><p>🔧 <code>fetch_invoices</code> [1] ⏳</p>',
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [{ type: 'tool_call_started', tool_name: 'fetch_invoices' }],
+      },
+    })
+  );
+  return { username, roomId, doneRoot, runningRoot };
 };
 
-const toolLines = (page: Page) =>
-  page.locator('[data-message-disclosure] > button').filter({ hasText: 'web_search' });
+const toolLines = (page: Page, toolName: string) =>
+  page.locator('[data-message-disclosure] > button').filter({ hasText: toolName });
 
-/** Chooses the room menu's tool calls switch, checking it showed `checked` before. */
-const switchToolCalls = async (page: Page, checked: boolean) => {
-  await page.getByRole('button', { name: 'More Options' }).click();
+/** Chooses "Show tool calls" in a menu, checking that it showed `checked` before. */
+const chooseShowToolCalls = async (
+  page: Page,
+  menuButton: string,
+  checked: boolean,
+  shotName?: string
+) => {
+  await page.getByRole('button', { name: menuButton }).first().click();
   const entry = page.getByRole('menuitemcheckbox', { name: 'Show tool calls' });
   await expect(entry).toHaveAttribute('aria-checked', String(checked));
-  await shot(page, `menu-${checked ? 'shown' : 'hidden'}`);
+  if (shotName) await shot(page, shotName);
   await entry.click();
 };
 
@@ -95,30 +130,52 @@ test.beforeEach(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
-test("the room menu shows or hides an agent reply's tool calls", async ({ page }) => {
+test('agent replies hide their tool calls until a thread or room shows them', async ({ page }) => {
   test.setTimeout(180_000);
   const world = await seed();
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
     username: world.username,
     password: PASSWORD,
+    showToolCalls: false,
   });
-  await page.goto(
-    `/home/${encodeURIComponent(world.roomId)}?threadId=${encodeURIComponent(world.rootId)}`
-  );
+  const openThread = async (rootId: string) => {
+    await page.goto(
+      `/home/${encodeURIComponent(world.roomId)}?threadId=${encodeURIComponent(rootId)}`
+    );
+  };
+
+  // A tool that still runs: "Working…" in its place, no tool row.
+  await openThread(world.runningRoot);
+  await expect(page.getByText('Looking at the invoices.', { exact: true })).toBeVisible({
+    timeout: 60_000,
+  });
+  const working = page.locator('[data-tool-work-line]');
+  await expect(working).toBeVisible();
+  await expect(working).toContainText('Working…');
+  await expect(toolLines(page, 'fetch_invoices')).toHaveCount(0);
+  await shot(page, 'thread-working');
+
+  // A finished reply: only its text.
+  await openThread(world.doneRoot);
   const answer = page.getByText(ANSWER, { exact: true });
   await expect(answer).toBeVisible({ timeout: 60_000 });
-  await expect(toolLines(page)).toHaveCount(1);
-
-  await switchToolCalls(page, true);
-  await expect(toolLines(page)).toHaveCount(0);
-  await expect(answer).toBeVisible();
+  await expect(toolLines(page, 'web_search')).toHaveCount(0);
   await shot(page, 'thread-hidden');
 
+  // The thread menu shows them in this thread, and the choice stays.
+  await chooseShowToolCalls(page, 'Thread options', false, 'menu-thread');
+  await expect(toolLines(page, 'web_search')).toHaveCount(1);
   await page.reload();
   await expect(answer).toBeVisible({ timeout: 60_000 });
-  await expect(toolLines(page)).toHaveCount(0);
+  await expect(toolLines(page, 'web_search')).toHaveCount(1);
+  await chooseShowToolCalls(page, 'Thread options', true);
+  await expect(toolLines(page, 'web_search')).toHaveCount(0);
 
-  await switchToolCalls(page, false);
-  await expect(toolLines(page)).toHaveCount(1);
+  // The room menu shows them in every thread of the room.
+  await chooseShowToolCalls(page, 'More Options', false, 'menu-room');
+  await expect(toolLines(page, 'web_search')).toHaveCount(1);
+  await openThread(world.runningRoot);
+  await expect(toolLines(page, 'fetch_invoices')).toHaveCount(1, { timeout: 60_000 });
+  await expect(working).toHaveCount(0);
 });

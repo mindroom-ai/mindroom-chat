@@ -616,7 +616,8 @@
         "tooLargeToApprove": "De argumenten zijn te groot om te beoordelen, dus dit verzoek kan alleen worden geweigerd."
       },
       "showToolCalls": "Toolaanroepen tonen",
-      "showToolCallsDescription": "Antwoorden van agents tonen de tools die ze hebben uitgevoerd. Het kamermenu heeft deze schakelaar ook."
+      "showToolCallsDescription": "De standaard voor elke kamer: antwoorden van agents tonen de tools die ze hebben uitgevoerd, of alleen ‘Bezig…’ terwijl tools draaien. Het menu van een kamer of thread wijzigt het daar.",
+      "toolCallsWorking": "Bezig…"
     },
     "message-search": {
       "messageSearch": {

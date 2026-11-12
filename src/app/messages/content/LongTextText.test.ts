@@ -8,6 +8,10 @@ import { trimReplyFromBody } from '../../matrix/room';
 import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMessageExtras } from '../../matrix/protocol/messageExtrasData';
 import { clearLongTextHydrationCache, LongTextSource } from '../../matrix/protocol/longText';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
+import { showToolCalls } from '../../../test/utils/showToolCalls';
+
+// These tests show how tool calls render, so they show them.
+beforeEach(showToolCalls);
 
 const matrixMocks = vi.hoisted(() => ({
   decryptFile: vi.fn(),

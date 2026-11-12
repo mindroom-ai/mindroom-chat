@@ -8,13 +8,20 @@ import { Icons, config, type IconSrc } from 'folds';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ThreadActionsMenu, type ThreadActionsMenuProps } from './ThreadActionsMenu';
 import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
+import { getDefaultStore } from 'jotai';
+import { getSettings, settingsAtom } from '../preferences/settings';
+import { clearToolCallOverrides } from '../messages/toolCallVisibility';
 
 vi.mock('./ThreadContextBanner.css', () => ({ TagPickerInput: 'i', TagPickerInputContainer: 'c' }));
 vi.mock('../ui/styles/Motion.css', () => ({
   motion: { duration: { Normal: '0ms', Fast: '0ms' }, easing: { Standard: 'linear' } },
 }));
 
-const state = vi.hoisted(() => ({ resolved: false, pinned: [] as string[] }));
+const state = vi.hoisted(() => ({
+  resolved: false,
+  pinned: [] as string[],
+  members: [] as { userId: string; membership: string }[],
+}));
 vi.mock('./tags/useThreadTags', () => ({
   useThreadTags: () => ({
     displayTags: ['triage'],
@@ -34,7 +41,11 @@ vi.mock('./summary/threadSummaryActions', () => ({
   SUMMARY_MAX_LENGTH: 300,
 }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => ({}) }));
-vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => [] }));
+vi.mock('../matrix/session/useSessionStore', async (original) => ({
+  ...(await original<typeof import('../matrix/session/useSessionStore')>()),
+  useActiveSession: () => ({ sessionId: 'me-session' }),
+}));
+vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => state.members }));
 vi.mock('folds', async (original) => ({
   ...(await original<typeof import('folds')>()),
   PopOut: ({ content }: { content: React.ReactNode }) => content,
@@ -64,6 +75,7 @@ beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   state.resolved = false;
   state.pinned = [];
+  state.members = [];
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
@@ -191,5 +203,35 @@ describe('ThreadActionsMenu rows', () => {
 
     expect(menu?.style.minWidth).toBe('13.75rem');
     expect(menu?.style.borderRadius).toBe(config.radii.R500);
+  });
+});
+
+describe("ThreadActionsMenu's tool calls switch", () => {
+  const SESSION = 'me-session';
+  const entry = () => host.querySelector<HTMLElement>('[data-thread-action="toolCalls"]');
+  const stored = () => localStorage.getItem(`toolCallsShown:${SESSION}`);
+  beforeEach(() => {
+    getDefaultStore().set(settingsAtom, { ...getSettings(), showToolCalls: false });
+  });
+  afterEach(() => clearToolCallOverrides(SESSION));
+
+  it('shows or hides the tool calls of this thread only, then closes the menu', () => {
+    state.members = [{ userId: '@mindroom_research:example.org', membership: 'join' }];
+    const onClose = vi.fn();
+    renderMenu({ onClose });
+    expect(entry()?.getAttribute('role')).toBe('menuitemcheckbox');
+    expect(entry()?.getAttribute('aria-checked')).toBe('false');
+    expect(entry()?.textContent).toBe('Show tool calls');
+
+    act(() => entry()?.click());
+    expect(JSON.parse(stored() ?? 'null')).toEqual({ '!room:test': { threads: { $root: true } } });
+    expect(getDefaultStore().get(settingsAtom).showToolCalls).toBe(false);
+    expect(onClose).toHaveBeenCalled();
+    expect(entry()?.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('is left out of rooms without agents, which have no tool calls', () => {
+    renderMenu();
+    expect(entry()).toBeNull();
   });
 });

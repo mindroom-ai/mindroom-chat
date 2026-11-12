@@ -4,8 +4,12 @@ import type { ToolJobHandle } from '../../matrix/protocol/toolJobHandle';
 
 export type ToolCallState = 'running' | 'waiting' | 'done' | 'denied' | 'expired';
 
-/** The event ID of the message being rendered, so its tool calls can find their approval cards. */
-export const ToolCallMessageContext = createContext<string | undefined>(undefined);
+/**
+ * The message being rendered: its event ID, so its tool calls can find their approval cards, and
+ * its room and thread, whose menus can show or hide those calls.
+ */
+export type ToolCallMessage = { eventId?: string; roomId?: string; threadId?: string };
+export const ToolCallMessageContext = createContext<ToolCallMessage | undefined>(undefined);
 
 /**
  * What happened to each call. The public trace only says started or completed, and a denied

@@ -32,12 +32,21 @@ import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 import { createStore, Provider } from 'jotai';
 import { getSettings, settingsAtom } from '../../preferences/settings';
+import { clearToolCallOverrides } from '../toolCallVisibility';
+import { showToolCalls } from '../../../test/utils/showToolCalls';
+
+// These tests show how tool calls render, so they show them.
+beforeEach(showToolCalls);
 
 const clipboardMocks = vi.hoisted(() => ({
   copyToClipboard: vi.fn<(text: string) => Promise<boolean>>(),
 }));
 
 const approvals = vi.hoisted(() => ({ current: undefined as unknown }));
+vi.mock('../../matrix/session/useSessionStore', async (original) => ({
+  ...(await original<typeof import('../../matrix/session/useSessionStore')>()),
+  useActiveSession: () => ({ sessionId: 'reader-session' }),
+}));
 vi.mock('../../approvals/ThreadApprovalProvider', () => ({
   useThreadApprovals: () => approvals.current,
 }));
@@ -93,6 +102,26 @@ vi.mock('folds', async () => {
       children(() => undefined),
   };
 });
+
+// The folds stand-in above has no colors, which these styles read; their class names will do.
+vi.mock('../agent-run/ThinkingPlaceholder.css', () =>
+  Object.fromEntries(
+    [
+      'Placeholder',
+      'Indicator',
+      'Aura',
+      'Rotor',
+      'Mark',
+      'Core',
+      'Text',
+      'TextBase',
+      'TextSweep',
+      'TextCounter',
+      'TextHighlight',
+    ].map((name) => [name, name])
+  )
+);
+vi.mock('../agent-run/ToolWorkLine.css', () => ({ Line: 'Line' }));
 
 vi.mock('../../rich-text/CustomHtml.css', () => ({
   BlockQuote: 'BlockQuote',
@@ -565,7 +594,11 @@ describe('tool call status from approval cards', () => {
     let renderer: ReactTestRenderer | undefined;
     act(() => {
       renderer = create(
-        React.createElement(ToolCallMessageContext.Provider, { value: eventId }, parse(html, opts))
+        React.createElement(
+          ToolCallMessageContext.Provider,
+          { value: { eventId } },
+          parse(html, opts)
+        )
       );
     });
     return renderer as ReactTestRenderer;
@@ -611,7 +644,11 @@ describe('tool call status from approval cards', () => {
     let renderer: ReactTestRenderer | undefined;
     act(() => {
       renderer = create(
-        React.createElement(ToolCallMessageContext.Provider, { value: '$reply' }, parse(html, opts))
+        React.createElement(
+          ToolCallMessageContext.Provider,
+          { value: { eventId: '$reply' } },
+          parse(html, opts)
+        )
       );
     });
     return collectTextContent((renderer as ReactTestRenderer).toJSON());
@@ -727,6 +764,102 @@ describe('useToolTraceMarkerParserOptions', () => {
     });
     expect(text()).toMatch(toolCountLabel(2));
     act(() => renderer?.unmount());
+  });
+
+  describe('while the tool calls are hidden', () => {
+    const ROOM = '!room:example.org';
+    const storageKey = 'toolCallsShown:reader-session';
+    const stored = new Map<string, string>();
+
+    beforeEach(() => {
+      vi.stubGlobal('localStorage', {
+        getItem: (key: string) => stored.get(key) ?? null,
+        setItem: (key: string, value: string) => stored.set(key, value),
+        removeItem: (key: string) => stored.delete(key),
+        key: (index: number) => [...stored.keys()][index] ?? null,
+        get length() {
+          return stored.size;
+        },
+      });
+    });
+    afterEach(() => {
+      clearToolCallOverrides('reader-session');
+      stored.clear();
+      vi.unstubAllGlobals();
+    });
+
+    const toolsHtml = (pending: boolean) =>
+      `<p>🔧 <code>web_search</code> [1]${pending ? ' ⏳' : ''}</p><p>Answer.</p>`;
+    const renderReply = (
+      html: string,
+      { shownByDefault, threadId }: { shownByDefault: boolean; threadId?: string }
+    ) => {
+      const store = createStore();
+      store.set(settingsAtom, { ...getSettings(), showToolCalls: shownByDefault });
+      const element = (markup: string) =>
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(
+            ToolCallMessageContext.Provider,
+            { value: { eventId: '$reply', roomId: ROOM, threadId } },
+            parse(markup, markerParserOptions(createBaseOpts(), { formatted_body: markup }))
+          )
+        );
+      let renderer: ReactTestRenderer | undefined;
+      act(() => {
+        renderer = create(element(html));
+      });
+      return {
+        text: () => collectTextContent(renderer?.toJSON() ?? null),
+        update: (markup: string) => act(() => renderer?.update(element(markup))),
+        unmount: () => act(() => renderer?.unmount()),
+      };
+    };
+
+    it("shows a thread's tool calls where the thread menu showed them", () => {
+      stored.set(storageKey, JSON.stringify({ [ROOM]: { threads: { $root: true } } }));
+      const shown = renderReply(toolsHtml(false), { shownByDefault: false, threadId: '$root' });
+      expect(shown.text()).toMatch(toolCountLabel(1));
+      shown.unmount();
+      const other = renderReply(toolsHtml(false), { shownByDefault: false, threadId: '$other' });
+      expect(other.text()).not.toMatch(toolCountLabel(1));
+      other.unmount();
+    });
+
+    it("hides a room's tool calls where the room menu hid them", () => {
+      stored.set(storageKey, JSON.stringify({ [ROOM]: { room: false } }));
+      const reply = renderReply(toolsHtml(false), { shownByDefault: true, threadId: '$root' });
+      expect(reply.text()).not.toMatch(toolCountLabel(1));
+      expect(reply.text()).toContain('Answer.');
+      reply.unmount();
+    });
+
+    it('says the agent is working while its tool calls run, and lets the line fade once they finish', () => {
+      vi.useFakeTimers();
+      try {
+        const reply = renderReply(toolsHtml(true), { shownByDefault: false });
+        expect(reply.text()).toContain('Working…');
+        expect(reply.text()).not.toContain('web_search');
+
+        reply.update(toolsHtml(false));
+        expect(reply.text()).toContain('Working…');
+        act(() => {
+          vi.advanceTimersByTime(400);
+        });
+        expect(reply.text()).not.toContain('Working…');
+        expect(reply.text()).toContain('Answer.');
+        reply.unmount();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('says nothing for tool calls that had finished before the reply showed', () => {
+      const reply = renderReply(toolsHtml(false), { shownByDefault: false });
+      expect(reply.text()).not.toContain('Working…');
+      reply.unmount();
+    });
   });
 
   it('renders tool blocks for marker-only content and enriches them with trace metadata', () => {

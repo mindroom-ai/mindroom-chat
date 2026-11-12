@@ -24,6 +24,7 @@ import { usePinnedEventIds as useRoomPinnedEvents } from '../event-store/threads
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { useSetting } from '../preferences/useSetting';
+import { useToolCallsShown } from '../messages/toolCallVisibility';
 import { settingsAtom } from '../preferences/settings';
 import { getCanonicalAliasOrRoomId, mxcUrlToHttp } from '../matrix/matrix';
 import { nameInitials } from '../lib/common';
@@ -191,8 +192,9 @@ const useViewSwitch = (room: Room, hasMindroomAgents: boolean | undefined) => {
  * The room header: avatar (a back button on phones), name and topic, then its actions (the Compact
  * and Threads switch, the filter bar button, scheduled tasks, canvases, the computer, the
  * sub-agents, calls, pinned messages, members, and the plugins' actions) and the room menu, which
- * offers those its row leaves out, and the tool calls switch. Phones keep the back button, the name and the room menu, so a
- * long name keeps its room; a call that is on keeps its button.
+ * offers those its row leaves out, and whether this room shows tool calls. Phones keep the back
+ * button, the name and the room menu, so a long name keeps its room; a call that is on keeps its
+ * button.
  */
 export function RoomViewHeader({
   hasMindroomAgents,
@@ -220,7 +222,7 @@ export function RoomViewHeader({
   const mx = useMatrixClient();
   const { viewMode, viewSwitch } = useViewSwitch(room, hasMindroomAgents);
   const [filterBarHidden, setFilterBarHidden] = useSetting(settingsAtom, 'hideThreadFilterBar');
-  const [showToolCalls, setShowToolCalls] = useSetting(settingsAtom, 'showToolCalls');
+  const [showToolCalls, setShowToolCalls] = useToolCallsShown(room.roomId);
   // The views with a thread filter bar, as MindroomRoomTimeline draws it: Compact cards, and
   // Threads in a room with agents.
   const hasFilterBar =
@@ -369,7 +371,7 @@ export function RoomViewHeader({
       badge: hiddenFiltersActive && cornerDot('data-hidden-filters-dot'),
       marker: 'data-thread-filter-bar-toggle',
     },
-    // Agents' replies list the tools they ran; one switch shows or hides them in every room.
+    // Agents' replies list the tools they ran; this room's choice, over the default in Settings.
     hasMindroomAgents && {
       id: 'toolCalls',
       label: t('mindroomUi.messages.showToolCalls'),

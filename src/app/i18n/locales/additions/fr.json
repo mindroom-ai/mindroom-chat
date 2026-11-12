@@ -625,7 +625,8 @@
         "tooLargeToApprove": "Les arguments sont trop volumineux pour être examinés : cette demande ne peut qu’être refusée."
       },
       "showToolCalls": "Afficher les appels d'outils",
-      "showToolCallsDescription": "Les réponses des agents listent les outils qu'ils ont exécutés. Le menu du salon propose aussi ce bouton."
+      "showToolCallsDescription": "Le réglage par défaut de chaque salon : les réponses des agents listent les outils exécutés, ou affichent seulement « Travail en cours… » pendant leur exécution. Le menu d'un salon ou d'un fil le change à cet endroit.",
+      "toolCallsWorking": "Travail en cours…"
     },
     "message-search": {
       "messageSearch": {

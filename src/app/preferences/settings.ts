@@ -59,7 +59,7 @@ const BOOLEAN_SETTING_KEYS = [
   'threadBannerCollapsed',
   'simpleThreadFilters', // The room's thread filter bar offers only the count, Unresolved and the sort.
   'hideThreadFilterBar', // The room header's filter button hid the thread filter bar.
-  'showToolCalls', // Agent replies list the tools they ran; the room menu switches it too.
+  'showToolCalls', // Agent replies list the tools they ran, by default; a room or thread can differ.
   // Keyboard
   'shortcutHints', // Holding Command or Ctrl for a second shows the shortcut keys on the buttons.
   // Notifications
@@ -103,7 +103,6 @@ const ON_BY_DEFAULT: readonly BooleanSettingKey[] = [
   'showNotifications',
   'isNotificationSounds',
   'simpleThreadFilters',
-  'showToolCalls',
   'shortcutHints',
   'sendErrorReports',
 ];

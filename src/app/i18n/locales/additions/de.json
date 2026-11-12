@@ -616,7 +616,8 @@
         "tooLargeToApprove": "Die Argumente sind zu groß zum Prüfen, daher kann diese Anfrage nur abgelehnt werden."
       },
       "showToolCalls": "Tool-Aufrufe anzeigen",
-      "showToolCallsDescription": "Antworten von Agenten listen die Tools auf, die sie ausgeführt haben. Das Raummenü hat diesen Schalter auch."
+      "showToolCallsDescription": "Die Vorgabe für jeden Raum: Antworten von Agenten listen die ausgeführten Tools auf oder zeigen nur „Arbeitet…“, während Tools laufen. Das Menü eines Raums oder Threads ändert es dort.",
+      "toolCallsWorking": "Arbeitet…"
     },
     "message-search": {
       "messageSearch": {

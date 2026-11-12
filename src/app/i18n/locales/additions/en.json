@@ -616,7 +616,8 @@
         "tooLargeToApprove": "The arguments are too large to review, so this request can only be denied."
       },
       "showToolCalls": "Show tool calls",
-      "showToolCallsDescription": "Agent replies list the tools they ran. The room menu has this switch too."
+      "showToolCallsDescription": "The default for every room: agent replies list the tools they ran, or only say “Working…” while tools run. A room's or a thread's menu changes it there.",
+      "toolCallsWorking": "Working…"
     },
     "message-search": {
       "messageSearch": {

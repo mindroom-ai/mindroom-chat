@@ -607,7 +607,8 @@
         "tooLargeToApprove": "引数が大きすぎて確認できないため、このリクエストは拒否のみできます。"
       },
       "showToolCalls": "ツール呼び出しを表示",
-      "showToolCallsDescription": "エージェントの返信に、実行したツールが一覧表示されます。ルームメニューにもこのスイッチがあります。"
+      "showToolCallsDescription": "すべてのルームの既定値です。エージェントの返信に実行したツールを一覧表示するか、ツールの実行中は「作業中…」だけを表示します。ルームやスレッドのメニューで、そこだけ変更できます。",
+      "toolCallsWorking": "作業中…"
     },
     "message-search": {
       "messageSearch": {

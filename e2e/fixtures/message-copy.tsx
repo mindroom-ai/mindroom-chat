@@ -9,6 +9,10 @@ import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import { Menu } from '../../src/app/ui/glass/GlassPrimitives';
 import { MessageCopyTextItem } from '../../src/app/messages/Message';
 import { MessageMenuGroup } from '../../src/app/messages/styles.css';
+import { showToolCalls } from '../../src/test/utils/showToolCalls';
+
+// The page shows agent replies' tool calls, which the app hides until the reader shows them.
+showToolCalls();
 
 applyThemeToDom(LightTheme);
 

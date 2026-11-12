@@ -37,6 +37,10 @@ import { MessageGlass } from './MessageGlass';
 import { DialogMenusGlass } from './DialogMenusGlass';
 import { ChatControlsGlass } from './ChatControlsGlass';
 import { AccountDataEvent } from '../../src/app/matrix/types/accountData';
+import { showToolCalls } from '../../src/test/utils/showToolCalls';
+
+// The page shows agent replies' tool calls, which the app hides until the reader shows them.
+showToolCalls();
 
 const themes = {
   light: LightTheme,

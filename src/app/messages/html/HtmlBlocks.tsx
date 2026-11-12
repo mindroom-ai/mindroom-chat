@@ -44,8 +44,8 @@ import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
 import { revealDirectionControls } from '../../ui/directional';
 import type { HtmlReactParserOptionsSource } from '../../rich-text/htmlReactParserOptions';
-import { settingsAtom } from '../../preferences/settings';
-import { useSettingValue } from '../../preferences/useSettingValue';
+import { useToolCallsShown } from '../toolCallVisibility';
+import { ToolWorkLine } from '../agent-run/ToolWorkLine';
 
 type BlockTagName = 'think' | 'debug' | 'system' | 'plan' | 'analysis' | 'research';
 
@@ -309,7 +309,7 @@ function ToolRefGroupItem({
 // Calls that needed approval take their state from the cards MindRoom posted for this reply: a
 // paused reply's cards name it, and a job's card names the job or replies to this message.
 const useToolCallApprovals = (jobIds: readonly string[]) => {
-  const eventId = useContext(ToolCallMessageContext);
+  const eventId = useContext(ToolCallMessageContext)?.eventId;
   const context = useThreadApprovals();
   if (!eventId || !context) return [];
   return context.records
@@ -331,8 +331,9 @@ const useToolCallApprovals = (jobIds: readonly string[]) => {
 };
 
 /**
- * A run of tool calls, left out while the tool calls are hidden (`showToolCalls`). Each block
- * reads the setting itself, so switching it redraws the blocks without parsing the replies again.
+ * A run of tool calls. While the reply's thread or room hides tool calls (toolCallVisibility.ts), a
+ * "Working…" line stands in for the run as it runs, and nothing once it is done. Each block reads
+ * the choice itself, so changing it redraws the blocks without parsing the replies again.
  */
 function ToolRefGroupBlock({
   parsedTools,
@@ -340,7 +341,8 @@ function ToolRefGroupBlock({
   parsedTools: ToolBlockRenderData[];
 }) {
   const { t } = useTranslation();
-  const shown = useSettingValue(settingsAtom, 'showToolCalls');
+  const message = useContext(ToolCallMessageContext);
+  const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
   const loadedTools = parsedTools.filter(
     (tool) => tool.status !== 'loading' && tool.status !== 'unavailable'
   );
@@ -350,13 +352,13 @@ function ToolRefGroupBlock({
     job: parseToolJobHandle(tool.result),
   }));
   const approvals = useToolCallApprovals(calls.flatMap(({ job }) => (job ? [job.jobId] : [])));
-  if (!shown) return null;
   const metadataStatus = parsedTools.find(
     (tool) => tool.status === 'loading' || tool.status === 'unavailable'
   )?.status;
   const states = resolveToolCallStates(calls, approvals);
   const summary = summarizeToolCalls(parsedTools, states);
   const running = loadedTools.filter((tool, index) => states[index] === 'running');
+  if (!shown) return <ToolWorkLine working={running.length > 0} />;
   const outputTool = running.filter((tool) => tool.progress).at(-1);
   // Without the trace details the calls' states are unknown, so only count them.
   const icon = metadataStatus
