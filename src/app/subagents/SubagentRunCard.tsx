@@ -30,10 +30,15 @@ export type SubagentTurn = { run: SubagentRun; nested: SubagentNode[] };
  * A sub-agent: its turns, the first on top, and the sub-agent that started it while that one is
  * listed too.
  */
-export type SubagentNode = { id: string; parent: string | null; turns: SubagentTurn[] };
+export type SubagentNode = {
+  id: string;
+  parent: string | null;
+  turns: [SubagentTurn, ...SubagentTurn[]];
+};
 
 /** The sub-agent's newest turn, which says how it stands. */
-export const latestTurn = ({ turns }: SubagentNode): SubagentRun => turns[turns.length - 1].run;
+export const latestTurn = ({ turns }: SubagentNode): SubagentRun =>
+  (turns[turns.length - 1] ?? turns[0]).run;
 
 /** Pictures show at most 28 px wide; twice that keeps them sharp on dense screens. */
 const PICTURE_SIZE = 56;

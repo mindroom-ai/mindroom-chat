@@ -41,9 +41,11 @@ const panelOrder = (a: SubagentNode, b: SubagentNode): number => {
  * MindRoom never sends, are left out.
  */
 const nestSubagents = (runs: readonly SubagentRun[]): SubagentNode[] => {
-  const turnsOf = new Map<string, SubagentRun[]>();
+  const turnsOf = new Map<string, [SubagentRun, ...SubagentRun[]]>();
   runs.forEach((run) => {
-    turnsOf.set(run.meta.subagent, [...(turnsOf.get(run.meta.subagent) ?? []), run]);
+    const turns = turnsOf.get(run.meta.subagent);
+    if (turns) turns.push(run);
+    else turnsOf.set(run.meta.subagent, [run]);
   });
   const subagentOf = new Map(runs.map(({ run, meta }) => [run, meta.subagent]));
   const startedBy = new Map<string, string[]>();
@@ -60,16 +62,14 @@ const nestSubagents = (runs: readonly SubagentRun[]): SubagentNode[] => {
       unnested.push(subagent);
     }
   });
+  const turn = (run: SubagentRun) => ({ run, nested: arrange(startedBy.get(run.run) ?? []) });
   const arrange = (level: readonly string[]): SubagentNode[] =>
     level
-      .map((id) => ({
-        id,
-        parent: parents.get(id) ?? null,
-        turns: (turnsOf.get(id) ?? []).map((run) => ({
-          run,
-          nested: arrange(startedBy.get(run.run) ?? []),
-        })),
-      }))
+      .flatMap((id): SubagentNode[] => {
+        const [first, ...later] = turnsOf.get(id) ?? [];
+        if (!first) return [];
+        return [{ id, parent: parents.get(id) ?? null, turns: [turn(first), ...later.map(turn)] }];
+      })
       .sort(panelOrder);
   return arrange(unnested);
 };
