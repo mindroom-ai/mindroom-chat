@@ -3,11 +3,7 @@ import React, { ReactNode, useContext, useMemo, useState } from 'react';
 import { Element, HTMLReactParserOptions, Text as DOMText, domToReact } from 'html-react-parser';
 import { ChildNode } from 'domhandler';
 import { Box, Icon, IconSrc, Icons, Text } from 'folds';
-import {
-  MINDROOM_TOOL_REF_ICON,
-  ToolRefParseResult,
-  parseToolRefHtml,
-} from './blocks';
+import { MINDROOM_TOOL_REF_ICON, ToolRefParseResult, parseToolRefHtml } from './blocks';
 import {
   extractTextFromChildren,
   getToolRefPrefixFromElement,
@@ -28,7 +24,12 @@ import {
 } from '../../matrix/protocol/toolTrace';
 import * as css from './HtmlBlocks.css';
 import * as activityCss from '../../ui/ThreadActivity.css';
-import { ActivityIcon, ActivityResult, ActivityTone, ThreadActivity } from '../../ui/ThreadActivity';
+import {
+  ActivityIcon,
+  ActivityResult,
+  ActivityTone,
+  ThreadActivity,
+} from '../../ui/ThreadActivity';
 import {
   resolveToolCallStates,
   summarizeToolCalls,
@@ -36,7 +37,10 @@ import {
   ToolCallState,
 } from '../agent-run/toolCallStatus';
 import { useThreadApprovals } from '../../approvals/ThreadApprovalProvider';
-import { getEffectiveToolApprovalStatus, parseToolApprovalExpiryTimestamp } from '../../matrix/protocol/toolApproval';
+import {
+  getEffectiveToolApprovalStatus,
+  parseToolApprovalExpiryTimestamp,
+} from '../../matrix/protocol/toolApproval';
 import { parseToolJobHandle } from '../../matrix/protocol/toolJobHandle';
 import { ApprovalArgumentFields } from '../../approvals/ApprovalArgumentFields';
 import { toToolArgumentFields } from '../../approvals/argumentFields';
@@ -45,7 +49,7 @@ import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
 import { revealDirectionControls } from '../../ui/directional';
 import type { HtmlReactParserOptionsSource } from '../../rich-text/htmlReactParserOptions';
 import { useToolCallsShown } from '../toolCallVisibility';
-import { ToolWorkLine } from '../agent-run/ToolWorkLine';
+import { ToolCallsChip } from '../agent-run/ToolCallsChip';
 
 type BlockTagName = 'think' | 'debug' | 'system' | 'plan' | 'analysis' | 'research';
 
@@ -177,11 +181,7 @@ function NamedBlock({
   );
 }
 
-type ToolBlockStatus =
-  | 'pending'
-  | 'completed'
-  | 'completed_with_result'
-  | ToolMetadataStatus;
+type ToolBlockStatus = 'pending' | 'completed' | 'completed_with_result' | ToolMetadataStatus;
 
 type ToolBlockRenderData = {
   index: number;
@@ -332,14 +332,11 @@ const useToolCallApprovals = (jobIds: readonly string[]) => {
 
 /**
  * A run of tool calls. While the reply's thread or room hides tool calls (toolCallVisibility.ts), a
- * "Working…" line stands in for the run as it runs, and nothing once it is done. Each block reads
- * the choice itself, so changing it redraws the blocks without parsing the replies again.
+ * small chip with an icon per call stands in for the run, in the same place, and opens the same
+ * calls. Each block reads the choice itself, so changing it redraws the blocks without parsing the
+ * replies again.
  */
-function ToolRefGroupBlock({
-  parsedTools,
-}: {
-  parsedTools: ToolBlockRenderData[];
-}) {
+function ToolRefGroupBlock({ parsedTools }: { parsedTools: ToolBlockRenderData[] }) {
   const { t } = useTranslation();
   const message = useContext(ToolCallMessageContext);
   const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
@@ -358,41 +355,23 @@ function ToolRefGroupBlock({
   const states = resolveToolCallStates(calls, approvals);
   const summary = summarizeToolCalls(parsedTools, states);
   const running = loadedTools.filter((tool, index) => states[index] === 'running');
-  if (!shown) return <ToolWorkLine working={running.length > 0} />;
   const outputTool = running.filter((tool) => tool.progress).at(-1);
   // Without the trace details the calls' states are unknown, so only count them.
-  const icon = metadataStatus
-    ? { src: Icons.Terminal, tone: 'neutral' as const }
-    : TOOL_STATE_ICON[summary.state];
+  const state = metadataStatus ? 'done' : summary.state;
+  const usedTools = t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', {
+    count: metadataStatus ? parsedTools.length : summary.count,
+  });
 
-  return (
-    <ThreadActivity
-      icon={
-        <ActivityIcon
-          src={icon.src}
-          tone={icon.tone}
-          pending={!metadataStatus && summary.state === 'running'}
-        />
-      }
-      title={
-        metadataStatus
-          ? t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', { count: parsedTools.length })
-          : t(TOOL_STATE_TITLE[summary.state], { count: summary.count })
-      }
-      detail={summary.names}
-      preview={
-        outputTool?.progress && (
-          <>
-            {running.length > 1 && (
-              <div className={activityCss.OutputLabel}>{outputTool.command}</div>
-            )}
-            <pre className={activityCss.Output}>
-              {outputTool.progress.split('\n').slice(-TOOL_OUTPUT_LINES).join('\n')}
-            </pre>
-          </>
-        )
-      }
-    >
+  const preview = outputTool?.progress && (
+    <>
+      {running.length > 1 && <div className={activityCss.OutputLabel}>{outputTool.command}</div>}
+      <pre className={activityCss.Output}>
+        {outputTool.progress.split('\n').slice(-TOOL_OUTPUT_LINES).join('\n')}
+      </pre>
+    </>
+  );
+  const rows = (
+    <>
       {loadedTools.map((parsedTool, index) => (
         <ToolRefGroupItem
           key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
@@ -412,6 +391,52 @@ function ToolRefGroupBlock({
           </Text>
         </div>
       )}
+    </>
+  );
+
+  if (!shown) {
+    let chipLabel = usedTools;
+    if (state === 'running') chipLabel = t('mindroomUi.messages.toolCallsWorking');
+    else if (state !== 'done') chipLabel = t(TOOL_STATE_TITLE[state], { count: summary.count });
+    return (
+      <ToolCallsChip
+        calls={parsedTools.map((tool) => {
+          const loadedIndex = loadedTools.indexOf(tool);
+          return {
+            key: `${tool.index}`,
+            toolName: tool.toolName,
+            state: loadedIndex >= 0 ? states[loadedIndex] : 'done',
+          };
+        })}
+        state={state}
+        label={chipLabel}
+        names={summary.names}
+        preview={preview}
+      >
+        {rows}
+      </ToolCallsChip>
+    );
+  }
+
+  const icon = metadataStatus
+    ? { src: Icons.Terminal, tone: 'neutral' as const }
+    : TOOL_STATE_ICON[summary.state];
+  return (
+    <ThreadActivity
+      icon={
+        <ActivityIcon
+          src={icon.src}
+          tone={icon.tone}
+          pending={!metadataStatus && summary.state === 'running'}
+        />
+      }
+      title={
+        metadataStatus ? usedTools : t(TOOL_STATE_TITLE[summary.state], { count: summary.count })
+      }
+      detail={summary.names}
+      preview={preview}
+    >
+      {rows}
     </ThreadActivity>
   );
 }

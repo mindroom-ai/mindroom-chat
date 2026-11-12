@@ -607,7 +607,7 @@
         "tooLargeToApprove": "Argumen terlalu besar untuk ditinjau, jadi permintaan ini hanya dapat ditolak."
       },
       "showToolCalls": "Tampilkan panggilan alat",
-      "showToolCallsDescription": "Bawaan untuk setiap ruangan: balasan agen mencantumkan alat yang mereka jalankan, atau hanya menampilkan “Sedang bekerja…” saat alat berjalan. Menu ruangan atau utas mengubahnya di sana.",
+      "showToolCallsDescription": "Bawaan untuk setiap ruangan: balasan agen mencantumkan alat yang mereka jalankan, atau menampilkan setiap rangkaian alat sebagai tombol kecil yang membukanya. Menu ruangan atau utas mengubahnya di sana.",
       "toolCallsWorking": "Sedang bekerja…"
     },
     "message-search": {

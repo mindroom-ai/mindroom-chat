@@ -5,10 +5,11 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, loginToMatrix, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
 
-// Agent replies hide their tool calls by default: a reply that still runs one says "Working…", a
-// finished one shows only its text. The thread menu shows them in its thread, the room menu in the
-// whole room, and each choice stays after a reload.
-// Set TOOL_CALLS_SHOTS=<directory> to save the working line, the thread and both menus.
+// Agent replies hide their tool calls by default: a small chip with an icon per call sits where the
+// calls ran, says "Working…" while one runs and how many tools the reply used once they finish, and
+// opens the calls in place. The thread menu shows them in its thread, the room menu in the whole
+// room, and each choice stays after a reload.
+// Set TOOL_CALLS_SHOTS=<directory> to save the chips, the open chip, the thread and both menus.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'tool-calls-toggle-spec-password';
 const RUN = Date.now().toString(36);
@@ -145,23 +146,38 @@ test('agent replies hide their tool calls until a thread or room shows them', as
     );
   };
 
-  // A tool that still runs: "Working…" in its place, no tool row.
+  // A tool that still runs: a chip that says "Working…" in its place, no tool line.
   await openThread(world.runningRoot);
   await expect(page.getByText('Looking at the invoices.', { exact: true })).toBeVisible({
     timeout: 60_000,
   });
-  const working = page.locator('[data-tool-work-line]');
-  await expect(working).toBeVisible();
-  await expect(working).toContainText('Working…');
+  const chip = page.locator('[data-tool-calls-chip]');
+  await expect(chip).toBeVisible();
+  await expect(chip).toContainText('Working…');
+  await expect(chip).toHaveAttribute('data-state', 'running');
   await expect(toolLines(page, 'fetch_invoices')).toHaveCount(0);
   await shot(page, 'thread-working');
 
-  // A finished reply: only its text.
+  // A finished reply: its text and a quiet chip, which opens the calls where they ran.
   await openThread(world.doneRoot);
   const answer = page.getByText(ANSWER, { exact: true });
   await expect(answer).toBeVisible({ timeout: 60_000 });
+  await expect(chip).toContainText('Used 2 tools');
   await expect(toolLines(page, 'web_search')).toHaveCount(0);
+  const toolRow = page.getByText('web_search', { exact: true });
+  await expect(toolRow).toHaveCount(0);
   await shot(page, 'thread-hidden');
+  await chip.locator(':scope > button').click();
+  await expect(toolRow).toBeVisible();
+  await expect(page.getByText('run_python_code', { exact: true })).toBeVisible();
+  const rowBox = await toolRow.boundingBox();
+  const answerBox = await answer.boundingBox();
+  expect(rowBox && answerBox && rowBox.y < answerBox.y, 'the calls open above the answer').toBe(
+    true
+  );
+  await shot(page, 'thread-chip-open');
+  await chip.locator(':scope > button').click();
+  await expect(toolRow).toHaveCount(0);
 
   // The thread menu shows them in this thread, and the choice stays.
   await chooseShowToolCalls(page, 'Thread options', false, 'menu-thread');
@@ -177,5 +193,5 @@ test('agent replies hide their tool calls until a thread or room shows them', as
   await expect(toolLines(page, 'web_search')).toHaveCount(1);
   await openThread(world.runningRoot);
   await expect(toolLines(page, 'fetch_invoices')).toHaveCount(1, { timeout: 60_000 });
-  await expect(working).toHaveCount(0);
+  await expect(chip).toHaveCount(0);
 });

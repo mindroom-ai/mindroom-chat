@@ -23,10 +23,7 @@ import { markerParserOptions } from '../../../test/utils/markerParserOptions';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import backendToolMarkerBodies from '../__fixtures__/backendToolMarkerBodies.json';
 import { getRenderedToolRefs } from '../agent-run/toolRefDom';
-import {
-  getMessageCopyTexts,
-  scanToolMarkerLines,
-} from '../messageCopyText';
+import { getMessageCopyTexts, scanToolMarkerLines } from '../messageCopyText';
 import { formatMessageTextBodyAsHtml } from './blocks';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
@@ -104,24 +101,11 @@ vi.mock('folds', async () => {
 });
 
 // The folds stand-in above has no colors, which these styles read; their class names will do.
-vi.mock('../agent-run/ThinkingPlaceholder.css', () =>
+vi.mock('../agent-run/ToolCallsChip.css', () =>
   Object.fromEntries(
-    [
-      'Placeholder',
-      'Indicator',
-      'Aura',
-      'Rotor',
-      'Mark',
-      'Core',
-      'Text',
-      'TextBase',
-      'TextSweep',
-      'TextCounter',
-      'TextHighlight',
-    ].map((name) => [name, name])
+    ['Chip', 'Button', 'Icons', 'Tile', 'More', 'Label', 'Chevron'].map((name) => [name, name])
   )
 );
-vi.mock('../agent-run/ToolWorkLine.css', () => ({ Line: 'Line' }));
 
 vi.mock('../../rich-text/CustomHtml.css', () => ({
   BlockQuote: 'BlockQuote',
@@ -756,7 +740,7 @@ describe('useToolTraceMarkerParserOptions', () => {
 
     expect(text()).toContain('Looking it up.');
     expect(text()).toContain('Results are ready.');
-    expect(text()).not.toMatch(toolCountLabel(2));
+    expect(text()).not.toContain('first_tool');
     expect(text()).not.toContain('🔧');
 
     act(() => {
@@ -810,8 +794,18 @@ describe('useToolTraceMarkerParserOptions', () => {
       act(() => {
         renderer = create(element(html));
       });
+      const chip = () =>
+        renderer!.root.find((node) => node.props['data-tool-calls-chip'] !== undefined);
       return {
         text: () => collectTextContent(renderer?.toJSON() ?? null),
+        chipButton: () => chip().findByType('button'),
+        icons: () =>
+          chip()
+            .findAll((node) => typeof node.props['data-tool-icon'] === 'string')
+            .map((node) => ({
+              icon: node.props['data-tool-icon'],
+              state: node.props['data-state'],
+            })),
         update: (markup: string) => act(() => renderer?.update(element(markup))),
         unmount: () => act(() => renderer?.unmount()),
       };
@@ -820,44 +814,61 @@ describe('useToolTraceMarkerParserOptions', () => {
     it("shows a thread's tool calls where the thread menu showed them", () => {
       stored.set(storageKey, JSON.stringify({ [ROOM]: { threads: { $root: true } } }));
       const shown = renderReply(toolsHtml(false), { shownByDefault: false, threadId: '$root' });
-      expect(shown.text()).toMatch(toolCountLabel(1));
+      expect(shown.text()).toContain('web_search');
       shown.unmount();
       const other = renderReply(toolsHtml(false), { shownByDefault: false, threadId: '$other' });
-      expect(other.text()).not.toMatch(toolCountLabel(1));
+      expect(other.text()).not.toContain('web_search');
       other.unmount();
     });
 
     it("hides a room's tool calls where the room menu hid them", () => {
       stored.set(storageKey, JSON.stringify({ [ROOM]: { room: false } }));
       const reply = renderReply(toolsHtml(false), { shownByDefault: true, threadId: '$root' });
-      expect(reply.text()).not.toMatch(toolCountLabel(1));
+      expect(reply.text()).not.toContain('web_search');
       expect(reply.text()).toContain('Answer.');
       reply.unmount();
     });
 
-    it('says the agent is working while its tool calls run, and lets the line fade once they finish', () => {
-      vi.useFakeTimers();
-      try {
-        const reply = renderReply(toolsHtml(true), { shownByDefault: false });
-        expect(reply.text()).toContain('Working…');
-        expect(reply.text()).not.toContain('web_search');
+    it('says the agent is working while its tool calls run, and how many tools it used once they finish', () => {
+      const reply = renderReply(toolsHtml(true), { shownByDefault: false });
+      expect(reply.text()).toContain('Working…');
+      expect(reply.text()).not.toContain('web_search');
+      expect(reply.icons()).toEqual([{ icon: 'Globe', state: 'running' }]);
 
-        reply.update(toolsHtml(false));
-        expect(reply.text()).toContain('Working…');
-        act(() => {
-          vi.advanceTimersByTime(400);
-        });
-        expect(reply.text()).not.toContain('Working…');
-        expect(reply.text()).toContain('Answer.');
-        reply.unmount();
-      } finally {
-        vi.useRealTimers();
-      }
+      reply.update(toolsHtml(false));
+      expect(reply.text()).not.toContain('Working…');
+      expect(reply.text()).toContain('Used 1 tool');
+      expect(reply.text()).not.toContain('web_search');
+      expect(reply.icons()).toEqual([{ icon: 'Globe', state: 'done' }]);
+      reply.unmount();
     });
 
-    it('says nothing for tool calls that had finished before the reply showed', () => {
-      const reply = renderReply(toolsHtml(false), { shownByDefault: false });
-      expect(reply.text()).not.toContain('Working…');
+    it('opens the tool calls where they ran, between the text around them', () => {
+      const html = [
+        '<p>Looking it up.</p>',
+        '<p>🔧 <code>web_search</code> [1]</p>',
+        '<p>Answer.</p>',
+      ].join('');
+      const reply = renderReply(html, { shownByDefault: false });
+      expect(reply.chipButton().props['aria-expanded']).toBe(false);
+
+      act(() => reply.chipButton().props.onClick());
+      const text = reply.text();
+      expect(reply.chipButton().props['aria-expanded']).toBe(true);
+      expect(text.indexOf('Looking it up.')).toBeLessThan(text.indexOf('web_search'));
+      expect(text.indexOf('web_search')).toBeLessThan(text.indexOf('Answer.'));
+      reply.unmount();
+    });
+
+    it('shows the icons of the last four tool calls and counts the others', () => {
+      const html = `${Array.from(
+        { length: 6 },
+        (_, index) => `<p>🔧 <code>tool_${index}</code> [${index + 1}]</p>`
+      ).join('')}<p>Answer.</p>`;
+      const reply = renderReply(html, { shownByDefault: false });
+      expect(reply.icons()).toHaveLength(4);
+      expect(reply.text()).toContain('+2');
+      expect(reply.text()).toContain('Used 6 tools');
       reply.unmount();
     });
   });
@@ -916,7 +927,7 @@ describe('useToolTraceMarkerParserOptions', () => {
       (node) => typeof node.type === 'string' && node.props['data-tool-index'] !== undefined
     );
     expect(rows.map((row) => row.props['data-tool-index'])).toEqual([1, 2]);
-    const textOf = (row: typeof rows[number]) =>
+    const textOf = (row: (typeof rows)[number]) =>
       row
         .findAll(() => true)
         .flatMap((node) => node.children.filter((child) => typeof child === 'string'))
@@ -1510,9 +1521,7 @@ describe('copy stripping matches the app renderer', () => {
 
     // Repeated indexes render once as a block and again as text, so compare sets.
     const plainBodyFallback = formattedBody === undefined;
-    const detected = new Set(
-      getRenderedToolRefs(html).toolBlocks.map(({ index }) => index)
-    );
+    const detected = new Set(getRenderedToolRefs(html).toolBlocks.map(({ index }) => index));
     const rendered = new Set(renderedToolIndexes);
     detected.forEach((index) => expect(rendered.has(index)).toBe(true));
     if (knownDetectionGaps.has(name) || (!plainBodyFallback && knownFormattedBodyGaps.has(name))) {
@@ -1623,9 +1632,7 @@ describe('direction controls in tool calls and code', () => {
     );
 
     const formatted = renderCustomHtmlMarkup(`<p>Rename <b>${text}</b> first</p>`);
-    expect(formatted).toContain(
-      `<b>${shown.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</b>`
-    );
+    expect(formatted).toContain(`<b>${shown.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</b>`);
     expect(formatted).not.toMatch(CONTROL);
   });
 });
