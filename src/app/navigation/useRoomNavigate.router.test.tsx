@@ -16,9 +16,8 @@ const client = { getRoom: () => null } as unknown as MatrixClient;
 afterEach(cleanup);
 
 /**
- * Goes to a plugin's page, opens the thread from there, and leaves it for the address it recorded,
- * as a thread's Back does when it neither steps back in history nor knows the page before: in the
- * iOS app or an iOS home-screen web app, after a reload.
+ * Goes to a plugin's page, opens the thread from there, and leaves it for the address it recorded
+ * as the page it was opened from, which a thread's Back reads after a reload.
  */
 function Thread() {
   // As in the app, whose signed-in pages all sit inside the recorder.

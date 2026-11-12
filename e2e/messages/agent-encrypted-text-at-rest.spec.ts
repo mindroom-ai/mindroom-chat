@@ -275,7 +275,7 @@ test('an encrypted room leaves no thread preview and no quoted reply text in loc
     .first()
     .click();
   await expect(composer(page)).toContainText(unsent, { timeout: 90_000 });
-  // Back leads to Home, where the thread was opened from; the room's row opens the room.
+  // The room's row opens the room.
   await page.locator(`[data-room-id="${secret}"]`).first().click();
   const replyBar = page.getByRole('button', { name: 'Cancel reply' }).locator('xpath=..');
   await expect(replyBar).toContainText(secretWord, { timeout: 90_000 });

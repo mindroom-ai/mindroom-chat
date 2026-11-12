@@ -42,8 +42,9 @@ export type RoomNavigate = {
     (roomId: string, options?: RoomNavigateOptions): void;
   };
   /**
-   * Opens the thread `threadId` (its root's event ID) of the room; its back button returns here,
-   * unless it replaced this page: then it leads to the page before, or to the room. It opens where
+   * Opens the thread `threadId` (its root's event ID) of the room; its back button leads to the
+   * room, which takes the thread's place in the history, so the browser's back returns here. It
+   * opens where
    * the app's own thread links open it: in the room page's thread column, beside the room's
    * messages once the person chose that on this device and the page has room for both, else
    * filling the page.

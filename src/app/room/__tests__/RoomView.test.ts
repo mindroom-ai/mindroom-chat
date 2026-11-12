@@ -26,6 +26,7 @@ const {
   editorFocusMock,
   historyBackMock,
   historyForwardMock,
+  historyGoMock,
   isIOSStandaloneWebAppMock,
   isNativeIOSMock,
   navigatePathMock,
@@ -58,6 +59,7 @@ const {
   editorFocusMock: vi.fn(),
   historyBackMock: vi.fn(),
   historyForwardMock: vi.fn(),
+  historyGoMock: vi.fn(),
   isIOSStandaloneWebAppMock: vi.fn(() => false),
   isNativeIOSMock: vi.fn(() => false),
   navigatePathMock: vi.fn(),
@@ -116,6 +118,7 @@ vi.stubGlobal('window', {
   history: {
     back: historyBackMock,
     forward: historyForwardMock,
+    go: historyGoMock,
     state: null,
   },
   localStorage,
@@ -519,6 +522,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
     editorFocusMock.mockReset();
     historyBackMock.mockReset();
     historyForwardMock.mockReset();
+    historyGoMock.mockReset();
     isIOSStandaloneWebAppMock.mockReset();
     isIOSStandaloneWebAppMock.mockReturnValue(false);
     isNativeIOSMock.mockReset();
@@ -1357,6 +1361,118 @@ describe('RoomView', { timeout: 30_000 }, () => {
     expect(navigatePathMock).not.toHaveBeenCalled();
     expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(room.roomId, '$thread', {
       replace: true,
+    });
+  });
+
+  it('leaves a thread for its room on native iOS when it was opened from another page', async () => {
+    isNativeIOSMock.mockReturnValue(true);
+    const room = makeRoom(nextRoomId('room-a'));
+    window.history.state = {
+      usr: {
+        [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+          exitPath: '/activity/',
+          roomId: room.roomId,
+          threadId: '$thread',
+          useHistoryBack: false,
+        },
+      },
+    };
+    const { RoomView } = await import('../RoomView');
+    await act(async () => {
+      create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+    });
+
+    await act(async () => {
+      threadContextBannerState.props?.onExitThread?.();
+    });
+
+    expect(navigatePathMock).not.toHaveBeenCalled();
+    expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(room.roomId, '$thread', {
+      replace: true,
+    });
+  });
+
+  describe('with the pages the app has shown', () => {
+    /** Shows `paths` one after another, as the app's router does, recording them as the app does. */
+    const showPages = async (paths: string[]) => {
+      const { useHistoryStackRecorder } = await import('../../routes/historyStack');
+      const { MemoryRouter, useNavigate } = await import('react-router-dom');
+      let navigate: ReturnType<typeof useNavigate> | undefined;
+      function Recorder() {
+        useHistoryStackRecorder(undefined);
+        navigate = useNavigate();
+        return null;
+      }
+      const [first, ...rest] = paths;
+      let recorder: ReturnType<typeof create> | undefined;
+      await act(async () => {
+        recorder = create(
+          React.createElement(
+            MemoryRouter,
+            { initialEntries: [first ?? '/home/'] },
+            React.createElement(Recorder)
+          )
+        );
+      });
+      for (const path of rest) {
+        // eslint-disable-next-line no-await-in-loop
+        await act(async () => {
+          navigate?.(path);
+        });
+      }
+      return recorder;
+    };
+
+    const exitThread = async (room: ReturnType<typeof makeRoom>) => {
+      const { RoomView } = await import('../RoomView');
+      await act(async () => {
+        create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+      });
+      await act(async () => {
+        threadContextBannerState.props?.onExitThread?.();
+      });
+    };
+
+    it("steps back past the thread's own pages to the room it was opened from", async () => {
+      const room = makeRoom(nextRoomId('room-a'));
+      const roomPath = `/home/${encodeURIComponent(room.roomId)}/`;
+      const recorder = await showPages([
+        roomPath,
+        `${roomPath}?threadId=%24thread`,
+        `${roomPath}%24reply?threadId=%24thread`,
+      ]);
+
+      await exitThread(room);
+
+      expect(historyGoMock).toHaveBeenCalledWith(-2);
+      expect(historyBackMock).not.toHaveBeenCalled();
+      expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
+      recorder?.unmount();
+    });
+
+    it('leaves for the room when the page before was another, whatever the exit target says', async () => {
+      const room = makeRoom(nextRoomId('room-a'));
+      const roomPath = `/home/${encodeURIComponent(room.roomId)}/`;
+      const recorder = await showPages(['/activity/', `${roomPath}?threadId=%24thread`]);
+      window.history.state = {
+        usr: {
+          [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+            exitPath: roomPath,
+            roomId: room.roomId,
+            threadId: '$thread',
+            useHistoryBack: true,
+          },
+        },
+      };
+
+      await exitThread(room);
+
+      expect(historyGoMock).not.toHaveBeenCalled();
+      expect(historyBackMock).not.toHaveBeenCalled();
+      expect(navigateRoomFocusEventMock).toHaveBeenCalledWith(room.roomId, '$thread', {
+        replace: true,
+      });
+      recorder?.unmount();
     });
   });
 
