@@ -304,13 +304,14 @@ export function RoomViewHeader({
   const canToggleComputer = !!computerAvailable && !!onComputerToggle;
   const showCanvases = !!canvases && !!onCanvasOpen && !!onCanvasClose;
   // The Sub-agents toggle shows while the room keeps a sub-agent run (a working one, or one paused
-  // or ended not long ago) started in the open conversation: the thread, or the room's timeline
-  // while none is open, so the room's other threads do not put it on every page of the room. Its
-  // count is of those runs still at it. It stays while the panel shows, so a panel opened elsewhere
-  // (a sub-agent job in the jobs bar) or whose last run expired can still be hidden from it.
+  // or ended not long ago) started in the conversation on screen: the open thread, or while none
+  // is open the room's own timeline, so the room's threads do not put it on the thread list. The
+  // Classic view shows every thread's replies in the room's timeline, so there every run counts.
+  // Its count is of those runs still at it. It stays while the panel shows, so a panel opened
+  // elsewhere (a sub-agent job in the jobs bar) or whose last run expired can still be hidden.
   const { total: keptSubagents, active: activeSubagents } = useRoomSubagentCounts(
     room.roomId,
-    openThreadId ?? null
+    openThreadId ?? (viewMode === 'classic' ? undefined : null)
   );
   const subagentsVisible = shownPanel === 'subagents';
   const subagentsLabel = subagentsVisible
