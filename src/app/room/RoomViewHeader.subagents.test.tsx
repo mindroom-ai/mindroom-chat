@@ -11,15 +11,19 @@ import { MenuEntry } from '../ui/MenuEntry';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 
 // The Sub-agents panel's toggle in the room header: there while the room's store holds a run of
-// a sub-agent, with a badge that counts the runs still at it (running, waiting for approval or
-// paused), as the panel's own header does. On phones it is an entry of the room menu, and a count
-// puts a dot on the menu's button.
+// a sub-agent started in the conversation on screen (the open thread, else the room's timeline,
+// which in Classic holds every thread's replies), with a badge that counts those runs still at it
+// (running, waiting for approval or paused). On phones it is an entry of the room menu, and a
+// count puts a dot on the menu's button.
 
 const ROOM_ID = '!room:example.org';
 const SENDER = '@mindroom_lead:example.org';
+/** The thread the header has open unless a test says otherwise, where `run` starts its runs. */
+const THREAD = '$thread:example.org';
 
-const { screen, mx } = vi.hoisted(() => ({
+const { screen, view, mx } = vi.hoisted(() => ({
   screen: { size: 'Desktop' },
+  view: { mode: 'compact' as 'compact' | 'classic' },
   // One client, so the header reads the same run store the test feeds.
   mx: {
     getSafeUserId: () => '@me:example.org',
@@ -78,9 +82,9 @@ vi.mock('../lib/hooks/useScreenSize', async (importOriginal) => ({
 }));
 vi.mock('../navigation/useRoomViewMode', () => ({
   useRoomViewMode: () => ({
-    viewMode: 'classic',
+    viewMode: view.mode,
     setViewMode: () => undefined,
-    availableViewModes: ['classic'],
+    availableViewModes: [view.mode],
   }),
 }));
 
@@ -92,6 +96,7 @@ afterEach(() => {
   renderer = undefined;
   store().clear();
   screen.size = 'Desktop';
+  view.mode = 'compact';
 });
 
 const renderHeader = (props: RoomViewHeaderProps) => {
@@ -99,15 +104,15 @@ const renderHeader = (props: RoomViewHeaderProps) => {
   act(() => {
     renderer = create(
       <Provider store={createStore()}>
-        <RoomViewHeader {...props} />
+        <RoomViewHeader openThreadId={THREAD} {...props} />
       </Provider>
     );
   });
 };
 
 let serial = 0;
-/** A run in the room as its first frame leaves it. */
-const run = (status: SubagentStatus) => {
+/** A run in the thread (`null`: the room's timeline) as its first frame leaves it. */
+const run = (status: SubagentStatus, threadId: string | null = THREAD) => {
   serial += 1;
   const ended = status !== 'running' && status !== 'awaiting_approval' && status !== 'paused';
   const meta: SubagentMeta = {
@@ -116,7 +121,7 @@ const run = (status: SubagentStatus) => {
     caller: 'lead',
     root: 'lead',
     parent: null,
-    threadId: '$thread:example.org',
+    threadId,
     source: 'delegate',
     status,
     startedAt: 1_762_790_000,
@@ -159,6 +164,41 @@ describe("the Sub-agents panel's toggle in the room header", () => {
     expect(toggles()).toHaveLength(0);
     openMenu();
     expect(menuEntries()).toHaveLength(0);
+  });
+
+  it('is there only in the conversation its runs started in', () => {
+    run('running');
+    renderHeader({ onPanelToggle: vi.fn(), openThreadId: undefined });
+    expect(toggles()).toHaveLength(0);
+    // The same header, moved to another thread and back.
+    act(() =>
+      renderer?.update(
+        <Provider store={createStore()}>
+          <RoomViewHeader onPanelToggle={vi.fn()} openThreadId={THREAD} />
+        </Provider>
+      )
+    );
+    expect(toggles()).toHaveLength(1);
+    renderHeader({ onPanelToggle: vi.fn(), openThreadId: '$other:example.org' });
+    expect(toggles()).toHaveLength(0);
+
+    run('running', null);
+    renderHeader({ onPanelToggle: vi.fn(), openThreadId: undefined });
+    expect(toggle()?.props['aria-label']).toBe('Show sub-agents, 1 active');
+    renderHeader({ onPanelToggle: vi.fn() });
+    expect(toggle()?.props['aria-label']).toBe('Show sub-agents, 1 active');
+    renderHeader({ onPanelToggle: vi.fn(), openThreadId: '$other:example.org' });
+    expect(toggles()).toHaveLength(0);
+  });
+
+  it("counts every thread's runs on the room's Classic timeline, which shows their replies", () => {
+    view.mode = 'classic';
+    run('running');
+    run('running', '$other:example.org');
+    renderHeader({ onPanelToggle: vi.fn(), openThreadId: undefined });
+    expect(toggle()?.props['aria-label']).toBe('Show sub-agents, 2 active');
+    renderHeader({ onPanelToggle: vi.fn() });
+    expect(toggle()?.props['aria-label']).toBe('Show sub-agents, 1 active');
   });
 
   it('counts two running runs on its badge, and toggles the panel by the room', () => {

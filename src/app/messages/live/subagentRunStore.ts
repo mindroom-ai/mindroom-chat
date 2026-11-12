@@ -174,16 +174,24 @@ export const useRoomSubagentRuns = (roomId: string): readonly SubagentRun[] => {
 /**
  * How many runs the room keeps (`total`) and how many of them are still at it (`active`), rendered
  * again only when either changes: a run's frames, which stream several times a second, change
- * neither.
+ * neither. Given `threadId`, only the runs started in that conversation count: the thread by its
+ * root's ID, or with `null` the room's own timeline.
  */
-export const useRoomSubagentCounts = (roomId: string): { total: number; active: number } => {
+export const useRoomSubagentCounts = (
+  roomId: string,
+  threadId?: string | null
+): { total: number; active: number } => {
   const store = getSubagentRunStore(useMatrixClient());
   const subscribe = useCallback(
     (onChange: () => void) => store.subscribe(roomId, onChange),
     [roomId, store]
   );
-  const getTotal = useCallback(() => store.runs(roomId).length, [roomId, store]);
-  const getActive = useCallback(() => countActiveSubagents(store.runs(roomId)), [roomId, store]);
+  const runsIn = useCallback(() => {
+    const runs = store.runs(roomId);
+    return threadId === undefined ? runs : runs.filter((run) => run.meta.threadId === threadId);
+  }, [roomId, store, threadId]);
+  const getTotal = useCallback(() => runsIn().length, [runsIn]);
+  const getActive = useCallback(() => countActiveSubagents(runsIn()), [runsIn]);
   const total = useSyncExternalStore(subscribe, getTotal);
   const active = useSyncExternalStore(subscribe, getActive);
   return { total, active };
