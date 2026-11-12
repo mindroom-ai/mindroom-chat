@@ -27,7 +27,7 @@ import {
   getRoomThreadExitTargetFromHistoryState,
   withRoomThreadExitTargetState,
 } from '../routes/roomNavigateState';
-import { previousHistoryOrigin, showsRoom } from '../routes/historyStack';
+import { historyPageOf, previousHistoryOrigin, showsRoom } from '../routes/historyStack';
 import { getCanonicalAliasOrRoomId } from '../matrix/matrix';
 import {
   addTagFilter,
@@ -160,8 +160,13 @@ export const useRoomViewThreadState = ({
     [effectiveThreadId, resolvedThreadRootEvent, room, t, threadSummaryInfo]
   );
 
+  // Leaving a thread always leads to its room, wherever the thread was opened from (Activity,
+  // search, another room's link). Opened from the room, it steps back to the room's own entry,
+  // which keeps the room as it was left (on native iOS and in the iOS home screen app, the room's
+  // path replaces the thread instead); from anywhere else, `toRoom` puts the room in the thread's
+  // place, so the browser's back still returns to where the thread was opened from.
   const leaveThread = useCallback(
-    (fallback: () => void) => {
+    (toRoom: () => void) => {
       const historyExitTarget = getRoomThreadExitTargetFromHistoryState(window.history.state);
       // Another account's way back, reached by a browser back step after a switch, leads to its
       // own pages.
@@ -172,29 +177,28 @@ export const useRoomViewThreadState = ({
         (recordedBy === undefined || recordedBy === getActiveSession()?.sessionId)
           ? historyExitTarget
           : undefined;
-      // The page the thread was opened from, wherever that was, when the app has shown it; a
-      // redirect to the thread may have replaced the entry that recorded it.
+      const addresses = [roomId, getCanonicalAliasOrRoomId(mx, roomId)];
+      // The page the thread was opened from, when the app has shown it; a redirect to the thread
+      // may have replaced the entry that recorded it. After a reload, the exit target's path.
       const origin = previousHistoryOrigin(
         (page) =>
           !showsRoom(
             page,
-            [roomId, getCanonicalAliasOrRoomId(mx, roomId)],
+            addresses,
             [threadId, effectiveThreadId].filter((id): id is string => !!id)
           )
       );
+      const originPath = origin?.path ?? exitTarget?.exitPath;
+      // The room itself, with no thread open in it.
+      if (!originPath || !showsRoom(historyPageOf(originPath), addresses, [''])) {
+        toRoom();
+        return;
+      }
       const historyBack =
         (exitTarget?.useHistoryBack ?? !isNativeIOS()) && !isIOSStandaloneWebApp();
-      if (historyBack && (origin || exitTarget)) {
-        if (!origin || origin.steps === 1) window.history.back();
-        else window.history.go(-origin.steps);
-        return;
-      }
-      const exitPath = origin?.path ?? exitTarget?.exitPath;
-      if (!historyBack && exitPath) {
-        navigatePath(exitPath, { replace: true });
-        return;
-      }
-      fallback();
+      if (!historyBack) navigatePath(originPath, { replace: true });
+      else if (!origin || origin.steps === 1) window.history.back();
+      else window.history.go(-origin.steps);
     },
     [effectiveThreadId, mx, navigatePath, roomId, threadId]
   );

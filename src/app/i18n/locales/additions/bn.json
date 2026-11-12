@@ -693,6 +693,8 @@
       "back": "পিছনে",
       "nested_one": "{{count}}টি সাব-এজেন্ট",
       "nested_other": "{{count}}টি সাব-এজেন্ট",
+      "turns_one": "{{count}}টি পালা",
+      "turns_other": "{{count}}টি পালা",
       "running": "চলছে",
       "awaiting_approval": "অনুমোদনের অপেক্ষায়",
       "paused": "থামানো",

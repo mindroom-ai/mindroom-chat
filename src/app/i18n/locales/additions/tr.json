@@ -693,6 +693,8 @@
       "back": "Geri",
       "nested_one": "{{count}} alt ajan",
       "nested_other": "{{count}} alt ajan",
+      "turns_one": "{{count}} tur",
+      "turns_other": "{{count}} tur",
       "running": "Çalışıyor",
       "awaiting_approval": "Onay bekliyor",
       "paused": "Duraklatıldı",

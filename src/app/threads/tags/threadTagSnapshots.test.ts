@@ -10,12 +10,12 @@ const ISO_2 = '2026-04-04T18:05:00.000Z';
 let nextEventNumber = 0;
 
 // Each state change is a new event with its own id, as in the SDK.
-const makeTagEvent = (stateKey: string, content: Record<string, unknown>): MatrixEvent => {
+const makeTagEvent = (stateKey: string, content: Record<string, unknown>, ts = 1): MatrixEvent => {
   nextEventNumber += 1;
   return new MatrixEvent({
     content,
     event_id: `$tags-${nextEventNumber}`,
-    origin_server_ts: 1,
+    origin_server_ts: ts,
     room_id: '!room:example.org',
     // The person a tag names sent it.
     sender: typeof content.set_by === 'string' ? content.set_by : '@alice:example.org',
@@ -81,6 +81,22 @@ describe('buildThreadTagSnapshotMap', () => {
         },
       },
     });
+  });
+
+  it('dates a resolved thread by the server time of the event that holds its resolved tag', () => {
+    const tag = { set_by: '@alice:example.org', set_at: ISO_1 };
+    const snapshots = buildThreadTagSnapshotMap([
+      // A legacy event holds every tag; a thread's own resolved event wins over it.
+      makeTagEvent('$legacy', { tags: { resolved: tag } }, 100),
+      makeTagEvent('$both', { tags: { resolved: tag } }, 100),
+      makeTagEvent(JSON.stringify(['$both', 'resolved']), tag, 300),
+      makeTagEvent(JSON.stringify(['$both', 'urgent']), tag, 400),
+      makeTagEvent(JSON.stringify(['$open', 'urgent']), tag, 500),
+    ]);
+
+    expect(snapshots.get('$legacy')?.resolvedTs).toBe(100);
+    expect(snapshots.get('$both')?.resolvedTs).toBe(300);
+    expect(snapshots.get('$open')).not.toHaveProperty('resolvedTs');
   });
 });
 

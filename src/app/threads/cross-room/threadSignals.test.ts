@@ -184,6 +184,8 @@ describe('readThreadSignals', () => {
 
     expect(signals.newCount).toBe(0);
     expect(signals.lastReply?.eventId).toBe('$reply');
+    // A title or notice after the last reply is no news either.
+    expect(signals.newsTs).toBe(2000);
   });
 
   it('previews an agent reply by its words, its tool calls counted, not written out', async () => {
@@ -225,6 +227,7 @@ describe('readThreadSignals', () => {
     expect(readThreadSignals(room, ROOT, ME, NOW)).toMatchObject({
       pendingApproval: { eventId: '$ask' },
       waitsUntil: Date.parse('2099-01-01T00:00:00Z'),
+      newsTs: 2000,
     });
 
     const { room: theirs } = await setup(ME, [approval('$ask', 2000, '@other:example.org')]);
@@ -460,6 +463,7 @@ describe('readThreadSignals in a loaded thread with edits', () => {
       kind: 'finished',
       durationMs: FINISHED_AFTER_MS + 60_000,
     });
+    expect(signals.newsTs).toBe(2000 + FINISHED_AFTER_MS + 60_000);
   });
 
   it('hands the last reply to plugins as the timeline does, its newest edit included', async () => {

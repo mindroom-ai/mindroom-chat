@@ -11,6 +11,7 @@ import {
   advanceHistoryStack,
   emptyHistoryStack,
   findHistoryOrigin,
+  historyPageOf,
   OPENED_FROM_OUTSIDE_STATE,
   previousHistoryOrigin,
   previousHistoryPathname,
@@ -188,6 +189,22 @@ describe('findHistoryOrigin', () => {
     expect(inRoom(page('a', '/%23garden%3Aexample.org/%23harbor%3Aexample.org/'))).toBe(true);
     expect(inRoom(page('a', '/direct/%23harbor%3Aexample.org/'))).toBe(true);
     expect(inRoom(page('a', '/home/!garden:example.org/'))).toBe(false);
+  });
+
+  it('knows the room in the Activity and Threads sections', () => {
+    expect(inRoom(page('a', `/activity/${encodeURIComponent(room)}/`))).toBe(true);
+    expect(inRoom(page('a', `/threads/${encodeURIComponent(room)}/%24event`))).toBe(true);
+    expect(inRoom(page('a', '/activity/'))).toBe(false);
+  });
+
+  it('reads a recorded path as the page it opens', () => {
+    const path = `/home/${encodeURIComponent(room)}/?threadId=%24root`;
+    expect(historyPageOf(path)).toEqual({
+      pathname: `/home/${encodeURIComponent(room)}/`,
+      search: '?threadId=%24root',
+    });
+    expect(showsRoom(historyPageOf(path), [room], ['$root'])).toBe(true);
+    expect(showsRoom(historyPageOf(`/home/${encodeURIComponent(room)}/`), [room], [''])).toBe(true);
   });
 
   it("counts a space's own pages as the space", () => {

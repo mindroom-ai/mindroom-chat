@@ -681,6 +681,7 @@
       "empty": "此房间中没有正在运行的子智能体。",
       "back": "返回",
       "nested_other": "{{count}} 个子智能体",
+      "turns_other": "{{count}} 轮",
       "running": "运行中",
       "awaiting_approval": "等待批准",
       "paused": "已暂停",

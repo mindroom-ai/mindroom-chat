@@ -68,6 +68,8 @@ export type ThreadSignals = {
   automation: boolean;
   /** When what it waits on lapses with no event: the approval expires, the question ages out. */
   waitsUntil?: number;
+  /** When the newest of what it counts came: a message, by its newest edit, or the approval. */
+  newsTs?: number;
 };
 
 /** The newest events of a thread the signals read. */
@@ -376,12 +378,22 @@ export const readThreadSignals = (
   const automation =
     isAgent(root?.getSender()) && !counted.some(({ event }) => !isAgent(event.getSender()));
 
+  // A summary notice or an edit of an approval card is no news; a new message or card is.
+  const approvalTs = pendingApproval
+    ? all.find((event) => event.getId() === pendingApproval.eventId)?.getTs()
+    : undefined;
+  const newsTs = Math.max(
+    approvalTs ?? 0,
+    ...counted.map(({ event, editTs }) => editTs ?? event.getTs())
+  );
+
   const lapses = [
     pendingApproval && parseToolApprovalExpiryTimestamp(pendingApproval.approval.expiresAt),
     pendingQuestion && askedAt + QUESTION_WAITS_MS,
   ].filter((ts): ts is number => typeof ts === 'number');
   return {
     ...(lapses.length > 0 ? { waitsUntil: Math.min(...lapses) } : {}),
+    ...(newsTs > 0 ? { newsTs } : {}),
     ...(pendingApproval ? { pendingApproval } : {}),
     ...(pendingQuestion ? { pendingQuestion } : {}),
     mentionedMe,

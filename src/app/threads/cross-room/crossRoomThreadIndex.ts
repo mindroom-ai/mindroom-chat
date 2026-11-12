@@ -28,6 +28,8 @@ export type CrossRoomThreadIndexEntry = {
   lastActivityTs: number;
   isUnread: boolean;
   isResolved: boolean;
+  /** While resolved: when, by the server's clock (the tag's state event). */
+  resolvedTs?: number;
   hasAttention: boolean;
   isInvolved: boolean;
   summaryText: string;
@@ -419,6 +421,7 @@ export const buildCrossRoomThreadIndexEntry = ({
     ? Math.max(baseLastActivityTs, pendingOwnReplyEvent.getTs())
     : baseLastActivityTs;
   const isResolved = threadRecord.status.isResolved;
+  const resolvedTs = isResolved ? resolvedTagSnapshot?.resolvedTs : undefined;
   const hasAttention =
     !isResolved &&
     (threadRecord.status.isUnread ||
@@ -445,6 +448,7 @@ export const buildCrossRoomThreadIndexEntry = ({
     lastActivityTs,
     isUnread: threadRecord.status.isUnread,
     isResolved,
+    ...(resolvedTs !== undefined ? { resolvedTs } : {}),
     hasAttention,
     isInvolved:
       hasPendingOwnReply ||

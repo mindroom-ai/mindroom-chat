@@ -112,6 +112,7 @@ const run = (status: SubagentStatus) => {
   const ended = status !== 'running' && status !== 'awaiting_approval' && status !== 'paused';
   const meta: SubagentMeta = {
     agent: 'researcher',
+    subagent: `run-${serial}`,
     caller: 'lead',
     root: 'lead',
     parent: null,
