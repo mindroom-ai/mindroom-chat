@@ -22,9 +22,9 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // disposable homeserver, with the browser router and with the hash router. The plugin's page at
 // /p/example/rooms/<room>/<thread> links to the room and to its thread at the paths the app opens
 // them at, and both links open them; its buttons open the room, and the thread, whose Back button
-// returns to the page, the room at the thread's root, marked, and the room in place of the page, so
-// that Back skips the page; and its reload button reloads the page. Set PLUGIN_SHOTS=<directory> to
-// save screenshots.
+// leads to the thread's room, the room at the thread's root, marked, and the room in place of the
+// page, so that Back skips the page; and its reload button reloads the page. Set
+// PLUGIN_SHOTS=<directory> to save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'room-navigation-password';
 const RUN = Date.now().toString(36);
