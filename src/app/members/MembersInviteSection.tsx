@@ -4,13 +4,14 @@ import { Avatar, Button, Icon, Icons, Spinner, Text, color } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { UserAvatar } from '../avatars/UserAvatar';
 import { nameInitials } from '../lib/common';
-import { describeKnownError, errorDetail } from '../lib/describeError';
+import { describeError } from '../lib/describeError';
 import { useAlive } from '../lib/hooks/useAlive';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { isUserId } from '../matrix/matrix';
 import { mxcUrlToHttp } from '../matrix/mediaUrl';
 import { ownDirectionLine } from '../ui/directional';
+import { ErrorDetail } from '../ui/ErrorDetail';
 import { getDisplayName } from './invite/InviteUserAutocomplete';
 import { useInviteUserSearch } from './useInviteUserSearch';
 import type { ServerUserDirectoryUser } from './userDirectoryCache';
@@ -38,10 +39,13 @@ type Attempts = { query: string; byUser: Record<string, Attempt> };
  * at the top in their order, so a failure is never lost while someone types the next name. An
  * invitation that went out showed under the search it was sent from; the header counts it.
  */
-const carryOver = (byUser: Readonly<Record<string, Attempt>>): Record<string, Attempt> =>
+const carryOver = (
+  byUser: Readonly<Record<string, Attempt>>,
+  offered: (attempt: Attempt) => boolean
+): Record<string, Attempt> =>
   Object.fromEntries(
     Object.values(byUser)
-      .filter((attempt) => attempt.state.status !== 'invited')
+      .filter((attempt) => attempt.state.status !== 'invited' && offered(attempt))
       .sort((a, b) => a.index - b.index)
       .map((attempt, index) => [attempt.user.userId, { ...attempt, index }])
   );
@@ -68,9 +72,16 @@ const inviteRows = (
   ) {
     rows.push(typed);
   }
+  // An attempt shows the directory's current entry for its person when there is one, so a typed
+  // user ID gets its name once the directory answers.
+  const listedNow = new Map(suggestions.map((user) => [user.userId, user]));
   Object.values(attempts)
     .sort((a, b) => a.index - b.index)
-    .forEach((attempt) => rows.splice(Math.min(attempt.index, rows.length), 0, attempt));
+    .forEach((attempt) => {
+      const user = listedNow.get(attempt.user.userId);
+      const row = user ? { ...attempt, user, listed: true } : attempt;
+      rows.splice(Math.min(attempt.index, rows.length), 0, row);
+    });
   return rows;
 };
 
@@ -88,11 +99,7 @@ function InviteRowItem({ row, onInvite }: { row: InviteRow; onInvite: () => void
   const avatarSrc = user.avatarMxcUrl
     ? mxcUrlToHttp(client, user.avatarMxcUrl, authenticatedMedia, 64, 64, 'crop') ?? undefined
     : undefined;
-  const failure = state?.status === 'failed' ? state.error : undefined;
-  const failureText =
-    failure === undefined
-      ? undefined
-      : describeKnownError(t, failure) ?? errorDetail(failure) ?? t('errors.unknown');
+  const failure = state?.status === 'failed' ? { error: state.error } : undefined;
   const inviting = state?.status === 'inviting';
   const invited = state?.status === 'invited';
 
@@ -121,16 +128,16 @@ function InviteRowItem({ row, onInvite }: { row: InviteRow; onInvite: () => void
             {user.userId}
           </Text>
         )}
-        {failureText !== undefined && (
+        {/* The whole reason, on as many lines as it takes. */}
+        {failure && (
           <Text
             as="span"
             size="T200"
             role="alert"
-            truncate
-            title={errorDetail(failure) ?? failureText}
-            style={{ color: color.Critical.Main }}
+            style={{ color: color.Critical.Main, overflowWrap: 'anywhere' }}
           >
-            {failureText}
+            {describeError(t, failure.error)}
+            <ErrorDetail error={failure.error} />
           </Text>
         )}
       </span>
@@ -234,18 +241,19 @@ export function MembersInviteSection({ room, query }: MembersInviteSectionProps)
   const alive = useAlive();
   const trimmed = query.trim();
   const [attempts, setAttempts] = useState<Attempts>({ query: trimmed, byUser: {} });
-  // A new search places the invitations for it before this render shows them.
-  if (attempts.query !== trimmed) {
-    setAttempts({ query: trimmed, byUser: carryOver(attempts.byUser) });
-  }
   const [announcement, setAnnouncement] = useState('');
   // A failed invitation drops out once the person joined or was invited some other way.
   const selfUserId = client.getSafeUserId();
+  const offered = (attempt: Attempt) =>
+    attempt.state.status !== 'failed' ||
+    filterInviteUserCandidates([attempt.user], room, selfUserId).length > 0;
+  // A new search places the invitations for it before this render shows them.
+  if (attempts.query !== trimmed) {
+    setAttempts({ query: trimmed, byUser: carryOver(attempts.byUser, offered) });
+  }
   const placed = Object.fromEntries(
-    Object.entries(attempts.query === trimmed ? attempts.byUser : {}).filter(
-      ([, attempt]) =>
-        attempt.state.status !== 'failed' ||
-        filterInviteUserCandidates([attempt.user], room, selfUserId).length > 0
+    Object.entries(attempts.query === trimmed ? attempts.byUser : {}).filter(([, attempt]) =>
+      offered(attempt)
     )
   );
 

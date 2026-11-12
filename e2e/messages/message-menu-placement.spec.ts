@@ -155,7 +155,8 @@ const menusOpenAbove = async (
 
   // The reaction picker.
   const reactionToolbar = await openFromToolbar('Add Reaction');
-  const search = page.getByRole('textbox', { name: /search/i }).last();
+  // The picker's own field: the members panel beside the room has a search field too.
+  const search = page.getByRole('textbox', { name: 'Search or Text Reaction', exact: true });
   await expect(search).toBeVisible();
   const board = await popOutOf(search);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/emoji-${name}.png` });

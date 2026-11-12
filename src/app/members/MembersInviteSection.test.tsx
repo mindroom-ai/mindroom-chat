@@ -108,15 +108,24 @@ describe('MembersInviteSection', () => {
       fireEvent.click(inviteButton('Marco Rossi'));
     });
 
-    expect(within(section()).getByRole('alert').textContent).toBe('You are not allowed to invite');
+    // The sentence for people, and the error's own text, in full.
+    expect(within(section()).getByRole('alert').textContent).toBe(
+      'Something went wrong.You are not allowed to invite'
+    );
     expect(within(section()).getByText('@marco:example.org')).toBeTruthy();
     expect(isOff(inviteButton('Marco Rossi'))).toBe(false);
 
-    // Invited some other way, he drops out with his failure.
+    // Invited some other way, he drops out with his failure, and stays out on later searches
+    // even once he declines.
     memberships['@marco:example.org'] = 'invite';
     mocks.search = { suggestions: [mara], isFetching: false };
     rerender(<MembersInviteSection room={room} query="ma" />);
     expect(rowNames()).toEqual(['Mara Lind']);
+    rerender(<MembersInviteSection room={room} query="mar" />);
+    memberships['@marco:example.org'] = 'leave';
+    mocks.search = { suggestions: [], isFetching: false };
+    rerender(<MembersInviteSection room={room} query="jor" />);
+    expect(screen.queryByRole('group', { name: 'Not in this room' })).toBeNull();
   });
 
   it('keeps an invitation still going in view through a new search, and shows its failure', async () => {
@@ -133,14 +142,14 @@ describe('MembersInviteSection', () => {
 
     await act(async () => fail(new Error('The remote server did not answer')));
     rerender(<MembersInviteSection room={room} query="" />);
-    expect(within(section()).getByRole('alert').textContent).toBe(
+    expect(within(section()).getByRole('alert').textContent).toContain(
       'The remote server did not answer'
     );
     expect(isOff(inviteButton('Mara Lind'))).toBe(false);
     expect(mocks.invite).toHaveBeenCalledTimes(1);
   });
 
-  it('offers a full user ID the directory does not return, unless it is already in the room', () => {
+  it('offers a full user ID the directory does not return, unless it is already in the room', async () => {
     mocks.search = { suggestions: [], isFetching: true };
     const { rerender } = render(<MembersInviteSection room={room} query=" @sam:other.org " />);
     expect(rowNames()).toEqual(['@sam:other.org']);
@@ -151,6 +160,20 @@ describe('MembersInviteSection', () => {
     expect(screen.queryByRole('group', { name: 'Not in this room' })).toBeNull();
     rerender(<MembersInviteSection room={room} query="@me:example.org" />);
     expect(screen.queryByRole('group', { name: 'Not in this room' })).toBeNull();
+
+    rerender(<MembersInviteSection room={room} query=" @sam:other.org " />);
+    // An invitation to it takes the directory's name for it once the directory answers.
+    mocks.invite.mockRejectedValueOnce(new Error('Not now'));
+    await act(async () => {
+      fireEvent.click(inviteButton('@sam:other.org'));
+    });
+    mocks.search = {
+      suggestions: [{ userId: '@sam:other.org', displayName: 'Sam Lee' }],
+      isFetching: false,
+    };
+    rerender(<MembersInviteSection room={room} query=" @sam:other.org " />);
+    expect(rowNames()).toEqual(['Sam Lee']);
+    expect(within(section()).getByRole('alert').textContent).toContain('Not now');
   });
 
   it('says it is searching while the directory has not answered, and hides when nothing matches', () => {
