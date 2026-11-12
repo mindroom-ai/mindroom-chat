@@ -51,6 +51,7 @@ export const ROAMING_SETTINGS = {
   enterForNewline: 'enterForNewline',
   hideMembershipEvents: 'hideMembershipEvents',
   hideNickAvatarEvents: 'hideNickAvatarEvents',
+  showToolCalls: 'showToolCalls',
   urlPreview: 'urlPreview',
   hideActivity: 'hideActivity',
   hour24Clock: 'hour24Clock',

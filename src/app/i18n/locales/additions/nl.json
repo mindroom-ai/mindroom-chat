@@ -614,7 +614,9 @@
       },
       "approvalDecisionControls": {
         "tooLargeToApprove": "De argumenten zijn te groot om te beoordelen, dus dit verzoek kan alleen worden geweigerd."
-      }
+      },
+      "showToolCalls": "Toolaanroepen tonen",
+      "showToolCallsDescription": "Antwoorden van agents tonen de tools die ze hebben uitgevoerd. Het kamermenu heeft deze schakelaar ook."
     },
     "message-search": {
       "messageSearch": {

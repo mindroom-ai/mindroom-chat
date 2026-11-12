@@ -614,7 +614,9 @@
       },
       "approvalDecisionControls": {
         "tooLargeToApprove": "Die Argumente sind zu groß zum Prüfen, daher kann diese Anfrage nur abgelehnt werden."
-      }
+      },
+      "showToolCalls": "Tool-Aufrufe anzeigen",
+      "showToolCallsDescription": "Antworten von Agenten listen die Tools auf, die sie ausgeführt haben. Das Raummenü hat diesen Schalter auch."
     },
     "message-search": {
       "messageSearch": {

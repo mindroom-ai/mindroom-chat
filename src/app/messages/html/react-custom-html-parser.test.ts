@@ -30,6 +30,8 @@ import {
 import { formatMessageTextBodyAsHtml } from './blocks';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
+import { createStore, Provider } from 'jotai';
+import { getSettings, settingsAtom } from '../../preferences/settings';
 
 const clipboardMocks = vi.hoisted(() => ({
   copyToClipboard: vi.fn<(text: string) => Promise<boolean>>(),
@@ -697,6 +699,34 @@ describe('useToolTraceMarkerParserOptions', () => {
     expect(markup).toContain('class="Paragraph MarginSpaced"');
     expect(markup).toContain('Results are ready.');
     expect(markup).not.toContain('🔧');
+  });
+
+  it('leaves the tool calls out while they are hidden, and shows them again without a new parse', () => {
+    const html = [
+      '<p>Looking it up.</p>',
+      '<p>🔧 <code>first_tool</code> [1]</p>',
+      '<p>🔧 <code>second_tool</code> [2]</p>',
+      '<p>Results are ready.</p>',
+    ].join('');
+    const store = createStore();
+    store.set(settingsAtom, { ...getSettings(), showToolCalls: false });
+    const parsed = parse(html, markerParserOptions(createBaseOpts(), { formatted_body: html }));
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(React.createElement(Provider, { store }, parsed));
+    });
+    const text = () => collectTextContent(renderer?.toJSON() ?? null);
+
+    expect(text()).toContain('Looking it up.');
+    expect(text()).toContain('Results are ready.');
+    expect(text()).not.toMatch(toolCountLabel(2));
+    expect(text()).not.toContain('🔧');
+
+    act(() => {
+      store.set(settingsAtom, { ...store.get(settingsAtom), showToolCalls: true });
+    });
+    expect(text()).toMatch(toolCountLabel(2));
+    act(() => renderer?.unmount());
   });
 
   it('renders tool blocks for marker-only content and enriches them with trace metadata', () => {

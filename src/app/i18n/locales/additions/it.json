@@ -623,7 +623,9 @@
       },
       "approvalDecisionControls": {
         "tooLargeToApprove": "Gli argomenti sono troppo grandi per essere esaminati, quindi questa richiesta può solo essere rifiutata."
-      }
+      },
+      "showToolCalls": "Mostra chiamate a strumenti",
+      "showToolCallsDescription": "Le risposte degli agenti elencano gli strumenti che hanno eseguito. Anche il menu della stanza ha questo interruttore."
     },
     "message-search": {
       "messageSearch": {

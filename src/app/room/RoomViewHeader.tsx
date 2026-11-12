@@ -191,7 +191,7 @@ const useViewSwitch = (room: Room, hasMindroomAgents: boolean | undefined) => {
  * The room header: avatar (a back button on phones), name and topic, then its actions (the Compact
  * and Threads switch, the filter bar button, scheduled tasks, canvases, the computer, the
  * sub-agents, calls, pinned messages, members, and the plugins' actions) and the room menu, which
- * offers those its row leaves out. Phones keep the back button, the name and the room menu, so a
+ * offers those its row leaves out, and the tool calls switch. Phones keep the back button, the name and the room menu, so a
  * long name keeps its room; a call that is on keeps its button.
  */
 export function RoomViewHeader({
@@ -220,6 +220,7 @@ export function RoomViewHeader({
   const mx = useMatrixClient();
   const { viewMode, viewSwitch } = useViewSwitch(room, hasMindroomAgents);
   const [filterBarHidden, setFilterBarHidden] = useSetting(settingsAtom, 'hideThreadFilterBar');
+  const [showToolCalls, setShowToolCalls] = useSetting(settingsAtom, 'showToolCalls');
   // The views with a thread filter bar, as MindroomRoomTimeline draws it: Compact cards, and
   // Threads in a room with agents.
   const hasFilterBar =
@@ -367,6 +368,16 @@ export function RoomViewHeader({
       run: () => setFilterBarHidden(!filterBarHidden),
       badge: hiddenFiltersActive && cornerDot('data-hidden-filters-dot'),
       marker: 'data-thread-filter-bar-toggle',
+    },
+    // Agents' replies list the tools they ran; one switch shows or hides them in every room.
+    hasMindroomAgents && {
+      id: 'toolCalls',
+      label: t('mindroomUi.messages.showToolCalls'),
+      icon: Icons.Terminal,
+      placement: 'menu',
+      pressed: showToolCalls,
+      run: () => setShowToolCalls(!showToolCalls),
+      marker: 'data-tool-calls-toggle',
     },
     hasMindroomAgents && {
       id: 'schedules',

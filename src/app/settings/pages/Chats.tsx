@@ -48,6 +48,12 @@ export function Chats({ requestClose }: SettingsPageProps) {
           title={t('settings.general.messages.hideProfileChange')}
         />
         <SettingSwitchTile
+          focusId="showToolCalls"
+          setting="showToolCalls"
+          title={t('mindroomUi.messages.showToolCalls')}
+          description={t('mindroomUi.messages.showToolCallsDescription')}
+        />
+        <SettingSwitchTile
           focusId="mediaAutoLoad"
           setting="mediaAutoLoad"
           inverted

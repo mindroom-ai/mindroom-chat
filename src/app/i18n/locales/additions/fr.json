@@ -623,7 +623,9 @@
       },
       "approvalDecisionControls": {
         "tooLargeToApprove": "Les arguments sont trop volumineux pour être examinés : cette demande ne peut qu’être refusée."
-      }
+      },
+      "showToolCalls": "Afficher les appels d'outils",
+      "showToolCallsDescription": "Les réponses des agents listent les outils qu'ils ont exécutés. Le menu du salon propose aussi ce bouton."
     },
     "message-search": {
       "messageSearch": {

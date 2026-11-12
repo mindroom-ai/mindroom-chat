@@ -614,7 +614,9 @@
       },
       "approvalDecisionControls": {
         "tooLargeToApprove": "आर्ग्युमेंट समीक्षा के लिए बहुत बड़े हैं, इसलिए यह अनुरोध केवल अस्वीकार किया जा सकता है।"
-      }
+      },
+      "showToolCalls": "टूल कॉल दिखाएँ",
+      "showToolCallsDescription": "एजेंट के जवाबों में वे टूल दिखते हैं जो उन्होंने चलाए। रूम मेनू में भी यह स्विच है।"
     },
     "message-search": {
       "messageSearch": {

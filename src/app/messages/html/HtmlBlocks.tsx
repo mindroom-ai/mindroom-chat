@@ -44,6 +44,8 @@ import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
 import { revealDirectionControls } from '../../ui/directional';
 import type { HtmlReactParserOptionsSource } from '../../rich-text/htmlReactParserOptions';
+import { settingsAtom } from '../../preferences/settings';
+import { useSettingValue } from '../../preferences/useSettingValue';
 
 type BlockTagName = 'think' | 'debug' | 'system' | 'plan' | 'analysis' | 'research';
 
@@ -328,12 +330,17 @@ const useToolCallApprovals = (jobIds: readonly string[]) => {
     }));
 };
 
+/**
+ * A run of tool calls, left out while the tool calls are hidden (`showToolCalls`). Each block
+ * reads the setting itself, so switching it redraws the blocks without parsing the replies again.
+ */
 function ToolRefGroupBlock({
   parsedTools,
 }: {
   parsedTools: ToolBlockRenderData[];
 }) {
   const { t } = useTranslation();
+  const shown = useSettingValue(settingsAtom, 'showToolCalls');
   const loadedTools = parsedTools.filter(
     (tool) => tool.status !== 'loading' && tool.status !== 'unavailable'
   );
@@ -343,6 +350,7 @@ function ToolRefGroupBlock({
     job: parseToolJobHandle(tool.result),
   }));
   const approvals = useToolCallApprovals(calls.flatMap(({ job }) => (job ? [job.jobId] : [])));
+  if (!shown) return null;
   const metadataStatus = parsedTools.find(
     (tool) => tool.status === 'loading' || tool.status === 'unavailable'
   )?.status;

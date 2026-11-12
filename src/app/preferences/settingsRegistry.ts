@@ -504,6 +504,15 @@ export const SETTINGS = [
     scope: 'account',
   },
   {
+    id: 'showToolCalls',
+    page: 'chats',
+    group: 'settings.general.messages.sectionTitle',
+    labelKey: 'mindroomUi.messages.showToolCalls',
+    descriptionKey: 'mindroomUi.messages.showToolCallsDescription',
+    keywordsKey: `${KEYWORDS}.timeline`,
+    scope: 'account',
+  },
+  {
     id: 'mediaAutoLoad',
     page: 'chats',
     group: 'settings.general.messages.sectionTitle',

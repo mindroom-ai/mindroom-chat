@@ -605,7 +605,9 @@
       },
       "approvalDecisionControls": {
         "tooLargeToApprove": "Argumen terlalu besar untuk ditinjau, jadi permintaan ini hanya dapat ditolak."
-      }
+      },
+      "showToolCalls": "Tampilkan panggilan alat",
+      "showToolCallsDescription": "Balasan agen mencantumkan alat yang mereka jalankan. Menu ruangan juga memiliki sakelar ini."
     },
     "message-search": {
       "messageSearch": {
