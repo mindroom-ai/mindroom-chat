@@ -87,7 +87,8 @@ const compareRows = (a: ActivityRow, b: ActivityRow): number =>
  * Activity's rows: a thread that waits for the person or names them, and a thread they take part
  * in with activity in the last `ACTIVITY_READ_WINDOW_MS`, one row each; then the invites. A
  * thread an agent runs alone (an automation) is only counted, unless it names them, it waits for
- * them, or `showAutomations` lists it. A resolved thread has no row and is not counted.
+ * them, or `showAutomations` lists it. A resolved thread has no row and is not counted, until
+ * something happens in it after it was resolved.
  */
 export const buildActivityRows = ({
   entries,
@@ -105,10 +106,11 @@ export const buildActivityRows = ({
   const rows: ActivityRow[] = [];
   let hiddenAutomations = 0;
   for (const entry of entries) {
-    // A resolved thread is done: what it asks or names the person no longer waits for them.
-    if (entry.isResolved) continue;
-    const recent = now - entry.lastActivityTs <= ACTIVITY_READ_WINDOW_MS;
     const threadSignals = signals(entry);
+    const ts = Math.max(entry.lastActivityTs, threadSignals.lastReply?.ts ?? 0);
+    // Resolving a thread answers what it held; only what happens in it after brings it back.
+    if (entry.isResolved && ts <= (entry.resolvedTs ?? Infinity)) continue;
+    const recent = now - entry.lastActivityTs <= ACTIVITY_READ_WINDOW_MS;
     const waits = !!threadSignals.pendingApproval || !!threadSignals.pendingQuestion;
     const named = threadSignals.mentionedMe;
     // What waits for the person or names them stays however old; the rest leaves after the window.
@@ -134,7 +136,7 @@ export const buildActivityRows = ({
       entry,
       signals: threadSignals,
       unread,
-      ts: Math.max(entry.lastActivityTs, threadSignals.lastReply?.ts ?? 0),
+      ts,
       actorIds,
     });
   }

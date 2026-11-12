@@ -12,7 +12,7 @@ import { createPrivateRoom, joinRoom, matrixFetch, sendRoomMessage } from '../he
 // The Activity bell: an agent's mention and its pending tool approval in the person's thread show
 // as rows and on the bell's count; Approve answers from the popover; a row opens its thread beside
 // the Activity list, and reading it clears the row; resolving a thread takes its question out of
-// Activity; on a phone the top bar's bell opens a sheet.
+// Activity until something new happens in it; on a phone the top bar's bell opens a sheet.
 test.describe.configure({ mode: 'serial', timeout: 240_000 });
 
 const PASSWORD = 'activity-e2e-password';
@@ -20,6 +20,7 @@ const RUN = Date.now().toString(36);
 
 type Fixture = {
   person: DisposableUser;
+  agent: DisposableUser;
   roomId: string;
   askRoot: string;
   replyRoot: string;
@@ -98,7 +99,7 @@ const seed = async (browserName: string): Promise<Fixture> => {
     },
     ...thread(questionRoot),
   });
-  return { person, roomId, askRoot, replyRoot, questionRoot };
+  return { person, agent, roomId, askRoot, replyRoot, questionRoot };
 };
 
 const signIn = async (page: Page, user: DisposableUser) => {
@@ -195,7 +196,9 @@ test('a row opens its thread beside the Activity list, and reading it clears the
   await expect(row).toBeHidden({ timeout: 60_000 });
 });
 
-test('resolving a thread takes its question out of Activity', async ({ page }) => {
+test('resolving a thread takes its question out of Activity until something new happens in it', async ({
+  page,
+}) => {
   await signIn(page, fixture.person);
   const bell = page.getByRole('button', { name: /^Activity/ }).first();
   await bell.click();
@@ -214,6 +217,17 @@ test('resolving a thread takes its question out of Activity', async ({ page }) =
   await page.getByRole('main').getByRole('button', { name: 'Resolve', exact: true }).click();
   await expect(page.getByRole('main').getByRole('button', { name: 'Resolved' })).toBeVisible();
   await expect(questionRow).toHaveCount(0, { timeout: 30_000 });
+
+  await sendRoomMessage(HOMESERVER, fixture.agent.accessToken, fixture.roomId, {
+    msgtype: 'm.text',
+    body: `${fixture.person.userId} The v4 notes changed again.`,
+    'm.mentions': { user_ids: [fixture.person.userId] },
+    ...thread(fixture.questionRoot),
+  });
+  await expect(
+    list.locator('[data-activity-row]', { hasText: `Clean up the release notes ${RUN}` })
+  ).toBeVisible({ timeout: 60_000 });
+  await expect(questionRow).toHaveCount(0);
 });
 
 test('on a phone the top bar bell opens Activity as a sheet', async ({ page }) => {

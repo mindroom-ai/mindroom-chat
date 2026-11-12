@@ -5,28 +5,58 @@ import {
   getDisplayTags,
   isThreadResolved,
   MINDROOM_THREAD_TAGS_EVENT,
+  parsePerTagStateKey,
+  RESOLVED_TAG,
   type ThreadTagsContent,
 } from '../../event-store/threads/threadTags';
 
 export type ThreadTagSnapshot = {
   content: ThreadTagsContent;
   isResolved: boolean;
+  /** While resolved: when its tag was last written, by the server's clock. */
+  resolvedTs?: number;
   displayTags: string[];
 };
 
-export const buildThreadTagSnapshot = (content: ThreadTagsContent): ThreadTagSnapshot => ({
-  content,
-  isResolved: isThreadResolved(content),
-  displayTags: getDisplayTags(content),
-});
+export const buildThreadTagSnapshot = (
+  content: ThreadTagsContent,
+  resolvedTs?: number
+): ThreadTagSnapshot => {
+  const isResolved = isThreadResolved(content);
+  return {
+    content,
+    isResolved,
+    ...(isResolved && resolvedTs !== undefined ? { resolvedTs } : {}),
+    displayTags: getDisplayTags(content),
+  };
+};
+
+/**
+ * When each thread's resolved tag was last written: the time of its own state event, else of the
+ * thread's legacy event, which holds every tag at once.
+ */
+const getResolvedTagTimes = (events: MatrixEvent[]): Map<string, number> => {
+  const legacy = new Map<string, number>();
+  const perTag = new Map<string, number>();
+  events.forEach((event) => {
+    const stateKey = event.getStateKey();
+    const ts: unknown = event.getTs();
+    if (typeof stateKey !== 'string' || typeof ts !== 'number') return;
+    const parsed = parsePerTagStateKey(stateKey);
+    if (!parsed) legacy.set(stateKey, ts);
+    else if (parsed.tagName === RESOLVED_TAG) perTag.set(parsed.threadRootId, ts);
+  });
+  return new Map([...legacy, ...perTag]);
+};
 
 export const buildThreadTagSnapshotMap = (
   events: MatrixEvent[]
 ): Map<string, ThreadTagSnapshot> => {
   const snapshots = new Map<string, ThreadTagSnapshot>();
+  const resolvedTimes = getResolvedTagTimes(events);
 
   aggregateThreadTagEvents(events).forEach((content, threadRootId) => {
-    snapshots.set(threadRootId, buildThreadTagSnapshot(content));
+    snapshots.set(threadRootId, buildThreadTagSnapshot(content, resolvedTimes.get(threadRootId)));
   });
 
   return snapshots;

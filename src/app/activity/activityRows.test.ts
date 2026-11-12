@@ -98,17 +98,29 @@ describe('buildActivityRows', () => {
 
   it('leaves out a resolved thread, whatever waits in it or names the user', () => {
     const question = { eventId: '$q', senderId: '@mindroom_mind:x', text: 'q', options: [] };
-    const resolved = { isResolved: true };
+    const resolved = { isResolved: true, resolvedTs: NOW - 60_000 };
     const { rows, hiddenAutomations } = build([
       [entry('asks', resolved), { pendingQuestion: question }],
       [entry('approval', resolved), { pendingApproval: approvalRecord }],
       [entry('named', resolved), { mentionedMe: true, newCount: 1 }],
       [entry('reply', resolved), { newCount: 1, newSenderIds: ['@tom:x'] }],
       [entry('run', { ...resolved, isInvolved: false }), { automation: true, newCount: 1 }],
+      // Before the tag's state event has come back, no time is known: it counts as just resolved.
+      [entry('pending', { isResolved: true }), { pendingQuestion: question }],
       [entry('open'), { pendingQuestion: question }],
     ]);
     expect(kinds(rows)).toEqual(['open:question']);
     expect(hiddenAutomations).toBe(0);
+  });
+
+  it('lists a resolved thread again once something happens in it after', () => {
+    const before = { isResolved: true, resolvedTs: NOW - 2 * 3600_000 };
+    const { rows } = build([
+      [entry('named', before), { mentionedMe: true, mentionedBy: '@tom:x', newCount: 1 }],
+      [entry('replied', { ...before, lastActivityTs: NOW - 3 * 3600_000 }), { newCount: 1 }],
+    ]);
+    // The reply counts by its own time, which the index's last activity may not have caught up to.
+    expect(kinds(rows)).toEqual(['named:mention', 'replied:reply']);
   });
 
   it('calls a thread whose root names the user unread, though no reply is new', () => {
