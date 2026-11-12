@@ -365,7 +365,7 @@ describe('CommandPalette', () => {
     expect(allTab?.props['aria-controls']).toBe(panel.props.id);
   });
 
-  it('opens on the tab it is given, such as Messages from the sidebar', () => {
+  it('opens on the tab it is given, such as Messages from the search shortcut', () => {
     const renderer = renderPalette({ initialTab: 'messages' });
     expect(selectedTab(renderer)).toBe('messages');
     expect(useMessages).toHaveBeenLastCalledWith('', true);

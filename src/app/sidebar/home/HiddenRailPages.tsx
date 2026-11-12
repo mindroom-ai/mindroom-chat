@@ -11,8 +11,8 @@ import { useOpenExplore } from '../rail/useOpenExplore';
 /**
  * The rail buttons the person hides (Settings > General > Sidebar), in rail order, so each stays
  * one menu away on any screen: Threads, Canvases (once there is one, as for its button), Explore
- * Community and Create Space. The command palette needs no entry: Home's list and a phone's top
- * bar show its search field.
+ * Community and Create Space. The command palette needs no entry: Mod+K opens it on any page, as
+ * does the search field atop Home's list or in a phone's top bar.
  */
 export function HiddenRailPages({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();

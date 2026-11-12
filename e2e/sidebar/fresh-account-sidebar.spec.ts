@@ -276,7 +276,7 @@ const checkFreshAccount = async (page: Page, layout: Layout, user: Seeded) => {
   await expect(page.getByTestId('thread-nav-list')).toBeVisible();
 
   // Home's options menu lists every hidden button; Canvases waits for a canvas, as its button does.
-  // The search button needs no entry: the Find anything field is always on screen.
+  // The search button needs no entry: Mod+K opens the palette, as does the Find anything field.
   await page.getByRole('button', { name: 'Home Options', exact: true }).click();
   for (const entry of ['Threads', 'Explore Community', 'Create Space']) {
     // eslint-disable-next-line no-await-in-loop
