@@ -110,7 +110,7 @@ const LAYERS = [
   ['background-jobs', 'members', 'messages'],
   ['canvas', 'composer', 'notifications', 'schedules', 'search', 'subagents'],
   ['rooms', 'threads'],
-  ['account', 'activity', 'spaces', 'timeline'],
+  ['account', 'activity', 'quick-capture', 'spaces', 'timeline'],
   ['command-palette', 'local-mindroom', 'room'],
   ['settings'],
   ['sidebar'],
