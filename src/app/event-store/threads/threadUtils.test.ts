@@ -4,7 +4,6 @@ import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import { Direction } from 'matrix-js-sdk/lib/models/event-timeline';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import {
-  buildThreadParticipantMap,
   buildThreadReplyCountMap,
   buildVisibleThreadParticipantMap,
   buildVisibleThreadReplyCountMap,
@@ -378,46 +377,6 @@ describe('getVisibleThreadMessageCount', () => {
       ]);
       expect(getVisibleThreadMessageCount(thread)).toBe(5);
     });
-  });
-});
-
-describe('buildThreadParticipantMap', () => {
-  it('returns recent unique participants per thread root', () => {
-    const participants = buildThreadParticipantMap([
-      makeEvent('$reply1', '$root', RelationType.Thread, '@alice:example.org'),
-      makeEvent('$reply2', '$root', RelationType.Thread, '@bob:example.org'),
-      makeEvent('$reply3', '$root', RelationType.Thread, '@alice:example.org'),
-      makeEvent('$reply4', '$root', RelationType.Thread, '@carol:example.org'),
-    ]);
-
-    expect(participants.get('$root')).toEqual([
-      '@carol:example.org',
-      '@alice:example.org',
-      '@bob:example.org',
-    ]);
-  });
-
-  it('skips non-thread relations and events without sender', () => {
-    const participants = buildThreadParticipantMap([
-      makeEvent('$reply1', '$root', RelationType.Thread, '@alice:example.org'),
-      makeEvent('$annotation', '$root', RelationType.Annotation, '@bob:example.org'),
-      makeEvent('$reply2', '$root', RelationType.Thread, undefined),
-    ]);
-
-    expect(participants.get('$root')).toEqual(['@alice:example.org']);
-  });
-
-  it('limits participants per thread root', () => {
-    const participants = buildThreadParticipantMap(
-      [
-        makeEvent('$reply1', '$root', RelationType.Thread, '@alice:example.org'),
-        makeEvent('$reply2', '$root', RelationType.Thread, '@bob:example.org'),
-        makeEvent('$reply3', '$root', RelationType.Thread, '@carol:example.org'),
-      ],
-      2
-    );
-
-    expect(participants.get('$root')).toEqual(['@carol:example.org', '@bob:example.org']);
   });
 });
 
