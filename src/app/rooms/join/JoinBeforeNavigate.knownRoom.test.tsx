@@ -236,6 +236,35 @@ describe('JoinBeforeNavigate names the room it knows', () => {
     expect(lines).toContain('Reason: Posted a <U+202E>kcilc<U+202C> link');
   });
 
+  it('names who invited in one bold name, and shows a name that holds markup as text', () => {
+    summaryLoaderMock.state = { status: AsyncStatus.Error, error: new Error('offline') };
+    const invitedBy = (inviterId: string, rawDisplayName: string) => {
+      const members = [
+        { userId: inviterId, rawDisplayName, membership: 'join' },
+        { userId: '@me:example.org', events: { member: { getSender: () => inviterId } } },
+      ];
+      const room = {
+        ...invitedRoom,
+        getMember: (userId: string) => members.find((member) => member.userId === userId) ?? null,
+        getMembers: () => members,
+      };
+      const client = {
+        ...roomClient,
+        getRoom: vi.fn((roomId: string) => (roomId === room.roomId ? room : null)),
+      } as unknown as MatrixClient;
+      const bold = renderPage(room.roomId, client).root.findAll((node) => node.type === 'b');
+      expect(bold).toHaveLength(1);
+      expect(Object.keys(bold[0]?.props ?? {}).sort()).toEqual(['children', 'title']);
+      expect(bold[0]?.props.title).toBe(inviterId);
+      return bold[0]?.children;
+    };
+
+    expect(invitedBy('@host:example.org', 'Room Host')).toEqual(['Room Host']);
+    // A name that would add an inline handler to the bold name it fills, read as markup.
+    const markup = '<b is onclick="alert(1)">Mallory</b>';
+    expect(invitedBy('@mallory:example.org', markup)).toEqual([markup]);
+  });
+
   it('asks for a failed summary again once sync recovers', () => {
     summaryLoaderMock.state = { status: AsyncStatus.Error, error: new Error('offline') };
     renderPage(invitedRoom.roomId, roomClient);
