@@ -351,7 +351,6 @@ export const buildCrossRoomThreadIndexEntry = ({
   summaryInfo,
   currentUserId,
   tagSnapshot,
-  generation = 0,
 }: {
   room: Room;
   threadRootId: string;
@@ -360,7 +359,6 @@ export const buildCrossRoomThreadIndexEntry = ({
   currentUserId?: string;
   /** null is an explicitly untagged root in a shared room snapshot. */
   tagSnapshot?: ThreadTagSnapshot | null;
-  generation?: number;
 }): CrossRoomThreadIndexEntry | undefined => {
   const thread = room.getThread(threadRootId);
   const resolvedRootEvent =
@@ -456,7 +454,7 @@ export const buildCrossRoomThreadIndexEntry = ({
     rootPreviewText,
     searchableText: normalizeThreadSearchText(`${rootPreviewText} ${summaryText}`),
     tags: threadRecord.status.tags,
-    generation,
+    generation: 0,
   };
 };
 

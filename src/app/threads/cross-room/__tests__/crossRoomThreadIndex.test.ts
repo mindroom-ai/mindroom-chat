@@ -449,7 +449,7 @@ describe('crossRoomThreadIndex', () => {
       threadRootId: '$root',
       tagSnapshot,
     });
-    expect(entry).toBeDefined();
+    expect(entry?.generation).toBe(0);
 
     expect(areCrossRoomThreadIndexEntriesEquivalent(entry!, { ...entry!, generation: 7 })).toBe(
       true

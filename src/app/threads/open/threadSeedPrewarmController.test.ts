@@ -50,10 +50,8 @@ const makeRootEvent = () =>
     type: 'm.room.message',
   });
 
-// NOTE: the controller persists through the engine facade
-// (`engine.persist.persistThreadEventCache`, reached via
-// `useSyncEngine()`), NOT through a prop — the spy the tests
-// assert on lives on the fake engine passed to the provider below.
+// The controller only reads the cache: the spies on the fake engine below check that it neither
+// fetches relations nor persists thread events.
 function Harness({ mx, room }: { mx: MatrixClient; room: Room }) {
   useThreadSeedPrewarmController({
     room,
@@ -139,17 +137,13 @@ describe('threadSeedPrewarmController cache-only seeds', () => {
     );
 
     await renderPrewarm(mx, room, engine);
-    // Give the drain loop time to (incorrectly) fire if it were going to.
-
     expect(fetchRelations).not.toHaveBeenCalled();
     expect(persistThreadEventCache).not.toHaveBeenCalled();
   });
 
   it('gives up without persisting when the thread root is not SDK-resolvable (PR #84 greptile P2)', async () => {
     const { mx, engine, fetchRelations, persistThreadEventCache } = setup();
-    // Root never resolves → fetchAndPersistThreadContent bails before
-    // enqueuing; nothing is fetched or persisted, and the open-time
-    // drain remains the fallback for this thread.
+    // The root never resolves; nothing is fetched or persisted.
     const rootlessRoom = {
       roomId: ROOM_ID,
       getThread: () => null,
@@ -236,6 +230,7 @@ it('does not publish a held seed read after room clear', async () => {
       React.createElement(SyncEngineProvider, { engine }, React.createElement(HeldHarness))
     );
   });
+  await vi.waitFor(() => expect(load).toHaveBeenCalledOnce());
   await read;
   expect(readSnapshot?.events.map((event) => event.getId())).toEqual(['$held-seed']);
   const pending = controller.waitForExistingOrQueued(THREAD_ID, {});

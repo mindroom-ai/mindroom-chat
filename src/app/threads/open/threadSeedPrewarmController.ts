@@ -20,8 +20,6 @@ type EnsureThreadSeedPrewarmOptions = {
   traceId?: string;
 };
 
-export type ThreadSeedPrewarmController = ThreadSeedOpenPort;
-
 export const useThreadSeedPrewarmController = ({
   room,
   mx,
@@ -38,7 +36,7 @@ export const useThreadSeedPrewarmController = ({
   activeThreadId: string | undefined;
   priorityTargets: ThreadSeedPrewarmTarget[];
   debugTraceId: string;
-}): ThreadSeedPrewarmController => {
+}): ThreadSeedOpenPort => {
   const syncEngine = useSyncEngine();
   const activeThreadIdRef = useRef(activeThreadId);
   useEffect(() => {
