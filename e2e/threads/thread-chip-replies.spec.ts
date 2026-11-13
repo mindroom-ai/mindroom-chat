@@ -8,13 +8,16 @@ import {
   seedRoomOverviewState,
   sendRoomMessage,
 } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // In the Threads view, a room message shows the chip that opens its thread only once the thread
 // has a reply: a root with replies has one, a plain message has none and offers Reply in Thread on
 // its toolbar instead, and its chip appears as soon as a first reply arrives, without a reload.
 // Set THREAD_CHIP_SHOTS=<directory> to also save the room in light and dark themes.
 
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'thread-chip-replies-password';
 const SHOTS = process.env.THREAD_CHIP_SHOTS;
 
@@ -24,17 +27,6 @@ const PLAIN = 'The build is green again.';
 const FIRST_REPLY = 'Thanks, deploying now.';
 
 type Account = { username: string; userId: string; accessToken: string };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (prefix: string, displayname: string): Promise<Account> => {
   const username = `${prefix}_${Date.now().toString(36)}`;
@@ -84,7 +76,10 @@ test('only messages with thread replies show a thread chip, and a first reply ad
 }) => {
   // Sign-in, a room load and two theme reloads on a loaded machine.
   test.setTimeout(360_000);
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 
   const viewer = await register('chip_viewer', 'Olive Viewer');
   const peer = await register('chip_peer', 'Pat Peer');

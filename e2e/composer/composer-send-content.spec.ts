@@ -12,6 +12,10 @@ import { createRoom } from '../helpers/createRoom';
 import { joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { leaveCompactView } from '../helpers/roomViewSwitch';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // What the composer sends and keeps, against the disposable homeserver of `just hs-up` or a slot
 // of scripts/e2e-slot.sh, in Chromium and WebKit, on a desktop and on a phone, in a room with a
@@ -25,7 +29,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // - an unknown `/command` is refused with a notice and stays in the composer, unsent.
 // COMPOSER_CONTENT_SHOTS names a directory for screenshots.
 
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'composer-content-password';
 const SHOTS = process.env.COMPOSER_CONTENT_SHOTS;
 const BASE_URL = `http://127.0.0.1:${process.env.E2E_PORT ?? process.env.E2E_APP_PORT ?? '4200'}`;
@@ -43,17 +46,6 @@ test.use({
 
 type RoomEvent = { type: string; sender: string; content: Record<string, unknown> };
 type Session = { username: string; userId: string; accessToken: string };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (localpart: string, displayName: string): Promise<Session> => {
   const username = `${localpart}_${Date.now().toString(36)}`;
@@ -432,7 +424,10 @@ const CHECKS: Array<[string, Check]> = [
 test.describe.configure({ mode: 'parallel' });
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 for (const [title, check] of CHECKS) {

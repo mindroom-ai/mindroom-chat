@@ -4,29 +4,21 @@ import { loginWithPassword } from '../helpers/auth';
 import { openSettingsFromAccountRail } from '../helpers/accounts';
 import { buildLoginPath } from '../env';
 import { setUpRecoveryPassword, unlockWithRecovery } from '../helpers/recovery';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Secret storage that the server's identity does not match. A reset publishes its new identity
 // before it touches secret storage or the key backup, so closing its account confirmation changes
 // nothing (the first test). Other clients, and this one before that order, wrote the new keys
 // into secret storage first; the second test makes that state through the API and repairs it:
 // the recovery password and the backup stay, and the account gets a new identity.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const ACCOUNT_PASSWORD = 'recovery-repair-account-password';
 const FIRST_PASSWORD = 'tangerine mill noon 42';
 const RESET_PASSWORD = 'orange river dusk 77';
 const MESSAGE = 'The launch code is tangerine';
 const MISMATCH = "doesn't match the public key that was uploaded to the server";
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const matrix = async <T>(path: string, init: { token?: string; body?: unknown } = {}) => {
   const response = await fetch(`${HOMESERVER}/_matrix/client/v3${path}`, {
@@ -191,7 +183,10 @@ const openSecurity = async (page: Page) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(420_000);
 });
 

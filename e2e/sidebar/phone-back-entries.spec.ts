@@ -12,6 +12,10 @@ import {
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import { openRoomPins } from '../helpers/roomMenu';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // On a phone, a thread's back chevron always leads to the thread's room, and a room's returns to
 // wherever the person opened it from: the room list, a notification, the command palette, the
@@ -21,7 +25,6 @@ import { openRoomPins } from '../helpers/roomMenu';
 // room's chevron steps back past every page of the room, and the browser's back then goes on from
 // there. Each way in is its own test, at 390 by 844 with touch, in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'phone-back-entries-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
@@ -69,17 +72,6 @@ type Seed = {
   booksRoot: string;
   /** A thread of Book Swap that mentions the reader, for Activity; no other way in opens it. */
   shelfRoot: string;
-};
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 };
 
 const register = async (name: string): Promise<MatrixSession & { username: string }> => {
@@ -621,7 +613,10 @@ const signIn = async (browser: Browser, seed: Seed) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 for (const engine of ENGINES) {

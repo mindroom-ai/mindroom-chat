@@ -2,13 +2,16 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
 import { createPrivateRoom, loginToMatrix } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A press on the button of an open menu closes the menu and leaves it closed. The menu's focus
 // trap closes it as the press starts (a click outside it); the click that ends the press then
 // reached the button, which opened the menu again. Mouse on a desktop and touch on a phone,
 // Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit, against the
 // disposable homeserver of `just hs-up` or of a slot of scripts/e2e-slot.sh.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'menu-trigger-spec-password';
 const RUN = Date.now().toString(36);
 const DESKTOP = { width: 1280, height: 800 };
@@ -23,17 +26,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (name: string) => {
   const username = `toggle_${name}_${RUN}`;
@@ -104,7 +96,7 @@ const pressTwice = async (page: Page, name: string, touch: boolean) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 const TITLE = 'a press on the button of an open menu closes it';

@@ -18,6 +18,10 @@ import {
 } from '../helpers/matrix';
 import { holdFirstWrites } from '../helpers/holdWrites';
 import { launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Settings that follow the account: browser contexts signed in to one account on the disposable
 // homeserver of `just hs-up` (or a slot of scripts/e2e-slot.sh) share the 8 roaming settings
@@ -34,21 +38,9 @@ test.use({
   viewport: { width: 1280, height: 800 },
 });
 
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'settings-roaming-spec-password';
 const RUN = Date.now().toString(36);
 const EVENT_TYPE = 'io.mindroom.client.settings';
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 type Account = MatrixSession & { username: string };
 
@@ -192,7 +184,10 @@ const storedDeviceSettings = (page: Page) =>
   );
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test('the clock and Markdown follow the account to the other devices; the theme stays', async ({

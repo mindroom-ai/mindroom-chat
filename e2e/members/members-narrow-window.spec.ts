@@ -3,6 +3,10 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { loginToMatrix, matrixFetch } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // With the members open beside a room, a window that narrows until they no longer fit beside it
 // (a phone, or a tablet whose room is too narrow) closes them, as the original app does on a
@@ -10,7 +14,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // trap the focus there: the reader keeps the focus where it was. Runs in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit, against the homeserver of
 // `just hs-up` or of an e2e slot.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'members-narrow-window-spec-password';
 const RUN = Date.now().toString(36);
 const DESKTOP = { width: 1280, height: 800 };
@@ -30,17 +33,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 let accounts = 0;
 
@@ -144,7 +136,7 @@ const narrowWithMembersOpen = async (page: Page, name: string) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 const TITLE =

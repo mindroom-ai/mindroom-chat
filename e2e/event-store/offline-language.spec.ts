@@ -1,6 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import { waitForLoggedInShell } from '../helpers/auth';
 import { buildLoginPath } from '../env';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // An offline start in a language other than English, on a production build (`scripts/e2e-slot.sh
 // --preview`; the dev server's worker keeps everything it serves and the spec skips there). The
@@ -8,22 +12,10 @@ import { buildLoginPath } from '../env';
 // the worker answers it from the network and keeps the latest copy (src/sw/swLanguageFiles.ts), and
 // keeps the overlay chunk of Lane C strings like any other on-demand chunk. Without them the whole
 // app came up in English offline.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'offline-language-password';
 const GREETING = 'Offline auf Deutsch';
 
 test.use({ serviceWorkers: 'allow' });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const matrixPost = async <T>(path: string, body: unknown, token?: string): Promise<T> => {
   const response = await fetch(`${HOMESERVER}/_matrix/client/v3${path}`, {
@@ -85,7 +77,10 @@ test('an offline start keeps the language: its catalog and its overlay of Lane C
   page,
 }) => {
   test.setTimeout(240_000);
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   const username = `language_${Date.now().toString(36)}`;
   const roomId = await accountWithRoom(username);
 

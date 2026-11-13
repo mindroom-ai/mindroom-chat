@@ -5,24 +5,16 @@ import {
   chooseFromAccountMenu,
   waitForLoggedInShell,
 } from '../helpers/auth';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The signed-out screens against the disposable homeserver of `just hs-up`: the server field and
 // well-known discovery, a full Matrix ID that names another server, the way back from adding an
 // account, and password reset. Names under `.test` never resolve, so their well-known answers and
 // their homeserver API are answered here.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'auth-shell-spec-password';
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerUser = async (username: string): Promise<void> => {
   const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
@@ -71,7 +63,10 @@ const signIn = async (page: Page, user: string) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test('names the server in the address and explains servers it cannot use', async ({ page }) => {

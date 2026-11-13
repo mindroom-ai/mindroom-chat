@@ -3,21 +3,13 @@ import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
 } from '../helpers/browserDiagnostics';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The disposable homeserver of `just hs-up` (open registration, server name matrix.localhost).
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'boot-spec-password';
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 /** Registers an account and returns its access token. */
 const registerUser = async (username: string): Promise<string> => {
@@ -56,7 +48,10 @@ const expectSignedInHome = async (page: Page): Promise<void> => {
 };
 
 test('signs in with a password and stays signed in after a reload', async ({ page }) => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 
   const diagnostics = attachBrowserDiagnostics(page);
   const username = `boot_${Date.now().toString(36)}`;

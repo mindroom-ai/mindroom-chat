@@ -10,13 +10,16 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // "@Min" and Tab in a room of MindRoom agents mentions Mind, whose display name matches, rather
 // than the agent listed first: every agent's user ID starts with `mindroom_`, so its user name
 // matches "min" too. The message goes out as "@Mind ..." with Mind in `m.mentions`. Runs in
 // Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit, against
 // the disposable homeserver of `just hs-up` or of a slot of scripts/e2e-slot.sh.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'mention-ranking-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.MENTION_RANKING_SHOTS;
@@ -30,17 +33,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const setDisplayName = (session: MatrixSession, displayName: string) =>
   matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(session.userId)}/displayname`, {
@@ -172,7 +164,7 @@ const mentionMind = async (page: Page, tag: string, pick: 'tab' | 'tap') => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 const TITLE = '"@Min" mentions Mind, not the agent listed first, and sends "@Mind"';

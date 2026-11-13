@@ -2,7 +2,11 @@ import { mkdirSync } from 'node:fs';
 import { expect, test, type Browser, type Page, type Route } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 import { loginToMatrix, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
@@ -12,7 +16,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // is sent, Up edits it. Runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
 // WebKit, in WebKit, against the disposable homeserver of `just hs-up` or of a slot of
 // scripts/e2e-slot.sh. Set ARROW_UP_SHOTS=<directory> to save screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'arrow-up-sending-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.ARROW_UP_SHOTS;
@@ -23,19 +26,8 @@ const HOLD_MS = 6_000;
 
 test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 const register = async (name: string) => {

@@ -19,6 +19,10 @@ import {
 } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
 import { isPhoneLayout, openRoomPins, roomMoreOptions } from '../helpers/roomMenu';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The room header's Pinned Messages button opens the pin menu, a dialog named Pinned Messages (the
 // button announces a dialog): the room's pinned messages, the newest pin first, each rendered as a
@@ -34,7 +38,6 @@ import { isPhoneLayout, openRoomPins, roomMoreOptions } from '../helpers/roomMen
 // has loaded. Unpin is reached with the keyboard. Pictures, files, a deleted message and the
 // pins of an encrypted room show in the menu as well.
 // Set ROOM_PIN_MENU_SHOTS=<directory> to save each open menu.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'room-pin-menu-spec-password';
 const RUN = Date.now().toString(36);
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
@@ -91,17 +94,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const uploadMedia = async (
   session: MatrixSession,
@@ -851,7 +843,7 @@ const checkUnloadedPins =
   };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 type Check = (

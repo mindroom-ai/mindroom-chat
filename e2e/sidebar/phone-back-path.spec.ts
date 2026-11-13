@@ -8,30 +8,22 @@ import {
   setAccountData,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // On a phone a room fills the screen, and its back chevron returns to the list it was opened
 // from. The browser's own back (Android's back button, iOS's edge swipe in Safari) must then go
 // where the person was before that list, not into the room they just left. Checked at 390 by 844
 // with touch, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in
 // WebKit.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'phone-back-path-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const PHONE: BrowserContextOptions = {
   viewport: { width: 390, height: 844 },
   hasTouch: true,
   isMobile: true,
-};
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 };
 
 type Seed = { username: string; space: string; rooms: string[] };
@@ -92,7 +84,10 @@ const checkBackPath = async (browser: Browser, engine: string) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test('after the back chevron, the browser back leaves the list, not into the room', async ({

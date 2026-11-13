@@ -9,12 +9,15 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The thread filter bar's Preset list and Thread statistics open under their buttons and stay
 // inside the bar, whichever end of the bar the button sits at: on a phone, where the bar wraps
 // onto three rows, and on a desktop, in English and in Arabic, in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'thread-filter-popovers-spec-password';
 const RUN = Date.now().toString(36);
 
@@ -27,17 +30,6 @@ test.use({
   },
 });
 test.describe.configure({ timeout: 180_000 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
   const username = `tfp_${name}_${RUN}`;
@@ -150,13 +142,13 @@ for (const phone of [true, false]) {
     browser,
     baseURL,
   }) => {
-    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+    test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
     await check(browser, 'chromium', phone, baseURL);
   });
 
   test(`filter bar panels stay inside the bar, WebKit ${device}`, async ({ baseURL }) => {
     test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE not set');
-    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+    test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
     const browser = await launchWebKit();
     try {
       await check(browser, 'webkit', phone, baseURL);

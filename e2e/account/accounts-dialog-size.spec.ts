@@ -2,27 +2,19 @@ import { expect, test, type Page } from '@playwright/test';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { matrixFetch } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The Accounts dialog (account menu, Manage Accounts) ends below its last control: with two
 // accounts signed in on a desktop it kept the full height of the settings dialog, about 350 px of
 // it empty, where the page behind showed through. On a desktop it is about 480 px wide, as a list
 // of a few accounts needs, not the 800 px of the settings dialog. A phone's fills its screen, as
 // before. Set ACCOUNTS_DIALOG_SHOTS=<directory> to save it.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'accounts-dialog-size-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.ACCOUNTS_DIALOG_SHOTS;
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = (username: string) =>
   matrixFetch(HOMESERVER, '/register', {
@@ -31,7 +23,10 @@ const register = (username: string) =>
   });
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 const checkDialog = async (

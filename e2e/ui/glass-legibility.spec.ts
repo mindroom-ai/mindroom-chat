@@ -19,6 +19,10 @@ import {
 } from '../helpers/matrix';
 import { surfaceShowThrough } from '../helpers/surfaceShowThrough';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Text behind a glass surface never competes with the text on it. Over a room of long messages,
 // with the surface's own content hidden, the screen is sampled across the surface: what shows
@@ -29,7 +33,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // by 844, touch), in light and dark themes, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE
 // names Playwright's WebKit, in WebKit. Set GLASS_LEGIBILITY_SHOTS=<directory> to also save each
 // surface.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'glass-legibility-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.GLASS_LEGIBILITY_SHOTS;
@@ -58,17 +61,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (username: string) =>
   matrixFetch<{ access_token: string; user_id: string }>(HOMESERVER, '/register', {
@@ -385,7 +377,10 @@ const checkSurfaces = async (
 test.describe.configure({ mode: 'parallel' });
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 for (const [size, options] of [

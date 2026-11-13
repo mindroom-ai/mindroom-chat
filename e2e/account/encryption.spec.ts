@@ -3,27 +3,19 @@ import { loginWithPassword } from '../helpers/auth';
 import { openSettingsFromAccountRail } from '../helpers/accounts';
 import { buildLoginPath } from '../env';
 import { setUpRecoveryPassword, unlockWithRecovery } from '../helpers/recovery';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // End-to-end encryption between sessions of one account, against the disposable homeserver of
 // `just hs-up`: the first session sets up cross-signing, secret storage and key backup; a second
 // sign-in cannot read the history until the first session verifies it by emoji; a third unlocks
 // it with the recovery key; the rows that could not be decrypted fix themselves each time.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'encryption-spec-password';
 const RECOVERY_PASSWORD = 'e2e recovery password 1';
 const SECRETS = ['The launch code is tangerine', 'Meet at the old mill at noon'];
 const UNDECRYPTABLE = "Couldn't decrypt this message — the encryption key isn't available";
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const matrix = async <T>(path: string, init: { token?: string; body?: unknown } = {}) => {
   const response = await fetch(`${HOMESERVER}/_matrix/client/v3${path}`, {
@@ -96,7 +88,10 @@ const emojiShown = (page: Page) =>
 test('sessions verify each other by emoji or recovery key and then read the history', async ({
   browser,
 }) => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(300_000);
 
   const username = `crypto_${Date.now().toString(36)}`;

@@ -11,6 +11,10 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The reader's first thread receipt in a room, against the disposable homeserver of a slot
 // (scripts/e2e-slot.sh). The reader asked four questions, each the root of a thread, and Alice
@@ -18,7 +22,6 @@ import { createRoom } from '../helpers/createRoom';
 // server counts all of Alice's answers. Opening one thread must leave each other thread unread on
 // the client for as long as the server counts it, also after a reload, and opening another one
 // later must send that thread's receipt. Each run registers its own accounts.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'first-thread-receipt-spec-password';
 const RUN = Date.now().toString(36);
 const OLDER_MESSAGES = 24;
@@ -40,17 +43,6 @@ test.use({
   },
 });
 test.describe.configure({ timeout: 240_000 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 type Account = MatrixSession & { username: string };
 
@@ -188,7 +180,7 @@ const readThread = async (page: Page, rootId: string, index: number) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('the first thread receipt in a room leaves every other thread unread until it is opened', async ({

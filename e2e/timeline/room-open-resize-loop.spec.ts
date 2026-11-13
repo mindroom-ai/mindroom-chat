@@ -17,6 +17,10 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Opening a room raises no "ResizeObserver loop completed with undelivered notifications." While a
 // room opens, its rows settle (each row's estimate gives way to its height) and virtual-core reports
@@ -30,7 +34,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // and in the Full view, four times each from a fresh page load, on a phone (390 by 844, touch) and a desktop (1280 by
 // 800), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit,
 // against the disposable homeserver of a slot (scripts/e2e-slot.sh).
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'room-open-resize-loop-spec-password';
 const RUN = Date.now().toString(36);
 const ROOM_NAME = 'Tide Station';
@@ -54,17 +57,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 type Account = MatrixSession & { username: string };
 
@@ -234,7 +226,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 const TITLE = 'opening a room raises no ResizeObserver loop error';
