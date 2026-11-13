@@ -1,18 +1,13 @@
-/** Background scope policy. Focus is the default; all rooms is explicit opt-in.
- * Engine jobs decrypt through the SDK and enforce connectivity and allowance. */
+/** Background scope policy. Focus is the default; all rooms is explicit opt-in. */
 
 // ---------- Public constants (D3) ----------
 
+const PREFETCH_SCOPE_VALUES = ['current-room-only', 'all-rooms'] as const;
 /** Stored scope values. */
-export type PrefetchScope = 'current-room-only' | 'all-rooms';
+export type PrefetchScope = (typeof PREFETCH_SCOPE_VALUES)[number];
 export const DEFAULT_PREFETCH_SCOPE: PrefetchScope = 'current-room-only';
-const PREFETCH_SCOPE_VALUES: ReadonlyArray<PrefetchScope> = ['current-room-only', 'all-rooms'];
 
-/**
- * Depth (in raw events) of the background room-tail prefetch job for
- * my-server rooms other than the currently focused one. Kept modest
- * so a fresh session doesn't hammer the server.
- */
+/** Lowest accepted depth (in raw events) of the current-room deep-history sweep. */
 export const ROOM_TAIL_PREFETCH_DEPTH = 200;
 
 /**
@@ -71,12 +66,9 @@ export type PrefetchConfig = {
 };
 
 /**
- * Pure resolver: build a `PrefetchConfig` from a settings snapshot.
- * Anything shape-adjacent works — the caller passes in whatever holds
- * `prefetchScope` and `prefetchDepth`, and the function coerces via
- * the sanitizers above. Kept pure so the engine's `noteRoomFocused` /
- * scheduler / tests can compute the same config off any snapshot
- * without pulling jotai into non-React modules.
+ * Pure resolver: build a `PrefetchConfig` from a settings snapshot's
+ * `prefetchScope`, coerced by the sanitizer above. Kept pure so callers
+ * need no jotai in non-React modules.
  */
 export const resolvePrefetchConfig = (settings: { prefetchScope?: unknown }): PrefetchConfig => ({
   scope: sanitizePrefetchScope(settings.prefetchScope),

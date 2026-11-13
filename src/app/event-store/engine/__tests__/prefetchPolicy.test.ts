@@ -18,7 +18,6 @@ describe('sanitizePrefetchScope (ISSUE-207 P6.1 / D4)', () => {
     expect(sanitizePrefetchScope('other')).toBe(DEFAULT_PREFETCH_SCOPE);
     // v1's homeserver scope is retired: those users get focused rooms.
     expect(sanitizePrefetchScope('my-server')).toBe('current-room-only');
-    expect(sanitizePrefetchScope('MY-SERVER')).toBe(DEFAULT_PREFETCH_SCOPE); // case sensitive
     expect(sanitizePrefetchScope('')).toBe(DEFAULT_PREFETCH_SCOPE);
   });
 

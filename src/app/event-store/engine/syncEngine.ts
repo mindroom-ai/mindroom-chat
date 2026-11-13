@@ -1,21 +1,20 @@
 /**
- * ISSUE-207 P3.1: SyncEngine core (Commit 1 — skeleton).
+ * ISSUE-207 P3.1: SyncEngine core.
  *
  * The engine is the client-level owner of Tier-1 cache writes (plan
  * decision D2). It attaches SDK listeners at the client scope so live
  * events reach the cache regardless of which room is mounted in the
  * UI — the fix for finding F1 (background room cache freshness).
  *
- * Commit 1 delivers the plumbing only:
+ * Lifecycle:
  *   - `start()` / `stop()` are idempotent and listener-symmetric.
  *   - `liveMode` flips true the first time the sync state reaches
  *     Prepared, Syncing, or Catchup. It deliberately does NOT flip
  *     back false on Reconnecting/Error — mid-session reconnect events
  *     are exactly the ones we want to keep persisting. Only `stop()`
  *     resets it.
- *   - Live events (and redactions) are dispatched to the write-through
- *     layer, which for Commit 1 only bumps `engineLiveWrites` on the
- *     probe. Real persistence lands in Commit 3.
+ *   - Live events (and redactions) are dispatched to the write-through,
+ *     which persists them.
  *
  * Verified against SDK 41.7.0: `ClientNonUIFeatures.tsx` (mx.on
  * RoomEvent.Timeline at client scope) is the reference precedent for
@@ -109,7 +108,7 @@ export type CreateSyncEngineOptions = {
   scheduler?: BackfillScheduler;
   /**
    * ISSUE-207 P7.2 audit finding #5 — supplies the live user
-   * `PrefetchConfig` (scope + depth) to the engine on every check.
+   * `PrefetchConfig` (scope) to the engine on every check.
    * Snapshot-per-call rather than snapshot-at-construction so a
    * mid-session scope change picks up on the next enqueue.
    *
@@ -221,10 +220,8 @@ export const createSyncEngine = ({
   const bindableWindow = getBindableWindow();
   const bindableDocument = getBindableDocument();
 
+  // Drain the edit compaction debounce before the page freezes.
   const flushForVisibility = () => {
-    // Commit 1 has nothing to flush. Once Commit 3 moves the edit
-    // compaction scheduler in, this is where the trailing debounce
-    // gets drained before the page freezes.
     effectiveWriteThrough.flush();
   };
 
@@ -462,13 +459,13 @@ export const createSyncEngine = ({
    *   - `setEvictionProtectedRoomIds([roomId])` — single-element v1
    *     (Deviations §8): only the currently focused room is protected
    *     in memory.
+   *   - `offline.focus` and a recheck of the room's deferred gap-fill.
    *   - `noteRoomOpened` / `noteThreadOpened` — bump the meta
    *     `lastOpenedTs`, which protects the room from eviction until the
    *     window rolls past and then orders it by when it was last opened.
    */
   const noteRoomFocused = (roomId: string, threadId?: string): void => {
-    const room = mx.getRoom?.(roomId);
-    if (!room) return;
+    if (!mx.getRoom?.(roomId)) return;
     // Protect the room before its offline work can ask for space.
     setEvictionProtectedRoomIds([roomId]);
     offline.focus(roomId);

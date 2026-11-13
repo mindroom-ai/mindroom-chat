@@ -107,8 +107,7 @@ const LEGACY_MINDROOM_KEYS = new Set(['paginationLimit', 'prefetchScope', 'prefe
  *
  * The migration itself cleans the legacy blob only after the versioned value
  * is durably stored. Later generic client settings writes still replace their
- * owned snapshot; blocked-storage recovery remains best effort, matching the
- * fork-wide policy documented in FORK_CHANGES.md.
+ * owned snapshot; blocked-storage recovery remains best effort.
  */
 export const migratePrefetchSettingsStorage = (
   storage: Storage | undefined = getSafeLocalStorage()
