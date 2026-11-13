@@ -54,7 +54,7 @@ export const Handle = style({
       position: 'absolute',
       top: 0,
       bottom: 0,
-      left: 'calc(var(--mr-panel-handle-inset) - 1px)',
+      insetInlineStart: 'calc(var(--mr-panel-handle-inset) - 1px)',
       width: 2,
       backgroundColor: color.Background.ContainerLine,
     },

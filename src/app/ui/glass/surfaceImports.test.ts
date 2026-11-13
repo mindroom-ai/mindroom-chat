@@ -72,6 +72,32 @@ describe('shared surface import boundary', () => {
     expect(result.messages).toEqual([]);
   });
 
+  // Pop-outs and tooltips come from the directional wrappers, which place them in reading order:
+  // in a file of either lane, and under a made-up path.
+  it.each([
+    ['PopOut', 'src/app/shell/accountState.ts'],
+    ['TooltipProvider', 'src/app/shell/accountState.ts'],
+    ['PopOut', 'src/app/messages/content/FileRow.css.ts'],
+    ['TooltipProvider', 'src/app/ui/glass/SurfaceConsumer.tsx'],
+  ])("rejects folds' own %s in %s", async (name, filePath) => {
+    const result = await lint(`import { ${name} } from 'folds';\n\nexport { ${name} };`, filePath);
+    expect(result.messages).toEqual([
+      expect.objectContaining({
+        ruleId: 'no-restricted-imports',
+        severity: 2,
+        message: expect.stringContaining('src/app/ui/directional'),
+      }),
+    ]);
+  });
+
+  it("lets the directional wrappers import folds' own PopOut and TooltipProvider", async () => {
+    const result = await lint(
+      "import { PopOut, TooltipProvider } from 'folds';\n\nexport { PopOut, TooltipProvider };",
+      'src/app/ui/directional.tsx'
+    );
+    expect(result.messages).toEqual([]);
+  });
+
   it.each([
     'src/app/ui/glass/GlassPrimitives.test.tsx',
     'src/app/ui/glass/SurfaceConsumer.test.ts',
