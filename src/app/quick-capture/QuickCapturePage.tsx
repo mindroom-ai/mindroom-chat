@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Button, Icon, Icons, Text } from 'folds';
+import { Icon, Icons } from 'folds';
 import type { ParseKeys } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useActiveSession } from '../matrix/session/useSessionStore';
@@ -33,55 +33,49 @@ const showOpenedThread = async (): Promise<void> => {
 };
 
 type Hint = { keys: string[]; label: ParseKeys };
+type HintSet = 'input' | 'list' | 'picker';
 
-/** The keys of the part that has the focus, as the platform writes them. */
-const hintsOf = (zone: CaptureZone, apple: boolean): Hint[] => {
+/** The keys of a part of the widget, as the platform writes them. */
+const hintsOf = (part: HintSet, apple: boolean): Hint[] => {
   const caps = (keys: string) => keyCapsOf(keys, apple).join(apple ? '' : '+');
   const enter = caps('enter');
-  const move: Hint = {
-    keys: [caps('up'), caps('down')],
-    label: 'featureUi.quickCapture.hint.move',
-  };
-  switch (zone) {
+  switch (part) {
     case 'input':
       return [
         { keys: [enter], label: 'featureUi.quickCapture.hint.send' },
         { keys: [caps('mod+enter')], label: 'featureUi.quickCapture.hint.sendOpen' },
-        { keys: ['Tab'], label: 'featureUi.quickCapture.hint.room' },
+        { keys: ['tab'], label: 'featureUi.quickCapture.hint.room' },
         { keys: [caps('down')], label: 'featureUi.quickCapture.hint.list' },
       ];
     case 'list':
       return [
         { keys: ['j', 'k'], label: 'featureUi.quickCapture.hint.move' },
-        { keys: ['Space'], label: 'featureUi.quickCapture.hint.peek' },
+        { keys: ['space'], label: 'featureUi.quickCapture.hint.peek' },
         { keys: ['x'], label: 'featureUi.quickCapture.hint.done' },
         { keys: ['r'], label: 'featureUi.quickCapture.hint.reply' },
         { keys: [enter], label: 'featureUi.quickCapture.hint.open' },
       ];
-    case 'reply':
-      return [{ keys: [enter], label: 'featureUi.quickCapture.hint.send' }];
     case 'picker':
-      return [move];
+      return [{ keys: [caps('up'), caps('down')], label: 'featureUi.quickCapture.hint.move' }];
   }
 };
 
-function CaptureHints({ zone, apple }: { zone: CaptureZone; apple: boolean }) {
+/** Key caps, each with what it does, for a hint line to hold. */
+function Hints({ part, apple }: { part: HintSet; apple: boolean }) {
   const { t } = useTranslation();
   return (
-    <div className={css.Hints}>
-      {hintsOf(zone, apple).map(({ keys, label }) => (
+    <>
+      {hintsOf(part, apple).map(({ keys, label }) => (
         <span key={label} className={css.Hint}>
           {keys.map((key) => (
-            <Text key={key} as="kbd" size="L400" className={css.Key} dir="ltr">
+            <kbd key={key} className={css.Key} dir="ltr">
               {key}
-            </Text>
+            </kbd>
           ))}
-          <Text as="span" size="T200">
-            {t(label)}
-          </Text>
+          <span>{t(label)}</span>
         </span>
       ))}
-    </div>
+    </>
   );
 }
 
@@ -159,10 +153,10 @@ function CaptureWidget({ state, request, text, onText }: CaptureWidgetProps) {
           onClick={() => setPickerAsked(!pickerOpen)}
         >
           {room && <span className={css.Sigil}>{roomSigil(room)}</span>}
-          <Text as="span" size="T300" truncate {...ownDirectionLine}>
+          <span className={css.RoomName} {...ownDirectionLine}>
             {room ? roomName : t('featureUi.quickCapture.room.choose')}
-          </Text>
-          <Icon size="50" src={Icons.ChevronBottom} />
+          </span>
+          <Icon size="50" src={Icons.ChevronBottom} className={css.Chevron} />
         </button>
       </div>
       <CaptureInput
@@ -176,6 +170,11 @@ function CaptureWidget({ state, request, text, onText }: CaptureWidgetProps) {
         onToList={toList}
         onPicker={toPicker}
         onOpened={showOpenedThread}
+        hints={
+          <div className={css.EntryHints}>
+            <Hints part="input" apple={apple} />
+          </div>
+        }
       />
       {pickerOpen ? (
         <CaptureRoomPicker
@@ -202,7 +201,14 @@ function CaptureWidget({ state, request, text, onText }: CaptureWidgetProps) {
           onOpened={showOpenedThread}
         />
       )}
-      <CaptureHints zone={zone} apple={apple} />
+      {/* The list's keys, or the picker's while it is open; quiet while the focus is elsewhere. */}
+      <div
+        className={css.Footer}
+        data-capture-hints=""
+        data-active={pickerOpen ? zone === 'picker' : zone === 'list' || zone === 'reply'}
+      >
+        <Hints part={pickerOpen ? 'picker' : 'list'} apple={apple} />
+      </div>
     </>
   );
 }
@@ -213,20 +219,19 @@ function CaptureNotice({ signedIn }: { signedIn: boolean }) {
   useCaptureEscape(() => void hide());
   return (
     <div className={css.Notice}>
-      <Text size="H4">
+      <p className={css.NoticeText}>
         {signedIn
           ? t('featureUi.quickCapture.absent.title')
           : t('featureUi.quickCapture.signedOut.title')}
-      </Text>
+      </p>
       {signedIn && (
-        <Button
-          size="400"
-          radii="300"
-          variant="Primary"
+        <button
+          type="button"
+          className={css.SmallButton}
           onClick={() => void showMainWindow().catch(warnOnFailure)}
         >
-          <Text size="B400">{t('featureUi.quickCapture.absent.open')}</Text>
-        </Button>
+          {t('featureUi.quickCapture.absent.open')}
+        </button>
       )}
     </div>
   );

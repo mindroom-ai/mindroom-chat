@@ -7,7 +7,7 @@ import {
   type KeyboardEvent,
   type RefObject,
 } from 'react';
-import { Icon, Icons, Text } from 'folds';
+import { Icon, Icons } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { isComposingKey } from '../shortcuts/shortcuts';
 import { ownDirectionLine } from '../ui/directional';
@@ -85,7 +85,7 @@ export function CaptureRoomPicker({
   return (
     <>
       <div className={css.Search}>
-        <Icon size="100" src={Icons.Search} className={css.Muted} />
+        <Icon size="100" src={Icons.Search} />
         <input
           ref={fieldRef}
           className={css.SearchField}
@@ -107,9 +107,9 @@ export function CaptureRoomPicker({
         />
       </div>
       {error && (
-        <Text className={css.RowError} size="T200" role="alert">
+        <p className={css.PickerError} role="alert">
           {captureErrorText(t, error)}
-        </Text>
+        </p>
       )}
       <div className={css.List}>
         <div
@@ -131,18 +131,16 @@ export function CaptureRoomPicker({
               onClick={() => void pick(room)}
             >
               <span className={css.Sigil}>{roomSigil(room)}</span>
-              <Text className={css.OptionName} size="T300" truncate {...ownDirectionLine}>
+              <span className={css.OptionName} {...ownDirectionLine}>
                 {room.name}
-              </Text>
-              {room.id === roomId && <Icon size="100" src={Icons.Check} />}
+              </span>
+              {room.id === roomId && (
+                <Icon size="100" src={Icons.Check} className={css.OptionCurrent} />
+              )}
             </div>
           ))}
         </div>
-        {shown.length === 0 && (
-          <Text className={css.Empty} size="T300">
-            {t('featureUi.quickCapture.room.none')}
-          </Text>
-        )}
+        {shown.length === 0 && <p className={css.Empty}>{t('featureUi.quickCapture.room.none')}</p>}
       </div>
     </>
   );

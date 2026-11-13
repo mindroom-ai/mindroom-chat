@@ -9,10 +9,10 @@ import {
 } from 'react';
 import classNames from 'classnames';
 import type { ParseKeys } from 'i18next';
-import { Button, Text } from 'folds';
+import { Icon, Icons } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { copyToClipboard } from '../lib/dom';
-import { isComposingKey } from '../shortcuts/shortcuts';
+import { isComposingKey, keyCapsOf } from '../shortcuts/shortcuts';
 import { ownDirectionBlock, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import type { CaptureClient } from './captureChannel';
 import { captureKeyAction, type CaptureKeyAction } from './captureKeys';
@@ -215,13 +215,12 @@ export function CaptureList({
   if (items.length === 0) {
     return (
       <div ref={listRef} className={css.List}>
-        <Text className={css.Empty} size="T300">
-          {t('featureUi.quickCapture.list.empty')}
-        </Text>
+        <p className={css.Empty}>{t('featureUi.quickCapture.list.empty')}</p>
       </div>
     );
   }
 
+  const enter = keyCapsOf('enter', apple).join('');
   return (
     <div
       ref={listRef}
@@ -245,8 +244,24 @@ export function CaptureList({
         const line = item.line
           ? `${item.lineSender ? `${item.lineSender}: ` : ''}${item.line}`
           : t('featureUi.quickCapture.list.sent');
+        const resolveLabel = item.resolved
+          ? t('featureUi.quickCapture.peek.reopen')
+          : t('featureUi.quickCapture.peek.done');
+        const replyDraft = draft.threadId === item.threadId ? draft.text : '';
         return (
           <div key={item.threadId} role="listitem" className={css.Item}>
+            {/* As x does; the row keeps the keyboard, so the mark takes neither focus nor Tab. */}
+            <button
+              type="button"
+              className={classNames(css.Mark, item.resolved && css.MarkResolved)}
+              aria-label={resolveLabel}
+              tabIndex={-1}
+              disabled={isPending(item)}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => void resolve(item)}
+            >
+              {item.resolved && <Icon size="Inherit" src={Icons.Check} />}
+            </button>
             <div
               ref={(element) => {
                 if (element) rows.current.set(item.threadId, element);
@@ -266,36 +281,37 @@ export function CaptureList({
               onKeyDown={(event) => onRowKeyDown(event, item, index)}
             >
               <div className={css.RowText}>
-                <Text className={css.RowTitle} size="T300" truncate {...ownDirectionLine}>
+                <span className={css.RowTitle} {...ownDirectionLine}>
                   {item.title}
-                </Text>
-                <Text className={css.Muted} size="T200" truncate {...ownDirectionLine}>
+                </span>
+                <span className={css.RowLine} {...ownDirectionLine}>
                   {line}
-                </Text>
+                </span>
               </div>
               {item.resolved && (
-                <span className={classNames(css.RowChip, css.Muted)}>
+                <span className={classNames(css.RowChip, css.Chip.resolved)}>
                   {t('featureUi.quickCapture.list.resolved')}
                 </span>
               )}
               {item.chip && (
                 <span className={classNames(css.RowChip, css.Chip[item.chip])}>
+                  {item.chip === 'working' && <span className={css.WorkingDot} />}
                   {t(CHIP_TEXT[item.chip])}
                 </span>
               )}
             </div>
             {rowError?.threadId === item.threadId && (
-              <Text className={css.RowError} size="T200" role="alert">
+              <p className={css.RowError} role="alert">
                 {captureErrorText(t, rowError.code)}
-              </Text>
+              </p>
             )}
             {peekShown && (
               <div id={peekId} className={css.Peek}>
                 {answer !== '' && (
-                  <Text className={css.Answer} size="T300" {...ownDirectionBlock}>
-                    {item.lineSender && <b>{item.lineSender} </b>}
+                  <p className={css.Answer} {...ownDirectionBlock}>
+                    {item.lineSender && <span className={css.Sender}>{item.lineSender} </span>}
                     <span>{revealDirectionControls(answer)}</span>
-                  </Text>
+                  </p>
                 )}
                 <div className={css.PeekActions}>
                   {answer !== '' && (
@@ -305,7 +321,11 @@ export function CaptureList({
                         : t('featureUi.quickCapture.peek.copy')}
                     </PeekButton>
                   )}
-                  <PeekButton keyCap="↵" disabled={isPending(item)} onClick={() => void open(item)}>
+                  <PeekButton
+                    keyCap={enter}
+                    disabled={isPending(item)}
+                    onClick={() => void open(item)}
+                  >
                     {t('featureUi.quickCapture.peek.open')}
                   </PeekButton>
                   <PeekButton
@@ -313,25 +333,30 @@ export function CaptureList({
                     disabled={isPending(item)}
                     onClick={() => void resolve(item)}
                   >
-                    {item.resolved
-                      ? t('featureUi.quickCapture.peek.reopen')
-                      : t('featureUi.quickCapture.peek.done')}
+                    {resolveLabel}
                   </PeekButton>
                 </div>
                 {!isPending(item) && (
-                  <input
-                    ref={replyRef}
-                    className={css.TextField}
-                    aria-label={t('featureUi.quickCapture.peek.reply')}
-                    placeholder={t('featureUi.quickCapture.peek.reply')}
-                    dir="auto"
-                    value={draft.threadId === item.threadId ? draft.text : ''}
-                    readOnly={replying}
-                    onChange={(event) =>
-                      setDraft({ threadId: item.threadId, text: event.target.value })
-                    }
-                    onKeyDown={(event) => onReplyKeyDown(event, item)}
-                  />
+                  <div className={css.ReplyBox}>
+                    <input
+                      ref={replyRef}
+                      className={css.ReplyField}
+                      aria-label={t('featureUi.quickCapture.peek.reply')}
+                      placeholder={t('featureUi.quickCapture.peek.reply')}
+                      dir="auto"
+                      value={replyDraft}
+                      readOnly={replying}
+                      onChange={(event) =>
+                        setDraft({ threadId: item.threadId, text: event.target.value })
+                      }
+                      onKeyDown={(event) => onReplyKeyDown(event, item)}
+                    />
+                    {replyDraft === '' && (
+                      <kbd className={css.ReplyKey} dir="ltr" aria-hidden="true">
+                        r
+                      </kbd>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -351,20 +376,11 @@ type PeekButtonProps = {
 
 function PeekButton({ keyCap, disabled, onClick, children }: PeekButtonProps) {
   return (
-    <Button
-      size="300"
-      radii="300"
-      variant="Secondary"
-      fill="Soft"
-      disabled={disabled}
-      onClick={onClick}
-      after={
-        <kbd className={css.Key} dir="ltr" aria-hidden="true">
-          {keyCap}
-        </kbd>
-      }
-    >
-      <Text size="B300">{children}</Text>
-    </Button>
+    <button type="button" className={css.SmallButton} disabled={disabled} onClick={onClick}>
+      {children}
+      <kbd className={css.Key} dir="ltr" aria-hidden="true">
+        {keyCap}
+      </kbd>
+    </button>
   );
 }

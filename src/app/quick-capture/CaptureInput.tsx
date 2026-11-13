@@ -1,6 +1,13 @@
-import { useRef, useState, type ClipboardEvent, type KeyboardEvent, type RefObject } from 'react';
+import {
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import type { ParseKeys, TFunction } from 'i18next';
-import { Button, Icon, IconButton, Icons, Text } from 'folds';
+import { Icon, Icons, type IconSrc } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { getDataTransferFiles } from '../lib/dom';
 import {
@@ -48,6 +55,8 @@ const pastedImages = (event: ClipboardEvent<HTMLTextAreaElement>): File[] =>
 const caretOnLastLine = (field: HTMLTextAreaElement): boolean =>
   !field.value.slice(field.selectionEnd).includes('\n');
 
+type ToolProps = { label: string; icon: IconSrc; disabled: boolean; onClick: () => void };
+
 type CaptureInputProps = {
   /** Null while no room is chosen: a send opens the picker instead. */
   roomId: string | null;
@@ -61,6 +70,8 @@ type CaptureInputProps = {
   onPicker: () => void;
   /** After an entry sent with "open": the main window shows it. */
   onOpened: () => Promise<void>;
+  /** The input's keys, under the field. */
+  hints: ReactNode;
 };
 
 /**
@@ -78,6 +89,7 @@ export function CaptureInput({
   onToList,
   onPicker,
   onOpened,
+  hints,
 }: CaptureInputProps) {
   const { t } = useTranslation();
   const [images, setImages] = useState<File[]>([]);
@@ -158,111 +170,117 @@ export function CaptureInput({
     attach(pasted);
   };
 
-  const shotButton = (target: ScreenshotTarget, label: string, icon: typeof Icons.Photo) => (
-    <IconButton
-      size="300"
-      radii="300"
-      variant="SurfaceVariant"
-      fill="None"
+  const ready = text.trim() !== '' || images.length > 0;
+
+  const toolButton = ({ label, icon, disabled, onClick }: ToolProps, isReady = false) => (
+    <button
+      type="button"
+      className={css.ToolButton}
       aria-label={label}
       title={label}
-      disabled={full || sending}
-      onClick={() => void screenshot(target)}
+      disabled={disabled}
+      data-ready={isReady}
+      onClick={onClick}
     >
       <Icon size="100" src={icon} />
-    </IconButton>
+    </button>
   );
 
   return (
-    <>
-      {images.length > 0 && (
-        <div className={css.Attachments}>
-          {images.map((image, index) => (
-            // Two pastes of one picture are two images with one name; the chips hold no state.
-            <span key={`${index}:${image.name}`} className={css.Attachment}>
-              <Icon size="50" src={Icons.Photo} />
-              <Text size="T200" truncate>
-                {image.name}
-              </Text>
-              <IconButton
-                size="300"
-                radii="300"
-                variant="SurfaceVariant"
-                fill="None"
-                aria-label={t('featureUi.quickCapture.attach.remove', { name: image.name })}
-                disabled={sending}
-                onClick={() => setImages((current) => current.filter((kept) => kept !== image))}
-              >
-                <Icon size="50" src={Icons.Cross} />
-              </IconButton>
-            </span>
-          ))}
-        </div>
-      )}
+    <div className={css.EntryBlock} data-capture-entry="">
       <div className={css.Entry}>
-        <textarea
-          ref={inputRef}
-          className={css.EntryField}
-          aria-label={t('featureUi.quickCapture.input.label')}
-          placeholder={t('featureUi.quickCapture.input.placeholder')}
-          value={text}
-          readOnly={sending}
-          aria-busy={sending}
-          dir="auto"
-          onChange={(event) => onText(event.target.value)}
-          onKeyDown={onKeyDown}
-          onPaste={onPaste}
-          onFocus={onFocus}
-        />
-        <div className={css.EntryTools}>
-          {screenshots &&
-            shotButton('window', t('featureUi.quickCapture.attach.window'), Icons.Photo)}
-          {screenshots &&
-            shotButton('screen', t('featureUi.quickCapture.attach.screen'), Icons.Monitor)}
-          <IconButton
-            size="300"
-            radii="300"
-            variant="Primary"
-            fill="None"
-            aria-label={t('featureUi.quickCapture.input.send')}
-            title={t('featureUi.quickCapture.input.send')}
-            disabled={sending}
-            onClick={() => void send(false)}
-          >
-            <Icon size="100" src={Icons.Send} />
-          </IconButton>
+        {images.length > 0 && (
+          <div className={css.Attachments}>
+            {images.map((image, index) => (
+              // Two pastes of one picture are two images with one name; the chips hold no state.
+              <span key={`${index}:${image.name}`} className={css.Attachment}>
+                <Icon size="50" src={Icons.Photo} className={css.Muted} />
+                <span className={css.AttachmentName}>{image.name}</span>
+                <button
+                  type="button"
+                  className={css.AttachmentRemove}
+                  aria-label={t('featureUi.quickCapture.attach.remove', { name: image.name })}
+                  disabled={sending}
+                  onClick={() => setImages((current) => current.filter((kept) => kept !== image))}
+                >
+                  <Icon size="50" src={Icons.Cross} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className={css.EntryRow}>
+          <textarea
+            ref={inputRef}
+            className={css.EntryField}
+            aria-label={t('featureUi.quickCapture.input.label')}
+            placeholder={t('featureUi.quickCapture.input.placeholder')}
+            value={text}
+            readOnly={sending}
+            aria-busy={sending}
+            dir="auto"
+            onChange={(event) => onText(event.target.value)}
+            onKeyDown={onKeyDown}
+            onPaste={onPaste}
+            onFocus={onFocus}
+          />
+          <div className={css.EntryTools}>
+            {screenshots &&
+              toolButton({
+                label: t('featureUi.quickCapture.attach.window'),
+                icon: Icons.Photo,
+                disabled: full || sending,
+                onClick: () => void screenshot('window'),
+              })}
+            {screenshots &&
+              toolButton({
+                label: t('featureUi.quickCapture.attach.screen'),
+                icon: Icons.Monitor,
+                disabled: full || sending,
+                onClick: () => void screenshot('screen'),
+              })}
+            {/* Muted while there is nothing to send, primary once there is. */}
+            {toolButton(
+              {
+                label: t('featureUi.quickCapture.input.send'),
+                icon: Icons.Send,
+                disabled: sending,
+                onClick: () => void send(false),
+              },
+              ready
+            )}
+          </div>
         </div>
       </div>
       {(sending || sendError || shotError) && (
         <div className={css.Status}>
           {sending && (
-            <Text size="T200" className={css.Muted} role="status">
+            <span className={css.Muted} role="status">
               {t('featureUi.quickCapture.input.sending')}
-            </Text>
+            </span>
           )}
           {!sending && sendError && (
-            <Text size="T200" className={css.Failure} role="alert">
+            <span className={css.Failure} role="alert">
               {captureErrorText(t, sendError)}
-            </Text>
+            </span>
           )}
           {shotError && (
-            <Text size="T200" className={css.Failure} role="alert">
+            <span className={css.Failure} role="alert">
               {screenshotErrorText(t, shotError)}
-            </Text>
+            </span>
           )}
           {shotError === 'PERMISSION_DENIED' && (
-            <Button
-              size="300"
-              radii="300"
-              variant="Secondary"
-              fill="Soft"
+            <button
+              type="button"
+              className={css.SmallButton}
               onClick={() => void openScreenRecordingSettings()}
             >
-              <Text size="B300">{t('featureUi.quickCapture.screenshot.openSettings')}</Text>
-            </Button>
+              {t('featureUi.quickCapture.screenshot.openSettings')}
+            </button>
           )}
         </div>
       )}
-    </>
+      {hints}
+    </div>
   );
 }

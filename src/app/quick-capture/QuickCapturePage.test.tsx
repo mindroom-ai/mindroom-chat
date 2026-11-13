@@ -139,6 +139,13 @@ const setup = (state: CaptureState | null = roomState()) => {
 };
 
 const input = () => screen.getByRole('textbox', { name: 'New entry' });
+const item = (title: string) =>
+  screen.getAllByRole('listitem').find((listed) => listed.textContent?.includes(title)) ??
+  document.body;
+/** The leading mark of a row, which resolves or reopens it. */
+const mark = (title: string, name: 'Done' | 'Reopen' = 'Done') =>
+  within(item(title)).getAllByRole('button', { name })[0] as HTMLButtonElement;
+const footer = () => document.querySelector<HTMLElement>('[data-capture-hints]');
 const row = (title: string) => screen.getByRole('button', { name: new RegExp(title) });
 const press = (element: Element, key: string, init: Partial<KeyboardEventInit> = {}) =>
   fireEvent.keyDown(element, { key, ...init });
@@ -286,6 +293,51 @@ describe('QuickCapturePage with a room', () => {
     expect(rows[3]).toContain('Research: Three fit');
     expect(rows[3]).toContain('new');
     expect(rows[4]).toContain('Resolved');
+  });
+
+  it("shows the input's keys under the input, and the list's at the foot", () => {
+    setup();
+    const entry = input().closest('[data-capture-entry]');
+    expect(entry?.textContent).toContain('send and open');
+    expect(entry?.textContent).toContain('room');
+    expect(entry?.textContent).toContain('list');
+    const foot = footer();
+    for (const label of ['move', 'peek', 'done', 'reply', 'open']) {
+      expect(foot?.textContent).toContain(label);
+    }
+    expect(foot?.textContent).not.toContain('send');
+    // Quiet while the input has the focus, full once the list has it.
+    expect(foot?.dataset.active).toBe('false');
+    press(input(), 'ArrowDown');
+    expect(footer()?.dataset.active).toBe('true');
+  });
+
+  it("shows the picker's keys at the foot while the picker is open", () => {
+    setup();
+    press(input(), 'Tab');
+    expect(footer()?.textContent).toContain('move');
+    expect(footer()?.textContent).not.toContain('peek');
+  });
+
+  it('resolves and reopens a thread from its leading mark, which is no tab stop', () => {
+    const rig = setup();
+    const open = mark('Why does slot 27 flake');
+    expect(open.tabIndex).toBe(-1);
+    fireEvent.click(open);
+    fireEvent.click(mark('Which Node version', 'Reopen'));
+    expect(rig.actions()).toEqual([
+      { kind: 'resolve', roomId: '!inbox', threadId: '$one', resolved: true },
+      { kind: 'resolve', roomId: '!inbox', threadId: '$done', resolved: false },
+    ]);
+  });
+
+  it('disables the leading mark of an entry still being sent', () => {
+    const rig = setup(
+      roomState([{ threadId: '~pending', title: 'On its way', line: '', resolved: false, ts: 1 }])
+    );
+    expect(mark('On its way').disabled).toBe(true);
+    fireEvent.click(mark('On its way'));
+    expect(rig.actions()).toEqual([]);
   });
 
   it('says when the room has nothing open', () => {
@@ -490,9 +542,11 @@ describe('QuickCapturePage list', () => {
     expect(document.activeElement).toBe(row('Why does slot 27 flake'));
     press(row('Why does slot 27 flake'), ' ');
     expect(screen.getByText('Running the suite again, with traces on.')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Copy' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Open' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
+    const first = within(item('Why does slot 27 flake'));
+    expect(first.getByRole('button', { name: 'Copy' })).toBeTruthy();
+    expect(first.getByRole('button', { name: 'Open' })).toBeTruthy();
+    // The peek's Done beside the row's leading mark.
+    expect(first.getAllByRole('button', { name: 'Done' })).toHaveLength(2);
     press(row('Why does slot 27 flake'), ' ');
     expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull();
   });
