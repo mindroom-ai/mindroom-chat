@@ -6,6 +6,9 @@
 //
 //   node scripts/calver.mjs next [--date YYYY-MM-DD]
 //       prints the tag the next release gets, from the tags of the checkout (fetch them first)
+//   node scripts/calver.mjs latest
+//       prints the newest release tag of the checkout (.github/workflows/image.yml points the
+//       container image's `latest` only at that release)
 //   node scripts/calver.mjs release [<commit>] --main <ref> [--dry-run] [--yes] [--date YYYY-MM-DD]
 //       tags a commit of main (default: <ref> itself) with the next version and publishes its
 //       GitHub release, with notes from the commits since the last release; shows the plan and
@@ -267,6 +270,7 @@ const parseDate = (value) => {
 
 const USAGE = `Usage:
   node scripts/calver.mjs next [--date YYYY-MM-DD]
+  node scripts/calver.mjs latest
   node scripts/calver.mjs release [<commit>] --main <ref> [--dry-run] [--yes] [--date YYYY-MM-DD]
   node scripts/calver.mjs auto <commit> --main <ref> [--date YYYY-MM-DD]
 `;
@@ -292,6 +296,10 @@ export const main = async (argv, env, cwd) => {
   const date = parseDate(values.date);
   if (command === 'next') {
     process.stdout.write(`v${formatVersion(nextVersion(readTags(cwd), date))}\n`);
+    return 0;
+  }
+  if (command === 'latest') {
+    process.stdout.write(`${latestReleaseTag(readTags(cwd))?.tag ?? ''}\n`);
     return 0;
   }
   if ((command !== 'release' && command !== 'auto') || !values.main || positionals.length > 1) {

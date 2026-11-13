@@ -17,6 +17,7 @@ A release tag is `vYYYY.M.N`: the year and month (UTC) it was cut in, and `N`, w
 | Command | What it does |
 |---|---|
 | `node scripts/calver.mjs next` | prints the tag the next release gets, from the tags of the checkout (fetch them first: `git fetch --tags https://github.com/mindroom-ai/mindroom-chat.git`) |
+| `node scripts/calver.mjs latest` | prints the newest release tag of the checkout; the Image workflow points the container image's `latest` only at that release ([`deployment.md`](deployment.md#container-image)) |
 | `just release [<commit>] [--dry-run] [--yes]` | `scripts/calver.mjs release`: cuts a release by hand (below) |
 | `node scripts/calver.mjs auto <commit> --main <ref>` | what the Release workflow runs (below) |
 
@@ -100,7 +101,7 @@ An approved version cannot be uploaded again: App Store Connect rejects any late
 
 - **Before any calendar version is approved:** enable the old workflow again and disable the new one, after checking that the old workflow's Primary Repository is `https://github.com/mindroom-ai/mindroom-chat-legacy.git` (step 1; if step 4 used Change URL, change it to that address), and set `app-store/source.env` back to `mindroom-ai/mindroom-chat-legacy`, the value of step 1 (not the one from before the move, which now names this repository); `./app-store/release.sh inspect` then names a legacy commit. Nothing on the App Store changes; TestFlight keeps the `2026.x` builds, which nobody has to install.
 - **After a calendar version is approved:** the App Store holds `2026.M.N`, and a legacy MindRoom Chat build at `4.12.x` can no longer be uploaded. A rollback build needs a version above the live one; in this repository's scripts `IOS_MARKETING_VERSION` sets it, and the legacy client's scripts would need the same before they can ship again.
-- **Automatic releases:** push `"autoRelease": false`. A release that should not exist can be deleted with `gh release delete <tag> --cleanup-tag --yes` while no build of it has reached App Store review. Its container image stays on GHCR under its tags until its package version is deleted there.
+- **Automatic releases:** push `"autoRelease": false`. A release that should not exist can be deleted with `gh release delete <tag> --cleanup-tag --yes` while no build of it has reached App Store review. Its container image stays on GHCR under its tags until its package version is deleted there, and keeps `latest` if it holds it until a newer release takes it. When `docker buildx imagetools inspect` shows `latest` with the same digest as the withdrawn release, point `latest` at the newest remaining release that has an image first, with `docker buildx imagetools create --tag ghcr.io/mindroom-ai/mindroom-chat:latest ghcr.io/mindroom-ai/mindroom-chat:<that YYYY.M.N>` (a token with `write:packages`), and only then delete the package version, which would otherwise take `latest` with it.
 - The build counter keeps counting whichever way; there is nothing to reset.
 
 ## Choices to revisit
