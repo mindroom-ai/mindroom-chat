@@ -11,7 +11,7 @@ import {
   isNativeIOS,
   openNativeSsoBrowser,
   signInWithNativeApple,
-} from './authUi';
+} from '../../native/nativeSso';
 import { useAutoDiscoveryInfo } from '../../matrix/hooks/useAutoDiscoveryInfo';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import appleMark from '../../../../public/res/svg/sso-apple-white.svg';
@@ -45,8 +45,6 @@ type SSOLoginProps = SSOButtonOptions & {
   /** Where the homeserver sends the browser back with a login token. */
   redirectUrl: string;
 };
-
-const runningNatively = (): boolean => Capacitor.isNativePlatform() && isNativeApp();
 
 type Brand = NonNullable<KnownIdentityProvider>;
 
@@ -110,7 +108,7 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
     () => createMatrixClient({ baseUrl: homeserverUrl }),
     [homeserverUrl]
   );
-  const inNativeShell = runningNatively();
+  const inNativeShell = isNativeApp();
   const checkStart = useSsoStartCheck();
   const [nonce] = useState(createSsoNonce);
   const returnUrl = useMemo(() => withSsoNonce(redirectUrl, nonce), [redirectUrl, nonce]);

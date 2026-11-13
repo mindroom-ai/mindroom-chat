@@ -108,23 +108,6 @@ export const selectableTextNear = (
   return false;
 };
 
-/** Whether `child` is fully inside the visible part of `scrollElement`. */
-export const isInScrollView = (scrollElement: HTMLElement, child: HTMLElement): boolean => {
-  const view = scrollElement.getBoundingClientRect();
-  const rect = child.getBoundingClientRect();
-  return rect.top >= view.top && rect.bottom <= view.bottom;
-};
-
-/** Whether any part of `child` is inside the visible part of `scrollElement`. */
-export const isIntersectingScrollView = (
-  scrollElement: HTMLElement,
-  child: HTMLElement
-): boolean => {
-  const view = scrollElement.getBoundingClientRect();
-  const rect = child.getBoundingClientRect();
-  return rect.bottom > view.top && rect.top < view.bottom;
-};
-
 /** Scrolls to the end of the content; instantly unless asked to animate. */
 export const scrollToBottom = (
   scrollElement: HTMLElement,

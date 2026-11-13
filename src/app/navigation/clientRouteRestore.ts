@@ -20,9 +20,6 @@ const ROOM_ROUTE_PATTERNS = [HOME_ROOM_PATH, DIRECT_ROOM_PATH, SPACE_ROOM_PATH, 
 /** The optional segment that focuses an event. Every other segment names a room or space. */
 const EVENT_SEGMENT = 'eventId';
 
-/** Stored routes are relative paths; this base only makes them parse. */
-const STORED_ROUTE_BASE = 'https://mindroom.local';
-
 /** One present segment of a matched route: its parameter name and its decoded text. */
 type Segment = { name: string; text: string };
 
@@ -69,19 +66,6 @@ const directoryRoomId = async (mx: MatrixClient, alias: string): Promise<string>
     return roomId || alias;
   } catch {
     return alias;
-  }
-};
-
-/**
- * Parses a stored route against a fixed base, or gives undefined when it is not a URL. A relative
- * path keeps its percent-encoding. The origin is not checked: an absolute URL, or `//host/path`,
- * keeps its own, so a caller uses only the path, search and hash, or checks the origin first.
- */
-export const parseStoredRouteUrl = (storedPath: string): URL | undefined => {
-  try {
-    return new URL(storedPath, STORED_ROUTE_BASE);
-  } catch {
-    return undefined;
   }
 };
 
