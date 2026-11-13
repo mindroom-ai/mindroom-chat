@@ -376,13 +376,23 @@ vi.mock('../../ui/VirtualTile', () => ({
       style?: React.CSSProperties;
       virtualItem?: {
         index: number;
+        size?: number;
       };
     }
   >(({ children, style, virtualItem }, ref) =>
     // `style` passes through: the tile's inline `top` is the paint half
     // of the ledger contract (top = start + ledger px) and dropping it
     // left that term unpinnable (mutant audit 2026-07-07, survivor 14).
-    React.createElement('div', { ref, 'data-virtual-index': virtualItem?.index, style }, children)
+    React.createElement(
+      'div',
+      {
+        ref,
+        'data-virtual-index': virtualItem?.index,
+        'data-virtual-size': virtualItem?.size,
+        style,
+      },
+      children
+    )
   ),
 }));
 

@@ -34,6 +34,7 @@ import { getShownHistoryReplies } from '../event-store/timeline/classicHistoryRe
 import type { RoomTimelineFocusItem } from './roomFocusScrollController';
 import type { RecalibrateFilterOpts, Timeline } from '../event-store/timeline/timelinePagination';
 import { estimateMessageRowHeight, estimateRoomRowHeight } from './timelineRowEstimate';
+import { replyNeedingNoQuote } from './pluginHiddenRows';
 import { foldTimelineRowContexts, isRowlessTimelineEvent } from './timelineRowFold';
 
 /**
@@ -294,6 +295,7 @@ export const renderTimelineTiles = ({
   focusItem,
   messageData,
   isHiddenByPlugin,
+  isHiddenByPluginId,
   renderEvent,
   unreadMarkerRef,
   measureElement,
@@ -313,6 +315,8 @@ export const renderTimelineTiles = ({
   messageData: TimelineMessageData;
   /** Whether a plugin's message renderer leaves the event without a row (pluginHiddenRows). */
   isHiddenByPlugin: (event: MatrixEvent) => boolean;
+  /** The same, of a loaded event by its ID: no row quotes such a message. */
+  isHiddenByPluginId: (eventId: string) => boolean;
   renderEvent: (row: TimelineMessageRow, data: TimelineMessageData) => ReactNode | null;
   /** Receives the "New messages" line, so the timeline knows when it is in view. */
   unreadMarkerRef: Ref<HTMLDivElement>;
@@ -359,7 +363,11 @@ export const renderTimelineTiles = ({
         timelineSet,
         collapse: context.collapse,
         highlighted: focusItem?.eventId === id && focusItem.highlight,
-        previousEventId: context.inPlaceReplyEventId,
+        previousEventId: replyNeedingNoQuote(
+          event,
+          context.inPlaceReplyEventId,
+          isHiddenByPluginId
+        ),
       };
       // A row that fails to render shows as broken; the rows around it stay.
       content = (

@@ -717,6 +717,21 @@ export function RoomTimeline(props: RoomTimelineProps) {
     return (event: MatrixEvent) =>
       isPluginHiddenRow(event, shownContent, messageRowHidden, revealed);
   }, [eventId, focusEventId, rowsTimelineSet, messageRowHidden]);
+  const isHiddenByPluginId = useCallback(
+    (id: string) => {
+      const event = messageRowHidden ? room.findEventById(id) : undefined;
+      return !!event && isHiddenByPlugin(event);
+    },
+    [room, messageRowHidden, isHiddenByPlugin]
+  );
+  // The open thread's replies a plugin hides, which the virtual list sizes as nothing.
+  const pluginHiddenThreadIds = useMemo(
+    () =>
+      threadId && messageRowHidden
+        ? new Set(threadEvents.filter(isHiddenByPlugin).flatMap((event) => event.getId() ?? []))
+        : EMPTY_IDS,
+    [threadId, messageRowHidden, threadEvents, isHiddenByPlugin]
+  );
   // What each agent reply of the open thread and the thread so far cost, for Reply details.
   const threadConversationCost = useThreadConversationCostSummary(
     threadId ? threadEvents : undefined,
@@ -915,12 +930,18 @@ export function RoomTimeline(props: RoomTimelineProps) {
     beforePaint && renderedList?.height
       ? heldListHeight(renderedList, ledger.ledgerPxAtRender)
       : virtualizer.getTotalSize();
-  useThreadApprovalRowMeasurements(
-    virtualizer,
-    threadEvents,
-    threadId ? approvalTimeline.hiddenEventIds : EMPTY_IDS,
-    estimateSize
+  // Rows hidden in the open thread, by its plans and by plugins, measure nothing; one shown again
+  // gets its estimate back, so a jump to it mounts it.
+  const threadHiddenIds = useMemo(
+    () =>
+      !threadId
+        ? EMPTY_IDS
+        : pluginHiddenThreadIds.size === 0
+        ? approvalTimeline.hiddenEventIds
+        : new Set([...approvalTimeline.hiddenEventIds, ...pluginHiddenThreadIds]),
+    [threadId, approvalTimeline.hiddenEventIds, pluginHiddenThreadIds]
   );
+  useThreadApprovalRowMeasurements(virtualizer, threadEvents, threadHiddenIds, estimateSize);
 
   // Jumps: the paginator scrolls to mounted rows and moves the window; the virtual list
   // scrolls to the rows of the window it has not mounted.
@@ -1583,6 +1604,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     focusItem,
     messageData,
     isHiddenByPlugin,
+    isHiddenByPluginId,
     renderEvent: feature.renderEvent,
     unreadMarkerRef: setUnreadMarker,
     measureElement: ledger.measureElement,

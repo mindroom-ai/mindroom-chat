@@ -63,6 +63,12 @@ const openThread = async (props: Record<string, unknown> = {}) => {
   return Object.assign(renderer!, { rerender });
 };
 
+/** The size the virtual list gives the tile of row `index`. */
+const sizeOfRow = (renderer: ReturnType<typeof create>, index: number) =>
+  renderer.root.find((node) => node.props['data-virtual-index'] === index).props[
+    'data-virtual-size'
+  ];
+
 describe('rows a plugin hides', () => {
   it("leaves a reply in a thread it hides without a row, and keeps the thread's root", async () => {
     pluginRowHiddenMock.test = (event) => event.content['org.example.relay'] === true;
@@ -90,6 +96,19 @@ describe('rows a plugin hides', () => {
       expect(getRenderedEventIds(renderer)).toEqual([threadId, '$ask', '$relay', '$answer']);
       await renderer.rerender({ eventId: '$answer' });
       expect(getRenderedEventIds(renderer)).toEqual([threadId, '$ask', '$relay', '$answer']);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it('sizes a hidden row as nothing, and gives it its size again once the route opens it', async () => {
+    pluginRowHiddenMock.test = (event) => event.content['org.example.relay'] === true;
+    const renderer = await openThread();
+    try {
+      expect(sizeOfRow(renderer, 2)).toBe(0);
+      await renderer.rerender({ eventId: '$relay' });
+      expect(getRenderedEventIds(renderer)).toContain('$relay');
+      expect(sizeOfRow(renderer, 2)).toBeGreaterThan(0);
     } finally {
       act(() => renderer.unmount());
     }

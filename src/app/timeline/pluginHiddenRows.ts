@@ -1,6 +1,7 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { isThreadReplyEvent } from '../event-store/threads/threadUtils';
 import type { PluginEvent } from '../plugins/messageRenderers';
+import { genuineReplyEventId } from './timelineRowFold';
 
 /**
  * Whether a plugin's message renderer leaves `event` without a row (`MessageRenderer.hidden`,
@@ -20,11 +21,34 @@ export const isPluginHiddenRow = (
   const sender = event.getSender();
   if (!eventId || !sender || !isThreadReplyEvent(eventId, event.threadRootId)) return false;
   if (revealedIds?.has(eventId)) return false;
+  // Read only if asked: the test asks the sender first, and most replies are people's.
+  let content: Record<string, unknown> | undefined;
   return rowHidden({
     eventId,
     roomId: event.getRoomId(),
     type: event.getType(),
     sender,
-    content: getContent(event),
+    get content() {
+      content ??= getContent(event);
+      return content;
+    },
   });
+};
+
+/**
+ * The message `event`'s row needs no quote of: the one the row fold found in place, or the one it
+ * replies to when a plugin hides that (`isHidden`), so no row quotes a hidden message, such as an
+ * agent's answer to the message that woke it.
+ */
+export const replyNeedingNoQuote = (
+  event: MatrixEvent,
+  inPlaceReplyEventId: string | undefined,
+  isHidden: (eventId: string) => boolean
+): string | undefined => {
+  const replyEventId = genuineReplyEventId(event);
+  return replyEventId !== undefined &&
+    replyEventId !== inPlaceReplyEventId &&
+    isHidden(replyEventId)
+    ? replyEventId
+    : inPlaceReplyEventId;
 };

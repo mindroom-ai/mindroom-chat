@@ -1,6 +1,6 @@
 import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { isPluginHiddenRow } from './pluginHiddenRows';
+import { isPluginHiddenRow, replyNeedingNoQuote } from './pluginHiddenRows';
 
 const ROOT = '$root';
 
@@ -61,5 +61,21 @@ describe('isPluginHiddenRow', () => {
     const getContent = vi.fn(contentOf);
     expect(isPluginHiddenRow(inThread('$reply'), getContent, undefined)).toBe(false);
     expect(getContent).not.toHaveBeenCalled();
+  });
+});
+
+describe('replyNeedingNoQuote', () => {
+  const replyTo = (id: string, target: string) =>
+    event(id, { rel_type: 'm.thread', event_id: ROOT, 'm.in_reply_to': { event_id: target } });
+  const hiddenIds = new Set(['$relay']);
+  const isHidden = (eventId: string) => hiddenIds.has(eventId);
+
+  it('quotes no message a plugin hides, wherever it is', () => {
+    expect(replyNeedingNoQuote(replyTo('$answer', '$relay'), ROOT, isHidden)).toBe('$relay');
+  });
+
+  it("keeps the fold's answer for a reply to a message that shows, and for a message that replies to none", () => {
+    expect(replyNeedingNoQuote(replyTo('$answer', '$ask'), ROOT, isHidden)).toBe(ROOT);
+    expect(replyNeedingNoQuote(inThread('$plain'), ROOT, isHidden)).toBe(ROOT);
   });
 });
