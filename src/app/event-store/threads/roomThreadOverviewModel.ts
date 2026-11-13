@@ -126,10 +126,6 @@ export const serializeThreadFilterState = (
   };
 };
 
-const DEFAULT_SERIALIZED_THREAD_FILTER_STATE = JSON.stringify(
-  serializeThreadFilterState(createDefaultThreadFilterState())
-);
-
 export const deserializeThreadFilterState = (value: unknown): ThreadFilterState => {
   const defaultState = createDefaultThreadFilterState();
 
@@ -225,9 +221,6 @@ export const hasActiveThreadFilters = (state: ThreadFilterState): boolean =>
   (state.freeText ?? '').length > 0 ||
   (state.unsupportedQuery ?? '').length > 0 ||
   (state.people?.length ?? 0) > 0;
-
-export const isDefaultThreadFilterState = (state: ThreadFilterState): boolean =>
-  JSON.stringify(serializeThreadFilterState(state)) === DEFAULT_SERIALIZED_THREAD_FILTER_STATE;
 
 export const isRoomThreadOverviewActive = (
   threadId: string | undefined,

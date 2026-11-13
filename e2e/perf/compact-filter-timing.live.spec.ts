@@ -15,6 +15,7 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
+import { showResolvedThreads } from '../helpers/threadOverview';
 
 /**
  * Filtering a big Compact list (live-test lane 6, finding L6-F020): a filter change must show its
@@ -444,6 +445,8 @@ test.describe('compact filter timing', () => {
         const cards = view.locator('[data-thread-root-id]');
         const total = THREADS;
         await expect(view).toBeVisible({ timeout: 120_000 });
+        // Compact opens with resolved threads hidden; the timing starts with every thread shown.
+        await showResolvedThreads(page);
         await expect
           .poll(() => cards.count(), { timeout: 180_000, message: 'all threads listed' })
           .toBe(total);
