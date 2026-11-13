@@ -85,18 +85,14 @@ const renderRow = (
       </div>
     );
   }
+  const codeTop = rowTop + (codeActionsAt ?? 0);
   const rects: Record<string, Rect> = {
     scroller: { top: 0, bottom: 800, left: 0, right: 1000 },
     overlay: { top: 110, bottom: 130, left: overlayLeft, right: overlayLeft + 50 },
     row: { top: rowTop, bottom: rowTop + 80, left: 0, right: 1000 },
     toolbar: { top: rowTop - 30, bottom: rowTop + 6, left: 850, right: 1000 },
     sender: { top: rowTop + 4, bottom: rowTop + 26, left: 60, right: senderRight ?? 0 },
-    code: {
-      top: rowTop + (codeActionsAt ?? 0),
-      bottom: rowTop + (codeActionsAt ?? 0) + 24,
-      left: 900,
-      right: 980,
-    },
+    code: { top: codeTop, bottom: codeTop + 24, left: 900, right: 980 },
   };
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(
     this: HTMLElement

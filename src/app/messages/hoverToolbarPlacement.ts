@@ -72,7 +72,7 @@ const coveredUntilY = (scroller: HTMLElement, left: number, right: number): numb
 type Span = { top: number; bottom: number };
 
 /** A fold button beside the toolbar, relative to the top of the toolbar's row. */
-export type FoldSpan = Span & { ownRow: boolean };
+type FoldSpan = Span & { ownRow: boolean };
 
 /**
  * Where the toolbar's top goes, relative to the top of its row, or `undefined` for its usual
@@ -90,14 +90,14 @@ export const toolbarOffset = (
   senderLine?: Span,
   codeActions: Span[] = []
 ): number | undefined => {
-  const nearFold = (at: number, fold: Span) =>
-    at < fold.bottom + CONTROL_GAP_PX && at + height > fold.top - CONTROL_GAP_PX;
+  const nearControl = (at: number, control: Span) =>
+    at < control.bottom + CONTROL_GAP_PX && at + height > control.top - CONTROL_GAP_PX;
   // Below the header and the controls under it, but no lower than 4 px above the row's bottom.
   let top = covered > usual + 0.5 ? Math.min(covered, rowHeight - ROW_END_GAP_PX - height) : usual;
   [...folds]
     .sort((a, b) => a.top - b.top)
     .forEach((fold) => {
-      if (nearFold(top, fold)) {
+      if (nearControl(top, fold)) {
         // The fold button of the long message above pushes the toolbar down into its row; the
         // row's own, at its bottom, pushes it up.
         top = fold.ownRow ? fold.top - CONTROL_GAP_PX - height : fold.bottom + CONTROL_GAP_PX;
@@ -116,7 +116,7 @@ export const toolbarOffset = (
     top + height > senderLine.top
   ) {
     const below = senderLine.bottom + CONTROL_GAP_PX;
-    if (![...folds, ...codeActions].some((control) => nearFold(below, control))) top = below;
+    if (![...folds, ...codeActions].some((control) => nearControl(below, control))) top = below;
   }
   return Math.abs(top - usual) > 0.5 ? Math.round(top) : undefined;
 };
@@ -167,11 +167,8 @@ export const useToolbarClearance = (
         underBar(button).map((span) => ({ ...span, ownRow: row.contains(button) }))
       );
       const codeActions = Array.from(row.querySelectorAll(CODE_BLOCK_ACTIONS)).flatMap(underBar);
-      const sender = row.querySelector(SENDER_LINE)?.getBoundingClientRect();
-      const senderLine =
-        sender && sender.width > 0 && sender.left < bar.right && sender.right > bar.left
-          ? { top: sender.top - rowRect.top, bottom: sender.bottom - rowRect.top }
-          : undefined;
+      const sender = row.querySelector(SENDER_LINE);
+      const [senderLine] = sender ? underBar(sender) : [];
       const next = toolbarOffset(
         usualOffset.current ?? 0,
         coveredUntilY(scroller, bar.left, bar.right) - rowRect.top,
