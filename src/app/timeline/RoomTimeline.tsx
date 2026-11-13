@@ -697,40 +697,47 @@ export function RoomTimeline(props: RoomTimelineProps) {
     routeId: threadId ? eventId : undefined,
     focusId: threadId ? focusItem?.eventId : undefined,
   });
-  // Replies in a thread a plugin's renderer hides (`MessageRenderer.hidden`), read as their rows
-  // show them, from the timeline set the rows render from; one the route or a jump opened stays
-  // visible after the route moves on.
+  // Replies a plugin's renderer hides in the open thread (`MessageRenderer.hidden`), read as their
+  // rows show them; one the route or a jump opened stays visible after the route moves on. The
+  // room's own timeline hides none: Classic's thread replies among its rows keep theirs.
   const messageRowHidden = useMessageRowHidden(mx.getUserId() ?? undefined);
+  const threadRowHidden = threadId ? messageRowHidden : undefined;
   const pluginRevealedRef = useRef(new Set<string>());
   const focusEventId = focusItem?.eventId;
-  const rowsTimelineSet =
-    (threadId && threadState.threadTimelineSet) || room.getUnfilteredTimelineSet();
   const isHiddenByPlugin = useMemo(() => {
     if (eventId) pluginRevealedRef.current.add(eventId);
     if (focusEventId) pluginRevealedRef.current.add(focusEventId);
     const revealed = pluginRevealedRef.current;
-    const shownContent = (event: MatrixEvent) =>
-      getLatestMessageContent(
-        event,
-        getEditedEvent(event.getId() ?? '', event, rowsTimelineSet)
-      ) as Record<string, unknown>;
     return (event: MatrixEvent) =>
-      isPluginHiddenRow(event, shownContent, messageRowHidden, revealed);
-  }, [eventId, focusEventId, rowsTimelineSet, messageRowHidden]);
+      isPluginHiddenRow(event, getRowContent, threadRowHidden, revealed);
+  }, [eventId, focusEventId, getRowContent, threadRowHidden]);
+  // The thread's rows by ID, the cache's too before the SDK has them: no row quotes a hidden one.
+  const threadRowById = useMemo(
+    () =>
+      threadRowHidden
+        ? new Map(
+            threadEvents.flatMap((event) => {
+              const id = event.getId();
+              return id ? [[id, event] as const] : [];
+            })
+          )
+        : undefined,
+    [threadRowHidden, threadEvents]
+  );
   const isHiddenByPluginId = useCallback(
     (id: string) => {
-      const event = messageRowHidden ? room.findEventById(id) : undefined;
+      const event = threadRowById?.get(id);
       return !!event && isHiddenByPlugin(event);
     },
-    [room, messageRowHidden, isHiddenByPlugin]
+    [threadRowById, isHiddenByPlugin]
   );
   // The open thread's replies a plugin hides, which the virtual list sizes as nothing.
   const pluginHiddenThreadIds = useMemo(
     () =>
-      threadId && messageRowHidden
+      threadRowHidden
         ? new Set(threadEvents.filter(isHiddenByPlugin).flatMap((event) => event.getId() ?? []))
         : EMPTY_IDS,
-    [threadId, messageRowHidden, threadEvents, isHiddenByPlugin]
+    [threadRowHidden, threadEvents, isHiddenByPlugin]
   );
   // What each agent reply of the open thread and the thread so far cost, for Reply details.
   const threadConversationCost = useThreadConversationCostSummary(

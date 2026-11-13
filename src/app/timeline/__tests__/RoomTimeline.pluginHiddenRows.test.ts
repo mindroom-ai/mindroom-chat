@@ -11,6 +11,7 @@ import {
   makeTimeline,
   pluginRowHiddenMock,
   roomTimelineVirtualizerState,
+  settingsState,
   threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
@@ -21,7 +22,12 @@ const forAgents = { msgtype: 'm.text', body: 'For the agents', 'org.example.rela
 importBeforeTests(() => import('../RoomTimeline'));
 
 /** A thread whose root and second reply carry the content a plugin hides. */
-const openThread = async (props: Record<string, unknown> = {}) => {
+const openThread = async (
+  props: Record<string, unknown> = {},
+  extra: ReturnType<typeof makeEvent>[] = [],
+  /** Whether the SDK holds the thread's events yet, or only the cache's rows show. */
+  inSdk = true
+) => {
   const { RoomTimeline } = await import('../RoomTimeline');
   const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 1_000, content: forAgents });
   const events = [
@@ -32,11 +38,14 @@ const openThread = async (props: Record<string, unknown> = {}) => {
       threadRootId: threadId,
       ts: 4_000,
       sender: '@mindroom_helper:example.org',
+      replyTo: '$relay',
     }),
+    ...extra,
   ];
   const timeline = makeTimeline(events, { backwardToken: null });
   const timelineSet = { getLiveTimeline: () => timeline, getTimelineForEvent: () => undefined };
   const room = makeRoom({ liveEvents: [rootEvent] });
+  if (!inSdk) room.findEventById = () => undefined;
   room.getThread = () =>
     ({
       rootEvent,
@@ -47,7 +56,7 @@ const openThread = async (props: Record<string, unknown> = {}) => {
   threadRenderStateMock.threadEventIndexMapRef.current = new Map(
     events.map((event, index) => [event.getId(), index])
   );
-  roomTimelineVirtualizerState.virtualIndexes = [0, 1, 2, 3];
+  roomTimelineVirtualizerState.virtualIndexes = events.map((_event, index) => index);
   const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
   let renderer: ReturnType<typeof create> | undefined;
   await act(async () => {
@@ -63,7 +72,7 @@ const openThread = async (props: Record<string, unknown> = {}) => {
   return Object.assign(renderer!, { rerender });
 };
 
-/** The size the virtual list gives the tile of row `index`. */
+/** The size the virtual list gives the tile of row `index`; a row's quote is its `reply`. */
 const sizeOfRow = (renderer: ReturnType<typeof create>, index: number) =>
   renderer.root.find((node) => node.props['data-virtual-index'] === index).props[
     'data-virtual-size'
@@ -109,6 +118,31 @@ describe('rows a plugin hides', () => {
       await renderer.rerender({ eventId: '$relay' });
       expect(getRenderedEventIds(renderer)).toContain('$relay');
       expect(sizeOfRow(renderer, 2)).toBeGreaterThan(0);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it('quotes no hidden message, also while only the cache has the thread', async () => {
+    pluginRowHiddenMock.test = (event) => event.content['org.example.relay'] === true;
+    const renderer = await openThread({}, [], false);
+    try {
+      expect(getRenderedEventIds(renderer)).toEqual([threadId, '$ask', '$answer']);
+      const quotes = renderer.root.findAll((node) => node.props.reply !== undefined);
+      expect(quotes.map((node) => node.props.reply?.props.replyEventId)).not.toContain('$relay');
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it('shows a redacted reply as redactions show, whatever the plugin says', async () => {
+    pluginRowHiddenMock.test = () => true;
+    settingsState.showHiddenEvents = true;
+    const redacted = makeEvent('$gone', { threadRootId: threadId, ts: 5_000, isRedacted: true });
+    const renderer = await openThread({}, [redacted]);
+    try {
+      expect(getRenderedEventIds(renderer)).toContain('$gone');
+      expect(sizeOfRow(renderer, 4)).toBeGreaterThan(0);
     } finally {
       act(() => renderer.unmount());
     }

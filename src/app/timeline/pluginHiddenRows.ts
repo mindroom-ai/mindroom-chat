@@ -1,14 +1,15 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { isThreadReplyEvent } from '../event-store/threads/threadUtils';
 import type { PluginEvent } from '../plugins/messageRenderers';
-import { genuineReplyEventId } from './timelineRowFold';
+import { genuineReplyEventId, isRowlessTimelineEvent } from './timelineRowFold';
 
 /**
  * Whether a plugin's message renderer leaves `event` without a row (`MessageRenderer.hidden`,
- * asked through `rowHidden`). Only a reply in a thread may go: hiding a thread's root would hide
- * its thread, and a message outside any thread stays. One the route or a jump opened
- * (`revealedIds`) stays too, so a link to it lands on it. `getContent` gives what its row would
- * show, latest edit included; without `rowHidden` (no renderer hides rows) nothing is asked.
+ * asked through `rowHidden`, which the timeline gives only in an open thread). Only a reply in a
+ * thread may go: hiding a thread's root would hide its thread, and a message outside any thread
+ * stays, as does a redacted one. One the route or a jump opened (`revealedIds`) stays too, so a
+ * link to it lands on it. `getContent` gives what its row would show, latest edit included;
+ * without `rowHidden` (no renderer hides rows) nothing is asked.
  */
 export const isPluginHiddenRow = (
   event: MatrixEvent,
@@ -17,6 +18,8 @@ export const isPluginHiddenRow = (
   revealedIds?: ReadonlySet<string>
 ): boolean => {
   if (!rowHidden) return false;
+  // A redaction's row follows the timeline's own rule, and an edit or a reaction has none.
+  if (event.isRedacted() || isRowlessTimelineEvent(event)) return false;
   const eventId = event.getId();
   const sender = event.getSender();
   if (!eventId || !sender || !isThreadReplyEvent(eventId, event.threadRootId)) return false;

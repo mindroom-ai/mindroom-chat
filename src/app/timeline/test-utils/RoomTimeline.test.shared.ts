@@ -121,6 +121,7 @@ const {
   isTimelineAtLiveEndMock: vi.fn(() => true),
   settingsState: {
     prefetchDepth: 300,
+    showHiddenEvents: false,
   },
   // The plugins' test of a row they hide (useMessageRowHidden); none by default.
   pluginRowHiddenMock: {
@@ -253,6 +254,8 @@ vi.mock('../../preferences/useSetting', () => ({
         return [settingsState.prefetchDepth];
       case 'prefetchScope':
         return ['my-server'];
+      case 'showHiddenEvents':
+        return [settingsState.showHiddenEvents];
       default:
         return [false];
     }
@@ -1266,6 +1269,8 @@ const makeEvent = (
     isThreadRoot?: boolean;
     threadRootId?: string;
     relation?: { rel_type?: string; event_id?: string };
+    /** The event it genuinely replies to (`m.in_reply_to`). */
+    replyTo?: string;
     renderInsideEncryptedContentAs?: string;
     associatedId?: string;
     stateKey?: string;
@@ -1287,6 +1292,7 @@ const makeEvent = (
     getOriginalContent: () => opts.content ?? { body: eventId },
     getId: () => eventId,
     getRelation: () => opts.relation,
+    replyEventId: opts.replyTo,
     getRedactionEvent: () => undefined,
     getRoomId: () => '!room:example.org',
     getSender: () => opts.sender ?? '@alice:example.org',
@@ -1507,6 +1513,7 @@ beforeEach(() => {
   threadRenderStateMock.threadEvents = [];
   threadRenderStateMock.threadInitialRenderMode = 'live';
   pluginRowHiddenMock.test = undefined;
+  settingsState.showHiddenEvents = false;
   threadLastActivityTsMapMock.clear();
   threadStreamingStateMock.clear();
   threadResolutionMapMock.clear();
