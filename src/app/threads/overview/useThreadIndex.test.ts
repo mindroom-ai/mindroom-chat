@@ -73,9 +73,7 @@ describe('resolveThreadIndexSnapshot', () => {
       compactThreadRecordMap: new Map([['$compact', compactRecord]]),
       // The pin shows because it matches the filter, as any thread must.
       threadFilterState: makeFilterState({ unread: 'include' }),
-      liveThreadFilterState: makeFilterState(),
       fallbackThreadFilterState: makeFilterState(),
-      searchQuery: '',
       threadSortFreezeState: null,
       threadSortControlSignature: 'normal',
       focusedRoomOverviewRequested: false,
@@ -91,7 +89,7 @@ describe('resolveThreadIndexSnapshot', () => {
 
   it('bypasses filtered overview state for a focused room route that is filtered out', () => {
     const fallbackThreadFilterState = makeFilterState();
-    const filteredState = makeFilterState({ resolved: 'include' });
+    const filteredState = makeFilterState({ resolved: 'include', freeText: 'root' });
 
     const snapshot = resolveThreadIndexSnapshot({
       threadId: undefined,
@@ -101,9 +99,7 @@ describe('resolveThreadIndexSnapshot', () => {
       normalThreadRecordMap: new Map([['$root', makeRecord('$root')]]),
       compactThreadRecordMap: new Map(),
       threadFilterState: filteredState,
-      liveThreadFilterState: filteredState,
       fallbackThreadFilterState,
-      searchQuery: '',
       threadSortFreezeState: null,
       threadSortControlSignature: 'filtered',
       focusedRoomOverviewRequested: true,
@@ -113,8 +109,8 @@ describe('resolveThreadIndexSnapshot', () => {
     expect(snapshot.normalOverviewOrdering.filteredIds).toEqual([]);
     expect(snapshot.focusedRoomOverviewBypass).toBe(true);
     expect(snapshot.effectiveThreadFilterState).toBe(fallbackThreadFilterState);
-    expect(snapshot.roomThreadFilterRequested).toBe(true);
     expect(snapshot.roomThreadFilterActive).toBe(false);
     expect(snapshot.overviewThreadRootIds).toEqual([]);
+    expect(snapshot.searchQuery).toBe('root');
   });
 });

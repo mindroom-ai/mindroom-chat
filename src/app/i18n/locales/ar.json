@@ -3006,9 +3006,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "تعليم كمقروء"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "تعليم كمقروء"
       },
