@@ -1,11 +1,11 @@
 import { expect, test, type Locator } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { loginToMatrix } from '../helpers/matrix';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   CHROMIUM_WITH_SCROLLBARS,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // The members panel's header buttons (Invite people, Close) answer the pointer as the room
@@ -32,18 +32,7 @@ test('the members header buttons fill while hovered, as the room header buttons 
 }) => {
   test.setTimeout(120_000);
   const username = `mhh_host_${RUN}`;
-  const registered = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(registered.ok, `registering ${username}`).toBe(true);
-  const host = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const host = await registerDisposableUser(username, PASSWORD);
   const roomId = await createRoom(HOMESERVER, host.accessToken, { name: `Hover room ${RUN}` });
   await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
   await page.goto(`/home/${encodeURIComponent(roomId)}`);
