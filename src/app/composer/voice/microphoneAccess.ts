@@ -49,26 +49,3 @@ export const getMicrophoneAccessErrorMessage = (error: unknown): string => {
 
   return 'Failed to access microphone.';
 };
-
-/**
- * Request microphone access in the top-level app before a call starts. In
- * WKWebView this makes the native permission prompt happen as a direct
- * consequence of the user's Call tap. The short-lived stream is only a
- * permission preflight; the call opens the stream it publishes.
- */
-export const requestMicrophoneAccess = async (): Promise<void> => {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    throw new Error('Microphone access is not supported on this device.');
-  }
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach((track) => track.stop());
-  } catch (error) {
-    const accessError = new Error(getMicrophoneAccessErrorMessage(error)) as Error & {
-      cause?: unknown;
-    };
-    accessError.cause = error;
-    throw accessError;
-  }
-};

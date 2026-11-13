@@ -160,7 +160,3 @@ export const getCollapsibleMessageMeasurementKey = (
     editedEvent?.getId() ?? '',
     collapseMode,
   ].join('|');
-
-export const consumeLiveExpandOnceId = (liveExpandOnceIds: Set<string>, mEventId: string) => {
-  liveExpandOnceIds.delete(mEventId);
-};
