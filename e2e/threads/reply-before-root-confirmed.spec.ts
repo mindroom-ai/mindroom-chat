@@ -20,6 +20,10 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // In the Compact view a new message opens its own thread at once, while the server has not yet
 // confirmed it. Until then the thread's root has only its local ID, which no reply can point at.
@@ -29,7 +33,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // touch) and a desktop (1280 by 800), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
 // Playwright's WebKit, in WebKit. Set PENDING_ROOT_SHOTS=<directory> for screenshots of the
 // thread while its root waits for the server.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'reply-before-root-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.PENDING_ROOT_SHOTS;
@@ -45,17 +48,6 @@ const PHONE: BrowserContextOptions = {
   isMobile: true,
 };
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 type Account = MatrixSession & { username: string };
 
@@ -316,7 +308,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('a reply written before its thread root is confirmed is kept and sent after it (Chromium)', async ({

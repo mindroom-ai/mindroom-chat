@@ -16,6 +16,10 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The read state of the room the reader has open, against the server's counts. Coming back to the
 // window reads what the reader then sees, and only that: the newest messages when they are on
@@ -31,7 +35,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // scripts/e2e-slot.sh, and registers its own accounts. Set OPEN_ROOM_READ_SHOTS=<directory> to save
 // screenshots of the steps that check the line and the badges.
 const SHOTS = process.env.OPEN_ROOM_READ_SHOTS;
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'open-room-read-state-spec-password';
 const RUN = Date.now().toString(36);
 const VIEWPORT = { width: 1440, height: 900 };
@@ -47,17 +50,6 @@ test.use({
   },
 });
 test.describe.configure({ timeout: 300_000 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 type Account = MatrixSession & { username: string };
 
@@ -512,7 +504,7 @@ const badgeThroughReload = async (page: Page, browserName: string) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 /** Runs a case in Playwright's WebKit, in a page of the spec's viewport. */

@@ -2,7 +2,11 @@ import { mkdirSync } from 'node:fs';
 import { expect, test, type Browser, type BrowserContextOptions } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
-import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // After a reload the app draws from its store and says "Catching up..." until the first syncs
@@ -10,22 +14,10 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // where they are while it shows and when it goes (a band once pushed them 24 px down and back up
 // after every load). Here the first two /sync responses are held for 3 s, and the room list's top is read
 // on every animation frame. Set CATCHING_UP_SHOTS=<directory> to save the view with the pill.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'catching-up-overlay-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS = process.env.CATCHING_UP_SHOTS;
 const HOLD_MS = 3_000;
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 /** An account with 26 rooms, each with a message, as a real account's list has. */
 const seed = async (name: string) => {
@@ -139,7 +131,10 @@ test.beforeAll(() => {
 });
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(180_000);
 });
 

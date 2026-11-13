@@ -1,12 +1,15 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { matrixFetch } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The Settings dialog built from the settings registry: its menu under group headings, the
 // search field over it, the Advanced fold a search opens, `/settings/<page>` with an earlier
 // page id, and the phone layout. Set SETTINGS_SHOTS=<directory> to also save it in dark and light
 // themes, at a phone's width, and with search results.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'settings-search-spec-password';
 const SHOTS = process.env.SETTINGS_SHOTS;
 
@@ -26,17 +29,6 @@ const PAGES = [
   'Developer Tools',
   'About',
 ];
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 /** A fresh account, signed in on `page`. */
 const signIn = async (page: Page, prefix: string) => {
@@ -63,7 +55,10 @@ const openSettings = async (page: Page) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test('Settings opens on Appearance with its pages under group headings', async ({ page }) => {

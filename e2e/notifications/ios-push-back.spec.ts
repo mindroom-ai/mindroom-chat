@@ -12,6 +12,10 @@ import {
   setDirectAccountData,
   type MatrixSession,
 } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The iOS app opens a tapped push as a page opened from outside the app: a thread's back chevron
 // leads to the thread's room, and the room's to its list, never to the page the app was left on
@@ -20,23 +24,11 @@ import {
 // platform with a stand-in for the push plugin, whose taps the test fires as iOS would deliver
 // them. At 390 by 844 with touch, in Chromium. IOS_PUSH_BACK_SHOTS=<directory> saves the thread
 // and the pages its chevrons lead to.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'ios-push-back-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
 const SHOTS = process.env.IOS_PUSH_BACK_SHOTS;
 const FAKE_IOS_KEY = 'e2e-ios-push-back';
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (name: string): Promise<MatrixSession & { username: string }> => {
   const username = `ipb_${name}_${RUN}`;
@@ -242,7 +234,10 @@ const backFromPushedThread = async (page: Page, { room, root }: Seed, shots: str
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test('a thread a tapped push opened over another conversation leads back to its room', async ({

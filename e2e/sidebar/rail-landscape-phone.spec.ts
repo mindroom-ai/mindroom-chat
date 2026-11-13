@@ -12,6 +12,10 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { createPrivateSpace, matrixFetch, setAccountData } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // P2-macos-safari-F003: an iPhone in landscape (874 by about 330 px in Safari) showed Home and half
 // of Direct Messages in the rail and none of its spaces: the foot group (Inbox, the account, the
@@ -20,7 +24,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // every space and the account button can be scrolled to and tapped. A tablet in landscape keeps
 // the foot group in place. Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
 // WebKit, WebKit. Set RAIL_LANDSCAPE_SHOTS=<directory> to save the rails.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'rail-landscape-phone-spec-password';
 const SHOTS = process.env.RAIL_LANDSCAPE_SHOTS;
 
@@ -39,19 +42,8 @@ test.use({
   },
 });
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 /** A new account with 25 rooms and two spaces, as the lane's tester had. */

@@ -2,13 +2,16 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateSpace, matrixFetch, setAccountData } from '../helpers/matrix';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The rail keeps Home, Direct Messages, Activity, Threads and Canvases in place while only the
 // spaces scroll, when the part between that group and the foot group shows at least four space
 // buttons; with less room the whole top part scrolls as one column, and it pins again from five.
 // Checked with 26 spaces, classic scrollbars, 600, 800 and 1000 px tall windows, and every
 // optional rail button on or off. Set RAIL_PIN_SHOTS=<directory> to also save the L25 screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'rail-pin-spec-password';
 const SHOTS = process.env.RAIL_PIN_SHOTS;
 const SPACE_COUNT = 26;
@@ -27,19 +30,11 @@ test.use({
   },
 });
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 type Account = { username: string; userId: string; accessToken: string; spaces: string[] };

@@ -3,6 +3,10 @@ import playwrightConfig from '../../playwright.config';
 import { loginWithPassword } from '../helpers/auth';
 import { buildLoginPath } from '../env';
 import { createDefaultThreadFilterState, seedRoomOverviewState } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A PDF attachment opens in the browser's own viewer, inside the app's glass modal. Chromium runs
 // everything inside an element with a backdrop filter through that filter once the element holds a
@@ -10,20 +14,8 @@ import { createDefaultThreadFilterState, seedRoomOverviewState } from '../helper
 // ancestor of the frame. Checked at 1x and at a real 2x screen, against the homeserver of
 // `just hs-up`: no ancestor of the page or the toolbar filters, the viewer's canvases have a pixel
 // per device pixel, and the page text and the toolbar title come out with hard edges.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'pdf-preview-password';
 const FILE_NAME = 'field-notes.pdf';
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const matrix = async <T>(path: string, init: { token?: string; body?: unknown } = {}) => {
   const response = await fetch(`${HOMESERVER}/_matrix/client/v3${path}`, {
@@ -244,7 +236,10 @@ const expectSharpPreview = async (page: Page, scale: number) => {
 };
 
 test('the PDF preview is sharp at 1x', async ({ browser }, testInfo) => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(240_000);
   const page = await sendPdf(browser);
   await expectSharpPreview(page, 1);
@@ -252,7 +247,10 @@ test('the PDF preview is sharp at 1x', async ({ browser }, testInfo) => {
 });
 
 test('the PDF preview is sharp on a 2x screen', async ({ playwright }, testInfo) => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(240_000);
   // A real 2x screen: emulating the scale reaches the app's frames but not the viewer's own.
   const launchOptions = playwrightConfig.use?.launchOptions ?? {};

@@ -3,6 +3,10 @@ import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { surfaceShowThrough } from '../helpers/surfaceShowThrough';
 import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The Settings dialog over a busy room: its menu column is inset evenly (the search field, the
 // group headings, the rows and Logout leave as much space at the dialog's edge as at the divider
@@ -11,7 +15,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // it shows only as a faint blur and the menu's names keep their contrast. Checked in Chromium and,
 // when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
 // SETTINGS_SURFACE_SHOTS=<directory> to also save the dialog and the other large dialogs.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'settings-surface-spec-password';
 const SHOTS = process.env.SETTINGS_SURFACE_SHOTS;
 const DESKTOP = { width: 1440, height: 900 };
@@ -29,17 +32,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 /** A fresh account with 26 rooms, the first full of long messages, signed in on `page`. */
 const signIn = async (page: Page, prefix: string) => {
@@ -295,7 +287,10 @@ const checkSurface = async (
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test('the Settings menu is inset evenly and its surface hides the room behind it', async ({

@@ -23,6 +23,10 @@ import {
 } from '../helpers/matrix';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Bidirectional controls (U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C) change the
 // order text shows in without showing themselves: a room named `Payroll <U+202E>sevihcra<U+202C>`
@@ -33,7 +37,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // sidebar's thread tooltip. Against the disposable homeserver of a slot, on a phone (390 by 844,
 // touch) and a desktop (1280 by 800), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
 // Playwright's WebKit, in WebKit. Set DIRECTION_NAMES_SHOTS=<directory> to save each view.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'direction-names-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.DIRECTION_NAMES_SHOTS;
@@ -60,17 +63,6 @@ const SPACE_TOPIC_SHOWN = 'Plans for the <U+202E>esolc<U+202C> of the quarter';
 const SUMMARY = 'Audit of ‮xslx.exe‬ before Friday';
 const SUMMARY_SHOWN = 'Audit of <U+202E>xslx.exe<U+202C> before Friday';
 const SEARCH_WORD = `zephyrledger${RUN}`;
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 type Account = MatrixSession & { username: string };
 
@@ -423,7 +415,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('room names, topics and thread summaries show direction controls as code points (Chromium)', async ({

@@ -9,6 +9,10 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { buildLoginPath } from '../env';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // An encrypted message that its sender edited while the reader was away, then answered with a
 // reply once the edit was well back in the history. The reader's server bundles the edit with
@@ -17,22 +21,10 @@ import { buildLoginPath } from '../env';
 // and in the message's row, before and after a reload, never a blank quote or "Unsupported
 // message". An edit whose key the reader never gets leaves the original text shown, with a note
 // under it. Against the disposable homeserver of `just hs-up`.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'encrypted-edit-away-spec-password';
 /** Messages between the edit and the reply: the reader's /sync timeline (20) ends before the edit. */
 const LATER_MESSAGES = 21;
 const SHOTS = process.env.ENCRYPTED_EDIT_SHOTS;
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const call = async <T>(path: string, token?: string, body?: unknown): Promise<T> => {
   const response = await fetch(`${HOMESERVER}/_matrix/client/v3${path}`, {
@@ -424,7 +416,10 @@ const watchUndecryptableEdit = async (
 
 test.describe('an encrypted message edited while the reader was away', () => {
   test.beforeEach(async () => {
-    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+    test.skip(
+      !(await disposableHomeserverIsUp()),
+      `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+    );
     test.setTimeout(360_000);
   });
 
@@ -463,7 +458,10 @@ test.describe('an encrypted message edited while the reader was away', () => {
 
 test.describe('an encrypted message edited while the reader watches', () => {
   test.beforeEach(async () => {
-    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+    test.skip(
+      !(await disposableHomeserverIsUp()),
+      `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+    );
     test.setTimeout(360_000);
   });
 
