@@ -220,6 +220,37 @@ describe('SpaceItemCard room access', () => {
     );
   });
 
+  it('collapses a joined space by its room id from its heading', () => {
+    vi.mocked(mx.getRoom).mockReturnValue({
+      roomId,
+      getMyMembership: () => Membership.Join,
+      getJoinRule: () => JoinRule.Public,
+    } as Room);
+    const handleClose = vi.fn();
+    const renderer = create(<></>);
+
+    act(() => {
+      renderer.update(
+        <MatrixClientProvider value={mx}>
+          <SpaceItemCard
+            item={item}
+            summary={summary}
+            joined
+            closed={false}
+            handleClose={handleClose}
+            canEditChild={false}
+            getRoom={() => undefined}
+          />
+        </MatrixClientProvider>
+      );
+    });
+    act(() => {
+      renderer.root.findAllByProps({ className: 'HeaderChip' })[0]?.props.onClick();
+    });
+
+    expect(handleClose).toHaveBeenCalledWith(roomId);
+  });
+
   it('starts a fresh request state when a virtualized row is reused for another space', async () => {
     vi.mocked(mx.knockRoom).mockResolvedValue({ room_id: roomId });
     const renderer = create(<></>);
