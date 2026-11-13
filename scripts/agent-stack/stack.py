@@ -9,7 +9,8 @@ Usage: python3 scripts/agent-stack/stack.py <slot 0-99> up|down|status|usage [--
   down    stop the slot's stack and delete its storage and worker containers (a real-model stack first saves its
           usage, see below)
   status  print the state of the running stack, or exit 1
-  usage   print the model calls and tokens of the running stack's backend log as JSON
+  usage   print the model calls and tokens (and their price, with --model real) of the running stack's backend log
+          as JSON
 
 The backend comes from a MindRoom checkout (--checkout, $E2E_MINDROOM_CHECKOUT, default
 /home/basnijholt/Work/dev/mindroom) at a commit (--ref, $E2E_MINDROOM_REF, default the checkout's origin/main
@@ -39,6 +40,7 @@ service at that URL (the slot's scripts/e2e-rtc.sh service), with a realtime Ope
 the real model's keys, reaches only the backend's process; the stub models keep a placeholder key of their own. The
 backend then runs from an environment with MindRoom's matrix_calls extra ($E2E_AGENT_STACK_ROOT/src/<sha>-matrix_calls).
 `usage` and `down` also report the voice models' tokens, which the backend keeps in the helper's session database.
+e2e/calls/agent-call.spec.ts uses it.
 
 --client-sessions lets the slot's Chat (http://127.0.0.1:4300+N, slot 0: 4200) sign in to the backend's client
 sessions, which plugin routes accept: the Chat origin goes into MINDROOM_COMPUTER_ALLOWED_ORIGINS, and the API's URL
@@ -53,8 +55,9 @@ in the backend's storage, as the Kubernetes chart's sidecar mounts the agents' s
 types in its terminals only while no approval rule may ask for its shell calls, so this stack has no approval script
 for run_shell_command: specs of shell approvals (#approve, #bidi) need a stack without --terminals. The stub's
 #terminal opens a terminal and runs an echo in it. A MindRoom without the toolkit (src/mindroom/tools/terminal.py)
-refuses the start with exit code 6, which the agent specs skip on. --terminals implies --client-sessions, since Chat
-reaches terminals through the backend's client routes, and cannot go with --computers, whose workers are Docker's.
+refuses the start with exit code 6, which the agent specs (e2e/plugins/agent-terminals.spec.ts) skip on.
+--terminals implies --client-sessions, since Chat reaches terminals through the backend's client routes, and cannot go
+with --computers, whose workers are Docker's.
 
 --computers gives the helper a Worker Computer (MindRoom's docs/tools/worker-computer.md): MindRoom runs Docker
 workers with the computer security policy from mindroom-client-e2e-worker:<commit>, an image the first start builds
@@ -71,7 +74,8 @@ from each WAV's header, and the stub model writes the notes. --transcription rea
 and always with --model real) transcribes with OpenAI's speech-to-text and has GPT-6 Luna write the notes instead (a
 `notes` model entry beside the stub models, or the real models' own `luna`), with OPENAI_API_KEY from the
 environment. `usage` and `down` count the notes model's tokens but not speech-to-text's cost: it has no `LLM usage`
-line in the backend log.
+line in the backend log. e2e/calls/call-transcription.spec.ts uses them, pointed at such a checkout with
+$E2E_MINDROOM_CHECKOUT and $E2E_MINDROOM_REF.
 
 $E2E_PLUGIN_DIRS names plugin directories, separated like PATH; a relative one is relative to this repository (in a
 scripts/e2e-slot.sh snapshot, to the snapshot). Each part of a directory is optional:
