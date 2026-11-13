@@ -147,3 +147,83 @@ test('a room lists none of the threads of the room opened after it', async ({ pa
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/beta-list.png` });
   expect(await shownText(page), 'Beta lists no thread of Alpha').not.toContain('Alpha topic');
 });
+
+/** Two rooms of the reader's, each with a thread, and a room the reader is not in. */
+const seedAddressRooms = async (label: string) => {
+  const suffix = `${label}${RUN}${test.info().repeatEachIndex}`;
+  const reader = await registerDisposableUser(`addr_${suffix}`, PASSWORD);
+  const stranger = await registerDisposableUser(`addr_x_${suffix}`, PASSWORD);
+  const room = async (owner: typeof reader, name: string) => {
+    const roomId = await createRoom(HOMESERVER, owner.accessToken, { name });
+    const [rootId] = await sendMany(owner.accessToken, roomId, [`${name} topic`]);
+    await sendRoomMessage(
+      HOMESERVER,
+      owner.accessToken,
+      roomId,
+      threadReply(rootId!, `Reply to ${name} topic`)
+    );
+    return { roomId, rootId: rootId! };
+  };
+  return {
+    reader,
+    alpha: await room(reader, 'Alpha room'),
+    beta: await room(reader, 'Beta room'),
+    hidden: await room(stranger, 'Hidden room'),
+  };
+};
+
+const threadPath = (roomId: string, rootId: string) =>
+  `${roomPath(roomId)}?threadId=${encodeURIComponent(rootId)}`;
+
+const recentThreadPairs = (page: Page) =>
+  page.evaluate(() =>
+    Object.keys(window.localStorage)
+      .filter((key) => key.startsWith('recentThreads:'))
+      .flatMap((key) => {
+        const stored = JSON.parse(window.localStorage.getItem(key) ?? '{}') as {
+          entries?: { roomId: string; threadId: string }[];
+        };
+        return (stored.entries ?? []).map((entry) => `${entry.roomId} ${entry.threadId}`);
+      })
+  );
+
+test("an address pairing a room with another room's thread opens that room's thread", async ({
+  page,
+}) => {
+  const { reader, alpha, beta } = await seedAddressRooms('r');
+  await loginWithPassword(page, { homeserver: HOMESERVER, ...reader });
+  await navigateInApp(page, roomPath(alpha.roomId));
+  await expect(page.getByText('Alpha room topic').first()).toBeVisible({ timeout: 60_000 });
+  await navigateInApp(page, roomPath(beta.roomId));
+  await expect(page.getByText('Beta room topic').first()).toBeVisible({ timeout: 60_000 });
+  const entries = await page.evaluate(() => window.history.length);
+
+  await navigateInApp(page, threadPath(beta.roomId, alpha.rootId));
+  await expect(page.getByText('Reply to Alpha room topic').first()).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect.poll(() => decodeURIComponent(new URL(page.url()).pathname)).toContain(alpha.roomId);
+  // In place of the address: the way back leads where the reader was.
+  expect(await page.evaluate(() => window.history.length)).toBe(entries + 1);
+  expect(await recentThreadPairs(page)).not.toContain(`${beta.roomId} ${alpha.rootId}`);
+});
+
+test('an address naming a thread no joined room holds says the thread was not found', async ({
+  page,
+}) => {
+  const { reader, beta, hidden } = await seedAddressRooms('n');
+  await loginWithPassword(page, { homeserver: HOMESERVER, ...reader });
+  await page.goto(threadPath(beta.roomId, hidden.rootId));
+  const column = page.getByTestId('thread-column');
+  await expect(column.getByRole('heading', { name: 'Thread not found' })).toBeVisible({
+    timeout: 60_000,
+  });
+  await expect(page.getByText('Hidden room topic')).toHaveCount(0);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/thread-not-found.png` });
+  expect(await recentThreadPairs(page)).not.toContain(`${beta.roomId} ${hidden.rootId}`);
+
+  await column.getByRole('button', { name: 'Back' }).click();
+  await expect(page.getByTestId('thread-column')).toHaveCount(0);
+  await expect(page.getByText('Beta room topic').first()).toBeVisible({ timeout: 30_000 });
+  expect(new URL(page.url()).searchParams.get('threadId')).toBeNull();
+});
