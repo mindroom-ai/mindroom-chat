@@ -6,6 +6,8 @@ import {
   loadCachedThreadRootsForRoom,
   loadLatestCachedThreadEvents,
   loadLatestCachedThreadEventsBatch,
+  loadLatestCachedRoomEvents,
+  saveRoomEventsToCache,
   deleteCacheStoreDb,
   resetCacheStoreForTesting,
   saveThreadEventsToCache,
@@ -173,6 +175,22 @@ describe('a cached thread whose root is another room’s', () => {
     );
     const batch = await loadLatestCachedThreadEventsBatch(SESSION_ID, ROOM_ID, [ROOT_ID], 10);
     expect(batch.get(ROOT_ID)?.rootEvent).toBeUndefined();
+  });
+
+  it('leaves out events saved under a room they do not name', async () => {
+    await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [
+      { ...otherRoot(), event_id: '$other-root' },
+      root(reply('completed'), 1),
+    ]);
+    await save([{ ...reply('completed'), room_id: OTHER_ROOM_ID }]);
+
+    const roomPage = await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10);
+    expect(roomPage.events.map((event) => event.room_id)).toEqual([ROOM_ID]);
+    expect((await loadLatestCachedThreadEvents(SESSION_ID, ROOM_ID, ROOT_ID, 10)).events).toEqual(
+      []
+    );
+    const batch = await loadLatestCachedThreadEventsBatch(SESSION_ID, ROOM_ID, [ROOT_ID], 10);
+    expect(batch.get(ROOT_ID)?.events).toEqual([]);
   });
 
   it('keeps a root saved without its room, as older rows were', async () => {

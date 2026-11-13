@@ -402,9 +402,9 @@ const toRawEventInternal = (
 };
 
 /**
- * Whether `raw` names a room other than `roomId`. A thread is its root's room's: a thread saved
- * under a room its root does not name (an earlier version could do that) is not that room's, and
- * its rows read as absent. Rows saved without a room ID read as the room's they were saved under.
+ * Whether `raw` names a room other than `roomId`. An event is its room's: one saved under a room
+ * it does not name (an earlier version could do that) reads as absent there, and so does a thread
+ * whose root does. Rows saved without a room ID read as the room's they were saved under.
  */
 const isOtherRoomEvent = (raw: Partial<IEvent> | undefined, roomId: string): boolean =>
   typeof raw?.room_id === 'string' && raw.room_id !== roomId;
@@ -458,7 +458,7 @@ const runScopedCursor = async (options: ScopedCursorOptions): Promise<ScopedCurs
         cursor.continue();
         return;
       }
-      if (options.shouldSkip(record, normalized)) {
+      if (isOtherRoomEvent(normalized, options.roomId) || options.shouldSkip(record, normalized)) {
         cursor.continue();
         return;
       }
@@ -1147,7 +1147,7 @@ export const loadLatestCachedThreadEventsBatch = async (
         if (!cursor) return;
         const record = cursor.value as CachedEventRecord;
         const normalized = toRawEventInternal(record.rawEvent) as CachedThreadEvent | undefined;
-        if (!normalized || record.eventId === threadId) {
+        if (!normalized || record.eventId === threadId || isOtherRoomEvent(normalized, roomId)) {
           cursor.continue();
           return;
         }
