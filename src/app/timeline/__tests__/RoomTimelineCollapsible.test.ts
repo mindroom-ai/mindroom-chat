@@ -1467,7 +1467,7 @@ describe('RoomTimeline collapsible wiring', () => {
     expect(findCollapseModeForEvent(renderer, '$target')).toBe('default');
   });
 
-  it('uses always-expanded mode through the encrypted room-message render path', async () => {
+  it('uses always-expanded mode for a decrypted room message', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
     const encryptedSummaryEvent = makeEvent('$encrypted-summary', {
       encrypted: true,
