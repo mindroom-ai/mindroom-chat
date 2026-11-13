@@ -71,7 +71,11 @@ vi.mock('./useRoomViewThreadState', () => ({
   useRoomViewThreadState: () => ({
     viewMode: 'compact',
     effectiveThreadId: state.thread,
+    handleExitThread: () => undefined,
     handleThreadRootDeleted: state.rootDeleted,
+    storeThreadSummary: () => undefined,
+    summaryMap: new Map(),
+    threadSortFreezeState: null,
     // A Compact send opens its root's thread.
     handleRoomMessageSent: (eventId: string) => {
       state.thread = eventId;

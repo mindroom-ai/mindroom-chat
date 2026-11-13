@@ -171,7 +171,14 @@ vi.mock('../event-store/engine/engineContext', () => ({
   useSyncEngine: () => ({ noteRoomFocused: () => undefined, clearRoomFocus: () => undefined }),
 }));
 vi.mock('./useRoomViewThreadState', () => ({
-  useRoomViewThreadState: () => ({ viewMode: 'compact' }),
+  useRoomViewThreadState: () => ({
+    viewMode: 'compact',
+    handleExitThread: () => undefined,
+    handleThreadRootDeleted: () => undefined,
+    storeThreadSummary: () => undefined,
+    summaryMap: new Map(),
+    threadSortFreezeState: null,
+  }),
 }));
 vi.mock('./RoomViewHeader', () => ({
   RoomViewHeader: () => <button type="button">Header</button>,

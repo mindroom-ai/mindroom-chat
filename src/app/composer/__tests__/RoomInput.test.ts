@@ -3,7 +3,8 @@ import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RelationType, Room } from 'matrix-js-sdk';
-import { createRoomUploadItems, RoomInput } from '../RoomInput';
+import { RoomInput } from '../RoomInput';
+import { createRoomUploadItems } from '../../matrix/send/roomInputUploadPreparation';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { MATRIX_AUDIO_DETAILS_PROPERTY_NAME } from '../../matrix/types/common';
 import {
@@ -473,22 +474,6 @@ vi.mock('../RoomInputExtensions', async () => {
       };
       nodes.forEach(visit);
       return fileNames;
-    },
-    removeRoomInputPasteMarkerElements: (
-      editor: { children?: Array<any> },
-      fileNames: Set<string>
-    ) => {
-      if (!Array.isArray(editor.children)) return;
-      editor.children = editor.children.map((node) =>
-        Array.isArray(node?.children)
-          ? {
-              ...node,
-              children: node.children.filter(
-                (child: any) => child?.type !== 'paste-marker' || !fileNames.has(child.fileName)
-              ),
-            }
-          : node
-      );
     },
     confirmedVoiceThreadId: (_room: unknown, threadId: string | undefined) => threadId,
     getRoomInputVoiceSendContext: ({

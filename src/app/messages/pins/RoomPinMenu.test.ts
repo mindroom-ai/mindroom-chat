@@ -239,11 +239,6 @@ vi.mock('../../rich-text/CustomHtml.css', () => ({
   Code: 'Code',
 }));
 
-vi.mock('../content/EncryptedContent', () => ({
-  EncryptedContent: ({ children }: { children: () => React.ReactNode }) =>
-    React.createElement(React.Fragment, null, children()),
-}));
-
 vi.mock('../../ui/media/Media', () => ({
   Image: () => null,
 }));
