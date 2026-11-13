@@ -13,6 +13,7 @@ import {
   setAccountData,
 } from '../helpers/matrix';
 import { expectRoomCompact, toggleRoomView } from '../helpers/roomViewSwitch';
+import { showResolvedThreads } from '../helpers/threadOverview';
 
 for (const width of [390, 1280]) {
   test(`room controls overlay cards at ${width}px`, async ({ page }, testInfo) => {
@@ -107,6 +108,8 @@ for (const width of [390, 1280]) {
         filterState: createDefaultThreadFilterState(),
       });
       await page.goto(`/home/${encodeURIComponent(roomId)}`);
+      // Compact opens with resolved threads hidden; the spec needs all 14 cards.
+      await showResolvedThreads(page);
       const scroll = page.locator('[data-compact-room-view="true"]');
       const header = page.locator('header').filter({ hasText: 'Project notes' });
       // The element around the row draws the header's surface; the row shows it.
