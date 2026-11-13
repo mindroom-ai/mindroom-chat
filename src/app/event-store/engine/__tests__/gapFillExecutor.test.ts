@@ -996,8 +996,9 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
 
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
+    const canSavePage = vi.fn(async () => true);
     createGapFillExecutor(
-      { mx, sessionId: SESSION_ID, scheduler, ...allowance(0).callbacks },
+      { mx, sessionId: SESSION_ID, scheduler, ...allowance(0).callbacks, canSavePage },
       gapFillScheduler
     );
     gapFillScheduler.enqueueGapFill({
@@ -1015,6 +1016,8 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     expect(getCacheProbeSnapshot().schedulerEnqueued).toBe(1);
     expect(getCacheProbeSnapshot().schedulerCompleted).toBe(1);
     expect(mx.__messages).toHaveLength(0);
+    // A room that gets no page does not make the cache evict for it.
+    expect(canSavePage).not.toHaveBeenCalled();
     expect(await loadCachedRoomEvent(SESSION_ID, roomId, '$should-not-persist')).toBeUndefined();
     expect(await loadRoomTailDiscontinuity(SESSION_ID, roomId)).toBeDefined();
   });
@@ -1058,47 +1061,60 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     });
 
     // Focus and scope changes recheck every deferred room.
-    budget.grant(200);
+    budget.grant(50);
     executor.recheckDeferred();
     await waitForCompleted(2);
 
     expect(mx.__messages).toHaveLength(1);
-    expect(mx.__messages[0].limit).toBe(200);
+    // The page asks for no more events than the reservation holds.
+    expect(mx.__messages[0].limit).toBe(50);
     expect(budget.settled).toEqual([1]);
     expect(loadCachedTail).toHaveBeenCalledTimes(1);
     expect(await loadCachedRoomEvent(SESSION_ID, roomId, '$original-tail')).toBeDefined();
     expect(await loadRoomTailDiscontinuity(SESSION_ID, roomId)).toBeUndefined();
   });
 
-  it('defers without fetching while the cache has no space to save a page', async () => {
-    const roomId = '!room:mindroom.chat';
-    const mx = createMockClient('mindroom.chat', () => ({ chunk: [rawEvent('$later', 1)] }));
-    mx.__rooms.set(roomId, makeRoomStub(roomId, '@alice:mindroom.chat'));
-    await markRoomTailDiscontinuity(SESSION_ID, roomId, { markedAt: 1, prevBatch: 'tok-0' });
-    let space = false;
-    const scheduler = createBackfillScheduler({ mx });
-    const gapFillScheduler = createInMemoryGapFillScheduler();
-    const executor = createGapFillExecutor(
-      { mx, sessionId: SESSION_ID, scheduler, canSavePage: async () => space },
-      gapFillScheduler
-    );
-    gapFillScheduler.enqueueGapFill({
-      roomId,
-      reason: 'limited-sync',
-      markedAt: 1,
-      prevBatch: 'tok-0',
-    });
+  it.each(['no space to save', 'no page to reserve'] as const)(
+    'defers without fetching while the controller has %s',
+    async (shortage) => {
+      const roomId = '!room:mindroom.chat';
+      const mx = createMockClient('mindroom.chat', () => ({ chunk: [rawEvent('$later', 1)] }));
+      mx.__rooms.set(roomId, makeRoomStub(roomId, '@alice:mindroom.chat'));
+      await markRoomTailDiscontinuity(SESSION_ID, roomId, { markedAt: 1, prevBatch: 'tok-0' });
+      let short = true;
+      const { reservePage } = allowance().callbacks;
+      const scheduler = createBackfillScheduler({ mx });
+      const gapFillScheduler = createInMemoryGapFillScheduler();
+      const executor = createGapFillExecutor(
+        {
+          mx,
+          sessionId: SESSION_ID,
+          scheduler,
+          // The allowance can run out while the controller makes space for the page.
+          canSavePage: async () => !(short && shortage === 'no space to save'),
+          reservePage: (id) =>
+            short && shortage === 'no page to reserve' ? undefined : reservePage(id),
+        },
+        gapFillScheduler
+      );
+      gapFillScheduler.enqueueGapFill({
+        roomId,
+        reason: 'limited-sync',
+        markedAt: 1,
+        prevBatch: 'tok-0',
+      });
 
-    await waitForCompleted(1);
-    expect(mx.__messages).toHaveLength(0);
-    expect(await loadRoomTailDiscontinuity(SESSION_ID, roomId)).toBeDefined();
+      await waitForCompleted(1);
+      expect(mx.__messages).toHaveLength(0);
+      expect(await loadRoomTailDiscontinuity(SESSION_ID, roomId)).toBeDefined();
 
-    space = true;
-    executor.recheckDeferred(roomId);
-    await waitForCompleted(2);
+      short = false;
+      executor.recheckDeferred(roomId);
+      await waitForCompleted(2);
 
-    expect(mx.__messages).toHaveLength(1);
-    expect(await loadCachedRoomEvent(SESSION_ID, roomId, '$later')).toBeDefined();
-    expect(await loadRoomTailDiscontinuity(SESSION_ID, roomId)).toBeUndefined();
-  });
+      expect(mx.__messages).toHaveLength(1);
+      expect(await loadCachedRoomEvent(SESSION_ID, roomId, '$later')).toBeDefined();
+      expect(await loadRoomTailDiscontinuity(SESSION_ID, roomId)).toBeUndefined();
+    }
+  );
 });

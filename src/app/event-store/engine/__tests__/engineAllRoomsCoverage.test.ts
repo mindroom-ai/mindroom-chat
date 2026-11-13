@@ -32,7 +32,7 @@ const threadWrites = () =>
 const roomWrites = () =>
   persist.mock.calls
     .filter(([, , , threadId]) => threadId === undefined)
-    .map(([room, events]) => ({ room, events }));
+    .map(([room, events, tailLoaded]) => ({ room, events, tailLoaded }));
 
 const makeEvent = (
   id: string,
@@ -90,6 +90,8 @@ describe('engineWriteThrough — F1 fix (background room coverage)', () => {
 
     expect(roomWrites()).toHaveLength(1);
     const call = roomWrites()[0];
+    // A live event says nothing about whether the room's older tail is loaded.
+    expect(call.tailLoaded).toBe(false);
     expect(call.room.roomId).toBe('!background:example.org');
     expect(call.events).toEqual([backgroundEvent]);
 
