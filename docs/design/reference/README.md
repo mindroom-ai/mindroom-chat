@@ -19,7 +19,7 @@ The thread filter bar at the top of `room-light.png` is part of the target witho
 
 ## Milestone screenshots
 
-The screenshots taken at the rewrite's milestones, `docs/design/m1-screenshots/`, `docs/design/m2-screenshots/` and `docs/design/m3-screenshots/`, left the tree after `681ede140`, the last commit of `main` that has them. Read them from that commit, in the repository's root directory:
+The screenshots taken at the rewrite's milestones, `docs/design/m1-screenshots/`, `docs/design/m2-screenshots/` and `docs/design/m3-screenshots/`, have left the tree; `681ede140`, a commit of `main`, still has them. Read them from that commit, in the repository's root directory:
 
 ```sh
 git ls-tree -r --name-only 681ede140 docs/design/m2-screenshots
