@@ -8,9 +8,13 @@ import { createStore, Provider } from 'jotai';
 import { LeaveRoomPrompt } from './LeaveRoomPrompt';
 import { activeCallAtom, type ActiveCall } from '../calls/callStore';
 
+const SPACE = '!s:test';
 const leave = vi.fn();
 const forget = vi.fn();
-vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => ({ leave, forget }) }));
+const getRoom = (roomId: string) => ({ roomId, isSpaceRoom: () => roomId === SPACE });
+vi.mock('../matrix/hooks/useMatrixClient', () => ({
+  useMatrixClient: () => ({ leave, forget, getRoom }),
+}));
 // jsdom has no layout, so focus-trap finds nothing tabbable; the trap itself is not under test.
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
@@ -141,5 +145,66 @@ describe('LeaveRoomPrompt', () => {
     act(() => document.querySelector<HTMLButtonElement>('button[aria-label="Close"]')?.click());
     expect(requestClose).toHaveBeenCalledOnce();
     expect(leave).not.toHaveBeenCalled();
+  });
+});
+
+describe('LeaveRoomPrompt for a space', () => {
+  let host: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+    leave.mockReset();
+    forget.mockReset();
+  });
+
+  const show = () => {
+    const onLeft = vi.fn();
+    act(() =>
+      root.render(
+        <Provider store={createStore()}>
+          <LeaveRoomPrompt roomId={SPACE} onLeft={onLeft} requestClose={vi.fn()} />
+        </Provider>
+      )
+    );
+    const leaveButton = [...document.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Leave'
+    )!;
+    return { onLeft, leaveButton };
+  };
+
+  it("asks in a space's words, offers no forgetting, and leaves", async () => {
+    leave.mockResolvedValue({});
+    const { onLeft, leaveButton } = show();
+    const dialog = document.querySelector('[role="alertdialog"]');
+    expect(dialog?.textContent).toContain('Leave Space');
+    expect(dialog?.textContent).toContain('Are you sure you want to leave this space?');
+    expect(document.querySelector('[aria-label="Forget this room"]')).toBeNull();
+
+    await act(async () => leaveButton.click());
+
+    expect(leave).toHaveBeenCalledWith(SPACE);
+    expect(forget).not.toHaveBeenCalled();
+    expect(onLeft).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the prompt open with the space's failure line", async () => {
+    leave.mockRejectedValue(new Error('nope'));
+    const { onLeft, leaveButton } = show();
+
+    await act(async () => leaveButton.click());
+
+    expect(onLeft).not.toHaveBeenCalled();
+    const alert = document.querySelector('[role="alert"]');
+    expect(alert?.firstChild?.textContent?.trim()).toBe('Failed to leave space!');
+    expect(leaveButton.disabled).toBe(false);
   });
 });

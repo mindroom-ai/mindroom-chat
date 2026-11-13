@@ -16,7 +16,9 @@ const hooks = vi.hoisted(() => ({
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getSafeUserId: () => '@alice:example.org' }),
 }));
-vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
+vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
+  useMediaAuthentication: () => false,
+}));
 vi.mock('../server/useServerEmojiRoom', () => ({
   useServerEmojiRoom: hooks.useServerEmojiRoom,
 }));
@@ -148,7 +150,8 @@ describe('ServerPack', () => {
           { pack: { display_name: room.roomId }, images: {} },
           {
             // The pack of the room itself: its state event has the empty state key.
-            roomId: room.roomId, stateKey: '',
+            roomId: room.roomId,
+            stateKey: '',
           }
         ),
       ]);
@@ -175,10 +178,6 @@ describe('ServerPack', () => {
     expect(buttons('Permissions')).toHaveLength(1);
     click(buttons('Permissions')[0]);
 
-    expect(hooks.openRoomSettings).toHaveBeenCalledWith(
-      '!emoji',
-      undefined,
-      RoomSettingsPage.PermissionsPage
-    );
+    expect(hooks.openRoomSettings).toHaveBeenCalledWith('!emoji', RoomSettingsPage.PermissionsPage);
   });
 });

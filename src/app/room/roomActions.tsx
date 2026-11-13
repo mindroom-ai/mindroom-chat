@@ -210,7 +210,7 @@ function CopyLinkEntry({ room, close }: RoomActionProps) {
   );
 }
 
-function SettingsEntry({ room, spaceId, close }: RoomActionProps) {
+function SettingsEntry({ room, close }: RoomActionProps) {
   const { t } = useTranslation();
   const openRoomSettings = useOpenRoomSettings();
   return (
@@ -219,7 +219,7 @@ function SettingsEntry({ room, spaceId, close }: RoomActionProps) {
       label={t('mindroomUi.threads.mindroomRoomViewHeader.roomSettings')}
       onSelect={() => {
         close();
-        openRoomSettings(room.roomId, spaceId);
+        openRoomSettings(room.roomId);
       }}
     />
   );

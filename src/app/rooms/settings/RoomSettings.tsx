@@ -123,11 +123,11 @@ export function RoomSettings(props: {
   room: Room;
   /** The page asked for, such as from a link into the dialog. */
   openOn?: string;
-  /** A space has no offline copy, so its General page only edits the name and topic. */
-  space?: boolean;
   requestClose: () => void;
 }) {
-  const { room, openOn, space = false, requestClose } = props;
+  const { room, openOn, requestClose } = props;
+  // A space speaks of rooms rather than messages, and has no offline copy.
+  const space = room.isSpaceRoom();
   const { t } = useTranslation();
   const screen = useScreenSizeContext();
   const roomName = revealDirectionControls(useRoomName(room));

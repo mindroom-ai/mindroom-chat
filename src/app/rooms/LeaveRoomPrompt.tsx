@@ -50,14 +50,17 @@ const promptTrap = (dismiss: () => void): FocusTrapOptions => ({
 });
 
 /**
- * Asks before leaving a room; a failed leave stays in the dialog with the server's reason. The
- * room can be forgotten too (Matrix spec, `/forget`): it then leaves the account's room list and
- * history for good, though the person may join again later where the room allows it.
+ * Asks before leaving a room or a space; a failed leave stays in the dialog with the server's
+ * reason. A room can be forgotten too (Matrix spec, `/forget`): it then leaves the account's room
+ * list and history for good, though the person may join again later where the room allows it. A
+ * space's rooms stay joined when it is left.
  */
 export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromptProps) {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const { leaveRoom } = useCallActions(client);
+  const space = client.getRoom(roomId)?.isSpaceRoom() ?? false;
+  const strings = space ? 'sharedUi.leaveSpacePrompt' : 'sharedUi.leaveRoomPrompt';
   const isMounted = useAlive();
   const [leaveState, setLeaveState] = useState<LeaveState>({ kind: 'idle' });
   const [forget, setForget] = useState(false);
@@ -94,7 +97,11 @@ export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromp
               style={{ paddingInline: `${config.space.S400} ${config.space.S200}` }}
             >
               <Text id={HEADING_ID} size="H4" style={{ flexGrow: 1 }}>
-                {t('sharedUi.leaveRoomPrompt.leaveRoom')}
+                {t(
+                  space
+                    ? 'sharedUi.leaveSpacePrompt.leaveSpace'
+                    : 'sharedUi.leaveRoomPrompt.leaveRoom'
+                )}
               </Text>
               <IconButton
                 aria-label={t('sharedUi.leaveRoomPrompt.close')}
@@ -107,24 +114,30 @@ export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromp
             </Header>
             <Box direction="Column" gap="400" style={{ padding: bodyPadding }}>
               <Text id={`${HEADING_ID}-question`} size="T300" priority="400">
-                {t('sharedUi.leaveRoomPrompt.areYouSureYouWantToLeaveThisRoom')}
+                {t(
+                  space
+                    ? 'sharedUi.leaveSpacePrompt.areYouSureYouWantToLeaveThisSpace'
+                    : 'sharedUi.leaveRoomPrompt.areYouSureYouWantToLeaveThisRoom'
+                )}
               </Text>
-              <SettingTile
-                title={t('sharedUi.leaveRoomPrompt.forget')}
-                description={t('sharedUi.leaveRoomPrompt.forgetDescription')}
-                after={
-                  <Switch
-                    variant="Critical"
-                    aria-label={t('sharedUi.leaveRoomPrompt.forget')}
-                    value={forget}
-                    disabled={leaving}
-                    onChange={setForget}
-                  />
-                }
-              />
+              {!space && (
+                <SettingTile
+                  title={t('sharedUi.leaveRoomPrompt.forget')}
+                  description={t('sharedUi.leaveRoomPrompt.forgetDescription')}
+                  after={
+                    <Switch
+                      variant="Critical"
+                      aria-label={t('sharedUi.leaveRoomPrompt.forget')}
+                      value={forget}
+                      disabled={leaving}
+                      onChange={setForget}
+                    />
+                  }
+                />
+              )}
               {leaveState.kind === 'failed' && (
                 <Text size="T300" role="alert" style={{ color: color.Critical.Main }}>
-                  {t('sharedUi.leaveRoomPrompt.leaveFailed', {
+                  {t(`${strings}.leaveFailed`, {
                     error: describeKnownError(t, leaveState.reason) ?? '',
                   })}
                   <ErrorDetail error={leaveState.reason} />
@@ -139,11 +152,7 @@ export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromp
                   leaving ? <Spinner variant="Critical" fill="Solid" size="200" /> : undefined
                 }
               >
-                <Text size="B500">
-                  {t(
-                    leaving ? 'sharedUi.leaveRoomPrompt.leaving' : 'sharedUi.leaveRoomPrompt.leave'
-                  )}
-                </Text>
+                <Text size="B500">{t(leaving ? `${strings}.leaving` : `${strings}.leave`)}</Text>
               </Button>
             </Box>
           </Dialog>

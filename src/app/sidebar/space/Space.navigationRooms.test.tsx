@@ -137,7 +137,7 @@ vi.mock('../../matrix/hooks/useRoomsNotificationPreferences', async (importOrigi
   getRoomNotificationMode: () => undefined,
   useRoomsNotificationPreferencesContext: () => ({}),
 }));
-vi.mock('../../navigation/useSpaceSettingsState', () => ({ useOpenSpaceSettings: () => vi.fn() }));
+vi.mock('../../navigation/useRoomSettingsState', () => ({ useOpenRoomSettings: () => vi.fn() }));
 vi.mock('../../matrix/state/archivedRooms', () => ({
   useVisibleRooms: (roomIds: string[]) => roomIds,
 }));
