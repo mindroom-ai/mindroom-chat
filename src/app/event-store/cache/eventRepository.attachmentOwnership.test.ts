@@ -66,8 +66,8 @@ afterEach(() => {
   clearLongTextHydrationCache();
   vi.unstubAllGlobals();
 });
-it.each(['room', 'thread', 'grouped'] as const)(
-  '%s facade retires attachments after a confirmed inline edit',
+it.each(['room', 'thread', 'room-thread-reply'] as const)(
+  '%s write retires attachments after a confirmed inline edit',
   async (scope) => {
     const ctx = client();
     const initial = raw('$image', 1, {
@@ -75,7 +75,7 @@ it.each(['room', 'thread', 'grouped'] as const)(
       body: 'image',
       url: 'mxc://test/image',
       info: { size: 4 },
-      ...(scope === 'grouped'
+      ...(scope === 'room-thread-reply'
         ? { 'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' } }
         : {}),
     });
@@ -92,7 +92,7 @@ it.each(['room', 'thread', 'grouped'] as const)(
       )
     );
     const facade = createEnginePersistFacade({ sessionId: ctx.sessionId });
-    // A room write also writes the thread replies it carries ('grouped').
+    // A room write also writes the thread replies it carries ('room-thread-reply').
     if (scope === 'thread') facade.persistThreadEventCache(ctx.room, '$thread', [target]);
     else facade.persistRoomEventCache(ctx.room, [target]);
     await vi.waitFor(async () =>

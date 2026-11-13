@@ -199,10 +199,10 @@ export type CacheProbeCounters = {
   //   applierMakeReplacedFired: bumped once per real makeReplaced call
   //     in the applier (the m.replace was in the batch, sender matched,
   //     latestEdit differed from the current replacement).
-  //   applierMakeReplacedNoLatestEdit: getLatestEdit returned undefined
-  //     (every candidate had a sender mismatch). A non-zero reading names
-  //     a hydration issue or cross-sender edit; must stay 0 in a
-  //     well-formed corpus.
+  //   applierMakeReplacedNoLatestEdit: getLatestEdit returned undefined:
+  //     every candidate edit was redacted or failed the same-sender check.
+  //     A reading that redacted edits do not explain names a hydration
+  //     issue or a cross-sender edit.
   //   applierMakeReplacedLatestEqualsCurrent: the target already carries
   //     the picked replacement (benign no-op).
   applierMakeReplacedFired: number;
