@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  clearToolCallOverrides,
   resolveToolCallsShown,
   sanitizeToolCallOverrides,
   withToolCallsShown,
@@ -55,5 +56,24 @@ describe('sanitizeToolCallOverrides', () => {
     ).toEqual({ [ROOM]: { room: true, threads: { [THREAD]: false } } });
     expect(sanitizeToolCallOverrides('nonsense')).toEqual({});
     expect(sanitizeToolCallOverrides(null)).toEqual({});
+  });
+});
+
+describe('clearToolCallOverrides', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("forgets one account's room and thread choices, and keeps another account's", () => {
+    const choices = JSON.stringify({ [ROOM]: { room: true, threads: { [THREAD]: false } } });
+    const stored = new Map([
+      ['toolCallsShown:one', choices],
+      ['toolCallsShown:two', choices],
+    ]);
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => stored.set(key, value),
+      removeItem: (key: string) => stored.delete(key),
+    });
+    clearToolCallOverrides('one');
+    expect([...stored.keys()]).toEqual(['toolCallsShown:two']);
   });
 });
