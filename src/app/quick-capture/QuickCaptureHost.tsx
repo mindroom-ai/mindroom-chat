@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useStore, type Atom } from 'jotai';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
@@ -18,7 +18,13 @@ import { useSetting } from '../preferences/useSetting';
 import { crossRoomThreadIndexAtom } from '../threads/cross-room/crossRoomThreadIndex';
 import { openCaptureChannel, type CaptureChannel } from './captureChannel';
 import { buildCaptureItems } from './captureItems';
-import type { CaptureAction, CaptureMessage, CaptureResult, CaptureState } from './captureProtocol';
+import type {
+  CaptureAction,
+  CaptureMessage,
+  CaptureResult,
+  CaptureRoom,
+  CaptureState,
+} from './captureProtocol';
 import { buildCaptureRooms } from './captureRooms';
 import { readCaptureThreads } from './captureThreads';
 import {
@@ -37,6 +43,7 @@ const WIDGET_SILENCE_MS = 30_000;
 const CLOCK_MS = 60_000;
 
 const OK: CaptureResult = { ok: true };
+const NO_ROOM: CaptureResult = { ok: false, error: 'no-room' };
 
 /** What the host reads and runs with, as of the newest render. */
 type HostContext = {
@@ -48,16 +55,11 @@ type HostContext = {
   navigation: ReturnType<typeof useRoomNavigate>;
 };
 
-/**
- * The widget's state: the account's rooms, and the stored room with its threads while the client
- * has it and it is in the room list.
- */
-const readCaptureState = ({ mx, store, roomAtom, t }: HostContext): CaptureState => {
-  const userId = mx.getSafeUserId();
-  const roomIds = store.get(navigationRoomsAtom);
+/** The rooms the widget lists: the room list's rooms the client has, without spaces. */
+const readCaptureRooms = ({ mx, store }: HostContext): CaptureRoom[] => {
   const directs = store.get(mDirectAtom);
-  const rooms = buildCaptureRooms(
-    roomIds.flatMap((id) => {
+  return buildCaptureRooms(
+    store.get(navigationRoomsAtom).flatMap((id) => {
       const room = mx.getRoom(id);
       return room
         ? [
@@ -72,8 +74,18 @@ const readCaptureState = ({ mx, store, roomAtom, t }: HostContext): CaptureState
         : [];
     })
   );
+};
+
+const isListed = (rooms: CaptureRoom[], roomId: string): boolean =>
+  rooms.some((listed) => listed.id === roomId);
+
+/** The widget's state: its rooms, and the stored room with its threads while it is one of them. */
+const readCaptureState = (context: HostContext): CaptureState => {
+  const { mx, store, roomAtom, t } = context;
+  const userId = mx.getSafeUserId();
+  const rooms = readCaptureRooms(context);
   const storedId = store.get(roomAtom);
-  const room = storedId && roomIds.includes(storedId) ? mx.getRoom(storedId) : null;
+  const room = storedId && isListed(rooms, storedId) ? mx.getRoom(storedId) : null;
   if (!room) return { userId, roomId: null, rooms, items: [] };
   const now = Date.now();
   const entries = store.get(crossRoomThreadIndexAtom).entries.values();
@@ -97,12 +109,19 @@ const showsClassic = ({ mx, store }: HostContext, roomId: string): boolean => {
 const runAction = async (context: HostContext, action: CaptureAction): Promise<CaptureResult> => {
   const { mx, store, roomAtom, options, navigation } = context;
   const room = mx.getRoom(action.roomId);
-  if (!room) return { ok: false, error: 'no-room' };
+  if (!room) return NO_ROOM;
   switch (action.kind) {
     case 'send': {
       const entry = { text: action.text, images: action.images };
       const { threadId } = await sendCapture(mx, room, entry, options);
-      if (action.open) navigation.navigateRoomThreadDirect(room.roomId, threadId);
+      if (action.open) {
+        // The entry is posted: a thread that does not open leaves the answer as it is.
+        try {
+          navigation.navigateRoomThreadDirect(room.roomId, threadId);
+        } catch (error) {
+          console.warn('[quick-capture] could not open the new thread', error);
+        }
+      }
       return { ok: true, threadId };
     }
     case 'reply':
@@ -112,6 +131,7 @@ const runAction = async (context: HostContext, action: CaptureAction): Promise<C
       await setCaptureResolved(mx, room, action.threadId, action.resolved);
       return OK;
     case 'selectRoom':
+      if (!isListed(readCaptureRooms(context), room.roomId)) return NO_ROOM;
       store.set(roomAtom, room.roomId);
       return OK;
     case 'open':
@@ -123,6 +143,11 @@ const runAction = async (context: HostContext, action: CaptureAction): Promise<C
       return OK;
   }
 };
+
+/** A host id; `crypto.randomUUID` is missing outside a secure context (a plain HTTP host). */
+const newHostId = (): string =>
+  globalThis.crypto?.randomUUID?.() ??
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
 
 const failureOf = (error: unknown): CaptureResult => ({
   ok: false,
@@ -144,7 +169,6 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
   const navigation = useRoomNavigate();
   const userId = mx.getSafeUserId();
   const roomAtom = useMemo(() => getQuickCaptureRoomAtom(userId), [userId]);
-  const [hostId] = useState(() => crypto.randomUUID());
   const context = useLatestRef<HostContext>({
     mx,
     store,
@@ -157,6 +181,8 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
   useEffect(() => {
     const channel = givenChannel ?? openCaptureChannel();
     if (!channel) return undefined;
+    // Each run serves under its own id: the run before said it is gone.
+    const hostId = newHostId();
     let open = true;
     let lastStateTs = 0;
     let stateTimer: ReturnType<typeof setTimeout> | undefined;
@@ -216,7 +242,14 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
     };
     const onRequest = async (id: string, action: CaptureAction) => {
       const result = await runAction(context.current, action).catch(failureOf);
-      if (action.kind === 'selectRoom' && result.ok) postState();
+      if (action.kind === 'selectRoom' && result.ok) {
+        try {
+          postState();
+        } catch (error) {
+          // The answer goes all the same; the widget's next hello reads the state again.
+          console.warn('[quick-capture] could not read the state', error);
+        }
+      }
       if (open) channel.post({ v: 1, type: 'response', id, hostId, result });
     };
 
@@ -234,7 +267,7 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
       open = false;
       if (!givenChannel) channel.close();
     };
-  }, [context, givenChannel, hostId, mx, roomAtom, store]);
+  }, [context, givenChannel, mx, roomAtom, store]);
 
   return null;
 }

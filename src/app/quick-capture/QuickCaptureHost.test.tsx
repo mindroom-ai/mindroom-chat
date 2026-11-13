@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { EventEmitter } from 'events';
-import { act, render } from '@testing-library/react';
+import { act, cleanup, render } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import { MatrixEvent, RoomEvent, type Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -134,15 +134,17 @@ const setup = (storedRoomId: string | null = '!a', withChannel = true) => {
   setIndex(store, [entry('!a', '$t1', 100), entry('!b', '$t2', 200)]);
   if (storedRoomId) store.set(getQuickCaptureRoomAtom(USER_ID), storedRoomId);
   const rig = makeChannel();
-  const view = render(
+  const tree = (channel: CaptureChannel | undefined) => (
     <Provider store={store}>
       <ClientConfigProvider
         value={{ messageRendering: { additionalAllowedUriSchemes: ['obsidian'] } }}
       >
-        <QuickCaptureHost channel={withChannel ? rig.channel : undefined} />
+        <QuickCaptureHost channel={channel} />
       </ClientConfigProvider>
     </Provider>
   );
+  const view = render(tree(withChannel ? rig.channel : undefined));
+  const rerender = (channel: CaptureChannel) => view.rerender(tree(channel));
   const hello = () => rig.deliver({ v: 1, type: 'hello' });
   const hostId = () => {
     const state = statesIn(rig.posted)[0];
@@ -165,7 +167,7 @@ const setup = (storedRoomId: string | null = '!a', withChannel = true) => {
     });
     return result as CaptureResult;
   };
-  return { ...rig, mx, store, view, hello, hostId, request };
+  return { ...rig, mx, store, view, rerender, hello, hostId, request };
 };
 
 describe('QuickCaptureHost', () => {
@@ -174,7 +176,10 @@ describe('QuickCaptureHost', () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     vi.clearAllMocks();
     clearQuickCaptureRoomStore(USER_ID);
     localStorage.clear();
@@ -208,6 +213,7 @@ describe('QuickCaptureHost', () => {
   it.each([
     ['no stored room', null],
     ['a stored room the client does not have', '!gone'],
+    ['a stored space, which the rooms leave out', '!space'],
   ])('gives no room and no items for %s', (_case, storedRoomId) => {
     const { hello, posted } = setup(storedRoomId);
 
@@ -248,6 +254,34 @@ describe('QuickCaptureHost', () => {
     expect(latest?.items.map((item) => item.threadId)).toEqual(['$t2']);
   });
 
+  it('refuses to store a room it does not list', async () => {
+    const { hello, request, store } = setup();
+    hello();
+
+    expect(await request({ kind: 'selectRoom', roomId: '!space' })).toEqual({
+      ok: false,
+      error: 'no-room',
+    });
+    expect(store.get(getQuickCaptureRoomAtom(USER_ID))).toBe('!a');
+  });
+
+  it('answers a picked room even when the state cannot be read', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { hello, request, posted, store } = setup();
+    hello();
+    vi.spyOn(roomB, 'getLiveTimeline').mockImplementation(() => {
+      throw new Error('broken timeline');
+    });
+
+    expect(await request({ kind: 'selectRoom', roomId: '!b' })).toEqual({ ok: true });
+    expect(store.get(getQuickCaptureRoomAtom(USER_ID))).toBe('!b');
+    expect(statesIn(posted)).toHaveLength(1);
+    expect(warn).toHaveBeenCalledWith(
+      '[quick-capture] could not read the state',
+      expect.any(Error)
+    );
+  });
+
   it('sends an entry and answers with its thread, opening it when asked', async () => {
     const { hello, request, mx } = setup();
     vi.mocked(sendCapture).mockResolvedValue({ threadId: '$new' });
@@ -264,6 +298,24 @@ describe('QuickCaptureHost', () => {
       await request({ kind: 'send', roomId: '!a', text: 'Open it', images: [], open: true })
     ).toEqual({ ok: true, threadId: '$new' });
     expect(mocks.navigation.navigateRoomThreadDirect).toHaveBeenCalledWith('!a', '$new');
+  });
+
+  it('answers a posted entry as sent when its thread does not open', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { hello, request } = setup();
+    vi.mocked(sendCapture).mockResolvedValue({ threadId: '$new' });
+    mocks.navigation.navigateRoomThreadDirect.mockImplementationOnce(() => {
+      throw new Error('no route');
+    });
+    hello();
+
+    expect(
+      await request({ kind: 'send', roomId: '!a', text: 'Open it', images: [], open: true })
+    ).toEqual({ ok: true, threadId: '$new' });
+    expect(warn).toHaveBeenCalledWith(
+      '[quick-capture] could not open the new thread',
+      expect.any(Error)
+    );
   });
 
   it('answers each failed send with its code', async () => {
@@ -399,6 +451,31 @@ describe('QuickCaptureHost', () => {
     expect(posted.at(-1)).toEqual({ v: 1, type: 'gone', hostId: hostId() });
     // The channel belongs to whoever passed it in.
     expect(channel.close).not.toHaveBeenCalled();
+  });
+
+  it('serves under a fresh id after it said it is gone', () => {
+    const { hello, posted, hostId, rerender } = setup();
+    hello();
+    const first = hostId();
+    const next = makeChannel();
+
+    rerender(next.channel);
+    next.deliver({ v: 1, type: 'hello' });
+
+    expect(posted.at(-1)).toEqual({ v: 1, type: 'gone', hostId: first });
+    const second = statesIn(next.posted)[0]?.hostId;
+    expect(second).toEqual(expect.any(String));
+    expect(second).not.toBe(first);
+  });
+
+  it('serves without crypto.randomUUID, as outside a secure context', async () => {
+    vi.stubGlobal('crypto', {});
+    const { hello, request, posted } = setup();
+
+    hello();
+
+    expect(statesIn(posted)[0]?.hostId).toMatch(/\S/);
+    expect(await request({ kind: 'open', roomId: '!a' })).toEqual({ ok: true });
   });
 
   it('opens its own channel when given none, and closes it when it unmounts', () => {
