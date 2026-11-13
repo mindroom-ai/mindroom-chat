@@ -616,6 +616,39 @@ describe('renderAgentMessageContent', () => {
     renderer.unmount();
   });
 
+  it('renders the event extras after a downloaded long text that carries none', async () => {
+    const { LongTextText } = await import('./LongTextText');
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      showMessageExtras: true,
+      content: {
+        msgtype: 'm.text',
+        body: 'Long text preview',
+        url: 'mxc://example.org/long-text',
+        'io.mindroom.long_text': {
+          version: 2,
+          encoding: 'matrix_event_content_json',
+        },
+        [MINDROOM_MESSAGE_EXTRAS_KEY]: messageExtras,
+      },
+    });
+    const { renderAfterBody } = renderer.root.findByType(LongTextText).props;
+    const extras = create(
+      React.createElement(
+        React.Fragment,
+        null,
+        renderAfterBody({ body: 'Downloaded text' }, { body: 'Long text preview' })
+      )
+    );
+
+    const rendered = JSON.stringify(extras.toJSON());
+    expect(rendered).toContain('Evidence');
+    expect(rendered).toContain('extra payload');
+
+    extras.unmount();
+    renderer.unmount();
+  });
+
   it('passes long-text hydration preference to deferred long-text renderers', async () => {
     longTextTextMock.mockReset();
 

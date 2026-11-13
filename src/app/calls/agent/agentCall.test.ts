@@ -38,12 +38,6 @@ const mx = {
   getStateEvent,
 } as any;
 
-const ephemeralRoom = (creatorUserId = ALICE, eventSender = ALICE) =>
-  fakeRoom({
-    call: agentCallState({ creator_user_id: creatorUserId, ephemeral: true }),
-    callSender: eventSender,
-  });
-
 const origin = { room_id: '!room:mindroom.test', thread_id: '$root' };
 
 describe('MindRoom agent calls', () => {
@@ -188,40 +182,16 @@ describe('MindRoom agent calls', () => {
     expect(findAgentCallRoom(mx, HELPER)?.roomId).toBe('!a:mindroom.test');
   });
 
-  it('kicks the agent, leaves, and forgets a creator-owned ephemeral room', async () => {
-    await cleanupMindroomAgentCall(mx, ephemeralRoom());
+  it.each([
+    ['created by someone else', { call: agentCallState({ creator_user_id: '@bob:mindroom.test' }) }],
+    ['stamped by another sender', { call: agentCallState(), callSender: '@mallory:mindroom.test' }],
+  ])('leaves a call room %s alone on hang-up', async (_case, options) => {
+    await cleanupMindroomAgentCall(mx, fakeRoom(options));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
 
-    expect(kick).toHaveBeenCalledWith(
-      '!call:mindroom.test',
-      '@mindroom_helper:mindroom.test',
-      'MindRoom agent call ended'
-    );
-    expect(leave).toHaveBeenCalledWith('!call:mindroom.test');
-    expect(forget).toHaveBeenCalledWith('!call:mindroom.test');
-  });
-
-  it('does not try to forget a room when leaving fails', async () => {
-    leave.mockRejectedValueOnce(new Error('leave failed'));
-
-    await cleanupMindroomAgentCall(mx, ephemeralRoom());
-
-    expect(forget).not.toHaveBeenCalled();
-  });
-
-  it('does not clean up a room created by someone else', async () => {
-    await cleanupMindroomAgentCall(mx, ephemeralRoom('@bob:mindroom.test'));
-
-    expect(kick).not.toHaveBeenCalled();
-    expect(leave).not.toHaveBeenCalled();
-    expect(forget).not.toHaveBeenCalled();
-  });
-
-  it('does not trust forged creator metadata from another event sender', async () => {
-    await cleanupMindroomAgentCall(
-      mx,
-      ephemeralRoom('@alice:mindroom.test', '@mallory:mindroom.test')
-    );
-
+    expect(sendStateEvent).not.toHaveBeenCalled();
     expect(kick).not.toHaveBeenCalled();
     expect(leave).not.toHaveBeenCalled();
     expect(forget).not.toHaveBeenCalled();
