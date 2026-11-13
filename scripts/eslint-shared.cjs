@@ -3,6 +3,17 @@
 // repository extends (.eslintrc.plugin.cjs): the parser, plugins and presets, the type-aware rules,
 // and the rule that keeps styles in reading order.
 
+// The app turns i18next's escaping off (src/app/i18n/i18n.ts), and a <Trans> puts its values into
+// the sentence before react-i18next reads the sentence as markup, so a name holding a tag named
+// like one of the sentence's components would add that tag's attributes to it. A <Trans> with
+// values escapes them and unescapes the text.
+const ESCAPED_TRANS = {
+  selector:
+    "JSXOpeningElement[name.name='Trans']:has(> JSXAttribute[name.name='values']):matches(:not(:has(> JSXAttribute[name.name='tOptions'])), :not(:has(> JSXAttribute[name.name='shouldUnescape'])))",
+  message:
+    'A <Trans> with values reads them as markup: give it tOptions={{ interpolation: { escapeValue: true } }} and shouldUnescape.',
+};
+
 /** The parser, plugins, presets and rules for every file. */
 const COMMON = {
   parser: '@typescript-eslint/parser',
@@ -48,6 +59,7 @@ const COMMON = {
     ],
     '@typescript-eslint/no-explicit-any': 'warn',
     'prefer-const': 'warn',
+    'no-restricted-syntax': ['error', ESCAPED_TRANS],
   },
 };
 
@@ -90,7 +102,8 @@ const TYPE_AWARE_RULES = {
 //
 // This rule owns no-restricted-syntax for those sources: ESLint overrides replace a rule's options
 // instead of merging them, so any other no-restricted-syntax config for these files would drop
-// these selectors (or be dropped). Add a new restriction to the lists below instead.
+// these selectors (or be dropped), and the overrides repeat ESCAPED_TRANS, the one restriction
+// every file has. Add a new restriction to the lists below instead.
 const PHYSICAL_NAME = String.raw`/^((margin|padding|scrollMargin|scrollPadding)(Left|Right)|border(Left|Right)(Width|Style|Color)?|border(Top|Bottom)(Left|Right)Radius|(margin|padding|scroll-margin|scroll-padding)-(left|right)|border-(left|right)(-(width|style|color))?|border-(top|bottom)-(left|right)-radius)$/`;
 const SIDE_KEYWORD_NAME = String.raw`/^(textAlign|text-align|float|clear|justifyContent|justify-content|justifyItems|justify-items|justifySelf|justify-self)$/`;
 const BOX_SHORTHAND = String.raw`/^(margin|padding|inset|scrollMargin|scroll-margin|scrollPadding|scroll-padding|borderWidth|border-width|borderStyle|border-style|borderColor|border-color)$/`;
@@ -203,7 +216,7 @@ const logicalSidesOverrides = (prefix, excludedFiles) => [
   {
     files: [`${prefix}**/*.{ts,tsx}`],
     excludedFiles,
-    rules: { 'no-restricted-syntax': ['error', ...LOGICAL_SIDES_IN_STYLE_PROPS] },
+    rules: { 'no-restricted-syntax': ['error', ESCAPED_TRANS, ...LOGICAL_SIDES_IN_STYLE_PROPS] },
   },
   {
     // A vanilla-extract file is styles throughout, so `left` and `right` count anywhere in it.
