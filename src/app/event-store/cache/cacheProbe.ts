@@ -185,35 +185,6 @@ export type CacheProbeCounters = {
   threadOpenScheduledCacheFirst: number;
   threadOpenSkipCacheFirstHydrateGuard: number;
   threadOpenSkipCacheFirstPostHydrateGuard: number;
-  // ISSUE-207 AC2 render-gap RG1 (2026-07-04): sink counters that
-  // distinguish the three candidate mechanisms for the render-gap
-  // ("engine converges, edit-target v2 never renders"). Each names a
-  // specific seam between the reconciler's onRepaired batch and the
-  // MatrixEvent instance the render layer actually holds.
-  //
-  //   onRepairedGuardBailed: reconciler fired onRepaired but the
-  //     component-side guard (`isCurrentThreadOpen()`) returned false,
-  //     so `setSupplementalThreadEvents` did NOT run for this batch.
-  //     Diagnostic for candidate (b) / (c): the repair batch reached
-  //     the render seam but was gated out before the sink ran.
-  //     For the production thread-open observer,
-  //     `reconcilesOnRepairedFired` is bumped after its callback returns, so
-  //     the relation
-  //     reconcilesOnRepairedFired == onRepairedGuardBailed +
-  //       supplementalEventsExecuted + supplementalEventsSkippedEmpty
-  //     holds and can be asserted from a probe snapshot.
-  //   supplementalEventsExecuted: reconciler's onRepaired ran end to
-  //     end and called `setSupplementalThreadEvents(threadId, [...])`.
-  //     Diagnostic: sink executed; if v2 still not visible, the gap
-  //     is downstream of the fallback state (candidate (a) or (b)).
-  //   supplementalEventsSkippedEmpty: onRepaired ran but the repaired
-  //     batch was empty, so the sink was intentionally skipped (see
-  //     P5-GATE-FIX v3 cost-guarantee test). Kept separate so a docker
-  //     trace can distinguish "sink skipped because nothing to sink"
-  //     from "sink guarded out".
-  onRepairedGuardBailed: number;
-  supplementalEventsExecuted: number;
-  supplementalEventsSkippedEmpty: number;
   // Task #125 (2026-07-04): bumps once per scroll-driven thread
   // back-pagination auto-fire (the effect in MindroomRoomTimeline that
   // fires the chip pipeline when the rendered window's top edge enters
@@ -367,9 +338,6 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   threadOpenScheduledCacheFirst: 0,
   threadOpenSkipCacheFirstHydrateGuard: 0,
   threadOpenSkipCacheFirstPostHydrateGuard: 0,
-  onRepairedGuardBailed: 0,
-  supplementalEventsExecuted: 0,
-  supplementalEventsSkippedEmpty: 0,
   threadAutoPaginateBackFired: 0,
   applierMakeReplacedFired: 0,
   applierMakeReplacedNoLatestEdit: 0,
