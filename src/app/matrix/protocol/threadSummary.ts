@@ -1,13 +1,7 @@
+import { isRecord } from '../../lib/isRecord';
 import { trimReplyFromBody } from '../room';
 
 const THREAD_SUMMARY_METADATA_KEY = 'io.mindroom.thread_summary';
-
-// ── Shared helper ──────────────────────────────────────────────────
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value);
-
-// ── Original: content-level helpers (used by RenderMessageContent / MsgTypeRenderers) ──
 
 type ThreadSummaryMetadata = {
   model?: unknown;
@@ -215,9 +209,9 @@ export const getThreadSummaryInfo = (
 
   const hasNewContent = isRecord(content['m.new_content']);
   const summaryBody = getThreadSummaryBody(content);
-  const summaryText =
-    (hasNewContent ? summaryBody ?? asNonEmptyString(metadata.summary) : undefined) ??
-    (!hasNewContent ? asNonEmptyString(metadata.summary) ?? summaryBody : undefined);
+  const summaryText = hasNewContent
+    ? summaryBody ?? asNonEmptyString(metadata.summary)
+    : asNonEmptyString(metadata.summary) ?? summaryBody;
 
   return {
     ...(metadata.model === 'manual' ? { isManual: true } : {}),
@@ -226,11 +220,6 @@ export const getThreadSummaryInfo = (
     messageCount: asMessageCount(metadata.message_count),
   };
 };
-
-export const formatThreadSummaryMessageCount = (count: number): string =>
-  `${new Intl.NumberFormat().format(count)} ${count === 1 ? 'message' : 'messages'}`;
-
-// ── ISSUE-003b: event-level helpers (used by RoomTimeline) ─────────
 
 type ThreadSummaryEventLike = {
   status?: string | null;
@@ -247,22 +236,6 @@ export const isThreadSummaryEvent = (event: ThreadSummaryEventLike): boolean => 
   const msgtype = content.msgtype;
   if (msgtype !== 'm.notice') return false;
   return !!content[THREAD_SUMMARY_METADATA_KEY];
-};
-
-export const findLatestThreadSummaryEvent = <T extends ThreadSummaryEventLike>(
-  events: T[]
-): T | undefined => {
-  let latest: T | undefined;
-  let latestInfo: ThreadSummaryInfo | undefined;
-  events.forEach((event) => {
-    if (!isThreadSummaryEvent(event)) return;
-    const info = getThreadSummaryEventInfo(event);
-    if (info && pickLatestThreadSummaryInfo(latestInfo, info) === info) {
-      latest = event;
-      latestInfo = info;
-    }
-  });
-  return latest;
 };
 
 export const getThreadSummaryPreviewText = (event: ThreadSummaryEventLike): string | undefined => {
@@ -357,16 +330,6 @@ export const getThreadSummaryEventInfo = (
   return result;
 };
 
-export const getLatestThreadSummaryInfo = <T extends ThreadSummaryEventLike>(
-  events: T[]
-): ThreadSummaryInfo | undefined => {
-  const summaryEvent = findLatestThreadSummaryEvent(events);
-  if (!summaryEvent) return undefined;
-
-  const info = getThreadSummaryEventInfo(summaryEvent);
-  return info?.summaryText ? info : undefined;
-};
-
 export const getLatestThreadSummaryInfoFromEventSources = <T extends ThreadSummaryEventLike>(
   ...eventSources: Array<T[] | undefined>
 ): ThreadSummaryInfo | undefined =>
@@ -385,31 +348,6 @@ export const getThreadSummaryInfosFromEventSources = <T extends ThreadSummaryEve
     });
   });
   return infos;
-};
-
-export const findLatestThreadSummaryEventFromEventSources = <T extends ThreadSummaryEventLike>(
-  ...eventSources: Array<T[] | undefined>
-): T | undefined => {
-  let preferredEvent: T | undefined;
-  let preferredInfo: ThreadSummaryInfo | undefined;
-
-  eventSources.forEach((events) => {
-    if (!events?.length) return;
-
-    const candidateEvent = findLatestThreadSummaryEvent(events);
-    if (!candidateEvent) return;
-
-    const candidateInfo = getThreadSummaryEventInfo(candidateEvent);
-    if (!candidateInfo?.summaryText) return;
-
-    const preferred = pickLatestThreadSummaryInfo(preferredInfo, candidateInfo);
-    if (preferred === candidateInfo) {
-      preferredEvent = candidateEvent;
-      preferredInfo = candidateInfo;
-    }
-  });
-
-  return preferredEvent;
 };
 
 export const buildThreadSummaryMap = (

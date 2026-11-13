@@ -6,11 +6,8 @@ import { SSOAction, type IIdentityProvider, type ILoginFlowsResponse } from 'mat
 import { AuthFlowsLoader } from '../AuthFlowsLoader';
 import { useAutoDiscoveryInfo } from '../../../matrix/hooks/useAutoDiscoveryInfo';
 import { useClientConfig } from '../../../config/useClientConfig';
-import {
-  getAuthSsoRedirectUrl,
-  shouldDisablePasswordLogin,
-  shouldRequireAppleProvider,
-} from '../authUi';
+import { getAuthSsoRedirectUrl } from '../authUi';
+import { shouldDisablePasswordLogin, shouldRequireAppleProvider } from '../authPolicy';
 import { getLoginPath, getOriginBaseUrl, getRegisterPath } from '../../../routes/pathUtils';
 import { isAddAccountSearch, withAddAccountSearchIf } from '../../../navigation/addAccount';
 import { SSOLogin } from '../SSOLogin';
@@ -23,7 +20,6 @@ import type { LoginError } from './loginUtil';
 
 type ParsedLoginFlows = {
   password: boolean;
-  token: boolean;
   sso?: { providers?: IIdentityProvider[] };
 };
 
@@ -33,7 +29,6 @@ const parseLoginFlows = ({ flows }: ILoginFlowsResponse): ParsedLoginFlows => {
     | undefined;
   return {
     password: flows.some((flow) => flow.type === 'm.login.password'),
-    token: flows.some((flow) => flow.type === 'm.login.token'),
     sso: sso ? { providers: sso.identity_providers } : undefined,
   };
 };

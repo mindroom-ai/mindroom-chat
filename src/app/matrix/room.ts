@@ -50,13 +50,6 @@ export const isSpace = (room: Room | null | undefined): boolean =>
 export const isEmojiRoom = (room: Room | null | undefined): boolean =>
   !!room && getRoomType(room) === RoomType.MindroomEmoji;
 
-/** A room people chat in: not a space and not the server emoji room. Call rooms count. */
-export const isRoom = (room: Room | null | undefined): boolean => {
-  if (!room) return false;
-  const type = getRoomType(room);
-  return type !== RoomType.Space && type !== RoomType.MindroomEmoji;
-};
-
 /**
  * Characters that change how a name reads without showing themselves: soft hyphens, zero-width
  * spaces, word joiners and invisible operators, byte order marks, fillers, and direction controls
@@ -176,8 +169,8 @@ export const getRoomMemberName = (
  * same, or when the name holds one of the characters above, which are left out.
  */
 export const getMemberEventName = (room: Room, userId: string, name: string): string => {
-  const shown = name.replace(NAME_DISGUISES, '');
-  if (!shown.trim()) return name;
+  const shown = withoutNameDisguises(name);
+  if (shown === undefined) return name;
   return shown !== name || nameIsShared(room, userId, shown) ? withUserId(shown, userId) : shown;
 };
 
@@ -251,8 +244,8 @@ const departedMemberName = (room: Room, userId: string): string | undefined => {
     memberNameBefore(room.getLiveTimeline(), userId);
   if (!lastName) return undefined;
   departedNames.set(ended, lastName);
-  const shown = lastName.replace(NAME_DISGUISES, '');
-  if (!shown.trim()) return undefined;
+  const shown = withoutNameDisguises(lastName);
+  if (shown === undefined) return undefined;
   const othersShowIt = room.currentState
     .getUserIdsWithDisplayName(shown)
     .some((other) => other !== userId);
@@ -261,7 +254,7 @@ const departedMemberName = (room: Room, userId: string): string | undefined => {
     shown !== lastName ||
     USER_ID_SHAPE.test(shown) ||
     takesNamelessLocalpart(room, gone, shown);
-  return needsId ? `${shown} (\u2066${userId}\u2069)` : shown;
+  return needsId ? withUserId(shown, userId) : shown;
 };
 
 /**

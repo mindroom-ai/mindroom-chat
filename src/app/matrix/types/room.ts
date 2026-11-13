@@ -1,5 +1,3 @@
-import type { MatrixEvent } from 'matrix-js-sdk';
-
 // `membership` values of `m.room.member` (specification "m.room.member"), alphabetical.
 export enum Membership {
   Ban = 'ban', // Removed and kept out until unbanned.
@@ -114,8 +112,3 @@ export type RoomToUnread = Map<string, Unread>;
 
 /** Room ID to the IDs of the spaces, and chat rooms of a sub-room, whose `m.space.child` events list it. */
 export type RoomToParents = Map<string, Set<string>>;
-
-/** Lazily reads the (possibly edited) content of the event being rendered. */
-export type GetContentCallback = <Content>() => Content;
-
-export type EventRenderer = (event: MatrixEvent) => unknown;

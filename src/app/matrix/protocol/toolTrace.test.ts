@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  getToolTraceEventByIndex,
-  getContentToolTraceEvents,
-  isToolTraceV2,
-} from './toolTrace';
+import { getContentToolTraceEvents, isToolTraceV2 } from './toolTrace';
 
 describe('isToolTraceV2', () => {
   it('returns true only for version 2 traces', () => {
@@ -38,28 +34,5 @@ describe('getContentToolTraceEvents', () => {
         },
       })
     ).toBeUndefined();
-  });
-});
-
-describe('getToolTraceEventByIndex', () => {
-  it('looks up events by 1-based tool ref index', () => {
-    const content = {
-      'io.mindroom.tool_trace': {
-        version: 2,
-        events: [
-          { type: 'tool_call_started', tool_name: 'search_web' },
-          { type: 'tool_call_completed', tool_name: 'read_file' },
-        ],
-      },
-    };
-
-    expect(getToolTraceEventByIndex(content, 1)).toMatchObject({
-      tool_name: 'search_web',
-    });
-    expect(getToolTraceEventByIndex(content, 2)).toMatchObject({
-      tool_name: 'read_file',
-    });
-    expect(getToolTraceEventByIndex(content, 0)).toBeUndefined();
-    expect(getToolTraceEventByIndex(content, 3)).toBeUndefined();
   });
 });
