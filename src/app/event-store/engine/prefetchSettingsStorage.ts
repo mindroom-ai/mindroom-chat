@@ -33,9 +33,7 @@ const DEFAULT_MINDROOM_SETTINGS: PrefetchSettings = {
 export const sanitizePrefetchSettings = (value: unknown): PrefetchSettings => {
   const record = isRecord(value) ? value : {};
   return {
-    prefetchScope: sanitizePrefetchScope(
-      record.prefetchScope === 'my-server' ? 'current-room-only' : record.prefetchScope
-    ),
+    prefetchScope: sanitizePrefetchScope(record.prefetchScope),
     prefetchDepth: sanitizePrefetchDepth(record.prefetchDepth),
   };
 };

@@ -69,7 +69,6 @@ describe('planRedactionCacheCleanup', () => {
     });
     expect(planRedactionCacheCleanup({ room, redactionEvent: redaction })).toEqual({
       redactedEventId: '$gone',
-      threadTargetFromFallback: false,
       deleteRecords: false,
     });
   });
@@ -92,7 +91,6 @@ describe('planRedactionCacheCleanup', () => {
     expect(plan).toMatchObject({
       redactedEventId: '$reaction',
       threadCacheTargetId: '$root',
-      threadTargetFromFallback: false,
       deleteRecords: true,
     });
   });
@@ -138,29 +136,6 @@ describe('planRedactionCacheCleanup', () => {
     expect(plan).toMatchObject({
       redactedEventId: '$reaction',
       threadCacheTargetId: '$thread-root',
-      threadTargetFromFallback: false,
-      deleteRecords: true,
-    });
-  });
-
-  it('falls back to the open thread id when the pruned reaction lost its thread hints', () => {
-    const prunedReaction = makeEvent({ eventId: '$reaction', type: 'm.reaction' });
-    const room = makeRoom({ $reaction: prunedReaction });
-    const redaction = makeEvent({
-      eventId: '$redaction',
-      isRedaction: true,
-      associatedId: '$reaction',
-    });
-
-    const plan = planRedactionCacheCleanup({
-      room,
-      redactionEvent: redaction,
-      fallbackThreadId: '$open-thread',
-    });
-    expect(plan).toMatchObject({
-      redactedEventId: '$reaction',
-      threadCacheTargetId: '$open-thread',
-      threadTargetFromFallback: true,
       deleteRecords: true,
     });
   });
@@ -178,7 +153,6 @@ describe('planRedactionCacheCleanup', () => {
     expect(plan).toMatchObject({
       redactedEventId: '$reaction',
       threadCacheTargetId: undefined,
-      threadTargetFromFallback: false,
       deleteRecords: true,
     });
   });
@@ -208,7 +182,6 @@ describe('planRedactionCacheCleanup', () => {
       // SDK membership IS the event's attribution, not a viewer-side guess,
       // so this must NOT be treated as fallback (would trigger a
       // duplicate room-scope persist).
-      threadTargetFromFallback: false,
       deleteRecords: true,
     });
   });
@@ -230,7 +203,6 @@ describe('planRedactionCacheCleanup', () => {
     expect(plan).toMatchObject({
       redactedEventId: '$reaction',
       threadCacheTargetId: undefined,
-      threadTargetFromFallback: false,
       deleteRecords: true,
     });
   });
@@ -250,7 +222,6 @@ describe('planRedactionCacheCleanup', () => {
     expect(plan).toMatchObject({
       redactedEventId: '$reaction',
       threadCacheTargetId: undefined,
-      threadTargetFromFallback: false,
       deleteRecords: true,
     });
   });

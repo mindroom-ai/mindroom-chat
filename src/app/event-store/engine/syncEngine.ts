@@ -36,7 +36,6 @@ import type {
 } from 'matrix-js-sdk';
 import { createSessionId } from '../../matrix/session/sessions';
 import {
-  noteRoomFederated,
   noteRoomOpened,
   noteThreadOpened,
   setEvictionProtectedRoomIds,
@@ -48,11 +47,7 @@ import { createEngineGapTracker, type EngineGapTracker } from './engineGapTracke
 import { createEnginePersistFacade, type EnginePersistFacade } from './enginePersistFacade';
 import { createBackfillScheduler, type BackfillScheduler } from './backfillScheduler';
 import { createGapFillExecutor } from './gapFillExecutor';
-import {
-  DEFAULT_PREFETCH_SCOPE,
-  resolveRoomPrefetchTier,
-  type PrefetchConfig,
-} from './prefetchPolicy';
+import { DEFAULT_PREFETCH_SCOPE, type PrefetchConfig } from './prefetchPolicy';
 import type { EngineLiveEventMeta, SyncEngine } from './types';
 import { trackPendingThreadEvent } from '../cache/pendingThreadEvents';
 import {
@@ -119,9 +114,8 @@ export type CreateSyncEngineOptions = {
    * mid-session scope change picks up on the next enqueue.
    *
    * ClientRoot wires this to a jotai store read of
-   * `prefetchSettingsAtom` (non-React accessor); tests default to
-   * `{ scope: 'my-server', ... }` so behavior is unchanged from the
-   * pre-#5 hardcoded policy.
+   * `prefetchSettingsAtom` (non-React accessor); without it the engine
+   * uses `DEFAULT_PREFETCH_SCOPE`.
    */
   getPrefetchConfig?: () => PrefetchConfig;
   /** Notify the engine when the live prefetch scope changes. */
@@ -158,8 +152,6 @@ export const createSyncEngine = ({
     };
   };
 
-  // Focus lifecycle also drives the shared offline controller policy.
-  let focusedRoomId: string | undefined;
   const effectiveGetPrefetchConfig = getPrefetchConfig ?? (() => DEFAULT_PREFETCH_CONFIG);
   const offline = createRoomOfflineController({
     mx,
@@ -467,9 +459,6 @@ export const createSyncEngine = ({
    * the currently-open thread) changes. Idempotent per-call.
    *
    * Bookkeeping performed:
-   *   - Resolve the room's prefetch tier via `resolveRoomPrefetchTier`
-   *     (D3, homeserver-domain comparison; never parses room ids).
-   *   - `noteRoomFederated` — stamp the ledger attribution.
    *   - `setEvictionProtectedRoomIds([roomId])` — single-element v1
    *     (Deviations §8): only the currently focused room is protected
    *     in memory.
@@ -480,23 +469,10 @@ export const createSyncEngine = ({
   const noteRoomFocused = (roomId: string, threadId?: string): void => {
     const room = mx.getRoom?.(roomId);
     if (!room) return;
-    // ISSUE-207 P7.2 audit finding #5: record the focus so scope-aware
-    // gates in the gap-fill executor and any other consumer can honor
-    // `current-room-only`. The band-0 (foreground) pathways below run
-    // unconditionally — a room the user actively opens is always
-    // eligible for a foreground fetch.
-    focusedRoomId = roomId;
     // Protect the room before its offline work can ask for space.
     setEvictionProtectedRoomIds([roomId]);
     offline.focus(roomId);
     gapFillExecutor?.recheckDeferred(roomId);
-    const tier = resolveRoomPrefetchTier(mx, room);
-    // `background` (create event missing) is treated as federated for
-    // eligibility, but we don't stamp the ledger flag since we don't
-    // yet know the truth — leaves the flag at its previous value.
-    if (tier !== 'background') {
-      noteRoomFederated(sessionId, roomId, tier !== 'own').catch(() => undefined);
-    }
     noteRoomOpened(sessionId, roomId).catch(() => undefined);
     if (threadId) {
       noteThreadOpened(sessionId, roomId, threadId).catch(() => undefined);
@@ -516,7 +492,6 @@ export const createSyncEngine = ({
     offline: offline.controller,
     backgroundPageAllowance: offline.allowance,
     clearRoomFocus: (roomId) => {
-      if (focusedRoomId === roomId) focusedRoomId = undefined;
       offline.blur(roomId);
       setEvictionProtectedRoomIds([]);
     },

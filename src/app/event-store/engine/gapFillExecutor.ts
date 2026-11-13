@@ -22,11 +22,6 @@ import {
   type GapFillJob,
   type GapFillScheduler,
 } from './engineGapTracker';
-import {
-  DEFAULT_PREFETCH_SCOPE,
-  isRoomEligibleForBackgroundPrefetch,
-  type PrefetchConfig,
-} from './prefetchPolicy';
 
 // Batch size for the /messages page — matches the app's other backfill
 // batches so the scheduler's cooperative abort granularity is
@@ -34,32 +29,15 @@ import {
 const GAP_FILL_BATCH_SIZE = GAP_FILL_OVERLAP_TAIL_LIMIT;
 
 export type GapFillExecutorOptions = {
-  /** When supplied, the controller owns eligibility as well as bandwidth. */
-  readonly pageAllowance?: (roomId: string) => number;
-  readonly reservePage?: ReserveHistoryPage;
-  readonly canSavePage?: (roomId: string) => Promise<boolean>;
+  /** The offline controller owns eligibility as well as bandwidth: 0 defers the room. */
+  readonly pageAllowance: (roomId: string) => number;
+  readonly reservePage: ReserveHistoryPage;
+  readonly canSavePage: (roomId: string) => Promise<boolean>;
   readonly mx: MatrixClient;
   readonly sessionId: string;
   readonly scheduler: BackfillScheduler;
   /** Priority band for gap-fills on rooms other than the focused one. */
   readonly priority?: 0 | 1 | 2;
-  /**
-   * ISSUE-207 P7.2 audit finding #5: supplies the live user
-   * `PrefetchConfig` on every runOnce. The executor consults
-   * `config.scope` via `isRoomEligibleForBackgroundPrefetch` before
-   * fetching, so a user switching to `current-room-only` immediately
-   * suppresses background gap-fills on non-focused rooms.
-   * Optional to preserve back-compat for existing test constructors.
-   * When absent, the executor falls back to the default `current-room-only` policy.
-   */
-  readonly getPrefetchConfig?: () => PrefetchConfig;
-  /**
-   * ISSUE-207 P7.2 audit finding #5: returns the currently-focused
-   * room id (populated by `SyncEngine.noteRoomFocused`). Only
-   * consulted when `config.scope === 'current-room-only'`. Optional
-   * for the same back-compat reason as `getPrefetchConfig`.
-   */
-  readonly getFocusedRoomId?: () => string | undefined;
   /** Test hook for proving cursor advancement follows a committed write. */
   readonly persistChunk?: typeof persistRoomChunkWithPreferLive;
   /** Test hook for controlling the pre-gap cached-tail snapshot. */
@@ -87,8 +65,6 @@ export const createGapFillExecutor = (
 ): GapFillExecutor => {
   const { mx, sessionId, scheduler } = options;
   const priority = options.priority ?? 1;
-  const getPrefetchConfig = options.getPrefetchConfig;
-  const getFocusedRoomId = options.getFocusedRoomId ?? (() => undefined);
   const persistChunk = options.persistChunk ?? persistRoomChunkWithPreferLive;
   const loadCachedTail = options.loadCachedTail ?? loadLatestCachedRoomEvents;
   const loadDiscontinuity = options.loadDiscontinuity ?? loadRoomTailDiscontinuity;
@@ -152,27 +128,16 @@ export const createGapFillExecutor = (
       }
     }
 
-    const scope = getPrefetchConfig ? getPrefetchConfig().scope : DEFAULT_PREFETCH_SCOPE;
-    if (
-      options.pageAllowance
-        ? options.pageAllowance(job.roomId) === 0
-        : !isRoomEligibleForBackgroundPrefetch({
-            mx,
-            room,
-            scope,
-            focusedRoomId: getFocusedRoomId(),
-          })
-    )
-      return 'policy-deferred';
+    if (options.pageAllowance(job.roomId) === 0) return 'policy-deferred';
 
     const overlapEventIdSet = new Set(overlapEventIds);
     if (signal.aborted || !isCacheStoreWriteLeaseCurrent(writeLease)) return 'policy-deferred';
-    if (options.canSavePage && !(await options.canSavePage(job.roomId))) return 'policy-deferred';
+    if (!(await options.canSavePage(job.roomId))) return 'policy-deferred';
     const cursorKey = JSON.stringify([generation, fromToken]);
     if (visited.has(cursorKey)) return 'continuation-deferred';
     visited.add(cursorKey);
-    const reservation = options.reservePage?.(job.roomId);
-    if (options.reservePage && !reservation) return 'policy-deferred';
+    const reservation = options.reservePage(job.roomId);
+    if (!reservation) return 'policy-deferred';
     let committedCount = 0;
     try {
       let response;
@@ -180,10 +145,7 @@ export const createGapFillExecutor = (
         response = await mx.createMessagesRequest(
           job.roomId,
           fromToken,
-          Math.min(
-            GAP_FILL_BATCH_SIZE,
-            reservation?.limit ?? options.pageAllowance?.(job.roomId) ?? GAP_FILL_BATCH_SIZE
-          ),
+          Math.min(GAP_FILL_BATCH_SIZE, reservation.limit),
           Direction.Backward
         );
       } catch (error) {
@@ -254,7 +216,7 @@ export const createGapFillExecutor = (
       if (durableMarker && !checkpointed) return 'continuation-deferred';
       if (checkpointed) onCommitted();
     } finally {
-      reservation?.settle(committedCount);
+      reservation.settle(committedCount);
     }
     return 'page-committed';
   };
@@ -264,7 +226,6 @@ export const createGapFillExecutor = (
     activeRooms.add(roomId);
     void (async () => {
       try {
-        let turns = 0;
         const visited = new Set<string>();
         while (!stopped) {
           const job = latestJobs.get(roomId);
@@ -273,7 +234,6 @@ export const createGapFillExecutor = (
           let recovered = false;
           let result: 'policy-deferred' | 'continuation-deferred' | 'page-committed' | undefined;
           const writeLease = captureCacheStoreWriteLease(sessionId, roomId);
-          turns += 1;
           // eslint-disable-next-line no-await-in-loop
           await scheduler
             .enqueue({
@@ -298,10 +258,7 @@ export const createGapFillExecutor = (
           if (recovered && isCacheStoreWriteLeaseCurrent(writeLease))
             options.onRoomRecovered?.(roomId);
           if (result && !latestJobs.has(roomId) && isCacheStoreWriteLeaseCurrent(writeLease)) {
-            if (
-              result === 'page-committed' &&
-              (options.pageAllowance ? options.pageAllowance(roomId) > 0 : turns < 20)
-            )
+            if (result === 'page-committed' && options.pageAllowance(roomId) > 0)
               latestJobs.set(roomId, job);
             else deferredJobs.set(roomId, job);
           }

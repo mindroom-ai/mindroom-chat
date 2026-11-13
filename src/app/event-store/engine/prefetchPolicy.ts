@@ -1,28 +1,12 @@
 /** Background scope policy. Focus is the default; all rooms is explicit opt-in.
- * Legacy homeserver tiers remain readable for older settings and ledger data.
  * Engine jobs decrypt through the SDK and enforce connectivity and allowance. */
-
-import type { MatrixClient, Room } from 'matrix-js-sdk';
-import { StateEvent } from '../../matrix/types/room';
-import { getStateEvent } from '../../matrix/room';
 
 // ---------- Public constants (D3) ----------
 
-/**
- * The scope of every prefetch job in v1: only rooms whose create event
- * came from our own homeserver. Federated rooms are skipped unless the
- * user explicitly opens them (which enqueues a band-0 job).
- */
-export const PREFETCH_SCOPE = 'my-server' as const;
-
-/** Stored scope values; v1 homeserver preferences migrate to focused rooms. */
-export type PrefetchScope = 'my-server' | 'all-rooms' | 'current-room-only';
+/** Stored scope values. */
+export type PrefetchScope = 'current-room-only' | 'all-rooms';
 export const DEFAULT_PREFETCH_SCOPE: PrefetchScope = 'current-room-only';
-const PREFETCH_SCOPE_VALUES: ReadonlyArray<PrefetchScope> = [
-  'my-server',
-  'all-rooms',
-  'current-room-only',
-];
+const PREFETCH_SCOPE_VALUES: ReadonlyArray<PrefetchScope> = ['current-room-only', 'all-rooms'];
 
 /**
  * Depth (in raw events) of the background room-tail prefetch job for
@@ -39,67 +23,13 @@ export const ROOM_TAIL_PREFETCH_DEPTH = 200;
  */
 export const CURRENT_ROOM_DEEP_HISTORY_TARGET = 10_000;
 
-// ---------- Room create sender domain ----------
-
-/**
- * The domain segment of a Matrix user id (`@name:domain` or
- * `@name:domain:port` → `domain[:port]`). Returns `undefined` for
- * anything that doesn't look like a user id — the `substring after
- * first ':'` semantics tolerate ports and colons in the domain.
- */
-const senderDomainOf = (senderId: string | undefined | null): string | undefined => {
-  if (typeof senderId !== 'string' || senderId.length === 0) return undefined;
-  const colon = senderId.indexOf(':');
-  if (colon < 0 || colon === senderId.length - 1) return undefined;
-  return senderId.slice(colon + 1);
-};
-
-// ---------- Tier resolution ----------
-
-/**
- * `own`: room was created by a user on our homeserver — eligible for
- * every prefetch band the scheduler offers.
- * `federated`: create event came from another homeserver — the
- * scheduler skips this room for background bands (1-3). The user can
- * still trigger a band-0 job by opening it.
- * `background`: create event is missing entirely. Treated as
- * federated for eligibility purposes, but tagged separately so the
- * ledger `federated=true` flag doesn't get set on a room whose
- * membership we simply haven't confirmed yet.
- */
-export type RoomPrefetchTier = 'own' | 'federated' | 'background';
-
-/**
- * Resolve a room's prefetch tier. Never parses the room id — reads the
- * create event's sender domain and compares to our homeserver domain.
- * Room v12 / MSC4291 opaque room ids are handled transparently
- * because we never touch the id.
- */
-export const resolveRoomPrefetchTier = (mx: MatrixClient, room: Room): RoomPrefetchTier => {
-  const ourDomain = mx.getDomain?.();
-  const createEvent = getStateEvent(room, StateEvent.RoomCreate);
-  const senderDomain = senderDomainOf(createEvent?.getSender?.());
-  if (!senderDomain) return 'background';
-  if (!ourDomain) return 'federated';
-  return senderDomain === ourDomain ? 'own' : 'federated';
-};
-
-/** Legacy homeserver-tier eligibility; encrypted pages use SDK decryption. */
-export const isRoomEligibleForRawFetch = (
-  mx: MatrixClient,
-  room: Room,
-  tier: RoomPrefetchTier = resolveRoomPrefetchTier(mx, room)
-): boolean => {
-  if (tier !== 'own') return false;
-  return true;
-};
-
 // ---------- User settings resolvers (Phase 6.1 / D4) ----------
 
 /**
  * Coerce an arbitrary settings value into a valid `PrefetchScope`.
- * Anything not on the whitelist — including older enum values, hand-
- * edited JSON, or genuine `undefined` — becomes the default. Same
+ * Anything not on the whitelist — including older enum values such as
+ * v1's homeserver scope `my-server`, hand-edited JSON, or genuine
+ * `undefined` — becomes the default. Same
  * shape as the sanitizers in `preferences/settings.ts` (silent fallback,
  * not throwing) so a corrupted storage blob never crashes the app.
  */
@@ -151,25 +81,3 @@ export type PrefetchConfig = {
 export const resolvePrefetchConfig = (settings: { prefetchScope?: unknown }): PrefetchConfig => ({
   scope: sanitizePrefetchScope(settings.prefetchScope),
 });
-
-/** Scope gate for automatic history and gap recovery. */
-export const isRoomEligibleForBackgroundPrefetch = ({
-  mx,
-  room,
-  scope,
-  focusedRoomId,
-}: {
-  mx: MatrixClient;
-  room: Room;
-  scope: PrefetchScope;
-  focusedRoomId: string | undefined;
-}): boolean => {
-  if (scope === 'current-room-only') {
-    return focusedRoomId === room.roomId;
-  }
-  if (scope === 'all-rooms') {
-    return true;
-  }
-  // Legacy homeserver scope.
-  return resolveRoomPrefetchTier(mx, room) === 'own';
-};

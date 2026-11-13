@@ -62,7 +62,7 @@ import { getCacheProbeSnapshot, resetCacheProbe } from '../cache/cacheProbe';
 import type { EngineLiveEventMeta } from './types';
 
 /** The sync engine's persist callback; a write with a thread id goes to that thread's cache. */
-const persist = vi.fn<NonNullable<EngineWriteThroughOptions['persist']>>();
+const persist = vi.fn<EngineWriteThroughOptions['persist']>();
 const threadWrites = () =>
   persist.mock.calls
     .filter(([, , , threadId]) => threadId !== undefined)
