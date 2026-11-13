@@ -594,13 +594,12 @@
       "list": {
         "label": "Threads in {{room}}",
         "empty": "Nothing open here",
-        "sent": "Sent",
-        "resolved": "Resolved"
+        "sent": "Sent"
       },
       "chip": {
-        "working": "working",
-        "needsYou": "needs you",
-        "new": "new"
+        "working": "Working",
+        "needsYou": "Needs you",
+        "new": "New"
       },
       "peek": {
         "copy": "Copy",
@@ -611,15 +610,15 @@
         "reply": "Reply in this thread"
       },
       "hint": {
-        "send": "send",
-        "sendOpen": "send and open",
-        "room": "room",
-        "list": "list",
-        "move": "move",
-        "peek": "peek",
-        "done": "done",
-        "reply": "reply",
-        "open": "open"
+        "send": "Send",
+        "sendOpen": "Send and Open",
+        "room": "Room",
+        "list": "List",
+        "move": "Move",
+        "peek": "Peek",
+        "done": "Done",
+        "reply": "Reply",
+        "open": "Open"
       },
       "absent": {
         "title": "MindRoom is not open",

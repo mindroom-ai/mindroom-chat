@@ -585,8 +585,7 @@
       "list": {
         "label": "{{room}}의 스레드",
         "empty": "열린 항목 없음",
-        "sent": "보냄",
-        "resolved": "해결됨"
+        "sent": "보냄"
       },
       "chip": {
         "working": "작업 중",

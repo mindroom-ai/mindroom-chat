@@ -352,9 +352,8 @@ describe('QuickCapturePage with a room', () => {
     expect(screen.getByRole('button', { name: 'Posting to Inbox. Change room' })).toBeTruthy();
     expect(document.activeElement).toBe(input());
     const list = screen.getByRole('list', { name: 'Threads in Inbox' });
-    const rows = within(list)
-      .getAllByRole('listitem')
-      .map((item) => item.textContent);
+    const items = within(list).getAllByRole('listitem');
+    const rows = items.map((item) => item.textContent);
     expect(rows).toEqual([
       expect.stringContaining('Why does slot 27 flake?'),
       expect.stringContaining('Idea: default room per app'),
@@ -363,37 +362,53 @@ describe('QuickCapturePage with a room', () => {
       expect.stringContaining('Which Node version?'),
     ]);
     expect(rows[0]).toContain('Code: Running the suite again');
-    expect(rows[0]).toContain('working');
     expect(rows[1]).toContain('Sent');
     expect(rows[2]).toContain('Ops: Approve the deploy?');
-    expect(rows[2]).toContain('needs you');
     expect(rows[3]).toContain('Research: Three fit');
-    expect(rows[3]).toContain('new');
-    expect(rows[4]).toContain('Resolved');
+    // What a thread is doing stands at its row's end: a spinner, a label, a dot. A thread at
+    // work or waiting shows no time; the others do.
+    const [working, sent, waiting, unread, resolved] = items as [
+      HTMLElement,
+      HTMLElement,
+      HTMLElement,
+      HTMLElement,
+      HTMLElement
+    ];
+    expect(within(working).getByRole('img', { name: 'Working' })).toBeTruthy();
+    expect(within(waiting).getByText('Needs you')).toBeTruthy();
+    expect(within(unread).getByRole('img', { name: 'New' })).toBeTruthy();
+    for (const row of [sent, unread, resolved]) {
+      expect(within(row).queryAllByRole('img')).toHaveLength(row === unread ? 1 : 0);
+      expect(row.querySelector('[data-capture-time]')?.textContent).not.toBe('');
+    }
+    for (const row of [working, waiting]) {
+      expect(row.querySelector('[data-capture-time]')).toBeNull();
+    }
+    expect(within(resolved).getByRole('button', { name: 'Reopen' })).toBeTruthy();
   });
 
-  it("shows the input's keys under the input, and the list's at the foot", () => {
+  it('shows the keys of the part that has the focus at the foot', () => {
     setup();
-    const entry = input().closest('[data-capture-entry]');
-    expect(entry?.textContent).toContain('send and open');
-    expect(entry?.textContent).toContain('room');
-    expect(entry?.textContent).toContain('list');
+    // The entry holds no keys of its own.
+    expect(input().closest('[data-capture-entry]')?.textContent).toBe('');
     const foot = footer();
-    for (const label of ['move', 'peek', 'done', 'reply', 'open']) {
+    for (const label of ['Send', 'Send and Open', 'Room', 'List']) {
       expect(foot?.textContent).toContain(label);
     }
-    expect(foot?.textContent).not.toContain('send');
-    // Quiet while the input has the focus, full once the list has it.
-    expect(foot?.dataset.active).toBe('false');
+    expect(foot?.textContent).not.toContain('Peek');
     press(input(), 'ArrowDown');
-    expect(footer()?.dataset.active).toBe('true');
+    for (const label of ['Peek', 'Reply', 'Done', 'Open']) {
+      expect(footer()?.textContent).toContain(label);
+    }
+    expect(footer()?.textContent).not.toContain('Send');
   });
 
   it("shows the picker's keys at the foot while the picker is open", () => {
     setup();
     press(input(), 'Tab');
-    expect(footer()?.textContent).toContain('move');
-    expect(footer()?.textContent).not.toContain('peek');
+    expect(footer()?.textContent).toContain('Move');
+    expect(footer()?.textContent).not.toContain('Peek');
+    expect(footer()?.textContent).not.toContain('Send');
   });
 
   it('resolves and reopens a thread from its leading mark, which is no tab stop', () => {
@@ -620,12 +635,16 @@ describe('QuickCapturePage list', () => {
     press(row('Why does slot 27 flake'), ' ');
     expect(screen.getByText('Running the suite again, with traces on.')).toBeTruthy();
     const first = within(item('Why does slot 27 flake'));
-    expect(first.getByRole('button', { name: 'Copy' })).toBeTruthy();
+    // The answer in full stands in for the line that cut it short.
+    expect(first.queryByText('Code: Running the suite again')).toBeNull();
+    // A button's key is in its tooltip.
+    expect(first.getByRole('button', { name: 'Copy' }).title).toBe('Copy (C)');
     expect(first.getByRole('button', { name: 'Open' })).toBeTruthy();
     // The peek's Done beside the row's leading mark.
     expect(first.getAllByRole('button', { name: 'Done' })).toHaveLength(2);
     press(row('Why does slot 27 flake'), ' ');
     expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull();
+    expect(first.getByText('Code: Running the suite again')).toBeTruthy();
   });
 
   it('resolves the row on x, and reopens a resolved row', () => {

@@ -594,13 +594,12 @@
       "list": {
         "label": "Threads in {{room}}",
         "empty": "Hier staat niets open",
-        "sent": "Verstuurd",
-        "resolved": "Opgelost"
+        "sent": "Verstuurd"
       },
       "chip": {
-        "working": "bezig",
-        "needsYou": "heeft jou nodig",
-        "new": "nieuw"
+        "working": "Bezig",
+        "needsYou": "Heeft jou nodig",
+        "new": "Nieuw"
       },
       "peek": {
         "copy": "Kopieer",
@@ -611,15 +610,15 @@
         "reply": "Antwoord in deze thread"
       },
       "hint": {
-        "send": "verstuur",
-        "sendOpen": "verstuur en open",
-        "room": "kamer",
-        "list": "lijst",
-        "move": "verplaats",
-        "peek": "voorbeeld",
-        "done": "klaar",
-        "reply": "antwoord",
-        "open": "open"
+        "send": "Verstuur",
+        "sendOpen": "Verstuur en open",
+        "room": "Kamer",
+        "list": "Lijst",
+        "move": "Verplaats",
+        "peek": "Voorbeeld",
+        "done": "Klaar",
+        "reply": "Antwoord",
+        "open": "Open"
       },
       "absent": {
         "title": "MindRoom is niet geopend",

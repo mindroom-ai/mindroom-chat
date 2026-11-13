@@ -603,13 +603,12 @@
       "list": {
         "label": "Fils dans {{room}}",
         "empty": "Rien d’ouvert ici",
-        "sent": "Envoyé",
-        "resolved": "Résolu"
+        "sent": "Envoyé"
       },
       "chip": {
-        "working": "en cours",
-        "needsYou": "vous attend",
-        "new": "nouveau"
+        "working": "En cours",
+        "needsYou": "Vous attend",
+        "new": "Nouveau"
       },
       "peek": {
         "copy": "Copier",
@@ -620,15 +619,15 @@
         "reply": "Répondre dans ce fil"
       },
       "hint": {
-        "send": "envoyer",
-        "sendOpen": "envoyer et ouvrir",
-        "room": "salon",
-        "list": "liste",
-        "move": "déplacer",
-        "peek": "aperçu",
-        "done": "terminé",
-        "reply": "répondre",
-        "open": "ouvrir"
+        "send": "Envoyer",
+        "sendOpen": "Envoyer et ouvrir",
+        "room": "Salon",
+        "list": "Liste",
+        "move": "Déplacer",
+        "peek": "Aperçu",
+        "done": "Terminé",
+        "reply": "Répondre",
+        "open": "Ouvrir"
       },
       "absent": {
         "title": "MindRoom n’est pas ouvert",

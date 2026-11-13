@@ -9,24 +9,21 @@ import {
   type RefObject,
 } from 'react';
 import classNames from 'classnames';
-import type { ParseKeys } from 'i18next';
 import { Icon, Icons } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { copyToClipboard } from '../lib/dom';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
+import { formatCompactRelativeTime } from '../lib/time';
 import { isComposingKey, keyCapsOf } from '../shortcuts/shortcuts';
 import { ownDirectionBlock, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import type { CaptureClient } from './captureChannel';
 import { captureKeyAction, type CaptureKeyAction } from './captureKeys';
-import type { CaptureChip, CaptureErrorCode, CaptureItem } from './captureProtocol';
+import type { CaptureErrorCode, CaptureItem } from './captureProtocol';
 import { captureErrorText } from './CaptureInput';
 import * as css from './QuickCapturePage.css';
 
-const CHIP_TEXT: Record<CaptureChip, ParseKeys> = {
-  working: 'featureUi.quickCapture.chip.working',
-  'needs-you': 'featureUi.quickCapture.chip.needsYou',
-  new: 'featureUi.quickCapture.chip.new',
-};
+/** The spokes of the spinner, from the faintest to the full one. */
+const SPOKES = [1, 2, 3, 4, 5, 6, 7, 8];
 
 /** A root the host is still sending carries its local id; it cannot be answered or opened yet. */
 const isPending = (item: CaptureItem): boolean => item.threadId.startsWith('~');
@@ -66,7 +63,7 @@ export function CaptureList({
   onToInput,
   onOpened,
 }: CaptureListProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const baseId = useId();
   const [selectedId, setSelectedId] = useState<string>();
   const [rowError, setRowError] = useState<{ threadId: string; code: CaptureErrorCode }>();
@@ -262,6 +259,8 @@ export function CaptureList({
         const peekShown = isSelected && peekOpen;
         const peekId = `${baseId}-peek`;
         const answer = item.replyText ?? item.line;
+        // The peek shows the newest reply in full, in place of the line that cuts it short.
+        const answerShown = peekShown && answer !== '';
         const line = item.line
           ? `${item.lineSender ? `${item.lineSender}: ` : ''}${item.line}`
           : t('featureUi.quickCapture.list.sent');
@@ -301,23 +300,38 @@ export function CaptureList({
               onClick={onRowClick}
               onKeyDown={(event) => onRowKeyDown(event, item, index)}
             >
-              <div className={css.RowText}>
+              <span className={css.RowHead}>
                 <span className={css.RowTitle} {...ownDirectionLine}>
                   {item.title}
                 </span>
+                <span className={css.RowMeta}>
+                  {item.chip === 'working' && (
+                    <Spinner label={t('featureUi.quickCapture.chip.working')} />
+                  )}
+                  {item.chip === 'needs-you' && (
+                    <span className={css.NeedsYou}>
+                      {t('featureUi.quickCapture.chip.needsYou')}
+                    </span>
+                  )}
+                  {item.chip === 'new' && (
+                    <span
+                      className={css.UnreadDot}
+                      role="img"
+                      aria-label={t('featureUi.quickCapture.chip.new')}
+                      title={t('featureUi.quickCapture.chip.new')}
+                    />
+                  )}
+                  {/* A thread at work or waiting says so in place of its time. */}
+                  {(item.chip === undefined || item.chip === 'new') && (
+                    <span data-capture-time="">
+                      {formatCompactRelativeTime(item.ts, i18n.language)}
+                    </span>
+                  )}
+                </span>
+              </span>
+              {!answerShown && (
                 <span className={css.RowLine} {...ownDirectionLine}>
                   {line}
-                </span>
-              </div>
-              {item.resolved && (
-                <span className={classNames(css.RowChip, css.Chip.resolved)}>
-                  {t('featureUi.quickCapture.list.resolved')}
-                </span>
-              )}
-              {item.chip && (
-                <span className={classNames(css.RowChip, css.Chip[item.chip])}>
-                  {item.chip === 'working' && <span className={css.WorkingDot} />}
-                  {t(CHIP_TEXT[item.chip])}
                 </span>
               )}
             </div>
@@ -330,13 +344,13 @@ export function CaptureList({
               <div id={peekId} className={css.Peek}>
                 {answer !== '' && (
                   <p className={css.Answer} {...ownDirectionBlock}>
-                    {item.lineSender && <span className={css.Sender}>{item.lineSender} </span>}
+                    {item.lineSender && <span className={css.Sender}>{item.lineSender}</span>}
                     <span>{revealDirectionControls(answer)}</span>
                   </p>
                 )}
                 <div className={css.PeekActions}>
                   {answer !== '' && (
-                    <PeekButton keyCap="c" onClick={() => void copy(item)}>
+                    <PeekButton keyCap="C" onClick={() => void copy(item)}>
                       {copiedId === item.threadId
                         ? t('featureUi.quickCapture.peek.copied')
                         : t('featureUi.quickCapture.peek.copy')}
@@ -350,7 +364,7 @@ export function CaptureList({
                     {t('featureUi.quickCapture.peek.open')}
                   </PeekButton>
                   <PeekButton
-                    keyCap="x"
+                    keyCap="X"
                     disabled={isPending(item)}
                     onClick={() => void resolve(item)}
                   >
@@ -358,26 +372,19 @@ export function CaptureList({
                   </PeekButton>
                 </div>
                 {!isPending(item) && (
-                  <div className={css.ReplyBox}>
-                    <input
-                      ref={replyRef}
-                      className={css.ReplyField}
-                      aria-label={t('featureUi.quickCapture.peek.reply')}
-                      placeholder={t('featureUi.quickCapture.peek.reply')}
-                      dir="auto"
-                      value={replyDraft}
-                      readOnly={replying}
-                      onChange={(event) =>
-                        setDraft({ threadId: item.threadId, text: event.target.value })
-                      }
-                      onKeyDown={(event) => onReplyKeyDown(event, item)}
-                    />
-                    {replyDraft === '' && (
-                      <kbd className={css.ReplyKey} dir="ltr" aria-hidden="true">
-                        r
-                      </kbd>
-                    )}
-                  </div>
+                  <input
+                    ref={replyRef}
+                    className={css.ReplyField}
+                    aria-label={t('featureUi.quickCapture.peek.reply')}
+                    placeholder={t('featureUi.quickCapture.peek.reply')}
+                    dir="auto"
+                    value={replyDraft}
+                    readOnly={replying}
+                    onChange={(event) =>
+                      setDraft({ threadId: item.threadId, text: event.target.value })
+                    }
+                    onKeyDown={(event) => onReplyKeyDown(event, item)}
+                  />
                 )}
               </div>
             )}
@@ -395,13 +402,38 @@ type PeekButtonProps = {
   children: string;
 };
 
+/** A button of the peek. Its key is in its tooltip, where a Mac app says a button's key. */
 function PeekButton({ keyCap, disabled, onClick, children }: PeekButtonProps) {
   return (
-    <button type="button" className={css.SmallButton} disabled={disabled} onClick={onClick}>
+    <button
+      type="button"
+      className={css.SmallButton}
+      title={`${children} (${keyCap})`}
+      disabled={disabled}
+      onClick={onClick}
+    >
       {children}
-      <kbd className={css.Key} dir="ltr" aria-hidden="true">
-        {keyCap}
-      </kbd>
     </button>
+  );
+}
+
+/** The system's spinner: eight spokes, each fainter than the next, stepping around. */
+function Spinner({ label }: { label: string }) {
+  return (
+    <svg className={css.Spinner} viewBox="0 0 16 16" role="img" aria-label={label}>
+      <title>{label}</title>
+      {SPOKES.map((spoke) => (
+        <rect
+          key={spoke}
+          x="7.1"
+          y="1"
+          width="1.8"
+          height="4.4"
+          rx="0.9"
+          opacity={spoke / SPOKES.length}
+          transform={`rotate(${spoke * 45} 8 8)`}
+        />
+      ))}
+    </svg>
   );
 }

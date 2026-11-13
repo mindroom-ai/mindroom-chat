@@ -594,13 +594,12 @@
       "list": {
         "label": "{{room}} içindeki konular",
         "empty": "Burada açık bir şey yok",
-        "sent": "Gönderildi",
-        "resolved": "Çözüldü"
+        "sent": "Gönderildi"
       },
       "chip": {
-        "working": "çalışıyor",
-        "needsYou": "seni bekliyor",
-        "new": "yeni"
+        "working": "Çalışıyor",
+        "needsYou": "Seni bekliyor",
+        "new": "Yeni"
       },
       "peek": {
         "copy": "Kopyala",
@@ -611,15 +610,15 @@
         "reply": "Bu konuda yanıtla"
       },
       "hint": {
-        "send": "gönder",
-        "sendOpen": "gönder ve aç",
-        "room": "oda",
-        "list": "liste",
-        "move": "taşı",
-        "peek": "önizleme",
-        "done": "bitti",
-        "reply": "yanıtla",
-        "open": "aç"
+        "send": "Gönder",
+        "sendOpen": "Gönder ve aç",
+        "room": "Oda",
+        "list": "Liste",
+        "move": "Taşı",
+        "peek": "Önizleme",
+        "done": "Bitti",
+        "reply": "Yanıtla",
+        "open": "Aç"
       },
       "absent": {
         "title": "MindRoom açık değil",

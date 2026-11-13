@@ -603,13 +603,12 @@
       "list": {
         "label": "Tópicos em {{room}}",
         "empty": "Nada aberto aqui",
-        "sent": "Enviado",
-        "resolved": "Resolvido"
+        "sent": "Enviado"
       },
       "chip": {
-        "working": "trabalhando",
-        "needsYou": "precisa de você",
-        "new": "novo"
+        "working": "Trabalhando",
+        "needsYou": "Precisa de você",
+        "new": "Novo"
       },
       "peek": {
         "copy": "Copiar",
@@ -620,15 +619,15 @@
         "reply": "Responder neste tópico"
       },
       "hint": {
-        "send": "enviar",
-        "sendOpen": "enviar e abrir",
-        "room": "sala",
-        "list": "lista",
-        "move": "mover",
-        "peek": "prévia",
-        "done": "concluir",
-        "reply": "responder",
-        "open": "abrir"
+        "send": "Enviar",
+        "sendOpen": "Enviar e abrir",
+        "room": "Sala",
+        "list": "Lista",
+        "move": "Mover",
+        "peek": "Prévia",
+        "done": "Concluir",
+        "reply": "Responder",
+        "open": "Abrir"
       },
       "absent": {
         "title": "O MindRoom não está aberto",

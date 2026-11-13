@@ -152,7 +152,12 @@ test('quick capture posts into the signed-in app', async ({ page }) => {
   // end of the list, and the room's state holds the tag.
   await milkRow.focus();
   await widget.keyboard.press('x');
-  await expect(milkRow).toContainText('Resolved');
+  await expect(
+    list.getByRole('listitem').filter({ hasText: 'Buy oat milk' }).getByRole('button', {
+      name: 'Reopen',
+      exact: true,
+    })
+  ).toBeVisible();
   await expect(milkRow).toHaveCSS('opacity', '0.6');
   await expect(list.getByRole('listitem').last()).toContainText('Buy oat milk');
   await expect

@@ -585,13 +585,12 @@
       "list": {
         "label": "Utas di {{room}}",
         "empty": "Tidak ada yang terbuka di sini",
-        "sent": "Terkirim",
-        "resolved": "Selesai"
+        "sent": "Terkirim"
       },
       "chip": {
-        "working": "bekerja",
-        "needsYou": "perlu Anda",
-        "new": "baru"
+        "working": "Bekerja",
+        "needsYou": "Perlu Anda",
+        "new": "Baru"
       },
       "peek": {
         "copy": "Salin",
@@ -602,15 +601,15 @@
         "reply": "Balas di utas ini"
       },
       "hint": {
-        "send": "kirim",
-        "sendOpen": "kirim dan buka",
-        "room": "ruang",
-        "list": "daftar",
-        "move": "pindah",
-        "peek": "intip",
-        "done": "selesai",
-        "reply": "balas",
-        "open": "buka"
+        "send": "Kirim",
+        "sendOpen": "Kirim dan buka",
+        "room": "Ruang",
+        "list": "Daftar",
+        "move": "Pindah",
+        "peek": "Intip",
+        "done": "Selesai",
+        "reply": "Balas",
+        "open": "Buka"
       },
       "absent": {
         "title": "MindRoom tidak terbuka",

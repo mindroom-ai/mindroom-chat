@@ -4,7 +4,6 @@ import {
   type ClipboardEvent,
   type Dispatch,
   type KeyboardEvent,
-  type ReactNode,
   type RefObject,
   type SetStateAction,
 } from 'react';
@@ -75,13 +74,11 @@ type CaptureInputProps = {
   onPicker: () => void;
   /** After an entry sent with "open": the main window shows it. */
   onOpened: () => Promise<void>;
-  /** The input's keys, under the field. */
-  hints: ReactNode;
 };
 
 /**
- * The entry: its images, the text field, the screenshot buttons on the Mac, and what became of
- * the last send. While a send is in flight the field is read-only, so a second Enter sends nothing.
+ * The entry: its images, the text field, the screenshot buttons on the Mac, Send, and what became
+ * of the last send. While a send is in flight the field is read-only, so a second Enter sends nothing.
  */
 export function CaptureInput({
   roomId,
@@ -96,7 +93,6 @@ export function CaptureInput({
   onToList,
   onPicker,
   onOpened,
-  hints,
 }: CaptureInputProps) {
   const { t } = useTranslation();
   const [sending, setSending] = useState(false);
@@ -178,14 +174,13 @@ export function CaptureInput({
 
   const ready = text.trim() !== '' || images.length > 0;
 
-  const toolButton = ({ label, icon, disabled, onClick }: ToolProps, isReady = false) => (
+  const toolButton = ({ label, icon, disabled, onClick }: ToolProps) => (
     <button
       type="button"
       className={css.ToolButton}
       aria-label={label}
       title={label}
       disabled={disabled}
-      data-ready={isReady}
       onClick={onClick}
     >
       <Icon size="100" src={icon} />
@@ -245,16 +240,18 @@ export function CaptureInput({
                 disabled: full || sending,
                 onClick: () => void screenshot('screen'),
               })}
-            {/* Muted while there is nothing to send, primary once there is. */}
-            {toolButton(
-              {
-                label: t('featureUi.quickCapture.input.send'),
-                icon: Icons.Send,
-                disabled: sending,
-                onClick: () => void send(false),
-              },
-              ready
-            )}
+            {/* Gray while there is nothing to send, the accent once there is. */}
+            <button
+              type="button"
+              className={css.SendButton}
+              aria-label={t('featureUi.quickCapture.input.send')}
+              title={t('featureUi.quickCapture.input.send')}
+              disabled={sending}
+              data-ready={ready}
+              onClick={() => void send(false)}
+            >
+              <Icon size="50" src={Icons.ArrowTop} />
+            </button>
           </div>
         </div>
       </div>
@@ -286,7 +283,6 @@ export function CaptureInput({
           )}
         </div>
       )}
-      {hints}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import {
 import { Icon, Icons } from 'folds';
 import type { ParseKeys } from 'i18next';
 import { useTranslation } from 'react-i18next';
+import { KeySymbol } from '../lib/key-symbol';
 import { useActiveSession } from '../matrix/session/useSessionStore';
 import {
   hideQuickCapture,
@@ -46,7 +47,10 @@ const showOpenedThread = async (): Promise<void> => {
 type Hint = { keys: string[]; label: ParseKeys };
 type HintSet = 'input' | 'list' | 'picker';
 
-/** The keys of a part of the widget, as the platform writes them. */
+/**
+ * The keys of a part of the widget, as the platform's menus write them. The list's arrows, `j` and
+ * `k` go unsaid: a list moves by them.
+ */
 const hintsOf = (part: HintSet, apple: boolean): Hint[] => {
   const caps = (keys: string) => keyCapsOf(keys, apple).join(apple ? '' : '+');
   const enter = caps('enter');
@@ -55,15 +59,14 @@ const hintsOf = (part: HintSet, apple: boolean): Hint[] => {
       return [
         { keys: [enter], label: 'featureUi.quickCapture.hint.send' },
         { keys: [caps('mod+enter')], label: 'featureUi.quickCapture.hint.sendOpen' },
-        { keys: ['tab'], label: 'featureUi.quickCapture.hint.room' },
+        { keys: [apple ? KeySymbol.Tab : 'Tab'], label: 'featureUi.quickCapture.hint.room' },
         { keys: [caps('down')], label: 'featureUi.quickCapture.hint.list' },
       ];
     case 'list':
       return [
-        { keys: ['j', 'k'], label: 'featureUi.quickCapture.hint.move' },
-        { keys: ['space'], label: 'featureUi.quickCapture.hint.peek' },
-        { keys: ['x'], label: 'featureUi.quickCapture.hint.done' },
-        { keys: ['r'], label: 'featureUi.quickCapture.hint.reply' },
+        { keys: ['Space'], label: 'featureUi.quickCapture.hint.peek' },
+        { keys: ['R'], label: 'featureUi.quickCapture.hint.reply' },
+        { keys: ['X'], label: 'featureUi.quickCapture.hint.done' },
         { keys: [enter], label: 'featureUi.quickCapture.hint.open' },
       ];
     case 'picker':
@@ -71,7 +74,7 @@ const hintsOf = (part: HintSet, apple: boolean): Hint[] => {
   }
 };
 
-/** Key caps, each with what it does, for a hint line to hold. */
+/** Keys, each with what it does, for the window's foot to hold. */
 function Hints({ part, apple }: { part: HintSet; apple: boolean }) {
   const { t } = useTranslation();
   return (
@@ -113,6 +116,8 @@ function CaptureWidget({ state, request, text, onText, images, onImages }: Captu
   const room = state.rooms.find((listed) => listed.id === state.roomId);
   const roomName = room?.name ?? state.roomId ?? '';
   const pickerOpen = state.roomId === null || pickerAsked;
+  // The entry's field keeps its own keys while the picker is open under it.
+  const hintPart = zone === 'input' ? 'input' : pickerOpen ? 'picker' : 'list';
 
   // The caret is in the input whenever the widget shows, or in the picker's field while it is open.
   useEffect(() => {
@@ -185,11 +190,6 @@ function CaptureWidget({ state, request, text, onText, images, onImages }: Captu
         onToList={toList}
         onPicker={toPicker}
         onOpened={showOpenedThread}
-        hints={
-          <div className={css.EntryHints}>
-            <Hints part="input" apple={apple} />
-          </div>
-        }
       />
       {pickerOpen ? (
         <CaptureRoomPicker
@@ -216,13 +216,9 @@ function CaptureWidget({ state, request, text, onText, images, onImages }: Captu
           onOpened={showOpenedThread}
         />
       )}
-      {/* The list's keys, or the picker's while it is open; quiet while the focus is elsewhere. */}
-      <div
-        className={css.Footer}
-        data-capture-hints=""
-        data-active={pickerOpen ? zone === 'picker' : zone === 'list' || zone === 'reply'}
-      >
-        <Hints part={pickerOpen ? 'picker' : 'list'} apple={apple} />
+      {/* The keys of the part that has the focus: the entry's, the list's or the picker's. */}
+      <div className={css.Footer} data-capture-hints={hintPart}>
+        <Hints part={hintPart} apple={apple} />
       </div>
     </>
   );
