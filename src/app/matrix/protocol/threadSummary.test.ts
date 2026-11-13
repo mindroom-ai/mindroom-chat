@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isThreadSummaryEvent,
   getLatestThreadSummaryInfoFromEventSources,
+  getThreadSummaryInfo,
   getThreadSummaryPreviewText,
   buildThreadSummaryMap,
   hasThreadSummary,
@@ -63,6 +64,31 @@ describe('isThreadSummaryEvent', () => {
 
   it('returns false for empty content', () => {
     expect(isThreadSummaryEvent(makeEvent({}))).toBe(false);
+  });
+});
+
+describe('getThreadSummaryInfo', () => {
+  const metadata = { version: 1, summary: 'Saved summary' };
+
+  it('reads an edited summary from its new body before the saved metadata', () => {
+    expect(
+      getThreadSummaryInfo({
+        msgtype: 'm.notice',
+        body: 'Old body',
+        'io.mindroom.thread_summary': metadata,
+        'm.new_content': { msgtype: 'm.notice', body: 'Edited body' },
+      })?.summaryText
+    ).toBe('Edited body');
+  });
+
+  it('reads an unedited summary from its metadata before its body', () => {
+    expect(
+      getThreadSummaryInfo({
+        msgtype: 'm.notice',
+        body: 'Body',
+        'io.mindroom.thread_summary': metadata,
+      })?.summaryText
+    ).toBe('Saved summary');
   });
 });
 

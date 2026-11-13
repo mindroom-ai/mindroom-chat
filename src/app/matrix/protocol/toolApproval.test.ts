@@ -187,6 +187,43 @@ describe('parseToolApprovalContent', () => {
     });
   });
 
+  it('rejects an auto-approval or a timed-grant provenance whose times do not parse', () => {
+    const content = {
+      approval_id: 'approval-1',
+      tool_name: 'web_search',
+      arguments: { query: 'release date' },
+      agent_name: 'research',
+      status: 'approved',
+      requested_at: '2026-04-10T12:00:00Z',
+      expires_at: '2026-04-17T12:00:00Z',
+    };
+    const autoApproval = { grant_id: 'grant-1', expires_at: '2026-04-10T12:11:00Z' };
+    const provenance = {
+      kind: 'timed_grant',
+      grant_id: 'grant-1',
+      grant_card_event_id: '$approval',
+      granted_by: '@alice:example.org',
+      granted_at: '2026-04-10T12:01:00Z',
+      duration_seconds: 600,
+      expires_at: '2026-04-10T12:11:00Z',
+    };
+    const parse = (extra: Record<string, unknown>) =>
+      parseToolApprovalContent(MINDROOM_TOOL_APPROVAL_EVENT, { ...content, ...extra });
+
+    expect(parse({ auto_approval: { ...autoApproval, revoked_at: 'later' } })?.autoApproval).toBe(
+      null
+    );
+    expect(
+      parse({ approval_provenance: { ...provenance, expires_at: 'not-a-timestamp' } })?.provenance
+    ).toBeNull();
+    expect(
+      parse({ approval_provenance: { ...provenance, granted_at: 'not-a-timestamp' } })?.provenance
+    ).toMatchObject({ grantedAt: null, expiresAt: '2026-04-10T12:11:00Z' });
+    expect(parse({ approval_provenance: provenance })?.provenance).toMatchObject({
+      grantedAt: '2026-04-10T12:01:00Z',
+    });
+  });
+
   it('preserves an explicit non-approvable card while rejecting malformed capability flags', () => {
     const baseContent = {
       approval_id: 'approval-1',

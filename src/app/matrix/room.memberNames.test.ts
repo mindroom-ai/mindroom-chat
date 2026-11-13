@@ -1,6 +1,11 @@
 import { createClient, MatrixEvent, Room, RoomMember } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { getMemberDisplayName, getRoomMemberName, splitUserIdSuffix } from './room';
+import {
+  getMemberDisplayName,
+  getMemberEventName,
+  getRoomMemberName,
+  splitUserIdSuffix,
+} from './room';
 
 const ROOM_ID = '!room:example.org';
 const AGENT = '@mindroom_helper:example.org';
@@ -208,12 +213,12 @@ describe('getMemberDisplayName', () => {
     };
 
     /** Dana joins as "Dana", then Sam kicks, bans and unbans her: none of those carry a name. */
-    const removedRoom = async (): Promise<Room> => {
+    const removedRoom = async (displayname = 'Dana'): Promise<Room> => {
       const room = roomWith([SAM, 'Sam']);
       await room.addLiveEvents(
         [
-          membership(DANA, { membership: 'join', displayname: 'Dana' }, { membership: 'invite' }),
-          membership(SAM, { membership: 'leave' }, { membership: 'join', displayname: 'Dana' }),
+          membership(DANA, { membership: 'join', displayname }, { membership: 'invite' }),
+          membership(SAM, { membership: 'leave' }, { membership: 'join', displayname }),
           membership(SAM, { membership: 'ban' }, { membership: 'leave' }),
           membership(SAM, { membership: 'leave' }, { membership: 'ban' }),
         ],
@@ -233,6 +238,18 @@ describe('getMemberDisplayName', () => {
       rename(room, EVE, 'Dana');
       expect(getMemberDisplayName(room, DANA)).toBe(withId('Dana', DANA));
     });
+
+    it('gives no name when the name she last had shows nothing', async () => {
+      const room = await removedRoom('\u200B');
+      expect(getMemberDisplayName(room, DANA)).toBeUndefined();
+    });
+  });
+});
+
+describe('getMemberEventName', () => {
+  it('keeps a carried name that shows nothing as it is', () => {
+    const room = roomWith([SAM, 'Sam']);
+    expect(getMemberEventName(room, EVE, '\u200B')).toBe('\u200B');
   });
 });
 
