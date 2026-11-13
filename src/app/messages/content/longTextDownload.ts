@@ -47,11 +47,3 @@ export const downloadLongTextSidecarBlob = async (
     originalFile ? {} : { essential: true, maxBytes: ESSENTIAL_BODY_MAX_BYTES }
   );
 };
-
-export const downloadLongTextSidecarText = async (
-  mx: MatrixClient,
-  source: LongTextSource
-): Promise<string> => {
-  const blob = await downloadLongTextSidecarBlob(mx, source);
-  return blob.text();
-};

@@ -9,9 +9,6 @@ import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { joinedArchivedRoomsAtom } from '../../matrix/state/archivedRooms';
 import { useRoomArchiveAction } from './useRoomArchiveAction';
 
-/** The settings page that lists archived rooms. */
-export const ARCHIVED_ROOMS_SETTINGS_PAGE = 'archived-rooms';
-
 type ArchivedRoomRowProps = {
   roomId: string;
   name: string;

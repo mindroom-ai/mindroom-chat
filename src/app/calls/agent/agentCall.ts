@@ -207,28 +207,9 @@ export const prepareAgentCallRoom = async (
   await sendAgentCall(mx, room.roomId, agentUserId, origin);
 };
 
+/** Hang-up keeps my call room with the agent for the next call and clears this call's origin. */
 export const cleanupMindroomAgentCall = async (mx: MatrixClient, room: Room): Promise<void> => {
   const call = getOwnAgentCall(mx, room);
-  // Permanent call rooms stay for the next call, minus this call's origin; legacy rooms are torn down.
   // The cached state may not show this call's origin yet, so the clear is always sent.
-  if (call?.ephemeral === false) clearAgentCallOrigin(mx, room.roomId, call.agent_user_id);
-  if (call?.ephemeral !== true) return;
-
-  const { roomId } = room;
-  try {
-    await mx.kick(roomId, call.agent_user_id, 'MindRoom agent call ended');
-  } catch {
-    // The agent may not have joined yet or may already have left.
-  }
-
-  try {
-    await mx.leave(roomId);
-    try {
-      await mx.forget(roomId);
-    } catch {
-      // Leaving is the important cleanup; forgetting can be retried by the SDK/UI later.
-    }
-  } catch {
-    // A failed leave remains visible and can be retried from the room menu.
-  }
+  if (call) clearAgentCallOrigin(mx, room.roomId, call.agent_user_id);
 };
