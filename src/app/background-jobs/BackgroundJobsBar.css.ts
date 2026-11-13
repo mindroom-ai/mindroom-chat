@@ -62,7 +62,12 @@ export const Toggle = style({
   selectors: {
     '&:focus-visible': keyboardRing,
     // As tall as the bar to a finger, without growing the line; on a phone it is the way to the Stops.
-    '&::after': { content: '""', position: 'absolute', inset: `calc(-1 * ${config.space.S200}) 0` },
+    '&::after': {
+      content: '""',
+      position: 'absolute',
+      insetBlock: `calc(-1 * ${config.space.S200})`,
+      insetInline: 0,
+    },
   },
   // A finger gets 44 px.
   '@media': {

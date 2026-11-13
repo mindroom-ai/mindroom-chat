@@ -189,6 +189,7 @@ export const TextSweep = style({
   position: 'absolute',
   top: 0,
   bottom: 0,
+  // eslint-disable-next-line no-restricted-syntax -- the sweep's keyframes move it with translateX, a physical axis
   left: '-3em',
   width: 'calc(100% + 6em)',
   // Move a static mask over counter-moving text so the letters stay aligned.
@@ -226,7 +227,6 @@ export const TextCounter = style({
 export const TextHighlight = style({
   display: 'block',
   width: 'calc(100% - 6em)',
-  marginLeft: '3em',
-  marginRight: '3em',
+  marginInline: '3em',
   color: color.Surface.OnContainer,
 });
