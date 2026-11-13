@@ -2,7 +2,7 @@
 
 Captured on 2026-11-02 from MindRoom Chat `dev` at `fc3a5905`, running locally against a disposable Tuwunel seeded with MindRoom-style content (`scripts/reference/seed.py` reproduces the data; `E2E_SEED_AGENT_AVATARS` and `E2E_SEED_PEOPLE_AVATARS` name its avatar folders, see the script). 1440x900 unless noted. These show the target look and behavior; the ported files implement most of what is MindRoom-specific here.
 
-`home.png` is the exception: the MindRoom Chat capture credited the upstream client on its welcome page, so on 2026-11-04 it was retaken from this client at `ec95e01` with the same seed data and size. The MindRoom Chat capture stays in this file's history (`git log -- docs/design/reference/home.png`); the M2 milestone's `V1-contact-sheet.png` and `V1-differences.png` ("Milestone screenshots" below) still show it, with that one credit masked.
+`home.png` is the exception: the MindRoom Chat capture credited the upstream client on its welcome page, so on 2026-11-04 it was retaken from this client at `ec95e01` with the same seed data and size. The MindRoom Chat capture stays in this file's history (`git log -- docs/design/reference/home.png`); `docs/design/m2-screenshots/V1-contact-sheet.png` and `V1-differences.png` ("Milestone screenshots" below) still show it, with that one credit masked.
 
 | File | Shows |
 |---|---|
@@ -19,7 +19,7 @@ The thread filter bar at the top of `room-light.png` is part of the target witho
 
 ## Milestone screenshots
 
-The screenshots taken at the rewrite's milestones, `docs/design/m1-screenshots/`, `docs/design/m2-screenshots/` and `docs/design/m3-screenshots/`, left the tree after `681ede140`, the last commit of `main` that has them. Read them from that commit:
+The screenshots taken at the rewrite's milestones, `docs/design/m1-screenshots/`, `docs/design/m2-screenshots/` and `docs/design/m3-screenshots/`, left the tree after `681ede140`, the last commit of `main` that has them. Read them from that commit, in the repository's root directory:
 
 ```sh
 git ls-tree -r --name-only 681ede140 docs/design/m2-screenshots
