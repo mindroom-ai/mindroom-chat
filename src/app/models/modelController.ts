@@ -32,6 +32,7 @@ import {
   signedModelDevices,
 } from './modelDeviceTrust';
 import { sendModelRequest } from './modelTransport';
+import { randomUuid } from '../lib/randomUuid';
 
 export type ModelPickerSnapshot = {
   eligible: boolean;
@@ -251,7 +252,7 @@ export class ModelController {
     }
     scope.generation += 1;
     const query: Query = {
-      id: globalThis.crypto.randomUUID(),
+      id: randomUuid(),
       scope,
       generation: scope.generation,
       devices: [],

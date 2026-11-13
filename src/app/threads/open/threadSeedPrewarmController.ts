@@ -20,8 +20,6 @@ type EnsureThreadSeedPrewarmOptions = {
   traceId?: string;
 };
 
-export type ThreadSeedPrewarmController = ThreadSeedOpenPort;
-
 export const useThreadSeedPrewarmController = ({
   room,
   mx,
@@ -29,7 +27,6 @@ export const useThreadSeedPrewarmController = ({
   prefetchDepthRef,
   activeThreadId,
   priorityTargets,
-  loadThreadOpenSeedSnapshotFromCache: loadThreadOpenSeedSnapshotFromCacheProp,
   debugTraceId,
 }: {
   room: Room;
@@ -38,9 +35,8 @@ export const useThreadSeedPrewarmController = ({
   prefetchDepthRef: MutableRefObject<number>;
   activeThreadId: string | undefined;
   priorityTargets: ThreadSeedPrewarmTarget[];
-  loadThreadOpenSeedSnapshotFromCache?: (expectedThreadId: string) => Promise<MatrixEvent[]>;
   debugTraceId: string;
-}): ThreadSeedPrewarmController => {
+}): ThreadSeedOpenPort => {
   const syncEngine = useSyncEngine();
   const activeThreadIdRef = useRef(activeThreadId);
   useEffect(() => {
@@ -67,10 +63,6 @@ export const useThreadSeedPrewarmController = ({
 
   const loadThreadOpenSeedSnapshotFromCache = useCallback(
     async (expectedThreadId: string): Promise<MatrixEvent[]> => {
-      if (loadThreadOpenSeedSnapshotFromCacheProp) {
-        return loadThreadOpenSeedSnapshotFromCacheProp(expectedThreadId);
-      }
-
       const mapper = mx.getEventMapper();
       const cachedSnapshot = await loadThreadCachedSnapshot({
         sessionId,
@@ -82,7 +74,7 @@ export const useThreadSeedPrewarmController = ({
       });
       return cachedSnapshot?.events ?? [];
     },
-    [loadThreadOpenSeedSnapshotFromCacheProp, mx, room, prefetchDepthRef, sessionId]
+    [mx, room, prefetchDepthRef, sessionId]
   );
 
   // ISSUE-207 P4.4: dedup migrated onto the engine's BackfillScheduler.

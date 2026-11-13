@@ -15,7 +15,7 @@ How to build the client, serve it, and point it at a homeserver and a MindRoom b
 | `sw.js` | the service worker: precaches what a signed-in start needs for offline starts, keeps the build's other files and the language catalogs once a page has loaded them, fetches authenticated media |
 | `version.json` | the build version, polled by running clients, whose service worker then installs a new deployment for the next start |
 | `public/licenses/` | `LICENSE`, `NOTICE` and third-party license texts |
-| `public/plugins/<id>/` | the files of each client plugin's `public/` directory, in a build with plugins ([`architecture.md`](architecture.md#client-plugins)) |
+| `public/plugins/<id>/` | the files of each client plugin's `public/` directory, in a build with plugins ([`client-plugins.md`](client-plugins.md#public-files)) |
 
 - `branding` in `config.json` puts a company's logo, name and footer on the sign-in pages without a new build ([`configuration.md`](configuration.md#branding)).
 - `MINDROOM_BUILD_VERSION` and `MINDROOM_RELEASE_VERSION` set the version the build reports (otherwise taken from Git: the commit, and the nearest release tag `vYYYY.M.N`); client plugins add a digest of their files to the first.

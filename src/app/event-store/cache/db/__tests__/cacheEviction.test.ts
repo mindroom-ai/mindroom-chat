@@ -132,8 +132,6 @@ it('evicts rooms never opened before rooms opened more than a day ago', async ()
   const openedAt = vi.spyOn(Date, 'now').mockReturnValue(Date.now() - 25 * 60 * 60 * 1000);
   await store.noteRoomOpened(session, 'room-opened');
   openedAt.mockRestore();
-  // Federation and traffic do not say whether anyone uses a room.
-  await store.noteRoomFederated(session, 'room-opened', true);
   await budgetOverByHalfARoom(2);
   expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
     evictedRoomIds: ['room-busy'],

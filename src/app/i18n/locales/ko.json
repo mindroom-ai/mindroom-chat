@@ -2761,9 +2761,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "읽음으로 표시"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "읽음으로 표시"
       },

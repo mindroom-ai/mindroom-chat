@@ -17,8 +17,8 @@
 # on its retry counts as flaky. --slots takes `25-30` or `2,25,26` (default 25-30). The run directory ($E2E_SNAPSHOT_ROOT/suite-<commit>-<time>, with logs, JSON
 # reports, traces and results.tsv; the root defaults to /tmp/mindroom-client-e2e, as in
 # scripts/e2e-slot.sh) is printed at the start; --out copies results.tsv there too.
-# results.tsv counts tests skipped because the run lacked a service, fixture, account or setting
-# they need in its own last column, `skipped (no service)`, and the summary names those specs.
+# The header of scripts/e2e-results-tsv.mjs describes the columns of results.tsv; the summary names the
+# specs with tests in its last one, `skipped (no service)`.
 # Each start deletes the output/ and json/ of runs untouched for two days (logs and results stay).
 # --resume finishes an interrupted run in its directory: the same commit and spec list, every spec
 # it has no result for yet, including runs that left no report (pass the Playwright options again
