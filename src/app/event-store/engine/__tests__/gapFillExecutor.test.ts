@@ -748,8 +748,9 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
       overlapEventIds: ['$cached-tail'],
     });
 
+    // The first page's turn has already completed; wait for the overlap page's.
     commitOverlap();
-    await waitForCompleted();
+    await waitForCompleted(2);
 
     expect(mx.__messages).toHaveLength(2);
     expect(await loadRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat')).toBeUndefined();
