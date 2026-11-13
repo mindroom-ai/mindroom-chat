@@ -260,7 +260,11 @@ const checkCallPanel = async (page: Page, label: string) => {
   const panel = page.getByTestId('call-panel');
   await expect(panel).toBeVisible({ timeout: 30_000 });
   await expectShown(panel.locator('h2'), ROOM_NAME_SHOWN);
-  await expect(page.getByRole('region', { name: ROOM_NAME_SHOWN, exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByRole('region', { name: ROOM_NAME_SHOWN, exact: true })
+      .filter({ has: panel.locator('h2') })
+  ).toBeVisible();
   await shot(page, `${label}-call-panel`);
   await panel.locator('header button').last().click();
   await expect(panel).toBeHidden();

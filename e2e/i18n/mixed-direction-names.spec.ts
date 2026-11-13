@@ -20,10 +20,11 @@ import {
 // A name or message in another direction than the interface keeps one order and its own side, on
 // a real homeserver. The Arabic name "المستخدم E" reads right to left, so its Latin E shows at
 // its left wherever it appears: the sender line (as in the members panel), the approval review's
-// "Requested by" and the room view's typing strip. A short plain message sits at its own start, as a long
-// or formatted one does: Arabic and Hebrew at the right in the English interface, English at the
-// left in the Arabic interface. Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
-// WebKit, WebKit; English and Arabic. MIXED_DIRECTION_SHOTS names a directory for screenshots.
+// "Requested by" and the room view's typing strip. A short plain message sits at its own start, as
+// a long or formatted one does: Arabic and Hebrew at the right in the English interface, English
+// at the left in the Arabic interface. Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
+// Playwright's WebKit, WebKit; English and Arabic. MIXED_DIRECTION_SHOTS names a directory for
+// screenshots.
 const PASSWORD = 'mixed-direction-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.MIXED_DIRECTION_SHOTS;
