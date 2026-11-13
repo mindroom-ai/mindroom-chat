@@ -2,15 +2,15 @@ import { keyframes, style, styleVariants } from '@vanilla-extract/css';
 import { color, toRem } from 'folds';
 
 /** The two layouts the widget is built of: a column, and a row centred across. */
-const stack = { display: 'flex', flexFlow: 'column nowrap' } as const;
-const strip = { display: 'flex', flexFlow: 'row nowrap', alignItems: 'center' } as const;
+const stack = { flexFlow: 'column nowrap', display: 'flex' } as const;
+const strip = { alignItems: 'center', display: 'flex', flexFlow: 'row nowrap' } as const;
 /** A part that takes the rest of the column and may shrink below its content. */
 const grow = { flexGrow: 1, minBlockSize: 0 } as const;
 /** One line of text that ends in an ellipsis where it runs out of room. */
-const oneLine = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } as const;
-const flat = { border: 0, padding: 0, background: 'transparent' } as const;
+const oneLine = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } as const;
+const flat = { padding: 0, background: 'transparent', border: 0 } as const;
 /** A control drawn as plain text, which the widget's own styles then shape. */
-const bare = { ...flat, color: 'inherit', font: 'inherit' } as const;
+const bare = { color: 'inherit', ...flat, font: 'inherit' } as const;
 
 const line = color.Surface.ContainerLine;
 const hairline = `${toRem(1)} solid ${line}`;
@@ -139,14 +139,14 @@ export const ToolButton = style({
 /** Sending, a failed send or a failed screenshot, under the field. */
 export const Status = style({
   ...strip,
-  flexWrap: 'wrap',
   gap: toRem(6),
+  flexWrap: 'wrap',
   paddingInline: toRem(12),
   fontSize: toRem(12),
   paddingBlockEnd: toRem(6),
 });
 
-export const Attachments = style({ ...strip, flexWrap: 'wrap', gap: toRem(6) });
+export const Attachments = style({ ...strip, gap: toRem(6), flexWrap: 'wrap' });
 
 /** An image of the entry: the same shape as the peek's buttons, with a remove button. */
 export const Attachment = style({
@@ -171,10 +171,10 @@ export const AttachmentRemove = style([
 /** A line of keys and what they do, under the field and at the window's foot. */
 const hintLine = {
   ...strip,
+  fontSize: toRem(11),
   flexWrap: 'wrap',
   // Tight enough that a line of Ctrl and Enter hints fits the 360-point window.
   gap: `${toRem(4)} ${toRem(7)}`,
-  fontSize: toRem(11),
   color: muted,
 } as const;
 
@@ -189,7 +189,7 @@ export const Footer = style({
   ...hintLine,
   flexShrink: 0,
   paddingBlock: toRem(6),
-  opacity: 0.55,
+  opacity: 0.75,
   paddingInline: toRem(12),
   borderBlockStart: hairline,
   transition: 'opacity 120ms',
@@ -369,7 +369,7 @@ export const Answer = style({
 
 export const Sender = style({ fontWeight: 600 });
 
-export const PeekActions = style({ ...strip, flexWrap: 'wrap', gap: toRem(6) });
+export const PeekActions = style({ ...strip, gap: toRem(6), flexWrap: 'wrap' });
 
 /** A small button with its key cap: the peek's, and the notice's. */
 export const SmallButton = style({
