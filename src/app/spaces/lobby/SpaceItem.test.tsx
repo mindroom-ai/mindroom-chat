@@ -220,7 +220,7 @@ describe('SpaceItemCard room access', () => {
     );
   });
 
-  it('collapses a joined space by its room id from its heading', () => {
+  it('asks to collapse a joined space by its room id from its heading', () => {
     vi.mocked(mx.getRoom).mockReturnValue({
       roomId,
       getMyMembership: () => Membership.Join,
