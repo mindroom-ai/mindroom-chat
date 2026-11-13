@@ -177,10 +177,15 @@ export const signIn = async (
   stack: AgentStack,
   account: { username: string; password: string } = stack.tester
 ): Promise<void> => {
+  // A new browser starts without the member list; its agent replies show their tool calls, which
+  // the app hides until the reader shows them, since the specs check them.
   await page.addInitScript(() => {
-    if (!localStorage.getItem('settings')) {
-      localStorage.setItem('settings', JSON.stringify({ isPeopleDrawer: false }));
-    }
+    const stored = localStorage.getItem('settings');
+    const settings = stored
+      ? (JSON.parse(stored) as Record<string, unknown>)
+      : { isPeopleDrawer: false };
+    if (stored && settings.showToolCalls !== undefined) return;
+    localStorage.setItem('settings', JSON.stringify({ showToolCalls: true, ...settings }));
   });
   await page.goto(`/login/${encodeURIComponent(stack.homeserver)}`, { timeout: 180_000 });
   await page.locator('input[name="usernameInput"]').fill(account.username);

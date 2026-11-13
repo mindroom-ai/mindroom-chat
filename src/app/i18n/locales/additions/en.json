@@ -614,7 +614,9 @@
       },
       "approvalDecisionControls": {
         "tooLargeToApprove": "The arguments are too large to review, so this request can only be denied."
-      }
+      },
+      "showToolCalls": "Show tool calls",
+      "showToolCallsDescription": "The default for every room: agent replies list the tools they ran, or show only a small cog at their top that counts them and shows them when clicked. A room's or a thread's menu changes it there."
     },
     "message-search": {
       "messageSearch": {

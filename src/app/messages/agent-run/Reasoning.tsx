@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import parse, { type HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
@@ -8,6 +8,7 @@ import { LIVE_ACTIVITY_KEY, LIVE_REASONING_KEY } from '../live/useLiveReplyConte
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 import { ACTIVE_STREAM_STATUSES, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
 import { revealDirectionControls } from '../../ui/directional';
+import { ToolCallsCogContext } from './toolCallStatus';
 import * as css from './Reasoning.css';
 
 /** Final reasoning the runtime stores on a finished reply. */
@@ -65,6 +66,7 @@ function ReasoningBlock({
   htmlReactParserOptions,
 }: ReasoningBlockProps) {
   const { t } = useTranslation();
+  const cog = useContext(ToolCallsCogContext);
   const [expanded, setExpanded] = useState(defaultExpanded);
   const toggleRef = useRef<HTMLButtonElement>(null);
   // Long reasoning puts the header far above: the button under it folds it from where the reader
@@ -75,17 +77,20 @@ function ReasoningBlock({
   };
   return (
     <div className={css.Reasoning}>
-      <button
-        ref={toggleRef}
-        type="button"
-        className={css.Toggle}
-        aria-expanded={expanded}
-        onClick={() => setExpanded((value) => !value)}
-      >
-        <Icon size="50" src={Icons.Bulb} aria-hidden />
-        <span className={css.Label}>{label}</span>
-        <Icon size="50" src={Icons.ChevronRight} className={css.Chevron} aria-hidden />
-      </button>
+      <div className={css.Line}>
+        <button
+          ref={toggleRef}
+          type="button"
+          className={css.Toggle}
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          <Icon size="50" src={Icons.Bulb} aria-hidden />
+          <span className={css.Label}>{label}</span>
+          <Icon size="50" src={Icons.ChevronRight} className={css.Chevron} aria-hidden />
+        </button>
+        {cog}
+      </div>
       {expanded && (
         <>
           <div className={css.Body}>
@@ -173,11 +178,18 @@ function ReasoningHeader({
   );
 }
 
+/** The reply's cog in a row of its own, for a reply without reasoning; nothing without a cog. */
+function ToolCallsCogRow() {
+  const cog = useContext(ToolCallsCogContext);
+  return cog ? <div className={css.CogRow}>{cog}</div> : null;
+}
+
 /**
  * Wrap a reply body with the model's reasoning and the runtime's live activity. While the reply
  * streams, the live reasoning (`io.mindroom.live_reasoning`) shows open above the body; a finished
  * reply shows its stored reasoning (`io.mindroom.reasoning`) collapsed with how long it took. The
- * live activity line (`io.mindroom.live_activity`) goes below the body.
+ * live activity line (`io.mindroom.live_activity`) goes below the body. While the reply's tool
+ * calls are hidden, their cog sits on the reasoning's line, or in its place above the body.
  */
 export const withReasoning = (
   content: Record<string, unknown>,
@@ -194,17 +206,20 @@ export const withReasoning = (
   const live = liveText !== undefined && (!final || streaming) ? liveText : undefined;
   const activity = nonEmptyString(content[LIVE_ACTIVITY_KEY]);
 
-  // One shape with or without reasoning and activity, so the body keeps its place, and the state
-  // inside it such as an open tool-call list, when warm-up lines or reasoning come and go.
+  const reasoning = live !== undefined || !!final;
+
+  // One shape with or without reasoning, the cog and activity, so the body keeps its place, and the
+  // state inside it such as an open tool-call list, when warm-up lines or reasoning come and go.
   return (
     <>
-      {(live !== undefined || !!final) && (
+      {reasoning && (
         <ReasoningHeader
           live={live}
           final={final}
           htmlReactParserOptions={htmlReactParserOptions}
         />
       )}
+      {!reasoning && <ToolCallsCogRow />}
       {body}
       {activity !== undefined && <LiveActivity text={activity} />}
     </>

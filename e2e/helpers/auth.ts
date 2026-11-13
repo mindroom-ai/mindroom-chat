@@ -6,6 +6,11 @@ type LoginOptions = {
   username: string;
   password: string;
   addAccount?: boolean;
+  /**
+   * The app hides agent replies' tool calls until the reader shows them; most specs check them,
+   * so the page shows them unless its settings already say. `false` keeps the app's default.
+   */
+  showToolCalls?: boolean;
 };
 
 export const activeAccountButtonNamePattern = /Open account menu for /;
@@ -106,8 +111,18 @@ export const expectLoggedInShellStable = async (
 };
 
 export const loginWithPassword = async (page: Page, options: LoginOptions) => {
-  const { homeserver, username, password, addAccount = false } = options;
+  const { homeserver, username, password, addAccount = false, showToolCalls = true } = options;
 
+  if (showToolCalls) {
+    await page.addInitScript(() => {
+      const stored = JSON.parse(localStorage.getItem('settings') ?? '{}') as Record<
+        string,
+        unknown
+      >;
+      if (stored.showToolCalls !== undefined) return;
+      localStorage.setItem('settings', JSON.stringify({ ...stored, showToolCalls: true }));
+    });
+  }
   await page.goto(buildLoginPath(homeserver, addAccount));
 
   const serverInput = page.locator('input[name="serverInput"]');

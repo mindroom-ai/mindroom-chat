@@ -59,6 +59,7 @@ const BOOLEAN_SETTING_KEYS = [
   'threadBannerCollapsed',
   'simpleThreadFilters', // The room's thread filter bar offers only the count, Unresolved and the sort.
   'hideThreadFilterBar', // The room header's filter button hid the thread filter bar.
+  'showToolCalls', // Agent replies list the tools they ran, not only a cog; a room or thread can differ.
   // Keyboard
   'shortcutHints', // Holding Command or Ctrl for a second shows the shortcut keys on the buttons.
   // Notifications

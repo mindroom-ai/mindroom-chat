@@ -32,8 +32,11 @@ import { ActivityIcon, ActivityResult, ActivityTone, ThreadActivity } from '../.
 import {
   resolveToolCallStates,
   summarizeToolCalls,
+  TOOL_STATE_TITLE,
   ToolCallMessageContext,
+  ToolCallsFoldContext,
   ToolCallState,
+  useFoldedToolCalls,
 } from '../agent-run/toolCallStatus';
 import { useThreadApprovals } from '../../approvals/ThreadApprovalProvider';
 import { getEffectiveToolApprovalStatus, parseToolApprovalExpiryTimestamp } from '../../matrix/protocol/toolApproval';
@@ -44,6 +47,7 @@ import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
 import { revealDirectionControls } from '../../ui/directional';
 import type { HtmlReactParserOptionsSource } from '../../rich-text/htmlReactParserOptions';
+import { useToolCallsShown } from '../toolCallVisibility';
 
 type BlockTagName = 'think' | 'debug' | 'system' | 'plan' | 'analysis' | 'research';
 
@@ -272,14 +276,6 @@ const TOOL_STATE_ICON: Record<ToolCallState, { src: IconSrc; tone: ActivityTone 
   expired: { src: Icons.Clock, tone: 'neutral' },
 };
 
-const TOOL_STATE_TITLE = {
-  running: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsRunning',
-  waiting: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsWaiting',
-  done: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsRan',
-  denied: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsDenied',
-  expired: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsExpired',
-} as const satisfies Record<ToolCallState, string>;
-
 function ToolRefGroupItem({
   parsedTool,
   state,
@@ -307,7 +303,7 @@ function ToolRefGroupItem({
 // Calls that needed approval take their state from the cards MindRoom posted for this reply: a
 // paused reply's cards name it, and a job's card names the job or replies to this message.
 const useToolCallApprovals = (jobIds: readonly string[]) => {
-  const eventId = useContext(ToolCallMessageContext);
+  const eventId = useContext(ToolCallMessageContext)?.eventId;
   const context = useThreadApprovals();
   if (!eventId || !context) return [];
   return context.records
@@ -328,12 +324,21 @@ const useToolCallApprovals = (jobIds: readonly string[]) => {
     }));
 };
 
+/**
+ * A run of tool calls. While the reply's thread or room hides tool calls (toolCallVisibility.ts),
+ * the run counts its calls on the cog at the top of the reply (ToolCallsFold.tsx) and shows only
+ * while that cog is open. Each block reads the choice itself, so changing it redraws the blocks
+ * without parsing the replies again.
+ */
 function ToolRefGroupBlock({
   parsedTools,
 }: {
   parsedTools: ToolBlockRenderData[];
 }) {
   const { t } = useTranslation();
+  const message = useContext(ToolCallMessageContext);
+  const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
+  const fold = useContext(ToolCallsFoldContext);
   const loadedTools = parsedTools.filter(
     (tool) => tool.status !== 'loading' && tool.status !== 'unavailable'
   );
@@ -348,6 +353,17 @@ function ToolRefGroupBlock({
   )?.status;
   const states = resolveToolCallStates(calls, approvals);
   const summary = summarizeToolCalls(parsedTools, states);
+  // Calls without their trace details count as done.
+  useFoldedToolCalls(
+    shown
+      ? undefined
+      : parsedTools.map((tool) => {
+          const loadedIndex = loadedTools.indexOf(tool);
+          return { toolName: tool.toolName, state: states[loadedIndex] ?? 'done' };
+        })
+  );
+  // Without a cog to open them (no ToolCallsFold), the calls show.
+  if (!shown && fold && !fold.open) return null;
   const running = loadedTools.filter((tool, index) => states[index] === 'running');
   const outputTool = running.filter((tool) => tool.progress).at(-1);
   // Without the trace details the calls' states are unknown, so only count them.

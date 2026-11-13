@@ -614,7 +614,9 @@
       },
       "approvalDecisionControls": {
         "tooLargeToApprove": "Argümanlar incelenemeyecek kadar büyük, bu yüzden bu istek yalnızca reddedilebilir."
-      }
+      },
+      "showToolCalls": "Araç çağrılarını göster",
+      "showToolCallsDescription": "Her oda için varsayılan: ajan yanıtları çalıştırdıkları araçları listeler ya da üstlerinde yalnızca araçları sayan ve tıklanınca gösteren küçük bir dişli gösterir. Bir odanın veya konunun menüsü bunu orada değiştirir."
     },
     "message-search": {
       "messageSearch": {

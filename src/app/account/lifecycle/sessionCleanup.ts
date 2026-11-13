@@ -11,6 +11,7 @@ import { clearThreadSidebarPreferencesStore } from '../../threads/cross-room/thr
 import { clearThreadsScopeStore } from '../../threads/page/threadsScope';
 import { clearRoomThreadFiltersStore } from '../../threads/overview/roomThreadFilterState';
 import { clearRoomViewModeStore } from '../../navigation/roomViewMode';
+import { clearToolCallOverrides } from '../../messages/toolCallVisibility';
 import { clearThreadSummarySharedState } from '../../event-store/threads/threadSummaryState';
 import {
   getSafeLocalStorage,
@@ -129,6 +130,7 @@ export const clearUserUiState = (userId: string): void => {
 
 export const clearSessionUiState = (sessionId: string): void => {
   clearRoomViewModeStore(sessionId);
+  clearToolCallOverrides(sessionId);
   clearThreadSummarySharedState(sessionId);
 };
 

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState, type FormEvent } from 'rea
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
-import { Box, Button, Icons, Text, config, toRem, type IconSrc, type RectCords } from 'folds';
+import { Box, Button, Icon, Icons, Text, config, toRem, type IconSrc, type RectCords } from 'folds';
 import { PopOut } from '../ui/directional';
 import {
   getThreadSummaryActionError,
@@ -16,7 +16,7 @@ import { ThreadTagPill } from './tags/ThreadTagPill';
 import { useThreadPinning } from '../event-store/threads/useThreadPinning';
 import { useMutateThreadTags } from './tags/useMutateThreadTags';
 import { useThreadTags } from './tags/useThreadTags';
-import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
+import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import { getViaServers } from '../matrix/via-servers';
 import { getMatrixToRoomEvent } from '../matrix/matrix-to';
 import { copyToClipboard } from '../lib/dom';
@@ -29,6 +29,7 @@ import { ActionDialog } from '../ui/ActionDialog';
 import { describeError } from '../lib/describeError';
 import { ErrorDetail } from '../ui/ErrorDetail';
 import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
+import { useToolCallsShown } from '../messages/toolCallVisibility';
 
 export type ThreadActionsMenuProps = {
   room: Room;
@@ -81,6 +82,7 @@ export function ThreadActionsMenu({
   const mutations = useMutateThreadTags(room);
   const pinning = useThreadPinning(room);
   const members = useRoomMembers(mx, room.roomId);
+  const [toolCallsShown, setToolCallsShown] = useToolCallsShown(room.roomId, rootId);
 
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -352,8 +354,9 @@ export function ThreadActionsMenu({
     return true;
   };
 
-  // The thread's own details (tags, title) first, then its state (resolved, pinned), then the link
-  // and the banner's Show beside and Hide; each label has its icon at the end of the row.
+  // The thread's own details (tags, title) first, then its state (resolved, pinned), then the link,
+  // whether it shows tool calls, and the banner's Show beside and Hide; each label has its icon at
+  // the end of the row.
   const items: Array<{
     action: string;
     label: string;
@@ -362,6 +365,8 @@ export function ThreadActionsMenu({
     /** Resolve and pin wait for the previous save. */
     mutates?: boolean;
     shortcut?: ShortcutId;
+    /** A switch: checked while on. */
+    checked?: boolean;
   }> = [];
   if (onOpenThread) {
     items.push({
@@ -425,6 +430,20 @@ export function ThreadActionsMenu({
     icon: Icons.Link,
     onSelect: handleCopyLink,
   });
+  // Agents' replies list the tools they ran; this thread's choice, over its room's. Invited agents
+  // count, as in the room menu.
+  if (hasActiveMindroomAgent(members)) {
+    items.push({
+      action: 'toolCalls',
+      label: t('mindroomUi.messages.showToolCalls'),
+      icon: Icons.Terminal,
+      checked: toolCallsShown,
+      onSelect: () => {
+        setToolCallsShown(!toolCallsShown);
+        onClose();
+      },
+    });
+  }
   if (onShowBeside) {
     items.push({
       action: 'showBeside',
@@ -480,9 +499,11 @@ export function ThreadActionsMenu({
               {items.map((item) => (
                 <MenuEntry
                   key={item.action}
-                  role="menuitem"
+                  role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+                  aria-checked={item.checked}
                   label={item.label}
                   icon={item.icon}
+                  after={item.checked ? <Icon size="100" src={Icons.Check} /> : undefined}
                   shortcut={item.shortcut}
                   data-thread-action={item.action}
                   disabled={item.mutates && saving}

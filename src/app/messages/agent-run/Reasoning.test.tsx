@@ -75,7 +75,9 @@ vi.mock('../html/HtmlBlocks.css', () => ({
 }));
 vi.mock('./Reasoning.css', () => ({
   Reasoning: 'Reasoning',
+  Line: 'ReasoningLine',
   Toggle: 'ReasoningToggle',
+  CogRow: 'ReasoningCogRow',
   CollapseEnd: 'ReasoningCollapseEnd',
   Label: 'ReasoningLabel',
   Chevron: 'ReasoningChevron',

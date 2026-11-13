@@ -16,6 +16,10 @@ import {
 import { sanitizeCustomHtml } from '../../src/app/rich-text/sanitize';
 import { useToolTraceMarkerParserOptions } from '../../src/app/messages/html/HtmlBlocks';
 import { resolveHtmlReactParserOptions } from '../../src/app/rich-text/htmlReactParserOptions';
+import { showToolCalls } from '../../src/test/utils/showToolCalls';
+
+// The page shows agent replies' tool calls, which the app hides until the reader shows them.
+showToolCalls();
 
 const params = new URLSearchParams(window.location.search);
 const dark = params.has('dark');
