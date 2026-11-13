@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
 import { useEditor } from '../editor/Editor';
-import { Page } from '../ui/page/Page';
+import { Button, Icon, Icons, Text } from 'folds';
+import { Page, PageHero, PageHeroSection } from '../ui/page/Page';
 import { useKeyDown } from '../lib/hooks/useKeyDown';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -138,6 +139,14 @@ export function RoomView({
 
   const threadState = useRoomViewThreadState({ room, threadId, eventId, hasMindroomAgents });
   const { effectiveThreadId: openThreadId, viewMode } = threadState;
+  const { handleThreadLoadError } = threadState;
+  const threadLoadFailed = useCallback(
+    (failedThreadId: string) => {
+      onThreadLoadError?.(failedThreadId);
+      handleThreadLoadError(failedThreadId);
+    },
+    [handleThreadLoadError, onThreadLoadError]
+  );
   const threadLayout = useThreadLayout(pageRef);
   // Every open thread shows in the column: beside the room's messages while the person chose that
   // and the page has room, else filling the page, over the room's conversation, which goes.
@@ -325,41 +334,72 @@ export function RoomView({
           onKeyDown={noteThreadColumnKey}
         >
           <div ref={columnRef} style={COLUMN_STYLE}>
-            <ThreadView
-              room={room}
-              threadId={openThreadId}
-              eventId={focusEventInRoom ? undefined : eventId}
-              header={threadBanner}
-              // The banner's title follows the summaries the thread's own events bring.
-              summaryMap={timelineProps.summaryMap}
-              onStoreThreadSummary={timelineProps.onStoreThreadSummary}
-              // Filling the page, the column has the room's header the room area hides.
-              roomHeader={
-                columnFills
-                  ? (headerRef) => (
-                      <>
-                        <RoomViewHeader
-                          hasMindroomAgents={hasMindroomAgents}
-                          threadId={openThreadId}
-                          threadFilterState={threadState.threadFilterState}
-                          {...headerProps}
-                        />
-                        <RoomHeaderSlot room={room} headerRef={headerRef} />
-                      </>
-                    )
-                  : undefined
-              }
-              // Beside the messages, where typing goes to the room's composer, it takes the focus,
-              // and from the room's composer whose send opened it. ThreadView reads it as the
-              // thread opens, in the effects of the commit that opens it, before this view's reset.
-              autoFocus={!columnFills || focusOpenedThread.current}
-              hidden={behindPanel}
-              onThreadLoadError={onThreadLoadError}
-              onUnmount={onColumnGone}
-              focusRef={focusColumn}
-              // Files dropped anywhere on the column, its header too, go to the thread's composer.
-              fileDropContainerRef={columnRef}
-            />
+            {threadState.threadNotFound ? (
+              // A thread that is not this room's, nor of any joined room the client knows. Filling
+              // the page, the column has the room's header the room area hides.
+              <>
+                {columnFills && (
+                  <RoomViewHeader
+                    hasMindroomAgents={hasMindroomAgents}
+                    threadId={openThreadId}
+                    threadFilterState={threadState.threadFilterState}
+                    {...headerProps}
+                  />
+                )}
+                <PageHeroSection>
+                  <PageHero
+                    icon={<Icon size="600" src={Icons.Thread} />}
+                    title={t('thread.notFound')}
+                  >
+                    <Button
+                      size="300"
+                      radii="300"
+                      variant="Secondary"
+                      fill="Soft"
+                      onClick={threadState.handleThreadRootDeleted}
+                    >
+                      <Text size="B300">{t('thread.back')}</Text>
+                    </Button>
+                  </PageHero>
+                </PageHeroSection>
+              </>
+            ) : (
+              <ThreadView
+                room={room}
+                threadId={openThreadId}
+                eventId={focusEventInRoom ? undefined : eventId}
+                header={threadBanner}
+                // The banner's title follows the summaries the thread's own events bring.
+                summaryMap={timelineProps.summaryMap}
+                onStoreThreadSummary={timelineProps.onStoreThreadSummary}
+                // Filling the page, the column has the room's header the room area hides.
+                roomHeader={
+                  columnFills
+                    ? (headerRef) => (
+                        <>
+                          <RoomViewHeader
+                            hasMindroomAgents={hasMindroomAgents}
+                            threadId={openThreadId}
+                            threadFilterState={threadState.threadFilterState}
+                            {...headerProps}
+                          />
+                          <RoomHeaderSlot room={room} headerRef={headerRef} />
+                        </>
+                      )
+                    : undefined
+                }
+                // Beside the messages, where typing goes to the room's composer, it takes the focus,
+                // and from the room's composer whose send opened it. ThreadView reads it as the
+                // thread opens, in the effects of the commit that opens it, before this view's reset.
+                autoFocus={!columnFills || focusOpenedThread.current}
+                hidden={behindPanel}
+                onThreadLoadError={threadLoadFailed}
+                onUnmount={onColumnGone}
+                focusRef={focusColumn}
+                // Files dropped anywhere on the column, its header too, go to the thread's composer.
+                fileDropContainerRef={columnRef}
+              />
+            )}
           </div>
         </ResizablePanel>
       )}
