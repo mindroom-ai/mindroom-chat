@@ -571,6 +571,76 @@
       "description": "{{name}} üyeleri katılabilir; {{name}} içindeki ajanlar kendiliğinden katılır.",
       "noPermission": "{{name}} altında listelenen odaları değiştiremezsiniz",
       "takeOff": "{{name}} içinden kaldır"
+    },
+    "quickCapture": {
+      "title": "Hızlı Yakalama",
+      "input": {
+        "placeholder": "Not veya soru",
+        "label": "Yeni giriş",
+        "send": "Gönder",
+        "sending": "Gönderiliyor"
+      },
+      "attach": {
+        "window": "Öndeki pencerenin ekran görüntüsü",
+        "screen": "Tüm ekranın ekran görüntüsü",
+        "remove": "{{name}} öğesini kaldır"
+      },
+      "room": {
+        "choose": "Bir oda seç",
+        "change": "{{room}} odasına gönderiliyor. Odayı değiştir",
+        "search": "Oda ara",
+        "none": "Eşleşen oda yok"
+      },
+      "list": {
+        "label": "{{room}} içindeki konular",
+        "empty": "Burada açık bir şey yok",
+        "sent": "Gönderildi",
+        "resolved": "Çözüldü"
+      },
+      "chip": {
+        "working": "çalışıyor",
+        "needsYou": "seni bekliyor",
+        "new": "yeni"
+      },
+      "peek": {
+        "copy": "Kopyala",
+        "copied": "Kopyalandı",
+        "open": "Aç",
+        "done": "Bitti",
+        "reopen": "Yeniden aç",
+        "reply": "Bu konuda yanıtla"
+      },
+      "hint": {
+        "send": "gönder",
+        "sendOpen": "gönder ve aç",
+        "room": "oda",
+        "list": "liste",
+        "move": "taşı",
+        "peek": "önizleme",
+        "done": "bitti",
+        "reply": "yanıtla",
+        "open": "aç"
+      },
+      "absent": {
+        "title": "MindRoom açık değil",
+        "open": "MindRoom'u aç"
+      },
+      "signedOut": {
+        "title": "MindRoom'a giriş yap"
+      },
+      "error": {
+        "noRoom": "Bu oda artık kullanılamıyor",
+        "uploadFailed": "Görsel yüklenemedi",
+        "sendFailed": "Gönderilmedi",
+        "forbidden": "Bu odadaki konuları çözemezsin",
+        "timeout": "MindRoom yanıt vermedi"
+      },
+      "screenshot": {
+        "denied": "MindRoom'un ekran görüntüsü alabilmesi için Ekran Kaydı iznine ihtiyacı var",
+        "openSettings": "Sistem Ayarları'nı aç",
+        "noWindow": "Öndeki uygulamanın penceresi yok",
+        "failed": "Ekran görüntüsü başarısız oldu"
+      }
     }
   },
   "mindroomUi": {

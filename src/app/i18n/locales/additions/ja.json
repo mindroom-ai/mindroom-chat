@@ -562,6 +562,76 @@
       "description": "{{name}} のメンバーが参加でき、{{name}} のエージェントは自動で参加します。",
       "noPermission": "{{name}} の下に表示するルームを変更する権限がありません",
       "takeOff": "{{name}} から外す"
+    },
+    "quickCapture": {
+      "title": "クイックキャプチャ",
+      "input": {
+        "placeholder": "メモまたは質問",
+        "label": "新しい項目",
+        "send": "送信",
+        "sending": "送信中"
+      },
+      "attach": {
+        "window": "最前面のウインドウのスクリーンショット",
+        "screen": "画面全体のスクリーンショット",
+        "remove": "{{name}}を削除"
+      },
+      "room": {
+        "choose": "ルームを選択",
+        "change": "{{room}}に投稿中。ルームを変更",
+        "search": "ルームを検索",
+        "none": "一致するルームがありません"
+      },
+      "list": {
+        "label": "{{room}}のスレッド",
+        "empty": "開いているものはありません",
+        "sent": "送信済み",
+        "resolved": "解決済み"
+      },
+      "chip": {
+        "working": "作業中",
+        "needsYou": "対応待ち",
+        "new": "新着"
+      },
+      "peek": {
+        "copy": "コピー",
+        "copied": "コピーしました",
+        "open": "開く",
+        "done": "完了",
+        "reopen": "再開",
+        "reply": "このスレッドに返信"
+      },
+      "hint": {
+        "send": "送信",
+        "sendOpen": "送信して開く",
+        "room": "ルーム",
+        "list": "一覧",
+        "move": "移動",
+        "peek": "プレビュー",
+        "done": "完了",
+        "reply": "返信",
+        "open": "開く"
+      },
+      "absent": {
+        "title": "MindRoomが開いていません",
+        "open": "MindRoomを開く"
+      },
+      "signedOut": {
+        "title": "MindRoomにサインイン"
+      },
+      "error": {
+        "noRoom": "このルームは利用できなくなりました",
+        "uploadFailed": "画像をアップロードできませんでした",
+        "sendFailed": "未送信",
+        "forbidden": "このルームではスレッドを解決できません",
+        "timeout": "MindRoomから応答がありませんでした"
+      },
+      "screenshot": {
+        "denied": "スクリーンショットを撮るには、MindRoomに「画面収録」の権限が必要です",
+        "openSettings": "システム設定を開く",
+        "noWindow": "最前面のAppにウインドウがありません",
+        "failed": "スクリーンショットに失敗しました"
+      }
     }
   },
   "mindroomUi": {

@@ -562,6 +562,76 @@
       "description": "{{name}}의 멤버가 참여할 수 있으며, {{name}}의 에이전트는 스스로 참여합니다.",
       "noPermission": "{{name}} 아래에 표시되는 방을 변경할 수 없습니다",
       "takeOff": "{{name}}에서 제거"
+    },
+    "quickCapture": {
+      "title": "빠른 캡처",
+      "input": {
+        "placeholder": "메모 또는 질문",
+        "label": "새 항목",
+        "send": "보내기",
+        "sending": "보내는 중"
+      },
+      "attach": {
+        "window": "맨 앞 창의 스크린샷",
+        "screen": "전체 화면 스크린샷",
+        "remove": "{{name}} 제거"
+      },
+      "room": {
+        "choose": "룸 선택",
+        "change": "{{room}}에 게시 중. 룸 변경",
+        "search": "룸 검색",
+        "none": "일치하는 룸 없음"
+      },
+      "list": {
+        "label": "{{room}}의 스레드",
+        "empty": "열린 항목 없음",
+        "sent": "보냄",
+        "resolved": "해결됨"
+      },
+      "chip": {
+        "working": "작업 중",
+        "needsYou": "확인 필요",
+        "new": "새 항목"
+      },
+      "peek": {
+        "copy": "복사",
+        "copied": "복사됨",
+        "open": "열기",
+        "done": "완료",
+        "reopen": "다시 열기",
+        "reply": "이 스레드에 답장"
+      },
+      "hint": {
+        "send": "보내기",
+        "sendOpen": "보내고 열기",
+        "room": "룸",
+        "list": "목록",
+        "move": "이동",
+        "peek": "미리보기",
+        "done": "완료",
+        "reply": "답장",
+        "open": "열기"
+      },
+      "absent": {
+        "title": "MindRoom이 열려 있지 않음",
+        "open": "MindRoom 열기"
+      },
+      "signedOut": {
+        "title": "MindRoom에 로그인"
+      },
+      "error": {
+        "noRoom": "이 룸을 더 이상 사용할 수 없음",
+        "uploadFailed": "이미지를 업로드할 수 없음",
+        "sendFailed": "보내지 않음",
+        "forbidden": "이 룸에서는 스레드를 해결할 수 없음",
+        "timeout": "MindRoom이 응답하지 않음"
+      },
+      "screenshot": {
+        "denied": "스크린샷을 찍으려면 MindRoom에 '화면 기록' 권한이 필요함",
+        "openSettings": "시스템 설정 열기",
+        "noWindow": "맨 앞 앱에 윈도우가 없음",
+        "failed": "스크린샷 실패"
+      }
     }
   },
   "mindroomUi": {

@@ -580,6 +580,76 @@
       "description": "Os membros de {{name}} podem entrar, e os agentes em {{name}} entram por si próprios.",
       "noPermission": "Não pode alterar as salas listadas em {{name}}",
       "takeOff": "Retirar de {{name}}"
+    },
+    "quickCapture": {
+      "title": "Captura rápida",
+      "input": {
+        "placeholder": "Nota ou pergunta",
+        "label": "Nova entrada",
+        "send": "Enviar",
+        "sending": "Enviando"
+      },
+      "attach": {
+        "window": "Captura da janela da frente",
+        "screen": "Captura da tela inteira",
+        "remove": "Remover {{name}}"
+      },
+      "room": {
+        "choose": "Escolher uma sala",
+        "change": "Publicando em {{room}}. Trocar de sala",
+        "search": "Buscar salas",
+        "none": "Nenhuma sala encontrada"
+      },
+      "list": {
+        "label": "Tópicos em {{room}}",
+        "empty": "Nada aberto aqui",
+        "sent": "Enviado",
+        "resolved": "Resolvido"
+      },
+      "chip": {
+        "working": "trabalhando",
+        "needsYou": "precisa de você",
+        "new": "novo"
+      },
+      "peek": {
+        "copy": "Copiar",
+        "copied": "Copiado",
+        "open": "Abrir",
+        "done": "Concluir",
+        "reopen": "Reabrir",
+        "reply": "Responder neste tópico"
+      },
+      "hint": {
+        "send": "enviar",
+        "sendOpen": "enviar e abrir",
+        "room": "sala",
+        "list": "lista",
+        "move": "mover",
+        "peek": "prévia",
+        "done": "concluir",
+        "reply": "responder",
+        "open": "abrir"
+      },
+      "absent": {
+        "title": "O MindRoom não está aberto",
+        "open": "Abrir o MindRoom"
+      },
+      "signedOut": {
+        "title": "Entrar no MindRoom"
+      },
+      "error": {
+        "noRoom": "Esta sala não está mais disponível",
+        "uploadFailed": "Não foi possível enviar a imagem",
+        "sendFailed": "Não enviado",
+        "forbidden": "Você não pode resolver tópicos nesta sala",
+        "timeout": "O MindRoom não respondeu"
+      },
+      "screenshot": {
+        "denied": "O MindRoom precisa da permissão de Gravação de Tela para fazer capturas",
+        "openSettings": "Abrir Ajustes do Sistema",
+        "noWindow": "O app em primeiro plano não tem janela",
+        "failed": "A captura falhou"
+      }
     }
   },
   "mindroomUi": {

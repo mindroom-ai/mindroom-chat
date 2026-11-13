@@ -562,6 +562,76 @@
       "description": "{{name}} 的成员可以加入，{{name}} 中的智能体会自行加入。",
       "noPermission": "您无法更改 {{name}} 下列出的房间",
       "takeOff": "从 {{name}} 移除"
+    },
+    "quickCapture": {
+      "title": "快速捕捉",
+      "input": {
+        "placeholder": "笔记或问题",
+        "label": "新条目",
+        "send": "发送",
+        "sending": "正在发送"
+      },
+      "attach": {
+        "window": "最前窗口的截图",
+        "screen": "整个屏幕的截图",
+        "remove": "移除 {{name}}"
+      },
+      "room": {
+        "choose": "选择房间",
+        "change": "正在发布到 {{room}}。更改房间",
+        "search": "搜索房间",
+        "none": "没有匹配的房间"
+      },
+      "list": {
+        "label": "{{room}} 中的讨论串",
+        "empty": "这里没有未结事项",
+        "sent": "已发送",
+        "resolved": "已解决"
+      },
+      "chip": {
+        "working": "处理中",
+        "needsYou": "需要你",
+        "new": "新"
+      },
+      "peek": {
+        "copy": "拷贝",
+        "copied": "已拷贝",
+        "open": "打开",
+        "done": "完成",
+        "reopen": "重新打开",
+        "reply": "在此讨论串中回复"
+      },
+      "hint": {
+        "send": "发送",
+        "sendOpen": "发送并打开",
+        "room": "房间",
+        "list": "列表",
+        "move": "移动",
+        "peek": "预览",
+        "done": "完成",
+        "reply": "回复",
+        "open": "打开"
+      },
+      "absent": {
+        "title": "MindRoom 未打开",
+        "open": "打开 MindRoom"
+      },
+      "signedOut": {
+        "title": "登录 MindRoom"
+      },
+      "error": {
+        "noRoom": "此房间已不可用",
+        "uploadFailed": "无法上传图像",
+        "sendFailed": "未发送",
+        "forbidden": "你无法解决此房间中的讨论串",
+        "timeout": "MindRoom 没有响应"
+      },
+      "screenshot": {
+        "denied": "MindRoom 需要“屏幕录制”权限才能截图",
+        "openSettings": "打开系统设置",
+        "noWindow": "最前面的 App 没有窗口",
+        "failed": "截图失败"
+      }
     }
   },
   "mindroomUi": {

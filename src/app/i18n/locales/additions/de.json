@@ -571,6 +571,76 @@
       "description": "Mitglieder von {{name}} können ihm beitreten, und die Agenten in {{name}} treten ihm von selbst bei.",
       "noPermission": "Du kannst die unter {{name}} aufgeführten Räume nicht ändern",
       "takeOff": "Aus {{name}} entfernen"
+    },
+    "quickCapture": {
+      "title": "Schnellerfassung",
+      "input": {
+        "placeholder": "Notiz oder Frage",
+        "label": "Neuer Eintrag",
+        "send": "Senden",
+        "sending": "Wird gesendet"
+      },
+      "attach": {
+        "window": "Screenshot des vordersten Fensters",
+        "screen": "Screenshot des gesamten Bildschirms",
+        "remove": "{{name}} entfernen"
+      },
+      "room": {
+        "choose": "Raum auswählen",
+        "change": "Wird in {{room}} gepostet. Raum ändern",
+        "search": "Räume suchen",
+        "none": "Keine passenden Räume"
+      },
+      "list": {
+        "label": "Threads in {{room}}",
+        "empty": "Hier ist nichts offen",
+        "sent": "Gesendet",
+        "resolved": "Gelöst"
+      },
+      "chip": {
+        "working": "arbeitet",
+        "needsYou": "braucht dich",
+        "new": "neu"
+      },
+      "peek": {
+        "copy": "Kopieren",
+        "copied": "Kopiert",
+        "open": "Öffnen",
+        "done": "Erledigt",
+        "reopen": "Wieder öffnen",
+        "reply": "In diesem Thread antworten"
+      },
+      "hint": {
+        "send": "senden",
+        "sendOpen": "senden und öffnen",
+        "room": "Raum",
+        "list": "Liste",
+        "move": "bewegen",
+        "peek": "Vorschau",
+        "done": "erledigt",
+        "reply": "antworten",
+        "open": "öffnen"
+      },
+      "absent": {
+        "title": "MindRoom ist nicht geöffnet",
+        "open": "MindRoom öffnen"
+      },
+      "signedOut": {
+        "title": "Bei MindRoom anmelden"
+      },
+      "error": {
+        "noRoom": "Dieser Raum ist nicht mehr verfügbar",
+        "uploadFailed": "Das Bild konnte nicht hochgeladen werden",
+        "sendFailed": "Nicht gesendet",
+        "forbidden": "Du kannst in diesem Raum keine Threads lösen",
+        "timeout": "MindRoom hat nicht geantwortet"
+      },
+      "screenshot": {
+        "denied": "MindRoom benötigt die Berechtigung „Bildschirmaufnahme“, um Screenshots aufzunehmen",
+        "openSettings": "Systemeinstellungen öffnen",
+        "noWindow": "Die App im Vordergrund hat kein Fenster",
+        "failed": "Der Screenshot ist fehlgeschlagen"
+      }
     }
   },
   "mindroomUi": {
