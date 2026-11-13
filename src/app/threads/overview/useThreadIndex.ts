@@ -30,10 +30,7 @@ import {
   type FetchedRelationOverviewUpdateOptions,
 } from './threadOverviewCacheHydration';
 import type { ThreadRecord } from '../../event-store/threads/types';
-import {
-  buildVisibleThreadParticipantMap,
-  buildVisibleThreadReplyCountMap,
-} from '../../event-store/threads/threadUtils';
+import { buildVisibleThreadParticipantMap, buildVisibleThreadReplyCountMap } from '../../event-store/threads/threadUtils';
 import {
   DIRECT_ROOM_TIMELINE_FILTER_STATE,
   THREAD_OVERVIEW_METADATA_CACHE_LIMIT,
@@ -354,7 +351,9 @@ export const useThreadIndex = ({
   );
   const threadSummaryInfoMap = useMemo(
     () =>
-      threadId ? new Map<string, ThreadSummaryInfo>() : buildThreadSummaryMap(loadedTimelineEvents),
+      threadId
+        ? new Map<string, ThreadSummaryInfo>()
+        : buildThreadSummaryMap(loadedTimelineEvents),
     [threadId, loadedTimelineEvents]
   );
   const scheduledTaskEvents = useScheduledTaskEvents(room);

@@ -206,11 +206,16 @@ it('does not publish a held seed read after room clear', async () => {
   const load = vi.mocked(loadThreadCachedSnapshot);
   const readCache = load.getMockImplementation()!;
   load.mockClear();
+  let readSnapshot: Awaited<ReturnType<typeof readCache>>;
+  let markRead!: () => void;
+  const read = new Promise<void>((resolve) => {
+    markRead = resolve;
+  });
   load.mockImplementationOnce(async (options) => {
-    const snapshot = await readCache(options);
-    expect(snapshot?.events.map((event) => event.getId())).toEqual(['$held-seed']);
+    readSnapshot = await readCache(options);
+    markRead();
     await held;
-    return snapshot;
+    return readSnapshot;
   });
   let controller!: ReturnType<typeof useThreadSeedPrewarmController>;
   function HeldHarness() {
@@ -231,7 +236,8 @@ it('does not publish a held seed read after room clear', async () => {
       React.createElement(SyncEngineProvider, { engine }, React.createElement(HeldHarness))
     );
   });
-  await vi.waitFor(() => expect(load).toHaveBeenCalledOnce());
+  await read;
+  expect(readSnapshot?.events.map((event) => event.getId())).toEqual(['$held-seed']);
   const pending = controller.waitForExistingOrQueued(THREAD_ID, {});
   await engine.offline.clear(ROOM_ID);
   await act(async () => {

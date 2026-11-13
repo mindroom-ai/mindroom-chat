@@ -13,7 +13,7 @@ const makeEvent = (eventId: string, isThreadRoot = true, msgtype = 'm.text') =>
     isRedacted: () => false,
     isThreadRoot,
     threadRootId: undefined,
-  } as never);
+  }) as never;
 
 const makeEntry = (
   eventId: string,
@@ -66,7 +66,11 @@ describe('resolveThreadOverviewRefreshTargets', () => {
       threadResolutionMap: new Map(),
     });
 
-    expect(targets.overviewResumeRefreshIds).toEqual(['$visible', '$compact-a', '$compact-b']);
+    expect(targets.overviewResumeRefreshIds).toEqual([
+      '$visible',
+      '$compact-a',
+      '$compact-b',
+    ]);
   });
 
   it('returns no room-overview refresh targets while inside a thread', () => {

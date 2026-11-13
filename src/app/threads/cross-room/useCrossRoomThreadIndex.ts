@@ -14,10 +14,7 @@ import {
   getThreadSummaryStateSnapshot,
   subscribeToThreadSummaryState,
 } from '../../event-store/threads/threadSummaryState';
-import {
-  MINDROOM_THREAD_TAGS_EVENT,
-  parsePerTagStateKey,
-} from '../../event-store/threads/threadTags';
+import { MINDROOM_THREAD_TAGS_EVENT, parsePerTagStateKey } from '../../event-store/threads/threadTags';
 import { getRoomThreadTagSnapshotMap } from '../tags/threadTagSnapshots';
 import { StateEvent } from '../../matrix/types/room';
 import { subscribePendingPins } from '../../event-store/threads/threadPinning';

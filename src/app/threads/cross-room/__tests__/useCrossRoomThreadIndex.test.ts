@@ -483,12 +483,16 @@ describe('useCrossRoomThreadIndex', () => {
         }
         expect(entries()[0].isResolved).toBe(false);
         expect(entries()[0].threadRecord.status.isResolved).toBe(false);
-        expect(entries().filter((entry) => !entry.isResolved)).toHaveLength(1);
+        expect(
+          entries().filter((entry) => !entry.isResolved)
+        ).toHaveLength(1);
         expect(buildSidebarThreadEntries(entries(), [])).toHaveLength(1);
         await syncPins(['$root']);
         await syncPins([]);
         expect(entries()[0].isResolved).toBe(true);
-        expect(entries().filter((entry) => !entry.isResolved)).toHaveLength(0);
+        expect(
+          entries().filter((entry) => !entry.isResolved)
+        ).toHaveLength(0);
         expect(buildSidebarThreadEntries(entries(), [])).toHaveLength(0);
       } finally {
         act(() => renderer.unmount());

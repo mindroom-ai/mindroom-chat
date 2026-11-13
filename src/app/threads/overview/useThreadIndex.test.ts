@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  createDefaultThreadFilterState,
-  type ThreadFilterState,
-} from '../../event-store/threads/roomThreadOverviewModel';
+import { createDefaultThreadFilterState, type ThreadFilterState } from '../../event-store/threads/roomThreadOverviewModel';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import { resolveThreadIndexSnapshot } from './useThreadIndex';
 
