@@ -21,6 +21,8 @@ import {
 } from './react-custom-html-parser';
 import { markerParserOptions } from '../../../test/utils/markerParserOptions';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
+import { ToolCallsFold } from '../agent-run/ToolCallsFold';
+import { withReasoning } from '../agent-run/Reasoning';
 import backendToolMarkerBodies from '../__fixtures__/backendToolMarkerBodies.json';
 import { getRenderedToolRefs } from '../agent-run/toolRefDom';
 import {
@@ -30,12 +32,23 @@ import {
 import { formatMessageTextBodyAsHtml } from './blocks';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
+import { createStore, Provider } from 'jotai';
+import { getSettings, settingsAtom } from '../../preferences/settings';
+import { clearToolCallOverrides } from '../toolCallVisibility';
+import { showToolCalls } from '../../../test/utils/showToolCalls';
+
+// These tests show how tool calls render, so they show them.
+beforeEach(showToolCalls);
 
 const clipboardMocks = vi.hoisted(() => ({
   copyToClipboard: vi.fn<(text: string) => Promise<boolean>>(),
 }));
 
 const approvals = vi.hoisted(() => ({ current: undefined as unknown }));
+vi.mock('../../matrix/session/useSessionStore', async (original) => ({
+  ...(await original<typeof import('../../matrix/session/useSessionStore')>()),
+  useActiveSession: () => ({ sessionId: 'reader-session' }),
+}));
 vi.mock('../../approvals/ThreadApprovalProvider', () => ({
   useThreadApprovals: () => approvals.current,
 }));
@@ -91,6 +104,18 @@ vi.mock('folds', async () => {
       children(() => undefined),
   };
 });
+
+// The folds stand-in above has no colors, which these styles read; their class names will do.
+vi.mock('../agent-run/ToolCallsFold.css', () =>
+  Object.fromEntries(['Fold', 'Cog', 'CogIcon'].map((name) => [name, name]))
+);
+vi.mock('../agent-run/Reasoning.css', () =>
+  Object.fromEntries(
+    ['Reasoning', 'Line', 'Toggle', 'CogRow', 'CollapseEnd', 'Label', 'Chevron', 'Body'].map(
+      (name) => [name, name]
+    )
+  )
+);
 
 vi.mock('../../rich-text/CustomHtml.css', () => ({
   BlockQuote: 'BlockQuote',
@@ -563,7 +588,11 @@ describe('tool call status from approval cards', () => {
     let renderer: ReactTestRenderer | undefined;
     act(() => {
       renderer = create(
-        React.createElement(ToolCallMessageContext.Provider, { value: eventId }, parse(html, opts))
+        React.createElement(
+          ToolCallMessageContext.Provider,
+          { value: { eventId } },
+          parse(html, opts)
+        )
       );
     });
     return renderer as ReactTestRenderer;
@@ -609,7 +638,11 @@ describe('tool call status from approval cards', () => {
     let renderer: ReactTestRenderer | undefined;
     act(() => {
       renderer = create(
-        React.createElement(ToolCallMessageContext.Provider, { value: '$reply' }, parse(html, opts))
+        React.createElement(
+          ToolCallMessageContext.Provider,
+          { value: { eventId: '$reply' } },
+          parse(html, opts)
+        )
       );
     });
     return collectTextContent((renderer as ReactTestRenderer).toJSON());
@@ -697,6 +730,306 @@ describe('useToolTraceMarkerParserOptions', () => {
     expect(markup).toContain('class="Paragraph MarginSpaced"');
     expect(markup).toContain('Results are ready.');
     expect(markup).not.toContain('🔧');
+  });
+
+  it('leaves the tool calls out while they are hidden, and shows them again without a new parse', () => {
+    const html = [
+      '<p>Looking it up.</p>',
+      '<p>🔧 <code>first_tool</code> [1]</p>',
+      '<p>🔧 <code>second_tool</code> [2]</p>',
+      '<p>Results are ready.</p>',
+    ].join('');
+    const store = createStore();
+    store.set(settingsAtom, { ...getSettings(), showToolCalls: false });
+    const parsed = parse(html, markerParserOptions(createBaseOpts(), { formatted_body: html }));
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(
+        React.createElement(Provider, { store }, React.createElement(ToolCallsFold, null, parsed))
+      );
+    });
+    const text = () => collectTextContent(renderer?.toJSON() ?? null);
+
+    expect(text()).toContain('Looking it up.');
+    expect(text()).toContain('Results are ready.');
+    expect(text()).not.toContain('first_tool');
+    expect(text()).not.toContain('🔧');
+
+    act(() => {
+      store.set(settingsAtom, { ...store.get(settingsAtom), showToolCalls: true });
+    });
+    expect(text()).toMatch(toolCountLabel(2));
+    act(() => renderer?.unmount());
+  });
+
+  it('shows the tool calls while they are hidden where nothing draws a cog to open them', () => {
+    const html = '<p>🔧 <code>first_tool</code> [1]</p><p>Results are ready.</p>';
+    const store = createStore();
+    store.set(settingsAtom, { ...getSettings(), showToolCalls: false });
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          parse(html, markerParserOptions(createBaseOpts(), { formatted_body: html }))
+        )
+      );
+    });
+    expect(collectTextContent(renderer?.toJSON() ?? null)).toMatch(toolCountLabel(1));
+    act(() => renderer?.unmount());
+  });
+
+  describe('while the tool calls are hidden', () => {
+    const ROOM = '!room:example.org';
+    const storageKey = 'toolCallsShown:reader-session';
+    const stored = new Map<string, string>();
+
+    beforeEach(() => {
+      vi.stubGlobal('localStorage', {
+        getItem: (key: string) => stored.get(key) ?? null,
+        setItem: (key: string, value: string) => stored.set(key, value),
+        removeItem: (key: string) => stored.delete(key),
+        key: (index: number) => [...stored.keys()][index] ?? null,
+        get length() {
+          return stored.size;
+        },
+      });
+    });
+    afterEach(() => {
+      clearToolCallOverrides('reader-session');
+      stored.clear();
+      vi.unstubAllGlobals();
+    });
+
+    const toolsHtml = (pending: boolean) =>
+      `<p>🔧 <code>web_search</code> [1]${pending ? ' ⏳' : ''}</p><p>Answer.</p>`;
+    // Two runs of tool calls with text between them; the last call still runs or is done.
+    const twoRunsHtml = (pending: boolean) =>
+      [
+        '<p>Looking it up.</p>',
+        '<p>🔧 <code>web_search</code> [1]</p>',
+        '<p>Between.</p>',
+        '<p>🔧 <code>run_shell_command</code> [2]</p>',
+        `<p>🔧 <code>share_app</code> [3]${pending ? ' ⏳' : ''}</p>`,
+        '<p>Answer.</p>',
+      ].join('');
+    // The reply as a message draws it: the fold around the reasoning and the parsed body.
+    const renderReply = (
+      html: string,
+      {
+        shownByDefault,
+        threadId,
+        reasoning,
+      }: { shownByDefault: boolean; threadId?: string; reasoning?: string }
+    ) => {
+      const store = createStore();
+      store.set(settingsAtom, { ...getSettings(), showToolCalls: shownByDefault });
+      const element = (markup: string) => {
+        const content = {
+          body: markup,
+          formatted_body: markup,
+          'io.mindroom.stream_status': 'completed',
+          ...(reasoning
+            ? { 'io.mindroom.reasoning': { text: reasoning, duration_ms: 12_000 } }
+            : {}),
+        };
+        const options = markerParserOptions(createBaseOpts(), content);
+        return React.createElement(
+          Provider,
+          { store },
+          React.createElement(
+            ToolCallMessageContext.Provider,
+            { value: { eventId: '$reply', roomId: ROOM, threadId } },
+            React.createElement(
+              ToolCallsFold,
+              null,
+              withReasoning(content, parse(markup, options), options)
+            )
+          )
+        );
+      };
+      let renderer: ReactTestRenderer | undefined;
+      act(() => {
+        renderer = create(element(html));
+      });
+      const cogs = () =>
+        renderer!.root.findAll(
+          (node) =>
+            typeof node.type === 'string' && node.props['data-tool-calls-fold'] !== undefined
+        );
+      const cog = () => {
+        const [found] = cogs();
+        if (!found) throw new Error('No cog on the reply');
+        return found;
+      };
+      return {
+        text: () => collectTextContent(renderer?.toJSON() ?? null),
+        cogs,
+        cogButton: () => cog().findByType('button'),
+        cog,
+        // The lines that open a run's calls, as they show when tool calls show.
+        runLines: () =>
+          renderer!.root.findAll(
+            (node) =>
+              typeof node.type === 'string' &&
+              node.props['data-message-disclosure'] !== undefined &&
+              node.props['data-tool-calls-fold'] === undefined
+          ),
+        update: (markup: string) => act(() => renderer?.update(element(markup))),
+        showByDefault: (shown: boolean) =>
+          act(() => store.set(settingsAtom, { ...store.get(settingsAtom), showToolCalls: shown })),
+        unmount: () => act(() => renderer?.unmount()),
+      };
+    };
+
+    it("shows a thread's tool calls where the thread menu showed them", () => {
+      stored.set(storageKey, JSON.stringify({ [ROOM]: { threads: { $root: true } } }));
+      const shown = renderReply(toolsHtml(false), { shownByDefault: false, threadId: '$root' });
+      expect(shown.text()).toContain('web_search');
+      expect(shown.cogs()).toHaveLength(0);
+      shown.unmount();
+      const other = renderReply(toolsHtml(false), { shownByDefault: false, threadId: '$other' });
+      expect(other.text()).not.toContain('web_search');
+      expect(other.cogs()).toHaveLength(1);
+      other.unmount();
+    });
+
+    it("hides a room's tool calls where the room menu hid them", () => {
+      stored.set(storageKey, JSON.stringify({ [ROOM]: { room: false } }));
+      const reply = renderReply(toolsHtml(false), { shownByDefault: true, threadId: '$root' });
+      expect(reply.text()).not.toContain('web_search');
+      expect(reply.text()).toContain('Answer.');
+      reply.unmount();
+    });
+
+    it('counts all the tool calls of the reply on one cog at its top, which turns while one runs', () => {
+      const reply = renderReply(twoRunsHtml(true), { shownByDefault: false });
+      expect(reply.text()).toBe('3Looking it up.Between.Answer.');
+      expect(reply.cogs()).toHaveLength(1);
+      expect(reply.cog().props['data-state']).toBe('running');
+      expect(reply.cogButton().props.title).toBe('Running 3 tool calls');
+
+      reply.update(twoRunsHtml(false));
+      expect(reply.text()).toBe('3Looking it up.Between.Answer.');
+      expect(reply.cog().props['data-state']).toBe('done');
+      expect(reply.cogButton().props.title).toBe('Used 3 tools');
+      reply.unmount();
+    });
+
+    it("puts the cog on the line of the reply's reasoning, after its toggle", () => {
+      const reply = renderReply(twoRunsHtml(false), {
+        shownByDefault: false,
+        reasoning: 'Weighed two sources',
+      });
+      expect(reply.text()).toBe('Thought for 12 s3Looking it up.Between.Answer.');
+      // The element around the cog's own, whatever components sit between them.
+      const lineOf = (node: ReactTestInstance | null): ReactTestInstance | null =>
+        !node || node.props.className === 'Line' ? node : lineOf(node.parent);
+      const line = lineOf(reply.cog().parent);
+      if (!line) throw new Error('No line around the cog');
+      expect(line.findAll((node) => node.type === 'button').map((b) => b.props.title)).toEqual([
+        undefined,
+        'Used 3 tools',
+      ]);
+      reply.unmount();
+    });
+
+    it('takes a run off the cog when an edit of the reply drops it', () => {
+      const reply = renderReply(twoRunsHtml(false), { shownByDefault: false });
+      expect(reply.cogButton().props.title).toBe('Used 3 tools');
+      reply.update(toolsHtml(false));
+      expect(reply.text()).toBe('1Answer.');
+      expect(reply.cogButton().props.title).toBe('Used 1 tool');
+      reply.unmount();
+    });
+
+    it('closes the cog once tool calls show, so hiding them again hides the runs', () => {
+      const reply = renderReply(twoRunsHtml(false), { shownByDefault: false });
+      act(() => reply.cogButton().props.onClick());
+      expect(reply.runLines()).toHaveLength(2);
+
+      reply.showByDefault(true);
+      expect(reply.cogs()).toHaveLength(0);
+      reply.showByDefault(false);
+      expect(reply.cogButton().props['aria-expanded']).toBe(false);
+      expect(reply.runLines()).toHaveLength(0);
+      reply.unmount();
+    });
+
+    describe('with the approval cards MindRoom posted for the reply', () => {
+      afterEach(() => {
+        approvals.current = undefined;
+      });
+      const cards = (...records: [toolName: string, status: string][]) => {
+        approvals.current = {
+          records: records.map(([toolName, status]) => ({
+            eventId: `$${toolName}`,
+            sender: '@mindroom_router:example.org',
+            wireStatus: status,
+            approval: {
+              toolName,
+              status,
+              responseEventId: '$reply',
+              expiresAt: '2999-01-01T00:00:00Z',
+            },
+          })),
+          now: Date.now(),
+        };
+      };
+      const emailAndSearch =
+        '<p>🔧 <code>send_email</code> [1]</p><p>🔧 <code>web_search</code> [2]</p><p>Answer.</p>';
+
+      it('tints the cog while a call waits for approval', () => {
+        cards(['send_email', 'pending']);
+        const reply = renderReply(emailAndSearch, { shownByDefault: false });
+        expect(reply.cog().props['data-state']).toBe('waiting');
+        // Its name holds the number it shows, and what the calls do.
+        expect(reply.cogButton().props['aria-label']).toBe(
+          '2 tool calls: 1 tool call waiting for approval'
+        );
+        reply.unmount();
+      });
+
+      it('says what the calls did when one was denied, and counts both', () => {
+        cards(['send_email', 'denied']);
+        const reply = renderReply(emailAndSearch, { shownByDefault: false });
+        expect(reply.cog().props['data-state']).toBe('done');
+        expect(reply.cogButton().props['aria-label']).toBe('2 tool calls: Used 1 tool');
+        expect(reply.text()).toBe('2Answer.');
+        reply.unmount();
+      });
+    });
+
+    it('shows no cog on a reply without tool calls', () => {
+      const reply = renderReply('<p>Answer.</p>', { shownByDefault: false });
+      expect(reply.cogs()).toHaveLength(0);
+      reply.unmount();
+    });
+
+    it('shows every run where it ran, as folded lines, until the cog hides them again', () => {
+      const reply = renderReply(twoRunsHtml(false), { shownByDefault: false });
+      expect(reply.cogButton().props['aria-expanded']).toBe(false);
+      expect(reply.runLines()).toHaveLength(0);
+
+      act(() => reply.cogButton().props.onClick());
+      expect(reply.cogButton().props['aria-expanded']).toBe(true);
+      const text = reply.text();
+      const first = text.search(toolCountLabel(1));
+      const second = text.search(toolCountLabel(2));
+      expect(text.indexOf('Looking it up.')).toBeLessThan(first);
+      expect(first).toBeLessThan(text.indexOf('Between.'));
+      expect(text.indexOf('Between.')).toBeLessThan(second);
+      expect(second).toBeLessThan(text.indexOf('Answer.'));
+      const lines = reply.runLines();
+      expect(lines).toHaveLength(2);
+      lines.forEach((line) => expect(line.findByType('button').props['aria-expanded']).toBe(false));
+
+      act(() => reply.cogButton().props.onClick());
+      expect(reply.runLines()).toHaveLength(0);
+      expect(reply.text()).not.toContain('web_search');
+      reply.unmount();
+    });
   });
 
   it('renders tool blocks for marker-only content and enriches them with trace metadata', () => {

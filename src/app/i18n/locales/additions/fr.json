@@ -623,7 +623,9 @@
       },
       "approvalDecisionControls": {
         "tooLargeToApprove": "Les arguments sont trop volumineux pour être examinés : cette demande ne peut qu’être refusée."
-      }
+      },
+      "showToolCalls": "Afficher les appels d'outils",
+      "showToolCallsDescription": "Le réglage par défaut de chaque salon : les réponses des agents listent les outils exécutés, ou n'affichent en haut qu'un petit engrenage qui les compte et les montre d'un clic. Le menu d'un salon ou d'un fil le change à cet endroit."
     },
     "message-search": {
       "messageSearch": {

@@ -11,6 +11,10 @@ import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
 import { loadLiveMarkdown } from '../messages/live/liveMarkdown';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
 import { SubagentsPanel } from './SubagentsPanel';
+import { showToolCalls } from '../../test/utils/showToolCalls';
+
+// These tests show how tool calls render, so they show them.
+beforeEach(showToolCalls);
 
 const ROOM_ID = '!room:example.org';
 const VIEWER = '@ann:example.org';

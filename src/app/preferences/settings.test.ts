@@ -37,6 +37,13 @@ describe('getSettings', () => {
     storageValue = null;
   });
 
+  it('hides the tool calls of agent replies until the reader shows them', async () => {
+    const { getSettings } = await import('./settings');
+    storageValue = null;
+
+    expect(getSettings().showToolCalls).toBe(false);
+  });
+
   it('sanitizes persisted page zoom values', async () => {
     const { getSettings, PAGE_ZOOM_DEFAULT, PAGE_ZOOM_MAX, PAGE_ZOOM_MIN } = await import(
       './settings'

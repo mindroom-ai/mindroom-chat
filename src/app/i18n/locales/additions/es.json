@@ -623,7 +623,9 @@
       },
       "approvalDecisionControls": {
         "tooLargeToApprove": "Los argumentos son demasiado grandes para revisarlos, así que esta solicitud solo se puede rechazar."
-      }
+      },
+      "showToolCalls": "Mostrar llamadas a herramientas",
+      "showToolCallsDescription": "El valor predeterminado de cada sala: las respuestas de los agentes muestran las herramientas que ejecutaron, o solo un pequeño engranaje arriba que las cuenta y las muestra al pulsarlo. El menú de una sala o de un hilo lo cambia allí."
     },
     "message-search": {
       "messageSearch": {

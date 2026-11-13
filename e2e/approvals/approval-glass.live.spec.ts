@@ -87,7 +87,12 @@ for (const viewport of [
     await page.addInitScript(() => {
       localStorage.setItem(
         'settings',
-        JSON.stringify({ useSystemTheme: false, themeId: 'dark-theme', isPeopleDrawer: false })
+        JSON.stringify({
+          useSystemTheme: false,
+          themeId: 'dark-theme',
+          isPeopleDrawer: false,
+          showToolCalls: true,
+        })
       );
     });
     const credentials = getPrimaryCredentials();

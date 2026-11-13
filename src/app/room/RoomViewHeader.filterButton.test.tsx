@@ -8,6 +8,7 @@ import { edgeSwipeBackCountAtom } from '../navigation/useEdgeSwipeBack';
 import type { RoomViewMode } from '../navigation/roomViewMode';
 import { createDefaultThreadFilterState } from '../event-store/threads/roomThreadOverviewModel';
 import { Icons } from 'folds';
+import { clearToolCallOverrides } from '../messages/toolCallVisibility';
 
 const { view, screen, navigate, pins } = vi.hoisted(() => ({
   view: {
@@ -46,6 +47,10 @@ vi.mock('../ui/page/Page', () => ({
 vi.mock('../avatars/RoomAvatar', () => ({ RoomAvatar: () => null, RoomIcon: () => null }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org', getRoom: () => null }),
+}));
+vi.mock('../matrix/session/useSessionStore', async (original) => ({
+  ...(await original<typeof import('../matrix/session/useSessionStore')>()),
+  useActiveSession: () => ({ sessionId: 'me-session' }),
 }));
 vi.mock('../matrix/hooks/useRoom', () => ({
   useRoom: () => ({
@@ -109,12 +114,21 @@ const renderHeader = ({
   hidden = false,
   hasMindroomAgents = true,
   threadFilterState = createDefaultThreadFilterState(),
+  toolCallsShown = true,
   ...props
-}: RoomViewHeaderProps & { mode?: RoomViewMode; hidden?: boolean } = {}) => {
+}: RoomViewHeaderProps & {
+  mode?: RoomViewMode;
+  hidden?: boolean;
+  toolCallsShown?: boolean;
+} = {}) => {
   act(() => renderer?.unmount());
   view.mode = mode;
   const store = createStore();
-  store.set(settingsAtom, { ...getSettings(), hideThreadFilterBar: hidden });
+  store.set(settingsAtom, {
+    ...getSettings(),
+    hideThreadFilterBar: hidden,
+    showToolCalls: toolCallsShown,
+  });
   act(() => {
     renderer = create(
       <Provider store={store}>
@@ -178,6 +192,54 @@ describe('the room header filter button', () => {
     renderHeader({ hidden: true, threadFilterState: filtered });
     expect(byData('data-hidden-filters-dot')).toHaveLength(1);
     expect(filterButton().props['aria-label']).toBe('Thread filters (active)');
+  });
+});
+
+describe("the room menu's tool calls switch", () => {
+  const SESSION = 'me-session';
+  const toolCallsEntry = () =>
+    byData('data-tool-calls-toggle').find((node) => node.type === 'button');
+  const choose = () =>
+    act(() => {
+      toolCallsEntry()?.props.onClick();
+    });
+  const stored = () => localStorage.getItem(`toolCallsShown:${SESSION}`);
+  afterEach(() => clearToolCallOverrides(SESSION));
+
+  it.each(['Desktop', 'Mobile'])(
+    'shows or hides the tool calls of this room only on %s, leaving the default as it is',
+    (size) => {
+      screen.size = size;
+      const store = renderHeader({ toolCallsShown: false });
+      // Only the room menu offers it, never the header's row.
+      expect(toolCallsEntry()).toBeUndefined();
+
+      openMenu();
+      expect(toolCallsEntry()?.props).toMatchObject({
+        role: 'menuitemcheckbox',
+        'aria-checked': false,
+      });
+      expect(textOf(toolCallsEntry() as ReactTestInstance)).toBe('Show tool calls');
+      choose();
+      expect(JSON.parse(stored() ?? 'null')).toEqual({ '!room:example.org': { room: true } });
+      expect(store.get(settingsAtom).showToolCalls).toBe(false);
+      // Choosing it closes the menu.
+      expect(toolCallsEntry()).toBeUndefined();
+
+      openMenu();
+      expect(toolCallsEntry()?.props['aria-checked']).toBe(true);
+      // Back to what Settings gives: the room follows the default again.
+      choose();
+      expect(stored()).toBeNull();
+      openMenu();
+      expect(toolCallsEntry()?.props['aria-checked']).toBe(false);
+    }
+  );
+
+  it('is left out of rooms without agents, which have no tool calls', () => {
+    renderHeader({ hasMindroomAgents: false });
+    openMenu();
+    expect(toolCallsEntry()).toBeUndefined();
   });
 });
 
@@ -423,7 +485,7 @@ describe("the room header's actions", () => {
       'More Options',
     ]);
     openMenu();
-    expect(roomEntries()).toEqual(['Notes']);
+    expect(roomEntries()).toEqual(['Show tool calls', 'Notes']);
   });
 
   it("folds a phone's actions into the room menu, in the row's order", () => {
@@ -434,6 +496,7 @@ describe("the room header's actions", () => {
     expect(roomEntries()).toEqual([
       'Compact view',
       'Thread filters',
+      'Show tool calls',
       'Show Canvas',
       'Show Computer',
       'Pinned Messages',
@@ -461,7 +524,7 @@ describe("the room header's actions", () => {
     runFromRow();
     expect(run).toHaveBeenLastCalledWith({ roomId: '!room:example.org', threadId: '$thread' });
     openMenu();
-    expect(roomEntries()).toEqual(['Demo menu']);
+    expect(roomEntries()).toEqual(['Show tool calls', 'Demo menu']);
     // Beside the room's messages, the header is the room's, and its actions run in the thread.
     renderHeader({ pluginActions, openThreadId: '$beside' });
     runFromRow();
@@ -504,14 +567,15 @@ describe("the room header's actions", () => {
             node.props.role === 'menuitemcheckbox' && 'label' in node.props && 'after' in node.props
         )
         .map((node) => !!node.props.after);
-    expect(checks()).toEqual([false]);
+    // This header's room shows its tool calls (renderHeader's toolCallsShown).
+    expect(checks()).toEqual([true, false]);
 
     renderHeader({
       pluginPanels: [{ id: 'notes/panel', label: 'Notes' }],
       shownPanel: 'notes/panel',
     });
     openMenu();
-    expect(checks()).toEqual([true]);
+    expect(checks()).toEqual([true, true]);
   });
 
   it('opens the pinned messages from the row and from the room menu', () => {

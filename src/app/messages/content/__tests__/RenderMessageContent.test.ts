@@ -103,6 +103,8 @@ vi.mock('../../../ui/PendingSendIndicator.css', () => ({
   Container: 'PendingSendIndicator',
 }));
 
+vi.mock('../../agent-run/ToolCallsFold.css', () => ({}));
+
 vi.mock('../../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@viewer:example.org' }),
 }));
@@ -213,14 +215,46 @@ describe('RenderMessageContent', () => {
     }
   );
 
-  it("gives an agent reply's tool rows its event ID to find its approval cards", () => {
+  it("gives an agent reply's tool rows its event ID, room and thread", () => {
     const ToolRows = () =>
-      React.createElement('span', null, React.useContext(ToolCallMessageContext));
+      React.createElement('span', null, JSON.stringify(React.useContext(ToolCallMessageContext)));
     renderAgentMessageContentMock.mockReset();
     renderAgentMessageContentMock.mockReturnValue(React.createElement(ToolRows));
     const renderer = create(
       React.createElement(RenderMessageContent, {
         displayName: 'Helper',
+        eventId: '$reply',
+        roomId: '!room:example.org',
+        threadId: '$root',
+        msgType: 'm.text',
+        ts: 0,
+        getContent: (() => ({ msgtype: 'm.text', body: 'Ran a tool' })) as <T>() => T,
+        htmlReactParserOptions: {} as never,
+        linkifyOpts: {} as never,
+      })
+    );
+
+    expect(renderer.root.findByType('span').children).toEqual([
+      JSON.stringify({ eventId: '$reply', roomId: '!room:example.org', threadId: '$root' }),
+    ]);
+    renderer.unmount();
+  });
+
+  it("takes the tool rows' room from the event where the list gives none, as pinned messages do", () => {
+    const ToolRows = () =>
+      React.createElement('span', null, JSON.stringify(React.useContext(ToolCallMessageContext)));
+    renderAgentMessageContentMock.mockReset();
+    renderAgentMessageContentMock.mockReturnValue(React.createElement(ToolRows));
+    const renderer = create(
+      React.createElement(RenderMessageContent, {
+        displayName: 'Helper',
+        mEvent: new MatrixEvent({
+          type: 'm.room.message',
+          sender: AGENT,
+          room_id: '!room:example.org',
+          event_id: '$reply',
+          content: { msgtype: 'm.text' },
+        }),
         eventId: '$reply',
         msgType: 'm.text',
         ts: 0,
@@ -230,7 +264,10 @@ describe('RenderMessageContent', () => {
       })
     );
 
-    expect(JSON.stringify(renderer.toJSON())).toContain('$reply');
+    expect(JSON.parse(renderer.root.findByType('span').children[0] as string)).toMatchObject({
+      eventId: '$reply',
+      roomId: '!room:example.org',
+    });
     renderer.unmount();
   });
 

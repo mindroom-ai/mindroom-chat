@@ -146,6 +146,8 @@ const openDevice = async (
     homeserver: HOMESERVER,
     username: account.username,
     password: PASSWORD,
+    // The device keeps only the settings each test gives it, so the account holds what they say.
+    showToolCalls: false,
   });
   return { context, page };
 };

@@ -160,7 +160,7 @@ describe('ThreadActionsMenu', () => {
 
     expect(
       renderer.root.findAllByType('button').map((node) => node.props['data-thread-action'])
-    ).toEqual(['open', 'tags', 'copy']);
+    ).toEqual(['open', 'tags', 'copy', 'toolCalls']);
     renderer.unmount();
   });
 
@@ -180,7 +180,7 @@ describe('ThreadActionsMenu', () => {
     renderer.unmount();
   });
 
-  it('hides mutations without permissions but leaves navigation and link copying', () => {
+  it('hides mutations without permissions but leaves navigation, link copying and the tool calls switch', () => {
     state.tags.canEdit = false;
     state.pinning.canPin = false;
     state.canSend = false;
@@ -188,7 +188,8 @@ describe('ThreadActionsMenu', () => {
     const actions = renderer.root
       .findAllByType('button')
       .map((node) => node.props['data-thread-action']);
-    expect(actions).toEqual(['open', 'tags', 'copy']);
+    // Showing tool calls changes only what this reader sees.
+    expect(actions).toEqual(['open', 'tags', 'copy', 'toolCalls']);
     renderer.unmount();
   });
 

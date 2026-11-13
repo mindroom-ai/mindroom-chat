@@ -605,7 +605,9 @@
       },
       "approvalDecisionControls": {
         "tooLargeToApprove": "인수가 너무 커서 검토할 수 없으므로 이 요청은 거부만 할 수 있습니다."
-      }
+      },
+      "showToolCalls": "도구 호출 표시",
+      "showToolCallsDescription": "모든 방의 기본값입니다. 에이전트 답장에 실행한 도구를 표시하거나, 답장 위쪽에 도구 수를 세는 작은 톱니바퀴만 표시하고 누르면 도구를 보여 줍니다. 방이나 스레드 메뉴에서 그곳만 바꿀 수 있습니다."
     },
     "message-search": {
       "messageSearch": {
