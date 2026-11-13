@@ -242,6 +242,16 @@ describe('useMessageRowHidden', () => {
     expect(hidden).not.toHaveBeenCalled();
   });
 
+  it("🔒 hides only a MindRoom agent's message on the viewer's homeserver, also with trust 'server'", () => {
+    const hidden = vi.fn(() => true);
+    registry.push(plugin('alpha', renderer({ trust: 'server', hidden })));
+    // The renderer takes a person's message, and draws it, but its row stays.
+    expect(pick(message('@person:example.org'))?.renderer.hidden).toBe(hidden);
+    expect(hiddenOf(message('@person:example.org'))).toBe(false);
+    expect(hidden).not.toHaveBeenCalled();
+    expect(hiddenOf(message(AGENT))).toBe(true);
+  });
+
   it('keeps the row when hidden throws, and logs it once with the plugin tag', () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     registry.push(

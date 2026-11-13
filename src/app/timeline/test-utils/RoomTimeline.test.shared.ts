@@ -60,6 +60,7 @@ const {
   virtualPaginatorState,
   roomTimelineVirtualizerState,
   settingsState,
+  pluginRowHiddenMock,
 } = vi.hoisted(() => ({
   passthrough: 'div',
   scrollType: 'room-timeline-scroll',
@@ -120,6 +121,12 @@ const {
   isTimelineAtLiveEndMock: vi.fn(() => true),
   settingsState: {
     prefetchDepth: 300,
+  },
+  // The plugins' test of a row they hide (useMessageRowHidden); none by default.
+  pluginRowHiddenMock: {
+    test: undefined as
+      | ((event: { eventId?: string; content: Record<string, unknown> }) => boolean)
+      | undefined,
   },
   virtualPaginatorState: {
     lastOptions: undefined as
@@ -673,9 +680,11 @@ vi.mock('../RoomIntro', () => ({
   RoomIntro: roomIntroType,
 }));
 
-// No plugin of these tests' build hides a row (MessageRenderer.hidden); the real module would load
-// the plugins' translations, and with them the app's i18n setup.
-vi.mock('../../plugins/messageRenderers', () => ({ useMessageRowHidden: () => undefined }));
+// Which rows the plugins hide (MessageRenderer.hidden) is `pluginRowHiddenMock`'s, none unless a
+// test sets one; the real module would load the plugins' translations, and the app's i18n setup.
+vi.mock('../../plugins/messageRenderers', () => ({
+  useMessageRowHidden: () => pluginRowHiddenMock.test,
+}));
 
 vi.mock('../../messages/content/RenderMessageContent', () => ({
   RenderMessageContent: passthrough,
@@ -1487,6 +1496,7 @@ beforeEach(() => {
   threadRenderStateMock.threadEventIndexMapRef.current = new Map();
   threadRenderStateMock.threadEvents = [];
   threadRenderStateMock.threadInitialRenderMode = 'live';
+  pluginRowHiddenMock.test = undefined;
   threadLastActivityTsMapMock.clear();
   threadStreamingStateMock.clear();
   threadResolutionMapMock.clear();
@@ -1849,6 +1859,7 @@ export {
   scrollType,
   setThreadAwareTimelineRefreshHook,
   settingsState,
+  pluginRowHiddenMock,
   stateEventsByTypeMock,
   TEST_DEFAULT_THREAD_FILTER_STATE,
   threadLastActivityTsMapMock,
