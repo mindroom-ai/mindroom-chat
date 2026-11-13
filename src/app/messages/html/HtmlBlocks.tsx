@@ -362,7 +362,8 @@ function ToolRefGroupBlock({
           return { toolName: tool.toolName, state: states[loadedIndex] ?? 'done' };
         })
   );
-  if (!shown && !fold?.open) return null;
+  // Without a cog to open them (no ToolCallsFold), the calls show.
+  if (!shown && fold && !fold.open) return null;
   const running = loadedTools.filter((tool, index) => states[index] === 'running');
   const outputTool = running.filter((tool) => tool.progress).at(-1);
   // Without the trace details the calls' states are unknown, so only count them.

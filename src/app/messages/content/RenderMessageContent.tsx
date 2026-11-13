@@ -154,10 +154,12 @@ function CoreMessageContent({
 
   // A reply shown outside its thread's view (Classic lists them in the order sent) still follows
   // its thread's choice of showing tool calls.
+  // Pinned messages give no room; the event knows it.
   const toolThreadId = threadId ?? mEvent?.threadRootId;
+  const toolRoomId = roomId ?? mEvent?.getRoomId();
   const toolCallMessage = useMemo(
-    () => ({ eventId, roomId, threadId: toolThreadId }),
-    [eventId, roomId, toolThreadId]
+    () => ({ eventId, roomId: toolRoomId, threadId: toolThreadId }),
+    [eventId, toolRoomId, toolThreadId]
   );
 
   // A call between people starts with the router's row, shown as its latest edit has it: who is

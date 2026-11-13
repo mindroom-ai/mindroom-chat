@@ -744,7 +744,9 @@ describe('useToolTraceMarkerParserOptions', () => {
     const parsed = parse(html, markerParserOptions(createBaseOpts(), { formatted_body: html }));
     let renderer: ReactTestRenderer | undefined;
     act(() => {
-      renderer = create(React.createElement(Provider, { store }, parsed));
+      renderer = create(
+        React.createElement(Provider, { store }, React.createElement(ToolCallsFold, null, parsed))
+      );
     });
     const text = () => collectTextContent(renderer?.toJSON() ?? null);
 
@@ -757,6 +759,24 @@ describe('useToolTraceMarkerParserOptions', () => {
       store.set(settingsAtom, { ...store.get(settingsAtom), showToolCalls: true });
     });
     expect(text()).toMatch(toolCountLabel(2));
+    act(() => renderer?.unmount());
+  });
+
+  it('shows the tool calls while they are hidden where nothing draws a cog to open them', () => {
+    const html = '<p>🔧 <code>first_tool</code> [1]</p><p>Results are ready.</p>';
+    const store = createStore();
+    store.set(settingsAtom, { ...getSettings(), showToolCalls: false });
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          parse(html, markerParserOptions(createBaseOpts(), { formatted_body: html }))
+        )
+      );
+    });
+    expect(collectTextContent(renderer?.toJSON() ?? null)).toMatch(toolCountLabel(1));
     act(() => renderer?.unmount());
   });
 
@@ -857,6 +877,8 @@ describe('useToolTraceMarkerParserOptions', () => {
               node.props['data-tool-calls-fold'] === undefined
           ),
         update: (markup: string) => act(() => renderer?.update(element(markup))),
+        showByDefault: (shown: boolean) =>
+          act(() => store.set(settingsAtom, { ...store.get(settingsAtom), showToolCalls: shown })),
         unmount: () => act(() => renderer?.unmount()),
       };
     };
@@ -901,7 +923,10 @@ describe('useToolTraceMarkerParserOptions', () => {
         reasoning: 'Weighed two sources',
       });
       expect(reply.text()).toBe('Thought for 12 s3Looking it up.Between.Answer.');
-      const line = reply.cog().parent;
+      // The element around the cog's own, whatever components sit between them.
+      const lineOf = (node: ReactTestInstance | null): ReactTestInstance | null =>
+        !node || node.props.className === 'Line' ? node : lineOf(node.parent);
+      const line = lineOf(reply.cog().parent);
       if (!line) throw new Error('No line around the cog');
       expect(line.findAll((node) => node.type === 'button').map((b) => b.props.title)).toEqual([
         undefined,
@@ -916,6 +941,19 @@ describe('useToolTraceMarkerParserOptions', () => {
       reply.update(toolsHtml(false));
       expect(reply.text()).toBe('1Answer.');
       expect(reply.cogButton().props.title).toBe('Used 1 tool');
+      reply.unmount();
+    });
+
+    it('closes the cog once tool calls show, so hiding them again hides the runs', () => {
+      const reply = renderReply(twoRunsHtml(false), { shownByDefault: false });
+      act(() => reply.cogButton().props.onClick());
+      expect(reply.runLines()).toHaveLength(2);
+
+      reply.showByDefault(true);
+      expect(reply.cogs()).toHaveLength(0);
+      reply.showByDefault(false);
+      expect(reply.cogButton().props['aria-expanded']).toBe(false);
+      expect(reply.runLines()).toHaveLength(0);
       reply.unmount();
     });
 
@@ -946,7 +984,10 @@ describe('useToolTraceMarkerParserOptions', () => {
         cards(['send_email', 'pending']);
         const reply = renderReply(emailAndSearch, { shownByDefault: false });
         expect(reply.cog().props['data-state']).toBe('waiting');
-        expect(reply.cogButton().props.title).toBe('1 tool call waiting for approval');
+        // Its name holds the number it shows, and what the calls do.
+        expect(reply.cogButton().props['aria-label']).toBe(
+          '2 tool calls: 1 tool call waiting for approval'
+        );
         reply.unmount();
       });
 
@@ -954,7 +995,7 @@ describe('useToolTraceMarkerParserOptions', () => {
         cards(['send_email', 'denied']);
         const reply = renderReply(emailAndSearch, { shownByDefault: false });
         expect(reply.cog().props['data-state']).toBe('done');
-        expect(reply.cogButton().props.title).toBe('Used 1 tool');
+        expect(reply.cogButton().props['aria-label']).toBe('2 tool calls: Used 1 tool');
         expect(reply.text()).toBe('2Answer.');
         reply.unmount();
       });

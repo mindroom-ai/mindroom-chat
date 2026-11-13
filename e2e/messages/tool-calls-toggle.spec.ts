@@ -7,8 +7,8 @@ import { joinRoom, loginToMatrix, registerAgentAccount, sendRoomMessage } from '
 
 // Agent replies hide their tool calls by default: a faint cog at the top of the reply, on the line
 // of its reasoning when it has some, counts them and turns while one runs, and shows each run of
-// calls where it ran, folded as when tool calls show. The thread menu shows them in its thread, the room menu in the whole room, and each choice
-// stays after a reload.
+// calls where it ran, folded as when tool calls show. The thread menu shows them in its thread,
+// the room menu in the whole room, and each choice stays after a reload.
 // Set TOOL_CALLS_SHOTS=<directory> to save the cog, the open cog, the thread and both menus.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'tool-calls-toggle-spec-password';

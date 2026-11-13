@@ -240,6 +240,37 @@ describe('RenderMessageContent', () => {
     renderer.unmount();
   });
 
+  it("takes the tool rows' room from the event where the list gives none, as pinned messages do", () => {
+    const ToolRows = () =>
+      React.createElement('span', null, JSON.stringify(React.useContext(ToolCallMessageContext)));
+    renderAgentMessageContentMock.mockReset();
+    renderAgentMessageContentMock.mockReturnValue(React.createElement(ToolRows));
+    const renderer = create(
+      React.createElement(RenderMessageContent, {
+        displayName: 'Helper',
+        mEvent: new MatrixEvent({
+          type: 'm.room.message',
+          sender: AGENT,
+          room_id: '!room:example.org',
+          event_id: '$reply',
+          content: { msgtype: 'm.text' },
+        }),
+        eventId: '$reply',
+        msgType: 'm.text',
+        ts: 0,
+        getContent: (() => ({ msgtype: 'm.text', body: 'Ran a tool' })) as <T>() => T,
+        htmlReactParserOptions: {} as never,
+        linkifyOpts: {} as never,
+      })
+    );
+
+    expect(JSON.parse(renderer.root.findByType('span').children[0] as string)).toMatchObject({
+      eventId: '$reply',
+      roomId: '!room:example.org',
+    });
+    renderer.unmount();
+  });
+
   it('delegates MindRoom-specific message content to the MindRoom renderer seam', () => {
     renderAgentMessageContentMock.mockReset();
     renderAgentMessageContentMock.mockReturnValue(
