@@ -4,6 +4,7 @@ import { buildLoginPath } from '../env';
 import type * as Livekit from 'livekit-client';
 import { roomMoreOptions } from '../helpers/roomMenu';
 import { defined } from '../../src/test/utils/defined';
+import { DISPOSABLE_HOMESERVER as HOMESERVER } from '../helpers/disposableAccounts';
 
 // Calls over MatrixRTC and LiveKit between real browser sessions with fake microphones and
 // cameras: a direct chat call that rings (card, ringtone, system notification), is answered,
@@ -21,7 +22,6 @@ import { defined } from '../../src/test/utils/defined';
 // which --rtc starts before the slot's homeserver and stops afterwards:
 //   scripts/e2e-slot.sh <slot> --rtc npx playwright test e2e/calls/calls.spec.ts
 // scripts/e2e-suite.sh gives --rtc to every spec that names scripts/e2e-rtc.sh, as this one does.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'calls-spec-password';
 const RUN = Date.now().toString(36);
 

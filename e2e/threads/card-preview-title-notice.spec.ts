@@ -12,6 +12,10 @@ import {
 } from '../helpers/matrix';
 import { setRoomCompact } from '../helpers/roomViewSwitch';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // P2-macos-safari-F009: MindRoom titles a thread with an m.notice thread event that carries
 // `io.mindroom.thread_summary`, written after the agent's reply, so it is the thread's newest
@@ -22,7 +26,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // every preview the cards show meanwhile is recorded. Checked on an iPad and an iPhone in WebKit
 // (when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit) and on a desktop in Chromium.
 // Set CARD_TITLE_SHOTS=<directory> to save the cards while the pages are held and after.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'card-preview-title-notice-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.CARD_TITLE_SHOTS;
@@ -62,17 +65,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
   const username = `cptn_${name}_${RUN}`;
@@ -236,7 +228,7 @@ const run = async (
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('cards never preview a title notice on a tablet (WebKit)', async ({ baseURL }) => {

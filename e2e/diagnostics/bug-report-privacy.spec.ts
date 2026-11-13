@@ -17,6 +17,10 @@ import {
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { leaveCompactView } from '../helpers/roomViewSwitch';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // "Report a bug" on a message of an end-to-end encrypted room, against the slot's homeserver.
 // The report room is unencrypted (bug report agents read it without E2EE), so the menu entry
@@ -25,7 +29,6 @@ import { leaveCompactView } from '../helpers/roomViewSwitch';
 // warning. Checked by the uploads the browser makes and the files the server keeps: Chromium at
 // desktop size, WebKit on a phone.
 // Set BUG_REPORT_PRIVACY_SHOTS=<directory> to save the dialog on each engine.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'bug-report-privacy-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.BUG_REPORT_PRIVACY_SHOTS;
@@ -41,17 +44,6 @@ type UploadedReport = {
   messageTextOmitted?: boolean;
   target: { eventId: string };
   events: Array<{ eventId: string | null; event: { content: Record<string, unknown> } }>;
-};
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 };
 
 const register = async (name: string): Promise<MatrixSession & { username: string }> => {
@@ -256,7 +248,10 @@ const check = async (
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(240_000);
 });
 

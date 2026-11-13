@@ -12,6 +12,10 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A name or message in another direction than the interface keeps one order and its own side, on
 // a real homeserver. The Arabic name "المستخدم E" reads right to left, so its Latin E shows at
@@ -20,7 +24,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // or formatted one does: Arabic and Hebrew at the right in the English interface, English at the
 // left in the Arabic interface. Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
 // WebKit, WebKit; English and Arabic. MIXED_DIRECTION_SHOTS names a directory for screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'mixed-direction-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.MIXED_DIRECTION_SHOTS;
@@ -39,17 +42,6 @@ test.use({
   },
 });
 test.describe.configure({ timeout: 180_000 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerAndLogin = async (
   name: string,
@@ -258,7 +250,7 @@ for (const language of ['en', 'ar'] as const) {
     browser,
     baseURL,
   }) => {
-    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+    test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
     await check(browser, 'chromium', language, baseURL);
   });
 
@@ -266,7 +258,7 @@ for (const language of ['en', 'ar'] as const) {
     baseURL,
   }) => {
     test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE not set');
-    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+    test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
     const browser = await launchWebKit();
     try {
       await check(browser, 'webkit', language, baseURL);

@@ -1,28 +1,20 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { readSessionStore } from '../helpers/accounts';
 import { activeAccountButtonNamePattern, waitForLoggedInShell } from '../helpers/auth';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Sign-up against the disposable homeserver of `just hs-up`, which has open registration
 // (one `m.login.dummy` stage). The token test puts a registration token and terms stage in
 // front of it: those two stages are answered here, and the last request goes on to the real
 // server with the dummy stage, so the account and its session are real.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'registration-spec-password';
 const TOKEN_STAGE = 'm.login.registration_token';
 const TERMS_STAGE = 'm.login.terms';
 const GOOD_TOKEN = 'mindroom-invite';
 const TERMS_URL = 'https://example.org/terms-of-service';
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerPath = (search = '') => `/register/${encodeURIComponent(HOMESERVER)}${search}`;
 
@@ -114,7 +106,10 @@ const gateRegistration = async (page: Page): Promise<TokenGate> => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test('creates an account with a password and keeps it after a reload', async ({ page }) => {

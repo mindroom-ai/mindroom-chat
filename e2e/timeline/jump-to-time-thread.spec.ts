@@ -2,6 +2,10 @@ import { devices, expect, test, type Page, type Route } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Jump to Time from an open thread stays in the thread: the room's beginning, which comes before
 // the thread began, shows the thread's first message, and a time after its newest reply shows
@@ -21,22 +25,10 @@ test.use({
 });
 test.describe.configure({ timeout: 360_000 });
 
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'jump-to-time-thread-password';
 const RUN = Date.now().toString(36);
 const ROOT = 'Crane schedule for the north quay this week';
 const REPLIES = 120;
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (username: string): Promise<string> => {
   const body = await matrixFetch<{ access_token: string }>(HOMESERVER, '/register', {
@@ -174,7 +166,7 @@ for (const scheme of ['light', 'dark'] as const) {
       test('Jump to Time in a thread stays in the thread (Chromium)', async ({
         page,
       }, testInfo) => {
-        test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+        test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
         test.skip(
           new Date().getHours() === 23 && new Date().getMinutes() >= 55,
           'Too close to 23:59'
@@ -191,7 +183,7 @@ for (const scheme of ['light', 'dark'] as const) {
         baseURL,
       }, testInfo) => {
         test.skip(!WEBKIT_EXECUTABLE, 'WebKit runner required');
-        test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+        test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
         test.skip(
           new Date().getHours() === 23 && new Date().getMinutes() >= 55,
           'Too close to 23:59'

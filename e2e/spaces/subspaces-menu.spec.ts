@@ -16,6 +16,10 @@ import {
   setAccountData,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A space that holds sub-spaces lists only its own rooms. A Sub-spaces button near the top of its
 // room list opens a menu of the sub-spaces (avatar, name, a dot while one has unread messages);
@@ -24,7 +28,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // (1280 by 800) and a phone (390 by 844, touch), in English and Arabic, in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
 // SUBSPACES_MENU_SHOTS=<directory> for screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'subspaces-menu-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS = process.env.SUBSPACES_MENU_SHOTS;
@@ -39,17 +42,6 @@ const PHONE: BrowserContextOptions = {
   viewport: { width: 390, height: 844 },
   hasTouch: true,
   isMobile: true,
-};
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 };
 
 const register = async (name: string) => {
@@ -255,7 +247,10 @@ const inWebKit = async (check: (browser: Browser, engine: string) => Promise<voi
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(180_000);
 });
 

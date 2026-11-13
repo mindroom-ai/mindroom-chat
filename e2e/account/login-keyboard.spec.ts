@@ -8,6 +8,10 @@ import {
 import { buildLoginPath } from '../env';
 import { standInVisualViewport } from '../helpers/keyboardViewport';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The sign-in form on a phone with the keyboard up. After the password is typed, the Login button
 // shows above the keyboard and the password field stays in view (in the iOS app the button sat
@@ -16,7 +20,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // viewport shrinks (Safari on iOS, played here by a stand-in visualViewport). On a phone (390 by
 // 844, touch), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in
 // WebKit. Set LOGIN_KEYBOARD_SHOTS=<directory> for screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const SHOTS = process.env.LOGIN_KEYBOARD_SHOTS;
 
 const PHONE_SIZE = { width: 390, height: 844 };
@@ -27,17 +30,6 @@ const IPHONE_SAFARI =
 const KEYBOARD_VISIBLE = 508;
 
 test.use({ video: 'off' });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 type Keyboard = 'resizing' | 'Safari';
 
@@ -122,7 +114,10 @@ const checkLoginAboveKeyboard = async (
 
 test.describe('the Login button above a phone keyboard', () => {
   test.beforeEach(async () => {
-    test.skip(!(await homeserverIsUp()), `No test homeserver at ${HOMESERVER} (just hs-up)`);
+    test.skip(
+      !(await disposableHomeserverIsUp()),
+      `No test homeserver at ${HOMESERVER} (just hs-up)`
+    );
   });
 
   for (const keyboard of ['resizing', 'Safari'] as const) {

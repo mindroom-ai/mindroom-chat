@@ -9,12 +9,15 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Escape closes the thread filter bar's Preset list and Thread statistics and hands the focus back
 // to their buttons, without reading anything: the reader starts four threads that an agent and a
 // colleague answer, has read two of them, and a colleague's message waits in the room; the three
 // unread cards stay unread.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'thread-filter-escape-password';
 const RUN = Date.now().toString(36);
 
@@ -27,17 +30,6 @@ test.use({
   },
 });
 test.describe.configure({ timeout: 180_000 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
   const username = `tfe_${name}_${RUN}`;
@@ -56,7 +48,7 @@ const registerAndLogin = async (name: string): Promise<MatrixSession & { usernam
 };
 
 test('Escape closes the filter bar panels without reading the threads', async ({ page }) => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
   const reader = await registerAndLogin('reader');
   const colleague = await registerAndLogin('colleague');
   const agent = await registerAgentAccount(HOMESERVER, 'triage');

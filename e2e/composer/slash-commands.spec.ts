@@ -3,29 +3,21 @@ import { activeAccountButtonNamePattern } from '../helpers/auth';
 import { buildLoginPath } from '../env';
 import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { roomViewSwitch } from '../helpers/roomViewSwitch';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Slash commands in the composer: typing `/` as the first word opens the command menu, a
 // message command changes what is sent, a command that acts changes the room without sending a
 // message, and one that cannot run keeps the text and says why. Runs against the disposable
 // homeserver of `just hs-up` (or a slot of scripts/e2e-slot.sh).
 
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const SERVER_NAME = 'matrix.localhost';
 const PASSWORD = 'slash-commands-password';
 const RUN = Date.now().toString(36);
 
 type RoomEvent = { type: string; sender: string; content: Record<string, unknown> };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (username: string): Promise<string> => {
   const body = await matrixFetch<{ access_token: string }>(HOMESERVER, '/register', {
@@ -73,7 +65,10 @@ test('slash commands: the menu, a message command, commands that act, and a refu
   page,
 }, testInfo) => {
   test.setTimeout(360_000);
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 
   const owner = `slash_owner_${RUN}`;
   const guest = `slash_guest_${RUN}`;

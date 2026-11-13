@@ -8,27 +8,19 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Notifications against the disposable homeserver of `just hs-up` (or a slot of
 // scripts/e2e-slot.sh): a room's mode from the header menu, desktop notifications for messages
 // from another account and where a click on one leads, and the mention's row in Activity. Each run
 // registers its own two accounts.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'notifications-spec-password';
 const RUN = Date.now().toString(36);
 
 type ShownNotification = { title: string; body?: string; tag?: string };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
   const username = `f7_${name}_${RUN}`;
@@ -116,7 +108,7 @@ const inThread = (rootId: string, content: Record<string, unknown>) => ({
 });
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('the room header menu switches the room notification mode', async ({ page }) => {

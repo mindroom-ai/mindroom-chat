@@ -3,6 +3,10 @@ import { activeAccountButton, loginWithPassword } from '../helpers/auth';
 import { buildLoginPath } from '../env';
 import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { expectRoomCompact, roomViewSwitch } from '../helpers/roomViewSwitch';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Jump to Time in the room menu: the room's beginning opens the Full view at the room's first
 // events, far older than the sync window, and a server without `/timestamp_to_event` gets a
@@ -19,23 +23,11 @@ test.use({
   },
 });
 
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'jump-to-time-password';
 const RUN = Date.now().toString(36);
 const FIRST_NOTE = 'First note in the logbook';
 /** More room messages than one /sync brings per room (STARTUP_SYNC_TIMELINE_LIMIT is 20). */
 const LATER_NOTES = 40;
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (username: string): Promise<string> => {
   const body = await matrixFetch<{ access_token: string }>(HOMESERVER, '/register', {
@@ -70,7 +62,10 @@ test('Jump to Time opens the Full view at the beginning, or says the server cann
   page,
 }, testInfo) => {
   test.setTimeout(360_000);
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 
   const username = `jump_time_${RUN}`;
   const token = await register(username);
@@ -153,7 +148,10 @@ test.describe('on a phone', () => {
     page,
   }, testInfo) => {
     test.setTimeout(360_000);
-    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+    test.skip(
+      !(await disposableHomeserverIsUp()),
+      `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+    );
 
     const username = `jump_time_phone_${RUN}`;
     const token = await register(username);

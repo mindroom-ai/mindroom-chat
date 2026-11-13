@@ -11,12 +11,15 @@ import {
 } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
 import { launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Each message or invite notifies at most once on a device: a reload raises nothing that came
 // before it, more tabs of the same session raise one notification between them, and a muted
 // room pulls no attention. Runs against the disposable homeserver of `just hs-up` (or a slot of
 // scripts/e2e-slot.sh), in Chromium and, when the runner names it, WebKit.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'notification-dedupe-password';
 const RUN = Date.now().toString(36);
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
@@ -25,17 +28,6 @@ const DESKTOP = { viewport: { width: 1280, height: 800 } };
 type Engine = 'chromium' | 'webkit';
 type Account = MatrixSession & { username: string };
 type Shown = { tab: number; title: string; body?: string };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (name: string): Promise<Account> => {
   const username = `nd_${name}_${RUN}`;
@@ -286,7 +278,7 @@ const inWebKit = async (run: (browser: Browser) => Promise<void>) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('a message or invite notifies once per device, across reloads and tabs (Chromium)', async ({

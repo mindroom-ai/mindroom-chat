@@ -4,26 +4,18 @@ import { openSettingsFromAccountRail } from '../helpers/accounts';
 import { buildLoginPath } from '../env';
 import { setUpRecoveryPassword } from '../helpers/recovery';
 import { matrixFetch } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // An emoji verification between two sessions of one account that does not finish: one session
 // says the emoji do not match, or nobody answers. Both sessions must show the verification as
 // cancelled: on a mismatch at once, and after an unanswered comparison as soon as the crypto
 // machine's one minute of inactivity has passed. Against the slot's Tuwunel, with fresh accounts.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'verification-cancel-spec-password';
 const RECOVERY_PASSWORD = 'e2e recovery password 1';
 const CANCELLED = 'Verification has been canceled.';
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const signIn = async (browser: Browser, username: string): Promise<Page> => {
   const page = await (await browser.newContext()).newPage();
@@ -77,7 +69,7 @@ const startEmojiComparison = async (browser: Browser, name: string) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('emoji that do not match cancel the verification on both sessions @webkit', async ({

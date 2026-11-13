@@ -9,6 +9,10 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { buildLoginPath } from '../env';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Two tabs of one session share a device: each runs its own sync loop and its own Rust crypto
 // machine over the same IndexedDB crypto store, with nothing coordinating them (R7-01). This
@@ -35,7 +39,6 @@ import { buildLoginPath } from '../env';
 //   both tabs), so its room key is lost and its message never decrypts for Alice, not even
 //   after minutes; in 2 more runs one tab lacked the key and the other still had it. A tab that
 //   logged the missing key may miss the new device's messages; nothing else may go unread.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'two-tabs-spec-password';
 // Long enough for a busy machine; a message that never decrypts fails after it.
 const READ_TIMEOUT_MS = 30_000;
@@ -44,17 +47,6 @@ const NEW_DEVICE = 'bob device 2';
 const MISSING_KEY = /MissingOneTimeKey/;
 // Each message in the timeline is one row, so the whole conversation stays rendered.
 test.use({ viewport: { width: 1440, height: 1600 } });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const call = async <T>(path: string, token?: string, body?: unknown): Promise<T> => {
   const response = await fetch(`${HOMESERVER}/_matrix/client/v3${path}`, {
@@ -238,7 +230,10 @@ const failedStep = ({ missing, unreadable, joinedLate }: Phase) =>
   missing.length > 0 || (!joinedLate && unreadable.length > 0);
 
 test('two tabs of one session read every message of an encrypted room', async ({ browser }) => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(420_000);
 
   const run = `${Date.now().toString(36)}${test.info().repeatEachIndex}`;

@@ -9,6 +9,10 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { loginToMatrix, matrixFetch, type MatrixSession } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A room the reader has not joined, opened by its address (`/home/#alias:server`), shows a page
 // whose header names the room by that address, not by the room ID the address resolves to. Opened
@@ -16,7 +20,6 @@ import { launchWebKit } from '../helpers/webkit';
 // name. Join then opens the room. On a desktop (1280 by 800) and a phone (390 by 844, touch), in
 // Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit; the reader
 // has 25 rooms. Set JOIN_HEADER_SHOTS=<directory> to save each page.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'join-by-address-header-spec-password';
 const RUN = Date.now().toString(36);
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
@@ -39,17 +42,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (username: string): Promise<MatrixSession> => {
   const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
@@ -148,7 +140,7 @@ const check = async (page: Page, engine: string, form: 'desktop' | 'phone', info
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 for (const [form, options] of [
