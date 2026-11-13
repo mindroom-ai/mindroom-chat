@@ -41,8 +41,9 @@ vi.mock('../event-store/threads/useRoomThreadSummaryState', () => ({
   useRoomThreadSummaryState: () => ({ summaryMap: new Map(), storeThreadSummary: vi.fn() }),
 }));
 vi.mock('../threads/useThreadRootEvent', () => ({ useThreadRootEvent: () => undefined }));
+const viewMode = vi.hoisted(() => ({ current: 'compact' }));
 vi.mock('../navigation/useRoomViewMode', () => ({
-  useRoomViewMode: () => ({ viewMode: 'compact', setViewMode: vi.fn() }),
+  useRoomViewMode: () => ({ viewMode: viewMode.current, setViewMode: vi.fn() }),
 }));
 
 const room = {
@@ -57,6 +58,7 @@ afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
   localStorage.clear();
+  viewMode.current = 'compact';
 });
 
 const storeFilter = (filter: ThreadFilterState) =>
@@ -115,16 +117,31 @@ describe('useRoomViewThreadState', () => {
   });
 
   it('stores a filter chosen in the bar for this room only', () => {
+    viewMode.current = 'threaded';
     const { store, current } = mountThreadState();
 
     act(() => current().handleToggle('resolved'));
     act(() => current().handleToggle('resolved'));
 
     expect(current().threadFilterState.resolved).toBe('exclude');
-    expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID)).resolved).toBe('exclude');
-    expect(store.get(roomThreadFilterAtomFamily(USER_ID, '!other:example.org')).resolved).toBe(
-      'any'
-    );
+    expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID))?.resolved).toBe('exclude');
+    expect(store.get(roomThreadFilterAtomFamily(USER_ID, '!other:example.org'))).toBeNull();
+  });
+
+  it('hides resolved threads in Compact until the reader chooses otherwise', () => {
+    const { current } = mountThreadState();
+    expect(current().threadFilterState.resolved).toBe('exclude');
+
+    act(() => current().handleToggleUnresolvedOnly());
+    expect(current().threadFilterState.resolved).toBe('any');
+
+    act(() => renderer?.unmount());
+    expect(mountThreadState().current().threadFilterState.resolved).toBe('any');
+  });
+
+  it('shows resolved threads by default outside Compact', () => {
+    viewMode.current = 'threaded';
+    expect(mountThreadState().current().threadFilterState.resolved).toBe('any');
   });
 
   it('keeps agent filters stored but inactive in a room without agents', () => {
@@ -134,7 +151,7 @@ describe('useRoomViewThreadState', () => {
 
     expect(current().threadFilterState.resolved).toBe('any');
     expect(current().threadFilterState.sortBy).toBe('natural');
-    expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID)).resolved).toBe('exclude');
+    expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID))?.resolved).toBe('exclude');
   });
 
   it('locks and unlocks the sort order in advanced filters, and forgets the lock when the sort turns natural', () => {

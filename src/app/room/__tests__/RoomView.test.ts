@@ -615,7 +615,10 @@ describe('RoomView', { timeout: 30_000 }, () => {
       renderer = create(React.createElement(RoomView, { room: room as never }));
     });
 
-    // Toggle resolved: any -> include
+    // Compact hides resolved threads until the reader chooses: exclude -> any -> include
+    await act(async () => {
+      getTimeline(renderer!).props.onToggle('resolved');
+    });
     await act(async () => {
       getTimeline(renderer!).props.onToggle('resolved');
     });
@@ -787,43 +790,44 @@ describe('RoomView', { timeout: 30_000 }, () => {
       renderer = create(React.createElement(RoomView, { room: roomA as never }));
     });
 
+    // Compact hides resolved threads until the reader chooses: exclude -> any.
     await act(async () => {
       getTimeline(renderer!).props.onToggle('resolved');
     });
 
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
+    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('any');
 
     // Switch rooms; room B starts with its own default state.
     await act(async () => {
       renderer?.update(React.createElement(RoomView, { room: roomB as never }));
     });
 
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('any');
-
-    // Give room B a different persisted value.
-    await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
-    });
-
-    await act(async () => {
-      getTimeline(renderer!).props.onToggle('resolved');
-    });
-
     expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('exclude');
+
+    // Give room B a different persisted value: exclude -> any -> include.
+    await act(async () => {
+      getTimeline(renderer!).props.onToggle('resolved');
+    });
+
+    await act(async () => {
+      getTimeline(renderer!).props.onToggle('resolved');
+    });
+
+    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
 
     // Switch back; room A should keep its own persisted value.
     await act(async () => {
       renderer?.update(React.createElement(RoomView, { room: roomA as never }));
     });
 
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
+    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('any');
 
     // Room B should also keep its own persisted value when revisited.
     await act(async () => {
       renderer?.update(React.createElement(RoomView, { room: roomB as never }));
     });
 
-    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('exclude');
+    expect(getTimeline(renderer!).props.threadFilterState.resolved).toBe('include');
   });
 
   it('persists the freeze state across thread enter/exit in the same room', async () => {
@@ -865,6 +869,10 @@ describe('RoomView', { timeout: 30_000 }, () => {
       );
     });
 
+    // Compact hides resolved threads until the reader chooses: exclude -> any -> include
+    await act(async () => {
+      getTimeline(renderer!).props.onToggle('resolved');
+    });
     await act(async () => {
       getTimeline(renderer!).props.onToggle('resolved');
       getTimeline(renderer!).props.onToggleThreadSortFreeze();
@@ -902,6 +910,10 @@ describe('RoomView', { timeout: 30_000 }, () => {
       );
     });
 
+    // Compact hides resolved threads until the reader chooses: exclude -> any -> include
+    await act(async () => {
+      getTimeline(renderer!).props.onToggle('resolved');
+    });
     await act(async () => {
       getTimeline(renderer!).props.onToggle('resolved');
     });

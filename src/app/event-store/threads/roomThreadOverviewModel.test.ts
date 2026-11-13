@@ -150,14 +150,12 @@ describe('roomThreadOverviewModel', () => {
       const {
         createDefaultThreadFilterState,
         hasActiveThreadFilters,
-        isDefaultThreadFilterState,
         isOrModeStatusChip,
         isRoomThreadOverviewActive,
         resetThreadFilterState,
       } = await import('./roomThreadOverviewModel');
 
       const defaultState = createDefaultThreadFilterState();
-      expect(isDefaultThreadFilterState(defaultState)).toBe(true);
       expect(hasActiveThreadFilters(defaultState)).toBe(false);
       expect(isRoomThreadOverviewActive(undefined, defaultState)).toBe(true);
       expect(isRoomThreadOverviewActive('$thread', defaultState)).toBe(false);
