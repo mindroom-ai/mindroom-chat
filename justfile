@@ -32,7 +32,7 @@ strict:
 test *args:
     bash scripts/with-fhs-bin.sh npx vitest run {{args}}
 
-# Lint with ESLint (rules: .eslintrc.cjs): src, e2e, scripts and the config files (package.json "lint" names them). Lane C TypeScript also gets type-aware rules (floating and misused promises, `await` of non-promises, exhaustive switches, needless assertions, enum comparisons) with the types of tsconfig.strict.json, takes `PopOut` and `TooltipProvider` from src/app/ui/directional.tsx rather than folds, and writes styles with logical sides (`paddingInlineStart`, `insetInlineEnd`, `textAlign: 'start'`, no four-part `margin` or `padding`) so they mirror in right-to-left languages; a side that must stay physical takes a disable comment with its reason (safe-area insets are allowed).
+# Lint with ESLint (rules: .eslintrc.cjs): src, e2e, scripts and the config files (package.json "lint" names them). Lane C TypeScript also gets type-aware rules (floating and misused promises, `await` of non-promises, exhaustive switches, needless assertions, enum comparisons) with the types of tsconfig.strict.json. Every file takes `PopOut` and `TooltipProvider` from src/app/ui/directional.tsx rather than folds (that module and the glass adapter excepted), and every file of src but the tests writes styles with logical sides (`paddingInlineStart`, `insetInlineEnd`, `textAlign: 'start'`, no four-part `margin` or `padding`) so they mirror in right-to-left languages; a side that must stay physical takes a disable comment with its reason (safe-area insets are allowed).
 lint:
     npm run lint
 
