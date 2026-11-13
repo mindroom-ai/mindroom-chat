@@ -35,7 +35,7 @@ The lists keep import-time paths, and `docs/provenance/moves.tsv` (old path, new
 
 ## Commands
 
-Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, Python 3, `just`). Outside it, use Node 24 or newer (`package.json` `engines`): some unit tests fail on Node 22. `just --list` prints each recipe with its `justfile` comment.
+Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, Python 3, `just`). Outside it, use Node 24 or newer (`package.json` `engines`): some unit tests fail on Node 22.
 
 | Recipe | What it does |
 |---|---|
@@ -48,8 +48,8 @@ Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, 
 | `just lint` | ESLint over `src`, `e2e`, `scripts` and the config files, with type-aware rules for Lane C TypeScript, which also takes `PopOut` and `TooltipProvider` from `src/app/ui/directional.tsx` and writes styles with logical sides (the rules and their exceptions: the `justfile` comment) |
 | `just format <paths>` | Prettier (2.8.8, matches the Lane P style) on the files you changed |
 | `just dev` | Vite on `http://127.0.0.1:4200`; also serves `/runtime-config.js`, `/authentication-recovery.js` and a development `/sw.js` |
-| `just build` | production build into `dist/`; `docs/deployment.md` "Build" lists what it holds |
-| `just bundle-report [<dist>] [args]` | what a first visit to a build downloads, its largest chunks, and the size budget `scripts/perf/bundle-budget.json`; its options: the `justfile` comment |
+| `just build` | production build into `dist/`; `docs/deployment.md` "Build" and the `justfile` comment list what it holds |
+| `just bundle-report [<dist>] [args]` | what a first visit to a build downloads, its largest chunks, and the size budget `scripts/perf/bundle-budget.json`; its options: the `justfile` comment and the `scripts/perf/bundle-report.mjs` header |
 | `just release [<commit>] [--dry-run] [--yes]` | tags GitHub main with the next calendar version `vYYYY.M.N` and publishes its release and container image; shows the plan and asks first. Options: the `justfile` comment; automatic releases: `docs/ios-release.md`; the image: `docs/deployment.md` |
 | `just license-check` | `scripts/license-check.mjs`: fails on any installed package outside the license allowlist; runs its `node --test` suite first |
 | `just verify-ported [legacy chat checkout]` | recomputes both Lane P import waves (`port_files.py --wave N --verify`); prints a notice and passes when no path is given |
@@ -59,12 +59,12 @@ Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, 
 | `just hs-up` | starts the disposable Tuwunel test homeserver (`e2e/docker-compose.yaml`, `http://127.0.0.1:28008`) and waits until it is healthy |
 | `just hs-down` | stops the test homeserver and deletes its data |
 | `just e2e [args]` | Playwright in the Chromium from `CHROMIUM_PATH` against the dev server, which it starts when nothing listens on port 4200; run `just hs-up` first for specs that need the homeserver |
-| `just e2e-slot <n> [options] <command>\|down` | runs the command with slot n's own homeserver (port 28100+n) and app port (4300+n); `--snapshot` tests a commit instead of the working tree, `--preview` its production build. Options: the `scripts/e2e-slot.sh` header |
+| `just e2e-slot <n> [options] <command>\|down` | runs the command with slot n's own homeserver (port 28100+n) and app port (4300+n); `--snapshot` tests a commit instead of the working tree, `--preview` its production build, `--rtc` adds the call service of the call specs. Options: the `scripts/e2e-slot.sh` header |
 | `just e2e-suite [options] [specs] [-- <playwright options>]` | every spec file (or the given ones) of one commit, each in its own `e2e-slot --preview` snapshot run, spread over slots; one TSV row per spec. Options: the `scripts/e2e-suite.sh` header |
 | `just agent-stack <n> up\|down\|status\|usage [options]` | a real MindRoom backend, with a stub model (no model is called) or a real one, against slot n's homeserver; the agent specs start it themselves (`e2e/helpers/agentStack.ts`). Options, ports, keys and exit codes: the `scripts/agent-stack/stack.py` docstring |
-| `just script-tests` | tests of the e2e tooling, the notices generator, the bundle report and the iOS test fixture generators; the `justfile` comment lists the files |
+| `just script-tests` | tests of the e2e tooling, the notices generator, the bundle report and the iOS test fixture generators; the `justfile` comment lists the files and says why no upstream clone is needed |
 | `just upstream-overlap [<upstream clone>] [--history]` | `scripts/upstream-overlap/check.py`: no run of 3+ shared lines or 30+ shared tokens with any upstream version, in every tracked file at HEAD or (`--history`) in every commit; prints a notice and passes without a clone |
-| `just install-hooks <upstream clone> [<clone>...]` | installs the pre-push hook that checks each commit a push adds for upstream overlap; install again after the hook or the checker changes. Details: the headers of `scripts/git-hooks/install.sh`, `scripts/git-hooks/pre-push` and `scripts/upstream-overlap/check.py` |
+| `just install-hooks <upstream clone> [<clone>...]` | installs the pre-push hook that checks each commit a push adds for upstream overlap; install again after the hook or the checker changes. Details: the `justfile` comment and the headers it names |
 | `just check` | the full local check: `typecheck`, `strict`, `lint`, `test`, `script-tests`, `license-check`, `verify-ported`, `check-holes`, `identifier-renames`, `upstream-overlap`; it gives `verify-ported` and `upstream-overlap` no checkout or clone, so both print their notices. What CI runs: the `justfile` comment |
 | `scripts/push-gate.sh <checkout> --slot <n> --corpus <upstream clone> [--rev <commit>] [--base <rev>]` | the checks the coordinator runs on a commit before every push: build, type, lint and unit checks, the overlap history, a key scan and 15 smoke specs; one summary table. Details: the script's header |
 

@@ -88,7 +88,7 @@ upstream-overlap corpus='' *args:
     if [ -z "{{corpus}}" ]; then echo 'upstream-overlap: skipped (no upstream clone given)'; exit 0; fi
     python3 scripts/upstream-overlap/check.py --corpus "{{corpus}}" {{args}}
 
-# Install the pre-push hook that runs the upstream overlap check on every commit a push adds (scripts/git-hooks/install.sh): pass the upstream clone, then other clones to install it in (default: this one).
+# Install the pre-push hook that runs the upstream overlap check on every commit a push adds (scripts/git-hooks/install.sh): pass the upstream clone, then other clones to install it in (default: this one). A push checks each commit the remote lacks (not reachable from its tip of the ref or from its main, whose objects the hook fetches when the clone lacks them); the headers of scripts/git-hooks/install.sh, scripts/git-hooks/pre-push and scripts/upstream-overlap/check.py describe the rest.
 install-hooks corpus *clones:
     bash scripts/git-hooks/install.sh --corpus "{{corpus}}" {{clones}}
 
@@ -126,7 +126,7 @@ agent-stack slot *args:
 e2e-suite *args:
     bash scripts/e2e-suite.sh {{args}}
 
-# Tests of the e2e tooling, the notices generator, the bundle report and the iOS test fixture generators (scripts/e2e-results-tsv.test.mjs, scripts/third-party-notices.test.mjs, scripts/ios-routing-test-routes.test.mjs, scripts/ios-canvas-test-fixtures.test.mjs and scripts/perf/bundle-report.test.mjs with Node's test runner, scripts/test_matrix_http.py, scripts/reference/test_seed.py, scripts/agent-stack/test_stack.py, scripts/upstream-overlap/test_check.py and scripts/test_e2e_plugin_dirs.py with unittest).
+# Tests of the e2e tooling, the notices generator, the bundle report and the iOS test fixture generators (scripts/e2e-results-tsv.test.mjs, scripts/third-party-notices.test.mjs, scripts/ios-routing-test-routes.test.mjs, scripts/ios-canvas-test-fixtures.test.mjs and scripts/perf/bundle-report.test.mjs with Node's test runner, scripts/test_matrix_http.py, scripts/reference/test_seed.py, scripts/agent-stack/test_stack.py, scripts/upstream-overlap/test_check.py and scripts/test_e2e_plugin_dirs.py with unittest). test_check.py pushes to local bare repositories through the pre-push hook, with a made-up corpus: no upstream clone is needed.
 script-tests:
     node --test scripts/e2e-results-tsv.test.mjs scripts/third-party-notices.test.mjs scripts/ios-routing-test-routes.test.mjs scripts/ios-canvas-test-fixtures.test.mjs scripts/perf/bundle-report.test.mjs
     python3 -m unittest scripts/test_matrix_http.py scripts/reference/test_seed.py scripts/agent-stack/test_stack.py scripts/upstream-overlap/test_check.py scripts/test_e2e_plugin_dirs.py
