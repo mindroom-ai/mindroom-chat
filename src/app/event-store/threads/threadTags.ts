@@ -138,14 +138,6 @@ export const parseThreadTagsContent = (content: unknown): ThreadTagsContent => {
 };
 
 /**
- * Check whether thread tags content represents a tombstoned / empty state.
- */
-export const isThreadTagsTombstone = (content: unknown): boolean => {
-  const parsed = parseThreadTagsContent(content);
-  return Object.keys(parsed.tags).length === 0;
-};
-
-/**
  * Parse a canonical per-tag state key: `["$threadRootId","tag"]`.
  */
 export const parsePerTagStateKey = (

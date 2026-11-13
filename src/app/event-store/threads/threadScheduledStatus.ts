@@ -65,24 +65,3 @@ export const getThreadScheduledStatus = (
   threadRootId
     ? scheduledStatusMap.get(threadRootId) ?? EMPTY_THREAD_SCHEDULED_STATUS
     : EMPTY_THREAD_SCHEDULED_STATUS;
-
-export const getRoomScheduledTaskCounts = (
-  scheduledTaskEvents: readonly MatrixEvent[],
-  now = Date.now()
-): Map<string, number> => {
-  const counts = new Map<string, number>();
-  buildRoomThreadScheduledStatusMap(scheduledTaskEvents, now).forEach((status, threadRootId) => {
-    counts.set(threadRootId, status.scheduledTaskCount);
-  });
-  return counts;
-};
-
-export const getNextThreadScheduledTs = (
-  scheduledTaskEvents: readonly MatrixEvent[],
-  threadRootId: string | undefined,
-  now = Date.now()
-): number | undefined =>
-  getThreadScheduledStatus(
-    buildRoomThreadScheduledStatusMap(scheduledTaskEvents, now),
-    threadRootId
-  ).nextScheduledTs;

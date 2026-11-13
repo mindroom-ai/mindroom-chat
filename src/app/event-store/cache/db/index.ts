@@ -82,7 +82,7 @@ export {
   type CachedThreadEventPage,
 } from './cacheStoreEvents';
 
-export { noteRoomFederated, readLedgerSnapshot } from './cacheStoreLedger';
+export { readLedgerSnapshot } from './cacheStoreLedger';
 
 export {
   runCacheEvictionIfOverBudget,

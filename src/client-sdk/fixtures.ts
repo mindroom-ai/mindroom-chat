@@ -1,6 +1,6 @@
 // `@mindroom/client-sdk/fixtures`, the client SDK's subpath for a plugin's end-to-end fixture pages
 // (`e2e/fixtures/<page>.html`), which render its components on their own, outside the app, in the
-// browser (docs/architecture.md "Client plugins"). Only fixture pages import it, never code that
+// browser (docs/client-plugins.md "fixtures"). Only fixture pages import it, never code that
 // ships: the dev server and the fixture page build resolve it, the app's build does not. Like
 // `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION.
 import 'folds/dist/style.css';
