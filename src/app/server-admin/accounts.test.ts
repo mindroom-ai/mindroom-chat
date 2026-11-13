@@ -22,7 +22,8 @@ const clientWith = (answer: Answer) => {
   const getRoom = vi.fn((roomId: string) =>
     roomId === '!known:example.com' ? { name: 'Known' } : null
   );
-  const client = { http: { authedRequest }, deactivateSynapseUser, getRoom };
+  const getUserId = () => '@alice:example.com';
+  const client = { http: { authedRequest }, deactivateSynapseUser, getRoom, getUserId };
   return { client: client as unknown as MatrixClient, authedRequest, deactivateSynapseUser };
 };
 
@@ -181,13 +182,20 @@ describe('accountActions', () => {
 });
 
 describe('runAccountAction', () => {
+  const bob = (fields: Record<string, unknown> = {}) => ({ name: '@bob:example.com', ...fields });
+
   it.each([
-    ['lock', '/admin/lock/%40bob%3Aexample.com', { locked: true }],
-    ['unlock', '/admin/lock/%40bob%3Aexample.com', { locked: false }],
-    ['suspend', '/admin/suspend/%40bob%3Aexample.com', { suspended: true }],
-    ['unsuspend', '/admin/suspend/%40bob%3Aexample.com', { suspended: false }],
-  ] as const)('%s calls the moderation route', async (action, path, body) => {
-    const { client, authedRequest, deactivateSynapseUser } = clientWith(() => ({}));
+    ['lock', bob(), '/admin/lock/%40bob%3Aexample.com', { locked: true }],
+    ['unlock', bob({ locked: true }), '/admin/lock/%40bob%3Aexample.com', { locked: false }],
+    ['suspend', bob(), '/admin/suspend/%40bob%3Aexample.com', { suspended: true }],
+    [
+      'unsuspend',
+      bob({ suspended: true }),
+      '/admin/suspend/%40bob%3Aexample.com',
+      { suspended: false },
+    ],
+  ] as const)('%s calls the moderation route', async (action, details, path, body) => {
+    const { client, authedRequest, deactivateSynapseUser } = clientWith(() => details);
     await runAccountAction(client, '@bob:example.com', action);
     expect(authedRequest).toHaveBeenCalledWith('PUT', path, undefined, body, {
       prefix: '/_matrix/client/v1',
@@ -196,10 +204,38 @@ describe('runAccountAction', () => {
   });
 
   it('deactivates through the admin API', async () => {
-    const { client, authedRequest, deactivateSynapseUser } = clientWith(() => ({}));
+    const { client, authedRequest, deactivateSynapseUser } = clientWith(() => bob());
     await runAccountAction(client, '@bob:example.com', 'deactivate');
     expect(deactivateSynapseUser).toHaveBeenCalledWith('@bob:example.com');
-    expect(authedRequest).not.toHaveBeenCalled();
+    expect(authedRequest.mock.calls.map(([method]) => method)).toEqual(['GET']);
+  });
+
+  it.each([
+    ['deactivate', '@bob:example.com', bob({ admin: true })],
+    ['deactivate', '@bob:example.com', bob({ deactivated: true })],
+    ['deactivate', '@alice:example.com', { name: '@alice:example.com' }],
+    ['lock', '@bob:example.com', bob({ locked: true })],
+    ['suspend', '@bob:example.com', bob({ admin: true })],
+    ['deactivate', '@bob:example.com', {}],
+  ] as const)(
+    'reads the account again and leaves %s of %s undone when it no longer allows it: %j',
+    async (action, userId, details) => {
+      const { client, authedRequest, deactivateSynapseUser } = clientWith(() => details);
+      await runAccountAction(client, userId, action);
+      expect(authedRequest.mock.calls.map(([method]) => method)).toEqual(['GET']);
+      expect(deactivateSynapseUser).not.toHaveBeenCalled();
+    }
+  );
+
+  it('does nothing when the account cannot be read again', async () => {
+    const { client, authedRequest, deactivateSynapseUser } = clientWith(() => {
+      throw new Error('offline');
+    });
+    await expect(runAccountAction(client, '@bob:example.com', 'deactivate')).rejects.toThrow(
+      'offline'
+    );
+    expect(authedRequest).toHaveBeenCalledTimes(1);
+    expect(deactivateSynapseUser).not.toHaveBeenCalled();
   });
 });
 

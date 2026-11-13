@@ -145,7 +145,7 @@ export type AccountAction = 'lock' | 'unlock' | 'suspend' | 'unsuspend' | 'deact
  * What an administrator may do to an account here: nothing to their own account or to another
  * administrator, nor to a deactivated account, which stays deactivated. The server refuses to
  * lock or suspend an administrator or the caller, but would deactivate either, so this is what
- * keeps that from happening here.
+ * keeps that from happening here; `runAccountAction` asks it again just before it acts.
  */
 export const accountActions = (
   account: ServerAccount,
@@ -159,11 +159,18 @@ export const accountActions = (
   ];
 };
 
+/**
+ * Takes an action on an account, which is read again first: it may have become an administrator,
+ * or changed otherwise, since it was shown. An action it no longer allows is left undone, and the
+ * caller reads the account again either way.
+ */
 export const runAccountAction = async (
   mx: MatrixClient,
   userId: string,
   action: AccountAction
 ): Promise<void> => {
+  const account = await getServerAccount(mx, userId);
+  if (!account || !accountActions(account, mx.getUserId()).includes(action)) return;
   const moderate = (route: 'lock' | 'suspend', body: Record<string, boolean>) =>
     mx.http.authedRequest(
       Method.Put,
