@@ -260,11 +260,14 @@ const checkCallPanel = async (page: Page, label: string) => {
   const panel = page.getByTestId('call-panel');
   await expect(panel).toBeVisible({ timeout: 30_000 });
   await expectShown(panel.locator('h2'), ROOM_NAME_SHOWN);
-  await expect(
-    page
-      .getByRole('region', { name: ROOM_NAME_SHOWN, exact: true })
-      .filter({ has: panel.locator('h2') })
-  ).toBeVisible();
+  const landmark = page.getByRole('region', { name: ROOM_NAME_SHOWN, exact: true });
+  await expect(landmark).toBeVisible();
+  // The landmark is the call's: it holds the call view's heading.
+  expect(
+    await landmark.evaluate((element) =>
+      element.contains(document.querySelector('[data-testid="call-panel"] h2'))
+    )
+  ).toBe(true);
   await shot(page, `${label}-call-panel`);
   await panel.locator('header button').last().click();
   await expect(panel).toBeHidden();
