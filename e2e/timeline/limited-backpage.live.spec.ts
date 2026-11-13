@@ -7,6 +7,7 @@ import {
   matrixFetch,
   seedRoomOverviewState,
   sendRoomMessage,
+  setAccountData,
 } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
@@ -279,14 +280,12 @@ for (const engine of ['chromium', 'webkit'] as const) {
                 body: JSON.stringify({ displayname: 'Name After' }),
               }
             );
-            await matrixFetch(
+            await setAccountData(
               homeserver,
-              `/user/${encodeURIComponent(viewer.userId)}/account_data/io.mindroom.client.settings`,
-              {
-                method: 'PUT',
-                accessToken: viewer.accessToken,
-                body: JSON.stringify({ version: 1, hideMembershipEvents: true }),
-              }
+              viewer.accessToken,
+              viewer.userId,
+              'io.mindroom.client.settings',
+              { version: 1, hideMembershipEvents: true }
             );
             await Promise.all(Array.from({ length: 25 }, (_, index) => sendHidden(`gap-${index}`)));
             holdSync = false;

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { readSessionStore } from '../helpers/accounts';
+import { readSessionStore, expectActiveStoredUsername } from '../helpers/accounts';
 import { chooseFromAccountMenu, expectAccountRailCount } from '../helpers/auth';
 import { defined } from '../../src/test/utils/defined';
 import {
@@ -19,15 +19,6 @@ import {
 // Single sign-on on the deployment's own homeserver (helpers in `ssoHomeserver.ts`). Every test
 // lists the slot's server in `config.json`, as a deployment lists its own, so its buttons start
 // at once; `sso-unlisted-server.spec.ts` covers servers the deployment does not offer.
-
-const expectActiveUser = async (page: Page, username: string) => {
-  await expect
-    .poll(async () => {
-      const store = await readSessionStore(page);
-      return store.sessions.find((session) => session.sessionId === store.activeSessionId)?.userId;
-    })
-    .toMatch(new RegExp(`^@${username}:`));
-};
 
 // A server that a crafted link names: it answers discovery and the login flows like a homeserver
 // and records every request, so a test can tell whether a login token ever reached it.
@@ -92,7 +83,7 @@ test('signs in through an identity provider and returns with a login token', asy
   await providerButton.click();
 
   await waitForShell(page);
-  await expectActiveUser(page, username);
+  await expectActiveStoredUsername(page, username);
   // The provider was asked to come back to this server's login page, and the token is gone.
   expect(stub.redirectUrls).toHaveLength(1);
   expect(new URL(defined(stub.redirectUrls[0], 'the first SSO redirect')).pathname).toBe(
@@ -103,7 +94,7 @@ test('signs in through an identity provider and returns with a login token', asy
   // The session survives a reload like a password session does.
   await page.reload();
   await waitForShell(page);
-  await expectActiveUser(page, username);
+  await expectActiveStoredUsername(page, username);
 });
 
 test('adds a second account through single sign-on', async ({ page }) => {
@@ -118,14 +109,14 @@ test('adds a second account through single sign-on', async ({ page }) => {
   await page.goto(loginPath());
   await page.getByRole('link', { name: `Continue with ${PROVIDER.name}` }).click();
   await waitForShell(page);
-  await expectActiveUser(page, first);
+  await expectActiveStoredUsername(page, first);
 
   await chooseFromAccountMenu(page, 'Add Account');
   await expect(page).toHaveURL(/addAccount=1/);
   await page.getByRole('link', { name: `Continue with ${PROVIDER.name}` }).click();
 
   await waitForShell(page);
-  await expectActiveUser(page, second);
+  await expectActiveStoredUsername(page, second);
   // The return address kept the add-account flow, so the first account stayed signed in.
   expect(
     new URL(defined(stub.redirectUrls[1], 'the second SSO redirect')).searchParams.get('addAccount')
@@ -200,7 +191,7 @@ test('exchanges a returning token at the server the sign-in went to, not one the
   await page.getByRole('link', { name: `Continue with ${PROVIDER.name}` }).click();
 
   await waitForShell(page);
-  await expectActiveUser(page, username);
+  await expectActiveStoredUsername(page, username);
   const store = await readSessionStore(page);
   expect(store.sessions.map((session) => session.baseUrl)).toEqual([HOMESERVER]);
   expect(loginPosts(otherServerRequests)).toEqual([]);

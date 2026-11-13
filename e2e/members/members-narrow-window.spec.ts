@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { matrixFetch } from '../helpers/matrix';
+import { joinRoom } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -71,11 +71,7 @@ const narrowWithMembersOpen = async (page: Page, name: string) => {
     name: `Harbor log ${name} ${RUN}`,
     invite: [other.userId],
   });
-  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(roomId)}`, {
-    method: 'POST',
-    accessToken: other.accessToken,
-    body: '{}',
-  });
+  await joinRoom(HOMESERVER, other.accessToken, roomId);
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
     username: reader.username,

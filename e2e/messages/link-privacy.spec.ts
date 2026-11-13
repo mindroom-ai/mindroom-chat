@@ -14,6 +14,7 @@ import {
   seedRoomOverviewState,
   sendRoomMessage,
   type MatrixSession,
+  joinRoom,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { leaveCompactView } from '../helpers/roomViewSwitch';
@@ -162,11 +163,7 @@ const checkIcons = async (
     encrypted: false,
     invite: reader.userId,
   });
-  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(plainRoom)}`, {
-    method: 'POST',
-    accessToken: reader.accessToken,
-    body: '{}',
-  });
+  await joinRoom(HOMESERVER, reader.accessToken, plainRoom);
   await sendLink(writer, plainRoom, 'Plain', '<a href="https://example.org/plain">plain-link</a>');
   const secretRoom = await createRoom(reader, 'Harbor Survey', { encrypted: true });
 
@@ -249,11 +246,7 @@ const checkDestinations = async (
     encrypted: false,
     invite: reader.userId,
   });
-  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(roomId)}`, {
-    method: 'POST',
-    accessToken: reader.accessToken,
-    body: '{}',
-  });
+  await joinRoom(HOMESERVER, reader.accessToken, roomId);
   await sendLink(
     writer,
     roomId,

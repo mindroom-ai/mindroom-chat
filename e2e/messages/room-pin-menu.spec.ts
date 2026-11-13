@@ -15,6 +15,7 @@ import {
   sendRoomMessage,
   sendStateEvent,
   type MatrixSession,
+  joinRoom,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { isPhoneLayout, openRoomPins, roomMoreOptions } from '../helpers/roomMenu';
@@ -142,13 +143,6 @@ const createRooms = async (owner: MatrixSession, invite: string[] = []): Promise
   return createRoom(HOMESERVER, owner.accessToken, { name: ROOM_NAME, invite });
 };
 
-const joinAs = (session: MatrixSession, roomId: string) =>
-  matrixFetch(HOMESERVER, `/join/${encodeURIComponent(roomId)}`, {
-    method: 'POST',
-    accessToken: session.accessToken,
-    body: '{}',
-  });
-
 const pinEvents = (owner: MatrixSession, roomId: string, pinned: string[]) =>
   sendStateEvent(HOMESERVER, owner.accessToken, roomId, 'm.room.pinned_events', '', { pinned });
 
@@ -178,7 +172,7 @@ const seed = async (name: string) => {
   const owner = await register(username, OWNER_NAME);
   const guest = await register(`rpm_${name}_guest_${RUN}`, GUEST_NAME, PICTURE);
   const roomId = await createRooms(owner, [guest.userId]);
-  await joinAs(guest, roomId);
+  await joinRoom(HOMESERVER, guest.accessToken, roomId);
   const pins: Pin[] = [];
   for (const { body, pinned, guest: byGuest } of MESSAGES) {
     const sender = byGuest ? guest : owner;
@@ -628,23 +622,10 @@ const checkEncrypted = async (page: Page, engine: string, form: string, testInfo
   const username = `rpe_${engine}_${form}_${RUN}`;
   const owner = await register(username, OWNER_NAME);
   await createRooms(owner);
-  const roomId = (
-    await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
-      method: 'POST',
-      accessToken: owner.accessToken,
-      body: JSON.stringify({
-        name: 'Encrypted harbor notes',
-        preset: 'private_chat',
-        initial_state: [
-          {
-            type: 'm.room.encryption',
-            state_key: '',
-            content: { algorithm: 'm.megolm.v1.aes-sha2' },
-          },
-        ],
-      }),
-    })
-  ).room_id;
+  const roomId = await createRoom(HOMESERVER, owner.accessToken, {
+    name: 'Encrypted harbor notes',
+    encrypted: true,
+  });
   await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
   await page.goto(`/home/${encodeURIComponent(roomId)}`);
   const composer = page.locator('[data-editable-name="RoomInput"]');
@@ -711,23 +692,10 @@ const checkUnloadedPins =
     const owner = await register(username, OWNER_NAME);
     let roomId = await createRooms(owner);
     if (encrypted) {
-      roomId = (
-        await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
-          method: 'POST',
-          accessToken: owner.accessToken,
-          body: JSON.stringify({
-            name: 'Encrypted terminal log',
-            preset: 'private_chat',
-            initial_state: [
-              {
-                type: 'm.room.encryption',
-                state_key: '',
-                content: { algorithm: 'm.megolm.v1.aes-sha2' },
-              },
-            ],
-          }),
-        })
-      ).room_id;
+      roomId = await createRoom(HOMESERVER, owner.accessToken, {
+        name: 'Encrypted terminal log',
+        encrypted: true,
+      });
     }
     await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
     const roomPath = `/home/${encodeURIComponent(roomId)}`;

@@ -1,6 +1,6 @@
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
-import { matrixFetch, sendRoomMessage, setDirectAccountData } from '../helpers/matrix';
+import { matrixFetch, sendRoomMessage, setDirectAccountData, joinRoom } from '../helpers/matrix';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -54,11 +54,7 @@ const createDirectChat = async (alice: Account, bob: Account, encrypted: boolean
     accessToken: alice.accessToken,
     body: JSON.stringify({ preset: 'trusted_private_chat', is_direct: true, invite: [bob.userId] }),
   });
-  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(roomId)}`, {
-    method: 'POST',
-    accessToken: bob.accessToken,
-    body: '{}',
-  });
+  await joinRoom(HOMESERVER, bob.accessToken, roomId);
   await setDirectAccountData(HOMESERVER, alice.accessToken, alice.userId, bob.userId, roomId);
   await setDirectAccountData(HOMESERVER, bob.accessToken, bob.userId, alice.userId, roomId);
   for (let index = 0; index < HISTORY; index += 1) {

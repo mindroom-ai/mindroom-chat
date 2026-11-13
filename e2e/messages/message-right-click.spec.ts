@@ -3,7 +3,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, sendRoomMessage } from '../helpers/matrix';
-import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { WEBKIT_EXECUTABLE, onWebKitPage } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -212,19 +212,7 @@ test(`${TITLE} (Chromium)`, async ({ page }) => {
 test(`${TITLE} (WebKit)`, async ({ baseURL }) => {
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
-  const browser = await launchWebKit();
-  try {
-    const context = await browser.newContext({ viewport: DESKTOP, baseURL });
-    const page = await context.newPage();
-    try {
-      await rightClicksOpenTheMessageMenu(page, 'webkit');
-    } catch (error) {
-      await page
-        .screenshot({ path: test.info().outputPath('webkit-failure.png') })
-        .catch(() => undefined);
-      throw error;
-    }
-  } finally {
-    await browser.close();
-  }
+  await onWebKitPage({ viewport: DESKTOP, baseURL }, (page) =>
+    rightClicksOpenTheMessageMenu(page, 'webkit')
+  );
 });

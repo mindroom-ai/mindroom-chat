@@ -7,6 +7,7 @@ import {
   matrixFetch,
   seedRoomOverviewState,
   sendRoomMessage,
+  setAccountData,
 } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
@@ -61,15 +62,10 @@ const rename = (account: Account, displayname: string) =>
 
 /** The setting as another device of the reader writes it. */
 const setHideMembership = (account: Account, hide: boolean) =>
-  matrixFetch(
-    homeserver,
-    `/user/${encodeURIComponent(account.userId)}/account_data/${SETTINGS_TYPE}`,
-    {
-      method: 'PUT',
-      accessToken: account.accessToken,
-      body: JSON.stringify({ version: 1, hideMembershipEvents: hide }),
-    }
-  );
+  setAccountData(homeserver, account.accessToken, account.userId, SETTINGS_TYPE, {
+    version: 1,
+    hideMembershipEvents: hide,
+  });
 
 type WatchWindow = Window & { messageWatch?: { stop: () => string[] } };
 

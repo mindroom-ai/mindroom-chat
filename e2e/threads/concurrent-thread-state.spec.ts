@@ -10,7 +10,7 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { matrixFetch, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
+import { matrixFetch, sendRoomMessage, type MatrixSession, joinRoom } from '../helpers/matrix';
 import { holdFirstWrites } from '../helpers/holdWrites';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
@@ -130,11 +130,7 @@ const seed = async (name: string, guestPower: number) => {
     name: ROOM_NAME,
     invite: [guest.userId],
   });
-  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(roomId)}`, {
-    method: 'POST',
-    accessToken: guest.accessToken,
-    body: '{}',
-  });
+  await joinRoom(HOMESERVER, guest.accessToken, roomId);
   await setPowers(owner, roomId, { [guest.userId]: guestPower });
   const roots: string[] = [];
   for (const thread of THREADS) {
