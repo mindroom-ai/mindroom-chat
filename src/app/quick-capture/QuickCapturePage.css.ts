@@ -12,6 +12,7 @@ const faint = createVar();
 const rule = createVar();
 const fill = createVar();
 const press = createVar();
+const pick = createVar();
 const paper = createVar();
 const face = createVar();
 const bezel = createVar();
@@ -29,6 +30,7 @@ const lightColors = {
   [rule]: 'rgba(0, 0, 0, 0.1)',
   [fill]: 'rgba(0, 0, 0, 0.06)',
   [press]: 'rgba(0, 0, 0, 0.12)',
+  [pick]: 'rgba(0, 0, 0, 0.09)',
   [face]: '#FFFFFF',
   [bezel]: `0 0 0 ${toRem(1)} rgba(0, 0, 0, 0.07), 0 ${toRem(1)} ${toRem(2)} rgba(0, 0, 0, 0.14)`,
   [accent]: '#694CCD',
@@ -44,11 +46,12 @@ const darkColors = {
   [rule]: 'rgba(255, 255, 255, 0.1)',
   [fill]: 'rgba(255, 255, 255, 0.09)',
   [press]: 'rgba(255, 255, 255, 0.18)',
+  [pick]: 'rgba(255, 255, 255, 0.12)',
   [face]: 'rgba(255, 255, 255, 0.12)',
   [bezel]: `0 0 0 ${toRem(1)} rgba(255, 255, 255, 0.06), 0 ${toRem(1)} ${toRem(
     2
   )} rgba(0, 0, 0, 0.3)`,
-  [accent]: '#8E78F0',
+  [accent]: '#7860E0',
   [alert]: '#FF6961',
   [caution]: '#FFB340',
 };
@@ -69,7 +72,9 @@ const selectable = { cursor: 'text', userSelect: 'text', WebkitUserSelect: 'text
 const hairline = `${toRem(1)} solid ${rule}`;
 /** The keyboard focus, as the Mac draws it: a soft ring of the accent around the control. */
 const ring = `0 0 0 ${toRem(3)} color-mix(in srgb, ${accent} 45%, transparent)`;
-const focusRing = { outline: 'none', boxShadow: ring } as const;
+/** Under the ring and the selected row's fill: an outline only forced colors draw. */
+const forcedOutline = `${toRem(2)} solid transparent`;
+const focusRing = { outline: forcedOutline, boxShadow: ring } as const;
 
 /**
  * The whole window: no card around it, and only the list scrolls. Its labels behave as a Mac
@@ -204,7 +209,7 @@ export const SendButton = style({
   inlineSize: toRem(22),
   borderRadius: '50%',
   blockSize: toRem(22),
-  color: faint,
+  color: dim,
   backgroundColor: fill,
   selectors: {
     '&[data-ready="true"]': { color: onAccent, backgroundColor: accent },
@@ -298,7 +303,7 @@ export const Item = style({
   paddingBlock: toRem(6),
   borderRadius: toRem(8),
   paddingInline: toRem(8),
-  selectors: { '&:focus-within': { backgroundColor: fill } },
+  selectors: { '&:focus-within': { backgroundColor: pick, outline: forcedOutline } },
 });
 
 /** The leading mark: a ring for an open thread, a filled check for a resolved one. */
@@ -332,10 +337,20 @@ export const MarkResolved = style({
 });
 
 /** The row's two lines: the button that selects the thread and peeks at it. */
-export const Row = style({ ...stack, minInlineSize: 0, outline: 'none' });
+export const Row = style({ ...stack, position: 'relative', minInlineSize: 0, outline: 'none' });
 
 /** A thread resolved in the last day, dimmed under the open ones. */
 export const Resolved = style({ opacity: 0.6 });
+
+/** "Resolved", for a screen reader: the eye has the check and the dimming. */
+export const Unseen = style({
+  position: 'absolute',
+  inlineSize: toRem(1),
+  clipPath: 'inset(50%)',
+  blockSize: toRem(1),
+  overflow: 'hidden',
+  whiteSpace: 'nowrap',
+});
 
 /** The first line: the title, and at its end what the thread is doing and when it last moved. */
 export const RowHead = style({ ...strip, columnGap: toRem(8) });
@@ -431,7 +446,7 @@ export const SmallButton = style({
   selectors: {
     '&:active:not(:disabled)': { backgroundColor: press },
     '&:disabled': { opacity: 0.45 },
-    '&:focus-visible': { outline: 'none', boxShadow: `${bezel}, ${ring}` },
+    '&:focus-visible': { outline: forcedOutline, boxShadow: `${bezel}, ${ring}` },
   },
 });
 
@@ -447,7 +462,7 @@ export const ReplyField = style({
   backgroundColor: face,
   boxShadow: fieldEdge,
   '::placeholder': { color: faint },
-  ':focus-visible': { outline: 'none', boxShadow: `${fieldEdge}, ${ring}` },
+  ':focus-visible': { outline: forcedOutline, boxShadow: `${fieldEdge}, ${ring}` },
 });
 
 export const Search = style({

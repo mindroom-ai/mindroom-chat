@@ -603,7 +603,8 @@
       "list": {
         "label": "Hilos en {{room}}",
         "empty": "No hay nada abierto aquí",
-        "sent": "Enviado"
+        "sent": "Enviado",
+        "resolved": "Resuelto"
       },
       "chip": {
         "working": "Trabajando",

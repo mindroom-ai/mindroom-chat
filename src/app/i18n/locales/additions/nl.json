@@ -594,7 +594,8 @@
       "list": {
         "label": "Threads in {{room}}",
         "empty": "Hier staat niets open",
-        "sent": "Verstuurd"
+        "sent": "Verstuurd",
+        "resolved": "Opgelost"
       },
       "chip": {
         "working": "Bezig",

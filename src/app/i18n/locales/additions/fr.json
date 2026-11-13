@@ -603,7 +603,8 @@
       "list": {
         "label": "Fils dans {{room}}",
         "empty": "Rien d’ouvert ici",
-        "sent": "Envoyé"
+        "sent": "Envoyé",
+        "resolved": "Résolu"
       },
       "chip": {
         "working": "En cours",

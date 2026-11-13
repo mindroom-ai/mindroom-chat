@@ -585,7 +585,8 @@
       "list": {
         "label": "{{room}} 中的讨论串",
         "empty": "这里没有未结事项",
-        "sent": "已发送"
+        "sent": "已发送",
+        "resolved": "已解决"
       },
       "chip": {
         "working": "处理中",

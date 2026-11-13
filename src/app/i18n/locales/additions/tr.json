@@ -594,7 +594,8 @@
       "list": {
         "label": "{{room}} içindeki konular",
         "empty": "Burada açık bir şey yok",
-        "sent": "Gönderildi"
+        "sent": "Gönderildi",
+        "resolved": "Çözüldü"
       },
       "chip": {
         "working": "Çalışıyor",

@@ -585,7 +585,8 @@
       "list": {
         "label": "Utas di {{room}}",
         "empty": "Tidak ada yang terbuka di sini",
-        "sent": "Terkirim"
+        "sent": "Terkirim",
+        "resolved": "Selesai"
       },
       "chip": {
         "working": "Bekerja",

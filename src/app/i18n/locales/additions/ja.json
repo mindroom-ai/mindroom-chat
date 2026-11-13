@@ -585,7 +585,8 @@
       "list": {
         "label": "{{room}}のスレッド",
         "empty": "開いているものはありません",
-        "sent": "送信済み"
+        "sent": "送信済み",
+        "resolved": "解決済み"
       },
       "chip": {
         "working": "作業中",

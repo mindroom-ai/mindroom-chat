@@ -334,6 +334,9 @@ export function CaptureList({
                   {line}
                 </span>
               )}
+              {item.resolved && (
+                <span className={css.Unseen}>{t('featureUi.quickCapture.list.resolved')}</span>
+              )}
             </div>
             {rowError?.threadId === item.threadId && (
               <p className={css.RowError} role="alert">

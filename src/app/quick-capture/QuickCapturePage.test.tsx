@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { copyToClipboard } from '../lib/dom';
+import { formatCompactRelativeTime } from '../lib/time';
 import type { StoredSession } from '../matrix/session/sessions';
 import {
   captureScreenshot,
@@ -377,13 +378,16 @@ describe('QuickCapturePage with a room', () => {
     expect(within(working).getByRole('img', { name: 'Working' })).toBeTruthy();
     expect(within(waiting).getByText('Needs you')).toBeTruthy();
     expect(within(unread).getByRole('img', { name: 'New' })).toBeTruthy();
-    for (const row of [sent, unread, resolved]) {
-      expect(within(row).queryAllByRole('img')).toHaveLength(row === unread ? 1 : 0);
-      expect(row.querySelector('[data-capture-time]')?.textContent).not.toBe('');
-    }
-    for (const row of [working, waiting]) {
-      expect(row.querySelector('[data-capture-time]')).toBeNull();
-    }
+    expect(within(sent).queryAllByRole('img')).toHaveLength(0);
+    expect(within(resolved).queryAllByRole('img')).toHaveLength(0);
+    const timeOf = (row: HTMLElement) => row.querySelector('[data-capture-time]')?.textContent;
+    expect(timeOf(sent)).toBe(formatCompactRelativeTime(200, 'en'));
+    expect(timeOf(unread)).toBe(formatCompactRelativeTime(100, 'en'));
+    expect(timeOf(resolved)).toBe(formatCompactRelativeTime(50, 'en'));
+    expect(timeOf(working)).toBeUndefined();
+    expect(timeOf(waiting)).toBeUndefined();
+    // A resolved row says so to a screen reader; the eye has the check and the dimming.
+    expect(rows[4]).toContain('Resolved');
     expect(within(resolved).getByRole('button', { name: 'Reopen' })).toBeTruthy();
   });
 
@@ -391,24 +395,23 @@ describe('QuickCapturePage with a room', () => {
     setup();
     // The entry holds no keys of its own.
     expect(input().closest('[data-capture-entry]')?.textContent).toBe('');
-    const foot = footer();
-    for (const label of ['Send', 'Send and Open', 'Room', 'List']) {
-      expect(foot?.textContent).toContain(label);
-    }
-    expect(foot?.textContent).not.toContain('Peek');
+    // Each key before what it does, written as this platform's menus write it.
+    expect(footer()?.dataset.captureHints).toBe('input');
+    expect(footer()?.textContent).toBe('EnterSendCtrl+EnterSend and OpenTabRoom↓List');
     press(input(), 'ArrowDown');
-    for (const label of ['Peek', 'Reply', 'Done', 'Open']) {
-      expect(footer()?.textContent).toContain(label);
-    }
-    expect(footer()?.textContent).not.toContain('Send');
+    expect(footer()?.dataset.captureHints).toBe('list');
+    expect(footer()?.textContent).toBe('SpacePeekRReplyXDoneEnterOpen');
+    // The reply field is a part of the list.
+    press(row('Why does slot 27 flake'), 'r');
+    expect(document.activeElement).toBe(screen.getByLabelText('Reply in this thread'));
+    expect(footer()?.dataset.captureHints).toBe('list');
   });
 
   it("shows the picker's keys at the foot while the picker is open", () => {
     setup();
     press(input(), 'Tab');
-    expect(footer()?.textContent).toContain('Move');
-    expect(footer()?.textContent).not.toContain('Peek');
-    expect(footer()?.textContent).not.toContain('Send');
+    expect(footer()?.dataset.captureHints).toBe('picker');
+    expect(footer()?.textContent).toBe('↑↓Move');
   });
 
   it('resolves and reopens a thread from its leading mark, which is no tab stop', () => {

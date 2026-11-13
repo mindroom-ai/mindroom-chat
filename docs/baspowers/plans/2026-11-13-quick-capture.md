@@ -491,8 +491,8 @@ Tasks 10 to 13 run on the MacBook M2 (Xcode, a checkout of this branch). Build a
 
 **Files:**
 - Create: `ios/App/App/QuickCaptureSceneDelegate.swift`, `ios/App/App/MacWindowing.swift`
-- Modify: `ios/App/App/AppDelegate.swift`, `ios/App/App/SceneDelegate.swift`, `ios/App/App/MindRoomBridgeViewController.swift` (`routeRoots` gains `quick-capture`, `threads` and `activity`), `ios/App/App/Info.plist`, `ios/App/App.xcodeproj/project.pbxproj` (the new files in all four places; `MINDROOM_SUPPORTS_MULTIPLE_SCENES`)
-- Test: `src/app/native/iosSceneLifecycle.test.ts`, `src/app/native/macCatalystShell.test.ts`, `ios/Tests/AssetRoutingTests.swift`, `ios/Tests/RoomRouteReloadTests.swift`
+- Modify: `ios/App/App/AppDelegate.swift`, `ios/App/App/SceneDelegate.swift`, `ios/App/App/MindRoomBridgeViewController.swift` (`routeRoots` gains `quick-capture`, `threads` and `activity`), `ios/App/App/Info.plist`, `ios/App/App.xcodeproj/project.pbxproj` (the new files in all four places; `MINDROOM_SUPPORTS_MULTIPLE_SCENES`), `src/app/quick-capture/QuickCapturePage.tsx` and `QuickCapturePage.css.ts` (the `data-native` mark and no background under it)
+- Test: `src/app/quick-capture/QuickCapturePage.test.tsx`, `src/app/native/iosSceneLifecycle.test.ts`, `src/app/native/macCatalystShell.test.ts`, `ios/Tests/AssetRoutingTests.swift`, `ios/Tests/RoomRouteReloadTests.swift`
 
 **Interfaces:**
 - Produces: the scene configuration `Quick Capture` (delegate `QuickCaptureSceneDelegate`), requested with an `NSUserActivity` of type `chat.mindroom.quick-capture`; `QuickCaptureViewController`, a `MindRoomBridgeViewController` subclass that starts at `/quick-capture/`; and in `MacWindowing.swift`, inside `#if targetEnvironment(macCatalyst)`:

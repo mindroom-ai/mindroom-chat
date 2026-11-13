@@ -603,7 +603,8 @@
       "list": {
         "label": "Thread in {{room}}",
         "empty": "Niente di aperto qui",
-        "sent": "Inviato"
+        "sent": "Inviato",
+        "resolved": "Risolto"
       },
       "chip": {
         "working": "In corso",

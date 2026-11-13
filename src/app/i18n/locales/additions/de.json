@@ -594,7 +594,8 @@
       "list": {
         "label": "Threads in {{room}}",
         "empty": "Hier ist nichts offen",
-        "sent": "Gesendet"
+        "sent": "Gesendet",
+        "resolved": "Gelöst"
       },
       "chip": {
         "working": "Arbeitet",
