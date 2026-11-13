@@ -1,5 +1,5 @@
 // `@mindroom/client-sdk/matrix`, the client SDK's subpath for plugins that read the signed-in
-// account's Matrix data (docs/architecture.md "Client plugins"): the account's client, a room's
+// account's Matrix data (docs/client-plugins.md "matrix"): the account's client, a room's
 // members as the app follows them and the names it shows for them, the app's answers to whether a
 // MindRoom agent is among them and whether a user ID is an agent's, what a room lets a user do, and
 // the URLs the app's media use.

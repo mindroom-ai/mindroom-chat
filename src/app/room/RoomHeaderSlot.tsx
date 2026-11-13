@@ -13,7 +13,7 @@ const reportFailure = (tag: string, thrown: unknown, componentStack?: string | n
 };
 
 /**
- * What client plugins show under the room header (docs/architecture.md "Client plugins"): the
+ * What client plugins show under the room header (docs/client-plugins.md "Room header slot"): the
  * `roomHeaderSlot` components of each plugin config.json leaves on, in build order, across the
  * conversation column, each given `headerRef`, the element holding the header's row and the slot.
  * The slot paints nothing of its own: it shows that element's surface and text colour.
