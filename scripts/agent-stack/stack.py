@@ -28,12 +28,11 @@ one. Exit codes: 3 no MindRoom checkout, 4 no homeserver, 5 no provider keys for
 
 --model real (or $E2E_AGENT_MODEL=real) runs the helper on Claude Haiku 5.5, with GPT-6 Luna as the thread's other
 model, the router's and the thread summaries' model. The helper's instructions turn the stub's hashtags into a script
-the model follows, so the same specs drive it. The keys (ANTHROPIC_API_KEY and OPENAI_API_KEY) come from this
-script's environment only: the caller sources
-them into the command that runs it (`set -a; . <key file>; set +a; ...`), and they reach the backend's process
-environment and nothing else; no file this script writes holds one. The backend may still put them in its own state,
-so set $E2E_AGENT_STACK_ROOT to a private directory for a real-model stack. `down` writes the stack's model calls and
-tokens to $E2E_AGENT_STACK_ROOT/usage/ before it deletes the stack.
+the model follows, so the same specs drive it. The keys (ANTHROPIC_API_KEY and OPENAI_API_KEY) come from this script's
+environment only: the caller sources them into the command that runs it (`set -a; . <key file>; set +a; ...`), and
+they reach the backend's process environment and nothing else; no file this script writes holds one. The backend may
+still put them in its own state, so set $E2E_AGENT_STACK_ROOT to a private directory for a real-model stack. `down`
+writes the stack's model calls and tokens to $E2E_AGENT_STACK_ROOT/usage/ before it deletes the stack.
 
 --calls SERVICE_URL makes the helper answer MatrixRTC voice calls on the MatrixRTC authorization
 service at that URL (the slot's scripts/e2e-rtc.sh service), with a realtime OpenAI voice model: gpt-realtime-2.1-mini

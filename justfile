@@ -88,7 +88,7 @@ upstream-overlap corpus='' *args:
     if [ -z "{{corpus}}" ]; then echo 'upstream-overlap: skipped (no upstream clone given)'; exit 0; fi
     python3 scripts/upstream-overlap/check.py --corpus "{{corpus}}" {{args}}
 
-# Install the pre-push hook that runs the upstream overlap check on every commit a push adds (scripts/git-hooks/install.sh): pass the upstream clone, then other clones to install it in (default: this one). A push checks each commit the remote lacks (not reachable from its tip of the ref or from its main, whose objects the hook fetches when the clone lacks them); the headers of scripts/git-hooks/install.sh, scripts/git-hooks/pre-push and scripts/upstream-overlap/check.py describe the rest.
+# Install the pre-push hook that runs the upstream overlap check on every commit a push adds (scripts/git-hooks/install.sh): pass the upstream clone, then other clones to install it in (default: this one). The hook fetches the objects of the remote's main when the clone lacks them; the headers of scripts/git-hooks/install.sh, scripts/git-hooks/pre-push and scripts/upstream-overlap/check.py describe the rest.
 install-hooks corpus *clones:
     bash scripts/git-hooks/install.sh --corpus "{{corpus}}" {{clones}}
 
