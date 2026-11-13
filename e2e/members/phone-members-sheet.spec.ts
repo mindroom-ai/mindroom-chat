@@ -9,6 +9,10 @@ import {
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { cornersOf, pageCardRadius } from '../helpers/cardCorners';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // On a phone a room's members slide in from the end edge as a sheet, the way the navigation drawer
 // comes from the start edge: below the top bar, at the drawer's height, as wide as the drawer, over
@@ -19,24 +23,12 @@ import { cornersOf, pageCardRadius } from '../helpers/cardCorners';
 // (and 744 by 1133 for the corner) with touch, in Chromium with real touches and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
 // PHONE_MEMBERS_SHOTS=<directory> to save screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'phone-members-sheet-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS = process.env.PHONE_MEMBERS_SHOTS;
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
 const ENGINES = ['chromium', 'webkit'] as const;
 type Engine = (typeof ENGINES)[number];
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const seed = async (engine: Engine, test = 'main', guests = 0) => {
   const username = `members_${engine}_${test}_${RUN}`;
@@ -177,7 +169,10 @@ const signIn = async (browser: Browser, username: string) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 for (const engine of ENGINES) {

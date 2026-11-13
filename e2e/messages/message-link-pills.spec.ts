@@ -10,6 +10,10 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { matrixFetch, sendRoomMessage, type MatrixSession, loginToMatrix } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A link to a message (a matrix.to permalink, or the app's own link) whose text is the link
 // itself reads as a pill naming where it leads: "Thread in #room" for a thread the client knows,
@@ -20,7 +24,6 @@ import { launchWebKit } from '../helpers/webkit';
 // (1280 by 800) and a phone (390 by 844, touch), in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. The reader has 26 rooms.
 // Set MESSAGE_LINK_SHOTS=<directory> to save a screenshot of each room.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'message-link-pills-spec-password';
 const RUN = Date.now().toString(36);
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
@@ -45,17 +48,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (username: string, displayname: string): Promise<MatrixSession> => {
   const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
@@ -292,7 +284,7 @@ const check = async (
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 for (const [form, options] of [

@@ -1,4 +1,4 @@
-import React, { createRef } from 'react';
+import React from 'react';
 import { Editor } from 'slate';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -427,32 +427,6 @@ vi.mock('../../messages/reactions/Reactions', () => ({
   Reactions: passthrough,
 }));
 
-vi.mock('../../messages/content/EncryptedContent', () => ({
-  EncryptedContent: ({
-    mEvent,
-    children,
-  }: {
-    mEvent: {
-      __renderInsideEncryptedContentAs?: string;
-      getType: () => string;
-    };
-    children: (() => React.ReactNode) | React.ReactNode;
-  }) => {
-    if (typeof children !== 'function') return children;
-
-    const renderType = mEvent.__renderInsideEncryptedContentAs;
-    if (!renderType) return children();
-
-    const getType = mEvent.getType;
-    mEvent.getType = () => renderType;
-    try {
-      return children();
-    } finally {
-      mEvent.getType = getType;
-    }
-  },
-}));
-
 vi.mock('../../messages/Message', async () => {
   const ReactImport = await import('react');
 
@@ -771,7 +745,6 @@ type MockEvent = {
     getSender: () => string;
     getTs: () => number;
   };
-  __renderInsideEncryptedContentAs?: string;
   event: { event_id: string };
   getAssociatedId: () => string | undefined;
   getContent: () => Record<string, unknown>;
@@ -782,6 +755,7 @@ type MockEvent = {
   getStateKey: () => string | undefined;
   getTs: () => number;
   getType: () => string;
+  isEncrypted: () => boolean;
   getUnsigned: () => Record<string, unknown>;
   isRedacted: () => boolean;
   isRedaction: () => boolean;
@@ -796,13 +770,13 @@ const makeEvent = (
   opts: {
     content?: Record<string, unknown>;
     editedContent?: Record<string, unknown>;
+    /** Decrypted: its type is the clear one, but it came encrypted. */
+    encrypted?: boolean;
     isThreadRoot?: boolean;
     relation?: { event_id?: string; rel_type?: string };
-    renderInsideEncryptedContentAs?: string;
     sender?: string;
     threadRootId?: string;
     ts?: number;
-    type?: string;
   } = {}
 ): MockEvent => ({
   __editedEvent: opts.editedContent
@@ -813,7 +787,6 @@ const makeEvent = (
         getTs: () => (opts.ts ?? 1) + 1,
       }
     : undefined,
-  __renderInsideEncryptedContentAs: opts.renderInsideEncryptedContentAs,
   event: { event_id: eventId },
   getAssociatedId: () => opts.relation?.event_id,
   getContent: () =>
@@ -827,7 +800,8 @@ const makeEvent = (
   getSender: () => opts.sender ?? '@alice:example.org',
   getStateKey: () => undefined,
   getTs: () => opts.ts ?? 1,
-  getType: () => opts.type ?? MessageEvent.RoomMessage,
+  getType: () => MessageEvent.RoomMessage,
+  isEncrypted: () => opts.encrypted ?? false,
   getUnsigned: () => ({}),
   isRedacted: () => false,
   isRedaction: () => false,
@@ -923,7 +897,6 @@ const flushAsyncWork = async (cycles = 5) => {
 const createControlledRoomTimelineHarness = (
   RoomTimelineComponent: (props: Record<string, unknown>) => React.ReactElement | null
 ) => {
-  const roomInputRef = createRef<HTMLElement>();
   const editor = {} as Editor;
   const defaultThreadFilterState = {
     ...createDefaultThreadFilterState(),
@@ -963,8 +936,6 @@ const createControlledRoomTimelineHarness = (
         onApplyPreset: vi.fn(),
         onSearchQueryChange: vi.fn(),
         viewMode: 'threaded',
-        onViewModeChange: vi.fn(),
-        roomInputRef,
         editor,
       }),
     });
@@ -1259,8 +1230,7 @@ describe('RoomTimeline collapsible wiring', () => {
   it('hydrates rich long-text content in a collapsed decrypted message row', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
     const encryptedLongTextEvent = makeEvent('$encrypted-long-text', {
-      type: MessageEvent.RoomMessageEncrypted,
-      renderInsideEncryptedContentAs: MessageEvent.RoomMessage,
+      encrypted: true,
       content: {
         body: 'Encrypted long output.txt',
         msgtype: 'm.file',
@@ -1494,11 +1464,10 @@ describe('RoomTimeline collapsible wiring', () => {
     expect(findCollapseModeForEvent(renderer, '$target')).toBe('default');
   });
 
-  it('uses always-expanded mode through the encrypted room-message render path', async () => {
+  it('uses always-expanded mode for a decrypted room message', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
     const encryptedSummaryEvent = makeEvent('$encrypted-summary', {
-      type: MessageEvent.RoomMessageEncrypted,
-      renderInsideEncryptedContentAs: MessageEvent.RoomMessage,
+      encrypted: true,
       content: {
         body: 'Encrypted original summary',
         msgtype: 'm.notice',

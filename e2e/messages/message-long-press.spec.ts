@@ -12,6 +12,10 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // On a phone (390 by 844, touch) a finger resting about half a second on a message's text is the
 // platform's long press: iOS selects the word under it, with its handles and Copy bar, so the app
@@ -28,7 +32,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // platform makes meanwhile is gone once the menu opens, the menu's text is never selectable, and
 // the page is selectable again after the lift. Checked on a phone and on a tablet.
 // Set LONG_PRESS_SHOTS=<directory> to save the open menu.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'message-long-press-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.LONG_PRESS_SHOTS;
@@ -62,17 +65,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
   const username = `mlp_${name}_${RUN}`;
@@ -469,7 +461,7 @@ const run = async (
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('a long press selects message text and opens the menu off it on a phone (Chromium)', async ({

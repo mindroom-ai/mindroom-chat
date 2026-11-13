@@ -8,7 +8,6 @@ import {
   collectAvailableTags,
   getDisplayTags,
   isThreadResolved,
-  isThreadTagsTombstone,
   isValidTagName,
   MINDROOM_THREAD_TAGS_EVENT,
   normalizeTagName,
@@ -202,24 +201,6 @@ describe('buildPerTagEventContent', () => {
       set_by: '@alice:example.com',
       set_at: ISO_4,
     });
-  });
-});
-
-describe('isThreadTagsTombstone', () => {
-  it('returns true for empty tags', () => {
-    expect(isThreadTagsTombstone({ tags: {} })).toBe(true);
-  });
-
-  it('returns true for null content', () => {
-    expect(isThreadTagsTombstone(null)).toBe(true);
-  });
-
-  it('returns false for content with tags', () => {
-    expect(
-      isThreadTagsTombstone({
-        tags: { bug: { set_by: '@alice:example.com', set_at: ISO_1 } },
-      })
-    ).toBe(false);
   });
 });
 

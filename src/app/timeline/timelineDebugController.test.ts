@@ -2,10 +2,7 @@ import React, { useEffect } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  useTimelineDebugRangeController,
-  useTimelineDebugTraceIds,
-} from './timelineDebugController';
+import { useTimelineDebugTraceIds } from './timelineDebugController';
 
 const debugMock = vi.hoisted(() => ({
   calls: [] as Array<[string | undefined, string, Record<string, unknown> | undefined]>,
@@ -42,35 +39,6 @@ const TraceHarness = ({
   return null;
 };
 
-const RangeHarness = ({
-  threadId,
-  threadDebugTraceId,
-}: {
-  threadDebugTraceId?: string;
-  threadId?: string;
-}) => {
-  useTimelineDebugRangeController({
-    activeTimelineRange: { start: 2, end: 7 },
-    canPaginateThreadBack: true,
-    canPaginateThreadFront: false,
-    eventsLength: 20,
-    filteredLength: 11,
-    renderableEventCount: 12,
-    roomDebugTraceId: 'room-trace',
-    roomSurfaceEventCount: 10,
-    threadDebugTraceId,
-    threadEventCount: 5,
-    threadId,
-    threadInitialCacheHydrated: true,
-    threadInitialRenderMode: 'cached',
-    threadOverviewCount: 4,
-    threadTailLoaded: false,
-    threadTimelineTick: 3,
-    useSurfacePreloadTarget: true,
-  });
-  return null;
-};
-
 describe('timelineDebugController', () => {
   beforeEach(() => {
     debugMock.calls = [];
@@ -104,49 +72,6 @@ describe('timelineDebugController', () => {
         'thread-open:!room:example.org:$thread',
         'init',
         { eventId: '$focus', roomId: '!room:example.org', threadId: '$thread' },
-      ],
-    ]);
-  });
-
-  it('logs room-surface metadata only outside thread routes', async () => {
-    await act(async () => {
-      create(React.createElement(RangeHarness, {}));
-    });
-
-    expect(debugMock.calls).toEqual([
-      [
-        'room-trace',
-        'room-surface',
-        expect.objectContaining({
-          activeRangeEnd: 7,
-          activeRangeStart: 2,
-          preloadTarget: 'surface',
-          visibleCount: 5,
-        }),
-      ],
-    ]);
-  });
-
-  it('logs thread range metadata only inside thread routes', async () => {
-    await act(async () => {
-      create(
-        React.createElement(RangeHarness, {
-          threadDebugTraceId: 'thread-trace',
-          threadId: '$thread',
-        })
-      );
-    });
-
-    expect(debugMock.calls).toEqual([
-      [
-        'thread-trace',
-        'thread-range',
-        expect.objectContaining({
-          canPaginateThreadBack: true,
-          filteredLength: 11,
-          initialRenderMode: 'cached',
-          renderedCount: 5,
-        }),
       ],
     ]);
   });

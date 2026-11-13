@@ -1,5 +1,5 @@
 // `@mindroom/client-sdk/ui`, the client SDK's subpath for plugins whose menus, dialogs, pop-outs,
-// rows and text should look like the app's (docs/architecture.md "Client plugins"): the app's own
+// rows and text should look like the app's (docs/client-plugins.md "ui"): the app's own
 // components, with the app's props, which keep the app's theme, glass and reading direction, text
 // as the app renders it, and for a surface a plugin draws itself the app's theme kind, its screen
 // size, its PDF frame, the motion of the room's side panels and the mark that keeps its pinches,

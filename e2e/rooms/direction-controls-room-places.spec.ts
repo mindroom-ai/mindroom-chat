@@ -21,6 +21,10 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Bidirectional controls (U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C) change the
 // order text shows in without showing themselves: a room named `Payroll <U+202E>sevihcra<U+202C>`
@@ -33,7 +37,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // a phone (390 by 844, touch) and a desktop (1280 by 800), in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
 // DIRECTION_PLACES_SHOTS=<directory> to save each view.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'direction-places-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.DIRECTION_PLACES_SHOTS;
@@ -64,17 +67,6 @@ const PUBLIC_NAME_SHOWN = `Garden ${RUN} <U+202E>bulc<U+202C>`;
 const PUBLIC_TOPIC = 'Seeds and ‮spaws‬ for everyone';
 const PUBLIC_TOPIC_SHOWN = 'Seeds and <U+202E>spaws<U+202C> for everyone';
 const CANVAS_TITLE = 'Quarter close checklist';
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 type Account = MatrixSession & { username: string };
 
@@ -419,7 +411,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('more places that name a room show direction controls as code points (Chromium)', async ({

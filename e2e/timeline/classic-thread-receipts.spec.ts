@@ -23,6 +23,10 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { openThreadsCategory } from '../helpers/threadsCategory';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The Classic view shows each thread's replies among the room's rows. A reply the reader sees
 // there is read, as it is in the open thread: at the bottom of the live end, with the window
@@ -38,7 +42,6 @@ import { openThreadsCategory } from '../helpers/threadsCategory';
 // - a streamed reply that finishes in view: a receipt on the finishing edit.
 // Set CLASSIC_RECEIPT_SHOTS=<directory> for screenshots of the room after each read.
 
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'classic-thread-receipts-spec-password';
 const RUN = Date.now().toString(36);
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
@@ -56,17 +59,6 @@ const PHONE: BrowserContextOptions = {
   isMobile: true,
 };
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 type Account = MatrixSession & { username: string };
 
@@ -521,7 +513,7 @@ const run = async (
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test.use({

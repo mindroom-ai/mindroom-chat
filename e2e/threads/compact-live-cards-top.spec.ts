@@ -16,6 +16,10 @@ import {
 } from '../helpers/matrix';
 import { expectRoomCompact } from '../helpers/roomViewSwitch';
 import { launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Compact cards sorted by last reply, newest first, have their live end at the top: a card that
 // arrives while the room is open (a new thread, or an agent's answer in the main timeline) shows
@@ -26,7 +30,6 @@ import { launchWebKit } from '../helpers/webkit';
 // on a desktop (1280 by 800) and a phone (390 by 844, touch), in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set COMPACT_LIVE_SHOTS=<dir>
 // to save each step.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'compact-live-cards-top-password';
 const RUN = Date.now().toString(36);
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
@@ -82,17 +85,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
   const username = `clct_${name}_${RUN}`;
@@ -297,7 +289,7 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 for (const [form, options] of [

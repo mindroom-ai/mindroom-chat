@@ -2,6 +2,10 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
 import { matrixFetch } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The page navigation beside a floating page card: the open room's highlight sits as far from the
 // card as from the rail, with the column's title and menu lined up with the rows, in both
@@ -9,20 +13,8 @@ import { createRoom } from '../helpers/createRoom';
 // focus, leaves the same way, cannot be reached while hidden, and never moves the row's text.
 // Set SIDEBAR_SHOTS=<directory> to also save the gap and the options before, during and after
 // hover, light and dark.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'sidebar-options-spec-password';
 const SHOTS = process.env.SIDEBAR_SHOTS;
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 type Account = { username: string; roomId: string };
 
@@ -118,7 +110,10 @@ const resume = (options: Locator) =>
 const settle = (page: Page) => page.waitForTimeout(400);
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 for (const direction of ['ltr', 'rtl'] as const) {

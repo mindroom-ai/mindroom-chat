@@ -3,13 +3,16 @@ import { buildLoginPath } from '../env';
 import { joinRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
 import { blockWebKitServiceWorkers } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // What a person sees while the app starts, frame by frame, in the light theme: the splash never
 // flashes black while its particle background starts, no frame between the splash and the shell is
 // empty, and a start with saved rooms shows them while the first sync is still out. Checked against
 // the slot's Tuwunel with the production build. Set STARTUP_FRAMES_SHOTS=<directory> to save every
 // recorded frame.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'startup-frames-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.STARTUP_FRAMES_SHOTS;
@@ -23,17 +26,6 @@ const ROOMS = ['Harbor Plans', 'Budget Review', 'Release Notes'].concat(
 test.use({ viewport: { width: 1280, height: 800 }, colorScheme: 'light' });
 // The warm start holds the first sync back with a route.
 test.use(blockWebKitServiceWorkers);
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (name: string) => {
   const username = `suf_${name}_${RUN}`;
@@ -167,7 +159,7 @@ const saveFrames = async (frames: Frame[], since: number, name: string) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 /** Requests of the start that matter for its timing, in ms since `since` (a Date.now()). */

@@ -4,6 +4,10 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A real right click on a message's text opens the message's menu where the pointer is, in
 // Chromium and in WebKit, on a 1280 by 800 desktop. Safari (and Chromium on macOS) selects the
@@ -13,7 +17,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // Runs against the disposable homeserver of `just hs-up` or of a slot of scripts/e2e-slot.sh;
 // the WebKit case runs when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit.
 // Set RIGHT_CLICK_SHOTS=<directory> to save the open menu.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'message-right-click-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.RIGHT_CLICK_SHOTS;
@@ -40,17 +43,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (name: string) => {
   const username = `mrc_${name}_${RUN}`;
@@ -224,7 +216,7 @@ const rightClicksOpenTheMessageMenu = async (page: Page, engine: string) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 const TITLE = 'a right click on message text opens the message menu, desktop';

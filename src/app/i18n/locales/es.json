@@ -2832,9 +2832,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "Marcar como leído"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "Marcar como leído"
       },

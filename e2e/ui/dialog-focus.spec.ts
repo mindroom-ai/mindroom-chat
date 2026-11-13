@@ -4,13 +4,16 @@ import { buildLoginPath } from '../env';
 import { activeAccountButton } from '../helpers/auth';
 import { matrixFetch } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Every dialog the main views open, opened the way most people do (a click, or a tap on a phone):
 // it takes focus (its first control, or the dialog itself with its name read), Tab stays inside
 // it, and closing it gives focus back to the control that opened it, or to the menu button when
 // that control was an entry of a menu that has gone. Desktop and phone, in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'dialog-focus-spec-password';
 const ROOM = 'Project Team';
 const TOPIC = 'Weekly goals and the open questions for the next review';
@@ -21,17 +24,6 @@ type Screen = 'desktop' | 'phone';
 const POLL = 3_000;
 
 type Account = { username: string; userId: string; accessToken: string };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (prefix: string, displayName: string): Promise<Account> => {
   const run = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
@@ -382,7 +374,7 @@ const walk = async (page: Page, testCase: Case, screen: Screen, engine: string, 
 };
 
 test.beforeAll(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 const runAll = async (browser: Browser, baseURL: string | undefined, engine: string) => {

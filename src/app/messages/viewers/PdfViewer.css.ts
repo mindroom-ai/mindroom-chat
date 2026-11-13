@@ -23,9 +23,3 @@ export const PdfViewerContent = style({
   minHeight: 0,
   backgroundColor: color.SurfaceVariant.Container,
 });
-
-export const PdfViewerFooter = style({
-  padding: config.space.S200,
-  borderTop: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
-  flexShrink: 0,
-});

@@ -2,27 +2,19 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
 import { matrixFetch } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // On a touch screen a tap is no hover: closing the room header's More Options menu with a
 // hardware keyboard's Escape leaves no "More Options" tooltip standing. Checked on a phone
 // (390 by 844, touch) in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
 // WebKit, in WebKit.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'tooltip-touch-escape-spec-password';
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
 // Past the tooltip's 200 ms hover delay.
 const TOOLTIP_DELAY_MS = 600;
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const seed = async () => {
   const run = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
@@ -63,7 +55,7 @@ const check = async (page: Page, username: string, roomId: string) => {
 };
 
 test.beforeAll(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 const run = async (browser: Browser, baseURL: string | undefined) => {

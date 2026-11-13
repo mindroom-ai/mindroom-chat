@@ -3,6 +3,10 @@ import { loginWithPassword } from '../helpers/auth';
 import { contrastRatio, sampleScreenshot, type Rgba } from '../helpers/glassVisual';
 import { matrixFetch } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The small text of the sign-in screen (the card's notes and the credits under it) and of the
 // "Connecting to server" screen (its line and the app name; the loading screen has the same) keeps at least
@@ -11,7 +15,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // compared with every sample. Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
 // WebKit, WebKit; dark and light themes, desktop and phone. Set AUTH_CONTRAST_SHOTS=<directory>
 // to also save the screens.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'auth-text-contrast-spec-password';
 const SHOTS = process.env.AUTH_CONTRAST_SHOTS;
 const SIZES = { desktop: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
@@ -26,17 +29,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 type Probe = {
   text: string;
@@ -230,7 +222,10 @@ const checkScreens = async (page: Page, prefix: string, testInfo: TestInfo, brow
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test('small text on the sign-in and startup screens stands out from the art', async ({

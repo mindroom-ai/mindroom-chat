@@ -1,27 +1,19 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { matrixFetch } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The sidebar's Join a Room dialog: one search field over the public rooms of the user's own
 // server, each with Join (Open once joined), and a pasted address on top instead of the list.
 // Set JOIN_ROOM_SHOTS=<directory> to also save it in dark and light themes and at a phone's width.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const SERVER_NAME = 'matrix.localhost';
 const PASSWORD = 'join-room-dialog-spec-password';
 const SHOTS = process.env.JOIN_ROOM_SHOTS;
 
 type Account = { username: string; userId: string; accessToken: string };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (prefix: string, run: string): Promise<Account> => {
   const username = `${prefix}_${run}`;
@@ -102,7 +94,7 @@ const joinedRoomIds = async (account: Account): Promise<string[]> =>
   ).joined_rooms;
 
 test.beforeAll(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('lists public rooms, searches them, joins one and offers a pasted address', async ({

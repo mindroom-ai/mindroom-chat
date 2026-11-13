@@ -10,13 +10,16 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Keyboard and screen reader basics against the disposable homeserver of `just hs-up` (or a slot
 // of scripts/e2e-slot.sh): the skip link and landmarks, focus that menus and dialogs take and
 // give back, the command palette shortcut, the live log of new messages, and axe-core over the
 // main screens in English, in Arabic (where the chrome mirrors) and in the dark theme. One account
 // signs in once; the tests share its page.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'a11y-spec-password';
 const RUN = Date.now().toString(36);
 const ROOM_NAME = `Keyboard Lab ${RUN}`;
@@ -26,17 +29,6 @@ const THREAD_ROOT = 'Is the release checklist done?';
 const THREAD_REPLY = 'Every item on the checklist is ticked.';
 // axe-core comes with eslint-plugin-jsx-a11y; the axe test is skipped if it is ever gone.
 const AXE_PATH = path.join(process.cwd(), 'node_modules/axe-core/axe.min.js');
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (name: string): Promise<MatrixSession & { username: string }> => {
   const username = `a11y_${name}_${RUN}`;
@@ -286,7 +278,7 @@ test.describe.serial('keyboard and accessibility', () => {
   };
 
   test.beforeAll(async ({ browser }: { browser: Browser }) => {
-    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+    test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
     test.setTimeout(2 * STARTUP_MS);
     const owner = await register('owner');
     guest = await register('guest');

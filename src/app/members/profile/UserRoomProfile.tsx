@@ -171,7 +171,7 @@ export function UserRoomProfile({
 
   const managePowers = () => {
     onDone();
-    openRoomSettings(room.roomId, undefined, RoomSettingsPage.PermissionsPage);
+    openRoomSettings(room.roomId, RoomSettingsPage.PermissionsPage);
   };
 
   return (

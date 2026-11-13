@@ -6,6 +6,10 @@ import {
   registerAgentAccount,
   sendRoomMessage,
 } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // On a Mac, a two-finger swipe to the right over an open thread goes back to its room: the
 // thread's own history entry is the one the browser steps back over. Chrome starts that swipe only
@@ -14,20 +18,8 @@ import {
 // scroll to itself, and the page's own value (the body's, here) other than `auto` turns the swipe
 // off. Playwright cannot make the trackpad gesture that starts the browser's swipe, so the spec
 // checks both conditions at every point of a desktop window, then steps back as the swipe does.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'thread-trackpad-swipe-back-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const text = (body: string) => ({ msgtype: 'm.text', body });
 
@@ -58,7 +50,10 @@ const place = (page: Page) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test('a trackpad swipe over an open thread is left to the browser, which goes back to the room', async ({

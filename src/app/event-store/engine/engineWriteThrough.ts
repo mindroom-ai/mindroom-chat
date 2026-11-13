@@ -3,7 +3,7 @@
  *
  * The engine's write-through owns every live cache write. It is called
  * once per live event delivered by the client-level listeners in
- * `mindroomSyncEngine.ts`, and it covers EVERY joined room — not just
+ * `syncEngine.ts`, and it covers EVERY joined room, not just
  * the room currently mounted in the UI. That's the fix for finding F1
  * (background room cache freshness): a live message in a background
  * room now reaches the cache immediately, so switching to that room
@@ -42,18 +42,13 @@ import {
   deleteThreadEventFromCacheByEventId,
   deleteThreadEventsFromCache,
   getThreadCacheTargetId,
-  persistRoomEventCacheSnapshot,
-  persistThreadEventCacheSnapshot,
 } from '../cache/eventRepository';
 import {
   THREAD_EDIT_COMPACTION_DEBOUNCE_MS,
   THREAD_EDIT_COMPACTION_MAX_WAIT_MS,
 } from '../cache/preloadSettings';
 import { forgetRedactedThreadSummaries } from '../threads/threadSummaryState';
-import {
-  createEditCompactionScheduler,
-  type EditCompactionScheduler,
-} from './editCompactionScheduler';
+import { createEditCompactionScheduler } from './editCompactionScheduler';
 import {
   planRedactionCacheCleanup,
   removeAggregatedReactionByEventId,
@@ -63,12 +58,7 @@ import { captureCacheStoreWriteLease, isCacheStoreWriteLeaseCurrent } from '../c
 
 export type EngineWriteThroughOptions = {
   sessionId: string;
-  persist?: (room: Room, events: MatrixEvent[], tailLoaded?: boolean, threadId?: string) => void;
-  /**
-   * Test hook: override the scheduler (e.g. to use a shorter debounce
-   * or to inspect internal state). Production always uses the default.
-   */
-  scheduler?: EditCompactionScheduler;
+  persist: (room: Room, events: MatrixEvent[], tailLoaded?: boolean, threadId?: string) => void;
 };
 
 export type EngineWriteThrough = {
@@ -79,33 +69,6 @@ export type EngineWriteThrough = {
    * visibilitychange→hidden.
    */
   flush(): void;
-};
-
-/**
- * Persist a single thread event via the snapshot writer. Wraps
- * `persistThreadEventCacheSnapshot` so the call sites stay short and
- * always agree on the tailLoaded default (true — see file header).
- */
-const persistThreadEvents = (
-  sessionId: string,
-  room: Room,
-  threadId: string,
-  events: MatrixEvent[],
-  tailLoaded: boolean | undefined = true
-): void => {
-  const rootEvent = room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId);
-  persistThreadEventCacheSnapshot({
-    sessionId,
-    room,
-    threadId,
-    events,
-    rootEvent,
-    tailLoaded,
-  });
-};
-
-const persistRoomEvents = (sessionId: string, room: Room, events: MatrixEvent[]): void => {
-  persistRoomEventCacheSnapshot({ sessionId, room, events });
 };
 
 /**
@@ -157,33 +120,23 @@ const collectRedactionTimelineSets = (
 export const createEngineWriteThrough = (
   options: EngineWriteThroughOptions
 ): EngineWriteThrough => {
-  const { sessionId } = options;
-  const persistRoom = (session: string, room: Room, events: MatrixEvent[]) => {
-    if (options.persist) options.persist(room, events, false);
-    else persistRoomEvents(session, room, events);
-  };
+  const { sessionId, persist } = options;
+  const persistRoom = (room: Room, events: MatrixEvent[]) => persist(room, events, false);
   const persistThread = (
-    session: string,
     room: Room,
     threadId: string,
     events: MatrixEvent[],
-    tailLoaded?: boolean
-  ) => {
-    if (options.persist) options.persist(room, events, tailLoaded, threadId);
-    else persistThreadEvents(session, room, threadId, events, tailLoaded);
-  };
-  const scheduler =
-    options.scheduler ??
-    createEditCompactionScheduler(
-      THREAD_EDIT_COMPACTION_DEBOUNCE_MS,
-      THREAD_EDIT_COMPACTION_MAX_WAIT_MS
-    );
+    tailLoaded: boolean | undefined
+  ) => persist(room, events, tailLoaded, threadId);
+  const scheduler = createEditCompactionScheduler(
+    THREAD_EDIT_COMPACTION_DEBOUNCE_MS,
+    THREAD_EDIT_COMPACTION_MAX_WAIT_MS
+  );
   const pendingCompactionReplace = new Map<string, MatrixEvent>();
 
   /**
    * Shared compaction scheduling. Returns false when the replace must
-   * persist directly (no scheduler — impossible in production, kept
-   * for parity — or a cross-sender arm-time replace: the serializer
+   * persist directly (a cross-sender arm-time replace: the serializer
    * only bundles same-sender replacements onto the target, so
    * compacting a cross-sender replace would drop it from cache
    * entirely). Fire-time misses persist the replace standalone via
@@ -196,7 +149,6 @@ export const createEngineWriteThrough = (
     room: Room,
     persistEvents: (events: MatrixEvent[]) => void
   ): boolean => {
-    if (!scheduler) return false;
     const knownTarget = room.findEventById(targetEventId);
     if (knownTarget && knownTarget.getSender() !== replaceEvent.getSender()) {
       return false;
@@ -239,9 +191,6 @@ export const createEngineWriteThrough = (
       // before `makeRedacted` strips the target. Absent for Timeline-
       // channel re-emits.
       sdkThreadIdHint,
-      // Engine has no notion of an "open thread" — the pre-strip
-      // component controller set this; we intentionally do not.
-      fallbackThreadId: undefined,
     });
     if (!cleanupPlan) return;
     forgetRedactedThreadSummaries(sessionId, room.roomId, new Set([cleanupPlan.redactedEventId]));
@@ -282,7 +231,6 @@ export const createEngineWriteThrough = (
           if (scopes.length > 0) {
             scopes.forEach((threadId) => {
               persistThread(
-                sessionId,
                 room,
                 threadId,
                 [event],
@@ -294,23 +242,21 @@ export const createEngineWriteThrough = (
           }
           // Nothing in the cache → the redaction really is unattributed.
           // Persist to room scope so hydration at least has the tombstone.
-          persistRoom(sessionId, room, [event]);
+          persistRoom(room, [event]);
         });
       return;
-    }
-
-    if (cleanupPlan.deleteRecords && cleanupPlan.threadCacheTargetId) {
-      deleteThreadEventsFromCache(sessionId, room.roomId, cleanupPlan.threadCacheTargetId, [
-        cleanupPlan.redactedEventId,
-      ]).catch(() => undefined);
     }
 
     // Persist the redaction event itself. Every case: homeservers can
     // serve stale un-pruned copies of the redacted event, so the cached
     // redaction record lets hydration re-apply it locally (I2).
     if (cleanupPlan.threadCacheTargetId) {
+      if (cleanupPlan.deleteRecords) {
+        deleteThreadEventsFromCache(sessionId, room.roomId, cleanupPlan.threadCacheTargetId, [
+          cleanupPlan.redactedEventId,
+        ]).catch(() => undefined);
+      }
       persistThread(
-        sessionId,
         room,
         cleanupPlan.threadCacheTargetId,
         [event],
@@ -318,9 +264,8 @@ export const createEngineWriteThrough = (
         // way (the redaction can arrive without any tail context).
         undefined
       );
-    }
-    if (!cleanupPlan.threadCacheTargetId || cleanupPlan.threadTargetFromFallback) {
-      persistRoom(sessionId, room, [event]);
+    } else {
+      persistRoom(room, [event]);
     }
   };
 
@@ -338,11 +283,11 @@ export const createEngineWriteThrough = (
               relationTargetId,
               event,
               room,
-              (events) => persistThread(sessionId, room, threadCacheTargetId, events, true)
+              (events) => persistThread(room, threadCacheTargetId, events, true)
             )
           : false;
       if (!scheduled) {
-        persistThread(sessionId, room, threadCacheTargetId, [event], true);
+        persistThread(room, threadCacheTargetId, [event], true);
       }
       return;
     }
@@ -355,13 +300,13 @@ export const createEngineWriteThrough = (
         relationTargetId,
         event,
         room,
-        (events) => persistRoom(sessionId, room, events)
+        (events) => persistRoom(room, events)
       );
       if (scheduled) return;
     }
 
     // Plain room-level append.
-    persistRoom(sessionId, room, [event]);
+    persistRoom(room, [event]);
   };
 
   const handleLiveEvent: EngineLiveEventHandler = (
@@ -371,15 +316,10 @@ export const createEngineWriteThrough = (
   ) => {
     countCacheProbe('engineLiveWrites');
 
-    if (meta.kind === 'redaction') {
-      handleRedactionLive(event, room, meta);
-      return;
-    }
-
-    // Timeline dispatch: redactions can also arrive through the
-    // Timeline channel (the SDK re-emits them). Route via the
-    // redaction lifecycle so the two entry points share cleanup.
-    if (event.isRedaction()) {
+    // Redactions can also arrive through the Timeline channel (the SDK
+    // re-emits them). Route via the redaction lifecycle so the two entry
+    // points share cleanup.
+    if (meta.kind === 'redaction' || event.isRedaction()) {
       handleRedactionLive(event, room, meta);
       return;
     }

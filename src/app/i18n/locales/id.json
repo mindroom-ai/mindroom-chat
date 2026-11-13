@@ -2761,9 +2761,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "Tandai dibaca"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "Tandai dibaca"
       },

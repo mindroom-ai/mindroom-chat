@@ -2,7 +2,6 @@ import 'fake-indexeddb/auto';
 import { EventEmitter } from 'events';
 import React from 'react';
 import { Provider, createStore } from 'jotai';
-import type { Store } from 'jotai/vanilla';
 import { IDBFactory } from 'fake-indexeddb';
 import { ClientEvent, MatrixEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { MemoryRouter } from 'react-router-dom';
@@ -18,6 +17,8 @@ import { isComputerShown, listCanvases } from '../canvas/canvasIndexStore';
 import { playChime } from '../notifications/playChime';
 import { CanvasIndexFeature } from '../canvas/CanvasIndexFeature';
 import { InviteNotifications } from '../notifications/InviteNotifications';
+
+type Store = ReturnType<typeof createStore>;
 
 vi.mock('../notifications/playChime', () => ({ playChime: vi.fn(() => Promise.resolve()) }));
 
