@@ -930,5 +930,44 @@
     "needsYouLabel_one": "Hilos, {{count}} te espera",
     "needsYouLabel_many": "Hilos, {{count}} te esperan",
     "needsYouLabel_other": "Hilos, {{count}} te esperan"
+  },
+  "serverAccounts": {
+    "group": "Administración",
+    "title": "Cuentas del servidor",
+    "description": "Todas las cuentas de este servidor. Solo los administradores del servidor ven esta página.",
+    "search": "Buscar por nombre o ID de Matrix",
+    "filters": {
+      "all": "Todas",
+      "staff": "Internas",
+      "external": "Externas",
+      "deactivated": "Desactivadas"
+    },
+    "count": "Cuentas: {{shown}} de {{total}}",
+    "noMatches": "Ninguna cuenta coincide",
+    "loadFailed": "No se pudieron cargar las cuentas.",
+    "status": {
+      "active": "Activa",
+      "locked": "Bloqueada",
+      "suspended": "Suspendida"
+    },
+    "lastSeen": "Última vez: {{date}}",
+    "externalNote": "Una cuenta externa solo entra en las salas a las que se la invita. No puede crear salas ni invitar a nadie.",
+    "roomsFailed": "No se pudieron cargar las salas de esta cuenta.",
+    "noRooms": "No está en ninguna sala",
+    "actions": {
+      "lock": "Bloquear cuenta",
+      "unlock": "Desbloquear cuenta",
+      "suspend": "Suspender cuenta",
+      "unsuspend": "Quitar suspensión",
+      "deactivate": "Desactivar cuenta"
+    },
+    "confirm": {
+      "lock": "¿Bloquear {{user}}? La cuenta no se puede usar hasta que la desbloquees. Sus salas y mensajes se conservan.",
+      "unlock": "¿Desbloquear {{user}}? La cuenta se puede volver a usar.",
+      "suspend": "¿Suspender {{user}}? La cuenta puede seguir iniciando sesión y leyendo, pero no puede enviar mensajes ni unirse a salas hasta que quites la suspensión.",
+      "unsuspend": "¿Quitar la suspensión de {{user}}? La cuenta puede volver a enviar mensajes y unirse a salas.",
+      "deactivate": "¿Desactivar {{user}}? La cuenta sale de sus salas y no podrá volver a iniciar sesión nunca. Esto no se puede deshacer."
+    },
+    "protected": "Los administradores y tu propia cuenta no se pueden cambiar aquí."
   }
 }

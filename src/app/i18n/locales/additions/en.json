@@ -907,5 +907,44 @@
     "pickDescriptionPhone": "Open the menu to pick one.",
     "needsYouLabel_one": "Threads, {{count}} waits for you",
     "needsYouLabel_other": "Threads, {{count}} wait for you"
+  },
+  "serverAccounts": {
+    "group": "Administration",
+    "title": "Server accounts",
+    "description": "Every account on this homeserver. Only server administrators see this page.",
+    "search": "Search by name or Matrix ID",
+    "filters": {
+      "all": "All",
+      "staff": "Staff",
+      "external": "External",
+      "deactivated": "Deactivated"
+    },
+    "count": "Accounts: {{shown}} of {{total}}",
+    "noMatches": "No account matches",
+    "loadFailed": "Couldn't load the accounts.",
+    "status": {
+      "active": "Active",
+      "locked": "Locked",
+      "suspended": "Suspended"
+    },
+    "lastSeen": "Last seen {{date}}",
+    "externalNote": "An external account joins only rooms it is invited to. It cannot create rooms or invite people.",
+    "roomsFailed": "Couldn't load this account's rooms.",
+    "noRooms": "Not in any room",
+    "actions": {
+      "lock": "Lock account",
+      "unlock": "Unlock account",
+      "suspend": "Suspend account",
+      "unsuspend": "Unsuspend account",
+      "deactivate": "Deactivate account"
+    },
+    "confirm": {
+      "lock": "Lock {{user}}? The account cannot be used until you unlock it. Its rooms and messages stay.",
+      "unlock": "Unlock {{user}}? The account can be used again.",
+      "suspend": "Suspend {{user}}? The account can still sign in and read, but cannot send messages or join rooms until you unsuspend it.",
+      "unsuspend": "Unsuspend {{user}}? The account can send messages and join rooms again.",
+      "deactivate": "Deactivate {{user}}? The account leaves its rooms and can never sign in again. This cannot be undone."
+    },
+    "protected": "Administrators and your own account cannot be changed here."
   }
 }

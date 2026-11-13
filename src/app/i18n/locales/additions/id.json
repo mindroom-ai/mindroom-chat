@@ -884,5 +884,44 @@
     "pickDescription": "Utas terbuka di sini, di samping daftar.",
     "pickDescriptionPhone": "Buka menu untuk memilih.",
     "needsYouLabel_other": "Utas, {{count}} menunggu Anda"
+  },
+  "serverAccounts": {
+    "group": "Administrasi",
+    "title": "Akun server",
+    "description": "Semua akun di homeserver ini. Hanya administrator server yang melihat halaman ini.",
+    "search": "Cari berdasarkan nama atau ID Matrix",
+    "filters": {
+      "all": "Semua",
+      "staff": "Internal",
+      "external": "Eksternal",
+      "deactivated": "Dinonaktifkan"
+    },
+    "count": "Akun: {{shown}} dari {{total}}",
+    "noMatches": "Tidak ada akun yang cocok",
+    "loadFailed": "Tidak dapat memuat akun.",
+    "status": {
+      "active": "Aktif",
+      "locked": "Terkunci",
+      "suspended": "Ditangguhkan"
+    },
+    "lastSeen": "Terakhir terlihat: {{date}}",
+    "externalNote": "Akun eksternal hanya bergabung ke ruang tempat ia diundang. Akun ini tidak dapat membuat ruang atau mengundang orang.",
+    "roomsFailed": "Tidak dapat memuat ruang akun ini.",
+    "noRooms": "Tidak ada di ruang mana pun",
+    "actions": {
+      "lock": "Kunci akun",
+      "unlock": "Buka kunci akun",
+      "suspend": "Tangguhkan akun",
+      "unsuspend": "Cabut penangguhan",
+      "deactivate": "Nonaktifkan akun"
+    },
+    "confirm": {
+      "lock": "Kunci {{user}}? Akun tidak dapat digunakan sampai Anda membuka kuncinya. Ruang dan pesannya tetap ada.",
+      "unlock": "Buka kunci {{user}}? Akun dapat digunakan lagi.",
+      "suspend": "Tangguhkan {{user}}? Akun masih dapat masuk dan membaca, tetapi tidak dapat mengirim pesan atau bergabung ke ruang sampai Anda mencabut penangguhannya.",
+      "unsuspend": "Cabut penangguhan {{user}}? Akun dapat kembali mengirim pesan dan bergabung ke ruang.",
+      "deactivate": "Nonaktifkan {{user}}? Akun keluar dari ruang-ruangnya dan tidak akan pernah bisa masuk lagi. Tindakan ini tidak dapat dibatalkan."
+    },
+    "protected": "Administrator dan akun Anda sendiri tidak dapat diubah di sini."
   }
 }

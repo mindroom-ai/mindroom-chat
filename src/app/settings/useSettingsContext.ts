@@ -4,6 +4,8 @@ import { useShowLocalMindroom } from '../local-mindroom/useShowLocalMindroom';
 import { isNativeIOS } from '../native/nativeSso';
 import { useOfferedRailButtons } from './railButtons';
 import { useClientConfig } from '../config/useClientConfig';
+import { useCapabilities } from '../matrix/hooks/useCapabilities';
+import { isServerAdmin } from '../server-admin/serverAccounts';
 import { parseDsn } from '../bug-reports/error-reporting/errorReporting';
 import { settingsAtom } from '../preferences/settings';
 import { themeSettingsAtom } from '../theme/useTheme';
@@ -17,10 +19,12 @@ export const useSettingsContext = (): SettingsContext => {
   // As the Appearance page shows it, with the deployment's default theme.
   const { useSystemTheme } = useAtomValue(themeSettingsAtom);
   const errorReporting = parseDsn(useClientConfig().errorReporting?.dsn) !== undefined;
+  const serverAdmin = isServerAdmin(useCapabilities());
   return {
     native: Capacitor.isNativePlatform(),
     nativeIOS: isNativeIOS(),
     localMindroom,
+    serverAdmin,
     useSystemTheme,
     developerTools,
     errorReporting,

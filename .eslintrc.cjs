@@ -104,7 +104,7 @@ const LAYERS = [
   ['config', 'i18n', 'preferences', 'routes', 'shortcuts', 'src/sw'],
   ['diagnostics', 'native', 'ui'],
   ['matrix', 'theme'],
-  ['avatars', 'models', 'navigation', 'plugins', 'rich-text', 'ui-actions'],
+  ['avatars', 'models', 'navigation', 'plugins', 'rich-text', 'server-admin', 'ui-actions'],
   ['computer', 'emoji', 'event-store'],
   ['approvals', 'bug-reports', 'calls', 'connections', 'editor'],
   ['background-jobs', 'members', 'messages'],

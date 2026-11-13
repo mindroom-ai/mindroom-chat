@@ -930,5 +930,44 @@
     "needsYouLabel_one": "Fils, {{count}} vous attend",
     "needsYouLabel_many": "Fils, {{count}} vous attendent",
     "needsYouLabel_other": "Fils, {{count}} vous attendent"
+  },
+  "serverAccounts": {
+    "group": "Administration",
+    "title": "Comptes du serveur",
+    "description": "Tous les comptes de ce serveur. Seuls les administrateurs du serveur voient cette page.",
+    "search": "Rechercher par nom ou identifiant Matrix",
+    "filters": {
+      "all": "Tous",
+      "staff": "Internes",
+      "external": "Externes",
+      "deactivated": "Désactivés"
+    },
+    "count": "Comptes : {{shown}} sur {{total}}",
+    "noMatches": "Aucun compte ne correspond",
+    "loadFailed": "Impossible de charger les comptes.",
+    "status": {
+      "active": "Actif",
+      "locked": "Verrouillé",
+      "suspended": "Suspendu"
+    },
+    "lastSeen": "Vu pour la dernière fois : {{date}}",
+    "externalNote": "Un compte externe ne rejoint que les salons où il est invité. Il ne peut ni créer de salons ni inviter quelqu'un.",
+    "roomsFailed": "Impossible de charger les salons de ce compte.",
+    "noRooms": "Dans aucun salon",
+    "actions": {
+      "lock": "Verrouiller le compte",
+      "unlock": "Déverrouiller le compte",
+      "suspend": "Suspendre le compte",
+      "unsuspend": "Lever la suspension",
+      "deactivate": "Désactiver le compte"
+    },
+    "confirm": {
+      "lock": "Verrouiller {{user}} ? Le compte ne peut plus être utilisé tant que vous ne le déverrouillez pas. Ses salons et ses messages sont conservés.",
+      "unlock": "Déverrouiller {{user}} ? Le compte peut de nouveau être utilisé.",
+      "suspend": "Suspendre {{user}} ? Le compte peut encore se connecter et lire, mais ne peut ni envoyer de messages ni rejoindre de salons tant que vous ne levez pas la suspension.",
+      "unsuspend": "Lever la suspension de {{user}} ? Le compte peut de nouveau envoyer des messages et rejoindre des salons.",
+      "deactivate": "Désactiver {{user}} ? Le compte quitte ses salons et ne pourra plus jamais se connecter. Cette action est irréversible."
+    },
+    "protected": "Les administrateurs et votre propre compte ne peuvent pas être modifiés ici."
   }
 }
