@@ -41,6 +41,11 @@ export type CaptureMessage =
   | { v: 1; type: 'response'; id: string; hostId: string; result: CaptureResult }
   | { v: 1; type: 'gone'; hostId: string };
 
+/** A fresh id for a host or a request; `crypto.randomUUID` is missing outside a secure context. */
+export const newCaptureId = (): string =>
+  globalThis.crypto?.randomUUID?.() ??
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
+
 type Fields = Record<string, unknown>;
 
 const isFields = (value: unknown): value is Fields => typeof value === 'object' && value !== null;

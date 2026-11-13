@@ -1,6 +1,7 @@
 import {
   CAPTURE_CHANNEL_NAME,
   isCaptureMessage,
+  newCaptureId,
   type CaptureAction,
   type CaptureMessage,
   type CaptureResult,
@@ -36,15 +37,23 @@ export type CaptureClientSnapshot = {
 };
 
 export type CaptureClient = {
-  /** Says hello now and every 10 s. */
+  /** Listens, and says hello now and every 10 s while the page shows (every 1.5 s while absent). */
   start(): void;
   stop(): void;
+  /**
+   * Whether the page shows. Hidden, the client says no hello and counts no silence: the snapshot
+   * stays as it is. Shown, it says hello at once and counts both again from there, also when it
+   * showed already (the window got the focus).
+   */
+  setVisible(visible: boolean): void;
   subscribe(listener: () => void): () => void;
   getSnapshot(): CaptureClientSnapshot;
   request(action: CaptureAction): Promise<CaptureResult>;
 };
 
 const HELLO_INTERVAL_MS = 10_000;
+/** How often a widget no host answers says hello, so a host that comes back is found soon. */
+const ABSENT_HELLO_INTERVAL_MS = 1_500;
 const FIRST_STATE_WAIT_MS = 1_500;
 const HOST_SILENCE_MS = 30_000;
 const REQUEST_TIMEOUT_MS = 20_000;
@@ -56,8 +65,8 @@ export const createCaptureClient = (channel: CaptureChannel): CaptureClient => {
   let snapshot: CaptureClientSnapshot = { status: 'connecting' };
   let hostId: string | undefined;
   let stopListening: (() => void) | undefined;
+  let visible = true;
   let helloTimer: ReturnType<typeof setInterval> | undefined;
-  let firstStateTimer: ReturnType<typeof setTimeout> | undefined;
   let silenceTimer: ReturnType<typeof setTimeout> | undefined;
   const listeners = new Set<() => void>();
   const pending = new Map<string, (result: CaptureResult) => void>();
@@ -67,20 +76,50 @@ export const createCaptureClient = (channel: CaptureChannel): CaptureClient => {
     listeners.forEach((listener) => listener());
   };
 
-  const goAbsent = () => {
+  /** Started and shown: only then does the client say hello and count silence. */
+  const running = (): boolean => stopListening !== undefined && visible;
+  const sayHello = () => channel.post({ v: 1, type: 'hello' });
+
+  /** Repeats hello at the pace of the status while running. */
+  const paceHello = () => {
+    clearInterval(helloTimer);
+    helloTimer = undefined;
+    if (!running()) return;
+    const interval = snapshot.status === 'absent' ? ABSENT_HELLO_INTERVAL_MS : HELLO_INTERVAL_MS;
+    helloTimer = setInterval(sayHello, interval);
+  };
+
+  /** Says hello now while running, and repeats it from here. */
+  const greet = () => {
+    if (running()) sayHello();
+    paceHello();
+  };
+
+  /** Counts the silence the status allows while running: the wait for a first state, or a next one. */
+  const countSilence = () => {
     clearTimeout(silenceTimer);
+    silenceTimer = undefined;
+    if (!running() || snapshot.status === 'absent') return;
+    const wait = snapshot.status === 'connecting' ? FIRST_STATE_WAIT_MS : HOST_SILENCE_MS;
+    silenceTimer = setTimeout(goAbsent, wait);
+  };
+
+  /** No host answers: follow any host that does, and ask for one at once. */
+  function goAbsent() {
     hostId = undefined;
     if (snapshot.status !== 'absent') setSnapshot({ status: 'absent' });
-  };
+    countSilence();
+    greet();
+  }
 
   const onMessage = (message: CaptureMessage) => {
     if (message.type === 'state') {
       if (hostId !== undefined && hostId !== message.hostId) return;
+      const wasAbsent = snapshot.status === 'absent';
       hostId = message.hostId;
-      clearTimeout(firstStateTimer);
-      clearTimeout(silenceTimer);
-      silenceTimer = setTimeout(goAbsent, HOST_SILENCE_MS);
       setSnapshot({ status: 'connected', state: message.state });
+      countSilence();
+      if (wasAbsent) paceHello();
     } else if (message.type === 'gone') {
       if (message.hostId === hostId) goAbsent();
     } else if (message.type === 'response') {
@@ -94,18 +133,20 @@ export const createCaptureClient = (channel: CaptureChannel): CaptureClient => {
     start() {
       if (stopListening) return;
       stopListening = channel.listen(onMessage);
-      channel.post({ v: 1, type: 'hello' });
-      helloTimer = setInterval(() => channel.post({ v: 1, type: 'hello' }), HELLO_INTERVAL_MS);
-      firstStateTimer = setTimeout(() => {
-        if (snapshot.status === 'connecting') setSnapshot({ status: 'absent' });
-      }, FIRST_STATE_WAIT_MS);
+      greet();
+      countSilence();
     },
     stop() {
       stopListening?.();
       stopListening = undefined;
-      clearInterval(helloTimer);
-      clearTimeout(firstStateTimer);
-      clearTimeout(silenceTimer);
+      paceHello();
+      countSilence();
+    },
+    setVisible(next) {
+      visible = next;
+      if (next) greet();
+      else paceHello();
+      countSilence();
     },
     subscribe(listener) {
       listeners.add(listener);
@@ -115,7 +156,7 @@ export const createCaptureClient = (channel: CaptureChannel): CaptureClient => {
     request(action) {
       if (snapshot.status !== 'connected' || hostId === undefined)
         return Promise.resolve(TIMED_OUT);
-      const id = crypto.randomUUID();
+      const id = newCaptureId();
       const timeoutMs =
         action.kind === 'send' && action.images.length > 0
           ? REQUEST_WITH_IMAGES_TIMEOUT_MS

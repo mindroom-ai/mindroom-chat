@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { isCaptureMessage, type CaptureAction, type CaptureState } from './captureProtocol';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  isCaptureMessage,
+  newCaptureId,
+  type CaptureAction,
+  type CaptureState,
+} from './captureProtocol';
 
 const state: CaptureState = {
   userId: '@me:example.org',
@@ -103,5 +108,24 @@ describe('isCaptureMessage', () => {
     ).toBe(false);
     expect(isCaptureMessage(null)).toBe(false);
     expect(isCaptureMessage('hello')).toBe(false);
+  });
+});
+
+describe('newCaptureId', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('gives a fresh id each time', () => {
+    const first = newCaptureId();
+    expect(first).toMatch(/\S/);
+    expect(newCaptureId()).not.toBe(first);
+  });
+
+  it('gives fresh ids without crypto.randomUUID, as outside a secure context', () => {
+    vi.stubGlobal('crypto', {});
+    const first = newCaptureId();
+    expect(first).toMatch(/\S/);
+    expect(newCaptureId()).not.toBe(first);
   });
 });

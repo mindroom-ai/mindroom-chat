@@ -379,6 +379,7 @@ describe('QuickCaptureHost', () => {
     hello();
     expect(statesIn(posted)).toHaveLength(1);
 
+    // Within 250 ms of the last state: the change waits for the 250 ms mark.
     act(() => setIndex(store, [entry('!a', '$t1', 100), entry('!a', '$t9', 900)]));
     advance(249);
     expect(statesIn(posted)).toHaveLength(1);
@@ -399,6 +400,46 @@ describe('QuickCaptureHost', () => {
     expect(statesIn(posted)[2]?.state.items).toMatchObject([{ threadId: '$t1', ts: 120 }]);
   });
 
+  it('pushes a change at once when the last state is 250 ms old or more, and the next at the mark', () => {
+    vi.useFakeTimers();
+    const { hello, posted, store } = setup();
+    hello();
+    advance(250);
+
+    act(() => setIndex(store, [entry('!a', '$t1', 130)]));
+    expect(statesIn(posted)).toHaveLength(2);
+    expect(statesIn(posted)[1]?.state.items).toMatchObject([{ threadId: '$t1', ts: 130 }]);
+
+    act(() => setIndex(store, [entry('!a', '$t1', 140)]));
+    advance(249);
+    expect(statesIn(posted)).toHaveLength(2);
+    advance(1);
+    expect(statesIn(posted)).toHaveLength(3);
+    expect(statesIn(posted)[2]?.state.items).toMatchObject([{ threadId: '$t1', ts: 140 }]);
+  });
+
+  it('warns and goes on when a pushed state cannot be read', () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { hello, posted, store } = setup();
+    hello();
+    advance(250);
+    vi.spyOn(roomA, 'getLiveTimeline').mockImplementationOnce(() => {
+      throw new Error('broken timeline');
+    });
+
+    act(() => setIndex(store, [entry('!a', '$t1', 130)]));
+
+    expect(statesIn(posted)).toHaveLength(1);
+    expect(warn).toHaveBeenCalledWith(
+      '[quick-capture] could not read the state',
+      expect.any(Error)
+    );
+    advance(250);
+    act(() => setIndex(store, [entry('!a', '$t1', 140)]));
+    expect(statesIn(posted)).toHaveLength(2);
+  });
+
   it("pushes a state when the stored room's timeline changes", () => {
     vi.useFakeTimers();
     const { hello, posted, mx } = setup();
@@ -411,16 +452,16 @@ describe('QuickCaptureHost', () => {
     advance(1000);
     expect(statesIn(posted)).toHaveLength(1);
 
+    // The last state is a second old: the change goes at once.
     act(() => {
       mx.emit(RoomEvent.Timeline, event, roomA);
     });
-    advance(250);
     expect(statesIn(posted)).toHaveLength(2);
 
+    advance(250);
     act(() => {
       mx.emit(RoomEvent.LocalEchoUpdated, event, roomA);
     });
-    advance(250);
     expect(statesIn(posted)).toHaveLength(3);
   });
 
@@ -433,7 +474,6 @@ describe('QuickCaptureHost', () => {
     advance(20_000);
 
     act(() => setIndex(store, [entry('!a', '$t1', 130)]));
-    advance(250);
     expect(statesIn(posted)).toHaveLength(3);
 
     advance(10_000);
@@ -451,6 +491,23 @@ describe('QuickCaptureHost', () => {
     expect(posted.at(-1)).toEqual({ v: 1, type: 'gone', hostId: hostId() });
     // The channel belongs to whoever passed it in.
     expect(channel.close).not.toHaveBeenCalled();
+  });
+
+  it('says it is gone when its page goes away, as on a reload or a sign-out', () => {
+    const { hello, posted, view, hostId } = setup();
+    hello();
+
+    act(() => {
+      window.dispatchEvent(new Event('pagehide'));
+    });
+    expect(posted.at(-1)).toEqual({ v: 1, type: 'gone', hostId: hostId() });
+
+    view.unmount();
+    const count = posted.length;
+    act(() => {
+      window.dispatchEvent(new Event('pagehide'));
+    });
+    expect(posted).toHaveLength(count);
   });
 
   it('serves under a fresh id after it said it is gone', () => {

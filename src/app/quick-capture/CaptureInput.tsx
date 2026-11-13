@@ -2,9 +2,11 @@ import {
   useRef,
   useState,
   type ClipboardEvent,
+  type Dispatch,
   type KeyboardEvent,
   type ReactNode,
   type RefObject,
+  type SetStateAction,
 } from 'react';
 import type { ParseKeys, TFunction } from 'i18next';
 import { Icon, Icons, type IconSrc } from 'folds';
@@ -62,6 +64,9 @@ type CaptureInputProps = {
   roomId: string | null;
   text: string;
   onText: (text: string) => void;
+  /** The attached images, held with the text above the widget. */
+  images: File[];
+  onImages: Dispatch<SetStateAction<File[]>>;
   request: CaptureClient['request'];
   apple: boolean;
   inputRef: RefObject<HTMLTextAreaElement>;
@@ -82,6 +87,8 @@ export function CaptureInput({
   roomId,
   text,
   onText,
+  images,
+  onImages: setImages,
   request,
   apple,
   inputRef,
@@ -92,7 +99,6 @@ export function CaptureInput({
   hints,
 }: CaptureInputProps) {
   const { t } = useTranslation();
-  const [images, setImages] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
   const [sendError, setSendError] = useState<CaptureErrorCode>();

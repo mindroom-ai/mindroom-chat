@@ -44,6 +44,7 @@ import { createServiceWorkerUrl } from './app/config/serviceWorkerRegistration';
 import { markServiceWorkerUnavailable } from './app/matrix/hooks/useMediaAuthentication';
 import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from './boot/serviceWorkerNavigation';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/lib/basePath';
+import { isQuickCapturePath } from './app/routes/pathUtils';
 import { installErrorCapture } from './app/bug-reports/error-reporting/errorReporting';
 
 /** Marks the one reload that recovers a page the service worker does not control. */
@@ -91,8 +92,12 @@ const prepareDocument = (): void => {
   });
   runSafely('plugin storage of removed accounts', deletePluginStorageOfRemovedAccounts);
   runSafely('native app links', () => {
-    // Capacitor's App plugin reports the SSO and pairing links the native app opens with.
-    if (isNativeApp()) registerNativeAppUrlCallbacks(NativeApp);
+    // Capacitor's App plugin reports the SSO and pairing links the native app opens with. The
+    // quick capture widget's web view leaves them to the main one: followed there, a link would
+    // take the widget's window away from the widget, to a second copy of the app.
+    if (isNativeApp() && !isQuickCapturePath(window.location.pathname)) {
+      registerNativeAppUrlCallbacks(NativeApp);
+    }
   });
 };
 

@@ -13,9 +13,13 @@ const CONNECTING: CaptureClientSnapshot = { status: 'connecting' };
 const ABSENT: CaptureClientSnapshot = { status: 'absent' };
 const subscribeToNothing = () => () => undefined;
 
+/** The page shows, as far as the document can tell. */
+const pageShows = (): boolean => document.visibilityState === 'visible';
+
 /**
  * The widget's client of the host (`channel`, else the page's own), saying hello while the page
- * shows. Without `BroadcastChannel` no host can answer, so the widget is absent at once.
+ * shows, and at once when it shows again or the window gets the focus. Without `BroadcastChannel`
+ * no host can answer, so the widget is absent at once.
  */
 export const useQuickCapture = (channel: CaptureChannel | undefined) => {
   // Undefined until the effect runs; null where no channel opens.
@@ -28,8 +32,16 @@ export const useQuickCapture = (channel: CaptureChannel | undefined) => {
     }
     const started = createCaptureClient(opened);
     setClient(started);
+    started.setVisible(pageShows());
     started.start();
+    const onVisibilityChange = () => started.setVisible(pageShows());
+    // A window that gets the focus shows, whatever the web view says of its visibility.
+    const onFocus = () => started.setVisible(true);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('focus', onFocus);
     return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('focus', onFocus);
       started.stop();
       if (!channel) opened.close();
     };

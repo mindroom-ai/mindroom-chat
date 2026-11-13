@@ -1,9 +1,20 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import { Icon, Icons } from 'folds';
 import type { ParseKeys } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useActiveSession } from '../matrix/session/useSessionStore';
-import { hideQuickCapture, showMainWindow } from '../native/nativeQuickCapture';
+import {
+  hideQuickCapture,
+  isNativeQuickCaptureAvailable,
+  showMainWindow,
+} from '../native/nativeQuickCapture';
 import { keyCapsOf, usesCommandKey } from '../shortcuts/shortcuts';
 import { ownDirectionLine } from '../ui/directional';
 import type { CaptureChannel, CaptureClient } from './captureChannel';
@@ -84,10 +95,12 @@ type CaptureWidgetProps = {
   request: CaptureClient['request'];
   text: string;
   onText: (text: string) => void;
+  images: File[];
+  onImages: Dispatch<SetStateAction<File[]>>;
 };
 
 /** The connected widget: the room, the entry, and the room's threads or the room picker. */
-function CaptureWidget({ state, request, text, onText }: CaptureWidgetProps) {
+function CaptureWidget({ state, request, text, onText, images, onImages }: CaptureWidgetProps) {
   const { t } = useTranslation();
   const [apple] = useState(usesCommandKey);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -163,6 +176,8 @@ function CaptureWidget({ state, request, text, onText }: CaptureWidgetProps) {
         roomId={state.roomId}
         text={text}
         onText={onText}
+        images={images}
+        onImages={onImages}
         request={request}
         apple={apple}
         inputRef={inputRef}
@@ -213,9 +228,13 @@ function CaptureWidget({ state, request, text, onText }: CaptureWidgetProps) {
   );
 }
 
-/** "MindRoom is not open" with a way to it, or "Sign in to MindRoom" when no account is. */
+/**
+ * "MindRoom is not open", with a way to it on the Mac (a browser has no main window to show), or
+ * "Sign in to MindRoom" when no account is.
+ */
 function CaptureNotice({ signedIn }: { signedIn: boolean }) {
   const { t } = useTranslation();
+  const native = isNativeQuickCaptureAvailable();
   useCaptureEscape(() => void hide());
   return (
     <div className={css.Notice}>
@@ -224,7 +243,7 @@ function CaptureNotice({ signedIn }: { signedIn: boolean }) {
           ? t('featureUi.quickCapture.absent.title')
           : t('featureUi.quickCapture.signedOut.title')}
       </p>
-      {signedIn && (
+      {signedIn && native && (
         <button
           type="button"
           className={css.SmallButton}
@@ -246,8 +265,9 @@ export function QuickCapturePage({ channel }: { channel?: CaptureChannel }) {
   const { t } = useTranslation();
   const { client, snapshot } = useQuickCapture(channel);
   const signedIn = !!useActiveSession();
-  // The entry outlives a host that goes away and comes back.
+  // The entry, its images too, outlives a host that goes away and comes back.
   const [text, setText] = useState('');
+  const [images, setImages] = useState<File[]>([]);
 
   useEffect(() => {
     document.title = t('featureUi.quickCapture.title');
@@ -261,6 +281,8 @@ export function QuickCapturePage({ channel }: { channel?: CaptureChannel }) {
           request={client.request}
           text={text}
           onText={setText}
+          images={images}
+          onImages={setImages}
         />
       )}
       {snapshot.status === 'absent' && <CaptureNotice signedIn={signedIn} />}

@@ -26,6 +26,8 @@ const makeChannel = () => {
   return { channel, posted, deliver };
 };
 
+const hellos = (posted: CaptureMessage[]) => posted.filter((m) => m.type === 'hello').length;
+
 const reply: CaptureAction = { kind: 'reply', roomId: '!a', threadId: '$t', text: 'x' };
 const sendWithImage: CaptureAction = {
   kind: 'send',
@@ -41,6 +43,7 @@ describe('createCaptureClient', () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   const connected = (hostId = 'a') => {
@@ -165,24 +168,72 @@ describe('createCaptureClient', () => {
     expect(posted.some((m) => m.type === 'request')).toBe(false);
   });
 
-  it('becomes absent on gone and then follows any host', () => {
-    const { client, deliver } = connected();
+  it('gives requests fresh ids without crypto.randomUUID, as outside a secure context', () => {
+    vi.stubGlobal('crypto', {});
+    const { client, posted } = connected();
+    void client.request(reply);
+    void client.request(reply);
+    const ids = posted.flatMap((m) => (m.type === 'request' ? [m.id] : []));
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).toMatch(/\S/);
+    expect(new Set(ids).size).toBe(2);
+  });
+
+  it('becomes absent on gone, says hello at once, and then follows any host', () => {
+    const { client, deliver, posted } = connected();
     deliver({ v: 1, type: 'gone', hostId: 'b' });
     expect(client.getSnapshot().status).toBe('connected');
+    expect(hellos(posted)).toBe(1);
     deliver({ v: 1, type: 'gone', hostId: 'a' });
     expect(client.getSnapshot().status).toBe('absent');
+    expect(hellos(posted)).toBe(2);
     deliver({ v: 1, type: 'state', hostId: 'b', state: makeState('!b') });
     expect(client.getSnapshot()).toEqual({ status: 'connected', state: makeState('!b') });
   });
 
-  it('becomes absent after 30 s without state and then follows any host', () => {
-    const { client, deliver } = connected();
+  it('becomes absent after 30 s without state, says hello at once, and then follows any host', () => {
+    const { client, deliver, posted } = connected();
+    // A state at the 5th second, so the silence ends between two hellos.
+    vi.advanceTimersByTime(5_000);
+    deliver({ v: 1, type: 'state', hostId: 'a', state: makeState('!a') });
     vi.advanceTimersByTime(29_999);
     expect(client.getSnapshot().status).toBe('connected');
+    // The hellos of the 10th, 20th and 30th second.
+    expect(hellos(posted)).toBe(4);
     vi.advanceTimersByTime(1);
     expect(client.getSnapshot().status).toBe('absent');
+    expect(hellos(posted)).toBe(5);
     deliver({ v: 1, type: 'state', hostId: 'b', state: makeState('!b') });
     expect(client.getSnapshot().status).toBe('connected');
+  });
+
+  it('says hello every 1.5 s while absent, and every 10 s again once a host answers', () => {
+    const { client, deliver, posted } = connected();
+    deliver({ v: 1, type: 'gone', hostId: 'a' });
+    expect(hellos(posted)).toBe(2);
+    vi.advanceTimersByTime(1_499);
+    expect(hellos(posted)).toBe(2);
+    vi.advanceTimersByTime(1);
+    expect(hellos(posted)).toBe(3);
+    vi.advanceTimersByTime(1_500);
+    expect(hellos(posted)).toBe(4);
+    deliver({ v: 1, type: 'state', hostId: 'b', state: makeState('!b') });
+    expect(client.getSnapshot().status).toBe('connected');
+    vi.advanceTimersByTime(9_999);
+    expect(hellos(posted)).toBe(4);
+    vi.advanceTimersByTime(1);
+    expect(hellos(posted)).toBe(5);
+  });
+
+  it('says hello again when no first state comes, and every 1.5 s after', () => {
+    const { channel, posted } = makeChannel();
+    const client = createCaptureClient(channel);
+    client.start();
+    vi.advanceTimersByTime(1_500);
+    expect(client.getSnapshot().status).toBe('absent');
+    expect(hellos(posted)).toBe(2);
+    vi.advanceTimersByTime(1_500);
+    expect(hellos(posted)).toBe(3);
   });
 
   it('counts the 30 s from the latest state', () => {
@@ -193,5 +244,80 @@ describe('createCaptureClient', () => {
     expect(client.getSnapshot().status).toBe('connected');
     vi.advanceTimersByTime(10_000);
     expect(client.getSnapshot().status).toBe('absent');
+  });
+
+  describe('setVisible', () => {
+    it('says no hello and counts no silence while hidden', () => {
+      const { client, posted } = connected();
+      const before = client.getSnapshot();
+      client.setVisible(false);
+      vi.advanceTimersByTime(120_000);
+      expect(hellos(posted)).toBe(1);
+      expect(client.getSnapshot()).toBe(before);
+    });
+
+    it('says hello at once when shown, and counts the hellos and the silence from then', () => {
+      const { client, posted } = connected();
+      client.setVisible(false);
+      vi.advanceTimersByTime(25_000);
+      client.setVisible(true);
+      expect(hellos(posted)).toBe(2);
+      vi.advanceTimersByTime(9_999);
+      expect(hellos(posted)).toBe(2);
+      vi.advanceTimersByTime(1);
+      expect(hellos(posted)).toBe(3);
+      vi.advanceTimersByTime(19_999);
+      expect(client.getSnapshot().status).toBe('connected');
+      vi.advanceTimersByTime(1);
+      expect(client.getSnapshot().status).toBe('absent');
+    });
+
+    it('says hello again when shown while it shows already, as when the window gets the focus', () => {
+      const { client, posted } = connected();
+      vi.advanceTimersByTime(5_000);
+      client.setVisible(true);
+      expect(hellos(posted)).toBe(2);
+      // The pace starts again from this hello.
+      vi.advanceTimersByTime(9_999);
+      expect(hellos(posted)).toBe(2);
+      vi.advanceTimersByTime(1);
+      expect(hellos(posted)).toBe(3);
+    });
+
+    it('says no hello while hidden and absent, and hello every 1.5 s once shown', () => {
+      const { client, deliver, posted } = connected();
+      deliver({ v: 1, type: 'gone', hostId: 'a' });
+      expect(hellos(posted)).toBe(2);
+      client.setVisible(false);
+      vi.advanceTimersByTime(10_000);
+      expect(hellos(posted)).toBe(2);
+      client.setVisible(true);
+      expect(hellos(posted)).toBe(3);
+      vi.advanceTimersByTime(1_500);
+      expect(hellos(posted)).toBe(4);
+    });
+
+    it('starts hidden without a hello, and waits for a first state once shown', () => {
+      const { channel, posted } = makeChannel();
+      const client = createCaptureClient(channel);
+      client.setVisible(false);
+      client.start();
+      vi.advanceTimersByTime(60_000);
+      expect(posted).toEqual([]);
+      expect(client.getSnapshot().status).toBe('connecting');
+      client.setVisible(true);
+      expect(posted).toEqual([{ v: 1, type: 'hello' }]);
+      vi.advanceTimersByTime(1_500);
+      expect(client.getSnapshot().status).toBe('absent');
+    });
+
+    it('says nothing after stop', () => {
+      const { client, posted } = connected();
+      client.stop();
+      client.setVisible(false);
+      client.setVisible(true);
+      vi.advanceTimersByTime(60_000);
+      expect(hellos(posted)).toBe(1);
+    });
   });
 });

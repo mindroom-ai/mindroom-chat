@@ -127,7 +127,8 @@ const makeChannel = () => {
     });
   };
   const pushState = (state: CaptureState) => deliver({ v: 1, type: 'state', hostId: HOST, state });
-  return { channel, posted, actions, respond, pushState };
+  const hellos = () => posted.filter((message) => message.type === 'hello').length;
+  return { channel, posted, actions, respond, pushState, deliver, hellos };
 };
 
 /** The page against a fake host, which has sent `state` (with null, nothing yet). */
@@ -153,6 +154,13 @@ const type = (element: Element, value: string) => fireEvent.change(element, { ta
 const png = (name: string) => new File(['png'], name, { type: 'image/png' });
 const paste = (files: File[]) =>
   fireEvent.paste(input(), { clipboardData: { files, types: ['Files'] } });
+/** Sets what `document.visibilityState` says and tells the page, as a hidden window does. */
+const setPageVisibility = (state: DocumentVisibilityState) => {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
+  act(() => {
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+};
 
 beforeEach(() => {
   mocks.session = undefined;
@@ -167,6 +175,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+  Reflect.deleteProperty(document, 'visibilityState');
   vi.clearAllMocks();
   vi.useRealTimers();
 });
@@ -185,6 +194,7 @@ describe('QuickCapturePage without a host', () => {
 
   it('says MindRoom is not open with a session, and its button shows the main window', () => {
     vi.useFakeTimers();
+    vi.mocked(isNativeQuickCaptureAvailable).mockReturnValue(true);
     mocks.session = { sessionId: 's', userId: '@me:x' } as unknown as StoredSession;
     setup(null);
     act(() => {
@@ -195,9 +205,52 @@ describe('QuickCapturePage without a host', () => {
     expect(showMainWindow).toHaveBeenCalledTimes(1);
   });
 
+  it('offers no Open button without the native plugin, where it could show nothing', () => {
+    vi.useFakeTimers();
+    mocks.session = { sessionId: 's', userId: '@me:x' } as unknown as StoredSession;
+    setup(null);
+    act(() => {
+      vi.advanceTimersByTime(1_500);
+    });
+    expect(screen.getByText('MindRoom is not open')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Open MindRoom' })).toBeNull();
+  });
+
   it('names itself in the document title', () => {
     setup(null);
     expect(document.title).toBe('Quick Capture');
+  });
+});
+
+describe('QuickCapturePage and its host', () => {
+  it('says no hello while hidden, and hello when it shows again or the window gets the focus', () => {
+    vi.useFakeTimers();
+    const rig = setup();
+    expect(rig.hellos()).toBe(1);
+    setPageVisibility('hidden');
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(rig.hellos()).toBe(1);
+    // Hidden, the widget does not count the host's silence: the list stays.
+    expect(screen.getByRole('list', { name: 'Threads in Inbox' })).toBeTruthy();
+    setPageVisibility('visible');
+    expect(rig.hellos()).toBe(2);
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    expect(rig.hellos()).toBe(3);
+  });
+
+  it('keeps the text and the images of the entry while the host goes and comes back', () => {
+    const rig = setup();
+    paste([png('a.png')]);
+    type(input(), 'What is this?');
+    rig.deliver({ v: 1, type: 'gone', hostId: HOST });
+    expect(screen.queryByRole('textbox', { name: 'New entry' })).toBeNull();
+    rig.pushState(roomState());
+    expect((input() as HTMLTextAreaElement).value).toBe('What is this?');
+    expect(screen.getByRole('button', { name: 'Remove a.png' })).toBeTruthy();
   });
 });
 

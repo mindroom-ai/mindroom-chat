@@ -18,12 +18,13 @@ import { useSetting } from '../preferences/useSetting';
 import { crossRoomThreadIndexAtom } from '../threads/cross-room/crossRoomThreadIndex';
 import { openCaptureChannel, type CaptureChannel } from './captureChannel';
 import { buildCaptureItems } from './captureItems';
-import type {
-  CaptureAction,
-  CaptureMessage,
-  CaptureResult,
-  CaptureRoom,
-  CaptureState,
+import {
+  newCaptureId,
+  type CaptureAction,
+  type CaptureMessage,
+  type CaptureResult,
+  type CaptureRoom,
+  type CaptureState,
 } from './captureProtocol';
 import { buildCaptureRooms } from './captureRooms';
 import { readCaptureThreads } from './captureThreads';
@@ -144,11 +145,6 @@ const runAction = async (context: HostContext, action: CaptureAction): Promise<C
   }
 };
 
-/** A host id; `crypto.randomUUID` is missing outside a secure context (a plain HTTP host). */
-const newHostId = (): string =>
-  globalThis.crypto?.randomUUID?.() ??
-  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
-
 const failureOf = (error: unknown): CaptureResult => ({
   ok: false,
   error: error instanceof CaptureError ? error.code : 'send-failed',
@@ -157,8 +153,9 @@ const failureOf = (error: unknown): CaptureResult => ({
 /**
  * Serves the quick capture widget from the signed-in app, the one Matrix client: answers its hello
  * with the state, pushes the state on each change while a widget said hello in the last 30 s (at
- * most every 250 ms), runs its requests, answering each once, and says it is gone when it unmounts.
- * With no widget it only listens on the channel.
+ * most every 250 ms), runs its requests, answering each once, and says it is gone when it unmounts
+ * or its page goes away (a reload, a sign-out), which unmounts nothing. With no widget it only
+ * listens on the channel.
  */
 export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureChannel }): null {
   const mx = useMatrixClient();
@@ -182,7 +179,7 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
     const channel = givenChannel ?? openCaptureChannel();
     if (!channel) return undefined;
     // Each run serves under its own id: the run before said it is gone.
-    const hostId = newHostId();
+    const hostId = newCaptureId();
     let open = true;
     let lastStateTs = 0;
     let stateTimer: ReturnType<typeof setTimeout> | undefined;
@@ -194,13 +191,19 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
       stateTimer = undefined;
       if (!open) return;
       lastStateTs = Date.now();
-      channel.post({ v: 1, type: 'state', hostId, state: readCaptureState(context.current) });
+      try {
+        channel.post({ v: 1, type: 'state', hostId, state: readCaptureState(context.current) });
+      } catch (error) {
+        // A change that set an atom must not fail for it; the widget's next hello reads it again.
+        console.warn('[quick-capture] could not read the state', error);
+      }
     };
+    /** A change: posted at once when the last state is 250 ms old, else at the 250 ms mark. */
     const scheduleState = () => {
-      stateTimer ??= setTimeout(
-        postState,
-        Math.max(0, lastStateTs + STATE_INTERVAL_MS - Date.now())
-      );
+      if (stateTimer !== undefined) return;
+      const wait = lastStateTs + STATE_INTERVAL_MS - Date.now();
+      if (wait <= 0) postState();
+      else stateTimer = setTimeout(postState, wait);
     };
 
     /** Follows what the state reads: the index, unread counts, rooms, the stored room's timeline. */
@@ -242,16 +245,10 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
     };
     const onRequest = async (id: string, action: CaptureAction) => {
       const result = await runAction(context.current, action).catch(failureOf);
-      if (action.kind === 'selectRoom' && result.ok) {
-        try {
-          postState();
-        } catch (error) {
-          // The answer goes all the same; the widget's next hello reads the state again.
-          console.warn('[quick-capture] could not read the state', error);
-        }
-      }
+      if (action.kind === 'selectRoom' && result.ok) postState();
       if (open) channel.post({ v: 1, type: 'response', id, hostId, result });
     };
+    const sayGone = () => channel.post({ v: 1, type: 'gone', hostId });
 
     const stopListening = channel.listen((message: CaptureMessage) => {
       if (message.type === 'hello') onHello();
@@ -259,11 +256,13 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
         void onRequest(message.id, message.action);
       }
     });
+    window.addEventListener('pagehide', sayGone);
     return () => {
+      window.removeEventListener('pagehide', sayGone);
       stopListening();
       stopWatching();
       clearTimeout(silenceTimer);
-      channel.post({ v: 1, type: 'gone', hostId });
+      sayGone();
       open = false;
       if (!givenChannel) channel.close();
     };
