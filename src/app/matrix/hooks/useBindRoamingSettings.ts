@@ -9,6 +9,7 @@ import {
 } from 'matrix-js-sdk';
 import { listSessions } from '../session/sessions';
 import { isRecord } from '../../lib/isRecord';
+import { randomUuid } from '../../lib/randomUuid';
 import { DEFAULT_SETTINGS, getSettings } from '../../preferences/settings';
 import {
   ROAMING_SETTINGS_EVENT_TYPE,
@@ -59,7 +60,7 @@ const writeRoamingSettings = (
       const next = mergeRoamingSettings(content, patch);
       if (!next) return undefined;
       const base = isRecord(content) ? content : {};
-      const stored = { ...next, rev: globalThis.crypto.randomUUID(), base_rev: base.rev ?? null };
+      const stored = { ...next, rev: randomUuid(), base_rev: base.rev ?? null };
       await mx.setAccountData(ROAMING_SETTINGS_EVENT_TYPE as never, stored as never);
       return { stored, base };
     });
