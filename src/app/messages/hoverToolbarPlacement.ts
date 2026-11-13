@@ -30,12 +30,15 @@ const findScroller = (row: HTMLElement): HTMLElement | undefined => {
 /** Marks a control right above a timeline's first row, such as the `[+all]` toggle. */
 export const TIMELINE_OVERLAY_ATTRIBUTE = 'data-timeline-overlay';
 /**
- * The Show full message / Show less button of a long message (CollapsibleMessage), at the end of
- * the message's bottom edge, the corner the toolbar of the row below floats over; and a code
- * block's buttons, at the end of its top edge, under a toolbar that moves down into its row.
+ * The Show full message / Show less button of a long message (CollapsibleMessage). It sits at the
+ * end of the message's bottom edge, the corner the toolbar of the row below floats over.
  */
-const CONTROLS_KEPT_CLEAR =
-  '[data-message-fold] > * > [data-message-disclosure] > button, [data-code-block-actions]';
+const FOLD_BUTTON = '[data-message-fold] > * > [data-message-disclosure] > button';
+/**
+ * A code block's buttons (Wrap lines, Expand, Copy code), at the end of its top edge: under a
+ * toolbar that moves down below the sender line of a message whose code block starts there.
+ */
+const CODE_BLOCK_ACTIONS = '[data-code-block-actions]';
 /**
  * The sender line at the top of a message: its name, the reply details button of an agent reply
  * and the time, which the toolbar keeps clear of once it moves down into its row.
@@ -65,14 +68,18 @@ const coveredUntilY = (scroller: HTMLElement, left: number, right: number): numb
   return bottom;
 };
 
+/** A control's top and bottom, relative to the top of the toolbar's row. */
+type Span = { top: number; bottom: number };
+
 /** A fold button beside the toolbar, relative to the top of the toolbar's row. */
-export type FoldSpan = { top: number; bottom: number; ownRow: boolean };
+export type FoldSpan = Span & { ownRow: boolean };
 
 /**
  * Where the toolbar's top goes, relative to the top of its row, or `undefined` for its usual
  * place. `usual` is that place, `covered` where what floats over the top of the timeline ends,
- * `height` the toolbar's own height, `folds` the fold buttons under its span, and `senderLine`
- * the row's sender line where it is under the span.
+ * `height` the toolbar's own height, `folds` the fold buttons under its span, `senderLine`
+ * the row's sender line where it is under the span, and `codeActions` the buttons of the row's
+ * code blocks under the span.
  */
 export const toolbarOffset = (
   usual: number,
@@ -80,9 +87,10 @@ export const toolbarOffset = (
   rowHeight: number,
   height: number,
   folds: FoldSpan[],
-  senderLine?: { top: number; bottom: number }
+  senderLine?: Span,
+  codeActions: Span[] = []
 ): number | undefined => {
-  const nearFold = (at: number, fold: FoldSpan) =>
+  const nearFold = (at: number, fold: Span) =>
     at < fold.bottom + CONTROL_GAP_PX && at + height > fold.top - CONTROL_GAP_PX;
   // Below the header and the controls under it, but no lower than 4 px above the row's bottom.
   let top = covered > usual + 0.5 ? Math.min(covered, rowHeight - ROW_END_GAP_PX - height) : usual;
@@ -97,8 +105,9 @@ export const toolbarOffset = (
     });
   // Moved down into its row, it goes on below the row's sender line where that shows, so the
   // name, the time and the reply details button stay in reach, unless a fold button is there (a
-  // long row's own Show less sticks to the bottom of the view). In its usual place it ends a few
-  // pixels into the row, above the line's text.
+  // long row's own Show less sticks to the bottom of the view) or a code block's buttons are: then
+  // it stays over the sender line. In its usual place it ends a few pixels into the row, above the
+  // line's text.
   if (
     senderLine &&
     senderLine.bottom > covered &&
@@ -107,7 +116,7 @@ export const toolbarOffset = (
     top + height > senderLine.top
   ) {
     const below = senderLine.bottom + CONTROL_GAP_PX;
-    if (!folds.some((fold) => nearFold(below, fold))) top = below;
+    if (![...folds, ...codeActions].some((control) => nearFold(below, control))) top = below;
   }
   return Math.abs(top - usual) > 0.5 ? Math.round(top) : undefined;
 };
@@ -118,8 +127,8 @@ export const toolbarOffset = (
  * first row starts right under the room's `[+all]` toggle or a thread's banner, so its toolbar
  * moves down into the row instead of covering them) and of the fold buttons of long messages, so
  * it never draws over a Show less button. Moved down into its row, it also keeps below the row's
- * sender line. Measured while the toolbar shows, and again as the timeline scrolls under it or
- * the row changes size.
+ * sender line, unless a code block's buttons are there. Measured while the toolbar shows, and
+ * again as the timeline scrolls under it or the row changes size.
  */
 export const useToolbarClearance = (
   rowRef: RefObject<HTMLElement>,
@@ -148,12 +157,16 @@ export const useToolbarClearance = (
       const rowRect = row.getBoundingClientRect();
       const bar = toolbar.getBoundingClientRect();
       if (clearanceRef.current === undefined) usualOffset.current = bar.top - rowRect.top;
-      const folds = Array.from(scroller.querySelectorAll(CONTROLS_KEPT_CLEAR)).flatMap((button) => {
-        const rect = button.getBoundingClientRect();
+      const underBar = (control: Element): Span[] => {
+        const rect = control.getBoundingClientRect();
         if (!(rect.width > 0 && rect.left < bar.right && rect.right > bar.left)) return [];
         const top = rect.top - rowRect.top;
-        return [{ top, bottom: top + rect.height, ownRow: row.contains(button) }];
-      });
+        return [{ top, bottom: top + rect.height }];
+      };
+      const folds = Array.from(scroller.querySelectorAll(FOLD_BUTTON)).flatMap((button) =>
+        underBar(button).map((span) => ({ ...span, ownRow: row.contains(button) }))
+      );
+      const codeActions = Array.from(row.querySelectorAll(CODE_BLOCK_ACTIONS)).flatMap(underBar);
       const sender = row.querySelector(SENDER_LINE)?.getBoundingClientRect();
       const senderLine =
         sender && sender.width > 0 && sender.left < bar.right && sender.right > bar.left
@@ -165,7 +178,8 @@ export const useToolbarClearance = (
         rowRect.height,
         bar.height,
         folds,
-        senderLine
+        senderLine,
+        codeActions
       );
       if (next !== clearanceRef.current) setClearance(next);
     };
