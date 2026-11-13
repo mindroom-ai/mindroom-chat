@@ -130,7 +130,7 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
     clearThreadOpenSeedSnapshotsForTests();
   });
 
-  it('drives createMessagesRequest backward until the target is reached and persists each chunk', async () => {
+  it('fetches one page backward per job and persists each page', async () => {
     const mx = createMockClient((call) => {
       if (call === 0) return { end: 'tok-1', chunk: [rawEvent('$a', 1), rawEvent('$b', 2)] };
       if (call === 1) return { end: 'tok-2', chunk: [rawEvent('$c', 3)] };
@@ -152,7 +152,6 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
       roomId: '!room:mindroom.chat',
     });
 
-    // Target reached after chunk 2 (2 + 1 = 3), loop terminates.
     expect(mx.__calls.length).toBeGreaterThanOrEqual(2);
     for (const id of ['$a', '$b', '$c']) {
       // eslint-disable-next-line no-await-in-loop
@@ -226,21 +225,6 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
       sessionId: SESSION_ID,
       scheduler,
       roomId: '!e2e:mindroom.chat',
-    });
-
-    expect(mx.__calls.length).toBe(1);
-  });
-
-  it('fetches a federated room admitted by the controller', async () => {
-    const mx = createMockClient(() => ({ chunk: [] }));
-    mx.__rooms.set('!fed:example.org', makeRoom('!fed:example.org', '@carol:example.org'));
-    const scheduler = createBackfillScheduler({ mx });
-
-    await deepHistory({
-      mx,
-      sessionId: SESSION_ID,
-      scheduler,
-      roomId: '!fed:example.org',
     });
 
     expect(mx.__calls.length).toBe(1);

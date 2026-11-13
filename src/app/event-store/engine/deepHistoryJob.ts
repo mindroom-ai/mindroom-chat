@@ -12,7 +12,7 @@ export type ReserveHistoryPage = (
   roomId: string
 ) => { limit: number; settle: (committedCount: number) => void } | undefined;
 
-export type HistoryPage = { events: MatrixEvent[]; count: number; exhausted: boolean };
+export type HistoryPage = { events: MatrixEvent[]; exhausted: boolean };
 
 /** One scheduler turn, one committed page. The controller queues continuation
  * only after this promise settles, leaving foreground jobs a free slot. */
@@ -43,8 +43,7 @@ export const enqueueRoomDeepHistoryJob = ({
       const room = mx.getRoom(roomId);
       if (!room || !current()) return undefined;
       const progress = await readRoomOfflineProgress(sessionId, roomId);
-      if (progress.exhausted || !current())
-        return { events: [], count: 0, exhausted: !!progress.exhausted };
+      if (progress.exhausted || !current()) return { events: [], exhausted: !!progress.exhausted };
       const reservation = reservePage(roomId);
       if (!reservation) return undefined;
       let committedCount = 0;
@@ -90,7 +89,7 @@ export const enqueueRoomDeepHistoryJob = ({
         );
         if (!committed) throw new Error('History progress did not commit');
         committedCount = response.chunk?.length ?? 0;
-        return { events, count: committedCount, exhausted: !next };
+        return { events, exhausted: !next };
       } finally {
         reservation.settle(committedCount);
       }
