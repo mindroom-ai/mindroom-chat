@@ -648,33 +648,6 @@ vi.mock('../../messages/reactions/Reactions', () => ({
   Reactions: passthrough,
 }));
 
-vi.mock('../../messages/content/EncryptedContent', () => ({
-  EncryptedContent: ({
-    mEvent,
-    children,
-  }: {
-    mEvent: {
-      __renderInsideEncryptedContentAs?: string;
-      getType: () => string;
-    };
-    children: (() => React.ReactNode) | React.ReactNode;
-  }) => {
-    if (typeof children !== 'function') return React.createElement(React.Fragment, null, children);
-
-    const renderType = mEvent.__renderInsideEncryptedContentAs;
-    if (!renderType) return React.createElement(React.Fragment, null, children());
-
-    const getType = mEvent.getType;
-    mEvent.getType = () => renderType;
-
-    try {
-      return React.createElement(React.Fragment, null, children());
-    } finally {
-      mEvent.getType = getType;
-    }
-  },
-}));
-
 vi.mock('../../messages/Message', () => ({
   Message: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) =>
     React.createElement(
@@ -1271,7 +1244,8 @@ const makeEvent = (
     relation?: { rel_type?: string; event_id?: string };
     /** The event it genuinely replies to (`m.in_reply_to`). */
     replyTo?: string;
-    renderInsideEncryptedContentAs?: string;
+    /** Decrypted: its type is the clear one, but it came encrypted. */
+    encrypted?: boolean;
     associatedId?: string;
     stateKey?: string;
     unsigned?: Record<string, unknown>;
@@ -1283,7 +1257,6 @@ const makeEvent = (
 ) => {
   let unsigned: Record<string, unknown> = opts.unsigned ?? {};
   return {
-    __renderInsideEncryptedContentAs: opts.renderInsideEncryptedContentAs,
     event: { event_id: eventId, origin_server_ts: opts.ts ?? 0 },
     isThreadRoot: opts.isThreadRoot ?? false,
     threadRootId: opts.threadRootId,
@@ -1301,7 +1274,7 @@ const makeEvent = (
     getTs: () => opts.ts ?? 0,
     getTxnId: () => opts.txnId,
     getType: () => opts.type ?? 'm.room.message',
-    isEncrypted: () => opts.type === 'm.room.encrypted',
+    isEncrypted: () => opts.encrypted ?? opts.type === 'm.room.encrypted',
     getUnsigned: () => unsigned,
     setUnsigned: (next: Record<string, unknown>) => {
       unsigned = next;
@@ -1823,7 +1796,6 @@ const createControlledRoomTimelineHarness = (
         onRemoveTag: vi.fn(),
         onReset,
         viewMode,
-        onViewModeChange: setViewMode,
         roomInputRef,
         compactRoomScrollStateRef,
         editor,

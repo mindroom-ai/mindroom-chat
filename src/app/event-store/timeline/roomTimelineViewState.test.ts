@@ -7,7 +7,7 @@ import {
 } from './roomTimelineViewState';
 
 describe('resolveRoomTimelineViewState', () => {
-  it('preserves compact mode and overview controls for direct rooms', () => {
+  it('keeps the overview controls in compact mode', () => {
     const requested = createDefaultThreadFilterState();
 
     expect(
@@ -19,7 +19,6 @@ describe('resolveRoomTimelineViewState', () => {
         viewMode: 'compact',
       })
     ).toEqual({
-      effectiveViewMode: 'compact',
       focusedRoomOverviewRequested: false,
       requestedThreadFilterState: requested,
       showRoomThreadOverviewControls: true,
@@ -38,7 +37,6 @@ describe('resolveRoomTimelineViewState', () => {
         viewMode: 'threaded',
       })
     ).toEqual({
-      effectiveViewMode: 'threaded',
       focusedRoomOverviewRequested: true,
       requestedThreadFilterState: requested,
       showRoomThreadOverviewControls: true,
@@ -77,7 +75,6 @@ describe('resolveRoomTimelineViewState', () => {
         viewMode: 'classic',
       })
     ).toEqual({
-      effectiveViewMode: 'classic',
       focusedRoomOverviewRequested: false,
       requestedThreadFilterState: DIRECT_ROOM_TIMELINE_FILTER_STATE,
       showRoomThreadOverviewControls: false,

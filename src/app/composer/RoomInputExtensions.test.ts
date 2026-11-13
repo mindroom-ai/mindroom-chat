@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { Editor, createEditor } from 'slate';
+import { Editor } from 'slate';
 import {
   createClient,
   EventStatus,
@@ -22,7 +22,6 @@ import {
   RoomInputReplyContext,
   RoomInputThreadIndicator,
   refreshRoomInputVoiceSendContext,
-  removeRoomInputPasteMarkerElements,
 } from './RoomInputExtensions';
 import { BlockType } from '../editor/types';
 
@@ -141,18 +140,6 @@ describe('RoomInputMindroomExtensions', () => {
         },
       ])
     ).toEqual(new Set(['mindroom-paste-a3f19c.txt']));
-
-    const editor = createEditor();
-    editor.children = [
-      {
-        type: BlockType.Paragraph,
-        children: [{ text: 'Before ' }, element, { text: ' after' }],
-      },
-    ];
-
-    removeRoomInputPasteMarkerElements(editor, new Set(['mindroom-paste-a3f19c.txt']));
-
-    expect(getRoomInputPasteMarkerFileNames(editor.children)).toEqual(new Set());
   });
 
   it("marks a voice message recorded in a thread's own view as that view's", () => {

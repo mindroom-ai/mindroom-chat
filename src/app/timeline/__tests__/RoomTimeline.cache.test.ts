@@ -288,7 +288,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
                 onApplyPreset: vi.fn(),
                 onSearchQueryChange: vi.fn(),
                 viewMode: 'default',
-                onViewModeChange: vi.fn(),
               })
             )
           );
@@ -364,7 +363,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
                 onApplyPreset: vi.fn(),
                 onSearchQueryChange: vi.fn(),
                 viewMode: 'classic',
-                onViewModeChange: vi.fn(),
               })
             )
           );
@@ -1373,7 +1371,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
                 onApplyPreset: vi.fn(),
                 onSearchQueryChange: vi.fn(),
                 viewMode: 'classic',
-                onViewModeChange: vi.fn(),
               })
             ),
             {
@@ -1475,7 +1472,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
                 onApplyPreset: vi.fn(),
                 onSearchQueryChange: vi.fn(),
                 viewMode: 'default',
-                onViewModeChange: vi.fn(),
               })
             )
           );

@@ -203,8 +203,6 @@ export type RoomTimelineProps = {
   onApplyPreset?: (preset: FilterPreset) => void;
   onSearchQueryChange?: (query: string) => void;
   viewMode: RoomViewMode;
-  /** Accepted from the room view; the switch itself lives in the room header. */
-  onViewModeChange?: (viewMode: RoomViewMode) => void;
   roomInputRef?: RefObject<HTMLElement>;
   compactRoomScrollStateRef?: MutableRefObject<ScrollAnchorMemory>;
   /** Where the room's rows were when a thread opened over them (`useThreadReturnPlace`). */
@@ -298,7 +296,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // cards keep the bar (search and sort) in every room.
   const plainConversation = viewMode === 'threaded' && !hasMindroomAgents;
   const {
-    effectiveViewMode,
     focusedRoomOverviewRequested,
     requestedThreadFilterState,
     showRoomThreadOverviewControls,
@@ -310,7 +307,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     viewMode,
   });
   const [filterBarHeight, setFilterBarHeight] = useState<number | null>(null);
-  const showThreadRepliesInRoom = effectiveViewMode === 'classic';
+  const showThreadRepliesInRoom = viewMode === 'classic';
   const viewKey = `${room.roomId}|${threadId ?? ''}`;
 
   // References the controllers share.
@@ -435,7 +432,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     eventId,
     focusedRoomOverviewRequested,
     compactViewRequested,
-    effectiveViewMode,
+    effectiveViewMode: viewMode,
     linkedTimelines: timeline.linkedTimelines,
     renderableEventEntries,
     ignoredUsersSet,
@@ -489,7 +486,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
 
   const windowState = useRoomTimelineWindowController({
     canPaginateThreadBack: threadState.canPaginateThreadBack,
-    effectiveViewMode,
     filteredRoomThreadActive: threadIndex.roomThreadFilterActive,
     filteredRoomOverviewOrderActive: threadIndex.roomOverviewOrderActive,
     lastThreadBackwardPaginationToken: threadState.threadBackwardPaginationToken,
@@ -672,9 +668,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
     messageLayout,
     messageSpacing,
     hideActivity,
-    hideMembershipEvents,
-    hideNickAvatarEvents,
-    showHiddenEvents,
   });
 
   // Rows the thread's plans hide: repeated summaries and settled approvals.
@@ -976,7 +969,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const { handleOpenEvent, openRoomEventRoute } = useRoomEventOpenController({
     alive,
     cancelThreadBottomSettle,
-    effectiveViewMode,
+    effectiveViewMode: viewMode,
     focusEventInRoom,
     hideMembershipEvents,
     hideNickAvatarEvents,
@@ -1015,7 +1008,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadSummaryInfoMap: threadIndex.threadSummaryInfoMap,
   });
   useRoomEventRouteOpenController({
-    effectiveViewMode,
+    effectiveViewMode: viewMode,
     eventId,
     focusEventInRoom,
     openRoomEventRoute,
@@ -1445,7 +1438,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     roomId: room.roomId,
     scrollElement,
     scrollToBottomRef,
-    committedView: `${viewKey}|${effectiveViewMode}`,
+    committedView: `${viewKey}|${viewMode}`,
     focusItem,
     onReaderGesture: gesturePins.onRoomGesture,
     pendingListShrinkPx,

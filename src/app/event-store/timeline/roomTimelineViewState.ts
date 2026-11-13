@@ -18,7 +18,6 @@ export const DIRECT_ROOM_TIMELINE_FILTER_STATE: ThreadFilterState = {
 export const THREAD_OVERVIEW_METADATA_CACHE_LIMIT = 64;
 
 export type RoomTimelineViewState = {
-  effectiveViewMode: RoomViewMode;
   focusedRoomOverviewRequested: boolean;
   requestedThreadFilterState: ThreadFilterState;
   showRoomThreadOverviewControls: boolean;
@@ -37,7 +36,6 @@ export const resolveRoomTimelineViewState = ({
   threadId?: string;
   viewMode: RoomViewMode;
 }): RoomTimelineViewState => ({
-  effectiveViewMode: viewMode,
   focusedRoomOverviewRequested: Boolean(
     !threadId && focusEventInRoom && viewMode === 'threaded' && eventId
   ),
