@@ -10,6 +10,7 @@ import {
   RESOLVED_TAG,
 } from '../event-store/threads/threadTags';
 import { ErrorCode } from '../matrix/cs-errorcode';
+import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
 import {
   buildLongTextPreview,
   contentBytes,
@@ -81,11 +82,21 @@ const prepareImages = (mx: MatrixClient, room: Room, images: File[]): Promise<IC
   });
 
 /** Sends one message and returns its event ID. */
-const postMessage = (mx: MatrixClient, roomId: string, content: IContent): Promise<string> =>
-  failingAs('send-failed', async () => {
-    const { event_id: eventId } = await mx.sendMessage(roomId, content as RoomMessageEventContent);
+const postMessage = async (mx: MatrixClient, room: Room, content: IContent): Promise<string> => {
+  const txnId = mx.makeTxnId();
+  try {
+    const { event_id: eventId } = await mx.sendMessage(
+      room.roomId,
+      content as RoomMessageEventContent,
+      txnId
+    );
     return eventId;
-  });
+  } catch (error) {
+    // The widget keeps the entry to send again, so the room keeps no "Not sent" copy of it.
+    discardFailedLocalEcho(mx, room.getEventForTxnId(txnId));
+    throw new CaptureError('send-failed', error);
+  }
+};
 
 /** Sends a text message, as a long-text sidecar when one event cannot hold it, as the composer does. */
 const postText = async (mx: MatrixClient, room: Room, content: IContent): Promise<string> => {
@@ -95,7 +106,7 @@ const postText = async (mx: MatrixClient, room: Room, content: IContent): Promis
       : await failingAs('send-failed', () =>
           uploadLongTextSidecar(mx, room, content, buildLongTextPreview(content))
         );
-  return postMessage(mx, room.roomId, eventContent);
+  return postMessage(mx, room, eventContent);
 };
 
 /** Posts a new thread: text alone, or the first image as its root with the rest and the text in it. */
@@ -111,9 +122,9 @@ export const sendCapture = async (
     if (!text) throw new CaptureError('send-failed');
     return { threadId: await postText(mx, room, text) };
   }
-  const threadId = await postMessage(mx, room.roomId, rootImage);
+  const threadId = await postMessage(mx, room, rootImage);
   // Images first and the text last: MindRoom takes the batch as one turn, closed by the text.
-  for (const image of otherImages) await postMessage(mx, room.roomId, inThread(image, threadId));
+  for (const image of otherImages) await postMessage(mx, room, inThread(image, threadId));
   if (text) await postText(mx, room, inThread(text, threadId));
   return { threadId };
 };

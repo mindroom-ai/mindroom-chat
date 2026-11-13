@@ -1,4 +1,4 @@
-import { MatrixError, type IContent } from 'matrix-js-sdk';
+import { EventStatus, MatrixError, type IContent } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../matrix/matrix', async (importOriginal) => ({
@@ -33,7 +33,13 @@ import { CaptureError, sendCapture, sendCaptureReply, setCaptureResolved } from 
 
 const ROOM_ID = '!notes:example.org';
 const USER_ID = '@me:example.org';
-const plainRoom = { roomId: ROOM_ID, hasEncryptionStateEvent: () => false };
+/** The local echo the client keeps of a message the server did not take. */
+const unsentEcho = (txnId: string) => ({ txnId, status: EventStatus.NOT_SENT });
+const plainRoom = {
+  roomId: ROOM_ID,
+  hasEncryptionStateEvent: () => false,
+  getEventForTxnId: vi.fn(unsentEcho),
+};
 const encryptedRoom = { roomId: ROOM_ID, hasEncryptionStateEvent: () => true };
 const markdown = { markdown: true };
 
@@ -41,22 +47,37 @@ const markdown = { markdown: true };
 const client = () => {
   const log: string[] = [];
   let sent = 0;
+  let txns = 0;
   return {
     log,
     getUserId: vi.fn(() => USER_ID),
     getSafeUserId: vi.fn(() => USER_ID),
+    makeTxnId: vi.fn(() => {
+      txns += 1;
+      return `txn${txns}`;
+    }),
+    cancelPendingEvent: vi.fn(),
     uploadContent: vi.fn(async (file: File, _options?: unknown) => {
       await Promise.resolve();
       log.push(`uploaded ${file.name}`);
       return { content_uri: `mxc://example.org/${file.name}` };
     }),
-    sendMessage: vi.fn(async (_roomId: string, content: IContent) => {
+    sendMessage: vi.fn(async (_roomId: string, content: IContent, _txnId?: string) => {
       log.push(`sent ${String(content.body)}`);
       sent += 1;
       return { event_id: `$event${sent}` };
     }),
     sendStateEvent: vi.fn(async (..._args: unknown[]) => ({ event_id: '$state' })),
   };
+};
+
+/** The failed message `call` sent leaves no unsent copy in the room. */
+const expectUnsentCopyDropped = (mx: ReturnType<typeof client>, call: number) => {
+  const txnId = mx.sendMessage.mock.calls[call]?.[2];
+  expect(txnId).toEqual(expect.any(String));
+  expect(plainRoom.getEventForTxnId).toHaveBeenCalledWith(txnId);
+  expect(mx.cancelPendingEvent).toHaveBeenCalledTimes(1);
+  expect(mx.cancelPendingEvent).toHaveBeenCalledWith(unsentEcho(txnId ?? ''));
 };
 
 const png = (name: string) => new File(['picture'], name, { type: 'image/png' });
@@ -167,6 +188,8 @@ describe('sendCapture', () => {
       body: 'Look at these',
       'm.relates_to': relation,
     });
+    expect(mx.sendMessage.mock.calls.map(([, , txnId]) => txnId)).toEqual(['txn1', 'txn2', 'txn3']);
+    expect(mx.cancelPendingEvent).not.toHaveBeenCalled();
   });
 
   it('posts only the images when the text is blank', async () => {
@@ -250,7 +273,7 @@ describe('sendCapture', () => {
     expect(vi.mocked(getImageMsgContent).mock.calls[0]?.[1].encInfo).toBeDefined();
   });
 
-  it('fails as send-failed when the server refuses the message', async () => {
+  it('fails as send-failed when the server refuses the message, leaving no unsent copy', async () => {
     const mx = client();
     mx.sendMessage.mockRejectedValueOnce(new MatrixError({ errcode: 'M_FORBIDDEN' }, 403));
 
@@ -258,6 +281,26 @@ describe('sendCapture', () => {
       sendCapture(mx as never, plainRoom as never, { text: 'hi', images: [] }, markdown),
       'send-failed'
     );
+    expectUnsentCopyDropped(mx, 0);
+  });
+
+  it('stops at a message in the thread that fails, leaving no unsent copy of it', async () => {
+    const mx = client();
+    mx.sendMessage
+      .mockResolvedValueOnce({ event_id: '$root' })
+      .mockRejectedValueOnce(new Error('offline'));
+
+    await expectCaptureError(
+      sendCapture(
+        mx as never,
+        plainRoom as never,
+        { text: 'Look at these', images: [png('a.png'), png('b.png')] },
+        markdown
+      ),
+      'send-failed'
+    );
+    expect(mx.sendMessage).toHaveBeenCalledTimes(2);
+    expectUnsentCopyDropped(mx, 1);
   });
 
   it('fails as send-failed with neither text nor images, sending nothing', async () => {
@@ -324,13 +367,14 @@ describe('sendCaptureReply', () => {
     expect(mx.sendMessage).not.toHaveBeenCalled();
   });
 
-  it('fails as send-failed when the message is not sent', async () => {
+  it('fails as send-failed when the message is not sent, leaving no unsent copy', async () => {
     const mx = client();
     mx.sendMessage.mockRejectedValueOnce(new Error('offline'));
     await expectCaptureError(
       sendCaptureReply(mx as never, plainRoom as never, '$root', 'On it', markdown),
       'send-failed'
     );
+    expectUnsentCopyDropped(mx, 0);
   });
 });
 
