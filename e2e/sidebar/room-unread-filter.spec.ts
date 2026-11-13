@@ -147,9 +147,7 @@ test('the room list marks a room unread only for threads its unread filter finds
 
   // A main receipt from another device reads the root: the room turns read and the filter empty.
   const receipt = await fetch(
-    `${HOMESERVER}/_matrix/client/v3/rooms/${encodeURIComponent(
-      reportId
-    )}/receipt/m.read/${encodeURIComponent(reportRoot)}`,
+    `${HOMESERVER}/_matrix/client/v3/rooms/${encodeURIComponent(reportId)}/receipt/m.read/${encodeURIComponent(reportRoot)}`,
     {
       method: 'POST',
       headers: {
