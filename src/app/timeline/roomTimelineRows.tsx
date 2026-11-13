@@ -34,6 +34,7 @@ import { getShownHistoryReplies } from '../event-store/timeline/classicHistoryRe
 import type { RoomTimelineFocusItem } from './roomFocusScrollController';
 import type { RecalibrateFilterOpts, Timeline } from '../event-store/timeline/timelinePagination';
 import { estimateMessageRowHeight, estimateRoomRowHeight } from './timelineRowEstimate';
+import { replyNeedingNoQuote } from './pluginHiddenRows';
 import { foldTimelineRowContexts, isRowlessTimelineEvent } from './timelineRowFold';
 
 /**
@@ -277,7 +278,8 @@ function UnreadDivider({ separatorRef }: { separatorRef: Ref<HTMLDivElement> }) 
 /**
  * The tiles of the rows the virtual list mounts. A row groups with the one above it and gets its
  * date and unread dividers from the fold over the mounted window (timelineRowFold); rows the
- * thread's plans hide, ignored senders and redactions take no place in that walk.
+ * thread's plans hide, replies a plugin hides, ignored senders and redactions take no place in
+ * that walk.
  */
 export const renderTimelineTiles = ({
   virtualItems,
@@ -292,6 +294,8 @@ export const renderTimelineTiles = ({
   timelineSet,
   focusItem,
   messageData,
+  isHiddenByPlugin,
+  isHiddenByPluginId,
   renderEvent,
   unreadMarkerRef,
   measureElement,
@@ -309,6 +313,10 @@ export const renderTimelineTiles = ({
   timelineSet: EventTimelineSet;
   focusItem: RoomTimelineFocusItem | undefined;
   messageData: TimelineMessageData;
+  /** Whether a plugin's message renderer leaves the event without a row (pluginHiddenRows). */
+  isHiddenByPlugin: (event: MatrixEvent) => boolean;
+  /** The same, of a loaded event by its ID: no row quotes such a message. */
+  isHiddenByPluginId: (eventId: string) => boolean;
   renderEvent: (row: TimelineMessageRow, data: TimelineMessageData) => ReactNode | null;
   /** Receives the "New messages" line, so the timeline knows when it is in view. */
   unreadMarkerRef: Ref<HTMLDivElement>;
@@ -325,7 +333,8 @@ export const renderTimelineTiles = ({
     }
     const sender = event.getSender();
     if (sender && ignoredUsersSet.has(sender)) return true;
-    return event.isRedacted() && !showHiddenEvents;
+    if (event.isRedacted()) return !showHiddenEvents;
+    return isHiddenByPlugin(event);
   };
   const rowContexts = foldTimelineRowContexts({
     indexes: virtualItems.map((item) => item.index),
@@ -354,7 +363,11 @@ export const renderTimelineTiles = ({
         timelineSet,
         collapse: context.collapse,
         highlighted: focusItem?.eventId === id && focusItem.highlight,
-        previousEventId: context.inPlaceReplyEventId,
+        previousEventId: replyNeedingNoQuote(
+          event,
+          context.inPlaceReplyEventId,
+          isHiddenByPluginId
+        ),
       };
       // A row that fails to render shows as broken; the rows around it stay.
       content = (

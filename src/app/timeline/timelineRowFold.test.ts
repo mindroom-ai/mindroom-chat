@@ -118,6 +118,32 @@ describe('foldTimelineRowContexts', () => {
     });
   });
 
+  it('puts the unread divider above the first unread row past rows that render nothing, wherever the window starts', () => {
+    // A read row, twenty rows the timeline skips (settled approvals, say), then an unread answer.
+    const events = [
+      toEvent({ id: '$read', sender: '@maya:x', type: 'm.room.message', minute: 0 }),
+      ...Array.from({ length: 20 }, (_, n) =>
+        toEvent({ id: `$hidden${n}`, sender: '@maya:x', type: 'm.room.message', minute: 0 })
+      ),
+      toEvent({ id: '$answer', sender: '@maya:x', type: 'm.room.message', minute: 1 }),
+    ];
+    const answer = events.length - 1;
+    const contextOfAnswer = (firstIndex: number) =>
+      foldTimelineRowContexts({
+        indexes: Array.from({ length: events.length - firstIndex }, (_, n) => firstIndex + n),
+        getEvent: (index) => events[index],
+        isSkipped: (event) => event.getId()?.startsWith('$hidden') ?? false,
+        getAbsoluteIndex: (index) => index,
+        readUptoAbsoluteIndex: 0,
+      }).get(answer);
+    for (const firstIndex of [0, 10, answer]) {
+      expect([firstIndex, contextOfAnswer(firstIndex)]).toEqual([
+        firstIndex,
+        expect.objectContaining({ unreadDivider: true, collapse: false }),
+      ]);
+    }
+  });
+
   describe('reply quotes', () => {
     const message = (id: string, sender: string, minute: number, more: Partial<Row> = {}): Row => ({
       id,

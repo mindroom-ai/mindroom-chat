@@ -7,6 +7,7 @@ import type { RegisteredPlugin } from './registry';
 import {
   useMessagePreview,
   useMessageRenderer,
+  useMessageRowHidden,
   type MessageRenderer,
   type PluginEvent,
 } from './messageRenderers';
@@ -58,6 +59,14 @@ const pick = (
 const previewOf = (event: PluginEvent, config: ClientConfig = {}) =>
   renderHook(() => useMessagePreview(event, VIEWER), { wrapper: withConfig(config) }).result
     .current;
+
+/** Whether the timeline leaves `event` without a row, as the viewer with `config`. */
+const hiddenOf = (event: PluginEvent, config: ClientConfig = {}) => {
+  const test = renderHook(() => useMessageRowHidden(VIEWER), { wrapper: withConfig(config) }).result
+    .current;
+  expect(test).toBeDefined();
+  return test?.(event);
+};
 
 afterEach(() => {
   registry.splice(0);
@@ -195,5 +204,71 @@ describe('useMessagePreview', () => {
     registry.push(plugin('alpha', renderer()), plugin('beta', renderer({ preview: later })));
     expect(previewOf(message(AGENT))).toBeUndefined();
     expect(later).not.toHaveBeenCalled();
+  });
+});
+
+describe('useMessageRowHidden', () => {
+  it('gives no test when no renderer of the build has hidden', () => {
+    registry.push(plugin('alpha', renderer()));
+    expect(renderHook(() => useMessageRowHidden(VIEWER)).result.current).toBeUndefined();
+  });
+
+  it('hides the row of a message the renderer takes when its hidden says so', () => {
+    const hidden = vi.fn(() => true);
+    registry.push(plugin('alpha', renderer({ hidden })));
+    const event = message(AGENT);
+    expect(hiddenOf(event)).toBe(true);
+    expect(hidden).toHaveBeenCalledWith(event);
+  });
+
+  it('keeps the row when hidden says no or gives anything but true', () => {
+    registry.push(plugin('alpha', renderer({ hidden: () => false })));
+    expect(hiddenOf(message(AGENT))).toBe(false);
+    registry.splice(0, 1, plugin('alpha', renderer({ hidden: () => 'yes' as unknown as boolean })));
+    expect(hiddenOf(message(AGENT))).toBe(false);
+  });
+
+  it('asks only the renderer the timeline would pick, after the trust check, match and config.json', () => {
+    const hidden = vi.fn(() => true);
+    registry.push(plugin('alpha', renderer({ hidden })));
+    expect(hiddenOf(message('@person:example.org'))).toBe(false);
+    const off = { plugins: { alpha: { enabled: false } } } as unknown as ClientConfig;
+    expect(hiddenOf(message(AGENT), off)).toBe(false);
+    registry.splice(0, 1, plugin('alpha', renderer({ match: () => false, hidden })));
+    expect(hiddenOf(message(AGENT))).toBe(false);
+    // A renderer before it that takes the message and has no hidden keeps the row.
+    registry.splice(0, 1, plugin('alpha', renderer()), plugin('beta', renderer({ hidden })));
+    expect(hiddenOf(message(AGENT))).toBe(false);
+    expect(hidden).not.toHaveBeenCalled();
+  });
+
+  it("🔒 hides only a MindRoom agent's message on the viewer's homeserver, also with trust 'server'", () => {
+    const hidden = vi.fn(() => true);
+    registry.push(plugin('alpha', renderer({ trust: 'server', hidden })));
+    // The renderer takes a person's message, and draws it, but its row stays.
+    expect(pick(message('@person:example.org'))?.renderer.hidden).toBe(hidden);
+    expect(hiddenOf(message('@person:example.org'))).toBe(false);
+    expect(hidden).not.toHaveBeenCalled();
+    expect(hiddenOf(message(AGENT))).toBe(true);
+  });
+
+  it('keeps the row when hidden throws, and logs it once with the plugin tag', () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    registry.push(
+      plugin(
+        'alpha',
+        renderer({
+          hidden: () => {
+            throw new Error('boom');
+          },
+        })
+      )
+    );
+    expect(hiddenOf(message(AGENT))).toBe(false);
+    expect(hiddenOf(message(AGENT))).toBe(false);
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(logged.mock.calls[0]?.[0]).toContain(
+      "[plugin alpha@1.0.0] a message renderer's hidden failed"
+    );
   });
 });

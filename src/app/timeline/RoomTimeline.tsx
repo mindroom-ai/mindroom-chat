@@ -156,6 +156,8 @@ import {
   useRoomUnreadInfo,
   useShownInScrollArea,
 } from './roomTimelineUnread';
+import { useMessageRowHidden } from '../plugins/messageRenderers';
+import { isPluginHiddenRow } from './pluginHiddenRows';
 import { renderTimelineTiles, timelineRowSizing, useRoomRowEntries } from './roomTimelineRows';
 import { collectThreadWriterIds, recordThreadWriters } from '../event-store/threads/threadWriters';
 import { useThreadWritersBackfill } from '../threads/overview/useThreadWritersBackfill';
@@ -695,6 +697,38 @@ export function RoomTimeline(props: RoomTimelineProps) {
     routeId: threadId ? eventId : undefined,
     focusId: threadId ? focusItem?.eventId : undefined,
   });
+  // Replies a plugin's renderer hides in the open thread (`MessageRenderer.hidden`), read as their
+  // rows show them; one the route or a jump opened stays visible after the route moves on. The
+  // room's own timeline hides none: Classic's thread replies among its rows keep theirs.
+  const messageRowHidden = useMessageRowHidden(mx.getUserId() ?? undefined);
+  const threadRowHidden = threadId ? messageRowHidden : undefined;
+  const pluginRevealedRef = useRef(new Set<string>());
+  const focusEventId = focusItem?.eventId;
+  const isHiddenByPlugin = useMemo(() => {
+    if (eventId) pluginRevealedRef.current.add(eventId);
+    if (focusEventId) pluginRevealedRef.current.add(focusEventId);
+    const revealed = pluginRevealedRef.current;
+    return (event: MatrixEvent) =>
+      isPluginHiddenRow(event, getRowContent, threadRowHidden, revealed);
+  }, [eventId, focusEventId, getRowContent, threadRowHidden]);
+  // Looked up among the thread's rows, the cache's too before the SDK has them: no row quotes a
+  // hidden one.
+  const threadEventMap = threadState.threadEventMap;
+  const isHiddenByPluginId = useCallback(
+    (id: string) => {
+      const event = threadRowHidden ? threadEventMap?.get(id) : undefined;
+      return !!event && isHiddenByPlugin(event);
+    },
+    [threadRowHidden, threadEventMap, isHiddenByPlugin]
+  );
+  // The open thread's replies a plugin hides, which the virtual list sizes as nothing.
+  const pluginHiddenThreadIds = useMemo(
+    () =>
+      threadRowHidden
+        ? new Set(threadEvents.filter(isHiddenByPlugin).flatMap((event) => event.getId() ?? []))
+        : EMPTY_IDS,
+    [threadRowHidden, threadEvents, isHiddenByPlugin]
+  );
   // What each agent reply of the open thread and the thread so far cost, for Reply details.
   const threadConversationCost = useThreadConversationCostSummary(
     threadId ? threadEvents : undefined,
@@ -893,12 +927,18 @@ export function RoomTimeline(props: RoomTimelineProps) {
     beforePaint && renderedList?.height
       ? heldListHeight(renderedList, ledger.ledgerPxAtRender)
       : virtualizer.getTotalSize();
-  useThreadApprovalRowMeasurements(
-    virtualizer,
-    threadEvents,
-    threadId ? approvalTimeline.hiddenEventIds : EMPTY_IDS,
-    estimateSize
+  // Rows hidden in the open thread, by its plans and by plugins, measure nothing; one shown again
+  // gets its estimate back, so a jump to it mounts it.
+  const threadHiddenIds = useMemo(
+    () =>
+      !threadId
+        ? EMPTY_IDS
+        : pluginHiddenThreadIds.size === 0
+        ? approvalTimeline.hiddenEventIds
+        : new Set([...approvalTimeline.hiddenEventIds, ...pluginHiddenThreadIds]),
+    [threadId, approvalTimeline.hiddenEventIds, pluginHiddenThreadIds]
   );
+  useThreadApprovalRowMeasurements(virtualizer, threadEvents, threadHiddenIds, estimateSize);
 
   // Jumps: the paginator scrolls to mounted rows and moves the window; the virtual list
   // scrolls to the rows of the window it has not mounted.
@@ -1560,6 +1600,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
     timelineSet: (threadId && threadState.threadTimelineSet) || room.getUnfilteredTimelineSet(),
     focusItem,
     messageData,
+    isHiddenByPlugin,
+    isHiddenByPluginId,
     renderEvent: feature.renderEvent,
     unreadMarkerRef: setUnreadMarker,
     measureElement: ledger.measureElement,
