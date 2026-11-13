@@ -952,6 +952,29 @@
       "unsuspend": "Suspendierung von {{user}} aufheben? Das Konto kann wieder Nachrichten senden und Räumen beitreten.",
       "deactivate": "{{user}} deaktivieren? Das Konto verlässt seine Räume und kann sich nie wieder anmelden. Das lässt sich nicht rückgängig machen."
     },
-    "protected": "Administratoren und dein eigenes Konto können hier nicht geändert werden."
+    "protected": "Administratoren und dein eigenes Konto können hier nicht geändert werden.",
+    "accounts": "Konten",
+    "invites": {
+      "title": "Einladungen",
+      "description": "Eine eingeladene E-Mail-Adresse kann hier ein Konto erstellen, indem sie sich damit anmeldet.",
+      "sendYourself": "Es wird keine E-Mail verschickt: Kopiere die Einladung und sende sie selbst.",
+      "add": "Per E-Mail einladen",
+      "none": "Keine offenen Einladungen",
+      "loadFailed": "Die Einladungen konnten nicht geladen werden.",
+      "addresses": "E-Mail-Adressen",
+      "addressesHint": "Trenne mehrere Adressen mit Kommas oder Zeilenumbrüchen.",
+      "rooms": "Räume, denen das neue Konto beitritt",
+      "external": "Externes Konto",
+      "invited": "Eingeladen",
+      "copy": "Einladung kopieren",
+      "message": "Du bist zu {{url}} eingeladen. Melde dich mit {{providers}} an und verwende genau diese E-Mail-Adresse: {{email}}",
+      "messagePlain": "Du bist zu {{url}} eingeladen. Melde dich mit genau dieser E-Mail-Adresse an: {{email}}",
+      "delete": "Einladung löschen",
+      "confirmDelete": "Die Einladung für {{email}} löschen? Mit ihr kann dann kein Konto mehr erstellt werden.",
+      "errors": {
+        "inUse": "{{user}} hat diese Adresse bereits.",
+        "invalidAddress": "Das ist keine gültige E-Mail-Adresse."
+      }
+    }
   }
 }

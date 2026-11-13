@@ -952,6 +952,29 @@
       "unsuspend": "Schorsing van {{user}} opheffen? Het account kan weer berichten sturen en aan kamers deelnemen.",
       "deactivate": "{{user}} deactiveren? Het account verlaat zijn kamers en kan nooit meer inloggen. Dit kan niet ongedaan worden gemaakt."
     },
-    "protected": "Beheerders en je eigen account kunnen hier niet worden gewijzigd."
+    "protected": "Beheerders en je eigen account kunnen hier niet worden gewijzigd.",
+    "accounts": "Accounts",
+    "invites": {
+      "title": "Uitnodigingen",
+      "description": "Een uitgenodigd e-mailadres kan hier één account aanmaken door ermee in te loggen.",
+      "sendYourself": "Er wordt niets gemaild: kopieer de uitnodiging en verstuur die zelf.",
+      "add": "Uitnodigen per e-mail",
+      "none": "Geen openstaande uitnodigingen",
+      "loadFailed": "De uitnodigingen konden niet worden geladen.",
+      "addresses": "E-mailadressen",
+      "addressesHint": "Scheid meerdere adressen met komma's of nieuwe regels.",
+      "rooms": "Kamers waaraan het nieuwe account deelneemt",
+      "external": "Extern account",
+      "invited": "Uitgenodigd",
+      "copy": "Uitnodiging kopiëren",
+      "message": "Je bent uitgenodigd voor {{url}}. Log in met {{providers}} en gebruik precies dit e-mailadres: {{email}}",
+      "messagePlain": "Je bent uitgenodigd voor {{url}}. Log in met precies dit e-mailadres: {{email}}",
+      "delete": "Uitnodiging verwijderen",
+      "confirmDelete": "De uitnodiging voor {{email}} verwijderen? Er kan dan geen account meer mee worden aangemaakt.",
+      "errors": {
+        "inUse": "{{user}} heeft dit adres al.",
+        "invalidAddress": "Dit is geen geldig e-mailadres."
+      }
+    }
   }
 }

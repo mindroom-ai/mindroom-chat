@@ -929,6 +929,29 @@
       "unsuspend": "取消暂停 {{user}}？该账户可以再次发送消息和加入房间。",
       "deactivate": "停用 {{user}}？该账户将退出其房间，并且永远无法再登录。此操作无法撤销。"
     },
-    "protected": "管理员和你自己的账户无法在此更改。"
+    "protected": "管理员和你自己的账户无法在此更改。",
+    "accounts": "账户",
+    "invites": {
+      "title": "邀请",
+      "description": "受邀的电子邮件地址使用该地址登录后，可在此创建一个账户。",
+      "sendYourself": "不会发送任何邮件：请复制邀请内容并自行发送。",
+      "add": "通过电子邮件邀请",
+      "none": "没有待处理的邀请",
+      "loadFailed": "无法加载邀请。",
+      "addresses": "电子邮件地址",
+      "addressesHint": "多个地址请用逗号或换行分隔。",
+      "rooms": "新账户将加入的房间",
+      "external": "外部账户",
+      "invited": "已邀请",
+      "copy": "复制邀请内容",
+      "message": "你已受邀使用 {{url}}。请通过 {{providers}} 登录，并务必使用此电子邮件地址：{{email}}",
+      "messagePlain": "你已受邀使用 {{url}}。请务必使用此电子邮件地址登录：{{email}}",
+      "delete": "删除邀请",
+      "confirmDelete": "要删除 {{email}} 的邀请吗？该邀请将无法再用于创建账户。",
+      "errors": {
+        "inUse": "{{user}} 已拥有此地址。",
+        "invalidAddress": "这不是有效的电子邮件地址。"
+      }
+    }
   }
 }

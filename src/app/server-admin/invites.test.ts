@@ -1,0 +1,311 @@
+import { describe, expect, it, vi } from 'vitest';
+import type { TFunction } from 'i18next';
+import type { MatrixClient } from 'matrix-js-sdk';
+import {
+  chatUrl,
+  deleteInvite,
+  invitableRooms,
+  invitationText,
+  inviteAddresses,
+  inviteErrorText,
+  listInvites,
+  parseAddresses,
+  parseInvite,
+  ssoProviderNames,
+  supportsRegistrationInvites,
+} from './invites';
+
+const PREFIX = { prefix: '/_matrix/client/unstable/io.mindroom' };
+
+const matrixError = (errcode: string, error: string) =>
+  Object.assign(new Error(`MatrixError: [400] ${error}`), {
+    errcode,
+    httpStatus: 400,
+    data: { errcode, error },
+  });
+
+type Answer = (method: string, path: string, body: unknown) => unknown;
+
+const clientWith = (answer: Answer) => {
+  const authedRequest = vi.fn(
+    async (method: string, path: string, _query: unknown, body: unknown) =>
+      answer(method, path, body)
+  );
+  const client = {
+    http: { authedRequest },
+    getHomeserverUrl: () => 'https://matrix.example.com/',
+  };
+  return { client: client as unknown as MatrixClient, authedRequest };
+};
+
+const versionsFetch = (body: unknown, status = 200) =>
+  vi.fn(async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
+
+// The translation's key, with what it was given.
+const t = ((key: string, values?: Record<string, unknown>) =>
+  values ? `${key} ${JSON.stringify(values)}` : key) as unknown as TFunction;
+
+describe('supportsRegistrationInvites', () => {
+  it('is true only when /versions lists the feature', async () => {
+    const { client } = clientWith(() => ({}));
+    const listed = versionsFetch({
+      versions: ['v1.11'],
+      unstable_features: { 'io.mindroom.registration_invites': true },
+    });
+
+    expect(await supportsRegistrationInvites(client, listed)).toBe(true);
+    expect(listed).toHaveBeenCalledWith(
+      'https://matrix.example.com/_matrix/client/versions',
+      expect.objectContaining({ method: 'GET' })
+    );
+    expect(
+      await supportsRegistrationInvites(
+        client,
+        versionsFetch({
+          versions: ['v1.11'],
+          unstable_features: { 'io.mindroom.registration_invites': false },
+        })
+      )
+    ).toBe(false);
+    expect(await supportsRegistrationInvites(client, versionsFetch({ versions: ['v1.11'] }))).toBe(
+      false
+    );
+  });
+
+  it('is false, without an error, when the server cannot be asked', async () => {
+    const { client } = clientWith(() => ({}));
+    const offline = vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    }) as unknown as typeof fetch;
+
+    expect(await supportsRegistrationInvites(client, offline)).toBe(false);
+    expect(await supportsRegistrationInvites(client, versionsFetch({}, 500))).toBe(false);
+  });
+});
+
+describe('parseInvite and listInvites', () => {
+  it('reads an invite, and nothing from what is none', () => {
+    expect(
+      parseInvite({ email: 'alice@example.com', rooms: ['!lobby:example.com', 7], external: true })
+    ).toEqual({ email: 'alice@example.com', rooms: ['!lobby:example.com'], external: true });
+    expect(parseInvite({ email: 'bob@example.com' })).toEqual({
+      email: 'bob@example.com',
+      rooms: [],
+      external: false,
+    });
+    expect(parseInvite({ rooms: [] })).toBeUndefined();
+    expect(parseInvite('alice@example.com')).toBeUndefined();
+  });
+
+  it('lists the invites the server answers with', async () => {
+    const { client, authedRequest } = clientWith(() => ({
+      invites: [{ email: 'alice@example.com', rooms: [], external: true }, { rooms: [] }],
+    }));
+
+    expect(await listInvites(client)).toEqual([
+      { email: 'alice@example.com', rooms: [], external: true },
+    ]);
+    expect(authedRequest).toHaveBeenCalledWith(
+      'GET',
+      '/admin/registration_invites',
+      undefined,
+      undefined,
+      PREFIX
+    );
+  });
+});
+
+describe('parseAddresses', () => {
+  it('splits pasted addresses at commas, semicolons and white space', () => {
+    expect(
+      parseAddresses(' alice@example.com, bob@example.com\ncarol@example.com;dave@example.com\r\n')
+    ).toEqual(['alice@example.com', 'bob@example.com', 'carol@example.com', 'dave@example.com']);
+    expect(parseAddresses(' ,\n')).toEqual([]);
+  });
+
+  it('keeps an address once, whatever its case', () => {
+    expect(parseAddresses('Alice@example.com, alice@EXAMPLE.com, bob@example.com')).toEqual([
+      'Alice@example.com',
+      'bob@example.com',
+    ]);
+  });
+});
+
+describe('inviteAddresses', () => {
+  it('sends one request per address and answers with each result, in order', async () => {
+    const refused = matrixError(
+      'M_THREEPID_IN_USE',
+      'That email address already belongs to @bob:example.com.'
+    );
+    const { client, authedRequest } = clientWith((_method, path, body) => {
+      if (path.endsWith('/bob%40example.com')) throw refused;
+      return { email: 'alice+chat@example.com', ...(body as object) };
+    });
+
+    const results = await inviteAddresses(
+      client,
+      ['Alice+Chat@example.com', 'bob@example.com'],
+      ['!lobby:example.com'],
+      true
+    );
+
+    expect(results).toEqual([
+      {
+        address: 'Alice+Chat@example.com',
+        invite: { email: 'alice+chat@example.com', rooms: ['!lobby:example.com'], external: true },
+      },
+      { address: 'bob@example.com', error: refused },
+    ]);
+    expect(authedRequest.mock.calls).toEqual([
+      [
+        'PUT',
+        '/admin/registration_invites/Alice%2BChat%40example.com',
+        undefined,
+        { rooms: ['!lobby:example.com'], external: true },
+        PREFIX,
+      ],
+      [
+        'PUT',
+        '/admin/registration_invites/bob%40example.com',
+        undefined,
+        { rooms: ['!lobby:example.com'], external: true },
+        PREFIX,
+      ],
+    ]);
+  });
+});
+
+describe('deleteInvite', () => {
+  it('deletes the invite of the address', async () => {
+    const { client, authedRequest } = clientWith(() => ({}));
+
+    await deleteInvite(client, 'alice@example.com');
+
+    expect(authedRequest).toHaveBeenCalledWith(
+      'DELETE',
+      '/admin/registration_invites/alice%40example.com',
+      undefined,
+      undefined,
+      PREFIX
+    );
+  });
+
+  it('is done when the invite is gone already, and fails on any other refusal', async () => {
+    const gone = clientWith(() => {
+      throw matrixError('M_NOT_FOUND', 'That email address has no registration invite.');
+    });
+    const forbidden = matrixError('M_FORBIDDEN', 'You are not a server admin.');
+    const refused = clientWith(() => {
+      throw forbidden;
+    });
+
+    await expect(deleteInvite(gone.client, 'alice@example.com')).resolves.toBeUndefined();
+    await expect(deleteInvite(refused.client, 'alice@example.com')).rejects.toBe(forbidden);
+  });
+});
+
+describe('inviteErrorText', () => {
+  it('names the account that already has the address', () => {
+    expect(
+      inviteErrorText(
+        t,
+        matrixError('M_THREEPID_IN_USE', 'That email address already belongs to @bob:example.com.')
+      )
+    ).toBe('serverAccounts.invites.errors.inUse {"user":"@bob:example.com"}');
+  });
+
+  it('says that an address is malformed', () => {
+    expect(inviteErrorText(t, matrixError('M_INVALID_PARAM', 'Invalid email address'))).toBe(
+      'serverAccounts.invites.errors.invalidAddress'
+    );
+  });
+
+  it("falls back to the app's text for the error", () => {
+    expect(inviteErrorText(t, matrixError('M_THREEPID_IN_USE', 'Taken.'))).toBe(
+      'errors.addressTaken'
+    );
+    expect(inviteErrorText(t, matrixError('M_FORBIDDEN', 'You are not a server admin.'))).toBe(
+      'errors.forbidden'
+    );
+  });
+});
+
+describe('ssoProviderNames', () => {
+  it('names the identity providers of the single sign-on flow', async () => {
+    const loginFlows = vi.fn(async () => ({
+      flows: [
+        { type: 'm.login.password' },
+        { type: 'm.login.sso', identity_providers: [{ id: 'a', name: 'Example ID' }, { id: 'b' }] },
+      ],
+    }));
+
+    expect(await ssoProviderNames({ loginFlows } as unknown as MatrixClient)).toEqual([
+      'Example ID',
+    ]);
+  });
+
+  it('names none when the server lists none or cannot be asked', async () => {
+    const none = vi.fn(async () => ({ flows: [{ type: 'm.login.password' }] }));
+    const failing = vi.fn(async () => {
+      throw new Error('offline');
+    });
+
+    expect(await ssoProviderNames({ loginFlows: none } as unknown as MatrixClient)).toEqual([]);
+    expect(await ssoProviderNames({ loginFlows: failing } as unknown as MatrixClient)).toEqual([]);
+  });
+});
+
+describe('chatUrl', () => {
+  it('is where the app is served', () => {
+    expect(chatUrl('https://chat.example.com')).toBe('https://chat.example.com/');
+  });
+});
+
+describe('invitationText', () => {
+  it('names the address, where to sign in and with which provider', () => {
+    expect(
+      invitationText(t, 'en', {
+        url: 'https://chat.example.com/',
+        providers: ['Example ID', 'Other ID'],
+        email: 'alice@example.com',
+      })
+    ).toBe(
+      'serverAccounts.invites.message {"url":"https://chat.example.com/","providers":"Example ID or Other ID","email":"alice@example.com"}'
+    );
+  });
+
+  it('leaves the provider out when none is known', () => {
+    expect(
+      invitationText(t, 'en', {
+        url: 'https://chat.example.com/',
+        providers: [],
+        email: 'alice@example.com',
+      })
+    ).toBe(
+      'serverAccounts.invites.messagePlain {"url":"https://chat.example.com/","email":"alice@example.com"}'
+    );
+  });
+});
+
+describe('invitableRooms', () => {
+  it('lists the joined rooms that are no direct chats, by name', () => {
+    const room = (roomId: string, name: string, membership: string) => ({
+      roomId,
+      name,
+      getMyMembership: () => membership,
+    });
+    const getRooms = () => [
+      room('!lobby:example.com', 'Lobby', 'join'),
+      room('!dm:example.com', 'Bob', 'join'),
+      room('!invited:example.com', 'Invited', 'invite'),
+      room('!class:example.com', 'class', 'join'),
+    ];
+
+    expect(
+      invitableRooms({ getRooms } as unknown as MatrixClient, new Set(['!dm:example.com']))
+    ).toEqual([
+      { roomId: '!class:example.com', name: 'class' },
+      { roomId: '!lobby:example.com', name: 'Lobby' },
+    ]);
+  });
+});

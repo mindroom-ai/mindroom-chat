@@ -952,6 +952,29 @@
       "unsuspend": "{{user}} hesabının askısı kaldırılsın mı? Hesap yeniden mesaj gönderebilir ve odalara katılabilir.",
       "deactivate": "{{user}} devre dışı bırakılsın mı? Hesap odalarından ayrılır ve bir daha asla oturum açamaz. Bu işlem geri alınamaz."
     },
-    "protected": "Yöneticiler ve kendi hesabınız burada değiştirilemez."
+    "protected": "Yöneticiler ve kendi hesabınız burada değiştirilemez.",
+    "accounts": "Hesaplar",
+    "invites": {
+      "title": "Davetler",
+      "description": "Davet edilen bir e-posta adresi, o adresle oturum açarak burada bir hesap oluşturabilir.",
+      "sendYourself": "E-posta gönderilmez: daveti kopyalayıp kendiniz gönderin.",
+      "add": "E-postayla davet et",
+      "none": "Bekleyen davet yok",
+      "loadFailed": "Davetler yüklenemedi.",
+      "addresses": "E-posta adresleri",
+      "addressesHint": "Birden çok adresi virgülle veya yeni satırla ayırın.",
+      "rooms": "Yeni hesabın katılacağı odalar",
+      "external": "Harici hesap",
+      "invited": "Davet edildi",
+      "copy": "Daveti kopyala",
+      "message": "{{url}} adresine davet edildiniz. {{providers}} ile oturum açın ve tam olarak şu e-posta adresini kullanın: {{email}}",
+      "messagePlain": "{{url}} adresine davet edildiniz. Tam olarak şu e-posta adresiyle oturum açın: {{email}}",
+      "delete": "Daveti sil",
+      "confirmDelete": "{{email}} için davet silinsin mi? Artık hesap oluşturmak için kullanılamaz.",
+      "errors": {
+        "inUse": "{{user}} bu adrese zaten sahip.",
+        "invalidAddress": "Bu geçerli bir e-posta adresi değil."
+      }
+    }
   }
 }

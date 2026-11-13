@@ -975,6 +975,29 @@
       "unsuspend": "Remover a suspensão de {{user}}? A conta pode voltar a enviar mensagens e a entrar em salas.",
       "deactivate": "Desativar {{user}}? A conta sai das salas e nunca mais poderá entrar. Isto não pode ser desfeito."
     },
-    "protected": "Os administradores e a sua própria conta não podem ser alterados aqui."
+    "protected": "Os administradores e a sua própria conta não podem ser alterados aqui.",
+    "accounts": "Contas",
+    "invites": {
+      "title": "Convites",
+      "description": "Um endereço de e-mail convidado pode criar uma conta aqui ao entrar com ele.",
+      "sendYourself": "Nenhum e-mail é enviado: copie o convite e envie você mesmo.",
+      "add": "Convidar por e-mail",
+      "none": "Nenhum convite pendente",
+      "loadFailed": "Não foi possível carregar os convites.",
+      "addresses": "Endereços de e-mail",
+      "addressesHint": "Separe vários endereços com vírgulas ou quebras de linha.",
+      "rooms": "Salas em que a nova conta entra",
+      "external": "Conta externa",
+      "invited": "Convidado",
+      "copy": "Copiar convite",
+      "message": "Você recebeu um convite para {{url}}. Entre com {{providers}}, usando exatamente este endereço de e-mail: {{email}}",
+      "messagePlain": "Você recebeu um convite para {{url}}. Entre usando exatamente este endereço de e-mail: {{email}}",
+      "delete": "Excluir convite",
+      "confirmDelete": "Excluir o convite de {{email}}? Ele não poderá mais ser usado para criar uma conta.",
+      "errors": {
+        "inUse": "{{user}} já tem este endereço.",
+        "invalidAddress": "Este não é um endereço de e-mail válido."
+      }
+    }
   }
 }
