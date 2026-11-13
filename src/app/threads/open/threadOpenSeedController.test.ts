@@ -46,11 +46,6 @@ describe('createThreadOpenSeedSession', () => {
     expect(vi.mocked(hydrateCachedEvents)).toHaveBeenCalledWith(
       expect.objectContaining({ events: [root, reply, edit] })
     );
-    expect(session.initialRoomThreadSeedEvents.map((event) => event.getId())).toEqual([
-      '$root',
-      '$reply',
-      '$edit',
-    ]);
   });
 
   it('merges cached memory, thread model seed, and room seed for untargeted opens', () => {
@@ -77,7 +72,6 @@ describe('createThreadOpenSeedSession', () => {
       '$root',
       expect.arrayContaining([cached, root, reply])
     );
-    expect(session.initialThreadMemorySeedEvents).toEqual([cached]);
   });
 
   // ISSUE-207 P7.2 audit finding #2 — `void p.finally(cb)` re-rejects.

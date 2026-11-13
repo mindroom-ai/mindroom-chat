@@ -2774,9 +2774,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "Markeren als gelezen"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "Markeren als gelezen"
       },

@@ -16,9 +16,13 @@ import {
   MAX_CROSS_ROOM_INDEX_ENTRIES,
   removeCrossRoomThreadIndexEntry,
   removeRoomCrossRoomThreadIndexEntries,
-  upsertCrossRoomThreadIndexEntry,
+  type CrossRoomThreadIndexEntry,
+  type CrossRoomThreadIndexSnapshot,
 } from '../crossRoomThreadIndex';
 import type { ThreadTagSnapshot } from '../../tags/threadTagSnapshots';
+
+const upsert = (snapshot: CrossRoomThreadIndexSnapshot, entry: CrossRoomThreadIndexEntry) =>
+  applyCrossRoomThreadIndexBatch(snapshot, { upserts: [entry] });
 
 type EventOptions = {
   id: string;
@@ -304,7 +308,7 @@ describe('crossRoomThreadIndex', () => {
     });
     expect(entry).toBeDefined();
 
-    const inserted = upsertCrossRoomThreadIndexEntry(emptyCrossRoomThreadIndexSnapshot(), entry!);
+    const inserted = upsert(emptyCrossRoomThreadIndexSnapshot(), entry!);
     expect(inserted.version).toBe(1);
     expect(
       inserted.entries.get(getCrossRoomThreadIndexKey('!room:example.org', '$root'))
@@ -316,7 +320,7 @@ describe('crossRoomThreadIndex', () => {
 
     expect(removeCrossRoomThreadIndexEntry(removed, '!room:example.org', '$root')).toBe(removed);
 
-    const roomA = upsertCrossRoomThreadIndexEntry(inserted, {
+    const roomA = upsert(inserted, {
       ...entry!,
       key: getCrossRoomThreadIndexKey('!other:example.org', '$other'),
       roomId: '!other:example.org',
@@ -342,7 +346,7 @@ describe('crossRoomThreadIndex', () => {
     });
     expect(entry).toBeDefined();
 
-    const inserted = upsertCrossRoomThreadIndexEntry(emptyCrossRoomThreadIndexSnapshot(), entry!);
+    const inserted = upsert(emptyCrossRoomThreadIndexSnapshot(), entry!);
     expect(getCrossRoomThreadRootsForEvent(inserted, room.roomId, '$root')).toEqual(['$root']);
     expect(getCrossRoomThreadRootsForEvent(inserted, room.roomId, '$reply')).toEqual(['$root']);
 
@@ -362,7 +366,7 @@ describe('crossRoomThreadIndex', () => {
     expect(entry).toBeDefined();
 
     for (let index = 0; index < MAX_CROSS_ROOM_INDEX_ENTRIES; index += 1) {
-      snapshot = upsertCrossRoomThreadIndexEntry(snapshot, {
+      snapshot = upsert(snapshot, {
         ...entry!,
         key: getCrossRoomThreadIndexKey(`!room${index}:example.org`, `$root${index}`),
         roomId: `!room${index}:example.org`,
@@ -371,7 +375,7 @@ describe('crossRoomThreadIndex', () => {
       });
     }
 
-    snapshot = upsertCrossRoomThreadIndexEntry(snapshot, {
+    snapshot = upsert(snapshot, {
       ...entry!,
       key: getCrossRoomThreadIndexKey(
         `!room${MAX_CROSS_ROOM_INDEX_ENTRIES}:example.org`,
@@ -392,7 +396,7 @@ describe('crossRoomThreadIndex', () => {
       index <= MAX_CROSS_ROOM_INDEX_ENTRIES + CROSS_ROOM_INDEX_EVICTION_SLACK;
       index += 1
     ) {
-      snapshot = upsertCrossRoomThreadIndexEntry(snapshot, {
+      snapshot = upsert(snapshot, {
         ...entry!,
         key: getCrossRoomThreadIndexKey(`!room${index}:example.org`, `$root${index}`),
         roomId: `!room${index}:example.org`,
@@ -429,11 +433,11 @@ describe('crossRoomThreadIndex', () => {
     const entry = buildCrossRoomThreadIndexEntry({ room, threadRootId: '$root', tagSnapshot });
     expect(entry).toBeDefined();
 
-    const inserted = upsertCrossRoomThreadIndexEntry(emptyCrossRoomThreadIndexSnapshot(), entry!);
+    const inserted = upsert(emptyCrossRoomThreadIndexSnapshot(), entry!);
     const rebuilt = buildCrossRoomThreadIndexEntry({ room, threadRootId: '$root', tagSnapshot });
     expect(rebuilt).not.toBe(entry);
 
-    const next = upsertCrossRoomThreadIndexEntry(inserted, rebuilt!);
+    const next = upsert(inserted, rebuilt!);
     expect(next).toBe(inserted);
     expect(next.version).toBe(1);
   });

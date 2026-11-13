@@ -1,5 +1,8 @@
 import type { Room } from 'matrix-js-sdk';
-import { isVisibleThreadRootEvent, type TimelineEventEntry } from '../../event-store/timeline/roomTimelineEvents';
+import {
+  isVisibleThreadRootEvent,
+  type TimelineEventEntry,
+} from '../../event-store/timeline/roomTimelineEvents';
 
 export type TimelineRangeLike = {
   start: number;
@@ -7,7 +10,6 @@ export type TimelineRangeLike = {
 };
 
 export type ThreadOverviewRefreshTargets = {
-  visibleThreadSummaryRefreshIds: string[];
   overviewResumeRefreshIds: string[];
 };
 
@@ -35,10 +37,7 @@ export const resolveThreadOverviewRefreshTargets = ({
   threadResolutionMap: Map<string, { isResolved: boolean }>;
 }): ThreadOverviewRefreshTargets => {
   if (threadId) {
-    return {
-      visibleThreadSummaryRefreshIds: [],
-      overviewResumeRefreshIds: [],
-    };
+    return { overviewResumeRefreshIds: [] };
   }
 
   const visibleThreadSummaryRefreshIds = threadFilteredEventEntries
@@ -60,8 +59,5 @@ export const resolveThreadOverviewRefreshTargets = ({
       overviewResumeRefreshIdSet.add(threadRootId);
     });
 
-  return {
-    visibleThreadSummaryRefreshIds,
-    overviewResumeRefreshIds: [...overviewResumeRefreshIdSet].slice(0, limit),
-  };
+  return { overviewResumeRefreshIds: [...overviewResumeRefreshIdSet].slice(0, limit) };
 };

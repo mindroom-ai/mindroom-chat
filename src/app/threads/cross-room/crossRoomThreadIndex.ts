@@ -20,7 +20,6 @@ export type CrossRoomThreadIndexEntry = {
   key: string;
   roomId: string;
   roomName: string;
-  parentSpaceIds: string[];
   threadRootId: string;
   indexedEventIds: string[];
   threadRecord: ThreadRecord;
@@ -35,7 +34,6 @@ export type CrossRoomThreadIndexEntry = {
   summaryText: string;
   rootPreviewText: string;
   searchableText: string;
-  tagSnapshot?: ThreadTagSnapshot;
   tags: string[];
   generation: number;
 };
@@ -352,7 +350,6 @@ export const buildCrossRoomThreadIndexEntry = ({
   threadRootEvent,
   summaryInfo,
   currentUserId,
-  parentSpaceIds = [],
   tagSnapshot,
   generation = 0,
 }: {
@@ -361,7 +358,6 @@ export const buildCrossRoomThreadIndexEntry = ({
   threadRootEvent?: MatrixEvent;
   summaryInfo?: ThreadSummaryInfo;
   currentUserId?: string;
-  parentSpaceIds?: string[];
   /** null is an explicitly untagged root in a shared room snapshot. */
   tagSnapshot?: ThreadTagSnapshot | null;
   generation?: number;
@@ -440,7 +436,6 @@ export const buildCrossRoomThreadIndexEntry = ({
     key: getCrossRoomThreadIndexKey(room.roomId, threadRootId),
     roomId: room.roomId,
     roomName: room.name || room.roomId,
-    parentSpaceIds,
     threadRootId,
     indexedEventIds: Array.from(indexedEventIds),
     threadRecord,
@@ -460,7 +455,6 @@ export const buildCrossRoomThreadIndexEntry = ({
     summaryText,
     rootPreviewText,
     searchableText: normalizeThreadSearchText(`${rootPreviewText} ${summaryText}`),
-    tagSnapshot: resolvedTagSnapshot ?? undefined,
     tags: threadRecord.status.tags,
     generation,
   };
@@ -588,11 +582,6 @@ export const applyCrossRoomThreadIndexBatch = (
     version: snapshot.version + 1,
   };
 };
-
-export const upsertCrossRoomThreadIndexEntry = (
-  snapshot: CrossRoomThreadIndexSnapshot,
-  entry: CrossRoomThreadIndexEntry
-): CrossRoomThreadIndexSnapshot => applyCrossRoomThreadIndexBatch(snapshot, { upserts: [entry] });
 
 export const removeCrossRoomThreadIndexEntry = (
   snapshot: CrossRoomThreadIndexSnapshot,
