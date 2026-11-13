@@ -118,8 +118,7 @@ describe('planRedactionCacheCleanup', () => {
     // calling `makeRedacted` and passes it as the third arg to
     // `RoomEvent.Redaction`. That capture happens pre-prune, so it is
     // reliable even for reactions whose relation has since been stripped.
-    // The plan must honor it as an authoritative attribution — not treat
-    // it as a viewer-side guess.
+    // The plan must honor it as an authoritative attribution.
     const prunedReaction = makeEvent({ eventId: '$reaction', type: 'm.reaction' });
     const room = makeRoom({ $reaction: prunedReaction });
     const redaction = makeEvent({
@@ -179,9 +178,6 @@ describe('planRedactionCacheCleanup', () => {
     expect(plan).toMatchObject({
       redactedEventId: '$reaction',
       threadCacheTargetId: '$thread-root',
-      // SDK membership IS the event's attribution, not a viewer-side guess,
-      // so this must NOT be treated as fallback (would trigger a
-      // duplicate room-scope persist).
       deleteRecords: true,
     });
   });

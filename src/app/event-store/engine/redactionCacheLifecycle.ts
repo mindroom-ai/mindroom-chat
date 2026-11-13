@@ -40,8 +40,7 @@ export const planRedactionCacheCleanup = ({
    * captures the target's `threadRootId` BEFORE calling `makeRedacted`
    * (see `applyEventAsRedaction` in room.js). That means this hint is
    * available even for reactions whose relation has since been stripped —
-   * so it is authoritative attribution, not a viewer-side guess. Highest
-   * priority in the hint chain.
+   * so it is authoritative attribution. Highest priority in the hint chain.
    */
   sdkThreadIdHint?: string;
 }): RedactionCacheCleanupPlan | undefined => {
@@ -49,7 +48,7 @@ export const planRedactionCacheCleanup = ({
   const redactedEventId = redactionEvent.getAssociatedId();
   if (!redactedEventId) return undefined;
 
-  const targetEvent = room.findEventById(redactedEventId) ?? undefined;
+  const targetEvent = room.findEventById(redactedEventId);
   if (!targetEvent) {
     return { redactedEventId, deleteRecords: false };
   }
@@ -64,17 +63,14 @@ export const planRedactionCacheCleanup = ({
     getThreadCacheTargetId(room, targetEvent) ??
     targetEvent.threadRootId ??
     redactionEvent.threadRootId;
-  // Kept for cases where the redacted event IS still threaded at fire time
-  // (e.g. thread messages, whose SDK move-to-main-timeline runs only for
-  // reactions). Harmless leftover — for reactions the SDK has already
-  // called `moveAllRelatedToMainTimeline`, so the scan finds nothing and
-  // the engine falls through to layer 1 (cache-derived scopes).
-  const sdkDerivedThreadTargetId = hintedThreadTargetId
-    ? undefined
-    : findSingleSdkThreadContaining(room, redactedEventId);
   return {
     redactedEventId,
-    threadCacheTargetId: hintedThreadTargetId ?? sdkDerivedThreadTargetId,
+    // The SDK thread scan covers a redacted event still threaded at fire time
+    // (thread messages). For reactions the SDK has already called
+    // `moveAllRelatedToMainTimeline`, so it finds nothing and the engine
+    // falls through to layer 1 (cache-derived scopes).
+    threadCacheTargetId:
+      hintedThreadTargetId ?? findSingleSdkThreadContaining(room, redactedEventId),
     deleteRecords: targetEvent.getType() === 'm.reaction',
   };
 };

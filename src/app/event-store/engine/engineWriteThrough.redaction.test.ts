@@ -178,50 +178,60 @@ describe('engineWriteThrough redaction thread attribution (ISSUE-207 P3 gate re-
     vi.clearAllMocks();
   });
 
-  it('persists the redaction to the thread scope returned by the by-event-id delete (stop-emoji, cache-derived)', async () => {
-    // Reality at fire time: the reaction has been moved out of the
-    // thread's timelineSet by moveAllRelatedToMainTimeline. No pre-prune
-    // threadId hint from the SDK either (simulating a bridged event or
-    // any code path where the third-arg hint is absent). All the plan's
-    // event-side hints return undefined. The GUARANTEED signal is the
-    // reaction record already sitting in the cache under scope=$thread-root.
-    const prunedReaction = makeEvent('$reaction', { type: 'm.reaction' });
-    // Empty thread timelineSet — reaction was already moved to main.
-    const thread = makeThread('$thread-root', []);
-    const redaction = makeEvent('$redaction', {
-      type: 'm.room.redaction',
-      isRedaction: true,
-      associatedId: '$reaction',
-    });
-    const room = makeRoom({
-      events: { $reaction: prunedReaction, $redaction: redaction },
-      threads: [thread],
-    });
-    // Cache holds the reaction under this thread scope; the delete
-    // walker returns that scope.
-    deleteThreadEventFromCacheByEventId.mockResolvedValueOnce(['$thread-root']);
-    const writer = createEngineWriteThrough({ sessionId: 'session', persist });
+  // The SDK re-emits redactions through the Timeline channel too; both entry points share cleanup.
+  it.each(['redaction', 'timeline'] as const)(
+    'persists the redaction to the thread scope returned by the by-event-id delete (stop-emoji, cache-derived, %s channel)',
+    async (channel) => {
+      // Reality at fire time: the reaction has been moved out of the
+      // thread's timelineSet by moveAllRelatedToMainTimeline. No pre-prune
+      // threadId hint from the SDK either (simulating a bridged event or
+      // any code path where the third-arg hint is absent). All the plan's
+      // event-side hints return undefined. The GUARANTEED signal is the
+      // reaction record already sitting in the cache under scope=$thread-root.
+      const prunedReaction = makeEvent('$reaction', { type: 'm.reaction' });
+      // Empty thread timelineSet — reaction was already moved to main.
+      const thread = makeThread('$thread-root', []);
+      const redaction = makeEvent('$redaction', {
+        type: 'm.room.redaction',
+        isRedaction: true,
+        associatedId: '$reaction',
+      });
+      const room = makeRoom({
+        events: { $reaction: prunedReaction, $redaction: redaction },
+        threads: [thread],
+      });
+      // Cache holds the reaction under this thread scope; the delete
+      // walker returns that scope.
+      deleteThreadEventFromCacheByEventId.mockResolvedValueOnce(['$thread-root']);
+      const writer = createEngineWriteThrough({ sessionId: 'session', persist });
 
-    writer.handleLiveEvent(redaction as unknown as MatrixEvent, room, redactionMeta());
-    // Engine dispatch schedules the persist after the delete resolves.
-    // Give microtasks a chance to run.
-    await flushMicrotasks();
+      writer.handleLiveEvent(
+        redaction as unknown as MatrixEvent,
+        room,
+        channel === 'redaction'
+          ? redactionMeta()
+          : { kind: 'timeline', roomId: room.roomId, liveEvent: true, toStartOfTimeline: false }
+      );
+      // Engine dispatch schedules the persist after the delete resolves.
+      // Give microtasks a chance to run.
+      await flushMicrotasks();
 
-    // The redaction record lands on the thread scope the cache walker
-    // reported — self-consistent by construction.
-    expect(threadWrites()).toHaveLength(1);
-    expect(threadWrites()[0].threadId).toBe('$thread-root');
-    expect(threadWrites()[0].events).toEqual([redaction]);
-    // No belt-and-braces room persist — the derived scope is authoritative.
-    expect(roomWrites()).toHaveLength(0);
-    // We routed through the by-event-id walker (that's how we learned
-    // the scope), not the keyed thread delete.
-    expect(deleteThreadEventFromCacheByEventId).toHaveBeenCalledTimes(1);
-    expect(deleteThreadEventFromCacheByEventId.mock.calls[0][2]).toBe('$reaction');
-    expect(deleteThreadEventsFromCache).not.toHaveBeenCalled();
-    // Room-scoped reaction record (if any) still cleared.
-    expect(deleteRoomEventsFromCache).toHaveBeenCalledTimes(1);
-  });
+      // The redaction record lands on the thread scope the cache walker
+      // reported — self-consistent by construction.
+      expect(threadWrites()).toHaveLength(1);
+      expect(threadWrites()[0].threadId).toBe('$thread-root');
+      expect(threadWrites()[0].events).toEqual([redaction]);
+      // No belt-and-braces room persist — the derived scope is authoritative.
+      expect(roomWrites()).toHaveLength(0);
+      // We routed through the by-event-id walker (that's how we learned
+      // the scope), not the keyed thread delete.
+      expect(deleteThreadEventFromCacheByEventId).toHaveBeenCalledTimes(1);
+      expect(deleteThreadEventFromCacheByEventId.mock.calls[0][2]).toBe('$reaction');
+      expect(deleteThreadEventsFromCache).not.toHaveBeenCalled();
+      // Room-scoped reaction record (if any) still cleared.
+      expect(deleteRoomEventsFromCache).toHaveBeenCalledTimes(1);
+    }
+  );
 
   it('honors the SDK pre-prune threadId hint from the RoomEvent.Redaction emission (thread MESSAGE redaction)', async () => {
     // A thread MESSAGE is redacted. deleteRecords=false (we keep the
