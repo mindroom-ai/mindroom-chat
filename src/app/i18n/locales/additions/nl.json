@@ -907,5 +907,49 @@
     "pickDescriptionPhone": "Open het menu om er een te kiezen.",
     "needsYouLabel_one": "Threads, {{count}} wacht op jou",
     "needsYouLabel_other": "Threads, {{count}} wachten op jou"
+  },
+  "serverAccounts": {
+    "group": "Beheer",
+    "title": "Serveraccounts",
+    "description": "Alle accounts op deze homeserver. Alleen serverbeheerders zien deze pagina.",
+    "search": "Zoeken op naam of Matrix-ID",
+    "filters": {
+      "all": "Alle",
+      "internal": "Intern",
+      "external": "Extern",
+      "deactivated": "Gedeactiveerd"
+    },
+    "count": "Accounts: {{shown}} van {{total}}",
+    "noMatches": "Geen account gevonden",
+    "loadFailed": "De accounts konden niet worden geladen.",
+    "status": {
+      "active": "Actief",
+      "locked": "Vergrendeld",
+      "suspended": "Geschorst"
+    },
+    "lastSeen": "Laatst gezien: {{date}}",
+    "externalNote": "Een extern account neemt alleen deel aan kamers waarvoor het is uitgenodigd. Het kan geen kamers maken en niemand uitnodigen.",
+    "roomsFailed": "De kamers van dit account konden niet worden geladen.",
+    "noRooms": "In geen enkele kamer",
+    "actions": {
+      "lock": "Account vergrendelen",
+      "unlock": "Account ontgrendelen",
+      "suspend": "Account schorsen",
+      "unsuspend": "Schorsing opheffen",
+      "deactivate": "Account deactiveren"
+    },
+    "hints": {
+      "lock": "Een vergrendeld account kan helemaal niet worden gebruikt. De kamers en berichten blijven bewaard.",
+      "suspend": "Een geschorst account kan nog inloggen en lezen, maar geen berichten sturen of aan kamers deelnemen.",
+      "deactivate": "Het account verlaat zijn kamers en kan nooit meer inloggen. Dit kan niet ongedaan worden gemaakt."
+    },
+    "confirm": {
+      "lock": "{{user}} vergrendelen? Het account kan niet worden gebruikt totdat je het ontgrendelt. De kamers en berichten blijven bewaard.",
+      "unlock": "{{user}} ontgrendelen? Het account kan weer worden gebruikt.",
+      "suspend": "{{user}} schorsen? Het account kan nog inloggen en lezen, maar geen berichten sturen of aan kamers deelnemen totdat je de schorsing opheft.",
+      "unsuspend": "Schorsing van {{user}} opheffen? Het account kan weer berichten sturen en aan kamers deelnemen.",
+      "deactivate": "{{user}} deactiveren? Het account verlaat zijn kamers en kan nooit meer inloggen. Dit kan niet ongedaan worden gemaakt."
+    },
+    "protected": "Beheerders en je eigen account kunnen hier niet worden gewijzigd."
   }
 }

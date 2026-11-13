@@ -907,5 +907,49 @@
     "pickDescriptionPhone": "Öffne das Menü, um etwas auszuwählen.",
     "needsYouLabel_one": "Threads, {{count}} wartet auf dich",
     "needsYouLabel_other": "Threads, {{count}} warten auf dich"
+  },
+  "serverAccounts": {
+    "group": "Verwaltung",
+    "title": "Serverkonten",
+    "description": "Alle Konten auf diesem Homeserver. Nur Serveradministratoren sehen diese Seite.",
+    "search": "Nach Name oder Matrix-ID suchen",
+    "filters": {
+      "all": "Alle",
+      "internal": "Intern",
+      "external": "Extern",
+      "deactivated": "Deaktiviert"
+    },
+    "count": "Konten: {{shown}} von {{total}}",
+    "noMatches": "Kein Konto passt",
+    "loadFailed": "Die Konten konnten nicht geladen werden.",
+    "status": {
+      "active": "Aktiv",
+      "locked": "Gesperrt",
+      "suspended": "Suspendiert"
+    },
+    "lastSeen": "Zuletzt gesehen: {{date}}",
+    "externalNote": "Ein externes Konto tritt nur Räumen bei, in die es eingeladen wurde. Es kann keine Räume erstellen und niemanden einladen.",
+    "roomsFailed": "Die Räume dieses Kontos konnten nicht geladen werden.",
+    "noRooms": "In keinem Raum",
+    "actions": {
+      "lock": "Konto sperren",
+      "unlock": "Konto entsperren",
+      "suspend": "Konto suspendieren",
+      "unsuspend": "Suspendierung aufheben",
+      "deactivate": "Konto deaktivieren"
+    },
+    "hints": {
+      "lock": "Ein gesperrtes Konto kann gar nicht benutzt werden. Seine Räume und Nachrichten bleiben erhalten.",
+      "suspend": "Ein suspendiertes Konto kann sich weiter anmelden und lesen, aber keine Nachrichten senden und keinen Räumen beitreten.",
+      "deactivate": "Das Konto verlässt seine Räume und kann sich nie wieder anmelden. Das lässt sich nicht rückgängig machen."
+    },
+    "confirm": {
+      "lock": "{{user}} sperren? Das Konto kann nicht benutzt werden, bis du es entsperrst. Seine Räume und Nachrichten bleiben erhalten.",
+      "unlock": "{{user}} entsperren? Das Konto kann wieder benutzt werden.",
+      "suspend": "{{user}} suspendieren? Das Konto kann sich weiter anmelden und lesen, aber keine Nachrichten senden und keinen Räumen beitreten, bis du die Suspendierung aufhebst.",
+      "unsuspend": "Suspendierung von {{user}} aufheben? Das Konto kann wieder Nachrichten senden und Räumen beitreten.",
+      "deactivate": "{{user}} deaktivieren? Das Konto verlässt seine Räume und kann sich nie wieder anmelden. Das lässt sich nicht rückgängig machen."
+    },
+    "protected": "Administratoren und dein eigenes Konto können hier nicht geändert werden."
   }
 }

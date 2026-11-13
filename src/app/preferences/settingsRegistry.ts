@@ -27,6 +27,8 @@ export type SettingsContext = {
   nativeIOS: boolean;
   /** The account can pair a Local MindRoom. */
   localMindroom: boolean;
+  /** The signed-in user administers the homeserver. */
+  serverAdmin: boolean;
   useSystemTheme: boolean;
   developerTools: boolean;
   /** The deployment names an error collector (`errorReporting.dsn` in config.json). */
@@ -40,13 +42,14 @@ export const SETTINGS_GROUPS = [
   { id: 'app', labelKey: 'featureUi.settings.menu.groups.app' },
   { id: 'agents', labelKey: 'featureUi.settings.menu.groups.agents' },
   { id: 'rooms', labelKey: 'nav.rooms' },
+  { id: 'server', labelKey: 'serverAccounts.group' },
   { id: 'help', labelKey: 'featureUi.settings.menu.groups.help' },
 ] as const satisfies ReadonlyArray<{ id: string; labelKey: TranslationKey }>;
 
 export type SettingsGroupId = (typeof SETTINGS_GROUPS)[number]['id'];
 
 /** What decides whether a page is offered: the platform and the account. */
-export type SettingsPageContext = Pick<SettingsContext, 'native' | 'localMindroom'>;
+export type SettingsPageContext = Pick<SettingsContext, 'native' | 'localMindroom' | 'serverAdmin'>;
 
 type PageDefinition = {
   id: string;
@@ -91,6 +94,12 @@ export const SETTINGS_PAGES = [
     hidden: (context) => !context.localMindroom,
   },
   { id: 'archived-rooms', group: 'rooms', labelKey: 'archivedRooms.title' },
+  {
+    id: 'server-accounts',
+    group: 'server',
+    labelKey: 'serverAccounts.title',
+    hidden: (context) => !context.serverAdmin,
+  },
   { id: 'storage', group: 'help', labelKey: 'featureUi.settings.menu.pages.storage' },
   {
     id: 'developer-tools',

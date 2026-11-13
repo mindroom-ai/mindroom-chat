@@ -930,5 +930,49 @@
     "needsYouLabel_one": "Thread, {{count}} ti aspetta",
     "needsYouLabel_many": "Thread, {{count}} ti aspettano",
     "needsYouLabel_other": "Thread, {{count}} ti aspettano"
+  },
+  "serverAccounts": {
+    "group": "Amministrazione",
+    "title": "Account del server",
+    "description": "Tutti gli account di questo homeserver. Solo gli amministratori del server vedono questa pagina.",
+    "search": "Cerca per nome o ID Matrix",
+    "filters": {
+      "all": "Tutti",
+      "internal": "Interni",
+      "external": "Esterni",
+      "deactivated": "Disattivati"
+    },
+    "count": "Account: {{shown}} di {{total}}",
+    "noMatches": "Nessun account corrisponde",
+    "loadFailed": "Impossibile caricare gli account.",
+    "status": {
+      "active": "Attivo",
+      "locked": "Bloccato",
+      "suspended": "Sospeso"
+    },
+    "lastSeen": "Ultimo accesso: {{date}}",
+    "externalNote": "Un account esterno entra solo nelle stanze in cui è invitato. Non può creare stanze né invitare persone.",
+    "roomsFailed": "Impossibile caricare le stanze di questo account.",
+    "noRooms": "In nessuna stanza",
+    "actions": {
+      "lock": "Blocca account",
+      "unlock": "Sblocca account",
+      "suspend": "Sospendi account",
+      "unsuspend": "Revoca sospensione",
+      "deactivate": "Disattiva account"
+    },
+    "hints": {
+      "lock": "Un account bloccato non può essere usato in alcun modo. Le sue stanze e i suoi messaggi restano.",
+      "suspend": "Un account sospeso può ancora accedere e leggere, ma non può inviare messaggi né entrare nelle stanze.",
+      "deactivate": "L'account lascia le sue stanze e non potrà mai più accedere. L'operazione non può essere annullata."
+    },
+    "confirm": {
+      "lock": "Bloccare {{user}}? L'account non può essere usato finché non lo sblocchi. Le sue stanze e i suoi messaggi restano.",
+      "unlock": "Sbloccare {{user}}? L'account può essere usato di nuovo.",
+      "suspend": "Sospendere {{user}}? L'account può ancora accedere e leggere, ma non può inviare messaggi né entrare nelle stanze finché non revochi la sospensione.",
+      "unsuspend": "Revocare la sospensione di {{user}}? L'account può di nuovo inviare messaggi ed entrare nelle stanze.",
+      "deactivate": "Disattivare {{user}}? L'account lascia le sue stanze e non potrà mai più accedere. L'operazione non può essere annullata."
+    },
+    "protected": "Gli amministratori e il tuo account non possono essere modificati qui."
   }
 }

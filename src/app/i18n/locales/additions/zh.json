@@ -884,5 +884,49 @@
     "pickDescription": "它会在列表旁边打开。",
     "pickDescriptionPhone": "打开菜单进行选择。",
     "needsYouLabel_other": "讨论串，{{count}} 个待你处理"
+  },
+  "serverAccounts": {
+    "group": "管理",
+    "title": "服务器账户",
+    "description": "此主服务器上的所有账户。只有服务器管理员能看到此页面。",
+    "search": "按名称或 Matrix ID 搜索",
+    "filters": {
+      "all": "全部",
+      "internal": "内部",
+      "external": "外部",
+      "deactivated": "已停用"
+    },
+    "count": "账户：{{shown}} / {{total}}",
+    "noMatches": "没有匹配的账户",
+    "loadFailed": "无法加载账户。",
+    "status": {
+      "active": "正常",
+      "locked": "已锁定",
+      "suspended": "已暂停"
+    },
+    "lastSeen": "上次活动：{{date}}",
+    "externalNote": "外部账户只能加入受邀的房间，不能创建房间或邀请他人。",
+    "roomsFailed": "无法加载此账户的房间。",
+    "noRooms": "未加入任何房间",
+    "actions": {
+      "lock": "锁定账户",
+      "unlock": "解锁账户",
+      "suspend": "暂停账户",
+      "unsuspend": "取消暂停",
+      "deactivate": "停用账户"
+    },
+    "hints": {
+      "lock": "已锁定的账户完全无法使用。其房间和消息会保留。",
+      "suspend": "已暂停的账户仍可登录和阅读，但无法发送消息或加入房间。",
+      "deactivate": "该账户将退出其房间，并且永远无法再登录。此操作无法撤销。"
+    },
+    "confirm": {
+      "lock": "锁定 {{user}}？在你解锁之前，该账户无法使用。其房间和消息会保留。",
+      "unlock": "解锁 {{user}}？该账户可以再次使用。",
+      "suspend": "暂停 {{user}}？该账户仍可登录和阅读，但在你取消暂停之前无法发送消息或加入房间。",
+      "unsuspend": "取消暂停 {{user}}？该账户可以再次发送消息和加入房间。",
+      "deactivate": "停用 {{user}}？该账户将退出其房间，并且永远无法再登录。此操作无法撤销。"
+    },
+    "protected": "管理员和你自己的账户无法在此更改。"
   }
 }
