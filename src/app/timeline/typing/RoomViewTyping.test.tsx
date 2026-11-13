@@ -32,9 +32,15 @@ vi.mock('../../event-store/threads/useThreadStreamingState', () => ({
 
 const ROOM_ID = '!room:example.org';
 const HELPER = '@mindroom_helper:example.org';
+// A display name that would add an inline handler to the bold name it fills, read as markup.
+const MARKUP_NAME = '<name is onclick="alert(1)">Mallory</name>';
 const NAMES: Record<string, string> = {
   '@avery:example.org': 'Avery',
+  '@blake:example.org': 'Blake',
   '@code:example.org': 'Code',
+  '@drew:example.org': 'Drew',
+  '@ellis:example.org': 'Ellis',
+  '@mallory:example.org': MARKUP_NAME,
   [HELPER]: 'Helper',
 };
 let jobsState: MatrixEvent[] = [];
@@ -110,6 +116,40 @@ it('names who types next to the dots, and drops the notice until the next update
 
   act(() => typing(store, '@avery:example.org'));
   expect(view.querySelector('[role="status"]')?.textContent).toBe('Avery is typing...');
+});
+
+it('shows a typing name that holds markup as text, in one bold name with no added attributes', () => {
+  const store = createStore();
+  typing(store, '@mallory:example.org');
+  const strip = render(store).querySelector('[role="status"]');
+
+  const bold = strip?.querySelectorAll('b') ?? [];
+  expect(bold).toHaveLength(1);
+  expect(bold[0]?.childElementCount).toBe(0);
+  expect(bold[0]?.textContent).toBe(MARKUP_NAME);
+  expect(bold[0]?.getAttributeNames()).toEqual(['dir']);
+  expect(strip?.textContent).toBe(`${MARKUP_NAME} is typing...`);
+});
+
+it('names the first three people typing in bold and counts the rest', () => {
+  const store = createStore();
+  ['@avery:example.org', '@blake:example.org', '@code:example.org', '@drew:example.org'].forEach(
+    (userId) => typing(store, userId)
+  );
+  const view = render(store);
+  const boldTexts = () =>
+    Array.from(view.querySelectorAll('[role="status"] b'), (bold) => bold.textContent);
+
+  expect(view.querySelector('[role="status"]')?.textContent).toBe(
+    'Avery, Blake, Code, and 1 other are typing...'
+  );
+  expect(boldTexts()).toEqual(['Avery', 'Blake', 'Code', '1 other']);
+
+  act(() => typing(store, '@ellis:example.org'));
+  expect(view.querySelector('[role="status"]')?.textContent).toBe(
+    'Avery, Blake, Code, and 2 others are typing...'
+  );
+  expect(boldTexts()).toEqual(['Avery', 'Blake', 'Code', '2 others']);
 });
 
 it('names people typing in the room view, and none in a thread view, as typing names no thread', () => {

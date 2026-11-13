@@ -116,6 +116,8 @@ function InvitedBy({ roomId }: { roomId: string }) {
         i18nKey="sharedUi.invites.from"
         values={{ sender: senderName }}
         components={{ b: <b title={sender} /> }}
+        tOptions={ESCAPED}
+        shouldUnescape
       />
     </Text>
   );
