@@ -23,6 +23,7 @@ import {
   sendStateEvent,
 } from '../helpers/matrix';
 import { setRoomCompact } from '../helpers/roomViewSwitch';
+import { showResolvedThreads } from '../helpers/threadOverview';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
@@ -235,7 +236,9 @@ const screens = (stack: AgentStack, seeded: World): Screen[] => {
       open: async (page) => {
         await go(page, lobby);
         await showCompact(page, true);
-        await expect(page.locator('[data-thread-root-id]').first()).toBeVisible();
+        // Compact opens with resolved threads hidden; the scan covers the resolved card too.
+        await showResolvedThreads(page);
+        await expect(page.locator('[data-attention-state="resolved"]').first()).toBeVisible();
       },
     },
     {

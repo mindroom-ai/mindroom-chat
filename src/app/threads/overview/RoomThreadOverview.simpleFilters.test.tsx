@@ -105,6 +105,19 @@ describe('thread filter bar modes', () => {
     expect(onToggleUnresolvedOnly).toHaveBeenCalledTimes(1);
   });
 
+  it('says no thread matches only when a filter hides threads, not in a room with none', () => {
+    const unresolved = { ...createDefaultThreadFilterState(), resolved: 'exclude' as const };
+    const emptyStates = () =>
+      renderer?.root.findAll((node) => node.props.className === css.EmptyState) ?? [];
+
+    renderBar(true, { state: unresolved, threadCount: 0, totalThreadCount: 0 });
+    expect(emptyStates()).toHaveLength(0);
+
+    act(() => renderer?.unmount());
+    renderBar(true, { state: unresolved, threadCount: 0, totalThreadCount: 2 });
+    expect(emptyStates()).toHaveLength(1);
+  });
+
   it('keeps only the sort and the switch in a simple bar without agents', () => {
     renderBar(true, { hasMindroomAgents: false });
     expect(unresolvedToggles()).toHaveLength(0);
