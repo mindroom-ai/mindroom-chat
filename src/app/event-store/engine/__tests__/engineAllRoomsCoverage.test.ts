@@ -12,13 +12,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 
-const persistThreadEventCacheSnapshot = vi.fn();
-const persistRoomEventCacheSnapshot = vi.fn();
-
 vi.mock('../../cache/eventRepository', () => ({
-  persistThreadEventCacheSnapshot: (...args: unknown[]) =>
-    persistThreadEventCacheSnapshot(...args),
-  persistRoomEventCacheSnapshot: (...args: unknown[]) => persistRoomEventCacheSnapshot(...args),
   deleteRoomEventsFromCache: vi.fn().mockResolvedValue(undefined),
   deleteThreadEventsFromCache: vi.fn().mockResolvedValue(undefined),
   deleteThreadEventFromCacheByEventId: vi.fn().mockResolvedValue(undefined),
@@ -26,10 +20,24 @@ vi.mock('../../cache/eventRepository', () => ({
     mEvent.threadRootId,
 }));
 
-import { createEngineWriteThrough } from '../engineWriteThrough';
+import { createEngineWriteThrough, type EngineWriteThroughOptions } from '../engineWriteThrough';
 import type { EngineLiveEventMeta } from '../types';
 
-const makeEvent = (id: string, opts: { roomId: string; threadRootId?: string } = { roomId: '' }) => ({
+/** The sync engine's persist callback; a write with a thread id goes to that thread's cache. */
+const persist = vi.fn<NonNullable<EngineWriteThroughOptions['persist']>>();
+const threadWrites = () =>
+  persist.mock.calls
+    .filter(([, , , threadId]) => threadId !== undefined)
+    .map(([, events, tailLoaded, threadId]) => ({ events, tailLoaded, threadId }));
+const roomWrites = () =>
+  persist.mock.calls
+    .filter(([, , , threadId]) => threadId === undefined)
+    .map(([room, events]) => ({ room, events }));
+
+const makeEvent = (
+  id: string,
+  opts: { roomId: string; threadRootId?: string } = { roomId: '' }
+) => ({
   getId: () => id,
   getRelation: () => undefined,
   getSender: () => '@alice:example.org',
@@ -38,14 +46,15 @@ const makeEvent = (id: string, opts: { roomId: string; threadRootId?: string } =
   threadRootId: opts.threadRootId,
 });
 
-const makeRoom = (roomId: string): Room => ({
-  roomId,
-  findEventById: () => undefined,
-  getThread: () => undefined,
-  getLiveTimeline: () => ({ getEvents: () => [] }) as never,
-  getUnfilteredTimelineSet: () => undefined as never,
-  getThreads: () => [],
-}) as unknown as Room;
+const makeRoom = (roomId: string): Room =>
+  ({
+    roomId,
+    findEventById: () => undefined,
+    getThread: () => undefined,
+    getLiveTimeline: () => ({ getEvents: () => [] } as never),
+    getUnfilteredTimelineSet: () => undefined as never,
+    getThreads: () => [],
+  } as unknown as Room);
 
 const meta = (roomId: string): EngineLiveEventMeta => ({
   kind: 'timeline',
@@ -56,8 +65,7 @@ const meta = (roomId: string): EngineLiveEventMeta => ({
 
 describe('engineWriteThrough — F1 fix (background room coverage)', () => {
   beforeEach(() => {
-    persistThreadEventCacheSnapshot.mockReset();
-    persistRoomEventCacheSnapshot.mockReset();
+    persist.mockReset();
   });
 
   afterEach(() => {
@@ -68,7 +76,7 @@ describe('engineWriteThrough — F1 fix (background room coverage)', () => {
     const backgroundRoom = makeRoom('!background:example.org');
     const foregroundRoom = makeRoom('!foreground:example.org');
 
-    const writer = createEngineWriteThrough({ sessionId: 'session' });
+    const writer = createEngineWriteThrough({ sessionId: 'session', persist });
 
     // A live event arrives for the BACKGROUND room. Under the old
     // component-scoped listener this would have been dropped because
@@ -80,14 +88,14 @@ describe('engineWriteThrough — F1 fix (background room coverage)', () => {
       meta('!background:example.org')
     );
 
-    expect(persistRoomEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    const call = persistRoomEventCacheSnapshot.mock.calls[0][0];
+    expect(roomWrites()).toHaveLength(1);
+    const call = roomWrites()[0];
     expect(call.room.roomId).toBe('!background:example.org');
     expect(call.events).toEqual([backgroundEvent]);
 
     // A subsequent live event for the FOREGROUND room ALSO persists,
     // proving both flows share the same write-through.
-    persistRoomEventCacheSnapshot.mockReset();
+    persist.mockReset();
     const foregroundEvent = makeEvent('$evt-fg', { roomId: '!foreground:example.org' });
     writer.handleLiveEvent(
       foregroundEvent as unknown as MatrixEvent,
@@ -95,30 +103,24 @@ describe('engineWriteThrough — F1 fix (background room coverage)', () => {
       meta('!foreground:example.org')
     );
 
-    expect(persistRoomEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistRoomEventCacheSnapshot.mock.calls[0][0].room.roomId).toBe(
-      '!foreground:example.org'
-    );
+    expect(roomWrites()).toHaveLength(1);
+    expect(roomWrites()[0].room.roomId).toBe('!foreground:example.org');
   });
 
   it('captures thread attribution from the event (not from any UI context) — thread events persist to their thread cache', () => {
     const room = makeRoom('!room:example.org');
-    const writer = createEngineWriteThrough({ sessionId: 'session' });
+    const writer = createEngineWriteThrough({ sessionId: 'session', persist });
 
     const threadReply = makeEvent('$reply-1', {
       roomId: '!room:example.org',
       threadRootId: '$thread-root',
     });
-    writer.handleLiveEvent(
-      threadReply as unknown as MatrixEvent,
-      room,
-      meta('!room:example.org')
-    );
+    writer.handleLiveEvent(threadReply as unknown as MatrixEvent, room, meta('!room:example.org'));
 
-    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].threadId).toBe('$thread-root');
+    expect(threadWrites()).toHaveLength(1);
+    expect(threadWrites()[0].threadId).toBe('$thread-root');
     // tailLoaded:true is the engine's semantic (see engineWriteThrough
     // header — live events are by definition at the tail).
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].tailLoaded).toBe(true);
+    expect(threadWrites()[0].tailLoaded).toBe(true);
   });
 });

@@ -44,16 +44,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { RelationType } from 'matrix-js-sdk';
 
-const persistThreadEventCacheSnapshot = vi.fn();
-const persistRoomEventCacheSnapshot = vi.fn();
 const deleteRoomEventsFromCache = vi.fn().mockResolvedValue(undefined);
 const deleteThreadEventsFromCache = vi.fn().mockResolvedValue(undefined);
 const deleteThreadEventFromCacheByEventId = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('../cache/eventRepository', () => ({
-  persistThreadEventCacheSnapshot: (...args: unknown[]) =>
-    persistThreadEventCacheSnapshot(...args),
-  persistRoomEventCacheSnapshot: (...args: unknown[]) => persistRoomEventCacheSnapshot(...args),
   deleteRoomEventsFromCache: (...args: unknown[]) => deleteRoomEventsFromCache(...args),
   deleteThreadEventsFromCache: (...args: unknown[]) => deleteThreadEventsFromCache(...args),
   deleteThreadEventFromCacheByEventId: (...args: unknown[]) =>
@@ -62,9 +57,20 @@ vi.mock('../cache/eventRepository', () => ({
     mEvent.threadRootId,
 }));
 
-import { createEngineWriteThrough } from './engineWriteThrough';
+import { createEngineWriteThrough, type EngineWriteThroughOptions } from './engineWriteThrough';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../cache/cacheProbe';
 import type { EngineLiveEventMeta } from './types';
+
+/** The sync engine's persist callback; a write with a thread id goes to that thread's cache. */
+const persist = vi.fn<NonNullable<EngineWriteThroughOptions['persist']>>();
+const threadWrites = () =>
+  persist.mock.calls
+    .filter(([, , , threadId]) => threadId !== undefined)
+    .map(([, events, , threadId]) => ({ events, threadId }));
+const roomWrites = () =>
+  persist.mock.calls
+    .filter(([, , , threadId]) => threadId === undefined)
+    .map(([, events]) => ({ events }));
 
 type FakeEvent = {
   __id: string;
@@ -106,7 +112,7 @@ const makeRoom = (findEventById: (id: string) => FakeEvent | undefined): Room =>
     roomId: '!room:example.org',
     findEventById: (id: string) => findEventById(id) as unknown as MatrixEvent | undefined,
     getThread: () => undefined,
-    getLiveTimeline: () => ({ getEvents: () => [] }) as never,
+    getLiveTimeline: () => ({ getEvents: () => [] } as never),
     getUnfilteredTimelineSet: () => undefined as never,
     getThreads: () => [],
   } as unknown as Room;
@@ -130,8 +136,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     resetCacheProbe();
-    persistThreadEventCacheSnapshot.mockReset();
-    persistRoomEventCacheSnapshot.mockReset();
+    persist.mockReset();
     deleteRoomEventsFromCache.mockReset().mockResolvedValue(undefined);
     deleteThreadEventsFromCache.mockReset().mockResolvedValue(undefined);
     deleteThreadEventFromCacheByEventId.mockReset().mockResolvedValue(undefined);
@@ -152,17 +157,17 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
       relation: { rel_type: RelationType.Replace, event_id: '$target' },
     });
     const room = makeRoom((id) => (id === '$target' ? target : undefined));
-    const writer = createEngineWriteThrough({ sessionId: 'session' });
+    const writer = createEngineWriteThrough({ sessionId: 'session', persist });
 
     writer.handleLiveEvent(edit as unknown as MatrixEvent, room, timelineMeta());
-    expect(persistThreadEventCacheSnapshot).not.toHaveBeenCalled();
+    expect(threadWrites()).toHaveLength(0);
 
     advance(2000);
     await waitForDebounce();
 
-    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([target, edit]);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].threadId).toBe(threadId);
+    expect(threadWrites()).toHaveLength(1);
+    expect(threadWrites()[0].events).toEqual([target, edit]);
+    expect(threadWrites()[0].threadId).toBe(threadId);
     expect(getCacheProbeSnapshot().editCompactions).toBe(1);
     expect(getCacheProbeSnapshot().editCompactionTargetMisses).toBe(0);
   });
@@ -173,7 +178,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     const threadId = '$thread-root';
     const target = makeEvent('$target', { threadRootId: threadId });
     const room = makeRoom((id) => (id === '$target' ? target : undefined));
-    const writer = createEngineWriteThrough({ sessionId: 'session' });
+    const writer = createEngineWriteThrough({ sessionId: 'session', persist });
     const edits = [1, 2, 3].map((i) =>
       makeEvent(`$edit-${i}`, {
         threadRootId: threadId,
@@ -188,15 +193,15 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     advance(2000);
     await waitForDebounce();
 
-    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([target, edits[2]]);
+    expect(threadWrites()).toHaveLength(1);
+    expect(threadWrites()[0].events).toEqual([target, edits[2]]);
   });
 
   it('coalesces N rapid edits into one target upsert', async () => {
     const threadId = '$thread-root';
     const target = makeEvent('$target', { threadRootId: threadId });
     const room = makeRoom((id) => (id === '$target' ? target : undefined));
-    const writer = createEngineWriteThrough({ sessionId: 'session' });
+    const writer = createEngineWriteThrough({ sessionId: 'session', persist });
 
     for (let i = 1; i <= 25; i += 1) {
       writer.handleLiveEvent(
@@ -209,13 +214,13 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
         timelineMeta()
       );
     }
-    expect(persistThreadEventCacheSnapshot).not.toHaveBeenCalled();
+    expect(threadWrites()).toHaveLength(0);
 
     advance(2000);
     await waitForDebounce();
 
-    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([
+    expect(threadWrites()).toHaveLength(1);
+    expect(threadWrites()[0].events).toEqual([
       target,
       expect.objectContaining({ __id: '$edit-25' }),
     ]);
@@ -230,26 +235,26 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
       relation: { rel_type: RelationType.Replace, event_id: '$target' },
     });
     const room = makeRoom((id) => (id === '$target' ? target : undefined));
-    const writer = createEngineWriteThrough({ sessionId: 'session' });
+    const writer = createEngineWriteThrough({ sessionId: 'session', persist });
 
     writer.handleLiveEvent(edit as unknown as MatrixEvent, room, timelineMeta());
-    expect(persistThreadEventCacheSnapshot).not.toHaveBeenCalled();
+    expect(threadWrites()).toHaveLength(0);
 
     writer.flush();
-    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([target, edit]);
+    expect(threadWrites()).toHaveLength(1);
+    expect(threadWrites()[0].events).toEqual([target, edit]);
   });
 
   it('persists non-replace thread events immediately, bypassing the debounce', () => {
     const threadId = '$thread-root';
     const reply = makeEvent('$reply-1', { threadRootId: threadId });
     const room = makeRoom(() => undefined);
-    const writer = createEngineWriteThrough({ sessionId: 'session' });
+    const writer = createEngineWriteThrough({ sessionId: 'session', persist });
 
     writer.handleLiveEvent(reply as unknown as MatrixEvent, room, timelineMeta());
 
-    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([reply]);
+    expect(threadWrites()).toHaveLength(1);
+    expect(threadWrites()[0].events).toEqual([reply]);
   });
 
   it('falls back to persisting the replace standalone when the target is not in SDK memory (probe bumped)', async () => {
@@ -259,16 +264,16 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
       relation: { rel_type: RelationType.Replace, event_id: '$target' },
     });
     const room = makeRoom(() => undefined);
-    const writer = createEngineWriteThrough({ sessionId: 'session' });
+    const writer = createEngineWriteThrough({ sessionId: 'session', persist });
 
     writer.handleLiveEvent(edit as unknown as MatrixEvent, room, timelineMeta());
-    expect(persistThreadEventCacheSnapshot).not.toHaveBeenCalled();
+    expect(threadWrites()).toHaveLength(0);
 
     advance(2000);
     await waitForDebounce();
 
-    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([edit]);
+    expect(threadWrites()).toHaveLength(1);
+    expect(threadWrites()[0].events).toEqual([edit]);
     expect(getCacheProbeSnapshot().editCompactionTargetMisses).toBe(1);
   });
 
@@ -285,20 +290,17 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     });
     let targetLoaded = false;
     const room = makeRoom((id) => (targetLoaded && id === '$target' ? target : undefined));
-    const writer = createEngineWriteThrough({ sessionId: 'session' });
+    const writer = createEngineWriteThrough({ sessionId: 'session', persist });
 
     writer.handleLiveEvent(crossSenderEdit as unknown as MatrixEvent, room, timelineMeta());
-    expect(persistThreadEventCacheSnapshot).not.toHaveBeenCalled();
+    expect(threadWrites()).toHaveLength(0);
     targetLoaded = true;
 
     advance(2000);
     await waitForDebounce();
 
-    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([
-      target,
-      crossSenderEdit,
-    ]);
+    expect(threadWrites()).toHaveLength(1);
+    expect(threadWrites()[0].events).toEqual([target, crossSenderEdit]);
   });
 
   it('keeps the D12-latest replace when a stale one arrives later in the same window', async () => {
@@ -314,7 +316,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
       relation: { rel_type: RelationType.Replace, event_id: '$target' },
     });
     const room = makeRoom(() => undefined);
-    const writer = createEngineWriteThrough({ sessionId: 'session' });
+    const writer = createEngineWriteThrough({ sessionId: 'session', persist });
 
     writer.handleLiveEvent(newer as unknown as MatrixEvent, room, timelineMeta());
     writer.handleLiveEvent(stale as unknown as MatrixEvent, room, timelineMeta());
@@ -322,10 +324,10 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     advance(2000);
     await waitForDebounce();
 
-    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
+    expect(threadWrites()).toHaveLength(1);
     // Fire-time target-miss durability fallback persists the D12-latest
     // replace we captured, not the last-arrived one.
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([newer]);
+    expect(threadWrites()[0].events).toEqual([newer]);
   });
 
   it('persists arm-time cross-sender replaces directly instead of compacting them', () => {
@@ -340,12 +342,12 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
       relation: { rel_type: RelationType.Replace, event_id: '$target' },
     });
     const room = makeRoom((id) => (id === '$target' ? target : undefined));
-    const writer = createEngineWriteThrough({ sessionId: 'session' });
+    const writer = createEngineWriteThrough({ sessionId: 'session', persist });
 
     writer.handleLiveEvent(crossSenderEdit as unknown as MatrixEvent, room, timelineMeta());
 
-    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([crossSenderEdit]);
+    expect(threadWrites()).toHaveLength(1);
+    expect(threadWrites()[0].events).toEqual([crossSenderEdit]);
     // No scheduler was armed → no compaction probe increment.
     expect(getCacheProbeSnapshot().editCompactions).toBe(0);
   });
@@ -358,33 +360,33 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
       relation: { rel_type: RelationType.Replace, event_id: '$target' },
     });
     const room = makeRoom((id) => (id === '$target' ? target : undefined));
-    const writer = createEngineWriteThrough({ sessionId: 'session' });
+    const writer = createEngineWriteThrough({ sessionId: 'session', persist });
 
     writer.handleLiveEvent(edit as unknown as MatrixEvent, room, timelineMeta());
-    expect(persistThreadEventCacheSnapshot).not.toHaveBeenCalled();
+    expect(threadWrites()).toHaveLength(0);
 
     advance(2000);
     await waitForDebounce();
 
-    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
+    expect(threadWrites()).toHaveLength(1);
     // Fires against the thread that was known at ARM time, not
     // re-derived at fire time from the (possibly redacted) event.
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].threadId).toBe(rootId);
+    expect(threadWrites()[0].threadId).toBe(rootId);
   });
 
   it('routes non-replace thread events through the thread persist entry point (F1 fix: no view branching)', () => {
     const rootId = '$thread-root';
     const reply = makeEvent('$reply-1', { threadRootId: rootId });
     const room = makeRoom(() => undefined);
-    const writer = createEngineWriteThrough({ sessionId: 'session' });
+    const writer = createEngineWriteThrough({ sessionId: 'session', persist });
 
     writer.handleLiveEvent(reply as unknown as MatrixEvent, room, timelineMeta());
 
-    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].threadId).toBe(rootId);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([reply]);
+    expect(threadWrites()).toHaveLength(1);
+    expect(threadWrites()[0].threadId).toBe(rootId);
+    expect(threadWrites()[0].events).toEqual([reply]);
     // Non-thread room persist path is not touched.
-    expect(persistRoomEventCacheSnapshot).not.toHaveBeenCalled();
+    expect(roomWrites()).toHaveLength(0);
   });
 
   it('compacts room-level edits onto the target room cache record', async () => {
@@ -393,16 +395,16 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
       relation: { rel_type: RelationType.Replace, event_id: '$room-msg' },
     });
     const room = makeRoom((id) => (id === '$room-msg' ? target : undefined));
-    const writer = createEngineWriteThrough({ sessionId: 'session' });
+    const writer = createEngineWriteThrough({ sessionId: 'session', persist });
 
     writer.handleLiveEvent(edit as unknown as MatrixEvent, room, timelineMeta());
-    expect(persistRoomEventCacheSnapshot).not.toHaveBeenCalled();
+    expect(roomWrites()).toHaveLength(0);
 
     advance(2000);
     await waitForDebounce();
 
-    expect(persistRoomEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistRoomEventCacheSnapshot.mock.calls[0][0].events).toEqual([target, edit]);
+    expect(roomWrites()).toHaveLength(1);
+    expect(roomWrites()[0].events).toEqual([target, edit]);
     expect(getCacheProbeSnapshot().editCompactions).toBe(1);
   });
 
@@ -424,7 +426,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     });
     let currentFind: FakeEvent | undefined = threadTarget;
     const room = makeRoom((id) => (id === '$shared' ? currentFind : undefined));
-    const writer = createEngineWriteThrough({ sessionId: 'session' });
+    const writer = createEngineWriteThrough({ sessionId: 'session', persist });
 
     writer.handleLiveEvent(threadEdit as unknown as MatrixEvent, room, timelineMeta());
     // Second call: the room's memory swap emulates a room-level target
@@ -436,10 +438,10 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     advance(2000);
     await waitForDebounce();
 
-    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([roomTarget, threadEdit]);
-    expect(persistRoomEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistRoomEventCacheSnapshot.mock.calls[0][0].events).toEqual([roomTarget, roomEdit]);
+    expect(threadWrites()).toHaveLength(1);
+    expect(threadWrites()[0].events).toEqual([roomTarget, threadEdit]);
+    expect(roomWrites()).toHaveLength(1);
+    expect(roomWrites()[0].events).toEqual([roomTarget, roomEdit]);
   });
 
   it('flush() on engine teardown drains pending upserts (equivalent of the old unmount flush)', () => {
@@ -450,12 +452,12 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
       relation: { rel_type: RelationType.Replace, event_id: '$target' },
     });
     const room = makeRoom((id) => (id === '$target' ? target : undefined));
-    const writer = createEngineWriteThrough({ sessionId: 'session' });
+    const writer = createEngineWriteThrough({ sessionId: 'session', persist });
 
     writer.handleLiveEvent(edit as unknown as MatrixEvent, room, timelineMeta());
-    expect(persistThreadEventCacheSnapshot).not.toHaveBeenCalled();
+    expect(threadWrites()).toHaveLength(0);
 
     writer.flush();
-    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
+    expect(threadWrites()).toHaveLength(1);
   });
 });
