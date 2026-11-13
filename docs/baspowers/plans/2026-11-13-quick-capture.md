@@ -483,6 +483,7 @@ Tasks 10 to 13 run on the MacBook M2 (Xcode, a checkout of this branch). Build a
 ### Task 10: Spike (throwaway, not committed)
 
 - [ ] **Step 1:** In a scratch branch, with the fewest lines that answer each question, check the three facts of the spec's "To settle on the Mac first": a `BroadcastChannel` message between two `CAPBridgeViewController` web views; a second scene's window raised to the floating level, shown over Safari and given the keyboard through runtime-reached AppKit while the main window stays behind, plus a Carbon hot key (`RegisterEventHotKey`, key code 49, modifier `optionKey`) firing while another app is in front; ScreenCaptureKit (`SCShareableContent`, `SCScreenshotManager`) building and capturing from the Catalyst target, and `UIApplicationSupportsMultipleScenes` honored as the string of a build setting.
+- [ ] **Step 1b (added by the whole-branch review):** also check, with the built web side: a `send` whose `File` is a full-screen PNG of several megabytes crosses the channel between the two web views (the guard needs `instanceof File`; a plugin relay would have to carry it as base64); the window can be dragged by the widget's header, or what native code must do for that (a WKWebView takes the mouse down); the widget's web view reports `document.visibilityState` `hidden` when its window is ordered out and gets a `focus` event when it is shown (the client says hello on both; if `hidden` is never reported it keeps saying hello every 10 s); and how long the widget shows a stale list when the main window was closed while the widget was hidden (the client waits 30 s for a state after a show; shorten that wait after a show-hello if it is visible).
 - [ ] **Step 2:** Report each as works or does not, with the fallback of the spec taken where it does not, and amend the spec's Architecture section to what holds (commit `docs: quick capture, what the Mac spike settled`).
 
 ### Task 11: The Mac shell
@@ -531,6 +532,14 @@ enum MacWindowing {
 - [ ] **Step 2: Implement.** `window`: the frontmost on-screen layer-0 window of `MacWindowing.lastFrontProcess`, as `SCContentFilter(desktopIndependentWindow:)`. `screen`: the display the widget is on, with this app's windows excluded. Both at the display's pixel scale, written as PNG to `FileManager.default.temporaryDirectory/quick-capture/`, named `Screenshot <app or Screen> <yyyy-MM-dd HH.mm.ss>.png`; earlier files there are deleted first, and at launch. `openScreenRecordingSettings` opens `x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture`.
 - [ ] **Step 3: Run** `just test src/app/native` (PASS), build, and check by hand: both buttons attach a picture without the widget in it; with the permission refused the widget shows the text and the button opens the pane; sending posts the picture then the text into the room.
 - [ ] **Step 4: Commit** `feat(mac): screenshots of the front window or the screen as Quick Capture attachments`.
+
+### Task 12b: Web follow-ups parked by the whole-branch review
+
+- [ ] The peek's Copy copies the cleaned reply (tool badge, direction controls written out, Markdown stripped). Carry the reply's own text in the item (`copyText`, cut at 600 characters like `replyText`) and copy that. Test in `QuickCapturePage.test.tsx` and `captureThreads.test.ts`.
+- [ ] `readCaptureThreads` cleans the reply of every thread of the room on each state build. Clean only the rows `buildCaptureItems` keeps. Test that a 31st unresolved thread's reply is not cleaned.
+- [ ] `x` on a pinned thread writes a tag that shows nothing (`setCaptureResolved` skips the thread list's pinned guard): answer `forbidden`, or hide the mark on pinned rows.
+- [ ] A screenshot error stays after a successful send (Task 12 touches that code).
+- [ ] Commit each with its test: `fix(quick-capture): ...`.
 
 ### Task 13: Acceptance on the Mac and documentation
 
