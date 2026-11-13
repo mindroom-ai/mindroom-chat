@@ -30,10 +30,12 @@ const findScroller = (row: HTMLElement): HTMLElement | undefined => {
 /** Marks a control right above a timeline's first row, such as the `[+all]` toggle. */
 export const TIMELINE_OVERLAY_ATTRIBUTE = 'data-timeline-overlay';
 /**
- * The Show full message / Show less button of a long message (CollapsibleMessage). It sits at the
- * end of the message's bottom edge, the corner the toolbar of the row below floats over.
+ * The Show full message / Show less button of a long message (CollapsibleMessage), at the end of
+ * the message's bottom edge, the corner the toolbar of the row below floats over; and a code
+ * block's buttons, at the end of its top edge, under a toolbar that moves down into its row.
  */
-const FOLD_BUTTON = '[data-message-fold] > * > [data-message-disclosure] > button';
+const CONTROLS_KEPT_CLEAR =
+  '[data-message-fold] > * > [data-message-disclosure] > button, [data-code-block-actions]';
 /**
  * The sender line at the top of a message: its name, the reply details button of an agent reply
  * and the time, which the toolbar keeps clear of once it moves down into its row.
@@ -146,7 +148,7 @@ export const useToolbarClearance = (
       const rowRect = row.getBoundingClientRect();
       const bar = toolbar.getBoundingClientRect();
       if (clearanceRef.current === undefined) usualOffset.current = bar.top - rowRect.top;
-      const folds = Array.from(scroller.querySelectorAll(FOLD_BUTTON)).flatMap((button) => {
+      const folds = Array.from(scroller.querySelectorAll(CONTROLS_KEPT_CLEAR)).flatMap((button) => {
         const rect = button.getBoundingClientRect();
         if (!(rect.width > 0 && rect.left < bar.right && rect.right > bar.left)) return [];
         const top = rect.top - rowRect.top;
