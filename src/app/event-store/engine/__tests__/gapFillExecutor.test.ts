@@ -11,7 +11,6 @@ import {
   GAP_FILL_OVERLAP_TAIL_LIMIT,
   type GapFillScheduler,
 } from '../engineGapTracker';
-import { StateEvent } from '../../../matrix/types/room';
 import {
   clearRoomTailDiscontinuity,
   loadRoomTailDiscontinuity,
@@ -64,32 +63,13 @@ const createGapFillExecutor = (
   queue: GapFillScheduler
 ) => createExecutor({ ...allowance().callbacks, ...options }, queue);
 
-const makeMatrixEvent = (senderId: string) =>
-  ({
-    getSender: () => senderId,
-  } as unknown as ReturnType<Room['getLiveTimeline']>);
-
-// ISSUE-207 P7.2 audit finding #3: gap-fill now maps each raw chunk
-// event through `createPreferLiveEventMapper` before persisting. Extend
-// the room stub with `findEventById` (preferLive checks whether the
-// SDK already holds a live instance) — returning null keeps the mapper
-// on the "clone the raw event" branch, which is what these tests want.
-// `findEventInTimeline` and `getUnfilteredTimelineSet` are unused by
-// the gap-fill path so they stay off the stub.
-const makeRoomStub = (roomId: string, createSender: string | undefined, encrypted = false): Room =>
+// `findEventById` returns null so the prefer-live mapper clones each raw chunk event.
+const makeRoomStub = (roomId: string, encrypted = false): Room =>
   ({
     roomId,
     findEventById: () => null,
     getThread: () => null,
     hasEncryptionStateEvent: () => encrypted,
-    getLiveTimeline: () => ({
-      getState: () => ({
-        getStateEvents: (eventType: StateEvent) => {
-          if (eventType !== StateEvent.RoomCreate) return undefined;
-          return createSender ? makeMatrixEvent(createSender) : undefined;
-        },
-      }),
-    }),
     getLastActiveTimestamp: () => 0,
   } as unknown as Room);
 
@@ -101,20 +81,14 @@ type MockClient = MatrixClient & {
     limit: number | undefined;
     dir: Direction;
   }>;
-  __nextResponse: (call: number) => {
-    end?: string;
-    chunk: Partial<IEvent>[];
-  };
 };
 
 const createMockClient = (
-  ourDomain: string,
   responder: (call: number) => { end?: string; chunk: Partial<IEvent>[] }
 ): MockClient => {
   const rooms = new Map<string, Room>();
   const messagesCalls: MockClient['__messages'] = [];
   const client = {
-    getDomain: () => ourDomain,
     getRoom: (roomId: string) => rooms.get(roomId) ?? null,
     // ISSUE-207 P7.2 audit finding #3: `persistRoomChunkWithPreferLive`
     // resolves the event mapper up front and wraps it in
@@ -130,7 +104,6 @@ const createMockClient = (
       ),
     __rooms: rooms,
     __messages: messagesCalls,
-    __nextResponse: responder,
   } as unknown as MockClient;
   return client;
 };
@@ -174,13 +147,13 @@ const waitForCondition = async (condition: () => boolean): Promise<void> => {
 };
 
 describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
-  it('retains the gap and stops a multi-token cycle under explicit allowance', async () => {
+  it('retains the gap and stops a multi-token cycle', async () => {
     const roomId = '!room:mindroom.chat';
-    const mx = createMockClient('mindroom.chat', (call) => {
+    const mx = createMockClient((call) => {
       if (call >= 3) throw new Error('test cycle limit');
       return { end: call % 2 === 0 ? 'b' : 'a', chunk: [] };
     });
-    mx.__rooms.set(roomId, makeRoomStub(roomId, '@alice:mindroom.chat'));
+    mx.__rooms.set(roomId, makeRoomStub(roomId));
     await markRoomTailDiscontinuity(SESSION_ID, roomId, {
       markedAt: 1,
       prevBatch: 'a',
@@ -188,10 +161,7 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     });
     const scheduler = createBackfillScheduler({ mx });
     const queue = createInMemoryGapFillScheduler();
-    const executor = createGapFillExecutor(
-      { mx, sessionId: SESSION_ID, scheduler, pageAllowance: () => 200 },
-      queue
-    );
+    const executor = createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, queue);
     queue.enqueueGapFill({ roomId, markedAt: 1, prevBatch: 'a', reason: 'limited-sync' });
     await waitForCompleted(3);
     expect(mx.__messages).toHaveLength(2);
@@ -213,14 +183,14 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
           originalWarn(...args);
       });
       const roomId = '!room:mindroom.chat';
-      const mx = createMockClient('mindroom.chat', (call) => {
+      const mx = createMockClient((call) => {
         if (!call && failure === 'transport') throw new Error('offline');
         return {
           chunk: [rawEvent('$retry', 10)],
           ...(!call && failure === 'same-token' ? { end: 'before' } : {}),
         };
       });
-      mx.__rooms.set(roomId, makeRoomStub(roomId, '@alice:mindroom.chat'));
+      mx.__rooms.set(roomId, makeRoomStub(roomId));
       await markRoomTailDiscontinuity(SESSION_ID, roomId, {
         markedAt: 1,
         prevBatch: 'before',
@@ -291,14 +261,11 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
   });
 
   it('drains a queued limited-sync job: persists events and clears the durable marker', async () => {
-    const mx = createMockClient('mindroom.chat', (call) => {
+    const mx = createMockClient((call) => {
       if (call === 0) return { end: 'tok-1', chunk: [rawEvent('$e1', 10)] };
       return { chunk: [] }; // end === undefined -> reached end
     });
-    mx.__rooms.set(
-      '!room:mindroom.chat',
-      makeRoomStub('!room:mindroom.chat', '@alice:mindroom.chat')
-    );
+    mx.__rooms.set('!room:mindroom.chat', makeRoomStub('!room:mindroom.chat'));
 
     // Pre-write a discontinuity marker so we can prove the executor
     // clears it on success.
@@ -336,7 +303,7 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     // chunk contains thread replies (they are room DAG events); the
     // executor must teach the thread caches instead of filtering the
     // replies out of the room scope and dropping them.
-    const mx = createMockClient('mindroom.chat', (call) => {
+    const mx = createMockClient((call) => {
       if (call === 0) {
         return {
           end: 'tok-1',
@@ -354,10 +321,7 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
       }
       return { chunk: [] };
     });
-    mx.__rooms.set(
-      '!room:mindroom.chat',
-      makeRoomStub('!room:mindroom.chat', '@alice:mindroom.chat')
-    );
+    mx.__rooms.set('!room:mindroom.chat', makeRoomStub('!room:mindroom.chat'));
     await markRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat', {
       markedAt: Date.now(),
       prevBatch: 'tok-0',
@@ -386,11 +350,8 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
   });
 
   it('fetches encrypted room history before clearing an exhausted gap', async () => {
-    const mx = createMockClient('mindroom.chat', () => ({ chunk: [] }));
-    mx.__rooms.set(
-      '!e2e:mindroom.chat',
-      makeRoomStub('!e2e:mindroom.chat', '@alice:mindroom.chat', true)
-    );
+    const mx = createMockClient(() => ({ chunk: [] }));
+    mx.__rooms.set('!e2e:mindroom.chat', makeRoomStub('!e2e:mindroom.chat', true));
     await markRoomTailDiscontinuity(SESSION_ID, '!e2e:mindroom.chat', {
       markedAt: Date.now(),
       prevBatch: 'tok-0',
@@ -417,15 +378,12 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
 
   it('subscribes to future enqueues so a limited-sync reset dispatches immediately', async () => {
     let call = 0;
-    const mx = createMockClient('mindroom.chat', () => {
+    const mx = createMockClient(() => {
       call += 1;
       if (call === 1) return { chunk: [rawEvent('$e2', 20)] }; // end undefined
       return { chunk: [] };
     });
-    mx.__rooms.set(
-      '!room:mindroom.chat',
-      makeRoomStub('!room:mindroom.chat', '@alice:mindroom.chat')
-    );
+    mx.__rooms.set('!room:mindroom.chat', makeRoomStub('!room:mindroom.chat'));
 
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
@@ -450,11 +408,8 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
   it('runs one latest successor when a newer reset arrives during an active fill', async () => {
     let resolveFirst!: (response: { end?: string; chunk: Partial<IEvent>[] }) => void;
     const requestedTokens: Array<string | null> = [];
-    const mx = createMockClient('mindroom.chat', () => ({ chunk: [] }));
-    mx.__rooms.set(
-      '!room:mindroom.chat',
-      makeRoomStub('!room:mindroom.chat', '@alice:mindroom.chat')
-    );
+    const mx = createMockClient(() => ({ chunk: [] }));
+    mx.__rooms.set('!room:mindroom.chat', makeRoomStub('!room:mindroom.chat'));
     mx.createMessagesRequest = vi.fn(async (_roomId, fromToken: string | null) => {
       requestedTokens.push(fromToken);
       if (requestedTokens.length === 1) {
@@ -510,18 +465,15 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     expect(await loadRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat')).toBeUndefined();
   });
 
-  it('a startup job for an own-server room with no prevBatch still enters the scheduler and completes (AC13 mechanism)', async () => {
+  it('a startup job for a room with no prevBatch still enters the scheduler and completes (AC13 mechanism)', async () => {
     // This is the AC13 shape: Sync→PREPARED enqueues a `startup` job
     // per joined room, with `prevBatch = getPaginationToken(Backward)`
     // which is often undefined on a cold reload. The executor MUST
     // hand the job to the scheduler and drive runOnce to completion —
     // otherwise the docker probe reads `schedulerCompleted=0` and the
     // gate fails.
-    const mx = createMockClient('mindroom.chat', () => ({ chunk: [] })); // end undefined → reached end
-    mx.__rooms.set(
-      '!own:mindroom.chat',
-      makeRoomStub('!own:mindroom.chat', '@alice:mindroom.chat')
-    );
+    const mx = createMockClient(() => ({ chunk: [] })); // end undefined → reached end
+    mx.__rooms.set('!room:mindroom.chat', makeRoomStub('!room:mindroom.chat'));
 
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
@@ -529,7 +481,7 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
 
     // No prevBatch — mirrors handleSyncPrepared's initial state.
     gapFillScheduler.enqueueGapFill({
-      roomId: '!own:mindroom.chat',
+      roomId: '!room:mindroom.chat',
       reason: 'startup',
       markedAt: Date.now(),
       // prevBatch intentionally omitted
@@ -548,13 +500,10 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
   });
 
   it('leaves the durable marker in place when the network request fails', async () => {
-    const mx = createMockClient('mindroom.chat', () => {
+    const mx = createMockClient(() => {
       throw new Error('network down');
     });
-    mx.__rooms.set(
-      '!room:mindroom.chat',
-      makeRoomStub('!room:mindroom.chat', '@alice:mindroom.chat')
-    );
+    mx.__rooms.set('!room:mindroom.chat', makeRoomStub('!room:mindroom.chat'));
     await markRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat', {
       markedAt: Date.now(),
       prevBatch: 'tok-0',
@@ -598,11 +547,11 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
         ...(stage === 'empty-response' ? { overlapEventIds: ['$boundary'] } : {}),
       };
       await markRoomTailDiscontinuity(SESSION_ID, roomId, marker);
-      const mx = createMockClient('mindroom.chat', () => {
+      const mx = createMockClient(() => {
         if (stage === 'empty-response') revokeRoomCacheStoreWrites(SESSION_ID, roomId);
         return { chunk: [] };
       });
-      mx.__rooms.set(roomId, makeRoomStub(roomId, '@alice:mindroom.chat'));
+      mx.__rooms.set(roomId, makeRoomStub(roomId));
       const scheduler = createBackfillScheduler({ mx });
       const queue = createInMemoryGapFillScheduler();
       createGapFillExecutor(
@@ -625,11 +574,8 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
   );
 
   it('defers without fetching or clearing when the durable marker read fails', async () => {
-    const mx = createMockClient('mindroom.chat', () => ({ chunk: [] }));
-    mx.__rooms.set(
-      '!room:mindroom.chat',
-      makeRoomStub('!room:mindroom.chat', '@alice:mindroom.chat')
-    );
+    const mx = createMockClient(() => ({ chunk: [] }));
+    mx.__rooms.set('!room:mindroom.chat', makeRoomStub('!room:mindroom.chat'));
     await markRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat', {
       markedAt: 1000,
       prevBatch: 'tok-0',
@@ -673,8 +619,8 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
 
   it('publishes a committed page even when cancellation races its completion', async () => {
     const roomId = '!room:mindroom.chat';
-    const mx = createMockClient('mindroom.chat', () => ({ chunk: [rawEvent('$committed', 1)] }));
-    mx.__rooms.set(roomId, makeRoomStub(roomId, '@alice:mindroom.chat'));
+    const mx = createMockClient(() => ({ chunk: [rawEvent('$committed', 1)] }));
+    mx.__rooms.set(roomId, makeRoomStub(roomId));
     const scheduler = createBackfillScheduler({ mx });
     const gapFillScheduler = createInMemoryGapFillScheduler();
     const onRoomRecovered = vi.fn();
@@ -708,14 +654,11 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
 
   it('does not advance or clear the durable cursor when a cache write fails', async () => {
     const onRoomRecovered = vi.fn();
-    const mx = createMockClient('mindroom.chat', () => ({
+    const mx = createMockClient(() => ({
       end: 'tok-1',
       chunk: [rawEvent('$uncommitted', 1)],
     }));
-    mx.__rooms.set(
-      '!room:mindroom.chat',
-      makeRoomStub('!room:mindroom.chat', '@alice:mindroom.chat')
-    );
+    mx.__rooms.set('!room:mindroom.chat', makeRoomStub('!room:mindroom.chat'));
     await markRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat', {
       markedAt: 1000,
       prevBatch: 'tok-0',
@@ -753,15 +696,12 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
   });
 
   it('stops at a committed overlap with the pre-gap cached tail instead of crawling to room genesis', async () => {
-    const mx = createMockClient('mindroom.chat', (call) => {
+    const mx = createMockClient((call) => {
       if (call === 0) return { end: 'tok-1', chunk: [rawEvent('$missing', 20)] };
       if (call === 1) return { end: 'tok-2', chunk: [rawEvent('$cached-tail', 10)] };
       throw new Error('gap-fill crawled past the cached boundary');
     });
-    mx.__rooms.set(
-      '!room:mindroom.chat',
-      makeRoomStub('!room:mindroom.chat', '@alice:mindroom.chat')
-    );
+    mx.__rooms.set('!room:mindroom.chat', makeRoomStub('!room:mindroom.chat'));
     await markRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat', {
       markedAt: 1000,
       prevBatch: 'tok-0',
@@ -820,7 +760,7 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     // or a page overlaps the cached tail. Running out of allowance with
     // more history available proves neither.
     let call = 0;
-    const mx = createMockClient('mindroom.chat', () => {
+    const mx = createMockClient(() => {
       call += 1;
       if (call === 21) {
         return {
@@ -834,10 +774,7 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
         chunk: [{ event_id: `$e-${call}`, origin_server_ts: 1000 + call } as Partial<IEvent>],
       };
     });
-    mx.__rooms.set(
-      '!room:mindroom.chat',
-      makeRoomStub('!room:mindroom.chat', '@alice:mindroom.chat')
-    );
+    mx.__rooms.set('!room:mindroom.chat', makeRoomStub('!room:mindroom.chat'));
     await markRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat', {
       markedAt: Date.now(),
       prevBatch: 'tok-0',
@@ -866,9 +803,6 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
       prevBatch: 'tok-0',
     });
 
-    await flushMicrotasks();
-    await waitForCompleted();
-
     await waitForCompleted(20);
     // Twenty one-event pages used up the allowance while /messages kept
     // returning a next-token. The marker MUST still be present so a
@@ -888,9 +822,6 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     // durable cursor instead of waiting for reload or another TimelineReset.
     budget.grant(200);
     executor.recheckDeferred('!room:mindroom.chat');
-    await flushMicrotasks();
-    await waitForCompleted(2);
-
     await waitForCompleted(21);
     expect(mx.__messages[20].fromToken).toBe('tok-20');
     expect(mx.__messages).toHaveLength(21);
@@ -942,11 +873,11 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
       content: preRedactionContent,
     });
 
-    const mx = createMockClient('mindroom.chat', (call) => {
+    const mx = createMockClient((call) => {
       if (call === 0) return { chunk: [staleChunkEvent] };
       return { chunk: [] };
     });
-    const room = makeRoomStub('!room:mindroom.chat', '@alice:mindroom.chat');
+    const room = makeRoomStub('!room:mindroom.chat');
     // Override findEventById on this specific room stub to return the
     // trackable live instance for $stale (preferLive's live-instance
     // branch); other lookups return null.
@@ -985,10 +916,10 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
 
   it('defers a room its controller grants no allowance: no fetch, marker kept, job still counted', async () => {
     const roomId = '!other:mindroom.chat';
-    const mx = createMockClient('mindroom.chat', () => ({
+    const mx = createMockClient(() => ({
       chunk: [rawEvent('$should-not-persist', 1)],
     }));
-    mx.__rooms.set(roomId, makeRoomStub(roomId, '@alice:mindroom.chat'));
+    mx.__rooms.set(roomId, makeRoomStub(roomId));
     await markRoomTailDiscontinuity(SESSION_ID, roomId, {
       markedAt: Date.now(),
       prevBatch: 'tok-other',
@@ -1024,11 +955,11 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
 
   it('retries a deferred room once its controller grants allowance', async () => {
     const roomId = '!other:mindroom.chat';
-    const mx = createMockClient('mindroom.chat', () => ({
+    const mx = createMockClient(() => ({
       end: 'older-token',
       chunk: [rawEvent('$original-tail', 1)],
     }));
-    mx.__rooms.set(roomId, makeRoomStub(roomId, '@alice:mindroom.chat'));
+    mx.__rooms.set(roomId, makeRoomStub(roomId));
     await markRoomTailDiscontinuity(SESSION_ID, roomId, {
       markedAt: Date.now(),
       prevBatch: 'tok-other',
@@ -1078,8 +1009,8 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     'defers without fetching while the controller has %s',
     async (shortage) => {
       const roomId = '!room:mindroom.chat';
-      const mx = createMockClient('mindroom.chat', () => ({ chunk: [rawEvent('$later', 1)] }));
-      mx.__rooms.set(roomId, makeRoomStub(roomId, '@alice:mindroom.chat'));
+      const mx = createMockClient(() => ({ chunk: [rawEvent('$later', 1)] }));
+      mx.__rooms.set(roomId, makeRoomStub(roomId));
       await markRoomTailDiscontinuity(SESSION_ID, roomId, { markedAt: 1, prevBatch: 'tok-0' });
       let short = true;
       const { reservePage } = allowance().callbacks;

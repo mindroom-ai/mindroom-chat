@@ -36,8 +36,6 @@ export type GapFillExecutorOptions = {
   readonly mx: MatrixClient;
   readonly sessionId: string;
   readonly scheduler: BackfillScheduler;
-  /** Priority band for gap-fills on rooms other than the focused one. */
-  readonly priority?: 0 | 1 | 2;
   /** Test hook for proving cursor advancement follows a committed write. */
   readonly persistChunk?: typeof persistRoomChunkWithPreferLive;
   /** Test hook for controlling the pre-gap cached-tail snapshot. */
@@ -48,23 +46,24 @@ export type GapFillExecutorOptions = {
   readonly onRoomRecovered?: (roomId: string) => void;
 };
 
-/**
- * Wire the executor to a `GapFillScheduler` dispatch seam: every enqueue
- * from the gap tracker runs (or coalesces into) a fill immediately.
- * Returns a teardown that unsubscribes and blocks further enqueues.
- */
+type GapFillTurn = 'policy-deferred' | 'continuation-deferred' | 'page-committed' | undefined;
+
 export type GapFillExecutor = {
   /** Retry policy-deferred or capped work after focus or prefetch scope changes. */
   recheckDeferred(roomId?: string): void;
   stop(): void;
 };
 
+/**
+ * Wire the executor to a `GapFillScheduler` dispatch seam: every enqueue
+ * from the gap tracker runs (or coalesces into) a fill immediately.
+ * `stop()` unsubscribes and blocks further enqueues.
+ */
 export const createGapFillExecutor = (
   options: GapFillExecutorOptions,
   gapFillScheduler: GapFillScheduler
 ): GapFillExecutor => {
   const { mx, sessionId, scheduler } = options;
-  const priority = options.priority ?? 1;
   const persistChunk = options.persistChunk ?? persistRoomChunkWithPreferLive;
   const loadCachedTail = options.loadCachedTail ?? loadLatestCachedRoomEvents;
   const loadDiscontinuity = options.loadDiscontinuity ?? loadRoomTailDiscontinuity;
@@ -79,7 +78,7 @@ export const createGapFillExecutor = (
     writeLease: CacheStoreWriteLease,
     onCommitted: () => void,
     visited: Set<string>
-  ): Promise<'policy-deferred' | 'continuation-deferred' | 'page-committed' | undefined> => {
+  ): Promise<GapFillTurn> => {
     const room: Room | null | undefined = mx.getRoom?.(job.roomId);
     if (!room) return;
     let durableMarker;
@@ -232,14 +231,14 @@ export const createGapFillExecutor = (
           if (!job) break;
           latestJobs.delete(roomId);
           let recovered = false;
-          let result: 'policy-deferred' | 'continuation-deferred' | 'page-committed' | undefined;
+          let result: GapFillTurn;
           const writeLease = captureCacheStoreWriteLease(sessionId, roomId);
           // eslint-disable-next-line no-await-in-loop
           await scheduler
             .enqueue({
               roomId: job.roomId,
               kind: 'gap-fill',
-              priority,
+              priority: 1,
               execute: async (signal) => {
                 result = await runOnce(
                   job,
