@@ -41,6 +41,9 @@ const makeScroll = () => {
   };
 };
 
+/** Holds the harness's view mode setter, which stands in for the header's view switch. */
+type ViewModeControl = { setViewMode?: (viewMode: 'threaded' | 'compact' | 'classic') => void };
+
 const setup = async (initialViewMode: 'classic' | 'threaded', extra: Record<string, unknown>) => {
   const { RoomTimeline } = await import('../RoomTimeline');
   const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
@@ -53,11 +56,17 @@ const setup = async (initialViewMode: 'classic' | 'threaded', extra: Record<stri
     threads: [{ id: '$root', rootEvent: root, events: [root, reply1, reply2] }] as never,
   });
   const scroll = makeScroll();
+  const viewModeControl: ViewModeControl = {};
   let renderer: ReturnType<typeof create> | undefined;
   isTimelineAtLiveEndMock.mockReturnValue(false);
   await act(async () => {
     renderer = create(
-      React.createElement(ControlledRoomTimeline, { room, initialViewMode, ...extra }),
+      React.createElement(ControlledRoomTimeline, {
+        room,
+        initialViewMode,
+        viewModeControl,
+        ...extra,
+      }),
       {
         createNodeMock: (element: { type: string }) => {
           if (element.type === scrollType) return scroll.el;
@@ -67,14 +76,16 @@ const setup = async (initialViewMode: 'classic' | 'threaded', extra: Record<stri
     );
     await flushAsyncWork();
   });
-  return { renderer: renderer!, scroll, room, ControlledRoomTimeline, root };
+  const setViewMode = (viewMode: 'threaded' | 'compact' | 'classic') =>
+    viewModeControl.setViewMode!(viewMode);
+  return { renderer: renderer!, scroll, room, ControlledRoomTimeline, root, setViewMode };
 };
 
 importBeforeTests(() => import('../RoomTimeline'));
 
 describe('RoomTimeline scroll-to-bottom request', () => {
   it('lands on the latest row after a view switch, even once the reader scrolled', async () => {
-    const { renderer, scroll } = await setup('classic', {});
+    const { renderer, scroll, setViewMode } = await setup('classic', {});
     // Request: Jump to Latest.
     await act(async () => {
       getClickableByText(renderer, 'Jump to Latest').props.onClick();
@@ -85,11 +96,8 @@ describe('RoomTimeline scroll-to-bottom request', () => {
     // The reader scrolls, which ends the Jump to Latest request.
     scroll.fire('wheel');
     roomTimelineVirtualizerState.scrollToIndexMock.mockClear();
-    const switcher = renderer.root.find(
-      (node) => typeof node.props.onViewModeChange === 'function'
-    );
     await act(async () => {
-      switcher.props.onViewModeChange('threaded');
+      setViewMode('threaded');
       await flushAsyncWork();
     });
     expect(roomTimelineVirtualizerState.scrollToIndexMock).toHaveBeenCalled();
@@ -97,21 +105,19 @@ describe('RoomTimeline scroll-to-bottom request', () => {
   });
 
   it('lands on the latest row back from compact view, even once the reader scrolled', async () => {
-    const { renderer, scroll } = await setup('classic', {});
+    const { renderer, scroll, setViewMode } = await setup('classic', {});
     await act(async () => {
       getClickableByText(renderer, 'Jump to Latest').props.onClick();
       await flushAsyncWork();
     });
     scroll.fire('wheel');
-    const switcher = () =>
-      renderer.root.find((node) => typeof node.props.onViewModeChange === 'function');
     await act(async () => {
-      switcher().props.onViewModeChange('compact');
+      setViewMode('compact');
       await flushAsyncWork();
     });
     roomTimelineVirtualizerState.scrollToIndexMock.mockClear();
     await act(async () => {
-      switcher().props.onViewModeChange('classic');
+      setViewMode('classic');
       await flushAsyncWork();
     });
     expect(roomTimelineVirtualizerState.scrollToIndexMock).toHaveBeenCalled();
@@ -171,13 +177,18 @@ describe('RoomTimeline scroll-to-bottom request', () => {
     const room = makeRoom({ liveEvents: [makeEvent('$a', { ts: 1 }), makeEvent('$b', { ts: 2 })] });
     const scroll = makeScroll();
     isTimelineAtLiveEndMock.mockReturnValue(false);
+    const viewModeControl: ViewModeControl = {};
     let renderer: ReturnType<typeof create> | undefined;
     await act(async () => {
       renderer = create(
         React.createElement(
           React.Suspense,
           { fallback: null },
-          React.createElement(ControlledRoomTimeline, { room, initialViewMode: 'classic' })
+          React.createElement(ControlledRoomTimeline, {
+            room,
+            initialViewMode: 'classic',
+            viewModeControl,
+          })
         ),
         {
           unstable_isConcurrent: true,
@@ -192,14 +203,12 @@ describe('RoomTimeline scroll-to-bottom request', () => {
       await flushAsyncWork();
     });
     scroll.fire('wheel');
-    const switcher = () =>
-      renderer!.root.find((node) => typeof node.props.onViewModeChange === 'function');
     await act(async () => {
-      React.startTransition(() => switcher().props.onViewModeChange('threaded'));
+      React.startTransition(() => viewModeControl.setViewMode!('threaded'));
       await flushAsyncWork();
     });
     await act(async () => {
-      switcher().props.onViewModeChange('classic');
+      viewModeControl.setViewMode!('classic');
       await flushAsyncWork();
     });
     roomTimelineVirtualizerState.scrollToIndexMock.mockClear();

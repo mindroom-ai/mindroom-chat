@@ -1737,6 +1737,7 @@ const createControlledRoomTimelineHarness = (
     initialThreadFilterState,
     initialViewMode = 'threaded',
     initialThreadSortFrozen = false,
+    viewModeControl,
   }: {
     room: ReturnType<typeof makeRoom>;
     eventId?: string;
@@ -1748,6 +1749,8 @@ const createControlledRoomTimelineHarness = (
     initialThreadFilterState?: import('../../event-store/threads/roomThreadOverviewModel').ThreadFilterState;
     initialViewMode?: 'threaded' | 'compact' | 'classic';
     initialThreadSortFrozen?: boolean;
+    /** Receives the harness's view mode setter, which stands in for the header's view switch. */
+    viewModeControl?: { setViewMode?: (viewMode: 'threaded' | 'compact' | 'classic') => void };
   }) {
     const [threadFilterState, setThreadFilterState] = React.useState<
       import('../../event-store/threads/roomThreadOverviewModel').ThreadFilterState
@@ -1755,6 +1758,7 @@ const createControlledRoomTimelineHarness = (
     const [viewMode, setViewMode] = React.useState<'threaded' | 'compact' | 'classic'>(
       initialViewMode
     );
+    if (viewModeControl) viewModeControl.setViewMode = setViewMode;
     const [threadSortFreezeState, setThreadSortFreezeState] = React.useState<
       import('../../event-store/threads/roomThreadOverviewModel').ThreadSortFreezeState | null
     >(

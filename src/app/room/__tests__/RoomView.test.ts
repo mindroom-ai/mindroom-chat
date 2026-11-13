@@ -2075,8 +2075,18 @@ describe('RoomView', { timeout: 30_000 }, () => {
 
   it('does not open successful sends as new threads in classic mode', async () => {
     const { useRoomViewThreadState } = await import('../useRoomViewThreadState');
+    const { getRoomViewModeStorageKey } = await import('../../navigation/roomViewMode');
+    const { createSessionId } = await import('../../matrix/session/sessions');
     const ThreadStateHarness = createThreadStateHarness(useRoomViewThreadState);
     const room = makeRoom(nextRoomId('room-a'));
+    // The reader chose Classic for the room.
+    localStorage.setItem(
+      getRoomViewModeStorageKey(
+        createSessionId('https://mindroom.chat', '@alice:example.org'),
+        room.roomId
+      ),
+      JSON.stringify('classic')
+    );
     let threadState: import('../useRoomViewThreadState').RoomViewThreadState | undefined;
 
     await act(async () => {
@@ -2090,9 +2100,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       );
     });
 
-    await act(async () => {
-      threadState?.handleViewModeChange('classic');
-    });
+    expect(threadState?.viewMode).toBe('classic');
     await act(async () => {
       threadState?.handleRoomMessageSent('$sent');
     });
