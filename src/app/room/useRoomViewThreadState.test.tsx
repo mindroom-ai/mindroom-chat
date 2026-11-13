@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 import { createStore, Provider } from 'jotai';
-import type { Room } from 'matrix-js-sdk';
+import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getSettings, settingsAtom } from '../preferences/settings';
-import { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } from '../threads/overview/roomThreadFilterState';
+import {
+  getRoomThreadFilterStorageKey,
+  roomThreadFilterAtomFamily,
+} from '../threads/overview/roomThreadFilterState';
 import {
   createDefaultThreadFilterState,
   serializeThreadFilterState,
@@ -14,29 +17,35 @@ import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useEdgeSwipeForward } from '../navigation/useEdgeSwipeForward';
 import { lastExitedThreadAtom } from '../threads/lastExitedThread';
+import { bumpRecentThread } from '../event-store/threads/recentThreads';
 import { useRoomViewThreadState, type RoomViewThreadState } from './useRoomViewThreadState';
 
 const USER_ID = '@alice:example.org';
 const ROOM_ID = '!room:example.org';
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+const joinedRooms = vi.hoisted(() => ({ list: [] as unknown[] }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     getSafeUserId: () => USER_ID,
     getHomeserverUrl: () => 'https://example.org',
+    getRooms: () => joinedRooms.list,
   }),
 }));
-vi.mock('../navigation/useRoomNavigate', () => ({
-  useRoomNavigate: () => ({
-    navigatePath: vi.fn(),
-    navigateRoom: vi.fn(),
-    navigateRoomFocusEvent: vi.fn(),
-    navigateRoomThread: vi.fn(),
-  }),
+const navigation = vi.hoisted(() => ({
+  navigatePath: vi.fn(),
+  navigateRoom: vi.fn(),
+  navigateRoomFocusEvent: vi.fn(),
+  navigateRoomThread: vi.fn(),
+  navigateRoomThreadDirect: vi.fn(),
 }));
+vi.mock('../navigation/useRoomNavigate', () => ({ useRoomNavigate: () => navigation }));
 vi.mock('../navigation/useEdgeSwipeBack', () => ({ useEdgeSwipeBack: vi.fn() }));
 vi.mock('../navigation/useEdgeSwipeForward', () => ({ useEdgeSwipeForward: vi.fn() }));
 vi.mock('../event-store/threads/recentThreads', () => ({ bumpRecentThread: vi.fn() }));
+vi.mock('../event-store/threads/recentThreadSummaryUtils', () => ({
+  resolveRecentThreadSummaryText: () => 'Root',
+}));
 vi.mock('../event-store/threads/useRoomThreadSummaryState', () => ({
   useRoomThreadSummaryState: () => ({ summaryMap: new Map(), storeThreadSummary: vi.fn() }),
 }));
@@ -45,11 +54,26 @@ vi.mock('../navigation/useRoomViewMode', () => ({
   useRoomViewMode: () => ({ viewMode: 'compact', setViewMode: vi.fn() }),
 }));
 
-const room = {
-  roomId: ROOM_ID,
-  getThread: () => undefined,
-  findEventById: () => undefined,
-} as unknown as Room;
+/** A joined room that holds the events of `eventIds`. */
+const roomHolding = (roomId: string, eventIds: string[] = []) =>
+  ({
+    roomId,
+    getMyMembership: () => 'join',
+    getThread: () => undefined,
+    findEventById: (eventId: string) =>
+      eventIds.includes(eventId)
+        ? new MatrixEvent({
+            event_id: eventId,
+            room_id: roomId,
+            type: 'm.room.message',
+            sender: USER_ID,
+            origin_server_ts: 1,
+            content: { msgtype: 'm.text', body: 'Root' },
+          })
+        : undefined,
+  } as unknown as Room);
+
+let room = roomHolding(ROOM_ID);
 
 let renderer: ReactTestRenderer | undefined;
 
@@ -57,6 +81,9 @@ afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
   localStorage.clear();
+  room = roomHolding(ROOM_ID);
+  joinedRooms.list = [];
+  vi.clearAllMocks();
 });
 
 const storeFilter = (filter: ThreadFilterState) =>
@@ -104,6 +131,61 @@ describe('useRoomViewThreadState', () => {
     expect(enabled(useEdgeSwipeForward)).toBe(true);
     act(() => store.set(conversationBehindPanelAtom, true));
     expect(enabled(useEdgeSwipeForward)).toBe(false);
+  });
+
+  it('remembers a thread as recent once its root is in the room', () => {
+    room = roomHolding(ROOM_ID, ['$root']);
+
+    mountThreadState({ threadId: '$root' });
+
+    expect(bumpRecentThread).toHaveBeenCalledWith(ROOM_ID, '$root', undefined, 'Root');
+  });
+
+  it('remembers no thread whose root the room does not hold', () => {
+    mountThreadState({ threadId: '$elsewhere' });
+
+    expect(bumpRecentThread).not.toHaveBeenCalled();
+  });
+
+  it('opens a thread this room does not hold in the joined room that holds its root', () => {
+    const other = roomHolding('!other:example.org', ['$elsewhere']);
+    joinedRooms.list = [room, other];
+    const { current } = mountThreadState({ threadId: '$elsewhere' });
+
+    act(() => current().handleThreadLoadError('$elsewhere'));
+
+    expect(navigation.navigateRoomThreadDirect).toHaveBeenCalledWith(
+      '!other:example.org',
+      '$elsewhere',
+      undefined,
+      { replace: true }
+    );
+    expect(current().threadNotFound).toBe(false);
+  });
+
+  it('shows a thread that does not load here as not found, though this room holds it', () => {
+    room = roomHolding(ROOM_ID, ['$here']);
+    joinedRooms.list = [room];
+    const { current } = mountThreadState({ threadId: '$here' });
+
+    act(() => current().handleThreadLoadError('$here'));
+
+    expect(navigation.navigateRoomThreadDirect).not.toHaveBeenCalled();
+    expect(current().threadNotFound).toBe(true);
+  });
+
+  it('shows a thread that no joined room holds as not found', () => {
+    const left = {
+      ...roomHolding('!left:example.org', ['$elsewhere']),
+      getMyMembership: () => 'leave',
+    };
+    joinedRooms.list = [room, left];
+    const { current } = mountThreadState({ threadId: '$elsewhere' });
+
+    act(() => current().handleThreadLoadError('$elsewhere'));
+
+    expect(navigation.navigateRoomThreadDirect).not.toHaveBeenCalled();
+    expect(current().threadNotFound).toBe(true);
   });
 
   it('applies the thread filter stored for the room', () => {

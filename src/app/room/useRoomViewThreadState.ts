@@ -55,8 +55,10 @@ import { useRoomThreadSummaryState } from '../event-store/threads/useRoomThreadS
 import { toggleThreadPerson } from '../event-store/threads/threadPeopleFilter';
 import { useThreadRootEvent } from '../threads/useThreadRootEvent';
 import {
+  findThreadRoom,
   isConfirmedMatrixEventId,
   isLocalEchoEventId,
+  isThreadRouteReady,
 } from '../event-store/threads/threadRouteUtils';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 
@@ -75,6 +77,8 @@ export type RoomViewThreadState = {
   handleClearTags: () => void;
   handleExitThread: () => void;
   handleThreadRootDeleted: () => void;
+  /** The open thread failed to load in this room (`ThreadView`'s `onThreadLoadError`). */
+  handleThreadLoadError: (threadId: string) => void;
   handleRemoveTag: (tag: string) => void;
   handleReset: () => void;
   handleSearchQueryChange: (query: string) => void;
@@ -91,6 +95,8 @@ export type RoomViewThreadState = {
   threadFilterState: ThreadFilterState;
   threadSortFreezeState: ThreadSortFreezeState | null;
   threadSummaryInfo?: ThreadSummaryInfo;
+  /** The open thread is not in this room, and no joined room the client knows holds it. */
+  threadNotFound: boolean;
   viewMode: RoomViewMode;
 };
 
@@ -105,8 +111,13 @@ export const useRoomViewThreadState = ({
   const mx = useMatrixClient();
   const userId = mx.getSafeUserId();
   const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), userId), [mx, userId]);
-  const { navigatePath, navigateRoom, navigateRoomFocusEvent, navigateRoomThread } =
-    useRoomNavigate();
+  const {
+    navigatePath,
+    navigateRoom,
+    navigateRoomFocusEvent,
+    navigateRoomThread,
+    navigateRoomThreadDirect,
+  } = useRoomNavigate();
 
   const { setViewMode, viewMode: effectiveViewMode } = useRoomViewMode(roomId, hasMindroomAgents);
   const threadFilterAtom = useMemo(
@@ -214,6 +225,25 @@ export const useRoomViewThreadState = ({
   const handleThreadRootDeleted = useCallback(
     () => leaveThread(() => navigateRoom(roomId, undefined, { replace: true })),
     [leaveThread, navigateRoom, roomId]
+  );
+
+  // A thread that does not load here is not this room's: it opens in the joined room that holds
+  // its root, in place of this address, else it shows as not found. Neither leaves an entry behind.
+  const [missingThread, setMissingThread] = useState<{ roomId: string; threadId: string }>();
+  const threadNotFound =
+    !!effectiveThreadId &&
+    missingThread?.roomId === roomId &&
+    missingThread.threadId === effectiveThreadId;
+  const handleThreadLoadError = useCallback(
+    (failedThreadId: string) => {
+      const threadRoom = findThreadRoom(mx.getRooms(), failedThreadId);
+      if (threadRoom && threadRoom.roomId !== roomId) {
+        navigateRoomThreadDirect(threadRoom.roomId, failedThreadId, eventId, { replace: true });
+        return;
+      }
+      setMissingThread({ roomId, threadId: failedThreadId });
+    },
+    [eventId, mx, navigateRoomThreadDirect, roomId]
   );
 
   const handleSwipeForwardToThread = useCallback(() => {
@@ -450,11 +480,15 @@ export const useRoomViewThreadState = ({
     });
   }, [effectiveThreadId, eventId, navigateRoomThread, roomId, threadId]);
 
+  // A thread is remembered once its root is in this room: an address pairing the room with
+  // another room's thread leaves no entry.
+  const threadRouteReady = isThreadRouteReady(room, effectiveThreadId);
   useEffect(() => {
     if (effectiveViewMode === 'classic' || !isConfirmedMatrixEventId(effectiveThreadId)) return;
+    if (!threadRouteReady) return;
 
     bumpRecentThread(roomId, effectiveThreadId, undefined, recentThreadSummaryText);
-  }, [effectiveThreadId, effectiveViewMode, recentThreadSummaryText, roomId]);
+  }, [effectiveThreadId, effectiveViewMode, recentThreadSummaryText, roomId, threadRouteReady]);
 
   return {
     effectiveThreadId,
@@ -464,6 +498,7 @@ export const useRoomViewThreadState = ({
     handleClearTags,
     handleExitThread,
     handleThreadRootDeleted,
+    handleThreadLoadError,
     handleRemoveTag,
     handleReset,
     handleSearchQueryChange,
@@ -480,6 +515,7 @@ export const useRoomViewThreadState = ({
     threadFilterState: effectiveThreadFilterState,
     threadSortFreezeState: effectiveThreadSortFreezeState,
     threadSummaryInfo,
+    threadNotFound,
     viewMode: effectiveViewMode,
   };
 };
