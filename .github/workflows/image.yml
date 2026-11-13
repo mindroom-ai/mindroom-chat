@@ -163,15 +163,14 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
-      - uses: docker/setup-buildx-action@v4
-        if: env.RELEASE_TAG
       - name: Point latest at the newest release
         if: env.RELEASE_TAG
         env:
           NEWEST: ${{ steps.newest.outputs.tag }}
         run: |
-          # Its image is still building when its run has yet to get here; that run moves `latest` then.
-          if docker buildx imagetools inspect "$IMAGE:${NEWEST#v}" > /dev/null; then
+          # This release's image was just pushed, so failing to point `latest` at it fails the step.
+          # Another release's image may still be building; its own run moves `latest` once it is.
+          if [ "$NEWEST" = "$RELEASE_TAG" ] || docker buildx imagetools inspect "$IMAGE:${NEWEST#v}" > /dev/null; then
             docker buildx imagetools create --tag "$IMAGE:latest" "$IMAGE:${NEWEST#v}"
             echo "$IMAGE:latest is now ${NEWEST#v}." >> "$GITHUB_STEP_SUMMARY"
           else
