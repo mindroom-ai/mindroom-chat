@@ -2,9 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { expect, test, type BrowserContext } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createThreadFixture, joinRoom, matrixFetch, sendStateEvent } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
-// Explicit opt-in to an isolated, disposable local Matrix server with open registration.
-const homeserver = process.env.E2E_UI_ACTIONS_HOMESERVER;
 test.use({ video: 'off' });
 
 // Point the app at the disposable homeserver.
@@ -15,7 +17,7 @@ const routeConfig = (context: BrowserContext) =>
     await route.fulfill({
       json: {
         ...config,
-        homeserverList: [homeserver],
+        homeserverList: [HOMESERVER],
         defaultHomeserver: 0,
         allowCustomHomeservers: true,
         hashRouter: { enabled: false },
@@ -38,13 +40,16 @@ test('the thread header says whose tool calls run without approval cards, and un
   context,
   browser,
 }, testInfo) => {
-  test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   // Two logins and several window sizes.
   test.slow();
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   const password = randomUUID();
   const register = (username: string) =>
-    matrixFetch<{ access_token: string; user_id: string }>(homeserver!, '/register', {
+    matrixFetch<{ access_token: string; user_id: string }>(HOMESERVER, '/register', {
       method: 'POST',
       body: JSON.stringify({ username, password, auth: { type: 'm.login.dummy' } }),
     });
@@ -52,40 +57,33 @@ test('the thread header says whose tool calls run without approval cards, and un
   const viewer = await register(username);
   const colleague = await register(`approve_colleague_${suffix}`);
   const router = await register(`mindroom_router_${suffix}`);
-  await matrixFetch(homeserver!, `/profile/${encodeURIComponent(colleague.user_id)}/displayname`, {
+  await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(colleague.user_id)}/displayname`, {
     method: 'PUT',
     accessToken: colleague.access_token,
     body: JSON.stringify({ displayname: 'Robin' }),
   });
-  const fixture = await createThreadFixture(homeserver!, viewer.access_token, {
+  const fixture = await createThreadFixture(HOMESERVER, viewer.access_token, {
     name: 'Release prep',
     topic: 'Auto-approve indicator',
     rootBody: 'Write the release notes and tag the build',
     replyBody: 'On it',
     invite: [router.user_id, colleague.user_id],
   });
-  await joinRoom(homeserver!, router.access_token, fixture.roomId);
-  await joinRoom(homeserver!, colleague.access_token, fixture.roomId);
+  await joinRoom(HOMESERVER, router.access_token, fixture.roomId);
+  await joinRoom(HOMESERVER, colleague.access_token, fixture.roomId);
   // MindRoom's router creates its rooms and so may write this state; here the viewer created the room.
   const powerLevelsPath = `/rooms/${encodeURIComponent(fixture.roomId)}/state/m.room.power_levels`;
-  const powerLevels = await matrixFetch<Record<string, unknown>>(homeserver!, powerLevelsPath, {
+  const powerLevels = await matrixFetch<Record<string, unknown>>(HOMESERVER, powerLevelsPath, {
     accessToken: viewer.access_token,
   });
-  await sendStateEvent(
-    homeserver!,
-    viewer.access_token,
-    fixture.roomId,
-    'm.room.power_levels',
-    '',
-    {
-      ...powerLevels,
-      events: { ...(powerLevels.events as Record<string, number>), 'io.mindroom.auto_approve': 0 },
-    }
-  );
+  await sendStateEvent(HOMESERVER, viewer.access_token, fixture.roomId, 'm.room.power_levels', '', {
+    ...powerLevels,
+    events: { ...(powerLevels.events as Record<string, number>), 'io.mindroom.auto_approve': 0 },
+  });
   type Window = { threadId: string | null; requesterId: string; expiresAt: number };
   const publish = (windows: Window[]) =>
     sendStateEvent(
-      homeserver!,
+      HOMESERVER,
       router.access_token,
       fixture.roomId,
       'io.mindroom.auto_approve',
@@ -110,7 +108,7 @@ test('the thread header says whose tool calls run without approval cards, and un
 
   await routeConfig(context);
   await page.setViewportSize({ width: 1280, height: 800 });
-  await loginWithPassword(page, { homeserver: homeserver!, username, password });
+  await loginWithPassword(page, { homeserver: HOMESERVER, username, password });
   await page.goto(
     `/home/${encodeURIComponent(fixture.roomId)}?threadId=${encodeURIComponent(fixture.rootId)}`
   );
@@ -147,7 +145,7 @@ test('the thread header says whose tool calls run without approval cards, and un
   // Beside an active permission and the tags, the chips are the tags' size and share their line.
   for (const tag of ['launch', 'docs', 'qa']) {
     await sendStateEvent(
-      homeserver!,
+      HOMESERVER,
       viewer.access_token,
       fixture.roomId,
       'com.mindroom.thread.tags',
@@ -157,7 +155,7 @@ test('the thread header says whose tool calls run without approval cards, and un
   }
   const grantEnd = new Date(Date.now() + 10 * 60_000).toISOString();
   await matrixFetch(
-    homeserver!,
+    HOMESERVER,
     `/rooms/${encodeURIComponent(fixture.roomId)}/send/io.mindroom.tool_approval/grant-${suffix}`,
     {
       method: 'PUT',
@@ -250,7 +248,7 @@ test('the thread header says whose tool calls run without approval cards, and un
   // A phone held sideways puts the chips beside the title, which MindRoom usually sets.
   const title = 'Release notes drafted and the build tag prepared for review';
   await matrixFetch(
-    homeserver!,
+    HOMESERVER,
     `/rooms/${encodeURIComponent(fixture.roomId)}/send/m.room.message/summary-${suffix}`,
     {
       method: 'PUT',
@@ -279,7 +277,7 @@ test('the thread header says whose tool calls run without approval cards, and un
   });
   await routeConfig(sideways);
   const landscape = await sideways.newPage();
-  await loginWithPassword(landscape, { homeserver: homeserver!, username, password });
+  await loginWithPassword(landscape, { homeserver: HOMESERVER, username, password });
   await landscape.goto(
     `/home/${encodeURIComponent(fixture.roomId)}?threadId=${encodeURIComponent(fixture.rootId)}`
   );
