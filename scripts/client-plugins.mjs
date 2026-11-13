@@ -1,5 +1,5 @@
 // @ts-check
-// Client plugins (docs/architecture.md "Client plugins"): MINDROOM_CLIENT_PLUGINS lists their
+// Client plugins (docs/client-plugins.md): MINDROOM_CLIENT_PLUGINS lists their
 // directories, absolute and comma-separated. Each has its own installed node_modules and a
 // package.json that declares `"mindroomClientPlugin": { "id", "apiVersion", "entry" }`; the build
 // fails on a directory it cannot use. The build replaces src/app/plugins/pluginEntries.ts with a

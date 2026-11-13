@@ -25,9 +25,6 @@ import type { ThreadRecord } from '../../event-store/threads/types';
 import type { TimelineMessageRow } from './types';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
-// Shared timeline fixtures stub the subscription. This suite deliberately exercises it.
-vi.doUnmock('../../messages/content/EncryptedContent');
-
 vi.mock('../../messages/thread-summary/ThreadSummaryMarker', async () => {
   const ReactImport = await import('react');
   return {
@@ -96,9 +93,6 @@ const mountFeature = async (rows: TimelineMessageRow[], threadId?: string) => {
       messageLayout: MessageLayout.Compact,
       messageSpacing: '400' as MessageSpacing,
       hideActivity: false,
-      hideMembershipEvents: false,
-      hideNickAvatarEvents: false,
-      showHiddenEvents: false,
     });
     return feature.wrapExpansion(<>{rows.map((row) => feature.renderEvent(row, data))}</>);
   };

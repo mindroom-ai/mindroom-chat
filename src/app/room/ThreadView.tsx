@@ -49,7 +49,8 @@ const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
 
 /**
  * The app side of `ThreadView` in `@mindroom/client-sdk/room`, whose contract lives there and in
- * docs/architecture.md. It is a conversation view of its own (`ConversationViewContext`), shown
+ * docs/client-plugins.md "ThreadView". It is a conversation view of its own
+ * (`ConversationViewContext`), shown
  * (`shownConversationViewsAtom`) while its side panel is not folded, and draws the thread as the
  * room page draws a conversation (`ConversationLayout`): the timeline, with the typing notice, the
  * composer (or why there is none, and the Retry of a root that did not send) and read receipts

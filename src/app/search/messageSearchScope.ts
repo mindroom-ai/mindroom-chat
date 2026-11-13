@@ -11,15 +11,3 @@ export const areMessageSearchRoomsEqual = (a?: string[], b?: string[]): boolean 
 
   return a.every((roomId, index) => roomId === b[index]);
 };
-
-export const shouldDeferImplicitMessageSearch = ({
-  hasTerm,
-  global,
-  hasExplicitRooms,
-  implicitRoomsReady,
-}: {
-  hasTerm: boolean;
-  global: boolean;
-  hasExplicitRooms: boolean;
-  implicitRoomsReady: boolean;
-}): boolean => hasTerm && !global && !hasExplicitRooms && !implicitRoomsReady;

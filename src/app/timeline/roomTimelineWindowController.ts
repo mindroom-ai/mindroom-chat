@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import type { MatrixEvent, Room, Thread } from 'matrix-js-sdk';
-import type { RoomViewMode } from '../navigation/roomViewMode';
 import type { Timeline } from '../event-store/timeline/timelinePagination';
 import {
   getActiveTimelineRange,
@@ -17,7 +16,6 @@ import {
   buildThreadCacheCoverage,
   shouldShowThreadLoadOlderFromCoverage,
 } from '../event-store/cache/threadCacheCoverage';
-import { shouldUseSurfacePreloadTarget } from './roomPreloadTarget';
 
 type RoomUnreadInfoLike = {
   readUptoEventId?: string;
@@ -25,7 +23,6 @@ type RoomUnreadInfoLike = {
 
 export type RoomTimelineWindowControllerOptions = {
   canPaginateThreadBack: boolean;
-  effectiveViewMode: RoomViewMode;
   filteredRoomThreadActive: boolean;
   filteredRoomOverviewOrderActive: boolean;
   lastThreadBackwardPaginationToken: string | null;
@@ -49,19 +46,16 @@ export type RoomTimelineWindowControllerOptions = {
 
 export type RoomTimelineWindowControllerResult = {
   activeTimelineRange: Timeline['range'];
-  filteredLength: number;
   priorityThreadSeedPrewarmRoots: ReturnType<typeof collectPriorityThreadSeedPrewarmRoots>;
   readUptoAbsoluteIndex: number | undefined;
   showThreadLoadOlderMessages: boolean;
   threadFilteredEventEntries: TimelineEventEntry[];
   threadFilteredEvents: MatrixEvent[];
   unreadScrollAnchorIndex: number | undefined;
-  useSurfacePreloadTarget: boolean;
 };
 
 export const useRoomTimelineWindowController = ({
   canPaginateThreadBack,
-  effectiveViewMode,
   filteredRoomThreadActive,
   filteredRoomOverviewOrderActive,
   lastThreadBackwardPaginationToken,
@@ -82,12 +76,6 @@ export const useRoomTimelineWindowController = ({
   timeline,
   unreadInfo,
 }: RoomTimelineWindowControllerOptions): RoomTimelineWindowControllerResult => {
-  const useSurfacePreloadTarget = shouldUseSurfacePreloadTarget({
-    threadId,
-    roomThreadFilterActive: filteredRoomThreadActive,
-    viewMode: effectiveViewMode,
-  });
-
   const threadFilteredEvents = useMemo(() => {
     if (threadId) return renderableEvents;
     if (filteredRoomOverviewOrderActive) {
@@ -220,13 +208,11 @@ export const useRoomTimelineWindowController = ({
 
   return {
     activeTimelineRange,
-    filteredLength,
     priorityThreadSeedPrewarmRoots,
     readUptoAbsoluteIndex,
     showThreadLoadOlderMessages,
     threadFilteredEventEntries,
     threadFilteredEvents,
     unreadScrollAnchorIndex,
-    useSurfacePreloadTarget,
   };
 };

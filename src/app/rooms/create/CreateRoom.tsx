@@ -24,15 +24,18 @@ import { RoomVersionSelector } from './RoomVersionSelector';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useCapabilities } from '../../matrix/hooks/useCapabilities';
 import { useClientConfig } from '../../config/useClientConfig';
+import { RoomType } from '../../matrix/types/room';
 import { describeError } from '../../lib/describeError';
 import { ErrorDetail } from '../../ui/ErrorDetail';
 
 type RoomCreatedHandler = (roomId: string) => void;
 
 type CreateRoomFormProps = {
+  /** Whether the form creates a room (the default) or a space. */
+  kind?: 'room' | 'space';
   defaultAccess?: CreateRoomAccess;
   onCreate?: RoomCreatedHandler;
-  /** The space the new room joins, if any. */
+  /** The space the new room or subspace joins, if any. */
   space?: Room;
 };
 
@@ -87,7 +90,15 @@ type OptionToggleProps = {
 type OptionToggleSpec = Omit<OptionToggleProps, 'disabled'> & { id: string; visible: boolean };
 
 function OptionToggle({ title, description, value, onChange, disabled }: OptionToggleProps) {
-  const toggle = <Switch variant="Primary" value={value} onChange={onChange} disabled={disabled} />;
+  const toggle = (
+    <Switch
+      variant="Primary"
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      aria-label={title}
+    />
+  );
   return (
     <SequenceCard variant="SurfaceVariant" direction="Column" gap="300" style={OPTION_CARD_STYLE}>
       <SettingTile title={title} description={description} after={toggle} />
@@ -99,12 +110,19 @@ const optionalValue = (field?: HTMLInputElement | HTMLTextAreaElement): string |
   field?.value.trim() || undefined;
 
 /**
- * The create room form. Deployments can hide the encryption and federation
- * choices and preset them; public rooms are never encrypted, since anyone can
- * read them anyway.
+ * The form that creates a room or a space. Deployments can hide the encryption and federation
+ * choices and preset them; public rooms are never encrypted, since anyone can read them anyway,
+ * and spaces never are, since they hold no messages.
  */
-export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFormProps) {
+export function CreateRoomForm({
+  kind = 'room',
+  defaultAccess,
+  space,
+  onCreate,
+}: CreateRoomFormProps) {
   const { t } = useTranslation();
+  const isSpace = kind === 'space';
+  const strings = isSpace ? 'featureUi.createSpace' : 'featureUi.createRoom';
   const nameId = useId();
   const topicId = useId();
   const client = useMatrixClient();
@@ -125,24 +143,26 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
   const [error, setError] = useState<{ reason: unknown }>();
 
   const isPublic = access === CreateRoomAccess.Public;
-  const encryptionToggleVisible = !isPublic && (policy?.showEncryptionOption ?? true);
+  const encryptable = !isSpace && !isPublic;
+  const encryptionToggleVisible = encryptable && (policy?.showEncryptionOption ?? true);
   const federationToggleVisible = policy?.showFederationOption ?? true;
 
   const submitRoom = async (form: CreateRoomFormElements) => {
     const name = form.nameInput?.value.trim();
-    if (!name) return;
+    if (!name || creating) return;
 
     setError(undefined);
     setCreating(true);
     try {
       const createdRoomId = await createRoom(client, {
+        type: isSpace ? RoomType.Space : undefined,
         version,
         parent: space,
         access,
         name,
         topic: optionalValue(form.topicTextAria),
         aliasLocalPart: isPublic ? optionalValue(form.aliasInput) : undefined,
-        encryption: !isPublic && encryption,
+        encryption: encryptable && encryption,
         knock: !isPublic && knock,
         allowFederation: federation,
       });
@@ -171,16 +191,16 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
     {
       id: 'knock',
       visible: !isPublic,
-      title: t('featureUi.createRoom.knockToJoin'),
-      description: t('featureUi.createRoom.anyoneCanSendRequestToJoinThis'),
+      title: t(`${strings}.knockToJoin`),
+      description: t(`${strings}.anyoneCanSendRequestToJoinThis`),
       value: knock,
       onChange: setKnock,
     },
     {
       id: 'federation',
       visible: federationToggleVisible,
-      title: t('featureUi.createRoom.allowFederation'),
-      description: t('featureUi.createRoom.usersFromOtherServersCanJoin'),
+      title: t(`${strings}.allowFederation`),
+      description: t(`${strings}.usersFromOtherServersCanJoin`),
       value: federation,
       onChange: setFederation,
     },
@@ -197,7 +217,7 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
       gap="500"
       onSubmit={(event: FormEvent<HTMLFormElement>) => void handleSubmit(event)}
     >
-      <LabeledField label={t('featureUi.createRoom.access')}>
+      <LabeledField label={t(`${strings}.access`)}>
         <CreateRoomAccessSelector
           value={access}
           canRestrict={Boolean(space)}
@@ -205,7 +225,7 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
           onSelect={setAccess}
         />
       </LabeledField>
-      <LabeledField label={t('featureUi.createRoom.name')} fieldId={nameId}>
+      <LabeledField label={t(`${strings}.name`)} fieldId={nameId}>
         <Input
           id={nameId}
           name="nameInput"
@@ -218,7 +238,7 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
           disabled={creating}
         />
       </LabeledField>
-      <LabeledField label={t('featureUi.createRoom.topicOptional')} fieldId={topicId}>
+      <LabeledField label={t(`${strings}.topicOptional`)} fieldId={topicId}>
         <TextArea
           id={topicId}
           name="topicTextAria"
@@ -233,7 +253,7 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
           <CreateRoomAliasInput disabled={creating} />
         </LabeledField>
       ) : null}
-      <LabeledField label={t('featureUi.createRoom.options')}>
+      <LabeledField label={t(`${strings}.options`)}>
         <Box direction="Column" gap="200">
           {optionToggles.map(({ id, visible, ...toggle }) =>
             visible ? <OptionToggle key={id} disabled={creating} {...toggle} /> : null
@@ -248,7 +268,7 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
               before={<Icon size="50" src={chevron} />}
               onClick={() => setAdvanced((open) => !open)}
             >
-              <Text size="T200">{t('featureUi.createRoom.advancedOptions')}</Text>
+              <Text size="T200">{t(`${strings}.advancedOptions`)}</Text>
             </Chip>
           </Box>
           {advanced ? (
@@ -262,7 +282,7 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
         </Box>
       </LabeledField>
       {error ? (
-        <Text size="T300" style={{ color: color.Critical.Main }}>
+        <Text size="T300" role="alert" style={{ color: color.Critical.Main }}>
           {describeError(t, error.reason)}
           <ErrorDetail error={error.reason} />
         </Text>
@@ -276,7 +296,7 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
           disabled={creating}
           before={creating ? spinner : undefined}
         >
-          <Text size="B500">{t('featureUi.createRoom.create')}</Text>
+          <Text size="B500">{t(`${strings}.create`)}</Text>
         </Button>
       </Box>
     </Box>

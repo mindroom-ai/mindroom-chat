@@ -29,7 +29,7 @@ import { SpaceProvider, useSpace } from '../../matrix/hooks/useSpace';
 import { useRoomName } from '../../matrix/hooks/useRoomMeta';
 import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
 import { copyToClipboard } from '../../lib/dom';
-import { useOpenSpaceSettings } from '../../navigation/useSpaceSettingsState';
+import { useOpenRoomSettings } from '../../navigation/useRoomSettingsState';
 import { useVisibleRooms } from '../../matrix/state/archivedRooms';
 import { ThreadNavCategory } from '../threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../threads/RecentlyOpenedNavCategory';
@@ -159,9 +159,9 @@ const InviteUserPrompt = lazy(() =>
 );
 
 // Like the invite dialog, the leave prompt loads when first opened.
-const LeaveSpacePrompt = lazy(() =>
-  import('../../spaces/LeaveSpacePrompt').then((module) => ({
-    default: module.LeaveSpacePrompt,
+const LeaveRoomPrompt = lazy(() =>
+  import('../../rooms/LeaveRoomPrompt').then((module) => ({
+    default: module.LeaveRoomPrompt,
   }))
 );
 
@@ -194,7 +194,7 @@ function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
   const name = revealDirectionControls(useRoomName(space));
   const permissions = useRoomPermissions(useRoomCreators(space), usePowerLevels(space));
   const canInvite = permissions.action('invite', client.getUserId() ?? '');
-  const openSpaceSettings = useOpenSpaceSettings();
+  const openSpaceSettings = useOpenRoomSettings();
   const [inviting, setInviting] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const navigate = useNavigate();
@@ -278,7 +278,7 @@ function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
       )}
       {leaving && (
         <Suspense fallback={null}>
-          <LeaveSpacePrompt
+          <LeaveRoomPrompt
             roomId={space.roomId}
             requestClose={() => setLeaving(false)}
             onLeft={() => {

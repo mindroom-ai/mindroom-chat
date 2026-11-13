@@ -10,10 +10,6 @@ import { inSameDay } from '../../lib/time';
 import { countCacheProbe } from '../cache/cacheProbe';
 
 export type ThreadInitialRenderMode = 'loading' | 'cached' | 'live';
-export type ThreadRenderEventEntry<TEvent extends MatrixEvent = MatrixEvent> = {
-  event: TEvent;
-  absoluteIndex: number;
-};
 type ThreadOpenBottomPinOpts = {
   suppressOpenBottomPin?: boolean;
   threadId?: string;
@@ -504,19 +500,6 @@ export const estimateThreadEventRowHeight = (
   return base + lines * THREAD_ROW_LINE_PX;
 };
 
-/**
- * MSC3440: a thread reply carrying `is_falling_back: true` only includes
- * `m.in_reply_to` as a fallback for thread-unaware clients; thread-aware
- * rendering must not treat it as a real reply. Read from wire content —
- * the same source `MatrixEvent.replyEventId` uses.
- */
-export const isThreadFallbackReply = (mEvent: MatrixEvent): boolean => {
-  const relatesTo = mEvent.getWireContent()?.['m.relates_to'] as
-    | { rel_type?: string; is_falling_back?: boolean }
-    | undefined;
-  return relatesTo?.rel_type === RelationType.Thread && relatesTo.is_falling_back === true;
-};
-
 export const isThreadOnlyRoomActivity = (room: Room, mEvt: MatrixEvent): boolean => {
   const mEventId = mEvt.getId();
   const relationTargetId = mEvt.getRelation()?.event_id;
@@ -601,9 +584,6 @@ const getThreadRenderEventKeys = (
 
   return keys;
 };
-
-export const getThreadRenderEventKey = (mEvent: MatrixEvent): string | undefined =>
-  getThreadRenderEventKeys(mEvent)[0];
 
 const isLocalEchoEvent = (mEvent: MatrixEvent): boolean => {
   const eventId = getThreadRenderEventId(mEvent);
@@ -960,60 +940,6 @@ export const mergeThreadRenderEvents = (
   }
 
   return merged;
-};
-
-export const dedupeThreadRenderEventEntries = <
-  TEvent extends MatrixEvent,
-  TEntry extends ThreadRenderEventEntry<TEvent>
->(
-  entries: TEntry[],
-  resolveConfirmedId?: (txnId: string) => string | undefined
-): TEntry[] => {
-  const dedupedEntries: TEntry[] = [];
-  const keyToEntryIndex = new Map<string, number>();
-
-  entries.forEach((entry) => {
-    const entryKeys = getThreadRenderEventKeys(entry.event, resolveConfirmedId);
-    if (entryKeys.length === 0) {
-      dedupedEntries.push(entry);
-      return;
-    }
-
-    const existingEntryIndex = entryKeys
-      .map((key) => keyToEntryIndex.get(key))
-      .find((index): index is number => index !== undefined);
-
-    if (existingEntryIndex === undefined) {
-      const nextIndex = dedupedEntries.push(entry) - 1;
-      entryKeys.forEach((key) => keyToEntryIndex.set(key, nextIndex));
-      return;
-    }
-
-    const existingEntry = dedupedEntries[existingEntryIndex];
-    const preferredEvent = pickPreferredThreadRenderEvent(
-      existingEntry.event,
-      entry.event,
-      resolveConfirmedId
-    ) as TEvent;
-    const mergedKeys = Array.from(
-      new Set([...getThreadRenderEventKeys(existingEntry.event, resolveConfirmedId), ...entryKeys])
-    );
-
-    dedupedEntries[existingEntryIndex] =
-      preferredEvent === existingEntry.event
-        ? ({
-            ...existingEntry,
-            absoluteIndex: Math.min(existingEntry.absoluteIndex, entry.absoluteIndex),
-          } as TEntry)
-        : ({
-            ...entry,
-            absoluteIndex: Math.min(existingEntry.absoluteIndex, entry.absoluteIndex),
-          } as TEntry);
-
-    mergedKeys.forEach((key) => keyToEntryIndex.set(key, existingEntryIndex));
-  });
-
-  return dedupedEntries;
 };
 
 export type TimelineRenderContextPrime = {
