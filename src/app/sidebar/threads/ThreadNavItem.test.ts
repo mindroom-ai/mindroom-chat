@@ -3,7 +3,10 @@ import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
-import { SyncEngineProvider } from '../../event-store/engine/engineContext';
+import {
+  SyncEngineProvider,
+  type SyncEngineProviderProps,
+} from '../../event-store/engine/engineContext';
 import type { SyncEngine } from '../../event-store/engine/types';
 import { ThreadNavItem } from './ThreadNavItem';
 
@@ -207,15 +210,16 @@ describe('ThreadNavItem', () => {
   const renderItem = (pinned = false, onTogglePin = vi.fn()) => {
     act(() => {
       renderer = create(
-        React.createElement(SyncEngineProvider, {
-          engine,
-          children: React.createElement(ThreadNavItem, {
+        React.createElement(
+          SyncEngineProvider,
+          { engine } as SyncEngineProviderProps,
+          React.createElement(ThreadNavItem, {
             entry,
             onTogglePin,
             pinned,
             selected: false,
-          }),
-        })
+          })
+        )
       );
     });
     return onTogglePin;
