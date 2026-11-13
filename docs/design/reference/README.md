@@ -2,7 +2,7 @@
 
 Captured on 2026-11-02 from MindRoom Chat `dev` at `fc3a5905`, running locally against a disposable Tuwunel seeded with MindRoom-style content (`scripts/reference/seed.py` reproduces the data; `E2E_SEED_AGENT_AVATARS` and `E2E_SEED_PEOPLE_AVATARS` name its avatar folders, see the script). 1440x900 unless noted. These show the target look and behavior; the ported files implement most of what is MindRoom-specific here.
 
-`home.png` is the exception: the MindRoom Chat capture credited the upstream client on its welcome page, so on 2026-11-04 it was retaken from this client at `ec95e01` with the same seed data and size. The MindRoom Chat capture stays in this file's history (`git log -- docs/design/reference/home.png`); `docs/design/m2-screenshots/V1-contact-sheet.png` and `V1-differences.png` still show it, with that one credit masked.
+`home.png` is the exception: the MindRoom Chat capture credited the upstream client on its welcome page, so on 2026-11-04 it was retaken from this client at `ec95e01` with the same seed data and size. The MindRoom Chat capture stays in this file's history (`git log -- docs/design/reference/home.png`); the M2 milestone's `V1-contact-sheet.png` and `V1-differences.png` ("Milestone screenshots" below) still show it, with that one credit masked.
 
 | File | Shows |
 |---|---|
@@ -16,3 +16,13 @@ Captured on 2026-11-02 from MindRoom Chat `dev` at `fc3a5905`, running locally a
 | `settings.png` | Settings dialog |
 
 The thread filter bar at the top of `room-light.png` is part of the target without its view toggle: the Compact and Full switch moves to the room header. The screenshots show the bar in Simple Mode (Unresolved, Last Reply sort); this client has no Simple Mode and shows the full bar, with its status filters, presets, statistics, search, sort lock and tags in the same style. The Simple Mode setting is not part of the target.
+
+## Milestone screenshots
+
+The screenshots taken at the rewrite's milestones, `docs/design/m1-screenshots/`, `docs/design/m2-screenshots/` and `docs/design/m3-screenshots/`, left the tree after `681ede140`, the last commit of `main` that has them. Read them from that commit:
+
+```sh
+git ls-tree -r --name-only 681ede140 docs/design/m2-screenshots
+git show 681ede140:docs/design/m2-screenshots/V1-contact-sheet.png > V1-contact-sheet.png
+git archive 681ede140 docs/design/m1-screenshots docs/design/m2-screenshots docs/design/m3-screenshots | tar -x -C <directory>
+```
