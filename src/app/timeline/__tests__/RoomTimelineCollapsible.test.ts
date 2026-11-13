@@ -755,6 +755,7 @@ type MockEvent = {
   getStateKey: () => string | undefined;
   getTs: () => number;
   getType: () => string;
+  isEncrypted: () => boolean;
   getUnsigned: () => Record<string, unknown>;
   isRedacted: () => boolean;
   isRedaction: () => boolean;
@@ -769,6 +770,8 @@ const makeEvent = (
   opts: {
     content?: Record<string, unknown>;
     editedContent?: Record<string, unknown>;
+    /** Decrypted: its type is the clear one, but it came encrypted. */
+    encrypted?: boolean;
     isThreadRoot?: boolean;
     relation?: { event_id?: string; rel_type?: string };
     sender?: string;
@@ -799,6 +802,7 @@ const makeEvent = (
   getStateKey: () => undefined,
   getTs: () => opts.ts ?? 1,
   getType: () => opts.type ?? MessageEvent.RoomMessage,
+  isEncrypted: () => opts.encrypted ?? false,
   getUnsigned: () => ({}),
   isRedacted: () => false,
   isRedaction: () => false,
@@ -1229,7 +1233,7 @@ describe('RoomTimeline collapsible wiring', () => {
   it('hydrates rich long-text content in a collapsed decrypted message row', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
     const encryptedLongTextEvent = makeEvent('$encrypted-long-text', {
-      type: MessageEvent.RoomMessageEncrypted,
+      encrypted: true,
       content: {
         body: 'Encrypted long output.txt',
         msgtype: 'm.file',
@@ -1466,7 +1470,7 @@ describe('RoomTimeline collapsible wiring', () => {
   it('uses always-expanded mode through the encrypted room-message render path', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
     const encryptedSummaryEvent = makeEvent('$encrypted-summary', {
-      type: MessageEvent.RoomMessageEncrypted,
+      encrypted: true,
       content: {
         body: 'Encrypted original summary',
         msgtype: 'm.notice',
