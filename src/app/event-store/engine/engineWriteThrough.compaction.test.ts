@@ -364,6 +364,9 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
 
     writer.handleLiveEvent(edit as unknown as MatrixEvent, room, timelineMeta());
     expect(threadWrites()).toHaveLength(0);
+    // A redaction mid-debounce strips the events' thread hints.
+    edit.threadRootId = undefined;
+    target.threadRootId = undefined;
 
     advance(2000);
     await waitForDebounce();

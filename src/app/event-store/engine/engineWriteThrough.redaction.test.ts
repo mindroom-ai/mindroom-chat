@@ -189,7 +189,7 @@ describe('engineWriteThrough redaction thread attribution (ISSUE-207 P3 gate re-
       // event-side hints return undefined. The GUARANTEED signal is the
       // reaction record already sitting in the cache under scope=$thread-root.
       const prunedReaction = makeEvent('$reaction', { type: 'm.reaction' });
-      // Empty thread timelineSet — reaction was already moved to main.
+      // Empty thread timelineSet: the reaction was already moved to main.
       const thread = makeThread('$thread-root', []);
       const redaction = makeEvent('$redaction', {
         type: 'm.room.redaction',
@@ -217,11 +217,11 @@ describe('engineWriteThrough redaction thread attribution (ISSUE-207 P3 gate re-
       await flushMicrotasks();
 
       // The redaction record lands on the thread scope the cache walker
-      // reported — self-consistent by construction.
+      // reported, self-consistent by construction.
       expect(threadWrites()).toHaveLength(1);
       expect(threadWrites()[0].threadId).toBe('$thread-root');
       expect(threadWrites()[0].events).toEqual([redaction]);
-      // No belt-and-braces room persist — the derived scope is authoritative.
+      // No belt-and-braces room persist: the derived scope is authoritative.
       expect(roomWrites()).toHaveLength(0);
       // We routed through the by-event-id walker (that's how we learned
       // the scope), not the keyed thread delete.

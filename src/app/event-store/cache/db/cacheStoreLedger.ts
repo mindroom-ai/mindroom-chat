@@ -13,7 +13,7 @@ import {
 // the event puts/deletes so ledger totals stay consistent with the
 // events store. The flow inside each save/delete transaction is:
 //
-//   1. `readBaseline` — schedules a ledger.get(roomId), and if
+//   1. `readBaseline` schedules a ledger.get(roomId), and if
 //      missing, a bounded sum-scan over just this room to seed the
 //      baseline. Both happen BEFORE the caller schedules any event
 //      put/delete, so the baseline reflects the pre-write state.

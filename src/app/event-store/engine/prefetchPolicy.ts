@@ -22,9 +22,9 @@ export const CURRENT_ROOM_DEEP_HISTORY_TARGET = 10_000;
 
 /**
  * Coerce an arbitrary settings value into a valid `PrefetchScope`.
- * Anything not on the whitelist — including older enum values such as
+ * Anything not on the whitelist (older enum values such as
  * v1's homeserver scope `my-server`, hand-edited JSON, or genuine
- * `undefined` — becomes the default. Same
+ * `undefined`) becomes the default. Same
  * shape as the sanitizers in `preferences/settings.ts` (silent fallback,
  * not throwing) so a corrupted storage blob never crashes the app.
  */

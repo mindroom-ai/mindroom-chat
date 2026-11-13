@@ -3,7 +3,7 @@
  *
  * The engine's write-through owns every live cache write. It is called
  * once per live event delivered by the client-level listeners in
- * `syncEngine.ts`, and it covers EVERY joined room — not just
+ * `syncEngine.ts`, and it covers EVERY joined room, not just
  * the room currently mounted in the UI. That's the fix for finding F1
  * (background room cache freshness): a live message in a background
  * room now reaches the cache immediately, so switching to that room

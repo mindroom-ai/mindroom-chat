@@ -49,7 +49,7 @@ export type GapFillExecutorOptions = {
 type GapFillTurn = 'policy-deferred' | 'continuation-deferred' | 'page-committed' | undefined;
 
 export type GapFillExecutor = {
-  /** Retry policy-deferred or capped work after focus or prefetch scope changes. */
+  /** Retry deferred work after its allowance, the focus or the prefetch scope changes. */
   recheckDeferred(roomId?: string): void;
   stop(): void;
 };
