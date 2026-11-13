@@ -1,0 +1,261 @@
+import { useRef, useState, type ClipboardEvent, type KeyboardEvent, type RefObject } from 'react';
+import type { ParseKeys, TFunction } from 'i18next';
+import { Button, Icon, IconButton, Icons, Text } from 'folds';
+import { useTranslation } from 'react-i18next';
+import { getDataTransferFiles } from '../lib/dom';
+import {
+  captureScreenshot,
+  isNativeQuickCaptureAvailable,
+  openScreenRecordingSettings,
+  ScreenshotError,
+  type ScreenshotErrorCode,
+  type ScreenshotTarget,
+} from '../native/nativeQuickCapture';
+import { isComposingKey } from '../shortcuts/shortcuts';
+import type { CaptureClient } from './captureChannel';
+import { captureKeyAction } from './captureKeys';
+import type { CaptureErrorCode } from './captureProtocol';
+import * as css from './QuickCapturePage.css';
+
+/** The most images one entry carries. */
+export const MAX_CAPTURE_IMAGES = 4;
+
+const ERROR_TEXT: Record<CaptureErrorCode, ParseKeys> = {
+  'no-room': 'featureUi.quickCapture.error.noRoom',
+  'upload-failed': 'featureUi.quickCapture.error.uploadFailed',
+  'send-failed': 'featureUi.quickCapture.error.sendFailed',
+  forbidden: 'featureUi.quickCapture.error.forbidden',
+  timeout: 'featureUi.quickCapture.error.timeout',
+};
+
+/** What the widget says for a request the host could not run. */
+export const captureErrorText = (t: TFunction, code: CaptureErrorCode): string =>
+  t(ERROR_TEXT[code]);
+
+const screenshotErrorText = (t: TFunction, code: ScreenshotErrorCode): string => {
+  if (code === 'PERMISSION_DENIED') return t('featureUi.quickCapture.screenshot.denied');
+  if (code === 'NO_WINDOW') return t('featureUi.quickCapture.screenshot.noWindow');
+  return t('featureUi.quickCapture.screenshot.failed');
+};
+
+/** The images of a paste; a paste with none stays the browser's (text). */
+const pastedImages = (event: ClipboardEvent<HTMLTextAreaElement>): File[] =>
+  (getDataTransferFiles(event.clipboardData) ?? []).filter((file) =>
+    file.type.startsWith('image/')
+  );
+
+/** The caret, or the end of the selection, has no line break after it. */
+const caretOnLastLine = (field: HTMLTextAreaElement): boolean =>
+  !field.value.slice(field.selectionEnd).includes('\n');
+
+type CaptureInputProps = {
+  /** Null while no room is chosen: a send opens the picker instead. */
+  roomId: string | null;
+  text: string;
+  onText: (text: string) => void;
+  request: CaptureClient['request'];
+  apple: boolean;
+  inputRef: RefObject<HTMLTextAreaElement>;
+  onFocus: () => void;
+  onToList: () => void;
+  onPicker: () => void;
+  /** After an entry sent with "open": the main window shows it. */
+  onOpened: () => Promise<void>;
+};
+
+/**
+ * The entry: its images, the text field, the screenshot buttons on the Mac, and what became of
+ * the last send. While a send is in flight the field is read-only, so a second Enter sends nothing.
+ */
+export function CaptureInput({
+  roomId,
+  text,
+  onText,
+  request,
+  apple,
+  inputRef,
+  onFocus,
+  onToList,
+  onPicker,
+  onOpened,
+}: CaptureInputProps) {
+  const { t } = useTranslation();
+  const [images, setImages] = useState<File[]>([]);
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
+  const [sendError, setSendError] = useState<CaptureErrorCode>();
+  const [shotError, setShotError] = useState<ScreenshotErrorCode>();
+  const screenshots = isNativeQuickCaptureAvailable();
+  const full = images.length >= MAX_CAPTURE_IMAGES;
+
+  const attach = (files: File[]) =>
+    setImages((current) => [...current, ...files].slice(0, MAX_CAPTURE_IMAGES));
+
+  const send = async (open: boolean) => {
+    const entry = text.trim();
+    if (sendingRef.current || (entry === '' && images.length === 0)) return;
+    if (roomId === null) {
+      onPicker();
+      return;
+    }
+    sendingRef.current = true;
+    setSending(true);
+    setSendError(undefined);
+    const result = await request({ kind: 'send', roomId, text: entry, images, open });
+    sendingRef.current = false;
+    setSending(false);
+    if (!result.ok) {
+      setSendError(result.error);
+      return;
+    }
+    onText('');
+    setImages([]);
+    inputRef.current?.focus();
+    if (open) await onOpened();
+  };
+
+  const screenshot = async (target: ScreenshotTarget) => {
+    if (full) return;
+    setShotError(undefined);
+    try {
+      attach([await captureScreenshot(target)]);
+    } catch (error) {
+      setShotError(error instanceof ScreenshotError ? error.code : 'CAPTURE_FAILED');
+    }
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (isComposingKey(event.nativeEvent)) return;
+    const field = event.currentTarget;
+    const action = captureKeyAction(event, {
+      zone: 'input',
+      inputEmpty: field.value === '',
+      caretOnLastLine: caretOnLastLine(field),
+      firstRow: false,
+      apple,
+    });
+    // Escape goes on to the page, which closes what is open or hides the widget.
+    if (!action || action.kind === 'escape') return;
+    if (action.kind === 'screenshot' && !screenshots) return;
+    event.preventDefault();
+    if (action.kind === 'send') void send(action.open);
+    else if (action.kind === 'screenshot') void screenshot(action.target);
+    else if (action.kind === 'toList') onToList();
+    else if (action.kind === 'picker') onPicker();
+  };
+
+  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = pastedImages(event);
+    if (pasted.length === 0) return;
+    event.preventDefault();
+    attach(pasted);
+  };
+
+  const shotButton = (target: ScreenshotTarget, label: string, icon: typeof Icons.Photo) => (
+    <IconButton
+      size="300"
+      radii="300"
+      variant="SurfaceVariant"
+      fill="None"
+      aria-label={label}
+      title={label}
+      disabled={full || sending}
+      onClick={() => void screenshot(target)}
+    >
+      <Icon size="100" src={icon} />
+    </IconButton>
+  );
+
+  return (
+    <>
+      {images.length > 0 && (
+        <div className={css.Attachments}>
+          {images.map((image, index) => (
+            // Two pastes of one picture are two images with one name; the chips hold no state.
+            <span key={`${index}:${image.name}`} className={css.Attachment}>
+              <Icon size="50" src={Icons.Photo} />
+              <Text size="T200" truncate>
+                {image.name}
+              </Text>
+              <IconButton
+                size="300"
+                radii="300"
+                variant="SurfaceVariant"
+                fill="None"
+                aria-label={t('featureUi.quickCapture.attach.remove', { name: image.name })}
+                disabled={sending}
+                onClick={() => setImages((current) => current.filter((kept) => kept !== image))}
+              >
+                <Icon size="50" src={Icons.Cross} />
+              </IconButton>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className={css.Entry}>
+        <textarea
+          ref={inputRef}
+          className={css.EntryField}
+          aria-label={t('featureUi.quickCapture.input.label')}
+          placeholder={t('featureUi.quickCapture.input.placeholder')}
+          value={text}
+          readOnly={sending}
+          aria-busy={sending}
+          dir="auto"
+          onChange={(event) => onText(event.target.value)}
+          onKeyDown={onKeyDown}
+          onPaste={onPaste}
+          onFocus={onFocus}
+        />
+        <div className={css.EntryTools}>
+          {screenshots &&
+            shotButton('window', t('featureUi.quickCapture.attach.window'), Icons.Photo)}
+          {screenshots &&
+            shotButton('screen', t('featureUi.quickCapture.attach.screen'), Icons.Monitor)}
+          <IconButton
+            size="300"
+            radii="300"
+            variant="Primary"
+            fill="None"
+            aria-label={t('featureUi.quickCapture.input.send')}
+            title={t('featureUi.quickCapture.input.send')}
+            disabled={sending}
+            onClick={() => void send(false)}
+          >
+            <Icon size="100" src={Icons.Send} />
+          </IconButton>
+        </div>
+      </div>
+      {(sending || sendError || shotError) && (
+        <div className={css.Status}>
+          {sending && (
+            <Text size="T200" className={css.Muted} role="status">
+              {t('featureUi.quickCapture.input.sending')}
+            </Text>
+          )}
+          {!sending && sendError && (
+            <Text size="T200" className={css.Failure} role="alert">
+              {captureErrorText(t, sendError)}
+            </Text>
+          )}
+          {shotError && (
+            <Text size="T200" className={css.Failure} role="alert">
+              {screenshotErrorText(t, shotError)}
+            </Text>
+          )}
+          {shotError === 'PERMISSION_DENIED' && (
+            <Button
+              size="300"
+              radii="300"
+              variant="Secondary"
+              fill="Soft"
+              onClick={() => void openScreenRecordingSettings()}
+            >
+              <Text size="B300">{t('featureUi.quickCapture.screenshot.openSettings')}</Text>
+            </Button>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
