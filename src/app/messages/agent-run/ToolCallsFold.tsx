@@ -48,10 +48,13 @@ export function ToolCallsFold({ children }: { children: ReactNode }) {
     calls,
     calls.map(({ state }) => state)
   );
-  const title =
+  // The cog counts every call; its title says what they did, as a run's line does.
+  const title = t(
     summary.state === 'done'
-      ? t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', { count: calls.length })
-      : t(TOOL_STATE_TITLE[summary.state], { count: summary.count });
+      ? 'mindroomUi.messages.mindroomHtmlBlocks.usedToolCount'
+      : TOOL_STATE_TITLE[summary.state],
+    { count: summary.count }
+  );
 
   const cog =
     !shown && calls.length > 0 ? (

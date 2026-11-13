@@ -625,8 +625,7 @@
         "tooLargeToApprove": "Gli argomenti sono troppo grandi per essere esaminati, quindi questa richiesta può solo essere rifiutata."
       },
       "showToolCalls": "Mostra chiamate a strumenti",
-      "showToolCallsDescription": "L'impostazione predefinita per ogni stanza: le risposte degli agenti elencano gli strumenti eseguiti, oppure mostrano in alto solo un piccolo ingranaggio che li conta e li mostra con un clic. Il menu di una stanza o di un thread la cambia lì.",
-      "toolCallsWorking": "Al lavoro…"
+      "showToolCallsDescription": "L'impostazione predefinita per ogni stanza: le risposte degli agenti elencano gli strumenti eseguiti, oppure mostrano in alto solo un piccolo ingranaggio che li conta e li mostra con un clic. Il menu di una stanza o di un thread la cambia lì."
     },
     "message-search": {
       "messageSearch": {

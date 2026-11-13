@@ -910,6 +910,56 @@ describe('useToolTraceMarkerParserOptions', () => {
       reply.unmount();
     });
 
+    it('takes a run off the cog when an edit of the reply drops it', () => {
+      const reply = renderReply(twoRunsHtml(false), { shownByDefault: false });
+      expect(reply.cogButton().props.title).toBe('Used 3 tools');
+      reply.update(toolsHtml(false));
+      expect(reply.text()).toBe('1Answer.');
+      expect(reply.cogButton().props.title).toBe('Used 1 tool');
+      reply.unmount();
+    });
+
+    describe('with the approval cards MindRoom posted for the reply', () => {
+      afterEach(() => {
+        approvals.current = undefined;
+      });
+      const cards = (...records: [toolName: string, status: string][]) => {
+        approvals.current = {
+          records: records.map(([toolName, status]) => ({
+            eventId: `$${toolName}`,
+            sender: '@mindroom_router:example.org',
+            wireStatus: status,
+            approval: {
+              toolName,
+              status,
+              responseEventId: '$reply',
+              expiresAt: '2999-01-01T00:00:00Z',
+            },
+          })),
+          now: Date.now(),
+        };
+      };
+      const emailAndSearch =
+        '<p>🔧 <code>send_email</code> [1]</p><p>🔧 <code>web_search</code> [2]</p><p>Answer.</p>';
+
+      it('tints the cog while a call waits for approval', () => {
+        cards(['send_email', 'pending']);
+        const reply = renderReply(emailAndSearch, { shownByDefault: false });
+        expect(reply.cog().props['data-state']).toBe('waiting');
+        expect(reply.cogButton().props.title).toBe('1 tool call waiting for approval');
+        reply.unmount();
+      });
+
+      it('says what the calls did when one was denied, and counts both', () => {
+        cards(['send_email', 'denied']);
+        const reply = renderReply(emailAndSearch, { shownByDefault: false });
+        expect(reply.cog().props['data-state']).toBe('done');
+        expect(reply.cogButton().props.title).toBe('Used 1 tool');
+        expect(reply.text()).toBe('2Answer.');
+        reply.unmount();
+      });
+    });
+
     it('shows no cog on a reply without tool calls', () => {
       const reply = renderReply('<p>Answer.</p>', { shownByDefault: false });
       expect(reply.cogs()).toHaveLength(0);
@@ -995,7 +1045,7 @@ describe('useToolTraceMarkerParserOptions', () => {
       (node) => typeof node.type === 'string' && node.props['data-tool-index'] !== undefined
     );
     expect(rows.map((row) => row.props['data-tool-index'])).toEqual([1, 2]);
-    const textOf = (row: (typeof rows)[number]) =>
+    const textOf = (row: typeof rows[number]) =>
       row
         .findAll(() => true)
         .flatMap((node) => node.children.filter((child) => typeof child === 'string'))
@@ -1589,7 +1639,9 @@ describe('copy stripping matches the app renderer', () => {
 
     // Repeated indexes render once as a block and again as text, so compare sets.
     const plainBodyFallback = formattedBody === undefined;
-    const detected = new Set(getRenderedToolRefs(html).toolBlocks.map(({ index }) => index));
+    const detected = new Set(
+      getRenderedToolRefs(html).toolBlocks.map(({ index }) => index)
+    );
     const rendered = new Set(renderedToolIndexes);
     detected.forEach((index) => expect(rendered.has(index)).toBe(true));
     if (knownDetectionGaps.has(name) || (!plainBodyFallback && knownFormattedBodyGaps.has(name))) {
@@ -1700,7 +1752,9 @@ describe('direction controls in tool calls and code', () => {
     );
 
     const formatted = renderCustomHtmlMarkup(`<p>Rename <b>${text}</b> first</p>`);
-    expect(formatted).toContain(`<b>${shown.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</b>`);
+    expect(formatted).toContain(
+      `<b>${shown.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</b>`
+    );
     expect(formatted).not.toMatch(CONTROL);
   });
 });

@@ -607,8 +607,7 @@
         "tooLargeToApprove": "参数太大，无法审阅，因此此请求只能拒绝。"
       },
       "showToolCalls": "显示工具调用",
-      "showToolCallsDescription": "所有房间的默认设置：智能体的回复会列出运行过的工具，或只在顶部显示一个小齿轮，它会统计这些工具，点击后显示它们。房间或讨论串的菜单可在该处更改。",
-      "toolCallsWorking": "处理中…"
+      "showToolCallsDescription": "所有房间的默认设置：智能体的回复会列出运行过的工具，或只在顶部显示一个小齿轮，它会统计这些工具，点击后显示它们。房间或讨论串的菜单可在该处更改。"
     },
     "message-search": {
       "messageSearch": {

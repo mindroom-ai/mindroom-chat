@@ -625,8 +625,7 @@
         "tooLargeToApprove": "Os argumentos são grandes demais para rever, por isso este pedido só pode ser recusado."
       },
       "showToolCalls": "Mostrar chamadas de ferramentas",
-      "showToolCallsDescription": "O padrão de todas as salas: as respostas dos agentes listam as ferramentas que executaram, ou mostram no topo apenas uma pequena engrenagem que as conta e as mostra com um clique. O menu de uma sala ou de um tópico muda isso ali.",
-      "toolCallsWorking": "Trabalhando…"
+      "showToolCallsDescription": "O padrão de todas as salas: as respostas dos agentes listam as ferramentas que executaram, ou mostram no topo apenas uma pequena engrenagem que as conta e as mostra com um clique. O menu de uma sala ou de um tópico muda isso ali."
     },
     "message-search": {
       "messageSearch": {

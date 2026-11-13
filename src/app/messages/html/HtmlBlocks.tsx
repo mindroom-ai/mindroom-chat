@@ -326,7 +326,7 @@ const useToolCallApprovals = (jobIds: readonly string[]) => {
 
 /**
  * A run of tool calls. While the reply's thread or room hides tool calls (toolCallVisibility.ts),
- * the run counts its calls on the cog at the end of the reply (ToolCallsFold.tsx) and shows only
+ * the run counts its calls on the cog at the top of the reply (ToolCallsFold.tsx) and shows only
  * while that cog is open. Each block reads the choice itself, so changing it redraws the blocks
  * without parsing the replies again.
  */

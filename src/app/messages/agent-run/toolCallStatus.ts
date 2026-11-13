@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useId, type ReactNode } from 'react';
+import { createContext, useContext, useId, useLayoutEffect, type ReactNode } from 'react';
 import type { ToolApprovalStatus } from '../../matrix/protocol/toolApproval';
 import type { ToolJobHandle } from '../../matrix/protocol/toolJobHandle';
 
@@ -35,12 +35,13 @@ export const useFoldedToolCalls = (calls: readonly FoldedToolCall[] | undefined)
   const report = useContext(ToolCallsFoldContext)?.report;
   const key = useId();
   const counted = calls !== undefined;
-  useEffect(() => {
+  // Before the browser paints, so a reply never shows without its cog and then moves its text.
+  useLayoutEffect(() => {
     if (!report || !counted) return undefined;
     return () => report(key, undefined);
   }, [counted, key, report]);
   // After every render; the cog keeps its state while the calls stay the same.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (report && calls) report(key, calls);
   });
 };

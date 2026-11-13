@@ -567,7 +567,7 @@ describe("the room header's actions", () => {
             node.props.role === 'menuitemcheckbox' && 'label' in node.props && 'after' in node.props
         )
         .map((node) => !!node.props.after);
-    // The tool calls show by default.
+    // This header's room shows its tool calls (renderHeader's toolCallsShown).
     expect(checks()).toEqual([true, false]);
 
     renderHeader({
