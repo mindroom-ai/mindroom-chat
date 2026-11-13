@@ -552,22 +552,20 @@ describe('parseToolApprovalContent', () => {
   });
 
   it('returns null for invalid event types and malformed content', () => {
-    expect(
-      parseToolApprovalContent('m.room.message', {
-        approval_id: 'approval-1',
-      })
-    ).toBeNull();
+    const content = {
+      approval_id: 'approval-1',
+      tool_name: 'web_search',
+      arguments: { query: 'release date' },
+      agent_name: 'research',
+      status: 'pending',
+      requested_at: '2026-04-10T12:00:00Z',
+      expires_at: '2026-04-17T12:00:00Z',
+    };
+    expect(parseToolApprovalContent(MINDROOM_TOOL_APPROVAL_EVENT, content)).not.toBeNull();
+    expect(parseToolApprovalContent('m.room.message', content)).toBeNull();
 
     expect(
-      parseToolApprovalContent(MINDROOM_TOOL_APPROVAL_EVENT, {
-        approval_id: 'approval-1',
-        tool_name: 'web_search',
-        arguments: [],
-        agent_name: 'research',
-        status: 'pending',
-        requested_at: '2026-04-10T12:00:00Z',
-        expires_at: '2026-04-17T12:00:00Z',
-      })
+      parseToolApprovalContent(MINDROOM_TOOL_APPROVAL_EVENT, { ...content, arguments: [] })
     ).toBeNull();
   });
 });
