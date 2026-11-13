@@ -63,8 +63,8 @@ vi.mock('../../matrix/room', async () => {
 
 vi.mock('./RoomItem.css', () => ({
   CardOpener: 'CardOpener',
-  ErrorNameContainer: 'ErrorNameContainer',
   RoomName: 'RoomName',
+  RoomNameRow: 'RoomNameRow',
   RoomItemCard: 'RoomItemCard',
   RoomProfileTopic: 'RoomProfileTopic',
 }));

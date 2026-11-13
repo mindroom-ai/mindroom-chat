@@ -53,6 +53,7 @@ export const RoomProfileTopic = style({
   minWidth: 0,
 });
 
-export const ErrorNameContainer = style({
+// The row that holds the name, or on a phone the button around it.
+export const RoomNameRow = style({
   minWidth: 0,
 });

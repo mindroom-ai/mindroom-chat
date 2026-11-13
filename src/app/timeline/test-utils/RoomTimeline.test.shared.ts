@@ -252,8 +252,6 @@ vi.mock('../../preferences/useSetting', () => ({
         return ['MMM D'];
       case 'prefetchDepth':
         return [settingsState.prefetchDepth];
-      case 'prefetchScope':
-        return ['my-server'];
       case 'showHiddenEvents':
         return [settingsState.showHiddenEvents];
       default:
@@ -749,45 +747,6 @@ vi.mock('../../matrix/state/roomToUnread', () => ({
 vi.mock('../../event-store/threads/threadUtils', () => ({
   findThreadRootEvent: (room: { findEventById?: (id: string) => unknown }, id: string) =>
     room.findEventById?.(id),
-  buildThreadParticipantMap: (
-    events: Array<{
-      getId(): string | undefined;
-      threadRootId?: string;
-      getSender?(): string | undefined;
-      getRelation?(): { rel_type?: string } | null | undefined;
-    }>,
-    maxParticipants = 3
-  ) => {
-    const participants = new Map<string, string[]>();
-    const seenEventIds = new Set<string>();
-    const participantSets = new Map<string, Set<string>>();
-
-    [...events].reverse().forEach((event) => {
-      const eventId = event.getId();
-      const { threadRootId } = event;
-      if (!eventId || !threadRootId || eventId === threadRootId || seenEventIds.has(eventId)) {
-        return;
-      }
-
-      if (event.getRelation?.()?.rel_type === 'm.replace') return;
-
-      seenEventIds.add(eventId);
-      const senderId = event.getSender?.();
-      if (!senderId) return;
-
-      const threadParticipants = participants.get(threadRootId) ?? [];
-      if (threadParticipants.length >= maxParticipants) return;
-
-      const threadParticipantSet = participantSets.get(threadRootId) ?? new Set<string>();
-      if (threadParticipantSet.has(senderId)) return;
-
-      threadParticipantSet.add(senderId);
-      participantSets.set(threadRootId, threadParticipantSet);
-      participants.set(threadRootId, [...threadParticipants, senderId]);
-    });
-
-    return participants;
-  },
   buildThreadReplyCountMap: (
     events: Array<{ getId(): string | undefined; threadRootId?: string }>
   ) => {
@@ -1046,7 +1005,6 @@ vi.mock('../../matrix/protocol/threadSummary', async (importOriginal) => {
   return {
     ...actual,
     buildThreadSummaryMap: () => new Map(),
-    findLatestThreadSummaryEvent: () => undefined,
     getThreadSummaryEventInfo: () => undefined,
   };
 });
@@ -1101,7 +1059,6 @@ vi.mock('../../event-store/cache/db', async (importOriginal) => {
 });
 
 vi.mock('../../event-store/timeline/threadPaginationUtils', () => ({
-  computeReconciliationToken: () => undefined,
   findEarliestLoadedThreadReplyByCacheOrder: () => undefined,
   reconcileThreadBackwardPagination: vi.fn(),
 }));
@@ -1145,7 +1102,6 @@ vi.mock('../../event-store/timeline/timelineScrollUtils', async (importOriginal)
     ...actual,
     isScrollNearBottom: () => true,
     isTimelineAtLiveEnd: isTimelineAtLiveEndMock,
-    shouldAutoScrollRoomOnLiveEvent: () => false,
     shouldAutoScrollThreadOnLiveEvent: () => false,
   };
 });

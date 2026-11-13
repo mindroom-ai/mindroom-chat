@@ -6,10 +6,6 @@ export type TimelineRangeLike = {
   end: number;
 };
 
-export type ThreadOverviewRefreshTargets = {
-  overviewResumeRefreshIds: string[];
-};
-
 export const resolveThreadOverviewRefreshTargets = ({
   activeTimelineRange,
   compactFilteredThreadRootIds,
@@ -32,9 +28,9 @@ export const resolveThreadOverviewRefreshTargets = ({
   threadId: string | undefined;
   threadReplyCountMap: Map<string, number>;
   threadResolutionMap: Map<string, { isResolved: boolean }>;
-}): ThreadOverviewRefreshTargets => {
+}): string[] => {
   if (threadId) {
-    return { overviewResumeRefreshIds: [] };
+    return [];
   }
 
   const visibleThreadRootIds = threadFilteredEventEntries
@@ -53,5 +49,5 @@ export const resolveThreadOverviewRefreshTargets = ({
       overviewResumeRefreshIdSet.add(threadRootId);
     });
 
-  return { overviewResumeRefreshIds: [...overviewResumeRefreshIdSet].slice(0, limit) };
+  return [...overviewResumeRefreshIdSet].slice(0, limit);
 };

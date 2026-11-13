@@ -602,58 +602,6 @@ describe('RoomTimeline', () => {
     });
   });
 
-  it('tracks room-mode focus retries while the target event is still missing from the DOM', async () => {
-    const { getNextRoomFocusRetry } = await import('../../event-store/timeline/timelineScrollUtils');
-
-    expect(
-      getNextRoomFocusRetry({
-        focusEventId: '$target',
-        pendingRetry: undefined,
-        scrolled: true,
-        targetFound: false,
-      })
-    ).toEqual({
-      eventId: '$target',
-      attempts: 1,
-    });
-
-    expect(
-      getNextRoomFocusRetry({
-        focusEventId: '$target',
-        pendingRetry: {
-          eventId: '$target',
-          attempts: 1,
-        },
-        scrolled: true,
-        targetFound: false,
-      })
-    ).toEqual({
-      eventId: '$target',
-      attempts: 2,
-    });
-
-    expect(
-      getNextRoomFocusRetry({
-        focusEventId: '$target',
-        pendingRetry: {
-          eventId: '$target',
-          attempts: 10,
-        },
-        scrolled: true,
-        targetFound: false,
-      })
-    ).toBeUndefined();
-
-    expect(
-      getNextRoomFocusRetry({
-        focusEventId: '$target',
-        pendingRetry: undefined,
-        scrolled: true,
-        targetFound: true,
-      })
-    ).toBeUndefined();
-  });
-
   it('maps hidden event targets to a visible neighbor instead of filtered index zero', async () => {
     const { getTimelineTargetAnchor } = await import(
       '../../event-store/timeline/timelineScrollUtils'

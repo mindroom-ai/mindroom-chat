@@ -134,6 +134,20 @@ describe('PrefetchSettings (ISSUE-207 P6.1 / D4)', () => {
     expect(renderer!.root.findAllByType('input')).toHaveLength(0);
   });
 
+  it('labels the trigger with the chosen scope and lists scopes narrowest first', async () => {
+    const { SelectPrefetchScope } = await import('./PrefetchSettings');
+    state.prefetchScope = 'all-rooms';
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(React.createElement(SelectPrefetchScope));
+    });
+
+    const labels = renderer!.root
+      .findAllByType('button')
+      .map((button) => button.findByType('span').children.join(''));
+    expect(labels).toEqual(['All rooms', 'Current room only', 'All rooms']);
+  });
+
   it('commits a scope selection via the MenuItem literal', async () => {
     const { SelectPrefetchScope } = await import('./PrefetchSettings');
     let renderer: ReactTestRenderer | undefined;

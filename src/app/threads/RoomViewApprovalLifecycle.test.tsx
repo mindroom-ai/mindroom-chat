@@ -113,6 +113,11 @@ vi.mock('../room/useRoomViewThreadState', () => ({
   useRoomViewThreadState: ({ threadId }: { threadId?: string }) => ({
     effectiveThreadId: threadId,
     viewMode: 'compact',
+    handleExitThread: noop,
+    handleThreadRootDeleted: noop,
+    storeThreadSummary: noop,
+    summaryMap: new Map(),
+    threadSortFreezeState: null,
     // As the room's handler, it says whether it opened the sent message's thread.
     handleRoomMessageSent: (id: string) => {
       if (threadId) return false;

@@ -40,9 +40,7 @@ vi.mock('../open/threadContentPrefetch', async (importOriginal) => {
 });
 
 vi.mock('./threadOverviewRefreshTargets', () => ({
-  resolveThreadOverviewRefreshTargets: () => ({
-    overviewResumeRefreshIds: ['$thread-root', '$thread-root-2'],
-  }),
+  resolveThreadOverviewRefreshTargets: () => ['$thread-root', '$thread-root-2'],
 }));
 
 vi.mock('../../diagnostics/timelineDebug', () => ({

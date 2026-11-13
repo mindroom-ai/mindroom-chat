@@ -49,7 +49,7 @@ describe('resolveThreadOverviewRefreshTargets', () => {
       threadResolutionMap: new Map(),
     });
 
-    expect(targets.overviewResumeRefreshIds).toEqual(['$visible', '$older', '$newer']);
+    expect(targets).toEqual(['$visible', '$older', '$newer']);
   });
 
   it('uses compact ordering when compact view is active', () => {
@@ -66,7 +66,7 @@ describe('resolveThreadOverviewRefreshTargets', () => {
       threadResolutionMap: new Map(),
     });
 
-    expect(targets.overviewResumeRefreshIds).toEqual([
+    expect(targets).toEqual([
       '$visible',
       '$compact-a',
       '$compact-b',
@@ -87,6 +87,6 @@ describe('resolveThreadOverviewRefreshTargets', () => {
       threadResolutionMap: new Map(),
     });
 
-    expect(targets).toEqual({ overviewResumeRefreshIds: [] });
+    expect(targets).toEqual([]);
   });
 });
