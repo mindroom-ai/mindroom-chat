@@ -38,15 +38,16 @@ Every release publishes `ghcr.io/mindroom-ai/mindroom-chat` for `linux/amd64` an
 | `YYYY.M.N`, for example `2026.11.0` | release `v2026.11.0` |
 | `vYYYY.M.N` | the same image, under the release's Git tag |
 | `sha-<commit>` | the same image, under the first 7 characters of the release's commit |
-| `latest`, `dev`, `commit-<sha>`, branch names | the earlier MindRoom Chat app, which its own repository still publishes to this package; this repository never moves them |
+| `latest` | the newest release, moved by each new release |
+| `dev`, `commit-<sha>`, branch names | the earlier MindRoom Chat app, from its own repository; this repository never moves them |
 
-A release's tags never move to another image. The image reports its release everywhere: `version.json` holds `{"version":"v2026.11.0","release":"v2026.11.0"}`, Settings > About shows `v2026.11.0`, and the labels `org.opencontainers.image.version` and `org.opencontainers.image.revision` name the release and its commit.
+A release's own tags never move to another image. The image reports its release everywhere: `version.json` holds `{"version":"v2026.11.0","release":"v2026.11.0"}`, Settings > About shows `v2026.11.0`, and the labels `org.opencontainers.image.version` and `org.opencontainers.image.revision` name the release and its commit.
 
 `.github/workflows/image.yml` builds it: `release.yml` calls it after an automatic release, and the release event starts it for one cut by hand. It builds each platform's image, starts it and checks what it serves (`scripts/image-smoke-test.sh`: the release in `version.json`, the app shell on any route, a 404 for a missing build file or file under `/public/`, `config.json`, `notices.json`, `runtime-config.js`, the cache and framing headers), and pushes only when both pass. If the push fails, the release stays without an image: rerun the workflow run's failed job (Actions, the run, **Re-run failed jobs**). Pull requests that change the image, and a manual run of the workflow, do the same checks as the next release and push nothing.
 
 ### Updating a deployment
 
-Pin a release and move the pin to update; a running page notices the new `version.json` within five minutes and offers to reload.
+Pin a release and move the pin to update; a running page notices the new `version.json` within five minutes and offers to reload. A setup that runs `latest` instead (the MindRoom stack, `mindroom local-stack`) gets the newest release when it pulls the image again.
 
 - **Newest release:** `gh release view --repo mindroom-ai/mindroom-chat --json tagName --jq .tagName`, or the [releases page](https://github.com/mindroom-ai/mindroom-chat/releases).
 - **MindRoom Helm chart** (`charts/mindroom-client`, MindRoom's `cluster/k8s/client`): set `image.tag` to the release, for example `--set image.tag=2026.11.0`, or `image.digest` to its digest. The chart pins a release of its own (`v2026.11.0`, the same image as `2026.11.0`) and refuses an empty tag.
