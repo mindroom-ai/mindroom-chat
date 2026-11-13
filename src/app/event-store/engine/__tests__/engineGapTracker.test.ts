@@ -59,6 +59,7 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
     resetCacheProbe();
   });
 
@@ -136,7 +137,6 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
       sessionId: 'session',
       enqueueGapFill: (job) => enqueued.push(job),
       markDiscontinuity,
-      onPersistenceError: vi.fn(),
     });
 
     const differentSet = { __id: 'thread-set' } as unknown as EventTimelineSet;
@@ -239,24 +239,11 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
     expect(enqueued[1].markedAt).toBeGreaterThan(enqueued[0].markedAt);
   });
 
-  it('handleSyncPrepared is a no-op when no MatrixClient is present (safety valve)', async () => {
-    const enqueued: GapFillJob[] = [];
-    const tracker = createEngineGapTracker({
-      // @ts-expect-error deliberately omit for the safety test
-      mx: undefined,
-      sessionId: 'session',
-      enqueueGapFill: (job) => enqueued.push(job),
-      markDiscontinuity,
-    });
-    await tracker.handleSyncPrepared();
-    expect(enqueued).toHaveLength(0);
-  });
-
   it('retains and retries a limited-sync job until its marker is durable', async () => {
     vi.useFakeTimers();
     const enqueued: GapFillJob[] = [];
     const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
-    const onPersistenceError = vi.fn();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     markDiscontinuity
       .mockRejectedValueOnce(new Error('blocked cache'))
       .mockImplementationOnce(async (_sessionId, _roomId, marker) => marker);
@@ -266,12 +253,11 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
       enqueueGapFill: (job) => enqueued.push(job),
       markDiscontinuity,
       loadCachedTail,
-      onPersistenceError,
       now: () => 1000,
     });
 
     tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet());
-    await vi.waitFor(() => expect(onPersistenceError).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(consoleError).toHaveBeenCalledTimes(1));
     expect(enqueued).toEqual([]);
 
     await vi.advanceTimersByTimeAsync(1_000);
@@ -371,7 +357,7 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
     vi.useFakeTimers();
     const enqueued: GapFillJob[] = [];
     const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
-    const onPersistenceError = vi.fn();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     markDiscontinuity.mockRejectedValue(new Error('blocked cache'));
     const tracker = createEngineGapTracker({
       mx: {} as MatrixClient,
@@ -379,11 +365,10 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
       enqueueGapFill: (job) => enqueued.push(job),
       markDiscontinuity,
       loadCachedTail,
-      onPersistenceError,
     });
 
     tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet());
-    await vi.waitFor(() => expect(onPersistenceError).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(consoleError).toHaveBeenCalledTimes(1));
     tracker.stop();
     await vi.advanceTimersByTimeAsync(60_000);
 

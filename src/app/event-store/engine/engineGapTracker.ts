@@ -34,6 +34,7 @@ import {
   type CacheStoreWriteLease,
   holdUnsavedRoomCacheGap,
 } from '../cache/db';
+import type { TailDiscontinuityMarker } from '../cache/db/cacheStoreDiscontinuity';
 
 export type GapFillReason = 'limited-sync' | 'startup';
 
@@ -58,8 +59,6 @@ export type EngineGapTrackerOptions = {
   loadCachedTail?: typeof loadLatestCachedRoomEvents;
   /** Test hook: override the wall-clock time. */
   now?: () => number;
-  /** Report a durable marker failure while the tracker retains it for retry. */
-  onPersistenceError?: (error: Error, job: GapFillJob) => void;
 };
 
 export type EngineGapTracker = {
@@ -91,7 +90,6 @@ export const collectOverlapEventIds = (events: readonly { event_id?: unknown }[]
 
 type PendingGapMark = {
   writeLease: CacheStoreWriteLease;
-  job: GapFillJob;
   marker: {
     markedAt: number;
     prevBatch?: string | null;
@@ -108,9 +106,19 @@ type PendingGapMark = {
 };
 
 export const createEngineGapTracker = (options: EngineGapTrackerOptions): EngineGapTracker => {
-  const enqueueGapFill = (job: GapFillJob): void => {
+  const enqueueGapFill = (
+    roomId: string,
+    reason: GapFillReason,
+    marker: Pick<TailDiscontinuityMarker, 'markedAt' | 'prevBatch' | 'generation' | 'nextToken'>
+  ): void => {
     countCacheProbe('gapFillsEnqueued');
-    options.enqueueGapFill(job);
+    options.enqueueGapFill({
+      roomId,
+      reason,
+      markedAt: marker.markedAt,
+      prevBatch: marker.nextToken ?? marker.prevBatch,
+      generation: getTailDiscontinuityGeneration(marker),
+    });
   };
   const markDiscontinuity = options.markDiscontinuity ?? markRoomTailDiscontinuity;
   const loadDiscontinuity = options.loadDiscontinuity ?? loadRoomTailDiscontinuity;
@@ -125,14 +133,6 @@ export const createEngineGapTracker = (options: EngineGapTrackerOptions): Engine
     pending.reported = true;
     const normalizedError =
       error instanceof Error ? error : new Error('Tail-discontinuity marker persistence failed.');
-    if (options.onPersistenceError) {
-      try {
-        options.onPersistenceError(normalizedError, pending.job);
-      } catch {
-        // Error reporting must not discard retained gap work.
-      }
-      return;
-    }
     // eslint-disable-next-line no-console
     console.error('[MindRoom gap tracker] Retrying an undurable timeline gap.', normalizedError);
   };
@@ -166,13 +166,7 @@ export const createEngineGapTracker = (options: EngineGapTrackerOptions): Engine
         if (!durableMarker || stopped || pendingMarks.get(roomId) !== pending) return;
         pendingMarks.delete(roomId);
         pending.releaseUnsavedGap();
-        enqueueGapFill({
-          roomId,
-          reason: 'limited-sync',
-          markedAt: durableMarker.markedAt,
-          prevBatch: durableMarker.nextToken ?? durableMarker.prevBatch,
-          generation: getTailDiscontinuityGeneration(durableMarker),
-        });
+        enqueueGapFill(roomId, 'limited-sync', durableMarker);
       })
       .catch((error: unknown) => {
         if (!isCacheStoreWriteLeaseCurrent(pending.writeLease)) {
@@ -216,53 +210,37 @@ export const createEngineGapTracker = (options: EngineGapTrackerOptions): Engine
     const markedAt = now();
     const marker = { markedAt, prevBatch };
     const generation = getTailDiscontinuityGeneration(marker);
-    const job: GapFillJob = {
-      roomId: room.roomId,
-      reason: 'limited-sync',
-      markedAt,
-      prevBatch,
-      generation,
-    };
 
-    if (options.sessionId) {
-      const previous = pendingMarks.get(room.roomId);
-      if (previous?.retryTimer) globalThis.clearTimeout(previous.retryTimer);
-      const overlapEventIds =
-        previous?.overlapEventIds ??
-        loadCachedTail(options.sessionId, room.roomId, GAP_FILL_OVERLAP_TAIL_LIMIT)
-          .then((cachedTail) => collectOverlapEventIds(cachedTail.events))
-          // A failed boundary read must NOT be committed as the meaningful
-          // "no cached boundary existed" [] state — leave the field unset so
-          // the executor takes its own guarded snapshot (and defers, marker
-          // intact, if that read fails too).
-          .catch(() => undefined);
-      pendingMarks.set(room.roomId, {
-        releaseUnsavedGap: holdUnsavedRoomCacheGap(options.sessionId, room.roomId),
-        writeLease: captureCacheStoreWriteLease(options.sessionId, room.roomId),
-        job,
-        marker: {
-          ...marker,
-          generation,
-          nextToken: prevBatch,
-        },
-        overlapEventIds,
-        failureCount: 0,
-        reported: false,
-      });
-      previous?.releaseUnsavedGap();
-      attemptPendingMark(room.roomId);
-      return;
-    }
-
-    enqueueGapFill(job);
+    const previous = pendingMarks.get(room.roomId);
+    if (previous?.retryTimer) globalThis.clearTimeout(previous.retryTimer);
+    const overlapEventIds =
+      previous?.overlapEventIds ??
+      loadCachedTail(options.sessionId, room.roomId, GAP_FILL_OVERLAP_TAIL_LIMIT)
+        .then((cachedTail) => collectOverlapEventIds(cachedTail.events))
+        // A failed boundary read must NOT be committed as the meaningful
+        // "no cached boundary existed" [] state — leave the field unset so
+        // the executor takes its own guarded snapshot (and defers, marker
+        // intact, if that read fails too).
+        .catch(() => undefined);
+    pendingMarks.set(room.roomId, {
+      releaseUnsavedGap: holdUnsavedRoomCacheGap(options.sessionId, room.roomId),
+      writeLease: captureCacheStoreWriteLease(options.sessionId, room.roomId),
+      marker: {
+        ...marker,
+        generation,
+        nextToken: prevBatch,
+      },
+      overlapEventIds,
+      failureCount: 0,
+      reported: false,
+    });
+    previous?.releaseUnsavedGap();
+    attemptPendingMark(room.roomId);
   };
 
   const handleSyncPrepared = async () => {
     if (stopped) return;
-    const mx = options.mx;
-    if (!mx) return;
-
-    const rooms = mx.getRooms?.() ?? [];
+    const rooms = options.mx.getRooms?.() ?? [];
     await Promise.all(
       rooms.map(async (room) => {
         // Membership filter: only joined rooms. Left rooms have no live
@@ -272,13 +250,7 @@ export const createEngineGapTracker = (options: EngineGapTrackerOptions): Engine
 
         const marker = await loadDiscontinuity(options.sessionId, room.roomId);
         if (stopped || !marker) return;
-        enqueueGapFill({
-          roomId: room.roomId,
-          reason: 'startup',
-          markedAt: marker.markedAt,
-          prevBatch: marker.nextToken ?? marker.prevBatch,
-          generation: getTailDiscontinuityGeneration(marker),
-        });
+        enqueueGapFill(room.roomId, 'startup', marker);
       })
     );
   };
