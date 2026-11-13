@@ -58,8 +58,9 @@ import {
   findThreadRoom,
   isConfirmedMatrixEventId,
   isLocalEchoEventId,
-  isThreadRouteReady,
 } from '../event-store/threads/threadRouteUtils';
+import { useCachedThreadRoot } from '../event-store/sdk/cachedThreadRoots';
+import { useViewScopedState } from '../timeline/roomTimelineViewScope';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 
 type UseRoomViewThreadStateOptions = {
@@ -227,23 +228,34 @@ export const useRoomViewThreadState = ({
     [leaveThread, navigateRoom, roomId]
   );
 
-  // A thread that does not load here is not this room's: it opens in the joined room that holds
-  // its root, in place of this address, else it shows as not found. Neither leaves an entry behind.
-  const [missingThread, setMissingThread] = useState<{ roomId: string; threadId: string }>();
+  // The thread's root in this room: loaded, or offline from the event cache, which holds no root
+  // under a room it does not name.
+  const cachedThreadRootEvent = useCachedThreadRoot(
+    room,
+    effectiveThreadId ?? '',
+    resolvedThreadRootEvent
+  );
+  const rootInRoom = !!(resolvedThreadRootEvent ?? cachedThreadRootEvent);
+  // A thread that does not load here and whose root this room does not hold is not this room's:
+  // it opens in the joined room that holds its root, in place of this address, else it shows as
+  // not found until the thread is left. Neither leaves an entry behind.
+  const [missingThreadId, setMissingThreadId] = useViewScopedState<string | undefined>(
+    `${roomId}|${effectiveThreadId ?? ''}`,
+    () => undefined
+  );
   const threadNotFound =
-    !!effectiveThreadId &&
-    missingThread?.roomId === roomId &&
-    missingThread.threadId === effectiveThreadId;
+    !!effectiveThreadId && missingThreadId === effectiveThreadId && !rootInRoom;
   const handleThreadLoadError = useCallback(
     (failedThreadId: string) => {
+      if (rootInRoom) return;
       const threadRoom = findThreadRoom(mx.getRooms(), failedThreadId);
-      if (threadRoom && threadRoom.roomId !== roomId) {
+      if (threadRoom) {
         navigateRoomThreadDirect(threadRoom.roomId, failedThreadId, eventId, { replace: true });
         return;
       }
-      setMissingThread({ roomId, threadId: failedThreadId });
+      setMissingThreadId(failedThreadId);
     },
-    [eventId, mx, navigateRoomThreadDirect, roomId]
+    [eventId, mx, navigateRoomThreadDirect, rootInRoom, setMissingThreadId]
   );
 
   const handleSwipeForwardToThread = useCallback(() => {
@@ -482,13 +494,12 @@ export const useRoomViewThreadState = ({
 
   // A thread is remembered once its root is in this room: an address pairing the room with
   // another room's thread leaves no entry.
-  const threadRouteReady = isThreadRouteReady(room, effectiveThreadId);
   useEffect(() => {
     if (effectiveViewMode === 'classic' || !isConfirmedMatrixEventId(effectiveThreadId)) return;
-    if (!threadRouteReady) return;
+    if (!rootInRoom) return;
 
     bumpRecentThread(roomId, effectiveThreadId, undefined, recentThreadSummaryText);
-  }, [effectiveThreadId, effectiveViewMode, recentThreadSummaryText, roomId, threadRouteReady]);
+  }, [effectiveThreadId, effectiveViewMode, recentThreadSummaryText, roomId, rootInRoom]);
 
   return {
     effectiveThreadId,

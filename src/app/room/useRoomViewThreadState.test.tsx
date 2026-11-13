@@ -50,6 +50,10 @@ vi.mock('../event-store/threads/useRoomThreadSummaryState', () => ({
   useRoomThreadSummaryState: () => ({ summaryMap: new Map(), storeThreadSummary: vi.fn() }),
 }));
 vi.mock('../threads/useThreadRootEvent', () => ({ useThreadRootEvent: () => undefined }));
+const cachedRoot = vi.hoisted(() => ({ event: undefined as unknown }));
+vi.mock('../event-store/sdk/cachedThreadRoots', () => ({
+  useCachedThreadRoot: () => cachedRoot.event,
+}));
 vi.mock('../navigation/useRoomViewMode', () => ({
   useRoomViewMode: () => ({ viewMode: 'compact', setViewMode: vi.fn() }),
 }));
@@ -83,6 +87,7 @@ afterEach(() => {
   localStorage.clear();
   room = roomHolding(ROOM_ID);
   joinedRooms.list = [];
+  cachedRoot.event = undefined;
   vi.clearAllMocks();
 });
 
@@ -111,7 +116,18 @@ const mountThreadState = ({
       </Provider>
     );
   });
-  return { store, current: () => latest as RoomViewThreadState };
+  return {
+    store,
+    current: () => latest as RoomViewThreadState,
+    rerender: () =>
+      act(() => {
+        renderer?.update(
+          <Provider store={store}>
+            <Probe />
+          </Provider>
+        );
+      }),
+  };
 };
 
 describe('useRoomViewThreadState', () => {
@@ -163,7 +179,7 @@ describe('useRoomViewThreadState', () => {
     expect(current().threadNotFound).toBe(false);
   });
 
-  it('shows a thread that does not load here as not found, though this room holds it', () => {
+  it('keeps a thread that does not load when this room holds its root', () => {
     room = roomHolding(ROOM_ID, ['$here']);
     joinedRooms.list = [room];
     const { current } = mountThreadState({ threadId: '$here' });
@@ -171,7 +187,7 @@ describe('useRoomViewThreadState', () => {
     act(() => current().handleThreadLoadError('$here'));
 
     expect(navigation.navigateRoomThreadDirect).not.toHaveBeenCalled();
-    expect(current().threadNotFound).toBe(true);
+    expect(current().threadNotFound).toBe(false);
   });
 
   it('shows a thread that no joined room holds as not found', () => {
@@ -186,6 +202,56 @@ describe('useRoomViewThreadState', () => {
 
     expect(navigation.navigateRoomThreadDirect).not.toHaveBeenCalled();
     expect(current().threadNotFound).toBe(true);
+  });
+
+  it('keeps a thread that does not load when the event cache holds its root for this room', () => {
+    cachedRoot.event = roomHolding(ROOM_ID, ['$cached']).findEventById('$cached');
+    joinedRooms.list = [room];
+    const { current } = mountThreadState({ threadId: '$cached' });
+
+    act(() => current().handleThreadLoadError('$cached'));
+
+    expect(navigation.navigateRoomThreadDirect).not.toHaveBeenCalled();
+    expect(current().threadNotFound).toBe(false);
+    // Offline, a thread opened from the cache is remembered as recent too.
+    expect(bumpRecentThread).toHaveBeenCalledWith(ROOM_ID, '$cached', undefined, 'Root');
+  });
+
+  it('shows a thread whose cached root arrives after it failed to load', () => {
+    joinedRooms.list = [room];
+    const { current, rerender } = mountThreadState({ threadId: '$cached' });
+    act(() => current().handleThreadLoadError('$cached'));
+    expect(current().threadNotFound).toBe(true);
+
+    cachedRoot.event = roomHolding(ROOM_ID, ['$cached']).findEventById('$cached');
+    rerender();
+    expect(current().threadNotFound).toBe(false);
+  });
+
+  it('tries a thread that was not found again when it is opened again', () => {
+    const store = createStore();
+    let latest: RoomViewThreadState | undefined;
+    function Probe({ threadId }: { threadId?: string }) {
+      latest = useRoomViewThreadState({ room, threadId });
+      return null;
+    }
+    const show = (threadId?: string) =>
+      act(() => {
+        const tree = (
+          <Provider store={store}>
+            <Probe threadId={threadId} />
+          </Provider>
+        );
+        if (renderer) renderer.update(tree);
+        else renderer = create(tree);
+      });
+    show('$elsewhere');
+    act(() => latest?.handleThreadLoadError('$elsewhere'));
+    expect(latest?.threadNotFound).toBe(true);
+
+    show(undefined);
+    show('$elsewhere');
+    expect(latest?.threadNotFound).toBe(false);
   });
 
   it('applies the thread filter stored for the room', () => {
