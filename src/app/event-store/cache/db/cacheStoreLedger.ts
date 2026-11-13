@@ -13,7 +13,7 @@ import {
 // the event puts/deletes so ledger totals stay consistent with the
 // events store. The flow inside each save/delete transaction is:
 //
-//   1. `beginLedgerBaseline` — schedules a ledger.get(roomId), and if
+//   1. `readBaseline` — schedules a ledger.get(roomId), and if
 //      missing, a bounded sum-scan over just this room to seed the
 //      baseline. Both happen BEFORE the caller schedules any event
 //      put/delete, so the baseline reflects the pre-write state.
@@ -43,12 +43,10 @@ export type LedgerStoreLike = {
   delete: (key: IDBValidKey) => IDBRequest<undefined>;
 };
 
-type LedgerBaseline = {
-  approxBytes: number;
-  eventCount: number;
-  lastActivityTs: number;
-  pinned?: boolean;
-};
+type LedgerBaseline = Pick<
+  CachedRoomLedgerRecord,
+  'approxBytes' | 'eventCount' | 'lastActivityTs' | 'pinned'
+>;
 
 type LedgerAccumulator = {
   bytesDelta: number;
@@ -72,12 +70,7 @@ const readOrBootstrapBaseline = (
   readRequest.onsuccess = () => {
     const currentLedger = readRequest.result;
     if (currentLedger) {
-      onReady({
-        approxBytes: currentLedger.approxBytes,
-        eventCount: currentLedger.eventCount,
-        lastActivityTs: currentLedger.lastActivityTs,
-        pinned: currentLedger.pinned,
-      });
+      onReady(currentLedger);
       return;
     }
     // Missing — bootstrap by sum-scanning this room only.
@@ -142,9 +135,10 @@ const writeUpdatedLedger = (
  * Usage pattern (inside the caller's IDB txn):
  *
  *   const ledger = createLedgerTracker(roomId);
- *   ledger.begin(ledgerStore, eventsStore);   // schedules baseline read
- *   // ... schedule your event.get → put chains, calling notePut inside
- *   // each onsuccess ...
+ *   ledger.readBaseline(ledgerStore, eventsStore, () => {
+ *     // ... schedule your event.get → put chains, calling notePut inside
+ *     // each onsuccess ...
+ *   });
  *   // From the LAST put's onsuccess:
  *   ledger.finalize(ledgerStore);
  */
@@ -201,7 +195,7 @@ export const createLedgerTracker = (roomId: string): LedgerTracker => {
   };
 };
 
-// ---------- Read-only accessor used by the eviction job (commit 3) ----------
+// ---------- Read-only accessor ----------
 
 export const readLedgerSnapshot = async (db: IDBDatabase): Promise<CachedRoomLedgerRecord[]> => {
   return new Promise((resolve, reject) => {
