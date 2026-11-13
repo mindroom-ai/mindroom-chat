@@ -393,6 +393,24 @@ describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
     expect(cached?.event_id).toBe('$e2');
   });
 
+  it('starts no fill for a job enqueued after stop()', () => {
+    const mx = createMockClient(() => ({ chunk: [] }));
+    mx.__rooms.set('!room:mindroom.chat', makeRoomStub('!room:mindroom.chat'));
+    const scheduler = createBackfillScheduler({ mx });
+    const executor = createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler });
+
+    executor.stop();
+    executor.enqueue({
+      roomId: '!room:mindroom.chat',
+      reason: 'limited-sync',
+      markedAt: Date.now(),
+      prevBatch: 'tok-0',
+    });
+
+    expect(scheduler.pendingJobs()).toHaveLength(0);
+    expect(getCacheProbeSnapshot().schedulerEnqueued).toBe(0);
+  });
+
   it('runs one latest successor when a newer reset arrives during an active fill', async () => {
     let resolveFirst!: (response: { end?: string; chunk: Partial<IEvent>[] }) => void;
     const requestedTokens: Array<string | null> = [];

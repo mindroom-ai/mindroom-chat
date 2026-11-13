@@ -281,6 +281,23 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
     await first;
   });
 
+  it('asks for no more events than its page reservation allows', async () => {
+    const mx = createMockClient(() => ({ chunk: [] }));
+    mx.__rooms.set('!room:mindroom.chat', makeRoom('!room:mindroom.chat', '@alice:mindroom.chat'));
+
+    await enqueueRoomDeepHistoryJob({
+      mx,
+      sessionId: SESSION_ID,
+      scheduler: createBackfillScheduler({ mx }),
+      roomId: '!room:mindroom.chat',
+      writeLease: captureCacheStoreWriteLease(SESSION_ID, '!room:mindroom.chat'),
+      canRun: () => true,
+      reservePage: () => ({ limit: 50, settle: () => undefined }),
+    });
+
+    expect(mx.__calls.map((call) => call.limit)).toEqual([50]);
+  });
+
   it('saves thread replies even when SDK room pagination already passed them', async () => {
     const mx = createMockClient(() => ({ chunk: [] }));
     const reply = rawThreadReply('$missed-reply', 20, '$root');
