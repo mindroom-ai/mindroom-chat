@@ -493,7 +493,10 @@ export const SearchField = style({
   '::placeholder': { color: faint },
 });
 
-/** A room to pick. The highlighted one is drawn as a menu draws its item: on the accent. */
+/**
+ * A room to pick. The highlighted one is drawn as a menu draws its item: on the accent, inside
+ * an outline that only forced colors paint.
+ */
 export const Option = style({
   ...strip,
   columnGap: toRem(7),
@@ -501,7 +504,13 @@ export const Option = style({
   paddingBlock: toRem(5),
   borderRadius: toRem(6),
   paddingInline: toRem(8),
-  selectors: { '&[aria-selected="true"]': { color: onAccent, backgroundColor: accent } },
+  selectors: {
+    '&[aria-selected="true"]': {
+      color: onAccent,
+      backgroundColor: accent,
+      outline: forcedOutline,
+    },
+  },
 });
 
 /** What a part of a highlighted room takes: the color of the room's name. */

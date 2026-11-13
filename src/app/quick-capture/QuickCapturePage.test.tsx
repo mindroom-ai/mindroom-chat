@@ -2,7 +2,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { copyToClipboard } from '../lib/dom';
-import { formatCompactRelativeTime } from '../lib/time';
 import type { StoredSession } from '../matrix/session/sessions';
 import {
   captureScreenshot,
@@ -48,6 +47,9 @@ const ROOMS = [
   { id: '!mind', name: 'Mind', direct: true },
 ];
 
+// Each row moved a different while ago, so a time under the wrong row shows.
+const ago = (minutes: number): number => Date.now() - minutes * 60_000;
+
 const ITEMS: CaptureItem[] = [
   {
     threadId: '$one',
@@ -57,9 +59,9 @@ const ITEMS: CaptureItem[] = [
     replyText: 'Running the suite again, with traces on.',
     chip: 'working',
     resolved: false,
-    ts: 300,
+    ts: ago(1),
   },
-  { threadId: '$two', title: 'Idea: default room per app', line: '', resolved: false, ts: 200 },
+  { threadId: '$two', title: 'Idea: default room per app', line: '', resolved: false, ts: ago(5) },
   {
     threadId: '$ask',
     title: 'Deploy to staging?',
@@ -68,7 +70,7 @@ const ITEMS: CaptureItem[] = [
     replyText: 'Approve the deploy?',
     chip: 'needs-you',
     resolved: false,
-    ts: 150,
+    ts: ago(30),
   },
   {
     threadId: '$news',
@@ -78,7 +80,7 @@ const ITEMS: CaptureItem[] = [
     replyText: 'Three fit.',
     chip: 'new',
     resolved: false,
-    ts: 100,
+    ts: ago(120),
   },
   {
     threadId: '$done',
@@ -87,7 +89,7 @@ const ITEMS: CaptureItem[] = [
     lineSender: 'Code',
     replyText: 'Node 24.',
     resolved: true,
-    ts: 50,
+    ts: ago(3 * 24 * 60),
   },
 ];
 
@@ -381,9 +383,9 @@ describe('QuickCapturePage with a room', () => {
     expect(within(sent).queryAllByRole('img')).toHaveLength(0);
     expect(within(resolved).queryAllByRole('img')).toHaveLength(0);
     const timeOf = (row: HTMLElement) => row.querySelector('[data-capture-time]')?.textContent;
-    expect(timeOf(sent)).toBe(formatCompactRelativeTime(200, 'en'));
-    expect(timeOf(unread)).toBe(formatCompactRelativeTime(100, 'en'));
-    expect(timeOf(resolved)).toBe(formatCompactRelativeTime(50, 'en'));
+    expect(timeOf(sent)).toBe('5m');
+    expect(timeOf(unread)).toBe('2h');
+    expect(timeOf(resolved)).toBe('3d');
     expect(timeOf(working)).toBeUndefined();
     expect(timeOf(waiting)).toBeUndefined();
     // A resolved row says so to a screen reader; the eye has the check and the dimming.
@@ -816,7 +818,7 @@ describe('QuickCapturePage list', () => {
     press(row('Why does slot 27 flake'), 'j');
     expect(document.activeElement).toBe(row('Idea: default room'));
     const [one, two, ...rest] = ITEMS as [CaptureItem, CaptureItem, ...CaptureItem[]];
-    rig.pushState(roomState([{ ...two, ts: 400 }, one, ...rest]));
+    rig.pushState(roomState([{ ...two, ts: ago(0) }, one, ...rest]));
     expect(screen.getAllByRole('listitem')[0]?.textContent).toContain('Idea: default room');
     expect(document.activeElement).toBe(row('Idea: default room'));
     press(row('Idea: default room'), 'x');
