@@ -169,10 +169,6 @@ type QueueEntry<T = unknown> = {
   promise: Promise<T>;
 };
 
-type RunningEntry<T = unknown> = QueueEntry<T> & {
-  runPromise: Promise<void>;
-};
-
 export type CreateBackfillSchedulerOptions = {
   /**
    * Optional Matrix client — required for the room activity tiebreaker
@@ -207,7 +203,7 @@ export const createBackfillScheduler = (
   // for the non-cancellable SDK request.
   const byKey = new Map<string, QueueEntry>();
   const queue: QueueEntry[] = [];
-  const running = new Map<string, RunningEntry>();
+  const running = new Map<string, QueueEntry>();
 
   const pickNextIndex = (): number => {
     if (queue.length === 0) return -1;
@@ -259,15 +255,12 @@ export const createBackfillScheduler = (
       // ordering would delete-before-set, leaving the failed job in
       // `running` forever and leaking a concurrency slot.
       //
-      // Fix: set the running entry with a placeholder promise first,
-      // then patch in the real runPromise. The `finally` block's
-      // `running.delete` now always runs AFTER the corresponding set,
-      // regardless of whether the executor throws synchronously, runs
-      // to completion synchronously, or actually awaits.
-      const runningEntry: RunningEntry = { ...entry, runPromise: Promise.resolve() };
-      running.set(entry.key, runningEntry);
+      // Setting it first means the `finally` block's `running.delete`
+      // always runs AFTER the corresponding set, whether the executor
+      // throws synchronously, runs to completion synchronously, or awaits.
+      running.set(entry.key, { ...entry });
 
-      const runPromise = (async () => {
+      void (async () => {
         try {
           const value = await entry.args.execute(entry.controller.signal);
           entry.resolve(value);
@@ -297,8 +290,6 @@ export const createBackfillScheduler = (
           Promise.resolve().then(drain);
         }
       })();
-
-      runningEntry.runPromise = runPromise;
     }
   };
 
