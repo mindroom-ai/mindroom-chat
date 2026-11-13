@@ -15,6 +15,7 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { showResolvedThreads } from '../helpers/threadOverview';
 
 // The thread filter bar in a room with 160 threads, read against what the seed knows:
 // - every preset, the search and the People filter apply to the pinned threads as they do to the
@@ -283,13 +284,7 @@ const checkFilters = async (page: Page, room: SeededRoom, engine: string) => {
     await expect(overview.locator('[data-preset-button]')).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 30_000 });
   // Compact opens with resolved threads hidden; every thread shows once the filter is off.
-  const resolvedFilter = overview.locator('[data-filter-key="resolved"]');
-  await expect(async () => {
-    if ((await resolvedFilter.getAttribute('data-filter-state')) !== 'any') {
-      await resolvedFilter.click();
-    }
-    await expect(resolvedFilter).toHaveAttribute('data-filter-state', 'any', { timeout: 2_000 });
-  }).toPass({ timeout: 30_000 });
+  await showResolvedThreads(page);
   await expect(cards).toHaveCount(THREAD_COUNT, { timeout: 180_000 });
 
   // Presets: the pinned threads follow the same rules as the others. A pinned thread stays open

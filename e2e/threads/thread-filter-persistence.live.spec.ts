@@ -221,41 +221,42 @@ test.describe('live issue-030 thread filter persistence', () => {
     });
 
     await navigateToRoom(page, roomA.roomName);
-    await expectFilterState(page, 'resolved', 'any');
+    // Compact rooms open with resolved threads hidden.
+    await expectFilterState(page, 'resolved', 'exclude');
     await expectFilterState(page, 'scheduled', 'any');
     await expectSortDirection(page, 'desc');
     await getFilterButton(page, 'resolved').click();
     await getFilterButton(page, 'resolved').click();
-    await expectFilterState(page, 'resolved', 'exclude');
+    await expectFilterState(page, 'resolved', 'include');
     await expectFilterState(page, 'scheduled', 'any');
 
     await openThreadAndReturn(page, roomA.rootId, roomA.rootBody);
-    await expectFilterState(page, 'resolved', 'exclude');
+    await expectFilterState(page, 'resolved', 'include');
     await expectFilterState(page, 'scheduled', 'any');
 
     await switchAwayAndBack(page);
-    await expectFilterState(page, 'resolved', 'exclude');
+    await expectFilterState(page, 'resolved', 'include');
     await expectFilterState(page, 'scheduled', 'any');
 
     await getThreadOverviewSortButton(page).click();
     await expectSortDirection(page, 'asc');
 
     await navigateToRoom(page, roomB.roomName);
-    await expectFilterState(page, 'resolved', 'any');
+    await expectFilterState(page, 'resolved', 'exclude');
     await expectFilterState(page, 'scheduled', 'any');
     await expectSortDirection(page, 'desc');
 
     await getFilterButton(page, 'scheduled').click();
-    await expectFilterState(page, 'resolved', 'any');
+    await expectFilterState(page, 'resolved', 'exclude');
     await expectFilterState(page, 'scheduled', 'include');
 
     await navigateToRoom(page, roomA.roomName);
-    await expectFilterState(page, 'resolved', 'exclude');
+    await expectFilterState(page, 'resolved', 'include');
     await expectFilterState(page, 'scheduled', 'any');
     await expectSortDirection(page, 'asc');
 
     await navigateToRoom(page, roomB.roomName);
-    await expectFilterState(page, 'resolved', 'any');
+    await expectFilterState(page, 'resolved', 'exclude');
     await expectFilterState(page, 'scheduled', 'include');
     await expectSortDirection(page, 'desc');
 

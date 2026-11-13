@@ -12,6 +12,7 @@ import { createRoom } from '../helpers/createRoom';
 import { addRoomToSpace, matrixFetch, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
+import { showResolvedThreads } from '../helpers/threadOverview';
 
 // Layout checks from the live-test lanes, against a real homeserver, in Chromium and (when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit) WebKit, in light and dark, left to right
@@ -476,6 +477,8 @@ const checkCompact = async (run: Run) => {
   for (const { direction, scheme } of looks) {
     await page.goto(`/home/${encodeURIComponent(data.roomId)}/`);
     await setLook(page, direction, scheme);
+    // Compact opens with resolved threads hidden; the check needs the resolved card.
+    await showResolvedThreads(page);
     const cards = page.locator('[data-thread-root-id]');
     await expect(cards).toHaveCount(5, { timeout: 60_000 });
     await expect(page.locator('[data-compact-card-resolution-byline="true"]')).toBeVisible();

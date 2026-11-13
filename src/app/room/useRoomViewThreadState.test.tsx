@@ -79,14 +79,17 @@ const mountThreadState = ({
     latest = useRoomViewThreadState({ room, ...options });
     return null;
   }
+  // A new element each time, so an update renders the probe again.
+  const tree = () => (
+    <Provider store={store}>
+      <Probe />
+    </Provider>
+  );
   act(() => {
-    renderer = create(
-      <Provider store={store}>
-        <Probe />
-      </Provider>
-    );
+    renderer = create(tree());
   });
-  return { store, current: () => latest as RoomViewThreadState };
+  const rerender = () => act(() => renderer?.update(tree()));
+  return { store, current: () => latest as RoomViewThreadState, rerender };
 };
 
 describe('useRoomViewThreadState', () => {
@@ -137,6 +140,20 @@ describe('useRoomViewThreadState', () => {
 
     act(() => renderer?.unmount());
     expect(mountThreadState().current().threadFilterState.resolved).toBe('any');
+  });
+
+  it('follows the view for its default until the reader chooses a filter', () => {
+    const { current, rerender } = mountThreadState({ advancedFilters: true });
+    expect(current().threadFilterState.resolved).toBe('exclude');
+
+    viewMode.current = 'threaded';
+    rerender();
+    expect(current().threadFilterState.resolved).toBe('any');
+
+    act(() => current().handleToggle('resolved'));
+    viewMode.current = 'compact';
+    rerender();
+    expect(current().threadFilterState.resolved).toBe('include');
   });
 
   it('shows resolved threads by default outside Compact', () => {
