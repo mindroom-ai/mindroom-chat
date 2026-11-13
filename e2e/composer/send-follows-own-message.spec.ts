@@ -4,7 +4,6 @@ import { createRoom } from '../helpers/createRoom';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   registerAgentAccount,
   seedRoomOverviewState,
@@ -16,6 +15,7 @@ import { expectRoomCompact, toggleRoomView } from '../helpers/roomViewSwitch';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // A reader who scrolled away from the newest messages and sends one sees it land: the view
@@ -76,21 +76,8 @@ test.use({
   },
 });
 
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `sfo_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`sfo_${name}_${RUN}`, PASSWORD);
 
 const note = (index: number) =>
   `Backlog item ${index}: the import job retried twice overnight, the dashboard shows the gap, and the owner will look at it after standup.`;

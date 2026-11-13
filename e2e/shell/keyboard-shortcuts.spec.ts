@@ -1,10 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword, openAccountMenu } from '../helpers/auth';
-import { joinRoom, loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
+import { joinRoom, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // The first batch of keyboard shortcuts against the disposable homeserver of `just hs-up` (or a
@@ -24,21 +25,8 @@ const MOD = MAC ? 'Meta' : 'Control';
 
 type Account = MatrixSession & { username: string };
 
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `l23_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<Account> =>
+  registerDisposableUser(`l23_${name}_${RUN}`, PASSWORD);
 
 const roomName = (index: number) => `Room ${String(index).padStart(2, '0')}`;
 

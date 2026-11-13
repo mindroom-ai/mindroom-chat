@@ -2,18 +2,13 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { loginWithPassword, waitForLoggedInShell } from '../helpers/auth';
-import {
-  joinRoom,
-  loginToMatrix,
-  matrixFetch,
-  sendRoomMessage,
-  type MatrixSession,
-} from '../helpers/matrix';
+import { joinRoom, matrixFetch, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
 import { launchWebKit } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // Each message or invite notifies at most once on a device: a reload raises nothing that came
@@ -29,21 +24,8 @@ type Engine = 'chromium' | 'webkit';
 type Account = MatrixSession & { username: string };
 type Shown = { tab: number; title: string; body?: string };
 
-const register = async (name: string): Promise<Account> => {
-  const username = `nd_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string): Promise<Account> =>
+  registerDisposableUser(`nd_${name}_${RUN}`, PASSWORD);
 
 /** A room of the reader's that the writer has joined. */
 const sharedRoom = async (reader: Account, writer: Account, name: string): Promise<string> => {

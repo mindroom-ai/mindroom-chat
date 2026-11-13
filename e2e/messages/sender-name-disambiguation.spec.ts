@@ -12,11 +12,11 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   CHROMIUM_WITH_SCROLLBARS,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   registerAgentAccount,
   seedRoomOverviewState,
@@ -47,20 +47,9 @@ const setDisplayName = (session: MatrixSession, displayName: string) =>
 
 const registerPerson = async (localpart: string, displayName: string) => {
   const username = `${localpart}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const session = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const session = await registerDisposableUser(username, PASSWORD);
   await setDisplayName(session, displayName);
-  return { ...session, username };
+  return session;
 };
 
 const clearDisplayName = (session: MatrixSession) =>

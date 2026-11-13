@@ -2,11 +2,12 @@ import { mkdirSync } from 'node:fs';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { joinRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
+import { joinRoom, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // A real right click on a message's text opens the message's menu where the pointer is, in
@@ -44,21 +45,7 @@ test.use({
   },
 });
 
-const register = async (name: string) => {
-  const username = `mrc_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string) => registerDisposableUser(`mrc_${name}_${RUN}`, PASSWORD);
 
 /** 25 other rooms, and a room where a colleague wrote 24 messages, then the four under test. */
 const seed = async (engine: string) => {

@@ -12,8 +12,9 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   CHROMIUM_WITH_SCROLLBARS,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { joinRoom, loginToMatrix, matrixFetch, type MatrixSession } from '../helpers/matrix';
+import { joinRoom, matrixFetch, type MatrixSession } from '../helpers/matrix';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
@@ -33,24 +34,13 @@ test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
 const registerPerson = async (localpart: string, displayName: string) => {
   const username = `${localpart}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const session = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const session = await registerDisposableUser(username, PASSWORD);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(session.userId)}/displayname`, {
     method: 'PUT',
     accessToken: session.accessToken,
     body: JSON.stringify({ displayname: displayName }),
   });
-  return { ...session, username, displayName };
+  return { ...session, displayName };
 };
 
 /** A direct chat of `owner` with `other`, listed in the owner's m.direct. */

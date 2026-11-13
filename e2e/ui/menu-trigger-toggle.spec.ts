@@ -1,10 +1,11 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
-import { createPrivateRoom, loginToMatrix } from '../helpers/matrix';
+import { createPrivateRoom } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // A press on the button of an open menu closes the menu and leaves it closed. The menu's focus
@@ -27,21 +28,7 @@ test.use({
   },
 });
 
-const register = async (name: string) => {
-  const username = `toggle_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string) => registerDisposableUser(`toggle_${name}_${RUN}`, PASSWORD);
 
 const pressTwice = async (page: Page, name: string, touch: boolean) => {
   const reader = await register(name);

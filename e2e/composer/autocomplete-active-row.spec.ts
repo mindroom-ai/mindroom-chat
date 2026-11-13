@@ -1,11 +1,12 @@
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { joinRoom, loginToMatrix, matrixFetch } from '../helpers/matrix';
+import { joinRoom, matrixFetch } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // The composer's suggestion menus (mentions, emoji, commands) show which row Enter picks: they
@@ -30,24 +31,13 @@ test.use({
 
 const register = async (localpart: string, displayName: string) => {
   const username = `aar_${localpart}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const session = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const session = await registerDisposableUser(username, PASSWORD);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(session.userId)}/displayname`, {
     method: 'PUT',
     accessToken: session.accessToken,
     body: JSON.stringify({ displayname: displayName }),
   });
-  return { ...session, username };
+  return session;
 };
 
 const selected = (listbox: Locator) =>

@@ -5,7 +5,6 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
   joinRoom,
-  loginToMatrix,
   registerAgentAccount,
   sendRoomMessage,
   type MatrixSession,
@@ -15,6 +14,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // P2-macos-safari-F009: MindRoom titles a thread with an m.notice thread event that carries
@@ -66,21 +66,8 @@ test.use({
   },
 });
 
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `cptn_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`cptn_${name}_${RUN}`, PASSWORD);
 
 const inThread = (rootId: string) => ({
   'm.relates_to': {

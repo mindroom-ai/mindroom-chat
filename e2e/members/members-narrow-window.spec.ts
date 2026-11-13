@@ -1,11 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { loginToMatrix, matrixFetch } from '../helpers/matrix';
+import { matrixFetch } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // With the members open beside a room, a window that narrows until they no longer fit beside it
@@ -40,18 +41,7 @@ const register = async (name: string) => {
   // Numbered, so that --repeat-each runs register new accounts.
   accounts += 1;
   const username = `mnw_${name}${accounts}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
+  return registerDisposableUser(username, PASSWORD);
 };
 
 /** From now on, the page notes every focus move and every members dialog that appears. */

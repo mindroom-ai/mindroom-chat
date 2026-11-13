@@ -7,11 +7,12 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { joinRoom, loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
+import { joinRoom, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // Closing the message editor raises no "ResizeObserver loop completed with undelivered
@@ -50,21 +51,8 @@ test.use({
 
 type Account = MatrixSession & { username: string };
 
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `rloop_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<Account> =>
+  registerDisposableUser(`rloop_${name}_${RUN}`, PASSWORD);
 
 type World = { reader: Account; roomId: string };
 

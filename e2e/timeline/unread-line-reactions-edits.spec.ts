@@ -3,7 +3,6 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   sendMessageEdit,
   sendReaction,
@@ -14,6 +13,7 @@ import { launchWebKit } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // The "New Messages" line, the Jump to Unread pill and read receipts when another account reacts to
@@ -40,21 +40,8 @@ test.use({
   },
 });
 
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `unl_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`unl_${name}_${RUN}`, PASSWORD);
 
 /** Moves within the app without reloading it, as its own links do. */
 const openPath = (page: Page, path: string) =>

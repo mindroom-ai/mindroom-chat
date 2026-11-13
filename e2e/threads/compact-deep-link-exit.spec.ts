@@ -3,7 +3,6 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
   joinRoom,
-  loginToMatrix,
   registerAgentAccount,
   sendRoomMessage,
   type MatrixSession,
@@ -12,6 +11,7 @@ import { launchWebKit } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // Leaving a thread that was opened from a link (not from its card) brings its card into view in
@@ -43,21 +43,8 @@ test.use({
   },
 });
 
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `cdl_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`cdl_${name}_${RUN}`, PASSWORD);
 
 const seed = async (label: string) => {
   const reader = await registerAndLogin(`reader_${label}`);

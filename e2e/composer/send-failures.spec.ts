@@ -13,7 +13,6 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
   createThreadFixture,
-  loginToMatrix,
   matrixFetch,
   sendRoomMessage,
   type MatrixSession,
@@ -22,6 +21,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // A message the person typed is never lost and never merged into another one. A send that fails
@@ -64,21 +64,8 @@ test.use({
   },
 });
 
-const register = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `sf_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`sf_${name}_${RUN}`, PASSWORD);
 
 const ROOT_BODY = 'Shift handover checklist for the weekend crew';
 const REPLY_BODY = 'I added the fuel readings and the open work orders.';

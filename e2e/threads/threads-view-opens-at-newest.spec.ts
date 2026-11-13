@@ -9,7 +9,6 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
   joinRoom,
-  loginToMatrix,
   registerAgentAccount,
   sendRoomMessage,
   type MatrixSession,
@@ -19,6 +18,7 @@ import { launchWebKit } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // The Threads view of a room with an agent lists the room's threads under the filter bar, in the
@@ -83,21 +83,8 @@ test.use({
   },
 });
 
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `tvn_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`tvn_${name}_${RUN}`, PASSWORD);
 
 const messageBody = (index: number) =>
   `Status update ${index}: the staging deploy for build ${

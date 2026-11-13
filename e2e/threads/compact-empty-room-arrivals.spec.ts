@@ -4,7 +4,6 @@ import { createRoom } from '../helpers/createRoom';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   seedRoomOverviewState,
   sendRoomMessage,
@@ -13,6 +12,7 @@ import {
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // Compact reads no message of the room's main timeline by being open (Escape, Mark as Read and a
@@ -33,21 +33,8 @@ test.use({
 });
 test.describe.configure({ timeout: 180_000 });
 
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `cer_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`cer_${name}_${RUN}`, PASSWORD);
 
 type JoinedRoomSync = {
   unread_notifications?: { notification_count?: number };

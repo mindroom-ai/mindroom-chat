@@ -9,7 +9,6 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
-  loginToMatrix,
   matrixFetch,
   redactEvent,
   seedRoomOverviewState,
@@ -22,6 +21,7 @@ import { isPhoneLayout, openRoomPins, roomMoreOptions } from '../helpers/roomMen
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // The room header's Pinned Messages button opens the pin menu, a dialog named Pinned Messages (the
@@ -119,18 +119,7 @@ const register = async (
   displayname: string,
   avatar?: Buffer
 ): Promise<MatrixSession> => {
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const session = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const session = await registerDisposableUser(username, PASSWORD);
   const profile = `/profile/${encodeURIComponent(session.userId)}`;
   await matrixFetch(HOMESERVER, `${profile}/displayname`, {
     method: 'PUT',

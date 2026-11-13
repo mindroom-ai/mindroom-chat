@@ -10,7 +10,6 @@ import { createRoom } from '../helpers/createRoom';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   registerAgentAccount,
   seedRoomOverviewState,
   sendRoomMessage,
@@ -20,6 +19,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // Opening a room raises no "ResizeObserver loop completed with undelivered notifications." While a
@@ -65,18 +65,7 @@ let accounts = 0;
 const register = async (name: string): Promise<Account> => {
   accounts += 1;
   const username = `rol_open_${name}_${RUN}_${accounts}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
+  return registerDisposableUser(username, PASSWORD);
 };
 
 type World = { reader: Account; roomId: string };

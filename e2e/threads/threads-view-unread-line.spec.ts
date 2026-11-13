@@ -9,7 +9,6 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   registerAgentAccount,
   seedRoomOverviewState,
@@ -21,6 +20,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // The Threads view of a room with an agent lists the newest thread first, where it opens and
@@ -64,18 +64,7 @@ test.use({
 const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
   // A repeated test (--repeat-each) runs in the same worker, with the same RUN.
   const username = `tvu_${name}_${RUN}${test.info().repeatEachIndex}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
+  return registerDisposableUser(username, PASSWORD);
 };
 
 /** A room where `writer` sent 30 messages the reader read and 30 it has not. */

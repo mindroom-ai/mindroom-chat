@@ -10,17 +10,12 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import {
-  joinRoom,
-  loginToMatrix,
-  matrixFetch,
-  sendRoomMessage,
-  type MatrixSession,
-} from '../helpers/matrix';
+import { joinRoom, matrixFetch, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // A room with unread messages, scrolled to the top of the rows it opened with while its older
@@ -60,21 +55,8 @@ test.use({
   },
 });
 
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `upx_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`upx_${name}_${RUN}`, PASSWORD);
 
 type Labels = { jump: string; mark: string };
 

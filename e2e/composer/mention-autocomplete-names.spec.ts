@@ -1,11 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { joinRoom, loginToMatrix, matrixFetch } from '../helpers/matrix';
+import { joinRoom, matrixFetch } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // A mention suggestion shows the member's whole name on a phone; their Matrix ID beside it gives
@@ -27,24 +28,13 @@ test.use({
 
 const register = async (localpart: string, displayName: string) => {
   const username = `${localpart}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const session = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const session = await registerDisposableUser(username, PASSWORD);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(session.userId)}/displayname`, {
     method: 'PUT',
     accessToken: session.accessToken,
     body: JSON.stringify({ displayname: displayName }),
   });
-  return { ...session, username };
+  return session;
 };
 
 const wholeNameShows = async (page: Page, browserName: string) => {

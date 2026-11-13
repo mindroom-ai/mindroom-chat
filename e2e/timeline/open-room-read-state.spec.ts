@@ -8,17 +8,12 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import {
-  joinRoom,
-  loginToMatrix,
-  matrixFetch,
-  sendRoomMessage,
-  type MatrixSession,
-} from '../helpers/matrix';
+import { joinRoom, matrixFetch, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // The read state of the room the reader has open, against the server's counts. Coming back to the
@@ -53,21 +48,8 @@ test.describe.configure({ timeout: 300_000 });
 
 type Account = MatrixSession & { username: string };
 
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `orrs_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<Account> =>
+  registerDisposableUser(`orrs_${name}_${RUN}`, PASSWORD);
 
 /** A message of a few lines, as people write them. */
 const message = (title: string) => ({

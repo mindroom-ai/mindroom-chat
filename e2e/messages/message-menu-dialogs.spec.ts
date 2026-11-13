@@ -9,12 +9,13 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { joinRoom, loginToMatrix, sendReaction, sendRoomMessage } from '../helpers/matrix';
+import { joinRoom, sendReaction, sendRoomMessage } from '../helpers/matrix';
 import { touch } from '../helpers/touch';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // Choosing an entry of a message's menu that opens a dialog (View Reactions, Read Receipts, View
@@ -62,21 +63,7 @@ test.use({
   },
 });
 
-const register = async (name: string) => {
-  const username = `mmd_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string) => registerDisposableUser(`mmd_${name}_${RUN}`, PASSWORD);
 
 /**
  * 25 other rooms, and a room the reader created (so they may delete) where a colleague wrote 24

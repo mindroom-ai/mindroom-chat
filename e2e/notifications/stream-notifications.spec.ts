@@ -9,7 +9,6 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   registerAgentAccount,
   sendRoomMessage,
@@ -19,6 +18,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // A MindRoom agent streams a reply as one message: a placeholder sent as an `m.text` marked
@@ -47,21 +47,8 @@ type ShownNotification = { title: string; body?: string; tag?: string };
 type Account = MatrixSession & { username: string };
 type World = { reader: Account; agent: MatrixSession; roomId: string; quietId: string };
 
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `sn_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<Account> =>
+  registerDisposableUser(`sn_${name}_${RUN}`, PASSWORD);
 
 const seed = async (engine: string): Promise<World> => {
   const reader = await registerAndLogin(engine);

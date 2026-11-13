@@ -15,7 +15,6 @@ import { launchWebKit } from '../helpers/webkit';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   registerAgentAccount,
   seedRoomOverviewState,
@@ -26,6 +25,7 @@ import { openThreadsCategory } from '../helpers/threadsCategory';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // The Classic view shows each thread's replies among the room's rows. A reply the reader sees
@@ -62,21 +62,8 @@ const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } 
 
 type Account = MatrixSession & { username: string };
 
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `ctr_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<Account> =>
+  registerDisposableUser(`ctr_${name}_${RUN}`, PASSWORD);
 
 const inThread = (rootId: string) => ({
   'm.relates_to': {

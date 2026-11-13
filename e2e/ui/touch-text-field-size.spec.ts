@@ -11,11 +11,11 @@ import {
 import { buildLoginPath } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { loginToMatrix } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // iOS Safari zooms the page into a text field whose text is smaller than 16 px when the field
@@ -53,18 +53,7 @@ test.beforeEach(async () => {
 /** A reader with a room to invite into. */
 const seed = async (engine: string) => {
   const username = `ttf_${engine}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const session = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const session = await registerDisposableUser(username, PASSWORD);
   await createRoom(HOMESERVER, session.accessToken, { name: ROOM });
   return username;
 };

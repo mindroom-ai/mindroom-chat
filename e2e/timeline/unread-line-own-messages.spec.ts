@@ -1,11 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { joinRoom, loginToMatrix, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import { joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // A message the reader sends is read: the "New Messages" line never stands above it. The reader
@@ -28,21 +29,7 @@ test.use({
   },
 });
 
-const register = async (name: string) => {
-  const username = `uno_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string) => registerDisposableUser(`uno_${name}_${RUN}`, PASSWORD);
 
 /** The timeline's scroll area. */
 const scroller = (page: Page) =>

@@ -3,7 +3,6 @@ import { loginWithPassword } from '../helpers/auth';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   registerAgentAccount,
   seedRoomOverviewState,
   sendRoomMessage,
@@ -13,6 +12,7 @@ import { createRoom } from '../helpers/createRoom';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // The room list's unread mark and the room's unread thread filter agree, against the disposable
@@ -23,21 +23,8 @@ import {
 const PASSWORD = 'room-unread-filter-spec-password';
 const RUN = Date.now().toString(36);
 
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `ruf_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`ruf_${name}_${RUN}`, PASSWORD);
 
 const inThread = (rootId: string, content: Record<string, unknown>) => ({
   ...content,
@@ -160,7 +147,9 @@ test('the room list marks a room unread only for threads its unread filter finds
 
   // A main receipt from another device reads the root: the room turns read and the filter empty.
   const receipt = await fetch(
-    `${HOMESERVER}/_matrix/client/v3/rooms/${encodeURIComponent(reportId)}/receipt/m.read/${encodeURIComponent(reportRoot)}`,
+    `${HOMESERVER}/_matrix/client/v3/rooms/${encodeURIComponent(
+      reportId
+    )}/receipt/m.read/${encodeURIComponent(reportRoot)}`,
     {
       method: 'POST',
       headers: {

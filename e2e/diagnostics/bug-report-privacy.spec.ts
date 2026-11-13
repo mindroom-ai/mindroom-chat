@@ -10,7 +10,6 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import {
   createDefaultThreadFilterState,
-  loginToMatrix,
   matrixFetch,
   seedRoomOverviewState,
   type MatrixSession,
@@ -20,6 +19,7 @@ import { leaveCompactView } from '../helpers/roomViewSwitch';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // "Report a bug" on a message of an end-to-end encrypted room, against the slot's homeserver.
@@ -46,21 +46,8 @@ type UploadedReport = {
   events: Array<{ eventId: string | null; event: { content: Record<string, unknown> } }>;
 };
 
-const register = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `brp_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`brp_${name}_${RUN}`, PASSWORD);
 
 const isUpload = (request: Request) =>
   request.method() === 'POST' &&

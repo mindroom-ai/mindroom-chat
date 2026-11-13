@@ -4,7 +4,6 @@ import { createRoom } from '../helpers/createRoom';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   matrixFetch,
   registerAgentAccount,
   seedRoomOverviewState,
@@ -15,6 +14,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // Replies that finished streaming while the reader was away, read half-way on another device. A
@@ -34,21 +34,8 @@ const FINISHED = 'The migration note is at the top and both missing entries are 
 
 type Account = MatrixSession & { username: string };
 
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `sfb_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<Account> =>
+  registerDisposableUser(`sfb_${name}_${RUN}`, PASSWORD);
 
 type Streamed = { rootId: string; finishId: string };
 

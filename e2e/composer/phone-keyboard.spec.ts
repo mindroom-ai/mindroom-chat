@@ -10,7 +10,6 @@ import { createRoom } from '../helpers/createRoom';
 import {
   addRoomToSpace,
   createDefaultThreadFilterState,
-  loginToMatrix,
   seedRoomOverviewState,
   sendRoomMessage,
   type MatrixSession,
@@ -21,6 +20,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // A phone's on-screen keyboard and the composer. A reader who read back a little with a finger and
@@ -71,21 +71,8 @@ test.use({
   },
 });
 
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  const username = `pkb_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
+  registerDisposableUser(`pkb_${name}_${RUN}`, PASSWORD);
 
 const message = (index: number) =>
   `Update ${index}: ${TOPICS[index % TOPICS.length]} is ${

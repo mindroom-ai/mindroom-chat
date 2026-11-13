@@ -13,7 +13,6 @@ import { openMessageMenu } from '../helpers/messageMenu';
 import {
   createDefaultThreadFilterState,
   joinRoom,
-  loginToMatrix,
   seedRoomOverviewState,
   sendRoomMessage,
   type MatrixSession,
@@ -22,6 +21,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // Bidirectional controls (U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C) change the
@@ -60,21 +60,8 @@ const FILE_TEXT_SHOWN = 'Command: echo ok <U+202E>; rm -rf data #<U+202C> done';
 
 type Account = MatrixSession & { username: string };
 
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `bidi_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<Account> =>
+  registerDisposableUser(`bidi_${name}_${RUN}`, PASSWORD);
 
 const upload = async (accessToken: string, text: string): Promise<string> => {
   const response = await fetch(`${HOMESERVER}/_matrix/media/v3/upload`, {

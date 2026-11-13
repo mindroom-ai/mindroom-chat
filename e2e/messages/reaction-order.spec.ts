@@ -1,11 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { joinRoom, loginToMatrix, sendReaction, sendRoomMessage } from '../helpers/matrix';
+import { joinRoom, sendReaction, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // Clicking a reaction pill adds or removes the viewer's reaction, and the pill stays where it
@@ -34,21 +35,7 @@ test.use({
   },
 });
 
-const register = async (name: string) => {
-  const username = `rord_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string) => registerDisposableUser(`rord_${name}_${RUN}`, PASSWORD);
 
 const pillsKeepTheirPlaces = async (page: Page, name: string) => {
   const viewer = await register(`${name}v`);

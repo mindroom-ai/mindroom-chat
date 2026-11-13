@@ -9,17 +9,12 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import {
-  joinRoom,
-  loginToMatrix,
-  matrixFetch,
-  sendRoomMessage,
-  type MatrixSession,
-} from '../helpers/matrix';
+import { joinRoom, matrixFetch, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // Bidirectional controls (U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F, U+061C) change the
@@ -58,25 +53,14 @@ type Account = MatrixSession & { username: string };
 
 const registerAndLogin = async (name: string, displayName: string): Promise<Account> => {
   const username = `bidi_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const session = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const session = await registerDisposableUser(username, PASSWORD);
   // Set before joining, so each membership carries the name.
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(session.userId)}/displayname`, {
     method: 'PUT',
     accessToken: session.accessToken,
     body: JSON.stringify({ displayname: displayName }),
   });
-  return { ...session, username };
+  return session;
 };
 
 type World = { reader: Account; member: Account; offender: Account; roomId: string };

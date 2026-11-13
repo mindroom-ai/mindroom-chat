@@ -1,10 +1,11 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
-import { addRoomToSpace, loginToMatrix, matrixFetch, type MatrixSession } from '../helpers/matrix';
+import { addRoomToSpace, matrixFetch, type MatrixSession } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // Rooms move up and down in their section by drag and drop or from the keyboard, against the
@@ -18,21 +19,8 @@ const SHOTS = process.env.ROOM_ORDER_SHOTS;
 
 type Account = MatrixSession & { username: string };
 
-const registerAndLogin = async (name: string): Promise<Account> => {
-  const username = `l19_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const registerAndLogin = (name: string): Promise<Account> =>
+  registerDisposableUser(`l19_${name}_${RUN}`, PASSWORD);
 
 const signIn = (page: Page, account: Account) =>
   loginWithPassword(page, {

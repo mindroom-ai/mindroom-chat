@@ -6,8 +6,9 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   CHROMIUM_WITH_SCROLLBARS,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { loginToMatrix, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import { matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Up in an empty composer edits the user's latest message. Right after Enter, while that message
@@ -30,21 +31,7 @@ test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
-const register = async (name: string) => {
-  const username = `aus_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string) => registerDisposableUser(`aus_${name}_${RUN}`, PASSWORD);
 
 const checkArrowUp = async (page: Page, tag: string) => {
   const writer = await register(tag);

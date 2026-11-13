@@ -9,7 +9,6 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
   createDefaultThreadFilterState,
-  loginToMatrix,
   matrixFetch,
   seedRoomOverviewState,
   sendRoomMessage,
@@ -19,6 +18,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // Jumps within a room to a message far above the view. In the Threads view the room's whole
@@ -63,18 +63,7 @@ test.use({
 /** An account with 24 other rooms and a room: an old message, 80 notes, a reply quoting it. */
 const seed = async (name: string) => {
   const username = `frj_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  const owner: MatrixSession = await loginToMatrix(HOMESERVER, username, PASSWORD);
+  const owner: MatrixSession = await registerDisposableUser(username, PASSWORD);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(owner.userId)}/displayname`, {
     method: 'PUT',
     accessToken: owner.accessToken,

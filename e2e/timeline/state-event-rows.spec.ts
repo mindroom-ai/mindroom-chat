@@ -1,11 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { loginToMatrix, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
+import { sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
 // The rows for a new room name, topic or avatar carry an icon like the membership rows, so all
@@ -27,21 +28,7 @@ test.use({
   },
 });
 
-const register = async (name: string) => {
-  const username = `ser_${name}_${RUN}`;
-  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      password: PASSWORD,
-      auth: { type: 'm.login.dummy' },
-      inhibit_login: true,
-    }),
-  });
-  expect(response.ok, `registering ${username}`).toBe(true);
-  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
-};
+const register = (name: string) => registerDisposableUser(`ser_${name}_${RUN}`, PASSWORD);
 
 const linesShareAColumn = async (page: Page, name: string) => {
   const reader = await register(name);
