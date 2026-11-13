@@ -11,7 +11,8 @@ Each has its own installed `node_modules`, so this repository's `package.json` a
 }
 ```
 
-`scripts/client-plugins.mjs` checks each declaration, failing the build on one it cannot use, and replaces `src/app/plugins/pluginEntries.ts`, which lists no plugins, with a module that imports each entry. Without plugins none of their code ships.
+`scripts/client-plugins.mjs` checks each declaration, failing the build on one it cannot use, and replaces `src/app/plugins/pluginEntries.ts`, which lists no plugins, with a module that imports each entry.
+Without plugins none of their code ships.
 
 ## The client SDK
 
@@ -255,7 +256,8 @@ a CommonJS package's `require` of one gets the module the app imports too.
 A build needs none of them installed in the plugin's directory, wherever it is, and does not use a copy installed there (for the plugin's tests, or for one of its packages); an import the app's copy cannot resolve, such as a file only a newer version has, fails the build.
 A plugin directory inside another one belongs to the inner plugin, and the app's own directory inside a plugin directory to the app.
 The dev server pre-bundles the packages a plugin installed without plugin hooks; there an esbuild plugin in `scripts/client-plugins.mjs` resolves their imports and requires of the shared packages.
-Not redirected: packages linked in from outside the plugin's directory (`npm link`, `file:`), which the notices and the bundle report below do not count as the plugin's either, a plugin's `?worker` bundles in a build, and its `.css.ts` style files, which vanilla-extract compiles on its own. react-aria's scoped parts (`@react-aria/*`, `@react-stately/*`) are not shared: a plugin, or a package it installed, that imports one directly bundles the copy it installed, with focus scopes and an overlay stack apart from the app's, so a plugin imports react-aria itself.
+Not redirected: packages linked in from outside the plugin's directory (`npm link`, `file:`), which the notices and the bundle report below do not count as the plugin's either, a plugin's `?worker` bundles in a build, and its `.css.ts` style files, which vanilla-extract compiles on its own.
+react-aria's scoped parts (`@react-aria/*`, `@react-stately/*`) are not shared: a plugin, or a package it installed, that imports one directly bundles the copy it installed, with focus scopes and an overlay stack apart from the app's, so a plugin imports react-aria itself.
 A plugin lists the ones it imports under `peerDependencies`, never `dependencies`: the build fails, naming the plugin and the package, on one under `dependencies`, and on a copy of one the plugin bundles under another name (an npm alias).
 A plugin uses the app's `QueryClient` (`useQueryClient()`, or `useQuery` without a client of its own), never one it creates: the app keeps one per signed-in account.
 
