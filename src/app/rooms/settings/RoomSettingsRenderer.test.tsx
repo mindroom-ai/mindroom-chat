@@ -130,7 +130,7 @@ describe('room and space settings dialog', () => {
     expect(parts()).toEqual({ permissions: 'false' });
   });
 
-  it("opens a space's settings from its menus in a space's words, without the offline tile", () => {
+  it('tells the pages of a space they serve a space and leaves out the offline tile', () => {
     act(() => openSettings(SPACE));
 
     expect(parts()).toMatchObject({ access: 'true', avatar: 'true', upgrade: 'true' });
@@ -140,13 +140,13 @@ describe('room and space settings dialog', () => {
     expect(parts()).toEqual({ permissions: 'true' });
   });
 
-  it("shows a space's own permissions when a member's Manage powers opens them", () => {
+  it("opens a space's Permissions page in a space's words when asked for it", () => {
     act(() => openSettings(SPACE, RoomSettingsPage.PermissionsPage));
 
     expect(parts()).toEqual({ permissions: 'true' });
   });
 
-  it("shows the permissions page when Manage powers asks for it over the space's open settings", () => {
+  it("opens the page asked for in the space's settings that are open already", () => {
     act(() => openSettings(SPACE));
     act(() => openSettings(SPACE, RoomSettingsPage.PermissionsPage));
 

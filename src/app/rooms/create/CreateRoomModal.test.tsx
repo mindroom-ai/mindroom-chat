@@ -90,8 +90,10 @@ describe('Create Room dialog', () => {
   it('opens the advanced options without creating the room', async () => {
     open();
 
+    expect(host.textContent).not.toContain('Version');
     await act(async () => byText('Advanced Options').click());
 
     expect(mocks.createRoom).not.toHaveBeenCalled();
+    expect(host.textContent).toContain('Version');
   });
 });

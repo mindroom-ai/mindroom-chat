@@ -132,10 +132,10 @@ describe('Create Space dialog', () => {
 
   it('names its option switches and offers no encryption', () => {
     open();
-    const switches = [...host.querySelectorAll('[aria-label]')].map((node) =>
+    const switches = [...host.querySelectorAll('[role="switch"]')].map((node) =>
       node.getAttribute('aria-label')
     );
-    expect(switches).toEqual(expect.arrayContaining(['Knock to Join', 'Allow Federation']));
+    expect(switches).toEqual(['Knock to Join', 'Allow Federation']);
     expect(host.textContent).not.toContain('End-to-End Encryption');
     expect(host.textContent).toContain('Anyone can send request to join this space.');
   });
@@ -174,11 +174,13 @@ describe('Create Space dialog', () => {
     open();
     fill('Team');
     const chip = byText('Advanced Options')!;
+    expect(host.textContent).not.toContain('Version');
 
     await act(async () => chip.click());
     await settle();
 
     expect(mocks.createRoom).not.toHaveBeenCalled();
     expect(chip.getAttribute('aria-expanded')).toBe('true');
+    expect(host.textContent).toContain('Version');
   });
 });
