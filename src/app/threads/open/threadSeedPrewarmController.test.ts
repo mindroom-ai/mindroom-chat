@@ -53,6 +53,7 @@ const makeRootEvent = () =>
 // The controller only reads the cache: the spies on the fake engine below check that it neither
 // fetches relations nor persists thread events.
 let harnessController: ReturnType<typeof useThreadSeedPrewarmController>;
+let harnessRenderer: ReactTestRenderer | undefined;
 function Harness({ mx, room }: { mx: MatrixClient; room: Room }) {
   harnessController = useThreadSeedPrewarmController({
     room,
@@ -68,7 +69,7 @@ function Harness({ mx, room }: { mx: MatrixClient; room: Room }) {
 
 const renderPrewarm = async (mx: MatrixClient, room: Room, engine: SyncEngine) => {
   await act(async () => {
-    create(
+    harnessRenderer = create(
       React.createElement(
         SyncEngineProvider,
         { engine },
@@ -92,6 +93,8 @@ describe('threadSeedPrewarmController cache-only seeds', () => {
     vi.mocked(loadThreadCachedSnapshot).mockClear();
   });
   afterEach(() => {
+    act(() => harnessRenderer?.unmount());
+    harnessRenderer = undefined;
     resetCacheStoreForTesting();
     clearThreadOpenSeedSnapshotsForTests();
   });

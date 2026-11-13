@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RelationType } from 'matrix-js-sdk';
 import { makeEvent, makeRoom } from '../../timeline/test-utils/RoomTimeline.test.shared';
 import { createThreadOpenSeedSession } from './threadOpenSeedController';
@@ -18,6 +18,10 @@ const makeRefs = (threadId = '$root') => ({
 });
 
 describe('createThreadOpenSeedSession', () => {
+  beforeEach(() => {
+    vi.mocked(hydrateCachedEvents).mockClear();
+  });
+
   it('applies visible room thread events immediately for targeted opens', () => {
     const root = makeEvent('$root', { isThreadRoot: true, ts: 1 });
     const reply = makeEvent('$reply', { threadRootId: '$root', ts: 2 });
@@ -44,7 +48,10 @@ describe('createThreadOpenSeedSession', () => {
     expect(supplemental).toHaveBeenCalledWith('$root', [root, reply]);
     // The edit is hydrated into the room's timeline set with the visible events.
     expect(vi.mocked(hydrateCachedEvents)).toHaveBeenCalledWith(
-      expect.objectContaining({ events: [root, reply, edit] })
+      expect.objectContaining({
+        events: [root, reply, edit],
+        timelineSets: [room.getUnfilteredTimelineSet()],
+      })
     );
   });
 
