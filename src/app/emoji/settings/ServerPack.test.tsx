@@ -175,10 +175,6 @@ describe('ServerPack', () => {
     expect(buttons('Permissions')).toHaveLength(1);
     click(buttons('Permissions')[0]);
 
-    expect(hooks.openRoomSettings).toHaveBeenCalledWith(
-      '!emoji',
-      undefined,
-      RoomSettingsPage.PermissionsPage
-    );
+    expect(hooks.openRoomSettings).toHaveBeenCalledWith('!emoji', RoomSettingsPage.PermissionsPage);
   });
 });
