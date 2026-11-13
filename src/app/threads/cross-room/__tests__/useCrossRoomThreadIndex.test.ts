@@ -10,7 +10,6 @@ import { RoomEvent, RoomStateEvent, MatrixEvent as StateMatrixEvent } from 'matr
 import { ThreadEvent, type Thread } from 'matrix-js-sdk/lib/models/thread';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { allRoomsAtom } from '../../../matrix/state/roomList';
-import { roomToParentsAtom } from '../../../matrix/state/roomToParents';
 import { makeRecentThreadsAtom } from '../../../event-store/threads/recentThreads';
 import {
   clearThreadSummarySharedState,
@@ -507,10 +506,6 @@ describe('useCrossRoomThreadIndex', () => {
     matrixClientMock.mockReturnValue(mx);
     const store = createStore();
     store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
-    store.set(roomToParentsAtom, {
-      type: 'INITIALIZE',
-      roomToParents: new Map([[room.roomId, new Set(['!space:example.org'])]]),
-    });
 
     let renderer: ReturnType<typeof create> | undefined;
     await act(async () => {
@@ -521,9 +516,7 @@ describe('useCrossRoomThreadIndex', () => {
 
     const snapshot = store.get(crossRoomThreadIndexAtom);
     expect(snapshot.bootstrapped).toBe(true);
-    expect(Array.from(snapshot.entries.values())[0]?.parentSpaceIds).toEqual([
-      '!space:example.org',
-    ]);
+    expect(snapshot.entries.size).toBe(1);
     expect(room.on).toHaveBeenCalledWith(RoomEvent.Timeline, expect.any(Function));
     expect(room.on).toHaveBeenCalledWith(RoomEvent.LocalEchoUpdated, expect.any(Function));
     expect(room.on).toHaveBeenCalledWith(ThreadEvent.NewReply, expect.any(Function));

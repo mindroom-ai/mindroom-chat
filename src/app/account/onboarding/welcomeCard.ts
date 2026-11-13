@@ -10,5 +10,5 @@ export const WelcomeCardStyle: CSSProperties = {
   border: '1px solid rgba(125, 125, 125, 0.28)',
   borderRadius: '8px',
   padding: '12px',
-  textAlign: 'left',
+  textAlign: 'start',
 };

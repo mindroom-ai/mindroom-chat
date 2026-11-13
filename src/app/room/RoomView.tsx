@@ -18,7 +18,6 @@ import { RoomInput } from '../composer/RoomInput';
 import { moveMessageDraft } from '../composer/roomInputDrafts';
 import { computerOwnsKeyboardEvent } from '../computer/computerFocus';
 import { useSyncEngine } from '../event-store/engine/engineContext';
-import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
 import type { RoomRowsPlace } from '../timeline/roomTimelineScroll';
 import { RoomTimeline, type RoomTimelineProps } from '../timeline/RoomTimeline';
@@ -42,10 +41,6 @@ import { ComposerNotice, ConversationLayout } from './ConversationLayout';
 import { useLocalEchoRoot } from './useLocalEchoRoot';
 import { noteThreadColumnKey } from './useRoomEscapeReadReceipts';
 import { THREAD_COLUMN_WIDTH_KEY, useThreadLayout } from './threadLayout';
-
-const EMPTY_SUMMARY_MAP = new Map<string, ThreadSummaryInfo>();
-/** Stand-in for handlers the thread state mock or a minimal state leaves out. */
-const ignore = () => undefined;
 
 const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
 /** The thread column opens this wide, and may take what the messages beside it can spare. */
@@ -151,7 +146,7 @@ export function RoomView({
   const deletedRoot = useRef<string>();
   useLocalEchoRoot(room, openThreadId, () => {
     deletedRoot.current = openThreadId;
-    (threadState.handleThreadRootDeleted ?? ignore)();
+    threadState.handleThreadRootDeleted();
   });
   // An upgraded room takes no more messages; its notice leads to the replacement.
   const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
@@ -242,7 +237,7 @@ export function RoomView({
       room={room}
       threadId={openThreadId}
       summaryInfo={threadState.threadSummaryInfo}
-      onExitThread={threadState.handleExitThread ?? ignore}
+      onExitThread={threadState.handleExitThread}
       onShowBeside={columnFills && threadLayout.roomy ? showBeside : undefined}
       onShowFull={columnFills ? undefined : showFull}
     />
@@ -253,10 +248,10 @@ export function RoomView({
     eventId: openThreadId && !focusEventInRoom ? undefined : eventId,
     focusEventInRoom,
     hasMindroomAgents,
-    summaryMap: threadState.summaryMap ?? EMPTY_SUMMARY_MAP,
-    onStoreThreadSummary: threadState.storeThreadSummary ?? ignore,
+    summaryMap: threadState.summaryMap,
+    onStoreThreadSummary: threadState.storeThreadSummary,
     threadFilterState: threadState.threadFilterState,
-    threadSortFreezeState: threadState.threadSortFreezeState ?? null,
+    threadSortFreezeState: threadState.threadSortFreezeState,
     setThreadSortFreezeState: threadState.setThreadSortFreezeState,
     onToggle: threadState.handleToggle,
     onSortDirectionChange: threadState.handleSortDirectionChange,
@@ -271,7 +266,6 @@ export function RoomView({
     onApplyPreset: threadState.handleApplyPreset,
     onSearchQueryChange: threadState.handleSearchQueryChange,
     viewMode,
-    onViewModeChange: threadState.handleViewModeChange,
     compactRoomScrollStateRef,
     threadReturnPlaceRef,
     editor,

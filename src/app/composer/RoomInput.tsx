@@ -99,8 +99,6 @@ import { useRoomInputVoice } from './useRoomInputVoice';
 import { type HeldSend, useUnconfirmedRootSends } from './useUnconfirmedRootSends';
 import { useSavedVoiceDraft } from './voice/savedVoiceDraft';
 
-export { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
-
 export type RoomInputProps = {
   editor: Editor;
   /** The area that accepts dropped files, usually the whole room view. */

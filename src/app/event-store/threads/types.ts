@@ -172,16 +172,3 @@ export type RecentThreadViewModel = {
   persistableSummaryText?: string;
   shouldRekey: boolean;
 };
-
-export type CommandPaletteThreadViewModel = {
-  id: ThreadId;
-  summaryText: string;
-  isFallbackSummary?: boolean;
-  roomName: string;
-  participantNames?: string[];
-  tags?: string[];
-  isResolved?: boolean;
-  messageCount?: number;
-  sortRank?: number;
-  boost?: number;
-};

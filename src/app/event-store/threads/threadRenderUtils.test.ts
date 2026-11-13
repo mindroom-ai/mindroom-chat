@@ -4,11 +4,9 @@ import { inSameDay } from '../../lib/time';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../cache/cacheProbe';
 import {
   buildResolveConfirmedEventId,
-  dedupeThreadRenderEventEntries,
   estimateThreadEventRowHeight,
   getThreadInitialRenderMode,
   isDiscardedSettleWrite,
-  isThreadFallbackReply,
   mergeThreadRenderEvents,
   pickPreferredThreadRenderEvent,
   primeTimelineRenderContextBefore,
@@ -1061,48 +1059,6 @@ describe('buildResolveConfirmedEventId', () => {
   });
 });
 
-describe('dedupeThreadRenderEventEntries', () => {
-  it('replaces a room local echo entry with its confirmed event entry', () => {
-    const localEcho = makeMessageEvent('~local-txn-room', 10);
-    localEcho.setTxnId('txn-room');
-    const confirmed = makeMessageEvent('$remote-txn-room', 10);
-
-    const entries = dedupeThreadRenderEventEntries(
-      [
-        { event: localEcho, absoluteIndex: 249 },
-        { event: confirmed, absoluteIndex: 253 },
-      ],
-      (txnId: string) => (txnId === 'txn-room' ? '$remote-txn-room' : undefined)
-    );
-
-    expect(entries).toEqual([{ event: confirmed, absoluteIndex: 249 }]);
-  });
-
-  it('keeps unrelated room entries in order while removing the stale local echo duplicate', () => {
-    const earlier = makeMessageEvent('$earlier', 5);
-    const localEcho = makeMessageEvent('~local-txn-room-2', 10);
-    localEcho.setTxnId('txn-room-2');
-    const confirmed = makeMessageEvent('$remote-txn-room-2', 10);
-    const later = makeMessageEvent('$later', 20);
-
-    const entries = dedupeThreadRenderEventEntries(
-      [
-        { event: earlier, absoluteIndex: 10 },
-        { event: localEcho, absoluteIndex: 11 },
-        { event: confirmed, absoluteIndex: 12 },
-        { event: later, absoluteIndex: 13 },
-      ],
-      (txnId: string) => (txnId === 'txn-room-2' ? '$remote-txn-room-2' : undefined)
-    );
-
-    expect(entries).toEqual([
-      { event: earlier, absoluteIndex: 10 },
-      { event: confirmed, absoluteIndex: 11 },
-      { event: later, absoluteIndex: 13 },
-    ]);
-  });
-});
-
 const DAY_MS = 86_400_000;
 
 describe('primeTimelineRenderContextBefore', () => {
@@ -1281,70 +1237,5 @@ describe('primeTimelineRenderContextBefore', () => {
       expect(primed?.isPrevRendered ?? false).toBe(foldedRendered);
       expect(primed?.pendingDayDivider ?? false).toBe(foldedDayDivider);
     }
-  });
-});
-
-describe('isThreadFallbackReply', () => {
-  const makeReplyEvent = (relatesTo?: Record<string, unknown>) =>
-    new MatrixEvent({
-      content: {
-        body: 'hello',
-        msgtype: 'm.text',
-        ...(relatesTo ? { 'm.relates_to': relatesTo } : {}),
-      },
-      event_id: '$reply:example.org',
-      origin_server_ts: 10,
-      room_id: '!room:example.org',
-      sender: '@alice:example.org',
-      type: 'm.room.message',
-    });
-
-  it('is true for a thread reply whose in_reply_to is only a fallback', () => {
-    const event = makeReplyEvent({
-      rel_type: 'm.thread',
-      event_id: '$root:example.org',
-      is_falling_back: true,
-      'm.in_reply_to': { event_id: '$prev:example.org' },
-    });
-    expect(isThreadFallbackReply(event)).toBe(true);
-  });
-
-  it('is false for an explicit reply inside a thread', () => {
-    const event = makeReplyEvent({
-      rel_type: 'm.thread',
-      event_id: '$root:example.org',
-      is_falling_back: false,
-      'm.in_reply_to': { event_id: '$target:example.org' },
-    });
-    expect(isThreadFallbackReply(event)).toBe(false);
-  });
-
-  it('is false for a thread reply without the fallback flag', () => {
-    const event = makeReplyEvent({
-      rel_type: 'm.thread',
-      event_id: '$root:example.org',
-      'm.in_reply_to': { event_id: '$target:example.org' },
-    });
-    expect(isThreadFallbackReply(event)).toBe(false);
-  });
-
-  it('is false for a plain rich reply outside threads', () => {
-    const event = makeReplyEvent({
-      'm.in_reply_to': { event_id: '$target:example.org' },
-    });
-    expect(isThreadFallbackReply(event)).toBe(false);
-  });
-
-  it('is false for non-thread relations even with the flag set', () => {
-    const event = makeReplyEvent({
-      rel_type: 'm.replace',
-      event_id: '$target:example.org',
-      is_falling_back: true,
-    });
-    expect(isThreadFallbackReply(event)).toBe(false);
-  });
-
-  it('is false for a message without relations', () => {
-    expect(isThreadFallbackReply(makeReplyEvent())).toBe(false);
   });
 });

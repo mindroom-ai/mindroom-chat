@@ -28,39 +28,6 @@ export const findEarliestLoadedThreadReplyByCacheOrder = (
 };
 
 /**
- * Compute the backward pagination token for reconciliation using in-memory
- * values, avoiding the async persist→read-back race through IndexedDB.
- *
- * - If the server says no more pages (token is null), return null.
- * - If more pages exist and the earliest loaded reply matches the earliest
- *   fetched reply, return the server token.
- * - Otherwise (earliest loaded reply is older than the fetched slice),
- *   return undefined to preserve the SDK token.
- */
-export const computeReconciliationToken = (
-  serverToken: string | null,
-  fetchedEvents: MatrixEvent[],
-  loadedEvents: MatrixEvent[],
-  threadId: string
-): string | null | undefined => {
-  if (serverToken === null) {
-    // Server returned all thread replies — no more backward pages
-    return null;
-  }
-
-  const earliestFetched = findEarliestLoadedThreadReplyByCacheOrder(fetchedEvents, threadId);
-  const earliestLoaded = findEarliestLoadedThreadReplyByCacheOrder(loadedEvents, threadId);
-
-  if (earliestLoaded && earliestFetched && earliestLoaded.getId() === earliestFetched.getId()) {
-    // Earliest loaded reply is the earliest fetched reply — server token applies
-    return serverToken;
-  }
-
-  // Earliest loaded reply is older than fetched slice — preserve SDK state
-  return undefined;
-};
-
-/**
  * Reconcile the backward pagination token on a thread timeline from the cached
  * token for the earliest loaded reply.
  *
