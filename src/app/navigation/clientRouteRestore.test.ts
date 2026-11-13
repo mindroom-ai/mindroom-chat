@@ -9,11 +9,6 @@ import {
 const makeRoom = (roomId: string, alias?: string) => ({
   roomId,
   getCanonicalAlias: () => alias,
-  getLiveTimeline: () => ({
-    getState: () => ({
-      getStateEvents: () => undefined,
-    }),
-  }),
 });
 
 const makeMatrixClient = ({

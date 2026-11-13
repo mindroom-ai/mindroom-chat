@@ -1,4 +1,5 @@
 import { MatrixEvent, RelationType } from 'matrix-js-sdk';
+import { isRecord } from '../../lib/isRecord';
 import { IEncryptedFile } from '../types/common';
 import { STREAM_STATUS_KEY } from './aiRun';
 
@@ -194,9 +195,6 @@ export const getEffectiveToolApprovalStatus = (
   return expiresTs <= currentTime ? 'expired' : status;
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value);
-
 const getApprovalCandidates = (content: Record<string, unknown>): Record<string, unknown>[] => {
   const newContent = isRecord(content['m.new_content'])
     ? (content['m.new_content'] as Record<string, unknown>)
@@ -284,6 +282,9 @@ const asAutoApproveOptions = (value: unknown): ToolApprovalDuration[] => {
   return [...TOOL_APPROVAL_DURATIONS];
 };
 
+const isTimestamp = (value: string | undefined): value is string =>
+  !!value && parseToolApprovalExpiryTimestamp(value) !== undefined;
+
 const asAutoApproval = (value: unknown): ToolAutoApprovalData | null => {
   if (!isRecord(value)) return null;
 
@@ -292,10 +293,9 @@ const asAutoApproval = (value: unknown): ToolAutoApprovalData | null => {
   const revokedAt = asNullableString(value.revoked_at);
   if (
     !grantId ||
-    !expiresAt ||
-    parseToolApprovalExpiryTimestamp(expiresAt) === undefined ||
+    !isTimestamp(expiresAt) ||
     revokedAt === undefined ||
-    (revokedAt !== null && parseToolApprovalExpiryTimestamp(revokedAt) === undefined)
+    (revokedAt !== null && !isTimestamp(revokedAt))
   ) {
     return null;
   }
@@ -315,9 +315,6 @@ const asScope = (value: unknown): ToolApprovalScope | null => {
     return null;
   return { id, entityName, invokingAgent, operation: { toolName, mcpServerId, mcpToolName } };
 };
-
-const isTimestamp = (value: string | undefined): value is string =>
-  !!value && parseToolApprovalExpiryTimestamp(value) !== undefined;
 
 const asScheduledScope = (value: unknown): ToolApprovalScheduledScope | null =>
   TOOL_APPROVAL_SCHEDULED_SCOPES.includes(value as ToolApprovalScheduledScope)
@@ -379,8 +376,7 @@ const asProvenance = (value: unknown): ToolApprovalProvenance | null => {
     !grantId ||
     !grantCardEventId ||
     !grantedBy ||
-    !expiresAt ||
-    parseToolApprovalExpiryTimestamp(expiresAt) === undefined
+    !isTimestamp(expiresAt)
   )
     return null;
   return {
@@ -388,8 +384,7 @@ const asProvenance = (value: unknown): ToolApprovalProvenance | null => {
     grantId,
     grantCardEventId,
     grantedBy,
-    grantedAt:
-      grantedAt && parseToolApprovalExpiryTimestamp(grantedAt) !== undefined ? grantedAt : null,
+    grantedAt: isTimestamp(grantedAt) ? grantedAt : null,
     expiresAt,
     durationSeconds: TOOL_APPROVAL_DURATIONS.includes(
       value.duration_seconds as ToolApprovalDuration

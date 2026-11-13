@@ -3,11 +3,6 @@ import { Membership } from '../matrix/types/room';
 
 type RoutedRoom = Pick<Room, 'roomId' | 'getMyMembership'>;
 
-type StartupFallbackState = {
-  hasCompletedInitialSync: boolean;
-  isResolvingAlias: boolean;
-};
-
 export const isJoinedRoom = (room: RoutedRoom | null | undefined): boolean =>
   room?.getMyMembership() === Membership.Join;
 
@@ -21,7 +16,9 @@ export const shouldDeferRoomRouteFallback = ({
   isResolvingAlias,
   room,
   routedRoomIds,
-}: StartupFallbackState & {
+}: {
+  hasCompletedInitialSync: boolean;
+  isResolvingAlias: boolean;
   room: RoutedRoom | null | undefined;
   routedRoomIds: string[];
 }): boolean =>

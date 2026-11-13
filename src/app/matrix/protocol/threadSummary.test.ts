@@ -10,7 +10,6 @@ import {
 
 const makeEvent = (content: Record<string, unknown>) => ({
   getContent: () => content,
-  getType: () => 'm.room.message',
   getId: () => undefined as string | undefined,
   threadRootId: undefined as string | undefined,
 });

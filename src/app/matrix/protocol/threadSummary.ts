@@ -1,13 +1,7 @@
+import { isRecord } from '../../lib/isRecord';
 import { trimReplyFromBody } from '../room';
 
 const THREAD_SUMMARY_METADATA_KEY = 'io.mindroom.thread_summary';
-
-// ── Shared helper ──────────────────────────────────────────────────
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value);
-
-// ── Original: content-level helpers (used by RenderMessageContent / MsgTypeRenderers) ──
 
 type ThreadSummaryMetadata = {
   model?: unknown;
@@ -215,9 +209,9 @@ export const getThreadSummaryInfo = (
 
   const hasNewContent = isRecord(content['m.new_content']);
   const summaryBody = getThreadSummaryBody(content);
-  const summaryText =
-    (hasNewContent ? summaryBody ?? asNonEmptyString(metadata.summary) : undefined) ??
-    (!hasNewContent ? asNonEmptyString(metadata.summary) ?? summaryBody : undefined);
+  const summaryText = hasNewContent
+    ? summaryBody ?? asNonEmptyString(metadata.summary)
+    : asNonEmptyString(metadata.summary) ?? summaryBody;
 
   return {
     ...(metadata.model === 'manual' ? { isManual: true } : {}),
@@ -226,8 +220,6 @@ export const getThreadSummaryInfo = (
     messageCount: asMessageCount(metadata.message_count),
   };
 };
-
-// ── ISSUE-003b: event-level helpers (used by RoomTimeline) ─────────
 
 type ThreadSummaryEventLike = {
   status?: string | null;

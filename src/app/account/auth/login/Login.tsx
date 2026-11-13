@@ -20,7 +20,6 @@ import type { LoginError } from './loginUtil';
 
 type ParsedLoginFlows = {
   password: boolean;
-  token: boolean;
   sso?: { providers?: IIdentityProvider[] };
 };
 
@@ -30,7 +29,6 @@ const parseLoginFlows = ({ flows }: ILoginFlowsResponse): ParsedLoginFlows => {
     | undefined;
   return {
     password: flows.some((flow) => flow.type === 'm.login.password'),
-    token: flows.some((flow) => flow.type === 'm.login.token'),
     sso: sso ? { providers: sso.identity_providers } : undefined,
   };
 };

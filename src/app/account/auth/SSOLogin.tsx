@@ -46,7 +46,6 @@ type SSOLoginProps = SSOButtonOptions & {
   redirectUrl: string;
 };
 
-const runningNatively = (): boolean => Capacitor.isNativePlatform() && isNativeApp();
 
 type Brand = NonNullable<KnownIdentityProvider>;
 
@@ -110,7 +109,7 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
     () => createMatrixClient({ baseUrl: homeserverUrl }),
     [homeserverUrl]
   );
-  const inNativeShell = runningNatively();
+  const inNativeShell = isNativeApp();
   const checkStart = useSsoStartCheck();
   const [nonce] = useState(createSsoNonce);
   const returnUrl = useMemo(() => withSsoNonce(redirectUrl, nonce), [redirectUrl, nonce]);

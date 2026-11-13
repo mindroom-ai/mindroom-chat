@@ -1,3 +1,4 @@
+import { isRecord } from '../../lib/isRecord';
 import type { IEncryptedFile } from '../types/common';
 
 export type PasteMarker = {
@@ -39,9 +40,6 @@ const MINDROOM_PASTE_MARKER_VERSION = 1;
 export const MINDROOM_PASTE_MARKER_START = '[[mindroom-paste:';
 export const MINDROOM_PASTE_MARKER_END = ']]';
 export const MINDROOM_PASTE_ATTACHMENT_CONTENT_KEY = 'io.mindroom.paste_attachment';
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value);
 
 const escapeHtmlText = (text: string): string =>
   text

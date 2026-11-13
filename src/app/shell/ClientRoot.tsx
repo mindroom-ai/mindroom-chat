@@ -113,8 +113,8 @@ const noteStoreRestored = (known: SyncProgress, hasRooms: boolean): SyncProgress
 type RecoveryAction = 'logout' | 'remove-account' | 'clear-cache' | 'sign-in-again';
 
 /**
- * The ways out of a start that hangs or fails: sign out (with a client), clear the cache, or
- * remove the account. One runs at a time; each ends in a reload, so only a failure hands the
+ * The ways out of a start that hangs or fails: sign out (with a client), clear the cache, remove
+ * the account, or sign in again as a new device. One runs at a time; each ends in a reload, so only a failure hands the
  * controls back.
  */
 function useRecoveryActions(session: StoredSession, mx: MatrixClient | undefined) {

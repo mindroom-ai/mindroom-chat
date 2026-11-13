@@ -106,12 +106,6 @@ class MockBody {
       return this.inputs.filter((input) => input.type === 'file') as unknown as NodeListOf<HTMLInputElement>;
     }
 
-    if (selector === 'input[type=file][aria-hidden="true"]') {
-      return this.inputs.filter(
-        (input) => input.type === 'file' && input.getAttribute('aria-hidden') === 'true'
-      ) as unknown as NodeListOf<HTMLInputElement>;
-    }
-
     return [] as unknown as NodeListOf<HTMLInputElement>;
   }
 }

@@ -840,34 +840,4 @@ describe('ClientRoot', () => {
     expect(hasRenderedText(renderer, 'child')).toBe(true);
     expect(hasRenderedText(renderer, 'sync')).toBe(true);
   });
-
-  it('keeps cached UI rendered after startClient resolves once the client has synced', async () => {
-    const client = createMockClient();
-
-    currentSession = {
-      sessionId: 'session-a',
-      baseUrl: 'https://example.com',
-      userId: '@alice:example.com',
-      deviceId: 'DEVICE_A',
-      accessToken: 'token-a',
-      lastUsedAt: 1,
-    };
-
-    vi.mocked(useActiveSession).mockImplementation(() => currentSession);
-    vi.mocked(initClient).mockResolvedValue(client as never);
-    vi.mocked(startClient).mockResolvedValue(undefined);
-
-    await act(async () => {
-      renderer = create(renderClientRoot());
-      await flushEffects();
-    });
-
-    await act(async () => {
-      client.emitSync();
-      await flushEffects();
-    });
-
-    expect(hasRenderedText(renderer, 'child')).toBe(true);
-    expect(hasRenderedText(renderer, 'sync')).toBe(true);
-  });
 });

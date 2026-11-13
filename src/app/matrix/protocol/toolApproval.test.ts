@@ -9,14 +9,14 @@ import {
   parseToolApprovalExpiryTimestamp,
 } from './toolApproval';
 
-const makeApprovalEvent = (content: Record<string, unknown>, type = MINDROOM_TOOL_APPROVAL_EVENT) =>
+const makeApprovalEvent = (content: Record<string, unknown>) =>
   new MatrixEvent({
     content,
     event_id: '$approval',
     origin_server_ts: 1,
     room_id: '!room:example.org',
     sender: '@alice:example.org',
-    type,
+    type: MINDROOM_TOOL_APPROVAL_EVENT,
   });
 
 describe('parseToolApprovalExpiryTimestamp', () => {
@@ -514,6 +514,28 @@ describe('parseToolApprovalContent', () => {
     ).toBeNull();
   });
 
+  it('returns null for invalid event types and malformed content', () => {
+    expect(
+      parseToolApprovalContent('m.room.message', {
+        approval_id: 'approval-1',
+      })
+    ).toBeNull();
+
+    expect(
+      parseToolApprovalContent(MINDROOM_TOOL_APPROVAL_EVENT, {
+        approval_id: 'approval-1',
+        tool_name: 'web_search',
+        arguments: [],
+        agent_name: 'research',
+        status: 'pending',
+        requested_at: '2026-04-10T12:00:00Z',
+        expires_at: '2026-04-17T12:00:00Z',
+      })
+    ).toBeNull();
+  });
+});
+
+describe('buildToolApprovalResponseContent', () => {
   it('builds Matrix approval response content with thread reply metadata', () => {
     expect(
       buildToolApprovalResponseContent('denied', '$thread-root', '$approval', 'Needs human review')
@@ -546,25 +568,5 @@ describe('parseToolApprovalContent', () => {
         },
       },
     });
-  });
-
-  it('returns null for invalid event types and malformed content', () => {
-    expect(
-      parseToolApprovalContent('m.room.message', {
-        approval_id: 'approval-1',
-      })
-    ).toBeNull();
-
-    expect(
-      parseToolApprovalContent(MINDROOM_TOOL_APPROVAL_EVENT, {
-        approval_id: 'approval-1',
-        tool_name: 'web_search',
-        arguments: [],
-        agent_name: 'research',
-        status: 'pending',
-        requested_at: '2026-04-10T12:00:00Z',
-        expires_at: '2026-04-17T12:00:00Z',
-      })
-    ).toBeNull();
   });
 });

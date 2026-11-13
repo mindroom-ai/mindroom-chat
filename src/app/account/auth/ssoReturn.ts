@@ -138,9 +138,7 @@ export const claimSsoLogin = (
   if (!storage || !loginToken) return undefined;
   const attempts = readAttempts(storage, now);
   const match = attempts.find(
-    (attempt) =>
-      (!!nonce && attempt.nonce === nonce) ||
-      (attempt.loginToken !== undefined && attempt.loginToken === loginToken)
+    (attempt) => (!!nonce && attempt.nonce === nonce) || attempt.loginToken === loginToken
   );
   writeAttempts(
     storage,

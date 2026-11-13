@@ -7,7 +7,7 @@ import {
   parseToolApprovalContent,
 } from '../matrix/protocol/toolApproval';
 
-// How a thread reads an approval: the original content with the latest edit's content.
+// An approval as its original content with the SDK's replacement event, if any, applied.
 const parseApproval = (event: MatrixEvent) =>
   parseToolApprovalContent(
     event.getType(),
