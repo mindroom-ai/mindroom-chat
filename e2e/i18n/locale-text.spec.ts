@@ -3,13 +3,7 @@ import { join } from 'node:path';
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import {
-  joinRoom,
-  matrixFetch,
-  registerAgentAccount,
-  sendRoomMessage,
-  type MatrixSession,
-} from '../helpers/matrix';
+import { joinRoom, matrixFetch, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -36,9 +30,6 @@ test.use({
 });
 test.describe.configure({ timeout: 240_000 });
 
-const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
-  registerDisposableUser(`lt_${name}_${RUN}`, PASSWORD);
-
 const aiRun = {
   version: 1,
   status: 'completed',
@@ -51,7 +42,7 @@ const aiRun = {
  * mentions the reader, with its model. A second room holds three messages the reader has not read.
  */
 const seed = async (tag: string) => {
-  const reader = await registerAndLogin(`reader_${tag}`);
+  const reader = await registerDisposableUser(`lt_reader_${tag}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `helper_${tag}`);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(agent.userId)}/displayname`, {
     method: 'PUT',

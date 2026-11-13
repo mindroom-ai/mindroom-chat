@@ -47,11 +47,8 @@ type ShownNotification = { title: string; body?: string; tag?: string };
 type Account = MatrixSession & { username: string };
 type World = { reader: Account; agent: MatrixSession; roomId: string; quietId: string };
 
-const registerAndLogin = (name: string): Promise<Account> =>
-  registerDisposableUser(`sn_${name}_${RUN}`, PASSWORD);
-
 const seed = async (engine: string): Promise<World> => {
-  const reader = await registerAndLogin(engine);
+  const reader = await registerDisposableUser(`sn_${engine}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `notes_${engine}`);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(agent.userId)}/displayname`, {
     method: 'PUT',

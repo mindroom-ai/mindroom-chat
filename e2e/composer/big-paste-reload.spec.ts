@@ -39,8 +39,6 @@ test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
-const register = (name: string) => registerDisposableUser(`bpr_${name}_${RUN}`, PASSWORD);
-
 /** A build log of 2,500 lines, about 150,000 characters. */
 const buildLog = (): string =>
   Array.from(
@@ -65,7 +63,7 @@ const latestEvents = async (session: MatrixSession, roomId: string): Promise<Roo
 };
 
 const openRoom = async (page: Page, tag: string) => {
-  const writer = await register(tag);
+  const writer = await registerDisposableUser(`bpr_${tag}_${RUN}`, PASSWORD);
   await Promise.all(
     Array.from({ length: FILLER_ROOMS }, (_, index) =>
       createRoom(HOMESERVER, writer.accessToken, { name: `Project room ${index + 1} ${RUN}` })

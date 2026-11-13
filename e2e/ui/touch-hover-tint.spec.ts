@@ -10,12 +10,7 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import {
-  joinRoom,
-  registerAgentAccount,
-  sendRoomMessage,
-  type MatrixSession,
-} from '../helpers/matrix';
+import { joinRoom, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
 import { setRoomCompact } from '../helpers/roomViewSwitch';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
@@ -53,12 +48,9 @@ test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
-  registerDisposableUser(`tht_${name}_${RUN}`, PASSWORD);
-
 /** 25 rooms, and a room where a helper answered four threads. */
 const seed = async (name: string) => {
-  const reader = await registerAndLogin(name);
+  const reader = await registerDisposableUser(`tht_${name}_${RUN}`, PASSWORD);
   const helper = await registerAgentAccount(HOMESERVER, `tint_${name}`);
   await Promise.all(
     Array.from({ length: 25 }, (_, index) =>

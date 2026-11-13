@@ -1,12 +1,7 @@
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import {
-  joinRoom,
-  registerAgentAccount,
-  sendRoomMessage,
-  type MatrixSession,
-} from '../helpers/matrix';
+import { joinRoom, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -27,11 +22,8 @@ test.use({
 });
 test.describe.configure({ timeout: 180_000 });
 
-const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
-  registerDisposableUser(`tfp_${name}_${RUN}`, PASSWORD);
-
 const seed = async (engine: string) => {
-  const reader = await registerAndLogin(`reader_${engine}`);
+  const reader = await registerDisposableUser(`tfp_reader_${engine}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `triage_${engine}`);
   const roomId = await createRoom(HOMESERVER, reader.accessToken, {
     name: 'Support triage',

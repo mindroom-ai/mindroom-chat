@@ -24,10 +24,8 @@ test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const register = (name: string) => registerDisposableUser(`toggle_${name}_${RUN}`, PASSWORD);
-
 const pressTwice = async (page: Page, name: string, touch: boolean) => {
-  const reader = await register(name);
+  const reader = await registerDisposableUser(`toggle_${name}_${RUN}`, PASSWORD);
   const roomName = `Quay notes ${name} ${RUN}`;
   const roomId = await createPrivateRoom(HOMESERVER, reader.accessToken, {
     name: roomName,

@@ -59,13 +59,10 @@ const finished = (label: string) =>
 
 type Account = MatrixSession & { username: string };
 
-const registerAndLogin = (name: string): Promise<Account> =>
-  registerDisposableUser(`tcsf_${name}_${RUN}`, PASSWORD);
-
 type World = { reader: Account; agent: MatrixSession; roomId: string };
 
 const seed = async (engine: string): Promise<World> => {
-  const reader = await registerAndLogin(engine);
+  const reader = await registerDisposableUser(`tcsf_${engine}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `notes_${engine}`);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(agent.userId)}/displayname`, {
     method: 'PUT',

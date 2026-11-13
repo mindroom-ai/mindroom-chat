@@ -60,9 +60,6 @@ test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const register = (name: string): Promise<MatrixSession & { username: string }> =>
-  registerDisposableUser(`sf_${name}_${RUN}`, PASSWORD);
-
 const ROOT_BODY = 'Shift handover checklist for the weekend crew';
 const REPLY_BODY = 'I added the fuel readings and the open work orders.';
 const LAST_BODY =
@@ -86,7 +83,7 @@ type World = {
  * and a thread with a reply. Each test has its own account.
  */
 const seed = async (name: string): Promise<World> => {
-  const user = await register(name);
+  const user = await registerDisposableUser(`sf_${name}_${RUN}`, PASSWORD);
   const fixture = await createThreadFixture(HOMESERVER, user.accessToken, {
     name: `Harbour desk ${name}`,
     topic: 'Daily coordination',

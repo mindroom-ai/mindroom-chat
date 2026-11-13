@@ -70,9 +70,6 @@ const finished = (label: string) =>
 
 type Account = MatrixSession & { username: string };
 
-const registerAndLogin = (name: string): Promise<Account> =>
-  registerDisposableUser(`sfr_${name}_${RUN}`, PASSWORD);
-
 const inThread = (rootId: string) => ({
   'm.relates_to': {
     rel_type: 'm.thread',
@@ -92,7 +89,7 @@ type World = {
 };
 
 const seed = async (engine: string): Promise<World> => {
-  const reader = await registerAndLogin(engine);
+  const reader = await registerDisposableUser(`sfr_${engine}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `release_${engine}`);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(agent.userId)}/displayname`, {
     method: 'PUT',

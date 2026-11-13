@@ -12,7 +12,6 @@ import {
   createDefaultThreadFilterState,
   seedRoomOverviewState,
   sendRoomMessage,
-  type MatrixSession,
 } from '../helpers/matrix';
 import { standInVisualViewport } from '../helpers/keyboardViewport';
 import { touch } from '../helpers/touch';
@@ -67,9 +66,6 @@ test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
-  registerDisposableUser(`pkb_${name}_${RUN}`, PASSWORD);
-
 const message = (index: number) =>
   `Update ${index}: ${TOPICS[index % TOPICS.length]} is ${
     index % 3 === 0
@@ -85,7 +81,7 @@ type SeedOptions = { inSpace?: boolean };
  * address, as a space's lobby does, so the app's links to it name its alias.
  */
 const seed = async (name: string, { inSpace = false }: SeedOptions = {}) => {
-  const reader = await registerAndLogin(name);
+  const reader = await registerDisposableUser(`pkb_${name}_${RUN}`, PASSWORD);
   await Promise.all(
     Array.from({ length: 25 }, (_, index) =>
       createRoom(HOMESERVER, reader.accessToken, { name: `Team room ${index + 1}` })

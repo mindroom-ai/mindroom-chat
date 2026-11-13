@@ -24,8 +24,6 @@ test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const register = (name: string) => registerDisposableUser(`mmp_${name}_${RUN}`, PASSWORD);
-
 type Box = { top: number; bottom: number; left: number; right: number };
 
 const boxOf = (locator: Locator): Promise<Box> =>
@@ -65,7 +63,7 @@ const menusOpenAbove = async (
   // The status bar's height on a phone that draws under it (env(safe-area-inset-top)).
   safeTop = 0
 ) => {
-  const reader = await register(name);
+  const reader = await registerDisposableUser(`mmp_${name}_${RUN}`, PASSWORD);
   const roomId = await createRoom(HOMESERVER, reader.accessToken, {
     name: `Dock schedule ${name} ${RUN}`,
   });

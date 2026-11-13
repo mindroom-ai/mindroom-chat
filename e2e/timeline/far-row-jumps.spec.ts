@@ -12,7 +12,6 @@ import {
   matrixFetch,
   seedRoomOverviewState,
   sendRoomMessage,
-  type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
@@ -59,7 +58,7 @@ test.use({
 /** An account with 24 other rooms and a room: an old message, 80 notes, a reply quoting it. */
 const seed = async (name: string) => {
   const username = `frj_${name}_${RUN}`;
-  const owner: MatrixSession = await registerDisposableUser(username, PASSWORD);
+  const owner = await registerDisposableUser(username, PASSWORD);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(owner.userId)}/displayname`, {
     method: 'PUT',
     accessToken: owner.accessToken,

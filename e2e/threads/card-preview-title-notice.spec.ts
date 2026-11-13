@@ -3,12 +3,7 @@ import path from 'node:path';
 import { expect, test, type Browser, type BrowserContextOptions } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import {
-  joinRoom,
-  registerAgentAccount,
-  sendRoomMessage,
-  type MatrixSession,
-} from '../helpers/matrix';
+import { joinRoom, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
 import { setRoomCompact } from '../helpers/roomViewSwitch';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
@@ -62,9 +57,6 @@ test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
-  registerDisposableUser(`cptn_${name}_${RUN}`, PASSWORD);
-
 const inThread = (rootId: string) => ({
   'm.relates_to': {
     rel_type: 'm.thread',
@@ -76,7 +68,7 @@ const inThread = (rootId: string) => ({
 
 /** 25 other rooms, and a room of 9 threads: the reader asked, the helper answered, then titled. */
 const seed = async (engine: string) => {
-  const reader = await registerAndLogin(`reader_${engine}`);
+  const reader = await registerDisposableUser(`cptn_reader_${engine}_${RUN}`, PASSWORD);
   const helper = await registerAgentAccount(HOMESERVER, `titles_${engine}`);
   await Promise.all(
     Array.from({ length: 25 }, (_, index) =>

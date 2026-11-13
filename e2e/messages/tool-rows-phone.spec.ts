@@ -10,13 +10,7 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import {
-  joinRoom,
-  matrixFetch,
-  registerAgentAccount,
-  sendRoomMessage,
-  type MatrixSession,
-} from '../helpers/matrix';
+import { joinRoom, matrixFetch, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -51,9 +45,6 @@ test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
-  registerDisposableUser(`trp_${name}_${RUN}`, PASSWORD);
-
 const traceOf = (...calls: [string, string, string][]) => ({
   version: 2,
   events: calls.map(([tool, args, result]) => ({
@@ -69,7 +60,7 @@ const traceOf = (...calls: [string, string, string][]) => ({
  * third one that the reader approved.
  */
 const seed = async (engine: string) => {
-  const reader = await registerAndLogin(`reader_${engine}`);
+  const reader = await registerDisposableUser(`trp_reader_${engine}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `research_${engine}`);
   const roomId = await createRoom(HOMESERVER, reader.accessToken, {
     name: 'Board deck',

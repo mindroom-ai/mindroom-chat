@@ -31,10 +31,8 @@ test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
-const register = (name: string) => registerDisposableUser(`aus_${name}_${RUN}`, PASSWORD);
-
 const checkArrowUp = async (page: Page, tag: string) => {
-  const writer = await register(tag);
+  const writer = await registerDisposableUser(`aus_${tag}_${RUN}`, PASSWORD);
   await Promise.all(
     Array.from({ length: FILLER_ROOMS }, (_, index) =>
       createRoom(HOMESERVER, writer.accessToken, { name: `Project room ${index + 1} ${RUN}` })

@@ -10,7 +10,7 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { sendRoomMessage, type MatrixSession } from '../helpers/matrix';
+import { sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -51,12 +51,9 @@ test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
-  registerDisposableUser(`bth_${name}_${RUN}`, PASSWORD);
-
 /** A room the reader created, so they may pin, with one thread of a few replies. */
 const seed = async (engine: string) => {
-  const reader = await registerAndLogin(`reader_${engine}`);
+  const reader = await registerDisposableUser(`bth_reader_${engine}_${RUN}`, PASSWORD);
   const roomId = await createRoom(HOMESERVER, reader.accessToken, { name: 'Launch planning' });
   const rootId = await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
     msgtype: 'm.text',

@@ -54,13 +54,10 @@ const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } 
 
 type Account = MatrixSession & { username: string };
 
-const registerAndLogin = (name: string): Promise<Account> =>
-  registerDisposableUser(`pra_${name}_${RUN}`, PASSWORD);
-
 type World = { reader: Account; roomId: string };
 
 const seed = async (engine: string): Promise<World> => {
-  const reader = await registerAndLogin(engine);
+  const reader = await registerDisposableUser(`pra_${engine}_${RUN}`, PASSWORD);
   const helper = await registerAgentAccount(HOMESERVER, `release_${engine}`);
   const roomId = await createRoom(HOMESERVER, reader.accessToken, {
     name: ROOM_NAME,

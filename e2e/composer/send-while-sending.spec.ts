@@ -25,10 +25,8 @@ test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const register = (name: string) => registerDisposableUser(`sws_${name}_${RUN}`, PASSWORD);
-
 const bothArriveInOrder = async (page: Page, name: string) => {
-  const reader = await register(name);
+  const reader = await registerDisposableUser(`sws_${name}_${RUN}`, PASSWORD);
   const roomId = await createRoom(HOMESERVER, reader.accessToken, {
     name: `Pilot desk ${name} ${RUN}`,
   });

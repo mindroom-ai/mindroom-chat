@@ -24,10 +24,8 @@ test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const register = (name: string) => registerDisposableUser(`ser_${name}_${RUN}`, PASSWORD);
-
 const linesShareAColumn = async (page: Page, name: string) => {
-  const reader = await register(name);
+  const reader = await registerDisposableUser(`ser_${name}_${RUN}`, PASSWORD);
   const roomId = await createRoom(HOMESERVER, reader.accessToken, {
     name: `Ferry log ${name} ${RUN}`,
   });

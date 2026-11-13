@@ -30,10 +30,8 @@ test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const register = (name: string) => registerDisposableUser(`ahu_${name}_${RUN}`, PASSWORD);
-
 const unsentThreadHasNoApprovalError = async (page: Page, name: string) => {
-  const person = await register(name);
+  const person = await registerDisposableUser(`ahu_${name}_${RUN}`, PASSWORD);
   const roomId = await createRoom(HOMESERVER, person.accessToken, {
     name: `Crane desk ${name} ${RUN}`,
   });

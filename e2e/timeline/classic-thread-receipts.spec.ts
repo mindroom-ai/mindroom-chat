@@ -62,9 +62,6 @@ const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } 
 
 type Account = MatrixSession & { username: string };
 
-const registerAndLogin = (name: string): Promise<Account> =>
-  registerDisposableUser(`ctr_${name}_${RUN}`, PASSWORD);
-
 const inThread = (rootId: string) => ({
   'm.relates_to': {
     rel_type: 'm.thread',
@@ -82,7 +79,7 @@ type World = {
 };
 
 const seed = async (engine: string): Promise<World> => {
-  const reader = await registerAndLogin(engine);
+  const reader = await registerDisposableUser(`ctr_${engine}_${RUN}`, PASSWORD);
   const teammate = await registerAgentAccount(HOMESERVER, `ops_${engine}`);
   await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(teammate.userId)}/displayname`, {
     method: 'PUT',

@@ -56,11 +56,9 @@ test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
-  // A repeated test (--repeat-each) runs in the same worker, with the same RUN.
-  const username = `tvu_${name}_${RUN}${test.info().repeatEachIndex}`;
-  return registerDisposableUser(username, PASSWORD);
-};
+// A repeated test (--repeat-each) runs in the same worker, with the same RUN.
+const registerAndLogin = (name: string) =>
+  registerDisposableUser(`tvu_${name}_${RUN}${test.info().repeatEachIndex}`, PASSWORD);
 
 /** A room where `writer` sent 30 messages the reader read and 30 it has not. */
 const seedRoom = async (

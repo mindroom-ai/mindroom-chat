@@ -34,9 +34,6 @@ const FINISHED = 'The migration note is at the top and both missing entries are 
 
 type Account = MatrixSession & { username: string };
 
-const registerAndLogin = (name: string): Promise<Account> =>
-  registerDisposableUser(`sfb_${name}_${RUN}`, PASSWORD);
-
 type Streamed = { rootId: string; finishId: string };
 
 /** A question, a reply streamed into its thread, read half-way elsewhere, then finished. */
@@ -107,7 +104,7 @@ const describeReceipts = (receipts: SentReceipt[]) =>
   });
 
 const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
-  const reader = await registerAndLogin(engine);
+  const reader = await registerDisposableUser(`sfb_${engine}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `ops_${engine}`);
   const roomId = await createRoom(HOMESERVER, reader.accessToken, {
     name: ROOM_NAME,

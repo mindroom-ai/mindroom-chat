@@ -70,9 +70,6 @@ test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
-  registerDisposableUser(`tbps_${name}_${RUN}`, PASSWORD);
-
 const inThread = (rootId: string, lastId: string) => ({
   'm.relates_to': {
     rel_type: 'm.thread',
@@ -120,7 +117,7 @@ const schedule = (agent: MatrixSession, roomId: string, rootId: string, taskId: 
  * whose first message names it, scheduled too.
  */
 const seed = async (engine: string) => {
-  const reader = await registerAndLogin(`reader_${engine}`);
+  const reader = await registerDisposableUser(`tbps_reader_${engine}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `planner_${engine}`);
   const roomId = await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
     method: 'POST',

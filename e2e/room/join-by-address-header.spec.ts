@@ -39,10 +39,6 @@ test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const register = async (username: string): Promise<MatrixSession> => {
-  return registerDisposableUser(username, PASSWORD);
-};
-
 const createPublicRoom = async (owner: MatrixSession, name: string, aliasName?: string) =>
   (
     await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
@@ -58,9 +54,9 @@ const createPublicRoom = async (owner: MatrixSession, name: string, aliasName?: 
   ).room_id;
 
 const seed = async (name: string) => {
-  const owner = await register(`jbh_${name}_owner_${RUN}`);
+  const owner = await registerDisposableUser(`jbh_${name}_owner_${RUN}`, PASSWORD);
   const username = `jbh_${name}_${RUN}`;
-  const reader = await register(username);
+  const reader = await registerDisposableUser(username, PASSWORD);
   await Promise.all(
     Array.from({ length: 25 }, (_, index) =>
       createRoom(HOMESERVER, reader.accessToken, { name: `Project room ${index + 1}` })

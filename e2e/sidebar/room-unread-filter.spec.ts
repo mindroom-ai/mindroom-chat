@@ -6,7 +6,6 @@ import {
   registerAgentAccount,
   seedRoomOverviewState,
   sendRoomMessage,
-  type MatrixSession,
 } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
 import {
@@ -22,9 +21,6 @@ import {
 // main receipt reads it. Each run registers its own reader and agent.
 const PASSWORD = 'room-unread-filter-spec-password';
 const RUN = Date.now().toString(36);
-
-const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
-  registerDisposableUser(`ruf_${name}_${RUN}`, PASSWORD);
 
 const inThread = (rootId: string, content: Record<string, unknown>) => ({
   ...content,
@@ -65,7 +61,7 @@ test('the room list marks a room unread only for threads its unread filter finds
   page,
 }) => {
   test.setTimeout(240_000);
-  const reader = await registerAndLogin('reader');
+  const reader = await registerDisposableUser(`ruf_reader_${RUN}`, PASSWORD);
   // An agent, so the rooms show the agent rooms' thread filters, Unread among them.
   const writer = await registerAgentAccount(HOMESERVER, 'router');
   const makeRoom = async (name: string) => {

@@ -1,12 +1,7 @@
 import { expect, test, type BrowserContextOptions, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import {
-  joinRoom,
-  registerAgentAccount,
-  sendRoomMessage,
-  type MatrixSession,
-} from '../helpers/matrix';
+import { joinRoom, registerAgentAccount, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -38,11 +33,8 @@ test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
-  registerDisposableUser(`cdl_${name}_${RUN}`, PASSWORD);
-
 const seed = async (label: string) => {
-  const reader = await registerAndLogin(`reader_${label}`);
+  const reader = await registerDisposableUser(`cdl_reader_${label}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `triage_${label}`);
   for (let index = 1; index <= 24; index += 1) {
     // eslint-disable-next-line no-await-in-loop

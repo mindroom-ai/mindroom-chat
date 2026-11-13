@@ -81,9 +81,6 @@ test.use({
   launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
-const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>
-  registerDisposableUser(`clct_${name}_${RUN}`, PASSWORD);
-
 const threadRelation = (rootId: string) => ({
   rel_type: 'm.thread',
   event_id: rootId,
@@ -100,7 +97,7 @@ type Seeded = {
 
 /** The reader's 25 rooms; the main one holds 26 threads, oldest first, each answered. */
 const seed = async (label: string): Promise<Seeded> => {
-  const reader = await registerAndLogin(`reader_${label}`);
+  const reader = await registerDisposableUser(`clct_reader_${label}_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, `helper_${label}`);
   await Promise.all(
     OTHER_ROOMS.map((name) => createRoom(HOMESERVER, reader.accessToken, { name }))
