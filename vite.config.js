@@ -202,7 +202,7 @@ export default defineConfig({
     e2eClientConfig(process.env.MINDROOM_E2E_PROVISIONING_URL),
     // runtime-config.js, authentication-recovery.js, version.json and the build version constants.
     mindroomBuildAssets(),
-    // The client plugins MINDROOM_CLIENT_PLUGINS lists (docs/architecture.md "Client plugins").
+    // The client plugins MINDROOM_CLIENT_PLUGINS lists (docs/client-plugins.md).
     clientPlugins(),
     // `vite preview` says who may frame the app (frame-ancestors works only as a header).
     frameHeaders(),

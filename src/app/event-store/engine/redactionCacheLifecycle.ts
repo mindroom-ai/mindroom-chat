@@ -21,15 +21,8 @@ import { getThreadCacheTargetId } from '../cache/eventRepository';
 
 export type RedactionCacheCleanupPlan = {
   redactedEventId: string;
-  targetEvent?: MatrixEvent;
   /** Thread root the redacted event's cache records live under, if any. */
   threadCacheTargetId?: string;
-  /**
-   * True when threadCacheTargetId is only the viewer's open thread rather
-   * than a real hint from the event — callers should then also persist the
-   * redaction to the room cache in case the attribution is wrong.
-   */
-  threadTargetFromFallback: boolean;
   /** Delete the redacted event's record from the caches (reactions only). */
   deleteRecords: boolean;
 };
@@ -38,7 +31,6 @@ export const planRedactionCacheCleanup = ({
   room,
   redactionEvent,
   sdkThreadIdHint,
-  fallbackThreadId,
 }: {
   room: Room;
   redactionEvent: MatrixEvent;
@@ -48,32 +40,17 @@ export const planRedactionCacheCleanup = ({
    * captures the target's `threadRootId` BEFORE calling `makeRedacted`
    * (see `applyEventAsRedaction` in room.js). That means this hint is
    * available even for reactions whose relation has since been stripped —
-   * so it is authoritative attribution, not a viewer-side guess. Highest
-   * priority in the hint chain.
+   * so it is authoritative attribution. Highest priority in the hint chain.
    */
   sdkThreadIdHint?: string;
-  /**
-   * Viewer-side guess: the thread the UI has open. Used as a last resort
-   * when neither the SDK emission nor any event-side hint gave us
-   * anything. Callers should also persist the redaction to the room
-   * cache when this signal is what attributed the tombstone (see
-   * `threadTargetFromFallback`). The engine has no notion of an open
-   * thread and never sets this — it is kept for parity with the shape
-   * the pre-strip component controller passed.
-   */
-  fallbackThreadId?: string;
 }): RedactionCacheCleanupPlan | undefined => {
   if (!redactionEvent.isRedaction()) return undefined;
   const redactedEventId = redactionEvent.getAssociatedId();
   if (!redactedEventId) return undefined;
 
-  const targetEvent = room.findEventById(redactedEventId) ?? undefined;
+  const targetEvent = room.findEventById(redactedEventId);
   if (!targetEvent) {
-    return {
-      redactedEventId,
-      threadTargetFromFallback: false,
-      deleteRecords: false,
-    };
+    return { redactedEventId, deleteRecords: false };
   }
 
   // By the time RoomEvent.Redaction fires the target is already pruned, so
@@ -86,25 +63,15 @@ export const planRedactionCacheCleanup = ({
     getThreadCacheTargetId(room, targetEvent) ??
     targetEvent.threadRootId ??
     redactionEvent.threadRootId;
-  // Kept for cases where the redacted event IS still threaded at fire time
-  // (e.g. thread messages, whose SDK move-to-main-timeline runs only for
-  // reactions). Harmless leftover — for reactions the SDK has already
-  // called `moveAllRelatedToMainTimeline`, so the scan finds nothing and
-  // the engine falls through to layer 1 (cache-derived scopes).
-  const sdkDerivedThreadTargetId = hintedThreadTargetId
-    ? undefined
-    : findSingleSdkThreadContaining(room, redactedEventId);
-  const threadCacheTargetId =
-    hintedThreadTargetId ?? sdkDerivedThreadTargetId ?? fallbackThreadId;
-  const isReaction = targetEvent.getType() === 'm.reaction';
-
   return {
     redactedEventId,
-    targetEvent,
-    threadCacheTargetId,
-    threadTargetFromFallback:
-      !hintedThreadTargetId && !sdkDerivedThreadTargetId && !!fallbackThreadId,
-    deleteRecords: isReaction,
+    // The SDK thread scan covers a redacted event still threaded at fire time
+    // (thread messages). For reactions the SDK has already called
+    // `moveAllRelatedToMainTimeline`, so it finds nothing and the engine
+    // falls through to layer 1 (cache-derived scopes).
+    threadCacheTargetId:
+      hintedThreadTargetId ?? findSingleSdkThreadContaining(room, redactedEventId),
+    deleteRecords: targetEvent.getType() === 'm.reaction',
   };
 };
 
@@ -118,10 +85,7 @@ export const planRedactionCacheCleanup = ({
  * Uses `EventTimelineSet.findEventById` (SDK's own event index) rather
  * than iterating live-timeline slices, so it stays O(threads).
  */
-const findSingleSdkThreadContaining = (
-  room: Room,
-  redactedEventId: string
-): string | undefined => {
+const findSingleSdkThreadContaining = (room: Room, redactedEventId: string): string | undefined => {
   const threads = room.getThreads?.() ?? [];
   let match: string | undefined;
   for (const thread of threads) {

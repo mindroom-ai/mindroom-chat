@@ -48,6 +48,7 @@ export const WaveformCompact = style({
   backgroundImage: `linear-gradient(to right, transparent 0 ${toRem(1)}, ${
     color.SurfaceVariant.ContainerLine
   } ${toRem(1)} ${toRem(3)})`,
+  // eslint-disable-next-line no-restricted-syntax -- Waveform lays out left to right in every language, so the bars sit at the right
   backgroundPosition: 'right center',
   backgroundRepeat: 'repeat-x',
   backgroundSize: `${toRem(3)} ${toRem(3)}`,

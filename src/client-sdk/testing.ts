@@ -1,5 +1,5 @@
 // `@mindroom/client-sdk/testing`, the client SDK's subpath for a plugin's unit tests, which run in
-// the app's vitest (docs/architecture.md "Client plugins"). Only tests import it, never code that
+// the app's vitest (docs/client-plugins.md "testing"). Only tests import it, never code that
 // ships. Like `/core` it only grows, and each addition, a new export or a new option of one, raises
 // CLIENT_PLUGIN_API_VERSION; the stand-in client below is not exported, so what it learns raises
 // nothing.
