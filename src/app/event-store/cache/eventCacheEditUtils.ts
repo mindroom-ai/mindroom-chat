@@ -199,13 +199,13 @@ export const applyCachedReplaceRelations = (
     const candidateEvents = replacingEvent ? [replacingEvent, ...validEditEvents] : validEditEvents;
     const latestEdit = getLatestEdit(targetEvent, candidateEvents);
 
-    // Applier counters: see cacheProbe.ts.
-    if (!latestEdit) {
-      countCacheProbe('applierMakeReplacedNoLatestEdit');
-      return;
-    }
-    if (latestEdit === replacingEvent) {
-      countCacheProbe('applierMakeReplacedLatestEqualsCurrent');
+    if (!latestEdit || latestEdit === replacingEvent) {
+      // Applier counters: see cacheProbe.ts.
+      if (!latestEdit) {
+        countCacheProbe('applierMakeReplacedNoLatestEdit');
+      } else {
+        countCacheProbe('applierMakeReplacedLatestEqualsCurrent');
+      }
       return;
     }
     targetEvent.makeReplaced(latestEdit);
