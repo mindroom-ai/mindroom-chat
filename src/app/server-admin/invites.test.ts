@@ -235,12 +235,21 @@ describe('ssoProviderNames', () => {
     const loginFlows = vi.fn(async () => ({
       flows: [
         { type: 'm.login.password' },
-        { type: 'm.login.sso', identity_providers: [{ id: 'a', name: 'Example ID' }, { id: 'b' }] },
+        {
+          type: 'm.login.sso',
+          identity_providers: [
+            { id: 'a', name: 'Example ID' },
+            { id: 'b' },
+            { id: 'c', name: 'github', brand: 'github' },
+          ],
+        },
       ],
     }));
 
+    // The homeserver writes a brand in lowercase; a known one gets its own spelling.
     expect(await ssoProviderNames({ loginFlows } as unknown as MatrixClient)).toEqual([
       'Example ID',
+      'GitHub',
     ]);
   });
 
@@ -288,21 +297,27 @@ describe('invitationText', () => {
 });
 
 describe('invitableRooms', () => {
-  it('lists the joined rooms that are no direct chats, by name', () => {
-    const room = (roomId: string, name: string, membership: string) => ({
+  it("lists the joined rooms by name, without direct chats and the server's admin room", () => {
+    const room = (roomId: string, name: string, membership: string, alias?: string) => ({
       roomId,
       name,
       getMyMembership: () => membership,
+      getCanonicalAlias: () => alias ?? null,
     });
+    const getDomain = () => 'example.com';
     const getRooms = () => [
-      room('!lobby:example.com', 'Lobby', 'join'),
+      room('!lobby:example.com', 'Lobby', 'join', '#lobby:example.com'),
+      room('!admins:example.com', 'Admin Room', 'join', '#admins:example.com'),
       room('!dm:example.com', 'Bob', 'join'),
       room('!invited:example.com', 'Invited', 'invite'),
       room('!class:example.com', 'class', 'join'),
     ];
 
     expect(
-      invitableRooms({ getRooms } as unknown as MatrixClient, new Set(['!dm:example.com']))
+      invitableRooms(
+        { getRooms, getDomain } as unknown as MatrixClient,
+        new Set(['!dm:example.com'])
+      )
     ).toEqual([
       { roomId: '!class:example.com', name: 'class' },
       { roomId: '!lobby:example.com', name: 'Lobby' },

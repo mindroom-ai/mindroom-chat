@@ -142,6 +142,13 @@ export const inviteErrorText = (t: TFunction, error: unknown): string => {
   return describeError(t, error);
 };
 
+// The homeserver writes a provider's brand in lowercase; these are spelled as on the sign-in page.
+const KNOWN_PROVIDERS: Readonly<Record<string, string>> = {
+  apple: 'Apple',
+  github: 'GitHub',
+  google: 'Google',
+};
+
 /** The names of the providers the homeserver signs people in with; none when it cannot be asked. */
 export const ssoProviderNames = (mx: MatrixClient): Promise<string[]> =>
   mx.loginFlows().then(
@@ -149,7 +156,8 @@ export const ssoProviderNames = (mx: MatrixClient): Promise<string[]> =>
       flows
         .flatMap((flow) => ('identity_providers' in flow ? flow.identity_providers ?? [] : []))
         .map(({ name }): unknown => name)
-        .filter((name): name is string => typeof name === 'string' && name !== ''),
+        .filter((name): name is string => typeof name === 'string' && name !== '')
+        .map((name) => KNOWN_PROVIDERS[name.toLowerCase()] ?? name),
     () => []
   );
 
@@ -180,10 +188,20 @@ export const invitationText = (
 
 export type InvitableRoom = { roomId: string; name: string };
 
-/** The rooms an invite can name here: those the administrator has joined, without direct chats. */
-export const invitableRooms = (mx: MatrixClient, directs: ReadonlySet<string>): InvitableRoom[] =>
-  mx
+/**
+ * The rooms an invite can name here: those the administrator has joined, without direct chats
+ * and without the homeserver's admin room (`#admins`), which it lets no registration join.
+ */
+export const invitableRooms = (mx: MatrixClient, directs: ReadonlySet<string>): InvitableRoom[] => {
+  const adminRoom = `#admins:${mx.getDomain()}`;
+  return mx
     .getRooms()
-    .filter((room) => room.getMyMembership() === 'join' && !directs.has(room.roomId))
+    .filter(
+      (room) =>
+        room.getMyMembership() === 'join' &&
+        !directs.has(room.roomId) &&
+        room.getCanonicalAlias() !== adminRoom
+    )
     .map(({ roomId, name }) => ({ roomId, name }))
     .sort((a, b) => a.name.localeCompare(b.name));
+};

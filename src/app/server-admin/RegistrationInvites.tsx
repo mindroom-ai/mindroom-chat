@@ -155,30 +155,32 @@ export function RegistrationInvites() {
             title={<bdi>{email}</bdi>}
             description={rooms.map((room) => mx.getRoom(room)?.name ?? room).join(' · ')}
             after={
-              <Box alignItems="Center" justifyContent="End" gap="200" wrap="Wrap">
-                {external && (
-                  <Badge variant="Warning" fill="Soft" radii="Pill" size="500">
-                    <Text as="span" size="L400">
-                      {t('serverAccounts.filters.external')}
-                    </Text>
-                  </Badge>
-                )}
-                <CopyInvitation email={email} providers={providers} />
-                <IconButton
-                  type="button"
-                  size="300"
-                  variant="Critical"
-                  fill="Soft"
-                  radii="300"
-                  aria-label={t('serverAccounts.invites.delete')}
-                  data-invite-delete={email}
-                  onClick={() => setDeleting(email)}
-                >
-                  <Icon size="100" src={Icons.Delete} />
-                </IconButton>
-              </Box>
+              <IconButton
+                type="button"
+                size="300"
+                variant="Critical"
+                fill="Soft"
+                radii="300"
+                aria-label={t('serverAccounts.invites.delete')}
+                data-invite-delete={email}
+                onClick={() => setDeleting(email)}
+              >
+                <Icon size="100" src={Icons.Delete} />
+              </IconButton>
             }
-          />
+          >
+            {/* Below the address rather than beside it, where a phone has no room for them. */}
+            <Box alignItems="Center" gap="200" wrap="Wrap">
+              {external && (
+                <Badge variant="Warning" fill="Soft" radii="Pill" size="500">
+                  <Text as="span" size="L400">
+                    {t('serverAccounts.filters.external')}
+                  </Text>
+                </Badge>
+              )}
+              <CopyInvitation email={email} providers={providers} />
+            </Box>
+          </SettingTile>
         ))}
       </SettingsCard>
       {adding && (
