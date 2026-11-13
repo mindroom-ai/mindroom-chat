@@ -157,7 +157,10 @@ const barBase = style({
   flex: '1 1 0',
   minWidth: toRem(2),
   maxWidth: toRem(32),
-  borderRadius: `${toRem(3)} ${toRem(3)} ${toRem(1)} ${toRem(1)}`,
+  borderStartStartRadius: toRem(3),
+  borderStartEndRadius: toRem(3),
+  borderEndStartRadius: toRem(1),
+  borderEndEndRadius: toRem(1),
   selectors: {
     '&[data-pointed]': {
       outline: `${toRem(1.5)} solid ${color.Primary.Main}`,

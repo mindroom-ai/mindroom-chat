@@ -60,7 +60,6 @@ import {
   hasUndecryptedNewerEdit,
 } from '../../matrix/room';
 import { MessageEvent } from '../../matrix/types/room';
-import { EncryptedContent } from '../../messages/content/EncryptedContent';
 import { MessageEditNotDecryptedContent } from '../../messages/content/FallbackContent';
 import { Event, Message } from '../../messages/Message';
 import { CollapsibleMessage, CollapsibleMessageStateProvider } from '../CollapsibleMessage';
@@ -97,15 +96,7 @@ import type { TimelineMessageData, TimelineMessageRow } from './types';
  * The settings below come from the user's preferences; `hideActivity` keeps read receipts
  * private, so the rows show none either.
  */
-type TimelineSettings = Pick<
-  Settings,
-  | 'messageLayout'
-  | 'messageSpacing'
-  | 'hideActivity'
-  | 'hideMembershipEvents'
-  | 'hideNickAvatarEvents'
-  | 'showHiddenEvents'
->;
+type TimelineSettings = Pick<Settings, 'messageLayout' | 'messageSpacing' | 'hideActivity'>;
 
 type UseTimelineMessageFeatureOptions = TimelineSettings & {
   room: Room;
@@ -440,7 +431,7 @@ export const useTimelineMessageFeature = ({
     [navigateRoomThread, room.roomId]
   );
 
-  /** The row of a message, approval, sticker or undecryptable event; read at render time. */
+  /** The row of a message, approval, sticker or undecryptable event. */
   const renderMessageRow = useCallback(
     (row: TimelineMessageRow, data: TimelineMessageData): ReactNode | null => {
       const { event, eventId, collapse, highlighted } = row;
@@ -722,14 +713,6 @@ export const useTimelineMessageFeature = ({
         );
       }
       renderedEventsRef.current?.push(event);
-      // An encrypted row renders what it decrypts to; it repaints once decrypted.
-      if (event.isEncrypted?.()) {
-        return (
-          <EncryptedContent key={eventId} mEvent={event}>
-            {() => renderMessageRow(row, data)}
-          </EncryptedContent>
-        );
-      }
       return renderMessageRow(row, data);
     },
     [decryptions, messageSpacing, renderMessageRow, room]

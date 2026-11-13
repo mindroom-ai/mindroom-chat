@@ -18,8 +18,6 @@ export const localizeVoiceErrorMessage = (
       return t('mindroomUi.voice.errors.microphoneUnavailable');
     case 'Failed to access microphone.':
       return t('mindroomUi.voice.errors.microphoneFailed');
-    case 'Microphone access is not supported on this device.':
-      return t('mindroomUi.voice.errors.microphoneUnsupported');
     case 'Voice recording stopped unexpectedly. Please record again.':
       return t('mindroomUi.voice.errors.recordingStopped');
     case 'No audio data was captured.':

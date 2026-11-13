@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  isMindroomHomeserver,
   normalizeHomeserverName,
   shouldDisablePasswordLogin,
   shouldRequireAppleProvider,
@@ -11,15 +10,11 @@ describe('MindRoom auth policy', () => {
   it('normalizes server names before matching the hosted homeserver', () => {
     expect(normalizeHomeserverName('https://mindroom.chat/')).toBe('mindroom.chat');
     expect(normalizeHomeserverName('HTTP://MINDROOM.CHAT///')).toBe('mindroom.chat');
-    expect(isMindroomHomeserver('https://mindroom.chat/')).toBe(true);
-    expect(isMindroomHomeserver('https://123.matrix.mindroom.chat/')).toBe(true);
-    expect(isMindroomHomeserver('123.matrix.mindroom.chat')).toBe(true);
-    expect(isMindroomHomeserver('matrix.org')).toBe(false);
   });
 
   it('matches the hosted homeserver by hostname, not by a path that ends like one', () => {
-    expect(isMindroomHomeserver('https://example.org/x.matrix.mindroom.chat')).toBe(false);
-    expect(isMindroomHomeserver('example.org/x.matrix.mindroom.chat')).toBe(false);
+    expect(shouldUseSsoOnlyRegistration('https://example.org/mindroom.chat')).toBe(false);
+    expect(shouldUseSsoOnlyRegistration('example.org/mindroom.chat')).toBe(false);
   });
 
   it('forces the hosted homeserver onto SSO-only auth', () => {

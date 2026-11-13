@@ -10,6 +10,10 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, loginToMatrix, sendReaction, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A right click inside a dialog that a message's menu opened (View Reactions, Read Receipts, View
 // Source, Report Message) is the dialog's: the browser's own menu opens, to copy the event ID from
@@ -17,7 +21,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // to the row, which prevented the browser's menu and moved the message menu to the pointer. Real
 // right clicks on a desktop (1280 by 800), against the disposable homeserver of a slot, in Chromium
 // and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'message-menu-dialog-right-click-spec-password';
 const RUN = Date.now().toString(36);
 
@@ -52,17 +55,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (name: string) => {
   const username = `mdrc_${name}_${RUN}`;
@@ -216,7 +208,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 const TITLE = 'a right click inside a dialog the message menu opened keeps the browser menu';

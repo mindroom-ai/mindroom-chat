@@ -4,26 +4,18 @@ import { openSettingsFromAccountRail } from '../helpers/accounts';
 import { setUpRecoveryPassword } from '../helpers/recovery';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { buildLoginPath } from '../env';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Reset Device Verification from a session that no longer holds the secret storage key: the
 // person lost the recovery key, or simply reloaded since the setup (the key lives in memory
 // only). The reset must not need the old key: it creates a new secret storage, new
 // cross-signing keys and a new key backup, shows the new recovery key, and leaves this session
 // verified with the new identity. Against the disposable homeserver of `just hs-up`.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'reset-verification-spec-password';
 const RECOVERY_KEY = /^E\w{3}( \w{4}){11}$/;
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const api = async <T>(path: string, token?: string, body?: unknown): Promise<T> => {
   const response = await fetch(`${HOMESERVER}/_matrix/client/v3${path}`, {
@@ -140,7 +132,10 @@ const resetFromFreshPage = async (browser: Browser, baseURL: string | undefined)
 
 test.describe('Reset Device Verification', () => {
   test.beforeEach(async () => {
-    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+    test.skip(
+      !(await disposableHomeserverIsUp()),
+      `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+    );
     test.setTimeout(300_000);
   });
 

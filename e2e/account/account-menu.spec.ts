@@ -7,22 +7,14 @@ import {
   waitForLoggedInShell,
 } from '../helpers/auth';
 import { matrixFetch, setAccountData } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The rail's single account button and its menu, and the Settings switches that hide rail
 // buttons, against the disposable homeserver of `just hs-up` (open registration).
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'account-menu-spec-password';
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 /**
  * A fresh account with a display name, so the menu has a name to show, and the sidebar switches
@@ -77,7 +69,10 @@ const activeUserId = async (page: Page) => {
 const rail = (page: Page) => page.getByRole('navigation', { name: 'Main', exact: true });
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test('switches accounts through the account menu, and hidden rail buttons stay hidden after a reload', async ({

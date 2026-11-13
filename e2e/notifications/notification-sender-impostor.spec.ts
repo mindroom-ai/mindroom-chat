@@ -8,7 +8,11 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 import {
   joinRoom,
   loginToMatrix,
@@ -28,7 +32,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit, against the disposable
 // homeserver of `just hs-up` or of a slot of scripts/e2e-slot.sh. Set IMPOSTOR_NOTIFY_SHOTS to a
 // directory to save screenshots and the recorded notifications.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'impostor-notify-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.IMPOSTOR_NOTIFY_SHOTS;
@@ -42,17 +45,6 @@ const AGENT_DESK = `Agent desk ${RUN}`;
 test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
 type ShownNotification = { title: string; body?: string; tag?: string };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const setDisplayName = (session: MatrixSession, displayName: string) =>
   matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(session.userId)}/displayname`, {
@@ -191,7 +183,7 @@ let seeded: Awaited<ReturnType<typeof seed>> | undefined;
 
 test.beforeAll(async () => {
   test.setTimeout(240_000);
-  if (!(await homeserverIsUp())) return;
+  if (!(await disposableHomeserverIsUp())) return;
   seeded = await seed();
 });
 

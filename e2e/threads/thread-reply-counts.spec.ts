@@ -11,6 +11,10 @@ import {
   sendRoomMessage,
 } from '../helpers/matrix';
 import { defined } from '../../src/test/utils/defined';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Thread reply counts on the Compact cards, in Home and beside the Threads list, from the first
 // sign-in through new replies, edits, redactions, reloads and opening the thread.
@@ -18,19 +22,7 @@ import { defined } from '../../src/test/utils/defined';
 // the replies sync brought; the SDK used to count the synced replies on top of the summary that
 // already counted them (6 for a thread of 3), above all after a reload.
 
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'thread-reply-counts-password';
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (username: string): Promise<string> => {
   const body = await matrixFetch<{ access_token: string }>(HOMESERVER, '/register', {
@@ -145,7 +137,10 @@ test('thread reply counts stay right through reloads, replies, edits, redactions
 }) => {
   // Two reloads and a thread opening on a loaded machine.
   test.setTimeout(480_000);
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 
   const username = `counts_${Date.now().toString(36)}`;
   const token = await register(username);

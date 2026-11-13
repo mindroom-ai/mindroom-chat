@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const native = vi.hoisted(() => ({ app: false }));
-vi.mock('./authUi', () => ({ isNativeApp: () => native.app }));
+vi.mock('../../native/nativeSso', () => ({ isNativeApp: () => native.app }));
 
 import {
   claimSsoLogin,

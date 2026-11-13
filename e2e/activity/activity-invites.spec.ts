@@ -10,6 +10,10 @@ import { joinRoom, loginToMatrix, matrixFetch } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
 import { launchWebKit } from '../helpers/webkit';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Activity leads to the invites: the bell counts them, the Activity list shows each one with Join
 // and Decline and ends with All invites, which opens the invite list at its own address. The
@@ -19,7 +23,6 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 // scripts/e2e-slot.sh), then declines both invites. Classic scrollbars show; the phone flow also
 // runs in WebKit (the iPhone engine) when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit.
 // Set ACTIVITY_INVITES_SHOTS=<directory> to also save screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'activity-invites-spec-password';
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.ACTIVITY_INVITES_SHOTS;
@@ -42,17 +45,6 @@ test.use({
 });
 
 type Account = { username: string; userId: string; accessToken: string };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (name: string, displayname: string): Promise<Account> => {
   // A random suffix: the specs of one run share the homeserver.
@@ -230,7 +222,10 @@ const checkPhone = async (page: Page, seeded: Seeded, engine: string) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test('the Activity bell lists the invites and leads to the invite list', async ({ page }) => {

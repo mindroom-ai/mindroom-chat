@@ -9,6 +9,10 @@ import {
   setDirectAccountData,
 } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The page navigation (the room list beside the content) moves in the same way however it opens:
 // with its toggle, the keyboard shortcut, the button of the section already shown, or a click on
@@ -19,7 +23,6 @@ import { launchWebKit } from '../helpers/webkit';
 // motion and phones switch at once. Checked with 26 spaces, 30 rooms in each of the first two and
 // classic scrollbars, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
 // WebKit, in WebKit.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'drawer-motion-spec-password';
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SPACE_COUNT = 26;
@@ -50,19 +53,11 @@ test.use({
   },
 });
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 type Account = { username: string; spaces: string[] };

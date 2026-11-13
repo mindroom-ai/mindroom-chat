@@ -19,6 +19,10 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A message the person typed is never lost and never merged into another one. A send that fails
 // keeps its own row, marked "Not sent" with Retry and Delete, and the composer keeps whatever is
@@ -29,7 +33,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit, against the disposable
 // homeserver of `just hs-up` or of a slot of scripts/e2e-slot.sh. Set SEND_FAILURES_SHOTS=<dir>
 // to also save a picture of each step.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'send-failures-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.SEND_FAILURES_SHOTS;
@@ -60,17 +63,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (name: string): Promise<MatrixSession & { username: string }> => {
   const username = `sf_${name}_${RUN}`;
@@ -727,7 +719,7 @@ const refusedRepliesSayWhy = async (browser: Browser, layout: Layout, label: str
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 const SCENARIOS = [

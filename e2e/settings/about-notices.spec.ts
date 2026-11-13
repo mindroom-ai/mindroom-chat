@@ -1,13 +1,16 @@
 import { expect, test, type Page } from '@playwright/test';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { matrixFetch } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Settings > About: the credits name only what ships, and Third-party notices opens
 // public/licenses/THIRD_PARTY_NOTICES.txt, which the build writes from the production dependencies
 // (scripts/third-party-notices.mjs), in the text viewer. Run it on a production build:
 // scripts/e2e-slot.sh <n> --preview npx playwright test e2e/settings/about-notices.spec.ts (the dev
 // server serves the same file).
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'about-notices-spec-password';
 const NOTICES = '/public/licenses/THIRD_PARTY_NOTICES.txt';
 
@@ -20,17 +23,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 /** A fresh account signed in on `page`, with Settings open on About. */
 const openAbout = async (page: Page) => {
@@ -50,7 +42,10 @@ const openAbout = async (page: Page) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test('the build serves the third-party notices as text, and About opens them', async ({ page }) => {

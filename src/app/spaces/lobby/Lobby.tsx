@@ -52,8 +52,6 @@ const toCardSummary = (summary: LocalRoomSummary): CardSummary => ({
   children_state: [],
 });
 
-const noop = () => undefined;
-
 // The lobby's column: S400 around it, at most 720 px wide, centered.
 const LOBBY_COLUMN = { padding: config.space.S400, maxWidth: toRem(720), margin: '0 auto' };
 // Under the 54 px header, with a gap.
@@ -237,11 +235,8 @@ function LobbyContent() {
         key={item.roomId}
         item={item}
         loading={cardLoading}
-        error={null}
         summary={summary}
         onOpen={openRoom}
-        onDragging={noop}
-        canReorder={false}
         getRoom={getRoom}
         options={optionsFor(item)}
       />
@@ -290,12 +285,9 @@ function LobbyContent() {
         summary={summaries.get(item.roomId)}
         loading={!joinedSpace && loading}
         joined={!!joinedSpace}
-        categoryId={item.roomId}
         closed={closedCategories.has(item.roomId)}
         handleClose={toggleCategory}
         canEditChild={!!joinedSpace && canSendState(client, joinedSpace, StateEvent.SpaceChild)}
-        canReorder={false}
-        onDragging={noop}
         getRoom={getRoom}
         options={optionsFor(item)}
       />

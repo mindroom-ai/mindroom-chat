@@ -2,8 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import {
   buildRoomThreadScheduledStatusMap,
-  getNextThreadScheduledTs,
-  getRoomScheduledTaskCounts,
   getThreadScheduledStatus,
 } from './threadScheduledStatus';
 
@@ -149,18 +147,5 @@ describe('threadScheduledStatus', () => {
       scheduledTaskCount: 2,
       nextScheduledTs: undefined,
     });
-  });
-
-  it('exposes count and next-time compatibility selectors from the same status map logic', () => {
-    const events = [
-      makeScheduledEvent({ stateKey: 'task-1', executeAt: '2026-04-04T18:15:00.000Z' }),
-      makeScheduledEvent({ stateKey: 'task-2', executeAt: '2026-04-04T18:05:00.000Z' }),
-    ];
-    const now = Date.parse('2026-04-04T18:00:00.000Z');
-
-    expect(getRoomScheduledTaskCounts(events, now).get('$thread')).toBe(2);
-    expect(getNextThreadScheduledTs(events, '$thread', now)).toBe(
-      Date.parse('2026-04-04T18:05:00.000Z')
-    );
   });
 });

@@ -3,13 +3,16 @@ import { loginWithPassword } from '../helpers/auth';
 import { getStoredSessionByUsername } from '../helpers/accounts';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, loginToMatrix, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Each /sync hands its one-time key counts to the Rust crypto machine, which then copies its
 // whole account: one elliptic-curve multiplication per one-time key the device holds, on the main
 // thread. A device that received to-device messages must still hold only its first keys, so a
 // sync without crypto changes stays cheap. Chromium only (CDP profiler), against the slot's
 // Tuwunel with fresh accounts.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'sync-crypto-cost-spec-password';
 const RUN = Date.now().toString(36);
 const TO_DEVICE_SYNCS = 12;
@@ -17,17 +20,6 @@ const PLAIN_SYNCS = 10;
 
 type ProfileNode = { id: number; callFrame: { functionName: string }; children?: number[] };
 type Profile = { nodes: ProfileNode[]; samples: number[]; timeDeltas: number[] };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (name: string) => {
   const username = `scc_${name}_${RUN}`;
@@ -79,7 +71,7 @@ const watchSyncs = (page: Page) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('a device that received to-device messages syncs without copying a grown account', async ({

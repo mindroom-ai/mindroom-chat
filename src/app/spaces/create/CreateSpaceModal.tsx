@@ -7,7 +7,7 @@ import {
   useCreateSpaceModalState,
 } from '../../navigation/useCreateSpaceModal';
 import { CreateDialogFrame } from '../../ui/CreateDialogFrame';
-import { CreateSpaceForm } from './CreateSpace';
+import { CreateRoomForm } from '../../rooms/create/CreateRoom';
 
 /**
  * The "Create Space" dialog, opened from the icon rail, the command palette or a lobby. A new
@@ -37,7 +37,12 @@ export function CreateSpaceModalRenderer() {
 
   return (
     <CreateDialogFrame title={title} requestClose={close}>
-      <CreateSpaceForm key={requested.spaceId ?? ''} parent={parent} onCreate={handleCreated} />
+      <CreateRoomForm
+        key={requested.spaceId ?? ''}
+        kind="space"
+        space={parent}
+        onCreate={handleCreated}
+      />
     </CreateDialogFrame>
   );
 }

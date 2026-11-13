@@ -8,6 +8,10 @@ import {
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // On a phone, a swipe from the screen's left edge brings the navigation drawer out over a room, as
 // the top bar's menu button does, and the room stays: it no longer goes back to the list or the
@@ -15,7 +19,6 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 // takes the swipe itself and steps back to the room only, leaving the drawer away. 390 by 844
 // with touch, in Chromium with real touches and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
 // Playwright's WebKit, in WebKit.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'phone-room-edge-swipe-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
@@ -29,17 +32,6 @@ const OTHER_ROOMS = Array.from(
 );
 
 type Seed = { username: string; garden: string; gardenRoot: string; harbor: string };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const text = (body: string) => ({ msgtype: 'm.text', body });
 
@@ -175,7 +167,10 @@ const signIn = async (browser: Browser, { username }: Seed) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 for (const engine of ENGINES) {

@@ -85,7 +85,6 @@ export type RoomViewThreadState = {
   handleToggleUnresolvedOnly: () => void;
   handleTogglePerson: (userId: string) => void;
   handleRoomMessageSent: (eventId: string) => boolean;
-  handleViewModeChange: (mode: RoomViewMode) => void;
   setThreadSortFreezeState: Dispatch<SetStateAction<ThreadSortFreezeState | null>>;
   storeThreadSummary: ReturnType<typeof useRoomThreadSummaryState>['storeThreadSummary'];
   summaryMap: Map<string, ThreadSummaryInfo>;
@@ -109,7 +108,7 @@ export const useRoomViewThreadState = ({
   const { navigatePath, navigateRoom, navigateRoomFocusEvent, navigateRoomThread } =
     useRoomNavigate();
 
-  const { setViewMode, viewMode: effectiveViewMode } = useRoomViewMode(roomId, hasMindroomAgents);
+  const { viewMode: effectiveViewMode } = useRoomViewMode(roomId, hasMindroomAgents);
   const threadFilterAtom = useMemo(
     () => roomThreadFilterAtomFamily(userId, roomId),
     [roomId, userId]
@@ -392,11 +391,6 @@ export const useRoomViewThreadState = ({
     [flushPendingSearchQuery, setThreadFilterState]
   );
 
-  const handleViewModeChange = useCallback(
-    (mode: RoomViewMode) => setViewMode(mode),
-    [setViewMode]
-  );
-
   const handleRoomMessageSent = useCallback(
     (sentEventId: string): boolean => {
       if (effectiveViewMode !== 'compact' || threadId || effectiveThreadId) return false;
@@ -483,7 +477,6 @@ export const useRoomViewThreadState = ({
     handleToggleUnresolvedOnly,
     handleTogglePerson,
     handleRoomMessageSent,
-    handleViewModeChange,
     setThreadSortFreezeState,
     storeThreadSummary,
     summaryMap,

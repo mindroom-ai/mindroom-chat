@@ -13,6 +13,10 @@ import { createRoom } from '../helpers/createRoom';
 import { loginToMatrix, matrixFetch, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
 import { holdFirstWrites } from '../helpers/holdWrites';
 import { launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Two people work on the same room at the same moment, each in their own browser, against a
 // real homeserver.
@@ -30,7 +34,6 @@ import { launchWebKit } from '../helpers/webkit';
 // write lands, every run. Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
 // WebKit, WebKit; a desktop at 1440 by 900 and one at 1280 by 800. Each account has 25 rooms.
 // Set CONCURRENT_STATE_SHOTS=<directory> to save screenshots there as well.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'concurrent-state-spec-password';
 const RUN = Date.now().toString(36);
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
@@ -65,17 +68,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 type Account = MatrixSession & { username: string };
 
@@ -358,7 +350,7 @@ const moderatorPins = async (open: Open, engine: string, testInfo: TestInfo) => 
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 const CHECKS: [string, (open: Open, engine: string, info: TestInfo) => Promise<void>][] = [

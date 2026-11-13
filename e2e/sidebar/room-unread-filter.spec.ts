@@ -10,26 +10,18 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The room list's unread mark and the room's unread thread filter agree, against the disposable
 // homeserver of `just hs-up` (or a slot of scripts/e2e-slot.sh): a root an agent posted keeps the
 // room unread and the filter finds it, also once the reader answered it in its thread, since that
 // reply reads only the thread and the server keeps counting the root (mindroom-tuwunel #139). A
 // main receipt reads it. Each run registers its own reader and agent.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'room-unread-filter-spec-password';
 const RUN = Date.now().toString(36);
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
   const username = `ruf_${name}_${RUN}`;
@@ -79,7 +71,7 @@ const openUnreadThreads = async (page: Page, roomId: string, title: string) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('the room list marks a room unread only for threads its unread filter finds', async ({

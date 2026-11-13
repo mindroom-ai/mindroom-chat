@@ -191,11 +191,12 @@ function CoverLayer({ entry: { cover }, room, conversationRef, onFailure }: Cove
 }
 
 /**
- * What client plugins draw over the room's conversation (docs/architecture.md "Client plugins"):
- * of the `conversationCovers` of the plugins config.json leaves on, the first in build order whose
- * condition holds, under the header and its slot. One that throws (its condition, subscription,
- * close or component) goes and is reported under its plugin's tag, and the next whose condition
- * holds shows instead; the view mounts this afresh in each room, where the failed one tries again.
+ * What client plugins draw over the room's conversation (docs/client-plugins.md "Conversation
+ * covers"): of the `conversationCovers` of the plugins config.json leaves on, the first in build
+ * order whose condition holds, under the header and its slot. One that throws (its condition,
+ * subscription, close or component) goes and is reported under its plugin's tag, and the next whose
+ * condition holds shows instead; the view mounts this afresh in each room, where the failed one
+ * tries again.
  */
 export function ConversationCover({
   room,

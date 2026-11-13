@@ -2,6 +2,10 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { joinRoom, matrixFetch } from '../helpers/matrix';
 import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The Invites page: a centered title, a Filter label over the list chips, a heading with Accept
 // All for the list shown, and one card per invite with its picture or a colored letter, small
@@ -10,7 +14,6 @@ import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // row of its own. The cards are checked in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set INVITES_SHOTS=<directory>
 // to also save the page in dark and light themes and at a phone's width.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'invites-page-spec-password';
 const SHOTS = process.env.INVITES_SHOTS;
 
@@ -21,17 +24,6 @@ const ROOM_PICTURE = Buffer.from(
 );
 
 type Account = { username: string; userId: string; accessToken: string };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (prefix: string, displayname: string): Promise<Account> => {
   // A random part too, so tests that run at once in other workers never pick the same name.
@@ -151,7 +143,7 @@ const box = async (locator: Locator) => {
 };
 
 test.beforeAll(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 const checkInviteCards = async (page: Page) => {

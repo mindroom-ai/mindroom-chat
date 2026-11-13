@@ -3,27 +3,19 @@ import { activeAccountButtonNamePattern } from '../helpers/auth';
 import { buildLoginPath } from '../env';
 import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { openThreadsCategory } from '../helpers/threadsCategory';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The sidebar's Threads section lists a room's threads after sign-in and after a reload without
 // the room being opened, even when newer room messages pushed every thread event out of the sync
 // window. The client then knows those threads only from the room's thread list, which it fetches
 // for every joined room once the first sync has caught up.
 
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'sidebar-threads-password';
 /** More room messages than one /sync brings per room (STARTUP_SYNC_TIMELINE_LIMIT is 20). */
 const NEWER_ROOM_MESSAGES = 25;
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (username: string): Promise<string> => {
   const body = await matrixFetch<{ access_token: string }>(HOMESERVER, '/register', {
@@ -61,7 +53,10 @@ test('the sidebar lists quiet threads after sign-in and a reload without opening
   page,
 }) => {
   test.setTimeout(360_000);
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 
   const username = `sidebar_threads_${Date.now().toString(36)}`;
   const token = await register(username);

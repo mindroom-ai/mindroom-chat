@@ -20,7 +20,7 @@ const reportFailure = (tag: string, thrown: unknown, componentStack?: string | n
 
 /**
  * Shows the card of a client plugin for a link a plain click takes in a room's messages, in a
- * pop-out at the link (docs/architecture.md "Client plugins"). One card shows at a time: another
+ * pop-out at the link (docs/client-plugins.md "Message links"). One card shows at a time: another
  * link's card takes its place, and a switch to another room closes it. A card that throws closes
  * and is reported under its plugin's tag. Closing returns focus to the link, if it is still there.
  */

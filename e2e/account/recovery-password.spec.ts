@@ -3,27 +3,19 @@ import { loginWithPassword } from '../helpers/auth';
 import { openSettingsFromAccountRail } from '../helpers/accounts';
 import { buildLoginPath } from '../env';
 import { setUpRecoveryPassword, unlockWithRecovery } from '../helpers/recovery';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The recovery password story in a real browser against the disposable homeserver: the start
 // prompt asks a new account for one, a fresh browser unlocks with it (or with the recovery key),
 // a change replaces it, and the secret storage the client writes is the Matrix passphrase format.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const ACCOUNT_PASSWORD = 'recovery-spec-account-password';
 const RECOVERY_PASSWORD = 'tangerine mill noon 42';
 const NEW_RECOVERY_PASSWORD = 'orange river dusk 77';
 const MESSAGE = 'The launch code is tangerine';
 const WRONG = 'That recovery password or key is not right.';
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const matrix = async <T>(path: string, init: { token?: string; body?: unknown } = {}) => {
   const response = await fetch(`${HOMESERVER}/_matrix/client/v3${path}`, {
@@ -158,7 +150,10 @@ const openChange = async (page: Page): Promise<Locator> => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(420_000);
 });
 

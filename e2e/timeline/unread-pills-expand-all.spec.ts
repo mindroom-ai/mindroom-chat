@@ -18,6 +18,10 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A room with unread messages, scrolled to the top of the rows it opened with while its older
 // history is still loading: the floating Jump to Unread and Mark as Read pills sit under the room
@@ -30,7 +34,6 @@ import { launchWebKit } from '../helpers/webkit';
 // in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
 // Set UNREAD_PILLS_SHOTS=<directory> to save each screen. On a phone the pills also fit the screen
 // in every language the app offers, each label whole and inside its pill.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'unread-pills-expand-all-spec-password';
 const RUN = Date.now().toString(36);
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
@@ -56,17 +59,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
   const username = `upx_${name}_${RUN}`;
@@ -462,7 +454,7 @@ const runDevices = async (
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('the unread pills and "[+all]" never cover each other (Chromium)', async ({

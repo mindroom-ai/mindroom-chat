@@ -1,19 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { MINDROOM_DEVICE_DISPLAY_NAMES } from '../../ui/branding/branding';
-import {
-  buildNativeSsoRedirectUrl,
-  isNativeApp,
-  isNativeIOS,
-  openNativeSsoBrowser,
-  signInWithNativeApple,
-} from '../../native/nativeSso';
+import { buildNativeSsoRedirectUrl, isNativeApp } from '../../native/nativeSso';
 import { isMacOS } from '../../lib/user-agent';
-import {
-  isMindroomHomeserver,
-  shouldDisablePasswordLogin,
-  shouldRequireAppleProvider,
-  shouldUseSsoOnlyRegistration,
-} from './authPolicy';
 
 /**
  * The name of the session a sign-in creates, as the sessions list shows it: the app on this
@@ -27,14 +15,3 @@ export const getDeviceDisplayName = (): string => {
 
 export const getAuthSsoRedirectUrl = (webRedirectUrl: string): string =>
   isNativeApp() ? buildNativeSsoRedirectUrl(webRedirectUrl) : webRedirectUrl;
-
-export {
-  isNativeApp,
-  isMindroomHomeserver,
-  isNativeIOS,
-  openNativeSsoBrowser,
-  signInWithNativeApple,
-  shouldDisablePasswordLogin,
-  shouldRequireAppleProvider,
-  shouldUseSsoOnlyRegistration,
-};

@@ -1,4 +1,4 @@
-import React, { createRef } from 'react';
+import React from 'react';
 import { Direction, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
@@ -255,7 +255,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       const room = makeRoom({
         liveEvents: [makeEvent('$loaded', { ts: 100 })],
       });
-      const roomInputRef = createRef<HTMLElement>();
       const editor = {} as Editor;
       let renderer: ReturnType<typeof create> | undefined;
 
@@ -272,7 +271,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
             wrapWithSyncEngine(
               React.createElement(RoomTimeline, {
                 room,
-                roomInputRef,
                 editor,
                 summaryMap: new Map(),
                 onStoreThreadSummary: vi.fn(),
@@ -288,7 +286,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
                 onApplyPreset: vi.fn(),
                 onSearchQueryChange: vi.fn(),
                 viewMode: 'default',
-                onViewModeChange: vi.fn(),
               })
             )
           );
@@ -335,7 +332,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         makeEvent(`$event-${index}`, { ts: index })
       );
       const room = makeRoom({ liveEvents: events });
-      const roomInputRef = createRef<HTMLElement>();
       const editor = {} as Editor;
       let renderer: ReturnType<typeof create> | undefined;
 
@@ -348,7 +344,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
             wrapWithSyncEngine(
               React.createElement(RoomTimeline, {
                 room,
-                roomInputRef,
                 editor,
                 summaryMap: new Map(),
                 onStoreThreadSummary: vi.fn(),
@@ -364,7 +359,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
                 onApplyPreset: vi.fn(),
                 onSearchQueryChange: vi.fn(),
                 viewMode: 'classic',
-                onViewModeChange: vi.fn(),
               })
             )
           );
@@ -1320,7 +1314,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
         makeEvent(`$event-${index}`, { ts: index })
       );
       const room = makeRoom({ liveEvents: events });
-      const roomInputRef = createRef<HTMLElement>();
       const editor = {} as Editor;
       const scrollElement = {
         isConnected: true,
@@ -1357,7 +1350,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
             wrapWithSyncEngine(
               React.createElement(RoomTimeline, {
                 room,
-                roomInputRef,
                 editor,
                 summaryMap: new Map(),
                 onStoreThreadSummary: vi.fn(),
@@ -1373,7 +1365,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
                 onApplyPreset: vi.fn(),
                 onSearchQueryChange: vi.fn(),
                 viewMode: 'classic',
-                onViewModeChange: vi.fn(),
               })
             ),
             {
@@ -1432,7 +1423,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
       const room = makeRoom({
         liveEvents: [makeEvent('$loaded', { ts: 100 })],
       });
-      const roomInputRef = createRef<HTMLElement>();
       const editor = {} as Editor;
       const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
       const originalLocalStorage = globalThis.localStorage;
@@ -1459,7 +1449,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
             wrapWithSyncEngine(
               React.createElement(RoomTimeline, {
                 room,
-                roomInputRef,
                 editor,
                 summaryMap: new Map(),
                 onStoreThreadSummary: vi.fn(),
@@ -1475,7 +1464,6 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
                 onApplyPreset: vi.fn(),
                 onSearchQueryChange: vi.fn(),
                 viewMode: 'default',
-                onViewModeChange: vi.fn(),
               })
             )
           );

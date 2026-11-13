@@ -21,7 +21,7 @@ import {
   hydrateLongTextSource,
   type LongTextSource,
 } from '../../matrix/protocol/longText';
-import { downloadLongTextSidecarText } from '../../messages/content/longTextDownload';
+import { downloadLongTextSidecarBlob } from '../../messages/content/longTextDownload';
 import { downloadSidecarBlob } from './sidecarDownload';
 import {
   clearAttachmentRepositoryMemory,
@@ -71,7 +71,7 @@ const admitSource = async <T extends CachedAttachmentSource>(
 const hydrate = (mx: MatrixClient) =>
   hydrateLongTextSource(
     SOURCE,
-    (source) => downloadLongTextSidecarText(mx, source),
+    (source) => downloadLongTextSidecarBlob(mx, source).then((blob) => blob.text()),
     mx
   );
 
@@ -828,7 +828,7 @@ it('does not resurrect a retired interactive long-text body after delayed transp
     { ...SOURCE, owner: { roomId: 'room-a', eventId: '$stream', revisionTs: 1 } },
     true
   );
-  const pending = downloadLongTextSidecarText(mx, initial);
+  const pending = downloadLongTextSidecarBlob(mx, initial).then((blob) => blob.text());
   await vi.waitFor(() => expect(finish).toBeDefined());
   await saveAttachmentOwner(session, 'room-a', '$stream', 2, []);
   finish(new Response(JSON.stringify({ msgtype: 'm.text', body: 'obsolete' })));
