@@ -129,9 +129,7 @@ vi.stubGlobal('window', {
   },
 });
 
-vi.mock('../../threads/useInitializeShownThread', () => ({
-  useInitializeShownThread: () => undefined,
-}));
+vi.mock('../../threads/useInitializeShownThread', () => ({ useInitializeShownThread: () => undefined }));
 vi.mock('../../event-store/engine/engineContext', () => ({ useSyncEngine: () => syncEngine }));
 
 vi.mock('folds', async (importOriginal) => {
@@ -216,6 +214,7 @@ vi.mock('../../matrix/hooks/usePowerLevels', () => {
 
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
+    getRooms: () => [],
     getHomeserverUrl: () => 'https://mindroom.chat',
     getSafeUserId: () => '@alice:example.org',
     getRoom: () => null,
@@ -1819,20 +1818,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
 
   it('canonicalizes resolved thread ids and passes them through the thread view', async () => {
     const { RoomView } = await import('../RoomView');
-    // The room holds the confirmed root.
-    const roomId = nextRoomId('room-a');
-    const root = new MatrixEvent({
-      event_id: '$confirmed-thread',
-      room_id: roomId,
-      type: 'm.room.message',
-      sender: '@alice:example.org',
-      origin_server_ts: 1,
-      content: { msgtype: 'm.text', body: 'Root' },
-    });
-    const room = {
-      ...makeRoom(roomId),
-      findEventById: (id: string) => (id === '$confirmed-thread' ? root : undefined),
-    };
+    const room = makeRoom(nextRoomId('room-a'));
     useThreadRootEventMock.mockReturnValue('$confirmed-thread');
 
     let renderer: ReturnType<typeof create> | undefined;
@@ -1923,20 +1909,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
 
   it('bumps the recent-thread list from the canonical open thread id', async () => {
     const { RoomView } = await import('../RoomView');
-    // The room holds the confirmed root.
-    const roomId = nextRoomId('room-a');
-    const root = new MatrixEvent({
-      event_id: '$confirmed-thread',
-      room_id: roomId,
-      type: 'm.room.message',
-      sender: '@alice:example.org',
-      origin_server_ts: 1,
-      content: { msgtype: 'm.text', body: 'Root' },
-    });
-    const room = {
-      ...makeRoom(roomId),
-      findEventById: (id: string) => (id === '$confirmed-thread' ? root : undefined),
-    };
+    const room = makeRoom(nextRoomId('room-a'));
     useThreadRootEventMock.mockReturnValue('$confirmed-thread');
 
     await act(async () => {
@@ -1952,7 +1925,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       room.roomId,
       '$confirmed-thread',
       undefined,
-      expect.any(String)
+      undefined
     );
   });
 
@@ -2160,5 +2133,6 @@ vi.mock('../ThreadView', () => ({
   }: {
     header?: React.ReactNode;
     roomHeader?: (headerRef: React.RefObject<HTMLDivElement>) => React.ReactNode;
-  }) => React.createElement('thread-view', props, roomHeader?.({ current: null }), header),
+  }) =>
+    React.createElement('thread-view', props, roomHeader?.({ current: null }), header),
 }));
