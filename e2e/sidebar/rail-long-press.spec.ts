@@ -6,20 +6,22 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { addRoomToSpace } from '../helpers/matrix';
 import {
-  HOMESERVER,
-  LAUNCH,
   PASSWORD,
   PHONE,
   RUN,
   SCHEMES,
   createOtherRooms,
-  homeserverIsUp,
   register,
   setLook,
   withRetry,
 } from '../helpers/designChoices';
 import { launchWebKit } from '../helpers/webkit';
 import { touch, type Step } from '../helpers/touch';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  CHROMIUM_WITH_SCROLLBARS,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // On a phone (390 by 844, touch) the space rail works as the sidebar's room rows do: a finger
 // resting on a space, or on Home or Direct Messages, opens that button's menu beside it (iOS
@@ -36,7 +38,7 @@ const HOLD_MS = 700;
 /** The entries of a space's menu for its creator, who may invite. */
 const ENTRIES = ['Mark as Read', 'Invite', 'Copy Link', 'Space Settings'];
 
-test.use({ launchOptions: LAUNCH });
+test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
 const seed = async (engine: string) => {
   const id = `${engine}_${RUN}_${randomUUID().slice(0, 6)}`;
@@ -278,7 +280,7 @@ const run = async (browser: Browser, engine: 'chromium' | 'webkit') => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('a long press opens a space menu in the rail on a phone (Chromium)', async ({ browser }) => {

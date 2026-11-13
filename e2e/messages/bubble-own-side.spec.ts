@@ -11,14 +11,11 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
   DESKTOP,
-  HOMESERVER,
-  LAUNCH,
   PASSWORD,
   PHONE,
   RUN,
   SCHEMES,
   createOtherRooms,
-  homeserverIsUp,
   join,
   register,
   say,
@@ -28,6 +25,11 @@ import {
   withRetry,
 } from '../helpers/designChoices';
 import { launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  CHROMIUM_WITH_SCROLLBARS,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // In the Bubble message layout the reader's own messages sit on the end side of the conversation
 // (the right in English, the left in Arabic) with their avatar beside them, while everyone else's
@@ -56,7 +58,7 @@ const OTHER_LONG =
   'I left comments on the empty states and the error messages; most are small wording changes, but ' +
   'the permission screen needs a second look from someone who knows the new roles.';
 
-test.use({ launchOptions: LAUNCH });
+test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
 type Seed = { username: string; roomId: string };
 
@@ -323,7 +325,7 @@ for (const engine of ENGINES) {
     test(`own messages sit on the end side in Bubble layout only: ${engine} ${form}`, async ({
       browser,
     }, testInfo) => {
-      test.skip(!(await homeserverIsUp()), 'Test homeserver is not running.');
+      test.skip(!(await disposableHomeserverIsUp()), 'Test homeserver is not running.');
       test.setTimeout(240_000);
       const data = await seed(`${engine}_${form}`);
       const { page, close } = await newPage(engine, browser, form === 'phone' ? PHONE : DESKTOP);

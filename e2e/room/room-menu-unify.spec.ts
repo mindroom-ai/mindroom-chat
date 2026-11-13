@@ -14,14 +14,11 @@ import { createRoom } from '../helpers/createRoom';
 import { addRoomToSpace, matrixFetch, setDirectAccountData } from '../helpers/matrix';
 import {
   DESKTOP,
-  HOMESERVER,
-  LAUNCH,
   PASSWORD,
   PHONE,
   RUN,
   SCHEMES,
   createOtherRooms,
-  homeserverIsUp,
   join,
   register,
   say,
@@ -32,6 +29,11 @@ import {
 } from '../helpers/designChoices';
 import { roomMoreOptions } from '../helpers/roomMenu';
 import { launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  CHROMIUM_WITH_SCROLLBARS,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A room's menu offers the same entries, in the same order, with the same labels, wherever it
 // opens: the More Options button of its sidebar row, a right-click on the row (a long press's
@@ -51,7 +53,7 @@ const MENU_ROW = 32;
 const NO_INVITE = "You don't have permission to invite";
 const NO_SEARCH = 'Not available in encrypted rooms';
 
-test.use({ launchOptions: LAUNCH });
+test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
 type Item = { name: string; role: string; disabled: boolean; reason: string };
 
@@ -462,7 +464,7 @@ for (const engine of ENGINES) {
     test(`a room's menu is the same from its row, a right-click and its header: ${engine} ${layout}`, async ({
       browser,
     }, testInfo) => {
-      test.skip(!(await homeserverIsUp()), 'Test homeserver is not running.');
+      test.skip(!(await disposableHomeserverIsUp()), 'Test homeserver is not running.');
       test.setTimeout(420_000);
       const phone = layout === 'phone';
       const data = await seed(`${engine.slice(0, 2)}${layout.slice(0, 2)}`);

@@ -7,14 +7,11 @@ import { createRoom } from '../helpers/createRoom';
 import { addRoomToSpace, matrixFetch, setDirectAccountData } from '../helpers/matrix';
 import {
   DESKTOP,
-  HOMESERVER,
-  LAUNCH,
   PASSWORD,
   PHONE,
   RUN,
   SCHEMES,
   createOtherRooms,
-  homeserverIsUp,
   join,
   register,
   say,
@@ -23,6 +20,11 @@ import {
 } from '../helpers/designChoices';
 import { launchWebKit } from '../helpers/webkit';
 import { touch, type Step } from '../helpers/touch';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  CHROMIUM_WITH_SCROLLBARS,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // On a phone (390 by 844, touch) a finger resting on a sidebar room row opens the row's room
 // menu, below or above the row, as the row's More Options button does on a desktop: that button
@@ -39,7 +41,7 @@ const SHOTS = process.env.PHONE_ROW_MENU_SHOTS;
 /** Longer than the 500 ms long press. */
 const HOLD_MS = 700;
 
-test.use({ launchOptions: LAUNCH });
+test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
 /**
  * The entries of the room menu of a room the tester created; a direct message's menu has no New
@@ -386,7 +388,7 @@ const runDesktop = async (browser: Browser, engine: 'chromium' | 'webkit') => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('a long press opens a sidebar row menu on a phone (Chromium)', async ({ browser }) => {

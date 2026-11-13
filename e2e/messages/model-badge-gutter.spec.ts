@@ -12,14 +12,11 @@ import { createRoom } from '../helpers/createRoom';
 import {
   AI_RUN,
   DESKTOP,
-  HOMESERVER,
-  LAUNCH,
   PASSWORD,
   PHONE,
   RUN,
   SCHEMES,
   createOtherRooms,
-  homeserverIsUp,
   join,
   register,
   say,
@@ -29,6 +26,11 @@ import {
   withRetry,
 } from '../helpers/designChoices';
 import { launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  CHROMIUM_WITH_SCROLLBARS,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // An agent's model name sits centred under its avatar, at most 4 px wider than the avatar on each
 // side (44 px at 100 % zoom), so the thread's minimap strips in the gutter before the avatar never
@@ -48,7 +50,7 @@ const MODEL_NAME = 'Stub Large Model';
 const AVATAR_PX = 36;
 const OVERHANG_PX = 4;
 
-test.use({ launchOptions: LAUNCH });
+test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
 type Seed = { username: string; roomId: string; root: string };
 
@@ -294,7 +296,7 @@ for (const engine of ENGINES) {
   test(`model badges sit centred under the avatar and clear of the minimap: ${engine}`, async ({
     browser,
   }, testInfo) => {
-    test.skip(!(await homeserverIsUp()), 'Test homeserver is not running.');
+    test.skip(!(await disposableHomeserverIsUp()), 'Test homeserver is not running.');
     test.setTimeout(360_000);
     const data = await seed(`${engine}_d`);
     const { page, close } = await newPage(engine, browser, DESKTOP);
@@ -314,7 +316,7 @@ for (const engine of ENGINES) {
   test(`a tap on a model badge shows the full model name: ${engine} phone`, async ({
     browser,
   }, testInfo) => {
-    test.skip(!(await homeserverIsUp()), 'Test homeserver is not running.');
+    test.skip(!(await disposableHomeserverIsUp()), 'Test homeserver is not running.');
     test.setTimeout(240_000);
     const data = await seed(`${engine}_p`);
     const { page, close } = await newPage(engine, browser, PHONE);

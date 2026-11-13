@@ -12,14 +12,11 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import {
-  HOMESERVER,
-  LAUNCH,
   PASSWORD,
   PHONE,
   RUN,
   SCHEMES,
   createOtherRooms,
-  homeserverIsUp,
   join,
   register,
   say,
@@ -31,6 +28,11 @@ import {
   type Scheme,
 } from '../helpers/designChoices';
 import { launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  CHROMIUM_WITH_SCROLLBARS,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // After a voice call MindRoom posts the call's transcript into the conversation. With its
 // structured form (`io.mindroom.call_transcript`) the message shows as a call card of one row: a
@@ -67,7 +69,7 @@ const AVATAR_PNG = Buffer.from(
   'base64'
 );
 
-test.use({ launchOptions: LAUNCH });
+test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
 type Seed = {
   username: string;
@@ -643,7 +645,7 @@ for (const engine of ENGINES) {
   test(`a voice call transcript shows as a call card with a chat transcript: ${engine} desktop`, async ({
     browser,
   }, testInfo) => {
-    test.skip(!(await homeserverIsUp()), 'Test homeserver is not running.');
+    test.skip(!(await disposableHomeserverIsUp()), 'Test homeserver is not running.');
     test.setTimeout(480_000);
     const data = await seed(`${engine}_d`);
     const { page, context, close } = await newPage(engine, browser, DESKTOP);
@@ -682,7 +684,7 @@ for (const engine of ENGINES) {
   test(`a voice call transcript opens with a tap: ${engine} phone`, async ({
     browser,
   }, testInfo) => {
-    test.skip(!(await homeserverIsUp()), 'Test homeserver is not running.');
+    test.skip(!(await disposableHomeserverIsUp()), 'Test homeserver is not running.');
     test.setTimeout(360_000);
     const data = await seed(`${engine}_p`);
     const { page, close } = await newPage(engine, browser, PHONE);

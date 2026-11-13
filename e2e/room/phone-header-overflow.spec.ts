@@ -13,14 +13,11 @@ import { createRoom } from '../helpers/createRoom';
 import { sendStateEvent } from '../helpers/matrix';
 import {
   AI_RUN,
-  HOMESERVER,
-  LAUNCH,
   PASSWORD,
   PHONE,
   RUN,
   SCHEMES,
   createOtherRooms,
-  homeserverIsUp,
   join,
   register,
   say,
@@ -29,6 +26,11 @@ import {
   withRetry,
 } from '../helpers/designChoices';
 import { launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  CHROMIUM_WITH_SCROLLBARS,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A phone's room header keeps the back button, the room's name and the room menu, so a long name
 // keeps its room (L8-F025, design decision #10); the menu offers first what the header leaves out:
@@ -49,7 +51,7 @@ const TARGET = 44;
 /** A message menu's row (MenuEntry: folds' MenuItem, size 300), which a room menu's rows match. */
 const MENU_ROW = 32;
 
-test.use({ launchOptions: LAUNCH });
+test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
 type Seed = { username: string; roomId: string };
 
@@ -243,7 +245,7 @@ for (const engine of ENGINES) {
   test(`a phone's room header keeps the name and moves the rest into the room menu: ${engine}`, async ({
     browser,
   }, testInfo) => {
-    test.skip(!(await homeserverIsUp()), 'Test homeserver is not running.');
+    test.skip(!(await disposableHomeserverIsUp()), 'Test homeserver is not running.');
     test.setTimeout(240_000);
     const data = await seed(engine);
     const phone = await newPage(engine, browser, PHONE);

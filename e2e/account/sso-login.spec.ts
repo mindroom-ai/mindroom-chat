@@ -3,9 +3,7 @@ import { readSessionStore } from '../helpers/accounts';
 import { chooseFromAccountMenu, expectAccountRailCount } from '../helpers/auth';
 import { defined } from '../../src/test/utils/defined';
 import {
-  HOMESERVER,
   PROVIDER,
-  homeserverIsUp,
   listSlotHomeserver,
   loginPath,
   mintLoginToken,
@@ -13,6 +11,10 @@ import {
   stubIdentityProvider,
   waitForShell,
 } from '../helpers/ssoHomeserver';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Single sign-on on the deployment's own homeserver (helpers in `ssoHomeserver.ts`). Every test
 // lists the slot's server in `config.json`, as a deployment lists its own, so its buttons start
@@ -69,7 +71,10 @@ const stubOtherServer = async (page: Page): Promise<string[]> => {
 };
 
 test.beforeEach(async ({ page }) => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   await listSlotHomeserver(page);
 });
 
