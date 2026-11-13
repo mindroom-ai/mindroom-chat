@@ -5,6 +5,7 @@ import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // Jump to Time from an open thread stays in the thread: the room's beginning, which comes before
@@ -16,12 +17,7 @@ import {
 // WebKit does not route service-worker fetches, so fault injection must bypass the worker.
 test.use({
   serviceWorkers: 'block',
-  launchOptions: {
-    // Scrollbars shown, as on Linux and Windows. The other options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 test.describe.configure({ timeout: 360_000 });
 

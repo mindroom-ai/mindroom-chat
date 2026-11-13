@@ -6,6 +6,7 @@ import { expectRoomCompact, roomViewSwitch } from '../helpers/roomViewSwitch';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // Jump to Time in the room menu: the room's beginning opens the Full view at the room's first
@@ -15,12 +16,7 @@ import {
 // of `just hs-up` (or a slot of scripts/e2e-slot.sh).
 
 test.use({
-  launchOptions: {
-    // Scrollbars shown, as on Linux and Windows. The other options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const PASSWORD = 'jump-to-time-password';

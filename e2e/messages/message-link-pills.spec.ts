@@ -14,6 +14,7 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // A link to a message (a matrix.to permalink, or the app's own link) whose text is the link
@@ -42,12 +43,7 @@ const THREAD_REPLY = 'The spare parts for crane two arrive on Tuesday morning.';
 const NOTICE = 'Berth four is closed for dredging until the end of the month.';
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const register = async (username: string, displayname: string): Promise<MatrixSession> => {

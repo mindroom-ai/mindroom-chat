@@ -16,6 +16,7 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // A room with unread messages, scrolled to the top of the rows it opened with while its older
@@ -47,12 +48,7 @@ const DEVICES: [string, BrowserContextOptions][] = [
 const LOCALES = ['en', 'ar'];
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>

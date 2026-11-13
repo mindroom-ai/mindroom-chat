@@ -10,6 +10,7 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
+import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 // Regression: a reader at the bottom sends a message, and right away an agent starts typing and
 // streams its reply as a run of edits. The view must go to the sent message and stay at the
@@ -21,12 +22,7 @@ import {
 
 test.use({
   viewport: { width: 2000, height: 1100 },
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 test.describe.configure({ timeout: 240_000 });
 

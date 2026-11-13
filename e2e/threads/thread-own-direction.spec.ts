@@ -15,6 +15,7 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // A thread's title, its preview and the banner's summary are text people and agents wrote, so in
@@ -36,12 +37,7 @@ const SUMMARY =
   'Do nightly exports time out on workspaces over 40k files because of unbatched object listing?';
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 test.describe.configure({ timeout: 180_000 });
 

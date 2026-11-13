@@ -13,6 +13,7 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // "@Min" and Tab in a room of MindRoom agents mentions Mind, whose display name matches, rather
@@ -26,12 +27,7 @@ const SHOTS = process.env.MENTION_RANKING_SHOTS;
 const FILLER_ROOMS = 24;
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const setDisplayName = (session: MatrixSession, displayName: string) =>

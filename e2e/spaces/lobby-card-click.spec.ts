@@ -21,6 +21,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // A click on a card of a room the person is not in does what the card's button does, never
@@ -72,13 +73,7 @@ const KNOCK = 'Review Board';
 const SUBSPACE = 'Design Guild';
 
 test.use({
-  launchOptions: {
-    // Classic scrollbars, as desktop browsers show them. The other options repeat
-    // playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const register = async (name: string) => {

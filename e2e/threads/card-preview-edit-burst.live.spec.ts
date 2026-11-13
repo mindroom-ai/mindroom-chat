@@ -15,6 +15,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // A reader on a slow device watches a room whose 20 thread replies are each edited 20 times in
@@ -196,12 +197,7 @@ const run = async (
 };
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts; classic scrollbars stay shown.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.beforeEach(async () => {

@@ -8,6 +8,7 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // A real right click on a message's text opens the message's menu where the pointer is, in
@@ -37,12 +38,7 @@ const LINK = 'https://example.org/handbook';
 const LINKED = `The onboarding handbook moved to ${LINK} last night.`;
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const register = (name: string) => registerDisposableUser(`mrc_${name}_${RUN}`, PASSWORD);

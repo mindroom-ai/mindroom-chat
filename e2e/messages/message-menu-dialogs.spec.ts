@@ -16,6 +16,7 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // Choosing an entry of a message's menu that opens a dialog (View Reactions, Read Receipts, View
@@ -55,12 +56,7 @@ const ENTRIES: Array<[string, (page: Page) => Locator]> = [
 ];
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const register = (name: string) => registerDisposableUser(`mmd_${name}_${RUN}`, PASSWORD);

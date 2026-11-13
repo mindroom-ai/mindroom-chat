@@ -20,6 +20,7 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // Opening a room raises no "ResizeObserver loop completed with undelivered notifications." While a
@@ -50,12 +51,7 @@ const PHONE: BrowserContextOptions = {
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts; scrollbars show as they do for people.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 type Account = MatrixSession & { username: string };

@@ -16,6 +16,7 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // iOS Safari zooms the page into a text field whose text is smaller than 16 px when the field
@@ -38,12 +39,7 @@ const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } 
 const ROOM = 'Design studio';
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.beforeEach(async () => {

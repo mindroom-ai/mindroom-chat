@@ -15,6 +15,7 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // Layout checks from the live-test lanes, against a real homeserver, in Chromium and (when
@@ -71,12 +72,7 @@ const LONG_REPLY = Array.from(
 ).join('\n');
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 /** Retries what the server refuses with 429. */

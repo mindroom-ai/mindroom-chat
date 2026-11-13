@@ -7,6 +7,7 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // A mention suggestion shows the member's whole name on a phone; their Matrix ID beside it gives
@@ -18,12 +19,7 @@ const PHONE = { width: 390, height: 844 };
 const SHOTS = process.env.MENTION_NAMES_SHOTS;
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const register = async (localpart: string, displayName: string) => {

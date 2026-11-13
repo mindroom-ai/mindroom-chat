@@ -7,6 +7,7 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // A message the reader sends is read: the "New Messages" line never stands above it. The reader
@@ -21,12 +22,7 @@ const VIEWPORT = { width: 1280, height: 800 };
 
 test.use({
   viewport: VIEWPORT,
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const register = (name: string) => registerDisposableUser(`uno_${name}_${RUN}`, PASSWORD);

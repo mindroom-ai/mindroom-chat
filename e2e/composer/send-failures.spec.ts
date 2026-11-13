@@ -22,6 +22,7 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // A message the person typed is never lost and never merged into another one. A send that fails
@@ -56,12 +57,7 @@ const LAYOUTS: Layout[] = [
 ];
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts; the scrollbars stay visible.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const register = (name: string): Promise<MatrixSession & { username: string }> =>

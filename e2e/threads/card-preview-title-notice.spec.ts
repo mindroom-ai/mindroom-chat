@@ -15,6 +15,7 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // P2-macos-safari-F009: MindRoom titles a thread with an m.notice thread event that carries
@@ -58,12 +59,7 @@ const replyTo = (question: string) =>
   `Here is what I found about "${question}" The short answer: two items remain, and both have owners and dates in the tracker.`;
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const registerAndLogin = (name: string): Promise<MatrixSession & { username: string }> =>

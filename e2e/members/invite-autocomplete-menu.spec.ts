@@ -5,6 +5,7 @@ import { launchWebKit } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // The people suggestions under the invite dialog's search field: the floating layer lets the
@@ -42,11 +43,7 @@ type Seed = { run: string; username: string; roomName: string; longId: string };
 type Box = { x: number; y: number; width: number; height: number };
 
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.beforeEach(async () => {

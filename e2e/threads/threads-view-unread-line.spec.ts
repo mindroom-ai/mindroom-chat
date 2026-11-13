@@ -21,6 +21,7 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // The Threads view of a room with an agent lists the newest thread first, where it opens and
@@ -52,13 +53,7 @@ const BODIES = [
 ];
 
 test.use({
-  launchOptions: {
-    // Classic scrollbars, as desktop browsers show them. The other options repeat
-    // playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {

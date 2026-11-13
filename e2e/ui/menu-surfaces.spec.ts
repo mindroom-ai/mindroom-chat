@@ -8,6 +8,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // Menus, popovers and dialogs over a busy room are tinted nearly opaque: the room's text behind
@@ -27,11 +28,7 @@ const MESSAGE =
   'requests after the release. Please read the summary before the call and add your questions.';
 
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 /** A fresh account with a room full of long messages, signed in on `page`. */

@@ -5,6 +5,7 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // The command palette as one search: tabs over rooms, threads, people, messages and actions,
@@ -306,13 +307,9 @@ const shoot = async (target: Page | Locator, name: string) => {
 };
 
 // Headless Chromium hides scrollbars; desktop browsers with classic scrollbars show them, and the
-// tab row and the results must still fit. The other launch options repeat playwright.config.ts.
+// tab row and the results must still fit.
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.describe.configure({ mode: 'serial', timeout: 180_000 });

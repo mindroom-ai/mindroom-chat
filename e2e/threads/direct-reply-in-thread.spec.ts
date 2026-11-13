@@ -4,6 +4,7 @@ import { matrixFetch, sendRoomMessage, setDirectAccountData } from '../helpers/m
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // Reply in Thread in a direct chat between two people opens the thread, as it does in any other
@@ -19,12 +20,7 @@ const TIMEOUT = 60_000;
 
 test.use({
   viewport: { width: 1280, height: 800 },
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 type Account = { username: string; userId: string; accessToken: string };

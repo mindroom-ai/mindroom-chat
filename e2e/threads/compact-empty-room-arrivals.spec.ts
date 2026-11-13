@@ -13,6 +13,7 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // Compact reads no message of the room's main timeline by being open (Escape, Mark as Read and a
@@ -24,12 +25,7 @@ const PASSWORD = 'compact-empty-room-password';
 const RUN = Date.now().toString(36);
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts; scrollbars are shown, as for readers.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 test.describe.configure({ timeout: 180_000 });
 

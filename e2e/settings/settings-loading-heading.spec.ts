@@ -5,6 +5,7 @@ import { launchWebKit } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // Privacy & security while its session list loads: the list is a card with a spinner, right after
@@ -18,11 +19,7 @@ const SHOTS = process.env.SETTINGS_HEADING_SHOTS;
 const DESKTOP = { width: 1280, height: 800 };
 
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 type Look = { text: string; fontSize: string; fontWeight: string; paddingInlineStart: string };

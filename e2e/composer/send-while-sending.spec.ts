@@ -6,6 +6,7 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // Enter sends a message while the one before it is still going out: the composer takes it at
@@ -21,12 +22,7 @@ const SECOND = 'Second quick note: and the tug follows it.';
 
 test.use({
   viewport: VIEWPORT,
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const register = (name: string) => registerDisposableUser(`sws_${name}_${RUN}`, PASSWORD);

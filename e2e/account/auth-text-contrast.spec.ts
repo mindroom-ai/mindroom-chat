@@ -6,6 +6,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // The small text of the sign-in screen (the card's notes and the credits under it) and of the
@@ -23,11 +24,7 @@ const THEMES = ['dark-theme', 'light-theme'];
 test.use({
   // Requests to the homeserver must reach page.route, not a service worker.
   serviceWorkers: 'block',
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 type Probe = {

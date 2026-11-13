@@ -11,6 +11,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // A room row whose name is cut off shows the whole name in a tooltip while a mouse rests on it,
@@ -44,8 +45,6 @@ const PHONE: BrowserContextOptions = {
   hasTouch: true,
   isMobile: true,
 };
-const LAUNCH_ARGS = ['--disable-features=IsolateSandboxedIframes'];
-
 let seeded: Promise<string> | undefined;
 
 const seed = async (): Promise<string> => {
@@ -184,13 +183,7 @@ const inWebKit = async (check: (browser: Browser) => Promise<void>) => {
 };
 
 test.use({
-  launchOptions: {
-    // Classic scrollbars, as desktop browsers show them. The other options repeat
-    // playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: LAUNCH_ARGS,
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.beforeEach(async () => {

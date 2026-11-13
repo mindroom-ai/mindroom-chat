@@ -4,6 +4,7 @@ import { matrixFetch } from '../helpers/matrix';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // Settings > About: the credits name only what ships, and Third-party notices opens
@@ -16,12 +17,7 @@ const NOTICES = '/public/licenses/THIRD_PARTY_NOTICES.txt';
 
 test.use({
   viewport: { width: 1280, height: 800 },
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 /** A fresh account signed in on `page`, with Settings open on About. */

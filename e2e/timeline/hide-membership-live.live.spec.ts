@@ -9,6 +9,7 @@ import {
   sendRoomMessage,
 } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
+import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 /**
  * A small room keeps its message on screen while Hide Membership Changes is turned on and off
@@ -170,13 +171,7 @@ const checkRoom = async (page: Page, viewMode: 'threaded' | 'classic', label: st
 };
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    // Classic scrollbars, as desktop readers without overlay scrollbars have them.
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.describe('Hide Membership Changes from another device keeps a small room on screen', () => {

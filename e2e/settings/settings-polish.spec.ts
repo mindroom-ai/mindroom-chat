@@ -5,6 +5,7 @@ import { launchWebKit } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // The Settings dialog's `/` key: it moves focus to the search field over the menu while nothing
@@ -20,11 +21,7 @@ const PHONE = { width: 390, height: 844 };
 const ROOMS = ['Design studio', 'Helper agent', 'Team updates'];
 
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 /** A fresh account named Alice with a few rooms, signed in on `page`. */

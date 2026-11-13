@@ -3,6 +3,7 @@ import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, loginToMatrix } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
+import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 // The composer's text box with classic scrollbars, as Linux and Windows show them: no scrollbar
 // while the text fits, and a thin one without arrow buttons once it overflows, in dark and light,
@@ -16,12 +17,7 @@ const RIM_ROWS = 3;
 
 test.use({
   ...DESKTOP,
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 /** A new room without messages, so the composer floats over the plain room background. */

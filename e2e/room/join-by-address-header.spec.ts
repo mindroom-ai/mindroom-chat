@@ -13,6 +13,7 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // A room the reader has not joined, opened by its address (`/home/#alias:server`), shows a page
@@ -36,12 +37,7 @@ const ALIASED_ROOM = 'Harbor operations';
 const UNNAMED_ADDRESS_ROOM = 'Quay notes';
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const register = async (username: string): Promise<MatrixSession> => {

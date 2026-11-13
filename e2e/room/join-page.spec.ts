@@ -20,6 +20,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // The page a room link opens when the person is not in the room. A room left on another device
@@ -50,13 +51,7 @@ const BAN_REASON = 'Repeated off-topic posts in the handover thread';
 const REFUSED = "You don't have permission to do this.";
 
 test.use({
-  launchOptions: {
-    // Classic scrollbars, as desktop browsers show them. The other options repeat
-    // playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const register = async (name: string) => {

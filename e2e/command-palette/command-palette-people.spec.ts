@@ -7,6 +7,7 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // Cmd+K's People against a real homeserver and its real `POST /user_directory/search`: people the
@@ -312,14 +313,9 @@ const shoot = async (target: Page | Locator, name: string) => {
   if (SHOTS) await target.screenshot({ path: `${SHOTS}/L26-palette-people-${name}.png` });
 };
 
-// Headless Chromium hides scrollbars; desktop browsers with classic scrollbars show them. The
-// other launch options repeat playwright.config.ts.
+// Headless Chromium hides scrollbars; desktop browsers with classic scrollbars show them.
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.describe.configure({ mode: 'serial', timeout: 180_000 });

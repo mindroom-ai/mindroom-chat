@@ -12,6 +12,7 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
+import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 // The thread filter bar's Tags dropdown in a room with 32 threads and 8 tags: it lists the tags,
 // most used first, with their thread counts; its search narrows them; two tags chosen with the
@@ -31,12 +32,7 @@ const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile:
 
 test.use({
   viewport: DESKTOP,
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const TOPICS = [

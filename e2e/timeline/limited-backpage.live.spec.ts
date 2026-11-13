@@ -9,6 +9,7 @@ import {
   sendRoomMessage,
 } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
+import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 // A limited sync replaces a small room's timeline while an older page is still running. Its
 // direct relink page fails once, so it shows an empty chain and asks for history through the
@@ -53,11 +54,7 @@ const gate = () => {
 };
 
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 for (const engine of ['chromium', 'webkit'] as const) {

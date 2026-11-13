@@ -5,6 +5,7 @@ import { loginToMatrix } from '../helpers/matrix';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // The members panel's header buttons (Invite people, Close) answer the pointer as the room
@@ -15,12 +16,7 @@ const RUN = Date.now().toString(36);
 
 test.use({
   viewport: { width: 1280, height: 800 },
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 const TRANSPARENT = 'rgba(0, 0, 0, 0)';

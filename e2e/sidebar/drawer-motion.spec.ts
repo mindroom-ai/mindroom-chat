@@ -12,6 +12,7 @@ import { launchWebKit } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
 } from '../helpers/disposableAccounts';
 
 // The page navigation (the room list beside the content) moves in the same way however it opens:
@@ -43,14 +44,9 @@ const PHONE: BrowserContextOptions = {
 /** A phone held sideways has room for the panel beside the content, which then collapses. */
 const SIDEWAYS: BrowserContextOptions = { ...PHONE, viewport: { width: 844, height: 390 } };
 
-// Headless Chromium hides scrollbars; desktop browsers with classic scrollbars show them. The
-// other launch options repeat playwright.config.ts.
+// Headless Chromium hides scrollbars; desktop browsers with classic scrollbars show them.
 test.use({
-  launchOptions: {
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.beforeEach(async () => {

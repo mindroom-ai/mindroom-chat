@@ -12,6 +12,7 @@ import {
   seedRoomOverviewState,
 } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
+import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 
 /**
  * Scrolling up through a long room in the Classic view reaches the room's start: every message of
@@ -634,13 +635,7 @@ const readToStart = async (
 let fixture: Fixture;
 
 test.use({
-  launchOptions: {
-    // The other launch options repeat playwright.config.ts.
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ['--disable-features=IsolateSandboxedIframes'],
-    // Classic scrollbars, as desktop readers without overlay scrollbars have them.
-    ignoreDefaultArgs: ['--hide-scrollbars'],
-  },
+  launchOptions: CHROMIUM_WITH_SCROLLBARS,
 });
 
 test.describe('scrolling up through a long room reaches its start', () => {
