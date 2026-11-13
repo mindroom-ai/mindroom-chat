@@ -11,10 +11,7 @@ import { SettingTile } from '../../ui/SettingTile';
 import { SequenceCard } from '../../ui/SequenceCard';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
 
-/**
- * Menu order runs from the narrowest reach to the widest. The store turns `my-server` into
- * `current-room-only` on every write, so it is not offered.
- */
+/** Menu order runs from the narrowest reach to the widest. */
 const SCOPE_CHOICES = [
   { value: 'current-room-only', labelKey: 'options.prefetchScope.currentRoomOnly' },
   { value: 'all-rooms', labelKey: 'options.prefetchScope.allRooms' },

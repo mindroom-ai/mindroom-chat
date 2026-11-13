@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // setter through the MenuItem children.
 
 const state = vi.hoisted(() => ({
-  prefetchScope: 'my-server' as 'my-server' | 'all-rooms' | 'current-room-only',
+  prefetchScope: 'current-room-only' as 'all-rooms' | 'current-room-only',
   setPrefetchScope: vi.fn(),
   prefetchDepth: 10000,
   setPrefetchDepth: vi.fn(),
@@ -109,7 +109,7 @@ vi.mock('react-i18next', async () => {
 });
 
 afterEach(() => {
-  state.prefetchScope = 'my-server';
+  state.prefetchScope = 'current-room-only';
   state.setPrefetchScope.mockReset();
   state.prefetchDepth = 10000;
   state.setPrefetchDepth.mockReset();
