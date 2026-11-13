@@ -137,20 +137,6 @@ export const timeHourMinuteSecond = (ts: number, hour24Clock = false, language?:
     hour12: !hour24Clock,
   }).format(ts);
 
-/** A short date and the time, for lists of past events ("Nov 5, 08:44 PM"). */
-export const timeMonthDayHourMinute = (
-  ts: number,
-  hour24Clock = false,
-  language?: string
-): string =>
-  dateTimeFormat(language, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: !hour24Clock,
-  }).format(ts);
-
 type RelativeUnit = 'second' | 'minute' | 'hour' | 'day';
 
 const ageOf = (ts: number): number => Math.max(0, Date.now() - ts);

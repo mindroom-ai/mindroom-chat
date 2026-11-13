@@ -1,17 +1,16 @@
 import { atom, type SetStateAction, type WritableAtom } from 'jotai';
 import {
-  createDefaultThreadFilterState,
   deserializeThreadFilterState,
-  isDefaultThreadFilterState,
   serializeThreadFilterState,
   type ThreadFilterState,
 } from '../../event-store/threads/roomThreadOverviewModel';
 
 const STORAGE_KEY_PREFIX = 'mindroom.roomThreadFilter';
 
+/** A room's stored thread filter; `null` until the reader sets one, so the room's default applies. */
 export type RoomThreadFilterAtom = WritableAtom<
-  ThreadFilterState,
-  [SetStateAction<ThreadFilterState>],
+  ThreadFilterState | null,
+  [SetStateAction<ThreadFilterState | null>],
   void
 >;
 
@@ -30,21 +29,22 @@ const getStorage = (): Storage | undefined => {
   }
 };
 
-const readStoredFilter = (storageKey: string): ThreadFilterState => {
+const readStoredFilter = (storageKey: string): ThreadFilterState | null => {
   const raw = getStorage()?.getItem(storageKey);
-  if (!raw) return createDefaultThreadFilterState();
+  if (!raw) return null;
   try {
     return deserializeThreadFilterState(JSON.parse(raw));
   } catch {
-    return createDefaultThreadFilterState();
+    return null;
   }
 };
 
-const writeStoredFilter = (storageKey: string, state: ThreadFilterState): void => {
+// A filter the reader set is kept even when it equals a default: the room's default can differ.
+const writeStoredFilter = (storageKey: string, state: ThreadFilterState | null): void => {
   const storage = getStorage();
   if (!storage) return;
   try {
-    if (isDefaultThreadFilterState(state)) {
+    if (!state) {
       storage.removeItem(storageKey);
     } else {
       storage.setItem(storageKey, JSON.stringify(serializeThreadFilterState(state)));
@@ -55,7 +55,7 @@ const writeStoredFilter = (storageKey: string, state: ThreadFilterState): void =
 };
 
 const createRoomThreadFilterAtom = (storageKey: string): RoomThreadFilterAtom => {
-  const valueAtom = atom<ThreadFilterState>(readStoredFilter(storageKey));
+  const valueAtom = atom<ThreadFilterState | null>(readStoredFilter(storageKey));
   valueAtom.onMount = (setValue) => {
     // Pick up writes made between creating the atom and mounting it.
     setValue(readStoredFilter(storageKey));
@@ -70,7 +70,7 @@ const createRoomThreadFilterAtom = (storageKey: string): RoomThreadFilterAtom =>
 
   return atom(
     (get) => get(valueAtom),
-    (get, set, update: SetStateAction<ThreadFilterState>) => {
+    (get, set, update: SetStateAction<ThreadFilterState | null>) => {
       const next = typeof update === 'function' ? update(get(valueAtom)) : update;
       set(valueAtom, next);
       writeStoredFilter(storageKey, next);

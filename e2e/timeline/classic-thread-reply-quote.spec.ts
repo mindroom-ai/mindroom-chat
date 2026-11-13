@@ -9,14 +9,17 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
-import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  CHROMIUM_WITH_SCROLLBARS,
+} from '../helpers/disposableAccounts';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // The Classic view shows thread replies in the room's own timeline. Each one quotes its thread's
 // root above it, the root's author and the start of its text, as MindRoom Chat shows them, so a
 // reader can tell which thread the reply belongs to; a click on the quote opens the thread. Set
 // CLASSIC_QUOTE_SHOTS=<directory> to save each view.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'classic-thread-reply-quote-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS = process.env.CLASSIC_QUOTE_SHOTS;
@@ -41,17 +44,6 @@ const OTHER_ROOMS = Array.from({ length: 24 }, (_, index) => `Project room ${ind
 
 type Account = MatrixSession & { username: string };
 type Seed = { reader: Account; roomId: string; rootId: string; replyId: string };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (name: string, displayName: string): Promise<Account> => {
   const username = `ctrq_${name}_${RUN}`;
@@ -184,7 +176,10 @@ test.beforeAll(() => {
 });
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(180_000);
 });
 

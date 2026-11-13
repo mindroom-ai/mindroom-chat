@@ -11,16 +11,18 @@ import {
   SyncEngineProvider,
 } from '../../event-store/engine';
 import type { SyncEngine } from '../../event-store/engine';
-import {
-  resetCacheStoreForTesting,
-  saveThreadEventsToCache,
-  loadLatestCachedThreadEvents,
-} from '../../event-store/cache/db';
+import { resetCacheStoreForTesting, saveThreadEventsToCache } from '../../event-store/cache/db';
 import {
   clearThreadOpenSeedSnapshotsForTests,
   getThreadOpenSeedSnapshot,
 } from '../../event-store/cache/threadOpenSeedCache';
+import { loadThreadCachedSnapshot } from '../../event-store/cache/eventRepository';
 import { useThreadSeedPrewarmController } from './threadSeedPrewarmController';
+
+vi.mock('../../event-store/cache/eventRepository', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../event-store/cache/eventRepository')>();
+  return { ...original, loadThreadCachedSnapshot: vi.fn(original.loadThreadCachedSnapshot) };
+});
 
 const SESSION_ID = 'session-prewarm-test';
 const ROOM_ID = '!room:example.org';
@@ -48,21 +50,18 @@ const makeRootEvent = () =>
     type: 'm.room.message',
   });
 
-// NOTE: the controller persists through the engine facade
-// (`engine.persist.persistThreadEventCache`, reached via
-// `useSyncEngine()`), NOT through a prop — the spy the tests
-// assert on lives on the fake engine passed to the provider below.
+// The controller only reads the cache: the spies on the fake engine below check that it neither
+// fetches relations nor persists thread events.
+let harnessController: ReturnType<typeof useThreadSeedPrewarmController>;
+let harnessRenderer: ReactTestRenderer | undefined;
 function Harness({ mx, room }: { mx: MatrixClient; room: Room }) {
-  useThreadSeedPrewarmController({
+  harnessController = useThreadSeedPrewarmController({
     room,
     mx,
     sessionId: SESSION_ID,
     prefetchDepthRef: { current: 10_000 },
     activeThreadId: undefined,
     priorityTargets: [{ threadId: THREAD_ID }],
-    // Keep the IDB seed pass inert so the tests exercise ONLY the
-    // network content-prefetch phase.
-    loadThreadOpenSeedSnapshotFromCache: async () => [],
     debugTraceId: 'prewarm-test',
   });
   return null;
@@ -70,7 +69,7 @@ function Harness({ mx, room }: { mx: MatrixClient; room: Room }) {
 
 const renderPrewarm = async (mx: MatrixClient, room: Room, engine: SyncEngine) => {
   await act(async () => {
-    create(
+    harnessRenderer = create(
       React.createElement(
         SyncEngineProvider,
         { engine },
@@ -78,14 +77,24 @@ const renderPrewarm = async (mx: MatrixClient, room: Room, engine: SyncEngine) =
       )
     );
   });
+  // The spies are checked once the seed's cache read has finished.
+  const seeded = harnessController.waitForExistingOrQueued(THREAD_ID, {});
+  expect(seeded).toBeDefined();
+  await act(async () => {
+    await seeded;
+  });
+  expect(vi.mocked(loadThreadCachedSnapshot)).toHaveBeenCalled();
 };
 
 describe('threadSeedPrewarmController cache-only seeds', () => {
   beforeEach(() => {
     resetCacheStoreForTesting();
     clearThreadOpenSeedSnapshotsForTests();
+    vi.mocked(loadThreadCachedSnapshot).mockClear();
   });
   afterEach(() => {
+    act(() => harnessRenderer?.unmount());
+    harnessRenderer = undefined;
     resetCacheStoreForTesting();
     clearThreadOpenSeedSnapshotsForTests();
   });
@@ -140,17 +149,13 @@ describe('threadSeedPrewarmController cache-only seeds', () => {
     );
 
     await renderPrewarm(mx, room, engine);
-    // Give the drain loop time to (incorrectly) fire if it were going to.
-
     expect(fetchRelations).not.toHaveBeenCalled();
     expect(persistThreadEventCache).not.toHaveBeenCalled();
   });
 
   it('gives up without persisting when the thread root is not SDK-resolvable (PR #84 greptile P2)', async () => {
     const { mx, engine, fetchRelations, persistThreadEventCache } = setup();
-    // Root never resolves → fetchAndPersistThreadContent bails before
-    // enqueuing; nothing is fetched or persisted, and the open-time
-    // drain remains the fallback for this thread.
+    // The root never resolves; nothing is fetched or persisted.
     const rootlessRoom = {
       roomId: ROOM_ID,
       getThread: () => null,
@@ -203,10 +208,20 @@ it('does not publish a held seed read after room clear', async () => {
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
-  const load = vi.fn(async () => {
-    const page = await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, THREAD_ID, 10);
+  // The seed read finds the cached reply, then waits until the room is cleared.
+  const load = vi.mocked(loadThreadCachedSnapshot);
+  const readCache = load.getMockImplementation()!;
+  load.mockClear();
+  let readSnapshot: Awaited<ReturnType<typeof readCache>>;
+  let markRead!: () => void;
+  const read = new Promise<void>((resolve) => {
+    markRead = resolve;
+  });
+  load.mockImplementationOnce(async (options) => {
+    readSnapshot = await readCache(options);
+    markRead();
     await held;
-    return page.events.map((raw) => new MatrixEvent(raw));
+    return readSnapshot;
   });
   let controller!: ReturnType<typeof useThreadSeedPrewarmController>;
   function HeldHarness() {
@@ -217,7 +232,6 @@ it('does not publish a held seed read after room clear', async () => {
       prefetchDepthRef: { current: 200 },
       activeThreadId: undefined,
       priorityTargets: [{ threadId: THREAD_ID }],
-      loadThreadOpenSeedSnapshotFromCache: load,
       debugTraceId: 'clear-held-seed',
     });
     return null;
@@ -229,6 +243,8 @@ it('does not publish a held seed read after room clear', async () => {
     );
   });
   await vi.waitFor(() => expect(load).toHaveBeenCalledOnce());
+  await read;
+  expect(readSnapshot?.events.map((event) => event.getId())).toEqual(['$held-seed']);
   const pending = controller.waitForExistingOrQueued(THREAD_ID, {});
   await engine.offline.clear(ROOM_ID);
   await act(async () => {

@@ -12,6 +12,10 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A reader on a slow device watches a room whose 20 thread replies are each edited 20 times in
 // about 26 seconds (400 edits). Once the burst is over, every card previews its reply's last
@@ -19,7 +23,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // thread was opened (live-test pass 2, load lane, P2-lane6-F002).
 // Against the disposable homeserver of a slot: Chromium on a desktop with its CPU slowed four
 // times, and (with PLAYWRIGHT_WEBKIT_EXECUTABLE) WebKit on a 390 by 844 touch phone.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'card-preview-edit-burst-password';
 const RUN = Date.now().toString(36);
 const ROOM_NAME = 'Release Board';
@@ -33,17 +36,6 @@ const replyText = (index: number, revision: number) =>
   `Edit burst reply ${index} rev ${revision}${revision === REVISIONS ? ' FINAL' : ''}`;
 
 type Account = MatrixSession & { username: string };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerAndLogin = async (name: string): Promise<Account> => {
   const username = `ceb_${name}_${RUN}`;
@@ -213,7 +205,7 @@ test.use({
 });
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('every card previews its reply’s last edit after an edit burst (Chromium, CPU 4x slower)', async ({

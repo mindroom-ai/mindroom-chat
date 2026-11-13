@@ -3,11 +3,14 @@ import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { joinRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Opening a room full of pictures and files fetches only what the person can see: thumbnails for
 // the pictures near the viewport, and files only when someone opens or saves them. Checked against
 // the slot's Tuwunel with real uploads. Set MEDIA_ROOM_SHOTS=<directory> to save the room.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'media-room-requests-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.MEDIA_ROOM_SHOTS;
@@ -48,17 +51,6 @@ const png = (index: number): Buffer => {
 };
 
 test.use({ viewport: { width: 1280, height: 800 } });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (name: string) => {
   const username = `mrr_${name}_${RUN}`;
@@ -156,7 +148,7 @@ const settle = async (requests: MediaRequest[]) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('a media room loads thumbnails near the viewport and files only on request @webkit', async ({

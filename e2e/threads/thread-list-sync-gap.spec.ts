@@ -18,6 +18,10 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A /sync answer carries at most 20 events per room (`limited: true` past that): a page that falls
 // behind, as a loaded phone does while 20 agents stream, never sees the events in the gap. The
@@ -29,7 +33,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // phone (390 by 844, touch) and a desktop (1280 by 800), in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set THREAD_GAP_SHOTS=<directory>
 // to save the list after the gap.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'thread-list-sync-gap-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.THREAD_GAP_SHOTS;
@@ -55,17 +58,6 @@ const titleOf = (label: string) => `Release notes for ${label}`;
 
 type Account = MatrixSession & { username: string };
 type World = { reader: Account; agent: MatrixSession; peer: Account; roomId: string };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerAndLogin = async (name: string): Promise<Account> => {
   const username = `tlsg_${name}_${RUN}`;
@@ -342,7 +334,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('the Compact list catches up on threads a limited sync skipped (Chromium)', async ({

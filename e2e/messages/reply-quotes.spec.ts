@@ -10,6 +10,10 @@ import {
   sendMessageEdit,
   sendRoomMessage,
 } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Reply quotes in a thread, with the relations the MindRoom backend sends. A voice message gets a
 // transcript from the router and an answer from an agent, and the backend sends both as genuine
@@ -18,20 +22,8 @@ import {
 // the voice message after an unrelated message still quotes it.
 // Set REPLY_QUOTES_SCREENSHOT to a path to save a picture of the thread.
 
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'reply-quotes-password';
 const VOICE_CLIP = new URL('../fixtures/agent-call-question.wav', import.meta.url);
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (username: string): Promise<string> => {
   const body = await matrixFetch<{ access_token: string }>(HOMESERVER, '/register', {
@@ -77,7 +69,10 @@ test('an agent answer to a voice message quotes it only when other messages sit 
   page,
 }) => {
   test.setTimeout(300_000);
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 
   const username = `quotes_${Date.now().toString(36)}`;
   const token = await register(username);

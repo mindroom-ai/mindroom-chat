@@ -12,6 +12,11 @@ import { createRoom } from '../helpers/createRoom';
 import { addRoomToSpace, matrixFetch, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
+import { showResolvedThreads } from '../helpers/threadOverview';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Layout checks from the live-test lanes, against a real homeserver, in Chromium and (when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit) WebKit, in light and dark, left to right
@@ -26,7 +31,6 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 // - Palette: a message row shows the room before the thread in the interface's direction, also for
 //   Arabic names (L8-F006), and keeps the sender's short name whole on a phone (L8-F007).
 // Set VISUAL_LAYOUT_SHOTS=<directory> to save screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'visual-layout-spec-password';
 const RUN = Date.now().toString(36);
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
@@ -75,17 +79,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 /** Retries what the server refuses with 429. */
 const withRetry = async <T>(run: () => Promise<T>): Promise<T> => {
@@ -476,6 +469,8 @@ const checkCompact = async (run: Run) => {
   for (const { direction, scheme } of looks) {
     await page.goto(`/home/${encodeURIComponent(data.roomId)}/`);
     await setLook(page, direction, scheme);
+    // Compact opens with resolved threads hidden; the check needs the resolved card.
+    await showResolvedThreads(page);
     const cards = page.locator('[data-thread-root-id]');
     await expect(cards).toHaveCount(5, { timeout: 60_000 });
     await expect(page.locator('[data-compact-card-resolution-byline="true"]')).toBeVisible();
@@ -701,7 +696,7 @@ const checkAddExisting = async (run: Run) => {
 // ---------------------------------------------------------------------------------------------
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 type Check = (run: Run) => Promise<void>;

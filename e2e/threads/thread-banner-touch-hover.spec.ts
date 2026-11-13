@@ -12,6 +12,10 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The thread banner's buttons and a message's hover toolbar have no tile at rest and show a
 // surface while a pointer hovers them. A touch screen keeps :hover on the element tapped last, so
@@ -23,7 +27,6 @@ import { launchWebKit } from '../helpers/webkit';
 // open them. Checked in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit,
 // in WebKit.
 // Set BANNER_TOUCH_SHOTS=<directory> to save the banner after each step.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'thread-banner-touch-hover-spec-password';
 const RUN = Date.now().toString(36);
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
@@ -51,17 +54,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
   const username = `bth_${name}_${RUN}`;
@@ -366,7 +358,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('a tap leaves no hover surface on the thread banner (Chromium)', async ({

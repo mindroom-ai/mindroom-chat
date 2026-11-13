@@ -20,6 +20,10 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The thread banner of a long, tagged thread with a pending scheduled task, on a phone (390 by
 // 844, touch) and on a desktop (1440 by 900), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE
@@ -33,7 +37,6 @@ import { launchWebKit } from '../helpers/webkit';
 //   380 px in Chromium and 90 px in WebKit.
 // - A tap leaves no hover surface on a tool-call line; a mouse over it still shows one.
 // Set BANNER_SCROLL_SHOTS=<directory> to save the screen at each step.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'thread-banner-phone-scroll-spec-password';
 const RUN = Date.now().toString(36);
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
@@ -71,17 +74,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
   const username = `tbps_${name}_${RUN}`;
@@ -560,7 +552,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('the thread banner keeps its title readable and the thread in place (Chromium)', async ({

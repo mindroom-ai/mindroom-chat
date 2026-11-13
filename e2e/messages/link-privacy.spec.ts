@@ -18,6 +18,10 @@ import {
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { leaveCompactView } from '../helpers/roomViewSwitch';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Links in messages against the slot's homeserver, in Chromium (desktop) and WebKit (phone):
 // - Site icons. By default no link sends anything to a third party. A deployment that sets
@@ -27,7 +31,6 @@ import { leaveCompactView } from '../helpers/roomViewSwitch';
 //   names its real address on hover (title), and a link whose text reads as an address on another
 //   host asks before it opens.
 // Set LINK_PRIVACY_SHOTS=<directory> to save the confirmation on each engine.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'link-privacy-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.LINK_PRIVACY_SHOTS;
@@ -39,17 +42,6 @@ const PHONE: BrowserContextOptions = {
   viewport: { width: 390, height: 844 },
   hasTouch: true,
   isMobile: true,
-};
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 };
 
 const register = async (name: string): Promise<MatrixSession & { username: string }> => {
@@ -414,7 +406,10 @@ const checkDestinations = async (
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(240_000);
 });
 

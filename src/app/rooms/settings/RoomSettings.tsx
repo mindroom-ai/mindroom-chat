@@ -34,17 +34,12 @@ const PAGES: Array<{ page: RoomSettingsPage; label: string; icon: IconSrc }> = [
   { page: RoomSettingsPage.DeveloperToolsPage, label: 'developerTools', icon: Icons.Terminal },
 ];
 
-const isPage = (page: string | undefined): page is RoomSettingsPage =>
-  PAGES.some((entry) => entry.page === page);
-
 /** Phones open on the menu unless a page was asked for; wider screens open on a page. */
 const firstPage = (
-  requested: string | undefined,
+  requested: RoomSettingsPage | undefined,
   screen: ScreenSize
-): RoomSettingsPage | undefined => {
-  if (isPage(requested)) return requested;
-  return screen === ScreenSize.Mobile ? undefined : RoomSettingsPage.GeneralPage;
-};
+): RoomSettingsPage | undefined =>
+  requested ?? (screen === ScreenSize.Mobile ? undefined : RoomSettingsPage.GeneralPage);
 
 type PageProps = {
   room: Room;
@@ -121,13 +116,13 @@ function SelectedPage({ page, ...props }: PageProps & { page: RoomSettingsPage }
  */
 export function RoomSettings(props: {
   room: Room;
-  /** The page asked for, such as from a link into the dialog. */
-  openOn?: string;
-  /** A space has no offline copy, so its General page only edits the name and topic. */
-  space?: boolean;
+  /** The page asked for, such as Permissions from a member's Manage Powers. */
+  openOn?: RoomSettingsPage;
   requestClose: () => void;
 }) {
-  const { room, openOn, space = false, requestClose } = props;
+  const { room, openOn, requestClose } = props;
+  // A space speaks of rooms rather than messages, and has no offline copy.
+  const space = room.isSpaceRoom();
   const { t } = useTranslation();
   const screen = useScreenSizeContext();
   const roomName = revealDirectionControls(useRoomName(room));

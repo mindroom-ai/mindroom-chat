@@ -32,6 +32,7 @@ import { getCanonicalAliasOrRoomId } from '../matrix/matrix';
 import {
   addTagFilter,
   applyPreset,
+  createDefaultThreadFilterState,
   cycleSortMode,
   type FilterPreset,
   normalizeThreadSearchText,
@@ -89,7 +90,6 @@ export type RoomViewThreadState = {
   handleToggleUnresolvedOnly: () => void;
   handleTogglePerson: (userId: string) => void;
   handleRoomMessageSent: (eventId: string) => boolean;
-  handleViewModeChange: (mode: RoomViewMode) => void;
   setThreadSortFreezeState: Dispatch<SetStateAction<ThreadSortFreezeState | null>>;
   storeThreadSummary: ReturnType<typeof useRoomThreadSummaryState>['storeThreadSummary'];
   summaryMap: Map<string, ThreadSummaryInfo>;
@@ -120,12 +120,21 @@ export const useRoomViewThreadState = ({
     navigateRoomThreadDirect,
   } = useRoomNavigate();
 
-  const { setViewMode, viewMode: effectiveViewMode } = useRoomViewMode(roomId, hasMindroomAgents);
+  const { viewMode: effectiveViewMode } = useRoomViewMode(roomId, hasMindroomAgents);
   const threadFilterAtom = useMemo(
     () => roomThreadFilterAtomFamily(userId, roomId),
     [roomId, userId]
   );
-  const [threadFilterState, setThreadFilterState] = useAtom(threadFilterAtom);
+  const [storedThreadFilterState, setThreadFilterState] = useAtom(threadFilterAtom);
+  // Until the reader sets a filter in the room, Compact hides resolved threads.
+  const threadFilterState = useMemo<ThreadFilterState>(
+    () =>
+      storedThreadFilterState ?? {
+        ...createDefaultThreadFilterState(),
+        resolved: effectiveViewMode === 'compact' ? 'exclude' : 'any',
+      },
+    [effectiveViewMode, storedThreadFilterState]
+  );
   // Project stored filters onto the controls that are currently visible.
   // Persisted advanced filters must not keep hiding threads with no visible
   // cause, but remain stored so they can be restored when those controls
@@ -419,11 +428,6 @@ export const useRoomViewThreadState = ({
     [flushPendingSearchQuery, setThreadFilterState]
   );
 
-  const handleViewModeChange = useCallback(
-    (mode: RoomViewMode) => setViewMode(mode),
-    [setViewMode]
-  );
-
   const handleRoomMessageSent = useCallback(
     (sentEventId: string): boolean => {
       if (effectiveViewMode !== 'compact' || threadId || effectiveThreadId) return false;
@@ -514,7 +518,6 @@ export const useRoomViewThreadState = ({
     handleToggleUnresolvedOnly,
     handleTogglePerson,
     handleRoomMessageSent,
-    handleViewModeChange,
     setThreadSortFreezeState,
     storeThreadSummary,
     summaryMap,

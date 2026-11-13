@@ -1,5 +1,9 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A deployment's own branding on the signed-out pages (config.json `branding`, docs/configuration.md
 // "Branding"): the logo, its dark variant and the title in the sign-in card's header, the footer's
@@ -9,7 +13,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // malformed key falls back to it. An empty title hides the name beside a wordmark logo, and the
 // first start's splash names no app before config.json arrives. Set AUTH_BRANDING_SHOTS=<directory>
 // to save every screen.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const SHOTS = process.env.AUTH_BRANDING_SHOTS;
 const BRAND_HOST = 'https://brand.example.test';
 
@@ -319,19 +322,11 @@ const checkFirstStart = async (browser: Browser, baseURL: string, browserName: s
   }
 };
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test('a configured brand replaces the logo, title and footer on the signed-out pages', async ({

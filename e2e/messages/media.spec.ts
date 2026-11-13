@@ -2,24 +2,16 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { buildLoginPath } from '../env';
 import { createDefaultThreadFilterState, seedRoomOverviewState } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Attachments against the disposable homeserver of `just hs-up`: a large picture goes out with a
 // thumbnail that the timeline shows while the viewer opens the original, an encrypted room
 // decrypts both for the other person, files download whole, spoilers stay hidden until revealed,
 // and a file over the server's upload limit fails at once without holding back the rest.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'media-spec-password';
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const matrix = async <T>(path: string, init: { token?: string; body?: unknown } = {}) => {
   const response = await fetch(`${HOMESERVER}/_matrix/client/v3${path}`, {
@@ -148,7 +140,10 @@ const naturalWidth = (page: Page, selector: string) =>
     .evaluate((image: HTMLImageElement) => image.naturalWidth);
 
 test('pictures and files reach the other person in an encrypted room', async ({ browser }) => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(300_000);
 
   const stamp = Date.now().toString(36);
@@ -200,7 +195,10 @@ test('pictures and files reach the other person in an encrypted room', async ({ 
 test('spoilers stay hidden and an oversize file does not hold back the rest', async ({
   browser,
 }) => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
   test.setTimeout(240_000);
 
   const stamp = Date.now().toString(36);

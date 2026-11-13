@@ -12,6 +12,10 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A thread's title, its preview and the banner's summary are text people and agents wrote, so in
 // a right-to-left interface an English line keeps its own direction: it is cut at its end, not
@@ -20,7 +24,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // toggle of the room's Threads view reads as written, and so does an approval card's tool
 // identifier. Checked on a phone and a desktop, in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'thread-own-direction-spec-password';
 const RUN = Date.now().toString(36);
 // A directory for a screenshot of the cards, when set.
@@ -41,17 +44,6 @@ test.use({
   },
 });
 test.describe.configure({ timeout: 180_000 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
   const username = `tod_${name}_${RUN}`;
@@ -285,13 +277,13 @@ for (const phone of [true, false]) {
     browser,
     baseURL,
   }) => {
-    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+    test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
     await check(browser, 'chromium', phone, baseURL);
   });
 
   test(`an English thread reads left to right in Arabic, WebKit ${device}`, async ({ baseURL }) => {
     test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE not set');
-    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+    test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
     const browser = await launchWebKit();
     try {
       await check(browser, 'webkit', phone, baseURL);

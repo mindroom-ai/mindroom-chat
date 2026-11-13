@@ -2,13 +2,16 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The Settings dialog's `/` key: it moves focus to the search field over the menu while nothing
 // that takes text has the focus, and types a slash like any other character while a text field
 // has it. Checked in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in
 // WebKit. Set SETTINGS_POLISH_SHOTS=<directory> to also save the dialog in dark and light themes,
 // at a phone's width, with search results and with an Advanced fold open.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'settings-polish-spec-password';
 const SHOTS = process.env.SETTINGS_POLISH_SHOTS;
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
@@ -23,17 +26,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 /** A fresh account named Alice with a few rooms, signed in on `page`. */
 const signIn = async (page: Page, prefix: string) => {
@@ -265,7 +257,10 @@ const expectMenuRows = (rows: RowMetrics[], open: string) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test('/ moves focus to the search field unless a text field has it', async ({ page }) => {

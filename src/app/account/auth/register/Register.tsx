@@ -10,12 +10,12 @@ import {
 } from '../AuthFlowsLoader';
 import { useAutoDiscoveryInfo } from '../../../matrix/hooks/useAutoDiscoveryInfo';
 import { useClientConfig } from '../../../config/useClientConfig';
+import { getAuthSsoRedirectUrl } from '../authUi';
 import {
-  getAuthSsoRedirectUrl,
   shouldDisablePasswordLogin,
   shouldRequireAppleProvider,
   shouldUseSsoOnlyRegistration,
-} from '../authUi';
+} from '../authPolicy';
 import { getLoginPath, getOriginBaseUrl } from '../../../routes/pathUtils';
 import { isAddAccountSearch, withAddAccountSearchIf } from '../../../navigation/addAccount';
 import { FieldError } from '../FiledError';

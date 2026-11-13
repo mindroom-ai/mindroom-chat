@@ -3,13 +3,16 @@ import { loginWithPassword } from '../helpers/auth';
 import { getStoredSessionByUsername } from '../helpers/accounts';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, loginToMatrix, matrixFetch } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A device keeps 50 one-time keys on the server and uploads more only when other devices claimed
 // some. Syncs that bring to-device messages or device list changes, but leave the key count as it
 // was, must not make it upload: every key it makes stays in its crypto account, which the crypto
 // machine reloads on each sync, so the account would grow without bound. Against the slot's
 // Tuwunel, with fresh accounts.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'one-time-key-uploads-spec-password';
 const RUN = Date.now().toString(36);
 const TO_DEVICE_MESSAGES = 5;
@@ -18,17 +21,6 @@ type SyncBody = {
   device_one_time_keys_count?: Record<string, number>;
   device_lists?: { changed?: string[]; left?: string[] };
   to_device?: { events?: { type: string; content: { index?: number } }[] };
-};
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 };
 
 const register = async (name: string) => {
@@ -77,7 +69,7 @@ const watchKeys = (page: Page) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('to-device messages and device list changes make the device upload no more one-time keys @webkit', async ({

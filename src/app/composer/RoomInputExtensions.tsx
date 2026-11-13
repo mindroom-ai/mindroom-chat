@@ -1,6 +1,6 @@
 import React from 'react';
 import { MatrixClient, RelationType, Room } from 'matrix-js-sdk';
-import { Descendant, Editor, Element, Transforms } from 'slate';
+import { Descendant, Editor, Element } from 'slate';
 import { Box, config } from 'folds';
 import { Membership } from '../matrix/types/room';
 import type { AutocompleteQuery } from '../editor/autocomplete/autocompleteQuery';
@@ -138,18 +138,6 @@ export const getRoomInputPasteMarkerFileNames = (nodes: Descendant[]): Set<strin
 
   nodes.forEach(visit);
   return fileNames;
-};
-
-export const removeRoomInputPasteMarkerElements = (
-  editor: Editor,
-  fileNames: Set<string>
-) => {
-  if (fileNames.size === 0) return;
-
-  Transforms.removeNodes(editor, {
-    at: [],
-    match: (node) => isRoomInputPasteMarkerElement(node) && fileNames.has(node.fileName),
-  });
 };
 
 export function RoomInputAutocomplete({

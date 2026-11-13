@@ -7,7 +7,6 @@ export type TimelineRangeLike = {
 };
 
 export type ThreadOverviewRefreshTargets = {
-  visibleThreadSummaryRefreshIds: string[];
   overviewResumeRefreshIds: string[];
 };
 
@@ -35,13 +34,10 @@ export const resolveThreadOverviewRefreshTargets = ({
   threadResolutionMap: Map<string, { isResolved: boolean }>;
 }): ThreadOverviewRefreshTargets => {
   if (threadId) {
-    return {
-      visibleThreadSummaryRefreshIds: [],
-      overviewResumeRefreshIds: [],
-    };
+    return { overviewResumeRefreshIds: [] };
   }
 
-  const visibleThreadSummaryRefreshIds = threadFilteredEventEntries
+  const visibleThreadRootIds = threadFilteredEventEntries
     .slice(activeTimelineRange.start, activeTimelineRange.end)
     .map((entry) => entry.event)
     .filter((event) =>
@@ -50,18 +46,12 @@ export const resolveThreadOverviewRefreshTargets = ({
     .map((event) => event.getId())
     .filter((eventId): eventId is string => !!eventId);
 
-  const overviewResumeRefreshIdSet = new Set<string>();
-  visibleThreadSummaryRefreshIds.forEach((threadRootId) => {
-    overviewResumeRefreshIdSet.add(threadRootId);
-  });
+  const overviewResumeRefreshIdSet = new Set(visibleThreadRootIds);
   (showCompactRoomView ? compactFilteredThreadRootIds : filteredThreadRootIds)
     .slice(0, limit)
     .forEach((threadRootId) => {
       overviewResumeRefreshIdSet.add(threadRootId);
     });
 
-  return {
-    visibleThreadSummaryRefreshIds,
-    overviewResumeRefreshIds: [...overviewResumeRefreshIdSet].slice(0, limit),
-  };
+  return { overviewResumeRefreshIds: [...overviewResumeRefreshIdSet].slice(0, limit) };
 };

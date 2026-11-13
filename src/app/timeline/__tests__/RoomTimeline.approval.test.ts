@@ -3,7 +3,6 @@ import React from 'react';
 import { act } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
-import { MessageEvent } from '../../matrix/types/room';
 import {
   create,
   createControlledRoomTimelineHarness,
@@ -167,8 +166,8 @@ describe('RoomTimeline approval rendering', () => {
     const { RoomTimeline } = await import('../RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const encryptedApprovalEvent = makeEvent('$encrypted-approval', {
-      type: MessageEvent.RoomMessageEncrypted,
-      renderInsideEncryptedContentAs: MINDROOM_TOOL_APPROVAL_EVENT,
+      type: MINDROOM_TOOL_APPROVAL_EVENT,
+      encrypted: true,
       content: {
         approval_id: 'approval-1',
         tool_name: 'web_search',

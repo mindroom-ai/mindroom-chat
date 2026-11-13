@@ -1,4 +1,4 @@
-import { isNativeApp } from './authUi';
+import { isNativeApp } from '../../native/nativeSso';
 
 // Single sign-on leaves the app and comes back with a `loginToken` in the address. The address
 // alone proves nothing: anyone can link to `/login/<any server>/?loginToken=...`, and a homeserver
@@ -138,9 +138,7 @@ export const claimSsoLogin = (
   if (!storage || !loginToken) return undefined;
   const attempts = readAttempts(storage, now);
   const match = attempts.find(
-    (attempt) =>
-      (!!nonce && attempt.nonce === nonce) ||
-      (attempt.loginToken !== undefined && attempt.loginToken === loginToken)
+    (attempt) => (!!nonce && attempt.nonce === nonce) || attempt.loginToken === loginToken
   );
   writeAttempts(
     storage,

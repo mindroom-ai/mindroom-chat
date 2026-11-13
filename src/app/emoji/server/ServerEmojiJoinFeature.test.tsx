@@ -1,6 +1,5 @@
 import React from 'react';
 import { Provider, createStore } from 'jotai';
-import type { Store } from 'jotai/vanilla';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AutoDiscoveryInfoProvider } from '../../matrix/hooks/useAutoDiscoveryInfo';
@@ -8,6 +7,8 @@ import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { ClientStartupProvider } from '../../matrix/ClientStartupContext';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { ServerEmojiJoinFeature } from './ServerEmojiJoinFeature';
+
+type Store = ReturnType<typeof createStore>;
 
 const ROOM_ID = '!emoji:example.com';
 const ALIAS = '#emoji:example.com';

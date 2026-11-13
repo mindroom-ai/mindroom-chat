@@ -2774,9 +2774,6 @@
       }
     },
     "notifications": {
-      "mindroomMarkRoomReadChip": {
-        "markAsRead": "Okundu olarak işaretle"
-      },
       "mindroomMarkRoomReadMenuItem": {
         "markAsRead": "Okundu olarak işaretle"
       },

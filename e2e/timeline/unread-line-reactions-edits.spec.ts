@@ -11,6 +11,10 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The "New Messages" line, the Jump to Unread pill and read receipts when another account reacts to
 // an older message or edits one, in a room the reader has read. While the reader is scrolled up,
@@ -20,7 +24,6 @@ import { launchWebKit } from '../helpers/webkit';
 // when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Runs against the
 // disposable homeserver of `just hs-up` or of a slot of scripts/e2e-slot.sh, and registers its own
 // accounts.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'unread-line-spec-password';
 const RUN = Date.now().toString(36);
 const HISTORY = 60;
@@ -36,17 +39,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
   const username = `unl_${name}_${RUN}`;
@@ -154,7 +146,7 @@ const unreadLineRows = (page: Page) =>
 type Receipt = { type: string; event: string; thread?: unknown };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 /**

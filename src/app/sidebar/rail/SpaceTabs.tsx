@@ -39,7 +39,7 @@ import { allRoomsAtom } from '../../matrix/state/roomList';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { type SpaceOrderAtom, makeSpaceOrderAtom } from '../../spaces/sidebarOrder';
 import { useNavToActivePathAtom } from '../../routes/useNavToActivePath';
-import { useOpenSpaceSettings } from '../../navigation/useSpaceSettingsState';
+import { useOpenRoomSettings } from '../../navigation/useRoomSettingsState';
 import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
 import { getRoomAvatarUrl, isSpace } from '../../matrix/room';
 import { copyToClipboard } from '../../lib/dom';
@@ -174,7 +174,7 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
   const activePaths = useAtomValue(useNavToActivePathAtom());
   const { unread, rooms: spaceRooms } = useSpaceRailRooms(roomId);
   const avatarUrl = getRoomAvatarUrl(client, space, 96, useAuthentication);
-  const openSpaceSettings = useOpenSpaceSettings();
+  const openSpaceSettings = useOpenRoomSettings();
   const { anchor: menuAnchor, close: closeMenu, buttonProps } = useSidebarContextMenu();
   const [inviting, setInviting] = useState(false);
   const sortable = useRailSortable(drag, hint);

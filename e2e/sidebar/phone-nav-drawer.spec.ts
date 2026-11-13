@@ -10,6 +10,10 @@ import {
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { cornersOf, pageCardRadius } from '../helpers/cardCorners';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // On a phone a top bar stays above every page: a menu button, a search field that opens the
 // command palette and names its shortcut, and the account. The menu button, or a swipe from the
@@ -23,7 +27,6 @@ import { cornersOf, pageCardRadius } from '../helpers/cardCorners';
 // from the page. 390 by 844 (and 744 by 1133 for the corner and the bar) with touch, in
 // Chromium with real touches and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in
 // WebKit. Set PHONE_NAV_SHOTS=<directory> to save screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'phone-nav-drawer-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS = process.env.PHONE_NAV_SHOTS;
@@ -44,17 +47,6 @@ type Seed = {
   harbor: string;
   space: string;
   bus: string;
-};
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 };
 
 const text = (body: string) => ({ msgtype: 'm.text', body });
@@ -240,7 +232,10 @@ const signIn = async (browser: Browser, { username }: Seed, options = {}) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 for (const engine of ENGINES) {

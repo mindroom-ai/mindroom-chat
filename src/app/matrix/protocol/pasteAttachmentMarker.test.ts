@@ -1,30 +1,29 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   MINDROOM_PASTE_ATTACHMENT_CONTENT_KEY,
-  createPasteAttachment,
   createPasteId,
+  createPasteMarker,
   formatPasteMarkerTextAsHtml,
   getPasteAttachmentFile,
+  getPasteFileName,
   parsePasteMarker,
   withPasteAttachmentMetadata,
 } from './pasteAttachmentMarker';
 
 describe('pasteAttachmentMarker', () => {
-  it('creates a text attachment with a parseable marker', async () => {
-    const created = createPasteAttachment('hello world', { id: 'paste-a3f19c' });
+  it('creates a parseable marker for a paste file', () => {
+    const fileName = getPasteFileName('paste-a3f19c');
+    const marker = createPasteMarker({ id: 'paste-a3f19c', chars: 11, fileName });
 
-    expect(created.id).toBe('paste-a3f19c');
-    expect(created.file.name).toBe('mindroom-paste-a3f19c.txt');
-    expect(created.file.type).toBe('text/plain;charset=utf-8');
-    expect(await created.file.text()).toBe('hello world');
-    expect(created.marker).toBe(
+    expect(fileName).toBe('mindroom-paste-a3f19c.txt');
+    expect(marker).toBe(
       '[[mindroom-paste:{"v":1,"id":"paste-a3f19c","chars":11,"file":"mindroom-paste-a3f19c.txt"}]]'
     );
-    expect(parsePasteMarker(created.marker)).toEqual({
+    expect(parsePasteMarker(marker)).toEqual({
       id: 'paste-a3f19c',
       chars: 11,
       fileName: 'mindroom-paste-a3f19c.txt',
-      raw: created.marker,
+      raw: marker,
     });
   });
 

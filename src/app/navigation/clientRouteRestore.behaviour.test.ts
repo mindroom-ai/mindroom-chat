@@ -2,7 +2,6 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import {
   canonicalizeSessionPathname,
-  parseStoredRouteUrl,
   pathnameContainsAliasRoute,
   resolveCanonicalizedPathname,
 } from './clientRouteRestore';
@@ -128,12 +127,5 @@ describe('clientRouteRestore behaviour', () => {
     expect(canonicalizeSessionPathname(client, '/%23s%3Ax/')).toBe('/!s%3Ax');
     expect(canonicalizeSessionPathname(client, '/%23s%3Ax/lobby/')).toBe('/!s%3Ax/lobby');
     expect(canonicalizeSessionPathname(client, '/%23s%3Ax/search/')).toBe('/!s%3Ax/search');
-  });
-
-  it('keeps the other origin of a protocol-relative stored route', () => {
-    const url = parseStoredRouteUrl('//host/x');
-
-    expect(url?.origin).toBe('https://host');
-    expect(url?.pathname).toBe('/x');
   });
 });

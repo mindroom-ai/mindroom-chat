@@ -1,12 +1,15 @@
 import { expect, test, type Page } from '@playwright/test';
 import { switchToStoredUsername } from '../helpers/accounts';
 import { buildLoginPath } from '../env';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Two accounts signed in on one device share a room. What one account leaves in that room's
 // composer (the message it replies to, its staged files, its unsent text) must not show up in
 // the other account's composer, and must not be sent as the other account. Runs against the
 // disposable homeserver of `just hs-up` (or a slot of scripts/e2e-slot.sh).
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const SERVER_NAME = 'matrix.localhost';
 const PASSWORD = 'composer-isolation-password';
 const RUN = Date.now().toString(36);
@@ -19,17 +22,6 @@ type MatrixEvent = {
   type: string;
   sender: string;
   content: Record<string, unknown>;
-};
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 };
 
 const matrix = async <T>(
@@ -114,7 +106,10 @@ const composer = (page: Page) => page.locator('[data-editable-name="RoomInput"]'
 const cancelReply = (page: Page) => page.getByRole('button', { name: 'Cancel reply' });
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test("a second account in a shared room gets none of the first account's composer state", async ({

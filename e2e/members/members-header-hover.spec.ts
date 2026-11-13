@@ -2,11 +2,14 @@ import { expect, test, type Locator } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { loginToMatrix } from '../helpers/matrix';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The members panel's header buttons (Invite people, Close) answer the pointer as the room
 // header's buttons beside them do: no fill at rest, a fill while hovered. Runs in Chromium against
 // the homeserver of `just hs-up` or of an e2e slot.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'members-header-hover-spec-password';
 const RUN = Date.now().toString(36);
 
@@ -20,23 +23,12 @@ test.use({
   },
 });
 
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 const TRANSPARENT = 'rgba(0, 0, 0, 0)';
 const fill = (button: Locator) =>
   button.evaluate((element) => getComputedStyle(element).backgroundColor);
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('the members header buttons fill while hovered, as the room header buttons do', async ({

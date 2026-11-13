@@ -140,7 +140,7 @@ export const KeyboardInput = style({
   caretColor: 'transparent',
   fontSize: '16px !important',
   height: '1px',
-  left: 0,
+  insetInlineStart: 0,
   margin: 0,
   opacity: 0,
   padding: 0,

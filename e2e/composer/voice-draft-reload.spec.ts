@@ -9,6 +9,10 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { loginToMatrix, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // A voice message whose upload fails says "Your recording is still saved", with Retry and Discard.
 // It stays saved across a reload: the reloaded room shows the same failure with Retry, and Retry
@@ -16,7 +20,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit, against the
 // disposable homeserver of `just hs-up` or of a slot of scripts/e2e-slot.sh. The microphone is a
 // tone made in the page: WebKit's mock capture device never got the recorder past 0:00.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'voice-draft-reload-spec-password';
 const RUN = Date.now().toString(36);
 
@@ -75,17 +78,6 @@ const toneMicrophone = () => {
     tone.start();
     return microphone.stream;
   };
-};
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
 };
 
 const seed = async (name: string) => {
@@ -204,7 +196,7 @@ const failedRecordingSurvivesReload = async (browser: Browser, layout: Layout, l
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 const TITLE = 'a voice message whose send failed is still saved after a reload';

@@ -2,29 +2,21 @@ import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Rooms often share words in their topics. In the command palette, a room whose name holds the
 // typed word comes before rooms that only mention it in their topic, unread ones included, and
 // the Messages section lists messages only: a topic is not a message, though the server's search
 // also matches room topics. 14 rooms with the same topic, most of them unread, one with a long
 // name that holds the word.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'command-palette-topics-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const NAMED = 'Quarterly planning for the customer onboarding experience redesign';
 
 test.use({ viewport: { width: 1280, height: 800 } });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const register = async (name: string) => {
   const username = `cpt_${name}_${RUN}`;
@@ -91,7 +83,10 @@ const signIn = async (page: Page) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+  );
 });
 
 test('a room named after the typed word comes before rooms that only mention it', async ({

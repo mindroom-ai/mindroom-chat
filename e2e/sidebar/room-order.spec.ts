@@ -2,27 +2,19 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { addRoomToSpace, loginToMatrix, matrixFetch, type MatrixSession } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // Rooms move up and down in their section by drag and drop or from the keyboard, against the
 // disposable homeserver of `just hs-up` (or a slot of scripts/e2e-slot.sh). The order is saved in
 // the `io.mindroom.room_order` account data, so it holds after a reload and shows on a second
 // session. Set ROOM_ORDER_SHOTS=<directory> to also save the L19 screenshots during and after a
 // drag.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'room-order-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.ROOM_ORDER_SHOTS;
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 type Account = MatrixSession & { username: string };
 
@@ -104,7 +96,7 @@ const shot = async (page: Page, nav: string, name: string) => {
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
 test('a room dragged above another keeps its place after a reload and on a second session', async ({

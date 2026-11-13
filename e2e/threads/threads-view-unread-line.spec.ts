@@ -18,6 +18,10 @@ import {
 } from '../helpers/matrix';
 import { expectRoomCompact, toggleRoomView } from '../helpers/roomViewSwitch';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
 
 // The Threads view of a room with an agent lists the newest thread first, where it opens and
 // where the reader reads. A "New messages" line there would mark the newest row, not the place
@@ -29,7 +33,6 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. The page
 // sends no read receipt, so the rooms stay unread. Set UNREAD_LINE_SHOTS=<directory> for
 // screenshots.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'threads-view-unread-line-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS = process.env.UNREAD_LINE_SHOTS;
@@ -57,17 +60,6 @@ test.use({
     ignoreDefaultArgs: ['--hide-scrollbars'],
   },
 });
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
   // A repeated test (--repeat-each) runs in the same worker, with the same RUN.
@@ -295,7 +287,7 @@ const check = async (browser: Browser, label: string, options: BrowserContextOpt
 };
 
 test.beforeEach(async () => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
   test.setTimeout(240_000);
 });
 
