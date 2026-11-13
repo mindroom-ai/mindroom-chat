@@ -30,7 +30,7 @@ const ROOM_FOCUS_NEAR_END_THRESHOLD = 5;
 const ROOM_FOCUS_START_MARGIN_PX = 32;
 const ROOM_FOCUS_END_MARGIN_PX = 32;
 
-export type TimelineAnchor = {
+type TimelineAnchor = {
   eventId: string;
   index: number;
   absoluteIndex: number;

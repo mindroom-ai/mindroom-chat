@@ -6,8 +6,6 @@ const storage = new Map<string, string>();
 beforeEach(() => {
   storage.clear();
   vi.stubGlobal('localStorage', {
-    getItem: vi.fn((key: string) => storage.get(key) ?? null),
-    setItem: vi.fn((key: string, value: string) => storage.set(key, value)),
     removeItem: vi.fn((key: string) => storage.delete(key)),
   });
 });
@@ -55,7 +53,6 @@ describe('createUserScopedAtomRegistry', () => {
     registry.clear('@alice');
 
     expect(storage.has('state:@alice')).toBe(false);
-    expect(registry.resolveActiveOrCreate(undefined)).toBeUndefined();
     expect(registry.getOrCreate('@alice')).not.toBe(before);
   });
 

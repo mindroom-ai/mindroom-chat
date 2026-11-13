@@ -35,7 +35,7 @@ export const isRenderableEvent = (
   showThreadRepliesInRoom = false
 ): boolean => {
   const mEventId = mEvent.getId();
-  if (!mEvent || !mEventId) return false;
+  if (!mEventId) return false;
   const eventSender = mEvent.getSender();
   if (eventSender && ignoredUsersSet.has(eventSender)) return false;
   if (!threadId && !showThreadRepliesInRoom && isThreadReplyEvent(mEventId, mEvent.threadRootId)) {
@@ -210,13 +210,10 @@ export const buildRoomSurfaceEventEntries = ({
         return;
       }
 
-      const existingEntry = surfaceEntryMap.get(threadRootId);
-      if (!existingEntry || absoluteIndex < existingEntry.absoluteIndex) {
-        surfaceEntryMap.set(threadRootId, {
-          event: rootEvent,
-          absoluteIndex,
-        });
-      }
+      surfaceEntryMap.set(threadRootId, {
+        event: rootEvent,
+        absoluteIndex,
+      });
 
       absoluteIndex += 1;
     });

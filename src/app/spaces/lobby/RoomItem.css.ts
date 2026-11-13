@@ -40,7 +40,7 @@ globalStyle(`${RoomItemCard}:has(${CardOpener}:focus-visible)`, {
   outlineOffset: 2,
 });
 
-// The name wraps rather than truncating: on a phone the open button leaves it little room, and
+// The name wraps rather than truncating: on a phone the card's button leaves it little room, and
 // rooms named alike ("Engineering room 1", "Engineering room 2") differ only at their end.
 export const RoomName = style({
   minWidth: 0,

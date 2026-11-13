@@ -45,10 +45,6 @@ vi.mock('../../avatars/RoomAvatar', () => ({
   RoomIcon: () => React.createElement('i'),
 }));
 
-vi.mock('../../room/RoomTopicViewer', () => ({
-  RoomTopicViewer: () => null,
-}));
-
 vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));

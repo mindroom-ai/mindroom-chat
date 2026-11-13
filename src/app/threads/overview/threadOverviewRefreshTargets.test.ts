@@ -45,7 +45,7 @@ describe('resolveThreadOverviewRefreshTargets', () => {
         makeEntry('$after', 3),
       ],
       threadId: undefined,
-      threadReplyCountMap: new Map([['$message', 0]]),
+      threadReplyCountMap: new Map(),
       threadResolutionMap: new Map(),
     });
 

@@ -152,7 +152,7 @@ describe('iOS freeze flight recorder', () => {
     ]);
   });
 
-  it('uses one normalized bounded build version for storage and export metadata', async () => {
+  it('uses one normalized bounded build version for storage and export metadata', () => {
     dispose = installFlightRecorder(storage);
     const expected = normalizeFlightRecorderBuildVersion(buildVersionMock.value);
     const payload = buildFlightRecorderPayload();
@@ -563,7 +563,7 @@ describe('iOS freeze flight recorder', () => {
     expect(readCurrent(storage).expectedEndAt).toBeNull();
   });
 
-  it('preserves old current bytes and disables later writes when abnormal copy fails', async () => {
+  it('preserves old current bytes and disables later writes when abnormal copy fails', () => {
     const prior = makePriorSession();
     const priorBytes = JSON.stringify(prior);
     storage.values.set(FLIGHT_RECORDER_CURRENT_KEY, priorBytes);
@@ -579,7 +579,7 @@ describe('iOS freeze flight recorder', () => {
     expect(exported.currentOrPreservedSession).toEqual(prior);
   });
 
-  it('prioritizes retained abnormal evidence when the replacement write fails', async () => {
+  it('prioritizes retained abnormal evidence when the replacement write fails', () => {
     const prior = makePriorSession();
     storage.values.set(FLIGHT_RECORDER_CURRENT_KEY, JSON.stringify(prior));
     storage.failWriteNumber = 2;
@@ -608,7 +608,7 @@ describe('iOS freeze flight recorder', () => {
     expect(readCurrent(storage).voiceCapture).toBe('inactive');
   });
 
-  it('never replaces prior bytes when the startup read fails', async () => {
+  it('never replaces prior bytes when the startup read fails', () => {
     const prior = makePriorSession();
     const priorBytes = JSON.stringify(prior);
     storage.values.set(FLIGHT_RECORDER_CURRENT_KEY, priorBytes);

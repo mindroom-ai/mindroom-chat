@@ -66,7 +66,7 @@ test('retains and exports a fast-relaunch abnormal voice session without inventi
   const page = await context.newPage();
   await page.goto('/login/');
   await page.evaluate(
-    ([key, now]) => {
+    ([key, abnormalKey, now]) => {
       localStorage.setItem(
         key,
         JSON.stringify({
@@ -84,9 +84,9 @@ test('retains and exports a fast-relaunch abnormal voice session without inventi
           events: [],
         })
       );
-      localStorage.removeItem('mindroom.flight.abnormal.v1');
+      localStorage.removeItem(abnormalKey);
     },
-    [CURRENT_KEY, Date.now()] as const
+    [CURRENT_KEY, ABNORMAL_KEY, Date.now()] as const
   );
 
   await page.reload();

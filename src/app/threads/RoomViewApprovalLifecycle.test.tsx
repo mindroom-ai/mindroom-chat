@@ -91,7 +91,6 @@ vi.mock('../ui/page/Page', () => ({ Page: 'div' }));
 vi.mock('../timeline/typing/RoomViewTyping', () => ({ RoomViewTyping: () => null }));
 vi.mock('../timeline/RoomViewFollowing', () => ({
   RoomViewFollowing: () => null,
-  RoomViewFollowingPlaceholder: () => null,
 }));
 vi.mock('../room/RoomTombstone', () => ({ RoomTombstone: () => null }));
 vi.mock('../room/RoomViewHeader', () => ({ RoomViewHeader: () => null }));

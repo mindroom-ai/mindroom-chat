@@ -100,7 +100,7 @@ export function SelectPrefetchScope() {
 }
 
 /**
- * Settings → General → Messages: how far background prefetch reaches. Rooms whose history is
+ * Settings → Storage & offline: how far background prefetch reaches. Rooms whose history is
  * prefetched open from cache, at the cost of syncing their history in the background.
  */
 export function PrefetchSettings({ className }: { className?: string }) {

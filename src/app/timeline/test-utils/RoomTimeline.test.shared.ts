@@ -678,7 +678,6 @@ vi.mock('../CollapsibleMessage', async () => {
   const ReactImport = await import('react');
 
   return {
-    ExpandAllInitContext: ReactImport.createContext<boolean | undefined>(undefined),
     CollapsibleMessageStateProvider: passthrough,
     CollapsibleMessage: ({
       children,
@@ -1063,15 +1062,6 @@ vi.mock('../../event-store/timeline/threadPaginationUtils', () => ({
   reconcileThreadBackwardPagination: vi.fn(),
 }));
 
-vi.mock('../../event-store/cache/eventCacheTokenUtils', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../event-store/cache/eventCacheTokenUtils')>();
-  return actual;
-});
-
-// ISSUE-207 P2.3: legacy `threadSummaryCache` / `roomEventCache` shim
-// mocks are folded into the `../cacheStore` mock above (single choke
-// point).
-
 vi.mock('../../event-store/cache/eventCacheEditUtils', () => ({
   aggregateCachedRelationEvents: vi.fn(),
   collectRedactedRelationTargetsFromLookup: vi.fn(() => []),
@@ -1105,13 +1095,6 @@ vi.mock('../../event-store/timeline/timelineScrollUtils', async (importOriginal)
     shouldAutoScrollThreadOnLiveEvent: () => false,
   };
 });
-
-vi.mock('../../event-store/threads/threadEditBackfill', () => ({
-  hasLikelyIncompleteStreamingBody: (value: unknown) =>
-    typeof value === 'string' && /^thinking(?:\.{3}|…)(?:\s*⋯)?$/i.test(value.trim()),
-  markThreadEditBackfillAttempted: vi.fn(),
-  shouldFetchThreadEditBackfill: () => false,
-}));
 
 vi.mock('../../event-store/threads/threadEditBackfill', () => ({
   hasLikelyIncompleteStreamingBody: (value: unknown) =>
@@ -1784,18 +1767,15 @@ export {
   getClickableByText,
   getRenderedEventIds,
   getThreadOpenSeedSnapshot,
-  ignoredUsersMock,
   isMembershipChangedMock,
   loadCachedRoomEventsBeforeMock,
   loadCachedRoomPaginationTokenMock,
-  loadCachedThreadSummariesMock,
   loadLatestCachedRoomEventsMock,
   makeCachedRoomEvent,
   makeEvent,
   makeRoom,
   makeTimeline,
   matrixClientMock,
-  navigateRoomMock,
   navigateRoomThreadMock,
   reactionOrEditEventMock,
   inSameDayMock,

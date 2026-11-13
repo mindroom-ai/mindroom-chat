@@ -457,7 +457,6 @@ vi.mock('../CollapsibleMessage', async () => {
   const ReactImport = await import('react');
 
   return {
-    ExpandAllInitContext: ReactImport.createContext<boolean | undefined>(undefined),
     CollapsibleMessageStateProvider: ({
       children,
       expandAllInit,
@@ -667,12 +666,6 @@ vi.mock('../../event-store/timeline/timelineScrollUtils', async (importOriginal)
     shouldAutoScrollThreadOnLiveEvent: () => false,
   };
 });
-
-vi.mock('../../event-store/threads/threadEditBackfill', () => ({
-  hasLikelyIncompleteStreamingBody: () => false,
-  markThreadEditBackfillAttempted: vi.fn(),
-  shouldFetchThreadEditBackfill: () => false,
-}));
 
 vi.mock('../../event-store/threads/threadEditBackfill', () => ({
   hasLikelyIncompleteStreamingBody: () => false,
