@@ -87,7 +87,7 @@ describe('roomThreadFilterState', () => {
     unmount();
   });
 
-  it('removes the localStorage key when the filter resets to default', async () => {
+  it('keeps a chosen filter that equals the default, and removes the key when cleared', async () => {
     const { createDefaultThreadFilterState } = await import('../../event-store/threads/roomThreadOverviewModel');
     const { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } = await import(
       './roomThreadFilterState'
@@ -104,8 +104,11 @@ describe('roomThreadFilterState', () => {
       resolved: 'include',
     });
     store.set(atom, createDefaultThreadFilterState());
+    expect(storageState.has(getRoomThreadFilterStorageKey(userId, roomId))).toBe(true);
 
+    store.set(atom, null);
     expect(storageState.has(getRoomThreadFilterStorageKey(userId, roomId))).toBe(false);
+    expect(store.get(atom)).toBeNull();
 
     unmount();
   });
@@ -153,7 +156,7 @@ describe('roomThreadFilterState', () => {
     const unmountOriginal = originalStore.sub(originalAtom, () => undefined);
 
     originalStore.set(originalAtom, persistedState);
-    expect(originalStore.get(originalAtom).resolved).toBe('include');
+    expect(originalStore.get(originalAtom)?.resolved).toBe('include');
     expect(storageState.has(storageKey)).toBe(true);
 
     unmountOriginal();
@@ -167,7 +170,7 @@ describe('roomThreadFilterState', () => {
     const unmountReadded = readdedStore.sub(readdedAtom, () => undefined);
 
     expect(readdedAtom).not.toBe(originalAtom);
-    expect(readdedStore.get(readdedAtom)).toEqual(createDefaultThreadFilterState());
+    expect(readdedStore.get(readdedAtom)).toBeNull();
 
     unmountReadded();
   });
@@ -193,8 +196,8 @@ describe('roomThreadFilterState', () => {
       resolved: 'exclude',
     });
 
-    expect(aliceStore.get(aliceAtom).resolved).toBe('include');
-    expect(bobStore.get(bobAtom).resolved).toBe('exclude');
+    expect(aliceStore.get(aliceAtom)?.resolved).toBe('include');
+    expect(bobStore.get(bobAtom)?.resolved).toBe('exclude');
 
     unmountAlice();
     unmountBob();
@@ -220,11 +223,11 @@ describe('roomThreadFilterState', () => {
       resolved: 'include',
     });
 
-    expect(storeB.get(atom).resolved).toBe('any');
+    expect(storeB.get(atom)).toBeNull();
 
     emitStorageEvent(storageKey);
 
-    expect(storeB.get(atom).resolved).toBe('include');
+    expect(storeB.get(atom)?.resolved).toBe('include');
 
     unmountA();
     unmountB();
@@ -256,7 +259,7 @@ describe('roomThreadFilterState', () => {
     const store = createStore();
     const unmount = store.sub(atom, () => undefined);
 
-    expect(store.get(atom).resolved).toBe('include');
+    expect(store.get(atom)?.resolved).toBe('include');
 
     unmount();
   });

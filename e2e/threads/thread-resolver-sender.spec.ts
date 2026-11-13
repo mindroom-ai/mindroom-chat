@@ -15,6 +15,7 @@ import {
   sendRoomMessage,
   sendStateEvent,
 } from '../helpers/matrix';
+import { showResolvedThreads } from '../helpers/threadOverview';
 
 // A thread tag names who set it, and a thread shows that person as its resolver only when the tag
 // came from that person or from a MindRoom agent on the viewer's homeserver, which resolves threads
@@ -103,6 +104,8 @@ test('a resolved thread names the member who resolved it, or the person an agent
     filterState: createDefaultThreadFilterState(),
   });
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
+  // Compact opens with resolved threads hidden.
+  await showResolvedThreads(page);
   const byline = (rootId: string) =>
     page
       .locator(`[data-thread-root-id="${rootId}"]`)
