@@ -8,7 +8,6 @@ import {
   disposableHomeserverIsUp,
 } from '../helpers/disposableAccounts';
 
-// The disposable homeserver of `just hs-up` (open registration, server name matrix.localhost).
 const PASSWORD = 'boot-spec-password';
 
 /** Registers an account and returns its access token. */
