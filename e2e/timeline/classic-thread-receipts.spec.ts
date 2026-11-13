@@ -11,7 +11,7 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { roomMoreOptions } from '../helpers/roomMenu';
 import { expectRoomCompact, setRoomCompact } from '../helpers/roomViewSwitch';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   createDefaultThreadFilterState,
   joinRoom,
@@ -45,7 +45,6 @@ import {
 
 const PASSWORD = 'classic-thread-receipts-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.CLASSIC_RECEIPT_SHOTS;
 const ROOM_NAME = 'Ops Desk';
 const OTHER_ROOM_NAME = 'Design Desk';
@@ -515,7 +514,7 @@ for (const engine of ['chromium', 'webkit'] as const) {
         browser,
         baseURL,
       }) => {
-        test.skip(engine === 'webkit' && !WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+        test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
         test.setTimeout(180_000);
         const host = engine === 'webkit' ? await launchWebKit() : undefined;
         try {
@@ -531,7 +530,7 @@ for (const engine of ['chromium', 'webkit'] as const) {
       browser,
       baseURL,
     }) => {
-      test.skip(engine === 'webkit' && !WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+      test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
       test.setTimeout(180_000);
       const host = engine === 'webkit' ? await launchWebKit() : undefined;
       try {

@@ -7,7 +7,7 @@ import {
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
 import { joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A room joined on another device while this one was closed, in which more than a timeline's
 // worth of messages came after the join, among them a late edit of an older message: the first
@@ -18,7 +18,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // disposable homeserver.
 const PASSWORD = 'room-joined-elsewhere-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 /** More than the 20 events a /sync timeline carries, so the join is not among them. */
 const MESSAGES_AFTER_JOIN = 25;
 
@@ -110,7 +109,7 @@ test('a room joined on another device shows after the session resumes (Chromium)
 test('a room joined on another device shows after the session resumes (WebKit)', async ({
   baseURL,
 }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
   await onWebKitPage({ viewport: { width: 1280, height: 800 }, baseURL }, (page) =>
     joinedRoomShowsAfterResume(page, 'webkit')

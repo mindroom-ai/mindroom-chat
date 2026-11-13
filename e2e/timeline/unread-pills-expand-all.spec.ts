@@ -11,7 +11,7 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, matrixFetch, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -32,7 +32,6 @@ import {
 // in every language the app offers, each label whole and inside its pill.
 const PASSWORD = 'unread-pills-expand-all-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.UNREAD_PILLS_SHOTS;
 const READ = 30;
 const UNREAD = 30;
@@ -444,7 +443,7 @@ test('the unread pills and "[+all]" never cover each other (Chromium)', async ({
 });
 
 test('the unread pills and "[+all]" never cover each other (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(480_000);
   const browser = await launchWebKit();
   try {
@@ -570,7 +569,7 @@ test('the unread pills fit a phone in every language (Chromium)', async ({ brows
 });
 
 test('the unread pills fit a phone in every language (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(480_000);
   const browser = await launchWebKit();
   try {

@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -14,7 +14,6 @@ import {
 // Checked in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
 // Set SETTINGS_HEADING_SHOTS=<directory> to also save the loading page and a room's General page.
 const PASSWORD = 'settings-loading-heading-spec-password';
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.SETTINGS_HEADING_SHOTS;
 const DESKTOP = { width: 1280, height: 800 };
 
@@ -137,7 +136,7 @@ test('a section in front of a loading card keeps its own style', async ({ page }
 
 test('a section in front of a loading card keeps its own style (WebKit)', async () => {
   test.skip(!(await disposableHomeserverIsUp()), `homeserver ${HOMESERVER} is not running`);
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   const browser = await launchWebKit();
   try {
     const page = await browser.newPage({ baseURL: test.info().project.use.baseURL });

@@ -8,7 +8,7 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { matrixFetch, type MatrixSession } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -24,7 +24,6 @@ import {
 // has 25 rooms. Set JOIN_HEADER_SHOTS=<directory> to save each page.
 const PASSWORD = 'join-by-address-header-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.JOIN_HEADER_SHOTS;
 
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
@@ -143,7 +142,7 @@ for (const [form, options] of [
     });
 
     test(`${title} (WebKit, ${form})`, async ({ baseURL }, testInfo) => {
-      test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+      test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
       test.setTimeout(180_000);
       // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
       const browser = await launchWebKit();

@@ -2,7 +2,7 @@ import { crc32, deflateSync } from 'node:zlib';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { matrixFetch } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -24,7 +24,6 @@ const PASSWORD = 'command-palette-people-spec-password';
 const SHOTS = process.env.PEOPLE_SHOTS;
 const DIRECTORY_DELAY_MS = 3_000;
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit (the iPhone engine), for its own test.
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 
 type Account = { username: string; userId: string; accessToken: string; name: string };
 
@@ -571,7 +570,7 @@ test.describe('on a phone', () => {
 });
 
 test('People rows and the question lay out the same in WebKit', async ({ baseURL }) => {
-  test.skip(!WEBKIT, "Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright's WebKit");
+  test.skip(!WEBKIT_EXECUTABLE, "Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright's WebKit");
   const { okafor, lindqvist } = seeded!;
   // The file's launch options carry a Chromium flag WebKit refuses.
   const browser = await launchWebKit();

@@ -18,7 +18,7 @@ import {
   setLook,
   withRetry,
 } from '../helpers/designChoices';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { touch, type Step } from '../helpers/touch';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -36,7 +36,6 @@ import {
 // TouchEvents where the engine can build them. The row keeps its pressed tint while its menu is
 // open, on a phone and after a right-click on a desktop (1440 by 900). Set
 // PHONE_ROW_MENU_SHOTS=<directory> to save the screenshots.
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.PHONE_ROW_MENU_SHOTS;
 /** Longer than the 500 ms long press. */
 const HOLD_MS = 700;
@@ -397,7 +396,7 @@ test('a long press opens a sidebar row menu on a phone (Chromium)', async ({ bro
 });
 
 test('a long press opens a sidebar row menu on a phone (WebKit)', async ({ browser }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(420_000);
   await run(browser, 'webkit');
 });
@@ -412,7 +411,7 @@ test('a right-clicked row keeps its tint while its menu is open (desktop, Chromi
 test('a right-clicked row keeps its tint while its menu is open (desktop, WebKit)', async ({
   browser,
 }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   await runDesktop(browser, 'webkit');
 });

@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, joinRoom, matrixFetch } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -15,7 +15,6 @@ import {
 // Checked with classic scrollbars in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
 // Playwright's WebKit, in WebKit. Set INVITE_MENU_SHOTS=<directory> to also save screenshots of the
 // open menu in the light and dark themes, on a phone and on a desktop.
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.INVITE_MENU_SHOTS;
 const PASSWORD = 'invite-autocomplete-menu-spec-password';
 /** Every suggested account's Matrix ID holds it, so one search lists them all. */
@@ -424,7 +423,7 @@ test('the invite suggestions float over the dialog and keep long identities whol
 test('the invite suggestions float over the dialog and keep long identities whole (WebKit)', async ({
   baseURL,
 }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
   const browser = await launchWebKit();
   try {

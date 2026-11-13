@@ -16,7 +16,7 @@ import {
   sendStateEvent,
   type MatrixSession,
 } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { isPhoneLayout, openRoomPins, roomMoreOptions } from '../helpers/roomMenu';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -41,7 +41,6 @@ import {
 // Set ROOM_PIN_MENU_SHOTS=<directory> to save each open menu.
 const PASSWORD = 'room-pin-menu-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.ROOM_PIN_MENU_SHOTS;
 
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
@@ -865,7 +864,7 @@ for (const [form, options] of [
       });
 
       test(`${title} (WebKit, ${form})`, async ({ baseURL }, testInfo) => {
-        test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+        test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
         test.setTimeout(300_000);
         // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
         const browser = await launchWebKit();

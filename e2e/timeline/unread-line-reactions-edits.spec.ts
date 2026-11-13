@@ -9,7 +9,7 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -29,7 +29,6 @@ const PASSWORD = 'unread-line-spec-password';
 const RUN = Date.now().toString(36);
 const HISTORY = 60;
 const VIEWPORT = { width: 1400, height: 900 };
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 
 test.use({
   viewport: VIEWPORT,
@@ -414,7 +413,7 @@ for (const { key, title, run } of CASES) {
   });
 
   test(`${title} (WebKit)`, async ({ baseURL }) => {
-    test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
     test.setTimeout(300_000);
     // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
     const browser = await launchWebKit();

@@ -9,7 +9,7 @@ import {
   accountSessionShot,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Two accounts in one browser. Logging out the active one opens the other where it was, in its
 // last room. Logging out the last one leaves nothing in localStorage that names either account,
@@ -18,7 +18,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // homeserver.
 const PASSWORD = 'logout-restore-and-clear-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 
 test.use({ viewport: { width: 1280, height: 800 }, launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
@@ -109,7 +108,7 @@ test('logout opens the other account where it was and leaves no account behind (
 test('logout opens the other account where it was and leaves no account behind (WebKit)', async ({
   baseURL,
 }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
   await onWebKitPage({ viewport: { width: 1280, height: 800 }, baseURL }, (page) =>
     logoutRestoresAndClears(page, 'webkit')

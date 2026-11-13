@@ -4,7 +4,7 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
 import { loginWithPassword, waitForLoggedInShell } from '../helpers/auth';
 import { joinRoom, matrixFetch, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -17,7 +17,6 @@ import {
 // scripts/e2e-slot.sh), in Chromium and, when the runner names it, WebKit.
 const PASSWORD = 'notification-dedupe-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const DESKTOP = { viewport: { width: 1280, height: 800 } };
 
 type Engine = 'chromium' | 'webkit';
@@ -274,7 +273,7 @@ test('a message or invite notifies once per device, across reloads and tabs (Chr
 test('a message or invite notifies once per device, across reloads and tabs (WebKit)', async ({
   baseURL,
 }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   await inWebKit((browser) => checkOncePerDevice(browser, baseURL ?? '', 'webkit'));
 });
@@ -288,7 +287,7 @@ test('a muted room shows no unread mark on its row or on Home (Chromium)', async
 });
 
 test('a muted room shows no unread mark on its row or on Home (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
   await inWebKit((browser) => checkMutedRoom(browser, baseURL ?? '', 'webkit'));
 });

@@ -18,7 +18,7 @@ import {
   sendStateEvent,
   type MatrixSession,
 } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -40,7 +40,6 @@ import {
 // Set BANNER_SCROLL_SHOTS=<directory> to save the screen at each step.
 const PASSWORD = 'thread-banner-phone-scroll-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.BANNER_SCROLL_SHOTS;
 
 const PHONE: BrowserContextOptions = {
@@ -549,7 +548,7 @@ test('the thread banner keeps its title readable and the thread in place (Chromi
 test('the thread banner keeps its title readable and the thread in place (WebKit)', async ({
   baseURL,
 }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(420_000);
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
   const browser = await launchWebKit();

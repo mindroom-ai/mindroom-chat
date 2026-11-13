@@ -8,7 +8,7 @@ import {
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
 import { addRoomToSpace } from '../helpers/matrix';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A space's lobby lists the rooms a member can see. An invite-only child that the server neither
 // lists in the space's hierarchy nor describes to the member got a card titled with its raw room
@@ -18,7 +18,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // Set LOBBY_HIDDEN_SHOTS=<directory> for screenshots.
 const PASSWORD = 'lobby-hidden-child-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.LOBBY_HIDDEN_SHOTS;
 const SERVER_NAME = 'matrix.localhost';
 
@@ -68,7 +67,7 @@ test('a lobby lists no card for a room the member cannot see (Chromium)', async 
 });
 
 test('a lobby lists no card for a room the member cannot see (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
   await onWebKitPage({ viewport: { width: 1280, height: 800 }, baseURL }, (page) =>
     lobbyListsOnlyVisibleRooms(page, 'webkit')

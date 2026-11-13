@@ -28,7 +28,7 @@ import {
   type Account,
 } from '../helpers/designChoices';
 import { roomMoreOptions } from '../helpers/roomMenu';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   CHROMIUM_WITH_SCROLLBARS,
@@ -45,8 +45,7 @@ import {
 // space; 28 rooms in all. Desktop (1440 by 900) and phone (390 by 844, touch), light and dark,
 // Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. Set
 // DESIGN_CHOICES_SHOTS to save the screenshots.
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
-const ENGINES = ['chromium', ...(WEBKIT ? ['webkit'] : [])] as const;
+const ENGINES = ['chromium', ...(WEBKIT_EXECUTABLE ? ['webkit'] : [])] as const;
 type Engine = (typeof ENGINES)[number];
 /** A message menu's row (MenuEntry: folds' MenuItem, size 300), which a room menu's rows match. */
 const MENU_ROW = 32;

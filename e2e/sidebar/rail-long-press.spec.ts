@@ -15,7 +15,7 @@ import {
   setLook,
   withRetry,
 } from '../helpers/designChoices';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { touch, type Step } from '../helpers/touch';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -31,7 +31,6 @@ import {
 // dark; Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. The
 // spec sends the touch events itself (`e2e/helpers/touch.ts`). Set RAIL_LONG_PRESS_SHOTS to save
 // the screenshots.
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.RAIL_LONG_PRESS_SHOTS;
 /** Longer than the 500 ms long press. */
 const HOLD_MS = 700;
@@ -289,7 +288,7 @@ test('a long press opens a space menu in the rail on a phone (Chromium)', async 
 });
 
 test('a long press opens a space menu in the rail on a phone (WebKit)', async ({ browser }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   await run(browser, 'webkit');
 });

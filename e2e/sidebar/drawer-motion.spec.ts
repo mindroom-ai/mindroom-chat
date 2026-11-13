@@ -8,7 +8,7 @@ import {
   setAccountData,
   setDirectAccountData,
 } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -25,7 +25,6 @@ import {
 // classic scrollbars, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
 // WebKit, in WebKit.
 const PASSWORD = 'drawer-motion-spec-password';
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SPACE_COUNT = 26;
 const ROOM_COUNT = 30;
 const NAV = '[data-testid="resizable-page-nav"]';
@@ -453,7 +452,7 @@ test('the page navigation opens in the same motion however it opens', async ({ p
 });
 
 test('the page navigation opens in the same motion in WebKit', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   const seededAccount = await account();
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
@@ -511,7 +510,7 @@ for (const [name, options, check] of [
     });
 
     test(`the room list on ${name} in WebKit`, async ({ baseURL }) => {
-      test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+      test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
       test.setTimeout(180_000);
       const seededAccount = await account();
       const browser = await launchWebKit();

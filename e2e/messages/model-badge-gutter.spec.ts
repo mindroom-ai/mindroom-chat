@@ -25,7 +25,7 @@ import {
   shot,
   withRetry,
 } from '../helpers/designChoices';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   CHROMIUM_WITH_SCROLLBARS,
@@ -41,8 +41,7 @@ import {
 // light and dark, English and Arabic, and on a phone (390 by 844, touch), in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
 // DESIGN_CHOICES_SHOTS=<directory> to save screenshots.
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
-const ENGINES = ['chromium', ...(WEBKIT ? ['webkit'] : [])] as const;
+const ENGINES = ['chromium', ...(WEBKIT_EXECUTABLE ? ['webkit'] : [])] as const;
 const ROOM_NAME = 'Launch planning';
 const THREAD_ROOT = 'Run the three steps and report what changed';
 const MODEL_NAME = 'Stub Large Model';

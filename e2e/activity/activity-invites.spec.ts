@@ -8,7 +8,7 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import { joinRoom, loginToMatrix, matrixFetch } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -25,7 +25,6 @@ import {
 // runs in WebKit (the iPhone engine) when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit.
 // Set ACTIVITY_INVITES_SHOTS=<directory> to also save screenshots.
 const PASSWORD = 'activity-invites-spec-password';
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.ACTIVITY_INVITES_SHOTS;
 
 const PHONE: BrowserContextOptions = {
@@ -297,7 +296,7 @@ test.describe('on a phone', () => {
 });
 
 test('the top bar bell lists the invites on a phone (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
   const seeded = await seed();
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.

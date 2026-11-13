@@ -24,7 +24,7 @@ import {
   shot,
   withRetry,
 } from '../helpers/designChoices';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   CHROMIUM_WITH_SCROLLBARS,
@@ -39,8 +39,7 @@ import {
 // on a desktop (1440 by 900) and a phone (390 by 844, touch), light and dark, in Chromium and,
 // when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit; one desktop check in
 // Arabic. Set DESIGN_CHOICES_SHOTS=<directory> to save screenshots.
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
-const ENGINES = ['chromium', ...(WEBKIT ? ['webkit'] : [])] as const;
+const ENGINES = ['chromium', ...(WEBKIT_EXECUTABLE ? ['webkit'] : [])] as const;
 const ROOM_NAME = 'Team chat';
 const LAYOUT = { classic: 0, compact: 1, bubble: 2 } as const;
 /** The readable width of a bubble on a desktop, in CSS pixels at 100 % zoom. */

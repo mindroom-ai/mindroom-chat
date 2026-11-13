@@ -17,7 +17,7 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -36,7 +36,6 @@ import {
 // Set TOOL_ROWS_SHOTS=<directory> to save each check's rows.
 const PASSWORD = 'tool-rows-phone-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.TOOL_ROWS_SHOTS;
 
 const PHONE: BrowserContextOptions = {
@@ -399,7 +398,7 @@ test('an agent’s tool lines on a phone (Chromium)', async ({ browser, baseURL 
 });
 
 test('an agent’s tool lines on a phone (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
   const browser = await launchWebKit();

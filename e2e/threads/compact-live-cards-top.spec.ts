@@ -14,7 +14,7 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { expectRoomCompact } from '../helpers/roomViewSwitch';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -33,7 +33,6 @@ import {
 // to save each step.
 const PASSWORD = 'compact-live-cards-top-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.COMPACT_LIVE_SHOTS;
 
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
@@ -293,7 +292,7 @@ for (const [form, options] of [
     test(`new Compact cards join at the top of a newest-first list (WebKit, ${form})`, async ({
       baseURL,
     }) => {
-      test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+      test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
       test.setTimeout(300_000);
       const seeded = await seed(`w${form[0]}`);
       // The runner adds the file's launch options, whose Chromium flag WebKit refuses.

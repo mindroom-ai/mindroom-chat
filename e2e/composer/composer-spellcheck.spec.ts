@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Regression (demo-F010): the composer underlined names, numbers and file names ("Q3",
 // "Fenmark", "data/run-42.csv") with the browser's red spell-check squiggles, which MindRoom
@@ -10,7 +10,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // browser's spell check off, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
 // WebKit, in WebKit. Set COMPOSER_SPELLCHECK_SHOTS=<directory> to save the typed composer.
 const SHOTS = process.env.COMPOSER_SPELLCHECK_SHOTS;
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const DESKTOP = { viewport: { width: 1280, height: 800 } };
 const SENT = 'Fenmark sent the Q3 ringdown numbers';
 
@@ -70,7 +69,7 @@ test('the composer and the edit box keep the browser spell check off (WebKit)', 
   baseURL,
 }) => {
   test.skip(!hasPrimaryCredentials(), 'Requires disposable Matrix credentials.');
-  test.skip(!WEBKIT, 'PLAYWRIGHT_WEBKIT_EXECUTABLE names no WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE names no WebKit');
   const room = await seedRoom();
   await onWebKitPage({ ...DESKTOP, baseURL }, (page) => expectSpellCheckOff(page, room, 'webkit'));
 });

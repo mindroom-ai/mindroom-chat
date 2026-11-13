@@ -9,7 +9,7 @@ import {
   type DisposableUser,
 } from '../helpers/disposableAccounts';
 import { matrixFetch } from '../helpers/matrix';
-import { onWebKitPage } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // "Remove from Device" in Accounts (P2-lane5-F010) logs the inactive account out as Logout does
 // for the active one: it asks first, with the warning about encrypted messages, keeps the account
@@ -19,7 +19,6 @@ import { onWebKitPage } from '../helpers/webkit';
 // REMOVE_ACCOUNT_SHOTS=<directory> saves the confirmation.
 const PASSWORD = 'remove-account-logout-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.REMOVE_ACCOUNT_SHOTS;
 
 test.use({ viewport: { width: 1280, height: 800 }, launchOptions: CHROMIUM_WITH_SCROLLBARS });
@@ -87,7 +86,7 @@ test('Remove from Device asks first and logs the account out on the server (Chro
 test('Remove from Device asks first and logs the account out on the server (WebKit)', async ({
   baseURL,
 }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
   await onWebKitPage(
     { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, baseURL },

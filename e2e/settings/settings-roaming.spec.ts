@@ -17,7 +17,7 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { holdFirstWrites } from '../helpers/holdWrites';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -428,7 +428,7 @@ test('two devices that change different settings at the same moment keep both (C
 test('two devices that change different settings at the same moment keep both (WebKit)', async ({
   baseURL,
 }) => {
-  test.skip(!process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
   test.setTimeout(240_000);
   const browser = await launchWebKit();
   try {

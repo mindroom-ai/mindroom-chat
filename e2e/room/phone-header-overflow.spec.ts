@@ -25,7 +25,7 @@ import {
   shot,
   withRetry,
 } from '../helpers/designChoices';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   CHROMIUM_WITH_SCROLLBARS,
@@ -41,8 +41,7 @@ import {
 // and a desktop (1280 by 800), light and dark, in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
 // DESIGN_CHOICES_SHOTS=<directory> to save screenshots.
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
-const ENGINES = ['chromium', ...(WEBKIT ? ['webkit'] : [])] as const;
+const ENGINES = ['chromium', ...(WEBKIT_EXECUTABLE ? ['webkit'] : [])] as const;
 const ROOM_NAME = 'Customer Escalations and Renewals';
 const PINNED = 'Escalation playbook: page the on-call lead first, then the account owner.';
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };

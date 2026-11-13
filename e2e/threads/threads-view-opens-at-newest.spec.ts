@@ -14,7 +14,7 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { expectRoomCompact, toggleRoomView } from '../helpers/roomViewSwitch';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -35,7 +35,6 @@ import {
 // newest thread, which stays in view. Set THREADS_VIEW_SHOTS=<directory> to save each step.
 const PASSWORD = 'threads-view-opens-at-newest-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.THREADS_VIEW_SHOTS;
 
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
@@ -436,7 +435,7 @@ for (const [form, options] of [
     test(`Jump to Latest from a message link reaches the newest thread (WebKit, ${form})`, async ({
       baseURL,
     }) => {
-      test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+      test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
       test.setTimeout(240_000);
       const seeded = await seed(`jw${form[0]}`);
       const browser = await launchWebKit();
@@ -452,7 +451,7 @@ for (const [form, options] of [
     test(`the Threads view opens at the newest thread and shows a send (WebKit, ${form})`, async ({
       baseURL,
     }) => {
-      test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+      test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
       test.setTimeout(300_000);
       const seeded = await seed(`w${form[0]}`);
       // The runner adds the file's launch options, whose Chromium flag WebKit refuses.

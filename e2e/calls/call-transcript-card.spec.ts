@@ -27,7 +27,7 @@ import {
   type Account,
   type Scheme,
 } from '../helpers/designChoices';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   CHROMIUM_WITH_SCROLLBARS,
@@ -49,9 +49,8 @@ import {
 // Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Copy Text
 // copies the plain transcript, and a message search that matches a turn opens the transcript
 // with the match marked. Set DESIGN_CHOICES_SHOTS=<directory> to save screenshots.
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
-const ENGINES = ['chromium', ...(WEBKIT ? ['webkit'] : [])] as const;
+const ENGINES = ['chromium', ...(WEBKIT_EXECUTABLE ? ['webkit'] : [])] as const;
 const ROOM_NAME = 'Team chat';
 const LAYOUT = { modern: 0, compact: 1, bubble: 2 } as const;
 // Long enough to end in an ellipsis on a phone.

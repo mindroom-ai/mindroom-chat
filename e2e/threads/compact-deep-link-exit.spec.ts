@@ -7,7 +7,7 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -23,7 +23,6 @@ import {
 // COMPACT_EXIT_SHOTS to a directory to save the room after leaving.
 const PASSWORD = 'compact-deep-link-exit-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.COMPACT_EXIT_SHOTS;
 const ROOTS = 120;
 const LINKED = 20;
@@ -141,7 +140,7 @@ for (const [form, options] of [
     test(`leaving a linked thread shows its card in Compact (WebKit, ${form})`, async ({
       baseURL,
     }) => {
-      test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+      test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
       test.setTimeout(240_000);
       const seeded = await seed(`w${form[0]}`);
       // The runner adds the file's launch options, whose Chromium flag WebKit refuses.

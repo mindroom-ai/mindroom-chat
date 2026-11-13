@@ -11,7 +11,7 @@ import {
 import { buildLoginPath } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -28,7 +28,6 @@ import {
 // WebKit, in WebKit. Set TEXT_FIELD_SHOTS=<directory> to save the screens.
 const PASSWORD = 'touch-text-field-size-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.TEXT_FIELD_SHOTS;
 const PHONE: BrowserContextOptions = {
   viewport: { width: 390, height: 844 },
@@ -163,7 +162,7 @@ test('text fields on touch screens write at the root size (Chromium)', async ({
 });
 
 test('text fields on touch screens write at the root size (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
   const browser = await launchWebKit();

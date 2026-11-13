@@ -10,7 +10,7 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { addRoomToSpace, matrixFetch, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -33,7 +33,6 @@ import {
 // Set VISUAL_LAYOUT_SHOTS=<directory> to save screenshots.
 const PASSWORD = 'visual-layout-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.VISUAL_LAYOUT_SHOTS;
 
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1440, height: 900 } };
@@ -787,7 +786,7 @@ for (const { name, form, options, check } of CASES) {
     });
 
     test(`${name} (WebKit, ${form})`, async ({ baseURL }, testInfo) => {
-      test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+      test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
       test.setTimeout(420_000);
       await runIn('webkit', form, options, check, { baseURL }, testInfo);
     });
