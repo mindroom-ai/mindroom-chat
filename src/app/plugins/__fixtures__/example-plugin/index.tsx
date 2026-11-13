@@ -1,4 +1,4 @@
-// A client plugin for the tests (docs/architecture.md "Client plugins"): a message that carries
+// A client plugin for the tests (docs/client-plugins.md): a message that carries
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json,
 // and "From <sender>" after the sender's avatar in the room, with ", a MindRoom agent" for an agent.

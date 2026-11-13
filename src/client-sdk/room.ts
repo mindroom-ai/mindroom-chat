@@ -1,5 +1,5 @@
-// `@mindroom/client-sdk/room`, the client SDK's subpath for rooms and threads (docs/architecture.md
-// "Client plugins"): it opens them, links to them, names the thread a room's page shows, creates
+// `@mindroom/client-sdk/room`, the client SDK's subpath for rooms and threads (docs/client-plugins.md
+// "room"): it opens them, links to them, names the thread a room's page shows, creates
 // sub-rooms and names the rooms a room is a sub-room of, shows a person's profile card in a room,
 // names the floating one that is open and closes it, and shows a thread on a plugin's own surface.
 // Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION in

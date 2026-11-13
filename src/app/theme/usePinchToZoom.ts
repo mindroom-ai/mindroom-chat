@@ -18,7 +18,7 @@ const wheelPixels = ({ deltaY, deltaMode }: WheelEvent): number => {
 
 /**
  * Marks an element that handles pinches over it itself, such as the image viewer or a plugin's
- * board: the page zoom leaves them to it (docs/architecture.md "Client plugins").
+ * board: the page zoom leaves them to it (docs/client-plugins.md "Pinches").
  */
 export const PINCH_SURFACE_ATTRIBUTE = 'data-pinch-surface';
 /**
@@ -63,7 +63,7 @@ const unregisterSurface = (element: Element | null) => {
 /**
  * Marks `ref`'s element as a pinch surface and hands `onPinch` each pinch the page zoom leaves to
  * it, by the rule that decides which pinches are a surface's: the page zoom then also keeps the
- * browser from zooming or scrolling the page for them (docs/architecture.md "Client plugins").
+ * browser from zooming or scrolling the page for them (docs/client-plugins.md "Pinches").
  */
 export const usePinchSurface = (
   ref: RefObject<HTMLElement>,
