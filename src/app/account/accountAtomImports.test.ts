@@ -40,7 +40,12 @@ describe('atoms the account state test follows', () => {
         "import { atom } from 'jotai/vanilla';\n\nexport const a = atom(1);",
         LANE_P_MODULE
       )
-    ).toEqual([expect.objectContaining({ severity: 2 })]);
+    ).toEqual([
+      expect.objectContaining({
+        severity: 2,
+        message: expect.stringContaining('accountState.test'),
+      }),
+    ]);
   }, 60_000);
 
   it.each([

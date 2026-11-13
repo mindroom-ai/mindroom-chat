@@ -127,13 +127,7 @@ const LAYER_ZONES = LAYERS.flatMap((layer, index) =>
   }))
 );
 // Tests and their helpers (the files tsconfig.app.json leaves out) may import any layer.
-const LAYERS_EXEMPT = [
-  '**/*.test.{ts,tsx}',
-  '**/*.test.shared.ts',
-  '**/__tests__/**',
-  '**/test-utils/**',
-  '**/testUtils.ts',
-];
+const LAYERS_EXEMPT = [...TESTS, '**/*.test.shared.ts', '**/test-utils/**', '**/testUtils.ts'];
 
 module.exports = {
   root: true,
@@ -192,7 +186,7 @@ module.exports = {
         'import/no-restricted-paths': ['error', { basePath: __dirname, zones: LAYER_ZONES }],
       },
     },
-    // The two wrappers relax the import rule of every file.
+    // The two wrappers relax the import rule that every other file has.
     {
       // The directional wrappers place folds' own pop-outs and tooltips.
       files: ['src/app/ui/directional.tsx'],
