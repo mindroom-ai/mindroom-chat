@@ -66,10 +66,11 @@ const ATOM_FACTORIES = [
   'atomWithReset',
   'atomWithStorage',
 ];
-// Every file imports the glass surfaces above, makes atoms the account state test follows, and
-// places pop-outs and tooltips in reading order through the directional wrappers, which mirror
-// folds' physical sides in a right-to-left interface; only the wrapper module itself uses folds' own
-// components. ESLint keys `paths` by module name, so this second restriction on `folds` is a pattern.
+// Every file takes its surfaces from the glass primitives above, makes its atoms where the account
+// state test follows them, and places pop-outs and tooltips in reading order through the directional
+// wrappers, which mirror folds' physical sides in a right-to-left interface; only the wrapper module
+// itself uses folds' own components. ESLint keys `paths` by module name, so this second restriction
+// on `folds` is a pattern.
 const IMPORT_RESTRICTIONS = {
   paths: [
     ...GLASS_RESTRICTIONS.paths,
