@@ -2,8 +2,7 @@
  * ISSUE-207 P3.1: React context wrapper for SyncEngine.
  *
  * The engine itself is framework-agnostic. This module exposes it to
- * the React tree so consumers (Commit 5 rewires the fetch controllers
- * onto engine.persist through this hook) don't have to prop-drill.
+ * the React tree so consumers don't have to prop-drill.
  * ClientRoot.tsx creates the engine, calls start(), then wraps the
  * ready content with `<SyncEngineProvider>` next to the
  * MatrixClientProvider.

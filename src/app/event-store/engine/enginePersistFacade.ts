@@ -63,8 +63,8 @@ export type EnginePersistFacade = {
   /**
    * Bind the facade to a specific room, returning fn shapes the fetch
    * controllers already consume (`PersistRoomEventCache`,
-   * `PersistThreadEventCache`). Convenience for the
-   * MindroomRoomTimeline wiring which knows the mounted room.
+   * `PersistThreadEventCache`), for an owner that knows its room
+   * before async work starts.
    */
   forRoom(room: Room): {
     isCurrent(): boolean;

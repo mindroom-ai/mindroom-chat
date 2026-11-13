@@ -880,21 +880,12 @@ export const mergeThreadRenderEvents = (
     unionKeys.forEach((key) => indexedSet(key, winner));
   };
 
-  existingEvents.forEach((mEvent) => {
-    const keys = getThreadRenderEventKeys(mEvent, resolveConfirmedId);
-    if (keys.length === 0) return;
-    setEventForKeys(keys, mEvent);
-  });
+  // setEventForKeys picks the winner and displaces the losers (RG5d).
+  const addEvent = (mEvent: MatrixEvent) =>
+    setEventForKeys(getThreadRenderEventKeys(mEvent, resolveConfirmedId), mEvent);
+  existingEvents.forEach(addEvent);
+  incomingEvents.forEach(addEvent);
 
-  incomingEvents.forEach((mEvent) => {
-    const incomingKeys = getThreadRenderEventKeys(mEvent, resolveConfirmedId);
-    if (incomingKeys.length === 0) return;
-
-    // setEventForKeys handles the pick + displacement internally; the
-    // caller just provides the new event and its keys. This is the
-    // canonicalization seam (RG5d); see setEventForKeys comment block.
-    setEventForKeys(incomingKeys, mEvent);
-  });
   return Array.from(new Set(eventMap.values())).sort(compareThreadRenderOrder);
 };
 
