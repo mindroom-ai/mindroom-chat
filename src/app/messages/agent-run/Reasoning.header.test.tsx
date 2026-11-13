@@ -3,10 +3,13 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Icon, Icons } from 'folds';
 import { withReasoning } from './Reasoning';
+import { ToolCallsCogContext } from './toolCallStatus';
 
 vi.mock('./Reasoning.css', () => ({
   Reasoning: 'Reasoning',
+  Line: 'Line',
   Toggle: 'Toggle',
+  CogRow: 'CogRow',
   CollapseEnd: 'CollapseEnd',
   Label: 'Label',
   Chevron: 'Chevron',
@@ -133,20 +136,79 @@ describe('reasoning header', () => {
     expect(collapseEnd()).toHaveLength(0);
   });
 
-  it('keeps the body and its state when warm-up lines or reasoning come and go', () => {
+  describe("the reply's tool-call cog", () => {
+    const cog = <button data-cog="">2</button>;
+    const reply = (content: Record<string, unknown>) => {
+      act(() => {
+        renderer = create(
+          <ToolCallsCogContext.Provider value={cog}>
+            {withReasoning(content, <p>Answer</p>, {})}
+          </ToolCallsCogContext.Provider>
+        );
+      });
+      return renderer!.root.find((node) => node.props?.['data-cog'] !== undefined);
+    };
+
+    it('sits on the line of finished reasoning, after its toggle', () => {
+      const found = reply({
+        body: 'Answer',
+        'io.mindroom.stream_status': 'completed',
+        'io.mindroom.reasoning': { text: 'Weighed two options', duration_ms: 7600 },
+      });
+      const line = found.parent!;
+      expect(line.props.className).toBe('Line');
+      expect(line.children.map((child) => (child as ReactTestInstance).props.className)).toEqual([
+        'Toggle',
+        undefined,
+      ]);
+    });
+
+    it('sits on the line of streaming reasoning too, above the open reasoning', () => {
+      const found = reply({
+        body: 'Thinking...',
+        'io.mindroom.stream_status': 'streaming',
+        'io.mindroom.live_reasoning': 'Comparing options',
+      });
+      expect(found.parent!.props.className).toBe('Line');
+      expect(found.parent!.findByProps({ className: 'Toggle' }).props['aria-expanded']).toBe(true);
+    });
+
+    it('has a row of its own above the body when the reply has no reasoning', () => {
+      const found = reply({ body: 'Answer', 'io.mindroom.stream_status': 'completed' });
+      expect(found.parent!.props.className).toBe('CogRow');
+      expect(renderer!.toJSON()).toMatchObject([{ props: { className: 'CogRow' } }, { type: 'p' }]);
+    });
+
+    it('leaves no row when the reply has no cog', () => {
+      act(() => {
+        renderer = create(
+          <>
+            {withReasoning(
+              { body: 'Answer', 'io.mindroom.stream_status': 'completed' },
+              <p>Answer</p>,
+              {}
+            )}
+          </>
+        );
+      });
+      expect(renderer!.root.findAllByProps({ className: 'CogRow' })).toHaveLength(0);
+    });
+  });
+
+  it('keeps the body and its state when warm-up lines, reasoning or the cog come and go', () => {
     const Body = () => {
       const [first] = useState(() => Math.random());
       return <p data-first={first}>Answer</p>;
     };
     const body = <Body />;
-    const show = (extra: Record<string, unknown>) => (
-      <>
+    const show = ({ cog, ...extra }: Record<string, unknown>) => (
+      <ToolCallsCogContext.Provider value={cog ? <button>1</button> : null}>
         {withReasoning(
           { body: 'Answer', 'io.mindroom.stream_status': 'streaming', ...extra },
           body,
           {}
         )}
-      </>
+      </ToolCallsCogContext.Provider>
     );
     act(() => {
       renderer = create(show({}));
@@ -155,6 +217,8 @@ describe('reasoning header', () => {
     for (const extra of [
       { 'io.mindroom.live_activity': 'Starting the worker' },
       {},
+      { cog: true },
+      { cog: true, 'io.mindroom.live_reasoning': 'Thinking it over' },
       { 'io.mindroom.live_reasoning': 'Thinking it over' },
       {},
     ]) {

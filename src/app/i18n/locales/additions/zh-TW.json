@@ -607,7 +607,7 @@
         "tooLargeToApprove": "參數太大，無法審閱，因此此請求只能拒絕。"
       },
       "showToolCalls": "顯示工具呼叫",
-      "showToolCallsDescription": "所有聊天室的預設設定：代理程式的回覆會列出執行過的工具，或只在結尾顯示一個小齒輪，它會統計這些工具，點擊後顯示它們。聊天室或討論串的選單可在該處變更。",
+      "showToolCallsDescription": "所有聊天室的預設設定：代理程式的回覆會列出執行過的工具，或只在頂部顯示一個小齒輪，它會統計這些工具，點擊後顯示它們。聊天室或討論串的選單可在該處變更。",
       "toolCallsWorking": "處理中…"
     },
     "message-search": {

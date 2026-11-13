@@ -22,6 +22,7 @@ import {
 import { markerParserOptions } from '../../../test/utils/markerParserOptions';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { ToolCallsFold } from '../agent-run/ToolCallsFold';
+import { withReasoning } from '../agent-run/Reasoning';
 import backendToolMarkerBodies from '../__fixtures__/backendToolMarkerBodies.json';
 import { getRenderedToolRefs } from '../agent-run/toolRefDom';
 import {
@@ -107,6 +108,13 @@ vi.mock('folds', async () => {
 // The folds stand-in above has no colors, which these styles read; their class names will do.
 vi.mock('../agent-run/ToolCallsFold.css', () =>
   Object.fromEntries(['Fold', 'Cog', 'CogIcon'].map((name) => [name, name]))
+);
+vi.mock('../agent-run/Reasoning.css', () =>
+  Object.fromEntries(
+    ['Reasoning', 'Line', 'Toggle', 'CogRow', 'CollapseEnd', 'Label', 'Chevron', 'Body'].map(
+      (name) => [name, name]
+    )
+  )
 );
 
 vi.mock('../../rich-text/CustomHtml.css', () => ({
@@ -786,14 +794,28 @@ describe('useToolTraceMarkerParserOptions', () => {
         `<p>🔧 <code>share_app</code> [3]${pending ? ' ⏳' : ''}</p>`,
         '<p>Answer.</p>',
       ].join('');
+    // The reply as a message draws it: the fold around the reasoning and the parsed body.
     const renderReply = (
       html: string,
-      { shownByDefault, threadId }: { shownByDefault: boolean; threadId?: string }
+      {
+        shownByDefault,
+        threadId,
+        reasoning,
+      }: { shownByDefault: boolean; threadId?: string; reasoning?: string }
     ) => {
       const store = createStore();
       store.set(settingsAtom, { ...getSettings(), showToolCalls: shownByDefault });
-      const element = (markup: string) =>
-        React.createElement(
+      const element = (markup: string) => {
+        const content = {
+          body: markup,
+          formatted_body: markup,
+          'io.mindroom.stream_status': 'completed',
+          ...(reasoning
+            ? { 'io.mindroom.reasoning': { text: reasoning, duration_ms: 12_000 } }
+            : {}),
+        };
+        const options = markerParserOptions(createBaseOpts(), content);
+        return React.createElement(
           Provider,
           { store },
           React.createElement(
@@ -802,22 +824,30 @@ describe('useToolTraceMarkerParserOptions', () => {
             React.createElement(
               ToolCallsFold,
               null,
-              parse(markup, markerParserOptions(createBaseOpts(), { formatted_body: markup }))
+              withReasoning(content, parse(markup, options), options)
             )
           )
         );
+      };
       let renderer: ReactTestRenderer | undefined;
       act(() => {
         renderer = create(element(html));
       });
       const cogs = () =>
         renderer!.root.findAll(
-          (node) => typeof node.type === 'string' && node.props['data-tool-calls-fold'] !== undefined
+          (node) =>
+            typeof node.type === 'string' && node.props['data-tool-calls-fold'] !== undefined
         );
+      const cog = () => {
+        const [found] = cogs();
+        if (!found) throw new Error('No cog on the reply');
+        return found;
+      };
       return {
         text: () => collectTextContent(renderer?.toJSON() ?? null),
         cogs,
-        cogButton: () => cogs()[0].findByType('button'),
+        cogButton: () => cog().findByType('button'),
+        cog,
         // The lines that open a run's calls, as they show when tool calls show.
         runLines: () =>
           renderer!.root.findAll(
@@ -851,17 +881,32 @@ describe('useToolTraceMarkerParserOptions', () => {
       reply.unmount();
     });
 
-    it('counts all the tool calls of the reply on one cog at its end, which turns while one runs', () => {
+    it('counts all the tool calls of the reply on one cog at its top, which turns while one runs', () => {
       const reply = renderReply(twoRunsHtml(true), { shownByDefault: false });
-      expect(reply.text()).toBe('Looking it up.Between.Answer.3');
+      expect(reply.text()).toBe('3Looking it up.Between.Answer.');
       expect(reply.cogs()).toHaveLength(1);
-      expect(reply.cogs()[0].props['data-state']).toBe('running');
+      expect(reply.cog().props['data-state']).toBe('running');
       expect(reply.cogButton().props.title).toBe('Running 3 tool calls');
 
       reply.update(twoRunsHtml(false));
-      expect(reply.text()).toBe('Looking it up.Between.Answer.3');
-      expect(reply.cogs()[0].props['data-state']).toBe('done');
+      expect(reply.text()).toBe('3Looking it up.Between.Answer.');
+      expect(reply.cog().props['data-state']).toBe('done');
       expect(reply.cogButton().props.title).toBe('Used 3 tools');
+      reply.unmount();
+    });
+
+    it("puts the cog on the line of the reply's reasoning, after its toggle", () => {
+      const reply = renderReply(twoRunsHtml(false), {
+        shownByDefault: false,
+        reasoning: 'Weighed two sources',
+      });
+      expect(reply.text()).toBe('Thought for 12 s3Looking it up.Between.Answer.');
+      const line = reply.cog().parent;
+      if (!line) throw new Error('No line around the cog');
+      expect(line.findAll((node) => node.type === 'button').map((b) => b.props.title)).toEqual([
+        undefined,
+        'Used 3 tools',
+      ]);
       reply.unmount();
     });
 

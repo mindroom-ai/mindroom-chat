@@ -3,10 +3,10 @@ import { DefaultReset, color, config, toRem } from 'folds';
 
 const turn = keyframes({ to: { transform: 'rotate(360deg)' } });
 
-export const Fold = style([DefaultReset, { marginBlockStart: config.space.S100 }]);
+export const Fold = style([DefaultReset, { display: 'inline-flex' }]);
 
-// Grey and faint with no box at rest, so a reply's end stays quiet; colored while a call runs or
-// waits for approval.
+// Grey and faint with no box at rest, so the top of a reply stays quiet; colored while a call runs
+// or waits for approval.
 export const Cog = style([
   DefaultReset,
   {

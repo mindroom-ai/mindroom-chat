@@ -7,6 +7,7 @@ import {
   summarizeToolCalls,
   TOOL_STATE_TITLE,
   ToolCallMessageContext,
+  ToolCallsCogContext,
   ToolCallsFoldContext,
 } from './toolCallStatus';
 import * as css from './ToolCallsFold.css';
@@ -16,9 +17,10 @@ const sameCalls = (a: readonly FoldedToolCall[], b: readonly FoldedToolCall[]) =
   a.every((call, index) => call.toolName === b[index]?.toolName && call.state === b[index]?.state);
 
 /**
- * An agent reply, with a small cog at its end while its thread or room hides tool calls: the cog
+ * An agent reply, with a small cog at its top while its thread or room hides tool calls: the cog
  * counts all of the reply's calls and turns while one runs. It shows each run of calls where it
- * ran, as the line it has when tool calls show, and hides them again.
+ * ran, as the line it has when tool calls show, and hides them again. The reply's reasoning line
+ * shows the cog (withReasoning in Reasoning.tsx), so it keeps one place while the reply streams.
  */
 export function ToolCallsFold({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
@@ -51,30 +53,32 @@ export function ToolCallsFold({ children }: { children: ReactNode }) {
       ? t('mindroomUi.messages.mindroomHtmlBlocks.usedToolCount', { count: calls.length })
       : t(TOOL_STATE_TITLE[summary.state], { count: summary.count });
 
+  const cog =
+    !shown && calls.length > 0 ? (
+      // Keeps the interface's direction in a message that reads the other way (index.css).
+      <span
+        className={css.Fold}
+        data-message-disclosure=""
+        data-tool-calls-fold=""
+        data-state={summary.state}
+      >
+        <button
+          type="button"
+          className={css.Cog}
+          aria-expanded={open}
+          aria-label={title}
+          title={title}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <Icon size="Inherit" className={css.CogIcon} src={Icons.Setting} aria-hidden />
+          {calls.length}
+        </button>
+      </span>
+    ) : null;
+
   return (
     <ToolCallsFoldContext.Provider value={fold}>
-      {children}
-      {!shown && calls.length > 0 && (
-        // Keeps the interface's direction in a message that reads the other way (index.css).
-        <div
-          className={css.Fold}
-          data-message-disclosure=""
-          data-tool-calls-fold=""
-          data-state={summary.state}
-        >
-          <button
-            type="button"
-            className={css.Cog}
-            aria-expanded={open}
-            aria-label={title}
-            title={title}
-            onClick={() => setOpen((value) => !value)}
-          >
-            <Icon size="Inherit" className={css.CogIcon} src={Icons.Setting} aria-hidden />
-            {calls.length}
-          </button>
-        </div>
-      )}
+      <ToolCallsCogContext.Provider value={cog}>{children}</ToolCallsCogContext.Provider>
     </ToolCallsFoldContext.Provider>
   );
 }

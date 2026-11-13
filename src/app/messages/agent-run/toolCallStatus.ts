@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useId } from 'react';
+import { createContext, useContext, useEffect, useId, type ReactNode } from 'react';
 import type { ToolApprovalStatus } from '../../matrix/protocol/toolApproval';
 import type { ToolJobHandle } from '../../matrix/protocol/toolJobHandle';
 
@@ -15,14 +15,20 @@ export const ToolCallMessageContext = createContext<ToolCallMessage | undefined>
 export type FoldedToolCall = { toolName: string; state: ToolCallState };
 
 /**
- * The cog at the end of a reply whose tool calls are hidden: whether it shows the reply's runs of
- * calls, and where each run reports its calls (none once it is gone).
+ * The cog of a reply whose tool calls are hidden: whether it shows the reply's runs of calls, and
+ * where each run reports its calls (none once it is gone).
  */
 export type ToolCallsFoldState = {
   open: boolean;
   report: (key: string, calls?: readonly FoldedToolCall[]) => void;
 };
 export const ToolCallsFoldContext = createContext<ToolCallsFoldState | undefined>(undefined);
+
+/**
+ * The reply's cog as ToolCallsFold draws it, for the top of the reply to show (withReasoning in
+ * Reasoning.tsx); nothing while the reply has no hidden tool calls.
+ */
+export const ToolCallsCogContext = createContext<ReactNode>(null);
 
 /** Counts a run's calls on the reply's cog while `calls` is given, and takes them back after. */
 export const useFoldedToolCalls = (calls: readonly FoldedToolCall[] | undefined): void => {

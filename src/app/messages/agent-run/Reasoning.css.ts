@@ -9,6 +9,15 @@ export const Reasoning = style({
   marginBottom: config.space.S100,
 });
 
+/** The toggle and, while the reply's tool calls are hidden, its cog (ToolCallsFold.tsx) after it. */
+export const Line = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  columnGap: config.space.S300,
+  minWidth: 0,
+});
+
 /**
  * A bulb, the label and a chevron, in the tone of the tool row's detail text below it. The bulb
  * starts at the text edge, where the tool row's icon tile starts, and the row is 24 px tall.
@@ -29,7 +38,14 @@ export const Toggle = style({
     '&:hover, &:focus-visible, &[aria-expanded="true"]': {
       opacity: 1,
     },
+    [`${Line} > &`]: { alignSelf: 'center' },
   },
+});
+
+/** The cog of a reply without reasoning, alone at the top of the reply where the toggle goes. */
+export const CogRow = style({
+  display: 'flex',
+  marginBottom: config.space.S100,
 });
 
 /** Under open reasoning, a chevron up and "Collapse", in the header's tone, at its edge. */
