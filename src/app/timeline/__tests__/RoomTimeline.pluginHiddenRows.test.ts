@@ -147,4 +147,23 @@ describe('rows a plugin hides', () => {
       act(() => renderer.unmount());
     }
   });
+
+  it("keeps every row in the room's timeline, where Classic shows thread replies", async () => {
+    pluginRowHiddenMock.test = (event) => event.content['org.example.relay'] === true;
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 1_000 });
+    const relay = makeEvent('$relay', { threadRootId: threadId, ts: 2_000, content: forAgents });
+    const room = makeRoom({ liveEvents: [rootEvent, relay] });
+    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(Harness, { room, initialViewMode: 'classic' }));
+        await flushAsyncWork();
+      });
+      expect(getRenderedEventIds(renderer!)).toEqual([threadId, '$relay']);
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
 });

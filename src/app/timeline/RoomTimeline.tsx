@@ -711,25 +711,15 @@ export function RoomTimeline(props: RoomTimelineProps) {
     return (event: MatrixEvent) =>
       isPluginHiddenRow(event, getRowContent, threadRowHidden, revealed);
   }, [eventId, focusEventId, getRowContent, threadRowHidden]);
-  // The thread's rows by ID, the cache's too before the SDK has them: no row quotes a hidden one.
-  const threadRowById = useMemo(
-    () =>
-      threadRowHidden
-        ? new Map(
-            threadEvents.flatMap((event) => {
-              const id = event.getId();
-              return id ? [[id, event] as const] : [];
-            })
-          )
-        : undefined,
-    [threadRowHidden, threadEvents]
-  );
+  // Looked up among the thread's rows, the cache's too before the SDK has them: no row quotes a
+  // hidden one.
+  const threadEventMap = threadState.threadEventMap;
   const isHiddenByPluginId = useCallback(
     (id: string) => {
-      const event = threadRowById?.get(id);
+      const event = threadRowHidden ? threadEventMap?.get(id) : undefined;
       return !!event && isHiddenByPlugin(event);
     },
-    [threadRowById, isHiddenByPlugin]
+    [threadRowHidden, threadEventMap, isHiddenByPlugin]
   );
   // The open thread's replies a plugin hides, which the virtual list sizes as nothing.
   const pluginHiddenThreadIds = useMemo(

@@ -39,8 +39,8 @@ export type MessageRenderer = {
    * thread replies, keeps it. Asked only after `match` took the message, and only of a MindRoom
    * agent's message on the viewer's homeserver, whatever `trust` says: a row nobody sees while
    * agents read it must come from MindRoom. A thread's root, a message outside any thread and the
-   * message a route or a jump opens keep their rows. No row quotes a message it hides. Pure and
-   * synchronous; anything but `true`, or a throw, keeps the row.
+   * message a route or a jump opens keep their rows. No row quotes a message it hides among the
+   * thread's loaded rows. Pure and synchronous; anything but `true`, or a throw, keeps the row.
    */
   hidden?: (event: PluginEvent) => boolean;
 };

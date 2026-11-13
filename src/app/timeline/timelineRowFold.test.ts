@@ -119,7 +119,7 @@ describe('foldTimelineRowContexts', () => {
   });
 
   it('puts the unread divider above the first unread row past rows that render nothing, wherever the window starts', () => {
-    // A read row, twenty rows the timeline skips (a plugin hides them), then an unread answer.
+    // A read row, twenty rows the timeline skips (settled approvals, say), then an unread answer.
     const events = [
       toEvent({ id: '$read', sender: '@maya:x', type: 'm.room.message', minute: 0 }),
       ...Array.from({ length: 20 }, (_, n) =>
