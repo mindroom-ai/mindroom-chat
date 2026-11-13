@@ -136,6 +136,8 @@ test.describe('room view defaults', () => {
     const unresolved = overview.locator('[data-simple-unresolved-toggle]');
     const modeSwitch = overview.locator('[data-thread-filter-mode-switch]');
     await expect(unresolved).toBeVisible();
+    // Compact opens with resolved threads hidden.
+    await expect(unresolved).toHaveAttribute('aria-pressed', 'true');
     await expect(overview.locator('[data-thread-count]')).toBeVisible();
     await expect(filterToggles).toHaveCount(0);
     await expect(modeSwitch).toHaveAttribute('aria-pressed', 'false');
@@ -157,6 +159,16 @@ test.describe('room view defaults', () => {
     await expect(filterButton).toHaveAccessibleName('Thread filters');
     const hiddenFiltersDot = page.locator('[data-hidden-filters-dot]');
     await expect(hiddenFiltersDot).toHaveCount(0);
+    // Hidden, the bar's default Unresolved filter still applies, and the button marks it.
+    await filterButton.click();
+    await expect(overview).toHaveCount(0);
+    await expect(hiddenFiltersDot).toBeVisible();
+    await expect(filterButton).toHaveAccessibleName('Thread filters (active)');
+    await filterButton.click();
+    await expect(hiddenFiltersDot).toHaveCount(0);
+    // Turned off, the choice is the room's from now on.
+    await unresolved.click();
+    await expect(unresolved).toHaveAttribute('aria-pressed', 'false');
     const screenshotBothThemes = async (name: string) => {
       if (!SCREENSHOT) return;
       for (const colorScheme of ['light', 'dark'] as const) {
