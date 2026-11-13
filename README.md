@@ -117,6 +117,7 @@ This MindRoom Chat replaces the legacy MindRoom Chat client ([`mindroom-chat-leg
 | [`docs/deployment.md`](docs/deployment.md) | the build, serving it, homeserver and MindRoom backend |
 | [`docs/configuration.md`](docs/configuration.md) | `config.json`, `runtime-config.js` and build variables |
 | [`docs/architecture.md`](docs/architecture.md) | folders, layers, the two code lanes, and the MindRoom event formats |
+| [`docs/client-plugins.md`](docs/client-plugins.md) | the client plugin API: the declaration, the client SDK, each kind of contribution, tests |
 | [`docs/ios-release.md`](docs/ios-release.md) | calendar versions `vYYYY.M.N`, `just release`, Xcode Cloud and the App Store app |
 | [`docs/provenance.md`](docs/provenance.md) | where the code came from |
 | [`docs/design/reference/`](docs/design/reference/) | the screenshots the app is compared with |

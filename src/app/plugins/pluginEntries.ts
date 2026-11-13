@@ -1,5 +1,5 @@
 /**
- * One client plugin the build lists (docs/architecture.md "Client plugins"): the id and version from
+ * One client plugin the build lists (docs/client-plugins.md): the id and version from
  * its package.json, and the default export of its entry module, unchecked.
  */
 export type PluginEntry = { id: string; version: string; plugin: unknown };
