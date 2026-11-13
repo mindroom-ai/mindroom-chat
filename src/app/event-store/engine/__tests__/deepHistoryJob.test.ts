@@ -152,7 +152,7 @@ describe('enqueueRoomDeepHistoryJob (ISSUE-207 P4.3)', () => {
       roomId: '!room:mindroom.chat',
     });
 
-    expect(mx.__calls.length).toBeGreaterThanOrEqual(2);
+    expect(mx.__calls.map((call) => call.fromToken)).toEqual([null, 'tok-1']);
     for (const id of ['$a', '$b', '$c']) {
       // eslint-disable-next-line no-await-in-loop
       const row = await loadCachedRoomEvent(SESSION_ID, '!room:mindroom.chat', id);
