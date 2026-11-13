@@ -244,7 +244,7 @@ describe('the shared room actions', () => {
     expect(rows()).toEqual(['Show Members', ...SHARED]);
   });
 
-  it('closes the menu, then searches the room within the space it is listed in', () => {
+  it('closes the menu, then searches the room within the space it is listed in, or opens its settings', () => {
     const close = vi.fn();
     render(<Harness spaceId="!space:example.org" close={close} />);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Message Search' }));

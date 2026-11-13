@@ -10,7 +10,6 @@ import { CreateRoomAccess } from '../../matrix/createRoomTypes';
 import { RoomType } from '../../matrix/types/room';
 import { CreateSpaceModalRenderer } from './CreateSpaceModal';
 
-const PARENT = '!parent:test';
 const NEW_SPACE = '!new:test';
 
 const mocks = vi.hoisted(() => ({
@@ -22,7 +21,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../matrix/createRoom', () => ({ createRoom: mocks.createRoom }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
-    getRoom: (roomId: string) => (roomId === PARENT ? mocks.parent : null),
+    getRoom: (roomId: string) => (roomId === mocks.parent.roomId ? mocks.parent : null),
   }),
 }));
 vi.mock('../../matrix/waitForJoinedRoom', () => ({
@@ -115,7 +114,7 @@ describe('Create Space dialog', () => {
 
   it('creates a subspace open to the parent space and stays in its lobby', async () => {
     mocks.createRoom.mockResolvedValue(NEW_SPACE);
-    open(PARENT);
+    open(mocks.parent.roomId);
     fill('Sub');
 
     await act(async () => byText('Create')!.click());

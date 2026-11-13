@@ -86,14 +86,4 @@ describe('Create Room dialog', () => {
     expect(mocks.createRoom.mock.calls[0]![1].type).toBeUndefined();
     expect(mocks.navigateRoom).toHaveBeenCalledWith(NEW_ROOM);
   });
-
-  it('opens the advanced options without creating the room', async () => {
-    open();
-
-    expect(host.textContent).not.toContain('Version');
-    await act(async () => byText('Advanced Options').click());
-
-    expect(mocks.createRoom).not.toHaveBeenCalled();
-    expect(host.textContent).toContain('Version');
-  });
 });

@@ -38,13 +38,13 @@ describe('LeaveRoomPrompt', () => {
     forget.mockReset();
   });
 
-  const show = (store = createStore()) => {
+  const show = (store = createStore(), roomId = '!r:test') => {
     const onLeft = vi.fn();
     const requestClose = vi.fn();
     act(() =>
       root.render(
         <Provider store={store}>
-          <LeaveRoomPrompt roomId="!r:test" onLeft={onLeft} requestClose={requestClose} />
+          <LeaveRoomPrompt roomId={roomId} onLeft={onLeft} requestClose={requestClose} />
         </Provider>
       )
     );
@@ -123,9 +123,7 @@ describe('LeaveRoomPrompt', () => {
     expect(alert?.firstChild?.textContent).toBe(
       "Failed to leave room! You don't have permission to do this."
     );
-    expect(alert?.querySelector('bdi')?.textContent).toBe(
-      'M_FORBIDDEN: You are not in this room.'
-    );
+    expect(alert?.querySelector('bdi')?.textContent).toBe('M_FORBIDDEN: You are not in this room.');
     expect(leaveButton.disabled).toBe(false);
   });
 
@@ -146,44 +144,10 @@ describe('LeaveRoomPrompt', () => {
     expect(requestClose).toHaveBeenCalledOnce();
     expect(leave).not.toHaveBeenCalled();
   });
-});
-
-describe('LeaveRoomPrompt for a space', () => {
-  let host: HTMLDivElement;
-  let root: Root;
-
-  beforeEach(() => {
-    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-    host = document.createElement('div');
-    document.body.append(host);
-    root = createRoot(host);
-  });
-
-  afterEach(() => {
-    act(() => root.unmount());
-    host.remove();
-    leave.mockReset();
-    forget.mockReset();
-  });
-
-  const show = () => {
-    const onLeft = vi.fn();
-    act(() =>
-      root.render(
-        <Provider store={createStore()}>
-          <LeaveRoomPrompt roomId={SPACE} onLeft={onLeft} requestClose={vi.fn()} />
-        </Provider>
-      )
-    );
-    const leaveButton = [...document.querySelectorAll('button')].find(
-      (button) => button.textContent === 'Leave'
-    )!;
-    return { onLeft, leaveButton };
-  };
 
   it("asks in a space's words, offers no forgetting, and leaves", async () => {
     leave.mockResolvedValue({});
-    const { onLeft, leaveButton } = show();
+    const { onLeft, leaveButton } = show(undefined, SPACE);
     const dialog = document.querySelector('[role="alertdialog"]');
     expect(dialog?.textContent).toContain('Leave Space');
     expect(dialog?.textContent).toContain('Are you sure you want to leave this space?');
@@ -198,7 +162,7 @@ describe('LeaveRoomPrompt for a space', () => {
 
   it("keeps the prompt open with the space's failure line", async () => {
     leave.mockRejectedValue(new Error('nope'));
-    const { onLeft, leaveButton } = show();
+    const { onLeft, leaveButton } = show(undefined, SPACE);
 
     await act(async () => leaveButton.click());
 

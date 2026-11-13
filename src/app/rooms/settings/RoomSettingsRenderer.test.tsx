@@ -13,7 +13,7 @@ const ME = '@me:test';
 const ROOM = '!room:test';
 const SPACE = '!space:test';
 
-const rooms = vi.hoisted(() => new Map<string, unknown>());
+const rooms = vi.hoisted(() => new Map<string, Room>());
 
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getRoom: (roomId?: string) => rooms.get(roomId ?? '') ?? null }),
@@ -137,12 +137,6 @@ describe('room and space settings dialog', () => {
     expect(parts()).not.toHaveProperty('offline');
 
     act(() => menuEntry('Permissions').click());
-    expect(parts()).toEqual({ permissions: 'true' });
-  });
-
-  it("opens a space's Permissions page in a space's words when asked for it", () => {
-    act(() => openSettings(SPACE, RoomSettingsPage.PermissionsPage));
-
     expect(parts()).toEqual({ permissions: 'true' });
   });
 

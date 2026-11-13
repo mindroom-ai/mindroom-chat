@@ -52,7 +52,7 @@ export type RoomActionDialog = (close: () => void) => ReactNode;
 /** What every entry of a room menu gets: the room, where the menu opened, and its controls. */
 export type RoomActionProps = {
   room: Room;
-  /** The space the room is listed or open in, which its settings and search stay in. */
+  /** The space the room is listed or open in, which its search and new sub-rooms stay in. */
   spaceId?: string;
   /** The thread open in the room (the room header's menu), which Jump to Time stays in. */
   threadId?: string;

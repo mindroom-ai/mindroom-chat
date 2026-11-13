@@ -24,7 +24,7 @@ export function RoomSettingsRenderer() {
       className={phone ? undefined : RoomSettingsDialog}
     >
       <RoomSettings
-        key={`${room.roomId} ${requested.request}`}
+        key={requested.request}
         room={room}
         openOn={requested.page}
         requestClose={close}

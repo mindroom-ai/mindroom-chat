@@ -137,7 +137,6 @@ vi.mock('../../matrix/hooks/useRoomsNotificationPreferences', async (importOrigi
   getRoomNotificationMode: () => undefined,
   useRoomsNotificationPreferencesContext: () => ({}),
 }));
-vi.mock('../../navigation/useRoomSettingsState', () => ({ useOpenRoomSettings: () => vi.fn() }));
 vi.mock('../../matrix/state/archivedRooms', () => ({
   useVisibleRooms: (roomIds: string[]) => roomIds,
 }));
@@ -213,7 +212,7 @@ describe('Space navigation', () => {
       (node) => typeof node.type === 'string' && 'data-row-room' in node.props
     );
     expect(rows.map((node) => node.props['data-row-room'] as string)).toEqual([joined]);
-    // The row opens the room in the space, whose settings and search it stays in.
+    // The row opens the room in the space, whose search it stays in.
     expect(rows[0]?.props['data-link']).toBe(getSpaceRoomPath(space, joined));
     expect(rows[0]?.props['data-space']).toBe(space);
     // Only a row under a room frames its hash.
